@@ -254,9 +254,9 @@ JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
 }
 
 JS_PUBLIC_API(void)
-JS_ClearScriptTraps(JSRuntime *rt, JSScript *script)
+JS_ClearScriptTraps(JSContext *cx, JSScript *script)
 {
-    script->clearTraps(rt->defaultFreeOp());
+    script->clearTraps(cx->runtime()->defaultFreeOp());
 }
 
 JS_PUBLIC_API(void)

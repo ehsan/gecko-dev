@@ -408,8 +408,7 @@ DefineAccessor(JSContext *cx, unsigned argc, Value *vp)
     RootedObject thisObj(cx, &args.thisv().toObject());
 
     JSBool dummy;
-    RootedValue descObjValue(cx, ObjectValue(*descObj));
-    if (!DefineOwnProperty(cx, thisObj, id, descObjValue, &dummy))
+    if (!js_DefineOwnProperty(cx, thisObj, id, ObjectValue(*descObj), &dummy))
         return false;
 
     args.rval().setUndefined();
@@ -856,8 +855,10 @@ obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!ValueToId<CanGC>(cx, args.handleOrUndefinedAt(1), &id))
         return JS_FALSE;
 
+    const Value descval = args.get(2);
+
     JSBool junk;
-    if (!DefineOwnProperty(cx, obj, id, args.handleOrUndefinedAt(2), &junk))
+    if (!js_DefineOwnProperty(cx, obj, id, descval, &junk))
         return false;
 
     args.rval().setObject(*obj);

@@ -1398,6 +1398,11 @@ public:
     JSObject*
     GetGlobalJSObjectPreserveColor() const {return mGlobalJSObject;}
 
+    // Getter for the prototype that we use for wrappers that have no
+    // helper.
+    JSObject*
+    GetPrototypeNoHelper();
+
     nsIPrincipal*
     GetPrincipal() const {
         JSCompartment *c = js::GetObjectCompartment(mGlobalJSObject);
@@ -1520,6 +1525,9 @@ private:
     // EnsureXBLScope() decides whether it needs to be created or not.
     // This reference is wrapped into the compartment of mGlobalJSObject.
     JS::ObjectPtr                    mXBLScope;
+
+    // Prototype to use for wrappers with no helper.
+    JSObject*                        mPrototypeNoHelper;
 
     XPCContext*                      mContext;
 

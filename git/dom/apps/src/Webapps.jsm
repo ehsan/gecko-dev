@@ -725,7 +725,6 @@ this.DOMApplicationRegistry = {
         ppmm.removeMessageListener(msgName, this);
       }).bind(this));
       Services.obs.removeObserver(this, "xpcom-shutdown");
-      cpmm = null;
       ppmm = null;
     }
   },

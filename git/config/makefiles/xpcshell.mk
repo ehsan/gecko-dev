@@ -31,6 +31,7 @@ libs-xpcshell-tests:
 ifndef NO_XPCSHELL_MANIFEST_CHECK #{
 	$(PYTHON) $(MOZILLA_DIR)/build/xpccheck.py \
 	  $(topsrcdir) \
+	  $(topsrcdir)/testing/xpcshell/xpcshell.ini \
 	  $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS))
 endif #} NO_XPCSHELL_MANIFEST_CHECK 
 

@@ -19,8 +19,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
 #include "nsDocElementCreatedNotificationRunner.h"
-#include "mozilla/Services.h"
-#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace dom {

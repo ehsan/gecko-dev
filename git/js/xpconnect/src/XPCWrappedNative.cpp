@@ -1115,7 +1115,8 @@ XPCWrappedNative::Init(HandleObject parent,
 
     JSObject* protoJSObject = HasProto() ?
                                 GetProto()->GetJSProtoObject() :
-                                JS_GetObjectPrototype(cx, parent);
+                                GetScope()->GetPrototypeNoHelper();
+
     if (!protoJSObject) {
         return false;
     }

@@ -33,6 +33,7 @@ class ICInspector
 
 class SetElemICInspector : public ICInspector
 {
+
   public:
     SetElemICInspector(BaselineInspector *inspector, jsbytecode *pc, ICEntry *icEntry)
       : ICInspector(inspector, pc, icEntry)

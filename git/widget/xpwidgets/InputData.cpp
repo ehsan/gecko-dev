@@ -57,10 +57,8 @@ MultiTouchInput::MultiTouchInput(const nsTouchEvent& aTouchEvent)
     domTouch->GetForce(&force);
 
     SingleTouchData data(identifier,
-                         ScreenIntPoint::FromUnknownPoint(
-                           gfx::IntPoint(domTouch->mRefPoint.x,
-                                         domTouch->mRefPoint.y)),
-                         ScreenSize(radiusX, radiusY),
+                         domTouch->mRefPoint,
+                         nsIntPoint(radiusX, radiusY),
                          rotationAngle,
                          force);
 
@@ -102,10 +100,8 @@ MultiTouchInput::MultiTouchInput(const nsMouseEvent& aMouseEvent)
   }
 
   mTouches.AppendElement(SingleTouchData(0,
-                                         ScreenIntPoint::FromUnknownPoint(
-                                           gfx::IntPoint(aMouseEvent.refPoint.x,
-                                                         aMouseEvent.refPoint.y)),
-                                         ScreenSize(1, 1),
+                                         aMouseEvent.refPoint,
+                                         nsIntPoint(1, 1),
                                          180.0f,
                                          1.0f));
 }

@@ -31,7 +31,6 @@ CPP_SOURCES += [
     'testFindSCCs.cpp',
     'testFuncCallback.cpp',
     'testFunctionProperties.cpp',
-    'testGCExactRooting.cpp',
     'testGCFinalizeCallback.cpp',
     'testGCOutOfMemory.cpp',
     'testGetPropertyDefault.cpp',

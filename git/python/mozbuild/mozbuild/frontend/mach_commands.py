@@ -112,7 +112,7 @@ class MozbuildFileCommands(object):
         return 0
 
     def variable_reference(self, v):
-        st_typ, in_type, default, doc = VARIABLES[v]
+        typ, default, doc = VARIABLES[v]
 
         print(v)
         print('=' * len(v))
@@ -122,8 +122,7 @@ class MozbuildFileCommands(object):
 
         print(summary)
         print('')
-        print('Storage Type: %s' % st_typ.__name__)
-        print('Input Type: %s' % in_type.__name__)
+        print('Type: %s' % typ.__name__)
         print('Default Value: %s' % default)
         print('')
         print_extra(extra)

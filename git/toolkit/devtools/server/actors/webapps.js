@@ -107,7 +107,7 @@ WebappsActor.prototype = {
     return type;
   },
 
-  installHostedApp: function wa_actorInstallHosted(aDir, aId, aReceipts) {
+  installHostedApp: function wa_actorInstallHosted(aDir, aId) {
     debug("installHostedApp");
     let self = this;
 
@@ -158,8 +158,7 @@ WebappsActor.prototype = {
                 origin: origin,
                 installOrigin: aMetadata.installOrigin || origin,
                 manifestURL: manifestURL,
-                appStatus: appType,
-                receipts: aReceipts,
+                appStatus: appType
               };
 
               self._registerApp(app, aId, aDir);
@@ -176,7 +175,7 @@ WebappsActor.prototype = {
                                        Ci.nsIThread.DISPATCH_NORMAL);
   },
 
-  installPackagedApp: function wa_actorInstallPackaged(aDir, aId, aReceipts) {
+  installPackagedApp: function wa_actorInstallPackaged(aDir, aId) {
     debug("installPackagedApp");
     let self = this;
 
@@ -220,8 +219,7 @@ WebappsActor.prototype = {
               origin: origin,
               installOrigin: origin,
               manifestURL: origin + "/manifest.webapp",
-              appStatus: appType,
-              receipts: aReceipts,
+              appStatus: appType
             }
 
             self._registerApp(app, aId, aDir);
@@ -271,12 +269,8 @@ WebappsActor.prototype = {
     let testFile = appDir.clone();
     testFile.append("application.zip");
 
-    let receipts = (aRequest.receipts && Array.isArray(aRequest.receipts))
-                    ? aRequest.receipts
-                    : [];
-
     if (testFile.exists()) {
-      this.installPackagedApp(appDir, appId, receipts);
+      this.installPackagedApp(appDir, appId);
     } else {
       let missing =
         ["manifest.webapp", "metadata.json"]
@@ -294,7 +288,7 @@ WebappsActor.prototype = {
                  message: "hosted app file is missing" }
       }
 
-      this.installHostedApp(appDir, appId, receipts);
+      this.installHostedApp(appDir, appId);
     }
 
     return { appId: appId, path: appDir.path }

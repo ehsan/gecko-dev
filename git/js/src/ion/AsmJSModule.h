@@ -146,44 +146,29 @@ class AsmJSModule
     class Exit
     {
         unsigned ffiIndex_;
-
         union {
             unsigned codeOffset_;
             uint8_t *code_;
-        } interp;
-
-        union {
-            unsigned codeOffset_;
-            uint8_t *code_;
-        } ion;
+        } u;
 
       public:
         Exit(unsigned ffiIndex)
           : ffiIndex_(ffiIndex)
         {
-          interp.codeOffset_ = 0;
-          ion.codeOffset_ = 0;
+          u.codeOffset_ = 0;
         }
         unsigned ffiIndex() const {
             return ffiIndex_;
         }
-        void initInterpOffset(unsigned off) {
-            JS_ASSERT(!interp.codeOffset_);
-            interp.codeOffset_ = off;
-        }
-        void initIonOffset(unsigned off) {
-            JS_ASSERT(!ion.codeOffset_);
-            ion.codeOffset_ = off;
+        void initCodeOffset(unsigned off) {
+            JS_ASSERT(!u.codeOffset_);
+            u.codeOffset_ = off;
         }
         void patch(uint8_t *baseAddress) {
-            interp.code_ = baseAddress + interp.codeOffset_;
-            ion.code_ = baseAddress + ion.codeOffset_;
+            u.code_ = baseAddress + u.codeOffset_;
         }
-        uint8_t *interpCode() const {
-            return interp.code_;
-        }
-        uint8_t *ionCode() const {
-            return ion.code_;
+        uint8_t *code() const {
+            return u.code_;
         }
     };
 #ifdef JS_CPU_ARM
@@ -716,19 +701,7 @@ class AsmJSModule
     const PostLinkFailureInfo &postLinkFailureInfo() const {
         return postLinkFailureInfo_;
     }
-
-    size_t exitDatumToExitIndex(ExitDatum *exit) const {
-        ExitDatum *first = &exitIndexToGlobalDatum(0);
-        JS_ASSERT(exit >= first && exit < first + numExits());
-        return exit - first;
-    }
-
-    void detachIonCompilation(size_t exitIndex) const {
-        ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
-        exitDatum.exit = exit(exitIndex).interpCode();
-    }
 };
-
 
 // The AsmJSModule C++ object is held by a JSObject that takes care of calling
 // 'trace' and the destructor on finalization.

@@ -109,6 +109,7 @@ private:
 
   bool mHasAudio;
   bool mHasVideo;
+  bool mCanSeek;
   bool mUseHwAccel;
 
   // We can't call WMFDecoder::IsMP3Supported() on non-main threads, since it

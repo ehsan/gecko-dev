@@ -70,13 +70,6 @@ method exported by the
 
     panel.show();
 
-## Panel Positioning ##
-
-By default the panel appears in the center of the currently active browser window.
-You can position the panel by passing a `position` to the panel's
-[constructor](modules/sdk/panel.html#Panel(options)) or to
-its [`show()`](modules/sdk/panel.html#show(options)) method.
-
 ## Updating Panel Content ##
 
 You can update the panel's content simply by setting the panel's `contentURL`
@@ -432,23 +425,23 @@ Creates a panel.
     The position of the panel.
     Ignored if the panel is opened by a widget.
 
-    This is an object that has one or more of the following
-    properties: `top`, `right`, `bottom` and `left`. Their values are expressed
+    You can set as value an object that has one or more of the following
+    properites: `top`, `right`, `bottom` and `left`. Their values are expressed
     in pixels. Any other properties will be ignored.
 
-    The default alignment along each axis is centered: so to display a panel centred
-    along the vertical or horizontal axis, just omit that axis:
+    The default alignment is centered, so for example panel can be displayed in
+    the center of the bottom corner by leaving off vertical axis:
 
-        // Show the panel centered horizontally and
-        // aligned to the bottom of the content area
+        // Show the panel to the centered horizontally and aligned to the bottom
+        // of the content area
         require("sdk/panel").Panel({
           position: {
            bottom: 0
           }
         }).show();
 
-        // Show the panel centered vertically and
-        // aligned to the left of the content area
+        // Show the panel to the centered vertically and aligned to the left o
+        // the content area
         require("sdk/panel").Panel({
           position: {
             left: 0
@@ -458,13 +451,11 @@ Creates a panel.
         // Centered panel, default behavior
         require("sdk/panel").Panel({}).show();
 
-    As with the CSS `top`, `bottom`, `left`, and `right` properties, setting
-    both `top` and `bottom` or both `left` and `right` will implicitly set the
-    panel's `height` or `width` relative to the content window:
+    In the same way of their CSS counterpart, setting both `top` and `bottom`,
+    or `left` and `right`, will results in calculated the `height` and `width`:
 
-        // Show the panel centered horizontally, with:
-        // - the top edge 40px from the top of the content window
-        // - the bottom edge 100px from the bottom of the content window
+        // Show the panel centered horizontally, that is distant 40px
+        // from the top and 100px from the bottom.
         require("sdk/panel").Panel({
           position: {
             top: 40,
@@ -472,13 +463,11 @@ Creates a panel.
           }
         }).show();
 
-    If you set both `top` and `bottom`, but also set the panel's height
-    explicitly using the `height` property, then the panel will ignore
-    `bottom`, just as CSS does for its properties with the same name:
+    Set implicitly `height` in this example, will makes the panel ignore the
+    `bottom` property, as the CSS homonym properties does:
 
-        // Show the panel centered horizontally, with:
-        // - the top edge 40px from the top of the content window
-        // - a height of 400px
+        // Show the panel centered horizontally, that is distant 40px from the top
+        // and has 400px as height
         require("sdk/panel").Panel({
           position: {
             top: 40,
@@ -496,8 +485,7 @@ Creates a panel.
           height: 400
         }).show();
 
-    The same principle is applied in the horizontal axis with
-    `width`, `left` and `right`.
+    The same principle is applied for `width`, `left` and `right`.
 
   @prop [focus=true] {boolean}
     Set to `false` to prevent taking the focus away when the panel is shown.
@@ -656,10 +644,8 @@ Displays the panel.
 
 If the `options` argument is given, it will be shallow merged with the options
 provided in the constructor: the `options` passed in the `show` method takes
-precedence.
-
-Passing options here is useful for making temporary changes without touching
-the default values.
+the precedence.
+It's useful for temporary changes, without touching the default values.
 
 @param options {object}
   Showing options for the panel, with the following keys:

@@ -159,7 +159,9 @@ function hideAndShowFrame(window) {
 
   iframe.style.display = "none";
 
-  Cu.schedulePreciseGC(function() {
+  Cu.forceGC();
+
+  setTimeout(function() {
     events.on("document-shown", function shown(event) {
       if (iframe.contentWindow !== event.subject.defaultView)
         return;
@@ -169,7 +171,7 @@ function hideAndShowFrame(window) {
     }, true);
 
     iframe.style.display = "";
-  });
+  }, 0)
 
   return promise;
 }
