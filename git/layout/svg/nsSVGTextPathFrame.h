@@ -15,7 +15,7 @@
 #include "nsQueryFrame.h"
 #include "nsSVGTSpanFrame.h"
 
-class gfxPath;
+class gfxFlattenedPath;
 class nsIAtom;
 class nsIContent;
 class nsIFrame;
@@ -65,7 +65,7 @@ public:
 #endif
 
   // nsSVGTextPathFrame methods:
-  already_AddRefed<gfxPath> GetPath();
+  already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
   nsIFrame *GetPathFrame();
 
   /**

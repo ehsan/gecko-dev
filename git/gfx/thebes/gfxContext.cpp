@@ -275,31 +275,25 @@ gfxContext::ClosePath()
   }
 }
 
-already_AddRefed<gfxPath> gfxContext::CopyPath()
+already_AddRefed<gfxPath> gfxContext::CopyPath() const
 {
-  nsRefPtr<gfxPath> path;
   if (mCairo) {
-    path = new gfxPath(cairo_copy_path(mCairo));
+    nsRefPtr<gfxPath> path = new gfxPath(cairo_copy_path(mCairo));
+    return path.forget();
   } else {
-    EnsurePath();
-    path = new gfxPath(mPath);
+    // XXX - This is not yet supported for Azure.
+    return nullptr;
   }
-  return path.forget();
 }
 
-void gfxContext::SetPath(gfxPath* path)
+void gfxContext::AppendPath(gfxPath* path)
 {
   if (mCairo) {
-    cairo_new_path(mCairo);
     if (path->mPath->status == CAIRO_STATUS_SUCCESS && path->mPath->num_data != 0)
         cairo_append_path(mCairo, path->mPath);
   } else {
-    MOZ_ASSERT(path->mMoz2DPath, "Can't mix cairo and azure paths!");
-    MOZ_ASSERT(path->mMoz2DPath->GetBackendType() == mDT->GetType());
-    mPath = path->mMoz2DPath;
-    mPathBuilder = nullptr;
-    mPathIsRect = false;
-    mTransformChanged = false;
+    // XXX - This is not yet supported for Azure.
+    return;
   }
 }
 
@@ -1754,6 +1748,19 @@ gfxContext::GetUserStrokeExtent()
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
     return ThebesRect(mPath->GetStrokedBounds(CurrentState().strokeOptions, mTransform));
+  }
+}
+
+already_AddRefed<gfxFlattenedPath>
+gfxContext::GetFlattenedPath()
+{
+  if (mCairo) {
+    nsRefPtr<gfxFlattenedPath> path =
+        new gfxFlattenedPath(cairo_copy_path_flat(mCairo));
+    return path.forget();
+  } else {
+    // XXX - Used by SVG, needs fixing.
+    return nullptr;
   }
 }
 

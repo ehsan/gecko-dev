@@ -227,7 +227,7 @@ SVGMotionSMILAnimationFunction::
       bool ok =
         path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
       if (ok && mPathVertices.Length()) {
-        mPath = pathElem->GetPath(gfxMatrix());
+        mPath = pathElem->GetFlattenedPath(gfxMatrix());
       }
     }
   }
@@ -239,7 +239,7 @@ SVGMotionSMILAnimationFunction::RebuildPathAndVerticesFromPathAttr()
   const nsAString& pathSpec = GetAttr(nsGkAtoms::path)->GetStringValue();
   mPathSourceType = ePathSourceType_PathAttr;
 
-  // Generate gfxPath from |path| attr
+  // Generate gfxFlattenedPath from |path| attr
   SVGPathData path;
   nsSVGPathDataParserToInternal pathParser(&path);
 
@@ -252,7 +252,7 @@ SVGMotionSMILAnimationFunction::RebuildPathAndVerticesFromPathAttr()
     return;
   }
 
-  mPath = path.ToPath(gfxMatrix());
+  mPath = path.ToFlattenedPath(gfxMatrix());
   bool ok = path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
   if (!ok || !mPathVertices.Length()) {
     mPath = nullptr;
@@ -292,7 +292,7 @@ SVGMotionSMILAnimationFunction::
 
 bool
 SVGMotionSMILAnimationFunction::
-  GenerateValuesForPathAndPoints(gfxPath* aPath,
+  GenerateValuesForPathAndPoints(gfxFlattenedPath* aPath,
                                  bool aIsKeyPoints,
                                  nsTArray<double>& aPointDistances,
                                  nsTArray<nsSMILValue>& aResult)

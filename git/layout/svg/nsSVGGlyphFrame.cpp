@@ -738,7 +738,7 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
   nsSVGTextPathFrame *textPath = FindTextPathParent();
 
   if (textPath) {
-    nsRefPtr<gfxPath> data = textPath->GetPath();
+    nsRefPtr<gfxFlattenedPath> data = textPath->GetFlattenedPath();
 
     // textPath frame, but invalid target
     if (!data)
