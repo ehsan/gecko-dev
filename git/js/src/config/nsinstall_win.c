@@ -41,8 +41,8 @@ static BOOL sh_DoCopy(wchar_t *srcFileName, DWORD srcFileAttributes,
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 #define STR_LEN(a) (ARRAY_LEN(a) - 1)
 
-/* changes all forward slashes in token to backslashes */
-void changeForwardSlashesToBackSlashes ( wchar_t *arg )
+/* changes all forward slashes in token to back slashes */
+void changeForwardSlashesTpBackSlashes ( wchar_t *arg )
 {
     if ( arg == NULL )
         return;
@@ -50,20 +50,20 @@ void changeForwardSlashesToBackSlashes ( wchar_t *arg )
     while ( *arg ) {
         if ( *arg == '/' )
             *arg = '\\';
-        arg++;
+        arg++;			
     }
 }
 
 int wmain(int argc, wchar_t *argv[ ])
 {
-    return shellNsinstall ( argv + 1 );
+        return shellNsinstall ( argv + 1 );
 }
 
 static int
 shellNsinstall (wchar_t **pArgv)
 {
-    int retVal = 0;     /* exit status */
-    int dirOnly = 0;    /* 1 if and only if -D is specified */
+    int retVal = 0;		/* exit status */
+    int dirOnly = 0;	/* 1 if and only if -D is specified */
     wchar_t **pSrc;
     wchar_t **pDst;
 
@@ -119,7 +119,7 @@ shellNsinstall (wchar_t **pArgv)
 static int
 shellMkdir (wchar_t **pArgv) 
 {
-    int retVal = 0; /* assume valid return */
+    int retVal = 0;			/* assume valid return */
     wchar_t *arg;
     wchar_t *pArg;
     wchar_t path[_MAX_PATH];
@@ -136,7 +136,7 @@ shellMkdir (wchar_t **pArgv)
 
     while ( *pArgv ) {
         arg = *pArgv;
-        changeForwardSlashesToBackSlashes ( arg );
+        changeForwardSlashesTpBackSlashes ( arg );
         pArg = arg;
         pTmpPath = tmpPath;
         while ( 1 ) {
@@ -148,19 +148,20 @@ shellMkdir (wchar_t **pArgv)
             }
             *pTmpPath = '\0';
 
-            /* check if directory already exists */
+            /* check if directory alreay exists */
             _wgetcwd ( path, _MAX_PATH );
             if ( _wchdir ( tmpPath ) != -1 ) {
                 _wchdir ( path );
             } else {
                 if ( _wmkdir ( tmpPath ) == -1 ) {
+//				while ( waitForDebug );
                     printf ( "%ls: ", tmpPath );
                     perror ( "Could not create the directory" );
                     retVal = 3;
                     break;
                 }
             }
-            if ( *pArg == '\0' )      /* complete path? */
+            if ( *pArg == '\0' )	/* complete path? */
                 break;
             /* loop for next directory */
         }
@@ -364,7 +365,7 @@ shellCp (wchar_t **pArgv)
      * one file or directory.
      */
 
-    changeForwardSlashesToBackSlashes(*pDst);
+    changeForwardSlashesTpBackSlashes(*pDst);
     sh_EnumerateFiles(*pDst, *pDst, sh_RecordFileData, &dstData, &n);
     assert(n >= 0);
     if (n == 1) {
@@ -438,7 +439,7 @@ shellCp (wchar_t **pArgv)
         struct sh_FileData srcData;
 
         assert(pDst - pSrc == 1);
-        changeForwardSlashesToBackSlashes(*pSrc);
+        changeForwardSlashesTpBackSlashes(*pSrc);
         sh_EnumerateFiles(*pSrc, *pSrc, sh_RecordFileData, &srcData, &n);
         if (n == 0) {
             fprintf(stderr, "nsinstall: %ls: No such file or directory\n",
@@ -462,7 +463,7 @@ shellCp (wchar_t **pArgv)
     for ( ; *pSrc != *pDst; pSrc++) {
         BOOL rv;
 
-        changeForwardSlashesToBackSlashes(*pSrc);
+        changeForwardSlashesTpBackSlashes(*pSrc);
         rv = sh_EnumerateFiles(*pSrc, *pSrc, sh_CpFileCmd, &arg, &n);
         if (rv == FALSE) {
             retVal = 3;
