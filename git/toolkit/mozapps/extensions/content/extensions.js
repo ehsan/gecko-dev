@@ -77,7 +77,6 @@ var gRecommendedAddons = null;
 var gRDF              = null;
 var gPendingInstalls  = {};
 var gNewAddons        = [];
-var gCheckCompatibilityPref;
 
 // The default heavyweight theme for the app.
 var gDefaultTheme     = null;
@@ -138,8 +137,6 @@ const OP_NEEDS_DISABLE                = "needs-disable";
 Components.utils.import("resource://gre/modules/PluralForm.jsm");
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
-
-var gBranchVersion = /^([^\.]+\.[^a-z\.]+[a-z]?).*/gi;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Utility Functions
@@ -1007,7 +1004,7 @@ function rebuildPluginsDS()
                             .getService(nsIBlocklistService);
   var phs = Components.classes["@mozilla.org/plugin/host;1"]
                       .getService(Components.interfaces.nsIPluginHost);
-  var plugins = phs.getPluginTags();
+  var plugins = phs.getPluginTags({ });
   var rdfCU = Components.classes["@mozilla.org/rdf/container-utils;1"]
                         .getService(Components.interfaces.nsIRDFContainerUtils);
   var rootctr = rdfCU.MakeSeq(gPluginsDS, gRDF.GetResource(RDFURI_ITEM_ROOT));
@@ -1171,11 +1168,8 @@ function Startup()
   gInSafeMode = appInfo.inSafeMode;
   gAppID = appInfo.ID;
 
-  var version = appInfo.version.replace(gBranchVersion, "$1");
-  gCheckCompatibilityPref = PREF_EM_CHECK_COMPATIBILITY + "." + version;
-
   try {
-    gCheckCompat = gPref.getBoolPref(gCheckCompatibilityPref);
+    gCheckCompat = gPref.getBoolPref(PREF_EM_CHECK_COMPATIBILITY);
   } catch(e) { }
 
   try {
@@ -2175,7 +2169,7 @@ const gAddonsMsgObserver = {
       gPref.setBoolPref("xpinstall.enabled", true);
       break;
     case "addons-enable-compatibility":
-      gPref.clearUserPref(gCheckCompatibilityPref);
+      gPref.clearUserPref(PREF_EM_CHECK_COMPATIBILITY);
       gCheckCompat = true;
       break;
     case "addons-enable-updatesecurity":
