@@ -803,7 +803,7 @@ Predictor::EnsureInitStorage()
 class PredictorThreadShutdownRunner : public nsRunnable
 {
 public:
-  explicit PredictorThreadShutdownRunner(nsIThread *ioThread)
+  PredictorThreadShutdownRunner(nsIThread *ioThread)
     :mIOThread(ioThread)
   { }
 

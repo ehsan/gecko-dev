@@ -8646,7 +8646,7 @@ nsGlobalWindow::EnterModalState()
 
       if (activeShell) {
         nsRefPtr<nsFrameSelection> frameSelection = activeShell->FrameSelection();
-        frameSelection->SetDragState(false);
+        frameSelection->SetMouseDownState(false);
       }
     }
   }

@@ -66,7 +66,7 @@ public:
     , mInBrowserElement(inBrowser)
   {}
 
-  explicit nsCookieKey(KeyTypePointer other)
+  nsCookieKey(KeyTypePointer other)
     : mBaseDomain(other->mBaseDomain)
     , mAppId(other->mAppId)
     , mInBrowserElement(other->mInBrowserElement)
@@ -122,7 +122,7 @@ class nsCookieEntry : public nsCookieKey
     typedef nsTArray< nsRefPtr<nsCookie> > ArrayType;
     typedef ArrayType::index_type IndexType;
 
-    explicit nsCookieEntry(KeyTypePointer aKey)
+    nsCookieEntry(KeyTypePointer aKey)
      : nsCookieKey(aKey)
     {}
 

@@ -56,7 +56,7 @@ interface Node : EventTarget {
 
   [SetterThrows, Pure]
            attribute DOMString? nodeValue;
-  [Throws, Pure]
+  [SetterThrows, Pure]
            attribute DOMString? textContent;
   [Throws]
   Node insertBefore(Node node, Node? child);

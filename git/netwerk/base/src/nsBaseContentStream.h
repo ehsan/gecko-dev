@@ -40,7 +40,7 @@ public:
   NS_DECL_NSIINPUTSTREAM
   NS_DECL_NSIASYNCINPUTSTREAM
 
-  explicit nsBaseContentStream(bool nonBlocking)
+  nsBaseContentStream(bool nonBlocking)
     : mStatus(NS_OK)
     , mNonBlocking(nonBlocking) {
   }

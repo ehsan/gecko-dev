@@ -78,7 +78,7 @@ extern const mozilla::Module kXPCOMModule;
 class SafeMutex
 {
 public:
-  explicit SafeMutex(const char* aName)
+  SafeMutex(const char* aName)
     : mMutex(aName)
     , mOwnerThread(nullptr)
   {
@@ -212,14 +212,14 @@ public:
     {
     }
 
-    explicit KnownModule(const mozilla::Module* aModule)
+    KnownModule(const mozilla::Module* aModule)
       : mModule(aModule)
       , mLoaded(false)
       , mFailed(false)
     {
     }
 
-    explicit KnownModule(mozilla::FileLocation& aFile)
+    KnownModule(mozilla::FileLocation& aFile)
       : mModule(nullptr)
       , mFile(aFile)
       , mLoader(nullptr)

@@ -332,18 +332,18 @@ public:
                                     int32_t aContentLength,
                                     bool aSlowCheck) const;
 
-  /** SetDragState(bool);
-   *  sets the drag state to aState for resons of drag state.
-   * @param aState is the new state of drag
+  /** SetMouseDownState(bool);
+   *  sets the mouse state to aState for resons of drag state.
+   * @param aState is the new state of mousedown
    */
   /*unsafe*/
-  void SetDragState(bool aState);
+  void SetMouseDownState(bool aState);
 
-  /** GetDragState(bool *);
-   *  gets the drag state to aState for resons of drag state.
-   * @param aState will hold the state of drag
+  /** GetMouseDownState(bool *);
+   *  gets the mouse state to aState for resons of drag state.
+   * @param aState will hold the state of mousedown
    */
-  bool GetDragState() const { return mDragState; }
+  bool GetMouseDownState() const { return mMouseDownState; }
 
   /**
     if we are in table cell selection mode. aka ctrl click in table cell
@@ -718,7 +718,7 @@ private:
   bool mChangesDuringBatching;
   bool mNotifyFrames;
   bool mDragSelectingCells;
-  bool mDragState;   //for drag purposes
+  bool mMouseDownState;   //for drag purposes
   bool mMouseDoubleDownState; //has the doubleclick down happened
   bool mDesiredXSet;
 

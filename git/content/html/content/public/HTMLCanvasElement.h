@@ -47,7 +47,7 @@ class HTMLCanvasElement MOZ_FINAL : public nsGenericHTMLElement,
   typedef layers::LayerManager LayerManager;
 
 public:
-  explicit HTMLCanvasElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  HTMLCanvasElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLCanvasElement, canvas)
 

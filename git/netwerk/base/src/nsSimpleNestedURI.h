@@ -35,7 +35,7 @@ public:
 
     // Constructor that should generally be used when constructing an object of
     // this class with |operator new|.
-    explicit nsSimpleNestedURI(nsIURI* innerURI);
+    nsSimpleNestedURI(nsIURI* innerURI);
 
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSINESTEDURI

@@ -17,7 +17,7 @@ class nsTWhitespaceTokenizer
   typedef typename DependentSubstringType::substring_type SubstringType;
 
 public:
-    explicit nsTWhitespaceTokenizer(const SubstringType& aSource)
+    nsTWhitespaceTokenizer(const SubstringType& aSource)
         : mIter(aSource.Data(), aSource.Length()),
           mEnd(aSource.Data() + aSource.Length(), aSource.Data(),
                aSource.Length()),
@@ -85,7 +85,7 @@ class nsWhitespaceTokenizerTemplate
   : public nsTWhitespaceTokenizer<nsDependentSubstring, IsWhitespace>
 {
 public:
-  explicit nsWhitespaceTokenizerTemplate(const nsSubstring& aSource)
+  nsWhitespaceTokenizerTemplate(const nsSubstring& aSource)
     : nsTWhitespaceTokenizer<nsDependentSubstring, IsWhitespace>(aSource)
   {
   }
@@ -98,7 +98,7 @@ class nsCWhitespaceTokenizerTemplate
   : public nsTWhitespaceTokenizer<nsDependentCSubstring, IsWhitespace>
 {
 public:
-  explicit nsCWhitespaceTokenizerTemplate(const nsCSubstring& aSource)
+  nsCWhitespaceTokenizerTemplate(const nsCSubstring& aSource)
     : nsTWhitespaceTokenizer<nsDependentCSubstring, IsWhitespace>(aSource)
   {
   }

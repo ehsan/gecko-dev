@@ -109,7 +109,7 @@ public:
   NS_DECL_NSISEARCHABLEINPUTSTREAM
   NS_DECL_NSICLASSINFO
 
-  explicit nsPipeInputStream(nsPipe* aPipe)
+  nsPipeInputStream(nsPipe* aPipe)
     : mPipe(aPipe)
     , mReaderRefCnt(0)
     , mLogicalOffset(0)
@@ -176,7 +176,7 @@ public:
   NS_DECL_NSIASYNCOUTPUTSTREAM
   NS_DECL_NSICLASSINFO
 
-  explicit nsPipeOutputStream(nsPipe* aPipe)
+  nsPipeOutputStream(nsPipe* aPipe)
     : mPipe(aPipe)
     , mWriterRefCnt(0)
     , mLogicalOffset(0)

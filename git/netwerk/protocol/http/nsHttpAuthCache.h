@@ -244,7 +244,7 @@ private:
     public:
       NS_DECL_ISUPPORTS
       NS_DECL_NSIOBSERVER
-      explicit AppDataClearObserver(nsHttpAuthCache* aOwner) : mOwner(aOwner) {}
+      AppDataClearObserver(nsHttpAuthCache* aOwner) : mOwner(aOwner) {}
       nsHttpAuthCache* mOwner;
     };
 

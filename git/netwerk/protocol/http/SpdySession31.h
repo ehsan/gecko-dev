@@ -39,7 +39,7 @@ public:
   NS_DECL_NSAHTTPSEGMENTREADER
   NS_DECL_NSAHTTPSEGMENTWRITER
 
-  explicit SpdySession31(nsISocketTransport *);
+  SpdySession31(nsISocketTransport *);
 
   bool AddStream(nsAHttpTransaction *, int32_t,
                  bool, nsIInterfaceRequestor *);

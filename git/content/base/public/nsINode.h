@@ -337,7 +337,7 @@ public:
   friend class nsAttrAndChildArray;
 
 #ifdef MOZILLA_INTERNAL_API
-  explicit nsINode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  nsINode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : mNodeInfo(aNodeInfo),
     mParent(nullptr),
     mBoolFlags(0),
@@ -1136,10 +1136,9 @@ protected:
   }
   
 public:
-  void GetTextContent(nsAString& aTextContent,
-                      mozilla::ErrorResult& aError)
+  void GetTextContent(nsAString& aTextContent)
   {
-    GetTextContentInternal(aTextContent, aError);
+    GetTextContentInternal(aTextContent);
   }
   void SetTextContent(const nsAString& aTextContent,
                       mozilla::ErrorResult& aError)
@@ -1750,8 +1749,7 @@ protected:
     return IsEditableInternal();
   }
 
-  virtual void GetTextContentInternal(nsAString& aTextContent,
-                                      mozilla::ErrorResult& aError);
+  virtual void GetTextContentInternal(nsAString& aTextContent);
   virtual void SetTextContentInternal(const nsAString& aTextContent,
                                       mozilla::ErrorResult& aError)
   {
@@ -2034,9 +2032,8 @@ ToCanonicalSupports(nsINode* aPointer)
   } \
   NS_IMETHOD GetTextContent(nsAString& aTextContent) __VA_ARGS__ \
   { \
-    mozilla::ErrorResult rv; \
-    nsINode::GetTextContent(aTextContent, rv); \
-    return rv.ErrorCode(); \
+    nsINode::GetTextContent(aTextContent); \
+    return NS_OK; \
   } \
   NS_IMETHOD SetTextContent(const nsAString& aTextContent) __VA_ARGS__ \
   { \

@@ -906,7 +906,7 @@ protected:
 
 class ReleaseNSPRHandleEvent : public nsRunnable {
 public:
-  explicit ReleaseNSPRHandleEvent(CacheFileHandle *aHandle)
+  ReleaseNSPRHandleEvent(CacheFileHandle *aHandle)
     : mHandle(aHandle)
   {
     MOZ_COUNT_CTOR(ReleaseNSPRHandleEvent);

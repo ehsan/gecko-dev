@@ -89,7 +89,7 @@ static int gValues[] = {
 
 struct SplayInt : SplayTreeNode<SplayInt>
 {
-  explicit SplayInt(int aValue) : mValue(aValue) {}
+  SplayInt(int aValue) : mValue(aValue) {}
 
   static int compare(const SplayInt& aOne, const SplayInt& aTwo)
   {

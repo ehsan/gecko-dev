@@ -84,7 +84,7 @@ private:
 
 class nsEvictDiskCacheEntriesEvent : public nsRunnable {
 public:
-    explicit nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
+    nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
         : mDevice(device) {}
 
     NS_IMETHOD Run()
@@ -182,7 +182,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEDEVICEINFO
 
-    explicit nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
+    nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
         :   mDevice(device)
     {
     }

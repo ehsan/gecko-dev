@@ -917,7 +917,7 @@ public:
   NS_DECL_NSITRANSPORT
   NS_DECL_NSISOCKETTRANSPORT
 
-  explicit SocketTransportShim(nsISocketTransport *aWrapped)
+  SocketTransportShim(nsISocketTransport *aWrapped)
     : mWrapped(aWrapped)
   {};
 
@@ -936,7 +936,7 @@ public:
 
   friend class SpdyConnectTransaction;
 
-  explicit OutputStreamShim(SpdyConnectTransaction *aTrans)
+  OutputStreamShim(SpdyConnectTransaction *aTrans)
     : mCallback(nullptr)
     , mStatus(NS_OK)
   {
@@ -960,7 +960,7 @@ public:
 
   friend class SpdyConnectTransaction;
 
-  explicit InputStreamShim(SpdyConnectTransaction *aTrans)
+  InputStreamShim(SpdyConnectTransaction *aTrans)
     : mCallback(nullptr)
     , mStatus(NS_OK)
   {

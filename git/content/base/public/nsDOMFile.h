@@ -754,7 +754,7 @@ class nsDOMFileList MOZ_FINAL : public nsIDOMFileList,
   ~nsDOMFileList() {}
 
 public:
-  explicit nsDOMFileList(nsISupports *aParent) : mParent(aParent)
+  nsDOMFileList(nsISupports *aParent) : mParent(aParent)
   {
     SetIsDOMBinding();
   }

@@ -54,7 +54,7 @@ public:
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
 
-  explicit nsIContent(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  nsIContent(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsINode(aNodeInfo)
   {
     MOZ_ASSERT(mNodeInfo);

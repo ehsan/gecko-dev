@@ -42,7 +42,7 @@ protected:
 
 public:
 
-                              explicit nsDocShellEnumerator(int32_t inEnumerationDirection);
+                              nsDocShellEnumerator(int32_t inEnumerationDirection);
 
   // nsISupports
   NS_DECL_ISUPPORTS

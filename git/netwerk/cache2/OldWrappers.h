@@ -45,8 +45,8 @@ public:
   NS_IMETHOD HasWriteAccess(bool aWriteOnly, bool *aWriteAccess);
   NS_IMETHOD VisitMetaData(nsICacheEntryMetaDataVisitor*);
 
-  explicit _OldCacheEntryWrapper(nsICacheEntryDescriptor* desc);
-  explicit _OldCacheEntryWrapper(nsICacheEntryInfo* info);
+  _OldCacheEntryWrapper(nsICacheEntryDescriptor* desc);
+  _OldCacheEntryWrapper(nsICacheEntryInfo* info);
 
 private:
   virtual ~_OldCacheEntryWrapper();
@@ -162,7 +162,7 @@ public:
   static nsresult Get(nsICacheStorageConsumptionObserver* aCallback);
 
 private:
-  explicit _OldGetDiskConsumption(nsICacheStorageConsumptionObserver* aCallback);
+  _OldGetDiskConsumption(nsICacheStorageConsumptionObserver* aCallback);
   virtual ~_OldGetDiskConsumption() {}
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICACHEVISITOR

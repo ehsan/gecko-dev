@@ -49,7 +49,7 @@ public:
     ////////////////////////////////////////////////////////////////////////////
     // nsLoadGroup methods:
 
-    explicit nsLoadGroup(nsISupports* outer);
+    nsLoadGroup(nsISupports* outer);
 
     nsresult Init();
 

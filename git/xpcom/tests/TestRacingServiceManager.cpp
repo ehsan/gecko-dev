@@ -67,7 +67,7 @@ bool gMainThreadWaiting = false;
 class AutoCreateAndDestroyReentrantMonitor
 {
 public:
-  explicit AutoCreateAndDestroyReentrantMonitor(ReentrantMonitor** aReentrantMonitorPtr)
+  AutoCreateAndDestroyReentrantMonitor(ReentrantMonitor** aReentrantMonitorPtr)
   : mReentrantMonitorPtr(aReentrantMonitorPtr) {
     *aReentrantMonitorPtr =
       new ReentrantMonitor("TestRacingServiceManager::AutoMon");

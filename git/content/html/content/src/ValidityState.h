@@ -75,7 +75,7 @@ public:
   }
 
 protected:
-  explicit ValidityState(nsIConstraintValidation* aConstraintValidation);
+  ValidityState(nsIConstraintValidation* aConstraintValidation);
 
   /**
    * Helper function to get a validity state from constraint validation instance.

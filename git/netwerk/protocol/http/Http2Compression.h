@@ -45,7 +45,6 @@ public:
   uint32_t ByteCount() const;
   uint32_t Length() const;
   uint32_t VariableLength() const;
-  uint32_t StaticLength() const;
   void Clear();
   const nvPair *operator[] (int32_t index) const;
 
@@ -65,8 +64,27 @@ protected:
   const static uint32_t kDefaultMaxBuffer = 4096;
 
   virtual void ClearHeaderTable();
-  virtual void MakeRoom(uint32_t amount, const char *direction);
+  virtual void UpdateReferenceSet(int32_t delta);
+  virtual void IncrementReferenceSetIndices();
+  virtual void MakeRoom(uint32_t amount) = 0;
   virtual void DumpState();
+
+  nsAutoTArray<uint32_t, 64> mReferenceSet; // list of indicies
+
+  // the alternate set is used to track the emitted headers when
+  // processing input for a header set. The input to the compressor
+  // is a series of nvpairs, the input to the decompressor is the
+  // series of op codes that make up the header block.
+  //
+  // after processing the input the compressor compares the alternate
+  // set to the inherited reference set and generates indicies to
+  // toggle off any members of alternate - inherited. the alternate
+  // then becomes the inherited set for the next header set.
+  //
+  // after processing the input the decompressor comapres the alternate
+  // set to the inherited reference set and generates headers for
+  // anything implicit in reference - alternate.
+  nsAutoTArray<uint32_t, 64> mAlternateReferenceSet; // list of indicies
 
   nsACString *mOutput;
   nvFIFO mHeaderTable;
@@ -92,6 +110,9 @@ public:
   void GetPath(nsACString &hdr) { hdr = mHeaderPath; }
   void GetMethod(nsACString &hdr) { hdr = mHeaderMethod; }
   void SetCompressor(Http2Compressor *compressor) { mCompressor = compressor; }
+
+protected:
+  virtual void MakeRoom(uint32_t amount) MOZ_OVERRIDE;
 
 private:
   nsresult DoIndexed();
@@ -126,7 +147,6 @@ private:
   uint32_t mOffset;
   const uint8_t *mData;
   uint32_t mDataLen;
-  bool mSeenNonColonHeader;
 };
 
 
@@ -152,12 +172,21 @@ public:
   void SetMaxBufferSize(uint32_t maxBufferSize);
   nsresult SetMaxBufferSizeInternal(uint32_t maxBufferSize);
 
+protected:
+  virtual void ClearHeaderTable() MOZ_OVERRIDE;
+  virtual void UpdateReferenceSet(int32_t delta) MOZ_OVERRIDE;
+  virtual void IncrementReferenceSetIndices() MOZ_OVERRIDE;
+  virtual void MakeRoom(uint32_t amount) MOZ_OVERRIDE;
+  virtual void DumpState() MOZ_OVERRIDE;
+
 private:
   enum outputCode {
     kNeverIndexedLiteral,
     kPlainLiteral,
     kIndexedLiteral,
-    kIndex
+    kToggleOff,
+    kToggleOn,
+    kNop
   };
 
   void DoOutput(Http2Compressor::outputCode code,
@@ -172,6 +201,8 @@ private:
   uint32_t mMaxBufferSetting;
   bool mBufferSizeChangeWaiting;
   uint32_t mLowestBufferSizeWaiting;
+
+  nsAutoTArray<uint32_t, 64> mImpliedReferenceSet;
 };
 
 } // namespace mozilla::net

@@ -17,7 +17,7 @@ class nsStreamListenerWrapper MOZ_FINAL : public nsIStreamListener
                                         , public nsIThreadRetargetableStreamListener
 {
 public:
-  explicit nsStreamListenerWrapper(nsIStreamListener *listener)
+  nsStreamListenerWrapper(nsIStreamListener *listener)
     : mListener(listener)
   {
     NS_ASSERTION(mListener, "no stream listener specified");

@@ -319,7 +319,7 @@ class nsDumpGCAndCCLogsCallbackHolder MOZ_FINAL : public nsIDumpGCAndCCLogsCallb
 public:
   NS_DECL_ISUPPORTS
 
-  explicit nsDumpGCAndCCLogsCallbackHolder(nsIDumpGCAndCCLogsCallback* aCallback)
+  nsDumpGCAndCCLogsCallbackHolder(nsIDumpGCAndCCLogsCallback* aCallback)
     : mCallback(aCallback)
   {
   }
@@ -430,7 +430,7 @@ class DumpReportCallback MOZ_FINAL : public nsIHandleReportCallback
 public:
   NS_DECL_ISUPPORTS
 
-  explicit DumpReportCallback(nsGZFileWriter* aWriter)
+  DumpReportCallback(nsGZFileWriter* aWriter)
     : mIsFirst(true)
     , mWriter(aWriter)
   {

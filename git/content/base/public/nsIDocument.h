@@ -688,7 +688,7 @@ private:
   class SelectorCacheKey
   {
     public:
-      explicit SelectorCacheKey(const nsAString& aString) : mKey(aString)
+      SelectorCacheKey(const nsAString& aString) : mKey(aString)
       {
         MOZ_COUNT_CTOR(SelectorCacheKey);
       }
@@ -2728,7 +2728,7 @@ private:
 class MOZ_STACK_CLASS nsAutoSyncOperation
 {
 public:
-  explicit nsAutoSyncOperation(nsIDocument* aDocument);
+  nsAutoSyncOperation(nsIDocument* aDocument);
   ~nsAutoSyncOperation();
 private:
   nsCOMArray<nsIDocument> mDocuments;

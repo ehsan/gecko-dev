@@ -1444,10 +1444,10 @@ EventStateManager::FireContextClick()
         nsRefPtr<nsFrameSelection> frameSel =
           mCurrentTarget->GetFrameSelection();
         
-        if (frameSel && frameSel->GetDragState()) {
+        if (frameSel && frameSel->GetMouseDownState()) {
           // note that this can cause selection changed events to fire if we're in
           // a text field, which will null out mCurrentTarget
-          frameSel->SetDragState(false);
+          frameSel->SetMouseDownState(false);
         }
       }
 
@@ -1566,7 +1566,7 @@ EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     if (mCurrentTarget)
     {
       nsRefPtr<nsFrameSelection> frameSel = mCurrentTarget->GetFrameSelection();
-      if (frameSel && frameSel->GetDragState()) {
+      if (frameSel && frameSel->GetMouseDownState()) {
         StopTrackingDragGesture();
         return;
       }
@@ -2908,7 +2908,7 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       nsIPresShell *shell = presContext->GetPresShell();
       if (shell) {
         nsRefPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
-        frameSelection->SetDragState(false);
+        frameSelection->SetMouseDownState(false);
       }
     }
     break;

@@ -18,7 +18,7 @@ namespace net {
 class RemoteOpenFileParent : public PRemoteOpenFileParent
 {
 public:
-  explicit RemoteOpenFileParent(nsIFileURL* aURI)
+  RemoteOpenFileParent(nsIFileURL* aURI)
   : mURI(aURI)
   {}
 

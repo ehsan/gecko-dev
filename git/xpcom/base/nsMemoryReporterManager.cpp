@@ -1861,7 +1861,7 @@ namespace {
 class MinimizeMemoryUsageRunnable : public nsRunnable
 {
 public:
-  explicit MinimizeMemoryUsageRunnable(nsIRunnable* aCallback)
+  MinimizeMemoryUsageRunnable(nsIRunnable* aCallback)
     : mCallback(aCallback)
     , mRemainingIters(sNumIters)
   {

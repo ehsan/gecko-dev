@@ -2783,11 +2783,11 @@ TabChild::DoSendBlockingMessage(JSContext* aCx,
   }
   if (aIsSync) {
     return SendSyncMessage(PromiseFlatString(aMessage), data, cpows,
-                           Principal(aPrincipal), aJSONRetVal);
+                           aPrincipal, aJSONRetVal);
   }
 
   return CallRpcMessage(PromiseFlatString(aMessage), data, cpows,
-                        Principal(aPrincipal), aJSONRetVal);
+                        aPrincipal, aJSONRetVal);
 }
 
 bool
@@ -2808,7 +2808,7 @@ TabChild::DoSendAsyncMessage(JSContext* aCx,
     }
   }
   return SendAsyncMessage(PromiseFlatString(aMessage), data, cpows,
-                          Principal(aPrincipal));
+                          aPrincipal);
 }
 
 TabChild*

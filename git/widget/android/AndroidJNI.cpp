@@ -30,7 +30,6 @@
 #endif
 
 #include "mozilla/unused.h"
-#include "mozilla/UniquePtr.h"
 
 #include "mozilla/dom/SmsMessage.h"
 #include "mozilla/dom/mobilemessage/Constants.h"
@@ -986,30 +985,18 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
         // Maybe profiler support is disabled?
         return nullptr;
     }
-
-    // Timeout if we don't get a profiler sample after 5 seconds.
-    const PRIntervalTime timeout = PR_SecondsToInterval(5);
-    const PRIntervalTime startTime = PR_IntervalNow();
-
-    typedef struct { void operator()(void* p) { free(p); } } ProfilePtrPolicy;
-    // Pointer to a profile JSON string
-    typedef mozilla::UniquePtr<char, ProfilePtrPolicy> ProfilePtr;
-
-    ProfilePtr profile(profiler_get_profile());
-
-    while (profile && !strstr(profile.get(), "\"samples\":[{")) {
+    char *profile = profiler_get_profile();
+    while (profile && !strlen(profile)) {
         // no sample yet?
-        if (PR_IntervalNow() - startTime >= timeout) {
-            return nullptr;
-        }
         sched_yield();
-        profile = ProfilePtr(profiler_get_profile());
+        profile = profiler_get_profile();
     }
-
+    jstring result = nullptr;
     if (profile) {
-        return jenv->NewStringUTF(profile.get());
+        result = jenv->NewStringUTF(profile);
+        free(profile);
     }
-    return nullptr;
+    return result;
 }
 
 NS_EXPORT void JNICALL

@@ -36,7 +36,7 @@ public:
     , mHasOrHasHadOwnerWindow(false)
   {
   }
-  explicit DOMEventTargetHelper(nsPIDOMWindow* aWindow)
+  DOMEventTargetHelper(nsPIDOMWindow* aWindow)
     : mParentObject(nullptr)
     , mOwnerWindow(nullptr)
     , mHasOrHasHadOwnerWindow(false)
@@ -45,7 +45,7 @@ public:
     // All objects coming through here are WebIDL objects
     SetIsDOMBinding();
   }
-  explicit DOMEventTargetHelper(DOMEventTargetHelper* aOther)
+  DOMEventTargetHelper(DOMEventTargetHelper* aOther)
     : mParentObject(nullptr)
     , mOwnerWindow(nullptr)
     , mHasOrHasHadOwnerWindow(false)

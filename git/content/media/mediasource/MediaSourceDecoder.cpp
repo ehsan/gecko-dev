@@ -310,14 +310,7 @@ MediaSourceDecoder::Load(nsIStreamListener**, MediaDecoder*)
     return NS_ERROR_FAILURE;
   }
 
-
-  nsresult rv = mDecoderStateMachine->Init(nullptr);
-
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  SetStateMachineParameters();
-
-  return rv;
+  return mDecoderStateMachine->Init(nullptr);
 }
 
 nsresult

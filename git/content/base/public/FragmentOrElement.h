@@ -48,7 +48,7 @@ class Element;
 class nsChildContentList MOZ_FINAL : public nsINodeList
 {
 public:
-  explicit nsChildContentList(nsINode* aNode)
+  nsChildContentList(nsINode* aNode)
     : mNode(aNode)
   {
     SetIsDOMBinding();
@@ -96,7 +96,7 @@ public:
 
   NS_DECL_NSIDOMXPATHNSRESOLVER
 
-  explicit nsNode3Tearoff(nsINode *aNode) : mNode(aNode)
+  nsNode3Tearoff(nsINode *aNode) : mNode(aNode)
   {
   }
 
@@ -114,7 +114,7 @@ private:
 class nsNodeWeakReference MOZ_FINAL : public nsIWeakReference
 {
 public:
-  explicit nsNodeWeakReference(nsINode* aNode)
+  nsNodeWeakReference(nsINode* aNode)
     : mNode(aNode)
   {
   }
@@ -143,7 +143,7 @@ private:
 class nsNodeSupportsWeakRefTearoff MOZ_FINAL : public nsISupportsWeakReference
 {
 public:
-  explicit nsNodeSupportsWeakRefTearoff(nsINode* aNode)
+  nsNodeSupportsWeakRefTearoff(nsINode* aNode)
     : mNode(aNode)
   {
   }
@@ -175,8 +175,8 @@ class UndoManager;
 class FragmentOrElement : public nsIContent
 {
 public:
-  explicit FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
-  explicit FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+  FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  FragmentOrElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -190,8 +190,7 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
                                  bool aNotify) MOZ_OVERRIDE;
   virtual void RemoveChildAt(uint32_t aIndex, bool aNotify) MOZ_OVERRIDE;
-  virtual void GetTextContentInternal(nsAString& aTextContent,
-                                      mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  virtual void GetTextContentInternal(nsAString& aTextContent) MOZ_OVERRIDE;
   virtual void SetTextContentInternal(const nsAString& aTextContent,
                                       mozilla::ErrorResult& aError) MOZ_OVERRIDE;
 

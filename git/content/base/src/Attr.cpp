@@ -302,8 +302,7 @@ Attr::GetBaseURI(bool aTryUseXHRDocBaseURI) const
 }
 
 void
-Attr::GetTextContentInternal(nsAString& aTextContent,
-                             ErrorResult& aError)
+Attr::GetTextContentInternal(nsAString& aTextContent)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eTextContent);
 

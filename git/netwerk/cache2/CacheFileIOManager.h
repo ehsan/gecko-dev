@@ -112,7 +112,7 @@ public:
     typedef const SHA1Sum::Hash& KeyType;
     typedef const SHA1Sum::Hash* KeyTypePointer;
 
-    explicit HandleHashKey(KeyTypePointer aKey)
+    HandleHashKey(KeyTypePointer aKey)
     {
       MOZ_COUNT_CTOR(HandleHashKey);
       mHash = (SHA1Sum::Hash*)new uint8_t[SHA1Sum::kHashSize];

@@ -59,7 +59,7 @@ protected:
     DONT_REPORT = 1 << 1
   };
 
-  explicit CacheMemoryConsumer(uint32_t aFlags);
+  CacheMemoryConsumer(uint32_t aFlags);
   ~CacheMemoryConsumer() { DoMemoryReport(0); }
   void DoMemoryReport(uint32_t aCurrentSize);
 };
@@ -306,7 +306,7 @@ private:
       MEMORY,
     } mType;
 
-    explicit MemoryPool(EType aType);
+    MemoryPool(EType aType);
     ~MemoryPool();
 
     nsTArray<nsRefPtr<CacheEntry> > mFrecencyArray;

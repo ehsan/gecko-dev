@@ -139,7 +139,7 @@ class Element : public FragmentOrElement
 {
 public:
 #ifdef MOZILLA_INTERNAL_API
-  explicit Element(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo) :
+  Element(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo) :
     FragmentOrElement(aNodeInfo),
     mState(NS_EVENT_STATE_MOZ_READONLY)
   {
@@ -1213,7 +1213,7 @@ private:
 class DestinationInsertionPointList : public nsINodeList
 {
 public:
-  explicit DestinationInsertionPointList(Element* aElement);
+  DestinationInsertionPointList(Element* aElement);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(DestinationInsertionPointList)

@@ -39,7 +39,7 @@ namespace { // anon
 class DoomCallbackSynchronizer : public nsRunnable
 {
 public:
-  explicit DoomCallbackSynchronizer(nsICacheEntryDoomCallback* cb) : mCB(cb)
+  DoomCallbackSynchronizer(nsICacheEntryDoomCallback* cb) : mCB(cb)
   {
     MOZ_COUNT_CTOR(DoomCallbackSynchronizer);
   }
@@ -92,7 +92,7 @@ class DoomCallbackWrapper : public nsICacheListener
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSICACHELISTENER
 
-  explicit DoomCallbackWrapper(nsICacheEntryDoomCallback* cb) : mCB(cb)
+  DoomCallbackWrapper(nsICacheEntryDoomCallback* cb) : mCB(cb)
   {
     MOZ_COUNT_CTOR(DoomCallbackWrapper);
   }
@@ -498,7 +498,7 @@ class MetaDataVisitorWrapper : public nsICacheMetaDataVisitor
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSICACHEMETADATAVISITOR
-  explicit MetaDataVisitorWrapper(nsICacheEntryMetaDataVisitor* cb) : mCB(cb) {}
+  MetaDataVisitorWrapper(nsICacheEntryMetaDataVisitor* cb) : mCB(cb) {}
   nsCOMPtr<nsICacheEntryMetaDataVisitor> mCB;
 };
 

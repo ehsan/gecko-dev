@@ -20,7 +20,7 @@ public:
   NS_DECL_NSIFILECHANNEL
   NS_DECL_NSIUPLOADCHANNEL
 
-  explicit nsFileChannel(nsIURI *uri);
+  nsFileChannel(nsIURI *uri);
 
 protected:
   ~nsFileChannel();

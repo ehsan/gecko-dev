@@ -27,7 +27,7 @@ class CacheFileInputStream : public nsIAsyncInputStream
   NS_DECL_NSISEEKABLESTREAM
 
 public:
-  explicit CacheFileInputStream(CacheFile *aFile);
+  CacheFileInputStream(CacheFile *aFile);
 
   NS_IMETHOD OnChunkRead(nsresult aResult, CacheFileChunk *aChunk);
   NS_IMETHOD OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk);

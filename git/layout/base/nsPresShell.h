@@ -552,7 +552,7 @@ protected:
   {
     nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
     if (frameSelection) {
-      frameSelection->SetDragState(false);
+      frameSelection->SetMouseDownState(false);
     }
     if (gCaptureInfo.mContent &&
         gCaptureInfo.mContent->OwnerDoc() == mDocument) {

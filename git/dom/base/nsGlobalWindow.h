@@ -523,7 +523,7 @@ public:
                            mozilla::ErrorResult& aRv);
 
   // Object Management
-  explicit nsGlobalWindow(nsGlobalWindow *aOuterWindow);
+  nsGlobalWindow(nsGlobalWindow *aOuterWindow);
 
   static nsGlobalWindow *FromSupports(nsISupports *supports)
   {
@@ -1666,7 +1666,7 @@ public:
   // nsIDOMChromeWindow interface
   NS_DECL_NSIDOMCHROMEWINDOW
 
-  explicit nsGlobalChromeWindow(nsGlobalWindow *aOuterWindow)
+  nsGlobalChromeWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow),
       mGroupMessageManagers(1)
   {
@@ -1733,7 +1733,7 @@ class nsGlobalModalWindow : public nsGlobalWindow,
                             public nsIDOMModalContentWindow
 {
 public:
-  explicit nsGlobalModalWindow(nsGlobalWindow *aOuterWindow)
+  nsGlobalModalWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
     mIsModalContentWindow = true;
