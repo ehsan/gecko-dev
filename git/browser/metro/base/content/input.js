@@ -102,9 +102,6 @@ var TouchModule = {
     window.addEventListener("touchmove", this, false);
     window.addEventListener("touchend", this, false);
 
-    Services.obs.addObserver(this, "Gesture:SingleTap", false);
-    Services.obs.addObserver(this, "Gesture:DoubleTap", false);
-
     try {
       this._treatMouseAsTouch = Services.prefs.getBoolPref(kDebugMouseInputPref);
     } catch (e) {}
@@ -196,16 +193,6 @@ var TouchModule = {
       }, 50);
     }
   },
-
-  observe: function BrowserUI_observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "Gesture:SingleTap":
-      case "Gesture:DoubleTap":
-        Browser.selectedBrowser.messageManager.sendAsyncMessage(aTopic, JSON.parse(aData));
-        break;
-    }
-  },
-
 
   sample: function sample(aTimeStamp) {
     this._waitingForPaint = false;

@@ -169,7 +169,7 @@ private:
   bool HitTestChrome(const LayoutDeviceIntPoint& pt);
 
   // Event processing helpers.  See function definitions for more info.
-  bool TransformRefPoint(const Point& aPosition,
+  void TransformRefPoint(const Point& aPosition,
                          LayoutDeviceIntPoint& aRefPointOut);
   void TransformTouchEvent(WidgetTouchEvent* aEvent);
   void OnPointerNonTouch(IPointerPoint* aPoint);
