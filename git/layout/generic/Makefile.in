@@ -68,7 +68,6 @@ EXPORTS		= \
 		nsIStatefulFrame.h \
 		nsFrameSelection.h \
 		nsSubDocumentFrame.h \
-		nsObjectFrame.h \
 		$(NULL)
 
 ifdef IBMBIDI

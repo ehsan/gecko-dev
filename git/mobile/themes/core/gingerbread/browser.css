@@ -75,7 +75,7 @@ toolbarbutton.urlbar-button {
 }
 
 #tool-app-switch:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
   -moz-border-radius-bottomright: @border_radius_small@;
 }
 
@@ -96,7 +96,7 @@ toolbarbutton.urlbar-button {
 }
 
 #tool-app-close:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
 }
 
 #tool-app-close:hover:active:-moz-locale-dir(ltr) {
@@ -202,7 +202,7 @@ toolbarbutton.urlbar-button {
 }
 
 #urlbar-title.placeholder {
-  color: @color_text_placeholder@;
+  color: gray;
 }
 
 #urlbar-edit,
@@ -349,7 +349,7 @@ toolbarbutton.button-control:not([disabled="true"]):hover:active {
 }
 
 .panel-close:hover:active {
-  background-color: @color_background_highlight@ !important;
+  background-color: #8db8d8 !important;
 }
 
 .panel-close:hover:active:-moz-locale-dir(ltr) {
@@ -395,7 +395,7 @@ remotetabslist > hbox.remotetabs-throbber-box {
 
 historylist[loading="true"] > hbox.history-throbber-box,
 remotetabslist[loading="true"] > hbox.remotetabs-throbber-box {
-  background-color: white; /* force */
+  background-color: white;
   display: -moz-box;
 }
 
@@ -515,9 +515,12 @@ remotetabslist[loading="true"] > richlistbox.remotetabs-list-children {
   -moz-margin-end: @margin_normal@;
 }
 
-richlistitem[isDisabled="true"] .title,
+richlistitem[isDisabled="true"] .title {
+  color: gray;
+}
+
 richlistitem[isDisabled="true"] .normal {
-  color: @color_text_disabled@;
+  color: lightgray;
 }
 
 richlistitem[isDisabled="true"] image {
@@ -547,7 +550,7 @@ richlistitem[isDisabled="true"] image {
 
 #dl-empty-message > label {
   text-align: center;
-  color: @color_text_placeholder@;
+  color: grey;
 }
 
 /* console panel UI   ------------------------------------------------------ */
@@ -585,7 +588,7 @@ placelabel {
   background-repeat: no-repeat, repeat-x;
   background-position: 98% 50%, top left;
   background-size: auto auto, auto 100%;
-  color: black; /* force */
+  color: #000;
   min-height: @touch_row@; /* row size */
 }
 
@@ -595,8 +598,7 @@ placelabel:-moz-locale-dir(rtl) {
 
 placelabel:hover:active {
   background-image: url(images/arrowup-16.png);
-  background-color: @color_background_highlight@;
-  color: @color_text_highlight@;
+  background-color: #8db8d8;
 }
 
 /* folder bookmarks row */
@@ -646,19 +648,16 @@ placeitem[ui="manage"] > .bookmark-manage textbox[anonid="uri"]:-moz-locale-dir(
   text-align: right;
 }
 
-/* force the richlistboxes to have a white background */
-.autocomplete-items,
-.place-list-children,
-.history-list-children,
-.remotetabs-list-children {
-  background-color: white; /* force */
+/* autocomplete-items */
+.autocomplete-items {
+  background-color: white;
 }
 
 autocompleteresult,
 placeitem {
   -moz-user-focus: ignore;
-  color: black; /* force */
-  background-color: white; /* force */
+  color: black;
+  background-color: white;
   padding: @padding_xsmall@ @padding_small@;
   border-bottom: @border_width_tiny@ solid rgb(207,207,207);
   min-height: @touch_row@; /* row size */
@@ -669,8 +668,7 @@ placelist placeitem:hover:active:not([selected="true"]),
 historylist autocompleteresult:hover:active:not([selected="true"]):not([class="history-item-title"]),
 remotetabslist autocompleteresult:hover:active:not([selected="true"]):not([class="remotetabs-item-title"]),
 .autocompleteresult-selected {
-  background-color: @color_background_highlight@;
-  color: @color_text_highlight@;
+  background-color: #8db8d8;
 }
 
 .autocomplete-item-container,
@@ -749,7 +747,7 @@ placeitem[src=""] .bookmark-item-container > image {
 
 .autocomplete-item-subtitle,
 .bookmark-item-url {
-  color: blue; /* force */
+  color: blue;
   font-size: @font_small@ !important;
   -moz-margin-end: @autocomplete_item_subtitle_margin@;
 }
@@ -761,7 +759,8 @@ placeitem[src=""] .bookmark-item-container > image {
 }
 
 .autocomplete-item-container[search="true"] .autocomplete-item-subtitle {
-  color: black; /* force */
+  color: black;
+  font-size: smaller;
 }
 
 .autocomplete-item-tags,
@@ -854,12 +853,12 @@ autocompleteresult.noresults {
 }
 
 autocompleteresult.noresults:hover:active {
-  background-color: white !important; /* force */
+  background-color: white !important;
 }
 
 autocompleteresult.noresults > .autocomplete-item-container {
   text-align: center;
-  color: @color_text_placeholder@;
+  color: grey;
 }
 
 /* Left sidebar (tabs)  ---------------------------------------------------- */
@@ -1054,7 +1053,6 @@ documenttab[reload="true"] > stack > .documenttab-reload {
 .action-button,
 .context-command,
 pageaction {
-  color: black; /* force */
   -moz-border-top-colors: white;
   -moz-border-right-colors: rgb(175,175,175);
   -moz-border-bottom-colors: rgb(175,175,175);
@@ -1080,7 +1078,7 @@ pageaction {
 .action-button[disabled="true"],
 .context-command[disabled="true"] {
   pointer-events: none;
-  color: @color_text_disabled@ !important;
+  color: #aaa !important;
 }
 
 .action-button[selected="true"],
@@ -1119,9 +1117,7 @@ pageaction {
 .action-button:not([disabled]):hover:active,
 .context-command:not([disabled]):hover:active,
 pageaction:not([disabled]):hover:active {
-  color: @color_text_highlight@;
-  background-color: @color_background_highlight@;
-  background-image: none !important;
+  background: url("chrome://browser/skin/images/popup-selected-item-hdpi.png") repeat-x !important;
   background-origin: border-box !important;
   background-clip: border-box !important;
   -moz-border-top-colors: transparent;
@@ -1142,11 +1138,12 @@ pageaction:not([image]) > hbox >.pageaction-image {
 .context-command,
 .pageaction-title {
   font-size: @font_normal@ !important;
+  color: #414141 !important;
 }
 
 .pageaction-desc {
   font-size: @font_tiny@ !important;
-  color: @color_subtext_inverse@;
+  color: #414141;
 }
 
 .pageaction-desc[value=""] {
@@ -1246,12 +1243,12 @@ pageaction:not([image]) > hbox >.pageaction-image {
 /* XXX should be a richlistitem description.normal */
 .prefdesc {
   font-size: @font_small@ !important;
-  color: @color_subtext_default@;
+  color: grey;
 }
 
 /* alerts popup ----------------------------------------------------------- */
 #alerts-container {
-  color: @color_text_default@;
+  color: white;
   background-color: #5e6166;
   border: @border_width_small@ solid #767973;
   border-radius: @border_radius_normal@;
@@ -1415,8 +1412,8 @@ pageaction:not([image]) > hbox >.pageaction-image {
 }
 
 .syncsetup-code {
-  color: @color_text_inverse@;
-  background-color: @color_background_inverse@;
+  color: #000;
+  background-color: #fff;
   font-size: @font_xlarge@ !important;
   padding: 0.2em 0.4em;
   -moz-padding-end: 0.2em;
@@ -1430,7 +1427,7 @@ pageaction:not([image]) > hbox >.pageaction-image {
 }
 
 .syncsetup-label {
-  color: @color_text_default@;
+  color: #fff;
 }
 
 #syncsetup-customserver {
