@@ -1104,7 +1104,7 @@ public:
    * called yet.
    */
   PRBool IsShowing() { return mIsShowing; }
-
+  
 protected:
   ~nsIDocument()
   {
@@ -1298,13 +1298,5 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   PRBool aLoadedAsData);
 nsresult
 NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
-
-inline nsIDocument*
-nsINode::GetOwnerDocument() const
-{
-  nsIDocument* ownerDoc = GetOwnerDoc();
-
-  return ownerDoc != this ? ownerDoc : nsnull;
-}
 
 #endif /* nsIDocument_h___ */

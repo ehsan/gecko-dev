@@ -24,7 +24,6 @@
 # Contributor(s):
 #   Ben Goodger <ben@mozilla.org>
 #   Jeff Walden <jwalden+code@mit.edu>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -95,6 +94,10 @@
       <preference id="privacy.sanitize.sanitizeOnShutdown"
                   name="privacy.sanitize.sanitizeOnShutdown"
                   type="bool"/>
+      <preference id="privacy.sanitize.promptOnSanitize"
+                  name="privacy.sanitize.promptOnSanitize"
+                  type="bool"
+                  onchange="gPrivacyPane.updateClearNowButtonLabel();"/>
 
     </preferences>
     
@@ -202,9 +205,13 @@
                 oncommand="gPrivacyPane.showClearPrivateDataSettings();"/>
       </hbox>
       <hbox id="askClearBox">
-        <spacer flex="1"/>
+        <checkbox id="askBeforeClear" flex="1"
+                  preference="privacy.sanitize.promptOnSanitize"
+                  label="&askBeforeClear.label;"
+                  accesskey="&askBeforeClear.accesskey;"/>
         <button id="clearDataNow" icon="clear"
-                label="&clearDataNow.label;"
+                label1="&clearDataNow.label;"
+                label2="&clearDataNow.label2;"
                 accesskey="&clearDataNow.accesskey;"
                 oncommand="gPrivacyPane.clearPrivateDataNow();"/>
       </hbox>

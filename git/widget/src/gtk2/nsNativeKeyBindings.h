@@ -45,7 +45,7 @@
 #endif
 
 #include "nsINativeKeyBindings.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
 
 enum NativeKeyBindingsType {
   eKeyBindings_Input,

@@ -4,15 +4,15 @@
 /**
  * Test object attributes.
  *
- * @param aAccOrElmOrID         [in] the ID, DOM node or accessible
+ * @param aID                   [in] the ID of DOM element having accessible
  * @param aAttrs                [in] the map of expected object attributes
  *                              (name/value pairs)
  * @param aSkipUnexpectedAttrs  [in] points this function doesn't fail if
  *                              unexpected attribute is encountered
  */
-function testAttrs(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs)
+function testAttrs(aID, aAttrs, aSkipUnexpectedAttrs)
 {
-  var accessible = getAccessible(aAccOrElmOrID);
+  var accessible = getAccessible(aID);
   if (!accessible)
     return;
 
@@ -22,33 +22,12 @@ function testAttrs(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs)
   } catch (e) { }
   
   if (!attrs) {
-    ok(false, "Can't get object attributes for " + aAccOrElmOrID);
+    ok(false, "Can't get object attributes for " + aID);
     return;
   }
   
-  var errorMsg = " for " + aAccOrElmOrID;
+  var errorMsg = " for " + aID;
   compareAttrs(errorMsg, attrs, aAttrs, aSkipUnexpectedAttrs);
-}
-
-/**
- * Test group object attributes (posinset, setsize and level)
- *
- * @param aAccOrElmOrID  [in] the ID, DOM node or accessible
- * @param aPosInSet      [in] the value of 'posinset' attribute
- * @param aSetSize       [in] the value of 'setsize' attribute
- * @param aLevel         [in, optional] the value of 'level' attribute
- */
-function testGroupAttrs(aAccOrElmOrID, aPosInSet, aSetSize, aLevel)
-{
-  var attrs = {
-    "posinset": String(aPosInSet),
-    "setsize": String(aSetSize)
-  };
-
-  if (aLevel)
-    attrs["level"] = String(aLevel);
-
-  testAttrs(aAccOrElmOrID, attrs, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

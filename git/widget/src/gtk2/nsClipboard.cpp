@@ -48,11 +48,13 @@
 #include "nsImageToPixbuf.h"
 #include "nsStringStream.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkclipboard.h>
+#include <gtk/gtkinvisible.h>
 
 // For manipulation of the X event queue
 #include <X11/Xlib.h>
 #include <gdk/gdkx.h>
+#include <gtk/gtkmain.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>

@@ -85,9 +85,9 @@ NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 nsIsIndexFrame::nsIsIndexFrame(nsStyleContext* aContext) :
-  nsBlockFrame(aContext)
+  nsAreaFrame(aContext)
 {
-  SetFlags(NS_BLOCK_FLOAT_MGR);
+  SetFlags(NS_BLOCK_SPACE_MGR);
 }
 
 nsIsIndexFrame::~nsIsIndexFrame()
@@ -105,10 +105,10 @@ nsIsIndexFrame::Destroy()
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::Destroy();
+  nsAreaFrame::Destroy();
 }
 
-// REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
+// REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
 nsresult
@@ -256,7 +256,7 @@ nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  return nsBlockFrame::QueryInterface(aIID, aInstancePtr);
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 nscoord
@@ -266,7 +266,7 @@ nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width; the rest of our reflow is
-  // happily handled by nsBlockFrame
+  // happily handled by nsAreaFrame
   result = GetPrefWidth(aRenderingContext);
   return result;
 }
@@ -286,7 +286,7 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
   if (nsGkAtoms::prompt == aAttribute) {
     rv = UpdatePromptLabel(PR_TRUE);
   } else {
-    rv = nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+    rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
   return rv;
 }

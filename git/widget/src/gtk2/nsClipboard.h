@@ -40,7 +40,7 @@
 #define __nsClipboard_h_
 
 #include "nsIClipboard.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkselection.h>
 
 class nsClipboard : public nsIClipboard
 {

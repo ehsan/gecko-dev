@@ -3402,13 +3402,14 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     display->mClipFlags = parentDisplay->mClipFlags;
     display->mClip = parentDisplay->mClip;
   }
-  // if one is initial or auto (rect), they all are
-  else if (eCSSUnit_Initial == displayData.mClip.mTop.GetUnit() ||
-           eCSSUnit_RectIsAuto == displayData.mClip.mTop.GetUnit()) {
+  // if one is initial, they all are
+  else if (eCSSUnit_Initial == displayData.mClip.mTop.GetUnit()) {
     display->mClipFlags = NS_STYLE_CLIP_AUTO;
     display->mClip.SetRect(0,0,0,0);
   }
-  else if (eCSSUnit_Null != displayData.mClip.mTop.GetUnit()) {
+  else {
+    PRBool  fullAuto = PR_TRUE;
+
     display->mClipFlags = 0; // clear it
 
     if (eCSSUnit_Auto == displayData.mClip.mTop.GetUnit()) {
@@ -3417,6 +3418,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     } 
     else if (displayData.mClip.mTop.IsLengthUnit()) {
       display->mClip.y = CalcLength(displayData.mClip.mTop, aContext, mPresContext, inherited);
+      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mBottom.GetUnit()) {
       // Setting to NS_MAXSIZE for the 'auto' case ensures that
@@ -3428,6 +3430,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     else if (displayData.mClip.mBottom.IsLengthUnit()) {
       display->mClip.height = CalcLength(displayData.mClip.mBottom, aContext, mPresContext, inherited) -
                               display->mClip.y;
+      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mLeft.GetUnit()) {
       display->mClip.x = 0;
@@ -3435,6 +3438,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     } 
     else if (displayData.mClip.mLeft.IsLengthUnit()) {
       display->mClip.x = CalcLength(displayData.mClip.mLeft, aContext, mPresContext, inherited);
+      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mRight.GetUnit()) {
       // Setting to NS_MAXSIZE for the 'auto' case ensures that
@@ -3446,9 +3450,15 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     else if (displayData.mClip.mRight.IsLengthUnit()) {
       display->mClip.width = CalcLength(displayData.mClip.mRight, aContext, mPresContext, inherited) -
                              display->mClip.x;
+      fullAuto = PR_FALSE;
     }
     display->mClipFlags &= ~NS_STYLE_CLIP_TYPE_MASK;
-    display->mClipFlags |= NS_STYLE_CLIP_RECT;
+    if (fullAuto) {
+      display->mClipFlags |= NS_STYLE_CLIP_AUTO;
+    }
+    else {
+      display->mClipFlags |= NS_STYLE_CLIP_RECT;
+    }
   }
 
   if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
@@ -4278,12 +4288,11 @@ nsRuleNode::ComputeListData(void* aStartStruct,
     inherited = PR_TRUE;
     list->mImageRegion = parentList->mImageRegion;
   }
-  // if one is -moz-initial or auto (rect), they all are
-  else if (eCSSUnit_Initial == listData.mImageRegion.mTop.GetUnit() ||
-           eCSSUnit_RectIsAuto == listData.mImageRegion.mTop.GetUnit()) {
+  // if one is -moz-initial, they all are
+  else if (eCSSUnit_Initial == listData.mImageRegion.mTop.GetUnit()) {
     list->mImageRegion.Empty();
   }
-  else if (eCSSUnit_Null != listData.mImageRegion.mTop.GetUnit()) {
+  else {
     if (eCSSUnit_Auto == listData.mImageRegion.mTop.GetUnit())
       list->mImageRegion.y = 0;
     else if (listData.mImageRegion.mTop.IsLengthUnit())

@@ -284,13 +284,6 @@ gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
     return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
 }
 
-gfxFontEntry*
-gfxPlatformGtk::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
-{
-    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry, aFontName);
-}
-
 gfxFontEntry* 
 gfxPlatformGtk::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry, 
                                  nsISupports *aLoader,

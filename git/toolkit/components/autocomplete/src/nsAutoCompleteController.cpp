@@ -85,7 +85,7 @@ nsAutoCompleteController::nsAutoCompleteController() :
   mIsIMEComposing(PR_FALSE),
   mIgnoreHandleText(PR_FALSE),
   mIsOpen(PR_FALSE),
-  mSearchStatus(nsAutoCompleteController::STATUS_NONE),
+  mSearchStatus(0),
   mRowCount(0),
   mSearchesOngoing(0),
   mFirstSearchResult(PR_FALSE)

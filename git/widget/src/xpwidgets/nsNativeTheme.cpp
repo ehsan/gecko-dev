@@ -264,13 +264,7 @@ nsNativeTheme::IsFirstTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  nsIFrame* first = aFrame->GetParent()->GetFirstChild(nsnull);
-  while (first) {
-    if (first->GetRect().width > 0 && first->GetContent()->Tag() == nsWidgetAtoms::tab)
-      return (first == aFrame);
-    first = first->GetNextSibling();
-  }
-  return PR_FALSE;
+  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::firsttab);
 }
 
 PRBool
@@ -279,11 +273,7 @@ nsNativeTheme::IsLastTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  while ((aFrame = aFrame->GetNextSibling())) {
-    if (aFrame->GetRect().width > 0 && aFrame->GetContent()->Tag() == nsWidgetAtoms::tab)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
+  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::lasttab);
 }
 
 PRBool

@@ -286,7 +286,7 @@ public:
     nsBlockReflowState& aState, nsLineBox* aLine);
 
   static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
-  static PRBool BlockNeedsFloatManager(nsIFrame* aBlock);
+  static PRBool BlockNeedsSpaceManager(nsIFrame* aBlock);
 
   /**
    * Returns whether aFrame is a block frame that will wrap its contents
@@ -379,12 +379,10 @@ protected:
 
   virtual void ComputeFinalSize(const nsHTMLReflowState& aReflowState,
                                 nsBlockReflowState&      aState,
-                                nsHTMLReflowMetrics&     aMetrics,
-                                nscoord*                 aBottomEdgeOfChildren);
+                                nsHTMLReflowMetrics&     aMetrics);
 
   void ComputeCombinedArea(const nsHTMLReflowState& aReflowState,
-                           nsHTMLReflowMetrics&     aMetrics,
-                           nscoord                  aBottomEdgeOfChildren);
+                           nsHTMLReflowMetrics& aMetrics);
 
   /** add the frames in aFrameList to this block after aPrevSibling
     * this block thinks in terms of lines, but the frame construction code
@@ -679,7 +677,7 @@ public:
   static PRBool gNoisyIntrinsic;
   static PRBool gNoisyReflow;
   static PRBool gReallyNoisyReflow;
-  static PRBool gNoisyFloatManager;
+  static PRBool gNoisySpaceManager;
   static PRBool gVerifyLines;
   static PRBool gDisableResizeOpt;
 

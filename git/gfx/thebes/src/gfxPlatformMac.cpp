@@ -123,8 +123,7 @@ gfxPlatformMac::CreateFontGroup(const nsAString &aFamilies,
 }
 
 gfxFontEntry* 
-gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
+gfxPlatformMac::LookupLocalFont(const nsAString& aFontName)
 {
     return gfxQuartzFontCache::SharedFontCache()->LookupLocalFont(aFontName);
 }

@@ -96,7 +96,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
   parentReflowState = nsnull;
   availableWidth = aAvailableSpace.width;
   availableHeight = aAvailableSpace.height;
-  mFloatManager = nsnull;
+  mSpaceManager = nsnull;
   mLineLayout = nsnull;
   mFlags.mSpecialHeightReflow = PR_FALSE;
   mFlags.mIsTopOfPage = PR_FALSE;
@@ -155,7 +155,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   availableWidth = aAvailableSpace.width;
   availableHeight = aAvailableSpace.height;
 
-  mFloatManager = aParentReflowState.mFloatManager;
+  mSpaceManager = aParentReflowState.mSpaceManager;
   if (frame->IsFrameOfType(nsIFrame::eLineParticipant))
     mLineLayout = aParentReflowState.mLineLayout;
   else
@@ -331,9 +331,7 @@ IsQuirkContainingBlockHeight(const nsHTMLReflowState* rs)
 {
   nsIAtom* frameType = rs->frame->GetType();
   if (nsGkAtoms::blockFrame == frameType ||
-#ifdef MOZ_XUL
-      nsGkAtoms::XULLabelFrame == frameType ||
-#endif
+      nsGkAtoms::areaFrame == frameType ||
       nsGkAtoms::scrollFrame == frameType) {
     // Note: This next condition could change due to a style change,
     // but that would cause a style reflow anyway, which means we're ok.
@@ -1415,7 +1413,7 @@ GetVerticalMarginBorderPadding(const nsHTMLReflowState* aReflowState)
  * until it finds the canvas frame, or it encounters a frame that is not a block,
  * area, or scroll frame. This handles compatibility with IE (see bug 85016 and bug 219693)
  *
- *  When we encounter scrolledContent block frames, we skip over them, since they are guaranteed to not be useful for computing the containing block.
+ *  When we encounter scrolledContent area frames, we skip over them, since they are guaranteed to not be useful for computing the containing block.
  *
  * See also IsQuirkContainingBlockHeight.
  */
@@ -1434,11 +1432,9 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
   for (; rs; rs = (nsHTMLReflowState *)(rs->parentReflowState)) { 
     nsIAtom* frameType = rs->frame->GetType();
     // if the ancestor is auto height then skip it and continue up if it 
-    // is the first block frame and possibly the body/html
+    // is the first block/area frame and possibly the body/html
     if (nsGkAtoms::blockFrame == frameType ||
-#ifdef MOZ_XUL
-        nsGkAtoms::XULLabelFrame == frameType ||
-#endif
+        nsGkAtoms::areaFrame == frameType ||
         nsGkAtoms::scrollFrame == frameType) {
 
       secondAncestorRS = firstAncestorRS;
@@ -1503,12 +1499,13 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
 #endif
       
     }
-    // if we got to the html frame (a block child of the canvas) ...
-    else if (nsGkAtoms::blockFrame == frameType &&
-             nsGkAtoms::canvasFrame ==
-               rs->parentReflowState->frame->GetType()) {
-      // ... then subtract out margin/border/padding for the BODY element
-      result -= GetVerticalMarginBorderPadding(secondAncestorRS);
+    // if we got to the html frame, then subtract out 
+    // margin/border/padding for the BODY element
+    else if (nsGkAtoms::areaFrame == frameType) {
+      // make sure it is the body
+      if (nsGkAtoms::canvasFrame == rs->parentReflowState->frame->GetType()) {
+        result -= GetVerticalMarginBorderPadding(secondAncestorRS);
+      }
     }
     break;
   }
