@@ -668,10 +668,11 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       // make sure we don't end up with selection collapsed after an invisible break node
       nsWSRunObject wsRunObj(this, selNode, selOffset);
       PRInt32 outVisOffset=0;
-      WSType visType;
+      PRInt16 visType=0;
       wsRunObj.PriorVisibleNode(selNode, selOffset, address_of(visNode),
                                 &outVisOffset, &visType);
-      if (visType == WSType::br) {
+      if (visType == nsWSRunObject::eBreak)
+      {
         // we are after a break.  Is it visible?  Despite the name, 
         // PriorVisibleNode does not make that determination for breaks.
         // It also may not return the break in visNode.  We have to pull it
@@ -685,10 +686,14 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
           nsWSRunObject wsRunObj(this, selNode, selOffset);
           wsRunObj.PriorVisibleNode(selNode, selOffset, address_of(visNode),
                                     &outVisOffset, &visType);
-          if (visType == WSType::text || visType == WSType::normalWS) {
+          if (visType == nsWSRunObject::eText ||
+              visType == nsWSRunObject::eNormalWS)
+          {
             selNode = visNode;
             selOffset = outVisOffset;  // PriorVisibleNode already set offset to _after_ the text or ws
-          } else if (visType == WSType::special) {
+          }
+          else if (visType == nsWSRunObject::eSpecial)
+          {
             // prior visible thing is an image or some other non-text thingy.  
             // We want to be right after it.
             selNode = GetNodeLocation(wsRunObj.mStartReasonNode, &selOffset);

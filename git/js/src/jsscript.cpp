@@ -1077,15 +1077,20 @@ JSScript::loadSource(JSContext *cx, bool *worked)
     *worked = false;
     if (!cx->runtime->sourceHook)
         return true;
-    jschar *src = NULL;
+    char *src = NULL;
     uint32_t length;
     if (!cx->runtime->sourceHook(cx, this, &src, &length))
         return false;
     if (!src)
         return true;
-    ScriptSource *ss = ScriptSource::createFromSource(cx, src, length, false, NULL, true);
+    size_t newLength = length;
+    jschar *usrc = InflateString(cx, src, &newLength);
+    cx->free_(src);
+    if (!usrc)
+        return false;
+    ScriptSource *ss = ScriptSource::createFromSource(cx, usrc, length, false, NULL, true);
     if (!ss) {
-        cx->free_(src);
+        cx->free_(usrc);
         return false;
     }
     source = ss;

@@ -10,7 +10,6 @@
 #if defined(XP_UNIX)
 #include "unistd.h"
 #include "dirent.h"
-#include "sys/stat.h"
 #endif // defined(XP_UNIX)
 
 #if defined(XP_MACOSX)
@@ -278,18 +277,6 @@ static dom::ConstantSpec gLibcProperties[] =
   INT_CONSTANT(DT_SOCK),
 #endif // defined(DT_UNKNOWN)
 
-#if defined(S_IFIFO)
-  // Constants for |stat|
-  INT_CONSTANT(S_IFMT),
-  INT_CONSTANT(S_IFIFO),
-  INT_CONSTANT(S_IFCHR),
-  INT_CONSTANT(S_IFDIR),
-  INT_CONSTANT(S_IFBLK),
-  INT_CONSTANT(S_IFREG),
-  INT_CONSTANT(S_IFLNK),
-  INT_CONSTANT(S_IFSOCK),
-#endif // defined(S_IFIFO)
-
   // Constants used to define data structures
   //
   // Many data structures have different fields/sizes/etc. on
@@ -301,15 +288,6 @@ static dom::ConstantSpec gLibcProperties[] =
 #if defined(XP_UNIX)
   // The size of |mode_t|.
   { "OSFILE_SIZEOF_MODE_T", INT_TO_JSVAL(sizeof (mode_t)) },
-
-  // The size of |gid_t|.
-  { "OSFILE_SIZEOF_GID_T", INT_TO_JSVAL(sizeof (gid_t)) },
-
-  // The size of |uid_t|.
-  { "OSFILE_SIZEOF_UID_T", INT_TO_JSVAL(sizeof (uid_t)) },
-
-  // The size of |time_t|.
-  { "OSFILE_SIZEOF_TIME_T", INT_TO_JSVAL(sizeof (time_t)) },
 
   // Defining |dirent|.
   // Size
@@ -328,28 +306,7 @@ static dom::ConstantSpec gLibcProperties[] =
   { "OSFILE_OFFSETOF_DIRENT_D_TYPE", INT_TO_JSVAL(offsetof (struct dirent, d_type)) },
 #endif // defined(DT_UNKNOWN)
 
-
-  // Defining |stat|
-
-  { "OSFILE_SIZEOF_STAT", INT_TO_JSVAL(sizeof (struct stat)) },
-
-  { "OSFILE_OFFSETOF_STAT_ST_MODE", INT_TO_JSVAL(offsetof (struct stat, st_mode)) },
-  { "OSFILE_OFFSETOF_STAT_ST_UID", INT_TO_JSVAL(offsetof (struct stat, st_uid)) },
-  { "OSFILE_OFFSETOF_STAT_ST_GID", INT_TO_JSVAL(offsetof (struct stat, st_gid)) },
-  { "OSFILE_OFFSETOF_STAT_ST_SIZE", INT_TO_JSVAL(offsetof (struct stat, st_size)) },
-
-#if defined(HAVE_ST_ATIMESPEC)
-  { "OSFILE_OFFSETOF_STAT_ST_ATIME", INT_TO_JSVAL(offsetof (struct stat, st_atimespec)) },
-  { "OSFILE_OFFSETOF_STAT_ST_MTIME", INT_TO_JSVAL(offsetof (struct stat, st_mtimespec)) },
-  { "OSFILE_OFFSETOF_STAT_ST_CTIME", INT_TO_JSVAL(offsetof (struct stat, st_ctimespec)) },
-#else
-  { "OSFILE_OFFSETOF_STAT_ST_ATIME", INT_TO_JSVAL(offsetof (struct stat, st_atime)) },
-  { "OSFILE_OFFSETOF_STAT_ST_MTIME", INT_TO_JSVAL(offsetof (struct stat, st_mtime)) },
-  { "OSFILE_OFFSETOF_STAT_ST_CTIME", INT_TO_JSVAL(offsetof (struct stat, st_ctime)) },
-#endif // defined(HAVE_ST_ATIME)
-
 #endif // defined(XP_UNIX)
-
 
 
   // System configuration
@@ -361,13 +318,8 @@ static dom::ConstantSpec gLibcProperties[] =
   // whenever macro _DARWIN_FEATURE_64_BIT_INODE is set. We export
   // this value to be able to do so from JavaScript.
 #if defined(_DARWIN_FEATURE_64_BIT_INODE)
-   { "_DARWIN_FEATURE_64_BIT_INODE", INT_TO_JSVAL(1) },
-#endif // defined(_DARWIN_FEATURE_64_BIT_INODE)
-
-  // Similar feature for Linux
-#if defined(_STAT_VER)
-  INT_CONSTANT(_STAT_VER),
-#endif // defined(_STAT_VER)
+  { "_DARWIN_FEATURE_64_BIT_INODE", INT_TO_JSVAL(1) },
+#endif // defind(_DARWIN_FEATURE_64_BIT_INODE)
 
   PROP_END
 };
@@ -416,7 +368,6 @@ static dom::ConstantSpec gWinProperties[] =
   INT_CONSTANT(FILE_ATTRIBUTE_READONLY),
   INT_CONSTANT(FILE_ATTRIBUTE_REPARSE_POINT),
   INT_CONSTANT(FILE_ATTRIBUTE_TEMPORARY),
-  INT_CONSTANT(FILE_FLAG_BACKUP_SEMANTICS),
 
   // CreateFile error constant
   { "INVALID_HANDLE_VALUE", INT_TO_JSVAL(INT_PTR(INVALID_HANDLE_VALUE)) },

@@ -516,16 +516,23 @@ nsHTMLEditor::BeginningOfDocument()
     nsWSRunObject wsObj(this, curNode, curOffset);
     nsCOMPtr<nsIDOMNode> visNode;
     PRInt32 visOffset=0;
-    WSType visType;
+    PRInt16 visType=0;
     wsObj.NextVisibleNode(curNode, curOffset, address_of(visNode), &visOffset, &visType);
-    if (visType == WSType::normalWS || visType == WSType::text) {
+    if ((visType==nsWSRunObject::eNormalWS) || 
+        (visType==nsWSRunObject::eText))
+    {
       selNode = visNode;
       selOffset = visOffset;
       done = true;
-    } else if (visType == WSType::br || visType == WSType::special) {
+    }
+    else if ((visType==nsWSRunObject::eBreak)    ||
+             (visType==nsWSRunObject::eSpecial))
+    {
       selNode = GetNodeLocation(visNode, &selOffset);
       done = true;
-    } else if (visType == WSType::otherBlock) {
+    }
+    else if (visType==nsWSRunObject::eOtherBlock)
+    {
       // By definition of nsWSRunObject, a block element terminates 
       // a whitespace run. That is, although we are calling a method 
       // that is named "NextVisibleNode", the node returned
@@ -943,11 +950,10 @@ bool nsHTMLEditor::IsVisBreak(nsIDOMNode *aNode)
   nsWSRunObject wsObj(this, selNode, selOffset);
   nsCOMPtr<nsIDOMNode> visNode;
   PRInt32 visOffset=0;
-  WSType visType;
+  PRInt16 visType=0;
   wsObj.NextVisibleNode(selNode, selOffset, address_of(visNode), &visOffset, &visType);
-  if (visType & WSType::block) {
+  if (visType & nsWSRunObject::eBlock)
     return false;
-  }
   
   return true;
 }
@@ -1445,29 +1451,26 @@ nsHTMLEditor::NormalizeEOLInsertPosition(nsIDOMNode *firstNodeToInsert,
   nsCOMPtr<nsIDOMNode> nextVisNode;
   nsCOMPtr<nsIDOMNode> prevVisNode;
   PRInt32 nextVisOffset=0;
-  WSType nextVisType;
+  PRInt16 nextVisType=0;
   PRInt32 prevVisOffset=0;
-  WSType prevVisType;
+  PRInt16 prevVisType=0;
 
   wsObj.NextVisibleNode(*insertParentNode, *insertOffset, address_of(nextVisNode), &nextVisOffset, &nextVisType);
   if (!nextVisNode)
     return;
 
-  if (!(nextVisType & WSType::br)) {
+  if (! (nextVisType & nsWSRunObject::eBreak))
     return;
-  }
 
   wsObj.PriorVisibleNode(*insertParentNode, *insertOffset, address_of(prevVisNode), &prevVisOffset, &prevVisType);
   if (!prevVisNode)
     return;
 
-  if (prevVisType & WSType::br) {
+  if (prevVisType & nsWSRunObject::eBreak)
     return;
-  }
 
-  if (prevVisType & WSType::thisBlock) {
+  if (prevVisType & nsWSRunObject::eThisBlock)
     return;
-  }
 
   PRInt32 brOffset=0;
   nsCOMPtr<nsIDOMNode> brNode = GetNodeLocation(nextVisNode, &brOffset);
@@ -4396,10 +4399,12 @@ nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
       nsWSRunObject wsRunObj(this, node, 0);
       nsCOMPtr<nsIDOMNode> visNode;
       PRInt32 outVisOffset=0;
-      WSType visType;
+      PRInt16 visType=0;
       wsRunObj.NextVisibleNode(node, 0, address_of(visNode),
                                &outVisOffset, &visType);
-      if (visType == WSType::normalWS || visType == WSType::text) {
+      if ( (visType == nsWSRunObject::eNormalWS) ||
+           (visType == nsWSRunObject::eText) )
+      {
         *outIsEmptyNode = (node != visNode);
       }
     }
