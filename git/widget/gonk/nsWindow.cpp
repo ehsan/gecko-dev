@@ -118,7 +118,6 @@ static StaticRefPtr<ScreenOnOffEvent> sScreenOffEvent;
 static void
 displayEnabledCallback(bool enabled)
 {
-    HwcComposer2D::GetInstance()->EnableVsync(enabled);
     NS_DispatchToMainThread(enabled ? sScreenOnEvent : sScreenOffEvent);
 }
 

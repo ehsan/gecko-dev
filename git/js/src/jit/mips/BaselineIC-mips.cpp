@@ -83,6 +83,7 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
     // DIV and MOD need an extra non-volatile ValueOperand to hold R0.
     GeneralRegisterSet savedRegs = availableGeneralRegs(2);
     savedRegs = GeneralRegisterSet::Intersect(GeneralRegisterSet::NonVolatile(), savedRegs);
+    ValueOperand savedValue = savedRegs.takeAnyValue();
 
     Label goodMul, divTest1, divTest2;
     switch(op_) {

@@ -349,7 +349,6 @@ gfxMemorySharedReadLock::gfxMemorySharedReadLock()
 
 gfxMemorySharedReadLock::~gfxMemorySharedReadLock()
 {
-  MOZ_ASSERT(mReadCount == 0);
   MOZ_COUNT_DTOR(gfxMemorySharedReadLock);
 }
 
@@ -593,8 +592,7 @@ CopyFrontToBack(TextureClient* aFront,
 
 void
 TileClient::ValidateBackBufferFromFront(const nsIntRegion& aDirtyRegion,
-                                        bool aCanRerasterizeValidRegion,
-                                        nsIntRegion& aAddPaintedRegion)
+                                        bool aCanRerasterizeValidRegion)
 {
   if (mBackBuffer && mFrontBuffer) {
     gfx::IntSize tileSize = mFrontBuffer->GetSize();
@@ -609,8 +607,6 @@ TileClient::ValidateBackBufferFromFront(const nsIntRegion& aDirtyRegion,
       nsIntRegion regionToCopy = mInvalidBack;
 
       regionToCopy.Sub(regionToCopy, aDirtyRegion);
-
-      aAddPaintedRegion = regionToCopy;
 
       if (regionToCopy.IsEmpty() ||
           (aCanRerasterizeValidRegion &&
@@ -729,7 +725,6 @@ TileClient::GetBackBuffer(const nsIntRegion& aDirtyRegion,
                           gfxContentType aContent,
                           SurfaceMode aMode,
                           bool *aCreatedTextureClient,
-                          nsIntRegion& aAddPaintedRegion,
                           bool aCanRerasterizeValidRegion,
                           RefPtr<TextureClient>* aBackBufferOnWhite)
 {
@@ -762,11 +757,6 @@ TileClient::GetBackBuffer(const nsIntRegion& aDirtyRegion,
     if (aMode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
       mBackBufferOnWhite = pool->GetTextureClient();
     }
-
-    if (mBackLock) {
-      // Before we Replacing the lock by another one we need to unlock it!
-      mBackLock->ReadUnlock();
-    }
     // Create a lock for our newly created back-buffer.
     if (mManager->AsShadowForwarder()->IsSameProcess()) {
       // If our compositor is in the same process, we can save some cycles by not
@@ -782,7 +772,7 @@ TileClient::GetBackBuffer(const nsIntRegion& aDirtyRegion,
     mInvalidBack = nsIntRect(0, 0, mBackBuffer->GetSize().width, mBackBuffer->GetSize().height);
   }
 
-  ValidateBackBufferFromFront(aDirtyRegion, aCanRerasterizeValidRegion, aAddPaintedRegion);
+  ValidateBackBufferFromFront(aDirtyRegion, aCanRerasterizeValidRegion);
 
   *aBackBufferOnWhite = mBackBufferOnWhite;
   return mBackBuffer;
@@ -959,7 +949,6 @@ ClientTiledLayerBuffer::PaintThebes(const nsIntRegion& aNewValidRegion,
   PROFILER_LABEL("ClientTiledLayerBuffer", "PaintThebesUpdate",
     js::ProfileEntry::Category::GRAPHICS);
 
-  mNewValidRegion = aNewValidRegion;
   Update(aNewValidRegion, aPaintRegion);
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
@@ -1106,18 +1095,12 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   bool usingSinglePaintBuffer = !!mSinglePaintDrawTarget;
   SurfaceMode mode;
   gfxContentType content = GetContentType(&mode);
-  nsIntRegion extraPainted;
   RefPtr<TextureClient> backBufferOnWhite;
   RefPtr<TextureClient> backBuffer =
     aTile.GetBackBuffer(offsetScaledDirtyRegion,
                         content, mode,
-                        &createdTextureClient, extraPainted,
-                        !usingSinglePaintBuffer && !gfxPrefs::TiledDrawTargetEnabled(),
+                        &createdTextureClient, !usingSinglePaintBuffer,
                         &backBufferOnWhite);
-
-  extraPainted.MoveBy(aTileOrigin);
-  extraPainted.And(extraPainted, mNewValidRegion);
-  mPaintedRegion.Or(mPaintedRegion, extraPainted);
 
   // the back buffer may have been already locked in ValidateBackBufferFromFront
   if (!backBuffer->IsLocked()) {

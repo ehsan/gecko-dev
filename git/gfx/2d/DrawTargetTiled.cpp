@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DrawTargetTiled.h"
-#include "Logging.h"
 
 using namespace std;
 
@@ -63,9 +62,6 @@ public:
   virtual TemporaryRef<DataSourceSurface> GetDataSurface()
   {
     RefPtr<DataSourceSurface> surf = Factory::CreateDataSourceSurface(GetSize(), GetFormat());
-    if (MOZ2D_WARN_IF(!surf)) {
-      return nullptr;
-    }
 
     DataSourceSurface::MappedSurface mappedSurf;
     surf->Map(DataSourceSurface::MapType::WRITE, &mappedSurf);

@@ -295,7 +295,6 @@ function RTCPeerConnection() {
   this._onGetStatsSuccess = null;
   this._onGetStatsFailure = null;
   this._onReplaceTrackSender = null;
-  this._onReplaceTrackWithTrack = null;
   this._onReplaceTrackSuccess = null;
   this._onReplaceTrackFailure = null;
 
@@ -831,7 +830,6 @@ RTCPeerConnection.prototype = {
     // may not be in the stream either, so we check neither arg right now.
 
     this._onReplaceTrackSender = sender;
-    this._onReplaceTrackWithTrack = withTrack;
     this._onReplaceTrackSuccess = onSuccess;
     this._onReplaceTrackFailure = onError;
     this._impl.replaceTrack(sender.track, withTrack, sender._stream);
@@ -1322,18 +1320,12 @@ PeerConnectionObserver.prototype = {
   },
 
   onReplaceTrackSuccess: function() {
-    var pc = this._dompc;
-    pc._onReplaceTrackSender.track = pc._onReplaceTrackWithTrack;
-    pc._onReplaceTrackWithTrack = null;
-    pc._onReplaceTrackSender = null;
-    pc.callCB(pc._onReplaceTrackSuccess);
+    this._dompc.callCB(this._dompc._onReplaceTrackSuccess);
   },
 
   onReplaceTrackError: function(code, message) {
-    var pc = this._dompc;
-    pc._onReplaceTrackWithTrack = null;
-    pc._onReplaceTrackSender = null;
-    pc.callCB(pc._onReplaceTrackError, new RTCError(code, message));
+    this._dompc.callCB(this._dompc._onReplaceTrackError,
+                       new RTCError(code, message));
   },
 
   foundIceCandidate: function(cand) {

@@ -32,11 +32,6 @@
 #undef None
 #endif
 
-// X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
-#ifdef CurrentTime
-#undef CurrentTime
-#endif
-
 #include "mozilla/dom/HTMLMediaElementBinding.h"
 
 // Define to output information on decoding and painting framerate
@@ -537,11 +532,11 @@ public:
   
   MediaWaitingFor WaitingFor() const;
 
-  mozilla::dom::EventHandlerNonNull* GetOnencrypted();
-  void SetOnencrypted(mozilla::dom::EventHandlerNonNull* listener);
+  mozilla::dom::EventHandlerNonNull* GetOnneedkey();
+  void SetOnneedkey(mozilla::dom::EventHandlerNonNull* listener);
 
-  void DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
-                         const nsAString& aInitDataType);
+  void DispatchNeedKey(const nsTArray<uint8_t>& aInitData,
+                       const nsAString& aInitDataType);
 
 
   bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;

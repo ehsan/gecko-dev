@@ -33,9 +33,8 @@ MacIOSurfaceImage::GetAsSourceSurface()
 
   RefPtr<gfx::DataSourceSurface> dataSurface
     = gfx::Factory::CreateDataSourceSurface(gfx::IntSize(ioWidth, ioHeight), gfx::SurfaceFormat::B8G8R8A8);
-  if (NS_WARN_IF(!dataSurface)) {
+  if (!dataSurface)
     return nullptr;
-  }
 
   gfx::DataSourceSurface::MappedSurface mappedSurface;
   if (!dataSurface->Map(gfx::DataSourceSurface::WRITE, &mappedSurface))

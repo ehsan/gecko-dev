@@ -8,7 +8,6 @@
 
 #include "Tools.h"
 #include "Filters.h"
-#include "Logging.h"
 
 namespace mozilla {
 namespace gfx {
@@ -397,7 +396,6 @@ RecordedDrawTargetCreation::RecordToStream(ostream &aStream) const
 
 RecordedDrawTargetCreation::RecordedDrawTargetCreation(istream &aStream)
   : RecordedEvent(DRAWTARGETCREATION)
-  , mExistingData(nullptr)
 {
   ReadElement(aStream, mRefPtr);
   ReadElement(aStream, mBackendType);
@@ -407,12 +405,6 @@ RecordedDrawTargetCreation::RecordedDrawTargetCreation(istream &aStream)
 
   if (mHasExistingData) {
     RefPtr<DataSourceSurface> dataSurf = Factory::CreateDataSourceSurface(mSize, mFormat);
-    if (!dataSurf) {
-      gfxWarning() << "RecordedDrawTargetCreation had to reset mHasExistingData";
-      mHasExistingData = false;
-      return;
-    }
-
     for (int y = 0; y < mSize.height; y++) {
       aStream.read((char*)dataSurf->GetData() + y * dataSurf->Stride(),
                     BytesPerPixel(mFormat) * mSize.width);

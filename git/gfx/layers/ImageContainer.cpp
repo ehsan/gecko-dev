@@ -590,7 +590,8 @@ PlanarYCbCrImage::GetAsSourceSurface()
   }
 
   RefPtr<gfx::DataSourceSurface> surface = gfx::Factory::CreateDataSourceSurface(size, format);
-  if (NS_WARN_IF(!surface)) {
+  if (!surface) {
+    NS_WARNING("Failed to create SourceSurface.");
     return nullptr;
   }
 
@@ -608,7 +609,8 @@ RemoteBitmapImage::GetAsSourceSurface()
                          ? gfx::SurfaceFormat::B8G8R8X8
                          : gfx::SurfaceFormat::B8G8R8A8;
   RefPtr<gfx::DataSourceSurface> newSurf = gfx::Factory::CreateDataSourceSurface(mSize, fmt);
-  if (NS_WARN_IF(!newSurf)) {
+  if (!newSurf) {
+    NS_WARNING("Failed to create SourceSurface.");
     return nullptr;
   }
 

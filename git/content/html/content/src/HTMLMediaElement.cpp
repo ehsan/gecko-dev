@@ -12,7 +12,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #ifdef MOZ_EME
-#include "mozilla/dom/MediaEncryptedEvent.h"
+#include "mozilla/dom/MediaKeyNeededEvent.h"
 #endif
 
 #include "base/basictypes.h"
@@ -4018,28 +4018,28 @@ HTMLMediaElement::WaitingFor() const
 }
 
 EventHandlerNonNull*
-HTMLMediaElement::GetOnencrypted()
+HTMLMediaElement::GetOnneedkey()
 {
   EventListenerManager *elm = GetExistingListenerManager();
-  return elm ? elm->GetEventHandler(nsGkAtoms::onencrypted, EmptyString())
+  return elm ? elm->GetEventHandler(nsGkAtoms::onneedkey, EmptyString())
               : nullptr;
 }
 
 void
-HTMLMediaElement::SetOnencrypted(EventHandlerNonNull* handler)
+HTMLMediaElement::SetOnneedkey(EventHandlerNonNull* handler)
 {
   EventListenerManager *elm = GetOrCreateListenerManager();
   if (elm) {
-    elm->SetEventHandler(nsGkAtoms::onencrypted, EmptyString(), handler);
+    elm->SetEventHandler(nsGkAtoms::onneedkey, EmptyString(), handler);
   }
 }
 
 void
-HTMLMediaElement::DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
-                                    const nsAString& aInitDataType)
+HTMLMediaElement::DispatchNeedKey(const nsTArray<uint8_t>& aInitData,
+                                  const nsAString& aInitDataType)
 {
-  nsRefPtr<MediaEncryptedEvent> event(
-    MediaEncryptedEvent::Constructor(this, aInitDataType, aInitData));
+  nsRefPtr<MediaKeyNeededEvent> event(
+    MediaKeyNeededEvent::Constructor(this, aInitDataType, aInitData));
   nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
     new AsyncEventDispatcher(this, event);
   asyncDispatcher->PostDOMEvent();
@@ -4048,7 +4048,7 @@ HTMLMediaElement::DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
 bool
 HTMLMediaElement::IsEventAttributeName(nsIAtom* aName)
 {
-  return aName == nsGkAtoms::onencrypted ||
+  return aName == nsGkAtoms::onneedkey ||
          nsGenericHTMLElement::IsEventAttributeName(aName);
 }
 #endif // MOZ_EME

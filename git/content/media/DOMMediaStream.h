@@ -100,8 +100,6 @@ public:
    */
   virtual void SetTrackEnabled(TrackID aTrackID, bool aEnabled);
 
-  virtual void StopTrack(TrackID aTrackID);
-
   bool IsFinished();
   /**
    * Returns a principal indicating who may access this stream. The stream contents
@@ -161,8 +159,7 @@ public:
   // Indicate what track types we eventually expect to add to this stream
   enum {
     HINT_CONTENTS_AUDIO = 1 << 0,
-    HINT_CONTENTS_VIDEO = 1 << 1,
-    HINT_CONTENTS_UNKNOWN = 1 << 2
+    HINT_CONTENTS_VIDEO = 1 << 1
   };
   TrackTypeHints GetHintContents() const { return mHintContents; }
   void SetHintContents(TrackTypeHints aHintContents) { mHintContents = aHintContents; }
@@ -230,9 +227,9 @@ public:
   void ConstructMediaTracks(AudioTrackList* aAudioTrackList,
                             VideoTrackList* aVideoTrackList);
 
-  virtual void NotifyMediaStreamTrackCreated(MediaStreamTrack* aTrack);
+  void NotifyMediaStreamTrackCreated(MediaStreamTrack* aTrack);
 
-  virtual void NotifyMediaStreamTrackEnded(MediaStreamTrack* aTrack);
+  void NotifyMediaStreamTrackEnded(MediaStreamTrack* aTrack);
 
 protected:
   virtual ~DOMMediaStream();

@@ -85,7 +85,7 @@ TextRenderer::RenderText(const string& aText, const IntPoint& aOrigin,
   // Create a surface to draw our glyphs to.
   RefPtr<DataSourceSurface> textSurf =
     Factory::CreateDataSourceSurface(IntSize(maxWidth, numLines * sCellHeight), sTextureFormat);
-  if (NS_WARN_IF(!textSurf)) {
+  if (!textSurf) {
     return;
   }
 
@@ -147,7 +147,8 @@ TextRenderer::EnsureInitialized()
   }
 
   mGlyphBitmaps = Factory::CreateDataSourceSurface(IntSize(sTextureWidth, sTextureHeight), sTextureFormat);
-  if (NS_WARN_IF(!mGlyphBitmaps)) {
+  if (!mGlyphBitmaps) {
+    NS_WARNING("Failed to create SourceSurface.");
     return;
   }
 

@@ -2503,6 +2503,10 @@ ICToNumber_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 // BinaryArith_Fallback
 //
 
+// Disable PGO (see bug 851490).
+#if defined(_MSC_VER)
+# pragma optimize("g", off)
+#endif
 static bool
 DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallback *stub_,
                       HandleValue lhs, HandleValue rhs, MutableHandleValue ret)
@@ -2718,6 +2722,9 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
     stub->noteUnoptimizableOperands();
     return true;
 }
+#if defined(_MSC_VER)
+# pragma optimize("", on)
+#endif
 
 typedef bool (*DoBinaryArithFallbackFn)(JSContext *, BaselineFrame *, ICBinaryArith_Fallback *,
                                         HandleValue, HandleValue, MutableHandleValue);
@@ -3062,6 +3069,10 @@ ICBinaryArith_DoubleWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
 // UnaryArith_Fallback
 //
 
+// Disable PGO (see bug 851490).
+#if defined(_MSC_VER)
+# pragma optimize("g", off)
+#endif
 static bool
 DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback *stub_,
                      HandleValue val, MutableHandleValue res)
@@ -3128,6 +3139,9 @@ DoUnaryArithFallback(JSContext *cx, BaselineFrame *frame, ICUnaryArith_Fallback 
 
     return true;
 }
+#if defined(_MSC_VER)
+# pragma optimize("", on)
+#endif
 
 typedef bool (*DoUnaryArithFallbackFn)(JSContext *, BaselineFrame *, ICUnaryArith_Fallback *,
                                        HandleValue, MutableHandleValue);
