@@ -321,6 +321,7 @@ NetworkManager.prototype = {
             state: i.state,
             type: i.type,
             name: i.name,
+            dhcp: i.dhcp,
             ip: i.ip,
             netmask: i.netmask,
             broadcast: i.broadcast,
@@ -596,7 +597,7 @@ NetworkManager.prototype = {
   setDefaultRouteAndDNS: function setDefaultRouteAndDNS(oldInterface) {
     debug("Going to change route and DNS to " + this.active.name);
     let options = {
-      cmd: "setDefaultRouteAndDNS",
+      cmd: this.active.dhcp ? "runDHCPAndSetDefaultRouteAndDNS" : "setDefaultRouteAndDNS",
       ifname: this.active.name,
       oldIfname: (oldInterface && oldInterface != this.active) ? oldInterface.name : null,
       gateway_str: this.active.gateway,
