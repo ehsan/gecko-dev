@@ -6,9 +6,17 @@
 #ifndef nsStringIterator_h___
 #define nsStringIterator_h___
 
+#ifndef nsCharTraits_h___
 #include "nsCharTraits.h"
+#endif
+
+#ifndef nsAlgorithm_h___
 #include "nsAlgorithm.h"
+#endif
+
+#ifndef nsDebug_h___
 #include "nsDebug.h"
+#endif
 
   /**
    * @see nsTAString

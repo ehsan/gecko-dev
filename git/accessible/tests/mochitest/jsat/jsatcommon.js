@@ -372,22 +372,6 @@ var ContentMessages = {
     }
   },
 
-  adjustRangeUp: {
-    name: 'AccessFu:AdjustRange',
-    json: {
-      origin: 'top',
-      direction: 'backward'
-    }
-  },
-
-  adjustRangeDown: {
-    name: 'AccessFu:AdjustRange',
-    json: {
-      origin: 'top',
-      direction: 'forward'
-    }
-  },
-
   focusSelector: function focusSelector(aSelector, aBlur) {
     return {
       name: 'AccessFuTest:Focus',

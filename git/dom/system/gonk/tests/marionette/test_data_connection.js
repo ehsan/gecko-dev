@@ -59,7 +59,7 @@ function setEmulatorAPN() {
     [{"carrier":"T-Mobile US",
       "apn":"epc.tmobile.com",
       "mmsc":"http://mms.msg.eng.t-mobile.com/mms/wapenc",
-      "types":["default","supl","mms","ims","dun"]}]
+      "types":["default","supl","mms","ims"]}]
   ];
 
   return setSetting(APN_KEY, apn);
@@ -155,8 +155,7 @@ function testNonDefaultDataConnection() {
     let typeMapping = {
       "mms": Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_MMS,
       "supl": Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_SUPL,
-      "ims": Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_IMS,
-      "dun": Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_DUN
+      "ims": Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE_IMS
     };
     let networkType = typeMapping[type];
 
@@ -177,7 +176,6 @@ function testNonDefaultDataConnection() {
     .then(() => doTestNonDefaultDataConnection("mms"))
     .then(() => doTestNonDefaultDataConnection("supl"))
     .then(() => doTestNonDefaultDataConnection("ims"))
-    .then(() => doTestNonDefaultDataConnection("dun"))
     // Restore APN settings
     .then(() => setSetting(APN_KEY, currentApn))
     .then(null, () => {

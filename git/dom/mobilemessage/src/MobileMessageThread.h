@@ -23,22 +23,22 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZMOBILEMESSAGETHREAD
 
-  MobileMessageThread(uint64_t aId,
+  MobileMessageThread(const uint64_t aId,
                       const nsTArray<nsString>& aParticipants,
-                      uint64_t aTimestamp,
+                      const uint64_t aTimestamp,
                       const nsString& aLastMessageSubject,
                       const nsString& aBody,
-                      uint64_t aUnreadCount,
+                      const uint64_t aUnreadCount,
                       mobilemessage::MessageType aLastMessageType);
 
   MobileMessageThread(const ThreadData& aData);
 
-  static nsresult Create(uint64_t aId,
+  static nsresult Create(const uint64_t aId,
                          const JS::Value& aParticipants,
-                         uint64_t aTimestamp,
+                         const JS::Value& aTimestamp,
                          const nsAString& aLastMessageSubject,
                          const nsAString& aBody,
-                         uint64_t aUnreadCount,
+                         const uint64_t aUnreadCount,
                          const nsAString& aLastMessageType,
                          JSContext* aCx,
                          nsIDOMMozMobileMessageThread** aThread);

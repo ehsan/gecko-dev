@@ -123,11 +123,6 @@ public:
 
   GFX2D_API static Matrix Rotation(Float aAngle);
 
-  static Matrix Scaling(Float aX, Float aY)
-  {
-    return Matrix(aX, 0.0f, 0.0f, aY, 0.0f, 0.0f);
-  }
-
   Matrix operator*(const Matrix &aMatrix) const
   {
     Matrix resultMatrix;

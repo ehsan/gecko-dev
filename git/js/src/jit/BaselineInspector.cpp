@@ -469,10 +469,7 @@ BaselineInspector::commonGetPropFunction(jsbytecode *pc, Shape **lastProperty, J
 {
     const ICEntry &entry = icEntryFromPC(pc);
     for (ICStub *stub = entry.firstStub(); stub; stub = stub->next()) {
-        if (stub->isGetProp_CallScripted()  ||
-            stub->isGetProp_CallNative()    ||
-            stub->isGetProp_CallNativePrototype())
-        {
+        if (stub->isGetProp_CallScripted() || stub->isGetProp_CallNative()) {
             ICGetPropCallGetter *nstub = static_cast<ICGetPropCallGetter *>(stub);
             *lastProperty = nstub->holderShape();
             *commonGetter = nstub->getter();

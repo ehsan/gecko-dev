@@ -66,13 +66,11 @@ TextTrackList::AddTextTrack(TextTrackKind aKind,
                             const nsAString& aLabel,
                             const nsAString& aLanguage,
                             TextTrackMode aMode,
-                            TextTrackReadyState aReadyState,
                             TextTrackSource aTextTrackSource,
                             const CompareTextTracks& aCompareTT)
 {
-  nsRefPtr<TextTrack> track = new TextTrack(mGlobal, this, aKind, aLabel,
-                                            aLanguage, aMode, aReadyState,
-                                            aTextTrackSource);
+  nsRefPtr<TextTrack> track = new TextTrack(mGlobal, this, aKind, aLabel, aLanguage,
+                                            aMode, aTextTrackSource);
   AddTextTrack(track, aCompareTT);
   return track.forget();
 }

@@ -34,7 +34,6 @@ public:
              uint64_t aSentTimestamp,
              uint64_t aDeliveryTimestamp,
              bool aRead);
-
   SmsMessage(const mobilemessage::SmsMessageData& aData);
 
   static nsresult Create(int32_t aId,
@@ -46,10 +45,10 @@ public:
                          const nsAString& aReceiver,
                          const nsAString& aBody,
                          const nsAString& aMessageClass,
-                         uint64_t aTimestamp,
-                         uint64_t aSentTimestamp,
-                         uint64_t aDeliveryTimestamp,
-                         bool aRead,
+                         const JS::Value& aTimestamp,
+                         const JS::Value& aSentTimestamp,
+                         const JS::Value& aDeliveryTimestamp,
+                         const bool aRead,
                          JSContext* aCx,
                          nsIDOMMozSmsMessage** aMessage);
   const mobilemessage::SmsMessageData& GetData() const;

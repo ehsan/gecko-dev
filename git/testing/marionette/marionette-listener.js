@@ -2019,14 +2019,6 @@ function runEmulatorCmd(cmd, callback) {
   _emu_cb_id += 1;
 }
 
-function runEmulatorShell(args, callback) {
-  if (callback) {
-    _emu_cbs[_emu_cb_id] = callback;
-  }
-  sendAsyncMessage("Marionette:runEmulatorShell", {emulator_shell: args, id: _emu_cb_id});
-  _emu_cb_id += 1;
-}
-
 function emulatorCmdResult(msg) {
   let message = msg.json;
   if (!sandbox) {

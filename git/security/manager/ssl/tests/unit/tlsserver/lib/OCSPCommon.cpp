@@ -38,7 +38,22 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
   PRTime oneDay = 60*60*24 * (PRTime)PR_USEC_PER_SEC;
   PRTime oldNow = now - (8 * oneDay);
 
-  insanity::test::OCSPResponseContext context(aArena, aCert, now);
+  insanity::test::OCSPResponseContext context;
+  context.arena = aArena;
+  context.cert = CERT_DupCertificate(aCert);
+  context.issuerCert = nullptr;
+  context.signerCert = nullptr;
+  context.responseStatus = 0;
+
+  context.producedAt = now;
+  context.thisUpdate = now;
+  context.nextUpdate = now + 10 * PR_USEC_PER_SEC;
+  context.includeNextUpdate = true;
+  context.certIDHashAlg = SEC_OID_SHA1;
+  context.certStatus = 0;
+  context.revocationTime = 0;
+  context.badSignature = false;
+  context.responderIDType = insanity::test::OCSPResponseContext::ByKeyHash;
 
   if (aORT == ORTGoodOtherCert) {
     context.cert = PK11_FindCertFromNickname(aAdditionalCertName, nullptr);
@@ -79,11 +94,8 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
       break;
     default:
       // context.responseStatus is 0 in all other cases, and it has
-      // already been initialized in the constructor.
+      // already been initialized, above.
       break;
-  }
-  if (aORT == ORTSkipResponseBytes) {
-    context.skipResponseBytes = true;
   }
   if (aORT == ORTExpired || aORT == ORTExpiredFreshCA) {
     context.thisUpdate = oldNow;

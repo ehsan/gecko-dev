@@ -23,7 +23,6 @@ SOURCES += [
     'FileSystemTaskBase.cpp',
     'FileSystemUtils.cpp',
     'GetFileOrDirectoryTask.cpp',
-    'RemoveTask.cpp',
 ]
 
 FINAL_LIBRARY = 'gklayout'

@@ -553,7 +553,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     WEBIDL_FILES += [
         'MozSpeakerManager.webidl',
         'MozWifiConnectionInfoEvent.webidl',
-        'MozWifiManager.webidl',
         'MozWifiP2pManager.webidl',
         'MozWifiP2pStatusChangeEvent.webidl',
         'MozWifiStatusChangeEvent.webidl',
@@ -613,7 +612,3 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothStatusChangedEvent.webidl',
     ]
 
-if CONFIG['MOZ_BUILD_APP'] in ['browser', 'xulrunner']:
-    WEBIDL_FILES += [
-        'BrowserFeedWriter.webidl',
-    ]

@@ -291,22 +291,22 @@ FilterCachedColorModels::WrapForColorModel(ColorModel aColorModel)
   // Conversions between different color spaces can only happen on
   // unpremultiplied color channels.
 
-  if (aColorModel.mAlphaModel == AlphaModel::Premultiplied) {
+  if (aColorModel.mAlphaModel == PREMULTIPLIED) {
     RefPtr<FilterNode> unpre =
-      ForColorModel(ColorModel(aColorModel.mColorSpace, AlphaModel::Unpremultiplied));
+      ForColorModel(ColorModel(aColorModel.mColorSpace, UNPREMULTIPLIED));
     return FilterWrappers::Premultiply(mDT, unpre);
   }
 
-  MOZ_ASSERT(aColorModel.mAlphaModel == AlphaModel::Unpremultiplied);
+  MOZ_ASSERT(aColorModel.mAlphaModel == UNPREMULTIPLIED);
   if (aColorModel.mColorSpace == mOriginalColorModel.mColorSpace) {
     RefPtr<FilterNode> premultiplied =
-      ForColorModel(ColorModel(aColorModel.mColorSpace, AlphaModel::Premultiplied));
+      ForColorModel(ColorModel(aColorModel.mColorSpace, PREMULTIPLIED));
     return FilterWrappers::Unpremultiply(mDT, premultiplied);
   }
 
   RefPtr<FilterNode> unpremultipliedOriginal =
-    ForColorModel(ColorModel(mOriginalColorModel.mColorSpace, AlphaModel::Unpremultiplied));
-  if (aColorModel.mColorSpace == ColorSpace::LinearRGB) {
+    ForColorModel(ColorModel(mOriginalColorModel.mColorSpace, UNPREMULTIPLIED));
+  if (aColorModel.mColorSpace == LINEAR_RGB) {
     return FilterWrappers::SRGBToLinearRGB(mDT, unpremultipliedOriginal);
   }
   return FilterWrappers::LinearRGBToSRGB(mDT, unpremultipliedOriginal);
@@ -591,10 +591,10 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
   const AttributeMap& atts = aDescription.Attributes();
   switch (aDescription.Type()) {
 
-    case PrimitiveType::Empty:
+    case FilterPrimitiveDescription::eNone:
       return nullptr;
 
-    case PrimitiveType::Blend:
+    case FilterPrimitiveDescription::eBlend:
     {
       uint32_t mode = atts.GetUint(eBlendBlendmode);
       RefPtr<FilterNode> filter;
@@ -622,7 +622,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::ColorMatrix:
+    case FilterPrimitiveDescription::eColorMatrix:
     {
       float colorMatrix[20];
       uint32_t type = atts.GetUint(eColorMatrixType);
@@ -642,7 +642,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Morphology:
+    case FilterPrimitiveDescription::eMorphology:
     {
       Size radii = atts.GetSize(eMorphologyRadii);
       int32_t rx = radii.width;
@@ -669,7 +669,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Flood:
+    case FilterPrimitiveDescription::eFlood:
     {
       Color color = atts.GetColor(eFloodColor);
       RefPtr<FilterNode> filter = aDT->CreateFilter(FilterType::FLOOD);
@@ -677,7 +677,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Tile:
+    case FilterPrimitiveDescription::eTile:
     {
       RefPtr<FilterNode> filter = aDT->CreateFilter(FilterType::TILE);
       filter->SetAttribute(ATT_TILE_SOURCE_RECT, aSourceRegions[0]);
@@ -685,7 +685,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::ComponentTransfer:
+    case FilterPrimitiveDescription::eComponentTransfer:
     {
       RefPtr<FilterNode> filters[4]; // one for each FILTER_*_TRANSFER type
       static const AttributeName componentFunctionNames[4] = {
@@ -713,7 +713,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return lastFilter;
     }
 
-    case PrimitiveType::ConvolveMatrix:
+    case FilterPrimitiveDescription::eConvolveMatrix:
     {
       RefPtr<FilterNode> filter = aDT->CreateFilter(FilterType::CONVOLVE_MATRIX);
       filter->SetAttribute(ATT_CONVOLVE_MATRIX_KERNEL_SIZE, atts.GetIntSize(eConvolveMatrixKernelSize));
@@ -744,13 +744,13 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Offset:
+    case FilterPrimitiveDescription::eOffset:
     {
       return FilterWrappers::Offset(aDT, aSources[0],
                                     atts.GetIntPoint(eOffsetOffset));
     }
 
-    case PrimitiveType::DisplacementMap:
+    case FilterPrimitiveDescription::eDisplacementMap:
     {
       RefPtr<FilterNode> filter = aDT->CreateFilter(FilterType::DISPLACEMENT_MAP);
       filter->SetAttribute(ATT_DISPLACEMENT_MAP_SCALE,
@@ -771,7 +771,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Turbulence:
+    case FilterPrimitiveDescription::eTurbulence:
     {
       RefPtr<FilterNode> filter = aDT->CreateFilter(FilterType::TURBULENCE);
       filter->SetAttribute(ATT_TURBULENCE_BASE_FREQUENCY,
@@ -794,7 +794,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return FilterWrappers::Offset(aDT, filter, atts.GetIntPoint(eTurbulenceOffset));
     }
 
-    case PrimitiveType::Composite:
+    case FilterPrimitiveDescription::eComposite:
     {
       RefPtr<FilterNode> filter;
       uint32_t op = atts.GetUint(eCompositeOperator);
@@ -822,7 +822,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Merge:
+    case FilterPrimitiveDescription::eMerge:
     {
       if (aSources.Length() == 0) {
         return nullptr;
@@ -838,13 +838,13 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::GaussianBlur:
+    case FilterPrimitiveDescription::eGaussianBlur:
     {
       return FilterWrappers::GaussianBlur(aDT, aSources[0],
                                           atts.GetSize(eGaussianBlurStdDeviation));
     }
 
-    case PrimitiveType::DropShadow:
+    case FilterPrimitiveDescription::eDropShadow:
     {
       RefPtr<FilterNode> alpha = FilterWrappers::ToAlpha(aDT, aSources[0]);
       RefPtr<FilterNode> blur = FilterWrappers::GaussianBlur(aDT, alpha,
@@ -853,7 +853,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
                                         atts.GetIntPoint(eDropShadowOffset));
       RefPtr<FilterNode> flood = aDT->CreateFilter(FilterType::FLOOD);
       Color color = atts.GetColor(eDropShadowColor);
-      if (aDescription.InputColorSpace(0) == ColorSpace::LinearRGB) {
+      if (aDescription.InputColorSpace(0) == LINEAR_RGB) {
         color = Color(gsRGBToLinearRGBMap[uint8_t(color.r * 255)],
                       gsRGBToLinearRGBMap[uint8_t(color.g * 255)],
                       gsRGBToLinearRGBMap[uint8_t(color.b * 255)],
@@ -873,11 +873,11 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::DiffuseLighting:
-    case PrimitiveType::SpecularLighting:
+    case FilterPrimitiveDescription::eDiffuseLighting:
+    case FilterPrimitiveDescription::eSpecularLighting:
     {
       bool isSpecular =
-        aDescription.Type() == PrimitiveType::SpecularLighting;
+        aDescription.Type() == FilterPrimitiveDescription::eSpecularLighting;
 
       AttributeMap lightAttributes = atts.GetAttributeMap(eLightingLight);
 
@@ -945,7 +945,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
       return filter;
     }
 
-    case PrimitiveType::Image:
+    case FilterPrimitiveDescription::eImage:
     {
       Matrix TM = atts.GetMatrix(eImageTransform);
       if (!TM.Determinant()) {
@@ -997,24 +997,23 @@ InputAlphaModelForPrimitive(const FilterPrimitiveDescription& aDescr,
                             AlphaModel aOriginalAlphaModel)
 {
   switch (aDescr.Type()) {
-    case PrimitiveType::Tile:
-    case PrimitiveType::Offset:
+    case FilterPrimitiveDescription::eTile:
+    case FilterPrimitiveDescription::eOffset:
       return aOriginalAlphaModel;
 
-    case PrimitiveType::ColorMatrix:
-    case PrimitiveType::ComponentTransfer:
-      return AlphaModel::Unpremultiplied;
+    case FilterPrimitiveDescription::eColorMatrix:
+    case FilterPrimitiveDescription::eComponentTransfer:
+      return UNPREMULTIPLIED;
 
-    case PrimitiveType::DisplacementMap:
-      return aInputIndex == 0 ?
-        AlphaModel::Premultiplied : AlphaModel::Unpremultiplied;
+    case FilterPrimitiveDescription::eDisplacementMap:
+      return aInputIndex == 0 ? PREMULTIPLIED : UNPREMULTIPLIED;
 
-    case PrimitiveType::ConvolveMatrix:
+    case FilterPrimitiveDescription::eConvolveMatrix:
       return aDescr.Attributes().GetBool(eConvolveMatrixPreserveAlpha) ?
-        AlphaModel::Unpremultiplied : AlphaModel::Premultiplied;
+        UNPREMULTIPLIED : PREMULTIPLIED;
 
     default:
-      return AlphaModel::Premultiplied;
+      return PREMULTIPLIED;
   }
 }
 
@@ -1029,7 +1028,7 @@ OutputAlphaModelForPrimitive(const FilterPrimitiveDescription& aDescr,
   }
 
   // All filters without inputs produce premultiplied alpha.
-  return AlphaModel::Premultiplied;
+  return PREMULTIPLIED;
 }
 
 // Returns the output FilterNode, in premultiplied sRGB space.
@@ -1181,22 +1180,22 @@ ResultChangeRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
   const AttributeMap& atts = aDescription.Attributes();
   switch (aDescription.Type()) {
 
-    case PrimitiveType::Empty:
-    case PrimitiveType::Flood:
-    case PrimitiveType::Turbulence:
-    case PrimitiveType::Image:
+    case FilterPrimitiveDescription::eNone:
+    case FilterPrimitiveDescription::eFlood:
+    case FilterPrimitiveDescription::eTurbulence:
+    case FilterPrimitiveDescription::eImage:
       return nsIntRegion();
 
-    case PrimitiveType::Blend:
-    case PrimitiveType::Composite:
-    case PrimitiveType::Merge:
+    case FilterPrimitiveDescription::eBlend:
+    case FilterPrimitiveDescription::eComposite:
+    case FilterPrimitiveDescription::eMerge:
       return UnionOfRegions(aInputChangeRegions);
 
-    case PrimitiveType::ColorMatrix:
-    case PrimitiveType::ComponentTransfer:
+    case FilterPrimitiveDescription::eColorMatrix:
+    case FilterPrimitiveDescription::eComponentTransfer:
       return aInputChangeRegions[0];
 
-    case PrimitiveType::Morphology:
+    case FilterPrimitiveDescription::eMorphology:
     {
       Size radii = atts.GetSize(eMorphologyRadii);
       int32_t rx = clamped(int32_t(ceil(radii.width)), 0, kMorphologyMaxRadius);
@@ -1204,10 +1203,10 @@ ResultChangeRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aInputChangeRegions[0].Inflated(nsIntMargin(ry, rx, ry, rx));
     }
 
-    case PrimitiveType::Tile:
+    case FilterPrimitiveDescription::eTile:
       return ThebesIntRect(aDescription.PrimitiveSubregion());
 
-    case PrimitiveType::ConvolveMatrix:
+    case FilterPrimitiveDescription::eConvolveMatrix:
     {
       Size kernelUnitLength = atts.GetSize(eConvolveMatrixKernelUnitLength);
       IntSize kernelSize = atts.GetIntSize(eConvolveMatrixKernelSize);
@@ -1219,19 +1218,19 @@ ResultChangeRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aInputChangeRegions[0].Inflated(m);
     }
 
-    case PrimitiveType::Offset:
+    case FilterPrimitiveDescription::eOffset:
     {
       IntPoint offset = atts.GetIntPoint(eOffsetOffset);
       return aInputChangeRegions[0].MovedBy(offset.x, offset.y);
     }
 
-    case PrimitiveType::DisplacementMap:
+    case FilterPrimitiveDescription::eDisplacementMap:
     {
       int32_t scale = ceil(abs(atts.GetFloat(eDisplacementMapScale)));
       return aInputChangeRegions[0].Inflated(nsIntMargin(scale, scale, scale, scale));
     }
 
-    case PrimitiveType::GaussianBlur:
+    case FilterPrimitiveDescription::eGaussianBlur:
     {
       Size stdDeviation = atts.GetSize(eGaussianBlurStdDeviation);
       int32_t dx = InflateSizeForBlurStdDev(stdDeviation.width);
@@ -1239,7 +1238,7 @@ ResultChangeRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aInputChangeRegions[0].Inflated(nsIntMargin(dy, dx, dy, dx));
     }
 
-    case PrimitiveType::DropShadow:
+    case FilterPrimitiveDescription::eDropShadow:
     {
       IntPoint offset = atts.GetIntPoint(eDropShadowOffset);
       nsIntRegion offsetRegion = aInputChangeRegions[0].MovedBy(offset.x, offset.y);
@@ -1251,8 +1250,8 @@ ResultChangeRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return blurRegion;
     }
 
-    case PrimitiveType::DiffuseLighting:
-    case PrimitiveType::SpecularLighting:
+    case FilterPrimitiveDescription::eDiffuseLighting:
+    case FilterPrimitiveDescription::eSpecularLighting:
     {
       Size kernelUnitLength = atts.GetSize(eLightingKernelUnitLength);
       int32_t dx = ceil(kernelUnitLength.width);
@@ -1305,10 +1304,10 @@ PostFilterExtentsForPrimitive(const FilterPrimitiveDescription& aDescription,
   const AttributeMap& atts = aDescription.Attributes();
   switch (aDescription.Type()) {
 
-    case PrimitiveType::Empty:
+    case FilterPrimitiveDescription::eNone:
       return nsIntRect();
 
-    case PrimitiveType::Composite:
+    case FilterPrimitiveDescription::eComposite:
     {
       uint32_t op = atts.GetUint(eCompositeOperator);
       if (op == SVG_FECOMPOSITE_OPERATOR_ARITHMETIC) {
@@ -1340,7 +1339,7 @@ PostFilterExtentsForPrimitive(const FilterPrimitiveDescription& aDescription,
       return ResultChangeRegionForPrimitive(aDescription, aInputExtents);
     }
 
-    case PrimitiveType::Flood:
+    case FilterPrimitiveDescription::eFlood:
     {
       if (atts.GetColor(eFloodColor).a == 0.0f) {
         return nsIntRect();
@@ -1348,13 +1347,13 @@ PostFilterExtentsForPrimitive(const FilterPrimitiveDescription& aDescription,
       return ThebesIntRect(aDescription.PrimitiveSubregion());
     }
 
-    case PrimitiveType::Turbulence:
-    case PrimitiveType::Image:
+    case FilterPrimitiveDescription::eTurbulence:
+    case FilterPrimitiveDescription::eImage:
     {
       return ThebesIntRect(aDescription.PrimitiveSubregion());
     }
 
-    case PrimitiveType::Morphology:
+    case FilterPrimitiveDescription::eMorphology:
     {
       uint32_t op = atts.GetUint(eMorphologyOperator);
       if (op == SVG_OPERATOR_ERODE) {
@@ -1409,23 +1408,23 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
   const AttributeMap& atts = aDescription.Attributes();
   switch (aDescription.Type()) {
 
-    case PrimitiveType::Flood:
-    case PrimitiveType::Turbulence:
-    case PrimitiveType::Image:
+    case FilterPrimitiveDescription::eFlood:
+    case FilterPrimitiveDescription::eTurbulence:
+    case FilterPrimitiveDescription::eImage:
       MOZ_CRASH("this shouldn't be called for filters without inputs");
       return nsIntRegion();
 
-    case PrimitiveType::Empty:
+    case FilterPrimitiveDescription::eNone:
       return nsIntRegion();
 
-    case PrimitiveType::Blend:
-    case PrimitiveType::Composite:
-    case PrimitiveType::Merge:
-    case PrimitiveType::ColorMatrix:
-    case PrimitiveType::ComponentTransfer:
+    case FilterPrimitiveDescription::eBlend:
+    case FilterPrimitiveDescription::eComposite:
+    case FilterPrimitiveDescription::eMerge:
+    case FilterPrimitiveDescription::eColorMatrix:
+    case FilterPrimitiveDescription::eComponentTransfer:
       return aResultNeededRegion;
 
-    case PrimitiveType::Morphology:
+    case FilterPrimitiveDescription::eMorphology:
     {
       Size radii = atts.GetSize(eMorphologyRadii);
       int32_t rx = clamped(int32_t(ceil(radii.width)), 0, kMorphologyMaxRadius);
@@ -1433,10 +1432,10 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aResultNeededRegion.Inflated(nsIntMargin(ry, rx, ry, rx));
     }
 
-    case PrimitiveType::Tile:
+    case FilterPrimitiveDescription::eTile:
       return nsIntRect(INT32_MIN/2, INT32_MIN/2, INT32_MAX, INT32_MAX);
 
-    case PrimitiveType::ConvolveMatrix:
+    case FilterPrimitiveDescription::eConvolveMatrix:
     {
       Size kernelUnitLength = atts.GetSize(eConvolveMatrixKernelUnitLength);
       IntSize kernelSize = atts.GetIntSize(eConvolveMatrixKernelSize);
@@ -1448,13 +1447,13 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aResultNeededRegion.Inflated(m);
     }
 
-    case PrimitiveType::Offset:
+    case FilterPrimitiveDescription::eOffset:
     {
       IntPoint offset = atts.GetIntPoint(eOffsetOffset);
       return aResultNeededRegion.MovedBy(-nsIntPoint(offset.x, offset.y));
     }
 
-    case PrimitiveType::DisplacementMap:
+    case FilterPrimitiveDescription::eDisplacementMap:
     {
       if (aInputIndex == 1) {
         return aResultNeededRegion;
@@ -1463,7 +1462,7 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aResultNeededRegion.Inflated(nsIntMargin(scale, scale, scale, scale));
     }
 
-    case PrimitiveType::GaussianBlur:
+    case FilterPrimitiveDescription::eGaussianBlur:
     {
       Size stdDeviation = atts.GetSize(eGaussianBlurStdDeviation);
       int32_t dx = InflateSizeForBlurStdDev(stdDeviation.width);
@@ -1471,7 +1470,7 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return aResultNeededRegion.Inflated(nsIntMargin(dy, dx, dy, dx));
     }
 
-    case PrimitiveType::DropShadow:
+    case FilterPrimitiveDescription::eDropShadow:
     {
       IntPoint offset = atts.GetIntPoint(eDropShadowOffset);
       nsIntRegion offsetRegion =
@@ -1484,8 +1483,8 @@ SourceNeededRegionForPrimitive(const FilterPrimitiveDescription& aDescription,
       return blurRegion;
     }
 
-    case PrimitiveType::DiffuseLighting:
-    case PrimitiveType::SpecularLighting:
+    case FilterPrimitiveDescription::eDiffuseLighting:
+    case FilterPrimitiveDescription::eSpecularLighting:
     {
       Size kernelUnitLength = atts.GetSize(eLightingKernelUnitLength);
       int32_t dx = ceil(kernelUnitLength.width);
@@ -1535,16 +1534,8 @@ FilterSupport::ComputeSourceNeededRegions(const FilterDescription& aFilter,
 
 // FilterPrimitiveDescription
 
-FilterPrimitiveDescription::FilterPrimitiveDescription()
- : mType(PrimitiveType::Empty)
- , mOutputColorSpace(ColorSpace::SRGB)
- , mIsTainted(false)
-{
-}
-
 FilterPrimitiveDescription::FilterPrimitiveDescription(PrimitiveType aType)
  : mType(aType)
- , mOutputColorSpace(ColorSpace::SRGB)
  , mIsTainted(false)
 {
 }
@@ -1575,58 +1566,30 @@ FilterPrimitiveDescription::operator=(const FilterPrimitiveDescription& aOther)
   return *this;
 }
 
-bool
-FilterPrimitiveDescription::operator==(const FilterPrimitiveDescription& aOther) const
-{
-  return mType == aOther.mType &&
-    mFilterPrimitiveSubregion.IsEqualInterior(aOther.mFilterPrimitiveSubregion) &&
-    mOutputColorSpace == aOther.mOutputColorSpace &&
-    mIsTainted == aOther.mIsTainted &&
-    mInputPrimitives == aOther.mInputPrimitives &&
-    mInputColorSpaces == aOther.mInputColorSpaces &&
-    mAttributes == aOther.mAttributes;
-}
-
-// FilterDescription
-
-bool
-FilterDescription::operator==(const FilterDescription& aOther) const
-{
-  return mFilterSpaceBounds.IsEqualInterior(aOther.mFilterSpaceBounds) &&
-    mPrimitives == aOther.mPrimitives;
-}
-
 // AttributeMap
 
 // A class that wraps different types for easy storage in a hashtable. Only
 // used by AttributeMap.
 struct FilterAttribute {
+  FilterAttribute() : mType(eNone) {}
   FilterAttribute(const FilterAttribute& aOther);
   ~FilterAttribute();
 
-  bool operator==(const FilterAttribute& aOther) const;
-  bool operator!=(const FilterAttribute& aOther) const
-  {
-    return !(*this == aOther);
-  }
-
-  AttributeType Type() const { return mType; }
-
 #define MAKE_CONSTRUCTOR_AND_ACCESSOR_BASIC(type, typeLabel)   \
   FilterAttribute(type aValue)                                 \
-   : mType(AttributeType::e##typeLabel), m##typeLabel(aValue)  \
+   : mType(e##typeLabel), m##typeLabel(aValue)                 \
   {}                                                           \
   type As##typeLabel() {                                       \
-    MOZ_ASSERT(mType == AttributeType::e##typeLabel);          \
+    MOZ_ASSERT(mType == e##typeLabel);                         \
     return m##typeLabel;                                       \
   }
 
 #define MAKE_CONSTRUCTOR_AND_ACCESSOR_CLASS(className)         \
   FilterAttribute(const className& aValue)                     \
-   : mType(AttributeType::e##className), m##className(new className(aValue)) \
+   : mType(e##className), m##className(new className(aValue))  \
   {}                                                           \
   className As##className() {                                  \
-    MOZ_ASSERT(mType == AttributeType::e##className);          \
+    MOZ_ASSERT(mType == e##className);                         \
     return *m##className;                                      \
   }
 
@@ -1646,16 +1609,32 @@ struct FilterAttribute {
 #undef MAKE_CONSTRUCTOR_AND_ACCESSOR_CLASS
 
   FilterAttribute(const float* aValue, uint32_t aLength)
-   : mType(AttributeType::eFloats)
+   : mType(eFloats)
   {
     mFloats = new nsTArray<float>();
     mFloats->AppendElements(aValue, aLength);
   }
 
   const nsTArray<float>& AsFloats() const {
-    MOZ_ASSERT(mType == AttributeType::eFloats);
+    MOZ_ASSERT(mType == eFloats);
     return *mFloats;
   }
+
+  enum AttributeType {
+    eNone = 0,
+    eBool,
+    eUint,
+    eFloat,
+    eSize,
+    eIntSize,
+    eIntPoint,
+    eMatrix,
+    eMatrix5x4,
+    ePoint3D,
+    eColor,
+    eAttributeMap,
+    eFloats
+  };
 
 private:
   const AttributeType mType;
@@ -1680,18 +1659,18 @@ FilterAttribute::FilterAttribute(const FilterAttribute& aOther)
  : mType(aOther.mType)
 {
   switch (mType) {
-    case AttributeType::eBool:
+    case eBool:
       mBool = aOther.mBool;
       break;
-    case AttributeType::eUint:
+    case eUint:
       mUint = aOther.mUint;
       break;
-    case AttributeType::eFloat:
+    case eFloat:
       mFloat = aOther.mFloat;
       break;
 
 #define HANDLE_CLASS(className)                            \
-    case AttributeType::e##className:                      \
+    case e##className:                                     \
       m##className = new className(*aOther.m##className);  \
       break;
 
@@ -1706,24 +1685,24 @@ FilterAttribute::FilterAttribute(const FilterAttribute& aOther)
 
 #undef HANDLE_CLASS
 
-    case AttributeType::eFloats:
+    case eFloats:
       mFloats = new nsTArray<float>(*aOther.mFloats);
       break;
-    case AttributeType::Max:
+    case eNone:
       break;
   }
 }
 
 FilterAttribute::~FilterAttribute() {
   switch (mType) {
-    case AttributeType::Max:
-    case AttributeType::eBool:
-    case AttributeType::eUint:
-    case AttributeType::eFloat:
+    case eNone:
+    case eBool:
+    case eUint:
+    case eFloat:
       break;
 
 #define HANDLE_CLASS(className)                            \
-    case AttributeType::e##className:                      \
+    case e##className:                                     \
       delete m##className;                                 \
       break;
 
@@ -1738,42 +1717,9 @@ FilterAttribute::~FilterAttribute() {
 
 #undef HANDLE_CLASS
 
-    case AttributeType::eFloats:
+    case eFloats:
       delete mFloats;
       break;
-  }
-}
-
-bool
-FilterAttribute::operator==(const FilterAttribute& aOther) const
-{
-  if (mType != aOther.mType) {
-    return false;
-  }
-
-  switch (mType) {
-
-#define HANDLE_TYPE(typeName)                              \
-    case AttributeType::e##typeName:                       \
-      return m##typeName == aOther.m##typeName;
-
-    HANDLE_TYPE(Bool)
-    HANDLE_TYPE(Uint)
-    HANDLE_TYPE(Float)
-    HANDLE_TYPE(Size)
-    HANDLE_TYPE(IntSize)
-    HANDLE_TYPE(IntPoint)
-    HANDLE_TYPE(Matrix)
-    HANDLE_TYPE(Matrix5x4)
-    HANDLE_TYPE(Point3D)
-    HANDLE_TYPE(Color)
-    HANDLE_TYPE(AttributeMap)
-    HANDLE_TYPE(Floats)
-
-#undef HANDLE_TYPE
-
-    default:
-      return false;
   }
 }
 
@@ -1811,75 +1757,6 @@ AttributeMap::operator=(const AttributeMap& aOther)
     aOther.mMap.EnumerateRead(CopyAttribute, &mMap);
   }
   return *this;
-}
-
-namespace {
-  struct MatchingMap {
-    typedef nsClassHashtable<nsUint32HashKey, Attribute> Map;
-    const Map& map;
-    bool matches;
-  };
-}
-
-static PLDHashOperator
-CheckAttributeEquality(const uint32_t& aAttributeName,
-                       Attribute* aAttribute,
-                       void* aMatchingMap)
-{
-  MatchingMap& matchingMap = *static_cast<MatchingMap*>(aMatchingMap);
-  Attribute* matchingAttribute = matchingMap.map.Get(aAttributeName);
-  if (!matchingAttribute ||
-      *matchingAttribute != *aAttribute) {
-    matchingMap.matches = false;
-    return PL_DHASH_STOP;
-  }
-  return PL_DHASH_NEXT;
-}
-
-bool
-AttributeMap::operator==(const AttributeMap& aOther) const
-{
-  if (mMap.Count() != aOther.mMap.Count()) {
-    return false;
-  }
-
-  MatchingMap matchingMap = { mMap, true };
-  aOther.mMap.EnumerateRead(CheckAttributeEquality, &matchingMap);
-  return matchingMap.matches;
-}
-
-namespace {
-  struct HandlerWithUserData
-  {
-    AttributeMap::AttributeHandleCallback handler;
-    void* userData;
-  };
-}
-
-static PLDHashOperator
-PassAttributeToHandleCallback(const uint32_t& aAttributeName,
-                              Attribute* aAttribute,
-                              void* aHandlerWithUserData)
-{
-  HandlerWithUserData* handlerWithUserData =
-    static_cast<HandlerWithUserData*>(aHandlerWithUserData);
-  return handlerWithUserData->handler(AttributeName(aAttributeName),
-                                      aAttribute->Type(),
-                                      handlerWithUserData->userData) ?
-    PL_DHASH_NEXT : PL_DHASH_STOP;
-}
-
-void
-AttributeMap::EnumerateRead(AttributeMap::AttributeHandleCallback aCallback, void* aUserData) const
-{
-  HandlerWithUserData handlerWithUserData = { aCallback, aUserData };
-  mMap.EnumerateRead(PassAttributeToHandleCallback, &handlerWithUserData);
-}
-
-uint32_t
-AttributeMap::Count() const
-{
-  return mMap.Count();
 }
 
 #define MAKE_ATTRIBUTE_HANDLERS_BASIC(type, typeLabel, defaultValue) \

@@ -16,6 +16,7 @@
 #include "mozilla/dom/mobilemessage/SmsTypes.h"
 #include "nsDOMFile.h"
 #include "nsCxPusher.h"
+#include "MessageUtils.h"
 
 using namespace mozilla::dom::mobilemessage;
 
@@ -166,22 +167,22 @@ MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
 }
 
 /* static */ nsresult
-MmsMessage::Create(int32_t aId,
-                   uint64_t aThreadId,
-                   const nsAString& aIccId,
-                   const nsAString& aDelivery,
-                   const JS::Value& aDeliveryInfo,
-                   const nsAString& aSender,
-                   const JS::Value& aReceivers,
-                   uint64_t aTimestamp,
-                   uint64_t aSentTimestamp,
-                   bool aRead,
-                   const nsAString& aSubject,
-                   const nsAString& aSmil,
-                   const JS::Value& aAttachments,
-                   uint64_t aExpiryDate,
-                   bool aIsReadReportRequested,
-                   JSContext* aCx,
+MmsMessage::Create(int32_t               aId,
+                   uint64_t              aThreadId,
+                   const nsAString&      aIccId,
+                   const nsAString&      aDelivery,
+                   const JS::Value&      aDeliveryInfo,
+                   const nsAString&      aSender,
+                   const JS::Value&      aReceivers,
+                   const JS::Value&      aTimestamp,
+                   const JS::Value&      aSentTimestamp,
+                   bool                  aRead,
+                   const nsAString&      aSubject,
+                   const nsAString&      aSmil,
+                   const JS::Value&      aAttachments,
+                   const JS::Value&      aExpiryDate,
+                   bool                  aIsReadReportRequested,
+                   JSContext*            aCx,
                    nsIDOMMozMmsMessage** aMessage)
 {
   *aMessage = nullptr;
@@ -254,6 +255,16 @@ MmsMessage::Create(int32_t aId,
     receivers.AppendElement(receiverStr);
   }
 
+  // Set |timestamp|.
+  uint64_t timestamp;
+  nsresult rv = convertTimeToInt(aCx, aTimestamp, timestamp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Set |sentTimestamp|.
+  uint64_t sentTimestamp;
+  rv = convertTimeToInt(aCx, aSentTimestamp, sentTimestamp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // Set |attachments|.
   if (!aAttachments.isObject()) {
     return NS_ERROR_INVALID_ARG;
@@ -280,6 +291,11 @@ MmsMessage::Create(int32_t aId,
     attachments.AppendElement(attachment);
   }
 
+  // Set |expiryDate|.
+  uint64_t expiryDate;
+  rv = convertTimeToInt(aCx, aExpiryDate, expiryDate);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIDOMMozMmsMessage> message = new MmsMessage(aId,
                                                          aThreadId,
                                                          aIccId,
@@ -287,13 +303,13 @@ MmsMessage::Create(int32_t aId,
                                                          deliveryInfo,
                                                          aSender,
                                                          receivers,
-                                                         aTimestamp,
-                                                         aSentTimestamp,
+                                                         timestamp,
+                                                         sentTimestamp,
                                                          aRead,
                                                          aSubject,
                                                          aSmil,
                                                          attachments,
-                                                         aExpiryDate,
+                                                         expiryDate,
                                                          aIsReadReportRequested);
   message.forget(aMessage);
   return NS_OK;

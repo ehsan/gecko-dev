@@ -1123,7 +1123,7 @@ FeedWriter.prototype = {
   _feedPrincipal: null,
   _handlersMenuList: null,
 
-  // BrowserFeedWriter WebIDL methods
+  // nsIFeedWriter
   init: function FW_init(aWindow) {
     var window = aWindow;
     this._feedURI = this._getOriginalURI(window);
@@ -1376,9 +1376,13 @@ FeedWriter.prototype = {
   },
 
   classID: FEEDWRITER_CID,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMEventListener, Ci.nsIObserver,
-                                         Ci.nsINavHistoryObserver,
-                                         Ci.nsIDOMGlobalPropertyInitializer])
+  classInfo: XPCOMUtils.generateCI({classID: FEEDWRITER_CID,
+                                    contractID: FEEDWRITER_CONTRACTID,
+                                    interfaces: [Ci.nsIFeedWriter],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFeedWriter,
+                                         Ci.nsIDOMEventListener, Ci.nsIObserver,
+                                         Ci.nsINavHistoryObserver])
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([FeedWriter]);

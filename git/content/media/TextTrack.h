@@ -28,14 +28,6 @@ enum TextTrackSource {
   MediaResourceSpecific
 };
 
-// Constants for numeric readyState property values.
-enum TextTrackReadyState {
-  NotLoaded = 0U,
-  Loading = 1U,
-  Loaded = 2U,
-  FailedToLoad = 3U
-};
-
 class TextTrack MOZ_FINAL : public nsDOMEventTargetHelper
 {
 public:
@@ -43,11 +35,12 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TextTrack, nsDOMEventTargetHelper)
 
   TextTrack(nsISupports* aParent,
+            TextTrackSource aTextTrackSource);
+  TextTrack(nsISupports* aParent,
             TextTrackKind aKind,
             const nsAString& aLabel,
             const nsAString& aLanguage,
             TextTrackMode aMode,
-            TextTrackReadyState aReadyState,
             TextTrackSource aTextTrackSource);
   TextTrack(nsISupports* aParent,
             TextTrackList* aTextTrackList,
@@ -55,7 +48,6 @@ public:
             const nsAString& aLabel,
             const nsAString& aLanguage,
             TextTrackMode aMode,
-            TextTrackReadyState aReadyState,
             TextTrackSource aTextTrackSource);
 
   void SetDefaultSettings();
@@ -106,8 +98,8 @@ public:
   TextTrackCueList* GetActiveCues();
   void GetActiveCueArray(nsTArray<nsRefPtr<TextTrackCue> >& aCues);
 
-  TextTrackReadyState ReadyState() const;
-  void SetReadyState(TextTrackReadyState aState);
+  uint16_t ReadyState() const;
+  void SetReadyState(uint16_t aState);
 
   void AddCue(TextTrackCue& aCue);
   void RemoveCue(TextTrackCue& aCue, ErrorResult& aRv);
@@ -144,7 +136,7 @@ private:
   nsRefPtr<HTMLTrackElement> mTrackElement;
 
   uint32_t mCuePos;
-  TextTrackReadyState mReadyState;
+  uint16_t mReadyState;
   bool mDirty;
 
   // An enum that represents where the track was sourced from.

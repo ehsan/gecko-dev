@@ -12,7 +12,7 @@
 
 enum RecordingState { "inactive", "recording", "paused" };
 
-[Constructor(MediaStream stream, optional MediaRecorderOptions options)]
+[Constructor(MediaStream stream)]
 interface MediaRecorder : EventTarget {
 
   readonly attribute MediaStream stream;
@@ -45,6 +45,3 @@ interface MediaRecorder : EventTarget {
   void requestData();
 };
 
-dictionary MediaRecorderOptions {
-  DOMString mimeType = ""; // Default encoding mimeType.
-};

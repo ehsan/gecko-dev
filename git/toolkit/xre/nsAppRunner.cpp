@@ -2968,8 +2968,10 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     rv = lf->GetParent(getter_AddRefs(greDir));
     if (NS_FAILED(rv))
       return 2;
-
-    greDir.forget(&mAppData->xreDirectory);
+    
+    rv = CallQueryInterface(greDir, &mAppData->xreDirectory);
+    if (NS_FAILED(rv))
+      return 2;
   }
 
   if (!mAppData->directory) {

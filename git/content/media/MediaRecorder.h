@@ -20,7 +20,6 @@ class EncodedBufferCache;
 class MediaEncoder;
 class ProcessedMediaStream;
 class MediaInputPort;
-struct MediaRecorderOptions;
 
 namespace dom {
 
@@ -76,9 +75,7 @@ public:
 
   static already_AddRefed<MediaRecorder>
   Constructor(const GlobalObject& aGlobal,
-              DOMMediaStream& aStream,
-              const MediaRecorderOptions& aInitDict,
-              ErrorResult& aRv);
+              DOMMediaStream& aStream, ErrorResult& aRv);
 
   // EventHandler
   IMPL_EVENT_HANDLER(dataavailable)

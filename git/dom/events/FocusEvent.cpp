@@ -84,7 +84,5 @@ NS_NewDOMFocusEvent(nsIDOMEvent** aInstancePtrResult,
                     InternalFocusEvent* aEvent)
 {
   FocusEvent* it = new FocusEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -251,7 +251,5 @@ NS_NewDOMTouchEvent(nsIDOMEvent** aInstancePtrResult,
                     WidgetTouchEvent* aEvent)
 {
   TouchEvent* it = new TouchEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

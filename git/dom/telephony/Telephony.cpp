@@ -202,6 +202,12 @@ Telephony::Create(nsPIDOMWindow* aOwner, ErrorResult& aRv)
     return nullptr;
   }
 
+  rv = ril->RegisterListener(telephony->mListener);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return nullptr;
+  }
+
   return telephony.forget();
 }
 
@@ -628,10 +634,6 @@ Telephony::EnumerateCallStateComplete()
 
   if (NS_FAILED(NotifyCallsChanged(nullptr))) {
     NS_WARNING("Failed to notify calls changed!");
-  }
-
-  if (NS_FAILED(mProvider->RegisterListener(mListener))) {
-    NS_WARNING("Failed to register listener!");
   }
   return NS_OK;
 }

@@ -121,8 +121,8 @@ HttpBaseChannel::Init(nsIURI *aURI,
   if (NS_FAILED(rv)) return rv;
   LOG(("uri=%s\n", mSpec.get()));
 
-  // Assert default request method
-  MOZ_ASSERT(mRequestHead.EqualsMethod(nsHttpRequestHead::kMethod_Get));
+  // Set default request method
+  mRequestHead.SetMethod(nsHttp::Get);
 
   // Set request headers
   nsAutoCString hostLine;
@@ -490,10 +490,10 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
     bool hasHeaders;
 
     if (contentType.IsEmpty()) {
-      method = NS_LITERAL_CSTRING("POST");
+      method = nsHttp::Post;
       hasHeaders = true;
     } else {
-      method = NS_LITERAL_CSTRING("PUT");
+      method = nsHttp::Put;
       hasHeaders = false;
     }
     return ExplicitSetUploadStream(stream, contentType, contentLength,
@@ -503,7 +503,7 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
   // if stream is null, ExplicitSetUploadStream returns error.
   // So we need special case for GET method.
   mUploadStreamHasHeaders = false;
-  mRequestHead.SetMethod(NS_LITERAL_CSTRING("GET")); // revert to GET request
+  mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
   mUploadStream = stream;
   return NS_OK;
 }
@@ -826,7 +826,11 @@ HttpBaseChannel::SetRequestMethod(const nsACString& aMethod)
   if (!nsHttp::IsValidToken(flatMethod))
     return NS_ERROR_INVALID_ARG;
 
-  mRequestHead.SetMethod(flatMethod);
+  nsHttpAtom atom = nsHttp::ResolveAtom(flatMethod.get());
+  if (!atom)
+    return NS_ERROR_FAILURE;
+
+  mRequestHead.SetMethod(atom);
   return NS_OK;
 }
 
@@ -1606,7 +1610,7 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
 {
   // Don't return an entity ID for Non-GET requests which require
   // additional data
-  if (!mRequestHead.IsGet()) {
+  if (mRequestHead.Method() != nsHttp::Get) {
     return NS_ERROR_NOT_RESUMABLE;
   }
 
@@ -1743,22 +1747,6 @@ CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
   return PL_DHASH_NEXT;
 }
 
-bool
-HttpBaseChannel::ShouldRewriteRedirectToGET(uint32_t httpStatus,
-                                            nsHttpRequestHead::ParsedMethodType method)
-{
-  // for 301 and 302, only rewrite POST
-  if (httpStatus == 301 || httpStatus == 302)
-    return method == nsHttpRequestHead::kMethod_Post;
-
-  // rewrite for 303 unless it was HEAD
-  if (httpStatus == 303)
-    return method != nsHttpRequestHead::kMethod_Head;
-
-  // otherwise, such as for 307, do not rewrite
-  return false;
-}
-
 nsresult
 HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
                                          nsIChannel   *newChannel,
@@ -1819,7 +1807,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
         int64_t len = clen ? nsCRT::atoll(clen) : -1;
         uploadChannel2->ExplicitSetUploadStream(
                                   mUploadStream, nsDependentCString(ctype), len,
-                                  mRequestHead.Method(),
+                                  nsDependentCString(mRequestHead.Method()),
                                   mUploadStreamHasHeaders);
       } else {
         if (mUploadStreamHasHeaders) {
@@ -1846,7 +1834,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     // we set the upload stream above. This means SetRequestMethod() will
     // be called twice if ExplicitSetUploadStream() gets called above.
 
-    httpChannel->SetRequestMethod(mRequestHead.Method());
+    httpChannel->SetRequestMethod(nsDependentCString(mRequestHead.Method()));
   }
   // convey the referrer if one was used for this channel to the next one
   if (mReferrer)

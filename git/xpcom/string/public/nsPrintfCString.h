@@ -6,7 +6,9 @@
 #ifndef nsPrintfCString_h___
 #define nsPrintfCString_h___
  
+#ifndef nsString_h___
 #include "nsString.h"
+#endif
 
 /**
  * nsPrintfCString lets you create a nsCString using a printf-style format

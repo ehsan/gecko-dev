@@ -27,6 +27,8 @@ class AccessCheck {
     static nsIPrincipal *getPrincipal(JSCompartment *compartment);
     static bool isCrossOriginAccessPermitted(JSContext *cx, JSObject *obj, jsid id,
                                              js::Wrapper::Action act);
+
+    static bool needsSystemOnlyWrapper(JSObject *obj);
 };
 
 struct Policy {
