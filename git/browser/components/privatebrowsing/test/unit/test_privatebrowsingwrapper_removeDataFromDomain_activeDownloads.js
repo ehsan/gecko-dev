@@ -1,7 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:expandtab:shiftwidth=2:tabstop=2:
- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 sts=2
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,18 +13,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Private Browsing Tests.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * The Initial Developer of the Original Code is
+ * Ehsan Akhgari.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,35 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _nsNameUtils_H_
-#define _nsNameUtils_H_
-
-#include "prtypes.h"
-
 /**
- * Name from subtree calculation rules.
+ * Test added with bug 460086 to test the behavior of the new API that was added
+ * to remove all traces of visiting a site.
  */
-enum ENameFromSubtreeRule
-{
-  // do not walk into subtree to compute the name
-  eNoRule = 0x00,
-  
-  // compute the name from the subtree
-  eFromSubtree = 0x01
-};
 
-/**
- * The class provides utils methods to compute the accessible name and
- * description.
- */
-class nsNameUtils
-{
-public:
-
-  /**
-   * Map array from roles to name rules (bit state of ENameFromSubtreeRule).
-   */
-  static PRUint32 gRoleToNameRulesMap[];
-};
-
-#endif
+function run_test() {
+  PRIVATEBROWSING_CONTRACT_ID = "@mozilla.org/privatebrowsing;1";
+  do_import_script("browser/components/privatebrowsing/test/unit/do_test_removeDataFromDomain_activeDownloads.js");
+  do_test();
+}
