@@ -1362,7 +1362,7 @@ RadioInterfaceLayer.prototype = {
     let data = {
       number: call.number,
       duration: duration,
-      direction: call.isOutgoing ? "outgoing" : "incoming"
+      direction: call.direction
     };
     gSystemMessenger.broadcastMessage("telephony-call-ended", data);
     this.updateCallAudioState(call);
