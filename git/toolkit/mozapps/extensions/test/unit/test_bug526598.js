@@ -11,15 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is HTML Parser C++ Translator code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
+ * Dave Townsend <dtownsend@oxymoronical.com>
+ *
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Henri Sivonen <hsivonen@iki.fi>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -31,47 +31,43 @@
  * decision by deleting the provisions above and replace them with the notice
  * and other provisions required by the GPL or the LGPL. If you do not delete
  * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
+ * the terms of any one of the MPL, the GPL or the LGPL
  *
- * ***** END LICENSE BLOCK ***** */
+ * ***** END LICENSE BLOCK *****
+ */
 
-#include "nsHtml5Speculation.h"
+function run_test() {
+  createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
-nsHtml5Speculation::nsHtml5Speculation(nsHtml5UTF16Buffer* aBuffer, 
-                                       PRInt32 aStart, 
-                                       PRInt32 aStartLineNumber, 
-                                       nsAHtml5TreeBuilderState* aSnapshot)
-  : mBuffer(aBuffer)
-  , mStart(aStart)
-  , mStartLineNumber(aStartLineNumber)
-  , mSnapshot(aSnapshot)
-{
-  MOZ_COUNT_CTOR(nsHtml5Speculation);
-}
+  const dataDir = do_get_file("data");
 
-nsHtml5Speculation::~nsHtml5Speculation()
-{
-  MOZ_COUNT_DTOR(nsHtml5Speculation);
-}
+  startupEM();
 
-void
-nsHtml5Speculation::MaybeFlush(nsTArray<nsHtml5TreeOperation>& aOpQueue)
-{
-  // No-op
-}
+  gEM.installItemFromFile(do_get_file("data/test_bug526598_1.xpi"),
+                          NS_INSTALL_LOCATION_APPPROFILE);
+  gEM.installItemFromFile(do_get_file("data/test_bug526598_2.xpi"),
+                          NS_INSTALL_LOCATION_APPPROFILE);
 
-void
-nsHtml5Speculation::ForcedFlush(nsTArray<nsHtml5TreeOperation>& aOpQueue)
-{
-  if (mOpQueue.IsEmpty()) {
-    mOpQueue.SwapElements(aOpQueue);
-    return;
-  }
-  mOpQueue.MoveElementsFrom(aOpQueue);
-}
+  restartEM();
+  do_check_neq(gEM.getItemForID("bug526598_1@tests.mozilla.org"), null);
+  do_check_neq(gEM.getItemForID("bug526598_2@tests.mozilla.org"), null);
 
-void
-nsHtml5Speculation::FlushToSink(nsAHtml5TreeOpSink* aSink)
-{
-  aSink->ForcedFlush(mOpQueue);
+  var il = gEM.getInstallLocation("bug526598_1@tests.mozilla.org");
+  var file = il.getItemFile("bug526598_1@tests.mozilla.org", "install.rdf");
+  do_check_true(file.exists());
+  do_check_true(file.isReadable());
+  do_check_true(file.isWritable());
+
+  il = gEM.getInstallLocation("bug526598_2@tests.mozilla.org");
+  file = il.getItemFile("bug526598_2@tests.mozilla.org", "install.rdf");
+  do_check_true(file.exists());
+  do_check_true(file.isReadable());
+  do_check_true(file.isWritable());
+
+  gEM.uninstallItem("bug526598_1@tests.mozilla.org");
+  gEM.uninstallItem("bug526598_2@tests.mozilla.org");
+
+  restartEM();
+  do_check_eq(gEM.getItemForID("bug526598_1@tests.mozilla.org"), null);
+  do_check_eq(gEM.getItemForID("bug526598_2@tests.mozilla.org"), null);
 }
