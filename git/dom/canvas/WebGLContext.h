@@ -52,7 +52,7 @@ class nsIDocShell;
  *
  * Exceptions: some of the following values are set to higher values than in the spec because
  * the values in the spec are ridiculously low. They are explicitly marked below
- */
+*/
 #define MINVALUE_GL_MAX_TEXTURE_SIZE                  1024  // Different from the spec, which sets it to 64 on page 162
 #define MINVALUE_GL_MAX_CUBE_MAP_TEXTURE_SIZE         512   // Different from the spec, which sets it to 16 on page 162
 #define MINVALUE_GL_MAX_VERTEX_ATTRIBS                8     // Page 164
@@ -95,6 +95,8 @@ namespace gfx {
 class SourceSurface;
 }
 
+typedef WebGLRefPtr<WebGLQuery> WebGLQueryRefPtr;
+
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
 
 void AssertUintParamCorrect(gl::GLContext* gl, GLenum pname, GLuint shadow);
@@ -132,13 +134,11 @@ TexTarget TexImageTargetToTexTarget(TexImageTarget texImageTarget);
 class WebGLIntOrFloat {
     enum {
         Int,
-        Float,
-        Uint
+        Float
     } mType;
     union {
         GLint i;
         GLfloat f;
-        GLuint u;
     } mValue;
 
 public:
@@ -158,7 +158,6 @@ class WebGLContext
     , public nsWrapperCache
     , public SupportsWeakPtr<WebGLContext>
 {
-    friend class WebGL2Context;
     friend class WebGLContextUserData;
     friend class WebGLExtensionCompressedTextureATC;
     friend class WebGLExtensionCompressedTextureETC1;
@@ -899,10 +898,10 @@ private:
 // -----------------------------------------------------------------------------
 // Queries (WebGL2ContextQueries.cpp)
 protected:
-    WebGLRefPtr<WebGLQuery>* GetQueryTargetSlot(GLenum target);
+    WebGLQueryRefPtr* GetQueryTargetSlot(GLenum target);
 
-    WebGLRefPtr<WebGLQuery> mActiveOcclusionQuery;
-    WebGLRefPtr<WebGLQuery> mActiveTransformFeedbackQuery;
+    WebGLQueryRefPtr mActiveOcclusionQuery;
+    WebGLQueryRefPtr mActiveTransformFeedbackQuery;
 
 // -----------------------------------------------------------------------------
 // State and State Requests (WebGLContextState.cpp)
@@ -1007,7 +1006,6 @@ private:
     uint32_t mMaxFetchedVertices;
     uint32_t mMaxFetchedInstances;
 
-protected:
     inline void InvalidateBufferFetching() {
         mBufferFetchingIsVerified = false;
         mBufferFetchingHasPerVertex = false;
@@ -1194,10 +1192,6 @@ protected:
     bool ValidateTexInputData(GLenum type, js::Scalar::Type jsArrayType,
                               WebGLTexImageFunc func, WebGLTexDimensions dims);
     bool ValidateDrawModeEnum(GLenum mode, const char* info);
-    bool ValidateAttribIndex(GLuint index, const char* info);
-    bool ValidateAttribPointer(bool integerMode, GLuint index, GLint size, GLenum type,
-                               WebGLboolean normalized, GLsizei stride,
-                               WebGLintptr byteOffset, const char* info);
     bool ValidateStencilParamsForDrawCall();
 
     bool ValidateGLSLVariableName(const nsAString& name, const char* info);
@@ -1334,11 +1328,6 @@ private:
     // null already.
     template<class ObjectType>
     bool ValidateObjectAssumeNonNull(const char* info, ObjectType* object);
-
-private:
-    // -------------------------------------------------------------------------
-    // Context customization points
-    virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) = 0;
 
 protected:
     int32_t MaxTextureSizeForTarget(TexTarget target) const {

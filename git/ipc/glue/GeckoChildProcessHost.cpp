@@ -35,9 +35,9 @@
 #include "nsIWinTaskbar.h"
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 
-#if defined(MOZ_SANDBOX)
+#if defined(MOZ_CONTENT_SANDBOX)
 #include "mozilla/Preferences.h"
-#include "mozilla/sandboxing/sandboxLogging.h"
+#include "mozilla/warnonlysandbox/warnOnlySandbox.h"
 #endif
 #endif
 
@@ -95,11 +95,9 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mMonitor("mozilla.ipc.GeckChildProcessHost.mMonitor"),
     mProcessState(CREATING_CHANNEL),
     mDelegate(nullptr),
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-    mEnableSandboxLogging(false),
-#if defined(MOZ_CONTENT_SANDBOX)
-    mMoreStrictContentSandbox(false),
-#endif
+#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_WIN)
+    mEnableContentSandbox(false),
+    mWarnOnlyContentSandbox(false),
 #endif
     mChildProcessHandle(0)
 #if defined(MOZ_WIDGET_COCOA)
@@ -272,19 +270,15 @@ GeckoChildProcessHost::PrepareLaunch()
 #if defined(MOZ_CONTENT_SANDBOX)
   // We need to get the pref here as the process is launched off main thread.
   if (mProcessType == GeckoProcessType_Content) {
-    mMoreStrictContentSandbox =
-      Preferences::GetBool("security.sandbox.windows.content.moreStrict");
-    mEnableSandboxLogging =
-      Preferences::GetBool("security.sandbox.windows.log");
+    nsAdoptingString contentSandboxPref =
+      Preferences::GetString("browser.tabs.remote.sandbox");
+    if (contentSandboxPref.EqualsLiteral("on")) {
+      mEnableContentSandbox = true;
+    } else if (contentSandboxPref.EqualsLiteral("warn")) {
+      mEnableContentSandbox = true;
+      mWarnOnlyContentSandbox = true;
+    }
   }
-#endif
-
-#if defined(MOZ_SANDBOX)
-  // For other process types we can't rely on them being launched on main
-  // thread and they may not have access to prefs in the child process, so allow
-  // them to turn on logging via an environment variable.
-  mEnableSandboxLogging = mEnableSandboxLogging
-                          || !!PR_GetEnv("MOZ_WIN_SANDBOX_LOGGING");
 #endif
 #endif
 }
@@ -796,8 +790,11 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   switch (mProcessType) {
     case GeckoProcessType_Content:
 #if defined(MOZ_CONTENT_SANDBOX)
+      if (!mEnableContentSandbox) {
+        break;
+      }
       if (!PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForContentProcess(mMoreStrictContentSandbox);
+        mSandboxBroker.SetSecurityLevelForContentProcess(mWarnOnlyContentSandbox);
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
@@ -867,7 +864,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   if (shouldSandboxCurrentProcess) {
     mSandboxBroker.LaunchApp(cmdLine.program().c_str(),
                              cmdLine.command_line_string().c_str(),
-                             mEnableSandboxLogging,
                              &process);
   } else
 #endif

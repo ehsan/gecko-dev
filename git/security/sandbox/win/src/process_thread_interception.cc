@@ -12,7 +12,9 @@
 #include "sandbox/win/src/sandbox_nt_util.h"
 #include "sandbox/win/src/sharedmem_ipc_client.h"
 #include "sandbox/win/src/target_services.h"
-#include "mozilla/sandboxing/sandboxLogging.h"
+#ifdef MOZ_CONTENT_SANDBOX
+#include "mozilla/warnonlysandbox/warnOnlySandbox.h"
+#endif
 
 namespace sandbox {
 
@@ -29,7 +31,9 @@ NTSTATUS WINAPI TargetNtOpenThread(NtOpenThreadFunction orig_OpenThread,
   if (NT_SUCCESS(status))
     return status;
 
-  mozilla::sandboxing::LogBlocked("NtOpenThread");
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("NtOpenThread");
+#endif
   do {
     if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
       break;
@@ -95,7 +99,9 @@ NTSTATUS WINAPI TargetNtOpenThread(NtOpenThreadFunction orig_OpenThread,
       break;
     }
 
-    mozilla::sandboxing::LogAllowed("NtOpenThread");
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("NtOpenThread");
+#endif
     return answer.nt_status;
   } while (false);
 
@@ -113,6 +119,9 @@ NTSTATUS WINAPI TargetNtOpenProcess(NtOpenProcessFunction orig_OpenProcess,
   if (NT_SUCCESS(status))
     return status;
 
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("NtOpenProcess");
+#endif
   do {
     if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
       break;
@@ -166,6 +175,9 @@ NTSTATUS WINAPI TargetNtOpenProcess(NtOpenProcessFunction orig_OpenProcess,
       break;
     }
 
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("NtOpenProcess");
+#endif
     return answer.nt_status;
   } while (false);
 
@@ -180,7 +192,9 @@ NTSTATUS WINAPI TargetNtOpenProcessToken(
   if (NT_SUCCESS(status))
     return status;
 
-  mozilla::sandboxing::LogBlocked("NtOpenProcessToken");
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("NtOpenProcessToken");
+#endif
   do {
     if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
       break;
@@ -212,7 +226,9 @@ NTSTATUS WINAPI TargetNtOpenProcessToken(
       break;
     }
 
-    mozilla::sandboxing::LogAllowed("NtOpenProcessToken");
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("NtOpenProcessToken");
+#endif
     return answer.nt_status;
   } while (false);
 
@@ -227,7 +243,9 @@ NTSTATUS WINAPI TargetNtOpenProcessTokenEx(
   if (NT_SUCCESS(status))
     return status;
 
-  mozilla::sandboxing::LogBlocked("NtOpenProcessTokenEx");
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("NtOpenProcessTokenEx");
+#endif
   do {
     if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
       break;
@@ -259,7 +277,9 @@ NTSTATUS WINAPI TargetNtOpenProcessTokenEx(
       break;
     }
 
-    mozilla::sandboxing::LogAllowed("NtOpenProcessTokenEx");
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("NtOpenProcessTokenEx");
+#endif
     return answer.nt_status;
   } while (false);
 
@@ -281,7 +301,9 @@ BOOL WINAPI TargetCreateProcessW(CreateProcessWFunction orig_CreateProcessW,
     return TRUE;
   }
 
-  mozilla::sandboxing::LogBlocked("CreateProcessW", application_name);
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("CreateProcessW", application_name);
+#endif
 
   // We don't trust that the IPC can work this early.
   if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
@@ -320,7 +342,9 @@ BOOL WINAPI TargetCreateProcessW(CreateProcessWFunction orig_CreateProcessW,
     if (ERROR_SUCCESS != answer.win32_result)
       return FALSE;
 
-    mozilla::sandboxing::LogAllowed("CreateProcessW", application_name);
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("CreateProcessW", application_name);
+#endif
     return TRUE;
   } while (false);
 
@@ -343,7 +367,9 @@ BOOL WINAPI TargetCreateProcessA(CreateProcessAFunction orig_CreateProcessA,
     return TRUE;
   }
 
-  mozilla::sandboxing::LogBlocked("CreateProcessA", application_name);
+#ifdef MOZ_CONTENT_SANDBOX
+  mozilla::warnonlysandbox::LogBlocked("CreateProcessA", application_name);
+#endif
 
   // We don't trust that the IPC can work this early.
   if (!SandboxFactory::GetTargetServices()->GetState()->InitCalled())
@@ -405,7 +431,9 @@ BOOL WINAPI TargetCreateProcessA(CreateProcessAFunction orig_CreateProcessA,
     if (ERROR_SUCCESS != answer.win32_result)
       return FALSE;
 
-    mozilla::sandboxing::LogAllowed("CreateProcessA", application_name);
+#ifdef MOZ_CONTENT_SANDBOX
+    mozilla::warnonlysandbox::LogAllowed("CreateProcessA", application_name);
+#endif
     return TRUE;
   } while (false);
 
