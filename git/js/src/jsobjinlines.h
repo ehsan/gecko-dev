@@ -89,7 +89,7 @@ JSObject::preventExtensions(JSContext *cx, js::AutoIdVector *props)
 }
 
 inline bool
-JSObject::brand(JSContext *cx)
+JSObject::brand(JSContext *cx, uint32 slot, js::Value v)
 {
     JS_ASSERT(!generic());
     JS_ASSERT(!branded());
@@ -111,15 +111,11 @@ JSObject::unbrand(JSContext *cx)
 }
 
 inline void
-JSObject::syncSpecialEquality()
+JSObject::finalize(JSContext *cx, unsigned thingKind)
 {
-    if (clasp->ext.equality)
-        flags |= JSObject::HAS_EQUALITY;
-}
+    JS_ASSERT(thingKind >= js::gc::FINALIZE_OBJECT0 &&
+              thingKind <= js::gc::FINALIZE_FUNCTION);
 
-inline void
-JSObject::finalize(JSContext *cx)
-{
     /* Cope with stillborn objects that have no map. */
     if (!map)
         return;
@@ -404,13 +400,6 @@ JSObject::getArgsElement(uint32 i) const
     JS_ASSERT(isArguments());
     JS_ASSERT(i < getArgsInitialLength());
     return getArgsData()->slots[i];
-}
-
-inline js::Value *
-JSObject::getArgsElements() const
-{
-    JS_ASSERT(isArguments());
-    return getArgsData()->slots;
 }
 
 inline js::Value *

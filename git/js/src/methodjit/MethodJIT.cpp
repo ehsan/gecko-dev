@@ -41,7 +41,6 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "jstracer.h"
 #include "BaseAssembler.h"
-#include "Compiler.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
 #include "TrampolineCompiler.h"
@@ -55,11 +54,6 @@ using namespace js;
 using namespace js::mjit;
 
 
-js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
-: ContextAllocPolicy(cx),
-  oomFlag(&compiler.oomInVector)
-{
-}
 void
 JSStackFrame::methodjitStaticAsserts()
 {
@@ -803,7 +797,8 @@ static inline void Destroy(T &t)
     t.~T();
 }
 
-mjit::JITScript::~JITScript()
+void
+mjit::JITScript::release()
 {
 #if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
     void *addr = code.m_code.executableAddress();
@@ -814,11 +809,9 @@ mjit::JITScript::~JITScript()
 
 #if defined JS_POLYIC
     for (uint32 i = 0; i < nPICs; i++)
-        Destroy(pics[i]);
+        pics[i].finish();
     for (uint32 i = 0; i < nGetElems; i++)
-        Destroy(getElems[i]);
-    for (uint32 i = 0; i < nSetElems; i++)
-        Destroy(setElems[i]);
+        getElems[i].finish();
 #endif
 
 #if defined JS_MONOIC
@@ -842,17 +835,17 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     // must protect against calling ReleaseScriptCode twice.
 
     if (script->jitNormal) {
-        script->jitNormal->~JITScript();
+        script->jitNormal->release();
+        script->jitArityCheckNormal = NULL;
         cx->free(script->jitNormal);
         script->jitNormal = NULL;
-        script->jitArityCheckNormal = NULL;
     }
 
     if (script->jitCtor) {
-        script->jitCtor->~JITScript();
+        script->jitCtor->release();
+        script->jitArityCheckCtor = NULL;
         cx->free(script->jitCtor);
         script->jitCtor = NULL;
-        script->jitArityCheckCtor = NULL;
     }
 }
 

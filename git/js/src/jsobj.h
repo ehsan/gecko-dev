@@ -176,10 +176,10 @@ typedef Vector<PropDesc, 1> PropDescArray;
 } /* namespace js */
 
 struct JSObjectMap {
+    static JS_FRIEND_DATA(const JSObjectMap) sharedNonNative;
+
     uint32 shape;       /* shape identifier */
     uint32 slotSpan;    /* one more than maximum live slot number */
-
-    static JS_FRIEND_DATA(const JSObjectMap) sharedNonNative;
 
     explicit JSObjectMap(uint32 shape) : shape(shape), slotSpan(0) {}
     JSObjectMap(uint32 shape, uint32 slotSpan) : shape(shape), slotSpan(slotSpan) {}
@@ -220,7 +220,7 @@ js_GetProperty(JSContext *cx, JSObject *obj, jsid id, js::Value *vp)
 namespace js {
 
 extern JSBool
-GetPropertyDefault(JSContext *cx, JSObject *obj, jsid id, const Value &def, Value *vp);
+GetPropertyDefault(JSContext *cx, JSObject *obj, jsid id, Value def, Value *vp);
 
 } /* namespace js */
 
@@ -404,7 +404,6 @@ struct JSObject : js::gc::Cell {
 
     bool isDelegate() const     { return !!(flags & DELEGATE); }
     void setDelegate()          { flags |= DELEGATE; }
-    void clearDelegate()        { flags &= ~DELEGATE; }
 
     bool isBoundFunction() const { return !!(flags & BOUND_FUNCTION); }
 
@@ -423,20 +422,14 @@ struct JSObject : js::gc::Cell {
      */
     bool branded()              { return !!(flags & BRANDED); }
 
-    bool brand(JSContext *cx);
+    bool brand(JSContext *cx, uint32 slot, js::Value v);
     bool unbrand(JSContext *cx);
 
     bool generic()              { return !!(flags & GENERIC); }
     void setGeneric()           { flags |= GENERIC; }
 
-    bool hasSpecialEquality() const { return !!(flags & HAS_EQUALITY); }
-    void assertSpecialEqualitySynced() const {
-        JS_ASSERT(!!clasp->ext.equality == hasSpecialEquality());
-    }
-
-    /* Sets an object's HAS_EQUALITY flag based on its clasp. */
-    inline void syncSpecialEquality();
-
+    bool hasSpecialEquality()   { return !!(flags & HAS_EQUALITY); }
+    
   private:
     void generateOwnShape(JSContext *cx);
 
@@ -708,24 +701,22 @@ struct JSObject : js::gc::Cell {
      */
 
   private:
-    enum ImmutabilityType { SEAL, FREEZE };
-
     /*
      * The guts of Object.seal (ES5 15.2.3.8) and Object.freeze (ES5 15.2.3.9): mark the
      * object as non-extensible, and adjust each property's attributes appropriately: each
      * property becomes non-configurable, and if |freeze|, data properties become
      * read-only as well.
      */
-    bool sealOrFreeze(JSContext *cx, ImmutabilityType it);
+    bool sealOrFreeze(JSContext *cx, bool freeze = false);
 
   public:
     bool isExtensible() const { return !(flags & NOT_EXTENSIBLE); }
     bool preventExtensions(JSContext *cx, js::AutoIdVector *props);
-
+    
     /* ES5 15.2.3.8: non-extensible, all props non-configurable */
-    inline bool seal(JSContext *cx) { return sealOrFreeze(cx, SEAL); }
+    inline bool seal(JSContext *cx) { return sealOrFreeze(cx); }
     /* ES5 15.2.3.9: non-extensible, all properties non-configurable, all data props read-only */
-    bool freeze(JSContext *cx) { return sealOrFreeze(cx, FREEZE); }
+    bool freeze(JSContext *cx) { return sealOrFreeze(cx, true); }
         
     /*
      * Primitive-specific getters and setters.
@@ -814,7 +805,6 @@ struct JSObject : js::gc::Cell {
     inline void setArgsCallee(const js::Value &callee);
 
     inline const js::Value &getArgsElement(uint32 i) const;
-    inline js::Value *getArgsElements() const;
     inline js::Value *addressOfArgsElement(uint32 i);
     inline void setArgsElement(uint32 i, const js::Value &v);
 
@@ -990,7 +980,7 @@ struct JSObject : js::gc::Cell {
               void *priv, bool useHoles);
 
     inline void finish(JSContext *cx);
-    JS_ALWAYS_INLINE void finalize(JSContext *cx);
+    JS_ALWAYS_INLINE void finalize(JSContext *cx, unsigned thindKind);
 
     /*
      * Like init, but also initializes map. The catch: proto must be the result
@@ -1622,14 +1612,7 @@ js_SetNativeAttributes(JSContext *cx, JSObject *obj, js::Shape *shape,
 
 namespace js {
 
-/*
- * If obj has a data property methodid which is a function object for the given
- * native, return that function object. Otherwise, return NULL.
- */
-extern JSObject *
-HasNativeMethod(JSObject *obj, jsid methodid, Native native);
-
-extern bool
+extern JSBool
 DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 
 extern JSBool

@@ -63,10 +63,6 @@ struct VMFrame
             void *ptr2;
             void *ptr3;
         } x;
-        struct {
-            uint32 lazyArgsObj;
-            uint32 dynamicArgc;
-        } call;
     } u;
 
     VMFrame      *previous;
@@ -208,39 +204,10 @@ class JaegerCompartment {
 #endif
 };
 
-/*
- * Allocation policy for compiler jstl objects. The goal is to free the
- * compiler from having to check and propagate OOM after every time we
- * append to a vector. We do this by reporting OOM to the engine and
- * setting a flag on the compiler when OOM occurs. The compiler is required
- * to check for OOM only before trying to use the contents of the list.
- */
-class CompilerAllocPolicy : public ContextAllocPolicy
-{
-    bool *oomFlag;
-
-    void *checkAlloc(void *p) {
-        if (!p)
-            *oomFlag = true;
-        return p;
-    }
-
-  public:
-    CompilerAllocPolicy(JSContext *cx, bool *oomFlag)
-    : ContextAllocPolicy(cx), oomFlag(oomFlag) {}
-    CompilerAllocPolicy(JSContext *cx, Compiler &compiler);
-
-    void *malloc(size_t bytes) { return checkAlloc(ContextAllocPolicy::malloc(bytes)); }
-    void *realloc(void *p, size_t bytes) {
-        return checkAlloc(ContextAllocPolicy::realloc(p, bytes));
-    }
-};
-
 namespace ic {
 # if defined JS_POLYIC
     struct PICInfo;
     struct GetElementIC;
-    struct SetElementIC;
 # endif
 # if defined JS_MONOIC
     struct MICInfo;
@@ -281,7 +248,6 @@ typedef void * (JS_FASTCALL *VoidPtrStubTraceIC)(VMFrame &, js::mjit::ic::TraceI
 #ifdef JS_POLYIC
 typedef void (JS_FASTCALL *VoidStubPIC)(VMFrame &, js::mjit::ic::PICInfo *);
 typedef void (JS_FASTCALL *VoidStubGetElemIC)(VMFrame &, js::mjit::ic::GetElementIC *);
-typedef void (JS_FASTCALL *VoidStubSetElemIC)(VMFrame &f, js::mjit::ic::SetElementIC *);
 #endif
 
 namespace mjit {
@@ -314,14 +280,10 @@ struct JITScript {
     uint32          nPICs;      /* number of PolyICs */
     ic::GetElementIC *getElems;
     uint32           nGetElems;
-    ic::SetElementIC *setElems;
-    uint32           nSetElems;
 #endif
     void            *invokeEntry;       /* invoke address */
     void            *fastEntry;         /* cached entry, fastest */
     void            *arityCheckEntry;   /* arity check address */
-
-    ~JITScript();
 
     bool isValidCode(void *ptr) {
         char *jitcode = (char *)code.m_code.executableAddress();
@@ -332,6 +294,7 @@ struct JITScript {
     void sweepCallICs();
     void purgeMICs();
     void purgePICs();
+    void release();
 };
 
 /*
@@ -380,22 +343,6 @@ struct CallSite
     uint32 codeOffset;
     uint32 pcOffset;
     uint32 id;
-
-    // Normally, callsite ID is the __LINE__ in the program that added the
-    // callsite. Since traps can be removed, we make sure they carry over
-    // from each compilation, and identify them with a single, canonical
-    // ID. Hopefully a SpiderMonkey file won't have two billion source lines.
-    static const uint32 MAGIC_TRAP_ID = 0xFEDCBABC;
-
-    void initialize(uint32 codeOffset, uint32 pcOffset, uint32 id) {
-        this->codeOffset = codeOffset;
-        this->pcOffset = pcOffset;
-        this->id = id;
-    }
-
-    bool isTrap() const {
-        return id == MAGIC_TRAP_ID;
-    }
 };
 
 /* Re-enables a tracepoint in the method JIT. */

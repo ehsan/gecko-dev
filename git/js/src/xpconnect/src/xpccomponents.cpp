@@ -337,14 +337,15 @@ nsXPCComponents_Interfaces::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                        jsid id, PRUint32 flags,
                                        JSObject * *objp, PRBool *_retval)
 {
-    JSAutoByteString name;
+    const char* name = nsnull;
+
     if(mManager &&
        JSID_IS_STRING(id) &&
-       name.encode(cx, JSID_TO_STRING(id)) &&
-       name.ptr()[0] != '{') // we only allow interfaces by name here
+       nsnull != (name = JS_GetStringBytes(JSID_TO_STRING(id))) &&
+       name[0] != '{') // we only allow interfaces by name here
     {
         nsCOMPtr<nsIInterfaceInfo> info;
-        mManager->GetInfoForName(name.ptr(), getter_AddRefs(info));
+        mManager->GetInfoForName(name, getter_AddRefs(info));
         if(!info)
             return NS_OK;
 
@@ -973,14 +974,14 @@ nsXPCComponents_Classes::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                     JSObject * *objp, PRBool *_retval)
 
 {
-    JSAutoByteString name;
+    const char* name = nsnull;
 
     if(JSID_IS_STRING(id) &&
-       name.encode(cx, JSID_TO_STRING(id)) &&
-       name.ptr()[0] != '{') // we only allow contractids here
+       nsnull != (name = JS_GetStringBytes(JSID_TO_STRING(id))) &&
+       name[0] != '{') // we only allow contractids here
     {
         nsCOMPtr<nsIJSCID> nsid =
-            dont_AddRef(static_cast<nsIJSCID*>(nsJSCID::NewID(name.ptr())));
+            dont_AddRef(static_cast<nsIJSCID*>(nsJSCID::NewID(name)));
         if(nsid)
         {
             nsCOMPtr<nsIXPConnect> xpc;
@@ -1241,15 +1242,15 @@ nsXPCComponents_ClassesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                         jsid id, PRUint32 flags,
                                         JSObject * *objp, PRBool *_retval)
 {
-    JSAutoByteString name;
+    const char* name = nsnull;
 
     if(JSID_IS_STRING(id) &&
-       name.encode(cx, JSID_TO_STRING(id)) &&
-       name.ptr()[0] == '{' &&
-       IsRegisteredCLSID(name.ptr())) // we only allow canonical CLSIDs here
+       nsnull != (name = JS_GetStringBytes(JSID_TO_STRING(id))) &&
+       name[0] == '{' &&
+       IsRegisteredCLSID(name)) // we only allow canonical CLSIDs here
     {
         nsCOMPtr<nsIJSCID> nsid =
-            dont_AddRef(static_cast<nsIJSCID*>(nsJSCID::NewID(name.ptr())));
+            dont_AddRef(static_cast<nsIJSCID*>(nsJSCID::NewID(name)));
         if(nsid)
         {
             nsCOMPtr<nsIXPConnect> xpc;
@@ -1476,16 +1477,17 @@ nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                     jsid id, PRUint32 flags,
                                     JSObject * *objp, PRBool *_retval)
 {
-    JSAutoByteString name;
+    const char* name = nsnull;
 
-    if(JSID_IS_STRING(id) && name.encode(cx, JSID_TO_STRING(id)))
+    if(JSID_IS_STRING(id) &&
+       nsnull != (name = JS_GetStringBytes(JSID_TO_STRING(id))))
     {
         const char* rv_name;
         void* iter = nsnull;
         nsresult rv;
         while(nsXPCException::IterateNSResults(&rv, &rv_name, nsnull, &iter))
         {
-            if(!strcmp(name.ptr(), rv_name))
+            if(!strcmp(name, rv_name))
             {
                 jsval val;
 
@@ -1702,12 +1704,12 @@ nsXPCComponents_ID::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
     // convert the first argument into a string and see if it looks like an id
 
     JSString* jsstr;
-    JSAutoByteString bytes;
+    const char* str;
     nsID id;
 
     if(!(jsstr = JS_ValueToString(cx, argv[0])) ||
-       !bytes.encode(cx, jsstr) ||
-       !id.Parse(bytes.ptr()))
+       !(str = JS_GetStringBytes(jsstr)) ||
+       ! id.Parse(str))
     {
         return ThrowAndFail(NS_ERROR_XPC_BAD_ID_STRING, cx, _retval);
     }
@@ -1925,7 +1927,6 @@ nsXPCComponents_Exception::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
     // initialization params for the exception object we will create
     const char*             eMsg = "exception";
-    JSAutoByteString        eMsgBytes;
     nsresult                eResult = NS_ERROR_FAILURE;
     nsCOMPtr<nsIStackFrame> eStack;
     nsCOMPtr<nsISupports>   eData;
@@ -1970,7 +1971,7 @@ nsXPCComponents_Exception::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
         case 1:     // argv[0] is string for eMsg
             {
                 JSString* str = JS_ValueToString(cx, argv[0]);
-                if(!str || !(eMsg = eMsgBytes.encode(cx, str)))
+                if(!str || !(eMsg = JS_GetStringBytes(str)))
                     return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
             }
             // ...fall through...
@@ -2500,13 +2501,12 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
     nsCOMPtr<nsIJSCID> cClassID;
     nsCOMPtr<nsIJSIID> cInterfaceID;
     const char*        cInitializer = nsnull;
-    JSAutoByteString  cInitializerBytes;
-    
+
     if(argc >= 3)
     {
         // argv[2] is an initializer function or property name
         JSString* str = JS_ValueToString(cx, argv[2]);
-        if(!str || !(cInitializer = cInitializerBytes.encode(cx, str)))
+        if(!str || !(cInitializer = JS_GetStringBytes(str)))
             return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
     }
 
@@ -2533,13 +2533,15 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
         }
 
         JSString* str = JS_ValueToString(cx, argv[1]);
-        jsid id;
-        if(!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &id))
+        if(!str)
             return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
 
         jsval val;
-        if(!JS_GetPropertyById(cx, ifacesObj, id, &val) || JSVAL_IS_PRIMITIVE(val))
+        if(!JS_GetProperty(cx, ifacesObj, JS_GetStringBytes(str), &val) ||
+           JSVAL_IS_PRIMITIVE(val))
+        {
             return ThrowAndFail(NS_ERROR_XPC_BAD_IID, cx, _retval);
+        }
 
         nsCOMPtr<nsIXPConnectWrappedNative> wn;
         if(NS_FAILED(xpc->GetWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(val),
@@ -2587,13 +2589,15 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
         }
 
         JSString* str = JS_ValueToString(cx, argv[0]);
-        jsid id;
-        if(!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &id))
+        if(!str)
             return ThrowAndFail(NS_ERROR_XPC_BAD_CONVERT_JS, cx, _retval);
 
         jsval val;
-        if(!JS_GetPropertyById(cx, classesObj, id, &val) || JSVAL_IS_PRIMITIVE(val))
+        if(!JS_GetProperty(cx, classesObj, JS_GetStringBytes(str), &val) ||
+           JSVAL_IS_PRIMITIVE(val))
+        {
             return ThrowAndFail(NS_ERROR_XPC_BAD_CID, cx, _retval);
+        }
 
         nsCOMPtr<nsIXPConnectWrappedNative> wn;
         if(NS_FAILED(xpc->GetWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(val),
@@ -2825,13 +2829,12 @@ nsXPCComponents_Utils::LookupMethod()
     {
         JSAutoEnterCompartment ac;
 
-        if (!ac.enter(inner_cc, wrapper->GetFlatJSObjectAndMark())) {
+        if (!ac.enter(inner_cc, wrapper->GetFlatJSObject())) {
             return NS_ERROR_UNEXPECTED;
         }
 
         // get (and perhaps lazily create) the member's cloned function
-        if(!member->NewFunctionObject(inner_cc, iface,
-                                      wrapper->GetFlatJSObjectAndMark(),
+        if(!member->NewFunctionObject(inner_cc, iface, wrapper->GetFlatJSObject(),
                                       &funval))
             return NS_ERROR_XPC_BAD_CONVERT_JS;
 
@@ -3533,11 +3536,11 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
         return rv;
 
     JSObject *sandbox;
-    JSString *jsVersionStr = NULL;
-    JSString *filenameStr = NULL;
+    char *jsVersionStr = NULL;
+    char *filenameStr = NULL;
     PRInt32 lineNo = 0;
 
-    JSBool ok = JS_ConvertArguments(cx, argc, argv, "*o/SSi",
+    JSBool ok = JS_ConvertArguments(cx, argc, argv, "*o/ssi",
                                     &sandbox, &jsVersionStr,
                                     &filenameStr, &lineNo);
 
@@ -3548,23 +3551,16 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
 
     // Optional third argument: JS version, as a string.
     if (jsVersionStr) {
-        JSAutoByteString bytes(cx, jsVersionStr);
-        if (!bytes)
-            return NS_ERROR_INVALID_ARG;
-        jsVersion = JS_StringToVersion(bytes.ptr());
+        jsVersion = JS_StringToVersion(jsVersionStr);
         if (jsVersion == JSVERSION_UNKNOWN)
             return NS_ERROR_INVALID_ARG;
     }
 
-    JSAutoByteString filenameBytes;
     nsXPIDLCString filename;
-    
 
     // Optional fourth and fifth arguments: filename and line number.
     if (filenameStr) {
-        if (!filenameBytes.encode(cx, filenameStr))
-            return NS_ERROR_INVALID_ARG;
-        filename = filenameBytes.ptr();
+        filename = filenameStr;
     } else {
         // Get the current source info from xpc.
         nsCOMPtr<nsIStackFrame> frame;

@@ -74,7 +74,6 @@ CPPSRCS = \
   testThreads.cpp \
   testTrap.cpp \
   testUTF8.cpp \
-  testVersion.cpp \
   testXDR.cpp \
   $(NULL)
 

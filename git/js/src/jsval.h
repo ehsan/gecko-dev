@@ -283,7 +283,6 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
         JSValueTag tag;
     } s;
@@ -306,7 +305,6 @@ typedef union jsval_layout
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;
@@ -328,7 +326,6 @@ typedef union jsval_layout
             JSObject       *obj;
             void           *ptr;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;

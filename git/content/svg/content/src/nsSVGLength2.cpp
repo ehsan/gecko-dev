@@ -307,7 +307,6 @@ nsSVGLength2::SetBaseValueInSpecifiedUnits(float aValue,
                                            nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue;
-  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -345,7 +344,6 @@ nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
   mBaseVal = valueInSpecifiedUnits;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -415,7 +413,6 @@ nsSVGLength2::SetBaseValueString(const nsAString &aValueAsString,
   }
   
   mBaseVal = value;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -448,7 +445,6 @@ void
 nsSVGLength2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue * GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
-  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }

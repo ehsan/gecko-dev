@@ -85,16 +85,6 @@ namespace dom = mozilla::dom;
 
 PRUint32 nsDocAccessible::gLastFocusedAccessiblesState = 0;
 
-static nsIAtom** kRelationAttrs[] =
-{
-  &nsAccessibilityAtoms::aria_labelledby,
-  &nsAccessibilityAtoms::aria_describedby,
-  &nsAccessibilityAtoms::aria_owns,
-  &nsAccessibilityAtoms::aria_controls,
-  &nsAccessibilityAtoms::aria_flowto
-};
-
-static const PRUint32 kRelationAttrsLen = NS_ARRAY_LENGTH(kRelationAttrs);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor/desctructor
@@ -105,7 +95,6 @@ nsDocAccessible::
   nsHyperTextAccessibleWrap(aRootContent, aShell),
   mDocument(aDocument), mScrollPositionChangedTicks(0), mIsLoaded(PR_FALSE)
 {
-  mDependentIDsHash.Init();
   // XXX aaronl should we use an algorithm for the initial cache size?
   mAccessibleCache.Init(kDefaultCacheSize);
   mNodeToAccessibleMap.Init(kDefaultCacheSize);
@@ -145,7 +134,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventQueue)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildDocuments)
-  tmp->mDependentIDsHash.Clear();
   tmp->mNodeToAccessibleMap.Clear();
   ClearCache(tmp->mAccessibleCache);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -167,7 +155,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
     // However at some point we may push <body> to implement the interfaces and
     // return nsDocAccessible to inherit from nsAccessibleWrap.
 
-    if (mDocument && mDocument->IsXUL())
+    nsCOMPtr<nsIDOMXULDocument> xulDoc(do_QueryInterface(mDocument));
+    if (xulDoc)
       status = nsAccessible::QueryInterface(aIID, (void**)&foundInterface);
     else
       status = nsHyperTextAccessible::QueryInterface(aIID,
@@ -675,7 +664,6 @@ nsDocAccessible::Shutdown()
 
   mWeakShell = nsnull;  // Avoid reentrancy
 
-  mDependentIDsHash.Clear();
   mNodeToAccessibleMap.Clear();
   ClearCache(mAccessibleCache);
 
@@ -941,19 +929,10 @@ nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
                                      PRInt32 aNameSpaceID,
                                      nsIAtom* aAttribute, PRInt32 aModType)
 {
-  // XXX TODO: bugs 381599 (partially fixed by 573469), 467143, 472142, 472143.
+  // XXX TODO: bugs 381599 467143 472142 472143
   // Here we will want to cache whatever state we are potentially interested in,
   // such as the existence of aria-pressed for button (so we know if we need to
   // newly expose it as a toggle button) etc.
-
-  // Update dependent IDs cache.
-  if (aModType == nsIDOMMutationEvent::MODIFICATION ||
-      aModType == nsIDOMMutationEvent::REMOVAL) {
-    nsAccessible* accessible =
-      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
-    if (accessible)
-      RemoveDependentIDsFor(accessible, aAttribute);
-  }
 }
 
 void
@@ -963,16 +942,6 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument,
                                   PRInt32 aModType)
 {
   AttributeChangedImpl(aElement, aNameSpaceID, aAttribute);
-
-  // Update dependent IDs cache.
-  if (aModType == nsIDOMMutationEvent::MODIFICATION ||
-      aModType == nsIDOMMutationEvent::ADDITION) {
-    nsAccessible* accessible =
-      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
-
-    if (accessible)
-      AddDependentIDsFor(accessible, aAttribute);
-  }
 
   // If it was the focused node, cache the new state
   if (aElement == gLastFocusedNode) {
@@ -1393,7 +1362,6 @@ nsDocAccessible::BindToDocument(nsAccessible* aAccessible,
   }
 
   aAccessible->SetRoleMapEntry(aRoleMapEntry);
-  AddDependentIDsFor(aAccessible);
   return true;
 }
 
@@ -1404,8 +1372,6 @@ nsDocAccessible::UnbindFromDocument(nsAccessible* aAccessible)
   if (aAccessible->IsPrimaryForNode() &&
       mNodeToAccessibleMap.Get(aAccessible->GetNode()) == aAccessible)
     mNodeToAccessibleMap.Remove(aAccessible->GetNode());
-
-  RemoveDependentIDsFor(aAccessible);
 
 #ifdef DEBUG
   NS_ASSERTION(mAccessibleCache.GetWeak(aAccessible->UniqueID()),
@@ -1590,84 +1556,6 @@ nsDocAccessible::RecreateAccessible(nsINode* aNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Protected members
-
-void
-nsDocAccessible::AddDependentIDsFor(nsAccessible* aRelProvider,
-                                    nsIAtom* aRelAttr)
-{
-  for (PRUint32 idx = 0; idx < kRelationAttrsLen; idx++) {
-    nsIAtom* relAttr = *kRelationAttrs[idx];
-    if (aRelAttr && aRelAttr != relAttr)
-      continue;
-
-    IDRefsIterator iter(aRelProvider->GetContent(), relAttr);
-    while (true) {
-      const nsDependentSubstring id = iter.NextID();
-      if (id.IsEmpty())
-        break;
-
-      AttrRelProviderArray* providers = mDependentIDsHash.Get(id);
-      if (!providers) {
-        providers = new AttrRelProviderArray();
-        if (providers) {
-          if (!mDependentIDsHash.Put(id, providers)) {
-            delete providers;
-            providers = nsnull;
-          }
-        }
-      }
-
-      if (providers) {
-        AttrRelProvider* provider =
-          new AttrRelProvider(relAttr, aRelProvider->GetContent());
-        if (provider)
-          providers->AppendElement(provider);
-      }
-    }
-
-    // If the relation attribute is given then we don't have anything else to
-    // check.
-    if (aRelAttr)
-      break;
-  }
-}
-
-void
-nsDocAccessible::RemoveDependentIDsFor(nsAccessible* aRelProvider,
-                                       nsIAtom* aRelAttr)
-{
-  for (PRUint32 idx = 0; idx < kRelationAttrsLen; idx++) {
-    nsIAtom* relAttr = *kRelationAttrs[idx];
-    if (aRelAttr && aRelAttr != *kRelationAttrs[idx])
-      continue;
-
-    IDRefsIterator iter(aRelProvider->GetContent(), relAttr);
-    while (true) {
-      const nsDependentSubstring id = iter.NextID();
-      if (id.IsEmpty())
-        break;
-
-      AttrRelProviderArray* providers = mDependentIDsHash.Get(id);
-      if (providers) {
-        for (PRUint32 jdx = 0; jdx < providers->Length(); ) {
-          AttrRelProvider* provider = (*providers)[jdx];
-          if (provider->mRelAttr == relAttr &&
-              provider->mContent == aRelProvider->GetContent())
-            providers->RemoveElement(provider);
-          else
-            jdx++;
-        }
-        if (providers->Length() == 0)
-          mDependentIDsHash.Remove(id);
-      }
-    }
-
-    // If the relation attribute is given then we don't have anything else to
-    // check.
-    if (aRelAttr)
-      break;
-  }
-}
 
 void
 nsDocAccessible::FireValueChangeForTextFields(nsAccessible *aAccessible)

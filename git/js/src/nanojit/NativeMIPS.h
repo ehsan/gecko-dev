@@ -242,7 +242,6 @@ namespace nanojit {
     void nativePageSetup(void);                                         \
     void nativePageReset(void);                                         \
     void underrunProtect(int bytes);                                    \
-    bool hardenNopInsertion(const Config& /*c*/) { return false; }      \
     NIns *_nSlot;                                                       \
     NIns *_nExitSlot;                                                   \
     int max_out_args;                                                   \

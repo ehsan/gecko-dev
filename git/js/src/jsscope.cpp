@@ -63,7 +63,6 @@
 #include "jsstr.h"
 #include "jstracer.h"
 
-#include "jsdbgapiinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 
@@ -615,6 +614,19 @@ NormalizeGetterAndSetter(JSContext *cx, JSObject *obj,
         }
     }
 
+    /*
+     * Check for a watchpoint on a deleted property; if one exists, change
+     * setter to js_watch_set or js_watch_set_wrapper.
+     * XXXbe this could get expensive with lots of watchpoints...
+     */
+    if (!JS_CLIST_IS_EMPTY(&cx->runtime->watchPointList) &&
+        js_FindWatchPoint(cx->runtime, obj, id)) {
+        setter = js_WrapWatchedSetter(cx, id, attrs, setter);
+        if (!setter) {
+            METER(wrapWatchFails);
+            return false;
+        }
+    }
     return true;
 }
 
@@ -719,18 +731,7 @@ JSObject::addProperty(JSContext *cx, jsid id,
     /* Search for id with adding = true in order to claim its entry. */
     Shape **spp = nativeSearch(id, true);
     JS_ASSERT(!SHAPE_FETCH(spp));
-    const Shape *shape = addPropertyInternal(cx, id, getter, setter, slot, attrs, 
-                                             flags, shortid, spp);
-    if (!shape)
-        return NULL;
-
-    /* Update any watchpoints referring to this property. */
-    if (!js_UpdateWatchpointsForShape(cx, this, shape)) {
-        METER(wrapWatchFails);
-        return NULL;
-    }
-
-    return shape;
+    return addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
 }
 
 const Shape *
@@ -849,13 +850,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
             return NULL;
         }
 
-        const Shape *new_shape =
-            addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
-        if (!js_UpdateWatchpointsForShape(cx, this, new_shape)) {
-            METER(wrapWatchFails);
-            return NULL;
-        }
-        return new_shape;
+        return addPropertyInternal(cx, id, getter, setter, slot, attrs, flags, shortid, spp);
     }
 
     /* Property exists: search must have returned a valid *spp. */
@@ -887,7 +882,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
      */
     if (shape != lastProp && !inDictionaryMode()) {
         if (!toDictionaryMode(cx))
-            return NULL;
+            return false;
         spp = nativeSearch(shape->id);
         shape = SHAPE_FETCH(spp);
     }
@@ -900,9 +895,6 @@ JSObject::putProperty(JSContext *cx, jsid id,
      * Optimize the case of a non-frozen dictionary-mode object based on the
      * property that dictionaries exclusively own their mutable shape structs,
      * each of which has a unique shape number (not shared via a shape tree).
-     *
-     * This is more than an optimization: it is required to preserve for-in
-     * enumeration order (see bug 601399).
      */
     if (inDictionaryMode()) {
         /* FIXME bug 593129 -- slot allocation and JSObject *this must move out of here! */
@@ -911,14 +903,28 @@ JSObject::putProperty(JSContext *cx, jsid id,
                 return NULL;
         }
 
-        shape->slot = slot;
-        if (slot != SHAPE_INVALID_SLOT && slot >= shape->slotSpan) {
-            shape->slotSpan = slot + 1;
+        /*
+         * We are going to mutate shape and move it to be lastProp if it isn't
+         * already, so we must regenerate its shape.
+         */
+        shape->shape = js_GenerateShape(cx, false);
 
-            for (Shape *temp = lastProp; temp != shape; temp = temp->parent) {
-                if (temp->slotSpan <= slot)
-                    temp->slotSpan = slot + 1;
+        /*
+         * Set shape->slot before calling shape->insertIntoDictionary, which
+         * uses it under shape->setParent.
+         */
+        shape->slot = slot;
+
+        if (shape != lastProp) {
+            if (PropertyTable *table = lastProp->table) {
+                shape->table = table;
+                lastProp->table = NULL;
             }
+            shape->removeFromDictionary(this);
+            shape->insertIntoDictionary(&lastProp);
+        } else {
+            if (slot != SHAPE_INVALID_SLOT && slot >= shape->slotSpan)
+                shape->slotSpan = slot + 1;
         }
 
         shape->rawGetter = getter;
@@ -929,20 +935,11 @@ JSObject::putProperty(JSContext *cx, jsid id,
 
         /*
          * We are done updating shape and lastProp. Now we may need to update
-         * flags and we will need to update objShape, which is no longer "own".
-         * In the last non-dictionary property case in the else clause just
-         * below, getChildProperty handles this for us. First update flags.
+         * flags and objShape. In the last non-dictionary property case in the
+         * else clause just below, getChildProperty handles this for us.
          */
         updateFlags(shape);
-
-        /*
-         * We have just mutated shape in place, but nothing caches it based on
-         * shape->shape unless shape is lastProp and !hasOwnShape()). Therefore
-         * we regenerate only lastProp->shape. We will clearOwnShape(), which
-         * sets objShape to lastProp->shape.
-         */
-        lastProp->shape = js_GenerateShape(cx, false);
-        clearOwnShape();
+        updateShape(cx);
     } else {
         /*
          * Updating lastProp in a non-dictionary-mode object. Such objects
@@ -967,11 +964,13 @@ JSObject::putProperty(JSContext *cx, jsid id,
         }
 
         shape = newShape;
+    }
 
-        if (!shape->table) {
-            /* See JSObject::addPropertyInternal comment about ignoring OOM. */
-            shape->maybeHash(cx);
-        }
+    JS_ASSERT(shape == lastProp);
+
+    if (!shape->table) {
+        /* See JSObject::addPropertyInternal comment about ignoring OOM. */
+        shape->maybeHash(cx);
     }
 
     /*
@@ -992,12 +991,6 @@ JSObject::putProperty(JSContext *cx, jsid id,
 
     CHECK_SHAPE_CONSISTENCY(this);
     METER(puts);
-
-    if (!js_UpdateWatchpointsForShape(cx, this, shape)) {
-        METER(wrapWatchFails);
-        return NULL;
-    }
-
     return shape;
 }
 
@@ -1053,11 +1046,6 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
 
             updateFlags(newShape);
             updateShape(cx);
-
-            if (!js_UpdateWatchpointsForShape(cx, this, newShape)) {
-                METER(wrapWatchFails);
-                return NULL;
-            }
         }
     } else if (shape == lastProp) {
         newShape = getChildProperty(cx, shape->parent, child);
@@ -1370,7 +1358,8 @@ PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
     name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
 
     if (JSID_IS_ATOM(id)) {
-        n = PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
+        n = js_PutEscapedString(buf, bufsize - 1,
+                                JSID_TO_STRING(id), 0);
         if (n < bufsize - 1)
             JS_snprintf(buf + n, bufsize - n, " %s", name);
     } else if (JSID_IS_INT(shape->id)) {
@@ -1393,7 +1382,7 @@ PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
     JS_ASSERT(!JSID_IS_VOID(id));
 
     JS_ASSERT(JSID_IS_ATOM(id));
-    n = PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
+    n = js_PutEscapedString(buf, bufsize - 1, JSID_TO_STRING(id), 0);
     if (n < bufsize - 1)
         JS_snprintf(buf + n, bufsize - n, " method");
 }

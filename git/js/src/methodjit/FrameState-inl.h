@@ -49,7 +49,7 @@ FrameState::addToTracker(FrameEntry *fe)
     JS_ASSERT(!fe->isTracked());
     fe->track(tracker.nentries);
     tracker.add(fe);
-    JS_ASSERT(tracker.nentries <= feLimit());
+    JS_ASSERT(tracker.nentries <= script->nslots);
 }
 
 inline FrameEntry *
@@ -193,7 +193,7 @@ FrameState::syncAndForgetEverything(uint32 newStackDepth)
 inline FrameEntry *
 FrameState::rawPush()
 {
-    JS_ASSERT(unsigned(sp - entries) < feLimit());
+    JS_ASSERT(unsigned(sp - entries) < nargs + script->nslots);
 
     if (!sp->isTracked())
         addToTracker(sp);
@@ -701,17 +701,10 @@ FrameState::learnType(FrameEntry *fe, JSValueType type)
 inline JSC::MacroAssembler::Address
 FrameState::addressOf(const FrameEntry *fe) const
 {
-    int32 frameOffset = 0;
-    if (fe >= locals)
-        frameOffset = JSStackFrame::offsetOfFixed(uint32(fe - locals));
-    else if (fe >= args)
-        frameOffset = JSStackFrame::offsetOfFormalArg(fun, uint32(fe - args));
-    else if (fe == this_)
-        frameOffset = JSStackFrame::offsetOfThis(fun);
-    else if (fe == callee_)
-        frameOffset = JSStackFrame::offsetOfCallee(fun);
-    JS_ASSERT(frameOffset);
-    return Address(JSFrameReg, frameOffset);
+    uint32 index = (fe - entries);
+    JS_ASSERT(index >= nargs);
+    index -= nargs;
+    return Address(JSFrameReg, sizeof(JSStackFrame) + sizeof(Value) * index);
 }
 
 inline JSC::MacroAssembler::Address
@@ -796,47 +789,15 @@ FrameState::testString(Assembler::Condition cond, FrameEntry *fe)
 }
 
 inline FrameEntry *
-FrameState::getOrTrack(uint32 index)
+FrameState::getLocal(uint32 slot)
 {
+    uint32 index = nargs + slot;
     FrameEntry *fe = &entries[index];
     if (!fe->isTracked()) {
         addToTracker(fe);
         fe->resetSynced();
     }
     return fe;
-}
-
-inline FrameEntry *
-FrameState::getLocal(uint32 slot)
-{
-    JS_ASSERT(slot < script->nslots);
-    return getOrTrack(uint32(&locals[slot] - entries));
-}
-
-inline FrameEntry *
-FrameState::getArg(uint32 slot)
-{
-    JS_ASSERT(slot < nargs);
-    return getOrTrack(uint32(&args[slot] - entries));
-}
-
-inline FrameEntry *
-FrameState::getThis()
-{
-    return getOrTrack(uint32(this_ - entries));
-}
-
-inline FrameEntry *
-FrameState::getCallee()
-{
-    // Callee can only be used in function code, and it's always an object.
-    JS_ASSERT(fun);
-    if (!callee_->isTracked()) {
-        addToTracker(callee_);
-        callee_->resetSynced();
-        callee_->setType(JSVAL_TYPE_OBJECT);
-    }
-    return callee_;
 }
 
 inline void
@@ -880,6 +841,12 @@ FrameState::swapInTracker(FrameEntry *lhs, FrameEntry *rhs)
     rhs->index_ = li;
 }
 
+inline uint32
+FrameState::localIndex(uint32 n)
+{
+    return nargs + n;
+}
+
 inline void
 FrameState::dup()
 {
@@ -906,9 +873,8 @@ FrameState::dupAt(int32 n)
 inline void
 FrameState::pushLocal(uint32 n)
 {
-    FrameEntry *fe = getLocal(n);
-    if (!isClosedVar(n)) {
-        pushCopyOf(indexOfFe(fe));
+    if (!eval && !isClosedVar(n)) {
+        pushCopyOf(indexOfFe(getLocal(n)));
     } else {
 #ifdef DEBUG
         /*
@@ -922,49 +888,8 @@ FrameState::pushLocal(uint32 n)
             JS_ASSERT(fe->data.inMemory());
         }
 #endif
-        push(addressOf(fe));
+        push(Address(JSFrameReg, sizeof(JSStackFrame) + n * sizeof(Value)));
     }
-}
-
-inline void
-FrameState::pushArg(uint32 n)
-{
-    FrameEntry *fe = getArg(n);
-    if (!isClosedArg(n)) {
-        pushCopyOf(indexOfFe(fe));
-    } else {
-#ifdef DEBUG
-        FrameEntry *fe = &args[n];
-        if (fe->isTracked()) {
-            JS_ASSERT(fe->type.inMemory());
-            JS_ASSERT(fe->data.inMemory());
-        }
-#endif
-        push(addressOf(fe));
-    }
-}
-
-inline void
-FrameState::pushCallee()
-{
-    FrameEntry *fe = getCallee();
-    pushCopyOf(indexOfFe(fe));
-}
-
-inline void
-FrameState::pushThis()
-{
-    FrameEntry *fe = getThis();
-    pushCopyOf(indexOfFe(fe));
-}
-
-void
-FrameState::learnThisIsObject()
-{
-    // This is safe, albeit hacky. This is only called from the compiler,
-    // and only on the first use of |this| inside a basic block. Thus,
-    // there are no copies of |this| anywhere.
-    learnType(this_, JSVAL_TYPE_OBJECT);
 }
 
 inline void
@@ -1000,13 +925,6 @@ FrameState::setClosedVar(uint32 slot)
 {
     if (!eval)
         closedVars[slot] = true;
-}
-
-inline void
-FrameState::setClosedArg(uint32 slot)
-{
-    if (!eval && !usesArguments)
-        closedArgs[slot] = true;
 }
 
 inline StateRemat
@@ -1095,37 +1013,8 @@ FrameState::loadDouble(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) cons
 inline bool
 FrameState::isClosedVar(uint32 slot)
 {
-    return eval || closedVars[slot];
+    return closedVars[slot];
 }
-
-inline bool
-FrameState::isClosedArg(uint32 slot)
-{
-    return eval || usesArguments || closedArgs[slot];
-}
-
-class PinRegAcrossSyncAndKill
-{
-    typedef JSC::MacroAssembler::RegisterID RegisterID;
-    FrameState &frame;
-    MaybeRegisterID maybeReg;
-  public:
-    PinRegAcrossSyncAndKill(FrameState &frame, RegisterID reg)
-      : frame(frame), maybeReg(reg)
-    {
-        frame.pinReg(reg);
-    }
-    PinRegAcrossSyncAndKill(FrameState &frame, MaybeRegisterID maybeReg)
-      : frame(frame), maybeReg(maybeReg)
-    {
-        if (maybeReg.isSet())
-            frame.pinReg(maybeReg.reg());
-    }
-    ~PinRegAcrossSyncAndKill() {
-        if (maybeReg.isSet())
-            frame.unpinKilledReg(maybeReg.reg());
-    }
-};
 
 } /* namespace mjit */
 } /* namespace js */

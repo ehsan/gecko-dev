@@ -224,7 +224,7 @@ mjit::Compiler::jsop_binary(JSOp op, VoidStub stub)
                                rhs->isType(JSVAL_TYPE_STRING));
 
         prepareStubCall(Uses(2));
-        INLINE_STUBCALL(stub);
+        stubCall(stub);
         frame.popn(2);
         if (isStringResult)
             frame.pushSyncedType(JSVAL_TYPE_STRING);
@@ -349,7 +349,7 @@ mjit::Compiler::jsop_binary_double(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Vo
 
     if (lhsNotNumber.isSet() || rhsNotNumber.isSet()) {
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
     }
 
     frame.popn(2);
@@ -456,7 +456,7 @@ mjit::Compiler::jsop_binary_full_simple(FrameEntry *fe, JSOp op, VoidStub stub)
     /* Slow call - use frame.sync to avoid erroneous jump repatching in stubcc. */
     frame.sync(stubcc.masm, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stub);
+    stubcc.call(stub);
 
     /* Finish up stack operations. */
     frame.popn(2);
@@ -558,7 +558,6 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Void
     int32 value = 0;
     JSOp origOp = op;
     MaybeRegisterID reg;
-    MaybeJump preOverflow;
     if (!regs.resultHasRhs) {
         if (!regs.rhsData.isSet())
             value = rhs->getValue().toInt32();
@@ -570,9 +569,6 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Void
         else
             reg = regs.lhsData.reg();
         if (op == JSOP_SUB) {
-            // If the RHS is 0x80000000, the smallest negative value, neg does
-            // not work. Guard against this and treat it as an overflow.
-            preOverflow = masm.branch32(Assembler::Equal, regs.result, Imm32(0x80000000));
             masm.neg32(regs.result);
             op = JSOP_ADD;
         }
@@ -662,8 +658,6 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Void
      * know never to try and convert back to integer.
      */
     MaybeJump overflowDone;
-    if (preOverflow.isSet())
-        stubcc.linkExitDirect(preOverflow.get(), stubcc.masm.label());
     stubcc.linkExitDirect(overflow.get(), stubcc.masm.label());
     {
         if (regs.lhsNeedsRemat) {
@@ -709,7 +703,7 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Void
     /* Slow call - use frame.sync to avoid erroneous jump repatching in stubcc. */
     frame.sync(stubcc.masm, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stub);
+    stubcc.call(stub);
 
     /* Finish up stack operations. */
     frame.popn(2);
@@ -734,7 +728,7 @@ mjit::Compiler::jsop_neg()
 
     if (fe->isTypeKnown() && fe->getKnownType() > JSVAL_UPPER_INCL_TYPE_OF_NUMBER_SET) {
         prepareStubCall(Uses(1));
-        INLINE_STUBCALL(stubs::Neg);
+        stubCall(stubs::Neg);
         frame.pop();
         frame.pushSynced();
         return;
@@ -801,7 +795,7 @@ mjit::Compiler::jsop_neg()
         frame.unpinReg(feTypeReg.reg());
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::Neg);
+    stubcc.call(stubs::Neg);
 
     frame.pop();
     frame.pushSynced();
@@ -833,7 +827,7 @@ mjit::Compiler::jsop_mod()
 #endif
     {
         prepareStubCall(Uses(2));
-        INLINE_STUBCALL(stubs::Mod);
+        stubCall(stubs::Mod);
         frame.popn(2);
         frame.pushSynced();
         return;
@@ -936,7 +930,7 @@ mjit::Compiler::jsop_mod()
 
     if (slowPath) {
         stubcc.leave();
-        OOL_STUBCALL(stubs::Mod);
+        stubcc.call(stubs::Mod);
     }
 
     frame.popn(2);
@@ -997,7 +991,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
          * Sync everything except the top two entries.
          * We will handle the lhs/rhs in the stub call path.
          */
-        frame.syncAndKill(Registers(Registers::AvailRegs), Uses(frame.frameSlots()), Uses(2));
+        frame.syncAndKill(Registers(Registers::AvailRegs), Uses(frame.frameDepth()), Uses(2));
 
         RegisterID tempReg = frame.allocReg();
 
@@ -1032,14 +1026,13 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
         if (useIC) {
             /* Adjust for the two values just pushed. */
             ic.addrLabel = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-            ic.stubCall = OOL_STUBCALL_LOCAL_SLOTS(ic::Equality,
-                                                   frame.stackDepth() + script->nfixed + 2);
+            ic.stubCall = stubcc.call(ic::Equality, frame.stackDepth() + script->nfixed + 2);
             needStub = false;
         }
 #endif
 
         if (needStub)
-            OOL_STUBCALL_LOCAL_SLOTS(stub, frame.stackDepth() + script->nfixed + 2);
+            stubcc.call(stub, frame.stackDepth() + script->nfixed + 2);
 
         /*
          * The stub call has no need to rejoin, since state is synced.
@@ -1125,7 +1118,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
         }
 
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
 
         RegisterID reg = frame.ownRegForData(lhs);
 
@@ -1282,7 +1275,7 @@ mjit::Compiler::jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *targe
         if (rhsNotNumber.isSet())
             stubcc.linkExitForBranch(rhsNotNumber.get());
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
 
         frame.popn(2);
         frame.syncAndForgetEverything();
@@ -1314,7 +1307,7 @@ mjit::Compiler::jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *targe
         if (rhsNotNumber.isSet())
             stubcc.linkExit(rhsNotNumber.get(), Uses(2));
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
 
         frame.popn(2);
 
@@ -1425,7 +1418,7 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
         if (hasDoublePath) {
             if (lhsUnknownDone.isSet())
                 lhsUnknownDone.get().linkTo(stubcc.masm.label(), &stubcc.masm);
-            frame.sync(stubcc.masm, Uses(frame.frameSlots()));
+            frame.sync(stubcc.masm, Uses(frame.frameDepth()));
             doubleTest = stubcc.masm.branchDouble(dblCond, fpLeft, fpRight);
             doubleFall = stubcc.masm.jump();
 
@@ -1443,9 +1436,9 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
              * that frame.sync() must be used directly, to avoid syncExit()'s
              * jumping logic.
              */
-            frame.sync(stubcc.masm, Uses(frame.frameSlots()));
+            frame.sync(stubcc.masm, Uses(frame.frameDepth()));
             stubcc.leave();
-            OOL_STUBCALL(stub);
+            stubcc.call(stub);
         }
 
         /* Forget the world, preserving data. */
@@ -1550,7 +1543,7 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
             /* Emit the slow path - note full frame syncage. */
             frame.sync(stubcc.masm, Uses(2));
             stubcc.leave();
-            OOL_STUBCALL(stub);
+            stubcc.call(stub);
         }
 
         /* Get an integer comparison condition. */

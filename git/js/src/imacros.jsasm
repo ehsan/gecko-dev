@@ -404,7 +404,7 @@
 
 .end new
 
-.igroup funapply JSOP_FUNAPPLY
+.igroup apply JSOP_APPLY
 
     .imacro apply0                          # apply fun this arr
         pick 3                              # fun this arr apply
@@ -622,10 +622,6 @@
         stop                                #
     .end                                    #
 
-.end funapply
-
-.igroup funcall JSOP_FUNCALL
-
     .imacro call0                           # call fun
         swap                                # fun call
         pop                                 # fun
@@ -690,7 +686,7 @@
         stop                                #
     .end                                    #
 
-.end funcall
+.end apply
 
 .igroup getprop JSOP_GETPROP
     .imacro scriptgetter        # obj

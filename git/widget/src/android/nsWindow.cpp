@@ -88,9 +88,9 @@ static nsWindow* gFocusedWindow = nsnull;
 static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
 
-// Multitouch swipe thresholds in inches
-static const double SWIPE_MAX_PINCH_DELTA_INCHES = 0.4;
-static const double SWIPE_MIN_DISTANCE_INCHES = 0.6;
+// Multitouch swipe thresholds (in screen pixels)
+static const double SWIPE_MAX_PINCH_DELTA = 100;
+static const double SWIPE_MIN_DISTANCE = 150;
 
 static nsWindow*
 TopWindow()
@@ -198,10 +198,6 @@ nsWindow::Create(nsIWidget *aParent,
         parent->mChildren.AppendElement(this);
         mParent = parent;
     }
-
-    float dpi = GetDPI();
-    mSwipeMaxPinchDelta = SWIPE_MAX_PINCH_DELTA_INCHES * dpi;
-    mSwipeMinDistance = SWIPE_MIN_DISTANCE_INCHES * dpi;
 
     return NS_OK;
 }
@@ -526,7 +522,7 @@ nsWindow::BringToFront()
     gTopLevelWindows.InsertElementAt(0, this);
 
     if (oldTop) {
-        nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, oldTop);
+        nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, gTopLevelWindows[0]);
         DispatchEvent(&event);
     }
 
@@ -1107,14 +1103,14 @@ void nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
 
         // If the cumulative pinch delta goes past the threshold, treat this
         // as a pinch only, and not a swipe.
-        if (fabs(pinchDist - mStartDist) > mSwipeMaxPinchDelta)
+        if (fabs(pinchDist - mStartDist) > SWIPE_MAX_PINCH_DELTA)
             mStartPoint = nsnull;
 
         // If we have traveled more than SWIPE_MIN_DISTANCE from the start
         // point, stop the pinch gesture and fire a swipe event.
         if (mStartPoint) {
             double swipeDistance = getDistance(midPoint, *mStartPoint);
-            if (swipeDistance > mSwipeMinDistance) {
+            if (swipeDistance > SWIPE_MIN_DISTANCE) {
                 PRUint32 direction = 0;
                 nsIntPoint motion = midPoint - *mStartPoint;
 

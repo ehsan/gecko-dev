@@ -62,8 +62,6 @@
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include "jsobj.h"
-#include "jsscript.h"
-#include "jscntxt.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -161,19 +159,13 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
     JSAutoRequest ar(cx);
 
-    JSString *url;
+    char     *url;
     JSObject *target_obj = nsnull;
     jschar   *charset = nsnull;
-    ok = JS_ConvertArguments (cx, argc, argv, "S / o W", &url, &target_obj, &charset);
+    ok = JS_ConvertArguments (cx, argc, argv, "s / o W", &url, &target_obj, &charset);
     if (!ok)
     {
         /* let the exception raised by JS_ConvertArguments show through */
-        return NS_OK;
-    }
-
-    JSAutoByteString urlbytes(cx, url);
-    if (!urlbytes)
-    {
         return NS_OK;
     }
 
@@ -283,7 +275,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
 
     // Make sure to explicitly create the URI, since we'll need the
     // canonicalized spec.
-    rv = NS_NewURI(getter_AddRefs(uri), urlbytes.ptr(), nsnull, serv);
+    rv = NS_NewURI(getter_AddRefs(uri), url, nsnull, serv);
     if (NS_FAILED(rv)) {
         errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_NOURI);
         goto return_exception;
@@ -373,32 +365,27 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
      * exceptions, including the source/line number */
     er = JS_SetErrorReporter (cx, mozJSLoaderErrorReporter);
 
+    if (charset)
     {
-        JSVersion version = cx->findVersion();
-
-        if (charset)
+        nsString script;
+        rv = nsScriptLoader::ConvertToUTF16 (nsnull,
+                                             reinterpret_cast<PRUint8*>(buf.get()), len,
+                                             nsDependentString(
+                                                 reinterpret_cast<PRUnichar*>(charset)),
+                                             nsnull, script);
+        if (NS_FAILED(rv))
         {
-            nsString script;
-            rv = nsScriptLoader::ConvertToUTF16(
-                    nsnull, reinterpret_cast<PRUint8*>(buf.get()), len,
-                    nsDependentString(reinterpret_cast<PRUnichar*>(charset)), nsnull, script);
-
-            if (NS_FAILED(rv))
-            {
-                errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_BADCHARSET);
-                goto return_exception;
-            }
-            ok = JS_EvaluateUCScriptForPrincipalsVersion(cx, target_obj, jsPrincipals,
-                                                         reinterpret_cast<const jschar*>(script.get()),
-                                                         script.Length(), uriStr.get(), 1, rval,
-                                                         version);
+            errmsg = JS_NewStringCopyZ (cx, LOAD_ERROR_BADCHARSET);
+            goto return_exception;
         }
-        else
-        {
-            ok = JS_EvaluateScriptForPrincipalsVersion(cx, target_obj, jsPrincipals,
-                                                       buf, len, uriStr.get(), 1, rval,
-                                                       version);
-        }
+        ok = JS_EvaluateUCScriptForPrincipals (cx, target_obj, jsPrincipals,
+                                               reinterpret_cast<const jschar*>(script.get()),
+                                               script.Length(), uriStr.get(), 1, rval);
+    }
+    else
+    {
+        ok = JS_EvaluateScriptForPrincipals (cx, target_obj, jsPrincipals,
+                                             buf, len, uriStr.get(), 1, rval);
     }
 
     {

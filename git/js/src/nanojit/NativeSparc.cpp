@@ -115,16 +115,16 @@ namespace nanojit
     }
     inline void Assembler::SUB(Register rs1, Register rs2, Register rd) {
         IntegerOperation(rs1, rs2, rd, 0x4, "sub");
-    }
+    };
     inline void Assembler::SUBCC(Register rs1, Register rs2, Register rd) {
         IntegerOperation(rs1, rs2, rd, 0x14, "subcc");
-    }
+    };
     inline void Assembler::SUBI(Register rs1, int32_t simm13, Register rd) {
         IntegerOperationI(rs1, simm13, rd, 0x4, "sub");
     }
     inline void Assembler::XOR(Register rs1, Register rs2, Register rd) {
         IntegerOperation(rs1, rs2, rd, 0x3, "xor");
-    }
+    };
 
     inline void Assembler::Bicc(int32_t a, int32_t dsp22, int32_t cond, const char *opcode) {
         Format_2_2(a, cond, 0x2, dsp22);
@@ -208,12 +208,6 @@ namespace nanojit
     inline void Assembler::FITOD(Register rs2, Register rd) {
         FloatOperation(G0, rs2, rd, 0xc8, "fitod");
     }
-    inline void Assembler::FDTOS(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xc6, "fdtos");
-    }
-    inline void Assembler::FSTOD(Register rs2, Register rd) {
-        FloatOperation(G0, rs2, rd, 0xc9, "fstod");
-    }
 
     inline void Assembler::JMPL(Register rs1, Register rs2, Register rd) {
         Format_3_1(2, rd, 0x38, rs1, 0, rs2);
@@ -244,21 +238,12 @@ namespace nanojit
         LoadOperationI(rs1, simm13, rd, 0x20, "ldf");
     }
 
-    inline void Assembler::LDF32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDFI(rs1, immI, rd);
-        } else {
-            LDF(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
     inline void Assembler::LDDF32(Register rs1, int32_t immI, Register rd) {
         if (isIMM13(immI+4)) {
-            LDFI(rs1, immI+4, rd + 1);
+            LDFI(rs1, immI+4, REGINC(rd));
             LDFI(rs1, immI, rd);
         } else {
-            LDF(rs1, L0, rd + 1);
+            LDF(rs1, L0, REGINC(rd));
             SET32(immI+4, L0);
             LDF(rs1, L0, rd);
             SET32(immI, L0);
@@ -281,22 +266,6 @@ namespace nanojit
         }
     }
 
-    inline void Assembler::LDSB(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0x9, "ldsb");
-    }
-    inline void Assembler::LDSBI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0x9, "ldsb");
-    }
-
-    inline void Assembler::LDSB32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDSBI(rs1, immI, rd);
-        } else {
-            LDSB(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
     inline void Assembler::LDUH(Register rs1, Register rs2, Register rd) {
         LoadOperation(rs1, rs2, rd,  0x2, "lduh");
     }
@@ -309,22 +278,6 @@ namespace nanojit
             LDUHI(rs1, immI, rd);
         } else {
             LDUH(rs1, L0, rd);
-            SET32(immI, L0);
-        }
-    }
-
-    inline void Assembler::LDSH(Register rs1, Register rs2, Register rd) {
-        LoadOperation(rs1, rs2, rd,  0xa, "ldsh");
-    }
-    inline void Assembler::LDSHI(Register rs1, int32_t simm13, Register rd) {
-        LoadOperationI(rs1, simm13, rd, 0xa, "ldsh");
-    }
-
-    inline void Assembler::LDSH32(Register rs1, int32_t immI, Register rd) {
-        if (isIMM13(immI)) {
-            LDSHI(rs1, immI, rd);
-        } else {
-            LDSH(rs1, L0, rd);
             SET32(immI, L0);
         }
     }
@@ -496,10 +449,10 @@ namespace nanojit
 
     inline void Assembler::STDF32(Register rd, int32_t immI, Register rs1) {
         if (isIMM13(immI+4)) {
-            STFI(rd + 1, immI+4, rs1);
+            STFI(REGINC(rd), immI+4, rs1);;
             STFI(rd, immI, rs1);
         } else {
-            STF(rd + 1, L0, rs1);
+            STF(REGINC(rd), L0, rs1);
             SET32(immI+4, L0);
             STF(rd, L0, rs1);
             SET32(immI, L0);
@@ -518,22 +471,6 @@ namespace nanojit
             STWI(rd, immI, rs1);
          } else {
             STW(rd, L0, rs1);
-            SET32(immI, L0);
-         }
-    }
-
-    inline void Assembler::STH(Register rd, Register rs1, Register rs2) {
-        Store(rd, rs1, rs2, 0x6, "sth");
-    }
-    inline void Assembler::STHI(Register rd, int32_t simm13, Register rs1) {
-        StoreI(rd, simm13, rs1, 0x6, "sth");
-    }
-
-    inline void Assembler::STH32(Register rd, int32_t immI, Register rs1) {
-        if (isIMM13(immI)) {
-            STHI(rd, immI, rs1);
-         } else {
-            STH(rd, L0, rs1);
             SET32(immI, L0);
          }
     }
@@ -730,25 +667,25 @@ namespace nanojit
                     // We might be calling a varargs function.
                     // So, make sure the GPR's are also loaded with
                     // the value, or the stack contains it.
-                    if (GPRIndex <= O5) {
+                    if (REGNUM(GPRIndex) <= REGNUM(O5)) {
                         LDSW32(SP, offset, GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
-                    if (GPRIndex <= O5) {
+                    GPRIndex = REGINC(GPRIndex);
+                    if (REGNUM(GPRIndex) <= REGNUM(O5)) {
                         LDSW32(SP, offset+4, GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
+                    GPRIndex = REGINC(GPRIndex);
                     STDF32(r, offset, SP);
                     offset += 8;
                 } else {
-                    if (GPRIndex > O5) {
+                    if (REGNUM(GPRIndex) > REGNUM(O5)) {
                         underrunProtect(12);
                         Register r = findRegFor(ins->arg(j), GpRegs);
                         STW32(r, offset, SP);
                     } else {
                         Register r = findSpecificRegFor(ins->arg(j), GPRIndex);
                     }
-                    GPRIndex = GPRIndex + 1;
+                    GPRIndex = REGINC(GPRIndex);
                     offset += 4;
                 }
             }
@@ -759,7 +696,7 @@ namespace nanojit
         // need to implement faster way
         Register i = G0;
         while (!(set & rmask(i)))
-            i = i + 1;
+            i = REGINC(i);
         _allocator.free &= ~rmask(i);
         return i;
     }
@@ -816,9 +753,11 @@ namespace nanojit
         switch (op) {
             case LIR_sti:
             case LIR_sti2c:
-            case LIR_sti2s:
                 // handled by mainline code below for now
                 break;
+            case LIR_sti2s:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_store32 should never receive this LIR opcode");
                 return;
@@ -835,9 +774,6 @@ namespace nanojit
                     break;
                 case LIR_sti2c:
                     STB32(L2, dr, rb);
-                    break;
-                case LIR_sti2s:
-                    STH32(L2, dr, rb);
                     break;
                 }
                 SET32(c, L2);
@@ -861,9 +797,6 @@ namespace nanojit
                 case LIR_sti2c:
                     STB32(ra, dr, rb);
                     break;
-                case LIR_sti2s:
-                    STH32(ra, dr, rb);
-                    break;
                 }
             }
     }
@@ -884,75 +817,65 @@ namespace nanojit
     {
         switch (ins->opcode()) {
             case LIR_ldd:
-            case LIR_ldf2d:
                 // handled by mainline code below for now
                 break;
+            case LIR_ldf2d:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_load64 should never receive this LIR opcode");
                 return;
         }
 
-        underrunProtect(48);
+        underrunProtect(72);
         LIns* base = ins->oprnd1();
         int db = ins->disp();
-        Register rb = getBaseReg(base, db, GpRegs);
+        Register rr = ins->deprecated_getReg();
 
-        if (ins->isInReg()) {
-            Register rr =  ins->getReg();
-            asm_maybe_spill(ins, false);
-            NanoAssert(rmask(rr) & FpRegs);
-
-            if (ins->opcode() == LIR_ldd) {
-                LDDF32(rb, db, rr);
-            } else {
-                FSTOD(F28, rr);
-                LDF32(rb, db, F28);
-            }
+        int dr = deprecated_disp(ins);
+        Register rb;
+        if (base->isop(LIR_allocp)) {
+            rb = FP;
+            db += findMemFor(base);
         } else {
-            NanoAssert(ins->isInAr());
-            int dr = arDisp(ins);
-
-            if (ins->opcode() == LIR_ldd) {
-                // don't use an fpu reg to simply load & store the value.
-                asm_mmq(FP, dr, rb, db);
-            } else {
-                STDF32(F28, dr, FP);
-                FSTOD(F28, F28);
-                LDF32(rb, db, F28);
-            }
+            rb = findRegFor(base, GpRegs);
         }
+        ins->clearReg();
 
-        freeResourcesOf(ins);
+        // don't use an fpu reg to simply load & store the value.
+        if (dr)
+            asm_mmq(FP, dr, rb, db);
+
+        deprecated_freeRsrcOf(ins);
+
+        if (rr != deprecated_UnknownReg)
+            {
+                NanoAssert(rmask(rr)&FpRegs);
+                _allocator.retire(rr);
+                LDDF32(rb, db, rr);
+            }
     }
 
     void Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
     {
         switch (op) {
             case LIR_std:
-            case LIR_std2f:
                 // handled by mainline code below for now
                 break;
+            case LIR_std2f:
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_store64 should never receive this LIR opcode");
                 return;
         }
 
         underrunProtect(48);
-        Register rb = getBaseReg(base, dr, GpRegs);
-        if (op == LIR_std2f) {
-            Register rv = ( !value->isInReg()
-                            ? findRegFor(value, FpRegs)
-                            : value->getReg() );
-            NanoAssert(rmask(rv) & FpRegs);
-            STF32(F28, dr, rb);
-            FDTOS(rv, F28);
-            return;
-        }
-
         if (value->isImmD())
             {
                 // if a constant 64-bit value just store it now rather than
                 // generating a pointless store/load/store sequence
+                Register rb = findRegFor(base, GpRegs);
                 STW32(L2, dr+4, rb);
                 SET32(value->immDlo(), L2);
                 STW32(L2, dr, rb);
@@ -972,15 +895,30 @@ namespace nanojit
                 // c) maybe its a double just being stored.  oh well.
 
                 int da = findMemFor(value);
+                Register rb;
+                if (base->isop(LIR_allocp)) {
+                    rb = FP;
+                    dr += findMemFor(base);
+                } else {
+                    rb = findRegFor(base, GpRegs);
+                }
                 asm_mmq(rb, dr, FP, da);
                 return;
             }
 
+        Register rb;
+        if (base->isop(LIR_allocp)) {
+            rb = FP;
+            dr += findMemFor(base);
+        } else {
+            rb = findRegFor(base, GpRegs);
+        }
+
         // if value already in a reg, use that, otherwise
-        // get it into FPU regs.
+        // try to get it into XMM regs before FPU regs.
         Register rv = ( !value->isInReg()
                       ? findRegFor(value, FpRegs)
-                      : value->getReg() );
+                      : value->deprecated_getReg() );
 
         STDF32(rv, dr, rb);
     }
@@ -1306,11 +1244,9 @@ namespace nanojit
                 LDSW32(ra, d, rr);
                 break;
             case LIR_ldc2i:
-                LDSB32(ra, d, rr);
-                break;
             case LIR_lds2i:
-                LDSH32(ra, d, rr);
-                break;
+                NanoAssertMsg(0, "NJ_EXPANDED_LOADSTORE_SUPPORTED not yet supported for this architecture");
+                return;
             default:
                 NanoAssertMsg(0, "asm_load32 should never receive this LIR opcode");
                 return;
@@ -1636,10 +1572,6 @@ namespace nanojit
         SWAP(NIns*, codeStart, exitStart);
         SWAP(NIns*, codeEnd, exitEnd);
         verbose_only( SWAP(size_t, codeBytes, exitBytes); )
-    }
-
-    void Assembler::asm_insert_random_nop() {
-        NanoAssert(0); // not supported
     }
 
 #endif /* FEATURE_NANOJIT */

@@ -93,7 +93,6 @@ namespace nanojit
         i386_fixed_esp = false;
 #endif
         harden_function_alignment = false;
-        harden_nop_insertion = false;
 
 #if defined(NANOJIT_ARM)
 

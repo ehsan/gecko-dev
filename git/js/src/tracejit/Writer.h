@@ -391,11 +391,9 @@ class Writer
         return lir->insLoad(op, state, offset, ACCSET_STATE);
     }
     #define ldiStateField(fieldname) \
-        name(w.ldStateFieldHelper(LIR_ldi, lirbuf->state, offsetof(TracerState, fieldname)), \
-             #fieldname)
+        ldStateFieldHelper(LIR_ldi, lirbuf->state, offsetof(TracerState, fieldname))
     #define ldpStateField(fieldname) \
-        name(w.ldStateFieldHelper(LIR_ldp, lirbuf->state, offsetof(TracerState, fieldname)), \
-             #fieldname)
+        ldStateFieldHelper(LIR_ldp, lirbuf->state, offsetof(TracerState, fieldname))
 
     nj::LIns *stStateFieldHelper(nj::LIns *value, nj::LIns *state, int32 offset) const {
         return lir->insStore(value, state, offset, ACCSET_STATE);
@@ -415,11 +413,9 @@ class Writer
         return lir->insLoad(nj::LIR_ldp, cx, offset, ACCSET_CX, loadQual);
     }
     #define ldpContextField(fieldname) \
-        name(w.ldpContextFieldHelper(cx_ins, offsetof(JSContext, fieldname), LOAD_NORMAL), \
-             #fieldname)
+        ldpContextFieldHelper(cx_ins, offsetof(JSContext, fieldname), LOAD_NORMAL)
     #define ldpConstContextField(fieldname) \
-        name(w.ldpContextFieldHelper(cx_ins, offsetof(JSContext, fieldname), LOAD_CONST), \
-             #fieldname)
+        ldpContextFieldHelper(cx_ins, offsetof(JSContext, fieldname), LOAD_CONST)
 
     nj::LIns *stContextField(nj::LIns *value, nj::LIns *cx, int32 offset) const {
         return lir->insStore(value, cx, offset, ACCSET_CX);
@@ -459,14 +455,12 @@ class Writer
     }
 
     nj::LIns *ldpObjClasp(nj::LIns *obj, nj::LoadQual loadQual) const {
-        return name(lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, clasp), ACCSET_OBJ_CLASP,
-                                 loadQual),
-                    "clasp");
+        return lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, clasp), ACCSET_OBJ_CLASP,
+                            loadQual);
     }
 
     nj::LIns *ldiObjFlags(nj::LIns *obj) const {
-        return name(lir->insLoad(nj::LIR_ldi, obj, offsetof(JSObject, flags), ACCSET_OBJ_FLAGS),
-                    "flags");
+        return lir->insLoad(nj::LIR_ldi, obj, offsetof(JSObject, flags), ACCSET_OBJ_FLAGS);
     }
 
     nj::LIns *ldiObjShape(nj::LIns *obj) const {
@@ -496,12 +490,6 @@ class Writer
                     "private_uint32");
     }
 
-    nj::LIns *stuiObjPrivate(nj::LIns *obj, nj::LIns *value) const {
-        return name(lir->insStore(nj::LIR_sti, value, obj, offsetof(JSObject, privateData),
-                                  ACCSET_OBJ_PRIVATE),
-                    "private_uint32");
-    }
-
     nj::LIns *ldiDenseArrayCapacity(nj::LIns *array) const {
         return name(lir->insLoad(nj::LIR_ldi, array, offsetof(JSObject, capacity),
                                  ACCSET_OBJ_CAPACITY),
@@ -509,20 +497,17 @@ class Writer
     }
 
     nj::LIns *ldpObjSlots(nj::LIns *obj) const {
-        return name(lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, slots), ACCSET_OBJ_SLOTS),
-                    "slots");
+        return lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, slots), ACCSET_OBJ_SLOTS);
     }
 
     nj::LIns *ldiConstTypedArrayLength(nj::LIns *array) const {
-        return name(lir->insLoad(nj::LIR_ldi, array, js::TypedArray::lengthOffset(), ACCSET_TARRAY,
-                                 nj::LOAD_CONST),
-                    "typedArrayLength");
+        return lir->insLoad(nj::LIR_ldi, array, js::TypedArray::lengthOffset(), ACCSET_TARRAY,
+                            nj::LOAD_CONST);
     }
 
     nj::LIns *ldpConstTypedArrayData(nj::LIns *array) const {
-        return name(lir->insLoad(nj::LIR_ldp, array, js::TypedArray::dataOffset(), ACCSET_TARRAY,
-                                 nj::LOAD_CONST),
-                    "typedElems");
+        return lir->insLoad(nj::LIR_ldp, array, js::TypedArray::dataOffset(), ACCSET_TARRAY,
+                            nj::LOAD_CONST);
     }
 
     nj::LIns *ldc2iTypedArrayElement(nj::LIns *elems, nj::LIns *index) const {
@@ -595,9 +580,7 @@ class Writer
     }
 
     nj::LIns *ldpStringLengthAndFlags(nj::LIns *str) const {
-        return name(lir->insLoad(nj::LIR_ldp, str, offsetof(JSString, mLengthAndFlags),
-                                 ACCSET_STRING),
-                    "mLengthAndFlags");
+        return lir->insLoad(nj::LIR_ldp, str, offsetof(JSString, mLengthAndFlags), ACCSET_STRING);
     }
 
     nj::LIns *ldpStringChars(nj::LIns *str) const {
@@ -623,7 +606,7 @@ class Writer
         return lir->insLoad(nj::LIR_ldi, lr, offset, nj::ACCSET_LOAD_ANY);
     }
     #define ldiVMSideExitField(lr, fieldname) \
-        name(w.ldiVMSideExitFieldHelper((lr), offsetof(VMSideExit, fieldname)), #fieldname)
+        ldiVMSideExitFieldHelper((lr), offsetof(VMSideExit, fieldname))
 
     nj::LIns *ldpGuardRecordExit(nj::LIns *gr) const {
         /*
@@ -631,9 +614,7 @@ class Writer
          * they're immediately after a fragment call, and so won't be
          * optimizable anyway.
          */
-        return name(lir->insLoad(nj::LIR_ldp, gr, offsetof(nj::GuardRecord, exit),
-                                 nj::ACCSET_LOAD_ANY),
-                    "exit");
+        return lir->insLoad(nj::LIR_ldp, gr, offsetof(nj::GuardRecord, exit), nj::ACCSET_LOAD_ANY);
     }
 
     nj::LIns *stTprintArg(nj::LIns *insa[], nj::LIns *args, int index) const {
@@ -646,8 +627,7 @@ class Writer
 
 #if JS_BITS_PER_WORD == 32
     nj::LIns *ldiValueTag(Address addr) const {
-        return name(lir->insLoad(nj::LIR_ldi, addr.base, addr.offset + sTagOffset, addr.accSet),
-                    "tag");
+        return lir->insLoad(nj::LIR_ldi, addr.base, addr.offset + sTagOffset, addr.accSet);
     }
 
     nj::LIns *stiValueTag(nj::LIns *tag, Address addr) const {
@@ -656,9 +636,7 @@ class Writer
     }
 
     nj::LIns *ldiValuePayload(Address addr) const {
-        return name(lir->insLoad(nj::LIR_ldi, addr.base, addr.offset + sPayloadOffset,
-                                 addr.accSet),
-                    "payload");
+        return lir->insLoad(nj::LIR_ldi, addr.base, addr.offset + sPayloadOffset, addr.accSet);
     }
 
     nj::LIns *stiValuePayload(nj::LIns *payload, Address addr) const {
@@ -804,7 +782,7 @@ class Writer
     }
 
     nj::LIns *immiUndefined() const {
-        return name(immi(0), "undefined");
+        return name(immi(0), "0");
     }
 
     /*
@@ -835,10 +813,6 @@ class Writer
      */
     nj::LIns *immpNonGC(const void *p) const {
         return lir->insImmP(p);
-    }
-
-    nj::LIns *immw(intptr_t i) const {
-        return lir->insImmP((void *)i);
     }
 
     #define nameImmpNonGC(p)    name(w.immpNonGC(p), #p)
@@ -962,10 +936,6 @@ class Writer
 
     nj::LIns *addi(nj::LIns *x, nj::LIns *y) const {
         return lir->ins2(nj::LIR_addi, x, y);
-    }
-
-    nj::LIns *addiN(nj::LIns *x, int32 imm) const {
-        return lir->ins2ImmI(nj::LIR_addi, x, imm);
     }
 
     nj::LIns *subi(nj::LIns *x, nj::LIns *y) const {
@@ -1163,13 +1133,15 @@ class Writer
      */
     nj::LIns *getObjPrivatizedSlot(nj::LIns *obj, uint32 slot) const {
 #if JS_BITS_PER_WORD == 32
-        nj::LIns *vaddr_ins = ldpObjSlots(obj);
+        nj::LIns *vaddr_ins = lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, slots),
+                                           ACCSET_OBJ_SLOTS);
         return lir->insLoad(nj::LIR_ldi, vaddr_ins,
                             slot * sizeof(Value) + sPayloadOffset, ACCSET_SLOTS, nj::LOAD_CONST);
 
 #elif JS_BITS_PER_WORD == 64
         /* N.B. On 64-bit, privatized value are encoded differently from other pointers. */
-        nj::LIns *vaddr_ins = ldpObjSlots(obj);
+        nj::LIns *vaddr_ins = lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, slots),
+                                       ACCSET_OBJ_SLOTS);
         nj::LIns *v_ins = lir->insLoad(nj::LIR_ldq, vaddr_ins,
                                        slot * sizeof(Value) + sPayloadOffset,
                                        ACCSET_SLOTS, nj::LOAD_CONST);
@@ -1178,30 +1150,33 @@ class Writer
     }
 
     nj::LIns *getDslotAddress(nj::LIns *obj, nj::LIns *idx) const {
+        nj::LIns *slots = name(ldpObjSlots(obj), "slots");
         JS_ASSERT(sizeof(Value) == 8); // The |3| in the following statement requires this.
-        nj::LIns *offset = lshpN(ui2p(idx), 3);
-        nj::LIns *slots = ldpObjSlots(obj);
-        return addp(slots, offset);
+        return addp(slots, lshpN(ui2p(idx), 3));
     }
 
     nj::LIns *getStringLength(nj::LIns *str) const {
-        return name(rshupN(ldpStringLengthAndFlags(str), JSString::FLAGS_LENGTH_SHIFT),
-                    "strLength");
+        return name(rshupN(name(ldpStringLengthAndFlags(str), "mLengthAndFlags"),
+                           JSString::FLAGS_LENGTH_SHIFT), "length");
     }
 
     nj::LIns *getStringChar(nj::LIns *str, nj::LIns *idx) const {
         nj::LIns *chars = ldpStringChars(str);
-        return name(lir->insLoad(nj::LIR_ldus2ui, addp(chars, lshpN(idx, 1)), 0,
-                                 ACCSET_STRING_MCHARS, nj::LOAD_CONST),
-                    "strChar");
+        return lir->insLoad(nj::LIR_ldus2ui, addp(chars, lshpN(idx, 1)), 0,
+                            ACCSET_STRING_MCHARS, nj::LOAD_CONST);
+    }
+
+    nj::LIns *getStringChar0(nj::LIns *str) const {
+        nj::LIns *chars = ldpStringChars(str);
+        return lir->insLoad(nj::LIR_ldus2ui, chars, 0, ACCSET_STRING_MCHARS, nj::LOAD_CONST);
     }
 
     nj::LIns *getArgsLength(nj::LIns *args) const {
         uint32 slot = JSObject::JSSLOT_ARGS_LENGTH;
-        nj::LIns *vaddr_ins = ldpObjSlots(args);
-        return name(lir->insLoad(nj::LIR_ldi, vaddr_ins, slot * sizeof(Value) + sPayloadOffset,
-                                 ACCSET_SLOTS),
-                    "argsLength");
+        nj::LIns *vaddr_ins = lir->insLoad(nj::LIR_ldp, args, offsetof(JSObject, slots),
+                                           ACCSET_OBJ_SLOTS);
+        return lir->insLoad(nj::LIR_ldi, vaddr_ins, slot * sizeof(Value) + sPayloadOffset,
+                            ACCSET_SLOTS);
     }
 };
 

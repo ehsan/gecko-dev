@@ -49,8 +49,6 @@
 #include "FilteringWrapper.h"
 #include "WrapperFactory.h"
 
-#include "jsstr.h"
-
 namespace xpc {
 
 static nsIPrincipal *
@@ -106,23 +104,18 @@ AccessCheck::getPrincipal(JSCompartment *compartment)
     return GetCompartmentPrincipal(compartment);
 }
 
-#define NAME(ch, str, cases)                                                  \
-    case ch: if (!strcmp(name, str)) switch (propChars[0]) { cases }; break;
+#define NAME(ch, str, cases) case ch: if (!strcmp(name, str)) switch (prop[0]) { cases }; break;
 #define PROP(ch, actions) case ch: { actions }; break;
-#define RW(str) if (JS_MatchStringAndAscii(prop, str)) return true;
-#define R(str) if (!set && JS_MatchStringAndAscii(prop, str)) return true;
-#define W(str) if (set && JS_MatchStringAndAscii(prop, str)) return true;
+#define RW(str) if (!strcmp(prop, str)) return true;
+#define R(str) if (!set && !strcmp(prop, str)) return true;
+#define W(str) if (set && !strcmp(prop, str)) return true;
 
 // Hardcoded policy for cross origin property access. This was culled from the
 // preferences file (all.js). We don't want users to overwrite highly sensitive
 // security policies.
 static bool
-IsPermitted(const char *name, JSString *prop, bool set)
+IsPermitted(const char *name, const char* prop, bool set)
 {
-    size_t propLength;
-    const jschar *propChars = JS_GetStringCharsAndLength(prop, &propLength);
-    if (!propLength)
-        return false;
     switch(name[0]) {
         NAME('D', "DOMException",
              PROP('c', RW("code"))
@@ -291,7 +284,9 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
         name = clasp->name;
 
     if (JSID_IS_ATOM(id)) {
-        if (IsPermitted(name, JSID_TO_STRING(id), act == JSWrapper::SET))
+        JSString *str = ATOM_TO_STRING(JSID_TO_ATOM(id));
+        const char *prop = JS_GetStringBytes(str);
+        if (IsPermitted(name, prop, act == JSWrapper::SET))
             return true;
     }
 

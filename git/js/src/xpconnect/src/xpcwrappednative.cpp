@@ -613,9 +613,9 @@ FinishCreate(XPCCallContext& ccx,
 #if DEBUG_xpc_leaks
     {
         char* s = wrapper->ToString(ccx);
-        NS_ASSERTION(wrapper->IsValid(), "eh?");
+        NS_ASSERTION(wrapper->GetFlatJSObject(), "eh?");
         printf("Created wrapped native %s, flat JSObject is %p\n",
-               s, (void*)wrapper->GetFlatJSObjectNoMark());
+               s, (void*)wrapper->GetFlatJSObject());
         if(s)
             JS_smprintf_free(s);
     }
@@ -654,7 +654,7 @@ FinishCreate(XPCCallContext& ccx,
     }
     else if(wrapper)
     {
-        JSObject *flat = wrapper->GetFlatJSObjectAndMark();
+        JSObject *flat = wrapper->GetFlatJSObject();
         NS_ASSERTION(!cache || !cache->GetWrapper() ||
                      flat == cache->GetWrapper(),
                      "This object has a cached wrapper that's different from "
@@ -668,7 +668,8 @@ FinishCreate(XPCCallContext& ccx,
         XPCNativeScriptableInfo* si = wrapper->GetScriptableInfo();
         if(si && si->GetFlags().WantPostCreate())
         {
-            nsresult rv = si->GetCallback()->PostCreate(wrapper, ccx, flat);
+            nsresult rv = si->GetCallback()->
+                     PostCreate(wrapper, ccx, wrapper->GetFlatJSObject());
             if(NS_FAILED(rv))
             {
                 // PostCreate failed and that's Very Bad. We'll remove it from
@@ -1496,7 +1497,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
         if(NS_FAILED(rv))
             return rv;
 
-        flat = wrapper->GetFlatJSObjectAndMark();
+        flat = wrapper->GetFlatJSObject();
     }
 
     if(!flat)
@@ -1950,7 +1951,7 @@ XPCWrappedNative::InitTearOff(XPCCallContext& ccx,
         {
             JSObject* jso = nsnull;
             if(NS_SUCCEEDED(wrappedJS->GetJSObject(&jso)) &&
-               jso == mFlatJSObject)
+               jso == GetFlatJSObject())
             {
                 // The implementing JSObject is the same as ours! Just say OK
                 // without actually extending the set.
@@ -2793,10 +2794,7 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
                     dp->SetValIsAllocated();
                     useAllocator = JS_TRUE;
                     break;
-                case nsXPTType::T_CHAR_STR:
-                    dp->SetValIsAllocated();
-                    useAllocator = JS_TRUE;
-                    break;
+
                 case nsXPTType::T_ASTRING:
                     // Fall through to the T_DOMSTRING case
 
@@ -2966,10 +2964,8 @@ CallMethodHelper::ConvertDependentParams()
                          "Expected either enough arguments or an optional argument");
             src = i < mArgc ? mArgv[i] : JSVAL_NULL;
 
-            if((datum_type.IsPointer() &&
-                (datum_type.TagPart() == nsXPTType::T_IID ||
-                 datum_type.TagPart() == nsXPTType::T_PSTRING_SIZE_IS)) ||
-               (isArray && datum_type.TagPart() == nsXPTType::T_CHAR_STR))
+            if(datum_type.IsPointer() &&
+               datum_type.TagPart() == nsXPTType::T_IID)
             {
                 useAllocator = JS_TRUE;
                 dp->SetValIsAllocated();
@@ -3051,7 +3047,7 @@ CallMethodHelper::Invoke()
 /* readonly attribute JSObjectPtr JSObject; */
 NS_IMETHODIMP XPCWrappedNative::GetJSObject(JSObject * *aJSObject)
 {
-    *aJSObject = GetFlatJSObjectAndMark();
+    *aJSObject = mFlatJSObject;
     return NS_OK;
 }
 
@@ -3065,11 +3061,11 @@ NS_IMETHODIMP XPCWrappedNative::GetNative(nsISupports * *aNative)
     return NS_OK;
 }
 
-/* reaonly attribute JSObjectPtr JSObjectPrototype; */
+/* readonly attribute JSObjectPtr JSObjectPrototype; */
 NS_IMETHODIMP XPCWrappedNative::GetJSObjectPrototype(JSObject * *aJSObjectPrototype)
 {
     *aJSObjectPrototype = HasProto() ?
-                GetProto()->GetJSProtoObject() : GetFlatJSObjectAndMark();
+                GetProto()->GetJSProtoObject() : GetFlatJSObject();
     return NS_OK;
 }
 
@@ -3149,11 +3145,11 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
     if(!HasProto())
         return NS_OK;
 
-    if(!mFlatJSObject)
+    if(!GetFlatJSObject())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     JSAutoEnterCompartment ac;
-    if(!ac.enter(ccx, GetFlatJSObjectAndMark()))
+    if(!ac.enter(ccx, GetFlatJSObject()))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     AutoMarkingWrappedNativeProtoPtr oldProto(ccx);
@@ -3177,8 +3173,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
     if(newProto.get() == oldProto.get())
         return NS_OK;
 
-    if(!JS_SetPrototype(ccx, GetFlatJSObjectAndMark(),
-                        newProto->GetJSProtoObject()))
+    if(!JS_SetPrototype(ccx, GetFlatJSObject(), newProto->GetJSProtoObject()))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     SetProto(newProto);
@@ -3427,11 +3422,11 @@ static void DEBUG_PrintShadowObjectInfo(const char* header,
 static void ReportSingleMember(jsval ifaceName,
                                jsval memberName)
 {
-    JS_FileEscapedString(stdout, ifaceName, 0);
-    if(JSVAL_IS_STRING(memberName)) {
-        fputs("::", stdout);
-        JS_FileEscapedString(stdout, memberName, 0);
-    }
+    if(JSVAL_IS_STRING(memberName))
+        printf("%s::%s", JS_GetStringBytes(JSVAL_TO_STRING(ifaceName)),
+                         JS_GetStringBytes(JSVAL_TO_STRING(memberName)));
+    else
+        printf("%s", JS_GetStringBytes(JSVAL_TO_STRING(ifaceName)));
 }
 
 static void ShowHeader(JSBool* printedHeader,
@@ -3461,9 +3456,8 @@ static void ShowOneShadow(jsval ifaceName1,
 
 static void ShowDuplicateInterface(jsval ifaceName)
 {
-    fputs(" ! ", stdout);
-    JS_FileEscapedString(stdout, ifaceName, 0);
-    fputs(" appears twice in the nsIClassInfo interface set!\n", stdout);
+    printf(" ! %s appears twice in the nsIClassInfo interface set!\n",
+           JS_GetStringBytes(JSVAL_TO_STRING(ifaceName)));
 }
 
 static JSBool InterfacesAreRelated(XPCNativeInterface* iface1,
@@ -3766,7 +3760,7 @@ XPCJSObjectHolder::XPCJSObjectHolder(XPCCallContext& ccx, JSObject* obj)
 
 XPCJSObjectHolder::~XPCJSObjectHolder()
 {
-    RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetMapLock());
+    RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
 }
 
 void

@@ -225,19 +225,11 @@ Atob(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    size_t len = JS_GetStringEncodingLength(cx, str);
-    if (len == size_t(-1))
+    const char* bytes = JS_GetStringBytesZ(cx, str);
+    if (!bytes)
         return JS_FALSE;
 
-    JSUint32 alloc_len = (len + 1) * sizeof(char);
-    char *buffer = static_cast<char *>(nsMemory::Alloc(alloc_len));
-    if (!buffer)
-        return JS_FALSE;
-
-    JS_EncodeStringToBuffer(str, buffer, len);
-    buffer[len] = '\0';
-
-    nsDependentCString string(buffer, JS_GetStringLength(str));
+    nsDependentCString string(bytes, JS_GetStringLength(str));
     nsCAutoString result;
 
     if (NS_FAILED(nsXPConnect::Base64Decode(string, result))) {
@@ -263,19 +255,11 @@ Btoa(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    size_t len = JS_GetStringEncodingLength(cx, str);
-    if (len == size_t(-1))
+    const char* bytes = JS_GetStringBytesZ(cx, str);
+    if (!bytes)
         return JS_FALSE;
 
-    JSUint32 alloc_len = (len + 1) * sizeof(char);
-    char *buffer = static_cast<char *>(nsMemory::Alloc(alloc_len));
-    if (!buffer)
-        return JS_FALSE;
-
-    JS_EncodeStringToBuffer(str, buffer, len);
-    buffer[len] = '\0';
-
-    nsDependentCString data(buffer, len);
+    nsDependentCString data(bytes, JS_GetStringLength(str));
     nsCAutoString result;
 
     if (NS_FAILED(nsXPConnect::Base64Encode(data, result))) {
@@ -1130,10 +1114,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FAILURE;
             }
 
-            script = JS_CompileScriptForPrincipalsVersion(
-              cx, global, jsPrincipals, buf, fileSize32, nativePath.get(), 1,
-              JSVERSION_LATEST);
-
+            script = JS_CompileScriptForPrincipals(cx, global,
+                                                   jsPrincipals,
+                                                   buf, fileSize32,
+                                                   nativePath.get(), 1);
             PR_MemUnmap(buf, fileSize32);
 
 #else  /* HAVE_PR_MEMMAP */
@@ -1150,8 +1134,9 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FILE_NOT_FOUND;
             }
 
-            script = JS_CompileFileHandleForPrincipalsVersion(
-              cx, global, nativePath.get(), fileHandle, jsPrincipals, JSVERSION_LATEST);
+            script = JS_CompileFileHandleForPrincipals(cx, global,
+                                                       nativePath.get(),
+                                                       fileHandle, jsPrincipals);
 
             /* JS will close the filehandle after compilation is complete. */
 #endif /* HAVE_PR_MEMMAP */
@@ -1186,9 +1171,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
             buf[len] = '\0';
 
-            script = JS_CompileScriptForPrincipalsVersion(
-              cx, global, jsPrincipals, buf, bytesRead, nativePath.get(), 1,
-              JSVERSION_LATEST);
+            script = JS_CompileScriptForPrincipals(cx, global,
+                                                   jsPrincipals,
+                                                   buf, bytesRead,
+                                                   nativePath.get(), 1);
         }
         // Propagate the exception, if one exists. Also, don't leave the stale
         // exception on this context.
@@ -1247,7 +1233,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     *aGlobal = global;
 
     jsval retval;
-    if (!JS_ExecuteScriptVersion(cx, global, script, &retval, JSVERSION_LATEST)) {
+    if (!JS_ExecuteScript(cx, global, script, &retval)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif
@@ -1535,43 +1521,37 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
         for (jsuint i = 0; i < symbolCount; ++i) {
             jsval val;
-            jsid symbolId;
+            JSString *symbolName;
 
             if (!JS_GetElement(mContext, symbolsObj, i, &val) ||
-                !JSVAL_IS_STRING(val) ||
-                !JS_ValueToId(mContext, val, &symbolId)) {
+                !JSVAL_IS_STRING(val)) {
                 return ReportOnCaller(cxhelper, ERROR_ARRAY_ELEMENT,
                                       PromiseFlatCString(aLocation).get(), i);
             }
 
-            if (!JS_GetPropertyById(mContext, mod->global, symbolId, &val)) {
-                JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-                if (!bytes)
-                    return NS_ERROR_FAILURE;
+            symbolName = JSVAL_TO_STRING(val);
+            if (!JS_GetProperty(mContext, mod->global,
+                                JS_GetStringBytes(symbolName), &val)) {
                 return ReportOnCaller(cxhelper, ERROR_GETTING_SYMBOL,
                                       PromiseFlatCString(aLocation).get(),
-                                      bytes.ptr());
+                                      JS_GetStringBytes(symbolName));
             }
 
             JSAutoEnterCompartment target_ac;
 
             if (!target_ac.enter(mContext, targetObj) ||
                 !JS_WrapValue(mContext, &val) ||
-                !JS_SetPropertyById(mContext, targetObj, symbolId, &val)) {
-                JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-                if (!bytes)
-                    return NS_ERROR_FAILURE;
+                !JS_SetProperty(mContext, targetObj,
+                                JS_GetStringBytes(symbolName), &val)) {
                 return ReportOnCaller(cxhelper, ERROR_SETTING_SYMBOL,
                                       PromiseFlatCString(aLocation).get(),
-                                      bytes.ptr());
+                                      JS_GetStringBytes(symbolName));
             }
 #ifdef DEBUG
             if (i == 0) {
                 logBuffer.AssignLiteral("Installing symbols [ ");
             }
-            JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
-            if (!!bytes)
-                logBuffer.Append(bytes.ptr());
+            logBuffer.Append(JS_GetStringBytes(symbolName));
             logBuffer.AppendLiteral(" ");
             if (i == symbolCount - 1) {
                 LOG(("%s] from %s\n", PromiseFlatCString(logBuffer).get(),

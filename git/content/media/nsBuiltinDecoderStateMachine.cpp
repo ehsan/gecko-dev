@@ -161,12 +161,6 @@ nsBuiltinDecoderStateMachine::nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDe
 nsBuiltinDecoderStateMachine::~nsBuiltinDecoderStateMachine()
 {
   MOZ_COUNT_DTOR(nsBuiltinDecoderStateMachine);
-
-  if (mAudioStream) {
-    MonitorAutoEnter mon(mDecoder->GetMonitor());
-    mAudioStream->Shutdown();
-    mAudioStream = nsnull;
-  }
 }
 
 PRBool nsBuiltinDecoderStateMachine::HasFutureAudio() const {
@@ -617,7 +611,7 @@ void nsBuiltinDecoderStateMachine::StartPlayback()
     } else {
       // No audiostream, create one.
       const nsVideoInfo& info = mReader->GetInfo();
-      mAudioStream = nsAudioStream::AllocateStream();
+      mAudioStream = new nsAudioStream();
       mAudioStream->Init(info.mAudioChannels,
                          info.mAudioRate,
                          MOZ_SOUND_DATA_FORMAT);

@@ -592,7 +592,6 @@ nsContentUtils::InitializeEventTable() {
                                                 
     { nsGkAtoms::onpageshow,                    NS_PAGE_SHOW, EventNameType_HTML, NS_EVENT },
     { nsGkAtoms::onpagehide,                    NS_PAGE_HIDE, EventNameType_HTML, NS_EVENT },
-    { nsGkAtoms::onMozBeforeResize,             NS_BEFORERESIZE_EVENT, EventNameType_None, NS_EVENT },
     { nsGkAtoms::onresize,                      NS_RESIZE_EVENT,
                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
     { nsGkAtoms::onscroll,                      NS_SCROLL_EVENT,
@@ -5537,11 +5536,6 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     return NS_OK;
   }
 
-  JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
-  if (wrapper) {
-    return NS_OK;
-  }
-
   NS_ENSURE_TRUE(sXPConnect && sThreadJSContextStack, NS_ERROR_UNEXPECTED);
 
   // Keep sXPConnect and sThreadJSContextStack alive. If we're on the main
@@ -6494,12 +6488,4 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 #endif // MOZ_MEDIA
 
   return NULL;
-}
-
-NS_IMPL_ISUPPORTS1(nsIContentUtils2, nsIContentUtils2)
-
-nsIInterfaceRequestor*
-nsIContentUtils2::GetSameOriginChecker()
-{
-  return nsContentUtils::GetSameOriginChecker();
 }

@@ -48,46 +48,6 @@
 
 namespace js {
 namespace mjit {
-
-class FrameSize
-{
-    uint32 frameDepth_ : 16;
-    uint32 argc_;
-  public:
-    void initStatic(uint32 frameDepth, uint32 argc) {
-        JS_ASSERT(frameDepth > 0);
-        frameDepth_ = frameDepth;
-        argc_ = argc;
-    }
-
-    void initDynamic() {
-        frameDepth_ = 0;
-        argc_ = -1;  /* quiet gcc */
-    }
-
-    bool isStatic() const {
-        return frameDepth_ > 0;
-    }
-
-    bool isDynamic() const {
-        return frameDepth_ == 0;
-    }
-
-    uint32 staticLocalSlots() const {
-        JS_ASSERT(isStatic());
-        return frameDepth_;
-    }
-
-    uint32 staticArgc() const {
-        JS_ASSERT(isStatic());
-        return argc_;
-    }
-
-    uint32 getArgc(VMFrame &f) const {
-        return isStatic() ? staticArgc() : f.u.call.dynamicArgc;
-    }
-};
-
 namespace ic {
 
 struct MICInfo {
@@ -134,7 +94,6 @@ struct MICInfo {
             bool touched : 1;
             bool typeConst : 1;
             bool dataConst : 1;
-            bool usePropertyCache : 1;
         } name;
     } u;
 };
@@ -201,7 +160,8 @@ struct CallICInfo {
     /* PC at the call site. */
     jsbytecode *pc;
 
-    FrameSize frameSize;
+    uint32 argc : 16;
+    uint32 frameDepth : 16;
 
     /* Function object identity guard. */
     JSC::CodeLocationDataLabelPtr funGuard;
@@ -259,7 +219,6 @@ void * JS_FASTCALL New(VMFrame &f, ic::CallICInfo *ic);
 void * JS_FASTCALL Call(VMFrame &f, ic::CallICInfo *ic);
 void JS_FASTCALL NativeNew(VMFrame &f, ic::CallICInfo *ic);
 void JS_FASTCALL NativeCall(VMFrame &f, ic::CallICInfo *ic);
-JSBool JS_FASTCALL SplatApplyArgs(VMFrame &f);
 
 void PurgeMICs(JSContext *cx, JSScript *script);
 void SweepCallICs(JSScript *script);

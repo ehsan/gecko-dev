@@ -457,15 +457,15 @@ nsresult
 nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
                                   bool explainLiveExpectedGarbage)
 {
-    NS_ASSERTION(!mCycleCollectionContext, "Didn't call FinishTraverse?");
+    NS_ASSERTION(!mCycleCollectionContext, "Didn't call FinishCollection?");
     mCycleCollectionContext = new XPCCallContext(NATIVE_CALLER);
     if (!mCycleCollectionContext->IsValid()) {
         mCycleCollectionContext = nsnull;
-        return NS_ERROR_FAILURE;
+        return PR_FALSE;
     }
 
 #ifdef DEBUG_CC
-    NS_ASSERTION(!mJSRoots.ops, "Didn't call FinishCycleCollection?");
+    NS_ASSERTION(!mJSRoots.ops, "Didn't call FinishCollection?");
 
     if(explainLiveExpectedGarbage)
     {
@@ -496,16 +496,11 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
 }
 
 nsresult 
-nsXPConnect::FinishTraverse()
+nsXPConnect::FinishCycleCollection()
 {
     if (mCycleCollectionContext)
         mCycleCollectionContext = nsnull;
-    return NS_OK;
-}
 
-nsresult 
-nsXPConnect::FinishCycleCollection()
-{
 #ifdef DEBUG_CC
     if(mJSRoots.ops)
     {
@@ -2760,9 +2755,9 @@ JS_EXPORT_API(void) DumpJSValue(jsval val)
     }
     else if(JSVAL_IS_STRING(val)) {
         printf("Value is a string: ");
-        putc('<', stdout);
-        JS_FileEscapedString(stdout, JSVAL_TO_STRING(val), 0);
-        fputs(">\n", stdout);
+        JSString* string = JSVAL_TO_STRING(val);
+        char* bytes = JS_GetStringBytes(string);
+        printf("<%s>\n", bytes);
     }
     else if(JSVAL_IS_BOOLEAN(val)) {
         printf("Value is boolean: ");

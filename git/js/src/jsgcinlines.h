@@ -154,12 +154,12 @@ js_NewGCShortString(JSContext *cx)
     return NewFinalizableGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING);
 }
 
-inline JSExternalString *
+inline JSString *
 js_NewGCExternalString(JSContext *cx, uintN type)
 {
-    JS_ASSERT(type < JSExternalString::TYPE_LIMIT);
-    JSExternalString *str = NewFinalizableGCThing<JSExternalString>(cx, js::gc::FINALIZE_EXTERNAL_STRING);
-    return str;
+    JS_ASSERT(type < js::gc::JS_EXTERNAL_STRING_LIMIT);
+    type += js::gc::FINALIZE_EXTERNAL_STRING0;
+    return NewFinalizableGCThing<JSString>(cx, type);
 }
 
 inline JSFunction*
@@ -437,7 +437,9 @@ MarkKind(JSTracer *trc, void *thing, uint32 kind)
             Mark(trc, reinterpret_cast<JSObject *>(thing));
             break;
         case JSTRACE_STRING:
-            MarkString(trc, reinterpret_cast<JSString *>(thing));
+            if (JSString::isStatic((JSString *)thing))
+                return;
+            Mark(trc, reinterpret_cast<JSString *>(thing));
             break;
 #if JS_HAS_XML_SUPPORT
         case JSTRACE_XML:

@@ -942,9 +942,9 @@ nsGlobalWindow::CleanupCachedXBLHandlers(nsGlobalWindow* aWindow)
       aWindow->mCachedXBLPrototypeHandlers.Count() > 0) {
     aWindow->mCachedXBLPrototypeHandlers.Clear();
 
-    nsISupports* supports;
+    nsCOMPtr<nsISupports> supports;
     aWindow->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                            reinterpret_cast<void**>(&supports));
+                            getter_AddRefs(supports));
     NS_ASSERTION(supports, "Failed to QI to nsCycleCollectionISupports?!");
 
     nsContentUtils::DropJSObjects(supports);
@@ -4481,6 +4481,8 @@ nsGlobalWindow::Alert(const nsAString& aString)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  EnterModalState();
+
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
     nsXPIDLString label;
@@ -4494,6 +4496,8 @@ nsGlobalWindow::Alert(const nsAString& aString)
   } else {
     rv = promptSvc->Alert(this, title.get(), final.get());
   }
+
+  LeaveModalState();
 
   return rv;
 }
@@ -4534,6 +4538,8 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  EnterModalState();
+
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
     nsXPIDLString label;
@@ -4547,6 +4553,8 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   } else {
     rv = promptSvc->Confirm(this, title.get(), final.get(), aReturn);
   }
+
+  LeaveModalState();
 
   return rv;
 }
@@ -4597,9 +4605,13 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                                        "ScriptDialogLabel", label);
   }
 
+  EnterModalState();
+
   PRBool ok;
   rv = promptSvc->Prompt(this, title.get(), fixedMessage.get(),
                          &inoutValue, label.get(), &disallowDialog, &ok);
+
+  LeaveModalState();
 
   if (disallowDialog) {
     PreventFurtherDialogs();
@@ -6374,9 +6386,9 @@ nsGlobalWindow::CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
     NS_ASSERTION(participant,
                  "Failed to QI to nsXPCOMCycleCollectionParticipant!");
 
-    nsISupports* thisSupports;
+    nsCOMPtr<nsISupports> thisSupports;
     QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                   reinterpret_cast<void**>(&thisSupports));
+                   getter_AddRefs(thisSupports));
     NS_ASSERTION(thisSupports, "Failed to QI to nsCycleCollectionISupports!");
 
     nsresult rv = nsContentUtils::HoldJSObjects(thisSupports, participant);

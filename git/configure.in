@@ -2893,13 +2893,11 @@ esac
 AC_SUBST(NO_LD_ARCHIVE_FLAGS)
 
 dnl ========================================================
-dnl = Flags to strip unused symbols from .so components and
-dnl = to export jemalloc symbols when linking a program
+dnl = Flags to strip unused symbols from .so components
 dnl ========================================================
 case "$target" in
     *-linux*|*-kfreebsd*-gnu|*-gnu*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
-        MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS='-rdynamic -Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/jemalloc-standalone-linkage-version-script'
         ;;
     *-solaris*)
         if test -z "$GNU_CC"; then
@@ -4994,7 +4992,6 @@ MOZ_XTF=1
 MOZ_XUL=1
 MOZ_ZIPWRITER=1
 NS_PRINTING=1
-MOZ_PDF_PRINTING=
 MOZ_DISABLE_DOMCRYPTO=
 NSS_DISABLE_DBM=
 NECKO_WIFI=1
@@ -5034,6 +5031,7 @@ case "${target}" in
         NSS_DISABLE_DBM=1
         USE_ARM_KUSER=1
         MOZ_INSTALLER=
+        NS_PRINTING=
         NECKO_WIFI=
         MOZ_THUMB2=1
         MOZ_THEME_FASTSTRIPE=1
@@ -5189,7 +5187,6 @@ cairo-windows)
         NS_PRINTING=
         ;;
     esac
-    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-gtk2|cairo-gtk2-x11)
@@ -5206,7 +5203,6 @@ cairo-gtk2|cairo-gtk2-x11)
     TK_CFLAGS='$(MOZ_GTK2_CFLAGS)'
     TK_LIBS='$(MOZ_GTK2_LIBS)'
     AC_DEFINE(MOZ_WIDGET_GTK2)
-    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-gtk2-dfb)
@@ -5224,7 +5220,6 @@ cairo-gtk2-dfb)
         AC_MSG_WARN([Disabling X when DirectFB is specified.])
         no_x=yes
     fi
-    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-qt)
@@ -5242,7 +5237,6 @@ cairo-qt)
     TK_CFLAGS='$(MOZ_QT_CFLAGS)'
     TK_LIBS='$(MOZ_QT_LIBS)'
     AC_DEFINE(MOZ_WIDGET_QT)
-    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-beos)
@@ -5257,7 +5251,6 @@ cairo-os2)
     USE_FC_FREETYPE=1
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS)'
-    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-cocoa)
@@ -5278,19 +5271,10 @@ cairo-cocoa)
 cairo-android)
     AC_DEFINE(MOZ_WIDGET_ANDROID)
     MOZ_WIDGET_TOOLKIT=android
-    TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
-    TK_LIBS='$(MOZ_CAIRO_LIBS)'
     MOZ_WEBGL=1
-    MOZ_PDF_PRINTING=1
     ;;
 
 esac
-
-AC_SUBST(MOZ_PDF_PRINTING)
-if test "$MOZ_PDF_PRINTING"; then
-   PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
-   AC_DEFINE(MOZ_PDF_PRINTING)
-fi
 
 if test "$MOZ_ENABLE_XREMOTE"; then
     AC_DEFINE(MOZ_ENABLE_XREMOTE)
@@ -8515,6 +8499,7 @@ if test "$MOZ_TREE_CAIRO"; then
         XLIB_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_SURFACE 1"
         XLIB_XRENDER_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_XRENDER_SURFACE 1"
         PS_SURFACE_FEATURE="#define CAIRO_HAS_PS_SURFACE 1"
+        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="$FT2_CFLAGS"
@@ -8553,10 +8538,12 @@ if test "$MOZ_TREE_CAIRO"; then
           AC_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
         fi
 
+        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
     fi
     if test "$MOZ_WIDGET_TOOLKIT" = "os2"; then
         OS2_SURFACE_FEATURE="#define CAIRO_HAS_OS2_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
+        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="-I${MZFTCFGFT2}/include"
         CAIRO_FT_LIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
@@ -8937,7 +8924,6 @@ AC_SUBST(PKG_SKIP_STRIP)
 AC_SUBST(USE_ELF_DYNSTR_GC)
 AC_SUBST(INCREMENTAL_LINKER)
 AC_SUBST(MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS)
-AC_SUBST(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
 AC_SUBST(MOZ_COMPONENT_NSPR_LIBS)
 
 AC_SUBST(MOZ_FIX_LINK_PATHS)

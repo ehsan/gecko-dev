@@ -666,15 +666,14 @@ js::ReportStrictModeError(JSContext *cx, TokenStream *ts, JSTreeContext *tc, JSP
     JS_ASSERT(ts || tc);
     JS_ASSERT(cx == ts->getContext());
 
-    /* In strict mode code, this is an error, not merely a warning. */
+    /* In strict mode code, this is an error, not just a warning. */
     uintN flags;
-    if ((ts && ts->isStrictMode()) || (tc && (tc->flags & TCF_STRICT_MODE_CODE))) {
+    if ((tc && tc->flags & TCF_STRICT_MODE_CODE) || (ts && ts->isStrictMode()))
         flags = JSREPORT_ERROR;
-    } else {
-        if (!JS_HAS_STRICT_OPTION(cx))
-            return true;
+    else if (JS_HAS_STRICT_OPTION(cx))
         flags = JSREPORT_WARNING;
-    }
+    else
+        return true;
 
     va_list ap;
     va_start(ap, errorNumber);

@@ -88,7 +88,7 @@ top:
         JSTryNoteArray *tnarray = script->trynotes();
         for (unsigned i = 0; i < tnarray->length; ++i) {
             JSTryNote *tn = &tnarray->vector[i];
-
+            JS_ASSERT(offset < script->length);
             // The following if condition actually tests two separate conditions:
             //   (1) offset - tn->start >= tn->length
             //       means the PC is not in the range of this try note, so we
@@ -274,10 +274,10 @@ stubs::FixupArity(VMFrame &f, uint32 nactual)
         THROWV(NULL);
 
     /* Reset the part of the stack frame set by the caller. */
-    newfp->initCallFrameCallerHalf(cx, flags, ncode);
+    newfp->initCallFrameCallerHalf(cx, nactual, flags);
 
     /* Reset the part of the stack frame set by the prologue up to now. */
-    newfp->initCallFrameEarlyPrologue(fun, nactual);
+    newfp->initCallFrameEarlyPrologue(fun, ncode);
 
     /* The caller takes care of assigning fp to regs. */
     return newfp;
@@ -306,7 +306,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
      * prologue. Pass the existing value for ncode, it has already been set
      * by the jit code calling into this stub.
      */
-    fp->initCallFrameEarlyPrologue(fun, nactual);
+    fp->initCallFrameEarlyPrologue(fun, fp->nativeReturnAddress());
 
     /* Empty script does nothing. */
     bool callingNew = fp->isConstructing();
@@ -453,8 +453,11 @@ stubs::Eval(VMFrame &f, uint32 argc)
     if (!IsFunctionObject(*vp, &callee) ||
         !IsBuiltinEvalFunction((fun = callee->getFunctionPrivate())))
     {
-        if (!Invoke(f.cx, InvokeArgsAlreadyOnTheStack(vp, argc), 0))
+        if (!ComputeThisFromVpInPlace(f.cx, vp) ||
+            !Invoke(f.cx, InvokeArgsAlreadyOnTheStack(vp, argc), 0))
+        {
             THROW();
+        }
         return;
     }
 
@@ -608,15 +611,12 @@ stubs::EnterScript(VMFrame &f)
 {
     JSStackFrame *fp = f.fp();
     JSContext *cx = f.cx;
-
-    if (fp->script()->debugMode) {
-        JSInterpreterHook hook = cx->debugHooks->callHook;
-        if (JS_UNLIKELY(hook != NULL) && !fp->isExecuteFrame()) {
-            fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->callHookData));
-        }
+    JSInterpreterHook hook = cx->debugHooks->callHook;
+    if (JS_UNLIKELY(hook != NULL) && !fp->isExecuteFrame()) {
+        fp->setHookData(hook(cx, fp, JS_TRUE, 0, cx->debugHooks->callHookData));
     }
 
-    Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
+    Probes::enterJSFun(cx, fp->maybeFun());
 }
 
 void JS_FASTCALL
@@ -624,18 +624,14 @@ stubs::LeaveScript(VMFrame &f)
 {
     JSStackFrame *fp = f.fp();
     JSContext *cx = f.cx;
-    Probes::exitJSFun(cx, fp->maybeFun(), fp->maybeScript());
+    Probes::exitJSFun(cx, fp->maybeFun());
+    JSInterpreterHook hook = cx->debugHooks->callHook;
 
-    if (fp->script()->debugMode) {
-        JSInterpreterHook hook = cx->debugHooks->callHook;
-        void *hookData;
-
-        if (hook && (hookData = fp->maybeHookData()) && !fp->isExecuteFrame()) {
-            JSBool ok = JS_TRUE;
-            hook(cx, fp, JS_FALSE, &ok, hookData);
-            if (!ok)
-                THROW();
-        }
+    if (hook && fp->hasHookData() && !fp->isExecuteFrame()) {
+        JSBool ok = JS_TRUE;
+        hook(cx, fp, JS_FALSE, &ok, fp->hookData());
+        if (!ok)
+            THROW();
     }
 }
 
@@ -761,8 +757,7 @@ AdvanceReturnPC(JSContext *cx)
     JS_ASSERT(*cx->regs->pc == JSOP_CALL ||
               *cx->regs->pc == JSOP_NEW ||
               *cx->regs->pc == JSOP_EVAL ||
-              *cx->regs->pc == JSOP_FUNCALL ||
-              *cx->regs->pc == JSOP_FUNAPPLY);
+              *cx->regs->pc == JSOP_APPLY);
     cx->regs->pc += JSOP_CALL_LENGTH;
 }
 

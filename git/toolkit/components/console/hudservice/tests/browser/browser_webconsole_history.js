@@ -57,7 +57,7 @@ function testHistory() {
   openConsole();
 
   hudId = HUDService.displaysIndex()[0];
-  let HUD = HUDService.hudReferences[hudId];
+  let HUD = HUDService.hudWeakReferences[hudId].get();
   let jsterm = HUD.jsterm;
   let input = jsterm.inputNode;
 

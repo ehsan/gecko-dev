@@ -66,8 +66,6 @@ ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -80,8 +78,6 @@ ContainerLayerD3D10::InsertAfter(Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -98,8 +94,6 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
       mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -115,8 +109,6 @@ ContainerLayerD3D10::RemoveChild(Layer *aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);

@@ -364,8 +364,6 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
             }
         }
 #endif
-
-        UpdateActualFormat();
     }
 
 #ifdef DEBUG
@@ -461,10 +459,6 @@ GLContext::IsExtensionSupported(const char *extension)
 PRBool
 GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
 {
-    // fix bug 612572 - we were crashing as we were calling this function with extensions==null
-    if (extensions == nsnull || extension == nsnull)
-        return PR_FALSE;
-
     const GLubyte *start;
     GLubyte *where, *terminator;
 
@@ -715,10 +709,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, (GLint*) &curBoundRenderbuffer);
     fGetIntegerv(LOCAL_GL_VIEWPORT, viewport);
 
-    // the context format of what we're defining;
-    // for some reason, UpdateActualFormat isn't working with a bound FBO.
-    ContextFormat cf;
-
     // If this is the first time we're going through this, we need
     // to create the objects we'll use.  Otherwise, just bind them.
     if (firstTime) {
@@ -756,8 +746,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                     LOCAL_GL_RGBA,
                     LOCAL_GL_UNSIGNED_BYTE,
                     NULL);
-
-        cf.red = cf.green = cf.blue = cf.alpha = 8;
     } else {
         fTexImage2D(LOCAL_GL_TEXTURE_2D,
                     0,
@@ -772,15 +760,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                              : LOCAL_GL_UNSIGNED_BYTE,
 #endif
                     NULL);
-
-#ifdef XP_WIN
-        cf.red = cf.green = cf.blue = 8;
-#else
-        cf.red = 5;
-        cf.green = 6;
-        cf.blue = 5;
-#endif
-        cf.alpha = 0;
     }
 
     if (depth && stencil && useDepthStencil) {
@@ -788,8 +767,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
         fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
                              LOCAL_GL_DEPTH24_STENCIL8,
                              aSize.width, aSize.height);
-        cf.depth = 24;
-        cf.stencil = 8;
     } else {
         if (depth) {
             GLenum depthType;
@@ -810,7 +787,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                                  mIsGLES2 ? LOCAL_GL_DEPTH_COMPONENT16
                                           : LOCAL_GL_DEPTH_COMPONENT24,
                                  aSize.width, aSize.height);
-            cf.depth = mIsGLES2 ? 16 : 24;
         }
 
         if (stencil) {
@@ -818,7 +794,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
             fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
                                  LOCAL_GL_STENCIL_INDEX8,
                                  aSize.width, aSize.height);
-            cf.stencil = 8;
         }
     }
 
@@ -868,10 +843,7 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     mOffscreenActualSize = aSize;
 
     if (firstTime) {
-        // UpdateActualFormat() doesn't work for some reason, with a
-        // FBO bound, even though it should.
-        //UpdateActualFormat();
-        mActualFormat = cf;
+        UpdateActualFormat();
 
 #ifdef DEBUG
         printf_stderr("Created offscreen FBO: r: %d g: %d b: %d a: %d depth: %d stencil: %d\n",

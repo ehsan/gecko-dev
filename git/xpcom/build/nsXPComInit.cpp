@@ -641,8 +641,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
                 NotifyObservers(nsnull, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
                                 nsnull);
 
-        nsCycleCollector_shutdownThreads();
-
         NS_ProcessPendingEvents(thread);
 
         // Shutdown the timer thread and all timers that might still be alive before

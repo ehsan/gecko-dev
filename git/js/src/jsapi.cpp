@@ -95,7 +95,6 @@
 #include "jsscopeinlines.h"
 #include "jscntxtinlines.h"
 #include "jsregexpinlines.h"
-#include "jsstrinlines.h"
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_YARR_JIT
@@ -121,18 +120,13 @@ class AutoVersionAPI
     explicit AutoVersionAPI(JSContext *cx, JSVersion newVersion)
       : cx(cx), oldVersion(cx->findVersion()), oldVersionWasOverride(cx->isVersionOverridden()),
         oldOptions(cx->options) {
-        /* 
-         * Note: ANONFUNFIX in newVersion is ignored for backwards
-         * compatibility, must be set via JS_SetOptions. (Because of this, we
-         * inherit the current ANONFUNFIX setting from the options.
-         */
+        JS_ASSERT(!VersionExtractFlags(newVersion) ||
+                  VersionExtractFlags(newVersion) == VersionFlags::HAS_XML);
         cx->options = VersionHasXML(newVersion)
                       ? (cx->options | JSOPTION_XML)
                       : (cx->options & ~JSOPTION_XML);
-
-        VersionSetAnonFunFix(&newVersion, OptionsHasAnonFunFix(cx->options));
         cx->maybeOverrideVersion(newVersion);
-        cx->checkOptionVersionSync();
+        SyncOptionsToVersion(cx);
     }
 
     ~AutoVersionAPI() {
@@ -259,11 +253,10 @@ JS_ConvertArgumentsVA(JSContext *cx, uintN argc, jsval *argv, const char *format
                 if (fun) {
                     char numBuf[12];
                     JS_snprintf(numBuf, sizeof numBuf, "%u", argc);
-                    JSAutoByteString funNameBytes;
-                    if (const char *name = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-                        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
-                                             name, numBuf, (argc == 1) ? "" : "s");
-                    }
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                         JSMSG_MORE_ARGS_NEEDED,
+                                         JS_GetFunctionName(fun), numBuf,
+                                         (argc == 1) ? "" : "s");
                 }
                 return JS_FALSE;
             }
@@ -298,13 +291,19 @@ JS_ConvertArgumentsVA(JSContext *cx, uintN argc, jsval *argv, const char *format
                 return JS_FALSE;
             *va_arg(ap, jsdouble *) = js_DoubleToInteger(d);
             break;
+          case 's':
           case 'S':
           case 'W':
             str = js_ValueToString(cx, Valueify(*sp));
             if (!str)
                 return JS_FALSE;
             *sp = STRING_TO_JSVAL(str);
-            if (c == 'W') {
+            if (c == 's') {
+                const char *bytes = js_GetStringBytes(cx, str);
+                if (!bytes)
+                    return JS_FALSE;
+                *va_arg(ap, const char **) = bytes;
+            } else if (c == 'W') {
                 const jschar *chars = js_GetStringChars(cx, str);
                 if (!chars)
                     return JS_FALSE;
@@ -810,7 +809,7 @@ StartRequest(JSContext *cx)
 {
     JSThread *t = cx->thread;
     JS_ASSERT(CURRENT_THREAD_IS_ME(t));
-
+   
     if (t->data.requestDepth) {
         t->data.requestDepth++;
     } else {
@@ -1019,6 +1018,17 @@ JS_GetVersion(JSContext *cx)
     return VersionNumber(cx->findVersion());
 }
 
+static void
+CheckOptionVersionSync(JSContext *cx)
+{
+#if DEBUG
+    uint32 options = cx->options;
+    JSVersion version = cx->findVersion();
+    JS_ASSERT(OptionsHasXML(options) == VersionHasXML(version));
+    JS_ASSERT(OptionsHasAnonFunFix(options) == VersionHasAnonFunFix(version));
+#endif
+}
+
 JS_PUBLIC_API(JSVersion)
 JS_SetVersion(JSContext *cx, JSVersion newVersion)
 {
@@ -1035,9 +1045,9 @@ JS_SetVersion(JSContext *cx, JSVersion newVersion)
     if (newVersionNumber != JSVERSION_DEFAULT && newVersionNumber <= JSVERSION_1_4)
         return oldVersionNumber;
 
-    cx->optionFlagsToVersion(&newVersion);
+    VersionCloneFlags(oldVersion, &newVersion);
     cx->maybeOverrideVersion(newVersion);
-    cx->checkOptionVersionSync();
+    CheckOptionVersionSync(cx);
     return oldVersionNumber;
 }
 
@@ -1099,9 +1109,9 @@ JS_SetOptions(JSContext *cx, uint32 options)
     AutoLockGC lock(cx->runtime);
     uint32 oldopts = cx->options;
     cx->options = options;
-    cx->syncOptionsToVersion();
+    SyncOptionsToVersion(cx);
     cx->updateJITEnabled();
-    cx->checkOptionVersionSync();
+    CheckOptionVersionSync(cx);
     return oldopts;
 }
 
@@ -1109,12 +1119,12 @@ JS_PUBLIC_API(uint32)
 JS_ToggleOptions(JSContext *cx, uint32 options)
 {
     AutoLockGC lock(cx->runtime);
-    cx->checkOptionVersionSync();
+    CheckOptionVersionSync(cx);
     uint32 oldopts = cx->options;
     cx->options ^= options;
-    cx->syncOptionsToVersion();
+    (void) SyncOptionsToVersion(cx);
     cx->updateJITEnabled();
-    cx->checkOptionVersionSync();
+    CheckOptionVersionSync(cx);
     return oldopts;
 }
 
@@ -1525,8 +1535,8 @@ static JSStdName standard_class_names[] = {
     {js_InitObjectClass,        EAGER_ATOM(eval), CLASP(Object)},
 
     /* Global properties and functions defined by the Number class. */
-    {js_InitNumberClass,        EAGER_ATOM(NaN), CLASP(Number)},
-    {js_InitNumberClass,        EAGER_ATOM(Infinity), CLASP(Number)},
+    {js_InitNumberClass,        LAZY_ATOM(NaN), CLASP(Number)},
+    {js_InitNumberClass,        LAZY_ATOM(Infinity), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(isNaN), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(isFinite), CLASP(Number)},
     {js_InitNumberClass,        LAZY_ATOM(parseFloat), CLASP(Number)},
@@ -2180,7 +2190,7 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing, ui
                     JS_snprintf(buf, bufsize, "%p", fun);
                 } else {
                     if (fun->atom)
-                        PutEscapedString(buf, bufsize, ATOM_TO_STRING(fun->atom), 0);
+                        js_PutEscapedString(buf, bufsize, ATOM_TO_STRING(fun->atom), 0);
                 }
             } else if (clasp->flags & JSCLASS_HAS_PRIVATE) {
                 JS_snprintf(buf, bufsize, "%p", obj->getPrivate());
@@ -2191,7 +2201,7 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing, ui
           }
 
           case JSTRACE_STRING:
-            PutEscapedString(buf, bufsize, (JSString *)thing, 0);
+            js_PutEscapedString(buf, bufsize, (JSString *)thing, 0);
             break;
 
 #if JS_HAS_XML_SUPPORT
@@ -2671,26 +2681,25 @@ JS_FlushCaches(JSContext *cx)
 JS_PUBLIC_API(intN)
 JS_AddExternalStringFinalizer(JSStringFinalizeOp finalizer)
 {
-    return JSExternalString::changeFinalizer(NULL, finalizer);
+    return js_ChangeExternalStringFinalizer(NULL, finalizer);
 }
 
 JS_PUBLIC_API(intN)
 JS_RemoveExternalStringFinalizer(JSStringFinalizeOp finalizer)
 {
-    return JSExternalString::changeFinalizer(finalizer, NULL);
+    return js_ChangeExternalStringFinalizer(finalizer, NULL);
 }
 
 JS_PUBLIC_API(JSString *)
 JS_NewExternalString(JSContext *cx, jschar *chars, size_t length, intN type)
 {
     CHECK_REQUEST(cx);
-    JS_ASSERT(uintN(type) < JSExternalString::TYPE_LIMIT);
+    JS_ASSERT(uintN(type) < JS_EXTERNAL_STRING_LIMIT);
 
-    JSExternalString *str = js_NewGCExternalString(cx, uintN(type));
+    JSString *str = js_NewGCExternalString(cx, uintN(type));
     if (!str)
         return NULL;
     str->initFlat(chars, length);
-    str->externalStringType = type;
     cx->runtime->updateMallocCounter((length + 1) * sizeof(jschar));
     return str;
 }
@@ -2949,8 +2958,6 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp)
     if (!obj)
         return NULL;
 
-    obj->syncSpecialEquality();
-
     /* Construct a regexp statics object for this global object. */
     JSObject *res = regexp_statics_construct(cx, obj);
     if (!res ||
@@ -2993,8 +3000,6 @@ JS_NewObject(JSContext *cx, JSClass *jsclasp, JSObject *proto, JSObject *parent)
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     JSObject *obj = NewNonFunction<WithProto::Class>(cx, clasp, proto, parent);
-    if (obj)
-        obj->syncSpecialEquality();
 
     JS_ASSERT_IF(obj, obj->getParent());
     return obj;
@@ -3014,10 +3019,7 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *jsclasp, JSObject *proto, JSO
     JS_ASSERT(clasp != &js_FunctionClass);
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
-    JSObject *obj = NewNonFunction<WithProto::Given>(cx, clasp, proto, parent);
-    if (obj)
-        obj->syncSpecialEquality();
-    return obj;
+    return NewNonFunction<WithProto::Given>(cx, clasp, proto, parent);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -3399,8 +3401,6 @@ JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, JSClass *jsclasp
     JSObject *nobj = NewObject<WithProto::Class>(cx, clasp, proto, obj);
     if (!nobj)
         return NULL;
-
-    nobj->syncSpecialEquality();
 
     if (!DefineProperty(cx, obj, name, ObjectValue(*nobj), NULL, NULL, attrs, 0, 0))
         return NULL;
@@ -4137,18 +4137,6 @@ JS_NewFunction(JSContext *cx, JSNative native, uintN nargs, uintN flags,
     return js_NewFunction(cx, NULL, Valueify(native), nargs, flags, parent, atom);
 }
 
-JS_PUBLIC_API(JSFunction *)
-JS_NewFunctionById(JSContext *cx, JSNative native, uintN nargs, uintN flags, JSObject *parent,
-                   jsid id)
-{
-    JS_ASSERT(JSID_IS_STRING(id));
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->defaultCompartment);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, parent);
-
-    return js_NewFunction(cx, NULL, Valueify(native), nargs, flags, parent, JSID_TO_ATOM(id));
-}
-
 JS_PUBLIC_API(JSObject *)
 JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
 {
@@ -4224,10 +4212,9 @@ JS_GetFunctionObject(JSFunction *fun)
 JS_PUBLIC_API(const char *)
 JS_GetFunctionName(JSFunction *fun)
 {
-    if (!fun->atom)
-        return js_anonymous_str;
-    const char *byte = js_GetStringBytes(fun->atom);
-    return byte ? byte : "";
+    return fun->atom
+           ? JS_GetStringBytes(ATOM_TO_STRING(fun->atom))
+           : js_anonymous_str;
 }
 
 JS_PUBLIC_API(JSString *)
@@ -4364,9 +4351,7 @@ JS_DefineFunction(JSContext *cx, JSObject *obj, const char *name, JSNative call,
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
     JSAtom *atom = js_Atomize(cx, name, strlen(name), 0);
-    if (!atom)
-        return NULL;
-    return js_DefineFunction(cx, obj, ATOM_TO_JSID(atom), Valueify(call), nargs, attrs);
+    return atom ? js_DefineFunction(cx, obj, atom, Valueify(call), nargs, attrs) : NULL;
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -4378,19 +4363,7 @@ JS_DefineUCFunction(JSContext *cx, JSObject *obj,
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
     JSAtom *atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
-    if (!atom)
-        return NULL;
-    return js_DefineFunction(cx, obj, ATOM_TO_JSID(atom), Valueify(call), nargs, attrs);
-}
-
-extern JS_PUBLIC_API(JSFunction *)
-JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
-                    uintN nargs, uintN attrs)
-{
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->defaultCompartment);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    return js_DefineFunction(cx, obj, id, Valueify(call), nargs, attrs);
+    return atom ? js_DefineFunction(cx, obj, atom, Valueify(call), nargs, attrs) : NULL;
 }
 
 inline static void
@@ -4408,10 +4381,10 @@ LAST_FRAME_CHECKS(JSContext *cx, bool result)
     }
 }
 
-inline static uint32
+inline static uint32 
 JS_OPTIONS_TO_TCFLAGS(JSContext *cx)
 {
-    return ((cx->options & JSOPTION_COMPILE_N_GO) ? TCF_COMPILE_N_GO : 0) |
+    return ((cx->options & JSOPTION_COMPILE_N_GO) ? TCF_COMPILE_N_GO : 0) | 
            ((cx->options & JSOPTION_NO_SCRIPT_RVAL) ? TCF_NO_SCRIPT_RVAL : 0);
 }
 
@@ -4452,17 +4425,6 @@ JS_CompileUCScript(JSContext *cx, JSObject *obj, const jschar *chars, size_t len
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->defaultCompartment);
     return JS_CompileUCScriptForPrincipals(cx, obj, NULL, chars, length, filename, lineno);
-}
-
-JS_PUBLIC_API(JSScript *)
-JS_CompileScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
-                                     JSPrincipals *principals,
-                                     const char *bytes, size_t length,
-                                     const char *filename, uintN lineno,
-                                     JSVersion version)
-{
-    AutoVersionAPI ava(cx, version);
-    return JS_CompileScriptForPrincipals(cx, obj, principals, bytes, length, filename, lineno);
 }
 
 JS_PUBLIC_API(JSScript *)
@@ -4584,14 +4546,6 @@ JS_CompileFileHandleForPrincipals(JSContext *cx, JSObject *obj, const char *file
     }
     LAST_FRAME_CHECKS(cx, script);
     return script;
-}
-
-JS_PUBLIC_API(JSScript *)
-JS_CompileFileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj, const char *filename,
-                                         FILE *file, JSPrincipals *principals, JSVersion version)
-{
-    AutoVersionAPI ava(cx, version);
-    return JS_CompileFileHandleForPrincipals(cx, obj, filename, file, principals);
 }
 
 JS_PUBLIC_API(JSScript *)
@@ -4840,15 +4794,6 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ExecuteScriptVersion(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval,
-                        JSVersion version)
-{
-    AutoVersionAPI ava(cx, version);
-    return JS_ExecuteScript(cx, obj, script, rval);
-}
-
-
-JS_PUBLIC_API(JSBool)
 JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                         JSPrincipals *principals,
                                         const jschar *chars, uintN length,
@@ -4910,16 +4855,6 @@ JS_EvaluateScriptForPrincipals(JSContext *cx, JSObject *obj, JSPrincipals *princ
                                                  filename, lineno, rval);
     cx->free(chars);
     return ok;
-}
-
-JS_PUBLIC_API(JSBool)
-JS_EvaluateScriptForPrincipalsVersion(JSContext *cx, JSObject *obj, JSPrincipals *principals,
-                                      const char *bytes, uintN nbytes,
-                                      const char *filename, uintN lineno, jsval *rval, JSVersion version)
-{
-    AutoVersionAPI avi(cx, version);
-    return JS_EvaluateScriptForPrincipals(cx, obj, principals, bytes, nbytes, filename, lineno,
-                                          rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5010,23 +4945,9 @@ JS_New(JSContext *cx, JSObject *ctor, uintN argc, jsval *argv)
     memcpy(args.argv(), argv, argc * sizeof(jsval));
 
     bool ok = InvokeConstructor(cx, args);
-
-    JSObject *obj = NULL;
-    if (ok) {
-        if (args.rval().isObject()) {
-            obj = &args.rval().toObject();
-        } else {
-            /*
-             * Although constructors may return primitives (via proxies), this
-             * API is asking for an object, so we report an error.
-             */
-            JSAutoByteString bytes;
-            if (js_ValueToPrintable(cx, args.rval(), &bytes)) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_NEW_RESULT,
-                                     bytes.ptr());
-            }
-        }
-    }
+    JSObject *obj = (ok && args.rval().isObject())
+                    ? &args.rval().toObject()
+                    : NULL;
 
     LAST_FRAME_CHECKS(cx, ok);
     return obj;
@@ -5127,8 +5048,14 @@ JS_NewString(JSContext *cx, char *bytes, size_t nbytes)
 
     /* Free chars (but not bytes, which caller frees on error) if we fail. */
     str = js_NewString(cx, chars, length);
-    if (!str)
+    if (!str) {
         cx->free(chars);
+        return NULL;
+    }
+
+    /* Hand off bytes to the deflated string cache, if possible. */
+    if (!cx->runtime->deflatedStringCache->setBytes(cx, str, bytes))
+        cx->free(bytes);
     return str;
 }
 
@@ -5227,6 +5154,15 @@ JS_InternUCString(JSContext *cx, const jschar *s)
     return JS_InternUCStringN(cx, s, js_strlen(s));
 }
 
+JS_PUBLIC_API(char *)
+JS_GetStringBytes(JSString *str)
+{
+    const char *bytes;
+
+    bytes = js_GetStringBytes(NULL, str);
+    return (char *)(bytes ? bytes : "");
+}
+
 JS_PUBLIC_API(jschar *)
 JS_GetStringChars(JSString *str)
 {
@@ -5236,9 +5172,9 @@ JS_GetStringChars(JSString *str)
     str->ensureNotRope();
 
     /*
-     * API botch: we have no cx to report out-of-memory when undepending
-     * strings, so we replace JSString::undepend with explicit malloc call and
-     * ignore its errors.
+     * API botch (again, shades of JS_GetStringBytes): we have no cx to report
+     * out-of-memory when undepending strings, so we replace JSString::undepend
+     * with explicit malloc call and ignore its errors.
      *
      * If we fail to convert a dependent string into an independent one, our
      * caller will not be guaranteed a \u0000 terminator as a backstop.  This
@@ -5260,7 +5196,7 @@ JS_GetStringChars(JSString *str)
             s = str->dependentChars();
         }
     } else {
-        str->flatClearExtensible();
+        str->flatClearMutable();
         s = str->flatChars();
     }
     return s;
@@ -5272,11 +5208,11 @@ JS_GetStringLength(JSString *str)
     return str->length();
 }
 
-JS_PUBLIC_API(const jschar *)
-JS_GetStringCharsAndLength(JSString *str, size_t *lengthp)
+JS_PUBLIC_API(const char *)
+JS_GetStringBytesZ(JSContext *cx, JSString *str)
 {
-    *lengthp = str->length();
-    return str->chars();
+    assertSameCompartment(cx, str);
+    return js_GetStringBytes(cx, str);
 }
 
 JS_PUBLIC_API(const jschar *)
@@ -5290,24 +5226,6 @@ JS_PUBLIC_API(intN)
 JS_CompareStrings(JSString *str1, JSString *str2)
 {
     return js_CompareStrings(str1, str2);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_MatchStringAndAscii(JSString *str, const char *asciiBytes)
-{
-    return MatchStringAndAscii(str, asciiBytes);
-}
-
-JS_PUBLIC_API(size_t)
-JS_PutEscapedString(char *buffer, size_t size, JSString *str, char quote)
-{
-    return PutEscapedString(buffer, size, str, quote);
-}
-
-JS_PUBLIC_API(JSBool)
-JS_FileEscapedString(FILE *fp, JSString *str, char quote)
-{
-    return FileEscapedString(fp, str, quote);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5349,6 +5267,7 @@ JS_PUBLIC_API(JSBool)
 JS_EncodeCharacters(JSContext *cx, const jschar *src, size_t srclen, char *dst, size_t *dstlenp)
 {
     size_t n;
+
     if (!dst) {
         n = js_GetDeflatedStringLength(cx, src, srclen);
         if (n == (size_t)-1) {
@@ -5372,37 +5291,6 @@ JS_PUBLIC_API(char *)
 JS_EncodeString(JSContext *cx, JSString *str)
 {
     return js_DeflateString(cx, str->chars(), str->length());
-}
-
-JS_PUBLIC_API(size_t)
-JS_GetStringEncodingLength(JSContext *cx, JSString *str)
-{
-    return js_GetDeflatedStringLength(cx, str->chars(), str->length());
-}
-
-JS_PUBLIC_API(size_t)
-JS_EncodeStringToBuffer(JSString *str, char *buffer, size_t length)
-{
-    /*
-     * FIXME bug 612141 - fix js_DeflateStringToBuffer interface so the result
-     * would allow to distinguish between insufficient buffer and encoding
-     * error.
-     */
-    size_t writtenLength = length;
-    if (js_DeflateStringToBuffer(NULL, str->chars(), str->length(), buffer, &writtenLength)) {
-        JS_ASSERT(writtenLength <= length);
-        return writtenLength;
-    }
-    JS_ASSERT(writtenLength <= length);
-    size_t necessaryLength = js_GetDeflatedStringLength(NULL, str->chars(), str->length());
-    if (necessaryLength == size_t(-1))
-        return size_t(-1);
-    if (writtenLength != length) {
-        /* Make sure that the buffer contains only valid UTF-8 sequences. */
-        JS_ASSERT(js_CStringsAreUTF8);
-        PodZero(buffer + writtenLength, length - writtenLength);
-    }
-    return necessaryLength;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5706,7 +5594,7 @@ JS_ExecuteRegExpNoStatics(JSContext *cx, JSObject *obj, jschar *chars, size_t le
                           size_t *indexp, JSBool test, jsval *rval)
 {
     CHECK_REQUEST(cx);
-
+    
     RegExp *re = RegExp::extractFrom(obj);
     if (!re)
         return false;
@@ -5917,7 +5805,7 @@ JS_ClearContextThread(JSContext *cx)
     js_WaitForGC(rt);
     js_ClearContextThread(cx);
     JS_ASSERT_IF(JS_CLIST_IS_EMPTY(&t->contextList), !t->data.requestDepth);
-
+   
     /*
      * We can access t->id as long as the GC lock is held and we cannot race
      * with the GC that may delete t.

@@ -57,7 +57,7 @@ function testJSInputAndOutputStyling() {
 
   hudId = HUDService.displaysIndex()[0];
 
-  let jsterm = HUDService.hudReferences[hudId].jsterm;
+  let jsterm = HUDService.hudWeakReferences[hudId].get().jsterm;
 
   jsterm.clearOutput();
   jsterm.execute("2 + 2");

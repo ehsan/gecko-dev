@@ -52,8 +52,6 @@
 #define count_imt()
 #endif
 
-#include "NativeCommon.h"
-
 namespace nanojit
 {
 #define NJ_MAX_STACK_ENTRY              4096
@@ -63,7 +61,7 @@ namespace nanojit
 #define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
 #define NJ_F2I_SUPPORTED                0
 #define NJ_SOFTFLOAT_SUPPORTED          0
-#define NJ_DIVI_SUPPORTED               0
+#define NJ_DIVI_SUPPORTED               0    
 
     enum ConditionRegister {
         CR0 = 0,
@@ -90,6 +88,7 @@ namespace nanojit
         BO_false = 4, // branch if false
     };
 
+    typedef uint32_t Register;
     static const Register
         // general purpose 32bit regs
         R0   = { 0 },   // scratch or the value 0, excluded from regalloc
@@ -167,9 +166,15 @@ namespace nanojit
 
         deprecated_UnknownReg = { 127 };    // XXX: remove eventually, see bug 538924
 
-    static const uint32_t FirstRegNum = 0; // R0
-    static const uint32_t LastRegNum = 64; // F31
+    static const uint32_t FirstRegNum = R0;
+    static const uint32_t LastRegNum = F31;
+}
 
+#define NJ_USE_UINT32_REGISTER 1
+#include "NativeCommon.h"
+
+namespace nanojit
+{
     enum PpcOpcode {
         // opcodes
         PPC_add     = 0x7C000214, // add
@@ -290,7 +295,6 @@ namespace nanojit
         void underrunProtect(int bytes);                                    \
         void nativePageReset();                                             \
         void nativePageSetup();                                             \
-        bool hardenNopInsertion(const Config& /*c*/) { return false; }      \
         void br(NIns *addr, int link);                                      \
         void br_far(NIns *addr, int link);                                  \
         void asm_regarg(ArgType, LIns*, Register);                          \
@@ -316,8 +320,8 @@ namespace nanojit
         asm_output(fmt, ##__VA_ARGS__);\
         } while (0) /* no semi */
 
-    #define GPR(r) REGNUM(r)
-    #define FPR(r) (REGNUM(r) & 31)
+    #define GPR(r) (r)
+    #define FPR(r) ((r)&31)
 
     #define Bx(li,aa,lk) EMIT1(PPC_b | ((li)&0xffffff)<<2 | (aa)<<1 | (lk),\
         "b%s%s %p", (lk)?"l":"", (aa)?"a":"", _nIns+(li))
@@ -428,7 +432,7 @@ namespace nanojit
 
     #define JMP(addr) br(addr, 0)
 
-    #define SPR(spr) (REGNUM(R##spr)>>5|(REGNUM(R##spr)&31)<<5)
+    #define SPR(spr) ((R##spr)>>5|(R##spr&31)<<5)
     #define MTSPR(spr,rs) EMIT1(PPC_mtspr | GPR(rs)<<21 | SPR(spr)<<11,\
         "mt%s %s", #spr, gpn(rs))
     #define MFSPR(rd,spr) EMIT1(PPC_mfspr | GPR(rd)<<21 | SPR(spr)<<11,\

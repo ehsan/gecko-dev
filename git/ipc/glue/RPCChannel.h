@@ -84,7 +84,6 @@ public:
                                          Message*& aReply) = 0;
         virtual Result OnCallReceived(const Message& aMessage,
                                       Message*& aReply) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
 
         virtual void OnEnteredCxxStack()
         {

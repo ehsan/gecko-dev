@@ -640,7 +640,6 @@ VMFragment::toTreeFragment()
 
 enum MonitorResult {
     MONITOR_RECORDING,
-    MONITOR_PROFILING,
     MONITOR_NOT_RECORDING,
     MONITOR_ERROR
 };
@@ -673,9 +672,6 @@ public:
     /* The script in which the loop header lives. */
     JSScript *script;
 
-    /* The stack frame where we started profiling. Only valid while profiling! */
-    JSStackFrame *entryfp;
-    
     /* The bytecode locations of the loop header and the back edge. */
     jsbytecode *top, *bottom;
 
@@ -731,14 +727,13 @@ public:
      * and how many iterations we execute it.
      */
     struct InnerLoop {
-        JSStackFrame *entryfp;
         JSScript *script;
         jsbytecode *top, *bottom;
         uintN iters;
 
         InnerLoop() {}
-        InnerLoop(JSStackFrame *entryfp, jsbytecode *top, jsbytecode *bottom)
-            : entryfp(entryfp), script(entryfp->script()), top(top), bottom(bottom), iters(0) {}
+        InnerLoop(JSScript *script, jsbytecode *top, jsbytecode *bottom)
+            : script(script), top(top), bottom(bottom), iters(0) {}
     };
 
     /* These two variables track all the inner loops seen while profiling (up to a limit). */
@@ -788,7 +783,7 @@ public:
             return StackValue(false);
     }
     
-    LoopProfile(JSStackFrame *entryfp, jsbytecode *top, jsbytecode *bottom);
+    LoopProfile(JSScript *script, jsbytecode *top, jsbytecode *bottom);
 
     enum ProfileAction {
         ProfContinue,
@@ -1206,7 +1201,6 @@ class TraceRecorder
 #ifdef DEBUG
     bool isValidFrameObjPtr(void *obj);
 #endif
-    void assertInsideLoop();
 
     JS_REQUIRES_STACK void setImpl(void* p, nanojit::LIns* l, bool demote = true);
     JS_REQUIRES_STACK void set(Value* p, nanojit::LIns* l, bool demote = true);
@@ -1511,6 +1505,8 @@ class TraceRecorder
 
     JS_REQUIRES_STACK AbortableRecordingStatus compile();
     JS_REQUIRES_STACK AbortableRecordingStatus closeLoop();
+    JS_REQUIRES_STACK AbortableRecordingStatus closeLoop(VMSideExit* exit);
+    JS_REQUIRES_STACK AbortableRecordingStatus closeLoop(SlotMap& slotMap, VMSideExit* exit);
     JS_REQUIRES_STACK AbortableRecordingStatus endLoop();
     JS_REQUIRES_STACK AbortableRecordingStatus endLoop(VMSideExit* exit);
     JS_REQUIRES_STACK void joinEdgesToEntry(TreeFragment* peer_root);
@@ -1565,7 +1561,7 @@ class TraceRecorder
     friend class DetermineTypesVisitor;
     friend class RecursiveSlotMap;
     friend class UpRecursiveSlotMap;
-    friend MonitorResult RecordLoopEdge(JSContext*, uintN&, bool);
+    friend MonitorResult RecordLoopEdge(JSContext*, uintN&);
     friend TracePointAction RecordTracePoint(JSContext*, uintN &inlineCallCount,
                                              bool *blacklist);
     friend AbortResult AbortRecording(JSContext*, const char*);

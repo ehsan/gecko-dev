@@ -127,22 +127,9 @@ _newJSDScript(JSDContext*  jsdc,
         jsdscript->url = jsdlw_BuildAppRelativeFilename(jsdscript->app, raw_filename);
         if( function )
         {
-            JSString* funid = JS_GetFunctionId(function);
-            char* funbytes;
-            const char* funnanme;
-            if( fuinid )
-            {
-                funbytes = JS_EncodeString(cx, funid);
-                funname = funbytes ? funbytes : "";
-            }
-            else
-            {
-                funbytes = NULL;
-                funname = "anonymous";
-            }
             jsdscript->lwscript = 
-                LWDBG_GetScriptOfFunction(jsdscript->app,funname);
-            JS_Free(cx, funbytes);
+                LWDBG_GetScriptOfFunction(jsdscript->app,
+                                          JS_GetFunctionName(function));
     
             /* also, make sure this file is added to filelist if is .js file */
             if( HasFileExtention(raw_filename,"js") || 

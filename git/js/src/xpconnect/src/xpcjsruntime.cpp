@@ -120,9 +120,8 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     }
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
-    fputs("- Destroying XPCNativeInterface for ", stdout);
-    JS_PutString(JSVAL_TO_STRING(iface->GetName()), stdout);
-    putc('\n', stdout);
+    printf("- Destroying XPCNativeInterface for %s\n",
+            JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
 #endif
 
     XPCNativeInterface::DestroyInstance(iface);
@@ -161,9 +160,7 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     for(PRUint16 k = 0; k < count; k++)
     {
         XPCNativeInterface* iface = set->GetInterfaceAt(k);
-        fputs("    ", stdout);
-        JS_PutString(JSVAL_TO_STRING(iface->GetName()), stdout);
-        putc('\n', stdout);
+        printf("    %s\n",JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
     }
 #endif
 
@@ -345,15 +342,10 @@ void XPCJSRuntime::TraceJS(JSTracer* trc, void* data)
         }
     }
 
-    {
-        XPCAutoLock lock(self->mMapLock);
-
-        // XPCJSObjectHolders don't participate in cycle collection, so always
-        // trace them here.
-        XPCRootSetElem *e;
-        for(e = self->mObjectHolderRoots; e; e = e->GetNextRoot())
-            static_cast<XPCJSObjectHolder*>(e)->TraceJS(trc);
-    }
+    // XPCJSObjectHolders don't participate in cycle collection, so always trace
+    // them here.
+    for(XPCRootSetElem *e = self->mObjectHolderRoots; e ; e = e->GetNextRoot())
+        static_cast<XPCJSObjectHolder*>(e)->TraceJS(trc);
 
     // Mark these roots as gray so the CC can walk them later.
     js::GCMarker *gcmarker = NULL;
@@ -403,8 +395,6 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
         if (acx->globalObject)
             JS_CALL_OBJECT_TRACER(trc, acx->globalObject, "global object");
     }
-
-    XPCAutoLock lock(mMapLock);
 
     XPCWrappedNativeScope::TraceJS(trc, this);
 
@@ -1444,12 +1434,11 @@ XPCJSRuntime::DebugDump(PRInt16 depth)
 /***************************************************************************/
 
 void
-XPCRootSetElem::AddToRootSet(XPCLock *lock, XPCRootSetElem **listHead)
+XPCRootSetElem::AddToRootSet(JSRuntime* rt, XPCRootSetElem** listHead)
 {
     NS_ASSERTION(!mSelfp, "Must be not linked");
 
-    XPCAutoLock autoLock(lock);
-
+    AutoLockJSGC lock(rt);
     mSelfp = listHead;
     mNext = *listHead;
     if(mNext)
@@ -1461,12 +1450,11 @@ XPCRootSetElem::AddToRootSet(XPCLock *lock, XPCRootSetElem **listHead)
 }
 
 void
-XPCRootSetElem::RemoveFromRootSet(XPCLock *lock)
+XPCRootSetElem::RemoveFromRootSet(JSRuntime* rt)
 {
     NS_ASSERTION(mSelfp, "Must be linked");
 
-    XPCAutoLock autoLock(lock);
-
+    AutoLockJSGC lock(rt);
     NS_ASSERTION(*mSelfp == this, "Link invariant");
     *mSelfp = mNext;
     if(mNext)

@@ -404,7 +404,8 @@ DocumentInfoHashtableTraverser(nsIURI* key,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mDocumentTable value");
-  cb->NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(di));
+  nsCOMPtr<nsISupports> iface = do_QueryObject(di);
+  cb->NoteXPCOMChild(iface);
   return PL_DHASH_NEXT;
 }
 

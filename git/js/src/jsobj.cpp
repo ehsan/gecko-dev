@@ -913,17 +913,18 @@ js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
 {
     JSSecurityCallbacks *callbacks;
     JSPrincipals *scopePrincipals;
+    const char *callerstr;
 
     callbacks = JS_GetSecurityCallbacks(cx);
     if (callbacks && callbacks->findObjectPrincipals) {
         scopePrincipals = callbacks->findObjectPrincipals(cx, scopeobj);
         if (!principals || !scopePrincipals ||
             !principals->subsume(principals, scopePrincipals)) {
-            JSAutoByteString callerstr;
-            if (!js_AtomToPrintableString(cx, caller, &callerstr))
+            callerstr = js_AtomToPrintableString(cx, caller);
+            if (!callerstr)
                 return JS_FALSE;
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_BAD_INDIRECT_CALL, callerstr.ptr());
+                                 JSMSG_BAD_INDIRECT_CALL, callerstr);
             return JS_FALSE;
         }
     }
@@ -1197,7 +1198,7 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
         JSONParser *jp = js_BeginJSONParse(cx, vp, /* suppressErrors = */true);
         if (jp != NULL) {
             /* Run JSON-parser on string inside ( and ). */
-            bool ok = js_ConsumeJSONText(cx, jp, chars + 1, length - 2);
+            JSBool ok = js_ConsumeJSONText(cx, jp, chars + 1, length - 2);
             ok &= js_FinishJSONParse(cx, jp, NullValue());
             if (ok)
                 return true;
@@ -1781,36 +1782,34 @@ obj_keys(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *obj;
     if (!GetFirstArgumentAsObject(cx, argc, vp, "Object.keys", &obj))
-        return false;
+        return JS_FALSE;
 
     AutoIdVector props(cx);
     if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, &props))
-        return false;
+        return JS_FALSE;
 
     AutoValueVector vals(cx);
-    if (!vals.reserve(props.length()))
-        return false;
+    vals.resize(props.length());
     for (size_t i = 0, len = props.length(); i < len; i++) {
         jsid id = props[i];
         if (JSID_IS_STRING(id)) {
-            JS_ALWAYS_TRUE(vals.append(StringValue(JSID_TO_STRING(id))));
-        } else if (JSID_IS_INT(id)) {
+            vals[i].setString(JSID_TO_STRING(id));
+        } else {
+            JS_ASSERT(JSID_IS_INT(id));
             JSString *str = js_IntToString(cx, JSID_TO_INT(id));
             if (!str)
-                return false;
-            JS_ALWAYS_TRUE(vals.append(StringValue(str)));
-        } else {
-            JS_ASSERT(JSID_IS_OBJECT(id));
+                return JS_FALSE;
+            vals[i].setString(str);
         }
     }
 
     JS_ASSERT(props.length() <= UINT32_MAX);
     JSObject *aobj = js_NewArrayObject(cx, jsuint(vals.length()), vals.begin());
     if (!aobj)
-        return false;
+        return JS_FALSE;
     vp->setObject(*aobj);
 
-    return true;
+    return JS_TRUE;
 }
 
 static bool
@@ -1948,10 +1947,8 @@ Reject(JSContext *cx, uintN errorNumber, bool throwError, jsid id, bool *rval)
         jsid idstr;
         if (!js_ValueToStringId(cx, IdToValue(id), &idstr))
            return JS_FALSE;
-        JSAutoByteString bytes(cx, JSID_TO_STRING(idstr));
-        if (!bytes)
-            return JS_FALSE;
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, errorNumber, bytes.ptr());
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, errorNumber,
+                             JS_GetStringBytes(JSID_TO_STRING(idstr)));
         return JS_FALSE;
     }
 
@@ -2542,18 +2539,15 @@ obj_preventExtensions(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     vp->setObject(*obj);
-    if (!obj->isExtensible())
-        return true;
 
     AutoIdVector props(cx);
     return obj->preventExtensions(cx, &props);
 }
 
 bool
-JSObject::sealOrFreeze(JSContext *cx, ImmutabilityType it)
+JSObject::sealOrFreeze(JSContext *cx, bool freeze)
 {
     assertSameCompartment(cx, this);
-    JS_ASSERT(it == SEAL || it == FREEZE);
 
     AutoIdVector props(cx);
     if (isExtensible()) {
@@ -2576,7 +2570,7 @@ JSObject::sealOrFreeze(JSContext *cx, ImmutabilityType it)
 
         /* Make all attributes permanent; if freezing, make data attributes read-only. */
         uintN new_attrs;
-        if (it == FREEZE && !(attrs & (JSPROP_GETTER | JSPROP_SETTER)))
+        if (freeze && !(attrs & (JSPROP_GETTER | JSPROP_SETTER)))
             new_attrs = JSPROP_PERMANENT | JSPROP_READONLY;
         else
             new_attrs = JSPROP_PERMANENT;
@@ -2775,10 +2769,7 @@ js_CreateThis(JSContext *cx, JSObject *callee)
     JSObject *proto = protov.isObjectOrNull() ? protov.toObjectOrNull() : NULL;
     JSObject *parent = callee->getParent();
     gc::FinalizeKind kind = NewObjectGCKind(cx, newclasp);
-    JSObject *obj = NewObject<WithProto::Class>(cx, newclasp, proto, parent, kind);
-    if (obj)
-        obj->syncSpecialEquality();
-    return obj;
+    return NewObject<WithProto::Class>(cx, newclasp, proto, parent, kind);
 }
 
 JSObject *
@@ -3496,8 +3487,7 @@ js_InitObjectClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* ECMA (15.1.2.1) says 'eval' is a property of the global object. */
-    jsid id = ATOM_TO_JSID(cx->runtime->atomState.evalAtom);
-    if (!js_DefineFunction(cx, obj, id, eval, 1, JSFUN_STUB_GSOPS))
+    if (!js_DefineFunction(cx, obj, cx->runtime->atomState.evalAtom, eval, 1, JSFUN_STUB_GSOPS))
         return NULL;
 
     return proto;
@@ -3599,8 +3589,6 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
     if (!proto)
         return NULL;
 
-    proto->syncSpecialEquality();
-    
     /* After this point, control must exit via label bad or out. */
     AutoObjectRooter tvr(cx, proto);
 
@@ -3675,15 +3663,6 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
         (static_fs && !JS_DefineFunctions(cx, ctor, static_fs))) {
         goto bad;
     }
-
-    /*
-     * Pre-brand the prototype and constructor if they have built-in methods.
-     * This avoids extra shape guard branch exits in the tracejitted code.
-     */
-    if (fs && !proto->brand(cx))
-        goto bad;
-    if (ctor != proto && static_fs && !ctor->brand(cx))
-        goto bad;
 
     /*
      * Make sure proto's emptyShape is available to be shared by objects of
@@ -4062,8 +4041,6 @@ js_ConstructObject(JSContext *cx, Class *clasp, JSObject *proto, JSObject *paren
     if (!obj)
         return NULL;
 
-    obj->syncSpecialEquality();
-
     Value rval;
     if (!InvokeConstructorWithGivenThis(cx, obj, cval, argc, argv, &rval))
         return NULL;
@@ -4214,7 +4191,7 @@ js_CheckForStringIndex(jsid id)
         if (oldIndex < -(JSID_INT_MIN / 10) ||
             (oldIndex == -(JSID_INT_MIN / 10) && c <= (-JSID_INT_MIN % 10)))
         {
-            id = INT_TO_JSID(-jsint(index));
+            id = INT_TO_JSID(jsint(-index));
         }
     } else {
         if (oldIndex < JSID_INT_MAX / 10 ||
@@ -4858,8 +4835,8 @@ js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id)
 }
 
 static JS_ALWAYS_INLINE JSBool
-js_NativeGetInline(JSContext *cx, JSObject *receiver, JSObject *obj, JSObject *pobj,
-                   const Shape *shape, uintN getHow, Value *vp)
+js_NativeGetInline(JSContext *cx, JSObject *obj, JSObject *pobj, const Shape *shape, uintN getHow,
+                   Value *vp)
 {
     LeaveTraceIfGlobalObject(cx, pobj);
 
@@ -4887,7 +4864,7 @@ js_NativeGetInline(JSContext *cx, JSObject *receiver, JSObject *obj, JSObject *p
     {
         AutoShapeRooter tvr(cx, shape);
         AutoObjectRooter tvr2(cx, pobj);
-        if (!shape->get(cx, receiver, obj, pobj, vp))
+        if (!shape->get(cx, obj, pobj, vp))
             return false;
     }
 
@@ -4906,7 +4883,7 @@ JSBool
 js_NativeGet(JSContext *cx, JSObject *obj, JSObject *pobj, const Shape *shape, uintN getHow,
              Value *vp)
 {
-    return js_NativeGetInline(cx, obj, obj, pobj, shape, getHow, vp);
+    return js_NativeGetInline(cx, obj, pobj, shape, getHow, vp);
 }
 
 JSBool
@@ -5061,7 +5038,7 @@ js_GetPropertyHelperWithShapeInline(JSContext *cx, JSObject *obj, JSObject *rece
     }
 
     /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
-    if (!js_NativeGetInline(cx, receiver, obj, obj2, shape, getHow, vp))
+    if (!js_NativeGetInline(cx, receiver, obj2, shape, getHow, vp))
         return JS_FALSE;
 
     return JS_TRUE;
@@ -5099,7 +5076,7 @@ js_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value 
 }
 
 JSBool
-js::GetPropertyDefault(JSContext *cx, JSObject *obj, jsid id, const Value &def, Value *vp)
+js::GetPropertyDefault(JSContext *cx, JSObject *obj, jsid id, Value def, Value *vp)
 {
     JSProperty *prop;
     JSObject *obj2;
@@ -5147,13 +5124,13 @@ js_CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
         return true;
     }
 
-    JSAutoByteString bytes(cx, propname);
-    return !!bytes &&
+    const char *bytes = js_GetStringBytes(cx, propname);
+    return bytes &&
            JS_ReportErrorFlagsAndNumber(cx,
                                         (JSREPORT_WARNING | JSREPORT_STRICT
                                          | JSREPORT_STRICT_MODE_ERROR),
                                         js_GetErrorMessage, NULL,
-                                        JSMSG_UNDECLARED_VAR, bytes.ptr());
+                                        JSMSG_UNDECLARED_VAR, bytes);
 }
 
 bool
@@ -5563,21 +5540,6 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
 
 namespace js {
 
-JSObject *
-HasNativeMethod(JSObject *obj, jsid methodid, Native native)
-{
-    const Shape *shape = obj->nativeLookup(methodid);
-    if (!shape || !shape->hasDefaultGetter() || !obj->containsSlot(shape->slot))
-        return NULL;
-
-    const Value &fval = obj->nativeGetSlot(shape->slot);
-    JSObject *funobj;
-    if (!IsFunctionObject(fval, &funobj) || funobj->getFunctionPrivate()->maybeNative() != native)
-        return NULL;
-
-    return funobj;
-}
-
 /*
  * When we have an object of a builtin class, we don't quite know what its
  * valueOf/toString methods are, since these methods may have been overwritten
@@ -5587,20 +5549,35 @@ HasNativeMethod(JSObject *obj, jsid methodid, Native native)
  * TODO: a per-thread shape-based cache would be faster and simpler.
  */
 static JS_ALWAYS_INLINE bool
-ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *clasp, jsid methodid,
+ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *classp, jsid methodid,
                     Native native)
 {
-    JS_ASSERT(obj->getClass() == clasp);
+    JS_ASSERT(obj->getClass() == classp);
 
-    if (HasNativeMethod(obj, methodid, native))
-        return true;
+    const Shape *shape = obj->nativeLookup(methodid);
+    JSObject *pobj = obj;
 
-    JSObject *pobj = obj->getProto();
-    return pobj && pobj->getClass() == clasp &&
-           HasNativeMethod(pobj, methodid, native);
+    if (!shape) {
+        pobj = obj->getProto();
+
+        if (pobj && pobj->getClass() == classp)
+            shape = pobj->nativeLookup(methodid);
+    }
+
+    if (shape && shape->hasDefaultGetter() && pobj->containsSlot(shape->slot)) {
+        const Value &fval = pobj->nativeGetSlot(shape->slot);
+
+        JSObject *funobj;
+        if (IsFunctionObject(fval, &funobj)) {
+            JSFunction *fun = funobj->getFunctionPrivate();
+            if (fun->maybeNative() == native)
+                return true;
+        }
+    }
+    return false;
 }
 
-bool
+JSBool
 DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp)
 {
     JS_ASSERT(hint != JSTYPE_OBJECT && hint != JSTYPE_FUNCTION);
@@ -5860,6 +5837,39 @@ js_GetClassPrototype(JSContext *cx, JSObject *scopeobj, JSProtoKey protoKey,
     return FindClassPrototype(cx, scopeobj, protoKey, protop, clasp);
 }
 
+/*
+ * For shared precompilation of function objects, we support cloning on entry
+ * to an execution context in which the function declaration or expression
+ * should be processed as if it were not precompiled, where the precompiled
+ * function's scope chain does not match the execution context's.  The cloned
+ * function object carries its execution-context scope in its parent slot; it
+ * links to the precompiled function (the "clone-parent") via its proto slot.
+ *
+ * Note that this prototype-based delegation leaves an unchecked access path
+ * from the clone to the clone-parent's 'constructor' property.  If the clone
+ * lives in a less privileged or shared scope than the clone-parent, this is
+ * a security hole, a sharing hazard, or both.  Therefore we check all such
+ * accesses with the following getter/setter pair, which we use when defining
+ * 'constructor' in f.prototype for all function objects f.
+ */
+static JSBool
+CheckCtorGetAccess(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+{
+    JSAtom *atom = cx->runtime->atomState.constructorAtom;
+    JS_ASSERT(id == ATOM_TO_JSID(atom));
+    uintN attrs;
+    return CheckAccess(cx, obj, ATOM_TO_JSID(atom), JSACC_READ, vp, &attrs);
+}
+
+static JSBool
+CheckCtorSetAccess(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+{
+    JSAtom *atom = cx->runtime->atomState.constructorAtom;
+    JS_ASSERT(id == ATOM_TO_JSID(atom));
+    uintN attrs;
+    return CheckAccess(cx, obj, ATOM_TO_JSID(atom), JSACC_WRITE, vp, &attrs);
+}
+
 JSBool
 js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs)
 {
@@ -5879,7 +5889,7 @@ js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs
      * for a user-defined function f, is DontEnum.
      */
     return proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                                 ObjectOrNullValue(ctor), PropertyStub, PropertyStub, 0);
+                                 ObjectOrNullValue(ctor), CheckCtorGetAccess, CheckCtorSetAccess, 0);
 }
 
 JSBool
@@ -6128,7 +6138,7 @@ js_PrintObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
         if (JSID_IS_INT(id)) {
             JS_snprintf(buf, bufsize, "%ld", (long)JSID_TO_INT(id));
         } else if (JSID_IS_ATOM(id)) {
-            PutEscapedString(buf, bufsize, JSID_TO_STRING(id), 0);
+            js_PutEscapedString(buf, bufsize, JSID_TO_STRING(id), 0);
         } else {
             JS_snprintf(buf, bufsize, "**FINALIZED ATOM KEY**");
         }
@@ -6356,13 +6366,11 @@ dumpValue(const Value &v)
     else if (v.isObject() && v.toObject().isFunction()) {
         JSObject *funobj = &v.toObject();
         JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
-        if (fun->atom) {
-            fputs("<function ", stderr);
-            FileEscapedString(stderr, ATOM_TO_STRING(fun->atom), 0);
-        } else {
-            fputs("<unnamed function", stderr);
-        }
-        fprintf(stderr, " at %p (JSFunction at %p)>", (void *) funobj, (void *) fun);
+        fprintf(stderr, "<%s %s at %p (JSFunction at %p)>",
+                fun->atom ? "function" : "unnamed",
+                fun->atom ? JS_GetStringBytes(ATOM_TO_STRING(fun->atom)) : "function",
+                (void *) funobj,
+                (void *) fun);
     } else if (v.isObject()) {
         JSObject *obj = &v.toObject();
         Class *clasp = obj->getClass();
