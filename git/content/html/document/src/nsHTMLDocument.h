@@ -233,6 +233,8 @@ protected:
 
   nsresult WriteCommon(JSContext *cx, const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult OpenCommon(JSContext *cx, const nsAString& aContentType,
+                      PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);

@@ -55,6 +55,7 @@ interface nsIDOMNSElement;
 interface nsIDOMNamedNodeMap;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
+interface nsIDOMNotation;
 interface nsIDOMProcessingInstruction;
 interface nsIDOMText;
 interface nsIDOMDOMStringList;

@@ -636,11 +636,8 @@ let Content = {
       }
 
       if (isTouchClick) {
-        let rect = new Rect(rects[0]);
-        if (rect.isEmpty())
-          return;
-
-        let point = rect.center();
+        let rect = rects[0];
+        let point = (new Rect(rect.left, rect.top, rect.width, rect.height)).center();
         aX = point.x;
         aY = point.y;
       }
