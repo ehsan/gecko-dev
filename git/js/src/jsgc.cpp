@@ -2329,7 +2329,7 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
     js_SweepWatchPoints(cx);
 
     if (!comp)
-        Debug::sweepAll(cx);
+        Debug::sweepAll(rt);
 
     /*
      * We finalize objects before other GC things to ensure that object's finalizer
