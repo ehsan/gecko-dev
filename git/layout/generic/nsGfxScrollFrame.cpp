@@ -3233,8 +3233,7 @@ nsGfxScrollFrameInner::ReflowFinished()
     nsPoint scrollPos = GetScrollPosition();
     // XXX shouldn't we use GetPageScrollAmount/GetLineScrollAmount here?
     if (vScroll) {
-      const double kScrollMultiplier = 3;
-      nscoord fontHeight = GetLineScrollAmount().height * kScrollMultiplier;
+      nscoord fontHeight = GetLineScrollAmount().height;
       // We normally use (scrollArea.height - fontHeight) for height
       // of page scrolling.  However, it is too small when
       // fontHeight is very large. (If fontHeight is larger than
@@ -3244,7 +3243,7 @@ nsGfxScrollFrameInner::ReflowFinished()
       nscoord pageincrement = nscoord(mScrollPort.height - fontHeight);
       nscoord pageincrementMin = nscoord(float(mScrollPort.height) * 0.8);
       FinishReflowForScrollbar(vScroll, minY, maxY, scrollPos.y,
-                               NS_MAX(pageincrement, pageincrementMin),
+                               NS_MAX(pageincrement,pageincrementMin),
                                fontHeight);
     }
     if (hScroll) {

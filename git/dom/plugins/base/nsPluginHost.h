@@ -69,8 +69,6 @@ class nsIComponentManager;
 class nsIFile;
 class nsIChannel;
 class nsPluginNativeWindow;
-class nsObjectLoadingContent;
-class nsPluginInstanceOwner;
 
 #if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
 #define MAC_CARBON_PLUGINS
@@ -114,7 +112,7 @@ public:
   nsresult Destroy();
   nsresult LoadPlugins();
   nsresult InstantiatePluginForChannel(nsIChannel* aChannel,
-                                       nsObjectLoadingContent* aContent,
+                                       nsIPluginInstanceOwner* aOwner,
                                        nsIStreamListener** aListener);
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
@@ -154,6 +152,7 @@ public:
                                        char **outPostData, PRUint32 *outPostDataLen);
   nsresult CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile);
   nsresult NewPluginNativeWindow(nsPluginNativeWindow ** aPluginNativeWindow);
+  nsresult DeletePluginNativeWindow(nsPluginNativeWindow * aPluginNativeWindow);
   nsresult InstantiateDummyJavaPlugin(nsIPluginInstanceOwner *aOwner);
 
   void AddIdleTimeTarget(nsIPluginInstanceOwner* objectFrame, bool isVisible);
@@ -223,13 +222,11 @@ public:
   // The last argument should be false if we already have an in-flight stream
   // and don't need to set up a new stream.
   nsresult InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                     nsObjectLoadingContent *aContent,
-                                     nsPluginInstanceOwner** aOwner);
+                                     nsIPluginInstanceOwner* aOwner);
 
   nsresult InstantiateFullPagePlugin(const char *aMimeType,
                                      nsIURI* aURI,
-                                     nsObjectLoadingContent *aContent,
-                                     nsPluginInstanceOwner **aOwner,
+                                     nsIPluginInstanceOwner *aOwner,
                                      nsIStreamListener **aStreamListener);
 
   // Does not accept NULL and should never fail.
@@ -242,12 +239,12 @@ private:
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
-  NewEmbeddedPluginStreamListener(nsIURI* aURL, nsObjectLoadingContent *aContent,
+  NewEmbeddedPluginStreamListener(nsIURI* aURL, nsIPluginInstanceOwner *aOwner,
                                   nsNPAPIPluginInstance* aInstance,
                                   nsIStreamListener** aListener);
 
   nsresult
-  NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
+  NewEmbeddedPluginStream(nsIURI* aURL, nsIPluginInstanceOwner *aOwner, nsNPAPIPluginInstance* aInstance);
 
   nsresult
   NewFullPagePluginStream(nsIURI* aURI,
