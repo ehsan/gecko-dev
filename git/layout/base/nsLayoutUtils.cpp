@@ -5118,31 +5118,6 @@ nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot)
 }
 #endif
 
-static void
-GetFontFacesForFramesInner(nsIFrame* aFrame, nsFontFaceList* aFontFaceList)
-{
-  NS_PRECONDITION(aFrame, "NULL frame pointer");
-
-  if (aFrame->GetType() == nsGkAtoms::textFrame) {
-    if (!aFrame->GetPrevContinuation()) {
-      nsLayoutUtils::GetFontFacesForText(aFrame, 0, INT32_MAX, true,
-                                         aFontFaceList);
-    }
-    return;
-  }
-
-  nsIFrame::ChildListID childLists[] = { nsIFrame::kPrincipalList,
-                                         nsIFrame::kPopupList };
-  for (size_t i = 0; i < ArrayLength(childLists); ++i) {
-    nsFrameList children(aFrame->GetChildList(childLists[i]));
-    for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
-      nsIFrame* child = e.get();
-      child = nsPlaceholderFrame::GetRealFrameFor(child);
-      GetFontFacesForFramesInner(child, aFontFaceList);
-    }
-  }
-}
-
 /* static */
 nsresult
 nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
@@ -5150,8 +5125,26 @@ nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
+  if (aFrame->GetType() == nsGkAtoms::textFrame) {
+    return GetFontFacesForText(aFrame, 0, INT32_MAX, false,
+                               aFontFaceList);
+  }
+
   while (aFrame) {
-    GetFontFacesForFramesInner(aFrame, aFontFaceList);
+    nsIFrame::ChildListID childLists[] = { nsIFrame::kPrincipalList,
+                                           nsIFrame::kPopupList };
+    for (size_t i = 0; i < ArrayLength(childLists); ++i) {
+      nsFrameList children(aFrame->GetChildList(childLists[i]));
+      for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
+        nsIFrame* child = e.get();
+        if (child->GetPrevContinuation()) {
+          continue;
+        }
+        child = nsPlaceholderFrame::GetRealFrameFor(child);
+        nsresult rv = GetFontFacesForFrames(child, aFontFaceList);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
     aFrame = GetNextContinuationOrSpecialSibling(aFrame);
   }
 
@@ -5176,31 +5169,22 @@ nsLayoutUtils::GetFontFacesForText(nsIFrame* aFrame,
     int32_t fstart = std::max(curr->GetContentOffset(), aStartOffset);
     int32_t fend = std::min(curr->GetContentEnd(), aEndOffset);
     if (fstart >= fend) {
-      curr = static_cast<nsTextFrame*>(curr->GetNextContinuation());
       continue;
     }
 
-    // curr is overlapping with the offset we want
+    // overlapping with the offset we want
     gfxSkipCharsIterator iter = curr->EnsureTextRun(nsTextFrame::eInflated);
     gfxTextRun* textRun = curr->GetTextRun(nsTextFrame::eInflated);
     NS_ENSURE_TRUE(textRun, NS_ERROR_OUT_OF_MEMORY);
 
-    // include continuations in the range that share the same textrun
-    nsTextFrame* next = nullptr;
-    if (aFollowContinuations && fend < aEndOffset) {
-      next = static_cast<nsTextFrame*>(curr->GetNextContinuation());
-      while (next && next->GetTextRun(nsTextFrame::eInflated) == textRun) {
-        fend = std::min(next->GetContentEnd(), aEndOffset);
-        next = fend < aEndOffset ?
-          static_cast<nsTextFrame*>(next->GetNextContinuation()) : nullptr;
-      }
-    }
-
     uint32_t skipStart = iter.ConvertOriginalToSkipped(fstart);
     uint32_t skipEnd = iter.ConvertOriginalToSkipped(fend);
-    aFontFaceList->AddFontsFromTextRun(textRun, skipStart, skipEnd - skipStart);
-    curr = next;
-  } while (aFollowContinuations && curr);
+    aFontFaceList->AddFontsFromTextRun(textRun,
+                                       skipStart,
+                                       skipEnd - skipStart,
+                                       curr);
+  } while (aFollowContinuations &&
+           (curr = static_cast<nsTextFrame*>(curr->GetNextContinuation())));
 
   return NS_OK;
 }

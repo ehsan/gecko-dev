@@ -1638,7 +1638,7 @@ TemporaryTypeSet::isDOMClass()
             return false;
     }
 
-    return count > 0;
+    return true;
 }
 
 bool
@@ -2367,7 +2367,7 @@ TypeCompartment::setTypeToHomogenousArray(ExclusiveContext *cx,
             objType->addPropertyType(cx, JSID_VOID, elementType);
 
         key.proto = objProto;
-        if (!p.add(cx, *arrayTypeTable, key, objType)) {
+        if (!p.add(*arrayTypeTable, key, objType)) {
             cx->compartment()->types.setPendingNukeTypes(cx);
             return;
         }

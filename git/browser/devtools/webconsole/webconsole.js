@@ -3431,6 +3431,7 @@ JSTerm.prototype = {
     view.emptyText = l10n.getStr("emptyPropertiesList");
     view.searchEnabled = !aOptions.hideFilterInput;
     view.lazyEmpty = this._lazyVariablesView;
+    view.lazyAppend = this._lazyVariablesView;
 
     VariablesViewController.attach(view, {
       getEnvironmentClient: aGrip => {

@@ -462,12 +462,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         bool parseSuccess = ParseGLVersion(this, &version);
 
-#ifdef DEBUG
-        printf_stderr("OpenGL version detected: %u\n", version);
-        printf_stderr("OpenGL vendor: %s\n", fGetString(LOCAL_GL_VENDOR));
-        printf_stderr("OpenGL renderer: %s\n", fGetString(LOCAL_GL_RENDERER));
-#endif
-
         if (version >= mVersion) {
             mVersion = version;
         } else if (parseSuccess) {

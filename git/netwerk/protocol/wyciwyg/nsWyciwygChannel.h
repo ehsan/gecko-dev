@@ -12,10 +12,10 @@
 
 #include "nsIWyciwygChannel.h"
 #include "nsIStreamListener.h"
-#include "nsICacheEntryOpenCallback.h"
+#include "nsICacheListener.h"
 #include "PrivateBrowsingChannel.h"
 
-class nsICacheEntry;
+class nsICacheEntryDescriptor;
 class nsIEventTarget;
 class nsIInputStream;
 class nsIInputStreamPump;
@@ -30,7 +30,7 @@ extern PRLogModuleInfo * gWyciwygLog;
 
 class nsWyciwygChannel: public nsIWyciwygChannel,
                         public nsIStreamListener,
-                        public nsICacheEntryOpenCallback,
+                        public nsICacheListener,
                         public mozilla::net::PrivateBrowsingChannel<nsWyciwygChannel>
 {
 public:
@@ -40,7 +40,7 @@ public:
     NS_DECL_NSIWYCIWYGCHANNEL
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
-    NS_DECL_NSICACHEENTRYOPENCALLBACK
+    NS_DECL_NSICACHELISTENER
 
     friend class nsWyciwygSetCharsetandSourceEvent;
     friend class nsWyciwygWriteEvent;
@@ -53,12 +53,12 @@ public:
     nsresult Init(nsIURI *uri);
 
 protected:
-    nsresult WriteToCacheEntryInternal(const nsAString& aData);
+    nsresult WriteToCacheEntryInternal(const nsAString& aData, const nsACString& spec);
     void SetCharsetAndSourceInternal();
     nsresult CloseCacheEntryInternal(nsresult reason);
 
     nsresult ReadFromCache();
-    nsresult OpenCacheEntry(nsIURI *aURI, uint32_t aOpenFlags);
+    nsresult OpenCacheEntry(const nsACString & aCacheKey, nsCacheAccessMode aWriteAccess);
 
     void WriteCharsetAndSourceToCache(int32_t aSource,
                                       const nsCString& aCharset);
@@ -68,13 +68,6 @@ protected:
 
     friend class mozilla::net::PrivateBrowsingChannel<nsWyciwygChannel>;
 
-    enum EMode {
-      NONE,
-      WRITING,
-      READING
-    };
-
-    EMode                               mMode;
     nsresult                            mStatus;
     bool                                mIsPending;
     bool                                mCharsetAndSourceSet;
@@ -98,7 +91,7 @@ protected:
     nsCOMPtr<nsIInputStreamPump>        mPump;
     
     // Cache related stuff    
-    nsCOMPtr<nsICacheEntry>             mCacheEntry;
+    nsCOMPtr<nsICacheEntryDescriptor>   mCacheEntry;
     nsCOMPtr<nsIOutputStream>           mCacheOutputStream;
     nsCOMPtr<nsIInputStream>            mCacheInputStream;
     nsCOMPtr<nsIEventTarget>            mCacheIOTarget;

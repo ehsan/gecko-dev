@@ -61,7 +61,7 @@ function performTest() {
   gVariablesView.switch = function() {};
   gVariablesView.delete = function() {};
   gVariablesView.rawObject = test;
-  gVariablesView.scrollPageSize = 5;
+  gVariablesView.pageSize = 5;
 
   return Task.spawn(function() {
     yield waitForTick();

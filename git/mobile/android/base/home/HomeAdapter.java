@@ -143,14 +143,16 @@ class HomeAdapter extends FragmentStatePagerAdapter {
     }
 
     private final class PageInfo {
+        private final String mId;
         private final PageEntry mPageEntry;
 
         PageInfo(PageEntry pageEntry) {
+            mId = pageEntry.getType() + "-" + pageEntry.getId();
             mPageEntry = pageEntry;
         }
 
         public String getId() {
-            return mPageEntry.getId();
+            return mId;
         }
 
         public String getTitle() {

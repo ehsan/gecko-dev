@@ -144,7 +144,7 @@ InternalMethods.prototype = {
       }
       if (!this.whenKeysReadyPromise) {
         this.whenKeysReadyPromise = Promise.defer();
-        return this.fetchAndUnwrapKeys(data.keyFetchToken)
+        this.fetchAndUnwrapKeys(data.keyFetchToken)
           .then((data) => {
             if (this.whenKeysReadyPromise) {
               this.whenKeysReadyPromise.resolve(data);

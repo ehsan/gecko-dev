@@ -2680,7 +2680,11 @@ JS_NewObjectForConstructor(JSContext *cx, const JSClass *clasp, const jsval *vp)
 JS_PUBLIC_API(bool)
 JS_IsExtensible(JSContext *cx, HandleObject obj, bool *extensible)
 {
-    return JSObject::isExtensible(cx, obj, extensible);
+    bool isExtensible;
+    if (!JSObject::isExtensible(cx, obj, &isExtensible))
+        return false;
+    *extensible = isExtensible;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -2805,7 +2809,7 @@ JS_LookupElement(JSContext *cx, JSObject *objArg, uint32_t index, MutableHandleV
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_LookupPropertyById(cx, obj, id, vp);
 }
@@ -2880,7 +2884,7 @@ JS_HasElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *foundp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_HasPropertyById(cx, obj, id, foundp);
 }
@@ -2936,7 +2940,7 @@ JS_AlreadyHasOwnElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *f
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_AlreadyHasOwnPropertyById(cx, obj, id, foundp);
 }
@@ -3078,7 +3082,7 @@ JS_DefineElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval valueArg
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter),
                               SetterWrapper(setter), attrs, 0, 0);
@@ -3510,11 +3514,20 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, bool *result)
     assertSameCompartment(cx, obj, id);
     JSAutoResolveFlags rf(cx, 0);
 
+    RootedValue value(cx);
+
+    bool succeeded;
     if (JSID_IS_SPECIAL(id)) {
         Rooted<SpecialId> sid(cx, JSID_TO_SPECIALID(id));
-        return JSObject::deleteSpecial(cx, obj, sid, result);
+        if (!JSObject::deleteSpecial(cx, obj, sid, &succeeded))
+            return false;
+    } else {
+        if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &succeeded))
+            return false;
     }
-    return JSObject::deleteByValue(cx, obj, IdToValue(id), result);
+
+    *result = !!succeeded;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -3526,7 +3539,12 @@ JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, bool *result)
     assertSameCompartment(cx, obj);
     JSAutoResolveFlags rf(cx, 0);
 
-    return JSObject::deleteElement(cx, obj, index, result);
+    bool succeeded;
+    if (!JSObject::deleteElement(cx, obj, index, &succeeded))
+        return false;
+
+    *result = !!succeeded;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -3540,7 +3558,13 @@ JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, bool *resu
     JSAtom *atom = Atomize(cx, name, strlen(name));
     if (!atom)
         return false;
-    return JSObject::deleteByValue(cx, obj, StringValue(atom), result);
+
+    bool succeeded;
+    if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
+        return false;
+
+    *result = !!succeeded;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -3555,7 +3579,13 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
     JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
         return false;
-    return JSObject::deleteByValue(cx, obj, StringValue(atom), result);
+
+    bool succeeded;
+    if (!JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded))
+        return false;
+
+    *result = !!succeeded;
+    return true;
 }
 
 JS_PUBLIC_API(bool)
@@ -6049,7 +6079,7 @@ BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)
 JS_PUBLIC_API(bool)
 JS_IndexToId(JSContext *cx, uint32_t index, MutableHandleId id)
 {
-    return IndexToId(cx, index, id);
+    return IndexToId(cx, index, id.address());
 }
 
 JS_PUBLIC_API(bool)

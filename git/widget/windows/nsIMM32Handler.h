@@ -261,9 +261,7 @@ protected:
                              nsACString& aANSIStr);
 
   bool SetIMERelatedWindowsPos(nsWindow* aWindow,
-                               const nsIMEContext& aIMEContext);
-  void SetIMERelatedWindowsPosOnPlugin(nsWindow* aWindow,
-                                       const nsIMEContext& aIMEContext);
+                                 const nsIMEContext &aIMEContext);
   bool GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
                                           uint32_t aOffset,
                                           nsIntRect &aCharRect);
