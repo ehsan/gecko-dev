@@ -812,7 +812,9 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
   }
   gVibrateWindowListener = new VibrateWindowListener(win, doc);
 
-  hal::Vibrate(pattern, win);
+  nsCOMPtr<nsIDOMWindow> domWindow =
+    do_QueryInterface(static_cast<nsIDOMWindow*>(win));
+  hal::Vibrate(pattern, domWindow);
   return NS_OK;
 }
 
@@ -1359,7 +1361,8 @@ Navigator::GetMozMobileConnection(nsIDOMMozMobileConnection** aMobileConnection)
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
     NS_ENSURE_TRUE(window, NS_OK);
 
-    if (!CheckPermission("mobileconnection")) {
+    if (!CheckPermission("mobileconnection") &&
+        !CheckPermission("mobilenetwork")) {
       return NS_OK;
     }
 

@@ -236,17 +236,17 @@ Btoa(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-File(JSContext *cx, unsigned argc, Value *vp)
+File(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    nsresult rv;
 
-    if (args.length() == 0) {
+    if (!argc) {
         XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
         return false;
     }
 
     nsCOMPtr<nsISupports> native;
-    nsresult rv = nsDOMMultipartFile::NewFile(getter_AddRefs(native));
+    rv = nsDOMMultipartFile::NewFile(getter_AddRefs(native));
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -255,7 +255,7 @@ File(JSContext *cx, unsigned argc, Value *vp)
     nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(native);
     NS_ASSERTION(initializer, "what?");
 
-    rv = initializer->Initialize(nullptr, cx, nullptr, args);
+    rv = initializer->Initialize(nullptr, cx, nullptr, argc, JS_ARGV(cx, vp));
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -270,23 +270,26 @@ File(JSContext *cx, unsigned argc, Value *vp)
     JSObject* glob = JS_GetGlobalForScopeChain(cx);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    RootedValue retval(cx);
     rv = xpc->WrapNativeToJSVal(cx, glob, native, nullptr,
                                 &NS_GET_IID(nsISupports),
-                                true, args.rval().address(), nullptr);
+                                true, retval.address(), nullptr);
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
     }
+
+    JS_SET_RVAL(cx, vp, retval);
     return true;
 }
 
 static JSBool
-Blob(JSContext *cx, unsigned argc, Value *vp)
+Blob(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    nsresult rv;
 
     nsCOMPtr<nsISupports> native;
-    nsresult rv = nsDOMMultipartFile::NewBlob(getter_AddRefs(native));
+    rv = nsDOMMultipartFile::NewBlob(getter_AddRefs(native));
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -295,7 +298,7 @@ Blob(JSContext *cx, unsigned argc, Value *vp)
     nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(native);
     NS_ASSERTION(initializer, "what?");
 
-    rv = initializer->Initialize(nullptr, cx, nullptr, args);
+    rv = initializer->Initialize(nullptr, cx, nullptr, argc, JS_ARGV(cx, vp));
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
@@ -310,13 +313,16 @@ Blob(JSContext *cx, unsigned argc, Value *vp)
     JSObject* glob = JS_GetGlobalForScopeChain(cx);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    RootedValue retval(cx);
     rv = xpc->WrapNativeToJSVal(cx, glob, native, nullptr,
                                 &NS_GET_IID(nsISupports),
-                                true, args.rval().address(), nullptr);
+                                true, retval.address(), nullptr);
     if (NS_FAILED(rv)) {
         XPCThrower::Throw(rv, cx);
         return false;
     }
+
+    JS_SET_RVAL(cx, vp, retval);
     return true;
 }
 

@@ -253,9 +253,7 @@ nsDOMUIEvent::GetPageY(int32_t* aPageY)
 NS_IMETHODIMP
 nsDOMUIEvent::GetWhich(uint32_t* aWhich)
 {
-  NS_ENSURE_ARG_POINTER(aWhich);
-  *aWhich = Which();
-  return NS_OK;
+  return Which(aWhich);
 }
 
 already_AddRefed<nsINode>

@@ -10,8 +10,11 @@
 #include "AccessibleImage_i.c"
 
 #include "ImageAccessibleWrap.h"
-#include "IUnknownImpl.h"
+
+#include "nsIAccessible.h"
+#include "nsIAccessibleImage.h"
 #include "nsIAccessibleTypes.h"
+#include "nsAccessNodeWrap.h"
 
 #include "nsString.h"
 

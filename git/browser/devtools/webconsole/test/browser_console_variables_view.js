@@ -3,7 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Check that variables view works as expected in the web console.
+// Test that makes sure web console eval happens in the user-selected stackframe
+// from the js debugger.
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-eval-in-stackframe.html";
 

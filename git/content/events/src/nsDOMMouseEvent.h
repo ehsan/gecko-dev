@@ -40,7 +40,9 @@ public:
   // Web IDL binding methods
   virtual uint32_t Which() MOZ_OVERRIDE
   {
-    return Button() + 1;
+    uint32_t w = 0;
+    Which(&w);
+    return w;
   }
 
   int32_t ScreenX();
@@ -121,6 +123,9 @@ public:
   }
 
 protected:
+  // Specific implementation for a mouse event.
+  virtual nsresult Which(uint32_t* aWhich);
+
   nsresult InitMouseEvent(const nsAString& aType,
                           bool aCanBubble,
                           bool aCancelable,

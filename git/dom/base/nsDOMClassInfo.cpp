@@ -1062,7 +1062,7 @@ FindObjectClass(JSContext* cx, JSObject* aGlobalObject)
   JS::Rooted<JSObject*> obj(cx), proto(cx, aGlobalObject);
   do {
     obj = proto;
-    js::GetObjectProto(cx, obj, &proto);
+    js::GetObjectProto(cx, obj, proto.address());
   } while (proto);
 
   sObjectClass = js::GetObjectJSClass(obj);
@@ -2748,7 +2748,8 @@ nsDOMClassInfo::CheckAccess(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsDOMClassInfo::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                     JSObject *obj, const JS::CallArgs &args, bool *_retval)
+                     JSObject *obj, uint32_t argc, jsval *argv, jsval *vp,
+                     bool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::Call Don't call me!");
 
@@ -2757,8 +2758,8 @@ nsDOMClassInfo::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsDOMClassInfo::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                          JSObject *obj, const JS::CallArgs &args,
-                          bool *_retval)
+                          JSObject *obj, uint32_t argc, jsval *argv,
+                          jsval *vp, bool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::Construct Don't call me!");
 
@@ -3120,7 +3121,6 @@ static JSBool
 ChildWindowGetter(JSContext *cx, JSHandleObject obj, JSHandleId id,
                   JSMutableHandleValue vp)
 {
-  MOZ_ASSERT(JSID_IS_STRING(id));
   // Grab the native DOM window.
   vp.setUndefined();
   nsCOMPtr<nsISupports> winSupports =
@@ -3130,8 +3130,7 @@ ChildWindowGetter(JSContext *cx, JSHandleObject obj, JSHandleId id,
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(winSupports);
 
   // Find the child, if it exists.
-  nsDependentJSString name(id);
-  nsCOMPtr<nsIDOMWindow> child = win->GetChildWindow(name);
+  nsCOMPtr<nsIDOMWindow> child = win->GetChildWindow(id);
   if (!child)
     return true;
 
@@ -3175,8 +3174,7 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
   nsGlobalWindow* win = static_cast<nsGlobalWindow*>(piWin.get());
 
   if (win->GetLength() > 0) {
-    nsDependentJSString name(id);
-    nsCOMPtr<nsIDOMWindow> child_win = win->GetChildWindow(name);
+    nsCOMPtr<nsIDOMWindow> child_win = win->GetChildWindow(id);
     if (child_win) {
       // We found a subframe of the right name, so define the property
       // on the GSP. This property is a read-only accessor. Shadowing via
@@ -3389,8 +3387,9 @@ FindConstructorFunc(const nsDOMClassInfoData *aDOMClassInfoData)
 static nsresult
 BaseStubConstructor(nsIWeakReference* aWeakOwner,
                     const nsGlobalNameStruct *name_struct, JSContext *cx,
-                    JS::Handle<JSObject*> obj, const JS::CallArgs &args)
+                    JSObject *aObj, unsigned argc, jsval *argv, jsval *rval)
 {
+  JS::Rooted<JSObject*> obj(cx, aObj);
   MOZ_ASSERT(obj);
 
   nsresult rv;
@@ -3432,16 +3431,16 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
     }
 
     if (initializer) {
-      rv = initializer->Initialize(currentInner, cx, obj, args);
+      rv = initializer->Initialize(currentInner, cx, obj, argc, argv);
       if (NS_FAILED(rv)) {
         return rv;
       }
     } else {
       nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(native);
 
-      JS::Rooted<JSObject*> thisObject(cx);
-      wrappedJS->GetJSObject(thisObject.address());
-      if (!thisObject) {
+      JS::Rooted<JSObject*> object(cx);
+      wrappedJS->GetJSObject(object.address());
+      if (!object) {
         return NS_ERROR_UNEXPECTED;
       }
 
@@ -3449,40 +3448,44 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       pusher.Push(cx);
 
       JSAutoRequest ar(cx);
-      JSAutoCompartment ac(cx, thisObject);
+      JSAutoCompartment ac(cx, object);
 
+      JS::Rooted<JS::Value> thisValue(cx, JS::UndefinedValue());
       JS::Rooted<JS::Value> funval(cx);
-      if (!JS_GetProperty(cx, thisObject, "constructor", funval.address()) ||
-          !funval.isObject()) {
+      if (!JS_GetProperty(cx, object, "constructor", funval.address()) || !funval.isObject()) {
         return NS_ERROR_UNEXPECTED;
       }
 
       // Check if the object is even callable.
       NS_ENSURE_STATE(JS_ObjectIsCallable(cx, &funval.toObject()));
+      thisValue.setObject(*object);
+
       {
+        JS::Rooted<JSObject*> thisObject(cx, &thisValue.toObject());
+
         // wrap parameters in the target compartment
         // we also pass in the calling window as the first argument
-        unsigned argc = args.length() + 1;
-        nsAutoArrayPtr<JS::Value> argv(new JS::Value[argc]);
-        JS::AutoArrayRooter rooter(cx, 0, argv);
+        ++argc;
+        nsAutoArrayPtr<JS::Value> args(new JS::Value[argc]);
+        JS::AutoArrayRooter rooter(cx, 0, args);
 
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         nsCOMPtr<nsIDOMWindow> currentWin(do_GetInterface(currentInner));
         rv = WrapNative(cx, obj, currentWin, &NS_GET_IID(nsIDOMWindow),
-                        true, &argv[0], getter_AddRefs(holder));
-        if (!JS_WrapValue(cx, &argv[0]))
+                        true, &args[0], getter_AddRefs(holder));
+        if (!JS_WrapValue(cx, &args[0]))
           return NS_ERROR_FAILURE;
         rooter.changeLength(1);
 
         for (size_t i = 1; i < argc; ++i) {
-          argv[i] = args[i - 1];
-          if (!JS_WrapValue(cx, &argv[i]))
+          args[i] = argv[i - 1];
+          if (!JS_WrapValue(cx, &args[i]))
             return NS_ERROR_FAILURE;
           rooter.changeLength(i + 1);
         }
 
         JS::Value frval;
-        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argc, argv, &frval);
+        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argc, args, &frval);
 
         if (!ret) {
           return NS_ERROR_FAILURE;
@@ -3491,7 +3494,7 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
     }
   }
 
-  return WrapNative(cx, obj, native, true, args.rval().address());
+  return WrapNative(cx, obj, native, true, rval);
 }
 
 static nsresult
@@ -3743,8 +3746,8 @@ public:
   nsresult PreCreate(JSContext *cx, JSObject *globalObj, JSObject **parentObj);
 
   nsresult Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                     JS::Handle<JSObject*> obj, const JS::CallArgs &args,
-                     bool *_retval);
+                     JS::Handle<JSObject*> obj, uint32_t argc, jsval *argv,
+                     jsval *vp, bool *_retval);
 
   nsresult HasInstance(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                        JS::Handle<JSObject*> obj, const jsval &val, bool *bp,
@@ -3903,8 +3906,8 @@ nsDOMConstructor::PreCreate(JSContext *cx, JSObject *globalObj, JSObject **paren
 
 nsresult
 nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
-                            JS::Handle<JSObject*> obj, const JS::CallArgs &args,
-                            bool *_retval)
+                            JS::Handle<JSObject*> obj, uint32_t argc, jsval * argv,
+                            jsval * vp, bool *_retval)
 {
   MOZ_ASSERT(obj);
 
@@ -3916,7 +3919,7 @@ nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
-  return BaseStubConstructor(mWeakOwner, name_struct, cx, obj, args);
+  return BaseStubConstructor(mWeakOwner, name_struct, cx, obj, argc, argv, vp);
 }
 
 nsresult
@@ -5168,7 +5171,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     if (obj == realObj) {
       JS::Rooted<JSObject*> proto(cx);
-      if (!js::GetObjectProto(cx, obj, &proto)) {
+      if (!js::GetObjectProto(cx, obj, proto.address())) {
           *_retval = JS_FALSE;
           return NS_OK;
       }
@@ -6343,18 +6346,16 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSHandleObject obj_,
     return JS_TRUE;
   }
 
-  JS::Rooted<JSObject*> proto(cx);
   while (js::GetObjectJSClass(obj) != &sHTMLDocumentAllClass) {
-    if (!js::GetObjectProto(cx, obj, &proto)) {
+    if (!js::GetObjectProto(cx, obj, obj.address())) {
       return JS_FALSE;
     }
 
-    if (!proto) {
+    if (!obj) {
       NS_ERROR("The JS engine lies!");
+
       return JS_TRUE;
     }
-
-    obj = proto;
   }
 
   nsHTMLDocument *doc = GetDocument(obj);
@@ -7481,7 +7482,8 @@ nsDOMConstructorSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx
 
 NS_IMETHODIMP
 nsDOMConstructorSH::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *aObj, const JS::CallArgs &args, bool *_retval)
+                         JSObject *aObj, uint32_t argc, jsval *argv, jsval *vp,
+                         bool *_retval)
 {
   JS::Rooted<JSObject*> obj(cx, aObj);
   MOZ_ASSERT(obj);
@@ -7497,12 +7499,13 @@ nsDOMConstructorSH::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   }
 #endif
 
-  return wrapped->Construct(wrapper, cx, obj, args, _retval);
+  return wrapped->Construct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
 NS_IMETHODIMP
 nsDOMConstructorSH::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                              JSObject *aObj, const JS::CallArgs &args, bool *_retval)
+                              JSObject *aObj, uint32_t argc, jsval *argv,
+                              jsval *vp, bool *_retval)
 {
   JS::Rooted<JSObject*> obj(cx, aObj);
   MOZ_ASSERT(obj);
@@ -7518,7 +7521,7 @@ nsDOMConstructorSH::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   }
 #endif
 
-  return wrapped->Construct(wrapper, cx, obj, args, _retval);
+  return wrapped->Construct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
 NS_IMETHODIMP
