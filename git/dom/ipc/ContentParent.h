@@ -143,7 +143,6 @@ public:
     bool IsForApp();
 
     void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
-    void ClearChildMemoryReporters();
 
     GeckoChildProcessHost* Process() {
         return mSubprocess;

@@ -833,12 +833,11 @@ Activation::~Activation()
     cx_->mainThread().activation_ = prev_;
 }
 
-InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs,
-                                             int *const switchMask)
+InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs)
   : Activation(cx, Interpreter),
     entry_(entry),
-    regs_(regs),
-    switchMask_(switchMask)
+    current_(entry),
+    regs_(regs)
 #ifdef DEBUG
   , oldFrameCount_(cx_->runtime()->interpreterStack().frameCount_)
 #endif
@@ -847,8 +846,8 @@ InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, F
 InterpreterActivation::~InterpreterActivation()
 {
     // Pop all inline frames.
-    while (regs_.fp() != entry_)
-        popInlineFrame(regs_.fp());
+    while (current_ != entry_)
+        popInlineFrame(current_);
 
     JS_ASSERT(oldFrameCount_ == cx_->runtime()->interpreterStack().frameCount_);
     JS_ASSERT_IF(oldFrameCount_ == 0, cx_->runtime()->interpreterStack().allocator_.used() == 0);
@@ -861,15 +860,18 @@ InterpreterActivation::pushInlineFrame(const CallArgs &args, HandleScript script
     if (!cx_->runtime()->interpreterStack().pushInlineFrame(cx_, regs_, args, script, initial))
         return false;
     JS_ASSERT(regs_.fp()->script()->compartment() == compartment_);
+    current_ = regs_.fp();
     return true;
 }
 
 inline void
 InterpreterActivation::popInlineFrame(StackFrame *frame)
 {
-    (void)frame; // Quell compiler warning.
-    JS_ASSERT(regs_.fp() == frame);
-    JS_ASSERT(regs_.fp() != entry_);
+    JS_ASSERT(current_ == frame);
+    JS_ASSERT(current_ != entry_);
+
+    current_ = frame->prev();
+    JS_ASSERT(current_);
 
     cx_->runtime()->interpreterStack().popInlineFrame(regs_);
 }

@@ -68,7 +68,7 @@ CheckStackRoot(JSRuntime *rt, uintptr_t *w, Rooter *begin, Rooter *end)
         return;
 
     /* Don't check atoms as these will never be subject to generational collection. */
-    if (rt->isAtomsZone(static_cast<Cell *>(thing)->tenuredZone()))
+    if (static_cast<Cell *>(thing)->tenuredZone() == rt->atomsCompartment->zone())
         return;
 
     /*

@@ -37,7 +37,6 @@ if CONFIG['MOZ_GL_PROVIDER']:
 
 EXPORTS += [
     'ForceDiscreteGPUHelperCGL.h',
-    'GLConsts.h',
     'GLContext.h',
     'GLContextProvider.h',
     'GLContextProviderImpl.h',
@@ -48,7 +47,6 @@ EXPORTS += [
     'GLLibraryLoader.h',
     'GLScreenBuffer.h',
     'GLTextureImage.h',
-    'GLTypes.h',
     'SharedSurface.h',
     'SharedSurfaceEGL.h',
     'SharedSurfaceGL.h',

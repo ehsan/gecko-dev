@@ -668,6 +668,8 @@ public:
     return innerWindow && innerWindow->IsInnerWindow() ? innerWindow : nullptr;
   }
 
+  static bool HasIndexedDBSupport();
+
   static WindowByIdTable* GetWindowsTable() {
     return sWindowsById;
   }

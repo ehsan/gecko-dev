@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef NATIVEWINDOW_GONKNATIVEWINDOWCLIENT_ICS_H
-#define NATIVEWINDOW_GONKNATIVEWINDOWCLIENT_ICS_H
+#ifndef DOM_CAMERA_GONKNATIVEWINDOWCLIENT_H
+#define DOM_CAMERA_GONKNATIVEWINDOWCLIENT_H
 
 #include <ui/egl/android_natives.h>
 
@@ -127,10 +127,10 @@ private:
     // member variables are accessed.
     mutable Mutex mMutex;
 
-    bool mConnectedToCpu;
+    bool                        mConnectedToCpu;
 };
 
 
 }; // namespace android
 
-#endif // NATIVEWINDOW_GONKNATIVEWINDOWCLIENT_ICS_H
+#endif // DOM_CAMERA_GONKNATIVEWINDOWCLIENT_H

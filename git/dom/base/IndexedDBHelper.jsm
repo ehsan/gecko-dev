@@ -32,7 +32,6 @@ IndexedDBHelper.prototype = {
   close: function close() {
     if (this._db) {
       this._db.close();
-      this._db = null;
     }
   },
 

@@ -294,11 +294,6 @@ public:
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) = 0;
 
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage,
-                   BluetoothReplyRunnable* aRunnable) = 0;
-
   bool
   IsEnabled() const
   {

@@ -808,7 +808,7 @@ str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
     return ToUpperCaseHelper(cx, args);
 }
 
-#if !EXPOSE_INTL_API
+#if !ENABLE_INTL_API
 static bool
 str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -1926,7 +1926,7 @@ js::str_match(JSContext *cx, unsigned argc, Value *vp)
     if (!g.normalizeRegExp(cx, false, 1, args))
         return false;
 
-    RegExpStatics *res = cx->global()->getRegExpStatics();
+    RegExpStatics *res = cx->regExpStatics();
     Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
     if (!linearStr)
         return false;
@@ -1964,7 +1964,7 @@ js::str_search(JSContext *cx, unsigned argc, Value *vp)
 
     const jschar *chars = linearStr->chars();
     size_t length = linearStr->length();
-    RegExpStatics *res = cx->global()->getRegExpStatics();
+    RegExpStatics *res = cx->regExpStatics();
 
     /* Per ECMAv5 15.5.4.12 (5) The last index property is ignored and left unchanged. */
     size_t i = 0;
@@ -2005,8 +2005,6 @@ class RopeBuilder {
     }
 };
 
-namespace {
-
 struct ReplaceData
 {
     ReplaceData(JSContext *cx)
@@ -2030,8 +2028,6 @@ struct ReplaceData
     FastInvokeGuard    fig;            /* used for lambda calls, also holds arguments */
     StringBuffer       sb;             /* buffer built during DoMatch */
 };
-
-} /* anonymous namespace */
 
 static bool
 ReplaceRegExp(JSContext *cx, RegExpStatics *res, ReplaceData &rdata);
@@ -2627,13 +2623,13 @@ str_replace_regexp_remove(JSContext *cx, CallArgs args, HandleString str, RegExp
     /* If unmatched, return the input string. */
     if (!lastIndex) {
         if (startIndex > 0)
-            cx->global()->getRegExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
+            cx->regExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
         args.rval().setString(str);
         return true;
     }
 
     /* The last successful match updates the RegExpStatics. */
-    cx->global()->getRegExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
+    cx->regExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
 
     /* Include any remaining part of the string. */
     if (lastIndex < charsLen) {
@@ -2664,7 +2660,7 @@ str_replace_regexp(JSContext *cx, CallArgs args, ReplaceData &rdata)
     rdata.leftIndex = 0;
     rdata.calledBack = false;
 
-    RegExpStatics *res = cx->global()->getRegExpStatics();
+    RegExpStatics *res = cx->regExpStatics();
     RegExpShared &re = rdata.g.regExp();
 
     /* Optimize removal. */
@@ -3015,7 +3011,7 @@ SplitHelper(JSContext *cx, Handle<JSLinearString*> str, uint32_t limit, const Ma
 
         /* Step 13(c)(iii)(6-7). */
         if (Matcher::returnsCaptures) {
-            RegExpStatics *res = cx->global()->getRegExpStatics();
+            RegExpStatics *res = cx->regExpStatics();
             const MatchPairs &matches = res->getMatches();
             for (size_t i = 0; i < matches.parenCount(); i++) {
                 /* Steps 13(c)(iii)(7)(a-c). */
@@ -3196,7 +3192,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
         SplitStringMatcher matcher(cx, sepstr);
         aobj = SplitHelper(cx, linearStr, limit, matcher, type);
     } else {
-        SplitRegExpMatcher matcher(*re, cx->global()->getRegExpStatics());
+        SplitRegExpMatcher matcher(*re, cx->regExpStatics());
         aobj = SplitHelper(cx, linearStr, limit, matcher, type);
     }
     if (!aobj)
@@ -3549,7 +3545,7 @@ static const JSFunctionSpec string_methods[] = {
     JS_FN("trimRight",         str_trimRight,         0,JSFUN_GENERIC_NATIVE),
     JS_FN("toLocaleLowerCase", str_toLocaleLowerCase, 0,JSFUN_GENERIC_NATIVE),
     JS_FN("toLocaleUpperCase", str_toLocaleUpperCase, 0,JSFUN_GENERIC_NATIVE),
-#if EXPOSE_INTL_API
+#if ENABLE_INTL_API
          {"localeCompare",     {NULL, NULL},          1,0, "String_localeCompare"},
 #else
     JS_FN("localeCompare",     str_localeCompare,     1,JSFUN_GENERIC_NATIVE),
@@ -3657,7 +3653,7 @@ static const JSFunctionSpec string_static_methods[] = {
 
     // This must be at the end because of bug 853075: functions listed after
     // self-hosted methods aren't available in self-hosted code.
-#if EXPOSE_INTL_API
+#if ENABLE_INTL_API
          {"localeCompare",     {NULL, NULL},          2,0, "String_static_localeCompare"},
 #endif
     JS_FS_END

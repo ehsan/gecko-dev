@@ -178,9 +178,10 @@ TextureImageTextureSourceOGL::GetSize() const
 {
   if (mTexImage) {
     if (mIterating) {
-      return mTexImage->GetTileRect().Size();
+      nsIntRect rect = mTexImage->GetTileRect();
+      return gfx::IntSize(rect.width, rect.height);
     }
-    return mTexImage->GetSize();
+    return gfx::IntSize(mTexImage->GetSize().width, mTexImage->GetSize().height);
   }
   NS_WARNING("Trying to query the size of an empty TextureSource.");
   return gfx::IntSize(0, 0);
@@ -191,11 +192,6 @@ TextureImageTextureSourceOGL::GetFormat() const
 {
   MOZ_ASSERT(mTexImage);
   return mTexImage->GetTextureFormat();
-}
-
-nsIntRect TextureImageTextureSourceOGL::GetTileRect()
-{
-  return ThebesIntRect(mTexImage->GetTileRect());
 }
 
 void
@@ -362,16 +358,12 @@ TextureImageDeprecatedTextureHostOGL::GetSize() const
 {
   if (mTexture) {
     if (mIterating) {
-      return mTexture->GetTileRect().Size();
+      nsIntRect rect = mTexture->GetTileRect();
+      return gfx::IntSize(rect.width, rect.height);
     }
-    return mTexture->GetSize();
+    return gfx::IntSize(mTexture->GetSize().width, mTexture->GetSize().height);
   }
   return gfx::IntSize(0, 0);
-}
-
-nsIntRect TextureImageDeprecatedTextureHostOGL::GetTileRect()
-{
-  return ThebesIntRect(mTexture->GetTileRect());
 }
 
 void

@@ -14,7 +14,6 @@
 #include "ThebesLayerOGL.h"
 #include "gfxUtils.h"
 #include "gfxTeeSurface.h"
-#include "gfx2DGlue.h"
 #include "gfxPlatform.h"
 
 #include "base/message_loop.h"
@@ -92,7 +91,7 @@ public:
 
   nsIntSize GetSize() {
     if (mTexImage)
-      return ThebesIntSize(mTexImage->GetSize());
+      return mTexImage->GetSize();
     return nsIntSize(0, 0);
   }
 
@@ -205,7 +204,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
 
     // Figure out the intersecting draw region
-    nsIntSize texSize = ThebesIntSize(mTexImage->GetSize());
+    nsIntSize texSize = mTexImage->GetSize();
     nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
     textureRect.MoveBy(region.GetBounds().TopLeft());
     nsIntRegion subregion;
@@ -237,10 +236,10 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     bool usingTiles = (mTexImage->GetTileCount() > 1);
     do {
       if (mTexImageOnWhite) {
-        NS_ASSERTION(ThebesIntRect(mTexImageOnWhite->GetTileRect()) == ThebesIntRect(mTexImage->GetTileRect()), "component alpha textures should be the same size.");
+        NS_ASSERTION(mTexImageOnWhite->GetTileRect() == mTexImage->GetTileRect(), "component alpha textures should be the same size.");
       }
 
-      nsIntRect tileRect = ThebesIntRect(mTexImage->GetTileRect());
+      nsIntRect tileRect = mTexImage->GetTileRect();
 
       // Bind textures.
       TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);

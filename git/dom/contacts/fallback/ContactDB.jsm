@@ -4,9 +4,7 @@
 
 "use strict";
 
-// Everything but "ContactDB" is only exported here for testing.
-this.EXPORTED_SYMBOLS = ["ContactDB", "DB_NAME", "STORE_NAME", "SAVED_GETALL_STORE_NAME",
-                         "REVISION_STORE", "DB_VERSION"];
+this.EXPORTED_SYMBOLS = ['ContactDB'];
 
 const DEBUG = false;
 function debug(s) { dump("-*- ContactDB component: " + s + "\n"); }
@@ -97,16 +95,15 @@ function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearD
   };
 }
 
-this.ContactDB = function ContactDB() {
+this.ContactDB = function ContactDB(aGlobal) {
   if (DEBUG) debug("Constructor");
-};
+  this._global = aGlobal;
+}
 
 ContactDB.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
   _dispatcher: {},
-
-  useFastUpgrade: true,
 
   upgradeSchema: function upgradeSchema(aTransaction, aDb, aOldVersion, aNewVersion) {
     let loadInitialContacts = function() {
@@ -160,32 +157,9 @@ ContactDB.prototype = {
       }
     }.bind(this);
 
-    function createFinalSchema() {
-      if (DEBUG) debug("creating final schema");
-      let objectStore = aDb.createObjectStore(STORE_NAME, {keyPath: "id"});
-      objectStore.createIndex("familyName", "properties.familyName", { multiEntry: true });
-      objectStore.createIndex("givenName",  "properties.givenName",  { multiEntry: true });
-      objectStore.createIndex("familyNameLowerCase", "search.familyName", { multiEntry: true });
-      objectStore.createIndex("givenNameLowerCase",  "search.givenName",  { multiEntry: true });
-      objectStore.createIndex("telLowerCase",        "search.tel",        { multiEntry: true });
-      objectStore.createIndex("emailLowerCase",      "search.email",      { multiEntry: true });
-      objectStore.createIndex("tel", "search.exactTel", { multiEntry: true });
-      objectStore.createIndex("category", "properties.category", { multiEntry: true });
-      objectStore.createIndex("email", "search.email", { multiEntry: true });
-      objectStore.createIndex("telMatch", "search.parsedTel", {multiEntry: true});
-      aDb.createObjectStore(SAVED_GETALL_STORE_NAME);
-      aDb.createObjectStore(REVISION_STORE).put(0, REVISION_KEY);
-    }
-
     if (DEBUG) debug("upgrade schema from: " + aOldVersion + " to " + aNewVersion + " called!");
     let db = aDb;
     let objectStore;
-
-    if (aOldVersion === 0 && this.useFastUpgrade) {
-      createFinalSchema();
-      loadInitialContacts();
-      return;
-    }
 
     let steps = [
       function upgrade0to1() {
@@ -555,6 +529,9 @@ ContactDB.prototype = {
     let outer = this;
     function next() {
       if (index == aNewVersion) {
+        if (aOldVersion === 0) {
+          loadInitialContacts();
+        }
         outer.incrementRevision(aTransaction);
         return;
       }
@@ -1076,7 +1053,7 @@ ContactDB.prototype = {
           }
         }
         if (DEBUG) debug("lowerCase: " + lowerCase);
-        let range = this.dbGlobal.IDBKeyRange.bound(lowerCase, lowerCase + "\uFFFF");
+        let range = this._global.IDBKeyRange.bound(lowerCase, lowerCase + "\uFFFF");
         let index = store.index(key + "LowerCase");
         request = index.mozGetAll(range, limit);
       }

@@ -190,7 +190,8 @@ ThreadPool::ThreadPool(JSRuntime *rt)
 #if defined(JS_THREADSAFE) || defined(DEBUG)
     runtime_(rt),
 #endif
-    numWorkers_(0) // updated during init()
+    numWorkers_(0), // updated during init()
+    nextId_(0)
 {
 }
 
@@ -283,6 +284,20 @@ ThreadPool::terminateWorkers()
         worker->terminate();
         js_delete(worker);
     }
+}
+
+bool
+ThreadPool::submitOne(JSContext *cx, TaskExecutor *executor)
+{
+    JS_ASSERT(numWorkers() > 0);
+    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+
+    if (!lazyStartWorkers(cx))
+        return false;
+
+    // Find next worker in round-robin fashion.
+    size_t id = JS_ATOMIC_INCREMENT(&nextId_) % numWorkers();
+    return workers_[id]->submit(executor);
 }
 
 bool

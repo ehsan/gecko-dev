@@ -2072,13 +2072,6 @@ nsFrameLoader::TryRemoteBrowser()
     mRemoteBrowser->SetBrowserDOMWindow(browserDOMWin);
 
     mContentParent = mRemoteBrowser->Manager();
-
-    if (mOwnerContent->AttrValueIs(kNameSpaceID_None,
-                                   nsGkAtoms::mozpasspointerevents,
-                                   nsGkAtoms::_true,
-                                   eCaseMatters)) {
-      unused << mRemoteBrowser->SendSetUpdateHitRegion(true);
-    }
   }
   return true;
 }

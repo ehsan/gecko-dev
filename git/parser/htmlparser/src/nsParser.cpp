@@ -40,8 +40,6 @@
 #include "nsParserConstants.h"
 #include "nsCharsetSource.h"
 #include "nsContentUtils.h"
-#include "nsThreadUtils.h"
-#include "nsIHTMLContentSink.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 
@@ -1011,6 +1009,12 @@ nsParser::PopContext()
       if (mParserContext->mStreamListenerState != eOnStop) {
         mParserContext->mStreamListenerState = oldContext->mStreamListenerState;
       }
+      // Update the current context's tokenizer to any information gleaned
+      // while parsing document.write() calls (such as "a plaintext tag was
+      // found")
+      if (mParserContext->mTokenizer) {
+        mParserContext->mTokenizer->CopyState(oldContext->mTokenizer);
+      }
     }
   }
   return oldContext;
@@ -1615,7 +1619,11 @@ nsParser::BuildModel()
 
   if (NS_SUCCEEDED(result)) {
     if (mDTD) {
-      result = mDTD->BuildModel(theTokenizer, mSink);
+      bool inDocWrite = !!mParserContext->mPrevContext;
+      result = mDTD->BuildModel(theTokenizer,
+                                // ignore interruptions in document.write
+                                !inDocWrite, // don't count lines in document.write
+                                &mCharset);
     }
   } else {
     mInternalState = result = NS_ERROR_HTMLPARSER_BADTOKENIZER;
@@ -1986,7 +1994,8 @@ nsParser::WillTokenize(bool aIsFinalChunk)
   nsITokenizer* theTokenizer;
   nsresult result = mParserContext->GetTokenizer(mDTD, mSink, theTokenizer);
   NS_ENSURE_SUCCESS(result, false);
-  return NS_SUCCEEDED(theTokenizer->WillTokenize(aIsFinalChunk));
+  return NS_SUCCEEDED(theTokenizer->WillTokenize(aIsFinalChunk,
+                                                 &mTokenAllocator));
 }
 
 
@@ -2005,6 +2014,18 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
   }
 
   if (NS_SUCCEEDED(result)) {
+    if (mFlags & NS_PARSER_FLAG_FLUSH_TOKENS) {
+      // For some reason tokens didn't get flushed (probably
+      // the parser got blocked before all the tokens in the
+      // stack got handled). Flush 'em now. Ref. bug 104856
+      if (theTokenizer->GetCount() != 0) {
+        return result;
+      }
+
+      // Reset since the tokens have been flushed.
+      mFlags &= ~NS_PARSER_FLAG_FLUSH_TOKENS;
+    }
+
     bool flushTokens = false;
 
     mParserContext->mNumConsumed = 0;
@@ -2035,6 +2056,7 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
         break;
       }
     }
+    DidTokenize(aIsFinalChunk);
 
     if (killSink) {
       mSink = nullptr;
@@ -2044,6 +2066,26 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
   }
 
   return result;
+}
+
+/**
+ *  This is the tail-end of the code sandwich for the
+ *  tokenization process. It gets called once tokenziation
+ *  has completed for each phase.
+ */
+bool
+nsParser::DidTokenize(bool aIsFinalChunk)
+{
+  if (!mParserContext) {
+    return true;
+  }
+
+  nsITokenizer* theTokenizer;
+  nsresult rv = mParserContext->GetTokenizer(mDTD, mSink, theTokenizer);
+  NS_ENSURE_SUCCESS(rv, false);
+
+  rv = theTokenizer->DidTokenize(aIsFinalChunk);
+  return NS_SUCCEEDED(rv);
 }
 
 /**
