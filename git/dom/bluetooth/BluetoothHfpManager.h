@@ -9,8 +9,8 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothProfileManagerBase.h"
-#include "BluetoothRilListener.h"
 #include "BluetoothSocketObserver.h"
+#include "BluetoothTelephonyListener.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "mozilla/Hal.h"
 
@@ -92,8 +92,6 @@ public:
   void HandleCallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aError, const nsAString& aNumber,
                               const bool aIsOutgoing, bool aSend);
-  void HandleIccInfoChanged();
-  void HandleVoiceConnectionChanged();
 
   bool IsConnected();
   bool IsScoConnected();
@@ -111,8 +109,10 @@ private:
   friend class BluetoothHfpManagerObserver;
 
   BluetoothHfpManager();
+  void HandleIccInfoChanged();
   void HandleShutdown();
   void HandleVolumeChanged(const nsAString& aData);
+  void HandleVoiceConnectionChanged();
 
   bool Init();
   void Notify(const hal::BatteryInformation& aBatteryInfo);
@@ -150,7 +150,7 @@ private:
   nsString mOperatorName;
 
   nsTArray<Call> mCurrentCallArray;
-  nsAutoPtr<BluetoothRilListener> mListener;
+  nsAutoPtr<BluetoothTelephonyListener> mListener;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   BluetoothProfileController* mController;
   nsRefPtr<BluetoothReplyRunnable> mScoRunnable;

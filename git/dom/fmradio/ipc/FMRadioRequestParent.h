@@ -14,7 +14,7 @@
 BEGIN_FMRADIO_NAMESPACE
 
 class FMRadioRequestParent MOZ_FINAL : public PFMRadioRequestParent
-                                     , public FMRadioReplyRunnable
+                                     , public ReplyRunnable
 {
 public:
   FMRadioRequestParent();

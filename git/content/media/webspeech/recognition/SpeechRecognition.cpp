@@ -138,11 +138,17 @@ SpeechRecognition::ProcessEvent(SpeechEvent* aEvent)
          GetName(aEvent),
          GetName(mCurrentState));
 
-  if (mAborted && aEvent->mType != EVENT_ABORT) {
-    // ignore all events while aborting
-    return;
+  // Run priority events first
+  for (uint32_t i = 0; i < mPriorityEvents.Length(); ++i) {
+    nsRefPtr<SpeechEvent> event = mPriorityEvents[i];
+
+    SR_LOG("Processing priority %s", GetName(event));
+    Transition(event);
   }
 
+  mPriorityEvents.Clear();
+
+  SR_LOG("Processing %s received as argument", GetName(aEvent));
   Transition(aEvent);
 }
 
@@ -302,6 +308,9 @@ SpeechRecognition::Transition(SpeechEvent* aEvent)
           MOZ_CRASH("Invalid event EVENT_COUNT");
       }
       break;
+    case STATE_ABORTING:
+      DoNothing(aEvent);
+      break;
     case STATE_COUNT:
       MOZ_CRASH("Invalid state STATE_COUNT");
   }
@@ -379,7 +388,6 @@ SpeechRecognition::Reset()
   mEstimationSamples = 0;
   mBufferedSamples = 0;
   mSpeechDetectionTimer->Cancel();
-  mAborted = false;
 }
 
 void
@@ -492,6 +500,9 @@ void
 SpeechRecognition::AbortSilently(SpeechEvent* aEvent)
 {
   bool stopRecording = StateBetween(STATE_ESTIMATING, STATE_RECOGNIZING);
+
+  // prevent reentrancy from DOM events
+  SetState(STATE_ABORTING);
 
   if (mRecognitionService) {
     mRecognitionService->Abort();
@@ -734,11 +745,6 @@ SpeechRecognition::Stop()
 void
 SpeechRecognition::Abort()
 {
-  if (mAborted) {
-    return;
-  }
-
-  mAborted = true;
   nsRefPtr<SpeechEvent> event = new SpeechEvent(this, EVENT_ABORT);
   NS_DispatchToMainThread(event);
 }
@@ -896,6 +902,7 @@ SpeechRecognition::GetName(FSMState aId)
     "STATE_WAITING_FOR_SPEECH",
     "STATE_RECOGNIZING",
     "STATE_WAITING_FOR_RESULT",
+    "STATE_ABORTING"
   };
 
   MOZ_ASSERT(aId < STATE_COUNT);

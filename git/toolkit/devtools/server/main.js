@@ -43,7 +43,6 @@ if (this.require) {
 
 const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
-const nsFile = CC("@mozilla.org/file/local;1", "nsIFile", "initWithPath");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
@@ -93,9 +92,6 @@ loadSubScript.call(this, "resource://gre/modules/devtools/server/transport.js");
 const ServerSocket = CC("@mozilla.org/network/server-socket;1",
                         "nsIServerSocket",
                         "initSpecialConnection");
-const UnixDomainServerSocket = CC("@mozilla.org/network/server-socket;1",
-                                  "nsIServerSocket",
-                                  "initWithFilename");
 
 var gRegisteredModules = Object.create(null);
 
@@ -388,13 +384,12 @@ var DebuggerServer = {
   },
 
   /**
-   * Listens on the given port or socket file for remote debugger connections.
+   * Listens on the given port for remote debugger connections.
    *
-   * @param aPortOrPath int, string
-   *        If given an integer, the port to listen on.
-   *        Otherwise, the path to the unix socket domain file to listen on.
+   * @param aPort int
+   *        The port to listen on.
    */
-  openListener: function DS_openListener(aPortOrPath) {
+  openListener: function DS_openListener(aPort) {
     if (!Services.prefs.getBoolPref("devtools.debugger.remote-enabled")) {
       return false;
     }
@@ -412,21 +407,11 @@ var DebuggerServer = {
     }
 
     try {
-      let backlog = 4;
-      let socket;
-      let port = Number(aPortOrPath);
-      if (port) {
-        socket = new ServerSocket(port, flags, backlog);
-      } else {
-        let file = nsFile(aPortOrPath);
-        if (file.exists())
-          file.remove(false);
-        socket = new UnixDomainServerSocket(file, parseInt("600", 8), backlog);
-      }
+      let socket = new ServerSocket(aPort, flags, 4);
       socket.asyncListen(this);
       this._listener = socket;
     } catch (e) {
-      dumpn("Could not start debugging listener on '" + aPortOrPath + "': " + e);
+      dumpn("Could not start debugging listener on port " + aPort + ": " + e);
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     }
     this._socketConnections++;

@@ -29,8 +29,7 @@ public:
   static FMRadioChild* Singleton();
   ~FMRadioChild();
 
-  void SendRequest(FMRadioReplyRunnable* aReplyRunnable,
-                   FMRadioRequestArgs aArgs);
+  void SendRequest(ReplyRunnable* aReplyRunnable, FMRadioRequestArgs aArgs);
 
   /* IFMRadioService */
   virtual bool IsEnabled() const MOZ_OVERRIDE;
@@ -39,14 +38,13 @@ public:
   virtual double GetFrequencyLowerBound() const MOZ_OVERRIDE;
   virtual double GetChannelWidth() const MOZ_OVERRIDE;
 
-  virtual void Enable(double aFrequency,
-                      FMRadioReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
-  virtual void Disable(FMRadioReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
+  virtual void Enable(double aFrequency, ReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
+  virtual void Disable(ReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
   virtual void SetFrequency(double frequency,
-                            FMRadioReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
+                            ReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
   virtual void Seek(mozilla::hal::FMRadioSeekDirection aDirection,
-                    FMRadioReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
-  virtual void CancelSeek(FMRadioReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
+                    ReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
+  virtual void CancelSeek(ReplyRunnable* aReplyRunnable) MOZ_OVERRIDE;
 
   virtual void AddObserver(FMRadioEventObserver* aObserver) MOZ_OVERRIDE;
   virtual void RemoveObserver(FMRadioEventObserver* aObserver) MOZ_OVERRIDE;

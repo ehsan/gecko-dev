@@ -727,19 +727,16 @@ var AlertsHelper = {
       topic = "alertfinished";
     }
 
-    if (uid.startsWith("alert")) {
-      try {
-        listener.observer.observe(null, topic, listener.cookie);
-      } catch (e) { }
-    } else {
+    if (uid.startsWith("app-notif")) {
       try {
         listener.mm.sendAsyncMessage("app-notification-return", {
           uid: uid,
           topic: topic,
           target: listener.target
         });
-      } catch (e) {
+      } catch(e) {
         // we get an exception if the app is not launched yet
+
         gSystemMessenger.sendMessage("notification", {
             clicked: (detail.type === "desktop-notification-click"),
             title: listener.title,
@@ -750,6 +747,10 @@ var AlertsHelper = {
           Services.io.newURI(listener.manifestURL, null, null)
         );
       }
+    } else if (uid.startsWith("alert")) {
+      try {
+        listener.observer.observe(null, topic, listener.cookie);
+      } catch (e) { }
     }
 
     // we're done with this notification
@@ -1030,10 +1031,9 @@ let RemoteDebugger = {
       }
     }
 
-    let path = Services.prefs.getCharPref("devtools.debugger.unix-domain-socket") ||
-               "/data/local/debugger-socket";
+    let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
     try {
-      DebuggerServer.openListener(path);
+      DebuggerServer.openListener(port);
     } catch (e) {
       dump('Unable to start debugger server: ' + e + '\n');
     }

@@ -492,7 +492,7 @@ TelephonyProvider.prototype = {
 
   notifyConferenceCallStateChanged: function notifyConferenceCallStateChanged(aState) {
     if (DEBUG) debug("handleConferenceCallStateChanged: " + aState);
-    aState = aState != null ? this._convertRILCallState(aState) :
+    aState = aState != null ? convertRILCallState(aState) :
                               nsITelephonyProvider.CALL_STATE_UNKNOWN;
     this._updateCallAudioState(null, aState);
 

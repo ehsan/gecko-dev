@@ -70,33 +70,32 @@ FMRadioChild::GetChannelWidth() const
 }
 
 void
-FMRadioChild::Enable(double aFrequency, FMRadioReplyRunnable* aReplyRunnable)
+FMRadioChild::Enable(double aFrequency, ReplyRunnable* aReplyRunnable)
 {
   SendRequest(aReplyRunnable, EnableRequestArgs(aFrequency));
 }
 
 void
-FMRadioChild::Disable(FMRadioReplyRunnable* aReplyRunnable)
+FMRadioChild::Disable(ReplyRunnable* aReplyRunnable)
 {
   SendRequest(aReplyRunnable, DisableRequestArgs());
 }
 
 void
 FMRadioChild::SetFrequency(double aFrequency,
-                           FMRadioReplyRunnable* aReplyRunnable)
+                                  ReplyRunnable* aReplyRunnable)
 {
   SendRequest(aReplyRunnable, SetFrequencyRequestArgs(aFrequency));
 }
 
 void
-FMRadioChild::Seek(FMRadioSeekDirection aDirection,
-                   FMRadioReplyRunnable* aReplyRunnable)
+FMRadioChild::Seek(FMRadioSeekDirection aDirection, ReplyRunnable* aReplyRunnable)
 {
   SendRequest(aReplyRunnable, SeekRequestArgs(aDirection));
 }
 
 void
-FMRadioChild::CancelSeek(FMRadioReplyRunnable* aReplyRunnable)
+FMRadioChild::CancelSeek(ReplyRunnable* aReplyRunnable)
 {
   SendRequest(aReplyRunnable, CancelSeekRequestArgs());
 }
@@ -120,8 +119,8 @@ FMRadioChild::RemoveObserver(FMRadioEventObserver* aObserver)
 }
 
 void
-FMRadioChild::SendRequest(FMRadioReplyRunnable* aReplyRunnable,
-                          FMRadioRequestArgs aArgs)
+FMRadioChild::SendRequest(ReplyRunnable* aReplyRunnable,
+                                 FMRadioRequestArgs aArgs)
 {
   PFMRadioRequestChild* childRequest = new FMRadioRequestChild(aReplyRunnable);
   SendPFMRadioRequestConstructor(childRequest, aArgs);
