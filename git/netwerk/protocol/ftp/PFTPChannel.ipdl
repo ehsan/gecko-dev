@@ -59,7 +59,6 @@ parent:
 
   AsyncOpen(URI uri, PRUint64 startPos, nsCString entityID,
             InputStream uploadStream);
-  ConnectChannel(PRUint32 channelId);
   Cancel(nsresult status);
   Suspend();
   Resume();
@@ -70,7 +69,6 @@ child:
   OnDataAvailable(nsCString data, PRUint32 offset, PRUint32 count);
   OnStopRequest(nsresult statusCode);
   CancelEarly(nsresult statusCode);
-  DeleteSelf();
 };
 
 } // namespace net
