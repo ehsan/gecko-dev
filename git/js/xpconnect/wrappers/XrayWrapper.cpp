@@ -1035,7 +1035,8 @@ DOMXrayTraits::resolveNativeProperty(JSContext *cx, HandleObject wrapper,
     if (!XrayResolveNativeProperty(cx, wrapper, obj, id, desc))
         return false;
 
-    MOZ_ASSERT(!desc.object() || desc.object() == wrapper, "What did we resolve this on?");
+    NS_ASSERTION(!desc.object() || desc.object() == wrapper,
+                 "What did we resolve this on?");
 
     return true;
 }
@@ -1055,7 +1056,8 @@ DOMXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper, HandleObjec
     if (!XrayResolveOwnProperty(cx, wrapper, obj, id, desc, flags))
         return false;
 
-    MOZ_ASSERT(!desc.object() || desc.object() == wrapper, "What did we resolve this on?");
+    NS_ASSERTION(!desc.object() || desc.object() == wrapper,
+                 "What did we resolve this on?");
 
     return true;
 }
@@ -1168,11 +1170,11 @@ namespace XrayUtils {
 JSObject *
 GetNativePropertiesObject(JSContext *cx, JSObject *wrapper)
 {
-    MOZ_ASSERT(js::IsWrapper(wrapper) && WrapperFactory::IsXrayWrapper(wrapper),
-               "bad object passed in");
+    NS_ASSERTION(js::IsWrapper(wrapper) && WrapperFactory::IsXrayWrapper(wrapper),
+                 "bad object passed in");
 
     JSObject *holder = GetHolder(wrapper);
-    MOZ_ASSERT(holder, "uninitialized wrapper being used?");
+    NS_ASSERTION(holder, "uninitialized wrapper being used?");
     return holder;
 }
 

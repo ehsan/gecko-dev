@@ -7,6 +7,7 @@
 #include "MediaStreamList.h"
 #ifdef MOZILLA_INTERNAL_API
 #include "mozilla/dom/MediaStreamListBinding.h"
+#include "nsContentUtils.h"
 #endif
 #include "nsIScriptGlobalObject.h"
 #include "PeerConnectionImpl.h"

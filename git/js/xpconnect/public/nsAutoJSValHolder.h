@@ -125,7 +125,7 @@ public:
   nsAutoJSValHolder &operator=(jsval aOther) {
 #ifdef DEBUG
     if (JSVAL_IS_GCTHING(aOther) && !JSVAL_IS_NULL(aOther)) {
-      MOZ_ASSERT(IsHeld(), "Not rooted!");
+      NS_ASSERTION(IsHeld(), "Not rooted!");
     }
 #endif
     mVal = aOther;

@@ -54,6 +54,8 @@
 #include "nsILoadContext.h"
 #include "nsILoadGroupChild.h"
 
+#include "nsContentUtils.h"
+
 using namespace mozilla;
 using namespace mozilla::image;
 

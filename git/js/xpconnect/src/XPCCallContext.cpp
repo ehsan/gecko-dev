@@ -39,6 +39,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
 {
     MOZ_ASSERT(cx);
 
+    NS_ASSERTION(mJSContext, "No JSContext supplied to XPCCallContext");
     if (!mXPC)
         return;
 
@@ -86,7 +87,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         else
             mScriptableInfo = mWrapper->GetScriptableInfo();
     } else {
-        MOZ_ASSERT(!mFlattenedJSObject, "What object do we have?");
+        NS_ABORT_IF_FALSE(!mFlattenedJSObject, "What object do we have?");
     }
 
     if (!JSID_IS_VOID(name))
@@ -239,7 +240,7 @@ XPCCallContext::~XPCCallContext()
         mXPCContext->SetCallingLangType(mPrevCallerLanguage);
 
         DebugOnly<XPCCallContext*> old = XPCJSRuntime::Get()->SetCallContext(mPrevCallContext);
-        MOZ_ASSERT(old == this, "bad pop from per thread data");
+        NS_ASSERTION(old == this, "bad pop from per thread data");
     }
 }
 

@@ -3,10 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMCaretPosition.h"
-
 #include "mozilla/dom/CaretPositionBinding.h"
-#include "nsClientRect.h"
-#include "nsRange.h"
+#include "nsContentUtils.h"
 
 nsDOMCaretPosition::nsDOMCaretPosition(nsINode* aNode, uint32_t aOffset)
   : mOffset(aOffset), mOffsetNode(aNode), mAnonymousContentNode(nullptr)

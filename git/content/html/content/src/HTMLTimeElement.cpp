@@ -5,6 +5,7 @@
 
 #include "HTMLTimeElement.h"
 #include "mozilla/dom/HTMLTimeElementBinding.h"
+#include "nsContentUtils.h"
 #include "nsGenericHTMLElement.h"
 #include "nsVariant.h"
 #include "nsGkAtoms.h"

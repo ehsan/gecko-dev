@@ -12,6 +12,7 @@
 #include "nsEvent.h"
 #include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
+#include "nsContentUtils.h"
 #include "nsObjCExceptions.h"
 
 

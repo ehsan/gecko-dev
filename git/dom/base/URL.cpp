@@ -11,6 +11,7 @@
 #include "mozilla/dom/MediaSource.h"
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
+#include "nsContentUtils.h"
 #include "nsHostObjectProtocolHandler.h"
 
 namespace mozilla {

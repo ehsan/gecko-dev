@@ -669,7 +669,9 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
   } else {
     nsCOMPtr<nsPIDOMWindow> win = GetTargetAsInnerWindow();
     if (win) {
-      doc = win->GetDoc();
+      nsCOMPtr<nsIDOMDocument> domdoc;
+      win->GetDocument(getter_AddRefs(domdoc));
+      doc = do_QueryInterface(domdoc);
       global = do_QueryInterface(win);
     } else {
       global = do_QueryInterface(mTarget);
