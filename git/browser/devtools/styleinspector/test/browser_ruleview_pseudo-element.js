@@ -21,12 +21,11 @@ let test = asyncTest(function*() {
 });
 
 function* testTopLeft(inspector, view) {
-  let selector = "#topleft";
   let {
     rules,
     element,
     elementStyle
-  } = yield assertPseudoElementRulesNumbers(selector, inspector, view, {
+  } = yield assertPseudoElementRulesNumbers("#topleft", inspector, view, {
     elementRulesNb: 4,
     afterRulesNb: 1,
     beforeRulesNb: 2,
@@ -88,35 +87,35 @@ function* testTopLeft(inspector, view) {
 
   yield elementAfterRule._applyingModifications;
 
-  is((yield getComputedStyleProperty(selector, ":after", "background-color")),
+  is(defaultView.getComputedStyle(element, ":after").getPropertyValue("background-color"),
     "rgb(0, 255, 0)", "Added property should have been used.");
-  is((yield getComputedStyleProperty(selector, ":after", "padding-top")),
+  is(defaultView.getComputedStyle(element, ":after").getPropertyValue("padding-top"),
     "100px", "Added property should have been used.");
-  is((yield getComputedStyleProperty(selector, null, "padding-top")),
+  is(defaultView.getComputedStyle(element).getPropertyValue("padding-top"),
     "32px", "Added property should not apply to element");
 
   secondProp.setEnabled(false);
   yield elementAfterRule._applyingModifications;
 
-  is((yield getComputedStyleProperty(selector, ":after", "padding-top")), "0px",
+  is(defaultView.getComputedStyle(element, ":after").getPropertyValue("padding-top"), "0px",
     "Disabled property should have been used.");
-  is((yield getComputedStyleProperty(selector, null, "padding-top")), "32px",
+  is(defaultView.getComputedStyle(element).getPropertyValue("padding-top"), "32px",
     "Added property should not apply to element");
 
   secondProp.setEnabled(true);
   yield elementAfterRule._applyingModifications;
 
-  is((yield getComputedStyleProperty(selector, ":after", "padding-top")), "100px",
+  is(defaultView.getComputedStyle(element, ":after").getPropertyValue("padding-top"), "100px",
     "Enabled property should have been used.");
-  is((yield getComputedStyleProperty(selector, null, "padding-top")), "32px",
+  is(defaultView.getComputedStyle(element).getPropertyValue("padding-top"), "32px",
     "Added property should not apply to element");
 
   firstProp = elementRuleView.addProperty("background-color", "rgb(0, 0, 255)", "");
   yield elementRule._applyingModifications;
 
-  is((yield getComputedStyleProperty(selector, null, "background-color")), "rgb(0, 0, 255)",
+  is(defaultView.getComputedStyle(element).getPropertyValue("background-color"), "rgb(0, 0, 255)",
     "Added property should have been used.");
-  is((yield getComputedStyleProperty(selector, ":after", "background-color")), "rgb(0, 255, 0)",
+  is(defaultView.getComputedStyle(element, ":after").getPropertyValue("background-color"), "rgb(0, 255, 0)",
     "Added prop does not apply to pseudo");
 }
 

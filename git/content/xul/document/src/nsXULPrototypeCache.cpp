@@ -131,13 +131,7 @@ nsXULPrototypeCache::Observe(nsISupports* aSubject,
 nsXULPrototypeDocument*
 nsXULPrototypeCache::GetPrototype(nsIURI* aURI)
 {
-    if (!aURI)
-        return nullptr;
-
-    nsCOMPtr<nsIURI> uriWithoutRef;
-    aURI->CloneIgnoringRef(getter_AddRefs(uriWithoutRef));
-
-    nsXULPrototypeDocument* protoDoc = mPrototypeTable.GetWeak(uriWithoutRef);
+    nsXULPrototypeDocument* protoDoc = mPrototypeTable.GetWeak(aURI);
     if (protoDoc)
         return protoDoc;
 
@@ -170,13 +164,7 @@ nsXULPrototypeCache::GetPrototype(nsIURI* aURI)
 nsresult
 nsXULPrototypeCache::PutPrototype(nsXULPrototypeDocument* aDocument)
 {
-    if (!aDocument->GetURI()) {
-        return NS_ERROR_FAILURE;
-    }
-
-    nsCOMPtr<nsIURI> uri;
-    aDocument->GetURI()->CloneIgnoringRef(getter_AddRefs(uri));
-
+    nsCOMPtr<nsIURI> uri = aDocument->GetURI();
     // Put() releases any old value and addrefs the new one
     mPrototypeTable.Put(uri, aDocument);
 
