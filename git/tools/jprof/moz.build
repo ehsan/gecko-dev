@@ -21,8 +21,3 @@ LOCAL_INCLUDES += [
     'stub',
 ]
 
-OS_LIBS += [
-    'dl',
-    'gfd',
-    'iberty',
-]

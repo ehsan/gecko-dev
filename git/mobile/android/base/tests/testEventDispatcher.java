@@ -29,7 +29,6 @@ public class testEventDispatcher extends UITest
     private static final String GECKO_RESPONSE_EVENT = "Robocop:TestGeckoResponse";
     private static final String NATIVE_EVENT = "Robocop:TestNativeEvent";
     private static final String NATIVE_RESPONSE_EVENT = "Robocop:TestNativeResponse";
-    private static final String NATIVE_EXCEPTION_EVENT = "Robocop:TestNativeException";
 
     private JavascriptBridge js;
 
@@ -41,8 +40,7 @@ public class testEventDispatcher extends UITest
         EventDispatcher.getInstance().registerGeckoThreadListener(
                 (GeckoEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
         EventDispatcher.getInstance().registerGeckoThreadListener(
-                (NativeEventListener) this,
-                NATIVE_EVENT, NATIVE_RESPONSE_EVENT, NATIVE_EXCEPTION_EVENT);
+                (NativeEventListener) this, NATIVE_EVENT, NATIVE_RESPONSE_EVENT);
     }
 
     @Override
@@ -50,8 +48,7 @@ public class testEventDispatcher extends UITest
         EventDispatcher.getInstance().unregisterGeckoThreadListener(
                 (GeckoEventListener) this, GECKO_EVENT, GECKO_RESPONSE_EVENT);
         EventDispatcher.getInstance().unregisterGeckoThreadListener(
-                (NativeEventListener) this,
-                NATIVE_EVENT, NATIVE_RESPONSE_EVENT, NATIVE_EXCEPTION_EVENT);
+                (NativeEventListener) this, NATIVE_EVENT, NATIVE_RESPONSE_EVENT);
 
         js.disconnect();
         super.tearDown();
@@ -69,7 +66,6 @@ public class testEventDispatcher extends UITest
         js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "success");
         js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "error");
         js.syncCall("send_message_for_response", NATIVE_RESPONSE_EVENT, "cancel");
-        js.syncCall("send_test_message", NATIVE_EXCEPTION_EVENT);
         js.syncCall("finish_test");
     }
 
@@ -154,30 +150,6 @@ public class testEventDispatcher extends UITest
             } else {
                 fFail("Response type should be valid: " + response);
             }
-
-        } else if (NATIVE_EXCEPTION_EVENT.equals(event)) {
-            // Make sure we throw the right exceptions.
-            try {
-                message.getString(null);
-                fFail("null property name should throw IllegalArgumentException");
-            } catch (final IllegalArgumentException e) {
-            }
-
-            try {
-                message.getString("nonexistent_string");
-                fFail("Nonexistent property name should throw InvalidPropertyException");
-            } catch (final NativeJSObject.InvalidPropertyException e) {
-            }
-
-            try {
-                message.getString("int");
-                fFail("Wrong property type should throw InvalidPropertyException");
-            } catch (final NativeJSObject.InvalidPropertyException e) {
-            }
-
-            // Save this test for last; make sure EventDispatcher catches InvalidPropertyException.
-            message.getString("nonexistent_string");
-            fFail("EventDispatcher should catch InvalidPropertyException");
 
         } else {
             fFail("Event type should be valid: " + event);

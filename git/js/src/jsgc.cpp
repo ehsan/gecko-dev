@@ -1969,7 +1969,7 @@ ArenaLists::wipeDuringParallelExecution(JSRuntime *rt)
 
     // Finalize all background finalizable objects immediately and
     // return the (now empty) arenas back to arena list.
-    FreeOp fop(rt);
+    FreeOp fop(rt, false);
     for (unsigned i = 0; i < FINALIZE_OBJECT_LAST; i++) {
         AllocKind thingKind = AllocKind(i);
 
@@ -2610,7 +2610,7 @@ GCRuntime::sweepBackgroundThings(bool onBackgroundThread)
      * We must finalize in the correct order, see comments in
      * finalizeObjects.
      */
-    FreeOp fop(rt);
+    FreeOp fop(rt, false);
     for (int phase = 0 ; phase < BackgroundPhaseCount ; ++phase) {
         for (Zone *zone = sweepingZones; zone; zone = zone->gcNextGraphNode) {
             for (int index = 0 ; index < BackgroundPhaseLength[phase] ; ++index) {
@@ -2847,6 +2847,25 @@ GCHelperState::startBackgroundAllocationIfIdle()
         startBackgroundThread(ALLOCATING);
 }
 
+void
+GCHelperState::replenishAndFreeLater(void *ptr)
+{
+    JS_ASSERT(freeCursor == freeCursorEnd);
+    do {
+        if (freeCursor && !freeVector.append(freeCursorEnd - FREE_ARRAY_LENGTH))
+            break;
+        freeCursor = (void **) js_malloc(FREE_ARRAY_SIZE);
+        if (!freeCursor) {
+            freeCursorEnd = nullptr;
+            break;
+        }
+        freeCursorEnd = freeCursor + FREE_ARRAY_LENGTH;
+        *freeCursor++ = ptr;
+        return;
+    } while (false);
+    js_free(ptr);
+}
+
 /* Must be called with the GC lock taken. */
 void
 GCHelperState::doSweep()
@@ -2856,6 +2875,19 @@ GCHelperState::doSweep()
         AutoUnlockGC unlock(rt);
 
         rt->gc.sweepBackgroundThings(true);
+
+        if (freeCursor) {
+            void **array = freeCursorEnd - FREE_ARRAY_LENGTH;
+            freeElementsAndArray(array, freeCursor);
+            freeCursor = freeCursorEnd = nullptr;
+        } else {
+            JS_ASSERT(!freeCursorEnd);
+        }
+        for (void ***iter = freeVector.begin(); iter != freeVector.end(); ++iter) {
+            void **array = *iter;
+            freeElementsAndArray(array, array + FREE_ARRAY_LENGTH);
+        }
+        freeVector.resize(0);
 
         rt->freeLifoAlloc.freeAll();
     }
@@ -4107,7 +4139,7 @@ GCRuntime::beginSweepingZoneGroup()
 
     validateIncrementalMarking();
 
-    FreeOp fop(rt);
+    FreeOp fop(rt, sweepOnBackgroundThread);
 
     {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_FINALIZE_START);
@@ -4305,7 +4337,7 @@ bool
 GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP);
-    FreeOp fop(rt);
+    FreeOp fop(rt, sweepOnBackgroundThread);
 
     bool finished = drainMarkStack(sliceBudget, gcstats::PHASE_SWEEP_MARK);
     if (!finished)
@@ -4374,7 +4406,7 @@ void
 GCRuntime::endSweepPhase(JSGCInvocationKind gckind, bool lastGC)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP);
-    FreeOp fop(rt);
+    FreeOp fop(rt, sweepOnBackgroundThread);
 
     JS_ASSERT_IF(lastGC, !sweepOnBackgroundThread);
 

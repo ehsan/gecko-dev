@@ -44,7 +44,7 @@ Time Time::Now() {
   }
   // Combine seconds and microseconds in a 64-bit field containing microseconds
   // since the epoch.  That's enough for nearly 600 centuries.
-  return Time(tv.tv_sec * kMicrosecondsPerSecond + tv.tv_usec);
+  return tv.tv_sec * kMicrosecondsPerSecond + tv.tv_usec;
 }
 
 // static

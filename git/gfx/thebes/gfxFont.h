@@ -267,7 +267,7 @@ class gfxFontEntry {
 public:
     NS_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
-    explicit gfxFontEntry(const nsAString& aName, bool aIsStandardFace = false);
+    gfxFontEntry(const nsAString& aName, bool aIsStandardFace = false);
 
     // unique name for the face, *not* the family; not necessarily the
     // "real" or user-friendly name, may be an internal identifier
@@ -730,7 +730,7 @@ private:
         typedef KeyClass::KeyType KeyType;
         typedef KeyClass::KeyTypePointer KeyTypePointer;
 
-        explicit FontTableHashEntry(KeyTypePointer aTag)
+        FontTableHashEntry(KeyTypePointer aTag)
             : KeyClass(aTag)
             , mSharedBlobData(nullptr)
             , mBlob(nullptr)
@@ -766,7 +766,10 @@ private:
 
         void Clear();
 
-        size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+        static size_t
+        SizeOfEntryExcludingThis(FontTableHashEntry *aEntry,
+                                 mozilla::MallocSizeOf aMallocSizeOf,
+                                 void* aUserArg);
 
     private:
         static void DeleteFontTableBlobData(void *aBlobData);
@@ -809,7 +812,7 @@ class gfxFontFamily {
 public:
     NS_INLINE_DECL_REFCOUNTING(gfxFontFamily)
 
-    explicit gfxFontFamily(const nsAString& aName) :
+    gfxFontFamily(const nsAString& aName) :
         mName(aName),
         mOtherFamilyNamesInitialized(false),
         mHasOtherFamilyNames(false),
@@ -1147,7 +1150,7 @@ protected:
 
         // When constructing a new entry in the hashtable, we'll leave this
         // blank. The caller of Put() will fill this in.
-        explicit HashEntry(KeyTypePointer aStr) : mFont(nullptr) { }
+        HashEntry(KeyTypePointer aStr) : mFont(nullptr) { }
         HashEntry(const HashEntry& toCopy) : mFont(toCopy.mFont) { }
         ~HashEntry() { }
 
@@ -1360,7 +1363,7 @@ protected:
  */
 class gfxGlyphExtents {
 public:
-    explicit gfxGlyphExtents(int32_t aAppUnitsPerDevUnit) :
+    gfxGlyphExtents(int32_t aAppUnitsPerDevUnit) :
         mAppUnitsPerDevUnit(aAppUnitsPerDevUnit) {
         MOZ_COUNT_CTOR(gfxGlyphExtents);
     }
@@ -1410,7 +1413,7 @@ private:
     public:
         // When constructing a new entry in the hashtable, we'll leave this
         // blank. The caller of Put() will fill this in.
-        explicit HashEntry(KeyTypePointer aPtr) : nsUint32HashKey(aPtr) {}
+        HashEntry(KeyTypePointer aPtr) : nsUint32HashKey(aPtr) {}
         HashEntry(const HashEntry& toCopy) : nsUint32HashKey(toCopy) {
           x = toCopy.x; y = toCopy.y; width = toCopy.width; height = toCopy.height;
         }
@@ -1490,7 +1493,7 @@ private:
 
 class gfxFontShaper {
 public:
-    explicit gfxFontShaper(gfxFont *aFont)
+    gfxFontShaper(gfxFont *aFont)
         : mFont(aFont)
     {
         NS_ASSERTION(aFont, "shaper requires a valid font!");
@@ -1977,7 +1980,7 @@ public:
         void ForgetFont() { mFont = nullptr; }
         virtual void NotifyGlyphsChanged() = 0;
     protected:
-        explicit GlyphChangeObserver(gfxFont *aFont) : mFont(aFont)
+        GlyphChangeObserver(gfxFont *aFont) : mFont(aFont)
         {
             mFont->AddGlyphChangeObserver(this);
         }
@@ -2196,7 +2199,7 @@ protected:
 
         // When constructing a new entry in the hashtable, the caller of Put()
         // will fill us in.
-        explicit CacheHashEntry(KeyTypePointer aKey) { }
+        CacheHashEntry(KeyTypePointer aKey) { }
         CacheHashEntry(const CacheHashEntry& toCopy) { NS_ERROR("Should not be called"); }
         ~CacheHashEntry() { }
 
@@ -2208,15 +2211,15 @@ protected:
             return aKey->mHashKey;
         }
 
-        size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-        {
-            return aMallocSizeOf(mShapedWord.get());
-        }
-
         enum { ALLOW_MEMMOVE = true };
 
         nsAutoPtr<gfxShapedWord> mShapedWord;
     };
+
+    static size_t
+    WordCacheEntrySizeOfExcludingThis(CacheHashEntry*   aHashEntry,
+                                      mozilla::MallocSizeOf aMallocSizeOf,
+                                      void*             aUserArg);
 
     nsAutoPtr<nsTHashtable<CacheHashEntry> > mWordCache;
 
@@ -2928,7 +2931,7 @@ struct gfxTextRunDrawCallbacks {
      *   callbacks will be invoked for each SVG glyph.  If false, SVG glyphs
      *   will not be painted; fallback plain glyphs are not emitted either.
      */
-    explicit gfxTextRunDrawCallbacks(bool aShouldPaintSVGGlyphs = false)
+    gfxTextRunDrawCallbacks(bool aShouldPaintSVGGlyphs = false)
       : mShouldPaintSVGGlyphs(aShouldPaintSVGGlyphs)
     {
     }
@@ -3095,7 +3098,7 @@ public:
 
     class ClusterIterator {
     public:
-        explicit ClusterIterator(gfxTextRun *aTextRun);
+        ClusterIterator(gfxTextRun *aTextRun);
 
         void Reset();
 

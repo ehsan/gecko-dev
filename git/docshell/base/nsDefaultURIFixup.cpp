@@ -344,22 +344,6 @@ nsDefaultURIFixup::GetFixupURIInfo(const nsACString& aStringURI, uint32_t aFixup
     // Fix up protocol string before calling KeywordURIFixup, because
     // it cares about the hostname of such URIs:
     nsCOMPtr<nsIURI> uriWithProtocol;
-    bool inputHadDuffProtocol = false;
-
-    // Prune duff protocol schemes
-    //
-    //   ://totallybroken.url.com
-    //   //shorthand.url.com
-    //
-    if (StringBeginsWith(uriString, NS_LITERAL_CSTRING("://")))
-    {
-        uriString = StringTail(uriString, uriString.Length() - 3);
-        inputHadDuffProtocol = true;
-    } else if (StringBeginsWith(uriString, NS_LITERAL_CSTRING("//"))) {
-        uriString = StringTail(uriString, uriString.Length() - 2);
-        inputHadDuffProtocol = true;
-    }
-
     // NB: this rv gets returned at the end of this method if we never
     // do a keyword fixup after this (because the pref or the flags passed
     // might not let us).
@@ -370,8 +354,7 @@ nsDefaultURIFixup::GetFixupURIInfo(const nsACString& aStringURI, uint32_t aFixup
 
     // See if it is a keyword
     // Test whether keywords need to be fixed up
-    if (sFixupKeywords && (aFixupFlags & FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP) &&
-        !inputHadDuffProtocol) {
+    if (sFixupKeywords && (aFixupFlags & FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP)) {
         KeywordURIFixup(uriString, info, aPostData);
         if (info->mPreferredURI)
             return NS_OK;
@@ -744,6 +727,20 @@ nsDefaultURIFixup::FixupURIProtocol(const nsACString & aURIString,
 {
     nsAutoCString uriString(aURIString);
     *aURI = nullptr;
+
+    // Prune duff protocol schemes
+    //
+    //   ://totallybroken.url.com
+    //   //shorthand.url.com
+    //
+    if (StringBeginsWith(uriString, NS_LITERAL_CSTRING("://")))
+    {
+        uriString = StringTail(uriString, uriString.Length() - 3);
+    }
+    else if (StringBeginsWith(uriString, NS_LITERAL_CSTRING("//")))
+    {
+        uriString = StringTail(uriString, uriString.Length() - 2);
+    }
 
     // Add ftp:// or http:// to front of url if it has no spec
     //

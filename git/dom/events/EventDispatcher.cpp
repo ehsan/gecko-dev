@@ -365,7 +365,7 @@ EventTargetChainItemForChromeTarget(nsTArray<EventTargetChainItem>& aChain,
                                     nsINode* aNode,
                                     EventTargetChainItem* aChild = nullptr)
 {
-  if (!aNode->IsInComposedDoc()) {
+  if (!aNode->IsInDoc()) {
     return nullptr;
   }
   nsPIDOMWindow* win = aNode->OwnerDoc()->GetInnerWindow();

@@ -14,10 +14,7 @@ import android.content.Context;
 import android.util.Log;
 
 public final class Clipboard {
-    // Volatile but not synchronized: we don't care about the race condition in
-    // init, because both app contexts will be the same, but we do care about a
-    // thread having a stale null value of mContext.
-    /* inner-access */ volatile static Context mContext;
+    private static Context mContext;
     private final static String LOGTAG = "GeckoClipboard";
     private final static SynchronousQueue<String> sClipboardQueue = new SynchronousQueue<String>();
 
@@ -51,7 +48,6 @@ public final class Clipboard {
                 } catch (InterruptedException ie) {}
             }
         });
-
         try {
             return sClipboardQueue.take();
         } catch (InterruptedException ie) {
@@ -65,11 +61,9 @@ public final class Clipboard {
             @Override
             @SuppressWarnings("deprecation")
             public void run() {
-                // In API Level 11 and above, CLIPBOARD_SERVICE returns android.content.ClipboardManager,
-                // which is a subclass of android.text.ClipboardManager.
                 if (Versions.feature11Plus) {
-                    final android.content.ClipboardManager cm = (android.content.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                    final ClipData clip = ClipData.newPlainText("Text", text);
+                    android.content.ClipboardManager cm = getClipboardManager(mContext);
+                    ClipData clip = ClipData.newPlainText("Text", text);
                     try {
                         cm.setPrimaryClip(clip);
                     } catch (NullPointerException e) {
@@ -77,28 +71,27 @@ public final class Clipboard {
                         // a NullPointerException if Samsung's /data/clipboard directory is full.
                         // Fortunately, the text is still successfully copied to the clipboard.
                     }
-                    return;
+                } else {
+                    android.text.ClipboardManager cm = getDeprecatedClipboardManager(mContext);
+                    cm.setText(text);
                 }
-
-                // Deprecated.
-                android.text.ClipboardManager cm = (android.text.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                cm.setText(text);
             }
         });
     }
 
     /**
+     * Returns true if the clipboard is nonempty, false otherwise.
+     *
      * @return true if the clipboard is nonempty, false otherwise.
      */
     @WrapElementForJNI
     public static boolean hasText() {
         if (Versions.feature11Plus) {
-            android.content.ClipboardManager cm = (android.content.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+            android.content.ClipboardManager cm = getClipboardManager(mContext);
             return cm.hasPrimaryClip();
         }
 
-        // Deprecated.
-        android.text.ClipboardManager cm = (android.text.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+        android.text.ClipboardManager cm = getDeprecatedClipboardManager(mContext);
         return cm.hasText();
     }
 
@@ -110,15 +103,23 @@ public final class Clipboard {
         setText(null);
     }
 
-    /**
-     * On some devices, access to the clipboard service needs to happen
+    private static android.content.ClipboardManager getClipboardManager(Context context) {
+        // In API Level 11 and above, CLIPBOARD_SERVICE returns android.content.ClipboardManager,
+        // which is a subclass of android.text.ClipboardManager.
+        return (android.content.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+    }
+
+    private static android.text.ClipboardManager getDeprecatedClipboardManager(Context context) {
+        return (android.text.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+    }
+
+    /* On some devices, access to the clipboard service needs to happen
      * on a thread with a looper, so this function requires a looper is
-     * present on the thread.
-     */
+     * present on the thread. */
     @SuppressWarnings("deprecation")
-    /* inner-access */ static String getClipboardTextImpl() {
+    private static String getClipboardTextImpl() {
         if (Versions.feature11Plus) {
-            android.content.ClipboardManager cm = (android.content.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+            android.content.ClipboardManager cm = getClipboardManager(mContext);
             if (cm.hasPrimaryClip()) {
                 ClipData clip = cm.getPrimaryClip();
                 if (clip != null) {
@@ -127,7 +128,7 @@ public final class Clipboard {
                 }
             }
         } else {
-            android.text.ClipboardManager cm = (android.text.ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+            android.text.ClipboardManager cm = getDeprecatedClipboardManager(mContext);
             if (cm.hasText()) {
                 return cm.getText().toString();
             }

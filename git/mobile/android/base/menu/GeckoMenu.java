@@ -133,6 +133,7 @@ public class GeckoMenu extends ListView
         setAdapter(mAdapter);
         setOnItemClickListener(this);
 
+        mShowIcons = false;
         mItems = new ArrayList<GeckoMenuItem>();
         mPrimaryActionItems = new HashMap<GeckoMenuItem, View>();
         mSecondaryActionItems = new HashMap<GeckoMenuItem, View>();

@@ -11,7 +11,6 @@ EXPORTS.harfbuzz += [
     'hb-deprecated.h',
     'hb-face.h',
     'hb-font.h',
-    'hb-ot-font.h',
     'hb-ot-layout.h',
     'hb-ot-shape.h',
     'hb-ot-tag.h',

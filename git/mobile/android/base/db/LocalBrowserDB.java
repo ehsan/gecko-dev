@@ -96,6 +96,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     public LocalBrowserDB(String profile) {
         mProfile = profile;
         mFolderIdMap = new HashMap<String, Long>();
+        mDesktopBookmarksExist = null;
 
         mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
         mParentsUriWithProfile = appendProfile(Bookmarks.PARENTS_CONTENT_URI);
@@ -1454,6 +1455,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         public SpecialFoldersCursorWrapper(Cursor c, boolean showDesktopBookmarks) {
             super(c);
+
+            mIndexOffset = 0;
 
             if (showDesktopBookmarks) {
                 mDesktopBookmarksIndex = mIndexOffset;

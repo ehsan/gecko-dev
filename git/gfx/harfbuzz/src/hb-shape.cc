@@ -34,15 +34,15 @@
 #include "hb-font-private.hh"
 
 
-static bool
+static void
 parse_space (const char **pp, const char *end)
 {
-  while (*pp < end && ISSPACE (**pp))
+  char c;
+  while (*pp < end && (c = **pp, ISSPACE (c)))
     (*pp)++;
-  return true;
 }
 
-static bool
+static hb_bool_t
 parse_char (const char **pp, const char *end, char c)
 {
   parse_space (pp, end);
@@ -54,7 +54,7 @@ parse_char (const char **pp, const char *end, char c)
   return true;
 }
 
-static bool
+static hb_bool_t
 parse_uint (const char **pp, const char *end, unsigned int *pv)
 {
   char buf[32];
@@ -78,27 +78,7 @@ parse_uint (const char **pp, const char *end, unsigned int *pv)
   return true;
 }
 
-static bool
-parse_bool (const char **pp, const char *end, unsigned int *pv)
-{
-  parse_space (pp, end);
-
-  const char *p = *pp;
-  while (*pp < end && ISALPHA(**pp))
-    (*pp)++;
-
-  /* CSS allows on/off as aliases 1/0. */
-  if (*pp - p == 2 || 0 == strncmp (p, "on", 2))
-    *pv = 1;
-  else if (*pp - p == 3 || 0 == strncmp (p, "off", 2))
-    *pv = 0;
-  else
-    return false;
-
-  return true;
-}
-
-static bool
+static hb_bool_t
 parse_feature_value_prefix (const char **pp, const char *end, hb_feature_t *feature)
 {
   if (parse_char (pp, end, '-'))
@@ -111,48 +91,32 @@ parse_feature_value_prefix (const char **pp, const char *end, hb_feature_t *feat
   return true;
 }
 
-static bool
+static hb_bool_t
 parse_feature_tag (const char **pp, const char *end, hb_feature_t *feature)
 {
+  const char *p = *pp;
+  char c;
+
   parse_space (pp, end);
 
-  char quote = 0;
-
-  if (*pp < end && (**pp == '\'' || **pp == '"'))
-  {
-    quote = **pp;
+#define ISALNUM(c) (('a' <= (c) && (c) <= 'z') || ('A' <= (c) && (c) <= 'Z') || ('0' <= (c) && (c) <= '9'))
+  while (*pp < end && (c = **pp, ISALNUM(c)))
     (*pp)++;
-  }
+#undef ISALNUM
 
-  const char *p = *pp;
-  while (*pp < end && ISALNUM(**pp))
-    (*pp)++;
-
-  if (p == *pp || *pp - p > 4)
+  if (p == *pp)
     return false;
 
   feature->tag = hb_tag_from_string (p, *pp - p);
-
-  if (quote)
-  {
-    /* CSS expects exactly four bytes.  And we only allow quotations for
-     * CSS compatibility.  So, enforce the length. */
-     if (*pp - p != 4)
-       return false;
-    if (*pp == end || **pp != quote)
-      return false;
-    (*pp)++;
-  }
-
   return true;
 }
 
-static bool
+static hb_bool_t
 parse_feature_indices (const char **pp, const char *end, hb_feature_t *feature)
 {
   parse_space (pp, end);
 
-  bool has_start;
+  hb_bool_t has_start;
 
   feature->start = 0;
   feature->end = (unsigned int) -1;
@@ -172,27 +136,20 @@ parse_feature_indices (const char **pp, const char *end, hb_feature_t *feature)
   return parse_char (pp, end, ']');
 }
 
-static bool
+static hb_bool_t
 parse_feature_value_postfix (const char **pp, const char *end, hb_feature_t *feature)
 {
-  bool had_equal = parse_char (pp, end, '=');
-  bool had_value = parse_uint (pp, end, &feature->value) ||
-                   parse_bool (pp, end, &feature->value);
-  /* CSS doesn't use equal-sign between tag and value.
-   * If there was an equal-sign, then there *must* be a value.
-   * A value without an eqaul-sign is ok, but not required. */
-  return !had_equal || had_value;
+  return !parse_char (pp, end, '=') || parse_uint (pp, end, &feature->value);
 }
 
 
-static bool
+static hb_bool_t
 parse_one_feature (const char **pp, const char *end, hb_feature_t *feature)
 {
   return parse_feature_value_prefix (pp, end, feature) &&
 	 parse_feature_tag (pp, end, feature) &&
 	 parse_feature_indices (pp, end, feature) &&
 	 parse_feature_value_postfix (pp, end, feature) &&
-	 parse_space (pp, end) &&
 	 *pp == end;
 }
 
@@ -200,7 +157,7 @@ parse_one_feature (const char **pp, const char *end, hb_feature_t *feature)
  * hb_feature_from_string:
  * @str: (array length=len):
  * @len: 
- * @feature: (out) (allow-none):
+ * @feature: (out):
  *
  * 
  *
@@ -212,21 +169,10 @@ hb_bool_t
 hb_feature_from_string (const char *str, int len,
 			hb_feature_t *feature)
 {
-  hb_feature_t feat;
-
   if (len < 0)
     len = strlen (str);
 
-  if (likely (parse_one_feature (&str, str + len, &feat)))
-  {
-    if (feature)
-      *feature = feat;
-    return true;
-  }
-
-  if (feature)
-    memset (feature, 0, sizeof (*feature));
-  return false;
+  return parse_one_feature (&str, str + len, feature);
 }
 
 /**
@@ -257,18 +203,18 @@ hb_feature_to_string (hb_feature_t *feature,
   {
     s[len++] = '[';
     if (feature->start)
-      len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%u", feature->start));
+      len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%d", feature->start));
     if (feature->end != feature->start + 1) {
       s[len++] = ':';
       if (feature->end != (unsigned int) -1)
-	len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%u", feature->end));
+	len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%d", feature->end));
     }
     s[len++] = ']';
   }
   if (feature->value > 1)
   {
     s[len++] = '=';
-    len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%u", feature->value));
+    len += MAX (0, snprintf (s + len, ARRAY_LENGTH (s) - len, "%d", feature->value));
   }
   assert (len < ARRAY_LENGTH (s));
   len = MIN (len, size - 1);

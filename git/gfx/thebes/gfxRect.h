@@ -63,7 +63,7 @@ struct gfxRect :
         Super(aPos, aSize) {}
     gfxRect(gfxFloat aX, gfxFloat aY, gfxFloat aWidth, gfxFloat aHeight) :
         Super(aX, aY, aWidth, aHeight) {}
-    MOZ_IMPLICIT gfxRect(const nsIntRect& aRect) :
+    gfxRect(const nsIntRect& aRect) :
         Super(aRect.x, aRect.y, aRect.width, aRect.height) {}
 
     /**
@@ -144,7 +144,7 @@ struct gfxCornerSizes {
 
     gfxCornerSizes () { }
 
-    explicit gfxCornerSizes (gfxFloat v) {
+    gfxCornerSizes (gfxFloat v) {
         for (int i = 0; i < NS_NUM_CORNERS; i++)
             sizes[i].SizeTo(v, v);
     }

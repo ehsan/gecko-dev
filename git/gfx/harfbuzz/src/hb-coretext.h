@@ -29,23 +29,9 @@
 
 #include "hb.h"
 
-#include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
-#  include <CoreText/CoreText.h>
-#  include <CoreGraphics/CoreGraphics.h>
-#else
-#  include <ApplicationServices/ApplicationServices.h>
-#endif
+#include <ApplicationServices/ApplicationServices.h>
 
 HB_BEGIN_DECLS
-
-
-#define HB_CORETEXT_TAG_MORT HB_TAG('m','o','r','t')
-#define HB_CORETEXT_TAG_MORX HB_TAG('m','o','r','x')
-
-
-hb_face_t *
-hb_coretext_face_create (CGFontRef cg_font);
 
 
 CGFontRef

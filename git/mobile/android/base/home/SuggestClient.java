@@ -60,6 +60,7 @@ public class SuggestClient {
     @RobocopTarget
     public SuggestClient(Context context, String suggestTemplate, int timeout) {
         this(context, suggestTemplate, timeout, Integer.MAX_VALUE);
+        mCheckNetwork = false;
     }
 
     /**

@@ -180,7 +180,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     data(nullptr),
     signalHandlersInstalled_(false),
     canUseSignalHandlers_(false),
-    defaultFreeOp_(thisFromCtor()),
+    defaultFreeOp_(thisFromCtor(), false),
     debuggerMutations(0),
     securityCallbacks(const_cast<JSSecurityCallbacks *>(&NullSecurityCallbacks)),
     DOMcallbacks(nullptr),

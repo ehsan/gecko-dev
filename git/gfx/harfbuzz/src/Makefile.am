@@ -35,7 +35,6 @@ HBSOURCES =  \
 	hb-object-private.hh \
 	hb-open-file-private.hh \
 	hb-open-type-private.hh \
-	hb-ot-cmap-table.hh \
 	hb-ot-head-table.hh \
 	hb-ot-hhea-table.hh \
 	hb-ot-hmtx-table.hh \
@@ -52,6 +51,7 @@ HBSOURCES =  \
 	hb-shaper-impl-private.hh \
 	hb-shaper-private.hh \
 	hb-shaper.cc \
+	hb-tt-font.cc \
 	hb-unicode-private.hh \
 	hb-unicode.cc \
 	hb-utf-private.hh \
@@ -76,7 +76,6 @@ HBNODISTHEADERS = \
 
 if HAVE_OT
 HBSOURCES += \
-	hb-ot-font.cc \
 	hb-ot-layout.cc \
 	hb-ot-layout-common-private.hh \
 	hb-ot-layout-gdef-table.hh \
@@ -91,7 +90,6 @@ HBSOURCES += \
 	hb-ot-shape-complex-arabic.cc \
 	hb-ot-shape-complex-arabic-fallback.hh \
 	hb-ot-shape-complex-arabic-table.hh \
-	hb-ot-shape-complex-arabic-win1256.hh \
 	hb-ot-shape-complex-default.cc \
 	hb-ot-shape-complex-hangul.cc \
 	hb-ot-shape-complex-hebrew.cc \
@@ -114,7 +112,6 @@ HBSOURCES += \
 	$(NULL)
 HBHEADERS += \
 	hb-ot.h \
-	hb-ot-font.h \
 	hb-ot-layout.h \
 	hb-ot-shape.h \
 	hb-ot-tag.h \
@@ -282,14 +279,13 @@ indic-table: gen-indic-table.py IndicSyllabicCategory.txt IndicMatraCategory.txt
 	mv hb-ot-shape-complex-indic-table.cc.tmp $(srcdir)/hb-ot-shape-complex-indic-table.cc || \
 	($(RM) hb-ot-shape-complex-indic-table.cc.tmp; false)
 
-arabic-table: gen-arabic-table.py ArabicShaping.txt UnicodeData.txt Blocks.txt
+arabic-table: gen-arabic-table.py ArabicShaping.txt UnicodeData.txt
 	$(AM_V_GEN) $(builddir)/$^ > hb-ot-shape-complex-arabic-table.hh.tmp && \
 	mv hb-ot-shape-complex-arabic-table.hh.tmp $(srcdir)/hb-ot-shape-complex-arabic-table.hh || \
 	($(RM) hb-ot-shape-complex-arabic-table.hh.tmp; false)
 
-built-sources: $(BUILT_SOURCES)
 
-.PHONY: unicode-tables arabic-table indic-table built-sources
+.PHONY: unicode-tables arabic-table indic-table
 
 BUILT_SOURCES += \
 	hb-buffer-deserialize-json.hh \
@@ -306,7 +302,7 @@ EXTRA_DIST += \
 	hb-ot-shape-complex-sea-machine.rl \
 	$(NULL)
 .rl.hh:
-	$(AM_V_GEN)$(RAGEL) -e -F1 -o "$@.tmp" "$<" && \
+	$(AM_V_GEN)$(top_srcdir)/missing --run ragel -e -F1 -o "$@.tmp" "$<" && \
 	mv "$@.tmp" "$@" || ( $(RM) "$@.tmp" && false )
 
 noinst_PROGRAMS = \
@@ -362,7 +358,6 @@ if HAVE_INTROSPECTION
 INTROSPECTION_GIRS = HarfBuzz-$(HB_VERSION_MAJOR).0.gir # What does the 0 mean anyway?!
 INTROSPECTION_SCANNER_ARGS = -I$(srcdir) -n hb --identifier-prefix=hb_ --warn-all
 INTROSPECTION_COMPILER_ARGS = --includedir=$(srcdir)
-INTROSPECTION_SCANNER_ENV = CC="$(CC)"
 
 HarfBuzz-0.0.gir: libharfbuzz.la libharfbuzz-gobject.la
 HarfBuzz_0_0_gir_INCLUDES = GObject-2.0

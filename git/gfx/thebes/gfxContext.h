@@ -48,8 +48,8 @@ public:
      * Strips any transform from aTarget.
      * aTarget will be flushed in the gfxContext's destructor.
      */
-    explicit gfxContext(mozilla::gfx::DrawTarget *aTarget,
-                        const mozilla::gfx::Point& aDeviceOffset = mozilla::gfx::Point());
+    gfxContext(mozilla::gfx::DrawTarget *aTarget,
+               const mozilla::gfx::Point& aDeviceOffset = mozilla::gfx::Point());
 
     /**
      * Create a new gfxContext wrapping aTarget and preserving aTarget's
@@ -810,7 +810,7 @@ class gfxContextAutoSaveRestore
 public:
   gfxContextAutoSaveRestore() : mContext(nullptr) {}
 
-  explicit gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
+  gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
     mContext->Save();
   }
 
@@ -857,7 +857,7 @@ class gfxContextPathAutoSaveRestore
 public:
     gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
 
-    explicit gfxContextPathAutoSaveRestore(gfxContext *aContext, bool aSave = true) : mContext(aContext)
+    gfxContextPathAutoSaveRestore(gfxContext *aContext, bool aSave = true) : mContext(aContext)
     {
         if (aSave)
             Save();       
@@ -917,7 +917,7 @@ public:
     {
     }
 
-    explicit gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
+    gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
         mContext(aContext), mMatrix(aContext->CurrentMatrix())
     {
     }

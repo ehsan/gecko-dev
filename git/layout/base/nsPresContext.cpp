@@ -2721,7 +2721,7 @@ nsPresContext::GetPrimaryFrameFor(nsIContent* aContent)
 {
   NS_PRECONDITION(aContent, "Don't do that");
   if (GetPresShell() &&
-      GetPresShell()->GetDocument() == aContent->GetComposedDoc()) {
+      GetPresShell()->GetDocument() == aContent->GetCurrentDoc()) {
     return aContent->GetPrimaryFrame();
   }
   return nullptr;

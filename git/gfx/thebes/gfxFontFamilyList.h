@@ -52,14 +52,14 @@ struct FontFamilyName MOZ_FINAL {
     {}
 
     // named font family - e.g. Helvetica
-    explicit FontFamilyName(const nsAString& aFamilyName,
-                            QuotedName aQuoted = eUnquotedName) {
+    FontFamilyName(const nsAString& aFamilyName,
+                   QuotedName aQuoted = eUnquotedName) {
         mType = (aQuoted == eQuotedName) ? eFamily_named_quoted : eFamily_named;
         mName = aFamilyName;
     }
 
     // generic font family - e.g. sans-serif
-    explicit FontFamilyName(FontFamilyType aType) {
+    FontFamilyName(FontFamilyType aType) {
         NS_ASSERTION(aType != eFamily_named &&
                      aType != eFamily_named_quoted &&
                      aType != eFamily_none,
@@ -178,7 +178,7 @@ public:
     {
     }
 
-    explicit FontFamilyList(FontFamilyType aGenericType)
+    FontFamilyList(FontFamilyType aGenericType)
         : mDefaultFontType(eFamily_none)
     {
         Append(FontFamilyName(aGenericType));

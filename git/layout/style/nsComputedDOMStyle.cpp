@@ -526,11 +526,11 @@ nsComputedDOMStyle::GetAdjustedValuesForBoxSizing()
 nsIPresShell*
 nsComputedDOMStyle::GetPresShellForContent(nsIContent* aContent)
 {
-  nsIDocument* composedDoc = aContent->GetComposedDoc();
-  if (!composedDoc)
+  nsIDocument* currentDoc = aContent->GetCurrentDoc();
+  if (!currentDoc)
     return nullptr;
 
-  return composedDoc->GetShell();
+  return currentDoc->GetShell();
 }
 
 // nsDOMCSSDeclaration abstract methods which should never be called

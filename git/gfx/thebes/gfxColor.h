@@ -136,7 +136,7 @@ struct gfxRGBA {
      *
      * @see gfxRGBA::Packed
      */
-    MOZ_IMPLICIT gfxRGBA(uint32_t c, PackedColorType colorType = PACKED_ABGR) {
+    gfxRGBA(uint32_t c, PackedColorType colorType = PACKED_ABGR) {
         if (colorType == PACKED_ABGR ||
             colorType == PACKED_ABGR_PREMULTIPLIED)
         {

@@ -179,7 +179,7 @@ js::Nursery::allocateObject(JSContext *cx, size_t size, size_t numDynamic)
 
     HeapSlot *slots = nullptr;
     if (numDynamic) {
-        slots = allocateHugeSlots(cx->zone(), numDynamic);
+        slots = allocateHugeSlots(cx, numDynamic);
         if (MOZ_UNLIKELY(!slots))
             return nullptr;
     }
@@ -189,7 +189,7 @@ js::Nursery::allocateObject(JSContext *cx, size_t size, size_t numDynamic)
     if (obj)
         obj->setInitialSlots(slots);
     else
-        freeSlots(slots);
+        freeSlots(cx, slots);
 
     TraceNurseryAlloc(obj, size);
     return obj;
@@ -217,41 +217,44 @@ js::Nursery::allocate(size_t size)
 
 /* Internally, this function is used to allocate elements as well as slots. */
 HeapSlot *
-js::Nursery::allocateSlots(JSObject *obj, uint32_t nslots)
+js::Nursery::allocateSlots(JSContext *cx, JSObject *obj, uint32_t nslots)
 {
     JS_ASSERT(obj);
     JS_ASSERT(nslots > 0);
 
     if (!IsInsideNursery(obj))
-        return obj->zone()->pod_malloc<HeapSlot>(nslots);
+        return cx->pod_malloc<HeapSlot>(nslots);
 
     if (nslots > MaxNurserySlots)
-        return allocateHugeSlots(obj->zone(), nslots);
+        return allocateHugeSlots(cx, nslots);
 
     size_t size = sizeof(HeapSlot) * nslots;
     HeapSlot *slots = static_cast<HeapSlot *>(allocate(size));
     if (slots)
         return slots;
 
-    return allocateHugeSlots(obj->zone(), nslots);
+    return allocateHugeSlots(cx, nslots);
 }
 
 ObjectElements *
-js::Nursery::allocateElements(JSObject *obj, uint32_t nelems)
+js::Nursery::allocateElements(JSContext *cx, JSObject *obj, uint32_t nelems)
 {
     JS_ASSERT(nelems >= ObjectElements::VALUES_PER_HEADER);
-    return reinterpret_cast<ObjectElements *>(allocateSlots(obj, nelems));
+    return reinterpret_cast<ObjectElements *>(allocateSlots(cx, obj, nelems));
 }
 
 HeapSlot *
-js::Nursery::reallocateSlots(JSObject *obj, HeapSlot *oldSlots,
+js::Nursery::reallocateSlots(JSContext *cx, JSObject *obj, HeapSlot *oldSlots,
                              uint32_t oldCount, uint32_t newCount)
 {
+    size_t oldSize = oldCount * sizeof(HeapSlot);
+    size_t newSize = newCount * sizeof(HeapSlot);
+
     if (!IsInsideNursery(obj))
-        return obj->zone()->pod_realloc<HeapSlot>(oldSlots, oldCount, newCount);
+        return static_cast<HeapSlot *>(cx->realloc_(oldSlots, oldSize, newSize));
 
     if (!isInside(oldSlots)) {
-        HeapSlot *newSlots = obj->zone()->pod_realloc<HeapSlot>(oldSlots, oldCount, newCount);
+        HeapSlot *newSlots = static_cast<HeapSlot *>(cx->realloc_(oldSlots, oldSize, newSize));
         if (newSlots && oldSlots != newSlots) {
             hugeSlots.remove(oldSlots);
             /* If this put fails, we will only leak the slots. */
@@ -264,23 +267,23 @@ js::Nursery::reallocateSlots(JSObject *obj, HeapSlot *oldSlots,
     if (newCount < oldCount)
         return oldSlots;
 
-    HeapSlot *newSlots = allocateSlots(obj, newCount);
+    HeapSlot *newSlots = allocateSlots(cx, obj, newCount);
     if (newSlots)
         PodCopy(newSlots, oldSlots, oldCount);
     return newSlots;
 }
 
 ObjectElements *
-js::Nursery::reallocateElements(JSObject *obj, ObjectElements *oldHeader,
+js::Nursery::reallocateElements(JSContext *cx, JSObject *obj, ObjectElements *oldHeader,
                                 uint32_t oldCount, uint32_t newCount)
 {
-    HeapSlot *slots = reallocateSlots(obj, reinterpret_cast<HeapSlot *>(oldHeader),
+    HeapSlot *slots = reallocateSlots(cx, obj, reinterpret_cast<HeapSlot *>(oldHeader),
                                       oldCount, newCount);
     return reinterpret_cast<ObjectElements *>(slots);
 }
 
 void
-js::Nursery::freeSlots(HeapSlot *slots)
+js::Nursery::freeSlots(JSContext *cx, HeapSlot *slots)
 {
     if (!isInside(slots)) {
         hugeSlots.remove(slots);
@@ -289,9 +292,9 @@ js::Nursery::freeSlots(HeapSlot *slots)
 }
 
 HeapSlot *
-js::Nursery::allocateHugeSlots(JS::Zone *zone, size_t nslots)
+js::Nursery::allocateHugeSlots(JSContext *cx, size_t nslots)
 {
-    HeapSlot *slots = zone->pod_malloc<HeapSlot>(nslots);
+    HeapSlot *slots = cx->pod_malloc<HeapSlot>(nslots);
     /* If this put fails, we will only leak the slots. */
     if (slots)
         (void)hugeSlots.put(slots);

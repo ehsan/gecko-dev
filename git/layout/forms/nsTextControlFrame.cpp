@@ -244,7 +244,7 @@ nsTextControlFrame::EnsureEditorInitialized()
   if (mEditorHasBeenInitialized)
     return NS_OK;
 
-  nsIDocument* doc = mContent->GetComposedDoc();
+  nsIDocument* doc = mContent->GetCurrentDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   nsWeakFrame weakFrame(this);
@@ -632,7 +632,7 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   if (!isFocusedRightNow) {
     // Don't scroll the current selection if we've been focused using the mouse.
     uint32_t lastFocusMethod = 0;
-    nsIDocument* doc = GetContent()->GetComposedDoc();
+    nsIDocument* doc = GetContent()->GetCurrentDoc();
     if (doc) {
       nsIFocusManager* fm = nsFocusManager::GetFocusManager();
       if (fm) {

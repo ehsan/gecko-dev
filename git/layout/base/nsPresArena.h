@@ -131,9 +131,6 @@ private:
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     { return NS_PTR_TO_INT32(aKey); }
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-    { return mEntries.SizeOfExcludingThis(aMallocSizeOf); }
-
     enum { ALLOW_MEMMOVE = false };
   };
 
@@ -141,6 +138,9 @@ private:
   static PLDHashOperator UnpoisonFreeList(FreeList* aEntry, void*);
 #endif
   static PLDHashOperator FreeListEnumerator(FreeList* aEntry, void* aData);
+  static size_t SizeOfFreeListEntryExcludingThis(FreeList* aEntry,
+                                                 mozilla::MallocSizeOf aMallocSizeOf,
+                                                 void*);
 
   nsTHashtable<FreeList> mFreeLists;
   PLArenaPool mPool;

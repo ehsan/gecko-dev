@@ -159,6 +159,7 @@ class TestEmitterBasic(unittest.TestCase):
             HOST_CSRCS=['fans.c', 'tans.c'],
             MSVC_ENABLE_PGO=True,
             NO_DIST_INSTALL=True,
+            OS_LIBS=['foo.so', '-l123', 'aaa.a'],
             SSRCS=['bans.S', 'fans.S'],
             VISIBILITY_FLAGS='',
             DELAYLOAD_LDFLAGS=['-DELAYLOAD:foo.dll', '-DELAYLOAD:bar.dll'],

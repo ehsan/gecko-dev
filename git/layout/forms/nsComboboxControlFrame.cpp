@@ -1466,7 +1466,7 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // draw a focus indicator only when focus rings should be drawn
-  nsIDocument* doc = mContent->GetComposedDoc();
+  nsIDocument* doc = mContent->GetCurrentDoc();
   if (doc) {
     nsPIDOMWindow* window = doc->GetWindow();
     if (window && window->ShouldShowFocusRing()) {

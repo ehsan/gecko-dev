@@ -6253,7 +6253,7 @@ nsLayoutUtils::PostRestyleEvent(Element* aElement,
                                 nsRestyleHint aRestyleHint,
                                 nsChangeHint aMinChangeHint)
 {
-  nsIDocument* doc = aElement->GetComposedDoc();
+  nsIDocument* doc = aElement->GetCurrentDoc();
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
     if (presShell) {

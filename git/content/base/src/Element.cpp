@@ -308,7 +308,7 @@ Element::LockedStyleStates() const
 void
 Element::NotifyStyleStateChange(EventStates aStates)
 {
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     nsIPresShell *presShell = doc->GetShell();
     if (presShell) {

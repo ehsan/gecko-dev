@@ -18,4 +18,4 @@ FAIL_ON_WARNINGS = True
 
 FINAL_LIBRARY = 'xul'
 
-OS_LIBS += ['-framework AudioToolbox']
+LDFLAGS += ['-framework AudioToolbox']

@@ -33,7 +33,7 @@ private:
 
     struct Block {
         Block(const Block& aBlock) { memcpy(mBits, aBlock.mBits, sizeof(mBits)); }
-        explicit Block(unsigned char memsetValue = 0) { memset(mBits, memsetValue, BLOCK_SIZE); }
+        Block(unsigned char memsetValue = 0) { memset(mBits, memsetValue, BLOCK_SIZE); }
         uint8_t mBits[BLOCK_SIZE];
     };
 
@@ -336,7 +336,7 @@ struct AutoSwap_PRUint16 {
         return *this;
     }
 #else
-    MOZ_IMPLICIT AutoSwap_PRUint16(uint16_t aValue)
+    AutoSwap_PRUint16(uint16_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -368,7 +368,7 @@ struct AutoSwap_PRInt16 {
         return *this;
     }
 #else
-    MOZ_IMPLICIT AutoSwap_PRInt16(int16_t aValue)
+    AutoSwap_PRInt16(int16_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -395,7 +395,7 @@ struct AutoSwap_PRUint32 {
         return *this;
     }
 #else
-    MOZ_IMPLICIT AutoSwap_PRUint32(uint32_t aValue)
+    AutoSwap_PRUint32(uint32_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -417,7 +417,7 @@ struct AutoSwap_PRInt32 {
         return *this;
     }
 #else
-    MOZ_IMPLICIT AutoSwap_PRInt32(int32_t aValue)
+    AutoSwap_PRInt32(int32_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -439,7 +439,7 @@ struct AutoSwap_PRUint64 {
         return *this;
     }
 #else
-    MOZ_IMPLICIT AutoSwap_PRUint64(uint64_t aValue)
+    AutoSwap_PRUint64(uint64_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }

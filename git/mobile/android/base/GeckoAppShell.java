@@ -411,7 +411,7 @@ public class GeckoAppShell
      *  The Gecko-side API: API methods that Gecko calls
      */
 
-    @WrapElementForJNI(allowMultithread = true, noThrow = true)
+    @WrapElementForJNI(allowMultithread = true, generateStatic = true, noThrow = true)
     public static void handleUncaughtException(Thread thread, Throwable e) {
         if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoExited)) {
             // We've called System.exit. All exceptions after this point are Android
@@ -452,14 +452,14 @@ public class GeckoAppShell
         }
     }
 
-    @WrapElementForJNI
+    @WrapElementForJNI(generateStatic = true)
     public static void notifyIME(int type) {
         if (editableListener != null) {
             editableListener.notifyIME(type);
         }
     }
 
-    @WrapElementForJNI
+    @WrapElementForJNI(generateStatic = true)
     public static void notifyIMEContext(int state, String typeHint,
                                         String modeHint, String actionHint) {
         if (editableListener != null) {
@@ -468,7 +468,7 @@ public class GeckoAppShell
         }
     }
 
-    @WrapElementForJNI
+    @WrapElementForJNI(generateStatic = true)
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
         if (newEnd < 0) { // Selection change
             editableListener.onSelectionChange(start, end);
@@ -1577,7 +1577,7 @@ public class GeckoAppShell
     public static boolean checkForGeckoProcs() {
 
         class GeckoPidCallback implements GeckoProcessesVisitor {
-            public boolean otherPidExist;
+            public boolean otherPidExist = false;
             @Override
             public boolean callback(int pid) {
                 if (pid != android.os.Process.myPid()) {
@@ -2099,12 +2099,12 @@ public class GeckoAppShell
         sGeckoInterface = aGeckoInterface;
     }
 
-    public static android.hardware.Camera sCamera;
+    public static android.hardware.Camera sCamera = null;
 
     static native void cameraCallbackBridge(byte[] data);
 
     static int kPreferedFps = 25;
-    static byte[] sCameraBuffer;
+    static byte[] sCameraBuffer = null;
 
 
     @WrapElementForJNI(stubName = "InitCameraWrapper")

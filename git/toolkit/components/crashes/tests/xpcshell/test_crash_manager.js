@@ -12,12 +12,10 @@ Cu.import("resource://gre/modules/osfile.jsm", this);
 
 Cu.import("resource://testing-common/CrashManagerTest.jsm", this);
 
-const DUMMY_DATE = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
-DUMMY_DATE.setMilliseconds(0);
+const DUMMY_DATE = new Date(1391043519000);
 
 function run_test() {
   do_get_profile();
-  configureLogging();
   run_next_test();
 }
 

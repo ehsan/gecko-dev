@@ -298,7 +298,7 @@ hb_face_get_user_data (hb_face_t          *face,
 void
 hb_face_make_immutable (hb_face_t *face)
 {
-  if (unlikely (hb_object_is_inert (face)))
+  if (hb_object_is_inert (face))
     return;
 
   face->immutable = true;
@@ -368,7 +368,7 @@ void
 hb_face_set_index (hb_face_t    *face,
 		   unsigned int  index)
 {
-  if (face->immutable)
+  if (hb_object_is_inert (face))
     return;
 
   face->index = index;
@@ -403,7 +403,7 @@ void
 hb_face_set_upem (hb_face_t    *face,
 		  unsigned int  upem)
 {
-  if (face->immutable)
+  if (hb_object_is_inert (face))
     return;
 
   face->upem = upem;
@@ -447,7 +447,7 @@ void
 hb_face_set_glyph_count (hb_face_t    *face,
 			 unsigned int  glyph_count)
 {
-  if (face->immutable)
+  if (hb_object_is_inert (face))
     return;
 
   face->num_glyphs = glyph_count;

@@ -75,9 +75,9 @@ struct NativeFont {
  */
 struct DrawOptions {
   /// For constructor parameter description, see member data documentation.
-  explicit DrawOptions(Float aAlpha = 1.0f,
-                       CompositionOp aCompositionOp = CompositionOp::OP_OVER,
-                       AntialiasMode aAntialiasMode = AntialiasMode::DEFAULT)
+  DrawOptions(Float aAlpha = 1.0f,
+              CompositionOp aCompositionOp = CompositionOp::OP_OVER,
+              AntialiasMode aAntialiasMode = AntialiasMode::DEFAULT)
     : mAlpha(aAlpha)
     , mCompositionOp(aCompositionOp)
     , mAntialiasMode(aAntialiasMode)
@@ -97,13 +97,13 @@ struct DrawOptions {
  */
 struct StrokeOptions {
   /// For constructor parameter description, see member data documentation.
-  explicit StrokeOptions(Float aLineWidth = 1.0f,
-                         JoinStyle aLineJoin = JoinStyle::MITER_OR_BEVEL,
-                         CapStyle aLineCap = CapStyle::BUTT,
-                         Float aMiterLimit = 10.0f,
-                         size_t aDashLength = 0,
-                         const Float* aDashPattern = 0,
-                         Float aDashOffset = 0.f)
+  StrokeOptions(Float aLineWidth = 1.0f,
+                JoinStyle aLineJoin = JoinStyle::MITER_OR_BEVEL,
+                CapStyle aLineCap = CapStyle::BUTT,
+                Float aMiterLimit = 10.0f,
+                size_t aDashLength = 0,
+                const Float* aDashPattern = 0,
+                Float aDashOffset = 0.f)
     : mLineWidth(aLineWidth)
     , mMiterLimit(aMiterLimit)
     , mDashPattern(aDashLength > 0 ? aDashPattern : 0)
@@ -133,8 +133,8 @@ struct StrokeOptions {
  */
 struct DrawSurfaceOptions {
   /// For constructor parameter description, see member data documentation.
-  explicit DrawSurfaceOptions(Filter aFilter = Filter::LINEAR,
-                              SamplingBounds aSamplingBounds = SamplingBounds::UNBOUNDED)
+  DrawSurfaceOptions(Filter aFilter = Filter::LINEAR,
+                     SamplingBounds aSamplingBounds = SamplingBounds::UNBOUNDED)
     : mFilter(aFilter)
     , mSamplingBounds(aSamplingBounds)
   { }
@@ -185,7 +185,7 @@ protected:
 class ColorPattern : public Pattern
 {
 public:
-  explicit ColorPattern(const Color &aColor)
+  ColorPattern(const Color &aColor)
     : mColor(aColor)
   {}
 

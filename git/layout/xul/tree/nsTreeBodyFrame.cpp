@@ -2522,7 +2522,7 @@ nsTreeBodyFrame::GetCursor(const nsPoint& aPoint,
   // Check the GetScriptHandlingObject so we don't end up running code when
   // the document is a zombie.
   bool dummy;
-  if (mView && GetContent()->GetComposedDoc()->GetScriptHandlingObject(dummy)) {
+  if (mView && GetContent()->GetCurrentDoc()->GetScriptHandlingObject(dummy)) {
     int32_t row;
     nsTreeColumn* col;
     nsIAtom* child;
@@ -2803,7 +2803,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Bail out now if there's no view or we can't run script because the
   // document is a zombie
-  if (!mView || !GetContent ()->GetComposedDoc()->GetWindow())
+  if (!mView || !GetContent()->GetCurrentDoc()->GetWindow())
     return;
 
   aLists.Content()->AppendNewToTop(new (aBuilder)

@@ -4,10 +4,8 @@
 
 package org.mozilla.gecko.mozglue.generatorannotations;
 
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 
 /**
  * Used to annotate parameters which are optional on the C++ side of the bridge. The annotation is
@@ -16,6 +14,5 @@ import java.lang.annotation.Target;
  * The default values are zero for numerical types, false for booleans, "" for strings, and null
  * for all other reference types.
  */
-@Target({ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface OptionalGeneratedParameter {}

@@ -19,7 +19,7 @@ elif CONFIG['OS_ARCH'] == 'Darwin':
     UNIFIED_SOURCES += [
       'MacVerifyCrypto.cpp',
     ]
-    OS_LIBS += [
+    LDFLAGS += [
       '-framework Security',
     ]
 else:

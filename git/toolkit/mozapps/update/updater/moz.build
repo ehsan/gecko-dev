@@ -34,14 +34,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'updatecommon-standalone',
         'verifymar',
     ]
-    OS_LIBS += [
-        'comctl32',
-        'ws2_32',
-        'shell32',
-        'shlwapi',
-        'crypt32',
-        'advapi32',
-    ]
 else:
     USE_LIBS += [
         'updatecommon',
@@ -51,9 +43,7 @@ USE_LIBS += [
     'mar',
 ]
 
-if CONFIG['MOZ_NATIVE_BZ2']:
-    OS_LIBS += CONFIG['MOZ_BZ2_LIBS']
-else:
+if not CONFIG['MOZ_NATIVE_BZ2']:
     USE_LIBS += [
         'bz2',
     ]
@@ -70,7 +60,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
         'launchchild_osx.mm',
         'progressui_osx.mm',
     ]
-    OS_LIBS += ['-framework Cocoa']
+    LDFLAGS += ['-framework Cocoa']
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     have_progressui = 1
     SOURCES += [
@@ -78,10 +68,6 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'progressui_gonk.cpp',
     ]
     DISABLE_STL_WRAPPING = True
-    OS_LIBS += [
-        'cutils',
-        'sysutils',
-    ]
 
 if have_progressui == 0:
     SOURCES += [
@@ -116,4 +102,3 @@ elif CONFIG['MOZ_UPDATE_CHANNEL'] in ('nightly', 'aurora', 'nightly-elm', 'night
 
 if CONFIG['MOZ_WIDGET_GTK']:
     CXXFLAGS += CONFIG['TK_CFLAGS']
-    OS_LIBS += CONFIG['TK_LIBS']

@@ -90,6 +90,8 @@ public class TopSitesGridView extends GridView {
         mHorizontalSpacing = a.getDimensionPixelOffset(R.styleable.TopSitesGridView_android_horizontalSpacing, 0x00);
         mVerticalSpacing = a.getDimensionPixelOffset(R.styleable.TopSitesGridView_android_verticalSpacing, 0x00);
         a.recycle();
+
+        mIsHandlingFocusChange = false;
     }
 
     /**

@@ -62,6 +62,7 @@ public class DateTimePicker extends FrameLayout {
     private final LinearLayout mPickers;
     private final LinearLayout mDateSpinners;
     private final LinearLayout mTimeSpinners;
+    private final LinearLayout mSpinners;
     private final NumberPicker mDaySpinner;
     private final NumberPicker mMonthSpinner;
     private final NumberPicker mWeekSpinner;
@@ -249,6 +250,7 @@ public class DateTimePicker extends FrameLayout {
 
         mDateSpinners = (LinearLayout)findViewById(R.id.date_spinners);
         mTimeSpinners = (LinearLayout)findViewById(R.id.time_spinners);
+        mSpinners = (LinearLayout)findViewById(R.id.spinners);
         mPickers = (LinearLayout)findViewById(R.id.datetime_picker);
 
         // We will display differently according to the screen size width.
@@ -300,7 +302,7 @@ public class DateTimePicker extends FrameLayout {
             // time spinners, and if there is no calendar displayed, we should
             // display the fields in one row.
             if (mScreenWidth > mScreenHeight && mState == PickersState.DATETIME) {
-                mPickers.setOrientation(LinearLayout.HORIZONTAL);
+                mSpinners.setOrientation(LinearLayout.HORIZONTAL);
             }
             mCalendar = null;
         }
@@ -529,7 +531,7 @@ public class DateTimePicker extends FrameLayout {
             setYearShown(true);
             setMonthShown(true);
             setDayShown(true);
-            mPickers.setOrientation(LinearLayout.HORIZONTAL);
+            mSpinners.setOrientation(LinearLayout.HORIZONTAL);
             mCalendarEnabled = false;
         }
     }

@@ -110,6 +110,10 @@ public class TopSitesPanel extends HomeFragment {
         return new TopSitesPanel();
     }
 
+    public TopSitesPanel() {
+        mUrlOpenListener = null;
+    }
+
     private static boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
     private static boolean logVerbose = Log.isLoggable(LOGTAG, Log.VERBOSE);
 

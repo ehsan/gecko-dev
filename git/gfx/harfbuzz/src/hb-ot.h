@@ -30,7 +30,6 @@
 
 #include "hb.h"
 
-#include "hb-ot-font.h"
 #include "hb-ot-layout.h"
 #include "hb-ot-tag.h"
 #include "hb-ot-shape.h"
