@@ -68,15 +68,22 @@ SetObexPacketInfo(uint8_t* aRetBuf, uint8_t aOpcode, int aPacketLength)
   aRetBuf[2] = aPacketLength & 0x00FF;
 }
 
-void
-ParseHeaders(const uint8_t* aHeaderStart,
-             int aTotalLength,
-             ObexHeaderSet* aRetHandlerSet)
+int
+ParseHeadersAndFindBody(uint8_t* aHeaderStart,
+                        int aTotalLength,
+                        ObexHeaderSet* aRetHandlerSet)
 {
-  const uint8_t* ptr = aHeaderStart;
+  uint8_t* ptr = aHeaderStart;
 
   while (ptr - aHeaderStart < aTotalLength) {
-    ObexHeaderId headerId = (ObexHeaderId)*ptr++;
+    ObexHeaderId headerId = (ObexHeaderId)*ptr;
+
+    if (headerId == ObexHeaderId::Body ||
+        headerId == ObexHeaderId::EndOfBody) {
+      return ptr - aHeaderStart;
+    }
+
+    ++ptr;
 
     int contentLength = 0;
     uint8_t highByte, lowByte;
@@ -111,6 +118,8 @@ ParseHeaders(const uint8_t* aHeaderStart,
 
     ptr += contentLength;
   }
+
+  return -1;
 }
 
 END_BLUETOOTH_NAMESPACE

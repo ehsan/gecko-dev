@@ -450,11 +450,11 @@ PeerConnection.prototype = {
     // Must determine the type where we still know if entries are undefined.
     let type;
     if (dict.maxRetransmitTime != undefined) {
-      type = Ci.IPeerConnection.kDataChannelPartialReliableTimed;
+      type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_TIMED;
     } else if (dict.maxRetransmitNum != undefined) {
-      type = Ci.IPeerConnection.kDataChannelPartialReliableRexmit;
+      type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_REXMIT;
     } else {
-      type = Ci.IPeerConnection.kDataChannelReliable;
+      type = Ci.IPeerConnection.DATACHANNEL_RELIABLE;
     }
 
     // Synchronous since it doesn't block.

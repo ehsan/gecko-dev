@@ -82,8 +82,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-using mozilla::DebugOnly;
-
 /* Some objects (e.g., With) delegate 'this' to another object. */
 static inline JSObject *
 CallThisObjectHook(JSContext *cx, HandleObject obj, Value *argv)
@@ -795,8 +793,7 @@ void
 js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
 {
     /* c.f. the regular (catchable) TryNoteIter loop in Interpret. */
-    AutoAssertNoGC nogc;
-    for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
+    for (TryNoteIter tni(regs); !tni.done(); ++tni) {
         JSTryNote *tn = *tni;
         if (tn->kind == JSTRY_ITER) {
             Value *sp = regs.spForStackDepth(tn->stackDepth);
@@ -805,9 +802,9 @@ js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
     }
 }
 
-TryNoteIter::TryNoteIter(JSContext *cx, const FrameRegs &regs)
+TryNoteIter::TryNoteIter(const FrameRegs &regs)
   : regs(regs),
-    script(cx, regs.fp()->script()),
+    script(regs.fp()->script().unsafeGet()),
     pcOffset(regs.pc - script->main())
 {
     if (script->hasTrynotes()) {
@@ -3697,7 +3694,7 @@ END_CASE(JSOP_ARRAYPUSH)
             }
         }
 
-        for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
+        for (TryNoteIter tni(regs); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 
             UnwindScope(cx, tn->stackDepth);

@@ -260,7 +260,9 @@ nsIFrame*
 NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aFlags)
 {
   nsBlockFrame* it = new (aPresShell) nsBlockFrame(aContext);
-  it->SetFlags(aFlags);
+  if (it) {
+    it->SetFlags(aFlags);
+  }
   return it;
 }
 
@@ -1499,13 +1501,6 @@ nsBlockFrame::UpdateOverflow()
     for (nsIFrame* lineFrame = line->mFirstChild;
          n > 0; lineFrame = lineFrame->GetNextSibling(), --n) {
       ConsiderChildOverflow(lineAreas, lineFrame);
-    }
-
-    // Consider the overflow areas of the floats attached to the line as well
-    if (line->HasFloats()) {
-      for (nsFloatCache* fc = line->GetFirstFloat(); fc; fc = fc->Next()) {
-        ConsiderChildOverflow(lineAreas, fc->mFloat);
-      }
     }
 
     line->SetOverflowAreas(lineAreas);

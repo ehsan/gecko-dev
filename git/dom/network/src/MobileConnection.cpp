@@ -398,7 +398,7 @@ MobileConnection::CancelMMI(nsIDOMDOMRequest** request)
 }
 
 NS_IMETHODIMP
-MobileConnection::GetCallForwardingOption(uint16_t aReason,
+MobileConnection::GetCallForwardingOption(PRUint16 aReason,
                                           nsIDOMDOMRequest** aRequest)
 {
   *aRequest = nullptr;

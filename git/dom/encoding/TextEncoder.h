@@ -85,7 +85,7 @@ public:
                    const TextEncodeOptions& aOptions,
                    ErrorResult& aRv);
 private:
-  nsCString mEncoding;
+  const char* mEncoding;
   nsCOMPtr<nsIUnicodeEncoder> mEncoder;
   nsCOMPtr<nsISupports> mGlobal;
 

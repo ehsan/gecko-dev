@@ -317,7 +317,7 @@ ParseContext::generateFunctionBindings(JSContext *cx, InternalHandle<Bindings*> 
 
     FunctionBox *funbox = sc->asFunbox();
     if (bindings->hasAnyAliasedBindings() || funbox->hasExtensibleScope())
-        funbox->function()->setIsHeavyweight();
+        funbox->function()->flags |= JSFUN_HEAVYWEIGHT;
 
     return true;
 }
@@ -1052,12 +1052,10 @@ Parser::newFunction(ParseContext *pc, HandleAtom atom, FunctionSyntaxKind kind)
     parent = pc->sc->isFunction ? NULL : pc->sc->asGlobal()->scopeChain();
 
     RootedFunction fun(context);
-    JSFunction::Flags flags = (kind == Expression)
-                              ? JSFunction::INTERPRETED_LAMBDA
-                              : JSFunction::INTERPRETED;
-    fun = js_NewFunction(context, NullPtr(), NULL, 0, flags, parent, atom);
+    uint32_t flags = JSFUN_INTERPRETED | (kind == Expression ? JSFUN_LAMBDA : 0);
     if (selfHostingMode)
-        fun->setIsSelfHostedBuiltin();
+        flags |= JSFUN_SELF_HOSTED;
+    fun = js_NewFunction(context, NullPtr(), NULL, 0, flags, parent, atom);
     if (fun && !compileAndGo) {
         if (!JSObject::clearParent(context, fun))
             return NULL;
@@ -1149,7 +1147,7 @@ LeaveFunction(ParseNode *fn, Parser *parser, PropertyName *funName = NULL,
                  * produce an error (in strict mode).
                  */
                 if (dn->isClosed() || dn->isAssigned())
-                    funbox->function()->setIsHeavyweight();
+                    funbox->function()->flags |= JSFUN_HEAVYWEIGHT;
                 continue;
             }
 
@@ -1634,7 +1632,7 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
 #if JS_HAS_EXPR_CLOSURES
     if (tokenStream.getToken(TSF_OPERAND) != TOK_LC) {
         tokenStream.ungetToken();
-        fun->setIsExprClosure();
+        fun->flags |= JSFUN_EXPR_CLOSURE;
         bodyType = ExpressionBody;
     }
 #else

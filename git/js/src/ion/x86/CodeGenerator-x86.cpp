@@ -16,8 +16,6 @@
 using namespace js;
 using namespace js::ion;
 
-using mozilla::DebugOnly;
-
 CodeGeneratorX86::CodeGeneratorX86(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorX86Shared(gen, graph)
 {

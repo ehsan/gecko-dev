@@ -14,6 +14,7 @@
 #include "nsIChannel.h"
 #include "nsICachingChannel.h"
 #include "nsICacheEntryDescriptor.h"
+#include "nsCharsetAlias.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIInputStream.h"
 #include "CNavDTD.h"
@@ -42,10 +43,7 @@
 #include "nsCharsetSource.h"
 #include "nsContentUtils.h"
 
-#include "mozilla/dom/EncodingUtils.h"
-
 using namespace mozilla;
-using mozilla::dom::EncodingUtils;
 
 #define NS_PARSER_FLAG_PARSER_ENABLED         0x00000002
 #define NS_PARSER_FLAG_OBSERVERS_ENABLED      0x00000004
@@ -1842,7 +1840,8 @@ ParserWriteFunc(nsIInputStream* in,
       nsAutoCString declCharset;
 
       if (ExtractCharsetFromXmlDeclaration(buf, count, declCharset)) {
-        if (EncodingUtils::FindEncodingForLabel(declCharset, maybePrefer)) {
+        nsresult rv = nsCharsetAlias::GetPreferred(declCharset, maybePrefer);
+        if (NS_SUCCEEDED(rv)) {
           preferred.Assign(maybePrefer);
           source = kCharsetFromMetaTag;
         }

@@ -26,9 +26,9 @@ TextEncoder::Init(const nsAString& aEncoding,
     return;
   }
 
-  if (!mEncoding.EqualsLiteral("UTF-8") &&
-      !mEncoding.EqualsLiteral("UTF-16LE") &&
-      !mEncoding.EqualsLiteral("UTF-16BE")) {
+  if (PL_strcasecmp(mEncoding, "utf-8") &&
+      PL_strcasecmp(mEncoding, "utf-16le") &&
+      PL_strcasecmp(mEncoding, "utf-16be")) {
     aRv.ThrowTypeError(MSG_DOM_ENCODING_NOT_UTF);
     return;
   }
@@ -41,7 +41,7 @@ TextEncoder::Init(const nsAString& aEncoding,
     return;
   }
 
-  ccm->GetUnicodeEncoderRaw(mEncoding.get(), getter_AddRefs(mEncoder));
+  ccm->GetUnicodeEncoder(mEncoding, getter_AddRefs(mEncoder));
   if (!mEncoder) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -106,13 +106,11 @@ TextEncoder::GetEncoding(nsAString& aEncoding)
   // "utf-16".
   // This workaround should not be exposed to the public API and so "utf-16"
   // is returned by GetEncoding() if the internal encoding name is "utf-16le".
-  if (mEncoding.EqualsLiteral("UTF-16LE")) {
+  if (!strcmp(mEncoding, "utf-16le")) {
     aEncoding.AssignLiteral("utf-16");
     return;
   }
-
-  CopyASCIItoUTF16(mEncoding, aEncoding);
-  nsContentUtils::ASCIIToLower(aEncoding);
+  aEncoding.AssignASCII(mEncoding);
 }
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(TextEncoder)

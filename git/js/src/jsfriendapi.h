@@ -1414,14 +1414,12 @@ FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
     return reinterpret_cast<js::shadow::Function *>(&v.toObject())->jitinfo;
 }
 
-/* Statically asserted in jsfun.h. */
-static const unsigned JS_FUNCTION_INTERPRETED_BIT = 0x1;
-
 static JS_ALWAYS_INLINE void
 SET_JITINFO(JSFunction * func, const JSJitInfo *info)
 {
     js::shadow::Function *fun = reinterpret_cast<js::shadow::Function *>(func);
-    JS_ASSERT(!(fun->flags & JS_FUNCTION_INTERPRETED_BIT));
+    /* JS_ASSERT(func->isNative()). 0x4000 is JSFUN_INTERPRETED */
+    JS_ASSERT(!(fun->flags & 0x4000));
     fun->jitinfo = info;
 }
 

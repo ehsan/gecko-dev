@@ -92,7 +92,7 @@ public:
               ErrorResult& aRv);
 
 private:
-  nsCString mEncoding;
+  const char* mEncoding;
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;
   nsCOMPtr<nsISupports> mGlobal;
   bool mFatal;

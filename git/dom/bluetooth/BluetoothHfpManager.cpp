@@ -25,7 +25,7 @@
 #include <unistd.h> /* usleep() */
 
 #define MOZSETTINGS_CHANGED_ID "mozsettings-changed"
-#define AUDIO_VOLUME_MASTER "audio.volume.bt_sco"
+#define AUDIO_VOLUME_MASTER "audio.volume.master"
 #define HANDSFREE_UUID mozilla::dom::bluetooth::BluetoothServiceUuidStr::Handsfree
 #define HEADSET_UUID mozilla::dom::bluetooth::BluetoothServiceUuidStr::Headset
 
@@ -600,7 +600,7 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
     serviceUuidStr = NS_ConvertUTF8toUTF16(HEADSET_UUID);
   }
 
-  mRunnable = aRunnable;
+  nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
   nsresult rv = bs->GetSocketViaService(aDevicePath,
                                         serviceUuidStr,
@@ -608,8 +608,9 @@ BluetoothHfpManager::Connect(const nsAString& aDevicePath,
                                         true,
                                         true,
                                         this,
-                                        mRunnable);
+                                        runnable);
 
+  runnable.forget();
   return NS_FAILED(rv) ? false : true;
 }
 
@@ -901,14 +902,6 @@ BluetoothHfpManager::CallStateChanged(int aCallIndex, int aCallState,
 void
 BluetoothHfpManager::OnConnectSuccess()
 {
-  if (mRunnable) {
-    BluetoothReply* reply = new BluetoothReply(BluetoothReplySuccess(true));
-    mRunnable->SetReply(reply);
-    if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
-      NS_WARNING("Failed to dispatch to main thread!");
-    }
-    mRunnable.forget();
-  }
   // Cache device path for NotifySettings() since we can't get socket address
   // when a headset disconnect with us
   GetSocketAddr(mDevicePath);
@@ -927,17 +920,6 @@ BluetoothHfpManager::OnConnectSuccess()
 void
 BluetoothHfpManager::OnConnectError()
 {
-  if (mRunnable) {
-    nsString errorStr;
-    errorStr.AssignLiteral("Failed to connect with a bluetooth headset!");
-    BluetoothReply* reply = new BluetoothReply(BluetoothReplyError(errorStr));
-    mRunnable->SetReply(reply);
-    if (NS_FAILED(NS_DispatchToMainThread(mRunnable))) {
-      NS_WARNING("Failed to dispatch to main thread!");
-    }
-    mRunnable.forget();
-  }
-
   CloseSocket();
   mSocketStatus = GetConnectionStatus();
   // If connecting for some reason didn't work, restart listening

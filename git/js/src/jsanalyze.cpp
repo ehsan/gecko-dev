@@ -12,8 +12,6 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
-using mozilla::DebugOnly;
-
 namespace js {
 namespace analyze {
 

@@ -22,8 +22,6 @@
 using namespace js;
 using namespace js::mjit;
 
-using mozilla::DebugOnly;
-
 namespace js {
 namespace mjit {
 

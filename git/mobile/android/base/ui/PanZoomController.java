@@ -12,6 +12,7 @@ import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.PointUtils;
+import org.mozilla.gecko.gfx.ViewportMetrics;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
@@ -144,6 +145,10 @@ public class PanZoomController
         return mTarget.getViewportMetrics();
     }
 
+    private ViewportMetrics getMutableMetrics() {
+        return new ViewportMetrics(getMetrics());
+    }
+
     // for debugging bug 713011; it can be taken out once that is resolved.
     private void checkMainThread() {
         if (mMainThread != Thread.currentThread()) {
@@ -254,8 +259,8 @@ public class PanZoomController
     public void pageRectUpdated() {
         if (mState == PanZoomState.NOTHING) {
             synchronized (mTarget.getLock()) {
-                ImmutableViewportMetrics validated = getValidViewportMetrics();
-                if (!getMetrics().fuzzyEquals(validated)) {
+                ViewportMetrics validated = getValidViewportMetrics();
+                if (! getMutableMetrics().fuzzyEquals(validated)) {
                     // page size changed such that we are now in overscroll. snap to the
                     // the nearest valid viewport
                     mTarget.setViewportMetrics(validated);
@@ -480,9 +485,13 @@ public class PanZoomController
         updatePosition();
     }
 
-    private void scrollBy(float dx, float dy) {
-        ImmutableViewportMetrics scrolled = getMetrics().offsetViewportBy(dx, dy);
-        mTarget.setViewportMetrics(scrolled);
+    private void scrollBy(PointF point) {
+        ViewportMetrics viewportMetrics = getMutableMetrics();
+        PointF origin = viewportMetrics.getOrigin();
+        origin.offset(point.x, point.y);
+        viewportMetrics.setOrigin(origin);
+
+        mTarget.setViewportMetrics(viewportMetrics);
     }
 
     private void fling() {
@@ -498,10 +507,10 @@ public class PanZoomController
     }
 
     /* Performs a bounce-back animation to the given viewport metrics. */
-    private void bounce(ImmutableViewportMetrics metrics) {
+    private void bounce(ViewportMetrics metrics) {
         stopAnimationTimer();
 
-        ImmutableViewportMetrics bounceStartMetrics = getMetrics();
+        ViewportMetrics bounceStartMetrics = getMutableMetrics();
         if (bounceStartMetrics.fuzzyEquals(metrics)) {
             setState(PanZoomState.NOTHING);
             return;
@@ -575,7 +584,7 @@ public class PanZoomController
         }
         if (! mSubscroller.scrollBy(displacement)) {
             synchronized (mTarget.getLock()) {
-                scrollBy(displacement.x, displacement.y);
+                scrollBy(displacement);
             }
         }
     }
@@ -613,10 +622,10 @@ public class PanZoomController
          * The viewport metrics that represent the start and end of the bounce-back animation,
          * respectively.
          */
-        private ImmutableViewportMetrics mBounceStartMetrics;
-        private ImmutableViewportMetrics mBounceEndMetrics;
+        private ViewportMetrics mBounceStartMetrics;
+        private ViewportMetrics mBounceEndMetrics;
 
-        BounceRunnable(ImmutableViewportMetrics startMetrics, ImmutableViewportMetrics endMetrics) {
+        BounceRunnable(ViewportMetrics startMetrics, ViewportMetrics endMetrics) {
             mBounceStartMetrics = startMetrics;
             mBounceEndMetrics = endMetrics;
         }
@@ -648,7 +657,7 @@ public class PanZoomController
         private void advanceBounce() {
             synchronized (mTarget.getLock()) {
                 float t = easeOut(mBounceFrame * Axis.MS_PER_FRAME / 256f);
-                ImmutableViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
+                ViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
                 mTarget.setViewportMetrics(newMetrics);
                 mBounceFrame++;
             }
@@ -722,13 +731,13 @@ public class PanZoomController
     }
 
     /* Returns the nearest viewport metrics with no overscroll visible. */
-    private ImmutableViewportMetrics getValidViewportMetrics() {
-        return getValidViewportMetrics(getMetrics());
+    private ViewportMetrics getValidViewportMetrics() {
+        return getValidViewportMetrics(getMutableMetrics());
     }
 
-    private ImmutableViewportMetrics getValidViewportMetrics(ImmutableViewportMetrics viewportMetrics) {
+    private ViewportMetrics getValidViewportMetrics(ViewportMetrics viewportMetrics) {
         /* First, we adjust the zoom factor so that we can make no overscrolled area visible. */
-        float zoomFactor = viewportMetrics.zoomFactor;
+        float zoomFactor = viewportMetrics.getZoomFactor();
         RectF pageRect = viewportMetrics.getPageRect();
         RectF viewport = viewportMetrics.getViewport();
 
@@ -773,14 +782,14 @@ public class PanZoomController
             // by different scale factors, we end up scrolled to the end on one axis
             // after applying the scale
             PointF center = new PointF(focusX, focusY);
-            viewportMetrics = viewportMetrics.scaleTo(minZoomFactor, center);
+            viewportMetrics.scaleTo(minZoomFactor, center);
         } else if (zoomFactor > maxZoomFactor) {
             PointF center = new PointF(viewport.width() / 2.0f, viewport.height() / 2.0f);
-            viewportMetrics = viewportMetrics.scaleTo(maxZoomFactor, center);
+            viewportMetrics.scaleTo(maxZoomFactor, center);
         }
 
         /* Now we pan to the right origin. */
-        viewportMetrics = viewportMetrics.clamp();
+        viewportMetrics.setViewport(viewportMetrics.getClampedViewport());
 
         return viewportMetrics;
     }
@@ -886,8 +895,8 @@ public class PanZoomController
                 newZoomFactor = maxZoomFactor + excessZoom;
             }
 
-            scrollBy(mLastZoomFocus.x - detector.getFocusX(),
-                     mLastZoomFocus.y - detector.getFocusY());
+            scrollBy(new PointF(mLastZoomFocus.x - detector.getFocusX(),
+                    mLastZoomFocus.y - detector.getFocusY()));
             PointF focus = new PointF(detector.getFocusX(), detector.getFocusY());
             scaleWithFocus(newZoomFactor, focus);
         }
@@ -926,8 +935,8 @@ public class PanZoomController
      * scale operation. You must hold the monitor while calling this.
      */
     private void scaleWithFocus(float zoomFactor, PointF focus) {
-        ImmutableViewportMetrics viewportMetrics = getMetrics();
-        viewportMetrics = viewportMetrics.scaleTo(zoomFactor, focus);
+        ViewportMetrics viewportMetrics = getMutableMetrics();
+        viewportMetrics.scaleTo(zoomFactor, focus);
         mTarget.setViewportMetrics(viewportMetrics);
     }
 
@@ -1033,11 +1042,10 @@ public class PanZoomController
 
         float finalZoom = viewport.width() / zoomToRect.width();
 
-        ImmutableViewportMetrics finalMetrics = getMetrics();
-        finalMetrics = finalMetrics.setViewportOrigin(
-            zoomToRect.left * finalMetrics.zoomFactor,
-            zoomToRect.top * finalMetrics.zoomFactor);
-        finalMetrics = finalMetrics.scaleTo(finalZoom, new PointF(0.0f, 0.0f));
+        ViewportMetrics finalMetrics = getMutableMetrics();
+        finalMetrics.setOrigin(new PointF(zoomToRect.left * finalMetrics.getZoomFactor(),
+                                          zoomToRect.top * finalMetrics.getZoomFactor()));
+        finalMetrics.scaleTo(finalZoom, new PointF(0.0f, 0.0f));
 
         // 2. now run getValidViewportMetrics on it, so that the target viewport is
         // clamped down to prevent overscroll, over-zoom, and other bad conditions.

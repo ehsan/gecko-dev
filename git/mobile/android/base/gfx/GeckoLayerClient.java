@@ -58,7 +58,7 @@ public class GeckoLayerClient
      * to the Gecko viewport position. Note that if Gecko updates its viewport independently,
      * we get notified synchronously and also update this on the UI thread.
      */
-    private ImmutableViewportMetrics mGeckoViewport;
+    private ViewportMetrics mGeckoViewport;
 
     /*
      * The viewport metrics being used to draw the current frame. This is only
@@ -117,7 +117,7 @@ public class GeckoLayerClient
 
         mForceRedraw = true;
         DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-        mViewportMetrics = new ImmutableViewportMetrics(displayMetrics);
+        mViewportMetrics = new ImmutableViewportMetrics(new ViewportMetrics(displayMetrics));
         mZoomConstraints = new ZoomConstraints(false);
 
         mPanZoomController = new PanZoomController(this, mEventDispatcher);
@@ -191,8 +191,10 @@ public class GeckoLayerClient
      * to the layer client. That way, the layer client won't be tempted to call this, which might
      * result in an infinite loop.
      */
-    void setViewportSize(int width, int height) {
-        mViewportMetrics = mViewportMetrics.setViewportSize(width, height);
+    void setViewportSize(FloatSize size) {
+        ViewportMetrics viewportMetrics = new ViewportMetrics(mViewportMetrics);
+        viewportMetrics.setSize(size);
+        mViewportMetrics = new ImmutableViewportMetrics(viewportMetrics);
 
         if (mGeckoIsReady) {
             // here we send gecko a resize message. The code in browser.js is responsible for
@@ -249,7 +251,9 @@ public class GeckoLayerClient
         if (mViewportMetrics.getCssPageRect().equals(cssRect))
             return;
 
-        mViewportMetrics = mViewportMetrics.setPageRect(rect, cssRect);
+        ViewportMetrics viewportMetrics = new ViewportMetrics(mViewportMetrics);
+        viewportMetrics.setPageRect(rect, cssRect);
+        mViewportMetrics = new ImmutableViewportMetrics(viewportMetrics);
 
         // Page size is owned by the layer client, so no need to notify it of
         // this change.
@@ -264,7 +268,9 @@ public class GeckoLayerClient
 
     private void adjustViewport(DisplayPortMetrics displayPort) {
         ImmutableViewportMetrics metrics = getViewportMetrics();
-        ImmutableViewportMetrics clampedMetrics = metrics.clamp();
+
+        ViewportMetrics clampedMetrics = new ViewportMetrics(metrics);
+        clampedMetrics.setViewport(clampedMetrics.getClampedViewport());
 
         if (displayPort == null) {
             displayPort = DisplayPortCalculator.calculate(metrics, mPanZoomController.getVelocityVector());
@@ -302,28 +308,29 @@ public class GeckoLayerClient
     }
 
     /** Viewport message handler. */
-    private DisplayPortMetrics handleViewportMessage(ImmutableViewportMetrics messageMetrics, ViewportMessageType type) {
+    private DisplayPortMetrics handleViewportMessage(ViewportMetrics messageMetrics, ViewportMessageType type) {
         synchronized (this) {
-            ImmutableViewportMetrics metrics;
+            final ViewportMetrics newMetrics;
             ImmutableViewportMetrics oldMetrics = getViewportMetrics();
 
             switch (type) {
             default:
             case UPDATE:
+                newMetrics = messageMetrics;
                 // Keep the old viewport size
-                metrics = messageMetrics.setViewportSize(oldMetrics.getWidth(), oldMetrics.getHeight());
+                newMetrics.setSize(oldMetrics.getSize());
                 abortPanZoomAnimation();
                 break;
             case PAGE_SIZE:
                 // adjust the page dimensions to account for differences in zoom
                 // between the rendered content (which is what Gecko tells us)
                 // and our zoom level (which may have diverged).
-                float scaleFactor = oldMetrics.zoomFactor / messageMetrics.zoomFactor;
-                metrics = oldMetrics.setPageRect(RectUtils.scale(messageMetrics.getPageRect(), scaleFactor), messageMetrics.getCssPageRect());
+                float scaleFactor = oldMetrics.zoomFactor / messageMetrics.getZoomFactor();
+                newMetrics = new ViewportMetrics(oldMetrics);
+                newMetrics.setPageRect(RectUtils.scale(messageMetrics.getPageRect(), scaleFactor), messageMetrics.getCssPageRect());
                 break;
             }
 
-            final ImmutableViewportMetrics newMetrics = metrics;
             post(new Runnable() {
                 public void run() {
                     mGeckoViewport = newMetrics;
@@ -335,7 +342,7 @@ public class GeckoLayerClient
         return mDisplayPort;
     }
 
-    public DisplayPortMetrics getDisplayPort(boolean pageSizeUpdate, boolean isBrowserContentDisplayed, int tabId, ImmutableViewportMetrics metrics) {
+    public DisplayPortMetrics getDisplayPort(boolean pageSizeUpdate, boolean isBrowserContentDisplayed, int tabId, ViewportMetrics metrics) {
         Tabs tabs = Tabs.getInstance();
         if (tabs.isSelectedTab(tabs.getTab(tabId)) && isBrowserContentDisplayed) {
             // for foreground tabs, send the viewport update unless the document
@@ -347,7 +354,8 @@ public class GeckoLayerClient
             // when we do switch to that tab, we have the correct display port and
             // don't need to draw twice (once to allow the first-paint viewport to
             // get to java, and again once java figures out the display port).
-            return DisplayPortCalculator.calculate(metrics, null);
+            ImmutableViewportMetrics newMetrics = new ImmutableViewportMetrics(metrics);
+            return DisplayPortCalculator.calculate(newMetrics, null);
         }
     }
 
@@ -376,17 +384,16 @@ public class GeckoLayerClient
         // XXX All sorts of rounding happens inside Gecko that becomes hard to
         //     account exactly for. Given we align the display-port to tile
         //     boundaries (and so they rarely vary by sub-pixel amounts), just
-        //     check that values are within a couple of pixels of the
-        //     display-port bounds.
+        //     check that values are within a pixel of the display-port bounds.
 
         // Never abort drawing if we can't be sure we've sent a more recent
         // display-port. If we abort updating when we shouldn't, we can end up
         // with blank regions on the screen and we open up the risk of entering
         // an endless updating cycle.
-        if (Math.abs(displayPort.getLeft() - x) <= 2 &&
-            Math.abs(displayPort.getTop() - y) <= 2 &&
-            Math.abs(displayPort.getBottom() - (y + height)) <= 2 &&
-            Math.abs(displayPort.getRight() - (x + width)) <= 2) {
+        if (Math.abs(displayPort.getLeft() - x) <= 1 &&
+            Math.abs(displayPort.getTop() - y) <= 1 &&
+            Math.abs(displayPort.getBottom() - (y + height)) <= 1 &&
+            Math.abs(displayPort.getRight() - (x + width)) <= 1) {
             return mProgressiveUpdateData;
         }
 
@@ -462,21 +469,21 @@ public class GeckoLayerClient
             float pageLeft, float pageTop, float pageRight, float pageBottom,
             float cssPageLeft, float cssPageTop, float cssPageRight, float cssPageBottom) {
         synchronized (this) {
-            final ImmutableViewportMetrics newMetrics = getViewportMetrics()
-                .setViewportOrigin(offsetX, offsetY)
-                .setZoomFactor(zoom)
-                .setPageRect(new RectF(pageLeft, pageTop, pageRight, pageBottom),
-                             new RectF(cssPageLeft, cssPageTop, cssPageRight, cssPageBottom));
+            final ViewportMetrics currentMetrics = new ViewportMetrics(getViewportMetrics());
+            currentMetrics.setOrigin(new PointF(offsetX, offsetY));
+            currentMetrics.setZoomFactor(zoom);
+            currentMetrics.setPageRect(new RectF(pageLeft, pageTop, pageRight, pageBottom),
+                                       new RectF(cssPageLeft, cssPageTop, cssPageRight, cssPageBottom));
             // Since we have switched to displaying a different document, we need to update any
             // viewport-related state we have lying around. This includes mGeckoViewport and
             // mViewportMetrics. Usually this information is updated via handleViewportMessage
             // while we remain on the same document.
             post(new Runnable() {
                 public void run() {
-                    mGeckoViewport = newMetrics;
+                    mGeckoViewport = currentMetrics;
                 }
             });
-            setViewportMetrics(newMetrics);
+            setViewportMetrics(currentMetrics);
 
             Tab tab = Tabs.getInstance().getSelectedTab();
             mView.setCheckerboardColor(tab.getCheckerboardColor());
@@ -630,7 +637,7 @@ public class GeckoLayerClient
 
     /** Implementation of LayerView.Listener */
     public void surfaceChanged(int width, int height) {
-        setViewportSize(width, height);
+        setViewportSize(new FloatSize(width, height));
 
         // We need to make this call even when the compositor isn't currently
         // paused (e.g. during an orientation change), to make the compositor
@@ -655,12 +662,13 @@ public class GeckoLayerClient
     }
 
     /** Implementation of PanZoomTarget */
-    public void setAnimationTarget(ImmutableViewportMetrics metrics) {
+    public void setAnimationTarget(ViewportMetrics viewport) {
         if (mGeckoIsReady) {
             // We know what the final viewport of the animation is going to be, so
             // immediately request a draw of that area by setting the display port
             // accordingly. This way we should have the content pre-rendered by the
             // time the animation is done.
+            ImmutableViewportMetrics metrics = new ImmutableViewportMetrics(viewport);
             DisplayPortMetrics displayPort = DisplayPortCalculator.calculate(metrics, null);
             adjustViewport(displayPort);
         }
@@ -669,12 +677,12 @@ public class GeckoLayerClient
     /** Implementation of PanZoomTarget
      * You must hold the monitor while calling this.
      */
-    public void setViewportMetrics(ImmutableViewportMetrics metrics) {
-        setViewportMetrics(metrics, true);
+    public void setViewportMetrics(ViewportMetrics viewport) {
+        setViewportMetrics(viewport, true);
     }
 
-    private void setViewportMetrics(ImmutableViewportMetrics metrics, boolean notifyGecko) {
-        mViewportMetrics = metrics;
+    private void setViewportMetrics(ViewportMetrics viewport, boolean notifyGecko) {
+        mViewportMetrics = new ImmutableViewportMetrics(viewport);
         mView.requestRender();
         if (notifyGecko && mGeckoIsReady) {
             geometryChanged();
@@ -714,9 +722,9 @@ public class GeckoLayerClient
         ImmutableViewportMetrics viewportMetrics = mViewportMetrics;
         PointF origin = viewportMetrics.getOrigin();
         float zoom = viewportMetrics.zoomFactor;
-        ImmutableViewportMetrics geckoViewport = mGeckoViewport;
+        ViewportMetrics geckoViewport = mGeckoViewport;
         PointF geckoOrigin = geckoViewport.getOrigin();
-        float geckoZoom = geckoViewport.zoomFactor;
+        float geckoZoom = geckoViewport.getZoomFactor();
 
         // viewPoint + origin gives the coordinate in device pixels from the top-left corner of the page.
         // Divided by zoom, this gives us the coordinate in CSS pixels from the top-left corner of the page.

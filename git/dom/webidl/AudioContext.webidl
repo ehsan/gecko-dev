@@ -33,9 +33,6 @@ interface mozAudioContext {
     [Creator]
     PannerNode createPanner();
 
-    [Creator]
-    DynamicsCompressorNode createDynamicsCompressor();
-
 };
 
 typedef mozAudioContext AudioContext;

@@ -52,13 +52,12 @@
 
 #include "vm/RegExpObject-inl.h"
 
+using namespace mozilla;
 using namespace js;
 using namespace js::gc;
-
 using js::frontend::IsIdentifier;
 using js::frontend::LetDataToGroupAssign;
 using js::frontend::LetDataToOffset;
-using mozilla::ArrayLength;
 
 /*
  * Index limit must stay within 32 bits.
@@ -3642,7 +3641,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
               case JSOP_RETURN:
                 LOCAL_ASSERT(jp->fun);
                 fun = jp->fun;
-                if (fun->isExprClosure()) {
+                if (fun->flags & JSFUN_EXPR_CLOSURE) {
                     /* Turn on parens around comma-expression here. */
                     op = JSOP_SETNAME;
                     rval = PopStr(ss, op, &rvalpc);
@@ -3651,7 +3650,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                         js_printf(jp, "(");
                     SprintOpcodePermanent(jp, rval, rvalpc);
                     js_printf(jp, parens ? ")%s" : "%s",
-                              (fun->isLambda() || !fun->atom())
+                              ((fun->flags & JSFUN_LAMBDA) || !fun->atom())
                               ? ""
                               : ";");
                     todo = -2;
@@ -4868,7 +4867,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                      * parenthesization without confusing getter/setter code
                      * that checks for JSOP_LAMBDA.
                      */
-                    bool grouped = !fun->isExprClosure();
+                    bool grouped = !(fun->flags & JSFUN_EXPR_CLOSURE);
                     bool strict = jp->script->strictModeCode;
                     str = js_DecompileToString(cx, "lambda", fun, 0,
                                                false, grouped, strict,
@@ -5548,7 +5547,7 @@ DecompileBody(JSPrinter *jp, JSScript *script, jsbytecode *pc)
 {
     /* Print a strict mode code directive, if needed. */
     if (script->strictModeCode && !jp->strict) {
-        if (jp->fun && jp->fun->isExprClosure()) {
+        if (jp->fun && (jp->fun->flags & JSFUN_EXPR_CLOSURE)) {
             /*
              * We have no syntax for strict function expressions;
              * at least give a hint.
@@ -5624,7 +5623,7 @@ js_DecompileFunction(JSPrinter *jp)
     if (jp->pretty) {
         js_printf(jp, "\t");
     } else {
-        if (!jp->grouped && fun->isLambda())
+        if (!jp->grouped && (fun->flags & JSFUN_LAMBDA))
             js_puts(jp, "(");
     }
 
@@ -5732,7 +5731,7 @@ js_DecompileFunction(JSPrinter *jp)
         if (!ok)
             return JS_FALSE;
         js_printf(jp, ") ");
-        if (!fun->isExprClosure()) {
+        if (!(fun->flags & JSFUN_EXPR_CLOSURE)) {
             js_printf(jp, "{\n");
             jp->indent += 4;
         }
@@ -5741,13 +5740,13 @@ js_DecompileFunction(JSPrinter *jp)
         if (!ok)
             return JS_FALSE;
 
-        if (!fun->isExprClosure()) {
+        if (!(fun->flags & JSFUN_EXPR_CLOSURE)) {
             jp->indent -= 4;
             js_printf(jp, "\t}");
         }
     }
 
-    if (!jp->pretty && !jp->grouped && fun->isLambda())
+    if (!jp->pretty && !jp->grouped && (fun->flags & JSFUN_LAMBDA))
         js_puts(jp, ")");
 
     return JS_TRUE;

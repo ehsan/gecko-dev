@@ -41,7 +41,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     typedef InlineForwardListNode<T> Node;
 
     Node *tail_;
-    mozilla::DebugOnly<int> modifyCount_;
+    DebugOnly<int> modifyCount_;
 
     InlineForwardList<T> *thisFromConstructor() {
         return this;
@@ -183,7 +183,7 @@ private:
 #ifdef DEBUG
     const InlineForwardList<T> *owner_;
 #endif
-    mozilla::DebugOnly<int> modifyCount_;
+    DebugOnly<int> modifyCount_;
 };
 
 template <typename T> class InlineList;

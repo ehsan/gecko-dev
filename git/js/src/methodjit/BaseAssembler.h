@@ -20,8 +20,6 @@
 #include "jsscopeinlines.h"
 #include "jstypedarrayinlines.h"
 
-using mozilla::DebugOnly;
-
 namespace js {
 namespace mjit {
 

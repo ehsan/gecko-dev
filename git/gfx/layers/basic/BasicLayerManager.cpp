@@ -998,14 +998,12 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
 }
 
 void
-BasicLayerManager::ClearCachedResources(Layer* aSubtree)
+BasicLayerManager::ClearCachedResources()
 {
-  MOZ_ASSERT(!aSubtree || aSubtree->Manager() == this);
-  if (aSubtree) {
-    ClearLayer(aSubtree);
-  } else if (mRoot) {
+  if (mRoot) {
     ClearLayer(mRoot);
   }
+
   mCachedSurface.Expire();
 }
 void
@@ -1283,16 +1281,6 @@ void
 BasicShadowLayerManager::SetIsFirstPaint()
 {
   ShadowLayerForwarder::SetIsFirstPaint();
-}
-
-void
-BasicShadowLayerManager::ClearCachedResources(Layer* aSubtree)
-{
-  MOZ_ASSERT(!HasShadowManager() || !aSubtree);
-  if (PLayersChild* manager = GetShadowManager()) {
-    manager->SendClearCachedResources();
-  }
-  BasicLayerManager::ClearCachedResources(aSubtree);
 }
 
 bool

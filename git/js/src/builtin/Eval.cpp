@@ -17,9 +17,6 @@
 
 using namespace js;
 
-using mozilla::AddToHash;
-using mozilla::HashString;
-
 // We should be able to assert this for *any* fp->scopeChain().
 static void
 AssertInnerizedScopeChain(JSContext *cx, JSObject &scopeobj)

@@ -6,11 +6,7 @@ this.EXPORTED_SYMBOLS = ["PrivateBrowsingUtils"];
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const kAutoStartPref = "browser.privatebrowsing.autostart";
-
-// This will be set to true when the PB mode is autostarted from the command
-// line for the current session.
-let gTemporaryAutoStartMode = false;
+const kAutoStartPref = "browser.components.autostart";
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -28,8 +24,7 @@ this.PrivateBrowsingUtils = {
 
   get permanentPrivateBrowsing() {
 #ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-    return gTemporaryAutoStartMode ||
-           Services.prefs.getBoolPref(kAutoStartPref, false);
+    return Services.prefs.getBoolPref(kAutoStart, false);
 #else
     try {
       return Cc["@mozilla.org/privatebrowsing;1"].
@@ -39,20 +34,12 @@ this.PrivateBrowsingUtils = {
       return false; // PB not supported
     }
 #endif
-  },
-
-  // These should only be used from internal code
-  enterTemporaryAutoStartMode: function pbu_enterTemporaryAutoStartMode() {
-    gTemporaryAutoStartMode = true;
-  },
-  get isInTemporaryAutoStartMode() {
-    return gTemporaryAutoStartMode;
   }
 };
 
 #ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
 function autoStartObserver(aSubject, aTopic, aData) {
-  var newValue = Services.prefs.getBoolPref(kAutoStartPref);
+  var newValue = Services.prefs.getBoolPref(kAutoStart);
   var windowsEnum = Services.wm.getEnumerator(null);
   while (windowsEnum.hasMoreElements()) {
     var window = windowsEnum.getNext();

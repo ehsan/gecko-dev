@@ -810,9 +810,6 @@ void*
 nsDisplayListBuilder::Allocate(size_t aSize) {
   void *tmp;
   PL_ARENA_ALLOCATE(tmp, &mPool, aSize);
-  if (!tmp) {
-    NS_RUNTIMEABORT("out of memory");
-  }
   return tmp;
 }
 

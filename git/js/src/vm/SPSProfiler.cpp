@@ -16,8 +16,6 @@
 
 using namespace js;
 
-using mozilla::DebugOnly;
-
 SPSProfiler::SPSProfiler(JSRuntime *rt)
   : rt(rt),
     stack_(NULL),

@@ -519,7 +519,7 @@ Services.obs.addObserver(function onWebappsReady(subject, topic, data) {
 
 Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) {
   shell.sendChromeEvent({
-    type: "bluetooth-volumeset",
+    type: "volumeset",
     value: data
   });
 }, 'bluetooth-volume-change', false);

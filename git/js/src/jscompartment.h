@@ -571,11 +571,11 @@ class AutoEnterAtomsCompartment
  */
 class ErrorCopier
 {
-    mozilla::Maybe<AutoCompartment> &ac;
+    Maybe<AutoCompartment> &ac;
     RootedObject scope;
 
   public:
-    ErrorCopier(mozilla::Maybe<AutoCompartment> &ac, JSObject *scope)
+    ErrorCopier(Maybe<AutoCompartment> &ac, JSObject *scope)
       : ac(ac), scope(ac.ref().context(), scope) {}
     ~ErrorCopier();
 };

@@ -67,8 +67,6 @@
 using namespace js;
 using namespace js::gc;
 
-using mozilla::DebugOnly;
-
 bool
 js::AutoCycleDetector::init()
 {
@@ -321,7 +319,7 @@ intrinsic_MakeConstructible(JSContext *cx, unsigned argc, Value *vp)
     JS_ASSERT(args[0].isObject());
     RootedObject obj(cx, &args[0].toObject());
     JS_ASSERT(obj->isFunction());
-    obj->toFunction()->setIsSelfHostedConstructor();
+    obj->toFunction()->flags |= JSFUN_SELF_HOSTED_CTOR;
     return true;
 }
 

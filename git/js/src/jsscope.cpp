@@ -34,8 +34,6 @@
 using namespace js;
 using namespace js::gc;
 
-using mozilla::DebugOnly;
-
 bool
 ShapeTable::init(JSRuntime *rt, Shape *lastProp)
 {

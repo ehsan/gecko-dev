@@ -15,7 +15,7 @@
 
 #include "vm/String-inl.h"
 
-using mozilla::ArrayLength;
+using namespace mozilla;
 
 template<size_t N> JSFlatString *
 NewString(JSContext *cx, const jschar (&chars)[N])

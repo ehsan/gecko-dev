@@ -176,7 +176,6 @@ using namespace mozilla;
 
 #ifdef PR_LOGGING
 
-#ifdef NS_PRINTING
 static PRLogModuleInfo *
 GetPrintingLog()
 {
@@ -186,7 +185,6 @@ GetPrintingLog()
   return sLog;
 }
 #define PR_PL(_p1)  PR_LOG(GetPrintingLog(), PR_LOG_DEBUG, _p1);
-#endif // NS_PRINTING
 
 #define PRT_YESNO(_p) ((_p)?"YES":"NO")
 #else
@@ -4200,32 +4198,7 @@ DocumentViewerImpl::IncrementDestroyRefCount()
 
 //------------------------------------------------------------
 
-#if defined(NS_PRINTING) && defined(NS_PRINT_PREVIEW)
-//------------------------------------------------------------
-// Reset ESM focus for all descendent doc shells.
-static void
-ResetFocusState(nsIDocShell* aDocShell)
-{
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return;
-
-  nsCOMPtr<nsISimpleEnumerator> docShellEnumerator;
-  aDocShell->GetDocShellEnumerator(nsIDocShellTreeItem::typeContent,
-                                   nsIDocShell::ENUMERATE_FORWARDS,
-                                   getter_AddRefs(docShellEnumerator));
-  
-  nsCOMPtr<nsISupports> currentContainer;
-  bool hasMoreDocShells;
-  while (NS_SUCCEEDED(docShellEnumerator->HasMoreElements(&hasMoreDocShells))
-         && hasMoreDocShells) {
-    docShellEnumerator->GetNext(getter_AddRefs(currentContainer));
-    nsCOMPtr<nsIDOMWindow> win = do_GetInterface(currentContainer);
-    if (win)
-      fm->ClearFocus(win);
-  }
-}
-#endif // NS_PRINTING && NS_PRINT_PREVIEW
+static void ResetFocusState(nsIDocShell* aDocShell);
 
 void
 DocumentViewerImpl::ReturnToGalleyPresentation()
@@ -4251,6 +4224,31 @@ DocumentViewerImpl::ReturnToGalleyPresentation()
   Show();
 
 #endif // NS_PRINTING && NS_PRINT_PREVIEW
+}
+
+//------------------------------------------------------------
+// Reset ESM focus for all descendent doc shells.
+static void
+ResetFocusState(nsIDocShell* aDocShell)
+{
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  if (!fm)
+    return;
+
+  nsCOMPtr<nsISimpleEnumerator> docShellEnumerator;
+  aDocShell->GetDocShellEnumerator(nsIDocShellTreeItem::typeContent,
+                                   nsIDocShell::ENUMERATE_FORWARDS,
+                                   getter_AddRefs(docShellEnumerator));
+  
+  nsCOMPtr<nsISupports> currentContainer;
+  bool hasMoreDocShells;
+  while (NS_SUCCEEDED(docShellEnumerator->HasMoreElements(&hasMoreDocShells))
+         && hasMoreDocShells) {
+    docShellEnumerator->GetNext(getter_AddRefs(currentContainer));
+    nsCOMPtr<nsIDOMWindow> win = do_GetInterface(currentContainer);
+    if (win)
+      fm->ClearFocus(win);
+  }
 }
 
 //------------------------------------------------------------

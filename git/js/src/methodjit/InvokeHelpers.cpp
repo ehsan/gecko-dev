@@ -42,8 +42,6 @@ using namespace js;
 using namespace js::mjit;
 using namespace JSC;
 
-using mozilla::DebugOnly;
-
 using ic::Repatcher;
 
 static jsbytecode *
@@ -57,7 +55,7 @@ FindExceptionHandler(JSContext *cx)
 
   error:
     if (cx->isExceptionPending()) {
-        for (TryNoteIter tni(cx, cx->regs()); !tni.done(); ++tni) {
+        for (TryNoteIter tni(cx->regs()); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 
             UnwindScope(cx, tn->stackDepth);

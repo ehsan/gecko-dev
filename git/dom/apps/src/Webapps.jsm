@@ -874,7 +874,7 @@ this.DOMApplicationRegistry = {
                             .getService(Ci.nsIOfflineCacheUpdateService);
       let docURI = Services.io.newURI(aManifest.fullLaunchPath(), null, null);
       let cacheUpdate = aProfileDir ? updateService.scheduleCustomProfileUpdate(appcacheURI, docURI, aProfileDir)
-                                    : updateService.scheduleAppUpdate(appcacheURI, docURI, aApp.localId, false);
+                                    : updateService.scheduleUpdate(appcacheURI, docURI, null);
       cacheUpdate.addObserver(new AppcacheObserver(aApp), false);
       if (aOfflineCacheObserver) {
         cacheUpdate.addObserver(aOfflineCacheObserver, false);

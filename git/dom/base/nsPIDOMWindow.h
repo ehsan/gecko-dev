@@ -574,7 +574,6 @@ public:
   virtual void EnableTimeChangeNotifications() = 0;
   virtual void DisableTimeChangeNotifications() = 0;
 
-#ifdef MOZ_B2G
   /**
    * Tell the window that it should start to listen to the network event of the
    * given aType.
@@ -586,7 +585,6 @@ public:
    * given aType.
    */
   virtual void DisableNetworkEvent(uint32_t aType) = 0;
-#endif // MOZ_B2G
 
   /**
    * Set a arguments for this window. This will be set on the window

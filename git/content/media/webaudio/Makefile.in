@@ -24,7 +24,6 @@ CPPSRCS := \
   AudioParam.cpp \
   AudioSourceNode.cpp \
   DelayNode.cpp \
-  DynamicsCompressorNode.cpp \
   EnableWebAudioCheck.cpp \
   GainNode.cpp \
   PannerNode.cpp \
@@ -40,7 +39,6 @@ EXPORTS_mozilla/dom := \
   AudioParam.h \
   AudioSourceNode.h \
   DelayNode.h \
-  DynamicsCompressorNode.h \
   GainNode.h \
   PannerNode.h \
   $(NULL)

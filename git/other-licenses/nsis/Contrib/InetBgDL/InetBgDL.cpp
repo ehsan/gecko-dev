@@ -20,7 +20,6 @@ typedef DWORD FILESIZE_T; // Limit to 4GB for now...
 HINSTANCE g_hInst;
 NSIS::stack_t*g_pLocations = NULL;
 HANDLE g_hThread = NULL;
-HANDLE g_hGETStartedEvent = NULL;
 volatile UINT g_FilesTotal = 0;
 volatile UINT g_FilesCompleted = 0;
 volatile UINT g_Status = STATUS_INITIAL;
@@ -72,14 +71,6 @@ NSIS::stack_t* StackPopItem(NSIS::stack_t**ppST)
 
 void Reset()
 {
-  // The g_hGETStartedEvent event is used to make sure that the Get() call will
-  // acquire the lock before the Reset() call acquires the lock.
-  if (g_hGETStartedEvent) {
-    WaitForSingleObject(g_hGETStartedEvent, INFINITE);
-    CloseHandle(g_hGETStartedEvent);
-    g_hGETStartedEvent = NULL;
-  }
-
   TaskLock_AcquireExclusive();
 #ifndef ONELOCKTORULETHEMALL
   StatsLock_AcquireExclusive();
@@ -92,8 +83,8 @@ void Reset()
       TerminateThread(g_hThread, ERROR_OPERATION_ABORTED);
     }
     CloseHandle(g_hThread);
-    g_hThread = NULL;
   }
+  g_hThread = NULL;
   g_FilesTotal = 0;
   g_FilesCompleted = 0;
   g_Status = STATUS_INITIAL;
@@ -131,13 +122,6 @@ startnexttask:
   hLocalFile = INVALID_HANDLE_VALUE;
   pFile = NULL;
   TaskLock_AcquireExclusive();
-  // Now that we've acquired the lock, we can set the event to indicate this.
-  // SetEvent will likely never fail, but if it does we should set it to NULL
-  // to avoid anyone waiting on it.
-  if (!SetEvent(g_hGETStartedEvent)) {
-    CloseHandle(g_hGETStartedEvent);
-    g_hGETStartedEvent = NULL;
-  }
   pURL = g_pLocations;
   if (pURL)
   {
@@ -359,11 +343,7 @@ freeurlandexit:
 
     if (!g_hThread)
     {
-      DWORD tid;
-      if (g_hGETStartedEvent) {
-        CloseHandle(g_hGETStartedEvent);
-      }
-      g_hGETStartedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+      DWORD tid;tid;
       g_hThread = CreateThread(NULL, 0, TaskThreadProc, NULL, 0, &tid);
     }
 

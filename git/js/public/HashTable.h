@@ -122,7 +122,7 @@ class HashTable : private AllocPolicy
     {
         friend class HashTable;
         HashNumber keyHash;
-        mozilla::DebugOnly<uint64_t> mutationCount;
+        DebugOnly<uint64_t> mutationCount;
 
         AddPtr(Entry &entry, HashNumber hn) : Ptr(entry), keyHash(hn) {}
       public:
@@ -147,7 +147,7 @@ class HashTable : private AllocPolicy
         }
 
         Entry *cur, *end;
-        mozilla::DebugOnly<bool> validEntry;
+        DebugOnly<bool> validEntry;
 
       public:
         Range() : cur(NULL), end(NULL), validEntry(false) {}
@@ -268,8 +268,8 @@ class HashTable : private AllocPolicy
 #endif
 
     friend class js::ReentrancyGuard;
-    mutable mozilla::DebugOnly<bool> entered;
-    mozilla::DebugOnly<uint64_t>     mutationCount;
+    mutable DebugOnly<bool> entered;
+    DebugOnly<uint64_t>     mutationCount;
 
     /* The default initial capacity is 16, but you can ask for as small as 4. */
     static const unsigned sMinSizeLog2  = 2;
