@@ -35,6 +35,7 @@ protected:
     struct _GtkStyle *mStyle;
 #else
     struct _GtkStyleContext *mBackgroundStyle;
+    struct _GtkStyleContext *mViewStyle;
     struct _GtkStyleContext *mButtonStyle;
 #endif
 
@@ -74,8 +75,8 @@ protected:
     nscolor sMozFieldBackground;
     nscolor sMozWindowText;
     nscolor sMozWindowBackground;
-    nscolor sTextSelectedText;
-    nscolor sTextSelectedBackground;
+    nscolor sMozWindowSelectedText;
+    nscolor sMozWindowSelectedBackground;
     nscolor sMozScrollbar;
     char16_t sInvisibleCharacter;
     float   sCaretRatio;

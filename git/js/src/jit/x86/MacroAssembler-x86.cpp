@@ -60,7 +60,7 @@ MacroAssemblerX86::addConstantDouble(double d, FloatRegister dest)
     Double *dbl = getDouble(d);
     if (!dbl)
         return;
-    masm.vaddsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.code(), dest.code());
+    masm.addsd_mr(reinterpret_cast<const void *>(dbl->uses.prev()), dest.code());
     dbl->uses.setPrev(masm.size());
 }
 
@@ -106,7 +106,7 @@ MacroAssemblerX86::addConstantFloat32(float f, FloatRegister dest)
     Float *flt = getFloat(f);
     if (!flt)
         return;
-    masm.vaddss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.code(), dest.code());
+    masm.addss_mr(reinterpret_cast<const void *>(flt->uses.prev()), dest.code());
     flt->uses.setPrev(masm.size());
 }
 

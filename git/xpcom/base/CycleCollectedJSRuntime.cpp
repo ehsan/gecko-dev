@@ -180,15 +180,17 @@ struct NoteWeakMapsTracer : public js::WeakMapTracer
 
 static void
 TraceWeakMapping(js::WeakMapTracer* aTrc, JSObject* aMap,
-                 JS::GCCellPtr aKey, JS::GCCellPtr aValue)
+                 void* aKey, JSGCTraceKind aKeyKind,
+                 void* aValue, JSGCTraceKind aValueKind)
 {
   MOZ_ASSERT(aTrc->callback == TraceWeakMapping);
   NoteWeakMapsTracer* tracer = static_cast<NoteWeakMapsTracer*>(aTrc);
 
   // If nothing that could be held alive by this entry is marked gray, return.
-  if ((!aKey || !xpc_IsGrayGCThing(aKey.asCell())) &&
+  if ((!aKey || !xpc_IsGrayGCThing(aKey)) &&
       MOZ_LIKELY(!tracer->mCb.WantAllTraces())) {
-    if (!aValue || !xpc_IsGrayGCThing(aValue.asCell()) || aValue.isString()) {
+    if (!aValue || !xpc_IsGrayGCThing(aValue) ||
+        aValueKind == JSTRACE_STRING) {
       return;
     }
   }
@@ -197,38 +199,38 @@ TraceWeakMapping(js::WeakMapTracer* aTrc, JSObject* aMap,
   // reason about the liveness of their keys, which in turn requires that
   // the key can be represented in the cycle collector graph.  All existing
   // uses of weak maps use either objects or scripts as keys, which are okay.
-  MOZ_ASSERT(AddToCCKind(aKey.kind()));
+  MOZ_ASSERT(AddToCCKind(aKeyKind));
 
   // As an emergency fallback for non-debug builds, if the key is not
   // representable in the cycle collector graph, we treat it as marked.  This
   // can cause leaks, but is preferable to ignoring the binding, which could
   // cause the cycle collector to free live objects.
-  if (!AddToCCKind(aKey.kind())) {
-    aKey = JS::GCCellPtr::NullPtr();
+  if (!AddToCCKind(aKeyKind)) {
+    aKey = nullptr;
   }
 
   JSObject* kdelegate = nullptr;
-  if (aKey.isObject()) {
-    kdelegate = js::GetWeakmapKeyDelegate(aKey.toObject());
+  if (aKey && aKeyKind == JSTRACE_OBJECT) {
+    kdelegate = js::GetWeakmapKeyDelegate((JSObject*)aKey);
   }
 
-  if (AddToCCKind(aValue.kind())) {
-    tracer->mCb.NoteWeakMapping(aMap, aKey.asCell(), kdelegate, aValue.asCell());
+  if (AddToCCKind(aValueKind)) {
+    tracer->mCb.NoteWeakMapping(aMap, aKey, kdelegate, aValue);
   } else {
     tracer->mChildTracer.mTracedAny = false;
     tracer->mChildTracer.mMap = aMap;
-    tracer->mChildTracer.mKey = aKey.asCell();
+    tracer->mChildTracer.mKey = aKey;
     tracer->mChildTracer.mKeyDelegate = kdelegate;
 
-    if (aValue.isString()) {
-      JS_TraceChildren(&tracer->mChildTracer, aValue.asCell(), aValue.kind());
+    if (aValue && aValueKind != JSTRACE_STRING) {
+      JS_TraceChildren(&tracer->mChildTracer, aValue, aValueKind);
     }
 
     // The delegate could hold alive the key, so report something to the CC
     // if we haven't already.
     if (!tracer->mChildTracer.mTracedAny &&
-        aKey && xpc_IsGrayGCThing(aKey.asCell()) && kdelegate) {
-      tracer->mCb.NoteWeakMapping(aMap, aKey.asCell(), kdelegate, nullptr);
+        aKey && xpc_IsGrayGCThing(aKey) && kdelegate) {
+      tracer->mCb.NoteWeakMapping(aMap, aKey, kdelegate, nullptr);
     }
   }
 }
@@ -254,37 +256,38 @@ private:
 
   static void
   FixWeakMappingGrayBits(js::WeakMapTracer* aTrc, JSObject* aMap,
-                         JS::GCCellPtr aKey, JS::GCCellPtr aValue)
+                         void* aKey, JSGCTraceKind aKeyKind,
+                         void* aValue, JSGCTraceKind aValueKind)
   {
     FixWeakMappingGrayBitsTracer* tracer =
       static_cast<FixWeakMappingGrayBitsTracer*>(aTrc);
 
     // If nothing that could be held alive by this entry is marked gray, return.
-    bool delegateMightNeedMarking = aKey && xpc_IsGrayGCThing(aKey.asCell());
-    bool valueMightNeedMarking = aValue && xpc_IsGrayGCThing(aValue.asCell()) &&
-                                 aValue.kind() != JSTRACE_STRING;
+    bool delegateMightNeedMarking = aKey && xpc_IsGrayGCThing(aKey);
+    bool valueMightNeedMarking = aValue && xpc_IsGrayGCThing(aValue) &&
+                                 aValueKind != JSTRACE_STRING;
     if (!delegateMightNeedMarking && !valueMightNeedMarking) {
       return;
     }
 
-    if (!AddToCCKind(aKey.kind())) {
-      aKey = JS::GCCellPtr::NullPtr();
+    if (!AddToCCKind(aKeyKind)) {
+      aKey = nullptr;
     }
 
-    if (delegateMightNeedMarking && aKey.isObject()) {
-      JSObject* kdelegate = js::GetWeakmapKeyDelegate(aKey.toObject());
+    if (delegateMightNeedMarking && aKeyKind == JSTRACE_OBJECT) {
+      JSObject* kdelegate = js::GetWeakmapKeyDelegate((JSObject*)aKey);
       if (kdelegate && !xpc_IsGrayGCThing(kdelegate)) {
-        if (JS::UnmarkGrayGCThingRecursively(aKey.asCell(), JSTRACE_OBJECT)) {
+        if (JS::UnmarkGrayGCThingRecursively(aKey, JSTRACE_OBJECT)) {
           tracer->mAnyMarked = true;
         }
       }
     }
 
-    if (aValue && xpc_IsGrayGCThing(aValue.asCell()) &&
-        (!aKey || !xpc_IsGrayGCThing(aKey.asCell())) &&
+    if (aValue && xpc_IsGrayGCThing(aValue) &&
+        (!aKey || !xpc_IsGrayGCThing(aKey)) &&
         (!aMap || !xpc_IsGrayGCThing(aMap)) &&
-        aValue.kind() != JSTRACE_SHAPE) {
-      if (JS::UnmarkGrayGCThingRecursively(aValue.asCell(), aValue.kind())) {
+        aValueKind != JSTRACE_SHAPE) {
+      if (JS::UnmarkGrayGCThingRecursively(aValue, aValueKind)) {
         tracer->mAnyMarked = true;
       }
     }
@@ -579,10 +582,24 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
         JS_snprintf(name, sizeof(name), "JS Object (Function)");
       }
     } else {
-      JS_snprintf(name, sizeof(name), "JS Object (%s)", clasp->name);
+      JS_snprintf(name, sizeof(name), "JS Object (%s)",
+                  clasp->name);
     }
   } else {
-    JS_snprintf(name, sizeof(name), "JS %s", JS::GCTraceKindToAscii(aTraceKind));
+    static const char trace_types[][11] = {
+      "Object",
+      "String",
+      "Symbol",
+      "Script",
+      "LazyScript",
+      "IonCode",
+      "Shape",
+      "BaseShape",
+      "TypeObject",
+    };
+    static_assert(MOZ_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1,
+                  "JSTRACE_LAST enum must match trace_types count.");
+    JS_snprintf(name, sizeof(name), "JS %s", trace_types[aTraceKind]);
   }
 
   // Disable printing global for objects while we figure out ObjShrink fallout.

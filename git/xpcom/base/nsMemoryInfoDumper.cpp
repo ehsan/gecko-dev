@@ -7,7 +7,6 @@
 #include "mozilla/JSONWriter.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/nsMemoryInfoDumper.h"
-#include "mozilla/DebugOnly.h"
 #include "nsDumpUtils.h"
 
 #include "mozilla/unused.h"
@@ -222,7 +221,7 @@ doGCCCDump(const nsCString& aInputStr)
 bool
 SetupFifo()
 {
-  static DebugOnly<bool> fifoCallbacksRegistered = false;
+  static bool fifoCallbacksRegistered = false;
 
   if (!FifoWatcher::MaybeCreate()) {
     return false;

@@ -14,18 +14,6 @@ from manifestparser import ManifestParser
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-# In some cases tempfile.mkdtemp() may returns a path which contains
-# symlinks. Some tests here will then break, as the manifestparser.convert
-# function returns paths that does not contains symlinks.
-#
-# Workaround is to use the following function, if absolute path of temp dir
-# must be compared.
-def create_realpath_tempdir():
-    """
-    Create a tempdir without symlinks.
-    """
-    return os.path.realpath(tempfile.mkdtemp())
-
 class TestDirectoryConversion(unittest.TestCase):
     """test conversion of a directory tree to a manifest structure"""
 
@@ -34,7 +22,7 @@ class TestDirectoryConversion(unittest.TestCase):
 
         files = ('foo', 'bar', 'fleem')
         if directory is None:
-            directory = create_realpath_tempdir()
+            directory = tempfile.mkdtemp()
         for i in files:
             file(os.path.join(directory, i), 'w').write(i)
         subdir = os.path.join(directory, 'subdir')
@@ -139,12 +127,12 @@ subsuite =
         """
 
         # boilerplate
-        tempdir = create_realpath_tempdir()
+        tempdir = tempfile.mkdtemp()
         for i in range(10):
             file(os.path.join(tempdir, str(i)), 'w').write(str(i))
 
         # otherwise empty directory with a manifest file
-        newtempdir = create_realpath_tempdir()
+        newtempdir = tempfile.mkdtemp()
         manifest_file = os.path.join(newtempdir, 'manifest.ini')
         manifest_contents = str(convert([tempdir], relative_to=tempdir))
         with file(manifest_file, 'w') as f:
