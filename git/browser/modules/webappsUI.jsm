@@ -50,7 +50,9 @@ this.webappsUI = {
 
   _getWindowForId: function(aId) {
     let someWindow = Services.wm.getMostRecentWindow(null);
-    return someWindow && Services.wm.getOuterWindowWithId(aId);
+    return someWindow && someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                   .getInterface(Ci.nsIDOMWindowUtils)
+                                   .getOuterWindowWithId(aId);
   },
 
   openURL: function(aUrl, aOrigin) {

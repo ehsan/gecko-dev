@@ -26,7 +26,6 @@
 #include "mozilla/Attributes.h"
 
 class nsWindow;
-class nsWindowBase;
 struct KeyPair;
 
 namespace mozilla {
@@ -135,15 +134,12 @@ public:
                               bool aStopIfNotPopup = true);
 
   /**
-   * SetNSWindowBasePtr() associates an nsWindowBase to aWnd.  If aWidget is NULL,
-   * it dissociate any nsBaseWidget pointer from aWnd.
-   * GetNSWindowBasePtr() returns an nsWindowBase pointer which was associated by
-   * SetNSWindowBasePtr().
-   * GetNSWindowPtr() is a legacy api for win32 nsWindow and should be avoided
-   * outside of nsWindow src.
+   * SetNSWindowPtr() associates an nsWindow to aWnd.  If aWindow is NULL,
+   * it dissociate any nsWindow pointer from aWnd.
+   * GetNSWindowPtr() returns an nsWindow pointer which was associated by
+   * SetNSWindowPtr().
    */
-  static bool SetNSWindowBasePtr(HWND aWnd, nsWindowBase* aWidget);
-  static nsWindowBase* GetNSWindowBasePtr(HWND aWnd);
+  static bool SetNSWindowPtr(HWND aWnd, nsWindow* aWindow);
   static nsWindow* GetNSWindowPtr(HWND aWnd);
 
   /**

@@ -64,11 +64,11 @@ GetTopLevelWindowActiveState(nsIFrame *aFrame)
   // Get the widget. nsIFrame's GetNearestWidget walks up the view chain
   // until it finds a real window.
   nsIWidget* widget = aFrame->GetNearestWidget();
-  nsWindowBase * window = static_cast<nsWindowBase*>(widget);
+  nsWindow * window = static_cast<nsWindow*>(widget);
   if (!window)
     return mozilla::widget::themeconst::FS_INACTIVE;
   if (widget && !window->IsTopLevelWidget() &&
-      !(window = window->GetParentWindowBase(false)))
+      !(window = window->GetParentWindow(false)))
     return mozilla::widget::themeconst::FS_INACTIVE;
 
   if (window->GetWindowHandle() == ::GetActiveWindow())

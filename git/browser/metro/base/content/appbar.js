@@ -31,14 +31,6 @@ var Appbar = {
     switch (aEvent.type) {
       case 'URLChanged':
       case 'TabSelect':
-        this.update();
-        // Switching away from or loading a site into a startui tab that has actions
-        // pending, we consider this confirmation that the user wants to flush changes.
-        if (this.activeTileset && aEvent.lastTab && aEvent.lastTab.browser.currentURI.spec == kStartURI) {
-          ContextUI.dismiss();
-        }
-        break;
-
       case 'MozAppbarShowing':
         this.update();
         break;
@@ -110,7 +102,7 @@ var Appbar = {
   onMenuButton: function(aEvent) {
       let typesArray = [];
 
-      if (!BrowserUI.isStartTabVisible)
+      if (!StartUI.isVisible)
         typesArray.push("find-in-page");
       if (ConsolePanelView.enabled)
         typesArray.push("open-error-console");

@@ -8,11 +8,6 @@ let Ci = Components.interfaces;
 let Cu = Components.utils;
 let Cr = Components.results;
 
-Cu.import("resource://gre/modules/PageThumbs.jsm");
-
-// Page for which the start UI is shown
-const kStartURI = "about:start";
-
 const kBrowserViewZoomLevelPrecision = 10000;
 
 // allow panning after this timeout on pages with registered touch listeners
@@ -21,12 +16,7 @@ const kSetInactiveStateTimeout = 100;
 
 const kDefaultMetadata = { autoSize: false, allowZoom: true, autoScale: true };
 
-const kTabThumbnailDelayCapture = 500;
-
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-
-// See grid.xml, we use this to cache style info across loads of the startui.
-var _richgridTileSizes = {};
 
 // Override sizeToContent in the main window. It breaks things (bug 565887)
 window.sizeToContent = function() {
@@ -181,10 +171,13 @@ var Browser = {
 
       let self = this;
       function loadStartupURI() {
-        if (activationURI) {
-          self.addTab(activationURI, true, null, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP });
+        let uri = activationURI || commandURL || Browser.getHomePage();
+        if (StartUI.isStartURI(uri)) {
+          self.addTab(uri, true);
+          StartUI.show(); // This makes about:start load a lot faster
+        } else if (activationURI) {
+          self.addTab(uri, true, null, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP });
         } else {
-          let uri = commandURL || Browser.getHomePage();
           self.addTab(uri, true);
         }
       }
@@ -194,9 +187,9 @@ var Browser = {
       if (ss.shouldRestore() || Services.prefs.getBoolPref("browser.startup.sessionRestore")) {
         let bringFront = false;
         // First open any commandline URLs, except the homepage
-        if (activationURI && activationURI != kStartURI) {
+        if (activationURI && !StartUI.isStartURI(activationURI)) {
           this.addTab(activationURI, true, null, { flags: Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP });
-        } else if (commandURL && commandURL != kStartURI) {
+        } else if (commandURL && !StartUI.isStartURI(commandURL)) {
           this.addTab(commandURL, true);
         } else {
           bringFront = true;
@@ -293,7 +286,7 @@ var Browser = {
   getHomePage: function getHomePage(aOptions) {
     aOptions = aOptions || { useDefault: false };
 
-    let url = kStartURI;
+    let url = "about:start";
     try {
       let prefs = aOptions.useDefault ? Services.prefs.getDefaultBranch(null) : Services.prefs;
       url = prefs.getComplexValue("browser.startup.homepage", Ci.nsIPrefLocalizedString).data;
@@ -563,16 +556,9 @@ var Browser = {
         item.owner = null;
     });
 
-    // tray tab
     let event = document.createEvent("Events");
     event.initEvent("TabClose", true, false);
     aTab.chromeTab.dispatchEvent(event);
-
-    // tab window
-    event = document.createEvent("Events");
-    event.initEvent("TabClose", true, false);
-    aTab.browser.contentWindow.dispatchEvent(event);
-
     aTab.browser.messageManager.sendAsyncMessage("Browser:TabClose");
 
     let container = aTab.chromeTab.parentNode;
@@ -1468,7 +1454,6 @@ function Tab(aURI, aParams, aOwner) {
   this._chromeTab = null;
   this._metadata = null;
   this._eventDeferred = null;
-  this._updateThumbnailTimeout = null;
 
   this.owner = aOwner || null;
 
@@ -1618,45 +1603,13 @@ Tab.prototype = {
       self._eventDeferred = null;
     }
     browser.addEventListener("pageshow", onPageShowEvent, true);
-    browser.messageManager.addMessageListener("Content:StateChange", this);
-    Services.obs.addObserver(this, "metro_viewstate_changed", false);
 
     if (aOwner)
       this._copyHistoryFrom(aOwner);
     this._loadUsingParams(browser, aURI, aParams);
   },
 
-  receiveMessage: function(aMessage) {
-    switch (aMessage.name) {
-      case "Content:StateChange":
-        // update the thumbnail now...
-        this.updateThumbnail();
-        // ...and in a little while to capture page after load.
-        if (aMessage.json.stateFlags & Ci.nsIWebProgressListener.STATE_STOP) {
-          clearTimeout(this._updateThumbnailTimeout);
-          this._updateThumbnailTimeout = setTimeout(() => {
-            this.updateThumbnail();
-          }, kTabThumbnailDelayCapture);
-        }
-        break;
-    }
-  },
-
-  observe: function BrowserUI_observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "metro_viewstate_changed":
-        if (aData !== "snapped") {
-          this.updateThumbnail();
-        }
-        break;
-    }
-  },
-
   destroy: function destroy() {
-    this._browser.messageManager.removeMessageListener("Content:StateChange", this);
-    Services.obs.removeObserver(this, "metro_viewstate_changed", false);
-    clearTimeout(this._updateThumbnailTimeout);
-
     Elements.tabList.removeTab(this._chromeTab);
     this._chromeTab = null;
     this._destroyBrowser();
@@ -1865,8 +1818,8 @@ Tab.prototype = {
     return this.metadata.allowZoom && !Util.isURLEmpty(this.browser.currentURI.spec);
   },
 
-  updateThumbnail: function updateThumbnail() {
-    PageThumbs.captureToCanvas(this.browser.contentWindow, this._chromeTab.thumbnailCanvas);
+  updateThumbnailSource: function updateThumbnailSource() {
+    this._chromeTab.updateThumbnailSource(this._browser);
   },
 
   updateFavicon: function updateFavicon() {

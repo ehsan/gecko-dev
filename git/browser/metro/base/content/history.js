@@ -17,27 +17,17 @@ function HistoryView(aSet, aLimit, aFilterUnpinned) {
   this._pinHelper = new ItemPinHelper("metro.history.unpinned");
   this._historyService.addObserver(this, false);
   Services.obs.addObserver(this, "metro_viewstate_changed", false);
-  StartUI.chromeWin.addEventListener('MozAppbarDismissing', this, false);
-  StartUI.chromeWin.addEventListener('HistoryNeedsRefresh', this, false);
-  window.addEventListener("TabClose", this, true);
+  window.addEventListener('MozAppbarDismissing', this, false);
+  window.addEventListener('HistoryNeedsRefresh', this, false);
 }
 
 HistoryView.prototype = Util.extend(Object.create(View.prototype), {
   _set: null,
   _toRemove: null,
 
-  destruct: function destruct() {
-    this._historyService.removeObserver(this);
-    Services.obs.removeObserver(this, "metro_viewstate_changed");
-    if (StartUI.chromeWin) {
-      StartUI.chromeWin.removeEventListener('MozAppbarDismissing', this, false);
-      StartUI.chromeWin.removeEventListener('HistoryNeedsRefresh', this, false);
-    }
-  },
-
   handleItemClick: function tabview_handleItemClick(aItem) {
     let url = aItem.getAttribute("value");
-    StartUI.goToURI(url);
+    BrowserUI.goToURI(url);
   },
 
   populateGrid: function populateGrid(aRefresh) {
@@ -100,6 +90,13 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
       this._inBatch--;
   },
 
+  destruct: function destruct() {
+    this._historyService.removeObserver(this);
+    Services.obs.removeObserver(this, "metro_viewstate_changed");
+    window.removeEventListener('MozAppbarDismissing', this, false);
+    window.removeEventListener('HistoryNeedsRefresh', this, false);
+  },
+
   addItemToSet: function addItemToSet(aURI, aTitle, aIcon, aPos) {
     let item = this._set.insertItemAt(aPos || 0, aTitle, aURI, this._inBatch);
     this._setContextActions(item);
@@ -109,7 +106,7 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
   _setContextActions: function bv__setContextActions(aItem) {
     let uri = aItem.getAttribute("value");
     aItem.setAttribute("data-contextactions", "delete," + (this._pinHelper.isPinned(uri) ? "unpin" : "pin"));
-    if ("refresh" in aItem) aItem.refresh();
+    if (aItem.refresh) aItem.refresh();
   },
 
   _sendNeedsRefresh: function bv__sendNeedsRefresh(){
@@ -211,12 +208,6 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
       case "HistoryNeedsRefresh":
         this.populateGrid(true);
         break;
-
-      case "TabClose":
-        // Flush any pending actions - appbar will call us back
-        // before this returns with 'MozAppbarDismissing' above.
-        StartUI.chromeWin.ContextUI.dismiss();
-      break;
     }
   },
 
@@ -273,8 +264,6 @@ HistoryView.prototype = Util.extend(Object.create(View.prototype), {
         let currIcon = item.getAttribute("iconURI");
         if (currIcon != aValue) {
           item.setAttribute("iconURI", aValue);
-          if("refresh" in item)
-            item.refresh();
         }
       }
     }
@@ -309,8 +298,6 @@ let HistoryStartView = {
   },
 
   uninit: function uninit() {
-    if (this._view) {
-      this._view.destruct();
-    }
+    this._view.destruct();
   }
 };

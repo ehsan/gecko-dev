@@ -15,6 +15,7 @@
  * nsWindowBase - Base class of common methods other classes need to access
  * in both win32 and winrt window classes.
  */
+
 class nsWindowBase : public nsBaseWidget
 {
 public:
@@ -24,16 +25,6 @@ public:
   virtual HWND GetWindowHandle() MOZ_FINAL {
     return static_cast<HWND>(GetNativeData(NS_NATIVE_WINDOW));
   }
-
-  /*
-   * Return the parent window, if it exists.
-   */
-  virtual nsWindowBase* GetParentWindowBase(bool aIncludeOwner) = 0;
-
-  /*
-   * Return true if this is a top level widget.
-   */
-  virtual bool IsTopLevelWidget() = 0;
 
   /*
    * Init a standard gecko event for this widget.

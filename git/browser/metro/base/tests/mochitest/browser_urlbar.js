@@ -91,16 +91,19 @@ function removeMockSearchDefault(aTimeoutMs) {
 =============================================================================*/
 
 function test() {
-  waitForExplicitFinish();
-  Task.spawn(function(){
-    yield addTab("about:blank");
-  }).then(runTests);
+  runTests();
 }
+
 
 function setUp() {
   if (!gEdit)
     gEdit = document.getElementById("urlbar-edit");
+
+  yield addTab("about:start");
   yield showNavBar();
+  yield waitForCondition(function () {
+    return StartUI.isStartPageVisible;
+  });
 }
 
 function tearDown() {
@@ -161,8 +164,6 @@ gTests.push({
   run: function testSearchKeyboard() {
     yield addMockSearchDefault();
 
-    yield waitForCondition(() => !Browser.selectedTab.isLoading());
-
     sendElementTap(window, gEdit);
     ok(gEdit.isEditing, "focus urlbar: in editing mode");
     ok(!gEdit.popup.popupOpen, "focus urlbar: popup not open yet");
@@ -207,8 +208,6 @@ gTests.push({
   tearDown: tearDown,
   run: function testUrlbarSearchesTouch() {
     yield addMockSearchDefault();
-
-    yield waitForCondition(() => !Browser.selectedTab.isLoading());
 
     sendElementTap(window, gEdit);
     ok(gEdit.isEditing, "focus urlbar: in editing mode");

@@ -15,7 +15,6 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/WebappOSUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 this.WebappsInstaller = {
   shell: null,
@@ -640,7 +639,6 @@ MacNativeApp.prototype = {
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.appProfileDir.leafName);
     writer.writeFile();
-    applicationINI.permissions = FileUtils.PERMS_FILE;
 
     // ${InstallDir}/Contents/Info.plist
     let infoPListContent = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -958,12 +956,9 @@ LinuxNativeApp.prototype = {
  * @param aData     a string with the data to be written
  */
 function writeToFile(aFile, aData) {
-  return Task.spawn(function() {
-    let data = new TextEncoder().encode(aData);
-    let file = yield OS.File.open(aFile.path, { truncate: true }, { unixMode: FileUtils.PERMS_FILE });
-    yield file.write(data);
-    yield file.close();
-  });
+  let path = aFile.path;
+  let data = new TextEncoder().encode(aData);
+  return OS.File.writeAtomic(path, data, { tmpPath: path + ".tmp" });
 }
 
 /**

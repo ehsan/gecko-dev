@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 this.EXPORTED_SYMBOLS = ["SessionStore"];
 
 const Cu = Components.utils;
@@ -306,8 +304,15 @@ let SessionStoreInternal = {
   // states for all currently opened windows
   _windows: {},
 
+  // internal states for all open windows (data we need to associate,
+  // but not write to disk)
+  _internalWindows: {},
+
   // states for all recently closed windows
   _closedWindows: [],
+
+  // not-"dirty" windows usually don't need to have their data updated
+  _dirtyWindows: {},
 
   // collection of session states yet to be restored
   _statesToRestore: {},
@@ -483,6 +488,8 @@ let SessionStoreInternal = {
         this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
 
+    this._initEncoding();
+
     this._performUpgradeBackup();
 
     this._sessionInitialized = true;
@@ -515,6 +522,13 @@ let SessionStoreInternal = {
         debug(ex.stack);
       }
     }.bind(this));
+  },
+
+  _initEncoding : function ssi_initEncoding() {
+    // The (UTF-8) encoder used to write to files.
+    XPCOMUtils.defineLazyGetter(this, "_writeFileEncoder", function () {
+      return new TextEncoder();
+    });
   },
 
   _initPrefs : function() {
@@ -717,6 +731,9 @@ let SessionStoreInternal = {
     // and create its data object
     this._windows[aWindow.__SSi] = { tabs: [], selected: 0, _closedTabs: [], busy: false };
 
+    // and create its internal data object
+    this._internalWindows[aWindow.__SSi] = { hosts: {} }
+
     let isPrivateWindow = false;
     if (PrivateBrowsingUtils.isWindowPrivate(aWindow))
       this._windows[aWindow.__SSi].isPrivate = isPrivateWindow = true;
@@ -870,12 +887,12 @@ let SessionStoreInternal = {
    *        Window reference
    */
   onOpen: function ssi_onOpen(aWindow) {
-    let onload = () => {
-      aWindow.removeEventListener("load", onload);
-      this.onLoad(aWindow);
-    };
-
-    aWindow.addEventListener("load", onload);
+    var _this = this;
+    aWindow.addEventListener("load", function(aEvent) {
+      aEvent.currentTarget.removeEventListener("load", arguments.callee, false);
+      _this.onLoad(aEvent.currentTarget);
+    }, false);
+    return;
   },
 
   /**
@@ -930,7 +947,9 @@ let SessionStoreInternal = {
         winData.title = aWindow.content.document.title || tabbrowser.selectedTab.label;
         winData.title = this._replaceLoadingTitle(winData.title, tabbrowser,
                                                   tabbrowser.selectedTab);
-        this._updateCookies([winData]);
+        let windows = {};
+        windows[aWindow.__SSi] = winData;
+        this._updateCookies(windows);
       }
 
 #ifndef XP_MACOSX
@@ -952,6 +971,7 @@ let SessionStoreInternal = {
 
       // clear this window from the list
       delete this._windows[aWindow.__SSi];
+      delete this._internalWindows[aWindow.__SSi];
 
       // save the state without this window to disk
       this.saveStateDelayed();
@@ -980,7 +1000,7 @@ let SessionStoreInternal = {
     var activeWindow = this._getMostRecentBrowserWindow();
     if (activeWindow)
       this.activeWindowSSiCache = activeWindow.__SSi || "";
-    DirtyWindows.clear();
+    this._dirtyWindows = [];
   },
 
   /**
@@ -1047,17 +1067,20 @@ let SessionStoreInternal = {
         delete aTab.linkedBrowser.__SS_data;
         delete aTab.linkedBrowser.__SS_tabStillLoading;
         delete aTab.linkedBrowser.__SS_formDataSaved;
+        delete aTab.linkedBrowser.__SS_hostSchemeData;
         if (aTab.linkedBrowser.__SS_restoreState)
           this._resetTabRestoringState(aTab);
-      }, this);
+      });
       openWindows[aWindow.__SSi] = true;
     });
     // also clear all data about closed tabs and windows
     for (let ix in this._windows) {
       if (ix in openWindows) {
         this._windows[ix]._closedTabs = [];
-      } else {
+      }
+      else {
         delete this._windows[ix];
+        delete this._internalWindows[ix];
       }
     }
     // also clear all data about closed windows
@@ -1068,6 +1091,9 @@ let SessionStoreInternal = {
       win.setTimeout(function() { _this.saveState(true); }, 0);
     else if (this._loadState == STATE_RUNNING)
       this.saveState(true);
+    // Delete the private browsing backed up state, if any
+    if ("_stateBackup" in this)
+      delete this._stateBackup;
 
     this._clearRestoringWindows();
   },
@@ -1211,6 +1237,7 @@ let SessionStoreInternal = {
     delete browser.__SS_data;
     delete browser.__SS_tabStillLoading;
     delete browser.__SS_formDataSaved;
+    delete browser.__SS_hostSchemeData;
 
     // If this tab was in the middle of restoring or still needs to be restored,
     // we need to reset that state. If the tab was restoring, we will attempt to
@@ -1966,10 +1993,11 @@ let SessionStoreInternal = {
       tabData.index = history.index + 1;
     }
     else if (history && history.count > 0) {
+      browser.__SS_hostSchemeData = [];
       try {
         for (var j = 0; j < history.count; j++) {
           let entry = this._serializeHistoryEntry(history.getEntryAtIndex(j, false),
-                                                  includePrivateData, aTab.pinned);
+                                                  includePrivateData, aTab.pinned, browser.__SS_hostSchemeData);
           tabData.entries.push(entry);
         }
         // If we make it through the for loop, then we're ok and we should clear
@@ -2061,11 +2089,22 @@ let SessionStoreInternal = {
    *        always return privacy sensitive data (use with care)
    * @param aIsPinned
    *        the tab is pinned and should be treated differently for privacy
+   * @param aHostSchemeData
+   *        an array of objects with host & scheme keys
    * @returns object
    */
   _serializeHistoryEntry:
-    function ssi_serializeHistoryEntry(aEntry, aIncludePrivateData, aIsPinned) {
+    function ssi_serializeHistoryEntry(aEntry, aIncludePrivateData, aIsPinned, aHostSchemeData) {
     var entry = { url: aEntry.URI.spec };
+
+    try {
+      // throwing is expensive, we know that about: pages will throw
+      if (entry.url.indexOf("about:") != 0)
+        aHostSchemeData.push({ host: aEntry.URI.host, scheme: aEntry.URI.scheme });
+    }
+    catch (ex) {
+      // We just won't attempt to get cookies for this entry.
+    }
 
     if (aEntry.title && aEntry.title != entry.url) {
       entry.title = aEntry.title;
@@ -2177,7 +2216,7 @@ let SessionStoreInternal = {
           }
 
           children.push(this._serializeHistoryEntry(child, aIncludePrivateData,
-                                                    aIsPinned));
+                                                    aIsPinned, aHostSchemeData));
         }
       }
 
@@ -2398,8 +2437,8 @@ let SessionStoreInternal = {
   /**
    * Serialize cookie data
    * @param aWindows
-   *        An array of window data objects
-   *        { tabs: [ ... ], etc. }
+   *        JS object containing window data references
+   *        { id: winData, etc. }
    */
   _updateCookies: function ssi_updateCookies(aWindows) {
     function addCookieToHash(aHash, aHost, aPath, aName, aCookie) {
@@ -2417,18 +2456,12 @@ let SessionStoreInternal = {
     // MAX_EXPIRY should be 2^63-1, but JavaScript can't handle that precision
     var MAX_EXPIRY = Math.pow(2, 62);
 
-    for (let window of aWindows) {
+    for (let [id, window] in Iterator(aWindows)) {
       window.cookies = [];
-
-      // Collect all hosts for the current window.
-      let hosts = {};
-      window.tabs.forEach(function(tab) {
-        tab.entries.forEach(function(entry) {
-          this._extractHostsForCookiesFromEntry(entry, hosts, true, tab.pinned);
-        }, this);
-      }, this);
-
-      for (var [host, isPinned] in Iterator(hosts)) {
+      let internalWindow = this._internalWindows[id];
+      if (!internalWindow.hosts)
+        return;
+      for (var [host, isPinned] in Iterator(internalWindow.hosts)) {
         let list;
         try {
           list = Services.cookies.getCookiesFromHost(host);
@@ -2511,34 +2544,30 @@ let SessionStoreInternal = {
       this._forEachBrowserWindow(function(aWindow) {
         if (!this._isWindowLoaded(aWindow)) // window data is still in _statesToRestore
           return;
-        if (aUpdateAll || DirtyWindows.has(aWindow) || aWindow == activeWindow) {
+        if (aUpdateAll || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
           this._collectWindowData(aWindow);
         }
         else { // always update the window features (whose change alone never triggers a save operation)
           this._updateWindowFeatures(aWindow);
         }
       });
-      DirtyWindows.clear();
+      this._dirtyWindows = [];
     }
 
-    // An array that at the end will hold all current window data.
-    var total = [];
-    // The ids of all windows contained in 'total' in the same order.
-    var ids = [];
-    // The number of window that are _not_ popups.
+    // collect the data for all windows
+    var total = [], windows = {}, ids = [];
     var nonPopupCount = 0;
     var ix;
-
-    // collect the data for all windows
     for (ix in this._windows) {
       if (this._windows[ix]._restoring) // window data is still in _statesToRestore
         continue;
       total.push(this._windows[ix]);
       ids.push(ix);
+      windows[ix] = this._windows[ix];
       if (!this._windows[ix].isPopup)
         nonPopupCount++;
     }
-    this._updateCookies(total);
+    this._updateCookies(windows);
 
     // collect the data for all windows yet to be restored
     for (ix in this._statesToRestore) {
@@ -2610,10 +2639,12 @@ let SessionStoreInternal = {
       this._collectWindowData(aWindow);
     }
 
-    let windows = [this._windows[aWindow.__SSi]];
+    var winData = this._windows[aWindow.__SSi];
+    let windows = {};
+    windows[aWindow.__SSi] = winData;
     this._updateCookies(windows);
 
-    return { windows: windows };
+    return { windows: [winData] };
   },
 
   _collectWindowData: function ssi_collectWindowData(aWindow) {
@@ -2624,10 +2655,22 @@ let SessionStoreInternal = {
     let tabs = tabbrowser.tabs;
     let winData = this._windows[aWindow.__SSi];
     let tabsData = winData.tabs = [];
+    let hosts = this._internalWindows[aWindow.__SSi].hosts = {};
 
     // update the internal state data for this window
     for (let tab of tabs) {
       tabsData.push(this._collectTabData(tab));
+
+      // Since we are only ever called for open
+      // windows during a session, we can call into
+      // _extractHostsForCookiesFromHostScheme directly using data
+      // that is attached to each browser.
+      let hostSchemeData = tab.linkedBrowser.__SS_hostSchemeData || [];
+      for (let j = 0; j < hostSchemeData.length; j++) {
+        this._extractHostsForCookiesFromHostScheme(hostSchemeData[j].host,
+                                                   hostSchemeData[j].scheme,
+                                                   hosts, true, tab.pinned);
+      }
     }
     winData.selected = tabbrowser.mTabBox.selectedIndex + 1;
 
@@ -2639,7 +2682,7 @@ let SessionStoreInternal = {
       this._windows[aWindow.__SSi].__lastSessionWindowID =
         aWindow.__SS_lastSessionWindowID;
 
-    DirtyWindows.remove(aWindow);
+    this._dirtyWindows[aWindow.__SSi] = false;
   },
 
   /* ........ Restoring Functionality .............. */
@@ -2967,7 +3010,7 @@ let SessionStoreInternal = {
 
       // It's important to set the window state to dirty so that
       // we collect their data for the first time when saving state.
-      DirtyWindows.add(aWindow);
+      this._dirtyWindows[aWindow.__SSi] = true;
     }
 
     if (aTabs.length == 0) {
@@ -3658,7 +3701,7 @@ let SessionStoreInternal = {
    */
   saveStateDelayed: function ssi_saveStateDelayed(aWindow = null, aDelay = 2000) {
     if (aWindow) {
-      DirtyWindows.add(aWindow);
+      this._dirtyWindows[aWindow.__SSi] = true;
     }
 
     if (!this._saveTimer) {
@@ -4643,28 +4686,6 @@ let DyingWindowCache = {
 
   remove: function (window) {
     this._data.delete(window);
-  }
-};
-
-// A weak set of dirty windows. We use it to determine which windows we need to
-// recollect data for when _getCurrentState() is called.
-let DirtyWindows = {
-  _data: new WeakMap(),
-
-  has: function (window) {
-    return this._data.has(window);
-  },
-
-  add: function (window) {
-    return this._data.set(window, true);
-  },
-
-  remove: function (window) {
-    this._data.delete(window);
-  },
-
-  clear: function (window) {
-    this._data.clear();
   }
 };
 

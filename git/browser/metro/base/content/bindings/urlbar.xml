@@ -157,7 +157,7 @@
           <![CDATA[
             // Grab the actual input field's value, not our value, which could include moz-action:
             let inputVal = this.inputField.value;
-            let selectedVal = inputVal.substring(this.selectionStart, this.selectionEnd);
+            let selectedVal = inputVal.substring(this.selectionStart, this.electionEnd);
 
             // If the selection doesn't start at the beginning or doesn't span the full domain or
             // the URL bar is modified, nothing else to do here.
@@ -272,7 +272,7 @@
       <property name="isEditing" readonly="true">
         <getter>
           <![CDATA[
-            return Elements.urlbarState.hasAttribute("editing");
+            return Elements.urlbarState.getAttribute("mode") == "edit";
           ]]>
         </getter>
       </property>
@@ -284,7 +284,7 @@
             if (this.isEditing)
               return;
 
-            Elements.urlbarState.setAttribute("editing", true);
+            Elements.urlbarState.setAttribute("mode", "edit");
             this._lastKnownGoodURL = this.value;
 
             if (!this.focused)
@@ -306,7 +306,7 @@
             if (!this.isEditing)
               return;
 
-            Elements.urlbarState.removeAttribute("editing");
+            Elements.urlbarState.setAttribute("mode", "view");
             this.closePopup();
             this.formatValue();
 
@@ -485,17 +485,14 @@
 
   <binding id="urlbar-autocomplete">
     <content orient="horizontal">
-      <xul:vbox id="results-vbox" anonid="results-container" flex="1">
-        <xul:label class="meta-section-title"
-                   value="&autocompleteResultsHeader.label;"/>
-        <richgrid id="results-richgrid" anonid="results" rows="3" flex="1"
-                  seltype="single" deferlayout="true"/>
+      <xul:vbox id="results-vbox" flex="1">
+        <xul:label class="meta-section-title" value="&autocompleteResultsHeader.label;"/>
+        <richgrid id="results-richgrid" rows="3" deferlayout="true" anonid="results" seltype="single" flex="1"/>
       </xul:vbox>
 
       <xul:vbox id="searches-vbox" flex="1">
-        <xul:label anonid="searches-header" class="meta-section-title"/>
-        <richgrid id="searches-richgrid" anonid="searches" rows="3" flex="1"
-                  seltype="single" deferlayout="true"/>
+        <xul:label class="meta-section-title" value="&autocompleteSearchesHeader.label;"/>
+        <richgrid id="searches-richgrid" rows="3" deferlayout="true" anonid="searches" seltype="single" flex="1"/>
       </xul:vbox>
     </content>
 
@@ -593,11 +590,7 @@
       <!-- Updating grid content -->
 
       <field name="_grid">null</field>
-
       <field name="_results" readonly="true">document.getAnonymousElementByAttribute(this, 'anonid', 'results');</field>
-      <field name="_resultsContainer" readonly="true">document.getAnonymousElementByAttribute(this, 'anonid', 'results-container');</field>
-
-      <field name="_searchesHeader" readonly="true">document.getAnonymousElementByAttribute(this, 'anonid', 'searches-header');</field>
       <field name="_searches" readonly="true">document.getAnonymousElementByAttribute(this, 'anonid', 'searches');</field>
 
       <property name="_otherGrid" readonly="true">
@@ -627,7 +620,7 @@
               return;
 
             this.updateResults();
-            this.updateSearchEngineHeader();
+            this.updateSearchEngineSubtitles();
           ]]>
         </body>
       </method>
@@ -642,13 +635,6 @@
 
             if (!this.input)
               return;
-
-            let haveNoResults = (this.matchCount == 0);
-            this._resultsContainer.hidden = haveNoResults;
-
-            if (haveNoResults) {
-              return;
-            }
 
             let controller = this.input.controller;
             let lastMatch = this.matchCount - 1;
@@ -720,17 +706,20 @@
         </body>
       </method>
 
-      <method name="updateSearchEngineHeader">
+      <method name="updateSearchEngineSubtitles">
         <body>
           <![CDATA[
             if (!this._isGridBound(this._searches))
               return;
 
             let searchString = this.input.controller.searchString;
-            let label = Strings.browser.formatStringFromName(
-                              "opensearch.search.header", [searchString], 1);
+            let label = Strings.browser.formatStringFromName("opensearch.search", [searchString], 1);
 
-            this._searchesHeader.value = label;
+            for (let i = 0, len = this._searches.itemCount; i < len; i++) {
+              let item = this._searches.getItemAtIndex(i);
+              item.setAttribute("label", label);
+              item.refresh && item.refresh();
+            }
           ]]>
         </body>
       </method>

@@ -824,12 +824,6 @@ let Actor = Class({
       message: err.toString()
     });
   },
-
-  _queueResponse: function(create) {
-    let pending = this._pendingResponse || promise.resolve(null);
-    let response = create(pending);
-    this._pendingResponse = response;
-  }
 });
 exports.Actor = Actor;
 
@@ -921,16 +915,14 @@ let actorProto = function(actorProto) {
           conn.send(response);
         };
 
-        this._queueResponse(p => {
-          return p
-            .then(() => ret)
-            .then(sendReturn)
-            .then(null, this.writeError.bind(this));
-        })
+        if (ret && ret.then) {
+          ret.then(sendReturn).then(null, this.writeError.bind(this));
+        } else {
+          sendReturn(ret);
+        }
+
       } catch(e) {
-        this._queueResponse(p => {
-          return p.then(() => this.writeError(e));
-        });
+        this.writeError(e);
       }
     };
 

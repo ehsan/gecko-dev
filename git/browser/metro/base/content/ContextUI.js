@@ -181,7 +181,7 @@ var ContextUI = {
 
   // Dismiss the navbar if visible.
   dismissNavbar: function dismissNavbar() {
-    if (!BrowserUI.isStartTabVisible) {
+    if (!StartUI.isVisible) {
       Elements.navbar.dismiss();
     }
   },
@@ -230,11 +230,17 @@ var ContextUI = {
   _onEdgeUIStarted: function(aEvent) {
     this._hasEdgeSwipeStarted = true;
     this._clearDelayedTimeout();
+
+    if (StartUI.hide()) {
+      this.dismiss();
+      return;
+    }
     this.toggleNavUI();
   },
 
   _onEdgeUICanceled: function(aEvent) {
     this._hasEdgeSwipeStarted = false;
+    StartUI.hide();
     this.dismiss();
   },
 
@@ -245,6 +251,10 @@ var ContextUI = {
     }
 
     this._clearDelayedTimeout();
+    if (StartUI.hide()) {
+      this.dismiss();
+      return;
+    }
     this.toggleNavUI();
   },
 
@@ -273,20 +283,15 @@ var ContextUI = {
         this.dismissTabs();
         break;
       case "mousedown":
-        if (BrowserUI.isStartTabVisible)
-          break;
         if (aEvent.button == 0 && this.isVisible)
           this.dismiss();
         break;
+
       case "ToolPanelShown":
       case "ToolPanelHidden":
+      case "touchstart":
       case "AlertActive":
         this.dismiss();
-        break;
-      case "touchstart":
-        if (!BrowserUI.isStartTabVisible) {
-          this.dismiss();
-        }
         break;
     }
   },

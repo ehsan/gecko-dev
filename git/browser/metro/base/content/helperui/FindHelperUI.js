@@ -107,7 +107,7 @@ var FindHelperUI = {
   },
 
   show: function findHelperShow() {
-    if (BrowserUI.isStartTabVisible || this._open)
+    if (StartUI.isVisible || this._open)
       return;
 
     // Hide any menus

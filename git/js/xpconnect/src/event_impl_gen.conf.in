@@ -32,6 +32,7 @@ simple_events = [
     'BluetoothStatusChangedEvent',
 #endif
 #ifdef MOZ_B2G_RIL
+    'CallEvent',
     'CFStateChangeEvent',
     'DataErrorEvent',
     'IccCardLockErrorEvent',

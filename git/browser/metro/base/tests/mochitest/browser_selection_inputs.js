@@ -44,7 +44,7 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_inputs.html");
 
     yield waitForCondition(function () {
-      return !BrowserUI.isStartTabVisible;
+      return !StartUI.isStartPageVisible;
       });
 
     yield hideContextUI();

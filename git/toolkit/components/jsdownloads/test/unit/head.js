@@ -389,7 +389,7 @@ function promiseNewDownloadList() {
  */
 function promiseNewPrivateDownloadList() {
   // Force the creation of a new public download list.
-  Downloads._promisePrivateDownloadList = null;
+  Downloads._privateDownloadList = null;
   return Downloads.getPrivateDownloadList();
 }
 

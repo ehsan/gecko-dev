@@ -5,30 +5,30 @@
 
 "use strict";
 
-let gStartView = null;
+let gStartView = HistoryStartView._view;
 
 function test() {
   runTests();
 }
 
 function scrollToEnd() {
-  let scroller = getBrowser().contentWindow.StartUI.getScrollBoxObject();
-  scroller.scrollBy(50000, 0);
+  let startBox = document.getElementById("start-scrollbox");
+  let [, scrollInterface] = ScrollUtils.getScrollboxFromElement(startBox);
+
+  scrollInterface.scrollBy(50000, 0);
 }
 
 function setup() {
   PanelUI.hide();
+  HistoryTestHelper.setup();
 
-  if (!BrowserUI.isStartTabVisible) {
-    let tab = yield addTab("about:start");
-    gStartView = tab.browser.contentWindow.HistoryStartView._view;
+  if (!StartUI.isStartPageVisible) {
+    yield addTab("about:start");
 
-    yield waitForCondition(() => BrowserUI.isStartTabVisible);
+    yield waitForCondition(() => StartUI.isStartPageVisible);
 
     yield hideContextUI();
   }
-
-  HistoryTestHelper.setup();
 
   // Scroll to make sure all tiles are visible.
   scrollToEnd();
