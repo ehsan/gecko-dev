@@ -25,7 +25,7 @@ namespace plugins {
  */
 class PluginBackgroundDestroyerParent : public PPluginBackgroundDestroyerParent {
 public:
-    explicit PluginBackgroundDestroyerParent(gfxASurface* aDyingBackground);
+    PluginBackgroundDestroyerParent(gfxASurface* aDyingBackground);
 
     virtual ~PluginBackgroundDestroyerParent();
 

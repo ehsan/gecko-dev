@@ -18,7 +18,7 @@
 
 class nsMBCSGroupProber: public nsCharSetProber {
 public:
-  explicit nsMBCSGroupProber(uint32_t aLanguageFilter);
+  nsMBCSGroupProber(uint32_t aLanguageFilter);
   virtual ~nsMBCSGroupProber();
   nsProbingState HandleData(const char* aBuf, uint32_t aLen);
   const char* GetCharSetName();

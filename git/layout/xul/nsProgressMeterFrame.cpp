@@ -80,7 +80,7 @@ nsProgressMeterFrame :: ~nsProgressMeterFrame ( )
 class nsAsyncProgressMeterInit MOZ_FINAL : public nsIReflowCallback
 {
 public:
-  explicit nsAsyncProgressMeterInit(nsIFrame* aFrame) : mWeakFrame(aFrame) {}
+  nsAsyncProgressMeterInit(nsIFrame* aFrame) : mWeakFrame(aFrame) {}
 
   virtual bool ReflowFinished() MOZ_OVERRIDE
   {

@@ -16,7 +16,7 @@ namespace mozilla {
 class AppleMP3Reader : public MediaDecoderReader
 {
 public:
-  explicit AppleMP3Reader(AbstractMediaDecoder *aDecoder);
+  AppleMP3Reader(AbstractMediaDecoder *aDecoder);
   virtual ~AppleMP3Reader() MOZ_OVERRIDE;
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE;

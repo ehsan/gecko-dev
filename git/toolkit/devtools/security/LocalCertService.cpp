@@ -25,7 +25,7 @@ namespace mozilla {
 class LocalCertTask : public CryptoTask
 {
 protected:
-  explicit LocalCertTask(const nsACString& aNickname)
+  LocalCertTask(const nsACString& aNickname)
     : mNickname(aNickname)
   {
   }

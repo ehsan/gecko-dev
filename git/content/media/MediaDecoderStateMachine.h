@@ -364,7 +364,7 @@ protected:
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
-    explicit WakeDecoderRunnable(MediaDecoderStateMachine* aSM)
+    WakeDecoderRunnable(MediaDecoderStateMachine* aSM)
       : mMutex("WakeDecoderRunnable"), mStateMachine(aSM) {}
     NS_IMETHOD Run() MOZ_OVERRIDE
     {

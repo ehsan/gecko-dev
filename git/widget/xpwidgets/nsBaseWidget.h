@@ -53,7 +53,7 @@ class WidgetShutdownObserver MOZ_FINAL : public nsIObserver
   ~WidgetShutdownObserver() {}
 
 public:
-  explicit WidgetShutdownObserver(nsBaseWidget* aWidget)
+  WidgetShutdownObserver(nsBaseWidget* aWidget)
     : mWidget(aWidget)
   { }
 
@@ -274,7 +274,7 @@ public:
 
   class AutoUseBasicLayerManager {
   public:
-    explicit AutoUseBasicLayerManager(nsBaseWidget* aWidget);
+    AutoUseBasicLayerManager(nsBaseWidget* aWidget);
     ~AutoUseBasicLayerManager();
   private:
     nsBaseWidget* mWidget;

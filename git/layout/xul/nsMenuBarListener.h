@@ -24,7 +24,7 @@ class nsMenuBarListener MOZ_FINAL : public nsIDOMEventListener
 public:
   /** default constructor
    */
-  explicit nsMenuBarListener(nsMenuBarFrame* aMenuBar);
+  nsMenuBarListener(nsMenuBarFrame* aMenuBar);
 
   static void InitializeStatics();
    

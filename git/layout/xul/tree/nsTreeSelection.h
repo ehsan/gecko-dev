@@ -19,7 +19,7 @@ struct nsTreeRange;
 class nsTreeSelection MOZ_FINAL : public nsINativeTreeSelection
 {
 public:
-  explicit nsTreeSelection(nsITreeBoxObject* aTree);
+  nsTreeSelection(nsITreeBoxObject* aTree);
    
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsTreeSelection)

@@ -21,7 +21,7 @@ class SVGFEComponentTransferElement : public SVGFEComponentTransferElementBase
   friend nsresult (::NS_NewSVGFEComponentTransferElement(nsIContent **aResult,
                                                          already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEComponentTransferElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEComponentTransferElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEComponentTransferElementBase(aNodeInfo)
   {
   }

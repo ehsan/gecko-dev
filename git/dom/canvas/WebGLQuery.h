@@ -27,7 +27,7 @@ public:
     // -------------------------------------------------------------------------
     // CONSTRUCTOR
 
-    explicit WebGLQuery(WebGLContext* aContext);
+    WebGLQuery(WebGLContext *context);
 
     // -------------------------------------------------------------------------
     // MEMBER FUNCTIONS

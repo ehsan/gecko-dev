@@ -34,7 +34,7 @@ public:
   /**
    * Constructor. Used to expose default text attributes.
    */
-  explicit TextAttrsMgr(HyperTextAccessible* aHyperTextAcc) :
+  TextAttrsMgr(HyperTextAccessible* aHyperTextAcc) :
     mOffsetAcc(nullptr),  mHyperTextAcc(aHyperTextAcc),
     mOffsetAccIdx(-1), mIncludeDefAttrs(true) { }
 
@@ -126,7 +126,7 @@ protected:
   class TTextAttr : public TextAttr
   {
   public:
-    explicit TTextAttr(bool aGetRootValue) : mGetRootValue(aGetRootValue) {}
+    TTextAttr(bool aGetRootValue) : mGetRootValue(aGetRootValue) {}
 
     // TextAttr
     virtual void Expose(nsIPersistentProperties* aAttributes,
@@ -393,7 +393,7 @@ protected:
   {
   public:
     TextDecorValue() { }
-    explicit TextDecorValue(nsIFrame* aFrame);
+    TextDecorValue(nsIFrame* aFrame);
 
     nscolor Color() const { return mColor; }
     uint8_t Style() const { return mStyle; }

@@ -23,7 +23,7 @@ class SVGFEColorMatrixElement : public SVGFEColorMatrixElementBase
   friend nsresult (::NS_NewSVGFEColorMatrixElement(nsIContent **aResult,
                                                    already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEColorMatrixElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEColorMatrixElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEColorMatrixElementBase(aNodeInfo)
   {
   }

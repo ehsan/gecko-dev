@@ -187,7 +187,7 @@ TestFrameMetrics()
 
 class APZCBasicTester : public ::testing::Test {
 public:
-  explicit APZCBasicTester(AsyncPanZoomController::GestureBehavior aGestureBehavior = AsyncPanZoomController::DEFAULT_GESTURES)
+  APZCBasicTester(AsyncPanZoomController::GestureBehavior aGestureBehavior = AsyncPanZoomController::DEFAULT_GESTURES)
     : mGestureBehavior(aGestureBehavior)
   {
   }
@@ -489,7 +489,7 @@ ApzcPinchWithTouchInputAndCheckStatus(AsyncPanZoomController* aApzc,
 
 class APZCPinchTester : public APZCBasicTester {
 public:
-  explicit APZCPinchTester(AsyncPanZoomController::GestureBehavior aGestureBehavior = AsyncPanZoomController::DEFAULT_GESTURES)
+  APZCPinchTester(AsyncPanZoomController::GestureBehavior aGestureBehavior = AsyncPanZoomController::DEFAULT_GESTURES)
     : APZCBasicTester(aGestureBehavior)
   {
   }
@@ -1979,7 +1979,7 @@ private:
 
 class MockTask : public CancelableTask {
 public:
-  explicit MockTask(TaskRunMetrics& aMetrics)
+  MockTask(TaskRunMetrics& aMetrics)
     : mMetrics(aMetrics)
   {}
 

@@ -40,7 +40,7 @@ public:
 
   // default constructor supplied by the compiler
 
-  explicit nsTableCellFrame(nsStyleContext* aContext);
+  nsTableCellFrame(nsStyleContext* aContext);
   ~nsTableCellFrame();
 
   virtual void Init(nsIContent*       aContent,
@@ -292,7 +292,7 @@ class nsBCTableCellFrame MOZ_FINAL : public nsTableCellFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsBCTableCellFrame(nsStyleContext* aContext);
+  nsBCTableCellFrame(nsStyleContext* aContext);
 
   ~nsBCTableCellFrame();
 

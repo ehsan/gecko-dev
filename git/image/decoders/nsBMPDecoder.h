@@ -24,7 +24,7 @@ class nsBMPDecoder : public Decoder
 {
 public:
 
-    explicit nsBMPDecoder(RasterImage &aImage);
+    nsBMPDecoder(RasterImage &aImage);
     ~nsBMPDecoder();
 
     // Specifies whether or not the BMP file will contain alpha data

@@ -19,7 +19,7 @@ namespace image {
 class ScriptedNotificationObserver : public imgINotificationObserver
 {
 public:
-  explicit ScriptedNotificationObserver(imgIScriptedNotificationObserver* aInner);
+  ScriptedNotificationObserver(imgIScriptedNotificationObserver* aInner);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_IMGINOTIFICATIONOBSERVER

@@ -81,7 +81,7 @@ public:
   /*
    * aRate -- the delay, in milliseconds, requested between timer firings
    */
-  explicit RefreshDriverTimer(double aRate)
+  RefreshDriverTimer(double aRate)
   {
     SetRate(aRate);
   }
@@ -200,7 +200,7 @@ class SimpleTimerBasedRefreshDriverTimer :
     public RefreshDriverTimer
 {
 public:
-  explicit SimpleTimerBasedRefreshDriverTimer(double aRate)
+  SimpleTimerBasedRefreshDriverTimer(double aRate)
     : RefreshDriverTimer(aRate)
   {
     mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
@@ -246,7 +246,7 @@ class PreciseRefreshDriverTimer :
     public SimpleTimerBasedRefreshDriverTimer
 {
 public:
-  explicit PreciseRefreshDriverTimer(double aRate)
+  PreciseRefreshDriverTimer(double aRate)
     : SimpleTimerBasedRefreshDriverTimer(aRate)
   {
   }
@@ -435,7 +435,7 @@ class InactiveRefreshDriverTimer MOZ_FINAL :
     public RefreshDriverTimer
 {
 public:
-  explicit InactiveRefreshDriverTimer(double aRate)
+  InactiveRefreshDriverTimer(double aRate)
     : RefreshDriverTimer(aRate),
       mNextTickDuration(aRate),
       mDisableAfterMilliseconds(-1.0),
@@ -1037,7 +1037,7 @@ nsRefreshDriver::DoTick()
 }
 
 struct DocumentFrameCallbacks {
-  explicit DocumentFrameCallbacks(nsIDocument* aDocument) :
+  DocumentFrameCallbacks(nsIDocument* aDocument) :
     mDocument(aDocument)
   {}
 

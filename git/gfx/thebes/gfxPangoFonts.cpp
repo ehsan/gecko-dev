@@ -124,7 +124,7 @@ public:
     }
 
 protected:
-    explicit gfxFcFontEntry(const nsAString& aName)
+    gfxFcFontEntry(const nsAString& aName)
         : gfxFontEntry(aName)
     {
     }
@@ -326,7 +326,7 @@ gfxSystemFcFontEntry::ReleaseGrFace(gr_face* aFace)
 
 class gfxUserFcFontEntry : public gfxFcFontEntry {
 protected:
-    explicit gfxUserFcFontEntry(const gfxProxyFontEntry &aProxyEntry)
+    gfxUserFcFontEntry(const gfxProxyFontEntry &aProxyEntry)
         : gfxFcFontEntry(aProxyEntry.Name())
     {
         mItalic = aProxyEntry.mItalic;

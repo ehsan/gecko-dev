@@ -19,7 +19,7 @@ public class AddBookmark extends ShareMethod {
         ContentResolver resolver = context.getContentResolver();
 
         LocalBrowserDB browserDB = new LocalBrowserDB(GeckoProfile.DEFAULT_PROFILE);
-        browserDB.addBookmark(resolver, title, url);
+        browserDB.addBookmark(resolver, url, title);
 
         return Result.SUCCESS;
     }

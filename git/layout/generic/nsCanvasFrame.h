@@ -30,7 +30,7 @@ class nsCanvasFrame MOZ_FINAL : public nsContainerFrame,
                                 public nsIAnonymousContentCreator
 {
 public:
-  explicit nsCanvasFrame(nsStyleContext* aContext)
+  nsCanvasFrame(nsStyleContext* aContext)
   : nsContainerFrame(aContext),
     mDoPaintFocus(false),
     mAddedScrollPositionListener(false) {}

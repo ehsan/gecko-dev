@@ -23,7 +23,7 @@ class WebGLExtensionBase
     , public WebGLContextBoundObject
 {
 public:
-    explicit WebGLExtensionBase(WebGLContext* aValue);
+    WebGLExtensionBase(WebGLContext*);
 
     WebGLContext *GetParentObject() const {
         return Context();
@@ -288,7 +288,7 @@ class WebGLExtensionVertexArray
     : public WebGLExtensionBase
 {
 public:
-    explicit WebGLExtensionVertexArray(WebGLContext* aValue);
+    WebGLExtensionVertexArray(WebGLContext*);
     virtual ~WebGLExtensionVertexArray();
 
     already_AddRefed<WebGLVertexArray> CreateVertexArrayOES();
@@ -305,7 +305,7 @@ class WebGLExtensionInstancedArrays
     : public WebGLExtensionBase
 {
 public:
-    explicit WebGLExtensionInstancedArrays(WebGLContext* aContext);
+    WebGLExtensionInstancedArrays(WebGLContext* context);
     virtual ~WebGLExtensionInstancedArrays();
 
     void DrawArraysInstancedANGLE(GLenum mode, GLint first,
@@ -324,7 +324,7 @@ class WebGLExtensionBlendMinMax
     : public WebGLExtensionBase
 {
 public:
-    explicit WebGLExtensionBlendMinMax(WebGLContext* aValue);
+    WebGLExtensionBlendMinMax(WebGLContext*);
     virtual ~WebGLExtensionBlendMinMax();
 
     static bool IsSupported(const WebGLContext*);

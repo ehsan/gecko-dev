@@ -157,7 +157,7 @@ protected:
         guint mHardwareKeycode;
         guint mMask;
 
-        explicit ModifierKey(guint aHardwareKeycode) :
+        ModifierKey(guint aHardwareKeycode) :
           mHardwareKeycode(aHardwareKeycode), mMask(0)
         {
         }

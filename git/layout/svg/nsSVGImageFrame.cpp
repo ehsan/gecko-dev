@@ -32,7 +32,7 @@ class nsSVGImageFrame;
 class nsSVGImageListener MOZ_FINAL : public imgINotificationObserver
 {
 public:
-  explicit nsSVGImageListener(nsSVGImageFrame *aFrame);
+  nsSVGImageListener(nsSVGImageFrame *aFrame);
 
   NS_DECL_ISUPPORTS
   NS_DECL_IMGINOTIFICATIONOBSERVER
@@ -54,8 +54,8 @@ class nsSVGImageFrame : public nsSVGImageFrameBase,
   NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 protected:
-  explicit nsSVGImageFrame(nsStyleContext* aContext) : nsSVGImageFrameBase(aContext),
-                                                       mReflowCallbackPosted(false) {}
+  nsSVGImageFrame(nsStyleContext* aContext) : nsSVGImageFrameBase(aContext),
+                                              mReflowCallbackPosted(false) {}
   virtual ~nsSVGImageFrame();
 
 public:

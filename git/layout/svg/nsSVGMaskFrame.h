@@ -22,7 +22,7 @@ class nsSVGMaskFrame MOZ_FINAL : public nsSVGMaskFrameBase
   friend nsIFrame*
   NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGMaskFrame(nsStyleContext* aContext)
+  nsSVGMaskFrame(nsStyleContext* aContext)
     : nsSVGMaskFrameBase(aContext)
     , mInUse(false)
   {
@@ -74,8 +74,8 @@ private:
   class MOZ_STACK_CLASS AutoMaskReferencer
   {
   public:
-    explicit AutoMaskReferencer(nsSVGMaskFrame *aFrame
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoMaskReferencer(nsSVGMaskFrame *aFrame
+                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
        : mFrame(aFrame) {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
       NS_ASSERTION(!mFrame->mInUse, "reference loop!");

@@ -114,7 +114,7 @@ public:
 #endif
 
 protected:
-  explicit nsSimplePageSequenceFrame(nsStyleContext* aContext);
+  nsSimplePageSequenceFrame(nsStyleContext* aContext);
   virtual ~nsSimplePageSequenceFrame();
 
   void SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, bool aPageNumOnly);

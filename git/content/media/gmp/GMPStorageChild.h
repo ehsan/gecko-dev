@@ -54,7 +54,7 @@ class GMPStorageChild : public PGMPStorageChild
 public:
   NS_INLINE_DECL_REFCOUNTING(GMPStorageChild)
 
-  explicit GMPStorageChild(GMPChild* aPlugin);
+  GMPStorageChild(GMPChild* aPlugin);
 
   GMPErr CreateRecord(const nsCString& aRecordName,
                       GMPRecord** aOutRecord,

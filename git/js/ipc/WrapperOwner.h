@@ -27,7 +27,7 @@ class WrapperOwner : public virtual JavaScriptShared
                        mozilla::ipc::IProtocol>::ActorDestroyReason
            ActorDestroyReason;
 
-    explicit WrapperOwner(JSRuntime *rt);
+    WrapperOwner(JSRuntime *rt);
     bool init();
 
     // Fundamental proxy traps. These are required.

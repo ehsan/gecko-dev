@@ -29,7 +29,7 @@ class MediaSource;
 class MediaSourceReader : public MediaDecoderReader
 {
 public:
-  explicit MediaSourceReader(MediaSourceDecoder* aDecoder);
+  MediaSourceReader(MediaSourceDecoder* aDecoder);
 
   nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE
   {

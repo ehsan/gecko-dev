@@ -119,7 +119,7 @@ EvaluateConstantOperands(TempAllocator &alloc, MBinaryInstruction *ins, bool *pt
         ret.setNumber(NumberMod(lhs.toNumber(), rhs.toNumber()));
         break;
       default:
-        MOZ_CRASH("NYI");
+        MOZ_ASSUME_UNREACHABLE("NYI");
     }
 
     // setNumber eagerly transforms a number to int32.
@@ -622,7 +622,7 @@ MConstant::printOpcode(FILE *fp) const
         fprintf(fp, "magic optimized-out");
         break;
       default:
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -666,40 +666,7 @@ MSimdValueX4::foldsTo(TempAllocator &alloc)
         cst = SimdConstant::CreateX4(a);
         break;
       }
-      default: MOZ_CRASH("unexpected type in MSimdValueX4::foldsTo");
-    }
-
-    return MSimdConstant::New(alloc, cst, type());
-}
-
-MDefinition*
-MSimdSplatX4::foldsTo(TempAllocator &alloc)
-{
-    DebugOnly<MIRType> scalarType = SimdTypeToScalarType(type());
-    MDefinition *op = getOperand(0);
-    if (!op->isConstant())
-        return this;
-    JS_ASSERT(op->type() == scalarType);
-
-    SimdConstant cst;
-    switch (type()) {
-      case MIRType_Int32x4: {
-        int32_t a[4];
-        int32_t v = getOperand(0)->toConstant()->value().toInt32();
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = v;
-        cst = SimdConstant::CreateX4(a);
-        break;
-      }
-      case MIRType_Float32x4: {
-        float a[4];
-        float v = getOperand(0)->toConstant()->value().toNumber();
-        for (size_t i = 0; i < 4; ++i)
-            a[i] = v;
-        cst = SimdConstant::CreateX4(a);
-        break;
-      }
-      default: MOZ_CRASH("unexpected type in MSimdSplatX4::foldsTo");
+      default: MOZ_ASSUME_UNREACHABLE("unexpected type in MSimdValueX4::foldsTo");
     }
 
     return MSimdConstant::New(alloc, cst, type());
@@ -779,7 +746,7 @@ MMathFunction::FunctionName(Function function)
       case Ceil:   return "Ceil";
       case Round:  return "Round";
       default:
-        MOZ_CRASH("Unknown math function");
+        MOZ_ASSUME_UNREACHABLE("Unknown math function");
     }
 }
 
@@ -2091,7 +2058,7 @@ MCompare::inputType()
       case Compare_Value:
         return MIRType_Value;
       default:
-        MOZ_CRASH("No known conversion");
+        MOZ_ASSUME_UNREACHABLE("No known conversion");
     }
 }
 
@@ -2688,7 +2655,7 @@ MCompare::tryFold(bool *result)
             *result = (op == JSOP_NE || op == JSOP_STRICTNE);
             return true;
           default:
-            MOZ_CRASH("Unexpected type");
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -2711,9 +2678,9 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_Boolean:
             // Int32 specialization should handle this.
-            MOZ_CRASH("Wrong specialization");
+            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
           default:
-            MOZ_CRASH("Unexpected type");
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -2736,9 +2703,9 @@ MCompare::tryFold(bool *result)
             return true;
           case MIRType_String:
             // Compare_String specialization should handle this.
-            MOZ_CRASH("Wrong specialization");
+            MOZ_ASSUME_UNREACHABLE("Wrong specialization");
           default:
-            MOZ_CRASH("Unexpected type");
+            MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
     }
 
@@ -2788,7 +2755,7 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (comp != 0);
             break;
           default:
-            MOZ_CRASH("Unexpected op.");
+            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
         }
 
         return true;
@@ -2820,7 +2787,7 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (lhsUint != rhsUint);
             break;
           default:
-            MOZ_CRASH("Unexpected op.");
+            MOZ_ASSUME_UNREACHABLE("Unexpected op.");
         }
 
         return true;

@@ -52,7 +52,7 @@ namespace {
 class NoRequestDatabaseHelper : public AsyncConnectionHelper
 {
 public:
-  explicit NoRequestDatabaseHelper(IDBTransaction* aTransaction)
+  NoRequestDatabaseHelper(IDBTransaction* aTransaction)
   : AsyncConnectionHelper(aTransaction, nullptr)
   {
     NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");

@@ -49,7 +49,7 @@ public:
   // This will succeed, leaving the time uninitialized:
   //    Time x(Time::uninitialized);
   enum Uninitialized { uninitialized };
-  explicit Time(Uninitialized) { }
+  Time(Uninitialized) { }
 
   bool operator==(const Time& other) const
   {

@@ -122,7 +122,7 @@ namespace
 class MOZ_STACK_CLASS nsSMILTimedElement::AutoIntervalUpdateBatcher
 {
 public:
-  explicit AutoIntervalUpdateBatcher(nsSMILTimedElement& aTimedElement)
+  AutoIntervalUpdateBatcher(nsSMILTimedElement& aTimedElement)
     : mTimedElement(aTimedElement),
       mDidSetFlag(!aTimedElement.mDeferIntervalUpdates)
   {
@@ -160,7 +160,7 @@ private:
 class MOZ_STACK_CLASS nsSMILTimedElement::AutoIntervalUpdater
 {
 public:
-  explicit AutoIntervalUpdater(nsSMILTimedElement& aTimedElement)
+  AutoIntervalUpdater(nsSMILTimedElement& aTimedElement)
     : mTimedElement(aTimedElement) { }
 
   ~AutoIntervalUpdater()
@@ -471,7 +471,7 @@ namespace
   class MOZ_STACK_CLASS RemoveByCreator
   {
   public:
-    explicit RemoveByCreator(const nsSMILTimeValueSpec* aCreator) : mCreator(aCreator)
+    RemoveByCreator(const nsSMILTimeValueSpec* aCreator) : mCreator(aCreator)
     { }
 
     bool operator()(nsSMILInstanceTime* aInstanceTime, uint32_t /*aIndex*/)
@@ -1338,7 +1338,7 @@ namespace
   class MOZ_STACK_CLASS RemoveByFunction
   {
   public:
-    explicit RemoveByFunction(nsSMILTimedElement::RemovalTestFunction aFunction)
+    RemoveByFunction(nsSMILTimedElement::RemovalTestFunction aFunction)
       : mFunction(aFunction) { }
     bool operator()(nsSMILInstanceTime* aInstanceTime, uint32_t /*aIndex*/)
     {
@@ -1416,7 +1416,7 @@ namespace
   class MOZ_STACK_CLASS RemoveReset
   {
   public:
-    explicit RemoveReset(const nsSMILInstanceTime* aCurrentIntervalBegin)
+    RemoveReset(const nsSMILInstanceTime* aCurrentIntervalBegin)
       : mCurrentIntervalBegin(aCurrentIntervalBegin) { }
     bool operator()(nsSMILInstanceTime* aInstanceTime, uint32_t /*aIndex*/)
     {
@@ -1614,7 +1614,7 @@ namespace
   class MOZ_STACK_CLASS RemoveFiltered
   {
   public:
-    explicit RemoveFiltered(nsSMILTimeValue aCutoff) : mCutoff(aCutoff) { }
+    RemoveFiltered(nsSMILTimeValue aCutoff) : mCutoff(aCutoff) { }
     bool operator()(nsSMILInstanceTime* aInstanceTime, uint32_t /*aIndex*/)
     {
       // We can filter instance times that:

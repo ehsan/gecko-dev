@@ -46,7 +46,7 @@ public:
   NS_DECL_QUERYFRAME
 #endif
 
-  explicit nsBulletFrame(nsStyleContext* aContext)
+  nsBulletFrame(nsStyleContext* aContext)
     : nsFrame(aContext)
     , mPadding(GetWritingMode())
     , mIntrinsicSize(GetWritingMode())

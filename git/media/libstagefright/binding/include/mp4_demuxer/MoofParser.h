@@ -24,7 +24,7 @@ public:
     , mDuration(0)
   {
   }
-  explicit Tkhd(Box& aBox);
+  Tkhd(Box& aBox);
 
   uint64_t mCreationTime;
   uint64_t mModificationTime;
@@ -42,7 +42,7 @@ public:
     , mDuration(0)
   {
   }
-  explicit Mdhd(Box& aBox);
+  Mdhd(Box& aBox);
 
   Microseconds ToMicroseconds(uint64_t aTimescaleUnits)
   {
@@ -58,7 +58,7 @@ public:
 class Trex
 {
 public:
-  explicit Trex(uint32_t aTrackId)
+  Trex(uint32_t aTrackId)
     : mFlags(0)
     , mTrackId(aTrackId)
     , mDefaultSampleDescriptionIndex(0)
@@ -68,7 +68,7 @@ public:
   {
   }
 
-  explicit Trex(Box& aBox);
+  Trex(Box& aBox);
 
   uint32_t mFlags;
   uint32_t mTrackId;
@@ -81,7 +81,7 @@ public:
 class Tfhd : public Trex
 {
 public:
-  explicit Tfhd(Trex& aTrex) : Trex(aTrex), mBaseDataOffset(0) {}
+  Tfhd(Trex& aTrex) : Trex(aTrex), mBaseDataOffset(0) {}
   Tfhd(Box& aBox, Trex& aTrex);
 
   uint64_t mBaseDataOffset;
@@ -91,7 +91,7 @@ class Tfdt
 {
 public:
   Tfdt() : mBaseMediaDecodeTime(0) {}
-  explicit Tfdt(Box& aBox);
+  Tfdt(Box& aBox);
 
   uint64_t mBaseMediaDecodeTime;
 };
@@ -138,7 +138,6 @@ public:
   void ParseMdia(Box& aBox, Tkhd& aTkhd);
   void ParseMvex(Box& aBox);
 
-  mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;
   uint64_t mOffset;
   nsTArray<uint64_t> mMoofOffsets;

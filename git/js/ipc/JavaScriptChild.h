@@ -17,11 +17,11 @@ namespace jsipc {
 class JavaScriptChild : public JavaScriptBase<PJavaScriptChild>
 {
   public:
-    explicit JavaScriptChild(JSRuntime *rt);
+    JavaScriptChild(JSRuntime *rt);
     virtual ~JavaScriptChild();
 
     bool init();
-    void finalize();
+    void finalize(JSFreeOp *fop);
 
     void drop(JSObject *obj);
 

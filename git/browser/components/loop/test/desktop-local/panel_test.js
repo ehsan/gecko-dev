@@ -49,8 +49,7 @@ describe("loop.panel", function() {
       },
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub().returns("unseen"),
-      copyString: sandbox.stub(),
-      noteCallUrlExpiry: sinon.spy()
+      copyString: sandbox.stub()
     };
 
     document.mozL10n.initialize(navigator.mozLoop);
@@ -413,8 +412,7 @@ describe("loop.panel", function() {
         view.setState({
           pending: false,
           copied: false,
-          callUrl: "http://example.com",
-          callUrlExpiry: 6000
+          callUrl: "http://example.com"
         });
 
         TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-copy"));
@@ -423,68 +421,6 @@ describe("loop.panel", function() {
         sinon.assert.calledWithExactly(navigator.mozLoop.copyString,
           view.state.callUrl);
       });
-
-      it("should note the call url expiry when the url is copied via button",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifier: notifier,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-copy"));
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
-
-      it("should note the call url expiry when the url is emailed",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifier: notifier,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          view.getDOMNode().querySelector(".btn-email").dataset.mailto = "#";
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-email"));
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
-
-      it("should note the call url expiry when the url is copied manually",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifier: notifier,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          var urlField = view.getDOMNode().querySelector("input[type='url']");
-          TestUtils.Simulate.copy(urlField);
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
 
       it("should notify the user when the operation failed", function() {
         fakeClient.requestCallUrl = function(_, cb) {

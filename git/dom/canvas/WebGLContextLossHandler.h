@@ -30,7 +30,7 @@ class WebGLContextLossHandler
 public:
     MOZ_DECLARE_REFCOUNTED_TYPENAME(WebGLContextLossHandler)
 
-    explicit WebGLContextLossHandler(WebGLContext* aWebgl);
+    WebGLContextLossHandler(WebGLContext* webgl);
     ~WebGLContextLossHandler();
 
     void RunTimer();

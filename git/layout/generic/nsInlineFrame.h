@@ -132,7 +132,7 @@ protected:
     }
   };
 
-  explicit nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
   virtual LogicalSides GetLogicalSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
 
@@ -217,7 +217,7 @@ public:
   virtual bool DrainSelfOverflowList() MOZ_OVERRIDE;
 
 protected:
-  explicit nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
+  nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
 
   virtual nsIFrame* PullOneFrame(nsPresContext* aPresContext,
                                  InlineReflowState& rs,

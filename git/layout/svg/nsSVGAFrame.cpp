@@ -20,7 +20,7 @@ class nsSVGAFrame : public nsSVGAFrameBase
   friend nsIFrame*
   NS_NewSVGAFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGAFrame(nsStyleContext* aContext) :
+  nsSVGAFrame(nsStyleContext* aContext) :
     nsSVGAFrameBase(aContext) {}
 
 public:

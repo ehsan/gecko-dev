@@ -172,7 +172,7 @@ private: // data
   class AutoFrameLocker
   {
   public:
-    explicit AutoFrameLocker(imgFrame* frame)
+    AutoFrameLocker(imgFrame* frame)
       : mFrame(frame)
       , mSucceeded(NS_SUCCEEDED(frame->LockImageData()))
     {}

@@ -25,7 +25,7 @@ class TableCellAccessible;
 class xpcAccessibleTableCell
 {
 public:
-  explicit xpcAccessibleTableCell(mozilla::a11y::TableCellAccessible* aTableCell) :
+  xpcAccessibleTableCell(mozilla::a11y::TableCellAccessible* aTableCell) :
     mTableCell(aTableCell) { }
 
   nsresult GetTable(nsIAccessibleTable** aTable);

@@ -23,7 +23,7 @@ class nsGIFDecoder2 : public Decoder
 {
 public:
 
-  explicit nsGIFDecoder2(RasterImage &aImage);
+  nsGIFDecoder2(RasterImage &aImage);
   ~nsGIFDecoder2();
 
   virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);

@@ -36,7 +36,7 @@ protected:
   friend nsresult (::NS_NewSVGPathElement(nsIContent **aResult,
                                           already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
   virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
-  explicit SVGPathElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  SVGPathElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
 public:
   // DOM memory reporter participant

@@ -32,7 +32,7 @@ public:
 
 protected:
 
-  explicit SVGTextPositioningElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGTextPositioningElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGTextPositioningElementBase(aNodeInfo)
   {}
 

@@ -58,13 +58,13 @@ namespace mozilla {
     // implementations not expecting characters outside the GLSL ES set.
     class StripComments {
     public:
-        explicit StripComments(const nsAString& aStr)
+        StripComments(const nsAString& str)
             : m_parseState(BeginningOfLine)
-            , m_end(aStr.EndReading())
-            , m_current(aStr.BeginReading())
+            , m_end(str.EndReading())
+            , m_current(str.BeginReading())
             , m_position(0)
         {
-            m_result.SetLength(aStr.Length());
+            m_result.SetLength(str.Length());
             parse();
         }
 

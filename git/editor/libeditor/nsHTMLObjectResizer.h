@@ -31,7 +31,7 @@ class ResizerSelectionListener : public nsISelectionListener
 {
 public:
 
-  explicit ResizerSelectionListener(nsIHTMLEditor * aEditor);
+  ResizerSelectionListener(nsIHTMLEditor * aEditor);
   void Reset();
 
   /*interfaces for addref and release and queryinterface*/
@@ -52,7 +52,7 @@ protected:
 class ResizerMouseMotionListener : public nsIDOMEventListener
 {
 public:
-  explicit ResizerMouseMotionListener(nsIHTMLEditor * aEditor);
+  ResizerMouseMotionListener(nsIHTMLEditor * aEditor);
 
 /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS
@@ -73,7 +73,7 @@ public:
 class DocumentResizeEventListener: public nsIDOMEventListener
 {
 public:
-  explicit DocumentResizeEventListener(nsIHTMLEditor * aEditor);
+  DocumentResizeEventListener(nsIHTMLEditor * aEditor);
 
   /*interfaces for addref and release and queryinterface*/
   NS_DECL_ISUPPORTS

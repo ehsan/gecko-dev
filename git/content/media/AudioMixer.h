@@ -128,7 +128,7 @@ private:
   class MixerCallback : public LinkedListElement<MixerCallback>
   {
   public:
-    explicit MixerCallback(MixerCallbackReceiver* aReceiver)
+    MixerCallback(MixerCallbackReceiver* aReceiver)
       : mReceiver(aReceiver)
     { }
     MixerCallbackReceiver* mReceiver;

@@ -52,13 +52,13 @@ private:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDOMEVENTLISTENER
 
-    explicit MouseListener(nsMathMLmactionFrame* aOwner) : mOwner(aOwner) { }
+    MouseListener(nsMathMLmactionFrame* aOwner) : mOwner(aOwner) { }
 
     nsMathMLmactionFrame* mOwner;
   };
 
 protected:
-  explicit nsMathMLmactionFrame(nsStyleContext* aContext) :
+  nsMathMLmactionFrame(nsStyleContext* aContext) :
     nsMathMLSelectedFrame(aContext) {}
   virtual ~nsMathMLmactionFrame();
   

@@ -134,7 +134,7 @@ public:
   }
 
 protected:
-  explicit IDBVersionChangeEvent(mozilla::dom::EventTarget* aOwner)
+  IDBVersionChangeEvent(mozilla::dom::EventTarget* aOwner)
     : Event(aOwner, nullptr, nullptr)
   {
     SetIsDOMBinding();

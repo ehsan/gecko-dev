@@ -149,7 +149,6 @@ struct PreparedData
 {
   RefPtr<CompositingRenderTarget> mTmpTarget;
   nsAutoTArray<PreparedLayer, 12> mLayers;
-  bool mNeedsSurfaceCopy;
 };
 
 // ContainerPrepare is shared between RefLayer and ContainerLayer
@@ -159,7 +158,6 @@ ContainerPrepare(ContainerT* aContainer,
                  const RenderTargetIntRect& aClipRect)
 {
   aContainer->mPrepared = MakeUnique<PreparedData>();
-  aContainer->mPrepared->mNeedsSurfaceCopy = false;
 
   /**
    * Determine which layers to draw.
@@ -244,8 +242,6 @@ ContainerPrepare(ContainerT* aContainer,
       RefPtr<CompositingRenderTarget> surface = CreateTemporaryTarget(aContainer, aManager);
       RenderIntermediate(aContainer, aManager, RenderTargetPixel::ToUntyped(aClipRect), surface);
       aContainer->mPrepared->mTmpTarget = surface;
-    } else {
-      aContainer->mPrepared->mNeedsSurfaceCopy = true;
     }
   }
 }
@@ -268,16 +264,15 @@ RenderLayers(ContainerT* aContainer,
   // placeholder for APZ purposes.
   if (aContainer->HasScrollableFrameMetrics() && !aContainer->IsScrollInfoLayer()) {
     bool overscrolled = false;
-    gfxRGBA color;
     for (uint32_t i = 0; i < aContainer->GetFrameMetricsCount(); i++) {
       AsyncPanZoomController* apzc = aContainer->GetAsyncPanZoomController(i);
       if (apzc && apzc->IsOverscrolled()) {
         overscrolled = true;
-        color = aContainer->GetFrameMetrics(i).GetBackgroundColor();
         break;
       }
     }
     if (overscrolled) {
+      gfxRGBA color = aContainer->GetBackgroundColor();
       // If the background is completely transparent, there's no point in
       // drawing anything for it. Hopefully the layers behind, if any, will
       // provide suitable content for the overscroll effect.
@@ -414,18 +409,13 @@ ContainerRender(ContainerT* aContainer,
   if (aContainer->UseIntermediateSurface()) {
     RefPtr<CompositingRenderTarget> surface;
 
-    if (aContainer->mPrepared->mNeedsSurfaceCopy) {
+    if (!aContainer->mPrepared->mTmpTarget) {
       // we needed to copy the background so we waited until now to render the intermediate
       surface = CreateTemporaryTargetAndCopyFromBackground(aContainer, aManager);
       RenderIntermediate(aContainer, aManager,
                          aClipRect, surface);
     } else {
       surface = aContainer->mPrepared->mTmpTarget;
-    }
-
-    if (!surface) {
-      aContainer->mPrepared = nullptr;
-      return;
     }
 
     float opacity = aContainer->GetEffectiveOpacity();

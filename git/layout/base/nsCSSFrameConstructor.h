@@ -763,7 +763,7 @@ private:
 
     class Iterator {
     public:
-      explicit Iterator(FrameConstructionItemList& list) :
+      Iterator(FrameConstructionItemList& list) :
         mCurrent(PR_NEXT_LINK(&list.mItems)),
         mEnd(&list.mItems),
         mList(list)

@@ -2164,7 +2164,7 @@ static uint8_t* sColorSamplingAccessControlEnd = nullptr;
 
 struct DebugOnlyAutoColorSamplingAccessControl
 {
-  explicit DebugOnlyAutoColorSamplingAccessControl(DataSourceSurface* aSurface)
+  DebugOnlyAutoColorSamplingAccessControl(DataSourceSurface* aSurface)
   {
     sColorSamplingAccessControlStart = aSurface->GetData();
     sColorSamplingAccessControlEnd = sColorSamplingAccessControlStart +

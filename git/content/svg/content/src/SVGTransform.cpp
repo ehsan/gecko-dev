@@ -73,7 +73,7 @@ SVGTransform::WrapObject(JSContext* aCx)
 class MOZ_STACK_CLASS AutoChangeTransformNotifier
 {
 public:
-  explicit AutoChangeTransformNotifier(SVGTransform* aTransform MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoChangeTransformNotifier(SVGTransform* aTransform MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : mTransform(aTransform)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

@@ -20,7 +20,7 @@ class nsImageControlFrame : public nsImageControlFrameSuper,
                             public nsIFormControlFrame
 {
 public:
-  explicit nsImageControlFrame(nsStyleContext* aContext);
+  nsImageControlFrame(nsStyleContext* aContext);
   ~nsImageControlFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

@@ -497,7 +497,7 @@ UDPSocket::Init(const nsString& aLocalAddress,
   class OpenSocketRunnable MOZ_FINAL : public nsRunnable
   {
   public:
-    explicit OpenSocketRunnable(UDPSocket* aSocket) : mSocket(aSocket)
+    OpenSocketRunnable(UDPSocket* aSocket) : mSocket(aSocket)
     { }
 
     NS_IMETHOD Run() MOZ_OVERRIDE

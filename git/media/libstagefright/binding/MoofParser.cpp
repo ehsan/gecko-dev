@@ -19,7 +19,6 @@ MoofParser::RebuildFragmentedIndex(const nsTArray<MediaByteRange>& aByteRanges)
   Box box(&context, mOffset);
   for (; box.IsAvailable(); box = box.Next()) {
     if (box.IsType("moov")) {
-      mInitRange = MediaByteRange(0, box.Range().mEnd);
       ParseMoov(box);
     } else if (box.IsType("moof")) {
       Moof moof(box, mTrex, mMdhd);

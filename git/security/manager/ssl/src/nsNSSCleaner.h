@@ -60,7 +60,7 @@ private:                                           \
   void operator=(const nsstype##Cleaner&);         \
   nsstype *&object;                                \
 public:                                            \
-  explicit nsstype##Cleaner(nsstype *&a_object)    \
+  nsstype##Cleaner(nsstype *&a_object)             \
     :object(a_object) {}                           \
   ~nsstype##Cleaner() {                            \
     if (object) {                                  \
@@ -80,7 +80,7 @@ private:                                           \
   void operator=(const nsstype##Cleaner##namesuffix &);               \
   nsstype *&object;                                \
 public:                                            \
-  explicit nsstype##Cleaner##namesuffix(nsstype *&a_object)           \
+  nsstype##Cleaner##namesuffix(nsstype *&a_object) \
     :object(a_object) {}                           \
   ~nsstype##Cleaner##namesuffix() {                \
     if (object) {                                  \
@@ -96,7 +96,7 @@ public:                                            \
 class CERTVerifyLogContentsCleaner
 {
 public:
-  explicit CERTVerifyLogContentsCleaner(CERTVerifyLog *&cvl);
+  CERTVerifyLogContentsCleaner(CERTVerifyLog *&cvl);
   ~CERTVerifyLogContentsCleaner();
 private:
   CERTVerifyLog *&m_cvl;

@@ -24,7 +24,7 @@ class nsSVGTransform;
 class SVGTransformListParser : public nsSVGDataParser
 {
 public:
-  explicit SVGTransformListParser(const nsAString& aValue)
+  SVGTransformListParser(const nsAString& aValue)
     : nsSVGDataParser(aValue) {}
   
   bool Parse();

@@ -32,7 +32,7 @@ public:
    *
    * If aSequenceToUse is not specified, it will be allocated automatically.
    */
-  explicit FrameBlender(FrameSequence* aSequenceToUse = nullptr);
+  FrameBlender(FrameSequence* aSequenceToUse = nullptr);
   ~FrameBlender();
 
   bool DoBlend(nsIntRect* aDirtyRect, uint32_t aPrevFrameIndex,

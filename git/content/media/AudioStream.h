@@ -37,7 +37,7 @@ class FrameHistory;
 class AudioClock
 {
 public:
-  explicit AudioClock(AudioStream* aStream);
+  AudioClock(AudioStream* aStream);
   // Initialize the clock with the current AudioStream. Need to be called
   // before querying the clock. Called on the audio thread.
   void Init();

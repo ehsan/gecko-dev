@@ -225,8 +225,10 @@ MediaEngineWebRTC::EnumerateVideoDevices(MediaSourceType aMediaSource,
   }
 
   for (int i = 0; i < num; i++) {
-    char deviceName[MediaEngineSource::kMaxDeviceNameLength];
-    char uniqueId[MediaEngineSource::kMaxUniqueIdLength];
+    const unsigned int kMaxDeviceNameLength = 128; // XXX FIX!
+    const unsigned int kMaxUniqueIdLength = 256;
+    char deviceName[kMaxDeviceNameLength];
+    char uniqueId[kMaxUniqueIdLength];
 
     // paranoia
     deviceName[0] = '\0';
@@ -244,12 +246,10 @@ MediaEngineWebRTC::EnumerateVideoDevices(MediaSourceType aMediaSource,
     LOG(("  Capture Device Index %d, Name %s", i, deviceName));
 
     webrtc::CaptureCapability cap;
-    int numCaps = ptrViECapture->NumberOfCapabilities(uniqueId,
-                                                      MediaEngineSource::kMaxUniqueIdLength);
+    int numCaps = ptrViECapture->NumberOfCapabilities(uniqueId, kMaxUniqueIdLength);
     LOG(("Number of Capabilities %d", numCaps));
     for (int j = 0; j < numCaps; j++) {
-      if (ptrViECapture->GetCaptureCapability(uniqueId,
-                                              MediaEngineSource::kMaxUniqueIdLength,
+      if (ptrViECapture->GetCaptureCapability(uniqueId, kMaxUniqueIdLength,
                                               j, cap ) != 0 ) {
         break;
       }

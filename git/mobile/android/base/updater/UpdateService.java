@@ -27,7 +27,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Environment;
-import android.support.v4.net.ConnectivityManagerCompat;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
 import android.util.Log;
@@ -221,7 +220,7 @@ public class UpdateService extends IntentService {
          */
         boolean shouldStartDownload = hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) ||
             autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_ENABLED ||
-            (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI && !ConnectivityManagerCompat.isActiveNetworkMetered(mConnectivityManager));
+            (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI && !mConnectivityManager.isActiveNetworkMetered());
 
         if (!shouldStartDownload) {
             Log.i(LOGTAG, "not initiating automatic update download due to policy " + autoDownloadPolicy);

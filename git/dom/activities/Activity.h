@@ -39,7 +39,7 @@ public:
     return activity.forget();
   }
 
-  explicit Activity(nsPIDOMWindow* aWindow);
+  Activity(nsPIDOMWindow* aWindow);
 
 protected:
   nsresult Initialize(nsPIDOMWindow* aWindow,

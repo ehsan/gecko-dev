@@ -279,7 +279,7 @@ public:
    */
   class Iterator {
   public:
-    explicit Iterator(const PLDHashTable* aTable);
+    Iterator(const PLDHashTable* aTable);
     Iterator(const Iterator& aIterator);
     ~Iterator();
     bool HasMoreEntries() const;

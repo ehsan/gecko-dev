@@ -33,7 +33,7 @@ public:
   typedef mozilla::layers::LayerManager LayerManager;
   typedef mozilla::ContainerLayerParameters ContainerLayerParameters;
 
-  explicit nsVideoFrame(nsStyleContext* aContext);
+  nsVideoFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
   NS_DECL_QUERYFRAME_TARGET(nsVideoFrame)

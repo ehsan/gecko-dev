@@ -341,7 +341,7 @@ class ResetOrClearRunnable MOZ_FINAL : public nsRunnable,
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  explicit ResetOrClearRunnable(bool aClear)
+  ResetOrClearRunnable(bool aClear)
   : mCallbackState(Pending),
     mClear(aClear)
   { }
@@ -412,7 +412,7 @@ class FinalizeOriginEvictionRunnable MOZ_FINAL : public nsRunnable
   };
 
 public:
-  explicit FinalizeOriginEvictionRunnable(nsTArray<nsCString>& aOrigins)
+  FinalizeOriginEvictionRunnable(nsTArray<nsCString>& aOrigins)
   : mCallbackState(Pending)
   {
     mOrigins.SwapElements(aOrigins);
@@ -504,7 +504,7 @@ bool gTestingEnabled = false;
 class WaitForTransactionsToFinishRunnable MOZ_FINAL : public nsRunnable
 {
 public:
-  explicit WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp)
+  WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp)
   : mOp(aOp), mCountdown(1)
   {
     NS_ASSERTION(mOp, "Why don't we have a runnable?");

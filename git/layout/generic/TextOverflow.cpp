@@ -30,7 +30,7 @@ namespace css {
 class LazyReferenceRenderingContextGetterFromFrame MOZ_FINAL :
     public gfxFontGroup::LazyReferenceContextGetter {
 public:
-  explicit LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
+  LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
     : mFrame(aFrame) {}
   virtual already_AddRefed<gfxContext> GetRefContext() MOZ_OVERRIDE
   {

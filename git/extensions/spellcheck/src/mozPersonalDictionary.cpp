@@ -49,7 +49,7 @@ NS_IMPL_CYCLE_COLLECTION(mozPersonalDictionary, mEncoder)
 class mozPersonalDictionaryLoader MOZ_FINAL : public nsRunnable
 {
 public:
-  explicit mozPersonalDictionaryLoader(mozPersonalDictionary *dict) : mDict(dict)
+  mozPersonalDictionaryLoader(mozPersonalDictionary *dict) : mDict(dict)
   {
   }
 

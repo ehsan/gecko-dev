@@ -510,7 +510,7 @@ public:
 
 protected:
   virtual ~MediaDevice() {}
-  explicit MediaDevice(MediaEngineSource* aSource);
+  MediaDevice(MediaEngineSource* aSource);
   nsString mName;
   nsString mID;
   bool mHasFacingMode;
@@ -522,7 +522,7 @@ protected:
 class VideoDevice : public MediaDevice
 {
 public:
-  explicit VideoDevice(MediaEngineVideoSource* aSource);
+  VideoDevice(MediaEngineVideoSource* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   MediaEngineVideoSource* GetSource();
 };
@@ -530,7 +530,7 @@ public:
 class AudioDevice : public MediaDevice
 {
 public:
-  explicit AudioDevice(MediaEngineAudioSource* aSource);
+  AudioDevice(MediaEngineAudioSource* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   MediaEngineAudioSource* GetSource();
 };

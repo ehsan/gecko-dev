@@ -125,8 +125,6 @@ class TypedArrayObject : public ArrayBufferViewObject
     static int dataOffset();
 
     static bool isOriginalLengthGetter(Scalar::Type type, Native native);
-
-    static void ObjectMoved(JSObject *obj, const JSObject *old);
 };
 
 inline bool

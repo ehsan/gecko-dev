@@ -967,14 +967,14 @@ class WatchdogManager;
 class AutoLockWatchdog {
     Watchdog* const mWatchdog;
   public:
-    explicit AutoLockWatchdog(Watchdog* aWatchdog);
+    AutoLockWatchdog(Watchdog* aWatchdog);
     ~AutoLockWatchdog();
 };
 
 class Watchdog
 {
   public:
-    explicit Watchdog(WatchdogManager *aManager)
+    Watchdog(WatchdogManager *aManager)
       : mManager(aManager)
       , mLock(nullptr)
       , mWakeup(nullptr)
@@ -1097,8 +1097,8 @@ class WatchdogManager : public nsIObserver
   public:
 
     NS_DECL_ISUPPORTS
-    explicit WatchdogManager(XPCJSRuntime *aRuntime) : mRuntime(aRuntime)
-                                                     , mRuntimeState(RUNTIME_INACTIVE)
+    WatchdogManager(XPCJSRuntime *aRuntime) : mRuntime(aRuntime)
+                                            , mRuntimeState(RUNTIME_INACTIVE)
     {
         // All the timestamps start at zero except for runtime state change.
         PodArrayZero(mTimestamps);
@@ -2573,7 +2573,7 @@ SizeOfTreeIncludingThis(nsINode *tree)
 class OrphanReporter : public JS::ObjectPrivateVisitor
 {
   public:
-    explicit OrphanReporter(GetISupportsFun aGetISupports)
+    OrphanReporter(GetISupportsFun aGetISupports)
       : JS::ObjectPrivateVisitor(aGetISupports)
     {
     }

@@ -786,9 +786,7 @@ public class GeckoMenu extends ListView
 
         @Override
         public boolean isEnabled(int position) {
-            // Setting this to true is a workaround to fix disappearing
-            // dividers in the menu in L (bug 1050780).
-            return true;
+            return getItem(position).isEnabled();
         }
 
         public void addMenuItem(GeckoMenuItem menuItem) {

@@ -251,13 +251,13 @@ GetCairoSurfaceForSourceSurface(SourceSurface *aSurface, bool aExistingOnly = fa
 class AutoClearDeviceOffset
 {
 public:
-  explicit AutoClearDeviceOffset(SourceSurface* aSurface)
+  AutoClearDeviceOffset(SourceSurface* aSurface)
     : mSurface(nullptr)
   {
     Init(aSurface);
   }
 
-  explicit AutoClearDeviceOffset(const Pattern& aPattern)
+  AutoClearDeviceOffset(const Pattern& aPattern)
     : mSurface(nullptr)
   {
     if (aPattern.GetType() == PatternType::SURFACE) {

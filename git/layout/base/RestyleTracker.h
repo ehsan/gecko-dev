@@ -233,7 +233,7 @@ public:
 
   friend class ElementRestyler; // for AddPendingRestyleToTable
 
-  explicit RestyleTracker(Element::FlagsType aRestyleBits) :
+  RestyleTracker(Element::FlagsType aRestyleBits) :
     mRestyleBits(aRestyleBits),
     mHaveLaterSiblingRestyles(false)
   {

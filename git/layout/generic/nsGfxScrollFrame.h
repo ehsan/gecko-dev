@@ -31,9 +31,6 @@ class nsIScrollPositionListener;
 struct ScrollReflowState;
 
 namespace mozilla {
-namespace layers {
-class Layer;
-}
 namespace layout {
 class ScrollbarActivity;
 }
@@ -46,8 +43,6 @@ public:
   typedef nsIFrame::Sides Sides;
   typedef mozilla::CSSIntPoint CSSIntPoint;
   typedef mozilla::layout::ScrollbarActivity ScrollbarActivity;
-  typedef mozilla::layers::FrameMetrics FrameMetrics;
-  typedef mozilla::layers::Layer Layer;
 
   class AsyncScroll;
   class AsyncSmoothMSDScroll;
@@ -100,7 +95,7 @@ public:
   class ScrollEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit ScrollEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    ScrollEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;
@@ -109,7 +104,7 @@ public:
   class AsyncScrollPortEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit AsyncScrollPortEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    AsyncScrollPortEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;
@@ -118,7 +113,7 @@ public:
   class ScrolledAreaEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit ScrolledAreaEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    ScrolledAreaEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;
@@ -330,10 +325,6 @@ public:
     }
   }
   bool WantAsyncScroll() const;
-  void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                           const ContainerLayerParameters& aParameters,
-                           nsRect* aClipRect,
-                           nsTArray<FrameMetrics>* aOutput) const;
 
   // nsIScrollbarMediator
   void ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection);
@@ -397,8 +388,6 @@ public:
 
   // The scroll position where we last updated image visibility.
   nsPoint mLastUpdateImagesPos;
-
-  FrameMetrics::ViewID mScrollParentID;
 
   bool mNeverHasVerticalScrollbar:1;
   bool mNeverHasHorizontalScrollbar:1;
@@ -718,13 +707,6 @@ public:
   }
   virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
     return mHelper.WantAsyncScroll();
-  }
-  virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                                   const ContainerLayerParameters& aParameters,
-                                   nsRect* aClipRect,
-                                   nsTArray<FrameMetrics>* aOutput) const MOZ_OVERRIDE {
-    mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aClipRect, aOutput);
   }
 
   // nsIStatefulFrame
@@ -1064,13 +1046,6 @@ public:
   }
   virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
     return mHelper.WantAsyncScroll();
-  }
-  virtual void ComputeFrameMetrics(Layer* aLayer, nsIFrame* aContainerReferenceFrame,
-                                   const ContainerLayerParameters& aParameters,
-                                   nsRect* aClipRect,
-                                   nsTArray<FrameMetrics>* aOutput) const MOZ_OVERRIDE {
-    mHelper.ComputeFrameMetrics(aLayer, aContainerReferenceFrame,
-                                aParameters, aClipRect, aOutput);
   }
 
   // nsIStatefulFrame

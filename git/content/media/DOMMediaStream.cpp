@@ -59,7 +59,7 @@ NS_INTERFACE_MAP_END_INHERITING(DOMMediaStream)
 
 class DOMMediaStream::StreamListener : public MediaStreamListener {
 public:
-  explicit StreamListener(DOMMediaStream* aStream)
+  StreamListener(DOMMediaStream* aStream)
     : mStream(aStream)
   {}
 

@@ -350,7 +350,7 @@ private:
    */
   struct DecodeRequest
   {
-    explicit DecodeRequest(RasterImage* aImage)
+    DecodeRequest(RasterImage* aImage)
       : mImage(aImage)
       , mBytesToDecode(0)
       , mRequestStatus(REQUEST_INACTIVE)
@@ -546,7 +546,7 @@ private:
     NS_IMETHOD Run();
 
   private: /* methods */
-    explicit FrameNeededWorker(RasterImage* image);
+    FrameNeededWorker(RasterImage* image);
 
   private: /* members */
 
@@ -780,7 +780,7 @@ private: // data
     NS_IMETHOD Run();
 
   private:
-    explicit HandleErrorWorker(RasterImage* aImage);
+    HandleErrorWorker(RasterImage* aImage);
 
     nsRefPtr<RasterImage> mImage;
   };
@@ -793,8 +793,8 @@ private: // data
   bool StoringSourceData() const;
 
 protected:
-  explicit RasterImage(imgStatusTracker* aStatusTracker = nullptr,
-                       ImageURL* aURI = nullptr);
+  RasterImage(imgStatusTracker* aStatusTracker = nullptr,
+              ImageURL* aURI = nullptr);
 
   bool ShouldAnimate();
 
@@ -814,7 +814,7 @@ inline NS_IMETHODIMP RasterImage::GetAnimationMode(uint16_t *aAnimationMode) {
 class imgDecodeRequestor : public nsRunnable
 {
   public:
-    explicit imgDecodeRequestor(RasterImage &aContainer) {
+    imgDecodeRequestor(RasterImage &aContainer) {
       mContainer = &aContainer;
     }
     NS_IMETHOD Run() {

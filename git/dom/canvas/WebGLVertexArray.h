@@ -74,7 +74,7 @@ public:
 // -----------------------------------------------------------------------------
 // PROTECTED
 protected:
-    explicit WebGLVertexArray(WebGLContext* aContext);
+    WebGLVertexArray(WebGLContext* context);
 
     virtual ~WebGLVertexArray() {
         MOZ_ASSERT(IsDeleted());

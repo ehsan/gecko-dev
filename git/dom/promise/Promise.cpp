@@ -41,7 +41,7 @@ NS_IMPL_ISUPPORTS0(PromiseNativeHandler)
 class PromiseTask MOZ_FINAL : public nsRunnable
 {
 public:
-  explicit PromiseTask(Promise* aPromise)
+  PromiseTask(Promise* aPromise)
     : mPromise(aPromise)
   {
     MOZ_ASSERT(aPromise);

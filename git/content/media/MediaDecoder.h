@@ -1093,7 +1093,7 @@ private:
   class RestrictedAccessMonitor
   {
   public:
-    explicit RestrictedAccessMonitor(const char* aName) :
+    RestrictedAccessMonitor(const char* aName) :
       mReentrantMonitor(aName)
     {
       MOZ_COUNT_CTOR(RestrictedAccessMonitor);

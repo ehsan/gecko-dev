@@ -23,7 +23,7 @@ class GMPVideoDecoderChild : public PGMPVideoDecoderChild,
                              public GMPSharedMemManager
 {
 public:
-  explicit GMPVideoDecoderChild(GMPChild* aPlugin);
+  GMPVideoDecoderChild(GMPChild* aPlugin);
   virtual ~GMPVideoDecoderChild();
 
   void Init(GMPVideoDecoder* aDecoder);

@@ -36,8 +36,8 @@ using namespace mozilla::gfx;
 class MOZ_STACK_CLASS nsSVGPatternFrame::AutoPatternReferencer
 {
 public:
-  explicit AutoPatternReferencer(nsSVGPatternFrame *aFrame
-                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoPatternReferencer(nsSVGPatternFrame *aFrame
+                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : mFrame(aFrame)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

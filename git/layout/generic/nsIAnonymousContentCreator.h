@@ -31,7 +31,7 @@ public:
   NS_DECL_QUERYFRAME_TARGET(nsIAnonymousContentCreator)
 
   struct ContentInfo {
-    explicit ContentInfo(nsIContent* aContent) :
+    ContentInfo(nsIContent* aContent) :
       mContent(aContent)
     {}
 

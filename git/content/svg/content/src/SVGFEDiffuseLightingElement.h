@@ -21,7 +21,7 @@ class SVGFEDiffuseLightingElement : public SVGFEDiffuseLightingElementBase
   friend nsresult (::NS_NewSVGFEDiffuseLightingElement(nsIContent **aResult,
                                                        already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEDiffuseLightingElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEDiffuseLightingElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEDiffuseLightingElementBase(aNodeInfo)
   {
   }

@@ -203,7 +203,7 @@ class FinishFetchOnMainThreadRunnable : public nsRunnable
 {
   nsMainThreadPtrHandle<ServiceWorkerUpdateInstance> mUpdateInstance;
 public:
-  explicit FinishFetchOnMainThreadRunnable
+  FinishFetchOnMainThreadRunnable
     (const nsMainThreadPtrHandle<ServiceWorkerUpdateInstance>& aUpdateInstance)
     : mUpdateInstance(aUpdateInstance)
   { }
@@ -1213,7 +1213,7 @@ class FinishActivationRunnable : public nsRunnable
   nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
 
 public:
-  explicit FinishActivationRunnable(const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
+  FinishActivationRunnable(const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
     : mRegistration(aRegistration)
   {
     MOZ_ASSERT(!NS_IsMainThread());
@@ -1300,7 +1300,7 @@ class FinishActivateHandler : public PromiseNativeHandler
   nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo> mRegistration;
 
 public:
-  explicit FinishActivateHandler(const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
+  FinishActivateHandler(const nsMainThreadPtrHandle<ServiceWorkerRegistrationInfo>& aRegistration)
     : mRegistration(aRegistration)
   {
     MOZ_ASSERT(!NS_IsMainThread());

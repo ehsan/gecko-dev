@@ -40,7 +40,7 @@ typedef nsSVGPaintServerFrame nsSVGGradientFrameBase;
 class nsSVGGradientFrame : public nsSVGGradientFrameBase
 {
 protected:
-  explicit nsSVGGradientFrame(nsStyleContext* aContext);
+  nsSVGGradientFrame(nsStyleContext* aContext);
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -130,7 +130,7 @@ class nsSVGLinearGradientFrame : public nsSVGLinearGradientFrameBase
   friend nsIFrame* NS_NewSVGLinearGradientFrame(nsIPresShell* aPresShell,
                                                 nsStyleContext* aContext);
 protected:
-  explicit nsSVGLinearGradientFrame(nsStyleContext* aContext) :
+  nsSVGLinearGradientFrame(nsStyleContext* aContext) :
     nsSVGLinearGradientFrameBase(aContext) {}
 
 public:
@@ -175,7 +175,7 @@ class nsSVGRadialGradientFrame : public nsSVGRadialGradientFrameBase
   friend nsIFrame* NS_NewSVGRadialGradientFrame(nsIPresShell* aPresShell,
                                                 nsStyleContext* aContext);
 protected:
-  explicit nsSVGRadialGradientFrame(nsStyleContext* aContext) :
+  nsSVGRadialGradientFrame(nsStyleContext* aContext) :
     nsSVGRadialGradientFrameBase(aContext) {}
 
 public:

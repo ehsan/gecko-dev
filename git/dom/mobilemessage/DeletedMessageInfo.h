@@ -21,7 +21,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDELETEDMESSAGEINFO
 
-  explicit DeletedMessageInfo(const DeletedMessageInfoData& aData);
+  DeletedMessageInfo(const DeletedMessageInfoData& aData);
 
   DeletedMessageInfo(int32_t* aMessageIds,
                      uint32_t aMsgCount,

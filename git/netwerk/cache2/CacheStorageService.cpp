@@ -1621,7 +1621,7 @@ CacheStorageService::DoomStorageEntry(CacheStorage const* aStorage,
   class Callback : public nsRunnable
   {
   public:
-    explicit Callback(nsICacheEntryDoomCallback* aCallback) : mCallback(aCallback) { }
+    Callback(nsICacheEntryDoomCallback* aCallback) : mCallback(aCallback) { }
     NS_IMETHODIMP Run()
     {
       mCallback->OnCacheEntryDoomed(NS_ERROR_NOT_AVAILABLE);

@@ -25,17 +25,6 @@ function checkDecode(converter, charset, inText, expectedText)
   } catch(e) {
     outText = "\ufffd";
   }
-
-  if (outText != expectedText) {
-      for (var i = 0; i < inText.length; ++i) {
-          var inn = inText[i];
-          var out = outText[i];
-          var expected = expectedText[i];
-          if (out != expected) {
-              dump("Decoding error at position " + i + ": for input " + escape(inn) + " expected " + escape(expected) + " but got " + escape(out) + "\n");
-          }
-      }
-  }
   do_check_eq(outText, expectedText);
 }
 
@@ -49,17 +38,6 @@ function checkEncode(converter, charset, inText, expectedText)
 
   dump("testing encoding from Unicode to " + charset + "\n");
   var outText = converter.ConvertFromUnicode(inText) + converter.Finish();
-
-  if (outText != expectedText) {
-      for (var i = 0; i < inText.length; ++i) {
-          var inn = inText[i];
-          var out = outText[i];
-          var expected = expectedText[i];
-          if (out != expected) {
-              dump("Encoding error at position " + i + ": for input " + escape(inn) + " expected " + escape(expected) + " but got " + escape(out) + "\n");
-          }
-      }
-  }
   do_check_eq(outText, expectedText);
 }
 

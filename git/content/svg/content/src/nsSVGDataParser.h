@@ -16,7 +16,7 @@
 class nsSVGDataParser
 {
 public:
-  explicit nsSVGDataParser(const nsAString& aValue);
+  nsSVGDataParser(const nsAString& aValue);
 
 protected:
   static bool IsAlpha(char16_t aCh) {

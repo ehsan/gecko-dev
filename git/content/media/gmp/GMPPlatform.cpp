@@ -29,7 +29,7 @@ class Runnable MOZ_FINAL
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Runnable)
 
-  explicit Runnable(GMPTask* aTask)
+  Runnable(GMPTask* aTask)
   : mTask(aTask)
   {
     MOZ_ASSERT(mTask);

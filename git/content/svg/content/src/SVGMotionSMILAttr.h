@@ -31,7 +31,7 @@ class SVGAnimationElement;
 class SVGMotionSMILAttr : public nsISMILAttr
 {
 public:
-  explicit SVGMotionSMILAttr(nsSVGElement* aSVGElement)
+  SVGMotionSMILAttr(nsSVGElement* aSVGElement)
     : mSVGElement(aSVGElement) {}
 
   // nsISMILAttr methods

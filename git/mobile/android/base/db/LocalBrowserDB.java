@@ -951,10 +951,7 @@ public class LocalBrowserDB {
     private void addBookmarkItem(ContentResolver cr, String title, String uri, long folderId) {
         final long now = System.currentTimeMillis();
         ContentValues values = new ContentValues();
-        if (title != null) {
-            values.put(Browser.BookmarkColumns.TITLE, title);
-        }
-
+        values.put(Browser.BookmarkColumns.TITLE, title);
         values.put(Bookmarks.URL, uri);
         values.put(Bookmarks.PARENT, folderId);
         values.put(Bookmarks.DATE_MODIFIED, now);

@@ -79,16 +79,7 @@ enum AsmJSSimdOperation
     AsmJSSimdOperation_add,
     AsmJSSimdOperation_sub,
     AsmJSSimdOperation_mul,
-    AsmJSSimdOperation_div,
-    AsmJSSimdOperation_lessThan,
-    AsmJSSimdOperation_lessThanOrEqual,
-    AsmJSSimdOperation_equal,
-    AsmJSSimdOperation_notEqual,
-    AsmJSSimdOperation_greaterThan,
-    AsmJSSimdOperation_greaterThanOrEqual,
-    AsmJSSimdOperation_and,
-    AsmJSSimdOperation_or,
-    AsmJSSimdOperation_xor,
+    AsmJSSimdOperation_div
 };
 
 // These labels describe positions in the prologue/epilogue of functions while
@@ -402,7 +393,6 @@ class AsmJSModule
     struct ExitDatum
     {
         uint8_t *exit;
-        jit::IonScript *ionScript;
         HeapPtrFunction fun;
     };
 
@@ -1340,9 +1330,7 @@ class AsmJSModule
     }
     void detachIonCompilation(size_t exitIndex) const {
         JS_ASSERT(isFinished());
-        ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
-        exitDatum.exit = interpExitTrampoline(exit(exitIndex));
-        exitDatum.ionScript = nullptr;
+        exitIndexToGlobalDatum(exitIndex).exit = interpExitTrampoline(exit(exitIndex));
     }
 
     /*************************************************************************/

@@ -414,8 +414,6 @@ class GCRuntime
     void setGCCallback(JSGCCallback callback, void *data);
     bool addFinalizeCallback(JSFinalizeCallback callback, void *data);
     void removeFinalizeCallback(JSFinalizeCallback func);
-    bool addMovingGCCallback(JSMovingGCCallback callback, void *data);
-    void removeMovingGCCallback(JSMovingGCCallback func);
     JS::GCSliceCallback setSliceCallback(JS::GCSliceCallback callback);
 
     void setValidate(bool enable);
@@ -799,7 +797,6 @@ class GCRuntime
 
     Callback<JSGCCallback>  gcCallback;
     CallbackVector<JSFinalizeCallback> finalizeCallbacks;
-    CallbackVector<JSMovingGCCallback> movingCallbacks;
 
     /*
      * Malloc counter to measure memory pressure for GC scheduling. It runs

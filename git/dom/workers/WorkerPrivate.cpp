@@ -35,7 +35,6 @@
 #include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Likely.h"
@@ -224,7 +223,7 @@ struct WindowAction
   nsPIDOMWindow* mWindow;
   bool mDefaultAction;
 
-  MOZ_IMPLICIT WindowAction(nsPIDOMWindow* aWindow)
+  WindowAction(nsPIDOMWindow* aWindow)
   : mWindow(aWindow), mDefaultAction(true)
   { }
 
@@ -774,7 +773,7 @@ class TopLevelWorkerFinishedRunnable MOZ_FINAL : public nsRunnable
   WorkerPrivate* mFinishedWorker;
 
 public:
-  explicit TopLevelWorkerFinishedRunnable(WorkerPrivate* aFinishedWorker)
+  TopLevelWorkerFinishedRunnable(WorkerPrivate* aFinishedWorker)
   : mFinishedWorker(aFinishedWorker)
   {
     aFinishedWorker->AssertIsOnWorkerThread();
@@ -848,7 +847,7 @@ private:
 class CompileScriptRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit CompileScriptRunnable(WorkerPrivate* aWorkerPrivate)
+  CompileScriptRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
   { }
 
@@ -875,7 +874,7 @@ private:
 class CloseEventRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit CloseEventRunnable(WorkerPrivate* aWorkerPrivate)
+  CloseEventRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1092,7 +1091,7 @@ private:
 class CloseRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit CloseRunnable(WorkerPrivate* aWorkerPrivate)
+  CloseRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, ParentThreadUnchangedBusyCount)
   { }
 
@@ -1109,7 +1108,7 @@ private:
 class SuspendRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit SuspendRunnable(WorkerPrivate* aWorkerPrivate)
+  SuspendRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1124,7 +1123,7 @@ private:
 class ResumeRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit ResumeRunnable(WorkerPrivate* aWorkerPrivate)
+  ResumeRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1333,7 +1332,7 @@ private:
 class TimerRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit TimerRunnable(WorkerPrivate* aWorkerPrivate)
+  TimerRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1426,7 +1425,7 @@ class KillCloseEventRunnable MOZ_FINAL : public WorkerRunnable
   class KillScriptRunnable MOZ_FINAL : public WorkerControlRunnable
   {
   public:
-    explicit KillScriptRunnable(WorkerPrivate* aWorkerPrivate)
+    KillScriptRunnable(WorkerPrivate* aWorkerPrivate)
     : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
     { }
 
@@ -1454,7 +1453,7 @@ class KillCloseEventRunnable MOZ_FINAL : public WorkerRunnable
   };
 
 public:
-  explicit KillCloseEventRunnable(WorkerPrivate* aWorkerPrivate)
+  KillCloseEventRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1691,7 +1690,7 @@ class WorkerJSRuntimeStats : public JS::RuntimeStats
   const nsACString& mRtPath;
 
 public:
-  explicit WorkerJSRuntimeStats(const nsACString& aRtPath)
+  WorkerJSRuntimeStats(const nsACString& aRtPath)
   : JS::RuntimeStats(JsWorkerMallocSizeOf), mRtPath(aRtPath)
   { }
 
@@ -1873,7 +1872,7 @@ class WorkerPrivateParent<Derived>::EventTarget MOZ_FINAL
   nsCOMPtr<nsIEventTarget> mNestedEventTarget;
 
 public:
-  explicit EventTarget(WorkerPrivate* aWorkerPrivate)
+  EventTarget(WorkerPrivate* aWorkerPrivate)
   : mMutex("WorkerPrivateParent::EventTarget::mMutex"),
     mWorkerPrivate(aWorkerPrivate), mWeakNestedEventTarget(nullptr)
   {
@@ -1964,7 +1963,7 @@ class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryReporter
   bool mAlreadyMappedToAddon;
 
 public:
-  explicit MemoryReporter(WorkerPrivate* aWorkerPrivate)
+  MemoryReporter(WorkerPrivate* aWorkerPrivate)
   : mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate),
     mAlreadyMappedToAddon(false)
   {
@@ -2415,7 +2414,7 @@ WorkerPrivateParent<Derived>::Suspend(JSContext* aCx, nsPIDOMWindow* aWindow)
       nsPIDOMWindow* mWindow;
       bool mAllSuspended;
 
-      explicit Closure(nsPIDOMWindow* aWindow)
+      Closure(nsPIDOMWindow* aWindow)
       : mWindow(aWindow), mAllSuspended(true)
       {
         AssertIsOnMainThread();
@@ -2499,7 +2498,7 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx, nsPIDOMWindow* aWindow)
       nsPIDOMWindow* mWindow;
       bool mAnyRunning;
 
-      explicit Closure(nsPIDOMWindow* aWindow)
+      Closure(nsPIDOMWindow* aWindow)
       : mWindow(aWindow), mAnyRunning(false)
       {
         AssertIsOnMainThread();
@@ -3250,7 +3249,7 @@ WorkerPrivateParent<Derived>::CloseSharedWorkersForWindow(
     nsPIDOMWindow* mWindow;
     nsAutoTArray<nsRefPtr<SharedWorker>, 10> mSharedWorkers;
 
-    explicit Closure(nsPIDOMWindow* aWindow)
+    Closure(nsPIDOMWindow* aWindow)
     : mWindow(aWindow)
     {
       AssertIsOnMainThread();

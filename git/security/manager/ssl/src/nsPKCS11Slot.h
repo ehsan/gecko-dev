@@ -23,7 +23,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPKCS11SLOT
 
-  explicit nsPKCS11Slot(PK11SlotInfo *slot);
+  nsPKCS11Slot(PK11SlotInfo *slot);
 
 protected:
   virtual ~nsPKCS11Slot();
@@ -46,7 +46,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPKCS11MODULE
 
-  explicit nsPKCS11Module(SECMODModule *module);
+  nsPKCS11Module(SECMODModule *module);
 
 protected:
   virtual ~nsPKCS11Module();

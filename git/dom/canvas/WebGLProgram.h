@@ -31,7 +31,7 @@ class WebGLProgram MOZ_FINAL
     , public WebGLContextBoundObject
 {
 public:
-    explicit WebGLProgram(WebGLContext* aContext);
+    WebGLProgram(WebGLContext *context);
 
     void Delete();
 

@@ -17,7 +17,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(ChannelMergerNode, AudioNode)
 class ChannelMergerNodeEngine : public AudioNodeEngine
 {
 public:
-  explicit ChannelMergerNodeEngine(ChannelMergerNode* aNode)
+  ChannelMergerNodeEngine(ChannelMergerNode* aNode)
     : AudioNodeEngine(aNode)
   {
     MOZ_ASSERT(NS_IsMainThread());

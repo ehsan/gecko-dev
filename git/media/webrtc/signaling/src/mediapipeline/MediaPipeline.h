@@ -343,7 +343,7 @@ class GenericReceiveListener;
 class GenericReceiveCallback : public TrackAddedCallback
 {
  public:
-  explicit GenericReceiveCallback(GenericReceiveListener* listener)
+  GenericReceiveCallback(GenericReceiveListener* listener)
     : listener_(listener) {}
 
   void TrackAdded(TrackTicks time) {
@@ -357,7 +357,7 @@ class GenericReceiveCallback : public TrackAddedCallback
 class ConduitDeleteEvent: public nsRunnable
 {
 public:
-  explicit ConduitDeleteEvent(TemporaryRef<MediaSessionConduit> aConduit) :
+  ConduitDeleteEvent(TemporaryRef<MediaSessionConduit> aConduit) :
     mConduit(aConduit) {}
 
   /* we exist solely to proxy release of the conduit */
@@ -435,7 +435,7 @@ public:
   class PipelineListener : public MediaStreamDirectListener {
    friend class MediaPipelineTransmit;
    public:
-    explicit PipelineListener(const RefPtr<MediaSessionConduit>& conduit)
+    PipelineListener(const RefPtr<MediaSessionConduit>& conduit)
       : conduit_(conduit),
         track_id_(TRACK_INVALID),
         mMutex("MediaPipelineTransmit::PipelineListener"),
@@ -692,7 +692,7 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
  private:
   class PipelineRenderer : public VideoRenderer {
    public:
-    explicit PipelineRenderer(MediaPipelineReceiveVideo *pipeline) :
+    PipelineRenderer(MediaPipelineReceiveVideo *pipeline) :
       pipeline_(pipeline) {}
 
     void Detach() { pipeline_ = nullptr; }

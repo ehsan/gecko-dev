@@ -36,7 +36,7 @@ class nsAbsoluteContainingBlock
 public:
   typedef nsIFrame::ChildListID ChildListID;
 
-  explicit nsAbsoluteContainingBlock(ChildListID aChildListID)
+  nsAbsoluteContainingBlock(ChildListID aChildListID)
 #ifdef DEBUG
     : mChildListID(aChildListID)
 #endif

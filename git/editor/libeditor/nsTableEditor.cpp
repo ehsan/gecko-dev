@@ -81,7 +81,7 @@ class MOZ_STACK_CLASS nsSelectionBatcherForTable
 private:
   nsCOMPtr<nsISelectionPrivate> mSelection;
 public:
-  explicit nsSelectionBatcherForTable(nsISelection *aSelection)
+  nsSelectionBatcherForTable(nsISelection *aSelection)
   {
     nsCOMPtr<nsISelection> sel(aSelection);
     mSelection = do_QueryInterface(sel);
