@@ -5041,6 +5041,16 @@ nsCSSFrameConstructor::AddFrameConstructionItems(nsFrameConstructorState& aState
                          ~ELEMENT_PENDING_RESTYLE_FLAGS);
   }
 
+  // XXX the GetContent() != aContent check is needed due to bug 135040.
+  // Remove it once that's fixed.  
+  if (aContent->GetPrimaryFrame() &&
+      aContent->GetPrimaryFrame()->GetContent() == aContent &&
+      !aState.mCreatingExtraFrames) {
+    NS_ERROR("asked to create frame construction item for a node that already "
+             "has a frame");
+    return;
+  }
+
   // don't create a whitespace frame if aParent doesn't want it
   if (!NeedFrameFor(aState, aParentFrame, aContent)) {
     return;
@@ -6481,6 +6491,18 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
   }
 #endif
 
+#ifdef DEBUG
+  for (nsIContent* child = aFirstNewContent;
+       child;
+       child = child->GetNextSibling()) {
+    // XXX the GetContent() != child check is needed due to bug 135040.
+    // Remove it once that's fixed.  
+    NS_ASSERTION(!child->GetPrimaryFrame() ||
+                 child->GetPrimaryFrame()->GetContent() != child,
+                 "asked to construct a frame for a node that already has a frame");
+  }
+#endif
+
 #ifdef MOZ_XUL
   if (aContainer) {
     PRInt32 namespaceID;
@@ -6829,6 +6851,18 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
         aStartChild->List(stdout, 0);
       }
     }
+  }
+#endif
+
+#ifdef DEBUG
+  for (nsIContent* child = aStartChild;
+       child != aEndChild;
+       child = child->GetNextSibling()) {
+    // XXX the GetContent() != child check is needed due to bug 135040.
+    // Remove it once that's fixed.  
+    NS_ASSERTION(!child->GetPrimaryFrame() ||
+                 child->GetPrimaryFrame()->GetContent() != child,
+                 "asked to construct a frame for a node that already has a frame");
   }
 #endif
 
