@@ -232,7 +232,10 @@ typedef bool
 (* PropertyAttributesOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
                          unsigned *attrsp);
 typedef bool
-(* DeleteGenericOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
+(* DeletePropertyOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+                     bool *succeeded);
+typedef bool
+(* DeleteElementOp)(JSContext *cx, JS::HandleObject obj, uint32_t index, bool *succeeded);
 
 typedef bool
 (* WatchOp)(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject callable);
@@ -339,18 +342,20 @@ struct ObjectOps
     StrictElementIdOp   setElement;
     GenericAttributesOp getGenericAttributes;
     GenericAttributesOp setGenericAttributes;
-    DeleteGenericOp     deleteGeneric;
+    DeletePropertyOp    deleteProperty;
+    DeleteElementOp     deleteElement;
     WatchOp             watch;
     UnwatchOp           unwatch;
     SliceOp             slice; // Optimized slice, can be null.
+
     JSNewEnumerateOp    enumerate;
     ObjectOp            thisObject;
 };
 
 #define JS_NULL_OBJECT_OPS                                                    \
-    {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,  \
-     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,  \
-     nullptr, nullptr, nullptr}
+    {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, \
+     nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr, \
+     nullptr,nullptr}
 
 } // namespace js
 
@@ -361,7 +366,7 @@ typedef void (*JSClassInternal)();
 struct JSClass {
     JS_CLASS_MEMBERS(JSFinalizeOp);
 
-    void                *reserved[31];
+    void                *reserved[32];
 };
 
 #define JSCLASS_HAS_PRIVATE             (1<<0)  // objects have private slot

@@ -2093,8 +2093,10 @@ TypedObject::obj_setGenericAttributes(JSContext *cx, HandleObject obj,
 }
 
 bool
-TypedObject::obj_deleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
+TypedObject::obj_deleteProperty(JSContext *cx, HandleObject obj,
+                                HandlePropertyName name, bool *succeeded)
 {
+    Rooted<jsid> id(cx, NameToId(name));
     if (IsOwnId(cx, obj, id))
         return ReportPropertyError(cx, JSMSG_CANT_DELETE, id);
 
@@ -2104,7 +2106,27 @@ TypedObject::obj_deleteGeneric(JSContext *cx, HandleObject obj, HandleId id, boo
         return true;
     }
 
-    return JSObject::deleteGeneric(cx, proto, id, succeeded);
+    return JSObject::deleteProperty(cx, proto, name, succeeded);
+}
+
+bool
+TypedObject::obj_deleteElement(JSContext *cx, HandleObject obj, uint32_t index,
+                               bool *succeeded)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+
+    if (IsOwnId(cx, obj, id))
+        return ReportPropertyError(cx, JSMSG_CANT_DELETE, id);
+
+    RootedObject proto(cx, obj->getProto());
+    if (!proto) {
+        *succeeded = false;
+        return true;
+    }
+
+    return JSObject::deleteElement(cx, proto, index, succeeded);
 }
 
 bool
@@ -2265,7 +2287,8 @@ const Class TransparentTypedObject::class_ = {
         TypedObject::obj_setElement,
         TypedObject::obj_getGenericAttributes,
         TypedObject::obj_setGenericAttributes,
-        TypedObject::obj_deleteGeneric,
+        TypedObject::obj_deleteProperty,
+        TypedObject::obj_deleteElement,
         nullptr, nullptr, // watch/unwatch
         nullptr,   /* slice */
         TypedObject::obj_enumerate,
@@ -2610,7 +2633,8 @@ const Class OpaqueTypedObject::class_ = {
         TypedObject::obj_setElement,
         TypedObject::obj_getGenericAttributes,
         TypedObject::obj_setGenericAttributes,
-        TypedObject::obj_deleteGeneric,
+        TypedObject::obj_deleteProperty,
+        TypedObject::obj_deleteElement,
         nullptr, nullptr, // watch/unwatch
         nullptr, // slice
         TypedObject::obj_enumerate,

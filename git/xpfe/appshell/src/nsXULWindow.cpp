@@ -1714,18 +1714,16 @@ NS_IMETHODIMP nsXULWindow::ExitModalLoop(nsresult aStatus)
 
 // top-level function to create a new window
 NS_IMETHODIMP nsXULWindow::CreateNewWindow(int32_t aChromeFlags,
-                                           nsITabParent *aOpeningTab,
-                                           nsIXULWindow **_retval)
+                             nsIXULWindow **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
 
   if (aChromeFlags & nsIWebBrowserChrome::CHROME_OPENAS_CHROME)
-    return CreateNewChromeWindow(aChromeFlags, aOpeningTab, _retval);
-  return CreateNewContentWindow(aChromeFlags, aOpeningTab, _retval);
+    return CreateNewChromeWindow(aChromeFlags, _retval);
+  return CreateNewContentWindow(aChromeFlags, _retval);
 }
 
 NS_IMETHODIMP nsXULWindow::CreateNewChromeWindow(int32_t aChromeFlags,
-                                                 nsITabParent *aOpeningTab,
                                                  nsIXULWindow **_retval)
 {
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
@@ -1737,7 +1735,6 @@ NS_IMETHODIMP nsXULWindow::CreateNewChromeWindow(int32_t aChromeFlags,
   appShell->CreateTopLevelWindow(this, nullptr, aChromeFlags,
                                  nsIAppShellService::SIZE_TO_CONTENT,
                                  nsIAppShellService::SIZE_TO_CONTENT,
-                                 aOpeningTab,
                                  getter_AddRefs(newWindow));
 
   NS_ENSURE_TRUE(newWindow, NS_ERROR_FAILURE);
@@ -1749,7 +1746,6 @@ NS_IMETHODIMP nsXULWindow::CreateNewChromeWindow(int32_t aChromeFlags,
 }
 
 NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
-                                                  nsITabParent *aOpeningTab,
                                                   nsIXULWindow **_retval)
 {
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
@@ -1782,7 +1778,6 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
     AutoNoJSAPI nojsapi;
     appShell->CreateTopLevelWindow(this, uri,
                                    aChromeFlags, 615, 480,
-                                   aOpeningTab,
                                    getter_AddRefs(newWindow));
     NS_ENSURE_TRUE(newWindow, NS_ERROR_FAILURE);
   }
@@ -1803,16 +1798,7 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
     }
  }
 
-  // If aOpeningTab is not null, it means that we're creating a new window
-  // with a remote browser, which doesn't have a primary docshell. In that
-  // case, we check for the chrome window docshell and make sure that a new
-  // remote tab was opened and stashed in that docshell.
-  if (aOpeningTab) {
-    NS_ENSURE_STATE(xulWin->mDocShell);
-    NS_ENSURE_STATE(xulWin->mDocShell->GetOpenedRemote());
-  } else {
-    NS_ENSURE_STATE(xulWin->mPrimaryContentShell);
-  }
+  NS_ENSURE_STATE(xulWin->mPrimaryContentShell);
 
   *_retval = newWindow;
   NS_ADDREF(*_retval);

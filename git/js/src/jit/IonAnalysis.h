@@ -31,15 +31,6 @@ enum Observability {
 bool
 EliminatePhis(MIRGenerator *mir, MIRGraph &graph, Observability observe);
 
-size_t
-MarkLoopBlocks(MIRGraph &graph, MBasicBlock *header, bool *canOsr);
-
-void
-UnmarkLoopBlocks(MIRGraph &graph, MBasicBlock *header);
-
-bool
-MakeLoopsContiguous(MIRGraph &graph);
-
 bool
 EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph);
 

@@ -3631,7 +3631,7 @@ JS_DeletePropertyById2(JSContext *cx, HandleObject obj, HandleId id, bool *resul
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
 
-    return JSObject::deleteGeneric(cx, obj, id, result);
+    return JSObject::deleteByValue(cx, obj, IdToValue(id), result);
 }
 
 JS_PUBLIC_API(bool)
@@ -3653,8 +3653,7 @@ JS_DeleteProperty2(JSContext *cx, HandleObject obj, const char *name, bool *resu
     JSAtom *atom = Atomize(cx, name, strlen(name));
     if (!atom)
         return false;
-    RootedId id(cx, AtomToId(atom));
-    return JSObject::deleteGeneric(cx, obj, id, result);
+    return JSObject::deleteByValue(cx, obj, StringValue(atom), result);
 }
 
 JS_PUBLIC_API(bool)
@@ -3667,8 +3666,7 @@ JS_DeleteUCProperty2(JSContext *cx, HandleObject obj, const jschar *name, size_t
     JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
         return false;
-    RootedId id(cx, AtomToId(atom));
-    return JSObject::deleteGeneric(cx, obj, id, result);
+    return JSObject::deleteByValue(cx, obj, StringValue(atom), result);
 }
 
 JS_PUBLIC_API(bool)

@@ -691,9 +691,7 @@ MBasicBlock::moveBefore(MInstruction *at, MInstruction *ins)
 
     // Insert into new block, which may be distinct.
     // Uses and operands are untouched.
-    ins->setBlock(at->block());
-    at->block()->instructions_.insertBefore(at, ins);
-    ins->setTrackedSite(at->trackedSite());
+    at->block()->insertBefore(at, ins);
 }
 
 static inline void

@@ -60,6 +60,7 @@ MIRType MIRTypeFromValue(const js::Value &vp)
 #define MIR_FLAG_LIST(_)                                                        \
     _(InWorklist)                                                               \
     _(EmittedAtUses)                                                            \
+    _(LoopInvariant)                                                            \
     _(Commutative)                                                              \
     _(Movable)       /* Allow LICM and GVN to move this instruction */          \
     _(Lowered)       /* (Debug only) has a virtual register */                  \
@@ -733,15 +734,11 @@ class MUseDefIterator
     operator bool() const {
         return current_ != def_->usesEnd();
     }
-    MUseDefIterator operator ++() {
-        JS_ASSERT(current_ != def_->usesEnd());
-        ++current_;
-        current_ = search(current_);
-        return *this;
-    }
     MUseDefIterator operator ++(int) {
         MUseDefIterator old(*this);
-        operator++();
+        if (current_ != def_->usesEnd())
+            current_++;
+        current_ = search(current_);
         return old;
     }
     MUse *use() const {
@@ -9727,25 +9724,33 @@ class MProfilerStackOp : public MNullaryInstruction
   public:
     enum Type {
         Enter,        // a function has begun executing and it is not inline
-        Exit          // any function has exited and is not inline
+        Exit,         // any function has exited (inlined or normal)
+        InlineEnter,  // an inline function has begun executing
+
+        InlineExit    // all instructions of an inline function are done, a
+                      // return from the inline function could have occurred
+                      // before this boundary
     };
 
   private:
     JSScript *script_;
     Type type_;
+    unsigned inlineLevel_;
 
-    MProfilerStackOp(JSScript *script, Type type)
-      : script_(script), type_(type)
+    MProfilerStackOp(JSScript *script, Type type, unsigned inlineLevel)
+      : script_(script), type_(type), inlineLevel_(inlineLevel)
     {
-        JS_ASSERT(script);
+        JS_ASSERT_IF(type != InlineExit, script != nullptr);
+        JS_ASSERT_IF(type == InlineEnter, inlineLevel != 0);
         setGuard();
     }
 
   public:
     INSTRUCTION_HEADER(ProfilerStackOp)
 
-    static MProfilerStackOp *New(TempAllocator &alloc, JSScript *script, Type type) {
-        return new(alloc) MProfilerStackOp(script, type);
+    static MProfilerStackOp *New(TempAllocator &alloc, JSScript *script, Type type,
+                                  unsigned inlineLevel = 0) {
+        return new(alloc) MProfilerStackOp(script, type, inlineLevel);
     }
 
     JSScript *script() {
@@ -9754,6 +9759,10 @@ class MProfilerStackOp : public MNullaryInstruction
 
     Type type() {
         return type_;
+    }
+
+    unsigned inlineLevel() {
+        return inlineLevel_;
     }
 
     AliasSet getAliasSet() const {

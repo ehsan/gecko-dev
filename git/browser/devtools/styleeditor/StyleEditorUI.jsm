@@ -454,23 +454,26 @@ StyleEditorUI.prototype = {
           }
         }, false);
 
-        // autofocus if it's a new user-created stylesheet
-        if (editor.isNew) {
-          this._selectEditor(editor);
-        }
+        Task.spawn(function* () {
+          // autofocus if it's a new user-created stylesheet
+          if (editor.isNew) {
+            yield this._selectEditor(editor);
+          }
 
-        if (this._styleSheetToSelect
-            && this._styleSheetToSelect.stylesheet == editor.styleSheet.href) {
-          this.switchToSelectedSheet();
-        }
+          if (this._styleSheetToSelect
+              && this._styleSheetToSelect.stylesheet == editor.styleSheet.href) {
+            yield this.switchToSelectedSheet();
+          }
 
-        // If this is the first stylesheet and there is no pending request to
-        // select a particular style sheet, select this sheet.
-        if (!this.selectedEditor && !this._styleSheetBoundToSelect
-            && editor.styleSheet.styleSheetIndex == 0) {
-          this._selectEditor(editor);
-        }
-        this.emit("editor-added", editor);
+          // If this is the first stylesheet and there is no pending request to
+          // select a particular style sheet, select this sheet.
+          if (!this.selectedEditor && !this._styleSheetBoundToSelect
+              && editor.styleSheet.styleSheetIndex == 0) {
+            yield this._selectEditor(editor);
+          }
+
+          this.emit("editor-added", editor);
+        }.bind(this)).then(null, Cu.reportError);
       }.bind(this),
 
       onShow: function(summary, details, data) {
@@ -709,8 +712,7 @@ StyleEditorUI.prototype = {
    *         Editor to update @media sidebar of
    */
   _updateMediaList: function(editor) {
-    Task.spawn(function* () {
-      let details = yield this.getEditorDetails(editor);
+    this.getEditorDetails(editor).then((details) => {
       let list = details.querySelector(".stylesheet-media-list");
 
       while (list.firstChild) {
@@ -720,31 +722,12 @@ StyleEditorUI.prototype = {
       let rules = editor.mediaRules;
       let showSidebar = Services.prefs.getBoolPref(PREF_MEDIA_SIDEBAR);
       let sidebar = details.querySelector(".stylesheet-sidebar");
-
-      let inSource = false;
+      sidebar.hidden = !showSidebar || !rules.length;
 
       for (let rule of rules) {
-        let {line, column, parentStyleSheet} = rule;
-
-        let location = {
-          line: line,
-          column: column,
-          source: editor.styleSheet.href,
-          styleSheet: parentStyleSheet
-        };
-        if (editor.styleSheet.isOriginalSource) {
-          location = yield editor.cssSheet.getOriginalLocation(line, column);
-        }
-
-        // this @media rule is from a different original source
-        if (location.source != editor.styleSheet.href) {
-          continue;
-        }
-        inSource = true;
-
         let div = this._panelDoc.createElement("div");
         div.className = "media-rule-label";
-        div.addEventListener("click", this._jumpToLocation.bind(this, location));
+        div.addEventListener("click", this._jumpToMediaRule.bind(this, rule));
 
         let cond = this._panelDoc.createElement("div");
         cond.textContent = rule.conditionText;
@@ -754,29 +737,25 @@ StyleEditorUI.prototype = {
         }
         div.appendChild(cond);
 
-        let link = this._panelDoc.createElement("div");
-        link.className = "media-rule-line theme-link";
-        link.textContent = ":" + location.line;
-        div.appendChild(link);
+        let line = this._panelDoc.createElement("div");
+        line.className = "media-rule-line theme-link";
+        line.textContent = ":" + rule.line;
+        div.appendChild(line);
 
         list.appendChild(div);
       }
-
-      sidebar.hidden = !showSidebar || !inSource;
-
       this.emit("media-list-changed", editor);
-    }.bind(this)).then(null, Cu.reportError);
+    });
   },
 
   /**
    * Jump cursor to the editor for a stylesheet and line number for a rule.
    *
-   * @param  {object} location
-   *         Location object with 'line', 'column', and 'source' properties.
+   * @param  {MediaRuleFront} rule
+   *         Rule to jump to.
    */
-  _jumpToLocation: function(location) {
-    let source = location.styleSheet || location.source;
-    this.selectStyleSheet(source, location.line - 1, location.column - 1);
+  _jumpToMediaRule: function(rule) {
+    this.selectStyleSheet(rule.parentStyleSheet, rule.line - 1, rule.column - 1);
   },
 
   destroy: function() {

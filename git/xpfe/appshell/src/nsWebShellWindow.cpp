@@ -111,7 +111,6 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                                       int32_t aInitialWidth,
                                       int32_t aInitialHeight,
                                       bool aIsHiddenWindow,
-                                      nsITabParent *aOpeningTab,
                                       nsWidgetInitData& widgetInitData)
 {
   nsresult rv;
@@ -183,8 +182,6 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   // Create web shell
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
-
-  mDocShell->SetOpener(aOpeningTab);
 
   // Make sure to set the item type on the docshell _before_ calling
   // Create() so it knows what type it is.

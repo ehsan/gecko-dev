@@ -1047,7 +1047,7 @@ CallMethodIfPresent(JSContext *cx, HandleObject obj, const char *name, int argc,
     RootedId id(cx, AtomToId(atom));
     RootedValue fval(cx);
     return JSObject::getGeneric(cx, obj, obj, id, &fval) &&
-           (!IsCallable(fval) || Invoke(cx, ObjectValue(*obj), fval, argc, argv, rval));
+           (!js_IsCallable(fval) || Invoke(cx, ObjectValue(*obj), fval, argc, argv, rval));
 }
 
 JSTrapStatus
@@ -5417,18 +5417,16 @@ static bool
 DebuggerObject_deleteProperty(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "deleteProperty", args, dbg, obj);
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, args.get(0), &id))
-        return false;
+    RootedValue nameArg(cx, args.get(0));
 
     Maybe<AutoCompartment> ac;
     ac.construct(cx, obj);
-    if (!cx->compartment()->wrapId(cx, id.address()))
+    if (!cx->compartment()->wrap(cx, &nameArg))
         return false;
 
     bool succeeded;
     ErrorCopier ec(ac, dbg->toJSObject());
-    if (!JSObject::deleteGeneric(cx, obj, id, &succeeded))
+    if (!JSObject::deleteByValue(cx, obj, nameArg, &succeeded))
         return false;
     args.rval().setBoolean(succeeded);
     return true;
