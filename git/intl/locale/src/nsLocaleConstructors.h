@@ -41,7 +41,7 @@
 
 #include "nsCollationCID.h"
 #include "nsDateTimeFormatCID.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsILocaleService.h"
 #include "nsIScriptableDateFormat.h"
 #include "nsIServiceManager.h"
@@ -81,7 +81,7 @@
 #endif
 
 #define NSLOCALE_MAKE_CTOR(ctor_, iface_, func_)          \
-static nsresult                                           \
+static NS_IMETHODIMP                                      \
 ctor_(nsISupports* aOuter, REFNSIID aIID, void** aResult) \
 {                                                         \
   *aResult = nsnull;                                      \

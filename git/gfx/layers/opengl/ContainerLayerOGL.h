@@ -58,6 +58,8 @@ public:
   void RemoveChild(Layer* aChild);
 
   /** LayerOGL implementation */
+  LayerType GetType();
+
   Layer* GetLayer();
 
   LayerOGL* GetFirstChildOGL();

@@ -186,16 +186,6 @@ public:
                                       nsIDOMNode **aEndNode,
                                       PRInt32 *aEndOffset);
 
-  /**
-   * Return text offset the given child accessible of hypertext accessible.
-   *
-   * @param  aChild           [in] accessible child to get text offset for
-   * @param  aInvalidateAfter [in, optional] indicates whether invalidate
-   *                           cached offsets for next siblings of the child
-   */
-  PRInt32 GetChildOffset(nsAccessible* aChild,
-                         PRBool aInvalidateAfter = PR_FALSE);
-
 protected:
   // nsHyperTextAccessible
 
@@ -354,15 +344,7 @@ protected:
                                  nsIPersistentProperties *aAttributes);
 
 private:
-  /**
-   * Embedded objects collector.
-   */
   nsAutoPtr<AccCollector> mLinks;
-
-  /**
-   * End text offsets array.
-   */
-  nsTArray<PRUint32> mOffsets;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,

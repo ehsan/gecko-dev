@@ -130,7 +130,13 @@ PrivateBrowsingService.prototype = {
   _windowsToClose: [],
 
   // XPCOM registration
+  classDescription: "PrivateBrowsing Service",
+  contractID: "@mozilla.org/privatebrowsing;1",
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
+  _xpcom_categories: [
+    { category: "command-line-handler", entry: "m-privatebrowsing" },
+    { category: "app-startup", service: true }
+  ],
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrivateBrowsingService, 
                                          Ci.nsIObserver,
@@ -694,4 +700,5 @@ PrivateBrowsingService.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([PrivateBrowsingService]);
+function NSGetModule(compMgr, fileSpec)
+  XPCOMUtils.generateModule([PrivateBrowsingService]);

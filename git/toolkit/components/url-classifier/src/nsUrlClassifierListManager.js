@@ -38,8 +38,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 #include ../content/listmanager.js
 
 var modScope = this;
@@ -64,19 +62,51 @@ function Init() {
   modScope.Init = function() {};
 }
 
-function RegistrationData()
-{
+// Module object
+function UrlClassifierListManagerMod() {
+  this.firstTime = true;
+  this.cid = Components.ID("{ca168834-cc00-48f9-b83c-fd018e58cae3}");
+  this.progid = "@mozilla.org/url-classifier/listmanager;1";
 }
-RegistrationData.prototype = {
-    classID: Components.ID("{ca168834-cc00-48f9-b83c-fd018e58cae3}"),
-    _xpcom_factory: {
-        createInstance: function(outer, iid) {
-            if (outer != null)
-                throw Components.results.NS_ERROR_NO_AGGREGATION;
-            Init();
-            return (new PROT_ListManager()).QueryInterface(iid);
-        }
-    },
+
+UrlClassifierListManagerMod.prototype.registerSelf = function(compMgr, fileSpec, loc, type) {
+  if (this.firstTime) {
+    this.firstTime = false;
+    throw Components.results.NS_ERROR_FACTORY_REGISTER_AGAIN;
+  }
+  compMgr = compMgr.QueryInterface(Ci.nsIComponentRegistrar);
+  compMgr.registerFactoryLocation(this.cid,
+                                  "UrlClassifier List Manager Module",
+                                  this.progid,
+                                  fileSpec,
+                                  loc,
+                                  type);
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([RegistrationData]);
+UrlClassifierListManagerMod.prototype.getClassObject = function(compMgr, cid, iid) {  
+  if (!cid.equals(this.cid))
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  if (!iid.equals(Ci.nsIFactory))
+    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+
+  return this.factory;
+}
+
+UrlClassifierListManagerMod.prototype.canUnload = function(compMgr) {
+  return true;
+}
+
+UrlClassifierListManagerMod.prototype.factory = {
+  createInstance: function(outer, iid) {
+    if (outer != null)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+    Init();
+    return (new PROT_ListManager()).QueryInterface(iid);
+  }
+};
+
+var ListManagerModInst = new UrlClassifierListManagerMod();
+
+function NSGetModule(compMgr, fileSpec) {
+  return ListManagerModInst;
+}

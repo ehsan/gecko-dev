@@ -77,14 +77,7 @@ if ("@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
         Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
         .getService(Components.interfaces.nsICrashReporter)) {
     crashReporter.enabled = true;
-
-    try { // nsIXULRuntime is not available in some configurations.
-	let processType = Components.classes["@mozilla.org/xre/runtime;1"].
-	    getService(Components.interfaces.nsIXULRuntime).processType;
-	if (Components.interfaces.nsIXULRuntime.PROCESS_TYPE_DEFAULT == processType)
-	    crashReporter.minidumpPath = do_get_cwd();
-    }
-    catch (e) { }
+    crashReporter.minidumpPath = do_get_cwd();
   }
 }
 
@@ -384,7 +377,7 @@ function do_load_httpd_js() {
   load(_HTTPD_JS_PATH);
 }
 
-function do_load_manifest(path) {
+function do_load_module(path) {
   var lf = do_get_file(path);
   const nsIComponentRegistrar = Components.interfaces.nsIComponentRegistrar;
   do_check_true(Components.manager instanceof nsIComponentRegistrar);

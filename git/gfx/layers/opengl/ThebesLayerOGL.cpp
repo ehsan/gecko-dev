@@ -129,6 +129,12 @@ ThebesLayerOGL::InvalidateRegion(const nsIntRegion &aRegion)
   mValidRegion.Sub(mValidRegion, aRegion);
 }
 
+LayerOGL::LayerType
+ThebesLayerOGL::GetType()
+{
+  return TYPE_THEBES;
+}
+
 void
 ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                             const nsIntPoint& aOffset)

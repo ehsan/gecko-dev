@@ -39,6 +39,7 @@
 #define nsPrefetchService_h__
 
 #include "nsCPrefetchService.h"
+#include "nsIGenericFactory.h"
 #include "nsIObserver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"

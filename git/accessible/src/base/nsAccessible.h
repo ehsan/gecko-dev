@@ -203,6 +203,11 @@ public:
   virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
 
   /**
+   * Set accessible parent.
+   */
+  void SetParent(nsAccessible *aParent);
+
+  /**
    * Cache children if necessary. Return true if the accessible is defunct.
    */
   PRBool EnsureChildren();
@@ -210,17 +215,19 @@ public:
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
    * Should be called when accessible tree is changed because document has
-   * transformed. Note, if accessible cares about its parent relation chain
-   * itself should override this method to do nothing.
+   * transformed.
    */
   virtual void InvalidateChildren();
 
   /**
-   * Append/insert/remove a child. Return true if operation was successful.
+   * Append/remove a child. Alternative approach of children handling than
+   * CacheChildren/InvalidateChildren.
+   *
+   * @param  aAccessible  [in] child to append/remove
+   * @return true          if child was successfully appended/removed
    */
-  virtual PRBool AppendChild(nsAccessible* aChild);
-  virtual PRBool InsertChildAt(PRUint32 aIndex, nsAccessible* aChild);
-  virtual PRBool RemoveChild(nsAccessible* aChild);
+  virtual PRBool AppendChild(nsAccessible *aAccessible) { return PR_FALSE; }
+  virtual PRBool RemoveChild(nsAccessible *aAccessible) { return PR_FALSE; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Accessible tree traverse methods
@@ -243,12 +250,12 @@ public:
   /**
    * Return index of the given child accessible.
    */
-  virtual PRInt32 GetIndexOf(nsAccessible* aChild);
+  virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
   /**
    * Return index in parent accessible.
    */
-  virtual PRInt32 GetIndexInParent();
+  PRInt32 GetIndexInParent();
 
   /**
    * Return true if accessible has children;
@@ -259,17 +266,9 @@ public:
    * Return cached accessible of parent-child relatives.
    */
   nsAccessible* GetCachedParent() const { return mParent; }
-  nsAccessible* GetCachedNextSibling() const
-  {
-    return mParent ?
-      mParent->mChildren.SafeElementAt(mIndexInParent + 1, nsnull) : nsnull;
-  }
-  nsAccessible* GetCachedPrevSibling() const
-  {
-    return mParent ?
-      mParent->mChildren.SafeElementAt(mIndexInParent - 1, nsnull) : nsnull;
-  }
-  PRUint32 GetCachedChildCount() const { return mChildren.Length(); }
+  nsAccessible* GetCachedFirstChild() const
+    { return mChildren.SafeElementAt(0, nsnull); }
+
   PRBool AreChildrenCached() const { return mAreChildrenInitialized; }
 
 #ifdef DEBUG
@@ -319,12 +318,6 @@ protected:
    * Cache accessible children.
    */
   virtual void CacheChildren();
-
-  /**
-   * Set accessible parent and index in parent.
-   */
-  void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
-  void UnbindFromParent() { mParent = nsnull; mIndexInParent = -1; }
 
   /**
    * Return sibling accessible at the given offset.
@@ -438,7 +431,6 @@ protected:
   nsRefPtr<nsAccessible> mParent;
   nsTArray<nsRefPtr<nsAccessible> > mChildren;
   PRBool mAreChildrenInitialized;
-  PRInt32 mIndexInParent;
 
   nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well
 };

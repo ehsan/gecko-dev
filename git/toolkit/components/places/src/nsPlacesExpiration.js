@@ -886,7 +886,15 @@ nsPlacesExpiration.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports
 
+  classDescription: "Used to expire obsolete data from Places",
   classID: Components.ID("705a423f-2f69-42f3-b9fe-1517e0dee56f"),
+  contractID: "@mozilla.org/places/expiration;1",
+
+  // Registering in these categories makes us get initialized when either of
+  // those listeners would be notified.
+  _xpcom_categories: [
+    { category: "history-observers" },
+  ],
 
   _xpcom_factory: nsPlacesExpirationFactory,
 
@@ -902,4 +910,7 @@ nsPlacesExpiration.prototype = {
 //// Module Registration
 
 let components = [nsPlacesExpiration];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+function NSGetModule(compMgr, fileSpec)
+{
+  return XPCOMUtils.generateModule(components);
+}

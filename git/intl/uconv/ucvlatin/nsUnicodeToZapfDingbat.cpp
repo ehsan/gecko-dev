@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "adobezingbat.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToZapfDingbatConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult) 
 {

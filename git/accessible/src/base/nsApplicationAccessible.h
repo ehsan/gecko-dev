@@ -115,6 +115,8 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();
+  virtual PRBool AppendChild(nsAccessible* aChild);
+  virtual PRBool RemoveChild(nsAccessible* aChild);
 
 protected:
 

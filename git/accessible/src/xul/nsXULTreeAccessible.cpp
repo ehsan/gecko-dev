@@ -470,6 +470,22 @@ nsXULTreeAccessible::GetChildCount()
   return childCount;
 }
 
+PRInt32
+nsXULTreeAccessible::GetIndexOf(nsIAccessible *aChild)
+{
+  if (IsDefunct())
+    return -1;
+
+  nsRefPtr<nsXULTreeItemAccessibleBase> item = do_QueryObject(aChild);
+
+  // If the given child is not treeitem then it should be treecols accessible.
+  if (!item)
+    return nsAccessible::GetIndexOf(aChild);
+
+  return nsAccessible::GetChildCount() + item->GetRowIndex();
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: public implementation
 
@@ -1060,6 +1076,9 @@ nsAccessible*
 nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
                                                 nsresult* aError)
 {
+  if (mRow + aOffset < 0)
+    return nsAccessible::GetSiblingAtOffset(mRow + aOffset, aError);
+
   if (IsDefunct()) {
     if (aError)
       *aError = NS_ERROR_FAILURE;
@@ -1070,7 +1089,16 @@ nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
   if (aError)
     *aError = NS_OK; // fail peacefully
 
-  return mParent->GetChildAt(GetIndexInParent() + aOffset);
+  nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
+  if (!treeAcc)
+    return nsnull;
+
+  PRInt32 rowCount = 0;
+  mTreeView->GetRowCount(&rowCount);
+  if (mRow + aOffset >= rowCount)
+    return nsnull;
+
+  return treeAcc->GetTreeItemAccessible(mRow + aOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

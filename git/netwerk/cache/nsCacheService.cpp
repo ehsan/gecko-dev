@@ -738,7 +738,7 @@ nsCacheService::Shutdown()
 }
 
 
-nsresult
+NS_METHOD
 nsCacheService::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
     nsresult  rv;

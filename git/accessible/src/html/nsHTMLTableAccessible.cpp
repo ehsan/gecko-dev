@@ -40,7 +40,6 @@
 #include "nsHTMLTableAccessible.h"
 
 #include "nsAccessibilityService.h"
-#include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
 #include "nsRelUtils.h"
@@ -453,20 +452,25 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsHTMLTableAccessible, nsAccessible,
 void
 nsHTMLTableAccessible::CacheChildren()
 {
-  // Move caption accessible so that it's the first child. Check for the first
-  // caption only, because nsAccessibilityService ensures we don't create
-  // accessibles for the other captions, since only the first is actually
-  // visible.
-  nsAccTreeWalker walker(mWeakShell, mContent, GetAllowsAnonChildAccessibles());
+  nsAccessible::CacheChildren();
 
-  nsRefPtr<nsAccessible> child;
-  while ((child = walker.GetNextChild())) {
+  // Move caption accessible so that it's the first child.
+  PRInt32 length = mChildren.Length();
+  for (PRInt32 idx = 0; idx < length; idx++) {
+    // Check for the first caption, because nsAccessibilityService ensures we
+    // don't create accessibles for the other captions, since only the first is
+    // actually visible.
+
+    nsAccessible* child = mChildren.ElementAt(idx);
     if (nsAccUtils::Role(child) == nsIAccessibleRole::ROLE_CAPTION) {
-      InsertChildAt(0, child);
-      while ((child = walker.GetNextChild()) && AppendChild(child));
+      if (idx == 0)
+        break;
+
+      nsRefPtr<nsAccessible> tmp = mChildren[0];
+      mChildren[0] = child;
+      mChildren[idx] = tmp;
       break;
     }
-    AppendChild(child);
   }
 }
 

@@ -172,7 +172,9 @@ nsXULColorPickerAccessible::CacheChildren()
 
     // Get an accessbile for menupopup or panel elements.
     if (role == nsIAccessibleRole::ROLE_ALERT) {
-      AppendChild(child);
+      mChildren.AppendElement(child);
+      child->SetParent(this);
+
       return;
     }
   }

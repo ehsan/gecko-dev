@@ -60,7 +60,6 @@ CPPSRCS		= \
   $(NULL)
 
 EXTRA_PP_COMPONENTS = \
-  extensions.manifest \
   nsBlocklistService.js \
   addonManager.js \
   amContentHandler.js \

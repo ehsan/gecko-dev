@@ -208,11 +208,8 @@ nsChromeRegistryContent::GetFlagsFromPackage(const nsCString& aPackage,
 
 // All functions following only make sense in chrome, and therefore assert
 
-#define CONTENT_NOTREACHED() \
-  NS_NOTREACHED("Content should not be calling this")
-
 #define CONTENT_NOT_IMPLEMENTED() \
-  CONTENT_NOTREACHED();           \
+  NS_NOTREACHED("Content should not be calling this"); \
   return NS_ERROR_NOT_IMPLEMENTED;
 
 NS_IMETHODIMP
@@ -267,65 +264,4 @@ nsChromeRegistryContent::GetXULOverlays(nsIURI *aChromeURL,
                                         nsISimpleEnumerator **aResult)
 {
   CONTENT_NOT_IMPLEMENTED();
-}
-
-void
-nsChromeRegistryContent::ManifestContent(ManifestProcessingContext& cx,
-                                         int lineno, char *const * argv,
-                                         bool platform, bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestLocale(ManifestProcessingContext& cx,
-                                        int lineno,
-                                        char *const * argv, bool platform,
-                                        bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestSkin(ManifestProcessingContext& cx,
-                                      int lineno,
-                                      char *const * argv, bool platform,
-                                      bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestOverlay(ManifestProcessingContext& cx, int lineno,
-                                         char *const * argv, bool platform,
-                                         bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestStyle(ManifestProcessingContext& cx,
-                                       int lineno,
-                                       char *const * argv, bool platform,
-                                       bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestOverride(ManifestProcessingContext& cx,
-                                          int lineno,
-                                          char *const * argv, bool platform,
-                                          bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
-}
-
-void
-nsChromeRegistryContent::ManifestResource(ManifestProcessingContext& cx,
-                                          int lineno,
-                                          char *const * argv, bool platform,
-                                          bool contentaccessible)
-{
-  CONTENT_NOTREACHED();
 }

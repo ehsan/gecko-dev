@@ -750,10 +750,14 @@ function SearchSuggestAutoComplete() {
   this._init();
 }
 SearchSuggestAutoComplete.prototype = {
+  classDescription: "Remote Search Suggestions",
+  contractID: "@mozilla.org/autocomplete/search;1?name=search-autocomplete",
   classID: Components.ID("{aa892eb4-ffbf-477d-9f9a-06c995ae9f27}"),
   __proto__: SuggestAutoComplete.prototype,
   serviceURL: ""
 };
 
 var component = [SearchSuggestAutoComplete];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(component);
+}

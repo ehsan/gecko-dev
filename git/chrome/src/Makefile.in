@@ -43,9 +43,12 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE          = chrome
-LIBRARY_NAME    = chrome_s
+LIBRARY_NAME    = chrome
+EXPORT_LIBRARY = 1
+IS_COMPONENT    = 1
+MODULE_NAME     = nsChromeModule
+GRE_MODULE      = 1
 LIBXUL_LIBRARY  = 1
-FORCE_STATIC_LIB = 1
 
 EXPORTS_NAMESPACES = mozilla/chrome
 
@@ -54,6 +57,7 @@ EXPORTS_mozilla/chrome = \
 		$(NULL)
 
 CPPSRCS		= \
+		nsChromeFactory.cpp \
 		nsChromeRegistry.cpp \
 		nsChromeRegistryChrome.cpp \
 		nsChromeProtocolHandler.cpp \
@@ -89,7 +93,3 @@ ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
 CXXFLAGS          += $(MOZ_GTK2_CFLAGS)
 endif
 
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/xpcom/components \
-  -I$(DEPTH)/xpcom \
-  $(NULL)

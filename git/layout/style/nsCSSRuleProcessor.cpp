@@ -874,12 +874,17 @@ nsPrivateBrowsingObserver::nsPrivateBrowsingObserver()
 void
 nsPrivateBrowsingObserver::Init()
 {
+  nsCOMPtr<nsIPrivateBrowsingService> pbService =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (!pbService)
+    return;
+
+  pbService->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(this, "profile-after-change", PR_TRUE);
+  if (observerService)
     observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-  }
 }
 
 nsresult
@@ -893,12 +898,6 @@ nsPrivateBrowsingObserver::Observe(nsISupports *aSubject,
     } else {
       mInPrivateBrowsing = PR_FALSE;
     }
-  }
-  else if (!strcmp(aTopic, "profile-after-change")) {
-    nsCOMPtr<nsIPrivateBrowsingService> pbService =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbService)
-      pbService->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
   }
   return NS_OK;
 }

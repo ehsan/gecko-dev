@@ -96,8 +96,6 @@
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
-#include "prenv.h"
-
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
 #define SIZEMODE_MINIMIZED  NS_LITERAL_STRING("minimized")
@@ -1389,13 +1387,7 @@ void nsXULWindow::SyncAttributesToWidget()
 
   // "accelerated" attribute
   PRBool isAccelerated;
-  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  if (acceleratedEnv && *acceleratedEnv) {
-    isAccelerated = *acceleratedEnv != '0';
-    rv = NS_OK;
-  } else
-    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
-
+  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }
@@ -1417,12 +1409,6 @@ void nsXULWindow::SyncAttributesToWidget()
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("toggletoolbar"), attr);
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetShowsToolbarButton(attr.LowerCaseEqualsLiteral("true"));
-  }
-
-  // "drawintitlebar" attribute
-  rv = windowElement->GetAttribute(NS_LITERAL_STRING("drawintitlebar"), attr);
-  if (NS_SUCCEEDED(rv)) {
-    mWindow->SetDrawsInTitlebar(attr.EqualsLiteral("true"));
   }
 }
 

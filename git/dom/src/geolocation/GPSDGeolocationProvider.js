@@ -134,7 +134,12 @@ GPSDProvider.prototype = {
   
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationProvider]),
   
+  classDescription: "Returns a geolocation from a GPSD source",
   classID: Components.ID("{0A3BE523-0F2A-32CC-CCD8-1E5986D5A79D}"),
+  contractID: "@mozilla.org/geolocation/gpsd/provider;1",
+  _xpcom_categories: [{
+    category: "geolocation-provider",
+  }],
   
   prefService: null,
 
@@ -256,4 +261,8 @@ GPSDProvider.prototype = {
   
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetModule([GPSDProvider]);
+var components = [GPSDProvider];
+
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(components);
+}

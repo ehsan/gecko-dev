@@ -81,6 +81,7 @@ public:
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
   // nsAccessNode
+  virtual PRBool Init();
   virtual void Shutdown();
 
   // nsAccessible

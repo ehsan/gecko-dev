@@ -63,7 +63,6 @@
 #include "nsTArray.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
-#include "imgDiscardTracker.h"
 
 #define NS_IMGCONTAINER_CID \
 { /* c76ff2c1-9bf6-418a-b143-3340c00112f7 */         \
@@ -157,9 +156,6 @@ public:
 
   PRUint32 GetDecodedDataSize();
   PRUint32 GetSourceDataSize();
-
-  /* Triggers discarding. */
-  void Discard();
 
 private:
   struct Anim
@@ -325,14 +321,13 @@ private: // data
 
   // Discard members
   PRUint32                   mLockCount;
-  imgDiscardTrackerNode      mDiscardTrackerNode;
+  nsCOMPtr<nsITimer>         mDiscardTimer;
 
   // Source data members
   nsTArray<char>             mSourceData;
   nsCString                  mSourceDataMimeType;
 
   friend class imgDecodeWorker;
-  friend class imgDiscardTracker;
 
   // Decoder and friends
   nsCOMPtr<imgIDecoder>          mDecoder;
@@ -358,6 +353,10 @@ private: // data
 
   PRPackedBool               mError:1;  // Error handling
 
+  // Discard code
+  nsresult ResetDiscardTimer();
+  static void sDiscardTimerCallback(nsITimer *aTimer, void *aClosure);
+
   // Decoding
   nsresult WantDecodedFrames();
   nsresult SyncDecode();
@@ -378,7 +377,6 @@ private: // data
   // Helpers
   void DoError();
   PRBool CanDiscard();
-  PRBool DiscardingActive();
   PRBool StoringSourceData();
 
 };

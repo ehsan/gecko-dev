@@ -203,7 +203,7 @@ PRBool nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
   return PR_TRUE;
 }
 
-nsresult
+NS_METHOD
 nsSupportsArray::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter)

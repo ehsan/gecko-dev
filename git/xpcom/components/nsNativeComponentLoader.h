@@ -39,23 +39,20 @@
 #define nsNativeModuleLoader_h__
 
 #include "nsISupports.h"
-#include "mozilla/ModuleLoader.h"
+#include "nsIModuleLoader.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "mozilla/Module.h"
+#include "nsIModule.h"
 #include "prlink.h"
 
-class nsNativeModuleLoader : public mozilla::ModuleLoader
+class nsNativeModuleLoader : public nsIModuleLoader
 {
  public:
     NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_NSIMODULELOADER
 
     nsNativeModuleLoader() {}
     ~nsNativeModuleLoader() {}
-
-    NS_OVERRIDE virtual const mozilla::Module* LoadModule(nsILocalFile* aFile);
-    NS_OVERRIDE virtual const mozilla::Module* LoadModuleFromJAR(nsILocalFile* aJARFile,
-                                                                 const nsACString& aPath);
 
     nsresult Init();
 
@@ -64,13 +61,10 @@ class nsNativeModuleLoader : public mozilla::ModuleLoader
  private:
     struct NativeLoadData
     {
-        NativeLoadData()
-            : module(NULL)
-            , library(NULL)
-        { }
+        NativeLoadData() : library(nsnull) { }
 
-        const mozilla::Module* module;
-        PRLibrary* library;
+        nsCOMPtr<nsIModule>  module;
+        PRLibrary           *library;
     };
 
     static PLDHashOperator

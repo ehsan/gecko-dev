@@ -184,5 +184,10 @@ nsWebHandlerApp.prototype = {
 ////////////////////////////////////////////////////////////////////////////////
 //// Module
 
-NSGetFactory = XPCOMUtils.generateNSGetFactory([nsWebHandlerApp]);
+let components = [nsWebHandlerApp];
+
+function NSGetModule(compMgr, fileSpec)
+{
+  return XPCOMUtils.generateModule(components);
+}
 

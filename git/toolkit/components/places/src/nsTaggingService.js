@@ -434,6 +434,8 @@ TaggingService.prototype = {
   },
 
   // nsISupports
+  classDescription: "Places Tagging Service",
+  contractID: "@mozilla.org/browser/tagging-service;1",
   classID: Components.ID("{bbc23860-2553-479d-8b78-94d9038334f7}"),
   
   QueryInterface: XPCOMUtils.generateQI([
@@ -654,8 +656,12 @@ TagAutoCompleteSearch.prototype = {
     Ci.nsIAutoCompleteSearch
   ]),
 
+  classDescription: "Places Tag AutoComplete",
+  contractID: "@mozilla.org/autocomplete/search;1?name=places-tag-autocomplete",
   classID: Components.ID("{1dcc23b0-d4cb-11dc-9ad6-479d56d89593}")
 };
 
 let component = [TaggingService, TagAutoCompleteSearch];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(component);
+}

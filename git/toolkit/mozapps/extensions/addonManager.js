@@ -167,7 +167,13 @@ amManager.prototype = {
     AddonManagerPrivate.backgroundUpdateCheck();
   },
 
+  classDescription: "Addons Manager",
+  contractID: "@mozilla.org/addons/integration;1",
   classID: Components.ID("{4399533d-08d1-458c-a87a-235f74451cfa}"),
+  _xpcom_categories: [{ category: "update-timer",
+                        value: "@mozilla.org/addons/integration;1," +
+                               "getService,addon-background-update-timer," +
+                               PREF_EM_UPDATE_INTERVAL + ",86400" }],
   _xpcom_factory: {
     createInstance: function(aOuter, aIid) {
       if (aOuter != null)
@@ -183,4 +189,5 @@ amManager.prototype = {
                                          Ci.nsIObserver])
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([amManager]);
+function NSGetModule(aCompMgr, aFileSpec)
+  XPCOMUtils.generateModule([amManager]);
