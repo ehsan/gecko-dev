@@ -1337,9 +1337,6 @@ pref("network.seer.preserve", 80); // percentage of seer data to keep when clean
 //   [scheme "://"] [host [":" port]]
 // For example, "foo.com" would match "http://www.foo.com/bar", etc.
 
-// Allow insecure NTLMv1 when needed.
-pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
-
 // This list controls which URIs can use the negotiate-auth protocol.  This
 // list should be limited to the servers you know you'll need to login to.
 pref("network.negotiate-auth.trusted-uris", "");
@@ -1528,7 +1525,7 @@ pref("intl.hyphenation-alias.no-*", "nb");
 pref("intl.hyphenation-alias.nb-*", "nb");
 pref("intl.hyphenation-alias.nn-*", "nn");
 
-pref("font.mathfont-family", "Latin Modern Math, XITS Math, STIX Math, Cambria Math, Asana Math, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Termes Math, Neo Euler, Lucida Bright Math, MathJax_Main, STIXNonUnicode, STIXSizeOneSym, STIXGeneral, Standard Symbols L, DejaVu Sans");
+pref("font.mathfont-family", "MathJax_Main, STIXNonUnicode, STIXSizeOneSym, STIXGeneral, Asana Math, Standard Symbols L, DejaVu Sans, Cambria Math");
 
 // Some CJK fonts have bad underline offset, their CJK character glyphs are overlapped (or adjoined)  to its underline.
 // These fonts are ignored the underline offset, instead of it, the underline is lowered to bottom of its em descent.
@@ -3086,7 +3083,7 @@ pref("font.size.variable.zh-HK", 15);
 pref("font.size.fixed.zh-HK", 16);
 
 // Apple's Symbol is Unicode so use it
-pref("font.mathfont-family", "Latin Modern Math, XITS Math, STIX Math, Cambria Math, Asana Math, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Termes Math, Neo Euler, Lucida Bright Math, MathJax_Main, STIXNonUnicode, STIXSizeOneSym, STIXGeneral, Symbol, DejaVu Sans");
+pref("font.mathfont-family", "MathJax_Main, STIXNonUnicode, STIXSizeOneSym, STIXGeneral, Asana Math, Symbol, DejaVu Sans, Cambria Math");
 
 // individual font faces to be treated as independent families
 // names are Postscript names of each face

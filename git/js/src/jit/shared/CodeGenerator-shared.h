@@ -435,8 +435,6 @@ class CodeGeneratorShared : public LInstructionVisitor
 
     bool visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool);
 
-    bool omitOverRecursedCheck() const;
-
   public:
     bool callTraceLIR(uint32_t blockIndex, LInstruction *lir, const char *bailoutName = nullptr);
 

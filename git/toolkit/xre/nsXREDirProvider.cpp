@@ -931,8 +931,8 @@ GetRegWindowsAppDataFolder(bool aLocal, nsAString& _retval)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // |size| may or may not include room for the terminating null character
-  DWORD resultLen = size / 2;
+  // |size| includes room for the terminating null character
+  DWORD resultLen = size / 2 - 1;
 
   _retval.SetLength(resultLen);
   nsAString::iterator begin;
@@ -949,11 +949,6 @@ GetRegWindowsAppDataFolder(bool aLocal, nsAString& _retval)
   if (res != ERROR_SUCCESS) {
     _retval.SetLength(0);
     return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  if (!_retval.CharAt(resultLen - 1)) {
-    // It was already null terminated.
-    _retval.Truncate(resultLen - 1);
   }
 
   return NS_OK;

@@ -21,9 +21,7 @@ class nsIDOMElement;
 class nsIDOMNode;
 class nsISelection;
 namespace mozilla {
-namespace dom {
 class Selection;
-}  // namespace dom
 }  // namespace mozilla
 
 /** Object that encapsulates HTML text-specific editing rules.
@@ -55,8 +53,8 @@ public:
                         nsIEditor::EDirection aDirection);
   NS_IMETHOD AfterEdit(EditAction action,
                        nsIEditor::EDirection aDirection);
-  NS_IMETHOD WillDoAction(mozilla::dom::Selection* aSelection,
-                          nsRulesInfo* aInfo, bool* aCancel, bool* aHandled);
+  NS_IMETHOD WillDoAction(mozilla::Selection* aSelection, nsRulesInfo* aInfo,
+                          bool* aCancel, bool* aHandled);
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
   NS_IMETHOD DocumentIsEmpty(bool *aDocumentIsEmpty);
   NS_IMETHOD DocumentModified();
@@ -104,7 +102,7 @@ protected:
 
   // nsTextEditRules implementation methods
   nsresult WillInsertText(  EditAction aAction,
-                            mozilla::dom::Selection* aSelection,
+                            mozilla::Selection* aSelection,
                             bool            *aCancel,
                             bool            *aHandled,
                             const nsAString *inString,
@@ -113,14 +111,14 @@ protected:
   nsresult DidInsertText(nsISelection *aSelection, nsresult aResult);
   nsresult GetTopEnclosingPre(nsIDOMNode *aNode, nsIDOMNode** aOutPreNode);
 
-  nsresult WillInsertBreak(mozilla::dom::Selection* aSelection, bool* aCancel,
+  nsresult WillInsertBreak(mozilla::Selection* aSelection, bool* aCancel,
                            bool *aHandled, int32_t aMaxLength);
   nsresult DidInsertBreak(nsISelection *aSelection, nsresult aResult);
 
   nsresult WillInsert(nsISelection *aSelection, bool *aCancel);
   nsresult DidInsert(nsISelection *aSelection, nsresult aResult);
 
-  nsresult WillDeleteSelection(mozilla::dom::Selection* aSelection,
+  nsresult WillDeleteSelection(mozilla::Selection* aSelection,
                                nsIEditor::EDirection aCollapsedAction, 
                                bool *aCancel,
                                bool *aHandled);
@@ -169,7 +167,7 @@ protected:
 
   /** returns a truncated insertion string if insertion would place us
       over aMaxLength */
-  nsresult TruncateInsertionIfNeeded(mozilla::dom::Selection*  aSelection,
+  nsresult TruncateInsertionIfNeeded(mozilla::Selection*       aSelection,
                                      const nsAString          *aInString,
                                      nsAString                *aOutString,
                                      int32_t                   aMaxLength,

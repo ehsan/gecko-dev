@@ -56,10 +56,6 @@ class StyleRule;
 }
 }
 
-namespace JS {
-class SourceBufferHolder;
-}
-
 ////////////////////////////////////////////////////////////////////////
 
 #ifdef XUL_PROTOTYPE_ATTRIBUTE_METERING
@@ -234,12 +230,6 @@ public:
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     nsresult DeserializeOutOfLine(nsIObjectInputStream* aInput,
                                   nsXULPrototypeDocument* aProtoDoc);
-
-    nsresult Compile(JS::SourceBufferHolder& aSrcBuf,
-                     nsIURI* aURI, uint32_t aLineNo,
-                     nsIDocument* aDocument,
-                     nsXULPrototypeDocument* aProtoDoc,
-                     nsIOffThreadScriptReceiver *aOffThreadReceiver = nullptr);
 
     nsresult Compile(const char16_t* aText, int32_t aTextLength,
                      nsIURI* aURI, uint32_t aLineNo,

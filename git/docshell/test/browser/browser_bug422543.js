@@ -39,8 +39,6 @@ SHistoryListener.prototype = {
     return this.retval;
   },
 
-  OnHistoryReplaceEntry: function (aIndex) {},
-
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISHistoryListener,
                                          Ci.nsISupportsWeakReference])
 };

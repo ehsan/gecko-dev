@@ -33,7 +33,7 @@
 #include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/EventStates.h"
-#include "mozilla/dom/Selection.h"
+#include "mozilla/Selection.h"
 #include "mozilla/MathAlgorithms.h"
 #include "gfxSkipChars.h"
 #include <algorithm>
@@ -1117,7 +1117,7 @@ HyperTextAccessible::SetSelectionRange(int32_t aStartPos, int32_t aEndPos)
   if (isFocusable)
     TakeFocus();
 
-  dom::Selection* domSel = DOMSelection();
+  Selection* domSel = DOMSelection();
   NS_ENSURE_STATE(domSel);
 
   // Set up the selection.
@@ -1164,7 +1164,7 @@ HyperTextAccessible::CaretOffset() const
 
   // Turn the focus node and offset of the selection into caret hypretext
   // offset.
-  dom::Selection* domSel = DOMSelection();
+  Selection* domSel = DOMSelection();
   NS_ENSURE_TRUE(domSel, -1);
 
   nsINode* focusNode = domSel->GetFocusNode();
@@ -1194,7 +1194,7 @@ HyperTextAccessible::CaretLineNumber()
   if (!frameSelection)
     return -1;
 
-  dom::Selection* domSel =
+  Selection* domSel =
     frameSelection->GetSelection(nsISelectionController::SELECTION_NORMAL);
   if (!domSel)
     return - 1;
@@ -1310,7 +1310,7 @@ HyperTextAccessible::GetSelectionDOMRanges(int16_t aType,
       frameSelection->GetDisplaySelection() <= nsISelectionController::SELECTION_HIDDEN)
     return;
 
-  dom::Selection* domSel = frameSelection->GetSelection(aType);
+  Selection* domSel = frameSelection->GetSelection(aType);
   if (!domSel)
     return;
 
@@ -1397,7 +1397,7 @@ HyperTextAccessible::SetSelectionBoundsAt(int32_t aSelectionNum,
   int32_t startOffset = ConvertMagicOffset(aStartOffset);
   int32_t endOffset = ConvertMagicOffset(aEndOffset);
 
-  dom::Selection* domSel = DOMSelection();
+  Selection* domSel = DOMSelection();
   if (!domSel)
     return false;
 
@@ -1426,7 +1426,7 @@ HyperTextAccessible::SetSelectionBoundsAt(int32_t aSelectionNum,
 bool
 HyperTextAccessible::RemoveFromSelection(int32_t aSelectionNum)
 {
-  dom::Selection* domSel = DOMSelection();
+  Selection* domSel = DOMSelection();
   if (!domSel)
     return false;
 
@@ -1521,7 +1521,7 @@ HyperTextAccessible::SelectionRanges(nsTArray<a11y::TextRange>* aRanges) const
 {
   NS_ASSERTION(aRanges->Length() != 0, "TextRange array supposed to be empty");
 
-  dom::Selection* sel = DOMSelection();
+  Selection* sel = DOMSelection();
   if (!sel)
     return;
 
@@ -1848,7 +1848,7 @@ HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
   if (!fs)
     return NS_OK;
 
-  dom::Selection* domSel = fs->GetSelection(nsISelectionController::SELECTION_SPELLCHECK);
+  Selection* domSel = fs->GetSelection(nsISelectionController::SELECTION_SPELLCHECK);
   if (!domSel)
     return NS_OK;
 

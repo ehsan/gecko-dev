@@ -245,10 +245,6 @@ XULDocument::~XULDocument()
         NS_IF_RELEASE(kNC_attribute);
         NS_IF_RELEASE(kNC_value);
     }
-
-    if (mOffThreadCompileStringBuf) {
-      js_free(mOffThreadCompileStringBuf);
-    }
 }
 
 } // namespace dom
@@ -3530,26 +3526,14 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 
         // XXX should also check nsIHttpChannel::requestSucceeded
 
-        MOZ_ASSERT(!mOffThreadCompiling && (mOffThreadCompileStringLength == 0 &&
-                                            !mOffThreadCompileStringBuf),
+        MOZ_ASSERT(!mOffThreadCompiling && mOffThreadCompileString.Length() == 0,
                    "XULDocument can't load multiple scripts at once");
 
         rv = nsScriptLoader::ConvertToUTF16(channel, string, stringLen,
-                                            EmptyString(), this,
-                                            mOffThreadCompileStringBuf,
-                                            mOffThreadCompileStringLength);
+                                            EmptyString(), this, mOffThreadCompileString);
         if (NS_SUCCEEDED(rv)) {
-            // Attempt to give ownership of the buffer to the JS engine.  If
-            // we hit offthread compilation, however, we will have to take it
-            // back below in order to keep the memory alive until compilation
-            // completes.
-            JS::SourceBufferHolder srcBuf(mOffThreadCompileStringBuf,
-                                          mOffThreadCompileStringLength,
-                                          JS::SourceBufferHolder::GiveOwnership);
-            mOffThreadCompileStringBuf = nullptr;
-            mOffThreadCompileStringLength = 0;
-
-            rv = mCurrentScriptProto->Compile(srcBuf,
+            rv = mCurrentScriptProto->Compile(mOffThreadCompileString.get(),
+                                              mOffThreadCompileString.Length(),
                                               uri, 1, this,
                                               mCurrentPrototype,
                                               this);
@@ -3558,15 +3542,10 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
                 // compile finishes. Keep the contents of the compiled script
                 // alive until the compilation finishes.
                 mOffThreadCompiling = true;
-                // If the JS engine did not take the source buffer, then take
-                // it back here to ensure it remains alive.
-                mOffThreadCompileStringBuf = srcBuf.take();
-                if (mOffThreadCompileStringBuf) {
-                  mOffThreadCompileStringLength = srcBuf.length();
-                }
                 BlockOnload();
                 return NS_OK;
             }
+            mOffThreadCompileString.Truncate();
         }
     }
 
@@ -3588,11 +3567,7 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
     }
 
     // After compilation finishes the script's characters are no longer needed.
-    if (mOffThreadCompileStringBuf) {
-      js_free(mOffThreadCompileStringBuf);
-      mOffThreadCompileStringBuf = nullptr;
-      mOffThreadCompileStringLength = 0;
-    }
+    mOffThreadCompileString.Truncate();
 
     // Clear mCurrentScriptProto now, but save it first for use below in
     // the execute code, and in the while loop that resumes walks of other

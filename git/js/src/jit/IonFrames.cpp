@@ -92,7 +92,7 @@ JitFrameIterator::JitFrameIterator(const ActivationIterator &activations)
       returnAddressToFp_(nullptr),
       frameSize_(0),
       cachedSafepointIndex_(nullptr),
-      activation_(activations->asJit()),
+      activation_(activations.activation()->asJit()),
       mode_(SequentialExecution)
 {
 }
@@ -1174,7 +1174,7 @@ MarkRectifierFrame(JSTracer *trc, const JitFrameIterator &frame)
 static void
 MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
 {
-    JitActivation *activation = activations->asJit();
+    JitActivation *activation = activations.activation()->asJit();
 
 #ifdef CHECK_OSIPOINT_REGISTERS
     if (js_JitOptions.checkOsiPointRegisters) {

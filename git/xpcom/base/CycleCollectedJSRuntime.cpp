@@ -1005,7 +1005,7 @@ ReleaseSliceNow(uint32_t aSlice, void* aData)
 
     nsISupports* wrapper = items->ElementAt(lastItemIdx);
     items->RemoveElementAt(lastItemIdx);
-    NS_IF_RELEASE(wrapper);
+    NS_RELEASE(wrapper);
   }
 
   return items->IsEmpty();

@@ -1206,8 +1206,8 @@ bool
 JSContext::currentlyRunning() const
 {
     for (ActivationIterator iter(runtime()); !iter.done(); ++iter) {
-        if (iter->cx() == this) {
-            if (iter->hasSavedFrameChain())
+        if (iter.activation()->cx() == this) {
+            if (iter.activation()->hasSavedFrameChain())
                 return false;
             return true;
         }

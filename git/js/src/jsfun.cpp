@@ -1617,11 +1617,10 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
         fun->setHasRest();
 
     bool ok;
-    SourceBufferHolder srcBuf(chars, length, SourceBufferHolder::NoOwnership);
     if (isStarGenerator)
-        ok = frontend::CompileStarGeneratorBody(cx, &fun, options, formals, srcBuf);
+        ok = frontend::CompileStarGeneratorBody(cx, &fun, options, formals, chars, length);
     else
-        ok = frontend::CompileFunctionBody(cx, &fun, options, formals, srcBuf);
+        ok = frontend::CompileFunctionBody(cx, &fun, options, formals, chars, length);
     args.rval().setObject(*fun);
     return ok;
 }
