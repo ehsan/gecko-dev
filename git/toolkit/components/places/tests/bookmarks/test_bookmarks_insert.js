@@ -115,11 +115,12 @@ add_task(function* long_title_trim() {
   for (let i = 0; i < 4096; i++) {
     longtitle += "a";
   }
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_FOLDER,
                                                 title: longtitle });
   checkBookmarkObject(bm);
-  Assert.equal(bm.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm.parentGuid, unfiledGuid);
   Assert.equal(bm.index, 0);
   Assert.equal(bm.dateAdded, bm.lastModified);
   Assert.equal(bm.type, PlacesUtils.bookmarks.TYPE_FOLDER);
@@ -129,11 +130,12 @@ add_task(function* long_title_trim() {
 });
 
 add_task(function* create_separator() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_SEPARATOR,
                                                 index: PlacesUtils.bookmarks.DEFAULT_INDEX });
   checkBookmarkObject(bm);
-  Assert.equal(bm.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm.parentGuid, unfiledGuid);
   Assert.equal(bm.index, 1);
   Assert.equal(bm.dateAdded, bm.lastModified);
   Assert.equal(bm.type, PlacesUtils.bookmarks.TYPE_SEPARATOR);
@@ -141,8 +143,9 @@ add_task(function* create_separator() {
 });
 
 add_task(function* create_separator_w_title_fail() {
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
   try {
-    yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+    yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                          type: PlacesUtils.bookmarks.TYPE_SEPARATOR,
                                          title: "a separator" });
     Assert.ok(false, "Trying to set title for a separator should reject");
@@ -159,13 +162,14 @@ add_task(function* create_separator_invalid_parent_fail() {
 });
 
 add_task(function* create_separator_given_guid() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_SEPARATOR,
                                                 index: PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 guid: "123456789012" });
   checkBookmarkObject(bm);
   Assert.equal(bm.guid, "123456789012");
-  Assert.equal(bm.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm.parentGuid, unfiledGuid);
   Assert.equal(bm.index, 2);
   Assert.equal(bm.dateAdded, bm.lastModified);
   Assert.equal(bm.type, PlacesUtils.bookmarks.TYPE_SEPARATOR);
@@ -180,11 +184,12 @@ add_task(function* create_item_given_guid_no_type_fail() {
 });
 
 add_task(function* create_separator_big_index() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_SEPARATOR,
                                                 index: 9999 });
   checkBookmarkObject(bm);
-  Assert.equal(bm.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm.parentGuid, unfiledGuid);
   Assert.equal(bm.index, 3);
   Assert.equal(bm.dateAdded, bm.lastModified);
   Assert.equal(bm.type, PlacesUtils.bookmarks.TYPE_SEPARATOR);
@@ -194,7 +199,8 @@ add_task(function* create_separator_big_index() {
 add_task(function* create_separator_given_dateAdded() {
   let time = new Date();
   let past = new Date(time - 86400000);
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_SEPARATOR,
                                                 dateAdded: past });
   checkBookmarkObject(bm);
@@ -203,10 +209,11 @@ add_task(function* create_separator_given_dateAdded() {
 });
 
 add_task(function* create_folder() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_FOLDER });
   checkBookmarkObject(bm);
-  Assert.equal(bm.parentGuid, PlacesUtils.bookmarks.unfiledGuid);
+  Assert.equal(bm.parentGuid, unfiledGuid);
   Assert.equal(bm.dateAdded, bm.lastModified);
   Assert.equal(bm.type, PlacesUtils.bookmarks.TYPE_FOLDER);
   Assert.ok(!("title" in bm), "title should not be set");
@@ -224,7 +231,8 @@ add_task(function* create_folder() {
 });
 
 add_task(function* create_bookmark() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_FOLDER });
   let parentGuid = bm.guid;
 
@@ -270,7 +278,8 @@ add_task(function* create_bookmark() {
 });
 
 add_task(function* create_bookmark_frecency() {
-  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: PlacesUtils.bookmarks.unfiledGuid,
+  let unfiledGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
+  let bm = yield PlacesUtils.bookmarks.insert({ parentGuid: unfiledGuid,
                                                 type: PlacesUtils.bookmarks.TYPE_BOOKMARK,
                                                 url: "http://example.com/",
                                                 title: "a bookmark" });

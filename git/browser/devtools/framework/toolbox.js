@@ -268,7 +268,7 @@ Toolbox.prototype = {
       let domReady = () => {
         this.isReady = true;
 
-        let framesPromise = this._listFrames();
+        this._listFrames();
 
         this.closeButton = this.doc.getElementById("toolbox-close");
         this.closeButton.addEventListener("command", this.destroy, true);
@@ -309,8 +309,7 @@ Toolbox.prototype = {
 
           promise.all([
             splitConsolePromise,
-            buttonsPromise,
-            framesPromise
+            buttonsPromise
           ]).then(() => {
             this.emit("ready");
             deferred.resolve();
@@ -1230,13 +1229,13 @@ Toolbox.prototype = {
     if (!this._target.form || !this._target.form.actor) {
       // We are not targetting a regular TabActor
       // it can be either an addon or browser toolbox actor
-      return promise.resolve();
+      return;
     }
     let packet = {
       to: this._target.form.actor,
       type: "listFrames"
     };
-    return this._target.client.request(packet, resp => {
+    this._target.client.request(packet, resp => {
       this._updateFrames(null, { frames: resp.frames });
     });
   },

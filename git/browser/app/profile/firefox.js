@@ -1804,5 +1804,3 @@ pref("print.enable_e10s_testing", false);
 #else
 pref("print.enable_e10s_testing", true);
 #endif
-
-pref("browser.defaultbrowser.notificationbar", false);

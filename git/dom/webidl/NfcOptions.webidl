@@ -32,10 +32,9 @@ dictionary NfcEventOptions
   sequence<NFCTechType> techList;
   sequence<MozNDEFRecordOptions> records;
 
-  NFCTagType tagType;
-  long maxNDEFSize;
   boolean isReadOnly;
-  boolean isFormatable;
+  boolean canBeMadeReadOnly;
+  long maxSupportedLength;
 
   long powerLevel;
 

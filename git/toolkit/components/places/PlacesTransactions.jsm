@@ -1334,10 +1334,11 @@ PT.Tag.prototype = {
 
       if (yield promiseIsBookmarked(currentURI)) {
         // Tagging is only allowed for bookmarked URIs (but see 424160).
+        let unfiledGuid =
+          yield PlacesUtils.promiseItemGuid(PlacesUtils.unfiledBookmarksFolderId);
         let createTxn = TransactionsHistory.getRawTransaction(
           PT.NewBookmark({ uri: currentURI
-                         , tags: aTags
-                         , parentGuid: PlacesUtils.bookmarks.unfiledGuid }));
+                         , tags: aTags, parentGuid: unfiledGuid }));
         yield createTxn.execute();
         onUndo.unshift(createTxn.undo.bind(createTxn));
         onRedo.push(createTxn.redo.bind(createTxn));
