@@ -9,7 +9,6 @@
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsEscape.h"
 #include "nsAboutProtocolUtils.h"
 #include "nsPrintfCString.h"
@@ -62,12 +61,7 @@ nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
     mEntriesHeaderAdded = false;
 
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                                  aURI,
-                                  inputStream,
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, inputStream,
                                   NS_LITERAL_CSTRING("text/html"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;

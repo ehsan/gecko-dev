@@ -8,7 +8,6 @@
 #include "nsIIOService.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsIHttpHeaderVisitor.h"
 
 NS_IMPL_ADDREF(nsViewSourceChannel)
@@ -86,13 +85,8 @@ nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc,
                    NS_LITERAL_STRING("about:srcdoc"));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = NS_NewInputStreamChannel(getter_AddRefs(mChannel),
-                                  inStreamURI,
-                                  aSrcdoc,
-                                  NS_LITERAL_CSTRING("text/html"),
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(getter_AddRefs(mChannel), inStreamURI,
+                                  aSrcdoc, NS_LITERAL_CSTRING("text/html"),
                                   true);
 
     NS_ENSURE_SUCCESS(rv, rv);

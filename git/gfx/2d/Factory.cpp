@@ -548,12 +548,11 @@ Factory::SetDirect3D10Device(ID3D10Device1 *aDevice)
 
 ID3D10Device1*
 Factory::GetDirect3D10Device()
+
 {
 #ifdef DEBUG
-  if (mD3D10Device) {
-    UINT mode = mD3D10Device->GetExceptionMode();
-    MOZ_ASSERT(0 == mode);
-  }
+  UINT mode = mD3D10Device->GetExceptionMode();
+  MOZ_ASSERT(0 == mode);
 #endif
   return mD3D10Device;
 }

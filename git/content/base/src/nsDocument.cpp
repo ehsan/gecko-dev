@@ -5844,7 +5844,12 @@ nsDocument::ProcessTopElementQueue(bool aIsBaseQueue)
 {
   MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
 
-  nsTArray<nsRefPtr<CustomElementData>>& stack = *sProcessingStack;
+  if (sProcessingStack.isNothing()) {
+    // If XPCOM shutdown has reset the processing stack, don't do anything.
+    return;
+  }
+
+  nsTArray<CustomElementData*>& stack = *sProcessingStack;
   uint32_t firstQueue = stack.LastIndexOf((CustomElementData*) nullptr);
 
   if (aIsBaseQueue && firstQueue != 0) {
@@ -5881,7 +5886,7 @@ nsDocument::RegisterEnabled()
 }
 
 // static
-Maybe<nsTArray<nsRefPtr<mozilla::dom::CustomElementData>>>
+Maybe<nsTArray<mozilla::dom::CustomElementData*>>
 nsDocument::sProcessingStack;
 
 // static

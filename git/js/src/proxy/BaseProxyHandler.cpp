@@ -165,8 +165,7 @@ js::SetPropertyIgnoringNamedGetter(JSContext *cx, const BaseProxyHandler *handle
 }
 
 bool
-BaseProxyHandler::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
-                                               AutoIdVector &props) const
+BaseProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
     MOZ_ASSERT(props.length() == 0);
@@ -205,7 +204,7 @@ BaseProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
 
     AutoIdVector props(cx);
     if ((flags & JSITER_OWNONLY)
-        ? !getOwnEnumerablePropertyKeys(cx, proxy, props)
+        ? !keys(cx, proxy, props)
         : !enumerate(cx, proxy, props)) {
         return false;
     }

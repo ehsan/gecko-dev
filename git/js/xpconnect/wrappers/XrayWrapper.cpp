@@ -458,14 +458,21 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper,
         return JS_IdToValue(cx, className, desc.value());
     }
 
+    // Compute the property name we're looking for. Indexed array properties
+    // are handled above. We'll handle well-known symbols when we start
+    // supporting Symbol.iterator in bug 918828.
+    if (!JSID_IS_STRING(id))
+        return true;
+    Rooted<JSFlatString*> str(cx, JSID_TO_FLAT_STRING(id));
+
     // Grab the JSClass. We require all Xrayable classes to have a ClassSpec.
     const js::Class *clasp = js::GetObjectClass(target);
     MOZ_ASSERT(clasp->spec.defined());
 
-    // Scan through the functions. Indexed array properties are handled above.
+    // Scan through the functions.
     const JSFunctionSpec *fsMatch = nullptr;
     for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
-        if (PropertySpecNameEqualsId(fs->name, id)) {
+        if (JS_FlatStringEqualsAscii(str, fs->name)) {
             fsMatch = fs;
             break;
         }
@@ -494,7 +501,7 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper,
     // Scan through the properties.
     const JSPropertySpec *psMatch = nullptr;
     for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
-        if (PropertySpecNameEqualsId(ps->name, id)) {
+        if (JS_FlatStringEqualsAscii(str, ps->name)) {
             psMatch = ps;
             break;
         }
@@ -625,15 +632,6 @@ JSXrayTraits::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
     return true;
 }
 
-static bool
-MaybeAppend(jsid id, unsigned flags, AutoIdVector &props)
-{
-    MOZ_ASSERT(!(flags & JSITER_SYMBOLSONLY));
-    if (!(flags & JSITER_SYMBOLS) && JSID_IS_SYMBOL(id))
-        return true;
-    return props.append(id);
-}
-
 bool
 JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags,
                              AutoIdVector &props)
@@ -713,12 +711,12 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
     const js::Class *clasp = js::GetObjectClass(target);
     MOZ_ASSERT(clasp->spec.defined());
 
-    // Convert the method and property names to jsids and pass them to the caller.
+    // Intern all the strings, and pass theme to the caller.
     for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
-        jsid id;
-        if (!PropertySpecNameToPermanentId(cx, fs->name, &id))
+        RootedString str(cx, JS_InternString(cx, fs->name));
+        if (!str)
             return false;
-        if (!MaybeAppend(id, flags, props))
+        if (!props.append(INTERNED_STRING_TO_JSID(cx, str)))
             return false;
     }
     for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
@@ -729,11 +727,10 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
         MOZ_ASSERT(ps->flags & JSPROP_NATIVE_ACCESSORS,
                    "Self-hosted accessor added to Xrayable class - ping the XPConnect "
                    "module owner about adding test coverage");
-
-        jsid id;
-        if (!PropertySpecNameToPermanentId(cx, ps->name, &id))
+        RootedString str(cx, JS_InternString(cx, ps->name));
+        if (!str)
             return false;
-        if (!MaybeAppend(id, flags, props))
+        if (!props.append(INTERNED_STRING_TO_JSID(cx, str)))
             return false;
     }
 
@@ -1981,7 +1978,7 @@ XrayWrapper<Base, Traits>::ownPropertyKeys(JSContext *cx, HandleObject wrapper,
                                            AutoIdVector &props) const
 {
     assertEnteredPolicy(cx, wrapper, JSID_VOID, BaseProxyHandler::ENUMERATE);
-    return enumerate(cx, wrapper, JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS, props);
+    return enumerate(cx, wrapper, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
 
 template <typename Base, typename Traits>
@@ -2075,12 +2072,11 @@ XrayWrapper<Base, Traits>::hasOwn(JSContext *cx, HandleObject wrapper,
 
 template <typename Base, typename Traits>
 bool
-XrayWrapper<Base, Traits>::getOwnEnumerablePropertyKeys(JSContext *cx,
-                                                        HandleObject wrapper,
-                                                        AutoIdVector &props) const
+XrayWrapper<Base, Traits>::keys(JSContext *cx, HandleObject wrapper,
+                                AutoIdVector &props) const
 {
     // Skip our Base if it isn't already ProxyHandler.
-    return js::BaseProxyHandler::getOwnEnumerablePropertyKeys(cx, wrapper, props);
+    return js::BaseProxyHandler::keys(cx, wrapper, props);
 }
 
 template <typename Base, typename Traits>

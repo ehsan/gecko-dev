@@ -89,7 +89,7 @@ class TabsListLayout extends TwoWayView
     private class TabsListLayoutAdapter extends TabsLayoutAdapter {
         private final Button.OnClickListener mCloseOnClickListener;
         public TabsListLayoutAdapter (Context context) {
-            super(context, R.layout.tabs_layout_item_view);
+            super(context);
 
             mCloseOnClickListener = new Button.OnClickListener() {
                 @Override

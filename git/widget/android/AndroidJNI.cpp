@@ -16,6 +16,7 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 
 #include "nsAppShell.h"
 #include "nsWindow.h"
@@ -1028,7 +1029,7 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
         if (PR_IntervalNow() - startTime >= timeout) {
             return nullptr;
         }
-        usleep(100000ul); // Sleep for 100ms
+        sched_yield();
         profile = ProfilePtr(profiler_get_profile());
     }
 
