@@ -76,24 +76,22 @@
 #ifdef JS_TRACER
             TraceRecorder* tr = TRACE_RECORDER(cx);
             if (tr) {
-                AbortableRecordingStatus status = TraceRecorder::monitorRecording(cx, tr, op);
+                JSRecordingStatus status = TraceRecorder::monitorRecording(cx, tr, op);
                 switch (status) {
-                  case ARECORD_CONTINUE:
+                case JSRS_CONTINUE:
                     moreInterrupts = true;
                     break;
-                  case ARECORD_IMACRO:
+                case JSRS_IMACRO:
                     atoms = COMMON_ATOMS_START(&rt->atomState);
                     op = JSOp(*regs.pc);
                     DO_OP();    /* keep interrupting for op. */
                     break;
-                  case ARECORD_ERROR:
+                case JSRS_ERROR:
                     // The code at 'error:' aborts the recording.
                     goto error;
-                  case ARECORD_ABORTED:
+                case JSRS_STOP:
                     break;
-                  case ARECORD_STOP:
-                    /* A 'stop' error should have already aborted recording. */
-                  default:
+                default:
                     JS_NOT_REACHED("Bad recording status");
                 }
             }
