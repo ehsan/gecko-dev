@@ -40,7 +40,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 const Cu = Components.utils;
-const FILTER_CHANGED_TIMEOUT = 300;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
@@ -66,22 +65,21 @@ function CssHtmlTree(aStyleWin, aCssLogic, aPanel)
   this.doc = aPanel.ownerDocument;
   this.win = this.doc.defaultView;
   this.getRTLAttr = CssHtmlTree.getRTLAttr;
-  this.propertyViews = {};
 
   // The document in which we display the results (csshtmltree.xhtml).
   this.styleDocument = this.styleWin.contentWindow.document;
 
   // Nodes used in templating
   this.root = this.styleDocument.getElementById("root");
-  this.path = this.styleDocument.getElementById("path");
   this.templateRoot = this.styleDocument.getElementById("templateRoot");
-  this.templatePath = this.styleDocument.getElementById("templatePath");
   this.propertyContainer = this.styleDocument.getElementById("propertyContainer");
   this.templateProperty = this.styleDocument.getElementById("templateProperty");
   this.panel = aPanel;
 
   // The element that we're inspecting, and the document that it comes from.
   this.viewedElement = null;
+  this.viewedDocument = null;
+
   this.createStyleViews();
 }
 
@@ -150,25 +148,8 @@ XPCOMUtils.defineLazyGetter(CssHtmlTree, "_strings", function() Services.strings
     .createBundle("chrome://browser/locale/styleinspector.properties"));
 
 CssHtmlTree.prototype = {
-  htmlComplete: false,
-
-  // Used for cancelling timeouts in the style filter.
-  filterChangedTimeout: null,
-
-  // The search filter
-  searchField: null,
-  
-  // Reference to the "Only user Styles" checkbox.
-  onlyUserStylesCheckbox: null,
-
-  get showOnlyUserStyles()
-  {
-    return this.onlyUserStylesCheckbox.checked;
-  },
-
   /**
-   * Update the highlighted element. The CssHtmlTree panel will show the style
-   * information for the given element.
+   * Focus the output display on a specific element.
    * @param {nsIDOMElement} aElement The highlighted node to get styles for.
    */
   highlight: function CssHtmlTree_highlight(aElement)
@@ -179,53 +160,38 @@ CssHtmlTree.prototype = {
 
     this.viewedElement = aElement;
 
-    CssHtmlTree.processTemplate(this.templatePath, this.path, this);
-
-    if (this.htmlComplete) {
-      this.refreshPanel();
-    } else {
+    if (this.viewedElement) {
+      this.viewedDocument = this.viewedElement.ownerDocument;
       CssHtmlTree.processTemplate(this.templateRoot, this.root, this);
+    } else {
+      this.viewedDocument = null;
+      this.root.innerHTML = "";
+    }
 
-      // We use a setTimeout loop to display the properties in batches of 15 at a
-      // time. This results in a perceptibly more responsive UI.
-      let i = 0;
-      let batchSize = 15;
-      let max = CssHtmlTree.propertyNames.length - 1;
-      function displayProperties() {
-        if (this.viewedElement == aElement && this.panel.isOpen()) {
-          // Display the next 15 properties
-          for (let step = i + batchSize; i < step && i <= max; i++) {
-            let name = CssHtmlTree.propertyNames[i];
-            let propView = new PropertyView(this, name);
-            CssHtmlTree.processTemplate(this.templateProperty,
-              this.propertyContainer, propView, true);
-            propView.refreshMatchedSelectors();
-            propView.refreshUnmatchedSelectors();
-            this.propertyViews[name] = propView;
-          }
-          if (i < max) {
-            // There are still some properties to display. We loop here to display
-            // the next batch of 15.
-            this.win.setTimeout(displayProperties.bind(this), 50);
-          } else {
-            this.htmlComplete = true;
-            Services.obs.notifyObservers(null, "StyleInspector-populated", null);
-          }
+    this.propertyContainer.innerHTML = "";
+
+    // We use a setTimeout loop to display the properties in batches of 25 at a
+    // time. This gives a perceptibly more responsive UI and allows us to cancel
+    // the displaying of properties in the case that a new element is selected.
+    let i = 0;
+    let batchSize = 25;
+    let max = CssHtmlTree.propertyNames.length - 1;
+    function displayProperties() {
+      if (this.viewedElement == aElement && this.panel.isOpen()) {
+        // Display the next 25 properties
+        for (let step = i + batchSize; i < step && i <= max; i++) {
+          let propView = new PropertyView(this, CssHtmlTree.propertyNames[i]);
+          CssHtmlTree.processTemplate(
+              this.templateProperty, this.propertyContainer, propView, true);
+        }
+        if (i < max) {
+          // There are still some properties to display. We loop here to display
+          // the next batch of 25.
+          this.win.setTimeout(displayProperties.bind(this), 0);
         }
       }
-      this.win.setTimeout(displayProperties.bind(this), 50);
     }
-  },
-
-  /**
-   * Refresh the panel content.
-   */
-  refreshPanel: function CssHtmlTree_refreshPanel()
-  {
-    for each(let propView in this.propertyViews) {
-      propView.refresh();
-    }
-    Services.obs.notifyObservers(null, "StyleInspector-populated", null);
+    this.win.setTimeout(displayProperties.bind(this), 0);
   },
 
   /**
@@ -238,6 +204,7 @@ CssHtmlTree.prototype = {
   {
     aEvent.preventDefault();
     if (aEvent.target && this.viewedElement != aEvent.target.pathElement) {
+      this.propertyContainer.innerHTML = "";
       if (this.win.InspectorUI.selection) {
         if (aEvent.target.pathElement != this.win.InspectorUI.selection) {
           let elt = aEvent.target.pathElement;
@@ -248,43 +215,6 @@ CssHtmlTree.prototype = {
         this.panel.selectNode(aEvent.target.pathElement);
       }
     }
-  },
-
-  /**
-   * Called when the user enters a search term.
-   *
-   * @param {Event} aEvent the DOM Event object.
-   */
-  filterChanged: function CssHtmlTree_filterChanged(aEvent)
-  {
-    let win = this.styleWin.contentWindow;
-
-    if (this.filterChangedTimeout) {
-      win.clearTimeout(this.filterChangedTimeout);
-      this.filterChangeTimeout = null;
-    }
-
-    this.filterChangedTimeout = win.setTimeout(function() {
-      this.refreshPanel();
-    }.bind(this), FILTER_CHANGED_TIMEOUT);
-  },
-
-  /**
-   * The change event handler for the onlyUserStyles checkbox. When
-   * onlyUserStyles.checked is true we do not display properties that have no
-   * matched selectors, and we do not display UA styles. If .checked is false we
-   * do display even properties with no matched selectors, and we include the UA
-   * styles.
-   *
-   * @param {Event} aEvent the DOM Event object.
-   */
-  onlyUserStylesChanged: function CssHtmltree_onlyUserStylesChanged(aEvent)
-  {
-    this.cssLogic.sourceFilter = this.showOnlyUserStyles ?
-                                 CssLogic.FILTER.ALL :
-                                 CssLogic.FILTER.UA;
-    
-    this.refreshPanel();
   },
 
   /**
@@ -343,57 +273,53 @@ function PropertyView(aTree, aName)
   this.name = aName;
   this.getRTLAttr = CssHtmlTree.getRTLAttr;
 
+  this.populated = false;
+  this.showUnmatched = false;
+
   this.link = "https://developer.mozilla.org/en/CSS/" + aName;
 
-  this.templateMatchedSelectors = aTree.styleDocument.getElementById("templateMatchedSelectors");
-  this.templateUnmatchedSelectors = aTree.styleDocument.getElementById("templateUnmatchedSelectors");
+  this.templateRules = aTree.styleDocument.getElementById("templateRules");
+
+  // The parent element which contains the open attribute
+  this.element = null;
+  // Destination for templateRules.
+  this.rules = null;
+
+  this.str = {};
 }
 
 PropertyView.prototype = {
-  // The parent element which contains the open attribute
-  element: null,
+  /**
+   * The click event handler for the property name of the property view. If
+   * there are >0 rules then the rules are expanded. If there are 0 rules and
+   * >0 unmatched rules then the unmatched rules are expanded instead.
+   *
+   * @param {Event} aEvent the DOM event
+   */
+  click: function PropertyView_click(aEvent)
+  {
+    // Clicking on the property link itself is already handled
+    if (aEvent.target.tagName.toLowerCase() == "a") {
+      return;
+    }
 
-  // Destination for property values
-  valueNode: null,
+    if (this.element.hasAttribute("open")) {
+      this.element.removeAttribute("open");
+      return;
+    }
 
-  // Are matched rules expanded?
-  matchedExpanded: false,
+    if (!this.populated) {
+      let matchedRuleCount = this.propertyInfo.matchedRuleCount;
 
-  // Are unmatched rules expanded?
-  unmatchedExpanded: false,
-
-  // Matched selector container
-  matchedSelectorsContainer: null,
-
-  // Unmatched selector container
-  unmatchedSelectorsContainer: null,
-
-  // Matched selector expando
-  matchedExpander: null,
-
-  // Unmatched selector expando
-  unmatchedExpander: null,
-
-  // Container for X matched selectors
-  matchedSelectorsTitleNode: null,
-
-  // Container for X unmatched selectors
-  unmatchedSelectorsTitleNode: null,
-
-  // Matched selectors table
-  matchedSelectorTable: null,
-
-  // Unmatched selectors table
-  unmatchedSelectorTable: null,
-
-  // Cache for matched selector views
-  _matchedSelectorViews: null,
-
-  // Cache for unmatched selector views
-  _unmatchedSelectorViews: null,
-
-  // The previously selected element used for the selector view caches
-  prevViewedElement: null,
+      if (matchedRuleCount == 0 && this.showUnmatchedLink) {
+        this.showUnmatchedLinkClick(aEvent);
+      } else {
+        CssHtmlTree.processTemplate(this.templateRules, this.rules, this);
+      }
+      this.populated = true;
+    }
+    this.element.setAttribute("open", "");
+  },
 
   /**
    * Get the computed style for the current property.
@@ -407,7 +333,7 @@ PropertyView.prototype = {
   },
 
   /**
-   * An easy way to access the CssPropertyInfo behind this PropertyView.
+   * An easy way to access the CssPropertyInfo behind this PropertyView
    */
   get propertyInfo()
   {
@@ -415,199 +341,106 @@ PropertyView.prototype = {
   },
 
   /**
-   * Should this property be visible?
-   */
-  get visible()
-  {
-    if (this.tree.showOnlyUserStyles && this.matchedSelectorCount == 0) {
-      return false;
-    }
-
-    let searchTerm = this.tree.searchField.value.toLowerCase();
-    if (searchTerm && this.name.toLowerCase().indexOf(searchTerm) == -1 &&
-      this.value.toLowerCase().indexOf(searchTerm) == -1) {
-      return false;
-    }
-
-    return true;
-  },
-
-  /**
-   * Returns the className that should be assigned to the propertyView.
-   */
-  get className()
-  {
-    return this.visible ? "property-view" : "property-view-hidden";
-  },
-
-  /**
-   * The number of matched selectors.
-   */
-  get matchedSelectorCount()
-  {
-    return this.propertyInfo.matchedSelectors.length;
-  },
-
-  /**
-   * The number of unmatched selectors.
-   */
-  get unmatchedSelectorCount()
-  {
-    return this.propertyInfo.unmatchedSelectors.length;
-  },
-
-  /**
-   * Refresh the panel's CSS property value.
-   */
-  refresh: function PropertyView_refresh()
-  {
-    this.element.className = this.className;
-
-    if (this.prevViewedElement != this.tree.viewedElement) {
-      this._matchedSelectorViews = null;
-      this._unmatchedSelectorViews = null;
-      this.prevViewedElement = this.tree.viewedElement;
-    }
-
-    if (!this.tree.viewedElement || !this.visible) {
-      this.valueNode.innerHTML = "";
-      this.matchedSelectorsContainer.hidden = true;
-      this.unmatchedSelectorsContainer.hidden = true;
-      this.matchedSelectorTable.innerHTML = "";
-      this.unmatchedSelectorTable.innerHTML = "";
-      this.matchedExpander.removeAttribute("open");
-      this.unmatchedExpander.removeAttribute("open");
-      return;
-    }
-
-    this.valueNode.innerHTML = this.propertyInfo.value;
-    
-    this.refreshMatchedSelectors();
-    this.refreshUnmatchedSelectors();
-  },
-
-  /**
-   * Refresh the panel matched rules.
-   */
-  refreshMatchedSelectors: function PropertyView_refreshMatchedSelectors()
-  {
-    this.matchedSelectorsTitleNode.innerHTML = this.matchedSelectorTitle();
-    this.matchedSelectorsContainer.hidden = this.matchedSelectorCount == 0;
-
-    if (this.matchedExpanded && this.matchedSelectorCount > 0) {
-      CssHtmlTree.processTemplate(this.templateMatchedSelectors,
-        this.matchedSelectorTable, this);
-      this.matchedExpander.setAttribute("open", "");
-    } else {
-      this.matchedSelectorTable.innerHTML = "";
-      this.matchedExpander.removeAttribute("open");
-    }
-  },
-
-  /**
-   * Refresh the panel unmatched rules.
-   */
-  refreshUnmatchedSelectors: function PropertyView_refreshUnmatchedSelectors() {
-    this.unmatchedSelectorsTitleNode.innerHTML = this.unmatchedSelectorTitle();
-    this.unmatchedSelectorsContainer.hidden = this.unmatchedSelectorCount == 0;
-
-    if (this.unmatchedExpanded && this.unmatchedSelectorCount > 0) {
-      CssHtmlTree.processTemplate(this.templateUnmatchedSelectors,
-          this.unmatchedSelectorTable, this);
-      this.unmatchedExpander.setAttribute("open", "");
-    } else {
-      this.unmatchedSelectorTable.innerHTML = "";
-      this.unmatchedExpander.removeAttribute("open");
-    }
-  },
-
-  /**
-   * Compute the title of the matched selector expander. The title includes the
-   * number of selectors that match the currently selected element.
+   * Compute the title of the property view. The title includes the number of
+   * selectors that match the currently selected element.
    *
+   * @param {nsIDOMElement} aElement reference to the DOM element where the rule
+   * title needs to be displayed.
    * @return {string} The rule title.
    */
-  matchedSelectorTitle: function PropertyView_matchedSelectorTitle()
+  ruleTitle: function PropertyView_ruleTitle(aElement)
   {
     let result = "";
+    let matchedSelectorCount = this.propertyInfo.matchedSelectors.length;
 
-    if (this.matchedSelectorCount > 0) {
-      let str = CssHtmlTree.l10n("property.numberOfMatchedSelectors");
-      result = PluralForm.get(this.matchedSelectorCount, str)
-                         .replace("#1", this.matchedSelectorCount);
-    }
-    return result;
-  },
+    if (matchedSelectorCount > 0) {
+      aElement.classList.add("rule-count");
+      aElement.firstElementChild.className = "expander";
 
-  /**
-   * Compute the title of the unmatched selector expander. The title includes
-   * the number of selectors that match the currently selected element.
-   *
-   * @return {string} The rule title.
-   */
-  unmatchedSelectorTitle: function PropertyView_unmatchedSelectorTitle()
-  {
-    let result = "";
+      let str = CssHtmlTree.l10n("property.numberOfSelectors");
+      result = PluralForm.get(matchedSelectorCount, str)
+          .replace("#1", matchedSelectorCount);
+    } else if (this.showUnmatchedLink) {
+      aElement.classList.add("rule-unmatched");
+      aElement.firstElementChild.className = "expander";
 
-    if (this.unmatchedSelectorCount > 0) {
+      let unmatchedSelectorCount = this.propertyInfo.unmatchedSelectors.length;
       let str = CssHtmlTree.l10n("property.numberOfUnmatchedSelectors");
-      result = PluralForm.get(this.unmatchedSelectorCount, str)
-                         .replace("#1", this.unmatchedSelectorCount);
+      result = PluralForm.get(unmatchedSelectorCount, str)
+          .replace("#1", unmatchedSelectorCount);
     }
     return result;
   },
 
   /**
-   * Provide access to the matched SelectorViews that we are currently
-   * displaying.
+   * Close the property view.
    */
-  get matchedSelectorViews()
+  close: function PropertyView_close()
   {
-    if (!this._matchedSelectorViews) {
-      this._matchedSelectorViews = [];
-      this.propertyInfo.matchedSelectors.forEach(
-        function matchedSelectorViews_convert(aSelectorInfo) {
-          this._matchedSelectorViews.push(new SelectorView(aSelectorInfo));
-        }, this);
+    if (this.rules && this.element) {
+      this.element.removeAttribute("open");
     }
-
-    return this._matchedSelectorViews;
-  },
-
-    /**
-   * Provide access to the unmatched SelectorViews that we are currently
-   * displaying.
-   */
-  get unmatchedSelectorViews()
-  {
-    if (!this._unmatchedSelectorViews) {
-      this._unmatchedSelectorViews = [];
-      this.propertyInfo.unmatchedSelectors.forEach(
-        function unmatchedSelectorViews_convert(aSelectorInfo) {
-          this._unmatchedSelectorViews.push(new SelectorView(aSelectorInfo));
-        }, this);
-    }
-
-    return this._unmatchedSelectorViews;
   },
 
   /**
-   * The action when a user expands matched selectors.
+   * Reset the property view.
    */
-  matchedSelectorsClick: function PropertyView_matchedSelectorsClick(aEvent)
+  reset: function PropertyView_reset()
   {
-    this.matchedExpanded = !this.matchedExpanded;
-    this.refreshMatchedSelectors();
-    aEvent.preventDefault();
+    this.close();
+    this.populated = false;
+    this.showUnmatched = false;
+    this.element = false;
   },
 
   /**
-   * The action when a user expands unmatched selectors.
+   * Provide access to the SelectorViews that we are currently displaying
    */
-  unmatchedSelectorsClick: function PropertyView_unmatchedSelectorsClick(aEvent)
+  get selectorViews()
   {
-    this.unmatchedExpanded = !this.unmatchedExpanded;
-    this.refreshUnmatchedSelectors();
+    var all = [];
+
+    function convert(aSelectorInfo) {
+      all.push(new SelectorView(aSelectorInfo));
+    }
+
+    this.propertyInfo.matchedSelectors.forEach(convert);
+    if (this.showUnmatched) {
+      this.propertyInfo.unmatchedSelectors.forEach(convert);
+    }
+
+    return all;
+  },
+
+  /**
+   * Should we display a 'X unmatched rules' link?
+   * @return {boolean} false if we are already showing the unmatched links or
+   * if there are none to display, true otherwise.
+   */
+  get showUnmatchedLink()
+  {
+    return !this.showUnmatched && this.propertyInfo.unmatchedRuleCount > 0;
+  },
+
+  /**
+   * The UI has a link to allow the user to display unmatched selectors.
+   * This provides localized link text.
+   */
+  get showUnmatchedLinkText()
+  {
+    let smur = CssHtmlTree.l10n("rule.showUnmatchedLink");
+    let unmatchedSelectorCount = this.propertyInfo.unmatchedSelectors.length;
+    let plural = PluralForm.get(unmatchedSelectorCount, smur);
+    return plural.replace("#1", unmatchedSelectorCount);
+  },
+
+  /**
+   * The action when a user clicks the 'show unmatched' link.
+   */
+  showUnmatchedLinkClick: function PropertyView_showUnmatchedLinkClick(aEvent)
+  {
+    this.showUnmatched = true;
+    CssHtmlTree.processTemplate(this.templateRules, this.rules, this);
     aEvent.preventDefault();
   },
 };
