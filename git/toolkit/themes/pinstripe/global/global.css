@@ -240,10 +240,6 @@ label[disabled="true"] {
   color: GrayText;
 }
 
-.tooltip-label {
-  margin: 0;
-}
-
 description {
   margin-bottom: 4px;
 }

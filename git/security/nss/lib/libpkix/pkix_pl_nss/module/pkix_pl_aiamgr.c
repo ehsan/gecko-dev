@@ -331,6 +331,9 @@ pkix_pl_AIAMgr_GetHTTPCerts(
                         	&requestSession));
 
                 	if (rv != SECSuccess) {
+                        	if (path != NULL) {
+                                	PORT_Free(path);
+                        	}
                         	PKIX_ERROR(PKIX_HTTPSERVERERROR);
                 	}
 
@@ -411,12 +414,6 @@ cleanup:
 
         if (locationAscii) {
             PORT_Free(locationAscii);
-        }
-        if (hostname) {
-            PORT_Free(hostname);
-        }
-        if (path) {
-            PORT_Free(path);
         }
 
         PKIX_RETURN(AIAMGR);

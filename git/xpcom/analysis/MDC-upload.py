@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 """
-Upload a page to MDC
+Upload a file to MDC
 
 Usage: python MDC-upload.py <file> <MDC-path>
 Please set MDC_USER and MDC_PASSWORD in the environment
 """
 
-import os, sys, deki
+import os, sys, urllib, urllib2, deki
 
 wikiuser = os.environ['MDC_USER']
 wikipw = os.environ['MDC_PASSWORD']

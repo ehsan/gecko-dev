@@ -55,6 +55,7 @@
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNSElement.h"
 #include "nsILinkHandler.h"
+#include "nsGenericDOMNodeList.h"
 #include "nsContentUtils.h"
 #include "nsNodeUtils.h"
 #include "nsAttrAndChildArray.h"
@@ -89,18 +90,18 @@ typedef unsigned long PtrBits;
  * and Item to its existing child list.
  * @see nsIDOMNodeList
  */
-class nsChildContentList : public nsINodeList
+class nsChildContentList : public nsGenericDOMNodeList 
 {
 public:
   nsChildContentList(nsINode* aNode)
     : mNode(aNode)
   {
+    MOZ_COUNT_CTOR(nsChildContentList);
   }
-
-  NS_DECL_ISUPPORTS
+  virtual ~nsChildContentList();
 
   // nsIDOMNodeList interface
-  NS_DECL_NSIDOMNODELIST
+  NS_IMETHOD GetLength(PRUint32* aLength);
 
   // nsINodeList interface
   virtual nsINode* GetNodeAt(PRUint32 aIndex);  

@@ -50,6 +50,7 @@ REQUIRES	= xpcom \
 		  $(NULL)
 
 CPPSRCS		= \
+		DumpColors.cpp \
 		TestColorNames.cpp \
 		TestRect.cpp \
 		$(NULL)

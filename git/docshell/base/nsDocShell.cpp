@@ -3333,8 +3333,7 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
     nsresult rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return InternalLoad(errorPageURI, nsnull, nsnull,
-                        INTERNAL_LOAD_FLAGS_INHERIT_OWNER, nsnull, nsnull,
+    return InternalLoad(errorPageURI, nsnull, nsnull, PR_TRUE, nsnull, nsnull,
                         nsnull, nsnull, LOAD_ERROR_PAGE,
                         nsnull, PR_TRUE, nsnull, nsnull);
 }

@@ -97,8 +97,7 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                               nsIFrame*   aPrevInFlow)
 {
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM | 
-               (aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD));
+  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -175,7 +174,7 @@ nsSVGForeignObjectFrame::InvalidateInternal(const nsRect& aDamageRect,
                                             nsIFrame* aForChild,
                                             PRUint32 aFlags)
 {
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return;
 
   nsRegion* region = (aFlags & INVALIDATE_CROSS_DOC)
@@ -292,7 +291,7 @@ nsresult
 nsSVGForeignObjectFrame::TransformPointFromOuterPx(const nsPoint &aIn,
                                                    nsPoint* aOut)
 {
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> tm = GetTMIncludingOffset();
@@ -356,7 +355,7 @@ nsSVGForeignObjectFrame::GetCoveredRegion()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::UpdateCoveredRegion()
 {
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = GetCanvasTM();
@@ -374,6 +373,8 @@ nsSVGForeignObjectFrame::UpdateCoveredRegion()
   // XXXjwatt: _this_ is where we should reflow _if_ mRect.width has changed!
   // we should not unconditionally reflow in AttributeChanged
   mRect = GetTransformedRegion(x, y, w, h, ctm, PresContext());
+
+  nsSVGUtils::UpdateFilterRegion(this);
 
   return NS_OK;
 }
@@ -453,7 +454,7 @@ nsSVGForeignObjectFrame::NotifyRedrawSuspended()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+  if (!(mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic();
     } else {
@@ -485,7 +486,7 @@ nsSVGForeignObjectFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
   *_retval = nsnull;
 
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = GetCanvasTM();
@@ -613,7 +614,7 @@ nsSVGForeignObjectFrame::DoReflow()
   if (IsDisabled())
     return;
 
-  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return;
 
   nsPresContext *presContext = PresContext();

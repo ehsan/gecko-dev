@@ -620,9 +620,6 @@ public:
   NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                        JSObject *obj, PRBool *_retval);
   
-  virtual nsresult GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                             JSObject *obj, PRUint32 *length);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsGenericArraySH(aData);
@@ -630,7 +627,7 @@ public:
 };
 
 
-// Array scriptable helper
+// NodeList scriptable helper
 
 class nsArraySH : public nsGenericArraySH
 {
@@ -643,39 +640,16 @@ protected:
   {
   }
 
-  // Subclasses need to override this, if the implementation can't fail it's
-  // allowed to not set *aResult.
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult) = 0;
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
 
-private:
-  // Not implemented, nothing should create an instance of this class.
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData);
-};
-
-
-// NodeList scriptable helper
- 
-class nsNodeListSH : public nsArraySH
-{
-protected:
-  nsNodeListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
-  {
-  }
-
-public:
-  virtual nsresult GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                             JSObject *obj, PRUint32 *length);
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
- 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsNodeListSH(aData);
+    return new nsArraySH(aData);
   }
 };
 
@@ -699,10 +673,6 @@ protected:
 public:
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
-
-private:
-  // Not implemented, nothing should create an instance of this class.
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData);
 };
 
 
@@ -719,8 +689,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -747,8 +719,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -764,18 +738,20 @@ public:
 
 // ContentList helper
 
-class nsContentListSH : public nsNodeListSH
+class nsContentListSH : public nsHTMLCollectionSH
 {
 protected:
-  nsContentListSH(nsDOMClassInfoData* aData) : nsNodeListSH(aData)
+  nsContentListSH(nsDOMClassInfoData* aData) : nsHTMLCollectionSH(aData)
+  {
+  }
+
+  virtual ~nsContentListSH()
   {
   }
 
 public:
   NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
                        JSObject *globalObj, JSObject **parentObj);
-  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1091,8 +1067,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -1119,8 +1097,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -1147,8 +1127,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -1273,8 +1255,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -1297,8 +1281,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -1345,8 +1331,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -1368,8 +1356,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -1393,8 +1383,10 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  // Override nsArraySH::GetItemAt() since our list isn't a
+  // nsIDOMNodeList
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
@@ -1432,11 +1424,6 @@ protected:
                           JSObject *obj, PRUint32 enum_op, jsval *statep,
                           jsid *idp, PRBool *_retval);
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult)
-  {
-    return nsnull;
-  }
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
                                 nsISupports **aResult);
@@ -1459,11 +1446,6 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult)
-  {
-    return nsnull;
-  }
   // Override nsNamedArraySH::GetNamedItem()
   virtual nsresult GetNamedItem(nsISupports *aNative, const nsAString& aName,
                                 nsISupports **aResult);
@@ -1589,6 +1571,27 @@ public:
   }
 };
 
+class nsLoadStatusListSH : public nsArraySH
+{
+protected:
+  nsLoadStatusListSH(nsDOMClassInfoData *aData) : nsArraySH(aData)
+  {
+  }
+
+  virtual ~nsLoadStatusListSH()
+  {
+  }
+
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
+
+public:
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsLoadStatusListSH(aData);
+  }
+};
+
 class nsFileListSH : public nsArraySH
 {
 protected:
@@ -1600,8 +1603,8 @@ protected:
   {
   }
 
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
+  virtual nsresult GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                             nsISupports **aResult);
 
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)

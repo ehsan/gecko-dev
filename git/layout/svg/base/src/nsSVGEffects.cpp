@@ -42,7 +42,6 @@
 #include "nsSVGClipPathFrame.h"
 #include "nsSVGMaskFrame.h"
 #include "nsSVGTextPathFrame.h"
-#include "nsCSSFrameConstructor.h"
 
 NS_IMPL_ISUPPORTS1(nsSVGRenderingObserver, nsIMutationObserver)
 
@@ -176,11 +175,30 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsSVGFilterProperty,
                              nsSVGRenderingObserver,
                              nsISVGFilterProperty)
 
+nsSVGFilterProperty::nsSVGFilterProperty(nsIURI *aURI,
+                                         nsIFrame *aFilteredFrame)
+  : nsSVGRenderingObserver(aURI, aFilteredFrame)
+{
+  UpdateRect();
+}
+
 nsSVGFilterFrame *
 nsSVGFilterProperty::GetFilterFrame()
 {
   return static_cast<nsSVGFilterFrame *>
     (GetReferencedFrame(nsGkAtoms::svgFilterFrame, nsnull));
+}
+
+void
+nsSVGFilterProperty::UpdateRect()
+{
+  nsSVGFilterFrame *filter = GetFilterFrame();
+  if (filter) {
+    mFilterRect = filter->GetFilterBBox(mFrame, nsnull);
+    mFilterRect.ScaleRoundOut(filter->PresContext()->AppUnitsPerDevPixel());
+  } else {
+    mFilterRect = nsRect();
+  }
 }
 
 static void
@@ -201,9 +219,9 @@ nsSVGFilterProperty::DoUpdate()
   if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
     nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
     if (outerSVGFrame) {
-      mFramePresShell->FrameConstructor()->PostRestyleEvent(
-        mFrame->GetContent(), nsReStyleHint(0),
-        nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_UpdateEffects));
+      outerSVGFrame->Invalidate(mFilterRect);
+      UpdateRect();
+      outerSVGFrame->Invalidate(mFilterRect);
     }
   } else {
     InvalidateAllContinuations(mFrame);
@@ -367,13 +385,6 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
 
   aFrame->DeleteProperty(nsGkAtoms::stroke);
   aFrame->DeleteProperty(nsGkAtoms::fill);
-
-  // Ensure that the filter's covered area is recalculated correctly
-  // We can't do that in DoUpdate as the referenced frame may not be valid
-  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
-  if (style->mFilter) {
-    GetEffectProperty(style->mFilter, aFrame, nsGkAtoms::filter, CreateFilterProperty);
-  }
 }
 
 nsSVGFilterProperty *
@@ -387,7 +398,7 @@ nsSVGEffects::GetFilterProperty(nsIFrame *aFrame)
   return static_cast<nsSVGFilterProperty *>(aFrame->GetProperty(nsGkAtoms::filter));
 }
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 GatherEnumerator(nsVoidPtrHashKey* aEntry, void* aArg)
 {
   nsTArray<nsSVGRenderingObserver*>* array =

@@ -271,11 +271,6 @@ public:
   float GetVolume();
   void SetVolume(float aVolume);
 
-  // Clear the flag indicating that a playback position change event
-  // is currently queued. This is called from the main thread and must
-  // be called with the decode monitor held.
-  void ClearPositionChangeFlag();
-
 protected:
   // Convert the OggPlay frame information into a format used by Gecko
   // (RGB for video, float for sound, etc).The decoder monitor must be
@@ -309,13 +304,6 @@ protected:
 
   // Stop playback of media. Must be called with the decode monitor held.
   void StopPlayback();
-
-  // Update the playback position. This can result in a timeupdate event
-  // and an invalidate of the frame being dispatched asynchronously if
-  // there is no such event currently queued.
-  // Only called on the decoder thread. Must be called with
-  // the decode monitor held.
-  void UpdatePlaybackPosition(float aTime);
 
 private:
   // *****
@@ -425,12 +413,6 @@ private:
   // from the decode and main threads. Synchronised via decoder
   // monitor.
   float mVolume;
-
-  // PR_TRUE if an event to notify about a change in the playback
-  // position has been queued, but not yet run. It is set to PR_FALSE when
-  // the event is run. This allows coalescing of these events as they can be
-  // produced many times per second. Synchronised via decoder monitor.
-  PRPackedBool mPositionChangeQueued;
 };
 
 nsOggDecodeStateMachine::nsOggDecodeStateMachine(nsOggDecoder* aDecoder, nsChannelReader* aReader) :
@@ -453,8 +435,7 @@ nsOggDecodeStateMachine::nsOggDecodeStateMachine(nsOggDecoder* aDecoder, nsChann
   mState(DECODER_STATE_DECODING_METADATA),
   mSeekTime(0.0),
   mCurrentFrameTime(0.0),
-  mVolume(1.0),
-  mPositionChangeQueued(PR_FALSE)
+  mVolume(1.0)
 {
 }
 
@@ -615,7 +596,6 @@ void nsOggDecodeStateMachine::PlayFrame() {
         // using the audio hardware clock.
         PlayVideo(mDecodedFrames.IsEmpty() ? frame : mDecodedFrames.Peek());
         PlayAudio(frame);
-        UpdatePlaybackPosition(frame->mDecodedFrameTime);
         delete frame;
       }
       else {
@@ -652,6 +632,11 @@ void nsOggDecodeStateMachine::PlayVideo(FrameData* aFrame)
       nsAutoLock lock(mDecoder->mVideoUpdateLock);
 
       mDecoder->SetRGBData(aFrame->mVideoWidth, aFrame->mVideoHeight, mFramerate, aFrame->mVideoData);
+      mCurrentFrameTime = aFrame->mDecodedFrameTime;
+      nsCOMPtr<nsIRunnable> event =
+        NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, Invalidate);
+
+      NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
     }
   }
 }
@@ -730,24 +715,6 @@ void nsOggDecodeStateMachine::StopPlayback()
   StopAudio();
   mPlaying = PR_FALSE;
   mPauseStartTime = PR_IntervalNow();
-}
-
-void nsOggDecodeStateMachine::UpdatePlaybackPosition(float aTime)
-{
-  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "UpdatePlaybackPosition() called without acquiring decoder monitor");
-  mCurrentFrameTime = aTime;
-  if (!mPositionChangeQueued) {
-    mPositionChangeQueued = PR_TRUE;
-    nsCOMPtr<nsIRunnable> event =
-      NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackPositionChanged);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  }
-}
-
-void nsOggDecodeStateMachine::ClearPositionChangeFlag()
-{
-  //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "ClearPositionChangeFlag() called without acquiring decoder monitor");
-  mPositionChangeQueued = PR_FALSE;
 }
 
 float nsOggDecodeStateMachine::GetVolume()
@@ -837,7 +804,7 @@ nsresult nsOggDecodeStateMachine::Run()
         FrameData* frame = NextFrame();
         if (frame) {
           mDecodedFrames.Push(frame);
-          UpdatePlaybackPosition(frame->mDecodedFrameTime);
+          mCurrentFrameTime = frame->mDecodedFrameTime;
           PlayVideo(frame);
         }
 
@@ -944,7 +911,7 @@ nsresult nsOggDecodeStateMachine::Run()
         FrameData* frame = NextFrame();
         if (frame) {
           mDecodedFrames.Push(frame);
-          UpdatePlaybackPosition(frame->mDecodedFrameTime);
+          mCurrentFrameTime = frame->mDecodedFrameTime;
           PlayVideo(frame);
         }
         mon.Exit();
@@ -993,11 +960,9 @@ nsresult nsOggDecodeStateMachine::Run()
         while (mState != DECODER_STATE_SHUTDOWN &&
                !mDecodedFrames.IsEmpty()) {
           PlayFrame();
-          if (mState != DECODER_STATE_SHUTDOWN) {
-            // Wait for the time of one frame so we don't tight loop
-            // and we need to release the monitor so timeupdate and
-            // invalidate's on the main thread can occur.
-            mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*1000)));
+          if (mState != DECODER_STATE_SHUTDOWN &&
+              mDecoder->GetState() != nsOggDecoder::PLAY_STATE_PLAYING) {
+            mon.Wait();
           }
         }
 
@@ -1105,7 +1070,6 @@ float nsOggDecoder::GetDuration()
 nsOggDecoder::nsOggDecoder() :
   nsMediaDecoder(),
   mBytesDownloaded(0),
-  mCurrentTime(0.0),
   mInitialVolume(0.0),
   mRequestedSeekTime(-1.0),
   mContentLength(0),
@@ -1264,9 +1228,17 @@ void nsOggDecoder::Stop()
   UnregisterShutdownObserver();
 }
 
+
+
 float nsOggDecoder::GetCurrentTime()
 {
-  return mCurrentTime;
+  nsAutoMonitor mon(mMonitor);
+
+  if (!mDecodeStateMachine) {
+    return 0.0;
+  }
+
+  return mDecodeStateMachine->GetCurrentTime();
 }
 
 void nsOggDecoder::GetCurrentURI(nsIURI** aURI)
@@ -1343,7 +1315,7 @@ NS_IMETHODIMP nsOggDecoder::Observe(nsISupports *aSubjet,
   return NS_OK;
 }
 
-PRUint64 nsOggDecoder::GetBytesLoaded()
+PRUint32 nsOggDecoder::GetBytesLoaded()
 {
   return mBytesDownloaded;
 }
@@ -1358,7 +1330,7 @@ void nsOggDecoder::SetTotalBytes(PRInt64 aBytes)
   mContentLength = aBytes;
 }
 
-void nsOggDecoder::UpdateBytesDownloaded(PRUint64 aBytes)
+void nsOggDecoder::UpdateBytesDownloaded(PRUint32 aBytes)
 {
   mBytesDownloaded = aBytes;
 }
@@ -1489,34 +1461,4 @@ void nsOggDecoder::ChangeState(PlayState aState)
     break;
   }
   mon.NotifyAll();
-}
-
-void nsOggDecoder::PlaybackPositionChanged()
-{
-  float lastTime = mCurrentTime;
-
-  // Control the scope of the monitor so it is not
-  // held while the timeupdate and the invalidate is run.
-  {
-    nsAutoMonitor mon(mMonitor);
-
-    // If we are shutting down, don't dispatch the event
-    if (mPlayState == PLAY_STATE_SHUTDOWN)
-        return;
-
-    if (mDecodeStateMachine) {
-      mCurrentTime = mDecodeStateMachine->GetCurrentTime();
-      mDecodeStateMachine->ClearPositionChangeFlag();
-    }
-  }
-
-  // Invalidate the frame so any video data is displayed.
-  // Do this before the timeupdate event so that if that
-  // event runs JavaScript that queries the media size, the
-  // frame has reflowed and the size updated beforehand.
-  Invalidate();
-
-  if (mElement && lastTime != mCurrentTime) {
-    mElement->DispatchSimpleEvent(NS_LITERAL_STRING("timeupdate"));
-  }
 }

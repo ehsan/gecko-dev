@@ -94,7 +94,7 @@ endif
 AUTOCONF ?= $(shell which autoconf-2.13 autoconf2.13 autoconf213 2>/dev/null | grep -v '^no autoconf' | head -1)
 
 ifeq (,$(strip $(AUTOCONF)))
-AUTOCONF=$(error Couldn't find autoconf 2.13)
+$(error Couldn't find autoconf 2.13)
 endif
 
 MKDIR := mkdir

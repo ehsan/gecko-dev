@@ -89,7 +89,6 @@ nsBaseChannel::nsBaseChannel()
   , mQueriedProgressSink(PR_TRUE)
   , mSynthProgressEvents(PR_FALSE)
   , mWasOpened(PR_FALSE)
-  , mWaitingOnAsyncRedirect(PR_FALSE)
 {
   mContentType.AssignLiteral(UNKNOWN_CONTENT_TYPE);
 }
@@ -228,12 +227,8 @@ nsBaseChannel::BeginPumpingData()
 
   NS_ASSERTION(!stream || !channel, "Got both a channel and a stream?");
 
-  if (channel) {
-      rv = NS_DispatchToCurrentThread(new RedirectRunnable(this, channel));
-      if (NS_SUCCEEDED(rv))
-          mWaitingOnAsyncRedirect = PR_TRUE;
-      return rv;
-  }
+  if (channel)
+      return NS_DispatchToCurrentThread(new RedirectRunnable(this, channel));
 
   // By assigning mPump, we flag this channel as pending (see IsPending).  It's
   // important that the pending flag is set when we call into the stream (the
@@ -253,20 +248,11 @@ void
 nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
 {
   NS_ASSERTION(!mPump, "Shouldn't have gotten here");
-  PRBool doNotify = PR_TRUE;
-  if (NS_SUCCEEDED(mStatus)) {
-      nsresult rv = Redirect(newChannel, nsIChannelEventSink::REDIRECT_INTERNAL,
-                             PR_TRUE);
-      if (NS_FAILED(rv))
-          Cancel(rv);
-      else
-          doNotify = PR_FALSE;
-  }
-
-  mWaitingOnAsyncRedirect = PR_FALSE;
-
-  if (doNotify) {
+  nsresult rv = Redirect(newChannel, nsIChannelEventSink::REDIRECT_INTERNAL,
+                         PR_TRUE);
+  if (NS_FAILED(rv)) {
     // Notify our consumer ourselves
+    Cancel(rv);
     mListener->OnStartRequest(this, mListenerContext);
     mListener->OnStopRequest(this, mListenerContext, mStatus);
     mListener = nsnull;
