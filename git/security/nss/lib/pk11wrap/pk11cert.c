@@ -922,11 +922,8 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
     SECITEM_FreeItem(keyID,PR_TRUE);
     return SECSuccess;
 loser:
-    CERT_MapStanError();
     SECITEM_FreeItem(keyID,PR_TRUE);
-    if (PORT_GetError() != SEC_ERROR_TOKEN_NOT_LOGGED_IN) {
-	PORT_SetError(SEC_ERROR_ADDING_CERT);
-    }
+    PORT_SetError(SEC_ERROR_ADDING_CERT);
     return SECFailure;
 }
 

@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIPrefService.h"
+#include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
 #include "nsReadableUtils.h"
 #include "nsExpirationTracker.h"
@@ -937,7 +937,8 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     const PRUnichar kDoubleQuote  = PRUnichar('\"');
     const PRUnichar kComma        = PRUnichar(',');
 
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPref> prefs;
+    prefs = do_GetService(NS_PREF_CONTRACTID);
 
     nsPromiseFlatString families(aFamilies);
     const PRUnichar *p, *p_end;
@@ -946,7 +947,6 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     nsAutoString family;
     nsCAutoString lcFamily;
     nsAutoString genericFamily;
-    nsXPIDLCString value;
     nsCAutoString lang(aLangGroup);
     if (lang.IsEmpty())
         lang.Assign("x-unicode"); // XXX or should use "x-user-def"?
@@ -1003,10 +1003,11 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
 
                 // prefs file always uses (must use) UTF-8 so that we can use
                 // |GetCharPref| and treat the result as a UTF-8 string.
-                nsresult rv = prefs->GetCharPref(prefName.get(), getter_Copies(value));
+                nsXPIDLString value;
+                nsresult rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(value));
                 if (NS_SUCCEEDED(rv)) {
                     CopyASCIItoUTF16(lcFamily, genericFamily);
-                    CopyUTF8toUTF16(value, family);
+                    family = value;
                 }
             } else {
                 generic = PR_FALSE;
@@ -1046,10 +1047,10 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
             prefName.Append(lcFamily);
             prefName.AppendLiteral(".");
             prefName.Append(aLangGroup);
-            nsresult rv = prefs->GetCharPref(prefName.get(), getter_Copies(value));
+            nsXPIDLString value;
+            nsresult rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(value));
             if (NS_SUCCEEDED(rv)) {
-                ForEachFontInternal(NS_ConvertUTF8toUTF16(value),
-                                    lang, PR_FALSE, aResolveFontName,
+                ForEachFontInternal(value, lang, PR_FALSE, aResolveFontName,
                                     fc, closure);
             }
         }

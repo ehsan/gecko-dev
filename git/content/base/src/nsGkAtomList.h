@@ -195,7 +195,6 @@ GK_ATOM(classid, "classid")
 GK_ATOM(clear, "clear")
 GK_ATOM(click, "click")
 GK_ATOM(clickcount, "clickcount")
-GK_ATOM(movetoclick, "movetoclick")
 GK_ATOM(clip, "clip")
 GK_ATOM(clonedTextForPrint, "clonedTextForPrint")
 GK_ATOM(close, "close")
@@ -1489,8 +1488,6 @@ GK_ATOM(onMozMagnifyGesture, "onMozMagnifyGesture")
 GK_ATOM(onMozRotateGestureStart, "onMozRotateGestureStart")
 GK_ATOM(onMozRotateGestureUpdate, "onMozRotateGestureUpdate")
 GK_ATOM(onMozRotateGesture, "onMozRotateGesture")
-GK_ATOM(onMozTapGesture, "onMozTapGesture")
-GK_ATOM(onMozPressTapGesture, "onMozPressTapGesture")
 
 
 //---------------------------------------------------------------------------

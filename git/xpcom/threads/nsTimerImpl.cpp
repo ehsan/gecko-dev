@@ -42,6 +42,7 @@
 #include "TimerThread.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
+#include "nsVoidArray.h"
 #include "nsThreadManager.h"
 #include "nsThreadUtils.h"
 #include "prmem.h"

@@ -84,7 +84,7 @@ protected:
   nsresult SetBaseRef(CFURLRef aCFURLRef); // Does CFRetain on aCFURLRef
   nsresult UpdateTargetRef();
 
-  nsresult GetFSRefInternal(FSRef& aFSRef);
+  nsresult GetFSRefInternal(FSRef& aFSSpec);
   nsresult GetPathInternal(nsACString& path); // Returns path WRT mFollowLinks
   nsresult EqualsInternal(nsISupports* inFile, PRBool *_retval);
 

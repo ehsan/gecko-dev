@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsNativeTheme.h"
-#include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
@@ -193,7 +192,8 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
          aFrame->GetContent()->IsNodeOfType(nsINode::eHTML) &&
          aPresContext->HasAuthorSpecifiedRules(aFrame,
                                                NS_AUTHOR_SPECIFIED_BORDER |
-                                               NS_AUTHOR_SPECIFIED_BACKGROUND);
+                                               NS_AUTHOR_SPECIFIED_BACKGROUND |
+                                               NS_AUTHOR_SPECIFIED_BOX_SHADOW);
 }
 
 PRBool

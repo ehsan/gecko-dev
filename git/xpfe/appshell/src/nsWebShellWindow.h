@@ -38,7 +38,7 @@
 #ifndef nsWebShellWindow_h__
 #define nsWebShellWindow_h__
 
-#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsIWebProgressListener.h"
 #include "nsITimer.h"
 

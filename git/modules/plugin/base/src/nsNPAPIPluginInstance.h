@@ -41,14 +41,13 @@
 #define nsNPAPIPluginInstance_h_
 
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIPlugin.h"
 #include "nsIPluginInstance.h"
 #include "nsIPluginInstancePeer.h"
 #include "nsIPluginTagInfo2.h"
 #include "nsIScriptablePlugin.h"
 #include "nsIPluginInstanceInternal.h"
-#include "nsPIDOMWindow.h"
 
 #include "npfunctions.h"
 #include "prlink.h"
@@ -169,7 +168,7 @@ public:
     PRLibrary* fLibrary;
     nsInstanceStream *mStreams;
 
-    nsTArray<PopupControlState> mPopupStates;
+    nsVoidArray mPopupStates;
 };
 
 #endif // nsNPAPIPluginInstance_h_

@@ -39,7 +39,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.58 2009/03/21 01:40:35 nelson%bolyard.com Exp $
+ * $Id: ocsp.c,v 1.56 2008/10/31 23:02:37 alexei.volkov.bugs%sun.com Exp $
  */
 
 #include "prerror.h"
@@ -120,7 +120,6 @@ static struct OCSPGlobalStruct {
     PRUint32 timeoutSeconds;
     OCSPCacheData cache;
     SEC_OcspFailureMode ocspFailureMode;
-    CERT_StringFromCertFcn alternateOCSPAIAFcn;
 } OCSP_Global = { NULL, 
                   NULL, 
                   DEFAULT_OCSP_CACHE_SIZE, 
@@ -128,11 +127,8 @@ static struct OCSPGlobalStruct {
                   DEFAULT_MAXIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT,
                   DEFAULT_OSCP_TIMEOUT_SECONDS,
                   {NULL, 0, NULL, NULL},
-                  ocspMode_FailureIsVerificationFailure,
-                  NULL
+                  ocspMode_FailureIsVerificationFailure
                 };
-
-
 
 /* Forward declarations */
 static SECItem *
@@ -289,27 +285,6 @@ SEC_RegisterDefaultHttpClient(const SEC_HttpClientFcn *fcnTable)
     OCSP_Global.defaultHttpClientFcn = fcnTable;
     PR_ExitMonitor(OCSP_Global.monitor);
     
-    return SECSuccess;
-}
-
-SECStatus
-CERT_RegisterAlternateOCSPAIAInfoCallBack(
-			CERT_StringFromCertFcn   newCallback,
-			CERT_StringFromCertFcn * oldCallback)
-{
-    CERT_StringFromCertFcn old;
-
-    if (!OCSP_Global.monitor) {
-      PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-      return SECFailure;
-    }
-
-    PR_EnterMonitor(OCSP_Global.monitor);
-    old = OCSP_Global.alternateOCSPAIAFcn;
-    OCSP_Global.alternateOCSPAIAFcn = newCallback;
-    PR_ExitMonitor(OCSP_Global.monitor);
-    if (oldCallback)
-    	*oldCallback = old;
     return SECSuccess;
 }
 
@@ -3880,7 +3855,7 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
     } else {
         SECCertUsage certUsage;
         if (CERT_IsCACert(signerCert, NULL)) {
-            certUsage = certUsageAnyCA;
+            certUsage = certUsageVerifyCA;
         } else {
             certUsage = certUsageStatusResponder;
         }
@@ -4514,7 +4489,6 @@ ocsp_GetResponderLocation(CERTCertDBHandle *handle, CERTCertificate *cert,
 			  PRBool canUseDefault, PRBool *isDefault)
 {
     ocspCheckingContext *ocspcx = NULL;
-    char *ocspUrl = NULL;
 
     if (canUseDefault) {
         ocspcx = ocsp_GetCheckingContext(handle);
@@ -4536,20 +4510,7 @@ ocsp_GetResponderLocation(CERTCertDBHandle *handle, CERTCertificate *cert,
      * extension that has a value for OCSP, and get the url from that.
      */
     *isDefault = PR_FALSE;
-    ocspUrl = CERT_GetOCSPAuthorityInfoAccessLocation(cert);
-    if (!ocspUrl) {
-	CERT_StringFromCertFcn altFcn;
-
-	PR_EnterMonitor(OCSP_Global.monitor);
-	altFcn = OCSP_Global.alternateOCSPAIAFcn;
-	PR_ExitMonitor(OCSP_Global.monitor);
-	if (altFcn) {
-	    ocspUrl = (*altFcn)(cert);
-	    if (ocspUrl)
-		*isDefault = PR_TRUE;
-    	}
-    }
-    return ocspUrl;
+    return CERT_GetOCSPAuthorityInfoAccessLocation(cert);
 }
 
 /*

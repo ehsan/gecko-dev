@@ -76,13 +76,9 @@ nsIFrame*
 nsSVGRenderingObserver::GetReferencedFrame()
 {
   if (mReferencedFrame && !mReferencedFramePresShell->IsDestroying()) {
-    // Don't test this assertion if it's not a good time to call
-    // GetPrimaryFrame
-    if (!mReferencedFramePresShell->FrameManager()->IsDestroyingFrames()) {
-      NS_ASSERTION(mElement.get() &&
-                   static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame() == mReferencedFrame,
-                   "Cached frame is incorrect!");
-    }
+    NS_ASSERTION(mElement.get() &&
+                 static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame() == mReferencedFrame,
+                 "Cached frame is incorrect!");
     return mReferencedFrame;
   }
 

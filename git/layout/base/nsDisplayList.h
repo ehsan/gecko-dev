@@ -1346,10 +1346,6 @@ public:
     return TYPE_TRANSFORM;
   }
 
-#ifdef NS_DEBUG
-  nsDisplayWrapList* GetStoredList() { return &mStoredList; }
-#endif
-
   virtual nsIFrame* HitTest(nsDisplayListBuilder *aBuilder, nsPoint aPt,
                             HitTestState *aState);
   virtual nsRect GetBounds(nsDisplayListBuilder *aBuilder);

@@ -667,10 +667,8 @@ typedef enum {
     bltestRC2_ECB,	  /* .			   */
     bltestRC2_CBC,	  /* .			   */
     bltestRC4,		  /* .			   */
-#ifdef NSS_SOFTOKEN_DOES_RC5
     bltestRC5_ECB,	  /* .			   */
     bltestRC5_CBC,	  /* .			   */
-#endif
     bltestAES_ECB,        /* .                     */
     bltestAES_CBC,        /* .                     */
     bltestCAMELLIA_ECB,   /* .                     */
@@ -700,10 +698,8 @@ static char *mode_strings[] =
     "rc2_ecb",
     "rc2_cbc",
     "rc4",
-#ifdef NSS_SOFTOKEN_DOES_RC5
     "rc5_ecb",
     "rc5_cbc",
-#endif
     "aes_ecb",
     "aes_cbc",
     "camellia_ecb",
@@ -866,10 +862,7 @@ cipher_requires_IV(bltestCipherMode mode)
 {
     /* change as needed! */
     if (mode == bltestDES_CBC || mode == bltestDES_EDE_CBC ||
-	mode == bltestRC2_CBC || 
-#ifdef NSS_SOFTOKEN_DOES_RC5
-        mode == bltestRC5_CBC     ||
-#endif
+	mode == bltestRC2_CBC || mode == bltestRC5_CBC     ||
         mode == bltestAES_CBC || mode == bltestCAMELLIA_CBC||
 	mode == bltestSEED_CBC)
 	return PR_TRUE;
@@ -1295,7 +1288,7 @@ bltest_rc4_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
 SECStatus
 bltest_rc5_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
 {
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     PRIntervalTime time1, time2;
     bltestRC5Params *rc5p = &cipherInfo->params.rc5;
     int minorMode;
@@ -1986,9 +1979,9 @@ cipherInit(bltestCipherInfo *cipherInfo, PRBool encrypt)
 			  cipherInfo->input.pBuf.len);
 	return bltest_rc4_init(cipherInfo, encrypt);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
+#if NSS_SOFTOKEN_DOES_RC5
 	SECITEM_AllocItem(cipherInfo->arena, &cipherInfo->output.buf,
 			  cipherInfo->input.pBuf.len);
 #endif
@@ -2477,7 +2470,7 @@ cipherFinish(bltestCipherInfo *cipherInfo)
     case bltestRC4:
 	RC4_DestroyContext((RC4Context *)cipherInfo->cx, PR_TRUE);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
 	RC5_DestroyContext((RC5Context *)cipherInfo->cx, PR_TRUE);
@@ -2630,7 +2623,7 @@ print_td:
           else
               fprintf(stdout, "%8d", 8*info->params.sk.key.buf.len);
           break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
       case bltestRC5_ECB:
       case bltestRC5_CBC:
           if (info->params.sk.key.buf.len > 0)
@@ -2754,7 +2747,7 @@ get_params(PRArenaPool *arena, bltestParams *params,
 {
     char filename[256];
     char *modestr = mode_strings[mode];
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     FILE *file;
     char *mark, *param, *val;
     int index = 0;
@@ -2778,7 +2771,7 @@ get_params(PRArenaPool *arena, bltestParams *params,
 	sprintf(filename, "%s/tests/%s/%s%d", testdir, modestr, "key", j);
 	load_file_data(arena, &params->sk.key, filename, bltestBinary);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
 	sprintf(filename, "%s/tests/%s/%s%d", testdir, modestr, "iv", j);
@@ -2925,6 +2918,7 @@ blapi_selftest(bltestCipherMode *modes, int numModes, int inoff, int outoff,
     finished = PR_FALSE;
     nummodes = (numModes == 0) ? NUMMODES : numModes;
     for (i=0; i < nummodes && !finished; i++) {
+	if (i == bltestRC5_ECB || i == bltestRC5_CBC) continue;
 	if (numModes > 0)
 	    mode = modes[i];
 	else
@@ -3548,11 +3542,9 @@ int main(int argc, char **argv)
             char *ivstr = NULL;
             bltestSymmKeyParams *skp;
             file = NULL;
-#ifdef NSS_SOFTOKEN_DOES_RC5
             if (cipherInfo->mode == bltestRC5_CBC)
                 skp = (bltestSymmKeyParams *)&params->rc5;
             else
-#endif
                 skp = &params->sk;
             if (bltest.options[opt_IV].activated) {
                 if (bltest.options[opt_CmdLine].activated) {
@@ -3742,4 +3734,3 @@ int main(int argc, char **argv)
 
     return SECSuccess;
 }
-

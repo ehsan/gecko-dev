@@ -45,6 +45,7 @@
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
 
+#include "nsIWidget.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
