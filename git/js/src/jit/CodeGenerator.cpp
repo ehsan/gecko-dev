@@ -2133,8 +2133,6 @@ CodeGenerator::visitMoveGroup(LMoveGroup *group)
     masm.propagateOOM(resolver.resolve());
 
     MoveEmitter emitter(masm);
-    if (group->maybeScratchRegister().isGeneralReg())
-        emitter.setScratchRegister(group->maybeScratchRegister().toGeneralReg()->reg());
     emitter.emit(resolver);
     emitter.finish();
 }
@@ -2152,19 +2150,6 @@ CodeGenerator::visitPointer(LPointer *lir)
         masm.movePtr(ImmGCPtr(lir->gcptr()), ToRegister(lir->output()));
     else
         masm.movePtr(ImmPtr(lir->ptr()), ToRegister(lir->output()));
-}
-
-void
-CodeGenerator::visitNurseryObject(LNurseryObject *lir)
-{
-    Register output = ToRegister(lir->output());
-    uint32_t index = lir->mir()->index();
-
-    // Store a dummy JSObject pointer. We will fix it up on the main thread,
-    // in JitCode::fixupNurseryObjects. The low bit is set to distinguish
-    // it from a real JSObject pointer.
-    JSObject *ptr = reinterpret_cast<JSObject*>((uintptr_t(index) << 1) | 1);
-    masm.movePtr(ImmGCPtr(IonNurseryPtr(ptr)), output);
 }
 
 void
@@ -7395,9 +7380,6 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         }
     }
 #endif
-
-    // Replace dummy JSObject pointers embedded by LNurseryObject.
-    code->fixupNurseryObjects(cx, gen->nurseryObjects());
 
     // The correct state for prebarriers is unknown until the end of compilation,
     // since a GC can occur during code generation. All barriers are emitted

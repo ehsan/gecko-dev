@@ -664,12 +664,8 @@
                 // We need to add 2 because loadURIWithFlags may have
                 // cancelled a pending load which would have cleared
                 // its anchor scroll detection temporary increment.
-                if (aWebProgress.isTopLevel) {
+                if (aWebProgress.isTopLevel)
                   this.mBrowser.userTypedClear += 2;
-
-                  // If the browser is loading it must not be crashed anymore
-                  this.mTab.removeAttribute("crashed");
-                }
 
                 if (this._shouldShowProgress(aRequest)) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
@@ -1488,10 +1484,6 @@
 
             if (aShouldBeRemote) {
               tab.setAttribute("remote", "true");
-              // Switching the browser to be remote will connect to a new child
-              // process so the browser can no longer be considered to be
-              // crashed.
-              tab.removeAttribute("crashed");
             } else {
               tab.removeAttribute("remote");
               aBrowser.messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: tab.pinned })
@@ -3587,7 +3579,6 @@
           browser.docShell.displayLoadError(Cr.NS_ERROR_CONTENT_CRASHED, uri, null);
           browser.removeAttribute("crashedPageTitle");
           let tab = this.getTabForBrowser(browser);
-          tab.setAttribute("crashed", true);
           this.setIcon(tab, icon);
         ]]>
       </handler>
@@ -4989,13 +4980,10 @@
                      class="tab-throbber"
                      role="presentation"
                      layer="true" />
-          <xul:image xbl:inherits="src=image,fadein,pinned,selected,busy,crashed"
+          <xul:image xbl:inherits="src=image,fadein,pinned,selected"
                      anonid="tab-icon-image"
                      class="tab-icon-image"
                      validate="never"
-                     role="presentation"/>
-          <xul:image xbl:inherits="crashed,busy"
-                     class="tab-icon-overlay"
                      role="presentation"/>
           <xul:label flex="1"
                      anonid="tab-label"

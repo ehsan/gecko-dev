@@ -126,17 +126,27 @@ GMPDecryptorChild::SessionError(const char* aSessionId,
 }
 
 void
-GMPDecryptorChild::KeyStatusChanged(const char* aSessionId,
-                                    uint32_t aSessionIdLength,
-                                    const uint8_t* aKeyId,
-                                    uint32_t aKeyIdLength,
-                                    GMPMediaKeyStatus aStatus)
+GMPDecryptorChild::KeyIdUsable(const char* aSessionId,
+                               uint32_t aSessionIdLength,
+                               const uint8_t* aKeyId,
+                               uint32_t aKeyIdLength)
 {
   nsAutoTArray<uint8_t, 16> kid;
   kid.AppendElements(aKeyId, aKeyIdLength);
-  CALL_ON_GMP_THREAD(SendKeyStatusChanged,
-                     nsAutoCString(aSessionId, aSessionIdLength), kid,
-                     aStatus);
+  CALL_ON_GMP_THREAD(SendKeyIdUsable,
+                     nsAutoCString(aSessionId, aSessionIdLength), kid);
+}
+
+void
+GMPDecryptorChild::KeyIdNotUsable(const char* aSessionId,
+                                  uint32_t aSessionIdLength,
+                                  const uint8_t* aKeyId,
+                                  uint32_t aKeyIdLength)
+{
+  nsAutoTArray<uint8_t, 16> kid;
+  kid.AppendElements(aKeyId, aKeyIdLength);
+  CALL_ON_GMP_THREAD(SendKeyIdNotUsable,
+                     nsAutoCString(aSessionId, aSessionIdLength), kid);
 }
 
 void

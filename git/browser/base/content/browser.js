@@ -271,12 +271,6 @@ XPCOMUtils.defineLazyGetter(this, "PageMenuParent", function() {
   return new tmp.PageMenuParent();
 });
 
-function* browserWindows() {
-  let windows = Services.wm.getEnumerator("navigator:browser");
-  while (windows.hasMoreElements())
-    yield windows.getNext();
-}
-
 /**
 * We can avoid adding multiple load event listeners and save some time by adding
 * one listener that calls all real handlers.
@@ -1122,7 +1116,7 @@ var gBrowserInit = {
 #endif
     }, false, true);
 
-    gBrowser.addEventListener("AboutTabCrashedMessage", function(event) {
+    gBrowser.addEventListener("AboutTabCrashedTryAgain", function(event) {
       let ownerDoc = event.originalTarget;
 
       if (!ownerDoc.documentURI.startsWith("about:tabcrashed")) {
@@ -1140,23 +1134,8 @@ var gBrowserInit = {
         TabCrashReporter.submitCrashReport(browser);
       }
 #endif
-
       let tab = gBrowser.getTabForBrowser(browser);
-      switch (event.detail.message) {
-      case "closeTab":
-        gBrowser.removeTab(tab, { animate: true });
-        break;
-      case "restoreTab":
-        SessionStore.reviveCrashedTab(tab);
-        break;
-      case "restoreAll":
-        for (let browserWin of browserWindows()) {
-          for (let tab of window.gBrowser.tabs) {
-            SessionStore.reviveCrashedTab(tab);
-          }
-        }
-        break;
-      }
+      SessionStore.reviveCrashedTab(tab);
     }, false, true);
 
     let uriToLoad = this._getUriToLoad();
@@ -6492,9 +6471,11 @@ function warnAboutClosingWindow() {
     return gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
 
   // Figure out if there's at least one other browser window around.
+  let e = Services.wm.getEnumerator("navigator:browser");
   let otherPBWindowExists = false;
   let nonPopupPresent = false;
-  for (let win of browserWindows()) {
+  while (e.hasMoreElements()) {
+    let win = e.getNext();
     if (!win.closed && win != window) {
       if (isPBWindow && PrivateBrowsingUtils.isWindowPrivate(win))
         otherPBWindowExists = true;
@@ -7593,7 +7574,9 @@ function switchToTabHavingURI(aURI, aOpenNew, aOpenParams={}) {
   if (isBrowserWindow && switchIfURIInWindow(window))
     return true;
 
-  for (let browserWin of browserWindows()) {
+  let winEnum = Services.wm.getEnumerator("navigator:browser");
+  while (winEnum.hasMoreElements()) {
+    let browserWin = winEnum.getNext();
     // Skip closed (but not yet destroyed) windows,
     // and the current window (which was checked earlier).
     if (browserWin.closed || browserWin == window)

@@ -112,9 +112,6 @@ struct TextRange;
 
 class TextRangeArray;
 
-// FontRange.h
-struct FontRange;
-
 } // namespace mozilla
 
 #endif // mozilla_EventForwards_h__

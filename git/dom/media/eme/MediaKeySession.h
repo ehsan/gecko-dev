@@ -30,7 +30,6 @@ namespace dom {
 
 class ArrayBufferViewOrArrayBuffer;
 class MediaKeyError;
-class MediaKeyStatusMap;
 
 class MediaKeySession MOZ_FINAL : public DOMEventTargetHelper
 {
@@ -51,8 +50,6 @@ public:
 
   // Mark this as resultNotAddRefed to return raw pointers
   MediaKeyError* GetError() const;
-
-  MediaKeyStatusMap* KeyStatuses() const;
 
   void GetKeySystem(nsString& aRetval) const;
 
@@ -81,6 +78,8 @@ public:
 
   already_AddRefed<Promise> Remove(ErrorResult& aRv);
 
+  already_AddRefed<Promise> GetUsableKeyIds(ErrorResult& aRv);
+
   void DispatchKeyMessage(MediaKeyMessageType aMessageType,
                           const nsTArray<uint8_t>& aMessage);
 
@@ -98,8 +97,6 @@ public:
 private:
   ~MediaKeySession();
 
-  void UpdateKeyStatusMap();
-
   nsRefPtr<Promise> mClosed;
 
   nsRefPtr<MediaKeyError> mMediaKeyError;
@@ -110,7 +107,6 @@ private:
   const uint32_t mToken;
   bool mIsClosed;
   bool mUninitialized;
-  nsRefPtr<MediaKeyStatusMap> mKeyStatusMap;
 };
 
 } // namespace dom

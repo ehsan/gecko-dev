@@ -2197,7 +2197,10 @@ BytecodeEmitter::tellDebuggerAboutCompiledScript(ExclusiveContext *cx)
     // Lazy scripts are never top level (despite always being invoked with a
     // nullptr parent), and so the hook should never be fired.
     if (emitterMode != LazyFunction && !parent) {
-        Debugger::onNewScript(cx->asJSContext(), script);
+        GlobalObject *compileAndGoGlobal = nullptr;
+        if (script->compileAndGo())
+            compileAndGoGlobal = &script->global();
+        Debugger::onNewScript(cx->asJSContext(), script, compileAndGoGlobal);
     }
 }
 

@@ -14,7 +14,6 @@
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
 #include "SamplesWaitingForKey.h"
-#include "gmp-decryption.h"
 
 namespace mozilla {
 
@@ -24,29 +23,6 @@ class CDMCaps {
 public:
   CDMCaps();
   ~CDMCaps();
-
-  struct KeyStatus {
-    KeyStatus(const CencKeyId& aId,
-              const nsString& aSessionId,
-              GMPMediaKeyStatus aStatus)
-      : mId(aId)
-      , mSessionId(aSessionId)
-      , mStatus(aStatus)
-    {}
-    KeyStatus(const KeyStatus& aOther)
-      : mId(aOther.mId)
-      , mSessionId(aOther.mSessionId)
-      , mStatus(aOther.mStatus)
-    {}
-    bool operator==(const KeyStatus& aOther) const {
-      return mId == aOther.mId &&
-             mSessionId == aOther.mSessionId;
-    };
-
-    CencKeyId mId;
-    nsString mSessionId;
-    GMPMediaKeyStatus mStatus;
-  };
 
   // Locks the CDMCaps. It must be locked to access its shared state.
   // Threadsafe when locked.
@@ -61,12 +37,16 @@ public:
 
     bool IsKeyUsable(const CencKeyId& aKeyId);
 
-    // Returns true if key status changed,
-    // i.e. the key status changed from usable to expired.
-    bool SetKeyStatus(const CencKeyId& aKeyId, const nsString& aSessionId, GMPMediaKeyStatus aStatus);
+    // Returns true if setting this key usable results in the usable keys
+    // changing for this session, i.e. the key was not previously marked usable.
+    bool SetKeyUsable(const CencKeyId& aKeyId, const nsString& aSessionId);
 
-    void GetKeyStatusesForSession(const nsAString& aSessionId,
-                                  nsTArray<KeyStatus>& aOutKeyStatuses);
+    // Returns true if setting this key unusable results in the usable keys
+    // changing for this session, i.e. the key was previously marked usable.
+    bool SetKeyUnusable(const CencKeyId& aKeyId, const nsString& aSessionId);
+
+    void GetUsableKeysForSession(const nsAString& aSessionId,
+                                 nsTArray<CencKeyId>& aOutKeyIds);
 
     // Sets the capabilities of the CDM. aCaps is the logical OR of the
     // GMP_EME_CAP_* flags from gmp-decryption.h.
@@ -105,7 +85,25 @@ private:
 
   Monitor mMonitor;
 
-  nsTArray<KeyStatus> mKeyStatuses;
+  struct UsableKey {
+    UsableKey(const CencKeyId& aId,
+              const nsString& aSessionId)
+      : mId(aId)
+      , mSessionId(aSessionId)
+    {}
+    UsableKey(const UsableKey& aOther)
+      : mId(aOther.mId)
+      , mSessionId(aOther.mSessionId)
+    {}
+    bool operator==(const UsableKey& aOther) const {
+      return mId == aOther.mId &&
+             mSessionId == aOther.mSessionId;
+    };
+
+    CencKeyId mId;
+    nsString mSessionId;
+  };
+  nsTArray<UsableKey> mUsableKeyIds;
 
   nsTArray<WaitForKeys> mWaitForKeys;
 

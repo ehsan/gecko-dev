@@ -12,35 +12,21 @@ function parseQueryString() {
 
 document.title = parseQueryString();
 
-function shouldSendReport() {
-  if (!document.documentElement.classList.contains("crashDumpAvailable"))
-    return false;
-  return document.getElementById("sendReport").checked;
-}
+addEventListener("DOMContentLoaded", () => {
+  let tryAgain = document.getElementById("tryAgain");
+  let sendCrashReport = document.getElementById("checkSendReport");
 
-function sendEvent(message) {
-  let event = new CustomEvent("AboutTabCrashedMessage", {
-    bubbles: true,
-    detail: {
-      message,
-      sendCrashReport: shouldSendReport(),
-    },
+  tryAgain.addEventListener("click", () => {
+    let event = new CustomEvent("AboutTabCrashedTryAgain", {
+      bubbles: true,
+      detail: {
+        sendCrashReport: sendCrashReport.checked,
+      },
+    });
+
+    document.dispatchEvent(event);
   });
-
-  document.dispatchEvent(event);
-}
-
-function closeTab() {
-  sendEvent("closeTab");
-}
-
-function restoreTab() {
-  sendEvent("restoreTab");
-}
-
-function restoreAll() {
-  sendEvent("restoreAll");
-}
+});
 
 // Error pages are loaded as LOAD_BACKGROUND, so they don't get load events.
 var event = new CustomEvent("AboutTabCrashedLoad", {bubbles:true});

@@ -267,18 +267,35 @@ CDMCallbackProxy::SessionError(const nsCString& aSessionId,
 }
 
 void
-CDMCallbackProxy::KeyStatusChanged(const nsCString& aSessionId,
-                                   const nsTArray<uint8_t>& aKeyId,
-                                   GMPMediaKeyStatus aStatus)
+CDMCallbackProxy::KeyIdUsable(const nsCString& aSessionId,
+                              const nsTArray<uint8_t>& aKeyId)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
   bool keysChange = false;
   {
     CDMCaps::AutoLock caps(mProxy->Capabilites());
-    keysChange = caps.SetKeyStatus(aKeyId,
-                                   NS_ConvertUTF8toUTF16(aSessionId),
-                                   aStatus);
+    keysChange = caps.SetKeyUsable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
+  }
+  if (keysChange) {
+    nsRefPtr<nsIRunnable> task;
+    task = NS_NewRunnableMethodWithArg<nsString>(mProxy,
+                                                 &CDMProxy::OnKeysChange,
+                                                 NS_ConvertUTF8toUTF16(aSessionId));
+    NS_DispatchToMainThread(task);
+  }
+}
+
+void
+CDMCallbackProxy::KeyIdNotUsable(const nsCString& aSessionId,
+                                 const nsTArray<uint8_t>& aKeyId)
+{
+  MOZ_ASSERT(mProxy->IsOnGMPThread());
+
+  bool keysChange = false;
+  {
+    CDMCaps::AutoLock caps(mProxy->Capabilites());
+    keysChange = caps.SetKeyUnusable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
   }
   if (keysChange) {
     nsRefPtr<nsIRunnable> task;

@@ -164,7 +164,11 @@ JSObject *newKey()
         JS_NULL_OBJECT_OPS
     };
 
-    JS::RootedObject key(cx, JS_NewObject(cx, Jsvalify(&keyClass)));
+    JS::RootedObject key(cx);
+    key = JS_NewObject(cx,
+                       Jsvalify(&keyClass),
+                       JS::NullPtr(),
+                       JS::NullPtr());
     if (!key)
         return nullptr;
 

@@ -56,8 +56,6 @@ class MoveEmitterMIPS
     ~MoveEmitterMIPS();
     void emit(const MoveResolver &moves);
     void finish();
-
-    void setScratchRegister(Register reg) {}
 };
 
 typedef MoveEmitterMIPS MoveEmitter;

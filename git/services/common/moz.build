@@ -32,8 +32,3 @@ TESTING_JS_MODULES.services.common += [
     'modules-testing/storageserver.js',
     'modules-testing/utils.js',
 ]
-
-JS_PREFERENCE_FILES += [
-    'services-common.js',
-]
-

@@ -1,4 +1,4 @@
-<html class="reftest-wait"><head>
+<html><head>
 <style>
 *::first-line { font-size:310%; }
 </style>
@@ -104,13 +104,10 @@ mmmmmmmmmmmmmmmmmmmmmmmmm mmmmmmmmmmm mmmmmmmmmmmmmmmmm mmmmmmmmmmmmmmmmm mmmmmm
 mmmmmmmmmmmmmmmmmmmmmmmmmm
 </span>
 <script>
-function finish() {
-  document.documentElement.removeAttribute('class');
-}
 function doe(){
-  document.body.removeAttribute('style');
-  setTimeout(finish, 100);
+document.body.removeAttribute('style');
 }
 setTimeout(doe,300,0);
+setTimeout(function() {window.location.reload()}, 600);
 </script>
 </body></html>

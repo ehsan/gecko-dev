@@ -584,14 +584,13 @@ TrackBuffer::IsReady()
 }
 
 bool
-TrackBuffer::ContainsTime(int64_t aTime, int64_t aTolerance)
+TrackBuffer::ContainsTime(int64_t aTime)
 {
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   for (uint32_t i = 0; i < mInitializedDecoders.Length(); ++i) {
     nsRefPtr<dom::TimeRanges> r = new dom::TimeRanges();
     mInitializedDecoders[i]->GetBuffered(r);
-    if (r->Find(double(aTime) / USECS_PER_S,
-                double(aTolerance) / USECS_PER_S) != dom::TimeRanges::NoIndex) {
+    if (r->Find(double(aTime) / USECS_PER_S) != dom::TimeRanges::NoIndex) {
       return true;
     }
   }

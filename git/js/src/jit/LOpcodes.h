@@ -335,7 +335,6 @@
     _(AssertRangeV)                 \
     _(LexicalCheck)                 \
     _(ThrowUninitializedLexical)    \
-    _(NurseryObject)                \
     _(Debugger)
 
 #if defined(JS_CODEGEN_X86)

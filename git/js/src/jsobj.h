@@ -1226,7 +1226,7 @@ js_FindVariableScope(JSContext *cx, JSFunction **funp);
 namespace js {
 
 bool
-LookupPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, JSObject **objp,
+LookupPropertyPure(ExclusiveContext *cx, JSObject *obj, jsid id, NativeObject **objp,
                    Shape **propp);
 
 bool
