@@ -154,12 +154,6 @@ protected:
                                       NPError* aError,
                                       bool* aBoolVal);
 
-    NS_OVERRIDE
-    virtual bool AnswerProcessSomeEvents();
-
-    virtual bool
-    RecvAppendNotesToCrashReport(const nsCString& aNotes);
-
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
 
@@ -229,7 +223,6 @@ private:
     void CleanupFromTimeout();
     static int TimeoutChanged(const char* aPref, void* aModule);
 
-    nsCString mCrashNotes;
     PluginProcessParent* mSubprocess;
     bool mShutdown;
     const NPNetscapeFuncs* mNPNIface;

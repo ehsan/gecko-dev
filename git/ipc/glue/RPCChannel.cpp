@@ -98,8 +98,7 @@ RPCChannel::RPCChannel(RPCListener* aListener,
     mDeferred(),
     mRemoteStackDepthGuess(0),
     mRacePolicy(aPolicy),
-    mBlockedOnParent(false),
-    mCxxStackFrames(0)
+    mBlockedOnParent(false)
 {
     MOZ_COUNT_CTOR(RPCChannel);
 }
@@ -107,7 +106,7 @@ RPCChannel::RPCChannel(RPCListener* aListener,
 RPCChannel::~RPCChannel()
 {
     MOZ_COUNT_DTOR(RPCChannel);
-    RPC_ASSERT(0 == mCxxStackFrames, "mismatched CxxStackFrame ctor/dtors");
+    // FIXME/cjones: impl
 }
 
 #ifdef OS_WIN
@@ -130,20 +129,6 @@ RPCChannel::EventOccurred()
 }
 
 bool
-RPCChannel::Send(Message* msg)
-{
-    CxxStackFrame f(*this);
-    return AsyncChannel::Send(msg);
-}
-
-bool
-RPCChannel::Send(Message* msg, Message* reply)
-{
-    CxxStackFrame f(*this);
-    return SyncChannel::Send(msg, reply);
-}
-
-bool
 RPCChannel::Call(Message* msg, Message* reply)
 {
     AssertWorkerThread();
@@ -151,8 +136,6 @@ RPCChannel::Call(Message* msg, Message* reply)
     RPC_ASSERT(!ProcessingSyncMessage(),
                "violation of sync handler invariant");
     RPC_ASSERT(msg->is_rpc(), "can only Call() RPC messages here");
-
-    CxxStackFrame f(*this);
 
     MutexAutoLock lock(mMutex);
 
@@ -357,8 +340,6 @@ RPCChannel::OnMaybeDequeueOne()
         recvd = mPending.front();
         mPending.pop();
     }
-
-    CxxStackFrame f(*this);
 
     if (recvd.is_rpc())
         return Incall(recvd, 0);

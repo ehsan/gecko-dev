@@ -71,13 +71,12 @@ public:
     SyncChannel(SyncListener* aListener);
     virtual ~SyncChannel();
 
-    NS_OVERRIDE
-    virtual bool Send(Message* msg) {
+    bool Send(Message* msg) {
         return AsyncChannel::Send(msg);
     }
 
     // Synchronously send |msg| (i.e., wait for |reply|)
-    virtual bool Send(Message* msg, Message* reply);
+    bool Send(Message* msg, Message* reply);
 
     void SetReplyTimeoutMs(int32 aTimeoutMs) {
         AssertWorkerThread();
