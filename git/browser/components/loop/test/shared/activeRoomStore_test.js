@@ -676,10 +676,10 @@ describe("loop.store.ActiveRoomStore", function () {
         "fakeToken", "1627384950");
     });
 
-    it("should set the state to CLOSING", function() {
+    it("should set the state to ENDED", function() {
       store.windowUnload();
 
-      expect(store._storeState.roomState).eql(ROOM_STATES.CLOSING);
+      expect(store._storeState.roomState).eql(ROOM_STATES.ENDED);
     });
   });
 

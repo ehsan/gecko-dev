@@ -147,8 +147,4 @@ public class ThemedTextSwitcher extends android.widget.TextSwitcher
     public ColorDrawable getColorDrawable(int id) {
         return new ColorDrawable(getResources().getColor(id));
     }
-
-    protected LightweightTheme getTheme() {
-        return mTheme;
-    }
 }

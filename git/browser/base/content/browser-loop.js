@@ -18,22 +18,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
     },
 
     /**
-     * @return {Promise}
-     */
-    promiseDocumentVisible(aDocument) {
-      if (!aDocument.hidden) {
-        return Promise.resolve();
-      }
-
-      return new Promise((resolve) => {
-        aDocument.addEventListener("visibilitychange", function onVisibilityChanged() {
-          aDocument.removeEventListener("visibilitychange", onVisibilityChanged);
-          resolve();
-        });
-      });
-    },
-
-    /**
      * Opens the panel for Loop and sizes it appropriately.
      *
      * @param {event}  event   The event opening the panel, used to anchor
@@ -48,7 +32,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
           // Helper function to show a specific tab view in the panel.
           function showTab() {
             if (!tabId) {
-              resolve(LoopUI.promiseDocumentVisible(iframe.contentDocument));
+              resolve();
               return;
             }
 
@@ -60,7 +44,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
               }
             }, win));
             win.dispatchEvent(ev);
-            resolve(LoopUI.promiseDocumentVisible(iframe.contentDocument));
+            resolve();
           }
 
           // If the panel has been opened and initialized before, we can skip waiting

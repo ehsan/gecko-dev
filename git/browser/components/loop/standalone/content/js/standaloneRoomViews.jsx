@@ -351,7 +351,6 @@ loop.standaloneRoomViews = (function(mozL10n) {
 
       return (
         <div className="room-conversation-wrapper">
-          <div className="beta-logo" />
           <StandaloneRoomHeader />
           <StandaloneRoomInfoArea roomState={this.state.roomState}
                                   failureReason={this.state.failureReason}

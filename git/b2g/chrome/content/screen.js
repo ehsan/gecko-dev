@@ -74,11 +74,6 @@ window.addEventListener('ContentStart', function() {
       screenarg = args.handleFlagWithParam('screen', false);
     }
 
-    // Override default screen size with a pref
-    if (screenarg === null && Services.prefs.prefHasUserValue('b2g.screen.size')) {
-      screenarg = Services.prefs.getCharPref('b2g.screen.size');
-    }
-
     // If there isn't one, use the default screen
     if (screenarg === null)
       screenarg = DEFAULT_SCREEN;

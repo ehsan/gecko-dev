@@ -12,7 +12,6 @@ let UITourListener = {
       return;
     }
     addMessageListener("UITour:SendPageCallback", this);
-    addMessageListener("UITour:SendPageNotification", this);
     sendAsyncMessage("UITour:onPageEvent", {detail: event.detail, type: event.type});
   },
 
@@ -69,18 +68,14 @@ let UITourListener = {
   receiveMessage: function(aMessage) {
     switch (aMessage.name) {
       case "UITour:SendPageCallback":
-        this.sendPageEvent("Response", aMessage.data);
+        this.sendPageCallback(aMessage.data);
         break;
-      case "UITour:SendPageNotification":
-        this.sendPageEvent("Notification", aMessage.data);
-        break;
-      }
+    }
   },
 
-  sendPageEvent: function (type, detail) {
+  sendPageCallback: function (detail) {
     let doc = content.document;
-    let eventName = "mozUITour" + type;
-    let event = new doc.defaultView.CustomEvent(eventName, {
+    let event = new doc.defaultView.CustomEvent("mozUITourResponse", {
       bubbles: true,
       detail: Cu.cloneInto(detail, doc.defaultView)
     });

@@ -41,9 +41,7 @@ loop.store.ActiveRoomStore = (function() {
     // The room is full
     FULL: "room-full",
     // The room conversation has ended
-    ENDED: "room-ended",
-    // The window is closing
-    CLOSING: "room-closing"
+    ENDED: "room-ended"
   };
 
   /**
@@ -388,7 +386,7 @@ loop.store.ActiveRoomStore = (function() {
      * Handles the window being unloaded. Ensures the room is left.
      */
     windowUnload: function() {
-      this._leaveRoom(ROOM_STATES.CLOSING);
+      this._leaveRoom();
 
       // If we're closing the window, we can stop listening to updates.
       this._mozLoop.rooms.off("update:" + this.getStoreState().roomToken,

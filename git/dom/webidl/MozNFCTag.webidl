@@ -9,6 +9,8 @@
  */
 
 enum NFCTechType {
+  "NDEF",
+  "P2P",
   "NFC_A",
   "NFC_B",
   "NFC_F",
