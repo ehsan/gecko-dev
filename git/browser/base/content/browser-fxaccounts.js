@@ -27,7 +27,7 @@ let gFxAccounts = {
       "weave:service:ready",
       "weave:service:sync:start",
       "weave:service:login:error",
-      "weave:service:setup-complete",
+      FxAccountsCommon.ONLOGIN_NOTIFICATION,
       FxAccountsCommon.ONVERIFIED_NOTIFICATION,
       FxAccountsCommon.ONLOGOUT_NOTIFICATION
     ];
