@@ -581,7 +581,7 @@ class StackFrame
     void popBlock(JSContext *cx);
 
     /*
-     * With
+     * With 
      *
      * Entering/leaving a with (or E4X filter) block pushes/pops an object 
      * on the scope chain. Pushing uses pushOnScopeChain, popping should use
@@ -605,12 +605,12 @@ class StackFrame
      *   the same VMFrame. Other calls force expansion of the inlined frames.
      */
 
-    js::Return<JSScript*> script() const {
+    HandleScript script() const {
         return isFunctionFrame()
                ? isEvalFrame()
-                 ? u.evalScript
-                 : (JSScript*)fun()->script().unsafeGet()
-               : exec.script;
+                 ? HandleScript::fromMarkedLocation(&u.evalScript)
+                 : fun()->script()
+               : HandleScript::fromMarkedLocation(&exec.script);
     }
 
     /*
@@ -1195,8 +1195,7 @@ class FrameRegs
     }
 
     void setToEndOfScript() {
-        AutoAssertNoGC nogc;
-        RawScript script = fp()->script();
+        JSScript *script = fp()->script();
         sp = fp()->base();
         pc = script->code + script->length - JSOP_STOP_LENGTH;
         JS_ASSERT(*pc == JSOP_STOP);
@@ -1724,8 +1723,8 @@ class StackIter
 
     StackSegment *seg_;
     jsbytecode   *pc_;
-    RootedScript  script_;
-    CallArgs      args_;
+    JSScript     *script_;
+    CallArgs     args_;
 
 #ifdef JS_ION
     ion::IonActivationIterator ionActivations_;
@@ -1746,7 +1745,6 @@ class StackIter
   public:
     StackIter(JSContext *cx, SavedOption = STOP_AT_SAVED);
     StackIter(JSRuntime *rt, StackSegment &seg);
-    StackIter(const StackIter &iter);
 
     bool done() const { return state_ == DONE; }
     StackIter &operator++();
@@ -1791,7 +1789,7 @@ class StackIter
     StackFrame *interpFrame() const { JS_ASSERT(isScript() && !isIon()); return fp_; }
 
     jsbytecode *pc() const { JS_ASSERT(isScript()); return pc_; }
-    js::Return<JSScript*> script() const { JS_ASSERT(isScript()); return script_; }
+    JSScript   *script() const { JS_ASSERT(isScript()); return script_; }
     JSFunction *callee() const;
     Value       calleev() const;
     unsigned    numActualArgs() const;

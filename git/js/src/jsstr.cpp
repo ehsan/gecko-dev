@@ -2360,8 +2360,6 @@ static const uint32_t ReplaceOptArg = 2;
 static JSObject *
 LambdaIsGetElem(JSObject &lambda)
 {
-    AutoAssertNoGC nogc;
-
     if (!lambda.isFunction())
         return NULL;
 
@@ -2369,7 +2367,7 @@ LambdaIsGetElem(JSObject &lambda)
     if (!fun->isInterpreted())
         return NULL;
 
-    RawScript script = fun->script();
+    JSScript *script = fun->script();
     jsbytecode *pc = script->code;
 
     /*

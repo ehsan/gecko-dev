@@ -251,6 +251,7 @@ nsSprocketLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
   }
 
   // With the sizes computed, now it's time to lay out our children.
+  bool needsRedraw = false;
   bool finished;
   nscoord passes = 0;
 
@@ -471,7 +472,14 @@ nsSprocketLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
            
         // set it again
         child->SetBounds(aState, childRect);
+
+        // Since the child changed size, we know a redraw is probably going to be required.
+        needsRedraw = true;
       }
+
+      // if something moved then we might need to redraw
+      if (oldRect.x != childRect.x || oldRect.y != childRect.y)
+          needsRedraw = true;
 
       // If we already determined that layout was required or if our size has changed, then
       // we make sure to call layout on the child, since its children may need to be shifted
@@ -624,9 +632,13 @@ nsSprocketLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
 
   // Perform out-of-axis alignment for non-stretch alignments
   if (!(frameState & NS_STATE_AUTO_STRETCH)) {
-    AlignChildren(aBox, aState);
+    AlignChildren(aBox, aState, &needsRedraw);
   }
-  
+
+  // Now do our redraw.
+  if (needsRedraw)
+    aBox->Redraw(aState);
+
   // That's it!  If you made it this far without having a nervous breakdown, 
   // congratulations!  Go get yourself a beer.
   return NS_OK;
@@ -907,7 +919,8 @@ nsSprocketLayout::ComputeChildsNextPosition(nsIFrame* aBox,
 
 void
 nsSprocketLayout::AlignChildren(nsIFrame* aBox,
-                                nsBoxLayoutState& aState)
+                                nsBoxLayoutState& aState,
+                                bool* aNeedsRedraw)
 {
   nsFrameState frameState = 0;
   GetFrameState(aBox, frameState);
@@ -992,6 +1005,7 @@ nsSprocketLayout::AlignChildren(nsIFrame* aBox,
     }
 
     if (childRect.TopLeft() != child->GetPosition()) {
+      *aNeedsRedraw = true;
       child->SetBounds(aState, childRect);
     }
 

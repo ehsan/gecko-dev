@@ -595,10 +595,6 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               VideoChunk& chunk) {
   // We now need to send the video frame to the other side
   layers::Image *img = chunk.mFrame.GetImage();
-  if (!img) {
-    // segment.AppendFrame() allows null images, which show up here as null
-    return;
-  }
 
   ImageFormat format = img->GetFormat();
 

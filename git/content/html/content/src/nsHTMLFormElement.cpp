@@ -52,6 +52,7 @@
 
 #include "nsIDOMHTMLButtonElement.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
+#include "dombindings.h"
 #include "nsSandboxFlags.h"
 
 using namespace mozilla::dom;
@@ -92,7 +93,6 @@ public:
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsGenericElement* GetElementAt(uint32_t index);
   virtual nsINode* GetParentObject()
   {
     return mForm;
@@ -125,7 +125,13 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    return HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
+    JSObject* obj = HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
+    if (obj || *triedToWrap) {
+      return obj;
+    }
+
+    *triedToWrap = true;
+    return oldproxybindings::HTMLCollection::create(cx, scope, this);
   }
 
   nsHTMLFormElement* mForm;  // WEAK - the form owns me
@@ -520,7 +526,7 @@ nsHTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
   nsINode* ancestor = this;
   nsINode* cur;
   do {
-    cur = ancestor->GetParentNode();
+    cur = ancestor->GetNodeParent();
     if (!cur) {
       break;
     }
@@ -1942,7 +1948,7 @@ nsHTMLFormElement::GetNextRadioButton(const nsAString& aName,
     else if (++index >= (int32_t)numRadios) {
       index = 0;
     }
-    radio = do_QueryInterface(radioGroup->Item(index));
+    radio = do_QueryInterface(radioGroup->GetNodeAt(index));
     if (!radio)
       continue;
 
@@ -2339,7 +2345,7 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
       // already in the list, since if it tests true the child would
       // have come at the end of the list, and the PositionIsBefore
       // will test false.
-      if (nsContentUtils::PositionIsBefore(list->Item(list->Length() - 1), aChild)) {
+      if (nsContentUtils::PositionIsBefore(list->GetNodeAt(list->Length() - 1), aChild)) {
         list->AppendElement(aChild);
         return NS_OK;
       }
@@ -2360,7 +2366,7 @@ nsFormControlList::AddElementToTable(nsGenericHTMLFormElement* aChild,
       while (last != first) {
         mid = (first + last) / 2;
           
-        if (nsContentUtils::PositionIsBefore(aChild, list->Item(mid)))
+        if (nsContentUtils::PositionIsBefore(aChild, list->GetNodeAt(mid)))
           last = mid;
         else
           first = mid + 1;
@@ -2429,7 +2435,7 @@ nsFormControlList::RemoveElementFromTable(nsGenericHTMLFormElement* aChild,
   } else if (length == 1) {
     // Only one element left, replace the list in the hash with the
     // single element.
-    nsIContent* node = list->Item(0);
+    nsIContent* node = list->GetNodeAt(0);
     if (node) {
       mNameLookupTable.Put(aName, node);
     }
@@ -2521,6 +2527,14 @@ nsFormControlList::GetElementAt(uint32_t aIndex)
   FlushPendingNotifications();
 
   return mElements.SafeElementAt(aIndex, nullptr);
+}
+
+nsISupports*
+nsFormControlList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
+{
+  nsISupports *item = NamedItemInternal(aName, true);
+  *aCache = nullptr;
+  return item;
 }
 
 JSObject*

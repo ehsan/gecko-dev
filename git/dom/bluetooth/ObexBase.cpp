@@ -75,7 +75,7 @@ ParseHeaders(uint8_t* buf, int totalLength, ObexHeaderSet* retHandlerSet)
 
   while (ptr - buf < totalLength) {
     ObexHeaderId headerId = (ObexHeaderId)*ptr++;
-    int contentLength = 0;
+    int headerLength = 0;
     uint8_t highByte, lowByte;
 
     // Defined in 2.1 OBEX Headers, IrOBEX 1.2
@@ -87,31 +87,26 @@ ParseHeaders(uint8_t* buf, int totalLength, ObexHeaderSet* retHandlerSet)
         // byte sequence, length prefixed with 2 byte unsigned integer.
         highByte = *ptr++;
         lowByte = *ptr++;
-        contentLength = (((int)highByte << 8) | lowByte) - 3;
+        headerLength = ((int)highByte << 8) | lowByte;
         break;
 
       case 0x02:
         // 1 byte quantity
-        contentLength = 1;
+        headerLength = 1;
         break;
 
       case 0x03:
         // 4 byte quantity
-        contentLength = 4;
+        headerLength = 4;
         break;
     }
 
-    // FIXME: This case should be happened when we are receiving header 'Body'
-    // (file body). I will handle this in another bug.
-    if (contentLength + (ptr - buf) > totalLength) {
-      break;
-    }
+    // Content
+    uint8_t* headerContent = new uint8_t[headerLength];
+    memcpy(headerContent, ptr, headerLength);
+    retHandlerSet->AddHeader(new ObexHeader(headerId, headerLength, headerContent));
 
-    uint8_t* content = new uint8_t[contentLength];
-    memcpy(content, ptr, contentLength);
-    retHandlerSet->AddHeader(new ObexHeader(headerId, contentLength, content));
-
-    ptr += contentLength;
+    ptr += headerLength;
   }
 }
 

@@ -6,8 +6,6 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
@@ -34,7 +32,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 /**
  * The layer renderer implements the rendering logic for a layer view.
  */
-public class LayerRenderer implements Tabs.OnTabsChangedListener {
+public class LayerRenderer {
     private static final String LOGTAG = "GeckoLayerRenderer";
     private static final String PROFTAG = "GeckoLayerRendererProf";
 
@@ -168,8 +166,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         mCoordByteBuffer = DirectBufferAllocator.allocate(COORD_BUFFER_SIZE * 4);
         mCoordByteBuffer.order(ByteOrder.nativeOrder());
         mCoordBuffer = mCoordByteBuffer.asFloatBuffer();
-
-        Tabs.registerOnTabsChangedListener(this);
     }
 
     @Override
@@ -180,20 +176,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             mCoordBuffer = null;
         } finally {
             super.finalize();
-        }
-    }
-
-    public void destroy() {
-        DirectBufferAllocator.free(mCoordByteBuffer);
-        mCoordByteBuffer = null;
-        mCoordBuffer = null;
-        mScreenshotLayer.destroy();
-        mBackgroundLayer.destroy();
-        mShadowLayer.destroy();
-        mHorizScrollLayer.destroy();
-        mVertScrollLayer.destroy();
-        if (mFrameRateLayer != null) {
-            mFrameRateLayer.destroy();
         }
     }
 
@@ -687,9 +669,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 }
             }
 
-            // Remove background color once we've painted. GeckoLayerClient is
-            // responsible for setting this flag before current document is
-            // composited.
+            // Remove white screen once we've painted
             if (mView.getPaintState() == LayerView.PAINT_BEFORE_FIRST) {
                 mView.post(new Runnable() {
                     public void run() {
@@ -698,18 +678,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 });
                 mView.setPaintState(LayerView.PAINT_AFTER_FIRST);
             }
-        }
-    }
-
-    @Override
-    public void onTabChanged(final Tab tab, Tabs.TabEvents msg, Object data) {
-        // Sets the background of the newly selected tab. This background color
-        // gets cleared in endDrawing(). This function runs on the UI thread,
-        // but other code that touches the paint state is run on the compositor
-        // thread, so this may need to be changed if any problems appear.
-        if (msg == Tabs.TabEvents.SELECTED) {
-            mView.getChildAt(0).setBackgroundColor(tab.getCheckerboardColor());
-            mView.setPaintState(LayerView.PAINT_START);
         }
     }
 }

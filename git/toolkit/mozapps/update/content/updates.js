@@ -1554,7 +1554,6 @@ var gDownloadingPage = {
 
     var u = gUpdates.update;
     switch (status) {
-    case CoR.NS_ERROR_CORRUPTED_CONTENT:
     case CoR.NS_ERROR_UNEXPECTED:
       if (u.selectedPatch.state == STATE_DOWNLOAD_FAILED &&
           (u.isCompleteUpdate || u.patchCount != 2)) {

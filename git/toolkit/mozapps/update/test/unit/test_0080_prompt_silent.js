@@ -16,6 +16,7 @@ function run_test() {
               "when the " + PREF_APP_UPDATE_SILENT + " preference is true");
 
   removeUpdateDirsAndFiles();
+  setUpdateChannel();
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, true);
 

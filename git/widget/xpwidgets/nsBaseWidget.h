@@ -228,6 +228,13 @@ public:
   };
   friend class AutoUseBasicLayerManager;
 
+  bool HasDestroyStarted() const 
+  {
+    return mOnDestroyCalled;
+  }
+
+  bool                    Destroyed() { return mOnDestroyCalled; }
+
   nsWindowType            GetWindowType() { return mWindowType; }
 
   virtual bool            UseOffMainThreadCompositing();
@@ -334,6 +341,7 @@ protected:
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
+  bool              mOnDestroyCalled;
   bool              mUseAcceleratedRendering;
   bool              mForceLayersAcceleration;
   bool              mTemporarilyUseBasicLayerManager;

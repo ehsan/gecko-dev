@@ -42,8 +42,7 @@ var EventManager = {
         }
       );
     } catch (x) {
-      Logger.error('Failed to start EventManager');
-      Logger.logException(x);
+      Logger.error('Failed to start EventManager:', x);
     }
   },
 
@@ -78,25 +77,16 @@ var EventManager = {
       case 'scroll':
       case 'resize':
       {
-        // the target could be an element, document or window
-        let window = null;
-        if (aEvent.target instanceof Ci.nsIDOMWindow)
-          window = aEvent.target;
-        else if (aEvent.target instanceof Ci.nsIDOMDocument)
-          window = aEvent.target.defaultView;
-        else if (aEvent.target instanceof Ci.nsIDOMElement)
-          window = aEvent.target.ownerDocument.defaultView;
         this.present(
           function(p) {
-            return p.viewportChanged(window);
+            return p.viewportChanged();;
           }
         );
         break;
       }
       }
     } catch (x) {
-      Logger.error('Error handling DOM event');
-      Logger.logException(x);
+      Logger.error('Error handling DOM event:', x);
     }
   },
 
@@ -108,11 +98,18 @@ var EventManager = {
           event = aSubject.QueryInterface(Ci.nsIAccessibleEvent);
           this.handleAccEvent(event);
         } catch (x) {
-          Logger.error('Error handing accessible event');
-          Logger.logException(x);
+          Logger.error('Error handing accessible event:', x);
           return;
         }
     }
+  },
+
+  presentLastPivot: function presentLastPivot() {
+    this.present(
+      function(p) {
+        return p.presentLastPivot();
+      }
+    );
   },
 
   handleAccEvent: function handleAccEvent(aEvent) {
@@ -251,19 +248,8 @@ var EventManager = {
         [aPresenterFunc(p) for each (p in this.presenters)].
           filter(function(d) {return !!d;}));
     } catch (x) {
-      Logger.logException(x);
+      Logger.error(x);
     }
-  },
-
-  presentVirtualCursorPosition: function presentVirtualCursorPosition(aVirtualCursor) {
-    let presenterContext =
-      new PresenterContext(aVirtualCursor.position, null);
-
-    this.present(
-      function(p) {
-        return p.pivotChanged(presenterContext, Ci.nsIAccessiblePivot.REASON_NONE);
-      }
-    );
   },
 
   onStateChange: function onStateChange(aWebProgress, aRequest, aStateFlags, aStatus) {

@@ -238,15 +238,9 @@ UrlClassifierUpdateObserverProxy::UpdateUrlRequestedRunnable::Run()
 NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::RekeyRequested()
 {
-  nsCOMPtr<nsIRunnable> r = new RekeyRequestedRunnable(mTarget);
+  nsCOMPtr<nsIRunnable> r =
+    NS_NewRunnableMethod(mTarget, &nsIUrlClassifierUpdateObserver::RekeyRequested);
   return NS_DispatchToMainThread(r);
-}
-
-NS_IMETHODIMP
-UrlClassifierUpdateObserverProxy::RekeyRequestedRunnable::Run()
-{
-  mTarget->RekeyRequested();
-  return NS_OK;
 }
 
 NS_IMETHODIMP

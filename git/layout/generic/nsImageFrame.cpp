@@ -158,15 +158,22 @@ NS_QUERYFRAME_HEAD(nsImageFrame)
 NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsImageFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsImageFrame::CreateAccessible()
 {
-  // Don't use GetImageMap() to avoid reentrancy into accessibility.
-  if (HasImageMap()) {
-    return a11y::eHTMLImageMapAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    // Don't use GetImageMap() to avoid reentrancy into accessibility.
+    if (HasImageMap()) {
+      return accService->CreateHTMLImageMapAccessible(mContent,
+                                                      PresContext()->PresShell());
+    } else {
+      return accService->CreateHTMLImageAccessible(mContent,
+                                                   PresContext()->PresShell());
+    }
   }
 
-  return a11y::eImageAccessible;
+  return nullptr;
 }
 #endif
 

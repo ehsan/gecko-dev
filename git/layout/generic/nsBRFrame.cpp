@@ -15,12 +15,15 @@
 #include "nsRenderingContext.h"
 #include "nsLayoutUtils.h"
 
+#ifdef ACCESSIBILITY
+#include "nsIServiceManager.h"
+#include "nsAccessibilityService.h"
+#endif
+
 //FOR SELECTION
 #include "nsIContent.h"
 #include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
-
-using namespace mozilla;
 
 class BRFrame : public nsFrame {
 public:
@@ -56,7 +59,7 @@ public:
   }
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
 protected:
@@ -246,18 +249,23 @@ BRFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboar
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-BRFrame::AccessibleType()
+already_AddRefed<Accessible>
+BRFrame::CreateAccessible()
 {
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (!accService) {
+    return nullptr;
+  }
   nsIContent *parent = mContent->GetParent();
-  if (parent && parent->IsRootOfNativeAnonymousSubtree() &&
+  if (parent &&
+      parent->IsRootOfNativeAnonymousSubtree() &&
       parent->GetChildCount() == 1) {
     // This <br> is the only node in a text control, therefore it is the hacky
     // "bogus node" used when there is no text in the control
-    return a11y::eNoAccessible;
+    return nullptr;
   }
-
-  return a11y::eHTMLBRAccessible;
+  return accService->CreateHTMLBRAccessible(mContent,
+                                            PresContext()->PresShell());
 }
 #endif
 

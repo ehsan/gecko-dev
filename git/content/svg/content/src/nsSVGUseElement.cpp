@@ -280,7 +280,7 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  nsCOMPtr<nsINode> newnode;
+  nsCOMPtr<nsIDOMNode> newnode;
   nsCOMArray<nsINode> unused;
   nsNodeInfoManager* nodeInfoManager =
     targetContent->OwnerDoc() == OwnerDoc() ?

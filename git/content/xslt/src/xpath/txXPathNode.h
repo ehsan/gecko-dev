@@ -53,7 +53,7 @@ private:
     static nsINode *RootOf(nsINode *aNode)
     {
         nsINode *ancestor, *root = aNode;
-        while ((ancestor = root->GetParentNode())) {
+        while ((ancestor = root->GetNodeParent())) {
             root = ancestor;
         }
         return root;

@@ -31,7 +31,7 @@
 #include "nsLayoutUtils.h"
 #include "nsIPresShell.h"
 #include "nsIContentViewer.h"
-#include "nsFrameTraversal.h"
+#include "nsFrameIterator.h"
 #include "nsObjectFrame.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
@@ -324,7 +324,7 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
 
         nsINodeList* children = doc->BindingManager()->GetXBLChildNodesFor(aContent);
         if (children) {
-          nsIContent* child = children->Item(0);
+          nsIContent* child = children->GetNodeAt(0);
           if (child && child->Tag() == nsGkAtoms::slider)
             return child;
         }
@@ -811,6 +811,13 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
   if (content && nsContentUtils::ContentIsDescendantOf(content, aContent)) {
     bool shouldShowFocusRing = window->ShouldShowFocusRing();
     window->SetFocusedNode(nullptr);
+
+    nsCOMPtr<nsIDocShell> docShell = window->GetDocShell();
+    if (docShell) {
+      nsCOMPtr<nsIPresShell> presShell;
+      docShell->GetPresShell(getter_AddRefs(presShell));
+      nsIMEStateManager::OnRemoveContent(presShell->GetPresContext(), content);
+    }
 
     // if this window is currently focused, clear the global focused
     // element as well, but don't fire any events.
@@ -1774,7 +1781,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     mFocusedContent = aContent;
 
     nsIContent* focusedNode = aWindow->GetFocusedNode();
-    bool isRefocus = focusedNode && focusedNode->IsEqualNode(aContent);
+    bool isRefocus = focusedNode && focusedNode->IsEqualTo(aContent);
 
     aWindow->SetFocusedNode(aContent, focusMethod);
 
@@ -2263,15 +2270,8 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
         if (nodeValue.Length() == (uint32_t)startOffset && !isFormControl &&
             startContent != aDocument->GetRootElement()) {
           // Yes, indeed we were at the end of the last node
-          nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-          nsresult rv = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                             presContext, startFrame,
-                                             eLeaf,
-                                             false, // aVisual
-                                             false, // aLockInScrollView
-                                             true      // aFollowOOFs
-                                             );
-          NS_ENSURE_SUCCESS(rv, rv);
+          nsFrameIterator frameTraversal(presContext, startFrame,
+                                         eLeaf, nsFrameIterator::FLAG_FOLLOW_OUT_OF_FLOW);
 
           nsIFrame *newCaretFrame = nullptr;
           nsCOMPtr<nsIContent> newCaretContent = startContent;
@@ -2279,8 +2279,8 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
           do {
             // Continue getting the next frame until the primary content for the frame
             // we are on changes - we don't want to be stuck in the same place
-            frameTraversal->Next();
-            newCaretFrame = static_cast<nsIFrame*>(frameTraversal->CurrentItem());
+            frameTraversal.Next();
+            newCaretFrame = static_cast<nsIFrame*>(frameTraversal.CurrentItem());
             if (nullptr == newCaretFrame)
               break;
             newCaretContent = newCaretFrame->GetContent();
@@ -2696,21 +2696,14 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
       continue;
     }
 
-    nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-    nsresult rv = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                       presContext, startFrame,
-                                       ePreOrder,
-                                       false, // aVisual
-                                       false, // aLockInScrollView
-                                       true      // aFollowOOFs
-                                       );
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsFrameIterator frameTraversal(presContext, startFrame,
+                                   ePreOrder, nsFrameIterator::FLAG_FOLLOW_OUT_OF_FLOW);
 
     if (iterStartContent == aRootContent) {
       if (!aForward) {
-        frameTraversal->Last();
+        frameTraversal.Last();
       } else if (aRootContent->IsFocusable()) {
-        frameTraversal->Next();
+        frameTraversal.Next();
       }
     }
     else if (getNextFrame &&
@@ -2719,13 +2712,13 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
       // Need to do special check in case we're in an imagemap which has multiple
       // content nodes per frame, so don't skip over the starting frame.
       if (aForward)
-        frameTraversal->Next();
+        frameTraversal.Next();
       else
-        frameTraversal->Prev();
+        frameTraversal.Prev();
     }
 
     // Walk frames to find something tabbable matching mCurrentTabIndex
-    nsIFrame* frame = static_cast<nsIFrame*>(frameTraversal->CurrentItem());
+    nsIFrame* frame = static_cast<nsIFrame*>(frameTraversal.CurrentItem());
     while (frame) {
       // TabIndex not set defaults to 0 for form elements, anchors and other
       // elements that are normally focusable. Tabindex defaults to -1
@@ -2795,10 +2788,10 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
               Element* rootElement = subdoc->GetRootElement();
               nsIPresShell* subShell = subdoc->GetShell();
               if (rootElement && subShell) {
-                rv = GetNextTabbableContent(subShell, rootElement,
-                                            aOriginalStartContent, rootElement,
-                                            aForward, (aForward ? 1 : 0),
-                                            false, aResultContent);
+                nsresult rv = GetNextTabbableContent(subShell, rootElement,
+                                                     aOriginalStartContent, rootElement,
+                                                     aForward, (aForward ? 1 : 0),
+                                                     false, aResultContent);
                 NS_ENSURE_SUCCESS(rv, rv);
                 if (*aResultContent)
                   return NS_OK;
@@ -2842,10 +2835,10 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
       // again.
       do {
         if (aForward)
-          frameTraversal->Next();
+          frameTraversal.Next();
         else
-          frameTraversal->Prev();
-        frame = static_cast<nsIFrame*>(frameTraversal->CurrentItem());
+          frameTraversal.Prev();
+        frame = static_cast<nsIFrame*>(frameTraversal.CurrentItem());
       } while (frame && frame->GetPrevContinuation());
     }
 

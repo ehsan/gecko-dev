@@ -21,7 +21,6 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsTArray.h"
@@ -226,7 +225,7 @@ BlacklistOSToOperatingSystem(const nsAString& os)
 }
 
 static GfxDeviceFamily*
-BlacklistDevicesToDeviceFamily(nsIDOMHTMLCollection* aDevices)
+BlacklistDevicesToDeviceFamily(nsIDOMNodeList* aDevices)
 {
   uint32_t length;
   if (NS_FAILED(aDevices->GetLength(&length)))
@@ -324,7 +323,7 @@ BlacklistNodeGetChildByName(nsIDOMElement *element,
                             const nsAString& tagname,
                             nsIDOMNode** firstchild)
 {
-  nsCOMPtr<nsIDOMHTMLCollection> nodelist;
+  nsCOMPtr<nsIDOMNodeList> nodelist;
   if (NS_FAILED(element->GetElementsByTagName(tagname,
                                               getter_AddRefs(nodelist))) ||
       !nodelist) {
@@ -397,7 +396,7 @@ BlacklistEntryToDriverInfo(nsIDOMNode* aBlacklistEntry,
 
       // Get only the <device> nodes, because BlacklistDevicesToDeviceFamily
       // assumes it is passed no other nodes.
-      nsCOMPtr<nsIDOMHTMLCollection> devices;
+      nsCOMPtr<nsIDOMNodeList> devices;
       if (NS_SUCCEEDED(devicesElement->GetElementsByTagName(NS_LITERAL_STRING("device"),
                                                             getter_AddRefs(devices)))) {
         GfxDeviceFamily* deviceIds = BlacklistDevicesToDeviceFamily(devices);
@@ -446,7 +445,7 @@ BlacklistEntryToDriverInfo(nsIDOMNode* aBlacklistEntry,
 }
 
 static void
-BlacklistEntriesToDriverInfo(nsIDOMHTMLCollection* aBlacklistEntries,
+BlacklistEntriesToDriverInfo(nsIDOMNodeList* aBlacklistEntries,
                              nsTArray<GfxDriverInfo>& aDriverInfo)
 {
   uint32_t length;
@@ -477,7 +476,7 @@ GfxInfoBase::Observe(nsISupports* aSubject, const char* aTopic,
   if (strcmp(aTopic, "blocklist-data-gfxItems") == 0) {
     nsCOMPtr<nsIDOMElement> gfxItems = do_QueryInterface(aSubject);
     if (gfxItems) {
-      nsCOMPtr<nsIDOMHTMLCollection> blacklistEntries;
+      nsCOMPtr<nsIDOMNodeList> blacklistEntries;
       if (NS_SUCCEEDED(gfxItems->
             GetElementsByTagName(NS_LITERAL_STRING(BLACKLIST_ENTRY_TAG_NAME),
                                  getter_AddRefs(blacklistEntries))) &&

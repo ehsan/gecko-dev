@@ -835,10 +835,6 @@ typedef struct cc_feature_candidate_t_ {
   char        mid[MID_SIZE];
 } cc_feature_candidate_t;
 
-typedef struct cc_feature_session_t_ {
-  unsigned int  sessionid;
-  cc_boolean    has_constraints;
-} cc_feature_session_t;
 
 
 typedef union cc_feature_data_t {
@@ -865,7 +861,6 @@ typedef union cc_feature_data_t {
     cc_feature_data_pc_t        pc;
     cc_feature_data_track_t     track;
     cc_feature_candidate_t      candidate;
-    cc_feature_session_t        session;
 } cc_feature_data_t;
 
 typedef struct cc_setup_t_ {

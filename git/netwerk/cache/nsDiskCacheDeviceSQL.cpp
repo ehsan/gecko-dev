@@ -1744,9 +1744,9 @@ nsOfflineCacheDevice::OpenOutputStreamForEntry(nsCacheEntry       *entry,
   seekable->SetEOF();
 
   nsCOMPtr<nsIOutputStream> bufferedOut;
-  nsresult rv =
-    NS_NewBufferedOutputStream(getter_AddRefs(bufferedOut), out, 16 * 1024);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewBufferedOutputStream(getter_AddRefs(bufferedOut), out, 16 * 1024);
+  if (!bufferedOut)
+    return NS_ERROR_UNEXPECTED;
 
   bufferedOut.swap(*result);
   return NS_OK;

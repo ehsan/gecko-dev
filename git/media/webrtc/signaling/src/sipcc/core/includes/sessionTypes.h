@@ -39,16 +39,14 @@ typedef struct {
 } ccSession_create_param_t;
 
 typedef struct {
-  string_t                  info;
-  string_t                  info1;
-  unsigned int              state;
-  cc_jsep_action_t          action;
-  cc_media_stream_id_t      stream_id;
-  cc_media_track_id_t       track_id;
-  cc_media_type_t           media_type;
-  cc_level_t                level;
-  unsigned int              sessionid;
-  cc_boolean                has_constraints;
+  string_t info;
+  string_t info1;
+  unsigned int state;
+  cc_jsep_action_t     action;
+  cc_media_stream_id_t stream_id;
+  cc_media_track_id_t  track_id;
+  cc_media_type_t      media_type;
+  cc_level_t           level;
 } ccSession_feature_t;
 
 typedef struct {

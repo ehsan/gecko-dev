@@ -2834,8 +2834,8 @@ DrawBorderImage(nsPresContext*       aPresContext,
   // Get the actual image.
 
   nsCOMPtr<imgIContainer> imgContainer;
-  DebugOnly<nsresult> rv = req->GetImage(getter_AddRefs(imgContainer));
-  NS_ASSERTION(NS_SUCCEEDED(rv) && imgContainer, "no image to draw");
+  req->GetImage(getter_AddRefs(imgContainer));
+  NS_ASSERTION(imgContainer, "no image to draw");
 
   nsIntSize imageSize;
   if (NS_FAILED(imgContainer->GetWidth(&imageSize.width))) {
@@ -4033,7 +4033,7 @@ nsImageRenderer::PrepareImage()
       nsCOMPtr<imgIContainer> img;
       if (!((mFlags & FLAG_SYNC_DECODE_IMAGES) &&
             (mType == eStyleImageType_Image) &&
-            (NS_SUCCEEDED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))))
+            (NS_SUCCEEDED(mImage->GetImageData()->GetImage(getter_AddRefs(img))) && img)))
         return false;
     }
   }
@@ -4042,11 +4042,9 @@ nsImageRenderer::PrepareImage()
     case eStyleImageType_Image:
     {
       nsCOMPtr<imgIContainer> srcImage;
-      DebugOnly<nsresult> rv =
-        mImage->GetImageData()->GetImage(getter_AddRefs(srcImage));
-      NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv) && srcImage,
-                        "If GetImage() is failing, mImage->IsComplete() "
-                        "should have returned false");
+      mImage->GetImageData()->GetImage(getter_AddRefs(srcImage));
+      NS_ABORT_IF_FALSE(srcImage, "If srcImage is null, mImage->IsComplete() "
+                                  "should have returned false");
 
       if (!mImage->GetCropRect()) {
         mImageContainer.swap(srcImage);
@@ -4467,7 +4465,8 @@ nsImageRenderer::IsRasterImage()
   if (mType != eStyleImageType_Image)
     return false;
   nsCOMPtr<imgIContainer> img;
-  if (NS_FAILED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))
+  nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
+  if (NS_FAILED(rv) || !img)
     return false;
   return img->GetType() == imgIContainer::TYPE_RASTER;
 }
@@ -4479,7 +4478,7 @@ nsImageRenderer::GetContainer()
     return nullptr;
   nsCOMPtr<imgIContainer> img;
   nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv) || !img)
     return nullptr;
   nsRefPtr<ImageContainer> container;
   rv = img->GetImageContainer(getter_AddRefs(container));

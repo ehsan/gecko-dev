@@ -51,7 +51,6 @@ function SystemMessageInternal() {
   this._bufferedSysMsgs = [];
 
   Services.obs.addObserver(this, "xpcom-shutdown", false);
-  Services.obs.addObserver(this, "webapps-registry-start", false);
   Services.obs.addObserver(this, "webapps-registry-ready", false);
   kMessages.forEach(function(aMsg) {
     ppmm.addMessageListener(aMsg, this);
@@ -90,22 +89,12 @@ SystemMessageInternal.prototype = {
       });
     }
 
-    let pagesToOpen = {};
     this._pages.forEach(function(aPage) {
       if (!this._isPageMatched(aPage, aType, aPageURI.spec, aManifestURI.spec)) {
         return;
       }
 
-      // Queue this message in the corresponding pages.
-      this._queueMessage(aPage, aMessage, messageID);
-
-      // Open app pages to handle their pending messages.
-      // Note that we only need to open each app page once.
-      let key = this._createKeyForPage(aPage);
-      if (!pagesToOpen.hasOwnProperty(key)) {
-        this._openAppPage(aPage, aMessage);
-        pagesToOpen[key] = true;
-      }
+      this._openAppPage(aPage, aMessage, messageID);
     }, this);
   },
 
@@ -125,7 +114,6 @@ SystemMessageInternal.prototype = {
 
     debug("Broadcasting " + aType + " " + JSON.stringify(aMessage));
     // Find pages that registered an handler for this type.
-    let pagesToOpen = {};
     this._pages.forEach(function(aPage) {
       if (aPage.type == aType) {
         if (this._listeners[aPage.manifest]) {
@@ -138,16 +126,7 @@ SystemMessageInternal.prototype = {
                                          msgID: messageID })
           });
         }
-        // Queue this message in the corresponding pages.
-        this._queueMessage(aPage, aMessage, messageID);
-
-        // Open app pages to handle their pending messages.
-        // Note that we only need to open each app page once.
-        let key = this._createKeyForPage(aPage);
-        if (!pagesToOpen.hasOwnProperty(key)) {
-          this._openAppPage(aPage, aMessage);
-          pagesToOpen[key] = true;
-        }
+        this._openAppPage(aPage, aMessage, messageID);
       }
     }, this);
   },
@@ -257,14 +236,10 @@ SystemMessageInternal.prototype = {
           ppmm.removeMessageListener(aMsg, this);
         }, this);
         Services.obs.removeObserver(this, "xpcom-shutdown");
-        Services.obs.removeObserver(this, "webapps-registry-start");
         Services.obs.removeObserver(this, "webapps-registry-ready");
         ppmm = null;
         this._pages = null;
         this._bufferedSysMsgs = null;
-        break;
-      case "webapps-registry-start":
-        this._webappsRegistryReady = false;
         break;
       case "webapps-registry-ready":
         // After the webapps' registration has been done for sure,
@@ -281,21 +256,19 @@ SystemMessageInternal.prototype = {
               break;
           }
         }, this);
-        this._bufferedSysMsgs.length = 0;
+        this._bufferedSysMsgs = null;
         break;
     }
   },
 
-  _queueMessage: function _queueMessage(aPage, aMessage, aMessageID) {
+  _openAppPage: function _openAppPage(aPage, aMessage, aMessageID) {
     // Queue the message for this page because we've never known if an app is
     // opened or not. We'll clean it up when the app has already received it.
     aPage.pendingMessages.push({ msg: aMessage, msgID: aMessageID });
     if (aPage.pendingMessages.length > kMaxPendingMessages) {
       aPage.pendingMessages.splice(0, 1);
     }
-  },
 
-  _openAppPage: function _openAppPage(aPage, aMessage) {
     // We don't need to send the full object to observers.
     let page = { uri: aPage.uri,
                  manifest: aPage.manifest,
@@ -309,24 +282,6 @@ SystemMessageInternal.prototype = {
     return (aPage.type === aType &&
             aPage.manifest === aManifest &&
             aPage.uri === aUri)
-  },
-
-  _createKeyForPage: function _createKeyForPage(aPage) {
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                      .createInstance(Ci.nsIScriptableUnicodeConverter);
-    converter.charset = "UTF-8";
-
-    let hasher = Cc["@mozilla.org/security/hash;1"]
-                   .createInstance(Ci.nsICryptoHash);
-    hasher.init(hasher.SHA1);
-
-    // add uri and action to the hash
-    ["type", "manifest", "uri"].forEach(function(aProp) {
-      let data = converter.convertToByteArray(aPage[aProp], {});
-      hasher.update(data, data.length);
-    });
-
-    return hasher.finish(true);
   },
 
   classID: Components.ID("{70589ca5-91ac-4b9e-b839-d6a88167d714}"),

@@ -4111,6 +4111,7 @@ html|*#gcli-output-frame {
   padding: 0;
 }
 
+#social-notification-box,
 .social-panel-frame {
   border-radius: inherit;
 }

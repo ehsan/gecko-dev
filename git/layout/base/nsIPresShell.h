@@ -277,20 +277,9 @@ public:
   nsIViewManager* GetViewManager() const { return mViewManager; }
 
 #ifdef ACCESSIBILITY
-  /**
-   * Return the document accessible for this pres shell if there is one.
-   */
-  DocAccessible* GetDocAccessible() const
+  void SetAccDocument(DocAccessible* aAccDocument)
   {
-    return mDocAccessible;
-  }
-
-  /**
-   * Set the document accessible for this pres shell.
-   */
-  void SetDocAccessible(DocAccessible* aDocAccessible)
-  {
-    mDocAccessible = aDocAccessible;
+    mAccDocument = aAccDocument;
   }
 #endif
 
@@ -1353,7 +1342,6 @@ public:
   virtual void WindowSizeMoveDone() = 0;
   virtual void SysColorChanged() = 0;
   virtual void ThemeChanged() = 0;
-  virtual void BackingScaleFactorChanged() = 0;
 
   nscoord MaxLineBoxWidth() {
     return mMaxLineBoxWidth;
@@ -1383,7 +1371,7 @@ protected:
   nsWeakPtr                 mForwardingContainer;
   nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
-  DocAccessible* mDocAccessible;
+  DocAccessible* mAccDocument;
 #endif
 
 #ifdef DEBUG

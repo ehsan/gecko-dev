@@ -1021,9 +1021,11 @@ JaegerStatus
 mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimit, bool partial)
 {
 #ifdef JS_METHODJIT_SPEW
-    JaegerSpew(JSpew_Prof, "%s jaeger script, line %d\n",
-               fp->script()->filename, fp->script()->lineno);
     Profiler prof;
+    JSScript *script = fp->script();
+
+    JaegerSpew(JSpew_Prof, "%s jaeger script, line %d\n",
+               script->filename, script->lineno);
     prof.start();
 #endif
 
@@ -1105,15 +1107,16 @@ JaegerStatus
 mjit::JaegerShot(JSContext *cx, bool partial)
 {
     StackFrame *fp = cx->fp();
-    JITScript *jit = fp->script()->getJIT(fp->isConstructing(), cx->compartment->compileBarriers());
+    JSScript *script = fp->script();
+    JITScript *jit = script->getJIT(fp->isConstructing(), cx->compartment->compileBarriers());
 
-    JS_ASSERT(cx->regs().pc == fp->script()->code);
+    JS_ASSERT(cx->regs().pc == script->code);
 
 #if JS_TRACE_LOGGING
     AutoTraceLog logger(TraceLogging::defaultLogger(),
                         TraceLogging::JM_START,
                         TraceLogging::JM_STOP,
-                        fp->script().unsafeGet());
+                        script);
 #endif
 
     return CheckStackAndEnterMethodJIT(cx, cx->fp(), jit->invokeEntry, partial);
@@ -1126,7 +1129,7 @@ js::mjit::JaegerShotAtSafePoint(JSContext *cx, void *safePoint, bool partial)
     AutoTraceLog logger(TraceLogging::defaultLogger(),
                         TraceLogging::JM_SAFEPOINT_START,
                         TraceLogging::JM_SAFEPOINT_STOP,
-                        cx->fp()->script().unsafeGet());
+                        cx->fp()->script());
 #endif
     return CheckStackAndEnterMethodJIT(cx, cx->fp(), safePoint, partial);
 }

@@ -33,7 +33,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -144,11 +144,11 @@ nsHTMLTableRowElement::GetRowIndex(int32_t* aValue)
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   table->GetRows(getter_AddRefs(rows));
 
-  nsCOMPtr<nsIHTMLCollection> coll = do_QueryInterface(rows);
-  uint32_t numRows = coll->Length();
+  uint32_t numRows;
+  rows->GetLength(&numRows);
 
   for (uint32_t i = 0; i < numRows; i++) {
-    if (coll->GetElementAt(i) == this) {
+    if (rows->GetElementAt(i) == this) {
       *aValue = i;
       break;
     }
@@ -168,10 +168,10 @@ nsHTMLTableRowElement::GetSectionRowIndex(int32_t* aValue)
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   section->GetRows(getter_AddRefs(rows));
 
-  nsCOMPtr<nsIHTMLCollection> coll = do_QueryInterface(rows);
-  uint32_t numRows = coll->Length();
+  uint32_t numRows;
+  rows->GetLength(&numRows);
   for (uint32_t i = 0; i < numRows; i++) {
-    if (coll->GetElementAt(i) == this) {
+    if (rows->GetElementAt(i) == this) {
       *aValue = i;
       break;
     }

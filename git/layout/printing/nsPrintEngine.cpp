@@ -2376,7 +2376,7 @@ GetEqualNodeInCloneTree(nsIDOMNode* aNode, nsIDocument* aDoc)
   nsINode* current = node;
   NS_ENSURE_TRUE(current, nullptr);
   while (current) {
-    nsINode* parent = current->GetParentNode();
+    nsINode* parent = current->GetNodeParent();
     if (!parent) {
      break;
     }

@@ -386,7 +386,6 @@ IonCompartment::generateBailoutHandler(JSContext *cx)
 IonCode *
 IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
 {
-    AssertCanGC();
     typedef MoveResolver::MoveOperand MoveOperand;
 
     JS_ASSERT(!StackKeptAligned);

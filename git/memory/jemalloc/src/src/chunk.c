@@ -43,7 +43,6 @@ chunk_recycle(size_t size, size_t alignment, bool base, bool *zero)
 	extent_node_t *node;
 	extent_node_t key;
 	size_t alloc_size, leadsize, trailsize;
-	bool zeroed;
 
 	if (base) {
 		/*
@@ -108,18 +107,17 @@ chunk_recycle(size_t size, size_t alignment, bool base, bool *zero)
 	}
 	malloc_mutex_unlock(&chunks_mtx);
 
-	zeroed = false;
-	if (node != NULL) {
-		if (node->zeroed) {
-			zeroed = true;
-			*zero = true;
-		}
+	if (node != NULL)
 		base_node_dealloc(node);
-	}
-	if (zeroed == false && *zero) {
+#ifdef JEMALLOC_PURGE_MADVISE_DONTNEED
+	/* Pages are zeroed as a side effect of pages_purge(). */
+	*zero = true;
+#else
+	if (*zero) {
 		VALGRIND_MAKE_MEM_UNDEFINED(ret, size);
 		memset(ret, 0, size);
 	}
+#endif
 	return (ret);
 }
 
@@ -193,10 +191,9 @@ label_return:
 static void
 chunk_record(void *chunk, size_t size)
 {
-	bool unzeroed;
 	extent_node_t *xnode, *node, *prev, key;
 
-	unzeroed = pages_purge(chunk, size);
+	pages_purge(chunk, size);
 
 	/*
 	 * Allocate a node before acquiring chunks_mtx even though it might not
@@ -219,7 +216,6 @@ chunk_record(void *chunk, size_t size)
 		extent_tree_szad_remove(&chunks_szad, node);
 		node->addr = chunk;
 		node->size += size;
-		node->zeroed = (node->zeroed && (unzeroed == false));
 		extent_tree_szad_insert(&chunks_szad, node);
 		if (xnode != NULL)
 			base_node_dealloc(xnode);
@@ -238,7 +234,6 @@ chunk_record(void *chunk, size_t size)
 		node = xnode;
 		node->addr = chunk;
 		node->size = size;
-		node->zeroed = (unzeroed == false);
 		extent_tree_ad_insert(&chunks_ad, node);
 		extent_tree_szad_insert(&chunks_szad, node);
 	}
@@ -258,7 +253,6 @@ chunk_record(void *chunk, size_t size)
 		extent_tree_szad_remove(&chunks_szad, node);
 		node->addr = prev->addr;
 		node->size += prev->size;
-		node->zeroed = (node->zeroed && prev->zeroed);
 		extent_tree_szad_insert(&chunks_szad, node);
 
 		base_node_dealloc(prev);
@@ -317,34 +311,4 @@ chunk_boot(void)
 	}
 
 	return (false);
-}
-
-void
-chunk_prefork(void)
-{
-
-	malloc_mutex_lock(&chunks_mtx);
-	if (config_ivsalloc)
-		rtree_prefork(chunks_rtree);
-	chunk_dss_prefork();
-}
-
-void
-chunk_postfork_parent(void)
-{
-
-	chunk_dss_postfork_parent();
-	if (config_ivsalloc)
-		rtree_postfork_parent(chunks_rtree);
-	malloc_mutex_postfork_parent(&chunks_mtx);
-}
-
-void
-chunk_postfork_child(void)
-{
-
-	chunk_dss_postfork_child();
-	if (config_ivsalloc)
-		rtree_postfork_child(chunks_rtree);
-	malloc_mutex_postfork_child(&chunks_mtx);
 }

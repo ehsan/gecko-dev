@@ -75,19 +75,13 @@ YoutubeProtocolHandler.prototype = {
       let uri;
       let mimeType;
 
-      // itag is an undocumented value which maps to resolution and mimetype
-      // see https://en.wikipedia.org/wiki/YouTube#Quality_and_codecs
-      // Ordered from least to most preferred
-      let recognizedItags = [
-        "17", // 144p 3GP
-        "36", // 240p 3GP
-        "43", // 360p WebM
+      // Recognized mime types, ordered from the less usable to the most usable.
+      let recognizedTypes = ["video/webm"];
 #ifdef MOZ_WIDGET_GONK
-        "18", // 360p H.264
+      recognizedTypes.push("video/mp4");
 #endif
-      ];
 
-      let bestItag = -1;
+      let bestType = -1;
 
       let extras = { }
 
@@ -95,14 +89,13 @@ YoutubeProtocolHandler.prototype = {
         let params = extractParameters(aStream);
         let url = params["url"];
         let type = params["type"] ? params["type"].split(";")[0] : null;
-        let itag = params["itag"];
 
         let index;
-        if (url && type && ((index = recognizedItags.indexOf(itag)) != -1) &&
-            index > bestItag) {
-          uri = url + '&signature=' + (params["sig"] ? params['sig'] : '');
+        if (url && type && ((index = recognizedTypes.indexOf(type)) != -1) &&
+            index > bestType) {
+          uri = url;
           mimeType = type;
-          bestItag = index;
+          bestType = index;
         }
         for (let param in params) {
           if (["thumbnail_url", "length_seconds", "title"].indexOf(param) != -1) {

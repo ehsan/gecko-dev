@@ -349,7 +349,7 @@ let PaymentManager =  {
       this.paymentFailed("CREATE_PAYMENT_GLUE_FAILED");
       return false;
     }
-    glue.showPaymentFlow(paymentFlowInfo, this.paymentFailed.bind(this));
+    glue.showPaymentFlow(paymentFlowInfo, this.paymentFailed);
   },
 
   // nsIObserver

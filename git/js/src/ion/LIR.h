@@ -429,10 +429,9 @@ class LDefinition
         // A type virtual register must be followed by a payload virtual
         // register, as both will be tracked as a single gcthing.
         TYPE,
-        PAYLOAD
-#else
-        BOX         // Joined box, for punbox systems. (GPR, gcthing)
+        PAYLOAD,
 #endif
+        BOX         // Joined box, for punbox systems. (GPR, gcthing)
     };
 
     void set(uint32 index, Type type, Policy policy) {

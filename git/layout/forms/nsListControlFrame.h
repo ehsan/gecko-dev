@@ -106,7 +106,7 @@ public:
 
     // for accessibility purposes
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible() MOZ_OVERRIDE;
 #endif
 
     // nsContainerFrame

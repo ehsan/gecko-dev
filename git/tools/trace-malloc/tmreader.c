@@ -24,7 +24,7 @@
 
 #undef  DEBUG_tmreader
 
-static int accum_byte(FILE *fp, uint32_t *uip)
+static int accum_byte(FILE *fp, uint32 *uip)
 {
     int c = getc(fp);
     if (c == EOF)
@@ -33,10 +33,10 @@ static int accum_byte(FILE *fp, uint32_t *uip)
     return 1;
 }
 
-static int get_uint32(FILE *fp, uint32_t *uip)
+static int get_uint32(FILE *fp, uint32 *uip)
 {
     int c;
-    uint32_t ui;
+    uint32 ui;
 
     c = getc(fp);
     if (c == EOF)
@@ -52,22 +52,22 @@ static int get_uint32(FILE *fp, uint32_t *uip)
                     if (!accum_byte(fp, &ui))
                         return 0;
                 } else {
-                    ui = (uint32_t) c;
+                    ui = (uint32) c;
                 }
                 if (!accum_byte(fp, &ui))
                     return 0;
             } else {
-                ui = (uint32_t) c;
+                ui = (uint32) c;
             }
             if (!accum_byte(fp, &ui))
                 return 0;
         } else {
-            ui = (uint32_t) c;
+            ui = (uint32) c;
         }
         if (!accum_byte(fp, &ui))
             return 0;
     } else {
-        ui = (uint32_t) c;
+        ui = (uint32) c;
     }
     *uip = ui;
     return 1;
@@ -700,7 +700,7 @@ int tmreader_eventloop(tmreader *tmr, const char *filename,
           case TM_EVENT_CALLOC:
           case TM_EVENT_REALLOC: {
             tmcallsite *site;
-            uint32_t size, oldsize;
+            uint32 size, oldsize;
             double delta, sqdelta, sqszdelta = 0;
             tmgraphnode *comp, *lib;
             tmmethodnode *meth;
@@ -756,7 +756,7 @@ int tmreader_eventloop(tmreader *tmr, const char *filename,
 
           case TM_EVENT_FREE: {
             tmcallsite *site;
-            uint32_t size;
+            uint32 size;
             tmgraphnode *comp, *lib;
             tmmethodnode *meth;
 
@@ -797,7 +797,7 @@ int tmreader_eventloop(tmreader *tmr, const char *filename,
     return 1;
 }
 
-tmgraphnode *tmreader_library(tmreader *tmr, uint32_t serial)
+tmgraphnode *tmreader_library(tmreader *tmr, uint32 serial)
 {
     const void *key;
     PLHashNumber hash;
@@ -807,7 +807,7 @@ tmgraphnode *tmreader_library(tmreader *tmr, uint32_t serial)
     return (tmgraphnode*) *PL_HashTableRawLookup(tmr->libraries, hash, key);
 }
 
-tmgraphnode *tmreader_filename(tmreader *tmr, uint32_t serial)
+tmgraphnode *tmreader_filename(tmreader *tmr, uint32 serial)
 {
     const void *key;
     PLHashNumber hash;
@@ -825,7 +825,7 @@ tmgraphnode *tmreader_component(tmreader *tmr, const char *name)
     return (tmgraphnode*) *PL_HashTableRawLookup(tmr->components, hash, name);
 }
 
-tmmethodnode *tmreader_method(tmreader *tmr, uint32_t serial)
+tmmethodnode *tmreader_method(tmreader *tmr, uint32 serial)
 {
     const void *key;
     PLHashNumber hash;
@@ -835,7 +835,7 @@ tmmethodnode *tmreader_method(tmreader *tmr, uint32_t serial)
     return (tmmethodnode*) *PL_HashTableRawLookup(tmr->methods, hash, key);
 }
 
-tmcallsite *tmreader_callsite(tmreader *tmr, uint32_t serial)
+tmcallsite *tmreader_callsite(tmreader *tmr, uint32 serial)
 {
     const void *key;
     PLHashNumber hash;

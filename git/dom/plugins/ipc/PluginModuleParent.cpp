@@ -217,20 +217,8 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
 void
 PluginModuleParent::CleanupFromTimeout()
 {
-    if (mShutdown) {
-      return;
-    }
-
-    if (!OkToCleanup()) {
-        // there's still plugin code on the C++ stack, try again
-        MessageLoop::current()->PostDelayedTask(
-            FROM_HERE,
-            mTaskFactory.NewRunnableMethod(
-                &PluginModuleParent::CleanupFromTimeout), 10);
-        return;
-    }
-
-    Close();
+    if (!mShutdown && OkToCleanup())
+        Close();
 }
 
 #ifdef XP_WIN
@@ -300,27 +288,6 @@ GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, 
 } // anonymous namespace
 #endif // #ifdef XP_WIN
 
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-static bool
-CreateFlashMinidump(DWORD processId, ThreadId childThread,
-                    nsIFile* parentMinidump, const nsACString& name)
-{
-  if (processId == 0) {
-    return false;
-  }
-
-  base::ProcessHandle handle;
-  if (!base::OpenPrivilegedProcessHandle(processId, &handle)) {
-    return false;
-  }
-
-  bool res = CreateAdditionalChildMinidump(handle, 0, parentMinidump, name);
-  base::CloseProcessHandle(handle);
-
-  return res;
-}
-#endif
-
 bool
 PluginModuleParent::ShouldContinueFromReplyTimeout()
 {
@@ -343,13 +310,19 @@ PluginModuleParent::ShouldContinueFromReplyTimeout()
             pluginDumpFile) {
           nsCOMPtr<nsIFile> childDumpFile;
 
-          if (CreateFlashMinidump(mFlashProcess1, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash1"))) {
+          if (mFlashProcess1 &&
+              TakeMinidumpForChild(mFlashProcess1,
+                                   getter_AddRefs(childDumpFile))) {
             additionalDumps.Append(",flash1");
+            RenameAdditionalHangMinidump(pluginDumpFile, childDumpFile,
+                                         NS_LITERAL_CSTRING("flash1"));
           }
-          if (CreateFlashMinidump(mFlashProcess2, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash2"))) {
+          if (mFlashProcess2 &&
+              TakeMinidumpForChild(mFlashProcess2,
+                                   getter_AddRefs(childDumpFile))) {
             additionalDumps.Append(",flash2");
+            RenameAdditionalHangMinidump(pluginDumpFile, childDumpFile,
+                                         NS_LITERAL_CSTRING("flash2"));
           }
         }
 #endif
@@ -1185,17 +1158,7 @@ PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
 
     return i->IsRemoteDrawingCoreAnimation(aDrawing);
 }
-
-nsresult
-PluginModuleParent::ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->ContentsScaleFactorChanged(aContentsScaleFactor);
-}
-#endif // #if defined(XP_MACOSX)
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

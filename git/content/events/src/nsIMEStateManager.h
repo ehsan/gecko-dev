@@ -7,21 +7,14 @@
 #define nsIMEStateManager_h__
 
 #include "nscore.h"
-#include "nsEvent.h"
 #include "nsIWidget.h"
 
-class nsDispatchingCallback;
 class nsIContent;
 class nsIDOMMouseEvent;
-class nsINode;
 class nsPIDOMWindow;
 class nsPresContext;
 class nsTextStateManager;
 class nsISelection;
-
-namespace mozilla {
-class TextCompositionArray;
-} // namespace mozilla
 
 /*
  * IME state manager
@@ -35,8 +28,6 @@ protected:
   typedef mozilla::widget::InputContextAction InputContextAction;
 
 public:
-  static void Shutdown();
-
   static nsresult OnDestroyPresContext(nsPresContext* aPresContext);
   static nsresult OnRemoveContent(nsPresContext* aPresContext,
                                   nsIContent* aContent);
@@ -84,28 +75,6 @@ public:
                               nsIContent* aContent,
                               nsIDOMMouseEvent* aMouseEvent);
 
-  /**
-   * All DOM composition events and DOM text events must be dispatched via
-   * DispatchCompositionEvent() for storing the composition target
-   * and ensuring a set of composition events must be fired the stored target.
-   * If the stored composition event target is destroying, this removes the
-   * stored composition automatically.
-   */
-  static void DispatchCompositionEvent(nsINode* aEventTargetNode,
-                                       nsPresContext* aPresContext,
-                                       nsEvent* aEvent,
-                                       nsEventStatus* aStatus,
-                                       nsDispatchingCallback* aCallBack);
-
-  /**
-   * Send a notification to IME.  It depends on the IME or platform spec what
-   * will occur (or not occur).
-   */
-  static nsresult NotifyIME(mozilla::widget::NotificationToIME aNotification,
-                            nsIWidget* aWidget);
-  static nsresult NotifyIME(mozilla::widget::NotificationToIME aNotification,
-                            nsPresContext* aPresContext);
-
 protected:
   static nsresult OnChangeFocusInternal(nsPresContext* aPresContext,
                                         nsIContent* aContent,
@@ -117,7 +86,7 @@ protected:
   static IMEState GetNewIMEState(nsPresContext* aPresContext,
                                  nsIContent* aContent);
 
-  static void EnsureTextCompositionArray();
+  static nsIWidget* GetWidget(nsPresContext* aPresContext);
 
   static nsIContent*    sContent;
   static nsPresContext* sPresContext;
@@ -125,12 +94,6 @@ protected:
   static bool           sInSecureInputMode;
 
   static nsTextStateManager* sTextStateObserver;
-
-  // All active compositions in the process are stored by this array.
-  // When you get an item of this array and use it, please be careful.
-  // The instances in this array can be destroyed automatically if you do
-  // something to cause committing or canceling the composition.
-  static mozilla::TextCompositionArray* sTextCompositions;
 };
 
 #endif // nsIMEStateManager_h__

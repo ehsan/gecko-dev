@@ -90,6 +90,7 @@ nsBaseWidget::nsBaseWidget()
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
+, mOnDestroyCalled(false)
 , mUseAcceleratedRendering(false)
 , mForceLayersAcceleration(false)
 , mTemporarilyUseBasicLayerManager(false)
@@ -691,12 +692,8 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(bool aFullScreen)
     NS_ASSERTION(screenManager, "Unable to grab screenManager.");
     if (screenManager) {
       nsCOMPtr<nsIScreen> screen;
-      // convert dev pix to display/CSS pix for ScreenForRect
-      double scale = GetDefaultScale();
-      screenManager->ScreenForRect(mOriginalBounds->x / scale,
-                                   mOriginalBounds->y / scale,
-                                   mOriginalBounds->width / scale,
-                                   mOriginalBounds->height / scale,
+      screenManager->ScreenForRect(mOriginalBounds->x, mOriginalBounds->y,
+                                   mOriginalBounds->width, mOriginalBounds->height,
                                    getter_AddRefs(screen));
       if (screen) {
         int32_t left, top, width, height;

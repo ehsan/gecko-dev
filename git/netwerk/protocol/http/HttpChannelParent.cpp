@@ -211,7 +211,7 @@ HttpChannelParent::RecvAsyncOpen(const URIParams&           aURI,
   bool setChooseApplicationCache = chooseApplicationCache;
   if (appCacheChan && appCacheService) {
     // We might potentially want to drop this flag (that is TRUE by default)
-    // after we successfully associate the channel with an application cache
+    // after we succefully associate the channel with an application cache
     // reported by the channel child.  Dropping it here may be too early.
     appCacheChan->SetInheritApplicationCache(false);
     if (!appCacheClientID.IsEmpty()) {
@@ -225,10 +225,16 @@ HttpChannelParent::RecvAsyncOpen(const URIParams&           aURI,
     }
 
     if (setChooseApplicationCache) {
-      // This works because we've already called SetNotificationCallbacks and
-      // done mPBOverride logic by this point.
-      appCacheChan->SetChooseApplicationCache(
-            NS_ShouldCheckAppCache(uri, NS_UsePrivateBrowsing(mChannel)));
+      nsCOMPtr<nsIOfflineCacheUpdateService> offlineUpdateService =
+        do_GetService("@mozilla.org/offlinecacheupdate-service;1", &rv);
+      if (NS_SUCCEEDED(rv)) {
+        rv = offlineUpdateService->OfflineAppAllowedForURI(uri,
+                                                           nullptr,
+                                                           &setChooseApplicationCache);
+
+        if (setChooseApplicationCache && NS_SUCCEEDED(rv))
+          appCacheChan->SetChooseApplicationCache(true);
+      }
     }
   }
 

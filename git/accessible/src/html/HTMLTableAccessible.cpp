@@ -93,25 +93,27 @@ HTMLTableCellAccessible::NativeInteractiveState() const
   return HyperTextAccessibleWrap::NativeInteractiveState() | states::SELECTABLE;
 }
 
-already_AddRefed<nsIPersistentProperties>
-HTMLTableCellAccessible::NativeAttributes()
+nsresult
+HTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    HyperTextAccessibleWrap::NativeAttributes();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = HyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // table-cell-index attribute
   TableAccessible* table = Table();
   if (!table)
-    return attributes.forget();
+    return NS_OK;
 
   int32_t rowIdx = -1, colIdx = -1;
-  nsresult rv = GetCellIndexes(rowIdx, colIdx);
-  if (NS_FAILED(rv))
-    return attributes.forget();
+  rv = GetCellIndexes(rowIdx, colIdx);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(table->CellIndexAt(rowIdx, colIdx));
-  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::tableCellIndex, stringIdx);
+  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex, stringIdx);
 
   // abbr attribute
 
@@ -130,15 +132,15 @@ HTMLTableCellAccessible::NativeAttributes()
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::abbr, abbrText);
 
   if (!abbrText.IsEmpty())
-    nsAccUtils::SetAccAttr(attributes, nsGkAtoms::abbr, abbrText);
+    nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::abbr, abbrText);
 
   // axis attribute
   nsAutoString axisText;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::axis, axisText);
   if (!axisText.IsEmpty())
-    nsAccUtils::SetAccAttr(attributes, nsGkAtoms::axis, axisText);
+    nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::axis, axisText);
 
-  return attributes.forget();
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -386,9 +388,9 @@ HTMLTableAccessible::NativeState()
 ENameValueFlag
 HTMLTableAccessible::NativeName(nsString& aName)
 {
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
+  Accessible::NativeName(aName);
   if (!aName.IsEmpty())
-    return nameFlag;
+    return eNameOK;
 
   // Use table caption as a name.
   Accessible* caption = Caption();
@@ -406,18 +408,19 @@ HTMLTableAccessible::NativeName(nsString& aName)
   return eNameOK;
 }
 
-already_AddRefed<nsIPersistentProperties>
-HTMLTableAccessible::NativeAttributes()
+nsresult
+HTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    AccessibleWrap::NativeAttributes();
+  nsresult rv = AccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (IsProbablyLayoutTable()) {
-    nsAutoString unused;
-    attributes->SetStringProperty(NS_LITERAL_CSTRING("layout-guess"),
-                                  NS_LITERAL_STRING("true"), unused);
+    nsAutoString oldValueUnused;
+    aAttributes->SetStringProperty(NS_LITERAL_CSTRING("layout-guess"),
+                                   NS_LITERAL_STRING("true"), oldValueUnused);
   }
 
-  return attributes.forget();
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -959,7 +962,7 @@ HTMLTableAccessible::HasDescendant(const nsAString& aTagName, bool aAllowEmpty)
   nsCOMPtr<nsIDOMElement> tableElt(do_QueryInterface(mContent));
   NS_ENSURE_TRUE(tableElt, false);
 
-  nsCOMPtr<nsIDOMHTMLCollection> nodeList;
+  nsCOMPtr<nsIDOMNodeList> nodeList;
   tableElt->GetElementsByTagName(aTagName, getter_AddRefs(nodeList));
   NS_ENSURE_TRUE(nodeList, false);
 

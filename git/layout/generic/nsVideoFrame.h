@@ -69,7 +69,7 @@ public:
                     nsReflowStatus&          aStatus);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
   virtual nsIAtom* GetType() const;

@@ -652,6 +652,8 @@ BOOL SymGetModuleInfoEspecial64(HANDLE aProcess, DWORD64 aAddr, PIMAGEHLP_MODULE
              * If it fails, then well, we have other problems.
              */
             retval = SymGetModuleInfo64(aProcess, aAddr, aModuleInfo);
+            if (!retval)
+                PrintError("SymGetModuleInfo64");
         }
     }
 

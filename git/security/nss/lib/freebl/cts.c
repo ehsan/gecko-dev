@@ -115,7 +115,7 @@ CTS_EncryptUpdate(CTSContext *cts, unsigned char *outbuf,
     if (rv != SECSuccess) {
 	return SECFailure;
     }
-    *outlen = fullblocks; /* AES low level doesn't set outlen */
+    PORT_Assert(*outlen == fullblocks);
     inbuf += fullblocks;
     inlen -= fullblocks;
     if (inlen == 0) {
@@ -140,6 +140,7 @@ CTS_EncryptUpdate(CTSContext *cts, unsigned char *outbuf,
 			blocksize, blocksize);
     PORT_Memset(lastBlock, 0, blocksize);
     if (rv == SECSuccess) {
+	PORT_Assert(tmp == blocksize);
 	*outlen = written + blocksize;
     }
     return rv;
@@ -207,19 +208,19 @@ CTS_DecryptUpdate(CTSContext *cts, unsigned char *outbuf,
      * the comment for encrypt. NOTE2: since we can't modify inbuf unless
      * inbuf and outbuf overlap, just copy inbuf to outbuf and modify it there
      */
-    pad = inlen - fullblocks;
-    if (pad != 0) {
+    pad = blocksize + (inlen - fullblocks);
+    if (pad != blocksize) {
 	if (inbuf != outbuf) {
 	    memcpy(outbuf, inbuf, inlen);
 	    /* keep the names so we logically know how we are using the
 	     * buffers */
 	    inbuf = outbuf;
 	}
-	memcpy(lastBlock, inbuf+inlen-blocksize, blocksize);
+	memcpy(lastBlock,        inbuf+inlen-blocksize-pad, blocksize);
 	/* we know inbuf == outbuf now, inbuf is declared const and can't
 	 * be the target, so use outbuf for the target here */
-	memcpy(outbuf+inlen-pad, inbuf+inlen-blocksize-pad, pad);
-	memcpy(outbuf+inlen-blocksize-pad, lastBlock, blocksize);
+	memcpy(outbuf+inlen-blocksize-pad, inbuf+inlen-pad, pad);
+	memcpy(outbuf+inlen-blocksize,     lastBlock,       blocksize);
     }
     /* save the previous to last block so we can undo the misordered
      * chaining */
@@ -232,7 +233,7 @@ CTS_DecryptUpdate(CTSContext *cts, unsigned char *outbuf,
     if (rv != SECSuccess) {
 	return SECFailure;
     }
-    *outlen = fullblocks; /* AES low level doesn't set outlen */
+    PORT_Assert(*outlen == fullblocks);
     inbuf += fullblocks;
     inlen -= fullblocks;
     if (inlen == 0) {
@@ -274,7 +275,7 @@ CTS_DecryptUpdate(CTSContext *cts, unsigned char *outbuf,
     PORT_Memcpy(outbuf, lastBlock, inlen);
     *outlen += inlen;
     /* copy Cn-1* into last buf to recover Cn-1 */
-    PORT_Memcpy(lastBlock, Cn_1, inlen);
+    PORT_Memcpy(lastBlock, Cn-1, inlen);
     /* note: because Cn and Cn-1 were out of order, our pointer to Pn also
      * points to where Pn-1 needs to reside. From here on out read Pn in
      * the code as really Pn-1. */
@@ -283,6 +284,7 @@ CTS_DecryptUpdate(CTSContext *cts, unsigned char *outbuf,
     if (rv != SECSuccess) {
 	return SECFailure;
     }
+    PORT_Assert(tmpLen == blocksize);
     /* make up for the out of order CBC decryption */
     XOR_BLOCK(Pn, Cn_2, blocksize);
     XOR_BLOCK(Pn, Cn, blocksize);

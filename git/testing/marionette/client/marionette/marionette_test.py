@@ -43,7 +43,7 @@ class CommonTestCase(unittest.TestCase):
         return m is not None
 
     @classmethod
-    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette, testvars):
+    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette):
         """
         Adds all the tests in the specified file to the specified suite.
         """
@@ -95,11 +95,10 @@ class MarionetteTestCase(CommonTestCase):
         self.extra_emulator_index = -1
         self.methodName = methodName
         self.filepath = filepath
-        self.testvars = kwargs.pop('testvars', None)
         CommonTestCase.__init__(self, methodName, **kwargs)
 
     @classmethod
-    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette, testvars):
+    def add_tests_to_suite(cls, mod_name, filepath, suite, testloader, marionette):
         test_mod = imp.load_source(mod_name, filepath)
 
         for name in dir(test_mod):
@@ -110,8 +109,8 @@ class MarionetteTestCase(CommonTestCase):
                 for testname in testnames:
                     suite.addTest(obj(weakref.ref(marionette),
                                   methodName=testname,
-                                  filepath=filepath,
-                                  testvars=testvars))
+                                  filepath=filepath))
+
     def setUp(self):
         CommonTestCase.setUp(self)
         self.marionette.execute_script("log('TEST-START: %s:%s')" % 
@@ -160,7 +159,6 @@ class MarionetteJSTestCase(CommonTestCase):
         if self.marionette.session is None:
             self.marionette.start_session()
         self.marionette.execute_script("log('TEST-START: %s');" % self.jsFile.replace('\\', '\\\\'))
-
         f = open(self.jsFile, 'r')
         js = f.read()
         args = []

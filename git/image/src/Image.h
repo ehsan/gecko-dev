@@ -15,6 +15,10 @@ namespace image {
 class Image : public imgIContainer
 {
 public:
+  // From NS_DECL_IMGICONTAINER:
+  NS_IMETHOD GetAnimationMode(uint16_t *aAnimationMode);
+  NS_IMETHOD SetAnimationMode(uint16_t aAnimationMode);
+
   imgStatusTracker& GetStatusTracker() { return *mStatusTracker; }
 
   /**
@@ -97,11 +101,6 @@ public:
 
 protected:
   Image(imgStatusTracker* aStatusTracker);
-
-  // Shared functionality for implementors of imgIContainer. Every
-  // implementation of attribute animationMode should forward here.
-  nsresult GetAnimationModeInternal(uint16_t *aAnimationMode);
-  nsresult SetAnimationModeInternal(uint16_t aAnimationMode);
 
   /**
    * Decides whether animation should or should not be happening,

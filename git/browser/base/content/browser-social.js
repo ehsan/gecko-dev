@@ -178,24 +178,6 @@ let SocialUI = {
 
   haveLoggedInUser: function SocialUI_haveLoggedInUser() {
     return !!(Social.provider && Social.provider.profile && Social.provider.profile.userName);
-  },
-
-  closeSocialPanelForLinkTraversal: function (target, linkNode) {
-    // No need to close the panel if this traversal was not retargeted
-    if (target == "" || target == "_self")
-      return;
-
-    // Check to see whether this link traversal was in a social panel
-    let win = linkNode.ownerDocument.defaultView;
-    let container = win.QueryInterface(Ci.nsIInterfaceRequestor)
-                                  .getInterface(Ci.nsIWebNavigation)
-                                  .QueryInterface(Ci.nsIDocShell)
-                                  .chromeEventHandler;
-    let containerParent = container.parentNode;
-    if (containerParent.classList.contains("social-panel") &&
-        containerParent instanceof Ci.nsIDOMXULPopupElement) {
-      containerParent.hidePopup();
-    }
   }
 }
 
@@ -645,7 +627,7 @@ var SocialToolbar = {
     let tbi = document.getElementById("social-toolbar-item");
     tbi.hidden = !Social.uiVisible;
     if (!SocialUI.haveLoggedInUser()) {
-      let parent = document.getElementById("social-notification-panel");
+      let parent = document.getElementById("social-notification-box");
       while (parent.hasChildNodes())
         parent.removeChild(parent.firstChild);
 
@@ -680,6 +662,7 @@ var SocialToolbar = {
     let icons = provider.ambientNotificationIcons;
     let iconNames = Object.keys(icons);
     let iconBox = document.getElementById("social-toolbar-item");
+    let notifBox = document.getElementById("social-notification-box");
     let panel = document.getElementById("social-notification-panel");
     panel.hidden = false;
 
@@ -797,7 +780,7 @@ var SocialToolbar = {
       if (image.getAttribute("src") != icon.iconURL)
         image.setAttribute("src", icon.iconURL);
     }
-    panel.appendChild(notificationFrames);
+    notifBox.appendChild(notificationFrames);
     iconBox.appendChild(iconContainers);
 
     for (let frame of createdFrames) {
@@ -814,12 +797,13 @@ var SocialToolbar = {
 
   showAmbientPopup: function SocialToolbar_showAmbientPopup(aToolbarButtonBox) {
     let panel = document.getElementById("social-notification-panel");
+    let notifBox = document.getElementById("social-notification-box");
     let notificationFrameId = aToolbarButtonBox.getAttribute("notificationFrameId");
     let notificationFrame = document.getElementById(notificationFrameId);
 
     // Clear dimensions on all browsers so the panel size will
     // only use the selected browser.
-    let frameIter = panel.firstElementChild;
+    let frameIter = notifBox.firstElementChild;
     while (frameIter) {
       frameIter.collapsed = (frameIter != notificationFrame);
       frameIter = frameIter.nextElementSibling;

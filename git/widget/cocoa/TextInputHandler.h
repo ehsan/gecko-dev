@@ -52,7 +52,7 @@ enum
 class TISInputSourceWrapper
 {
 public:
-  static TISInputSourceWrapper& CurrentInputSource();
+  static TISInputSourceWrapper& CurrentKeyboardLayout();
 
   TISInputSourceWrapper()
   {
@@ -102,27 +102,13 @@ public:
   void InitByCurrentKeyboardLayout();
   void InitByCurrentASCIICapableInputSource();
   void InitByCurrentASCIICapableKeyboardLayout();
-  void InitByCurrentInputMethodKeyboardLayoutOverride();
   void InitByTISInputSourceRef(TISInputSourceRef aInputSource);
   void InitByLanguage(CFStringRef aLanguage);
 
-  /**
-   * If the instance is initialized with a keyboard layout input source,
-   * returns it.
-   * If the instance is initialized with an IME mode input source, the result
-   * references the keyboard layout for the IME mode.  However, this can be
-   * initialized only when the IME mode is actually selected.  I.e, if IME mode
-   * input source is initialized with LayoutID or SourceID, this returns null.
-   */
-  TISInputSourceRef GetKeyboardLayoutInputSource() const
-  {
-    return mKeyboardLayout;
-  }
   const UCKeyboardLayout* GetUCKeyboardLayout();
 
   bool IsOpenedIMEMode();
   bool IsIMEMode();
-  bool IsKeyboardLayout();
 
   bool IsASCIICapable()
   {
@@ -189,7 +175,7 @@ public:
   }
 
   bool IsForRTLLanguage();
-  bool IsInitializedByCurrentInputSource();
+  bool IsInitializedByCurrentKeyboardLayout();
 
   enum {
     // 40 is an actual result of the ::LMGetKbdType() when we connect an
@@ -287,7 +273,6 @@ protected:
   bool GetStringProperty(const CFStringRef aKey, nsAString &aStr);
 
   TISInputSourceRef mInputSource;
-  TISInputSourceRef mKeyboardLayout;
   CFArrayRef mInputSourceList;
   const UCKeyboardLayout* mUCKeyboardLayout;
   int8_t mIsRTL;
@@ -642,7 +627,7 @@ public:
   static void ConvertCocoaKeyEventToNPCocoaEvent(NSEvent* aCocoaEvent,
                                                  NPCocoaEvent& aPluginEvent);
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
 
   /**
    * InstallPluginKeyEventsHandler() is called when initializing process.
@@ -667,7 +652,7 @@ public:
     mPluginTSMInComposition = aInComposition;
   }
 
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 
 protected:
   bool mIgnoreNextKeyUpEvent;
@@ -675,13 +660,35 @@ protected:
   PluginTextInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   ~PluginTextInputHandler();
 
+#ifndef NP_NO_CARBON
+
+  /**
+   * ConvertCocoaKeyEventToCarbonEvent() converts aCocoaKeyEvent to
+   * aCarbonKeyEvent.
+   *
+   * @param aCocoaKeyEvent        A Cocoa key event.
+   * @param aCarbonKeyEvent       Converted Carbon event from aCocoaEvent.
+   * @param aMakeKeyDownEventIfNSFlagsChanged
+   *                              If aCocoaKeyEvent isn't NSFlagsChanged event,
+   *                              this is ignored.  Otherwise, i.e., if
+   *                              aCocoaKeyEvent is NSFlagsChanged event,
+   *                              set TRUE if you need a keydown event.
+   *                              Otherwise, Set FALSE for a keyup event.
+   */
+  static void ConvertCocoaKeyEventToCarbonEvent(
+                NSEvent* aCocoaKeyEvent,
+                EventRecord& aCarbonKeyEvent,
+                bool aMakeKeyDownEventIfNSFlagsChanged = false);
+
+#endif // #ifndef NP_NO_CARBON
+
 private:
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
   TSMDocumentID mPluginTSMDoc;
 
   bool mPluginTSMInComposition;
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 
   bool mPluginComplexTextInputRequested;
 
@@ -704,7 +711,7 @@ private:
    */
   bool IsInPluginComposition();
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
 
   /**
    * Create a TSM document for use with plugins, so that we can support IME in
@@ -728,6 +735,17 @@ private:
   void HandleCarbonPluginKeyEvent(EventRef aKeyEvent);
 
   /**
+   * ConvertUnicodeToCharCode() converts aUnichar to native encoded string.
+   *
+   * @param aUniChar              A unicode character.
+   * @param aOutChar              Native encoded string for aUniChar.
+   * @return                      TRUE if the converting succeeded.
+   *                              Otherwise, FALSE.
+   */
+  static bool ConvertUnicodeToCharCode(PRUnichar aUniChar,
+                                         unsigned char* aOutChar);
+
+  /**
    * Target for text services events sent as the result of calls made to
    * TSMProcessRawKeyEvent() in HandleKeyDownEventForPlugin() when a plugin has
    * the focus.  The calls to TSMProcessRawKeyEvent() short-circuit Cocoa-based
@@ -742,7 +760,7 @@ private:
 
   static EventHandlerRef sPluginKeyEventsHandler;
 
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 };
 
 /**
@@ -1097,46 +1115,6 @@ public:
   }
 
 protected:
-  // Stores the association of device dependent modifier flags with a modifier
-  // keyCode.  Being device dependent, this association may differ from one kind
-  // of hardware to the next.
-  struct ModifierKey
-  {
-    NSUInteger flags;
-    unsigned short keyCode;
-
-    ModifierKey(NSUInteger aFlags, unsigned short aKeyCode) :
-      flags(aFlags), keyCode(aKeyCode)
-    {
-    }
-
-    NSUInteger GetDeviceDependentFlags() const
-    {
-      return (flags & ~NSDeviceIndependentModifierFlagsMask);
-    }
-
-    NSUInteger GetDeviceIndependentFlags() const
-    {
-      return (flags & NSDeviceIndependentModifierFlagsMask);
-    }
-  };
-  typedef nsTArray<ModifierKey> ModifierKeyArray;
-  ModifierKeyArray mModifierKeys;
-
-  /**
-   * GetModifierKeyForNativeKeyCode() returns the stored ModifierKey for
-   * the key.
-   */
-  ModifierKey*
-    GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const;
-
-  /**
-   * GetModifierKeyForDeviceDependentFlags() returns the stored ModifierKey for
-   * the device dependent flags.
-   */
-  ModifierKey*
-    GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const;
-
   /**
    * DispatchKeyEventForFlagsChanged() dispatches keydown event or keyup event
    * for the aNativeEvent.

@@ -11,10 +11,8 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-#ifndef MOZ_WIDGET_GONK
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-#endif
-Cu.import("resource://gre/modules/ctypes.jsm");
+Cu.import("resource://gre/modules/ctypes.jsm"); 
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -381,11 +379,9 @@ TelemetryPing.prototype = {
       }
     }
 
-#ifndef MOZ_WIDGET_GONK
     let theme = LightweightThemeManager.currentTheme;
     if (theme)
       ret.persona = theme.id;
-#endif
 
     if (this._addons)
       ret.addons = this._addons;

@@ -424,8 +424,8 @@ NotificationController::CoalesceEvents()
 
         // Coalesce events by sibling targets (this is a case for reorder
         // events).
-        if (thisEvent->mNode->GetParentNode() ==
-            tailEvent->mNode->GetParentNode()) {
+        if (thisEvent->mNode->GetNodeParent() ==
+            tailEvent->mNode->GetNodeParent()) {
           tailEvent->mEventRule = thisEvent->mEventRule;
           return;
         }
@@ -521,7 +521,7 @@ NotificationController::ApplyToSiblings(uint32_t aStart, uint32_t aEnd,
     AccEvent* accEvent = mEvents[index];
     if (accEvent->mEventType == aEventType &&
         accEvent->mEventRule != AccEvent::eDoNotEmit && accEvent->mNode &&
-        accEvent->mNode->GetParentNode() == aNode->GetParentNode()) {
+        accEvent->mNode->GetNodeParent() == aNode->GetNodeParent()) {
       accEvent->mEventRule = aEventRule;
     }
   }
@@ -705,7 +705,7 @@ NotificationController::TextEnumerator(nsCOMPtrHashKey<nsIContent>* aEntry,
 
   // If the text node is not in tree or doesn't have frame then this case should
   // have been handled already by content removal notifications.
-  nsINode* containerNode = textNode->GetParentNode();
+  nsINode* containerNode = textNode->GetNodeParent();
   if (!containerNode) {
     NS_ASSERTION(!textAcc,
                  "Text node was removed but accessible is kept alive!");

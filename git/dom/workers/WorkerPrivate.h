@@ -675,7 +675,7 @@ public:
   SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp, bool aIsInterval);
 
   bool
-  ClearTimeout(JSContext* aCx, uint32_t aId);
+  ClearTimeout(JSContext* aCx, uint32 aId);
 
   bool
   RunExpiredTimeouts(JSContext* aCx);

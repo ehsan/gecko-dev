@@ -1440,7 +1440,11 @@ __try {
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  nsCOMPtr<nsIPersistentProperties> attributes = Attributes();
+  nsCOMPtr<nsIPersistentProperties> attributes;
+  nsresult rv = GetAttributes(getter_AddRefs(attributes));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   return ConvertToIA2Attributes(attributes, aAttributes);
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }

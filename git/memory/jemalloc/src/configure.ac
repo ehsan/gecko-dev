@@ -237,7 +237,6 @@ dnl Define cpp macros in CPPFLAGS, rather than doing AC_DEFINE(macro), since the
 dnl definitions need to be seen before any headers are included, which is a pain
 dnl to make happen otherwise.
 default_munmap="1"
-JEMALLOC_USABLE_SIZE_CONST="const"
 case "${host}" in
   *-*-darwin*)
 	CFLAGS="$CFLAGS"
@@ -263,7 +262,6 @@ case "${host}" in
 	abi="elf"
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
-	JEMALLOC_USABLE_SIZE_CONST=""
 	default_munmap="0"
 	;;
   *-*-netbsd*)
@@ -325,7 +323,6 @@ case "${host}" in
 	abi="elf"
 	;;
 esac
-AC_DEFINE_UNQUOTED([JEMALLOC_USABLE_SIZE_CONST], [$JEMALLOC_USABLE_SIZE_CONST])
 AC_SUBST([abi])
 AC_SUBST([RPATH])
 AC_SUBST([LD_PRELOAD_VAR])

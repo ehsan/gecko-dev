@@ -716,7 +716,7 @@ JS_FRIEND_API(bool) NeedRelaxedRootChecks() { return false; }
 
 static const JSSecurityCallbacks NullSecurityCallbacks = { };
 
-JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
+JSRuntime::JSRuntime()
   : atomsCompartment(NULL),
 #ifdef JS_THREADSAFE
     ownerThread_(NULL),
@@ -830,9 +830,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
 #ifdef JS_THREADSAFE
-#ifdef JS_ION
-    workerThreadState(NULL),
-#endif
     sourceCompressorThread(thisFromCtor()),
 #endif
     defaultFreeOp_(thisFromCtor(), false),
@@ -863,8 +860,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     ionStackLimit(0),
     ionActivation(NULL),
     ionPcScriptCache(NULL),
-    ionReturnOverride_(MagicValue(JS_ARG_POISON)),
-    useHelperThreads_(useHelperThreads)
+    ionReturnOverride_(MagicValue(JS_ARG_POISON))
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
@@ -934,6 +930,12 @@ JSRuntime::init(uint32_t maxbytes)
         return false;
 
 #ifdef JS_THREADSAFE
+# ifdef JS_ION
+    workerThreadState = this->new_<WorkerThreadState>();
+    if (!workerThreadState || !workerThreadState->init(this))
+        return false;
+# endif
+
     if (!sourceCompressorThread.init())
         return false;
 #endif
@@ -967,8 +969,7 @@ JSRuntime::~JSRuntime()
 
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
-    if (workerThreadState)
-        js_delete(workerThreadState);
+    js_delete(workerThreadState);
 # endif
     sourceCompressorThread.finish();
 #endif
@@ -1061,7 +1062,7 @@ JSRuntime::assertValidThread() const
 #endif  /* JS_THREADSAFE */
 
 JS_PUBLIC_API(JSRuntime *)
-JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads)
+JS_NewRuntime(uint32_t maxbytes)
 {
     if (!js_NewRuntimeWasCalled) {
 #ifdef DEBUG
@@ -1099,7 +1100,7 @@ JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads)
         js_NewRuntimeWasCalled = JS_TRUE;
     }
 
-    JSRuntime *rt = js_new<JSRuntime>(useHelperThreads);
+    JSRuntime *rt = js_new<JSRuntime>();
     if (!rt)
         return NULL;
 
@@ -1603,7 +1604,6 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         AutoCompartment ac(cx, origobj);
         if (!JS_WrapObject(cx, newIdentityWrapper.address()))
             MOZ_CRASH();
-        JS_ASSERT(Wrapper::wrappedObject(newIdentityWrapper) == newIdentity);
         if (!origobj->swap(cx, newIdentityWrapper))
             MOZ_CRASH();
         origobj->compartment()->crossCompartmentWrappers.put(ObjectValue(*newIdentity), origv);
@@ -1693,7 +1693,6 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         RootedObject wrapperGuts(cx, targetobj);
         if (!JS_WrapObject(cx, wrapperGuts.address()))
             MOZ_CRASH();
-        JS_ASSERT(Wrapper::wrappedObject(wrapperGuts) == targetobj);
         if (!origwrapper->swap(cx, wrapperGuts))
             MOZ_CRASH();
         origwrapper->compartment()->crossCompartmentWrappers.put(ObjectValue(*targetobj),
@@ -7226,8 +7225,6 @@ JS_IsIdentifier(JSContext *cx, JSString *str, JSBool *isIdentifier)
 JS_PUBLIC_API(JSBool)
 JS_DescribeScriptedCaller(JSContext *cx, JSScript **script, unsigned *lineno)
 {
-    AutoAssertNoGC nogc;
-
     if (script)
         *script = NULL;
     if (lineno)

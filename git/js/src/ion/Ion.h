@@ -252,10 +252,8 @@ void MarkFromIon(JSCompartment *comp, Value *vp);
 void ToggleBarriers(JSCompartment *comp, bool needs);
 
 class IonBuilder;
-class MIRGenerator;
-class LIRGraph;
 
-LIRGraph *CompileBackEnd(MIRGenerator *mir);
+bool CompileBackEnd(IonBuilder *builder);
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
 bool TestIonCompile(JSContext *cx, JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing);

@@ -12,6 +12,7 @@
 #include "nsSVGAttrTearoffTable.h"
 #include "SVGPathSegUtils.h"
 #include "mozilla/dom/SVGPathSegListBinding.h"
+#include "dombindings.h"
 #include "nsContentUtils.h"
 
 // See the comment in this file's header.
@@ -83,8 +84,22 @@ DOMSVGPathSegList::~DOMSVGPathSegList()
 JSObject*
 DOMSVGPathSegList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::SVGPathSegListBinding::Wrap(cx, scope, this,
-                                                   triedToWrap);
+  JSObject* obj = mozilla::dom::SVGPathSegListBinding::Wrap(cx, scope, this,
+                                                            triedToWrap);
+  if (obj || *triedToWrap) {
+    return obj;
+  }
+
+  *triedToWrap = true;
+  return mozilla::dom::oldproxybindings::SVGPathSegList::create(cx, scope,
+                                                                this);
+}
+
+nsIDOMSVGPathSeg*
+DOMSVGPathSegList::GetItemAt(uint32_t aIndex)
+{
+  ErrorResult rv;
+  return GetItem(aIndex, rv);
 }
 
 void

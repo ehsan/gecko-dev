@@ -139,9 +139,9 @@ private:
   nsresult ConstructPrefixSet(AddPrefixArray& aAddPrefixes);
 
   struct Header {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t numCompletions;
+    uint32 magic;
+    uint32 version;
+    uint32 numCompletions;
   };
   Header mHeader;
 

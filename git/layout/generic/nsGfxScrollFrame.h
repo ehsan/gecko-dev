@@ -545,7 +545,7 @@ public:
   bool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
 protected:

@@ -40,14 +40,7 @@ public:
    */
   DocAccessible* GetDocAccessible(const nsIPresShell* aPresShell)
   {
-    if (!aPresShell)
-      return nullptr;
-
-    DocAccessible* doc = aPresShell->GetDocAccessible();
-    if (doc)
-      return doc;
-
-    return GetDocAccessible(aPresShell->GetDocument());
+    return aPresShell ? GetDocAccessible(aPresShell->GetDocument()) : nullptr;
   }
 
   /**

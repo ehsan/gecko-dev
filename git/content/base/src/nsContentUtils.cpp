@@ -44,6 +44,7 @@
 #include "nsIParser.h"
 #include "nsIFragmentContentSink.h"
 #include "nsIContentSink.h"
+#include "nsContentList.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLElement.h"
@@ -1675,7 +1676,7 @@ nsContentUtils::InProlog(nsINode *aNode)
 {
   NS_PRECONDITION(aNode, "missing node to nsContentUtils::InProlog");
 
-  nsINode* parent = aNode->GetParentNode();
+  nsINode* parent = aNode->GetNodeParent();
   if (!parent || !parent->IsNodeOfType(nsINode::eDOCUMENT)) {
     return false;
   }
@@ -1718,6 +1719,23 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
   if (JSObject* global = JS_GetGlobalObject(cx)) {
     JS_CALL_OBJECT_TRACER(aTrc, global, "safe context");
   }
+}
+
+nsresult
+nsContentUtils::ReparentContentWrappersInScope(JSContext *cx,
+                                               nsIScriptGlobalObject *aOldScope,
+                                               nsIScriptGlobalObject *aNewScope)
+{
+  JSObject *oldScopeObj = aOldScope->GetGlobalJSObject();
+  JSObject *newScopeObj = aNewScope->GetGlobalJSObject();
+
+  if (!newScopeObj || !oldScopeObj) {
+    // We can't really do anything without the JSObjects.
+
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  return sXPConnect->MoveWrappers(cx, oldScopeObj, newScopeObj);
 }
 
 nsPIDOMWindow *
@@ -1811,7 +1829,7 @@ nsContentUtils::GetCrossDocParentNode(nsINode* aChild)
 {
   NS_PRECONDITION(aChild, "The child is null!");
 
-  nsINode* parent = aChild->GetParentNode();
+  nsINode* parent = aChild->GetNodeParent();
   if (parent || !aChild->IsNodeOfType(nsINode::eDOCUMENT))
     return parent;
 
@@ -1831,7 +1849,7 @@ nsContentUtils::ContentIsDescendantOf(const nsINode* aPossibleDescendant,
   do {
     if (aPossibleDescendant == aPossibleAncestor)
       return true;
-    aPossibleDescendant = aPossibleDescendant->GetParentNode();
+    aPossibleDescendant = aPossibleDescendant->GetNodeParent();
   } while (aPossibleDescendant);
 
   return false;
@@ -1862,7 +1880,7 @@ nsContentUtils::GetAncestors(nsINode* aNode,
 {
   while (aNode) {
     aArray.AppendElement(aNode);
-    aNode = aNode->GetParentNode();
+    aNode = aNode->GetNodeParent();
   }
   return NS_OK;
 }
@@ -1941,11 +1959,11 @@ nsContentUtils::GetCommonAncestor(nsINode* aNode1,
   nsAutoTArray<nsINode*, 30> parents1, parents2;
   do {
     parents1.AppendElement(aNode1);
-    aNode1 = aNode1->GetParentNode();
+    aNode1 = aNode1->GetNodeParent();
   } while (aNode1);
   do {
     parents2.AppendElement(aNode2);
-    aNode2 = aNode2->GetParentNode();
+    aNode2 = aNode2->GetNodeParent();
   } while (aNode2);
 
   // Find where the parent chain differs
@@ -1982,11 +2000,11 @@ nsContentUtils::ComparePoints(nsINode* aParent1, int32_t aOffset1,
   nsINode* node2 = aParent2;
   do {
     parents1.AppendElement(node1);
-    node1 = node1->GetParentNode();
+    node1 = node1->GetNodeParent();
   } while (node1);
   do {
     parents2.AppendElement(node2);
-    node2 = node2->GetParentNode();
+    node2 = node2->GetNodeParent();
   } while (node2);
 
   uint32_t pos1 = parents1.Length() - 1;
@@ -2340,30 +2358,16 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     // Now start at aContent and append the indices of it and all its ancestors
     // in their containers.  That should at least pin down its position in the
     // DOM...
-    nsINode* parent = aContent->GetParentNode();
+    nsINode* parent = aContent->GetNodeParent();
     nsINode* content = aContent;
     while (parent) {
       KeyAppendInt(parent->IndexOf(content), aKey);
       content = parent;
-      parent = content->GetParentNode();
+      parent = content->GetNodeParent();
     }
   }
 
   return NS_OK;
-}
-
-// static
-nsIPrincipal*
-nsContentUtils::GetSubjectPrincipal()
-{
-  nsCOMPtr<nsIPrincipal> subject;
-  sSecurityManager->GetSubjectPrincipal(getter_AddRefs(subject));
-
-  // When the ssm says the subject is null, that means system principal.
-  if (!subject)
-    sSecurityManager->GetSystemPrincipal(getter_AddRefs(subject));
-
-  return subject;
 }
 
 // static
@@ -3858,7 +3862,7 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
         continue;
       }
     }
-    aNode = aNode->GetParentNode();
+    aNode = aNode->GetNodeParent();
   }
 
   return false;
@@ -3882,7 +3886,7 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
                                      nsIDocument* aOwnerDoc)
 {
   NS_PRECONDITION(aChild, "Missing child");
-  NS_PRECONDITION(aChild->GetParentNode() == aParent, "Wrong parent");
+  NS_PRECONDITION(aChild->GetNodeParent() == aParent, "Wrong parent");
   NS_PRECONDITION(aChild->OwnerDoc() == aOwnerDoc, "Wrong owner-doc");
 
   // This checks that IsSafeToRunScript is true since we don't want to fire
@@ -3931,7 +3935,7 @@ ListenerEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
     nsINode* n = static_cast<nsINode*>(entry->mListenerManager->GetTarget());
     if (n && n->IsInDoc() &&
         nsCCUncollectableMarker::InGeneration(n->OwnerDoc()->GetMarkedCCGeneration())) {
-      entry->mListenerManager->MarkForCC();
+      entry->mListenerManager->UnmarkGrayJSListeners();
     }
   }
   return PL_DHASH_NEXT;
@@ -4382,7 +4386,7 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
       nsCOMPtr<nsINode> child;
       bool skipFirst = aTryReuse;
       for (child = aContent->GetFirstChild();
-           child && child->GetParentNode() == aContent;
+           child && child->GetNodeParent() == aContent;
            child = child->GetNextSibling()) {
         if (skipFirst && child->IsNodeOfType(nsINode::eTEXT)) {
           skipFirst = false;
@@ -6244,10 +6248,9 @@ struct ClassMatchingInfo {
   nsCaseTreatment mCaseTreatment;
 };
 
-// static
-bool
-nsContentUtils::MatchClassNames(nsIContent* aContent, int32_t aNamespaceID,
-                                nsIAtom* aAtom, void* aData)
+static bool
+MatchClassNames(nsIContent* aContent, int32_t aNamespaceID, nsIAtom* aAtom,
+                void* aData)
 {
   // We can't match if there are no class names
   const nsAttrValue* classAttr = aContent->GetClasses();
@@ -6273,23 +6276,23 @@ nsContentUtils::MatchClassNames(nsIContent* aContent, int32_t aNamespaceID,
   return true;
 }
 
-// static
-void
-nsContentUtils::DestroyClassNameArray(void* aData)
+static void
+DestroyClassNameArray(void* aData)
 {
   ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
   delete info;
 }
 
-// static
-void*
-nsContentUtils::AllocClassMatchingInfo(nsINode* aRootNode,
-                                       const nsString* aClasses)
+static void*
+AllocClassMatchingInfo(nsINode* aRootNode,
+                       const nsString* aClasses)
 {
   nsAttrValue attrValue;
   attrValue.ParseAtomArray(*aClasses);
   // nsAttrValue::Equals is sensitive to order, so we'll send an array
   ClassMatchingInfo* info = new ClassMatchingInfo;
+  NS_ENSURE_TRUE(info, nullptr);
+
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
     info->mClasses.SwapElements(*(attrValue.GetAtomArrayValue()));
   } else if (attrValue.Type() == nsAttrValue::eAtom) {
@@ -6303,6 +6306,26 @@ nsContentUtils::AllocClassMatchingInfo(nsINode* aRootNode,
 }
 
 // static
+
+nsresult
+nsContentUtils::GetElementsByClassName(nsINode* aRootNode,
+                                       const nsAString& aClasses,
+                                       nsIDOMNodeList** aReturn)
+{
+  NS_PRECONDITION(aRootNode, "Must have root node");
+  
+  nsContentList* elements =
+    NS_GetFuncStringHTMLCollection(aRootNode, MatchClassNames,
+                                   DestroyClassNameArray,
+                                   AllocClassMatchingInfo,
+                                   aClasses).get();
+  NS_ENSURE_TRUE(elements, NS_ERROR_OUT_OF_MEMORY);
+
+  // Transfer ownership
+  *aReturn = elements;
+
+  return NS_OK;
+}
 
 #ifdef DEBUG
 class DebugWrapperTraversalCallback : public nsCycleCollectionTraversalCallback
@@ -6352,7 +6375,7 @@ public:
   {
   }
 
-  NS_IMETHOD_(void) NoteWeakMapping(void* map, void* key, void* kdelegate, void* val)
+  NS_IMETHOD_(void) NoteWeakMapping(void* map, void* key, void* val)
   {
   }
 
@@ -6502,8 +6525,8 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-nsIPresShell*
-nsContentUtils::FindPresShellForDocument(nsIDocument* aDoc)
+nsIWidget *
+nsContentUtils::WidgetForDocument(nsIDocument *aDoc)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -6512,35 +6535,25 @@ nsContentUtils::FindPresShellForDocument(nsIDocument* aDoc)
   }
 
   nsIPresShell* shell = doc->GetShell();
-  if (shell) {
-    return shell;
-  }
-
   nsCOMPtr<nsISupports> container = doc->GetContainer();
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem = do_QueryInterface(container);
-  while (docShellTreeItem) {
+  while (!shell && docShellTreeItem) {
     // We may be in a display:none subdocument, or we may not have a presshell
     // created yet.
     // Walk the docshell tree to find the nearest container that has a presshell,
-    // and return that.
+    // and find the root widget from that.
     nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(docShellTreeItem);
     nsCOMPtr<nsIPresShell> presShell;
     docShell->GetPresShell(getter_AddRefs(presShell));
     if (presShell) {
-      return presShell;
+      shell = presShell;
+    } else {
+      nsCOMPtr<nsIDocShellTreeItem> parent;
+      docShellTreeItem->GetParent(getter_AddRefs(parent));
+      docShellTreeItem = parent;
     }
-    nsCOMPtr<nsIDocShellTreeItem> parent;
-    docShellTreeItem->GetParent(getter_AddRefs(parent));
-    docShellTreeItem = parent;
   }
 
-  return nullptr;
-}
-
-nsIWidget*
-nsContentUtils::WidgetForDocument(nsIDocument* aDoc)
-{
-  nsIPresShell* shell = FindPresShellForDocument(aDoc);
   if (shell) {
     nsIViewManager* VM = shell->GetViewManager();
     if (VM) {

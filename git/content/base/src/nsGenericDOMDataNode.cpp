@@ -114,19 +114,43 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsGenericDOMDataNode,
                                               nsNodeUtils::LastRelease(this))
 
 
-void
-nsGenericDOMDataNode::GetNodeValueInternal(nsAString& aNodeValue)
+nsresult
+nsGenericDOMDataNode::GetNodeValue(nsAString& aNodeValue)
 {
-  DebugOnly<nsresult> rv = GetData(aNodeValue);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "GetData() failed!");
+  return GetData(aNodeValue);
 }
 
-void
-nsGenericDOMDataNode::SetNodeValueInternal(const nsAString& aNodeValue,
-                                           ErrorResult& aError)
+nsresult
+nsGenericDOMDataNode::SetNodeValue(const nsAString& aNodeValue)
 {
-  aError = SetTextInternal(0, mText.GetLength(), aNodeValue.BeginReading(),
-                           aNodeValue.Length(), true);
+  return SetTextInternal(0, mText.GetLength(), aNodeValue.BeginReading(),
+                         aNodeValue.Length(), true);
+}
+
+nsresult
+nsGenericDOMDataNode::GetNamespaceURI(nsAString& aNamespaceURI)
+{
+  SetDOMStringToNull(aNamespaceURI);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetPrefix(nsAString& aPrefix)
+{
+  SetDOMStringToNull(aPrefix);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::IsSupported(const nsAString& aFeature,
+                                  const nsAString& aVersion,
+                                  bool* aReturn)
+{
+  *aReturn = nsContentUtils::InternalIsSupported(static_cast<nsIContent*>(this),
+                                                 aFeature, aVersion);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -722,7 +746,7 @@ nsGenericDOMDataNode::SplitData(uint32_t aOffset, nsIContent** aReturn,
     return rv;
   }
 
-  nsCOMPtr<nsINode> parent = GetParentNode();
+  nsCOMPtr<nsINode> parent = GetNodeParent();
   if (parent) {
     int32_t insertionIndex = parent->IndexOf(this);
     if (aCloneAfterOriginal) {

@@ -26,23 +26,15 @@ const SELF_DESTRUCT_TIMEOUT =
       Services.prefs.getIntPref("b2g.update.self-destruct-timeout");
 
 const APPLY_IDLE_TIMEOUT_SECONDS = APPLY_IDLE_TIMEOUT / 1000;
-const NETWORK_ERROR_OFFLINE = 111;
+
 
 XPCOMUtils.defineLazyServiceGetter(Services, "aus",
                                    "@mozilla.org/updates/update-service;1",
                                    "nsIApplicationUpdateService");
 
-XPCOMUtils.defineLazyServiceGetter(Services, "um",
-                                   "@mozilla.org/updates/update-manager;1",
-                                   "nsIUpdateManager");
-
 XPCOMUtils.defineLazyServiceGetter(Services, "idle",
                                    "@mozilla.org/widget/idleservice;1",
                                    "nsIIdleService");
-
-XPCOMUtils.defineLazyServiceGetter(Services, "settings",
-                                   "@mozilla.org/settingsService;1",
-                                   "nsISettingsService");
 
 function UpdatePrompt() {
   this.wrappedJSObject = this;
@@ -51,7 +43,6 @@ function UpdatePrompt() {
 UpdatePrompt.prototype = {
   classID: Components.ID("{88b3eb21-d072-4e3b-886d-f89d8c49fe59}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdatePrompt,
-                                         Ci.nsIUpdateCheckListener,
                                          Ci.nsIRequestObserver,
                                          Ci.nsIProgressEventSink,
                                          Ci.nsIObserver]),
@@ -97,51 +88,13 @@ UpdatePrompt.prototype = {
   },
 
   showUpdateError: function UP_showUpdateError(aUpdate) {
-    log("Update error, state: " + aUpdate.state + ", errorCode: " +
-        aUpdate.errorCode);
-
-    this.sendUpdateEvent("update-error", aUpdate);
-    this.setUpdateStatus(aUpdate.statusText);
+    if (aUpdate.state == "failed") {
+      log("Failed to download update, errorCode: " + aUpdate.errorCode);
+    }
   },
 
   showUpdateHistory: function UP_showUpdateHistory(aParent) { },
   showUpdateInstalled: function UP_showUpdateInstalled() { },
-
-  // nsIUpdateCheckListener
-
-  onCheckComplete: function UP_onCheckComplete(request, updates, updateCount) {
-    if (Services.um.activeUpdate) {
-      return;
-    }
-
-    if (updateCount == 0) {
-      this.setUpdateStatus("no-updates");
-      return;
-    }
-
-    let update = Services.aus.selectUpdate(updates, updateCount);
-    if (!update) {
-      this.setUpdateStatus("already-latest-version");
-      return;
-    }
-
-    this.setUpdateStatus("check-complete");
-    this.showUpdateAvailable(update);
-  },
-
-  onError: function UP_onError(request, update) {
-    if (update.errorCode == NETWORK_ERROR_OFFLINE) {
-      this.setUpdateStatus("retry-when-online");
-    }
-
-    Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
-    Services.aus.onError(request, update);
-  },
-
-  onProgress: function UP_onProgress(request, position, totalSize) {
-    Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
-    Services.aus.onProgress(request, position, totalSize);
-  },
 
   // Custom functions
 
@@ -153,13 +106,6 @@ UpdatePrompt.prototype = {
     this._waitingForIdle = true;
     Services.idle.addIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
     Services.obs.addObserver(this, "quit-application", false);
-  },
-
-  setUpdateStatus: function UP_setUpdateStatus(aStatus) {
-    log("Setting gecko.updateStatus: " + aStatus);
-
-    let lock = Services.settings.createLock();
-    lock.set("gecko.updateStatus", aStatus, null);
   },
 
   showApplyPrompt: function UP_showApplyPrompt(aUpdate) {
@@ -177,26 +123,22 @@ UpdatePrompt.prototype = {
   sendUpdateEvent: function UP_sendUpdateEvent(aType, aUpdate) {
     let detail = {
       displayVersion: aUpdate.displayVersion,
-      detailsURL: aUpdate.detailsURL,
-      statusText: aUpdate.statusText,
-      state: aUpdate.state,
-      errorCode: aUpdate.errorCode,
-      isOSUpdate: aUpdate.isOSUpdate
+      detailsURL: aUpdate.detailsURL
     };
 
     let patch = aUpdate.selectedPatch;
-    if (!patch && aUpdate.patchCount > 0) {
+    if (!patch) {
       // For now we just check the first patch to get size information if a
       // patch hasn't been selected yet.
+      if (aUpdate.patchCount == 0) {
+        log("Warning: no patches available in update");
+        return false;
+      }
       patch = aUpdate.getPatchAt(0);
     }
 
-    if (patch) {
-      detail.size = patch.size;
-      detail.updateType = patch.type;
-    } else {
-      log("Warning: no patches available in update");
-    }
+    detail.size = patch.size;
+    detail.updateType = patch.type;
 
     this._update = aUpdate;
     return this.sendChromeEvent(aType, detail);
@@ -310,17 +252,11 @@ UpdatePrompt.prototype = {
   forceUpdateCheck: function UP_forceUpdateCheck() {
     log("Forcing update check");
 
-    // If we already have an active update available, don't try to
-    // download again, just prompt for install.
-    if (Services.um.activeUpdate) {
-      this.setUpdateStatus("check-complete");
-      this.showApplyPrompt(Services.um.activeUpdate);
-      return;
-    }
-
     let checker = Cc["@mozilla.org/updates/update-checker;1"]
                     .createInstance(Ci.nsIUpdateChecker);
-    checker.checkForUpdates(this, true);
+
+    Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
+    checker.checkForUpdates(Services.aus, true);
   },
 
   handleEvent: function UP_handleEvent(evt) {

@@ -40,14 +40,12 @@
 #include "nsTextFragment.h"
 
 // for IBMBIDI
-#include "nsFrameTraversal.h"
+#include "nsFrameIterator.h"
 #include "nsILineIterator.h"
 #include "nsGkAtoms.h"
-#include "nsIFrameTraversal.h"
 #include "nsLayoutUtils.h"
 #include "nsLayoutCID.h"
 #include "nsBidiPresUtils.h"
-static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsTextFrame.h"
 
 #include "nsIDOMText.h"
@@ -1247,30 +1245,17 @@ nsFrameSelection::GetFrameFromLevel(nsIFrame    *aFrameIn,
   uint8_t foundLevel = 0;
   nsIFrame *foundFrame = aFrameIn;
 
-  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-  nsresult result;
-  nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID,&result));
-  if (NS_FAILED(result))
-      return result;
-
-  result = trav->NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                   mShell->GetPresContext(), aFrameIn,
-                                   eLeaf,
-                                   false, // aVisual
-                                   false, // aLockInScrollView
-                                   false     // aFollowOOFs
-                                   );
-  if (NS_FAILED(result))
-    return result;
+  nsFrameIterator frameTraversal(mShell->GetPresContext(), aFrameIn,
+                                 eLeaf, nsFrameIterator::FLAG_NONE);
 
   do {
     *aFrameOut = foundFrame;
     if (aDirection == eDirNext)
-      frameTraversal->Next();
+      frameTraversal.Next();
     else
-      frameTraversal->Prev();
+      frameTraversal.Prev();
 
-    foundFrame = frameTraversal->CurrentItem();
+    foundFrame = frameTraversal.CurrentItem();
     if (!foundFrame)
       return NS_ERROR_FAILURE;
     foundLevel = NS_GET_EMBEDDING_LEVEL(foundFrame);

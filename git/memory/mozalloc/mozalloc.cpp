@@ -12,13 +12,16 @@
 #include <sys/types.h>
 
 #if defined(MALLOC_H)
-#  include MALLOC_H             // for memalign, valloc, malloc_size, malloc_usable_size
+#  include MALLOC_H             // for memalign, valloc where available
 #endif // if defined(MALLOC_H)
 #include <stddef.h>             // for size_t
 #include <stdlib.h>             // for malloc, free
 #if defined(XP_UNIX)
 #  include <unistd.h>           // for valloc on *BSD
 #endif //if defined(XP_UNIX)
+#if defined(__FreeBSD__)
+#  include <malloc_np.h>        // for malloc_usable_size
+#endif // if defined(__FreeBSD__)
 
 #if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
 #  define MOZALLOC_EXPORT __declspec(dllexport)
@@ -210,7 +213,8 @@ moz_malloc_usable_size(void *ptr)
 
 #if defined(XP_MACOSX)
     return malloc_size(ptr);
-#elif defined(HAVE_MALLOC_USABLE_SIZE) || defined(MOZ_MEMORY)
+#elif defined(MOZ_MEMORY) || (defined(XP_LINUX) && !defined(ANDROID)) || defined(__FreeBSD__)
+    // Android bionic libc doesn't have malloc_usable_size.
     return malloc_usable_size(ptr);
 #elif defined(XP_WIN)
     return _msize(ptr);

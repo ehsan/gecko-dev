@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko.db;
 
-import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
-
 import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.database.Cursor;
@@ -45,8 +43,6 @@ public class BrowserDB {
 
         public Cursor getRecentHistory(ContentResolver cr, int limit);
 
-        public void expireHistory(ContentResolver cr, ExpirePriority priority);
-
         public void removeHistoryEntry(ContentResolver cr, int id);
 
         public void clearHistory(ContentResolver cr);
@@ -78,8 +74,6 @@ public class BrowserDB {
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
 
         public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
-
-        public void removeThumbnails(ContentResolver cr);
 
         public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer);
 
@@ -126,12 +120,6 @@ public class BrowserDB {
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
         return sDb.getRecentHistory(cr, limit);
-    }
-
-    public static void expireHistory(ContentResolver cr, ExpirePriority priority) {
-        if (priority == null)
-            priority = ExpirePriority.NORMAL;
-        sDb.expireHistory(cr, priority);
     }
 
     public static void removeHistoryEntry(ContentResolver cr, int id) {
@@ -196,10 +184,6 @@ public class BrowserDB {
 
     public static byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
         return sDb.getThumbnailForUrl(cr, uri);
-    }
-
-    public static void removeThumbnails(ContentResolver cr) {
-        sDb.removeThumbnails(cr);
     }
 
     public static void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {

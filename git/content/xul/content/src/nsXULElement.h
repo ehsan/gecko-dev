@@ -321,13 +321,11 @@ public:
 
 // XUL element specific bits
 enum {
-  XUL_ELEMENT_TEMPLATE_GENERATED =        XUL_ELEMENT_FLAG_BIT(0),
-  XUL_ELEMENT_HAS_CONTENTMENU_LISTENER =  XUL_ELEMENT_FLAG_BIT(1),
-  XUL_ELEMENT_HAS_POPUP_LISTENER =        XUL_ELEMENT_FLAG_BIT(2)
+  XUL_ELEMENT_TEMPLATE_GENERATED =        XUL_ELEMENT_FLAG_BIT(0)
 };
 
-// Make sure we have space for our bits
-PR_STATIC_ASSERT((ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 2) < 32);
+// Make sure we have space for our bit
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET < 32);
 
 #undef XUL_ELEMENT_FLAG_BIT
 
@@ -398,7 +396,7 @@ public:
     bool GetTemplateGenerated() { return HasFlag(XUL_ELEMENT_TEMPLATE_GENERATED); }
 
     // nsIDOMNode
-    NS_FORWARD_NSIDOMNODE_TO_NSINODE
+    NS_FORWARD_NSIDOMNODE(nsGenericElement::)
 
     // nsIDOMElement
     NS_FORWARD_NSIDOMELEMENT(nsGenericElement::)

@@ -259,13 +259,13 @@ HTMLButtonAccessible::NativeRole()
 ENameValueFlag
 HTMLButtonAccessible::NativeName(nsString& aName)
 {
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
+  Accessible::NativeName(aName);
   if (!aName.IsEmpty() || mContent->Tag() != nsGkAtoms::input)
-    return nameFlag;
+    return eNameOK;
 
-  // Note: No need to check @value attribute since it results in anonymous text
-  // node. The name is calculated from subtree in this case.
-  if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName)) {
+  // No name from HTML or ARIA
+  if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::value, aName) &&
+      !mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName)) {
     // Use the button's (default) label if nothing else works
     nsIFrame* frame = GetFrame();
     if (frame) {
@@ -323,9 +323,9 @@ HTMLTextFieldAccessible::NativeRole()
 ENameValueFlag
 HTMLTextFieldAccessible::NativeName(nsString& aName)
 {
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
+  Accessible::NativeName(aName);
   if (!aName.IsEmpty())
-    return nameFlag;
+    return eNameOK;
 
   if (mContent->GetBindingParent()) {
     // XXX: bug 459640
@@ -613,9 +613,9 @@ HTMLGroupboxAccessible::GetLegend()
 ENameValueFlag
 HTMLGroupboxAccessible::NativeName(nsString& aName)
 {
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
+  Accessible::NativeName(aName);
   if (!aName.IsEmpty())
-    return nameFlag;
+    return eNameOK;
 
   nsIContent* legendContent = GetLegend();
   if (legendContent)
@@ -675,16 +675,16 @@ HTMLFigureAccessible::
 {
 }
 
-already_AddRefed<nsIPersistentProperties>
-HTMLFigureAccessible::NativeAttributes()
+nsresult
+HTMLFigureAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    HyperTextAccessibleWrap::NativeAttributes();
+  nsresult rv = HyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Expose figure xml-role.
-  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
+  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::xmlroles,
                          NS_LITERAL_STRING("figure"));
-  return attributes.forget();
+  return NS_OK;
 }
 
 role
@@ -696,9 +696,9 @@ HTMLFigureAccessible::NativeRole()
 ENameValueFlag
 HTMLFigureAccessible::NativeName(nsString& aName)
 {
-  ENameValueFlag nameFlag = HyperTextAccessibleWrap::NativeName(aName);
+  HyperTextAccessibleWrap::NativeName(aName);
   if (!aName.IsEmpty())
-    return nameFlag;
+    return eNameOK;
 
   nsIContent* captionContent = Caption();
   if (captionContent)

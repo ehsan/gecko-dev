@@ -4073,16 +4073,16 @@ function get_computed_value(cs, property)
 // to gCSSProperties, if the flexbox pref is enabled.
 if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 	var flexProperties = {
-	"align-items": {
-		domProp: "alignItems",
+	"-moz-align-items": {
+		domProp: "MozAlignItems",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "stretch" ],
 		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
 		invalid_values: [ "space-between", "abc", "30px" ]
 	},
-	"align-self": {
-		domProp: "alignSelf",
+	"-moz-align-self": {
+		domProp: "MozAlignSelf",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		// (Assuming defaults on the parent, 'auto' will compute to 'stretch'.)
@@ -4090,14 +4090,14 @@ if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
 		invalid_values: [ "space-between", "abc", "30px" ]
 	},
-	"flex": {
-		domProp: "flex",
+	"-moz-flex": {
+		domProp: "MozFlex",
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [
-			"flex-grow",
-			"flex-shrink",
-			"flex-basis"
+			"-moz-flex-grow",
+			"-moz-flex-shrink",
+			"-moz-flex-basis"
 		],
 		initial_values: [ "0 1 auto", "auto 0 1", "0 auto", "auto 0" ],
 		other_values: [
@@ -4130,8 +4130,8 @@ if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 			"1 -1"
 		]
 	},
-	"flex-basis": {
-		domProp: "flexBasis",
+	"-moz-flex-basis": {
+		domProp: "MozFlexBasis",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ " auto" ],
@@ -4197,40 +4197,40 @@ if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 			"calc(3em * 3em / 100%)"
 		]
 	},
-	"flex-direction": {
-		domProp: "flexDirection",
+	"-moz-flex-direction": {
+		domProp: "MozFlexDirection",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "row" ],
 		other_values: [ "row-reverse", "column", "column-reverse" ],
 		invalid_values: [ "10px", "30%", "justify", "column wrap" ]
 	},
-	"flex-grow": {
-		domProp: "flexGrow",
+	"-moz-flex-grow": {
+		domProp: "MozFlexGrow",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "0" ],
 		other_values: [ "3", "1", "1.0", "2.5", "123" ],
 		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
 	},
-	"flex-shrink": {
-		domProp: "flexShrink",
+	"-moz-flex-shrink": {
+		domProp: "MozFlexShrink",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1" ],
 		other_values: [ "3", "0", "0.0", "2.5", "123" ],
 		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
 	},
-	"order": {
-		domProp: "order",
+	"-moz-order": {
+		domProp: "MozOrder",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "0" ],
 		other_values: [ "1", "99999", "-1", "-50" ],
 		invalid_values: [ "0px", "1.0", "1.", "1%", "0.2", "3em", "stretch" ]
 	},
-	"justify-content": {
-		domProp: "justifyContent",
+	"-moz-justify-content": {
+		domProp: "MozJustifyContent",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "flex-start" ],
@@ -4241,6 +4241,6 @@ if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 	for (var prop in flexProperties) {
 		gCSSProperties[prop] = flexProperties[prop];
 	}
-	gCSSProperties["display"].other_values.push("flex");
-	gCSSProperties["display"].other_values.push("inline-flex");
+	gCSSProperties["display"].other_values.push("-moz-flex");
+	gCSSProperties["display"].other_values.push("-moz-inline-flex");
 }

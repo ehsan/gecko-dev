@@ -2232,7 +2232,10 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
   styleSet->PrependStyleSheet(nsStyleSet::eAgentSheet,
                               nsLayoutStylesheetCache::UASheet());
 
-  nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
+  nsCOMPtr<nsIStyleSheetService> dummy =
+    do_GetService(NS_STYLESHEETSERVICE_CONTRACTID);
+
+  nsStyleSheetService *sheetService = nsStyleSheetService::gInstance;
   if (sheetService) {
     sheetService->AgentStyleSheets()->EnumerateForwards(AppendAgentSheet,
                                                         styleSet);

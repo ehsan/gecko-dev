@@ -136,8 +136,7 @@ private:
   nsresult GetHost(nsIURI *aURI, nsACString &aResult);
   nsresult GetPrincipalForURI(nsIURI *aURI, nsIPrincipal **aPrincipal);
   nsresult SetStsState(nsIURI* aSourceURI, int64_t maxage, bool includeSubdomains);
-  nsresult ProcessStsHeaderMutating(nsIURI* aSourceURI, char* aHeader,
-                                    uint64_t *aMaxAge, bool *aIncludeSubdomains);
+  nsresult ProcessStsHeaderMutating(nsIURI* aSourceURI, char* aHeader);
   const nsSTSPreload *GetPreloadListEntry(const char *aHost);
 
   // private-mode-preserving permission manager overlay functions
@@ -155,7 +154,6 @@ private:
 
   bool mInPrivateMode;
   nsTHashtable<nsSTSHostEntry> mPrivateModeHostTable;
-  bool mUsePreloadList;
 };
 
 #endif // __nsStrictTransportSecurityService_h__

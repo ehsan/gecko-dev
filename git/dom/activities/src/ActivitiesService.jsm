@@ -86,35 +86,31 @@ ActivitiesDb.prototype = {
     return hasher.finish(true);
   },
 
-  // Add all the activities carried in the |aObjects| array.
-  add: function actdb_add(aObjects, aSuccess, aError) {
+  add: function actdb_add(aObject, aSuccess, aError) {
     this.newTxn("readwrite", function (txn, store) {
-      aObjects.forEach(function (aObject) {
-        let object = {
-          manifest: aObject.manifest,
-          name: aObject.name,
-          title: aObject.title || "",
-          icon: aObject.icon || "",
-          description: aObject.description
-        };
-        object.id = this.createId(object);
-        debug("Going to add " + JSON.stringify(object));
-        store.put(object);
-      }, this);
+      let object = {
+        manifest: aObject.manifest,
+        name: aObject.name,
+        title: aObject.title || "",
+        icon: aObject.icon || "",
+        description: aObject.description
+      };
+      object.id = this.createId(object);
+      debug("Going to add " + JSON.stringify(object));
+
+      store.put(object);
     }.bind(this), aSuccess, aError);
   },
 
-  // Remove all the activities carried in the |aObjects| array.
-  remove: function actdb_remove(aObjects) {
+  // we want to remove all activities for (manifest, name)
+  remove: function actdb_remove(aObject) {
     this.newTxn("readwrite", function (txn, store) {
-      aObjects.forEach(function (aObject) {
-        let object = {
-          manifest: aObject.manifest,
-          name: aObject.name
-        };
-        debug("Going to remove " + JSON.stringify(object));
-        store.delete(this.createId(object));
-      }, this);
+      let object = {
+        manifest: aObject.manifest,
+        name: aObject.name
+      };
+      debug("Going to remove " + JSON.stringify(object));
+      store.delete(this.createId(object));
     }.bind(this), function() {}, function() {});
   },
 
@@ -171,7 +167,7 @@ let Activities = {
 
     this.db = new ActivitiesDb();
     this.db.init();
-    this.callers = {};
+    this.mm = {};
   },
 
   observe: function activities_observe(aSubject, aTopic, aData) {
@@ -198,11 +194,11 @@ let Activities = {
 
       // We have no matching activity registered, let's fire an error.
       if (aResults.options.length === 0) {
-        Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireError", {
+        Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireError", {
           "id": aMsg.id,
           "error": "NO_PROVIDER"
         });
-        delete Activities.callers[aMsg.id];
+        delete Activities.mm[aMsg.id];
         return;
       }
 
@@ -211,11 +207,11 @@ let Activities = {
 
         // The user has cancelled the choice, fire an error.
         if (aChoice === -1) {
-          Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireError", {
+          Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireError", {
             "id": aMsg.id,
             "error": "USER_ABORT"
           });
-          delete Activities.callers[aMsg.id];
+          delete Activities.mm[aMsg.id];
           return;
         }
 
@@ -237,13 +233,11 @@ let Activities = {
           Services.io.newURI(result.manifest, null, null));
 
         if (!result.description.returnValue) {
-          Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireSuccess", {
+          Activities.mm[aMsg.id].sendAsyncMessage("Activity:FireSuccess", {
             "id": aMsg.id,
             "result": null
           });
-          // No need to notify observers, since we don't want the caller
-          // to be raised on the foreground that quick.
-          delete Activities.callers[aMsg.id];
+          delete Activities.mm[aMsg.id];
         }
       };
 
@@ -277,50 +271,29 @@ let Activities = {
   receiveMessage: function activities_receiveMessage(aMessage) {
     let mm = aMessage.target;
     let msg = aMessage.json;
-
-    let caller;
-    let obsData;
-
-    if (aMessage.name == "Activity:PostResult" ||
-        aMessage.name == "Activity:PostError") {
-      caller = this.callers[msg.id];
-      if (caller) {
-        obsData = JSON.stringify({ manifestURL: caller.manifestURL,
-                                   pageURL: caller.pageURL,
-                                   success: aMessage.name == "Activity:PostResult" });
-      } else {
-        debug("!! caller is null for msg.id=" + msg.id);
-      }
-    }
-
     switch(aMessage.name) {
       case "Activity:Start":
-        this.callers[msg.id] = { mm: aMessage.target,
-                                 manifestURL: msg.manifestURL,
-                                 pageURL: msg.pageURL };
+        this.mm[msg.id] = aMessage.target;
         this.startActivity(msg);
         break;
 
       case "Activity:PostResult":
-        caller.mm.sendAsyncMessage("Activity:FireSuccess", msg);
-        Services.obs.notifyObservers(null, "activity-done", obsData);
-        delete this.callers[msg.id];
+        this.mm[msg.id].sendAsyncMessage("Activity:FireSuccess", msg);
+        delete this.mm[msg.id];
         break;
       case "Activity:PostError":
-        caller.mm.sendAsyncMessage("Activity:FireError", msg);
-        Services.obs.notifyObservers(null, "activity-done", obsData);
-        delete this.callers[msg.id];
+        this.mm[msg.id].sendAsyncMessage("Activity:FireError", msg);
+        delete this.mm[msg.id];
         break;
 
       case "Activities:Register":
-        this.db.add(msg,
-          function onSuccess(aEvent) {
-            mm.sendAsyncMessage("Activities:Register:OK", null);
-          },
-          function onError(aEvent) {
-            msg.error = "REGISTER_ERROR";
-            mm.sendAsyncMessage("Activities:Register:KO", msg);
-          });
+        this.db.add(msg, function onSuccess(aEvent) {
+          mm.sendAsyncMessage("Activities:Register:OK", msg);
+        },
+        function onError(aEvent) {
+          msg.error = "REGISTER_ERROR";
+          mm.sendAsyncMessage("Activities:Register:KO", msg);
+        });
         break;
       case "Activities:Unregister":
         this.db.remove(msg);

@@ -5,9 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserContract;
-
 import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks2;
 import android.content.Context;
@@ -54,7 +51,6 @@ class MemoryMonitor extends BroadcastReceiver {
     private final PressureDecrementer mPressureDecrementer;
     private int mMemoryPressure;
     private boolean mStoragePressure;
-    private Context mContext;
 
     private MemoryMonitor() {
         mPressureDecrementer = new PressureDecrementer();
@@ -63,7 +59,6 @@ class MemoryMonitor extends BroadcastReceiver {
     }
 
     public void init(Context context) {
-        mContext = context;
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_LOW);
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_OK);
@@ -111,7 +106,8 @@ class MemoryMonitor extends BroadcastReceiver {
         if (Intent.ACTION_DEVICE_STORAGE_LOW.equals(intent.getAction())) {
             Log.d(LOGTAG, "Device storage is low");
             mStoragePressure = true;
-            GeckoAppShell.getHandler().post(new StorageReducer());
+            // TODO: drop or shrink disk caches
+            // TODO: drop stuff from browser.db
         } else if (Intent.ACTION_DEVICE_STORAGE_OK.equals(intent.getAction())) {
             Log.d(LOGTAG, "Device storage is ok");
             mStoragePressure = false;
@@ -203,27 +199,6 @@ class MemoryMonitor extends BroadcastReceiver {
 
             // need to keep decrementing
             GeckoAppShell.getHandler().postDelayed(this, DECREMENT_DELAY);
-        }
-    }
-
-    class StorageReducer implements Runnable {
-        @Override
-        public void run() {
-            // this might get run right on startup, if so wait 10 seconds and try again
-            if (!GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
-                GeckoAppShell.getHandler().postDelayed(this, 10000);
-                return;
-            }
-
-            if (!mStoragePressure) {
-                // pressure is off, so we can abort
-                return;
-            }
-
-            BrowserDB.expireHistory(mContext.getContentResolver(),
-                                    BrowserContract.ExpirePriority.AGGRESSIVE);
-            BrowserDB.removeThumbnails(Tabs.getInstance().getContentResolver());
-            // TODO: drop or shrink disk caches
         }
     }
 }

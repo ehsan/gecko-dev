@@ -81,7 +81,8 @@ public:
   NS_IMETHOD GetThebesSurface(gfxASurface **surface) = 0;
   
   // This gets an Azure SourceSurface for the canvas, this will be a snapshot
-  // of the canvas at the time it was called.
+  // of the canvas at the time it was called. This will return null for a
+  // non-azure canvas.
   virtual mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() = 0;
 
   // If this context is opaque, the backing store of the canvas should

@@ -26,9 +26,9 @@ TCPSocketParentIntermediary.prototype = {
 
     // Create handlers for every possible callback that attempt to trigger
     // corresponding callbacks on the child object.
-    ["open", "drain", "data", "error", "close"].forEach(
+    ["onopen", "ondrain", "ondata", "onerror", "onclose"].forEach(
       function(p) {
-        socket["on" + p] = function(data) {
+        socket[p] = function(data) {
           aParentSide.sendCallback(p, data.data, socket.readyState,
                                    socket.bufferedAmount);
         };

@@ -2127,7 +2127,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
 #ifndef NP_NO_CARBON
   case NPNVsupportsCarbonBool: {
-    *(NPBool*)result = false;
+    *(NPBool*)result = true;
 
     return NPERR_NO_ERROR;
   }

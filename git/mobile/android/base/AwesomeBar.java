@@ -511,7 +511,6 @@ public class AwesomeBar extends GeckoActivity {
         final byte[] b = mContextMenuSubject.favicon;
         final String title = mContextMenuSubject.title;
         final String keyword = mContextMenuSubject.keyword;
-        final int display = mContextMenuSubject.display;
 
         switch (item.getItemId()) {
             case R.id.open_new_tab: {
@@ -520,11 +519,7 @@ public class AwesomeBar extends GeckoActivity {
                     break;
                 }
 
-                String newTabUrl = url;
-                if (display == Combined.DISPLAY_READER)
-                    newTabUrl = ReaderModeUtils.getAboutReaderForUrl(url, true);
-
-                Tabs.getInstance().loadUrl(newTabUrl, Tabs.LOADURL_NEW_TAB);
+                Tabs.getInstance().loadUrl(url, Tabs.LOADURL_NEW_TAB);
                 Toast.makeText(this, R.string.new_tab_opened, Toast.LENGTH_SHORT).show();
                 break;
             }

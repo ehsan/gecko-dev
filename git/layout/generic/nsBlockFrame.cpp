@@ -43,6 +43,7 @@
 #include "nsIScrollableFrame.h"
 #ifdef ACCESSIBILITY
 #include "nsIDOMHTMLDocument.h"
+#include "nsAccessibilityService.h"
 #endif
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
@@ -278,8 +279,10 @@ nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
   DestroyAbsoluteFrames(aDestructRoot);
   mFloats.DestroyFramesFrom(aDestructRoot);
   nsPresContext* presContext = PresContext();
-  nsLineBox::DeleteLineList(presContext, mLines, aDestructRoot,
-                            &mFrames);
+  nsLineBox::DeleteLineList(presContext, mLines, aDestructRoot);
+
+  // Now clear mFrames, since we've destroyed all the frames in it.
+  mFrames.Clear();
 
   nsFrameList* pushedFloats = RemovePushedFloats();
   if (pushedFloats) {
@@ -290,7 +293,7 @@ nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
   FrameLines* overflowLines = RemoveOverflowLines();
   if (overflowLines) {
     nsLineBox::DeleteLineList(presContext, overflowLines->mLines,
-                              aDestructRoot, &overflowLines->mFrames);
+                              aDestructRoot);
     delete overflowLines;
   }
 
@@ -6222,19 +6225,27 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsBlockFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsBlockFrame::CreateAccessible()
 {
-  // block frame may be for <hr>
-  if (mContent->Tag() == nsGkAtoms::hr) {
-    return a11y::eHTMLHRAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (!accService) {
+    return nullptr;
   }
 
-  if (!HasBullet() || !PresContext()) {
+  nsPresContext* presContext = PresContext();
+
+  // block frame may be for <hr>
+  if (mContent->Tag() == nsGkAtoms::hr) {
+    return accService->CreateHTMLHRAccessible(mContent,
+                                              presContext->PresShell());
+  }
+
+  if (!HasBullet() || !presContext) {
     if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
-      return a11y::eNoAccessible;
+      return nullptr;
     }
     
     nsCOMPtr<nsIDOMHTMLDocument> htmlDoc =
@@ -6245,16 +6256,17 @@ nsBlockFrame::AccessibleType()
       if (SameCOMIdentity(body, mContent)) {
         // Don't create accessible objects for the body, they are redundant with
         // the nsDocAccessible object created with the document node
-        return a11y::eNoAccessible;
+        return nullptr;
       }
     }
 
     // Not a bullet, treat as normal HTML container
-    return a11y::eHyperTextAccessible;
+    return accService->CreateHyperTextAccessible(mContent,
+                                                 presContext->PresShell());
   }
 
   // Create special list bullet accessible
-  return a11y::eHTMLLiAccessible;
+  return accService->CreateHTMLLIAccessible(mContent, presContext->PresShell());
 }
 #endif
 

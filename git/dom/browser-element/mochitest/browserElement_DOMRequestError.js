@@ -27,7 +27,7 @@ function runTest() {
         SimpleTest.executeSoon(nextTest);
       }
 
-      var domRequest = iframe1.getScreenshot(1000, 1000);
+      var domRequest = iframe1.getScreenshot();
       domRequest.onsuccess = function(e) {
         testEnd();
       }

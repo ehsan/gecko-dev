@@ -2111,7 +2111,6 @@ function toInternalPath(path, encoded)
   return comps.join("/");
 }
 
-const PERMS_READONLY = (4 << 6) | (4 << 3) | 4;
 
 /**
  * Adds custom-specified headers for the given file to the given response, if
@@ -2139,7 +2138,7 @@ function maybeAddHeaders(file, metadata, response)
     return;
 
   const PR_RDONLY = 0x01;
-  var fis = new FileInputStream(headerFile, PR_RDONLY, PERMS_READONLY,
+  var fis = new FileInputStream(headerFile, PR_RDONLY, 0444,
                                 Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
   try
@@ -2674,7 +2673,7 @@ ServerHandler.prototype =
     var type = this._getTypeFromFile(file);
     if (type === SJS_TYPE)
     {
-      var fis = new FileInputStream(file, PR_RDONLY, PERMS_READONLY,
+      var fis = new FileInputStream(file, PR_RDONLY, 0444,
                                     Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
       try
@@ -2768,7 +2767,7 @@ ServerHandler.prototype =
       maybeAddHeaders(file, metadata, response);
       response.setHeader("Content-Length", "" + count, false);
 
-      var fis = new FileInputStream(file, PR_RDONLY, PERMS_READONLY,
+      var fis = new FileInputStream(file, PR_RDONLY, 0444,
                                     Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
       offset = offset || 0;

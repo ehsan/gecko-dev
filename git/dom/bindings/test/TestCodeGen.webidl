@@ -34,7 +34,7 @@ interface OnlyForUseInConstructor {
 
 [Constructor,
  Constructor(DOMString str),
- Constructor(unsigned long num, boolean? boolArg),
+ Constructor(unsigned long num, boolean? bool),
  Constructor(TestInterface? iface),
  Constructor(TestNonCastableInterface iface)
  // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
@@ -332,8 +332,6 @@ interface TestInterface {
 
   // Miscellania
   [LenientThis] attribute long attrWithLenientThis;
-
-  // If you add things here, add them to TestExampleGen as well
 };
 
 interface TestNonWrapperCacheInterface {

@@ -143,7 +143,6 @@ class Assembler : public ValueAssembler
         vmframe(vmframe),
         pc(NULL)
     {
-        AutoAssertNoGC nogc;
         startLabel = label();
         if (vmframe)
             sps->setPushed(vmframe->script());

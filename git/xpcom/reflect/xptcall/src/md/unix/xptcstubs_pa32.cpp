@@ -20,8 +20,8 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint32_t methodIndex,
 {
 
   typedef struct {
-    uint32_t hi;
-    uint32_t lo;
+    uint32 hi;
+    uint32 lo;
   } DU;
 
 #define PARAM_BUFFER_COUNT     16

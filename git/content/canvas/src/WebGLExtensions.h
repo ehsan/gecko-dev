@@ -66,16 +66,6 @@ public:
     DECL_WEBGL_EXTENSION_GOOP
 };
 
-class WebGLExtensionDebugRendererInfo
-    : public WebGLExtensionBase
-{
-public:
-    WebGLExtensionDebugRendererInfo(WebGLContext*);
-    virtual ~WebGLExtensionDebugRendererInfo();
-
-    DECL_WEBGL_EXTENSION_GOOP
-};
-
 class WebGLExtensionDepthTexture
     : public WebGLExtensionBase
 {

@@ -763,11 +763,7 @@ nsHTMLEditor::NodeIsBlockStatic(const dom::Element* aElement)
   }
 
   bool isBlock;
-#ifdef DEBUG
-  // XXX we can't use DebugOnly here because VC++ is stupid (bug 802884)
-  nsresult rv =
-#endif
-    nsContentUtils::GetParserService()->
+  DebugOnly<nsresult> rv = nsContentUtils::GetParserService()->
     IsBlock(nsContentUtils::GetParserService()->HTMLAtomTagToId(tagAtom),
             isBlock);
   MOZ_ASSERT(rv == NS_OK);
@@ -1232,8 +1228,7 @@ nsHTMLEditor::ReplaceHeadContentsWithHTML(const nsAString& aSourceToInsert)
   if (NS_FAILED(res))
   {
 #ifdef DEBUG
-    printf("Couldn't create contextual fragment: error was %X\n",
-           static_cast<uint32_t>(res));
+    printf("Couldn't create contextual fragment: error was %d\n", res);
 #endif
     return res;
   }
@@ -3358,7 +3353,7 @@ nsHTMLEditor::GetIsSelectionEditable(bool* aIsSelectionEditable)
     nsINode* commonAncestor =
       selection->GetAnchorFocusRange()->GetCommonAncestor();
     while (commonAncestor && !commonAncestor->IsEditable()) {
-      commonAncestor = commonAncestor->GetParentNode();
+      commonAncestor = commonAncestor->GetNodeParent();
     }
     if (!commonAncestor) {
       // No editable common ancestor

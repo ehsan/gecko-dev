@@ -38,6 +38,9 @@
 #include "nsEventDispatcher.h"
 #include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
 #include "mozilla/Preferences.h"
@@ -853,18 +856,24 @@ nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 #endif
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsHTMLScrollFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsHTMLScrollFrame::CreateAccessible()
 {
   // Create an accessible regardless of focusable state because the state can be
   // changed during frame life cycle without any notifications to accessibility.
   if (mContent->IsRootOfNativeAnonymousSubtree() ||
       GetScrollbarStyles() == nsIScrollableFrame::
         ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) ) {
-    return a11y::eNoAccessible;
+    return nullptr;
   }
 
-  return a11y::eHyperTextAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHyperTextAccessible(mContent,
+                                                 PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 

@@ -16,8 +16,6 @@
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
 
-using namespace mozilla;
-
 class nsXMLStylesheetPI : public nsXMLProcessingInstruction,
                           public nsStyleLinkElement
 {
@@ -33,8 +31,7 @@ public:
                                            nsXMLProcessingInstruction)
 
   // nsIDOMNode
-  virtual void SetNodeValueInternal(const nsAString& aNodeValue,
-                                    mozilla::ErrorResult& aError);
+  NS_IMETHOD SetNodeValue(const nsAString& aData);
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -126,14 +123,14 @@ nsXMLStylesheetPI::UnbindFromTree(bool aDeep, bool aNullParent)
 
 // nsIDOMNode
 
-void
-nsXMLStylesheetPI::SetNodeValueInternal(const nsAString& aNodeValue,
-                                        ErrorResult& aError)
+NS_IMETHODIMP
+nsXMLStylesheetPI::SetNodeValue(const nsAString& aNodeValue)
 {
-  nsGenericDOMDataNode::SetNodeValue(aNodeValue, aError);
-  if (!aError.Failed()) {
+  nsresult rv = nsGenericDOMDataNode::SetNodeValue(aNodeValue);
+  if (NS_SUCCEEDED(rv)) {
     UpdateStyleSheetInternal(nullptr, true);
   }
+  return rv;
 }
 
 // nsStyleLinkElement

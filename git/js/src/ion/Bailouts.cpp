@@ -77,8 +77,6 @@ IonBailoutIterator::dump() const
 static JSScript*
 GetBailedJSScript(JSContext *cx)
 {
-    AutoAssertNoGC nogc;
-
     // Just after the frame conversion, we can safely interpret the ionTop as JS
     // frame because it targets the bailed JS frame converted to an exit frame.
     IonJSFrameLayout *frame = reinterpret_cast<IonJSFrameLayout*>(cx->runtime->ionTop);
@@ -98,7 +96,6 @@ GetBailedJSScript(JSContext *cx)
 void
 StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
 {
-    AutoAssertNoGC nogc;
     uint32 exprStackSlots = iter.slots() - script()->nfixed;
 
 #ifdef TRACK_SNAPSHOTS
@@ -185,8 +182,6 @@ StackFrame::initFromBailout(JSContext *cx, SnapshotIterator &iter)
 static StackFrame *
 PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
 {
-    AssertCanGC();
-
     // Grab the callee object out of the caller's frame, which has already been restored.
     // N.B. we currently assume that the caller frame is at a JSOP_CALL pc for the caller frames,
     // which will not be the case when we inline getters (in which case it would be a
@@ -196,10 +191,10 @@ PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
     int callerArgc = GET_ARGC(regs.pc);
     const Value &calleeVal = regs.sp[-callerArgc - 2];
 
-    RootedFunction fun(cx, calleeVal.toObject().toFunction());
-    RootedScript script(cx, fun->script());
+    JSFunction *fun = calleeVal.toObject().toFunction();
+    JSScript *script = fun->script();
     CallArgs inlineArgs = CallArgsFromSp(callerArgc, regs.sp);
-
+    
     // Bump the stack pointer to make it look like the inline args have been pushed, but they will
     // really get filled in by RestoreOneFrame.
     regs.sp = inlineArgs.end();
@@ -214,7 +209,7 @@ PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
     StackFrame *fp = cx->stack.fp();
     JS_ASSERT(fp == regs.fp());
     JS_ASSERT(fp->prev() == callerFrame);
-
+    
     fp->formals()[-2].setObject(*fun);
 
     return fp;
@@ -223,7 +218,6 @@ PushInlinedFrame(JSContext *cx, StackFrame *callerFrame)
 static uint32
 ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
 {
-    AssertCanGC();
     IonSpew(IonSpew_Bailouts, "Bailing out %s:%u, IonScript %p",
             it.script()->filename, it.script()->lineno, (void *) it.ionScript());
     IonSpew(IonSpew_Bailouts, " reading from snapshot offset %u size %u",
@@ -259,7 +253,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
         // conjunction with inline-OSR from within bailouts (since each Ion
         // activation must be tied to a unique JSStackFrame for StackIter to
         // work).
-        //
+        // 
         // Note: If the entry frame is a placeholder (a stub frame pushed for
         // JM -> Ion calls), then we cannot re-use it as it does not have
         // enough slots.
@@ -324,7 +318,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
       // we flag it here manually that the entry has happened.
       case Bailout_ArgumentCheck:
         fp->unsetPushedSPSFrame();
-        Probes::enterScript(cx, fp->script().unsafeGet(), fp->script()->function(), fp);
+        Probes::enterScript(cx, fp->script(), fp->script()->function(), fp);
         return BAILOUT_RETURN_ARGUMENT_CHECK;
     }
 
@@ -357,7 +351,6 @@ EnsureExitFrame(IonCommonFrameLayout *frame)
 uint32
 ion::Bailout(BailoutStack *sp)
 {
-    AssertCanGC();
     JSContext *cx = GetIonContext()->cx;
     // We don't have an exit frame.
     cx->runtime->ionTop = NULL;
@@ -380,7 +373,6 @@ ion::Bailout(BailoutStack *sp)
 uint32
 ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut)
 {
-    AssertCanGC();
     sp->checkInvariants();
 
     JSContext *cx = GetIonContext()->cx;
@@ -503,7 +495,7 @@ uint32
 ion::RecompileForInlining()
 {
     JSContext *cx = GetIonContext()->cx;
-    RawScript script = cx->fp()->script().unsafeGet();
+    JSScript *script = cx->fp()->script();
 
     IonSpew(IonSpew_Inlining, "Recompiling script to inline calls %s:%d", script->filename,
             script->lineno);

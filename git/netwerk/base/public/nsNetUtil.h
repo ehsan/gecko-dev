@@ -78,7 +78,6 @@
 #include "mozilla/Services.h"
 #include "nsIPrivateBrowsingChannel.h"
 #include "mozIApplicationClearPrivateDataParams.h"
-#include "nsIOfflineCacheUpdate.h"
 
 #include <limits>
 
@@ -1034,7 +1033,7 @@ NS_BackgroundOutputStream(nsIOutputStream **result,
     return rv;
 }
 
-MOZ_WARN_UNUSED_RESULT inline nsresult
+inline nsresult
 NS_NewBufferedInputStream(nsIInputStream **result,
                           nsIInputStream  *str,
                           uint32_t         bufferSize)
@@ -1374,29 +1373,6 @@ NS_GetAppInfoFromClearDataNotification(nsISupports *aSubject,
     *aAppID = appId;
     *aBrowserOnly = browserOnly;
     return NS_OK;
-}
-
-/**
- * Determines whether appcache should be checked for a given URI.
- */
-inline bool
-NS_ShouldCheckAppCache(nsIURI *aURI, bool usePrivateBrowsing)
-{
-    if (usePrivateBrowsing) {
-        return false;
-    }
-
-    nsCOMPtr<nsIOfflineCacheUpdateService> offlineService =
-        do_GetService("@mozilla.org/offlinecacheupdate-service;1");
-    if (!offlineService) {
-        return false;
-    }
-
-    bool allowed;
-    nsresult rv = offlineService->OfflineAppAllowedForURI(aURI,
-                                                          nullptr,
-                                                          &allowed);
-    return NS_SUCCEEDED(rv) && allowed;
 }
 
 /**

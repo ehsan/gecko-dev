@@ -3888,18 +3888,23 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTextFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTextFrame::CreateAccessible()
 {
   if (IsEmpty()) {
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nullptr, nullptr, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return a11y::eNoAccessible;
+      return nullptr;
     }
   }
 
-  return a11y::eTextLeafAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateTextLeafAccessible(mContent,
+                                                PresContext()->PresShell());
+  }
+  return nullptr;
 }
 #endif
 
@@ -4675,7 +4680,7 @@ nsTextFrame::GetTextDecorations(
   const nsCompatibility compatMode = aPresContext->CompatibilityMode();
 
   bool useOverride = false;
-  nscolor overrideColor = NS_RGBA(0, 0, 0, 0);
+  nscolor overrideColor;
 
   // frameTopOffset represents the offset to f's top from our baseline in our
   // coordinate space

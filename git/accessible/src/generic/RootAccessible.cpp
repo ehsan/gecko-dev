@@ -475,13 +475,9 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 #endif
   }
   else if (eventType.EqualsLiteral("ValueChange")) {
-
-    //We don't process 'ValueChange' events for progress meters since we listen
-    //@value attribute change for them.
-    if (!accessible->IsProgress())
-      targetDocument->
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                                   targetNode);
+    targetDocument->
+      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
+                                 targetNode, AccEvent::eRemoveDupes);
   }
 #ifdef DEBUG_DRAGDROPSTART
   else if (eventType.EqualsLiteral("mouseover")) {

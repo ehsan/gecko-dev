@@ -84,7 +84,6 @@ StaticScopeIter::block() const
 JSScript *
 StaticScopeIter::funScript() const
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT(type() == FUNCTION);
     return obj->toFunction()->script();
 }
@@ -185,7 +184,7 @@ CallObject::createTemplateObject(JSContext *cx, JSScript *script)
  * must be null.
  */
 CallObject *
-CallObject::create(JSContext *cx, HandleScript script, HandleObject enclosing, HandleFunction callee)
+CallObject::create(JSContext *cx, JSScript *script, HandleObject enclosing, HandleFunction callee)
 {
     CallObject *callobj = CallObject::createTemplateObject(cx, script);
     if (!callobj)
@@ -199,7 +198,6 @@ CallObject::create(JSContext *cx, HandleScript script, HandleObject enclosing, H
 CallObject *
 CallObject::createForFunction(JSContext *cx, StackFrame *fp)
 {
-    AssertCanGC();
     JS_ASSERT(fp->isNonEvalFunctionFrame());
     assertSameCompartment(cx, fp);
 
@@ -216,7 +214,7 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
     }
 
     RootedScript script(cx, fp->script());
-    RootedFunction callee(cx, &fp->callee());
+    Rooted<JSFunction*> callee(cx, &fp->callee());
     CallObject *callobj = create(cx, script, scopeChain, callee);
     if (!callobj)
         return NULL;
@@ -231,14 +229,12 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
 CallObject *
 CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 {
-    AssertCanGC();
     JS_ASSERT(fp->isStrictEvalFrame());
     JS_ASSERT(cx->fp() == fp);
     JS_ASSERT(cx->regs().pc == fp->script()->code);
 
-    RootedFunction callee(cx);
-    RootedScript script(cx, fp->script());
-    return create(cx, script, fp->scopeChain(), callee);
+    Rooted<JSFunction*> callee(cx, NULL);
+    return create(cx, fp->script(), fp->scopeChain(), callee);
 }
 
 JS_PUBLIC_DATA(Class) js::CallClass = {
@@ -318,7 +314,7 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
     obj->asScope().setEnclosingScope(enclosing);
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
 
-    RawObject thisp = JSObject::thisObject(cx, proto);
+    JSObject *thisp = JSObject::thisObject(cx, proto);
     if (!thisp)
         return NULL;
 
@@ -634,7 +630,6 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Stac
 void
 ClonedBlockObject::copyUnaliasedValues(StackFrame *fp)
 {
-    AutoAssertNoGC nogc;
     StaticBlockObject &block = staticBlock();
     unsigned base = fp->script()->nfixed + block.stackDepth();
     for (unsigned i = 0; i < slotCount(); ++i) {
@@ -980,7 +975,6 @@ ScopeIter::operator++()
 void
 ScopeIter::settle()
 {
-    AutoAssertNoGC nogc;
     /*
      * Given an iterator state (cur_, block_), figure out which (potentially
      * optimized) scope the iterator should report. Thus, the result is a pair
@@ -1202,13 +1196,12 @@ class DebugScopeProxy : public BaseProxyHandler
             if (!shape)
                 return false;
 
-            AutoAssertNoGC nogc;
             unsigned i = shape->shortid();
             if (block.staticBlock().isAliased(i))
                 return false;
 
             if (maybefp) {
-                RawScript script = maybefp->script();
+                JSScript *script = maybefp->script();
                 unsigned local = block.slotToLocalIndex(script->bindings, shape->slot());
                 if (action == GET)
                     *vp = maybefp->unaliasedLocal(local);
@@ -1261,13 +1254,13 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool checkForMissingArguments(JSContext *cx, jsid id, ScopeObject &scope,
                                          ArgumentsObject **maybeArgsObj)
     {
-        AssertCanGC();
         *maybeArgsObj = NULL;
 
         if (!isArguments(cx, id) || !isFunctionScope(scope))
             return true;
 
-        if (scope.asCall().callee().script()->needsArgsObj())
+        JSScript *script = scope.asCall().callee().script();
+        if (script->needsArgsObj())
             return true;
 
         StackFrame *maybefp = cx->runtime->debugScopes->hasLiveFrame(scope);
@@ -1718,7 +1711,7 @@ DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
          * Copy in formals that are not aliased via the scope chain
          * but are aliased via the arguments object.
          */
-        RootedScript script(cx, fp->script());
+        JSScript *script = fp->script();
         if (script->needsArgsObj() && fp->hasArgsObj()) {
             for (unsigned i = 0; i < fp->numFormalArgs(); ++i) {
                 if (script->formalLivesInArgumentsObject(i))
@@ -1730,7 +1723,7 @@ DebugScopes::onPopCall(StackFrame *fp, JSContext *cx)
          * Use a dense array as storage (since proxies do not have trace
          * hooks). This array must not escape into the wild.
          */
-        RootedObject snapshot(cx, NewDenseCopiedArray(cx, vec.length(), vec.begin()));
+        JSObject *snapshot = NewDenseCopiedArray(cx, vec.length(), vec.begin());
         if (!snapshot) {
             cx->clearPendingException();
             return;

@@ -18,13 +18,15 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
 #include "nsFrameManager.h"
+#ifdef ACCESSIBILITY
+#include "nsIServiceManager.h"
+#include "nsAccessibilityService.h"
+#endif
 #include "nsDisplayList.h"
 
 #ifdef DEBUG
 #undef NOISY_PUSHING
 #endif
-
-using namespace mozilla;
 
 
 //////////////////////////////////////////////////////////////////////
@@ -908,20 +910,31 @@ nsInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsInlineFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsInlineFrame::CreateAccessible()
 {
   // Broken image accessibles are created here, because layout
   // replaces the image or image control frame with an inline frame
   nsIAtom *tagAtom = mContent->Tag();
-  if (tagAtom == nsGkAtoms::input)  // Broken <input type=image ... />
-    return a11y::eHTMLButtonAccessible;
-  if (tagAtom == nsGkAtoms::img)  // Create accessible for broken <img>
-    return a11y::eImageAccessible;
-  if (tagAtom == nsGkAtoms::label)  // Creat accessible for <label>
-    return a11y::eHTMLLabelAccessible;
+  if ((tagAtom == nsGkAtoms::img || tagAtom == nsGkAtoms::input || 
+       tagAtom == nsGkAtoms::label) && mContent->IsHTML()) {
+    // Only get accessibility service if we're going to use it
 
-  return a11y::eNoAccessible;
+    nsAccessibilityService* accService = nsIPresShell::AccService();
+    if (!accService)
+      return nullptr;
+    if (tagAtom == nsGkAtoms::input)  // Broken <input type=image ... />
+      return accService->CreateHTMLButtonAccessible(mContent,
+                                                    PresContext()->PresShell());
+    else if (tagAtom == nsGkAtoms::img)  // Create accessible for broken <img>
+      return accService->CreateHTMLImageAccessible(mContent,
+                                                   PresContext()->PresShell());
+    else if (tagAtom == nsGkAtoms::label)  // Creat accessible for <label>
+      return accService->CreateHTMLLabelAccessible(mContent,
+                                                   PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 

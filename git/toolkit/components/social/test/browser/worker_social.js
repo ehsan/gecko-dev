@@ -25,9 +25,6 @@ onconnect = function(e) {
       case "test-profile":
         apiPort.postMessage({topic: "social.user-profile", data: data});
         break;
-      case "test-pending-msg":
-        port.postMessage({topic: "test-pending-response"})
-        break;
       case "test-ambient":
         apiPort.postMessage({topic: "social.ambient-notification", data: data});
         break;

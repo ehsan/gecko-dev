@@ -448,8 +448,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mHasDisplayPort(false),
       mHasFixedItems(false),
       mIsInFixedPosition(false),
-      mIsCompositingCheap(false),
-      mContainsPluginItem(false)
+      mIsCompositingCheap(false)
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,

@@ -100,7 +100,10 @@ UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
   if (IsDOMClass(js::GetObjectClass(obj))) {
     MOZ_ASSERT(slot == eRegularDOMObject);
   } else {
-    MOZ_ASSERT(IsDOMProxy(obj));
+    MOZ_ASSERT(js::IsObjectProxyClass(js::GetObjectClass(obj)) ||
+               js::IsFunctionProxyClass(js::GetObjectClass(obj)));
+    MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
+    MOZ_ASSERT(IsNewProxyBinding(js::GetProxyHandler(obj)));
     MOZ_ASSERT(slot == eProxyDOMObject);
   }
 #endif
@@ -126,8 +129,9 @@ GetDOMClass(JSObject* obj)
     return &DOMJSClass::FromJSClass(clasp)->mClass;
   }
 
-  MOZ_ASSERT(IsDOMProxy(obj));
   js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
+  MOZ_ASSERT(handler->family() == ProxyFamily());
+  MOZ_ASSERT(IsNewProxyBinding(handler));
   return &static_cast<DOMProxyHandler*>(handler)->mClass;
 }
 
@@ -142,7 +146,7 @@ GetDOMClass(JSObject* obj, const DOMClass*& result)
 
   if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
     js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-    if (handler->family() == ProxyFamily()) {
+    if (handler->family() == ProxyFamily() && IsNewProxyBinding(handler)) {
       result = &static_cast<DOMProxyHandler*>(handler)->mClass;
       return eProxyDOMObject;
     }
@@ -170,7 +174,8 @@ IsDOMObject(JSObject* obj)
   js::Class* clasp = js::GetObjectClass(obj);
   return IsDOMClass(clasp) ||
          ((js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-          js::GetProxyHandler(obj)->family() == ProxyFamily());
+          (js::GetProxyHandler(obj)->family() == ProxyFamily() &&
+           IsNewProxyBinding(js::GetProxyHandler(obj))));
 }
 
 // Some callers don't want to set an exception when unwrapping fails
@@ -738,96 +743,26 @@ bool
 WrapCallbackInterface(JSContext *cx, JSObject *scope, nsISupports* callback,
                       JS::Value* vp);
 
-#ifdef _MSC_VER
-#define HAS_MEMBER_CHECK(_name)                                           \
-  template<typename V> static yes& Check(char (*)[(&V::_name == 0) + 1])
-#else
-#define HAS_MEMBER_CHECK(_name)                                           \
-  template<typename V> static yes& Check(char (*)[sizeof(&V::_name) + 1])
-#endif
-
-#define HAS_MEMBER(_name)                                                 \
-template<typename T>                                                      \
-class Has##_name##Member {                                                \
-  typedef char yes[1];                                                    \
-  typedef char no[2];                                                     \
-  HAS_MEMBER_CHECK(_name);                                                \
-  template<typename V> static no& Check(...);                             \
-                                                                          \
-public:                                                                   \
-  static bool const Value = sizeof(Check<T>(nullptr)) == sizeof(yes);     \
-};
-
-HAS_MEMBER(AddRef)
-HAS_MEMBER(Release)
-HAS_MEMBER(QueryInterface)
-
-template<typename T>
-struct IsRefCounted
-{
-  static bool const Value = HasAddRefMember<T>::Value &&
-                            HasReleaseMember<T>::Value;
-};
-
-template<typename T>
-struct IsISupports
-{
-  static bool const Value = IsRefCounted<T>::Value &&
-                            HasQueryInterfaceMember<T>::Value;
-};
-
-HAS_MEMBER(WrapObject)
-
-// HasWrapObject<T>::Value will be true if T has a WrapObject member but it's
-// not nsWrapperCache::WrapObject.
+// This checks whether class T implements WrapObject itself, if so then
+// HasWrapObject<T>::Value will be true. Note that if T inherits WrapObject from
+// a base class but doesn't override it then HasWrapObject<T>::Value will be
+// false. This is a little annoying in some cases (multiple C++ classes using
+// the same binding), but it saves us in the case where a class inherits from
+// nsWrapperCache but doesn't actually override WrapObject. For now we assume
+// that HasWrapObject<T>::Value being false means we have an nsISupports object.
 template<typename T>
 struct HasWrapObject
 {
 private:
   typedef char yes[1];
   typedef char no[2];
-  typedef JSObject* (nsWrapperCache::*WrapObject)(JSContext*, JSObject*, bool*);
+  typedef JSObject* (T::*WrapObject)(JSContext*, JSObject*, bool*);
   template<typename U, U> struct SFINAE;
-  template <typename V> static no& Check(SFINAE<WrapObject, &V::WrapObject>*);
-  template <typename V> static yes& Check(...);
+  template <typename V> static yes& Check(SFINAE<WrapObject, &V::WrapObject>*);
+  template <typename V> static no& Check(...);
 
 public:
-  static bool const Value = HasWrapObjectMember<T>::Value &&
-                            sizeof(Check<T>(nullptr)) == sizeof(yes);
-};
-
-template<typename T>
-static inline JSObject*
-WrapNativeISupportsParent(JSContext* cx, JSObject* scope, T* p,
-                          nsWrapperCache* cache)
-{
-  qsObjectHelper helper(ToSupports(p), cache);
-  JS::Value v;
-  return XPCOMObjectToJsval(cx, scope, helper, nullptr, false, &v) ?
-         JSVAL_TO_OBJECT(v) :
-         nullptr;
-}
-
-template<typename T, bool isISupports=IsISupports<T>::Value >
-struct WrapNativeParentFallback
-{
-  static inline JSObject* Wrap(JSContext* cx, JSObject* scope, T* parent,
-                               nsWrapperCache* cache)
-  {
-    MOZ_NOT_REACHED("Don't know how to deal with triedToWrap == false for "
-                    "non-nsISupports classes");
-    return nullptr;
-  }
-};
-
-template<typename T >
-struct WrapNativeParentFallback<T, true >
-{
-  static inline JSObject* Wrap(JSContext* cx, JSObject* scope, T* parent,
-                               nsWrapperCache* cache)
-  {
-    return WrapNativeISupportsParent(cx, scope, parent, cache);
-  }
+  static bool const Value = sizeof(Check<T>(nullptr)) == sizeof(yes);
 };
 
 template<typename T, bool hasWrapObject=HasWrapObject<T>::Value >
@@ -844,16 +779,12 @@ struct WrapNativeParentHelper
     }
 
     bool triedToWrap;
-    obj = parent->WrapObject(cx, scope, &triedToWrap);
-    if (!triedToWrap) {
-      obj = WrapNativeParentFallback<T>::Wrap(cx, scope, parent, cache);
-    }
-    return obj;
+    return parent->WrapObject(cx, scope, &triedToWrap);
   }
 };
 
 template<typename T>
-struct WrapNativeParentHelper<T, false >
+struct WrapNativeParentHelper<T, false>
 {
   static inline JSObject* Wrap(JSContext* cx, JSObject* scope, T* parent,
                                nsWrapperCache* cache)
@@ -861,13 +792,21 @@ struct WrapNativeParentHelper<T, false >
     JSObject* obj;
     if (cache && (obj = cache->GetWrapper())) {
 #ifdef DEBUG
-      NS_ASSERTION(WrapNativeISupportsParent(cx, scope, parent, cache) == obj,
+      qsObjectHelper helper(ToSupports(parent), cache);
+      JS::Value debugVal;
+
+      bool ok = XPCOMObjectToJsval(cx, scope, helper, NULL, false, &debugVal);
+      NS_ASSERTION(ok && JSVAL_TO_OBJECT(debugVal) == obj,
                    "Unexpected object in nsWrapperCache");
 #endif
       return obj;
     }
 
-    return WrapNativeISupportsParent(cx, scope, parent, cache);
+    qsObjectHelper helper(ToSupports(parent), cache);
+    JS::Value v;
+    return XPCOMObjectToJsval(cx, scope, helper, NULL, false, &v) ?
+           JSVAL_TO_OBJECT(v) :
+           NULL;
   }
 };
 
@@ -1287,15 +1226,6 @@ MustInheritFromNonRefcountedDOMObject(NonRefcountedDOMObject*)
 // For Paris Bindings only. See the relevant infrastructure in XrayWrapper.cpp.
 JSObject* GetXrayExpandoChain(JSObject *obj);
 void SetXrayExpandoChain(JSObject *obj, JSObject *chain);
-
-struct MainThreadDictionaryBase
-{
-protected:
-  JSContext* ParseJSON(const nsAString& aJSON,
-                       mozilla::Maybe<JSAutoRequest>& aAr,
-                       mozilla::Maybe<JSAutoCompartment>& aAc,
-                       JS::Value& aVal);
-};
 
 } // namespace dom
 } // namespace mozilla

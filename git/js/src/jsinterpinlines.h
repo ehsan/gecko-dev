@@ -112,7 +112,6 @@ ComputeThis(JSContext *cx, StackFrame *fp)
 static inline bool
 IsOptimizedArguments(StackFrame *fp, Value *vp)
 {
-    AutoAssertNoGC nogc;
     if (vp->isMagic(JS_OPTIMIZED_ARGUMENTS) && fp->script()->needsArgsObj())
         *vp = ObjectValue(fp->argsObj());
     return vp->isMagic(JS_OPTIMIZED_ARGUMENTS);
@@ -126,13 +125,11 @@ IsOptimizedArguments(StackFrame *fp, Value *vp)
 static inline bool
 GuardFunApplyArgumentsOptimization(JSContext *cx)
 {
-    AssertCanGC();
     FrameRegs &regs = cx->regs();
     if (IsOptimizedArguments(regs.fp(), &regs.sp[-1])) {
         CallArgs args = CallArgsFromSp(GET_ARGC(regs.pc), regs.sp);
         if (!IsNativeFunction(args.calleev(), js_fun_apply)) {
-            RootedScript script(cx, regs.fp()->script());
-            if (!JSScript::argumentsOptimizationFailed(cx, script))
+            if (!JSScript::argumentsOptimizationFailed(cx, regs.fp()->script()))
                 return false;
             regs.sp[-1] = ObjectValue(regs.fp()->argsObj());
         }
@@ -510,7 +507,7 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
 inline void
 InterpreterFrames::enableInterruptsIfRunning(JSScript *script)
 {
-    if (regs->fp()->script() == script)
+    if (script == regs->fp()->script())
         enabler.enable();
 }
 
@@ -761,7 +758,6 @@ static JS_ALWAYS_INLINE bool
 GetElementOperation(JSContext *cx, JSOp op, HandleValue lref, HandleValue rref,
                     MutableHandleValue res)
 {
-    AssertCanGC();
     JS_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
 
     if (lref.isString() && rref.isInt32()) {
@@ -787,8 +783,7 @@ GetElementOperation(JSContext *cx, JSOp op, HandleValue lref, HandleValue rref,
             }
         }
 
-        RootedScript script(cx, fp->script());
-        if (!JSScript::argumentsOptimizationFailed(cx, script))
+        if (!JSScript::argumentsOptimizationFailed(cx, fp->script()))
             return false;
 
         lval = ObjectValue(fp->argsObj());

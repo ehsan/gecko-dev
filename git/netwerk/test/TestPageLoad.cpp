@@ -28,7 +28,7 @@ nsresult auxLoad(char *uriBuf);
 #define RETURN_IF_FAILED(rv, ret, step) \
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
-        printf(">>> %s failed: rv=%x\n", step, static_cast<uint32_t>(rv)); \
+        printf(">>> %s failed: rv=%x\n", step, rv); \
         return ret;\
     } \
     PR_END_MACRO
@@ -180,8 +180,7 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
     }
 
     if (NS_FAILED(rv)) {
-      printf(">>> stream->Read failed with rv=%x\n",
-             static_cast<uint32_t>(rv));
+      printf(">>> stream->Read failed with rv=%x\n", rv);
       return rv;
     }
 

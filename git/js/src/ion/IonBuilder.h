@@ -288,21 +288,6 @@ class IonBuilder : public MIRGenerator
     bool loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType);
     bool storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier);
 
-    // jsop_getprop() helpers.
-    bool getPropTryArgumentsLength(bool *emitted);
-    bool getPropTryConstant(bool *emitted, HandleId id, types::StackTypeSet *barrier,
-                            types::StackTypeSet *types, TypeOracle::UnaryTypes unaryTypes);
-    bool getPropTryDefiniteSlot(bool *emitted, HandlePropertyName name,
-                            types::StackTypeSet *barrier, types::StackTypeSet *types,
-                            TypeOracle::Unary unary, TypeOracle::UnaryTypes unaryTypes);
-    bool getPropTryCommonGetter(bool *emitted, HandleId id, types::StackTypeSet *barrier,
-                                types::StackTypeSet *types, TypeOracle::UnaryTypes unaryTypes);
-    bool getPropTryMonomorphic(bool *emitted, HandleId id, types::StackTypeSet *barrier,
-                               TypeOracle::Unary unary, TypeOracle::UnaryTypes unaryTypes);
-    bool getPropTryPolymorphic(bool *emitted, HandlePropertyName name, HandleId id,
-                               types::StackTypeSet *barrier, types::StackTypeSet *types,
-                               TypeOracle::Unary unary, TypeOracle::UnaryTypes unaryTypes);
-
     bool jsop_add(MDefinition *left, MDefinition *right);
     bool jsop_bitnot();
     bool jsop_bitop(JSOp op);
@@ -360,7 +345,6 @@ class IonBuilder : public MIRGenerator
     bool jsop_iternext();
     bool jsop_itermore();
     bool jsop_iterend();
-    bool jsop_in();
     bool jsop_instanceof();
     bool jsop_getaliasedvar(ScopeCoordinate sc);
     bool jsop_setaliasedvar(ScopeCoordinate sc);
@@ -445,11 +429,11 @@ class IonBuilder : public MIRGenerator
     types::RecompileInfo const recompileInfo;
 
     // If off thread compilation is successful, final LIR is attached here.
-    LIRGraph *backgroundCompiledLir;
+    LIRGraph *lir;
 
     void clearForBackEnd();
 
-    Return<JSScript*> script() const { return script_; }
+    JSScript *script() const { return script_; }
 
   private:
     JSContext *cx;

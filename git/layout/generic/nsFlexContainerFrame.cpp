@@ -5,7 +5,7 @@
  * version 2.0 (the "License"). You can obtain a copy of the License at
  * http://mozilla.org/MPL/2.0/. */
 
-/* rendering object for CSS "display: flex" */
+/* rendering object for CSS display: -moz-flex */
 
 #include "nsFlexContainerFrame.h"
 #include "nsLayoutUtils.h"
@@ -1555,8 +1555,7 @@ SingleLineCrossAxisPositionTracker::
   // XXXdholbert This assumes cross axis is Top-To-Bottom.
   // For bottom-to-top support, probably want to make this depend on
   //   AxisGrowsInPositiveDirection(mAxis)
-  return NSCoordSaturatingAdd(aItem.GetAscent(),
-                              aItem.GetMarginComponentForSide(crossStartSide));
+  return aItem.GetAscent() + aItem.GetMarginComponentForSide(crossStartSide);
 }
 
 void
@@ -1657,9 +1656,8 @@ SingleLineCrossAxisPositionTracker::
           aItem.GetMarginBorderPaddingSizeInAxis(mAxis))) / 2;
       break;
     case NS_STYLE_ALIGN_ITEMS_BASELINE:
-      NS_WARN_IF_FALSE(mCrossStartToFurthestBaseline != nscoord_MIN,
-                       "using uninitialized baseline offset (or working with "
-                       "content that has bogus huge values)");
+      MOZ_ASSERT(mCrossStartToFurthestBaseline != nscoord_MIN,
+                 "using uninitialized baseline offset");
       MOZ_ASSERT(mCrossStartToFurthestBaseline >=
                  GetBaselineOffsetFromCrossStart(aItem),
                  "failed at finding largest ascent");
@@ -1792,9 +1790,9 @@ nsFlexContainerFrame::ComputeFlexContainerMainSize(
     return mainSize;
   }
 
-  NS_WARN_IF_FALSE(!IsAxisHorizontal(aAxisTracker.GetMainAxis()),
-                   "Computed width should always be constrained, so horizontal "
-                   "flex containers should have a constrained main-size");
+  MOZ_ASSERT(!IsAxisHorizontal(aAxisTracker.GetMainAxis()),
+             "Computed width should always be constrained, so horizontal "
+             "flex containers should always have a constrained main-size");
 
   // Otherwise, use the sum of our items' hypothetical main sizes, clamped
   // to our computed min/max main-size properties.
@@ -2048,20 +2046,10 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
                                            aReflowState.ComputedHeight()));
 
     if (mCachedContentBoxCrossSize == NS_AUTOHEIGHT) {
-      // Unconstrained 'auto' cross-size: shrink-wrap our line(s), subject
-      // to our min-size / max-size constraints in that axis.
-      nscoord minCrossSize =
-        axisTracker.GetCrossComponent(nsSize(aReflowState.mComputedMinWidth,
-                                             aReflowState.mComputedMinHeight));
-      nscoord maxCrossSize =
-        axisTracker.GetCrossComponent(nsSize(aReflowState.mComputedMaxWidth,
-                                             aReflowState.mComputedMaxHeight));
+      // unconstrained 'auto' cross-size: shrink-wrap our line(s)
       mCachedContentBoxCrossSize =
-        NS_CSS_MINMAX(lineCrossAxisPosnTracker.GetLineCrossSize(),
-                      minCrossSize, maxCrossSize);
-    }
-    if (lineCrossAxisPosnTracker.GetLineCrossSize() !=
-        mCachedContentBoxCrossSize) {
+        lineCrossAxisPosnTracker.GetLineCrossSize();
+    } else {
       // XXXdholbert When we support multi-line flex containers, we should
       // distribute any extra space among or between our lines here according
       // to 'align-content'. For now, we do the single-line special behavior:

@@ -360,9 +360,6 @@ public:
   // should only be called from the document that owns this loader.
   void UnlinkCachedSheets();
 
-  // Measure our size.
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   friend class SheetLoadData;
 

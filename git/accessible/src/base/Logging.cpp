@@ -684,7 +684,7 @@ logging::Node(const char* aDescr, nsINode* aNode)
     return;
   }
 
-  nsINode* parentNode = aNode->GetParentNode();
+  nsINode* parentNode = aNode->GetNodeParent();
   int32_t idxInParent = parentNode ? parentNode->IndexOf(aNode) : - 1;
 
   if (aNode->IsNodeOfType(nsINode::eTEXT)) {

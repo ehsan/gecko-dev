@@ -65,7 +65,7 @@ public:
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent) MOZ_OVERRIDE;
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible() MOZ_OVERRIDE;
 #endif
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;

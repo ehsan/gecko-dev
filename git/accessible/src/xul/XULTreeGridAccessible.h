@@ -158,7 +158,7 @@ public:
   virtual void Shutdown();
   virtual ENameValueFlag Name(nsString& aName);
   virtual Accessible* FocusedChild();
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties* aAttributes);
   virtual int32_t IndexInParent() const;
   virtual Relation RelationByType(uint32_t aType);
   virtual a11y::role NativeRole();

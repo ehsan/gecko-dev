@@ -586,7 +586,7 @@ nsresult nsGeolocationService::Init()
 #endif
 
 #ifdef MOZ_WIDGET_GONK
-  provider = do_GetService(GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID);
+  provider = GonkGPSGeolocationProvider::GetSingleton();
   if (provider) {
     mProviders.AppendObject(provider);
   }

@@ -10,7 +10,6 @@ onconnect = function(e) {
     } else {
       port.postMessage({topic: "done", result: "import worked but global is not available"});
     }
-    return;
   } catch(e) {
     port.postMessage({topic: "done", result: "FAILED to importScripts, " + e.toString() });
     return;

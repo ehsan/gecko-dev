@@ -25,7 +25,7 @@ NodeToParentOffset(nsINode* aNode, int32_t* aOffset)
 {
   *aOffset = 0;
 
-  nsINode* parent = aNode->GetParentNode();
+  nsINode* parent = aNode->GetNodeParent();
 
   if (parent) {
     *aOffset = parent->IndexOf(aNode);
@@ -54,7 +54,7 @@ NodeIsInTraversalRange(nsINode* aNode, bool aIsPreMode,
     return true;
   }
 
-  nsINode* parent = aNode->GetParentNode();
+  nsINode* parent = aNode->GetNodeParent();
   if (!parent) {
     return false;
   }
@@ -461,7 +461,7 @@ nsContentIterator::RebuildIndexStack()
   }
 
   while (current != mCommonParent) {
-    parent = current->GetParentNode();
+    parent = current->GetNodeParent();
 
     if (!parent) {
       return NS_ERROR_FAILURE;
@@ -575,7 +575,7 @@ nsContentIterator::GetNextSibling(nsINode* aNode,
     return nullptr;
   }
 
-  nsINode* parent = aNode->GetParentNode();
+  nsINode* parent = aNode->GetNodeParent();
   if (!parent) {
     return nullptr;
   }
@@ -636,7 +636,7 @@ nsContentIterator::GetPrevSibling(nsINode* aNode,
     return nullptr;
   }
 
-  nsINode* parent = aNode->GetParentNode();
+  nsINode* parent = aNode->GetNodeParent();
   if (!parent) {
     return nullptr;
   }
@@ -706,7 +706,7 @@ nsContentIterator::NextNode(nsINode* aNode, nsTArray<int32_t>* aIndexes)
   }
 
   // post-order
-  nsINode* parent = node->GetParentNode();
+  nsINode* parent = node->GetNodeParent();
   nsIContent* sibling = nullptr;
   int32_t indx = 0;
 
@@ -769,7 +769,7 @@ nsContentIterator::PrevNode(nsINode* aNode, nsTArray<int32_t>* aIndexes)
 
   // if we are a Pre-order iterator, use pre-order
   if (mPre) {
-    nsINode* parent = node->GetParentNode();
+    nsINode* parent = node->GetNodeParent();
     nsIContent* sibling = nullptr;
     int32_t indx = 0;
 
@@ -1004,7 +1004,7 @@ nsContentIterator::PositionAt(nsINode* aCurNode)
     // Insert at head since we're walking up
     oldParentStack.InsertElementAt(0, tempNode);
 
-    nsINode* parent = tempNode->GetParentNode();
+    nsINode* parent = tempNode->GetNodeParent();
 
     if (!parent) {
       // this node has no parent, and thus no index
@@ -1024,7 +1024,7 @@ nsContentIterator::PositionAt(nsINode* aCurNode)
 
   // Ok.  We have the array of old parents.  Look for a match.
   while (newCurNode) {
-    nsINode* parent = newCurNode->GetParentNode();
+    nsINode* parent = newCurNode->GetNodeParent();
 
     if (!parent) {
       // this node has no parent, and thus no index
@@ -1422,7 +1422,7 @@ nsContentSubtreeIterator::PositionAt(nsINode* aCurNode)
 nsIContent*
 nsContentSubtreeIterator::GetTopAncestorInRange(nsINode* aNode)
 {
-  if (!aNode || !aNode->GetParentNode()) {
+  if (!aNode || !aNode->GetNodeParent()) {
     return nullptr;
   }
 
@@ -1447,7 +1447,7 @@ nsContentSubtreeIterator::GetTopAncestorInRange(nsINode* aNode)
     //
     // We have to special-case this because CompareNodeToRange treats the root
     // node differently -- see bug 765205.
-    if (!parent || !parent->GetParentNode()) {
+    if (!parent || !parent->GetNodeParent()) {
       return content;
     }
     MOZ_ALWAYS_TRUE(NS_SUCCEEDED(

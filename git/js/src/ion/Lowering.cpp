@@ -68,44 +68,6 @@ LIRGenerator::visitGoto(MGoto *ins)
 }
 
 bool
-LIRGenerator::visitTableSwitch(MTableSwitch *tableswitch)
-{
-    MDefinition *opd = tableswitch->getOperand(0);
-
-    // There should be at least 1 successor. The default case!
-    JS_ASSERT(tableswitch->numSuccessors() > 0);
-
-    // If there are no cases, the default case is always taken.
-    if (tableswitch->numSuccessors() == 1)
-        return add(new LGoto(tableswitch->getDefault()));
-
-    // If we don't know the type.
-    if (opd->type() == MIRType_Value) {
-        LTableSwitchV *lir = newLTableSwitchV(tableswitch);
-        if (!useBox(lir, LTableSwitchV::InputValue, opd))
-            return false;
-        return add(lir);
-    }
-
-    // Case indices are numeric, so other types will always go to the default case.
-    if (opd->type() != MIRType_Int32 && opd->type() != MIRType_Double)
-        return add(new LGoto(tableswitch->getDefault()));
-
-    // Return an LTableSwitch, capable of handling either an integer or
-    // floating-point index.
-    LAllocation index;
-    LDefinition tempInt;
-    if (opd->type() == MIRType_Int32) {
-        index = useRegisterAtStart(opd);
-        tempInt = tempCopy(opd, 0);
-    } else {
-        index = useRegister(opd);
-        tempInt = temp(LDefinition::GENERAL);
-    }
-    return add(newLTableSwitch(index, tempInt, tableswitch));
-}
-
-bool
 LIRGenerator::visitCheckOverRecursed(MCheckOverRecursed *ins)
 {
     LCheckOverRecursed *lir = new LCheckOverRecursed(temp());
@@ -1719,15 +1681,6 @@ LIRGenerator::visitGuardObject(MGuardObject *ins)
 }
 
 bool
-LIRGenerator::visitGuardString(MGuardString *ins)
-{
-    // The type policy does all the work, so at this point the input
-    // is guaranteed to be a string.
-    JS_ASSERT(ins->input()->type() == MIRType_String);
-    return redefine(ins, ins->input());
-}
-
-bool
 LIRGenerator::visitCallGetProperty(MCallGetProperty *ins)
 {
     LCallGetProperty *lir = new LCallGetProperty();
@@ -1877,21 +1830,6 @@ LIRGenerator::visitThrow(MThrow *ins)
 }
 
 bool
-LIRGenerator::visitIn(MIn *ins)
-{
-    MDefinition *lhs = ins->lhs();
-    MDefinition *rhs = ins->rhs();
-
-    JS_ASSERT(lhs->type() == MIRType_Value);
-    JS_ASSERT(rhs->type() == MIRType_Object);
-
-    LIn *lir = new LIn(useRegisterAtStart(rhs));
-    if (!useBoxAtStart(lir, LIn::LHS, lhs))
-        return false;
-    return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
 LIRGenerator::visitInstanceOf(MInstanceOf *ins)
 {
     MDefinition *lhs = ins->lhs();
@@ -1904,10 +1842,10 @@ LIRGenerator::visitInstanceOf(MInstanceOf *ins)
     if (lhs->type() == MIRType_Object) {
         LInstanceOfO *lir = new LInstanceOfO(useRegister(lhs), useRegister(rhs), temp(), temp());
         return define(lir, ins) && assignSafepoint(lir, ins);
+    } else {
+        LInstanceOfV *lir = new LInstanceOfV(useRegister(rhs), temp(), temp());
+        return useBox(lir, LInstanceOfV::LHS, lhs) && define(lir, ins) && assignSafepoint(lir, ins);
     }
-
-    LInstanceOfV *lir = new LInstanceOfV(useRegister(rhs), temp(), temp());
-    return useBox(lir, LInstanceOfV::LHS, lhs) && define(lir, ins) && assignSafepoint(lir, ins);
 }
 
 bool

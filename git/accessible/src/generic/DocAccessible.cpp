@@ -43,7 +43,6 @@
 #include "nsIURI.h"
 #include "nsIWebNavigation.h"
 #include "nsFocusManager.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/dom/Element.h"
 
 #ifdef A11Y_LOG
@@ -86,8 +85,8 @@ DocAccessible::
   mPresShell(aPresShell)
 {
   mFlags |= eDocAccessible | eNotNodeMapEntry;
-  MOZ_ASSERT(mPresShell, "should have been given a pres shell");
-  mPresShell->SetDocAccessible(this);
+  if (mPresShell)
+    mPresShell->SetAccDocument(this);
 
   mDependentIDsHash.Init();
   // XXX aaronl should we use an algorithm for the initial cache size?
@@ -339,24 +338,17 @@ DocAccessible::ApplyARIAState(uint64_t* aState) const
   // Allow iframe/frame etc. to have final state override via ARIA
   if (mParent)
     mParent->ApplyARIAState(aState);
+
 }
 
-already_AddRefed<nsIPersistentProperties>
-DocAccessible::Attributes()
+NS_IMETHODIMP
+DocAccessible::GetAttributes(nsIPersistentProperties** aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    HyperTextAccessibleWrap::Attributes();
-
-  if (!mParent)
-    return attributes.forget();
-
-  // Override ARIA object attributes from outerdoc.
-  aria::AttrIterator attribIter(mParent->GetContent());
-  nsAutoString name, value, unused;
-  while(attribIter.Next(name, value))
-    attributes->SetStringProperty(NS_ConvertUTF16toUTF8(name), value, unused);
-
-  return attributes.forget();
+  Accessible::GetAttributes(aAttributes);
+  if (mParent) {
+    mParent->GetAttributes(aAttributes); // Add parent attributes (override inner)
+  }
+  return NS_OK;
 }
 
 Accessible*
@@ -644,7 +636,7 @@ DocAccessible::Shutdown()
     logging::DocDestroy("document shutdown", mDocument, this);
 #endif
 
-  mPresShell->SetDocAccessible(nullptr);
+  mPresShell->SetAccDocument(nullptr);
 
   if (mNotificationController) {
     mNotificationController->Shutdown();
@@ -1129,14 +1121,6 @@ DocAccessible::AttributeChangedImpl(nsIContent* aContent, int32_t aNameSpaceID, 
     FireDelayedAccessibleEvent(editableChangeEvent);
     return;
   }
-
-  if (aAttribute == nsGkAtoms::value) {
-    Accessible* accessible = GetAccessible(aContent);
-    if(accessible && accessible->IsProgress()) {
-      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                                 aContent);
-    }
-  }
 }
 
 // DocAccessible protected member
@@ -1394,7 +1378,7 @@ DocAccessible::GetAccessibleOrContainer(nsINode* aNode)
   nsINode* currNode = aNode;
   Accessible* accessible = nullptr;
   while (!(accessible = GetAccessible(currNode)) &&
-         (currNode = currNode->GetParentNode()));
+         (currNode = currNode->GetNodeParent()));
 
   return accessible;
 }

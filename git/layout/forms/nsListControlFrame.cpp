@@ -36,6 +36,9 @@
 #include "nsGUIEvent.h"
 #include "nsIServiceManager.h"
 #include "nsINodeInfo.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsHTMLSelectElement.h"
 #include "nsCSSRendering.h"
 #include "nsITheme.h"
@@ -264,10 +267,16 @@ NS_QUERYFRAME_HEAD(nsListControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLScrollFrame)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsListControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsListControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLSelectListAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLListboxAccessible(mContent,
+                                                   PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 

@@ -9,7 +9,6 @@
 #ifndef NSTRACEMALLOCCALLBACKS_H
 #define NSTRACEMALLOCCALLBACKS_H
 
-#include "mozilla/StandardInteger.h"
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -29,7 +28,7 @@ struct tm_thread {
      * This counter suppresses tracing, in case any tracing code needs
      * to malloc.
      */
-    uint32_t suppress_tracing;
+    uint32 suppress_tracing;
 
     /* buffer for backtrace, below */
     stack_buffer_info backtrace_buf;

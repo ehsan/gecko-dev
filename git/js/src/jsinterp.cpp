@@ -291,7 +291,7 @@ js::RunScript(JSContext *cx, HandleScript script, StackFrame *fp)
 #endif
 
     SPSEntryMarker marker(cx->runtime);
-
+	
 #ifdef JS_ION
     if (ion::IsEnabled(cx)) {
         ion::MethodStatus status = ion::CanEnter(cx, script, fp, false);
@@ -299,7 +299,7 @@ js::RunScript(JSContext *cx, HandleScript script, StackFrame *fp)
             return false;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus status = ion::Cannon(cx, fp);
-
+            
             // Note that if we bailed out, new inline frames may have been
             // pushed, so we interpret with the current fp.
             if (status == ion::IonExec_Bailout)
@@ -375,8 +375,7 @@ js::InvokeKernel(JSContext *cx, CallArgs args, MaybeConstruct construct)
         return false;
 
     /* Run function until JSOP_STOP, JSOP_RETURN or error. */
-    RootedScript script(cx, fun->script());
-    JSBool ok = RunScript(cx, script, ifg.fp());
+    JSBool ok = RunScript(cx, fun->script(), ifg.fp());
 
     /* Propagate the return value out. */
     args.rval().set(ifg.fp()->returnValue());
@@ -792,6 +791,7 @@ js::UnwindScope(JSContext *cx, uint32_t stackDepth)
 void
 js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
 {
+
     /* c.f. the regular (catchable) TryNoteIter loop in Interpret. */
     for (TryNoteIter tni(regs); !tni.done(); ++tni) {
         JSTryNote *tn = *tni;
@@ -804,7 +804,7 @@ js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
 
 TryNoteIter::TryNoteIter(const FrameRegs &regs)
   : regs(regs),
-    script(regs.fp()->script().unsafeGet()),
+    script(regs.fp()->script()),
     pcOffset(regs.pc - script->main())
 {
     if (script->hasTrynotes()) {
@@ -1030,11 +1030,15 @@ IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
  * types of the pushed values are consistent with type inference information.
  */
 static inline void
-TypeCheckNextBytecode(JSContext *cx, HandleScript script, unsigned n, const FrameRegs &regs)
+TypeCheckNextBytecode(JSContext *cx, JSScript *script_, unsigned n, const FrameRegs &regs)
 {
 #ifdef DEBUG
-    if (cx->typeInferenceEnabled() && n == GetBytecodeLength(regs.pc))
+    if (cx->typeInferenceEnabled() &&
+        n == GetBytecodeLength(regs.pc))
+    {
+        RootedScript script(cx, script_);
         TypeScript::CheckBytecode(cx, script, regs.pc, regs.sp);
+    }
 #endif
 }
 
@@ -1129,13 +1133,11 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
 #define SET_SCRIPT(s)                                                         \
     JS_BEGIN_MACRO                                                            \
-        EnterAssertNoGCScope();                                               \
         script = (s);                                                         \
         if (script->hasAnyBreakpointsOrStepMode() || script->hasScriptCounts) \
             interrupts.enable();                                              \
         JS_ASSERT_IF(interpMode == JSINTERP_SKIP_TRAP,                        \
                      script->hasAnyBreakpointsOrStepMode());                  \
-        LeaveAssertNoGCScope();                                               \
     JS_END_MACRO
 
     /* Repoint cx->regs to a local variable for faster access. */
@@ -1150,7 +1152,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
     /* Copy in hot values that change infrequently. */
     JSRuntime *const rt = cx->runtime;
-    RootedScript script(cx);
+    Rooted<JSScript*> script(cx);
     SET_SCRIPT(regs.fp()->script());
 
     /* Reset the loop count on the script we're entering. */
@@ -1252,7 +1254,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
         JS_ASSERT(js_CodeSpec[op].length == 1);
         len = 1;
       advance_pc:
-        TypeCheckNextBytecode(cx, script, len, regs);
         js::gc::MaybeVerifyBarriers(cx);
         regs.pc += len;
         op = (JSOp) *regs.pc;
@@ -2381,8 +2382,9 @@ BEGIN_CASE(JSOP_FUNCALL)
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
-    RawScript funScript = fun->script().unsafeGet();
-    if (!cx->stack.pushInlineFrame(cx, regs, args, *fun, funScript, initial))
+    JSScript *newScript = fun->script();
+
+    if (!cx->stack.pushInlineFrame(cx, regs, args, *fun, newScript, initial))
         goto error;
 
     SET_SCRIPT(regs.fp()->script());
@@ -3847,7 +3849,7 @@ js::Throw(JSContext *cx, HandleValue v)
 }
 
 bool
-js::GetProperty(JSContext *cx, HandleValue v, HandlePropertyName name, MutableHandleValue vp)
+js::GetProperty(JSContext *cx, HandleValue v, PropertyName *name, MutableHandleValue vp)
 {
     if (name == cx->names().length) {
         // Fast path for strings, arrays and arguments.

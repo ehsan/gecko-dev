@@ -308,8 +308,7 @@ CodeGenerator::visitLambda(LLambda *lir)
 
     JS_STATIC_ASSERT(offsetof(JSFunction, flags) == offsetof(JSFunction, nargs) + 2);
     masm.store32(Imm32(u.word), Address(output, offsetof(JSFunction, nargs)));
-    masm.storePtr(ImmGCPtr(fun->script().unsafeGet()),
-                  Address(output, JSFunction::offsetOfNativeOrScript()));
+    masm.storePtr(ImmGCPtr(fun->script()), Address(output, JSFunction::offsetOfNativeOrScript()));
     masm.storePtr(scopeChain, Address(output, JSFunction::offsetOfEnvironment()));
     masm.storePtr(ImmGCPtr(fun->displayAtom()), Address(output, JSFunction::offsetOfAtom()));
 
@@ -359,49 +358,6 @@ CodeGenerator::visitGoto(LGoto *lir)
 
     masm.jump(target->label());
     return true;
-}
-
-bool
-CodeGenerator::visitTableSwitch(LTableSwitch *ins)
-{
-    MTableSwitch *mir = ins->mir();
-    Label *defaultcase = mir->getDefault()->lir()->label();
-    const LAllocation *temp;
-
-    if (ins->index()->isDouble()) {
-        temp = ins->tempInt();
-
-        // The input is a double, so try and convert it to an integer.
-        // If it does not fit in an integer, take the default case.
-        emitDoubleToInt32(ToFloatRegister(ins->index()), ToRegister(temp), defaultcase, false);
-    } else {
-        temp = ins->index();
-    }
-
-    return emitTableSwitchDispatch(mir, ToRegister(temp), ToRegisterOrInvalid(ins->tempPointer()));
-}
-
-bool
-CodeGenerator::visitTableSwitchV(LTableSwitchV *ins)
-{
-    MTableSwitch *mir = ins->mir();
-    Label *defaultcase = mir->getDefault()->lir()->label();
-
-    Register index = ToRegister(ins->tempInt());
-    ValueOperand value = ToValue(ins, LTableSwitchV::InputValue);
-    Register tag = masm.extractTag(value, index);
-    masm.branchTestNumber(Assembler::NotEqual, tag, defaultcase);
-
-    Label isInt;
-    masm.branchTestInt32(Assembler::Equal, tag, &isInt);
-    {
-        FloatRegister floatIndex = ToFloatRegister(ins->tempFloat());
-        masm.unboxDouble(value, floatIndex);
-        emitDoubleToInt32(floatIndex, index, defaultcase, false);
-    }
-    masm.bind(&isInt);
-
-    return emitTableSwitchDispatch(mir, index, ToRegisterOrInvalid(ins->tempPointer()));
 }
 
 bool
@@ -2944,7 +2900,6 @@ CodeGenerator::visitGetArgument(LGetArgument *lir)
 bool
 CodeGenerator::generate()
 {
-    AssertCanGC();
     JSContext *cx = GetIonContext()->cx;
 
     unsigned slots = graph.localSlotCount() +
@@ -2986,7 +2941,7 @@ CodeGenerator::generate()
     // We encode safepoints after the OSI-point offsets have been determined.
     encodeSafepoints();
 
-    RootedScript script(cx, gen->info().script());
+    JSScript *script = gen->info().script();
     JS_ASSERT(!script->hasIonScript());
 
     uint32 scriptFrameSize = frameClass_ == FrameSizeClass::None()
@@ -3105,7 +3060,7 @@ typedef bool (*GetPropertyOrNameFn)(JSContext *, HandleObject, HandlePropertyNam
 bool
 CodeGenerator::visitCallGetProperty(LCallGetProperty *lir)
 {
-    typedef bool (*pf)(JSContext *, HandleValue, HandlePropertyName, MutableHandleValue);
+    typedef bool (*pf)(JSContext *, HandleValue, PropertyName *, MutableHandleValue);
     static const VMFunction Info = FunctionInfo<pf>(GetProperty);
 
     pushArg(ImmGCPtr(lir->mir()->name()));
@@ -3981,18 +3936,6 @@ CodeGenerator::visitClampVToUint8(LClampVToUint8 *lir)
 }
 
 bool
-CodeGenerator::visitIn(LIn *ins)
-{
-    typedef bool (*pf)(JSContext *, HandleValue, HandleObject, JSBool *);
-    static const VMFunction OperatorInInfo = FunctionInfo<pf>(OperatorIn);
-
-    pushArg(ToRegister(ins->rhs()));
-    pushArg(ToValue(ins, LIn::LHS));
-
-    return callVM(OperatorInInfo, ins);
-}
-
-bool
 CodeGenerator::visitInstanceOfO(LInstanceOfO *ins)
 {
     Register rhs = ToRegister(ins->getOperand(1));
@@ -4266,7 +4209,6 @@ CodeGenerator::visitSetDOMProperty(LSetDOMProperty *ins)
 bool
 CodeGenerator::visitFunctionBoundary(LFunctionBoundary *lir)
 {
-    AssertCanGC();
     Register temp = ToRegister(lir->temp()->output());
 
     switch (lir->type()) {

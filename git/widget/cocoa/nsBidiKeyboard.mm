@@ -23,7 +23,7 @@ nsBidiKeyboard::~nsBidiKeyboard()
 
 NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(bool *aIsRTL)
 {
-  *aIsRTL = TISInputSourceWrapper::CurrentInputSource().IsForRTLLanguage();
+  *aIsRTL = TISInputSourceWrapper::CurrentKeyboardLayout().IsForRTLLanguage();
   return NS_OK;
 }
 

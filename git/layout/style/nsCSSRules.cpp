@@ -1982,10 +1982,11 @@ nsCSSKeyframeRule::MapRuleInfoInto(nsRuleData* aRuleData)
   // constructs a rule node pointing to us in order to compute the
   // styles it needs to animate.
 
-  // The spec says that !important declarations should just be ignored
-  NS_ASSERTION(!mDeclaration->HasImportantData(),
-               "Keyframe rules has !important data");
-
+  // FIXME (spec): The spec doesn't say what to do with !important.
+  // We'll just map them.
+  if (mDeclaration->HasImportantData()) {
+    mDeclaration->MapImportantRuleInfoInto(aRuleData);
+  }
   mDeclaration->MapNormalRuleInfoInto(aRuleData);
 }
 

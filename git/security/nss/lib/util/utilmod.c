@@ -18,8 +18,7 @@
 
 #include "prprf.h" 
 #include "prsystem.h"
-#include "pkcs11t.h"
-#include "secitem.h"
+#include "lgglue.h"
 #include "utilpars.h" 
 #include "secerr.h"
 #if defined (_WIN32)

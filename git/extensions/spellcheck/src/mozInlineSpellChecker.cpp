@@ -1649,7 +1649,7 @@ ContentIsDescendantOf(nsINode* aPossibleDescendant,
   do {
     if (aPossibleDescendant == aPossibleAncestor)
       return true;
-    aPossibleDescendant = aPossibleDescendant->GetParentNode();
+    aPossibleDescendant = aPossibleDescendant->GetNodeParent();
   } while (aPossibleDescendant);
 
   return false;

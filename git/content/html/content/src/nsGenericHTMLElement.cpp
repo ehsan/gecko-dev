@@ -344,25 +344,18 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
                  aValue, true);
 }
 
-already_AddRefed<nsDOMStringMap>
-nsGenericHTMLElement::Dataset()
+nsresult
+nsGenericHTMLElement::GetDataset(nsIDOMDOMStringMap** aDataset)
 {
   nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mDataset) {
     // mDataset is a weak reference so assignment will not AddRef.
-    // AddRef is called before returning the pointer.
+    // AddRef is called before assigning to out parameter.
     slots->mDataset = new nsDOMStringMap(this);
   }
 
-  NS_ADDREF(slots->mDataset);
-  return slots->mDataset;
-}
-
-nsresult
-nsGenericHTMLElement::GetDataset(nsIDOMDOMStringMap** aDataset)
-{
-  *aDataset = Dataset().get();
+  NS_ADDREF(*aDataset = slots->mDataset);
   return NS_OK;
 }
 
@@ -1241,7 +1234,7 @@ Serialize(Element* aRoot, bool aDescendentsOnly, nsAString& aOut)
         break;
       }
 
-      current = current->GetParentNode();
+      current = current->GetNodeParent();
       if (aDescendentsOnly && current == aRoot) {
         return builder.ToString(aOut);
       }
@@ -1392,7 +1385,9 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML,
       // listeners on the fragment that comes from the parser.
       nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-      static_cast<nsINode*>(this)->AppendChild(*fragment, aError);
+      nsresult rv = NS_OK;
+      static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
+      aError = rv;
       mb.NodesAdded();
     }
   }
@@ -1401,7 +1396,7 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML,
 NS_IMETHODIMP
 nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
 {
-  nsCOMPtr<nsINode> parent = GetParentNode();
+  nsCOMPtr<nsINode> parent = GetNodeParent();
   if (!parent) {
     return NS_OK;
   }
@@ -1435,9 +1430,8 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
                                         eCompatibility_NavQuirks,
                                       true);
     nsAutoMutationBatch mb(parent, true, false);
-    ErrorResult error;
-    parent->ReplaceChild(*fragment, *this, error);
-    return error.ErrorCode();
+    parent->ReplaceChild(fragment, this, &rv);
+    return rv;
   }
 
   nsCOMPtr<nsINode> context;
@@ -1462,9 +1456,8 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
   nsAutoMutationBatch mb(parent, true, false);
-  ErrorResult error;
-  parent->ReplaceChild(*fragment, *this, error);
-  return error.ErrorCode();
+  parent->ReplaceChild(fragment, this, &rv);
+  return rv;
 }
 
 enum nsAdjacentPosition {
@@ -1551,23 +1544,22 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
   // listeners on the fragment that comes from the parser.
   nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-  ErrorResult error;
   nsAutoMutationBatch mb(destination, true, false);
   switch (position) {
     case eBeforeBegin:
-      destination->InsertBefore(*fragment, this, error);
+      destination->InsertBefore(fragment, this, &rv);
       break;
     case eAfterBegin:
-      static_cast<nsINode*>(this)->InsertBefore(*fragment, GetFirstChild(), error);
+      static_cast<nsINode*>(this)->InsertBefore(fragment, GetFirstChild(), &rv);
       break;
     case eBeforeEnd:
-      static_cast<nsINode*>(this)->AppendChild(*fragment, error);
+      static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
       break;
     case eAfterEnd:
-      destination->InsertBefore(*fragment, GetNextSibling(), error);
+      destination->InsertBefore(fragment, GetNextSibling(), &rv);
       break;
   }
-  return error.ErrorCode();
+  return rv;
 }
 
 nsresult
@@ -4233,14 +4225,13 @@ nsGenericHTMLElement::SetItemValue(nsIVariant* aValue)
 void
 nsGenericHTMLElement::GetItemValueText(nsAString& text)
 {
-  GetTextContentInternal(text);
+  GetTextContent(text);
 }
 
 void
 nsGenericHTMLElement::SetItemValueText(const nsAString& text)
 {
-  mozilla::ErrorResult rv;
-  SetTextContentInternal(text, rv);
+  SetTextContent(text);
 }
 
 static void

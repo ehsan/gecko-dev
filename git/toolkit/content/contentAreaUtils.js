@@ -3,20 +3,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 var ContentAreaUtils = {
-
-  // this is for backwards compatibility.
   get ioService() {
-    return Services.io;
+    delete this.ioService;
+    return this.ioService =
+      Components.classes["@mozilla.org/network/io-service;1"]
+                .getService(Components.interfaces.nsIIOService);
   },
 
   get stringBundle() {
     delete this.stringBundle;
     return this.stringBundle =
-      Services.strings.createBundle("chrome://global/locale/contentAreaCommands.properties");
+      Components.classes["@mozilla.org/intl/stringbundle;1"]
+                .getService(Components.interfaces.nsIStringBundleService)
+                .createBundle("chrome://global/locale/contentAreaCommands.properties");
   }
 }
 
@@ -37,10 +39,12 @@ var ContentAreaUtils = {
  */
 function urlSecurityCheck(aURL, aPrincipal, aFlags)
 {
-  var secMan = Services.scriptSecurityManager;
-  if (aFlags === undefined) {
-    aFlags = secMan.STANDARD;
-  }
+  const nsIScriptSecurityManager =
+    Components.interfaces.nsIScriptSecurityManager;
+  var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                         .getService(nsIScriptSecurityManager);
+  if (aFlags === undefined)
+    aFlags = nsIScriptSecurityManager.STANDARD;
 
   try {
     if (aURL instanceof Components.interfaces.nsIURI)
@@ -541,7 +545,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
     Components.utils.import("resource://gre/modules/DownloadLastDir.jsm", getTargetFile);
   var gDownloadLastDir = getTargetFile.gDownloadLastDir;
 
-  var prefs = Services.prefs.getBranch("browser.download.");
+  var prefs = getPrefsBrowserDownload("browser.download.");
   var useDownloadDir = prefs.getBoolPref("useDownloadDir");
   const nsILocalFile = Components.interfaces.nsILocalFile;
 
@@ -550,7 +554,9 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
 
   // Default to the user's default downloads directory configured
   // through download prefs.
-  var dir = Services.downloads.userDownloadsDirectory;
+  var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
+                        .getService(Components.interfaces.nsIDownloadManager);
+  var dir = dlMgr.userDownloadsDirectory;
   var dirExists = dir && dir.exists();
 
   if (useDownloadDir && dirExists) {
@@ -576,7 +582,9 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
 
   if (!dirExists) {
     // Default to desktop.
-    dir = Services.dirsvc.get("Desk", nsILocalFile);
+    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
+                                .getService(Components.interfaces.nsIProperties);
+    dir = fileLocator.get("Desk", nsILocalFile);
   }
 
   var fp = makeFilePicker();
@@ -612,7 +620,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
   gDownloadLastDir.setFile(aRelatedURI, directory);
 
   fp.file.leafName = validateFileName(fp.file.leafName);
-
+  
   aFpP.saveAsType = fp.filterIndex;
   aFpP.file = fp.file;
   aFpP.fileURL = fp.fileURL;
@@ -750,6 +758,14 @@ function getPostData(aDocument)
   return null;
 }
 
+// Get the preferences branch ("browser.download." for normal 'save' mode)...
+function getPrefsBrowserDownload(branch)
+{
+  const prefSvcContractID = "@mozilla.org/preferences-service;1";
+  const prefSvcIID = Components.interfaces.nsIPrefService;                              
+  return Components.classes[prefSvcContractID].getService(prefSvcIID).getBranch(branch);
+}
+
 function makeWebBrowserPersist()
 {
   const persistContractID = "@mozilla.org/embedding/browser/nsWebBrowserPersist;1";
@@ -766,12 +782,12 @@ function makeWebBrowserPersist()
  */
 function makeURI(aURL, aOriginCharset, aBaseURI)
 {
-  return Services.io.newURI(aURL, aOriginCharset, aBaseURI);
+  return ContentAreaUtils.ioService.newURI(aURL, aOriginCharset, aBaseURI);
 }
 
 function makeFileURI(aFile)
 {
-  return Services.io.newFileURI(aFile);
+  return ContentAreaUtils.ioService.newFileURI(aFile);
 }
 
 function makeFilePicker()
@@ -1072,7 +1088,9 @@ function openURL(aURL)
     protocolSvc.loadUrl(uri);
   }
   else {
-    var recentWindow = Services.wm.getMostRecentWindow("navigator:browser");
+    var wmSvc = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                          .getService(Components.interfaces.nsIWindowMediator);
+    var recentWindow = wmSvc.getMostRecentWindow("navigator:browser");
     if (recentWindow) {
       var win = recentWindow.browserDOMWindow.openURI(uri, null,
                                                       recentWindow.browserDOMWindow.OPEN_DEFAULTWINDOW,
@@ -1083,7 +1101,8 @@ function openURL(aURL)
 
     var loadgroup = Components.classes["@mozilla.org/network/load-group;1"]
                               .createInstance(Components.interfaces.nsILoadGroup);
-    var appstartup = Services.startup;
+    var appstartup = Components.classes["@mozilla.org/toolkit/app-startup;1"]
+                               .getService(Components.interfaces.nsIAppStartup);
 
     var loadListener = {
       onStartRequest: function ll_start(aRequest, aContext) {
@@ -1118,7 +1137,7 @@ function openURL(aURL)
       }
     }
 
-    var channel = Services.io.newChannelFromURI(uri);
+    var channel = ContentAreaUtils.ioService.newChannelFromURI(uri);
     var uriLoader = Components.classes["@mozilla.org/uriloader;1"]
                               .getService(Components.interfaces.nsIURILoader);
     uriLoader.openURI(channel, true, uriListener);

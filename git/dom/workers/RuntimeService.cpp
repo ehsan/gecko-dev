@@ -142,6 +142,7 @@ MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(gStringChars) == ID_COUNT,
 enum {
   PREF_strict = 0,
   PREF_werror,
+  PREF_relimit,
   PREF_methodjit,
   PREF_methodjit_always,
   PREF_typeinference,
@@ -162,6 +163,7 @@ enum {
 const char* gPrefsToWatch[] = {
   JS_OPTIONS_DOT_STR "strict",
   JS_OPTIONS_DOT_STR "werror",
+  JS_OPTIONS_DOT_STR "relimit",
   JS_OPTIONS_DOT_STR "methodjit.content",
   JS_OPTIONS_DOT_STR "methodjit_always",
   JS_OPTIONS_DOT_STR "typeinference",
@@ -203,6 +205,9 @@ PrefCallback(const char* aPrefName, void* aClosure)
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_werror])) {
       newOptions |= JSOPTION_WERROR;
+    }
+    if (Preferences::GetBool(gPrefsToWatch[PREF_relimit])) {
+      newOptions |= JSOPTION_RELIMIT;
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_methodjit])) {
       newOptions |= JSOPTION_METHODJIT;
@@ -378,7 +383,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
 
   // The number passed here doesn't matter, we're about to change it in the call
   // to JS_SetGCParameter.
-  JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE, JS_NO_HELPER_THREADS);
+  JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE);
   if (!runtime) {
     NS_WARNING("Could not create new runtime!");
     return nullptr;

@@ -12,19 +12,19 @@
       .flexbox {
         border: 1px dashed blue;
         width: 200px;
-        display: flex;
-        flex-direction: column;
+        display: -moz-flex;
+        -moz-flex-direction: column;
         direction: rtl;
         font-family: sans-serif;
         font-size: 10px;
 
         /* Any children whose align-self is 'auto' (or unspecified, or
            -moz-initial) will end up taking this value from us: */
-        align-items: center;
+        -moz-align-items: center;
 
         /* Any children whose align-self is 'inherit' will end up
            inheriting this value from us: */
-        align-self: flex-end;
+        -moz-align-self: flex-end;
       }
 
       .big {
@@ -35,38 +35,38 @@
       /* Classes for each of the various align-self values */
       .flex-start {
         background: lime;
-        align-self: flex-start;
+        -moz-align-self: flex-start;
       }
       .flex-end {
         background: orange;
-        align-self: flex-end;
+        -moz-align-self: flex-end;
       }
       .center {
         background: lightblue;
-        align-self: center;
+        -moz-align-self: center;
       }
       .baseline {
         background: teal;
-        align-self: baseline;
+        -moz-align-self: baseline;
       }
       .stretch {
         background: pink;
-        align-self: stretch;
+        -moz-align-self: stretch;
       }
       .auto {
         background: yellow;
-        align-self: auto;
+        -moz-align-self: auto;
       }
       .unspecified {
         background: lightgreen;
       }
       .initial {
         background: aqua;
-        align-self: -moz-initial;
+        -moz-align-self: -moz-initial;
       }
       .inherit {
         background: violet;
-        align-self: inherit;
+        -moz-align-self: inherit;
       }
    </style>
   </head>

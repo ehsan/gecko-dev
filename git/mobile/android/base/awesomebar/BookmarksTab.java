@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.AwesomeBar.ContextMenuSubject;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 
@@ -437,8 +436,7 @@ public class BookmarksTab extends AwesomeBarTab {
                                             cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),
                                             cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
                                             cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE)),
-                                            keyword,
-                                            isInReadingList() ? Combined.DISPLAY_READER : Combined.DISPLAY_NORMAL);
+                                            keyword);
         }
 
         if (subject == null)

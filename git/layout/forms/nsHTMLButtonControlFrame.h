@@ -71,7 +71,7 @@ public:
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible() MOZ_OVERRIDE;
 #endif
 
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;

@@ -1413,7 +1413,7 @@ nsTreeSanitizer::SanitizeChildren(nsINode* aRoot)
           RemoveAllAttributes(descendant);
         }
         nsIContent* next = node->GetNextNonChildNode(aRoot);
-        node->RemoveFromParent();
+        node->GetParent()->RemoveChild(node);
         node = next;
         continue;
       }
@@ -1459,14 +1459,14 @@ nsTreeSanitizer::SanitizeChildren(nsINode* aRoot)
         nsIContent* next = node->GetNextNode(aRoot);
         nsIContent* parent = node->GetParent();
         nsCOMPtr<nsIContent> child; // Must keep the child alive during move
-        ErrorResult rv;
+        nsresult rv;
         while ((child = node->GetFirstChild())) {
-          parent->InsertBefore(*child, node, rv);
-          if (rv.Failed()) {
+          parent->InsertBefore(child, node, &rv);
+          if (NS_FAILED(rv)) {
             break;
           }
         }
-        node->RemoveFromParent();
+        parent->RemoveChild(node);
         node = next;
         continue;
       }
@@ -1502,7 +1502,7 @@ nsTreeSanitizer::SanitizeChildren(nsINode* aRoot)
     NS_ASSERTION(!node->GetFirstChild(), "How come non-element node had kids?");
     nsIContent* next = node->GetNextNonChildNode(aRoot);
     if (!mAllowComments && node->IsNodeOfType(nsINode::eCOMMENT)) {
-      node->RemoveFromParent();
+      node->GetNodeParent()->RemoveChild(node);
     }
     node = next;
   }

@@ -55,7 +55,7 @@ public:
                   nsIFrame*        aPrevInFlow);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,

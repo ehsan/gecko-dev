@@ -13,6 +13,9 @@
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsDisplayList.h"
@@ -111,14 +114,18 @@ nsTableCaptionFrame::GetParentStyleContextFrame() const
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTableCaptionFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTableCaptionFrame::CreateAccessible()
 {
   if (!GetRect().IsEmpty()) {
-    return a11y::eHTMLCaptionAccessible;
+    nsAccessibilityService* accService = nsIPresShell::AccService();
+    if (accService) {
+      return accService->CreateHTMLCaptionAccessible(mContent,
+                                                     PresContext()->PresShell());
+    }
   }
 
-  return a11y::eNoAccessible;
+  return nullptr;
 }
 #endif
 
@@ -154,10 +161,16 @@ NS_QUERYFRAME_HEAD(nsTableOuterFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTableOuterFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTableOuterFrame::CreateAccessible()
 {
-  return a11y::eHTMLTableAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLTableAccessible(mContent,
+                                                 PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 

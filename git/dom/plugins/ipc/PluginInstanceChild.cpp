@@ -1013,24 +1013,6 @@ PluginInstanceChild::RecvWindowPosChanged(const NPRemoteEvent& event)
 #endif
 }
 
-bool
-PluginInstanceChild::RecvContentsScaleFactorChanged(const double& aContentsScaleFactor)
-{
-#ifdef XP_MACOSX
-    mContentsScaleFactor = aContentsScaleFactor;
-    if (mShContext) {
-        // Release the shared context so that it is reallocated
-        // with the new size. 
-        ::CGContextRelease(mShContext);
-        mShContext = nullptr;
-    }
-    return true;
-#else
-    NS_RUNTIMEABORT("ContentsScaleFactorChanged is an OSX-only message");
-    return false;
-#endif
-}
-
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
 // Create a new window from NPWindow
 bool PluginInstanceChild::CreateWindow(const NPRemoteWindow& aWindow)
@@ -3975,9 +3957,7 @@ PluginInstanceChild::SwapSurfaces()
         (mDoubleBufferCARenderer.GetFrontSurfaceWidth() != 
             mDoubleBufferCARenderer.GetBackSurfaceWidth() ||
         mDoubleBufferCARenderer.GetFrontSurfaceHeight() != 
-            mDoubleBufferCARenderer.GetBackSurfaceHeight() ||
-        mDoubleBufferCARenderer.GetFrontSurfaceContentsScaleFactor() != 
-            mDoubleBufferCARenderer.GetBackSurfaceContentsScaleFactor())) {
+            mDoubleBufferCARenderer.GetBackSurfaceHeight())) {
 
         mDoubleBufferCARenderer.ClearFrontSurface();
     }

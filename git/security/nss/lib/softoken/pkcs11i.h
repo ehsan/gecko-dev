@@ -249,7 +249,6 @@ typedef enum {
 struct SFTKSessionContextStr {
     SFTKContextType	type;
     PRBool		multi; 		/* is multipart */
-    PRBool		rsa; 		/* is rsa */
     PRBool		doPad; 		/* use PKCS padding for block ciphers */
     unsigned int	blockSize; 	/* blocksize for padding */
     unsigned int	padDataLength; 	/* length of the valid data in padbuf */

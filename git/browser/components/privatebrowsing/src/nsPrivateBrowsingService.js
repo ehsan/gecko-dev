@@ -466,7 +466,6 @@ PrivateBrowsingService.prototype = {
           if (this._autoStarted)
             aSubject.handleFlag("private", false);
 
-          Services.prefs.setBoolPref("browser.privatebrowsing.autostart", true);
           this.privateBrowsingEnabled = true;
           this._autoStarted = true;
           this._lastChangedByCommandLine = true;

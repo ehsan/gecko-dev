@@ -775,7 +775,6 @@ public:
         IDX_CONSTRUCTOR             = 0 ,
         IDX_TO_STRING               ,
         IDX_TO_SOURCE               ,
-        IDX_VALUE_OF                ,
         IDX_LAST_RESULT             ,
         IDX_RETURN_CODE             ,
         IDX_VALUE                   ,
@@ -2832,6 +2831,12 @@ public:
                            JSObject* aNewParent,
                            nsISupports* aCOMObj,
                            XPCWrappedNative** aWrapper);
+
+    // Returns the wrapper corresponding to the parent of our mFlatJSObject.
+    //
+    // If the parent does not have a WN, or if there is no parent, null is
+    // returned.
+    XPCWrappedNative *GetParentWrapper();
 
     bool IsOrphan();
     nsresult RescueOrphans(XPCCallContext& ccx);

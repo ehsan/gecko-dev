@@ -20,6 +20,9 @@
 #include "nsIPresShell.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLTableCellElement.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsINameSpaceManager.h"
@@ -982,10 +985,16 @@ NS_QUERYFRAME_HEAD(nsTableCellFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTableCellFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTableCellFrame::CreateAccessible()
 {
-  return a11y::eHTMLTableCellAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLTableCellAccessible(mContent,
+                                                     PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 

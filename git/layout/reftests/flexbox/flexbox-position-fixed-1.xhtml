@@ -25,22 +25,22 @@
       div.flexbox {
         width: 200px;
         height: 100px;
-        display: flex;
+        display: -moz-flex;
       }
       div.a {
-        flex: 1 0 auto;
+        -moz-flex: 1 0 auto;
         width: 30px;
         height: 100px;
         background: lightgreen;
       }
       div.b {
-        flex: 2 0 auto;
+        -moz-flex: 2 0 auto;
         width: 20px;
         height: 100px;
         background: yellow;
       }
       div.inflex {
-        flex: none;
+        -moz-flex: none;
         width: 20px;
         height: 100px;
         background: gray;
@@ -62,7 +62,7 @@
       <div class="flexbox"
            ><div class="a"/><div class="inflex fixedpos"/><div class="b"/></div>
       <!-- Third child fixedpos, w/ inflexible items & justify-content: space-around: -->
-      <div class="flexbox" style="justify-content: space-around"
+      <div class="flexbox" style="-moz-justify-content: space-around"
            ><div class="inflex"/><div class="inflex"/><div class="inflex"
           /><div class="noFlexFn fixedpos"/><div class="inflex"/></div>
     </div>

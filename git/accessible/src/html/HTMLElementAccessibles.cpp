@@ -58,7 +58,7 @@ ENameValueFlag
 HTMLLabelAccessible::NativeName(nsString& aName)
 {
   nsTextEquivUtils::GetNameFromSubtree(this, aName);
-  return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
+  return eNameOK;
 }
 
 role
@@ -89,14 +89,15 @@ HTMLOutputAccessible::NativeRole()
   return roles::SECTION;
 }
 
-already_AddRefed<nsIPersistentProperties>
-HTMLOutputAccessible::NativeAttributes()
+nsresult
+HTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    AccessibleWrap::NativeAttributes();
-  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::live,
+  nsresult rv = AccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::live,
                          NS_LITERAL_STRING("polite"));
 
-  return attributes.forget();
+  return NS_OK;
 }
 

@@ -510,7 +510,6 @@ template <class ArgSeq, class StoreOutputTo>
 bool
 CodeGeneratorShared::visitOutOfLineCallVM(OutOfLineCallVM<ArgSeq, StoreOutputTo> *ool)
 {
-    AssertCanGC();
     LInstruction *lir = ool->lir();
 
     saveLive(lir);

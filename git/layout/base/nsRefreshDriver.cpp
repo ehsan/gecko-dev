@@ -464,7 +464,8 @@ nsRefreshDriver::ImageRequestEnumerator(nsISupportsHashKey* aEntry,
   imgIRequest* req = static_cast<imgIRequest*>(aEntry->GetKey());
   NS_ABORT_IF_FALSE(req, "Unable to retrieve the image request");
   nsCOMPtr<imgIContainer> image;
-  if (NS_SUCCEEDED(req->GetImage(getter_AddRefs(image)))) {
+  req->GetImage(getter_AddRefs(image));
+  if (image) {
     image->RequestRefresh(mostRecentRefresh);
   }
 

@@ -1352,7 +1352,7 @@ MacroAssemblerARMCompat::buildOOLFakeExitFrame(void *fakeReturnAddr)
     Push(Imm32(descriptor)); // descriptor_
 
     enterNoPool();
-    Push(Imm32((uint32) fakeReturnAddr));
+    push(Imm32((uint32) fakeReturnAddr));
     leaveNoPool();
 
     return true;

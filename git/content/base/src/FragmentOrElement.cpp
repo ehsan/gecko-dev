@@ -100,6 +100,7 @@
 #include "nsAsyncDOMEvent.h"
 #include "nsTextNode.h"
 #include "mozilla/dom/NodeListBinding.h"
+#include "dombindings.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -388,7 +389,13 @@ JSObject*
 nsChildContentList::WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
 {
-  return NodeListBinding::Wrap(cx, scope, this, triedToWrap);
+  JSObject* obj = NodeListBinding::Wrap(cx, scope, this, triedToWrap);
+  if (obj || *triedToWrap) {
+    return obj;
+  }
+
+  *triedToWrap = true;
+  return oldproxybindings::NodeList::create(cx, scope, this);
 }
 
 NS_IMETHODIMP
@@ -402,7 +409,7 @@ nsChildContentList::GetLength(uint32_t* aLength)
 NS_IMETHODIMP
 nsChildContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 {
-  nsINode* node = Item(aIndex);
+  nsINode* node = GetNodeAt(aIndex);
   if (!node) {
     *aReturn = nullptr;
 
@@ -413,7 +420,7 @@ nsChildContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 }
 
 nsIContent*
-nsChildContentList::Item(uint32_t aIndex)
+nsChildContentList::GetNodeAt(uint32_t aIndex)
 {
   if (mNode) {
     return mNode->GetChildAt(aIndex);
@@ -447,8 +454,7 @@ NS_IMETHODIMP
 nsNode3Tearoff::LookupNamespaceURI(const nsAString& aNamespacePrefix,
                                    nsAString& aNamespaceURI)
 {
-  mNode->LookupNamespaceURI(aNamespacePrefix, aNamespaceURI);
-  return NS_OK;
+  return mNode->LookupNamespaceURI(aNamespacePrefix, aNamespaceURI);
 }
 
 nsContentList*
@@ -633,6 +639,90 @@ FragmentOrElement::~FragmentOrElement()
   }
 }
 
+NS_IMETHODIMP
+FragmentOrElement::GetNodeName(nsAString& aNodeName)
+{
+  aNodeName = NodeName();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetLocalName(nsAString& aLocalName)
+{
+  aLocalName = LocalName();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetNodeValue(nsAString& aNodeValue)
+{
+  SetDOMStringToNull(aNodeValue);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::SetNodeValue(const nsAString& aNodeValue)
+{
+  // The DOM spec says that when nodeValue is defined to be null "setting it
+  // has no effect", so we don't throw an exception.
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetNodeType(uint16_t* aNodeType)
+{
+  *aNodeType = NodeType();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetNamespaceURI(nsAString& aNamespaceURI)
+{
+  return mNodeInfo->GetNamespaceURI(aNamespaceURI);
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetPrefix(nsAString& aPrefix)
+{
+  mNodeInfo->GetPrefix(aPrefix);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::IsSupported(const nsAString& aFeature,
+                               const nsAString& aVersion,
+                               bool* aReturn)
+{
+  *aReturn = nsContentUtils::InternalIsSupported(this, aFeature, aVersion);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::HasAttributes(bool* aReturn)
+{
+  NS_ENSURE_ARG_POINTER(aReturn);
+
+  *aReturn = GetAttrCount() > 0;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+FragmentOrElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
+{
+  *aAttributes = nullptr;
+  return NS_OK;
+}
+
+nsresult
+FragmentOrElement::HasChildNodes(bool* aReturn)
+{
+  *aReturn = mAttrsAndChildren.ChildCount() > 0;
+
+  return NS_OK;
+}
+
 already_AddRefed<nsINodeList>
 FragmentOrElement::GetChildren(uint32_t aFilter)
 {
@@ -661,7 +751,7 @@ FragmentOrElement::GetChildren(uint32_t aFilter)
   if (!(aFilter & eAllButXBL)) {
     childList = document->BindingManager()->GetXBLChildNodesFor(this);
     if (!childList) {
-      childList = ChildNodes();
+      childList = GetChildNodesList();
     }
 
   } else {
@@ -672,7 +762,7 @@ FragmentOrElement::GetChildren(uint32_t aFilter)
     uint32_t length = 0;
     childList->GetLength(&length);
     for (uint32_t idx = 0; idx < length; idx++) {
-      nsIContent* child = childList->Item(idx);
+      nsIContent* child = childList->GetNodeAt(idx);
       list->AppendElement(child);
     }
   }
@@ -798,15 +888,11 @@ nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // Event may need to be retargeted if this is the root of a native
   // anonymous content subtree or event is dispatched somewhere inside XBL.
   if (isAnonForEvents) {
-#ifdef DEBUG
     // If a DOM event is explicitly dispatched using node.dispatchEvent(), then
     // all the events are allowed even in the native anonymous content..
-    nsCOMPtr<nsIContent> t = do_QueryInterface(aVisitor.mEvent->originalTarget);
-    NS_ASSERTION(!t || !t->ChromeOnlyAccess() ||
-                 aVisitor.mEvent->eventStructType != NS_MUTATION_EVENT ||
+    NS_ASSERTION(aVisitor.mEvent->eventStructType != NS_MUTATION_EVENT ||
                  aVisitor.mDOMEvent,
                  "Mutation event dispatched in native anonymous content!?!");
-#endif
     aVisitor.mEventTargetAtParent = parent;
   } else if (parent && aVisitor.mOriginalTargetIsInAnon) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aVisitor.mEvent->target));
@@ -888,17 +974,17 @@ FragmentOrElement::RemoveChildAt(uint32_t aIndex, bool aNotify)
   }
 }
 
-void
-FragmentOrElement::GetTextContentInternal(nsAString& aTextContent)
+NS_IMETHODIMP
+FragmentOrElement::GetTextContent(nsAString &aTextContent)
 {
   nsContentUtils::GetNodeTextContent(this, true, aTextContent);
+  return NS_OK;
 }
 
-void
-FragmentOrElement::SetTextContentInternal(const nsAString& aTextContent,
-                                          ErrorResult& aError)
+NS_IMETHODIMP
+FragmentOrElement::SetTextContent(const nsAString& aTextContent)
 {
-  aError = nsContentUtils::SetNodeTextContent(this, aTextContent, false);
+  return nsContentUtils::SetNodeTextContent(this, aTextContent, false);
 }
 
 void
@@ -1079,6 +1165,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
       tmp->DeleteProperty(nsGkAtoms::itemtype);
       tmp->DeleteProperty(nsGkAtoms::itemref);
       tmp->DeleteProperty(nsGkAtoms::itemprop);
+    } else if (tmp->IsXUL()) {
+      tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
+      tmp->DeleteProperty(nsGkAtoms::popuplistener);
     }
   }
 
@@ -1118,7 +1207,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
 
   {
     nsIDocument *doc;
-    if (!tmp->GetParentNode() && (doc = tmp->OwnerDoc())) {
+    if (!tmp->GetNodeParent() && (doc = tmp->OwnerDoc())) {
       doc->BindingManager()->RemovedFromDocument(tmp, doc);
     }
   }
@@ -1151,7 +1240,7 @@ FragmentOrElement::MarkNodeChildren(nsINode* aNode)
 
   nsEventListenerManager* elm = aNode->GetListenerManager(false);
   if (elm) {
-    elm->MarkForCC();
+    elm->UnmarkGrayJSListeners();
   }
 
   if (aNode->HasProperties()) {
@@ -1169,7 +1258,7 @@ nsINode*
 FindOptimizableSubtreeRoot(nsINode* aNode)
 {
   nsINode* p;
-  while ((p = aNode->GetParentNode())) {
+  while ((p = aNode->GetNodeParent())) {
     if (aNode->UnoptimizableCCNode()) {
       return nullptr;
     }
@@ -1619,6 +1708,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
       cb.NoteXPCOMChild(property);
       property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemtype));
       cb.NoteXPCOMChild(property);
+    } else if (tmp->IsXUL()) {
+      nsISupports* property = static_cast<nsISupports*>
+                                         (tmp->GetProperty(nsGkAtoms::contextmenulistener));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>
+                            (tmp->GetProperty(nsGkAtoms::popuplistener));
+      cb.NoteXPCOMChild(property);
     }
   }
 
@@ -1798,7 +1894,7 @@ FragmentOrElement::FireNodeRemovedForChildren()
 
   nsCOMPtr<nsINode> child;
   for (child = GetFirstChild();
-       child && child->GetParentNode() == this;
+       child && child->GetNodeParent() == this;
        child = child->GetNextSibling()) {
     nsContentUtils::MaybeFireNodeRemoved(child, this, doc);
   }

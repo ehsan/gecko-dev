@@ -104,7 +104,12 @@ Presenter.prototype = {
   /**
    * We have entered or left text editing mode.
    */
-  editingModeChanged: function editingModeChanged(aIsEditing) {}
+  editingModeChanged: function editingModeChanged(aIsEditing) {},
+
+  /**
+   * Re-present the last pivot change.
+   */
+  presentLastPivot: function AndroidPresenter_presentLastPivot() {}
 };
 
 /**
@@ -124,23 +129,21 @@ VisualPresenter.prototype = {
   BORDER_PADDING: 2,
 
   viewportChanged: function VisualPresenter_viewportChanged(aWindow) {
-    if (this._currentAccessible) {
-      let context = new PresenterContext(this._currentAccessible);
+    if (this._currentContext)
       return {
         type: this.type,
         details: {
           method: 'show',
-          bounds: context.bounds,
+          bounds: this._currentContext.bounds,
           padding: this.BORDER_PADDING
         }
       };
-    }
 
     return null;
   },
 
   pivotChanged: function VisualPresenter_pivotChanged(aContext, aReason) {
-    this._currentAccessible = aContext.accessible;
+    this._currentContext = aContext;
 
     if (!aContext.accessible)
       return {type: this.type, details: {method: 'hide'}};
@@ -202,6 +205,8 @@ AndroidPresenter.prototype = {
   pivotChanged: function AndroidPresenter_pivotChanged(aContext, aReason) {
     if (!aContext.accessible)
       return null;
+
+    this._currentContext = aContext;
 
     let androidEvents = [];
 
@@ -268,25 +273,28 @@ AndroidPresenter.prototype = {
   textChanged: function AndroidPresenter_textChanged(aIsInserted, aStart,
                                                      aLength, aText,
                                                      aModifiedText) {
-    let eventDetails = {
-      eventType: this.ANDROID_VIEW_TEXT_CHANGED,
-      text: [aText],
-      fromIndex: aStart,
-      removedCount: 0,
-      addedCount: 0
+    let androidEvent = {
+      type: this.type,
+      details: [{
+        eventType: this.ANDROID_VIEW_TEXT_CHANGED,
+        text: [aText],
+        fromIndex: aStart,
+        removedCount: 0,
+        addedCount: 0
+      }]
     };
 
     if (aIsInserted) {
-      eventDetails.addedCount = aLength;
-      eventDetails.beforeText =
+      androidEvent.addedCount = aLength;
+      androidEvent.beforeText =
         aText.substring(0, aStart) + aText.substring(aStart + aLength);
     } else {
-      eventDetails.removedCount = aLength;
-      eventDetails.beforeText =
+      androidEvent.removedCount = aLength;
+      androidEvent.beforeText =
         aText.substring(0, aStart) + aModifiedText + aText.substring(aStart);
     }
 
-    return {type: this.type, details: [eventDetails]};
+    return androidEvent;
   },
 
   viewportChanged: function AndroidPresenter_viewportChanged(aWindow) {
@@ -325,6 +333,13 @@ AndroidPresenter.prototype = {
         fromIndex: 0
       }]
     };
+  },
+
+  presentLastPivot: function AndroidPresenter_presentLastPivot() {
+    if (this._currentContext)
+      return this.pivotChanged(this._currentContext);
+    else
+      return null;
   }
 };
 

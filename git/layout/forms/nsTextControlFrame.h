@@ -22,6 +22,9 @@
 
 class nsISelectionController;
 class nsIDOMCharacterData;
+#ifdef ACCESSIBILITY
+class nsIAccessible;
+#endif
 class EditorInitializerEntryTracker;
 class nsTextEditorState;
 namespace mozilla {
@@ -72,7 +75,7 @@ public:
   virtual bool IsLeaf() const;
   
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
 #ifdef DEBUG

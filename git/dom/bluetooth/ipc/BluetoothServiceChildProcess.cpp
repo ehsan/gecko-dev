@@ -345,22 +345,6 @@ BluetoothServiceChildProcess::StopSendingFile(
   return true;
 }
 
-void
-BluetoothServiceChildProcess::ConfirmReceivingFile(
-  const nsAString& aDeviceAddress,
-  bool aConfirm,
-  BluetoothReplyRunnable* aRunnable)
-{
-  if(aConfirm) {
-    SendRequest(aRunnable,
-                ConfirmReceivingFileRequest(nsString(aDeviceAddress)));
-    return;
-  }
-  
-  SendRequest(aRunnable,
-              DenyReceivingFileRequest(nsString(aDeviceAddress)));
-}
-
 nsresult
 BluetoothServiceChildProcess::HandleStartup()
 {

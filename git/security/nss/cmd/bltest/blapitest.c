@@ -2185,7 +2185,6 @@ dsaOp(bltestCipherInfo *cipherInfo)
             }
             TIMEFINISH(cipherInfo->optime, 1.0);
         }
-	cipherInfo->output.buf.len = cipherInfo->output.pBuf.len;
         bltestCopyIO(cipherInfo->arena, &cipherInfo->params.dsa.sig, 
                      &cipherInfo->output);
     } else {

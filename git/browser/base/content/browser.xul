@@ -267,7 +267,9 @@
            type="arrow"
            hidden="true"
            consumeoutsideclicks="true"
-           noautofocus="true"/>
+           noautofocus="true">
+      <box id="social-notification-box" flex="1"></box>
+    </panel>
     <panel id="social-flyout-panel"
            class="social-panel"
            onpopupshown="SocialFlyout.onShown()"
@@ -1078,8 +1080,7 @@
               observes="socialSidebarBroadcaster"/>
     <vbox id="social-sidebar-box"
           class="chromeclass-extrachrome"
-          observes="socialSidebarBroadcaster"
-          persist="width">
+          observes="socialSidebarBroadcaster">
       <browser id="social-sidebar-browser"
                type="content"
                disableglobalhistory="true"

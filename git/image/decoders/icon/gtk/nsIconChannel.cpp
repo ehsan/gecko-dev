@@ -424,6 +424,8 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
 nsresult
 nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
 {
+  nsresult rv;
+
   GIcon *icon = NULL;
   nsCOMPtr<nsIURL> fileURI;
 
@@ -481,6 +483,8 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   int32_t iconSize = GetIconSize(aIconURI);
 
   if (icon) {
+    NS_SUCCEEDED(rv);
+
     // Use icon and theme to get GtkIconInfo
     iconInfo = gtk_icon_theme_lookup_by_gicon(iconTheme,
                                               icon, iconSize,
@@ -505,7 +509,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
     return NS_ERROR_UNEXPECTED;
   }
   
-  nsresult rv = ScaleIconBuf(&buf, iconSize);
+  rv = ScaleIconBuf(&buf, iconSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = moz_gdk_pixbuf_to_channel(buf, aIconURI,

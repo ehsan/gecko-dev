@@ -19,7 +19,6 @@
 
  */
 
-#include "NSPRFormatTime.h" // must be before anything that includes prtime.h
 #include "nsCOMPtr.h"
 #include "nsIRDFDataSource.h"
 #include "nsIRDFNode.h"
@@ -33,6 +32,7 @@
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "nsUnicharUtils.h"
+#include "prtime.h"
 #include "rdfutil.h"
 
 ////////////////////////////////////////////////////////////////////////

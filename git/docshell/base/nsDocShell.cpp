@@ -4934,23 +4934,6 @@ nsDocShell::Destroy()
 }
 
 NS_IMETHODIMP
-nsDocShell::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
-{
-    if (mParentWidget) {
-        *aScale = mParentWidget->GetDefaultScale();
-        return NS_OK;
-    }
-
-    nsCOMPtr<nsIBaseWindow> ownerWindow(do_QueryInterface(mTreeOwner));
-    if (ownerWindow) {
-        return ownerWindow->GetUnscaledDevicePixelsPerCSSPixel(aScale);
-    }
-
-    *aScale = 1.0;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocShell::SetPosition(int32_t x, int32_t y)
 {
     mBounds.x = x;
@@ -5007,13 +4990,6 @@ NS_IMETHODIMP
 nsDocShell::GetPositionAndSize(int32_t * x, int32_t * y, int32_t * cx,
                                int32_t * cy)
 {
-    if (mParentWidget) {
-        // ensure size is up-to-date if window has changed resolution
-        nsIntRect r;
-        mParentWidget->GetClientBounds(r);
-        SetPositionAndSize(mBounds.x, mBounds.y, r.width, r.height, false);
-    }
-
     // We should really consider just getting this information from
     // our window instead of duplicating the storage and code...
     if (cx || cy) {
@@ -6425,14 +6401,11 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
         do_QueryInterface(aNewChannel);
     if (appCacheChannel) {
-        if (GeckoProcessType_Default != XRE_GetProcessType()) {
-            // Permission will be checked in the parent process.
+        // Permission will be checked in the parent process.
+        if (GeckoProcessType_Default != XRE_GetProcessType())
             appCacheChannel->SetChooseApplicationCache(true);
-        } else {
-            appCacheChannel->SetChooseApplicationCache(
-                                NS_ShouldCheckAppCache(newURI,
-                                                       mInPrivateBrowsing));
-        }
+        else
+            appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
     }
 
     if (!(aRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL) && 
@@ -9172,6 +9145,26 @@ nsDocShell::GetInheritedPrincipal(bool aConsiderCurrentDocument)
     return nullptr;
 }
 
+bool
+nsDocShell::ShouldCheckAppCache(nsIURI *aURI)
+{
+    if (mInPrivateBrowsing) {
+        return false;
+    }
+
+    nsCOMPtr<nsIOfflineCacheUpdateService> offlineService =
+        do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
+    if (!offlineService) {
+        return false;
+    }
+
+    bool allowed;
+    nsresult rv = offlineService->OfflineAppAllowedForURI(aURI,
+                                                          nullptr,
+                                                          &allowed);
+    return NS_SUCCEEDED(rv) && allowed;
+}
+
 nsresult
 nsDocShell::DoURILoad(nsIURI * aURI,
                       nsIURI * aReferrerURI,
@@ -9259,13 +9252,12 @@ nsDocShell::DoURILoad(nsIURI * aURI,
 
         // Loads with the correct permissions should check for a matching
         // application cache.
-        if (GeckoProcessType_Default != XRE_GetProcessType()) {
-            // Permission will be checked in the parent process
+        // Permission will be checked in the parent process
+        if (GeckoProcessType_Default != XRE_GetProcessType())
             appCacheChannel->SetChooseApplicationCache(true);
-        } else {
+        else
             appCacheChannel->SetChooseApplicationCache(
-                NS_ShouldCheckAppCache(aURI, mInPrivateBrowsing));
-        }
+                ShouldCheckAppCache(aURI));
     }
 
     // Make sure to give the caller a channel if we managed to create one
@@ -11118,8 +11110,8 @@ nsDocShell::AddURIVisit(nsIURI* aURI,
         // 408 is special cased, since may actually indicate a temporary
         // connection problem.
         else if (aResponseStatus != 408 &&
-                 ((aResponseStatus >= 400 && aResponseStatus <= 501) ||
-                   aResponseStatus == 505)) {
+                 (aResponseStatus >= 400 && aResponseStatus <= 501 ||
+                  aResponseStatus == 505)) {
             visitURIFlags |= IHistory::UNRECOVERABLE_ERROR;
         }
 
@@ -11362,14 +11354,26 @@ NS_IMETHODIMP nsDocShell::EnsureFind()
     NS_ENSURE_TRUE(scriptGO, NS_ERROR_UNEXPECTED);
 
     // default to our window
-    nsCOMPtr<nsPIDOMWindow> ourWindow = do_QueryInterface(scriptGO);
-    nsCOMPtr<nsPIDOMWindow> windowToSearch;
-    nsFocusManager::GetFocusedDescendant(ourWindow, true, getter_AddRefs(windowToSearch));
+    nsCOMPtr<nsIDOMWindow> windowToSearch(do_QueryInterface(mScriptGlobal));
+
+    nsCOMPtr<nsIDocShellTreeItem> root;
+    GetRootTreeItem(getter_AddRefs(root));
+
+    // if the active window is the same window that this docshell is in,
+    // use the currently focused frame
+    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(root);
+    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
+    if (fm) {
+      nsCOMPtr<nsIDOMWindow> activeWindow;
+      fm->GetActiveWindow(getter_AddRefs(activeWindow));
+      if (activeWindow == rootWindow)
+        fm->GetFocusedWindow(getter_AddRefs(windowToSearch));
+    }
 
     nsCOMPtr<nsIWebBrowserFindInFrames> findInFrames = do_QueryInterface(mFind);
     if (!findInFrames) return NS_ERROR_NO_INTERFACE;
     
-    rv = findInFrames->SetRootSearchFrame(ourWindow);
+    rv = findInFrames->SetRootSearchFrame(rootWindow);
     if (NS_FAILED(rv)) return rv;
     rv = findInFrames->SetCurrentSearchFrame(windowToSearch);
     if (NS_FAILED(rv)) return rv;

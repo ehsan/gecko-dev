@@ -576,7 +576,7 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
   JS::StableCharPtr chars(reinterpret_cast<const jschar*>(mBufferedChars.Elements()),
                           mBufferedChars.Length());
   JSBool ok = js::ParseJSONWithReviver(mCx, chars,
-                                       (uint32_t) mBufferedChars.Length(),
+                                       (uint32) mBufferedChars.Length(),
                                        reviver, &value,
                                        mDecodingMode);
 

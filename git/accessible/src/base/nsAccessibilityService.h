@@ -16,7 +16,6 @@
 #include "nsIObserver.h"
 
 class nsImageFrame;
-class nsObjectFrame;
 class nsITreeView;
 
 namespace mozilla {
@@ -81,8 +80,54 @@ public:
   virtual Accessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
                                                 bool aCanCreate);
   already_AddRefed<Accessible>
+    CreateHTMLButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCanvasAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCaptionAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCheckboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLComboboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLFileInputAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLGroupboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLHRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLImageAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLImageMapAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLMediaAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
     CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
-                                    DocAccessible* aDoc);
+                                    nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLRadioButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableCellAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableRowAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateTextLeafAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTextFieldAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHyperTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateOuterDocAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
 
   /**
    * Adds/remove ATK root accessible for gtk+ native window to/from children
@@ -193,13 +238,6 @@ private:
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
                                  DocAccessible* aDoc,
                                  bool aIsLegalPartOfHTMLTable);
-
-  /**
-   * Create an accessible whose type depends on the given frame.
-   */
-  already_AddRefed<Accessible>
-    CreateAccessibleByFrameType(nsIFrame* aFrame, nsIContent* aContent,
-                                DocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.

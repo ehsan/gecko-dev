@@ -15,30 +15,13 @@ using namespace js;
 #ifdef JS_PARALLEL_COMPILATION
 
 bool
-js::OffThreadCompilationAvailable(JSContext *cx)
-{
-    WorkerThreadState &state = *cx->runtime->workerThreadState;
-    return state.numThreads > 0;
-}
-
-bool
 js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 {
-    JSRuntime *rt = cx->runtime;
-    if (!rt->workerThreadState) {
-        rt->workerThreadState = rt->new_<WorkerThreadState>();
-        if (!rt->workerThreadState)
-            return false;
-        if (!rt->workerThreadState->init(rt)) {
-            js_delete(rt->workerThreadState);
-            rt->workerThreadState = NULL;
-        }
-    }
     WorkerThreadState &state = *cx->runtime->workerThreadState;
 
     JS_ASSERT(state.numThreads);
 
-    AutoLockWorkerThreadState lock(rt);
+    AutoLockWorkerThreadState lock(cx->runtime);
 
     if (!state.ionWorklist.append(builder))
         return false;
@@ -57,7 +40,6 @@ static void
 FinishOffThreadIonCompile(ion::IonBuilder *builder)
 {
     JSCompartment *compartment = builder->script()->compartment();
-    JS_ASSERT(compartment->rt->workerThreadState);
     JS_ASSERT(compartment->rt->workerThreadState->isLocked());
 
     compartment->ionCompartment()->finishedOffThreadCompilations().append(builder);
@@ -74,9 +56,6 @@ CompiledScriptMatches(JSCompartment *compartment, JSScript *script, JSScript *ta
 void
 js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
 {
-    if (!compartment->rt->workerThreadState)
-        return;
-
     WorkerThreadState &state = *compartment->rt->workerThreadState;
 
     ion::IonCompartment *ion = compartment->ionCompartment();
@@ -118,11 +97,6 @@ js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
 bool
 WorkerThreadState::init(JSRuntime *rt)
 {
-    if (!rt->useHelperThreads()) {
-        numThreads = 0;
-        return true;
-    }
-
     workerLock = PR_NewLock();
     if (!workerLock)
         return false;
@@ -295,7 +269,7 @@ WorkerThread::threadLoop()
 
         {
             ion::IonContext ictx(NULL, ionScript->compartment(), &builder->temp());
-            builder->backgroundCompiledLir = ion::CompileBackEnd(builder);
+            ion::CompileBackEnd(builder);
         }
 
         state.lock();
@@ -329,12 +303,6 @@ js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 void
 js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
 {
-}
-
-bool
-js::OffThreadCompilationAvailable(JSContext *cx)
-{
-    return false;
 }
 
 #endif /* JS_PARALLEL_COMPILATION */

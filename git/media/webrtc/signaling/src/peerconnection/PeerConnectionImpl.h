@@ -51,22 +51,6 @@ using namespace mozilla;
 
 namespace sipcc {
 
-struct ConstraintInfo {
-  std::string  value;
-  bool         mandatory;
-};
-typedef std::map<std::string, ConstraintInfo> constraints_map;
-
-class MediaConstraints {
-public:
-  void setBooleanConstraint(const std::string& constraint, bool enabled, bool mandatory);
-
-  void buildArray(cc_media_constraints_t** constraintarray);
-
-private:
-  constraints_map  mConstraints;
-};
-
 /* Temporary for providing audio data */
 class Fake_AudioGenerator {
  public:
@@ -345,18 +329,10 @@ public:
   }
 
   // Get a specific local stream
-  uint32_t LocalStreamsLength()
-  {
-    return mLocalSourceStreams.Length();
-  }
-  LocalSourceStreamInfo* GetLocalStream(int index);
+  nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int aIndex);
 
   // Get a specific remote stream
-  uint32_t RemoteStreamsLength()
-  {
-    return mRemoteSourceStreams.Length();
-  }
-  RemoteSourceStreamInfo* GetRemoteStream(int index);
+  nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int aIndex);
 
   // Add a remote stream. Returns the index in index
   nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo, int *aIndex);
@@ -393,12 +369,6 @@ public:
 
   // Create a fake media stream
   nsresult CreateFakeMediaStream(uint32_t hint, nsIDOMMediaStream** retval);
-
-  nsPIDOMWindow* GetWindow() const { return mWindow; }
-
-  NS_IMETHODIMP CreateOffer(MediaConstraints& constraints);
-
-  NS_IMETHODIMP CreateAnswer(MediaConstraints& constraints, const char* offer);
 
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);

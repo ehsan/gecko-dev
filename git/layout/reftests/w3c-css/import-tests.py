@@ -9,7 +9,6 @@ import xml.dom.minidom
 import html5lib
 import shutil
 import sys
-import re
 
 # FIXME:
 #   * Import more tests rather than just the very limited set currently
@@ -60,7 +59,6 @@ tests = []
 gOptions = None
 gArgs = None
 gTestfiles = []
-gTestFlags = {}
 
 def log_output_of(subprocess):
     global gLog
@@ -107,7 +105,7 @@ def populate_test_files():
 
     gTestfiles.sort()
 
-def copy_file(test, srcfile, destname, isSupportFile=False):
+def copy_file(srcfile, destname):
     global gDestPath, gLog, gSrcPath
     if not srcfile.startswith(gSrcPath):
         raise StandardError("Filename " + srcfile + " does not start with " + gSrcPath)
@@ -119,9 +117,9 @@ def copy_file(test, srcfile, destname, isSupportFile=False):
         os.makedirs(destdir)
     if os.path.exists(destfile):
         raise StandardError("file " + destfile + " already exists")
-    copy_and_prefix(test, srcfile, destfile, gPrefixedProperties, isSupportFile)
+    copy_and_prefix(srcfile, destfile, gPrefixedProperties)
 
-def copy_support_files(test, dirname, spec):
+def copy_support_files(dirname, spec):
     if dirname in support_dirs_mapped:
         return
     support_dirs_mapped.add(dirname)
@@ -133,30 +131,18 @@ def copy_support_files(test, dirname, spec):
             if fn == "LOCK":
                 continue
             full_fn = os.path.join(dirpath, fn)
-            copy_file(test, full_fn, os.path.join(spec, "support", full_fn[len(support_dir)+1:]), True)
+            copy_file(full_fn, os.path.join(spec, "support", full_fn[len(support_dir)+1:]))
 
 def map_file(fn, spec):
     if fn in filemap:
         return filemap[fn]
     destname = os.path.join(spec, os.path.basename(fn))
     filemap[fn] = destname
-    load_flags_for(fn, spec)
-    copy_file(destname, fn, destname, False)
-    copy_support_files(destname, os.path.dirname(fn), spec)
+    copy_file(fn, destname)
+    copy_support_files(os.path.dirname(fn), spec)
     return destname
 
-def load_flags_for(fn, spec):
-    global gTestFlags
-    document = get_document_for(fn, spec)
-    destname = os.path.join(spec, os.path.basename(fn))
-    gTestFlags[destname] = []
-
-    for meta in document.getElementsByTagName("meta"):
-        name = meta.getAttribute("name")
-        if name == "flags":
-            gTestFlags[destname] = meta.getAttribute("content").split()
-
-def get_document_for(fn, spec):
+def add_test_items(fn, spec):
     document = None # an xml.dom.minidom document
     if fn.endswith(".htm") or fn.endswith(".html"):
         # An HTML file
@@ -167,10 +153,6 @@ def get_document_for(fn, spec):
     else:
         # An XML file
         document = xml.dom.minidom.parse(fn)
-    return document
-
-def add_test_items(fn, spec):
-    document = get_document_for(fn, spec)
     refs = []
     notrefs = []
     for link in document.getElementsByTagName("link"):
@@ -204,26 +186,13 @@ def add_test_items(fn, spec):
     for notref in notrefs:
         add_test_items(notref, spec=spec)
 
-def copy_and_prefix(test, aSourceFileName, aDestFileName, aProps, isSupportFile=False):
-    global gTestFlags
+def copy_and_prefix(aSourceFileName, aDestFileName, props):
     newFile = open(aDestFileName, 'w')
     unPrefixedFile = open(aSourceFileName)
-    testName = aDestFileName[len(gDestPath)+1:]
-    ahemFontAdded = False
+
     for line in unPrefixedFile:
-        replacementLine = line
-        searchRegex = "\s*<style\s*"
-
-        if not isSupportFile and not ahemFontAdded and 'ahem' in gTestFlags[test] and re.search(searchRegex, line):
-            # First put our ahem font declation before the first <style>
-            # element
-            ahemFontDecl = "<style type=\"text/css\"><![CDATA[\n@font-face "\
-                           "{\n  font-family: Ahem;\n  src: url("\
-                           "\"../../../fonts/Ahem.ttf\");\n}\n]]></style>\n"
-            newFile.write(ahemFontDecl)
-            ahemFontAdded = True
-
-        for rule in aProps:
+        replacementLine = line;
+        for rule in props:
             replacementLine = replacementLine.replace(rule, "-moz-" + rule)
         newFile.write(replacementLine)
 
@@ -271,7 +240,7 @@ def read_fail_list():
     failListFile.close()
 
 def main():
-    global gDestPath, gLog, gTestfiles, gTestFlags, gFailList
+    global gDestPath, gLog, gTestfiles
     read_options()
     setup_paths()
     read_fail_list()
@@ -285,14 +254,8 @@ def main():
 
     listfile = open(os.path.join(gDestPath, "reftest.list"), "w")
     for test in tests:
-        key = 0
-        while not test[key] in gTestFlags.keys() and key < len(test):
-          key = key + 1
-        testKey = test[key]
-        if 'ahem' in gTestFlags[testKey]:
-            test = ["HTTP(../../..)"] + test
-        if testKey in gFailList:
-            test = ["fails"] + test
+        if test[1] in gFailList:
+            test[0:] = ["fails"] + test
         listfile.write(" ".join(test) + "\n")
     listfile.close()
 

@@ -142,11 +142,10 @@ NS_IMETHODIMP nsHZToUnicode::ConvertNoBuff(
             // and ' ' even in GB mode.
             if (srcByte > 0x20 || HZ_ENCODING_STATE == HZ_STATE_ASCII) {
               *aDest++ = UCS2_NO_MAPPING;
-              iDestlen++;
             }
             aSrc--;
             (*aSrcLength)--;
-            i--;
+            iDestlen++;
             break;
         }
       } else if (HZ_ENCODING_STATE == HZ_STATE_GB) {

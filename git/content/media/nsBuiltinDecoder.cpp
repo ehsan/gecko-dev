@@ -959,6 +959,7 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
       seekWasAborted = true;
     } else {
       UnpinForSeek();
+      printf("nsBuiltinDecoder::SeekingStoppedAtEnd, next state=PLAY_STATE_ENDED\n");
       fireEnded = true;
       ChangeState(PLAY_STATE_ENDED);
     }
@@ -1048,6 +1049,9 @@ void nsBuiltinDecoder::PlaybackPositionChanged()
         // current time after the seek has started but before it has
         // completed.
         mCurrentTime = mDecoderStateMachine->GetCurrentTime();
+      } else {
+        printf("Suppressed timeupdate during seeking: currentTime=%f, new time=%f\n",
+               mCurrentTime, mDecoderStateMachine->GetCurrentTime());
       }
       mDecoderStateMachine->ClearPositionChangeFlag();
     }

@@ -485,7 +485,7 @@ nsDOMMutationObserver::GetAllSubtreeObserversFor(nsINode* aNode,
         }
       }
     }
-    n = n->GetParentNode();
+    n = n->GetNodeParent();
   }
 }
 

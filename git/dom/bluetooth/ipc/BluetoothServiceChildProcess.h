@@ -149,10 +149,6 @@ public:
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual void
-  ConfirmReceivingFile(const nsAString& aDeviceAddress,
-                       bool aConfirm,
-                       BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 protected:
   BluetoothServiceChildProcess();
   virtual ~BluetoothServiceChildProcess();

@@ -388,6 +388,10 @@ protected:
                                bool      aGoForward,
                                bool      bNoBlockCrossing);
 
+  // Get nsIWidget interface
+  nsresult GetWidget(nsIWidget **aWidget);
+
+
   // install the event listeners for the editor 
   virtual nsresult InstallEventListeners();
 

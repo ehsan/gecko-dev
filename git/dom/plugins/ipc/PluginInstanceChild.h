@@ -127,9 +127,6 @@ protected:
     RecvWindowPosChanged(const NPRemoteEvent& event) MOZ_OVERRIDE;
 
     virtual bool
-    RecvContentsScaleFactorChanged(const double& aContentsScaleFactor) MOZ_OVERRIDE;
-
-    virtual bool
     AnswerNPP_Destroy(NPError* result);
 
     virtual PPluginScriptableObjectChild*

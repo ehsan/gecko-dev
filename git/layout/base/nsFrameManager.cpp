@@ -422,7 +422,7 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
     uint32_t length;
     list->GetLength(&length);
     for (uint32_t i = 0; i < length; ++i) {
-      nsIContent* child = list->Item(i);
+      nsIContent* child = list->GetNodeAt(i);
       if (child->GetParent() != aParentContent) {
         ClearUndisplayedContentIn(child, child->GetParent());
       }
@@ -452,8 +452,8 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                              nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(!aPrevFrame || (!aPrevFrame->GetNextContinuation()
-                  || (((aPrevFrame->GetNextContinuation()->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))
-                  && !(aPrevFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))),
+                  || ((aPrevFrame->GetNextContinuation()->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))
+                  && !(aPrevFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)),
                   "aPrevFrame must be the last continuation in its chain!");
 
   if (aParentFrame->IsAbsoluteContainer() &&

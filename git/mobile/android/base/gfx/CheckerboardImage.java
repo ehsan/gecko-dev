@@ -8,7 +8,6 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
 import android.graphics.Color;
-import android.util.Log;
 
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
@@ -24,8 +23,6 @@ public class CheckerboardImage extends CairoImage {
     private static final int TINT_COLOR = Color.GRAY;
     // The amount to mix in.
     private static final float TINT_OPACITY = 0.4f;
-
-    private static String LOGTAG = "GeckoCheckerboardImage";
 
     private ByteBuffer mBuffer;
     private int mMainColor;
@@ -121,16 +118,6 @@ public class CheckerboardImage extends CairoImage {
             mBuffer = null;
         } finally {
             super.finalize();
-        }
-    }
-
-    @Override
-    public void destroy() {
-        try {
-            DirectBufferAllocator.free(mBuffer);
-            mBuffer = null;
-        } catch (Exception ex) {
-            Log.e(LOGTAG, "error clearing buffer: ", ex);
         }
     }
 

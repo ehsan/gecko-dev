@@ -2,11 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "NSPRFormatTime.h" // must include before any headers that include prtime.h
+#ifdef NO_NSPR_10_SUPPORT
+#undef NO_NSPR_10_SUPPORT
+#endif
+
 #include "nsAppRunner.h"
 
 #include "prio.h"
 #include "prprf.h"
+#include "prtime.h"
 #include "prenv.h"
 
 #include "nsCRT.h"

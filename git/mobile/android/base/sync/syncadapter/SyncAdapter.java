@@ -14,7 +14,6 @@ import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.AlreadySyncingException;
 import org.mozilla.gecko.sync.CredentialException;
 import org.mozilla.gecko.sync.GlobalConstants;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
@@ -239,11 +238,11 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
    * @param backoff time to wait in milliseconds.
    */
   @Override
-  public void requestBackoff(final long backoff) {
+  public void requestBackoff(long backoff) {
     if (backoff > 0) {
       // Fuzz the backoff time (up to 25% more) to prevent client lock-stepping; agrees with desktop.
-      final long fuzzedBackoff = backoff + Math.round((double) backoff * 0.25d * Math.random());
-      this.extendEarliestNextSync(System.currentTimeMillis() + fuzzedBackoff);
+      backoff = backoff + Math.round((double) backoff * 0.25d * Math.random());
+      this.extendEarliestNextSync(System.currentTimeMillis() + backoff);
     }
   }
 
@@ -276,7 +275,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                             final String authority,
                             final ContentProviderClient provider,
                             final SyncResult syncResult) {
-    Logger.setThreadLogTag(SyncConstants.GLOBAL_LOG_TAG);
     Logger.resetLogging();
     Utils.reseedSharedRandom(); // Make sure we don't work with the same random seed for too long.
 
@@ -523,7 +521,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public synchronized String getClientName() {
     String clientName = accountSharedPreferences.getString(SyncConfiguration.PREF_CLIENT_NAME, null);
     if (clientName == null) {
-      clientName = SyncConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
+      clientName = GlobalConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
       accountSharedPreferences.edit().putString(SyncConfiguration.PREF_CLIENT_NAME, clientName).commit();
     }
     return clientName;

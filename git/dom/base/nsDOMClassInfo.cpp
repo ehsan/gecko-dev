@@ -487,6 +487,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "nsDOMMutationObserver.h"
 
 #include "nsWrapperCacheInlines.h"
+#include "dombindings.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 
 #include "nsIDOMBatteryManager.h"
@@ -553,6 +554,8 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "nsIDOMDataChannel.h"
 #endif
 
+#undef None // something included above defines this preprocessor symbol, maybe Xlib headers
+#include "WebGLContext.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
@@ -4536,8 +4539,12 @@ nsDOMClassInfo::Init()
   sDisableGlobalScopePollutionSupport =
     Preferences::GetBool("browser.dom.global_scope_pollution.disabled");
 
-  // Register new DOM bindings
+  // Non-proxy bindings
   mozilla::dom::Register(nameSpaceManager);
+
+  // This needs to happen after the call to mozilla::dom::Register, because we
+  // overwrite some values.
+  mozilla::dom::oldproxybindings::Register(nameSpaceManager);
 
   sIsInitialized = true;
 
@@ -5338,9 +5345,10 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
                                           JSHandleId id, unsigned flags,
                                           JSMutableHandleObject objp)
 {
-  if ((flags & JSRESOLVE_ASSIGNING) || !JSID_IS_STRING(id)) {
-    // Nothing to do here if we're assigning or resolving a non-string
-    // property.
+  if (flags & (JSRESOLVE_ASSIGNING | JSRESOLVE_QUALIFIED) ||
+      !JSID_IS_STRING(id)) {
+    // Nothing to do here if we're assigning, doing a qualified resolve, or
+    // resolving a non-string property.
 
     return JS_TRUE;
   }
@@ -8477,13 +8485,13 @@ NS_IMETHODIMP
 nsDOMStringMapSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                             JSObject *globalObj, JSObject **parentObj)
 {
-  nsDOMStringMap* map = nsDOMStringMap::FromSupports(nativeObj);
-  nsINode* native_parent = map->GetParentObject();
-  if (!native_parent) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
-  }
+  *parentObj = globalObj;
 
-  return WrapNativeParent(cx, globalObj, native_parent, parentObj);
+  nsDOMStringMap* dataset = static_cast<nsDOMStringMap*>(nativeObj);
+
+  // Parent the string map to its element.
+  nsINode* element = dataset->GetElement();
+  return WrapNativeParent(cx, globalObj, element, element, parentObj);
 }
 
 NS_IMETHODIMP
@@ -8912,7 +8920,7 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSHandleObject obj_,
       return JS_FALSE;
     }
 
-    nsIContent *node = nodeList->Item(JSID_TO_INT(id));
+    nsIContent *node = nodeList->GetNodeAt(JSID_TO_INT(id));
 
     result = node;
     cache = node;

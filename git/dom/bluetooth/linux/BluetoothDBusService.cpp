@@ -757,12 +757,6 @@ public:
     if (h) {
       h->Listen();
     }
-
-    BluetoothOppManager* opp = BluetoothOppManager::Get();
-    if (opp) {
-      opp->Listen();
-    }
-
     return NS_OK;
   }
 };
@@ -777,12 +771,6 @@ public:
     if (h) {
       h->CloseSocket();
     }
-
-    BluetoothOppManager* opp = BluetoothOppManager::Get();
-    if (opp) {
-      opp->CloseSocket();
-    }
-
     return NS_OK;
   }
 };
@@ -805,7 +793,6 @@ public:
 
     uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HandsfreeAG >> 32));
     uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HeadsetAG >> 32));
-    uuids.AppendElement((uint32_t)(BluetoothServiceUuid::ObjectPush >> 32));
 
     // TODO/qdot: This needs to be held for the life of the bluetooth connection
     // so we could clean it up. For right now though, we can throw it away.
@@ -2527,8 +2514,6 @@ BluetoothDBusService::SendFile(const nsAString& aDeviceAddress,
                                BlobChild* aBlobChild,
                                BluetoothReplyRunnable* aRunnable)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
   // Currently we only support one device sending one file at a time,
   // so we don't need aDeviceAddress here because the target device
   // has been determined when calling 'Connect()'. Nevertheless, keep
@@ -2543,8 +2528,6 @@ bool
 BluetoothDBusService::StopSendingFile(const nsAString& aDeviceAddress,
                                       BluetoothReplyRunnable* aRunnable)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
   // Currently we only support one device sending one file at a time,
   // so we don't need aDeviceAddress here because the target device
   // has been determined when calling 'Connect()'. Nevertheless, keep
@@ -2553,21 +2536,6 @@ BluetoothDBusService::StopSendingFile(const nsAString& aDeviceAddress,
   opp->StopSendingFile(aRunnable);
 
   return true;
-}
-
-void
-BluetoothDBusService::ConfirmReceivingFile(const nsAString& aDeviceAddress,
-                                           bool aConfirm,
-                                           BluetoothReplyRunnable* aRunnable)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Must be called from main thread!");
-
-  // Currently we only support one device sending one file at a time,
-  // so we don't need aDeviceAddress here because the target device
-  // has been determined when calling 'Connect()'. Nevertheless, keep
-  // it for future use.
-  BluetoothOppManager* opp = BluetoothOppManager::Get();
-  opp->ConfirmReceivingFile(aConfirm, aRunnable);
 }
 
 nsresult

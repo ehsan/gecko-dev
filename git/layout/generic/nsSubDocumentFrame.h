@@ -81,7 +81,7 @@ public:
   virtual bool SupportsVisibilityHidden() { return false; }
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
   nsresult GetDocShell(nsIDocShell **aDocShell);

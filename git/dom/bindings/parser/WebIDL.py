@@ -680,8 +680,7 @@ class IDLInterface(IDLObjectWithScope):
                 identifier = IDLUnresolvedIdentifier(self.location, "constructor",
                                                      allowForbidden=True)
 
-                method = IDLMethod(self.location, identifier, retType, args,
-                                   static=True)
+                method = IDLMethod(self.location, identifier, retType, args)
                 # Constructors are always Creators and are always
                 # assumed to be able to throw (since there's no way to
                 # indicate otherwise) and never have any other

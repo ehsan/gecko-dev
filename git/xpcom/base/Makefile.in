@@ -41,7 +41,6 @@ CPPSRCS		= \
 		VisualEventTracer.cpp \
 		nsErrorAsserts.cpp \
 		nsGZFileWriter.cpp \
-		MemoryInfoDumper.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH),Linux)
@@ -65,15 +64,14 @@ EXPORTS		= \
 		nsTraceRefcntImpl.h \
 		nsWeakPtr.h \
 		nsInterfaceRequestorAgg.h \
+		dmd.h \
 		nsGZFileWriter.h \
-		NSPRFormatTime.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
 	MapsMemoryReporter.h \
-	MemoryInfoDumper.h \
 	ClearOnShutdown.h \
 	StaticPtr.h \
 	AvailableMemoryTracker.h \

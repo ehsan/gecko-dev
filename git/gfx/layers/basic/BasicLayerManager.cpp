@@ -1278,10 +1278,7 @@ BasicShadowLayerManager::SetIsFirstPaint()
 }
 
 bool
-BasicShadowLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                                   gfx::Rect& aViewport,
-                                                   float& aScaleX,
-                                                   float& aScaleY)
+BasicShadowLayerManager::ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent)
 {
 #ifdef MOZ_WIDGET_ANDROID
   Layer* primaryScrollable = GetPrimaryScrollableLayer();
@@ -1298,9 +1295,8 @@ BasicShadowLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesCont
                           metrics.mDisplayPort.width * devPixelRatioX,
                           metrics.mDisplayPort.height * devPixelRatioY);
 
-    return AndroidBridge::Bridge()->ProgressiveUpdateCallback(
-      aHasPendingNewThebesContent, displayPort, devPixelRatioX,
-      aViewport, aScaleX, aScaleY);
+    return AndroidBridge::Bridge()->ShouldAbortProgressiveUpdate(
+      aHasPendingNewThebesContent, displayPort, devPixelRatioX);
   }
 #endif
 

@@ -32,6 +32,10 @@
 #include "ImageLayers.h"
 #include "nsContentList.h"
 
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
+
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::dom;
@@ -412,10 +416,13 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsVideoFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsVideoFrame::CreateAccessible()
 {
-  return a11y::eHTMLMediaAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  return accService ?
+    accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
+    nullptr;
 }
 #endif
 

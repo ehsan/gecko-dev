@@ -62,7 +62,7 @@ public:
                                         uint32_t aFilter) MOZ_OVERRIDE;
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible() MOZ_OVERRIDE;
 #endif  
 
   typedef bool (*AcceptAttrCallback)(const nsAString&, void*);

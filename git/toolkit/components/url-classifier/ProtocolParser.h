@@ -47,7 +47,7 @@ public:
 
   // Update information.
   const nsTArray<ForwardedUpdate> &Forwards() const { return mForwards; }
-  int32_t UpdateWait() { return mUpdateWait; }
+  int32 UpdateWait() { return mUpdateWait; }
   bool ResetRequested() { return mResetRequested; }
   bool RekeyRequested() { return mRekeyRequested; }
 
@@ -86,9 +86,9 @@ private:
 
   struct ChunkState {
     ChunkType type;
-    uint32_t num;
-    uint32_t hashSize;
-    uint32_t length;
+    uint32 num;
+    uint32 hashSize;
+    uint32 length;
     void Clear() { num = 0; hashSize = 0; length = 0; }
   };
   ChunkState mChunkState;
@@ -103,7 +103,7 @@ private:
   nsCOMPtr<nsICryptoHMAC> mHMAC;
   nsCString mServerMAC;
 
-  uint32_t mUpdateWait;
+  uint32 mUpdateWait;
   bool mResetRequested;
   bool mRekeyRequested;
 

@@ -9,8 +9,6 @@
 
 #include "nsAccessNode.h"
 
-#include "nsIBaseWindow.h"
-#include "nsIDocShellTreeOwner.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
@@ -250,7 +248,7 @@ nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
   NS_ENSURE_TRUE(aPossibleAncestorNode && aPossibleDescendantNode, false);
 
   nsINode *parentNode = aPossibleDescendantNode;
-  while ((parentNode = parentNode->GetParentNode()) &&
+  while ((parentNode = parentNode->GetNodeParent()) &&
          parentNode != aRootNode) {
     if (parentNode == aPossibleAncestorNode)
       return true;
@@ -305,14 +303,19 @@ nsCoreUtils::ScrollFrameToPoint(nsIFrame *aScrollableFrame,
                                 nsIFrame *aFrame,
                                 const nsIntPoint& aPoint)
 {
-  nsIScrollableFrame* scrollableFrame = do_QueryFrame(aScrollableFrame);
+  nsIScrollableFrame *scrollableFrame = do_QueryFrame(aScrollableFrame);
   if (!scrollableFrame)
     return;
 
-  nsPoint point =
-    aPoint.ToAppUnits(aFrame->PresContext()->AppUnitsPerDevPixel());
-  nsRect frameRect = aFrame->GetScreenRectInAppUnits();
-  nsPoint deltaPoint(point.x - frameRect.x, point.y - frameRect.y);
+  nsPresContext *presContext = aFrame->PresContext();
+
+  nsIntRect frameRect = aFrame->GetScreenRectExternal();
+  int32_t devDeltaX = aPoint.x - frameRect.x;
+  int32_t devDeltaY = aPoint.y - frameRect.y;
+
+  nsPoint deltaPoint;
+  deltaPoint.x = presContext->DevPixelsToAppUnits(devDeltaX);
+  deltaPoint.y = presContext->DevPixelsToAppUnits(devDeltaY);
 
   nsPoint scrollPoint = scrollableFrame->GetScrollPosition();
   scrollPoint -= deltaPoint;
@@ -383,15 +386,19 @@ nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
   if (!treeItem)
     return coords;
 
-  nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-  treeItem->GetTreeOwner(getter_AddRefs(treeOwner));
-  if (!treeOwner)
+  nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
+  treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
+  nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(rootTreeItem);
+  if (!domDoc)
     return coords;
 
-  nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(treeOwner);
-  if (baseWindow)
-    baseWindow->GetPosition(&coords.x, &coords.y); // in device pixels
+  nsCOMPtr<nsIDOMWindow> window;
+  domDoc->GetDefaultView(getter_AddRefs(window));
+  if (!window)
+    return coords;
 
+  window->GetScreenX(&coords.x);
+  window->GetScreenY(&coords.y);
   return coords;
 }
 
@@ -472,6 +479,26 @@ nsCoreUtils::IsErrorPage(nsIDocument *aDocument)
   NS_NAMED_LITERAL_CSTRING(certerror, "certerror");
 
   return StringBeginsWith(path, neterror) || StringBeginsWith(path, certerror);
+}
+
+already_AddRefed<nsIDOMNode>
+nsCoreUtils::GetDOMNodeForContainer(nsIDocShellTreeItem *aContainer)
+{
+  nsCOMPtr<nsIDocShell> shell = do_QueryInterface(aContainer);
+
+  nsCOMPtr<nsIContentViewer> cv;
+  shell->GetContentViewer(getter_AddRefs(cv));
+
+  if (!cv)
+    return nullptr;
+
+  nsIDocument* doc = cv->GetDocument();
+  if (!doc)
+    return nullptr;
+
+  nsIDOMNode* node = nullptr;
+  CallQueryInterface(doc, &node);
+  return node;
 }
 
 bool

@@ -29,7 +29,6 @@ class Linker
     }
 
     IonCode *newCode(JSContext *cx, IonCompartment *comp) {
-        AssertCanGC();
 #ifndef JS_CPU_ARM
         masm.flush();
 #endif

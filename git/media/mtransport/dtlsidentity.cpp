@@ -116,7 +116,7 @@ TemporaryRef<DtlsIdentity> DtlsIdentity::Generate() {
     return nullptr;
   }
 
-  PLArenaPool *arena = certificate->arena;
+  PRArenaPool *arena = certificate->arena;
 
   rv = SECOID_SetAlgorithmID(arena, &certificate->signature,
                              SEC_OID_PKCS1_SHA1_WITH_RSA_ENCRYPTION, 0);

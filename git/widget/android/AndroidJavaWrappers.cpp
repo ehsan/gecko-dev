@@ -84,7 +84,7 @@ jmethodID AndroidGeckoLayerClient::jGetDisplayPort = 0;
 jmethodID AndroidGeckoLayerClient::jViewportCtor = 0;
 jfieldID AndroidGeckoLayerClient::jDisplayportPosition = 0;
 jfieldID AndroidGeckoLayerClient::jDisplayportResolution = 0;
-jmethodID AndroidGeckoLayerClient::jProgressiveUpdateCallbackMethod = 0;
+jmethodID AndroidGeckoLayerClient::jShouldAbortProgressiveUpdate = 0;
 
 jclass AndroidLayerRendererFrame::jLayerRendererFrameClass = 0;
 jmethodID AndroidLayerRendererFrame::jBeginDrawingMethod = 0;
@@ -96,14 +96,6 @@ jclass AndroidViewTransform::jViewTransformClass = 0;
 jfieldID AndroidViewTransform::jXField = 0;
 jfieldID AndroidViewTransform::jYField = 0;
 jfieldID AndroidViewTransform::jScaleField = 0;
-
-jclass AndroidProgressiveUpdateData::jProgressiveUpdateDataClass = 0;
-jfieldID AndroidProgressiveUpdateData::jXField = 0;
-jfieldID AndroidProgressiveUpdateData::jYField = 0;
-jfieldID AndroidProgressiveUpdateData::jWidthField = 0;
-jfieldID AndroidProgressiveUpdateData::jHeightField = 0;
-jfieldID AndroidProgressiveUpdateData::jScaleField = 0;
-jfieldID AndroidProgressiveUpdateData::jShouldAbortField = 0;
 
 jclass AndroidGeckoSurfaceView::jGeckoSurfaceViewClass = 0;
 jmethodID AndroidGeckoSurfaceView::jBeginDrawingMethod = 0;
@@ -195,7 +187,6 @@ mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
     AndroidGeckoLayerClient::InitGeckoLayerClientClass(jEnv);
     AndroidLayerRendererFrame::InitLayerRendererFrameClass(jEnv);
     AndroidViewTransform::InitViewTransformClass(jEnv);
-    AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(jEnv);
     AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(jEnv);
 }
 
@@ -354,6 +345,7 @@ AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
     jActivateProgramMethod = getMethod("activateProgram", "()V");
     jDeactivateProgramMethod = getMethod("deactivateProgram", "()V");
     jGetDisplayPort = getMethod("getDisplayPort", "(ZZILorg/mozilla/gecko/gfx/ViewportMetrics;)Lorg/mozilla/gecko/gfx/DisplayPortMetrics;");
+    jShouldAbortProgressiveUpdate = getMethod("shouldAbortProgressiveUpdate", "(ZFFFFF)Z");
 
     jViewportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/ViewportMetrics");
     jViewportCtor = GetMethodID(jEnv, jViewportClass, "<init>", "(FFFFFFFFFFFFF)V");
@@ -361,8 +353,6 @@ AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
     jDisplayportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/DisplayPortMetrics");
     jDisplayportPosition = GetFieldID(jEnv, jDisplayportClass, "mPosition", "Landroid/graphics/RectF;");
     jDisplayportResolution = GetFieldID(jEnv, jDisplayportClass, "resolution", "F");
-    jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
-                                                 "(ZFFFFF)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
 
 #endif
 }
@@ -393,23 +383,6 @@ AndroidViewTransform::InitViewTransformClass(JNIEnv *jEnv)
     jXField = getField("x", "F");
     jYField = getField("y", "F");
     jScaleField = getField("scale", "F");
-#endif
-}
-
-void
-AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(JNIEnv *jEnv)
-{
-#ifdef MOZ_ANDROID_OMTC
-    initInit();
-
-    jProgressiveUpdateDataClass = getClassGlobalRef("org/mozilla/gecko/gfx/ProgressiveUpdateData");
-
-    jXField = getField("x", "F");
-    jYField = getField("y", "F");
-    jWidthField = getField("width", "F");
-    jHeightField = getField("height", "F");
-    jScaleField = getField("scale", "F");
-    jShouldAbortField = getField("abort", "Z");
 #endif
 }
 
@@ -729,13 +702,6 @@ AndroidViewTransform::Init(jobject jobj)
 }
 
 void
-AndroidProgressiveUpdateData::Init(jobject jobj)
-{
-    NS_ABORT_IF_FALSE(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
-    wrapped_obj = jobj;
-}
-
-void
 AndroidGeckoSurfaceView::Init(jobject jobj)
 {
     NS_ASSERTION(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
@@ -849,12 +815,9 @@ AndroidGeckoLayerClient::SyncViewportInfo(const nsIntRect& aDisplayPort, float a
 }
 
 bool
-AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                                   const gfx::Rect& aDisplayPort,
-                                                   float aDisplayResolution,
-                                                   gfx::Rect& aViewport,
-                                                   float& aScaleX,
-                                                   float& aScaleY)
+AndroidGeckoLayerClient::ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent,
+                                                      const gfx::Rect& aDisplayPort,
+                                                      float aDisplayResolution)
 {
     JNIEnv *env = AndroidBridge::GetJNIEnv();
     if (!env)
@@ -862,28 +825,17 @@ AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesCont
 
     AutoLocalJNIFrame jniFrame(env);
 
-    jobject progressiveUpdateDataJObj = env->CallObjectMethod(wrapped_obj,
-                                                              jProgressiveUpdateCallbackMethod,
-                                                              aHasPendingNewThebesContent,
-                                                              (float)aDisplayPort.x,
-                                                              (float)aDisplayPort.y,
-                                                              (float)aDisplayPort.width,
-                                                              (float)aDisplayPort.height,
-                                                              aDisplayResolution);
+    bool ret = env->CallBooleanMethod(wrapped_obj, jShouldAbortProgressiveUpdate,
+                                      aHasPendingNewThebesContent,
+                                      (float)aDisplayPort.x,
+                                      (float)aDisplayPort.y,
+                                      (float)aDisplayPort.width,
+                                      (float)aDisplayPort.height,
+                                      aDisplayResolution);
     if (jniFrame.CheckForException())
         return false;
 
-    NS_ABORT_IF_FALSE(progressiveUpdateDataJObj, "No progressive update data!");
-
-    AndroidProgressiveUpdateData progressiveUpdateData(progressiveUpdateDataJObj);
-
-    aViewport.x = progressiveUpdateData.GetX(env);
-    aViewport.y = progressiveUpdateData.GetY(env);
-    aViewport.width = progressiveUpdateData.GetWidth(env);
-    aViewport.height = progressiveUpdateData.GetHeight(env);
-    aScaleX = aScaleY = progressiveUpdateData.GetScale(env);
-
-    return progressiveUpdateData.GetShouldAbort(env);
+    return ret;
 }
 
 jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
@@ -1126,54 +1078,6 @@ AndroidViewTransform::GetScale(JNIEnv *env)
     if (!env)
         return 0.0f;
     return env->GetFloatField(wrapped_obj, jScaleField);
-}
-
-float
-AndroidProgressiveUpdateData::GetX(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jXField);
-}
-
-float
-AndroidProgressiveUpdateData::GetY(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jYField);
-}
-
-float
-AndroidProgressiveUpdateData::GetWidth(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jWidthField);
-}
-
-float
-AndroidProgressiveUpdateData::GetHeight(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jHeightField);
-}
-
-float
-AndroidProgressiveUpdateData::GetScale(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jScaleField);
-}
-
-bool
-AndroidProgressiveUpdateData::GetShouldAbort(JNIEnv *env)
-{
-    if (!env)
-        return false;
-    return env->GetBooleanField(wrapped_obj, jShouldAbortField);
 }
 
 void

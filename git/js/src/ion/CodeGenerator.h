@@ -45,8 +45,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNop(LNop *lir);
     bool visitOsiPoint(LOsiPoint *lir);
     bool visitGoto(LGoto *lir);
-    bool visitTableSwitch(LTableSwitch *ins);
-    bool visitTableSwitchV(LTableSwitchV *ins);
     bool visitParameter(LParameter *lir);
     bool visitCallee(LCallee *lir);
     bool visitStart(LStart *lir);
@@ -168,7 +166,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitBitNotV(LBitNotV *lir);
     bool visitBitOpV(LBitOpV *lir);
     bool emitInstanceOf(LInstruction *ins, Register rhs);
-    bool visitIn(LIn *ins);
     bool visitInstanceOfO(LInstanceOfO *ins);
     bool visitInstanceOfV(LInstanceOfV *ins);
     bool visitFunctionBoundary(LFunctionBoundary *lir);

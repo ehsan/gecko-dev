@@ -375,7 +375,7 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
 
   uint32_t nativeOffset = 0;
   uint32_t nativeEndOffset = aNativeOffset + aNativeLength;
-  bool startSet = false;
+  nsCOMPtr<nsIContent> content;
   for (; !iter->IsDone(); iter->Next()) {
     nsINode* node = iter->GetCurrentNode();
     if (!node)
@@ -405,7 +405,6 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
 
       rv = aRange->SetStart(domNode, int32_t(xpOffset));
       NS_ENSURE_SUCCESS(rv, rv);
-      startSet = true;
       if (aNativeLength == 0) {
         // Ensure that the end offset and the start offset are same.
         rv = aRange->SetEnd(domNode, int32_t(xpOffset));
@@ -447,9 +446,8 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
 
   nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(mRootContent));
   NS_ASSERTION(domNode, "lastContent doesn't have nsIDOMNode!");
-  if (!startSet) {
-    MOZ_ASSERT(!mRootContent->IsNodeOfType(nsINode::eTEXT));
-    rv = aRange->SetStart(domNode, int32_t(mRootContent->GetChildCount()));
+  if (!content) {
+    rv = aRange->SetStart(domNode, 0);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   rv = aRange->SetEnd(domNode, int32_t(mRootContent->GetChildCount()));

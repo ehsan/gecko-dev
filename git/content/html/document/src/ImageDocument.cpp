@@ -641,9 +641,7 @@ ImageDocument::CreateSyntheticDocument()
     nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
     NS_ENSURE_TRUE(styleContent, NS_ERROR_OUT_OF_MEMORY);
 
-    ErrorResult error;
-    styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"),
-                                 error);
+    styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"));
     head->AppendChildTo(styleContent, false);
   }
 

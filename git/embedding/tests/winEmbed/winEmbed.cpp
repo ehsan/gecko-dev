@@ -198,8 +198,6 @@ int main(int argc, char *argv[])
         return 5;
     }
 
-    int result = 0;
-
     // Scope all the XPCOM stuff
     {
         strcpy(lastslash, "\\xulrunner");
@@ -222,6 +220,7 @@ int main(int argc, char *argv[])
         if (NS_FAILED(rv))
             return 9;
 
+        int result = 0;
         if (NS_FAILED(StartupProfile())) {
             result = 8;
         }
@@ -236,12 +235,12 @@ int main(int argc, char *argv[])
             //       Mozilla every 1/10th of a second.
             bool runCondition = true;
 
-            result = AppCallbacks::RunEventLoop(runCondition);
+            rv = AppCallbacks::RunEventLoop(runCondition);
         }
     }
     XRE_TermEmbedding();
 
-    return result;
+    return rv;
 }
 
 /* InitializeWindowCreator creates and hands off an object with a callback

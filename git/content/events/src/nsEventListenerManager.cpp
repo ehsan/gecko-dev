@@ -1179,7 +1179,7 @@ nsEventListenerManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 }
 
 void
-nsEventListenerManager::MarkForCC()
+nsEventListenerManager::UnmarkGrayJSListeners()
 {
   uint32_t count = mListeners.Length();
   for (uint32_t i = 0; i < count; ++i) {
@@ -1191,8 +1191,5 @@ nsEventListenerManager::MarkForCC()
     } else if (ls.mListenerType == eWrappedJSListener) {
       xpc_TryUnmarkWrappedGrayObject(ls.mListener);
     }
-  }
-  if (mRefCnt.IsPurple()) {
-    mRefCnt.RemovePurple();
   }
 }

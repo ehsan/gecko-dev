@@ -634,7 +634,8 @@ XULListitemAccessible::NativeName(nsString& aName)
     }
   }
 
-  return GetXULName(aName);
+  GetXULName(aName);
+  return eNameOK;
 }
 
 role
@@ -857,20 +858,22 @@ XULListCellAccessible::NativeRole()
   return roles::CELL;
 }
 
-already_AddRefed<nsIPersistentProperties>
-XULListCellAccessible::NativeAttributes()
+nsresult
+XULListCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    HyperTextAccessibleWrap::NativeAttributes();
+  NS_ENSURE_ARG_POINTER(aAttributes);
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   // "table-cell-index" attribute
   TableAccessible* table = Table();
-  if (!table) // we expect to be in a listbox (table)
-    return attributes.forget();
+  NS_ENSURE_STATE(table); // we expect to be in a listbox (table)
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(table->CellIndexAt(RowIdx(), ColIdx()));
-  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::tableCellIndex, stringIdx);
+  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
+                         stringIdx);
 
-  return attributes.forget();
+  return NS_OK;
 }

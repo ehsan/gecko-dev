@@ -290,10 +290,6 @@ public:
                          bool aEncrypt,
                          mozilla::ipc::UnixSocketConsumer* aConsumer) = 0;
 
-  virtual void
-  ConfirmReceivingFile(const nsAString& aDeviceAddress, bool aConfirm,
-                       BluetoothReplyRunnable* aRunnable) = 0;
-
   bool
   IsEnabled() const
   {
