@@ -20,9 +20,7 @@ this.EXPORTED_SYMBOLS = ["VariablesView", "create"];
  * Requires the devtools common.css and debugger.css skin stylesheets.
  *
  * To allow replacing variable or property values in this view, provide an
- * "eval" function property. To allow replacing variable or property values,
- * provide a "switch" function. To handle deleting variables or properties,
- * provide a "delete" function.
+ * "eval" function property.
  *
  * @param nsIDOMNode aParentNode
  *        The parent node to hold this view.
@@ -417,8 +415,6 @@ function Scope(aView, aName, aFlags = {}) {
 
   this.ownerView = aView;
   this.eval = aView.eval;
-  this.switch = aView.switch;
-  this.delete = aView.delete;
 
   this._store = new Map();
   this._init(aName.trim(), aFlags);
@@ -638,24 +634,6 @@ Scope.prototype = {
    * @param boolean aFlag
    */
   set twisty(aFlag) aFlag ? this.showArrow() : this.hideArrow(),
-
-  /**
-   * Specifies if editing variable or property names is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowNameInput: false,
-
-  /**
-   * Specifies if editing variable or property values is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowValueInput: true,
-
-  /**
-   * Specifies if removing variables or properties values is allowed.
-   * This flag applies non-recursively to the current scope.
-   */
-  allowDeletion: false,
 
   /**
    * Gets the id associated with this item.
@@ -939,14 +917,11 @@ Scope.prototype = {
  *        The variable's descriptor.
  */
 function Variable(aScope, aName, aDescriptor) {
-  this._onClose = this._onClose.bind(this);
   this._displayTooltip = this._displayTooltip.bind(this);
-  this._activateNameInput = this._activateNameInput.bind(this);
-  this._activateValueInput = this._activateValueInput.bind(this);
-  this._deactivateNameInput = this._deactivateNameInput.bind(this);
-  this._deactivateValueInput = this._deactivateValueInput.bind(this);
-  this._onNameInputKeyPress = this._onNameInputKeyPress.bind(this);
-  this._onValueInputKeyPress = this._onValueInputKeyPress.bind(this);
+  this._activateInput = this._activateInput.bind(this);
+  this._deactivateInput = this._deactivateInput.bind(this);
+  this._saveInput = this._saveInput.bind(this);
+  this._onInputKeyPress = this._onInputKeyPress.bind(this);
 
   Scope.call(this, aScope, aName, aDescriptor);
   this._setGrip(aDescriptor.value);
@@ -1205,12 +1180,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
       separatorLabel.hidden = true;
       valueLabel.hidden = true;
     }
-    if (this.ownerView.allowDeletion) {
-      let closeNode = this._closeNode = document.createElement("toolbarbutton");
-      closeNode.className = "dbg-variables-delete plain devtools-closebutton";
-      closeNode.addEventListener("click", this._onClose, false);
-      this._title.appendChild(closeNode);
-    }
   },
 
   /**
@@ -1246,16 +1215,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
 
     this._target.appendChild(tooltip);
     this._target.setAttribute("tooltip", tooltip.id);
-
-    if (this.ownerView.allowNameInput) {
-      this._name.setAttribute("tooltiptext", L10N.getStr("variablesEditableNameTooltip"));
-    }
-    if (this.ownerView.allowValueInput) {
-      this._valueLabel.setAttribute("tooltiptext", L10N.getStr("variablesEditableValueTooltip"));
-    }
-    if (this.ownerView.allowDeletion) {
-      this._closeNode.setAttribute("tooltiptext", L10N.getStr("variablesCloseButtonTooltip"));
-    }
   },
 
   /**
@@ -1296,54 +1255,44 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   _addEventListeners: function V__addEventListeners() {
     this._arrow.addEventListener("mousedown", this.toggle, false);
     this._name.addEventListener("mousedown", this.toggle, false);
-    this._name.addEventListener("dblclick", this._activateNameInput, false);
-    this._valueLabel.addEventListener("click", this._activateValueInput, false);
+    this._valueLabel.addEventListener("click", this._activateInput, false);
   },
 
   /**
-   * The click listener for the close button.
+   * Makes this variable's value editable.
    */
-  _onClose: function V__onClose() {
-    this.hide();
-
-    if (this.delete) {
-      this.delete(this);
+  _activateInput: function V__activateInput(e) {
+    if (!this.eval) {
+      return;
     }
-  },
+    let window = this.window;
+    let document = this.document;
 
-  /**
-   * Creates a textbox node in place of a label.
-   *
-   * @param nsIDOMNode aLabel
-   *        The label to be replaced with a textbox.
-   * @param string aClassName
-   *        The class to be applied to the textbox.
-   * @param object aCallbacks
-   *        An object containing the onKeypress and onBlur callbacks.
-   */
-  _activateInput: function V__activateInput(aLabel, aClassName, aCallbacks) {
-    let initialString = aLabel.getAttribute("value");
+    let title = this._title;
+    let valueLabel = this._valueLabel;
+    let initialString = this._valueLabel.getAttribute("value");
 
     // Create a texbox input element which will be shown in the current
-    // element's specified label location.
+    // element's value location.
     let input = this.document.createElement("textbox");
     input.setAttribute("value", initialString);
-    input.className = "plain " + aClassName;
+    input.className = "plain element-input";
     input.width = this._target.clientWidth;
 
-    aLabel.parentNode.replaceChild(input, aLabel);
+    title.removeChild(valueLabel);
+    title.appendChild(input);
     input.select();
 
     // When the value is a string (displayed as "value"), then we probably want
     // to change it to another string in the textbox, so to avoid typing the ""
     // again, tackle with the selection bounds just a bit.
-    if (aLabel.getAttribute("value").match(/^"[^"]*"$/)) {
+    if (valueLabel.getAttribute("value").match(/^"[^"]*"$/)) {
       input.selectionEnd--;
       input.selectionStart++;
     }
 
-    input.addEventListener("keypress", aCallbacks.onKeypress, false);
-    input.addEventListener("blur", aCallbacks.onBlur, false);
+    input.addEventListener("keypress", this._onInputKeyPress, false);
+    input.addEventListener("blur", this._deactivateInput, false);
 
     this._prevExpandable = this.twisty;
     this._prevExpanded = this.expanded;
@@ -1353,17 +1302,18 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   },
 
   /**
-   * Removes the textbox node in place of a label.
-   *
-   * @param nsIDOMNode aLabel
-   *        The label which was replaced with a textbox.
-   * @param object aCallbacks
-   *        An object containing the onKeypress and onBlur callbacks.
+   * Deactivates this variable's editable mode.
    */
-  _deactivateInput: function V__deactivateInput(aLabel, aInput, aCallbacks) {
-    aInput.parentNode.replaceChild(aLabel, aInput);
-    aInput.removeEventListener("keypress", aCallbacks.onKeypress, false);
-    aInput.removeEventListener("blur", aCallbacks.onBlur, false);
+  _deactivateInput: function V__deactivateInput(e) {
+    let input = e.target;
+    let title = this._title;
+    let valueLabel = this._valueLabel;
+
+    title.removeChild(input);
+    title.appendChild(valueLabel);
+
+    input.removeEventListener("keypress", this._onInputKeyPress, false);
+    input.removeEventListener("blur", this._deactivateInput, false);
 
     this._locked = false;
     this.twisty = this._prevExpandable;
@@ -1371,123 +1321,37 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   },
 
   /**
-   * Makes this variable's name editable.
+   * Deactivates this variable's editable mode and evaluates a new value.
    */
-  _activateNameInput: function V__activateNameInput() {
-    if (!this.ownerView.allowNameInput || !this.switch) {
-      return;
-    }
-    this._activateInput(this._name, "element-name-input", {
-      onKeypress: this._onNameInputKeyPress,
-      onBlur: this._deactivateNameInput
-    });
-    this._separatorLabel.hidden = true;
-    this._valueLabel.hidden = true;
-  },
-
-  /**
-   * Deactivates this variable's editable name mode.
-   */
-  _deactivateNameInput: function V__deactivateNameInput(e) {
-    this._deactivateInput(this._name, e.target, {
-      onKeypress: this._onNameInputKeyPress,
-      onBlur: this._deactivateNameInput
-    });
-    this._separatorLabel.hidden = false;
-    this._valueLabel.hidden = false;
-  },
-
-  /**
-   * Makes this variable's value editable.
-   */
-  _activateValueInput: function V__activateValueInput() {
-    if (!this.ownerView.allowValueInput || !this.eval) {
-      return;
-    }
-    this._activateInput(this._valueLabel, "element-value-input", {
-      onKeypress: this._onValueInputKeyPress,
-      onBlur: this._deactivateValueInput
-    });
-  },
-
-  /**
-   * Deactivates this variable's editable value mode.
-   */
-  _deactivateValueInput: function V__deactivateValueInput(e) {
-    this._deactivateInput(this._valueLabel, e.target, {
-      onKeypress: this._onValueInputKeyPress,
-      onBlur: this._deactivateValueInput
-    });
-  },
-
-  /**
-   * Disables this variable prior to a new name switch or value evaluation.
-   */
-  _disable: function V__disable() {
-    this.twisty = false;
-    this._separatorLabel.hidden = true;
-    this._valueLabel.hidden = true;
-    this._enum.hidden = true;
-    this._nonenum.hidden = true;
-  },
-
-  /**
-   * Deactivates this variable's editable mode and callbacks the new name.
-   */
-  _saveNameInput: function V__saveNameInput(e) {
+  _saveInput: function V__saveInput(e) {
     let input = e.target;
-    let initialString = this._name.getAttribute("value");
-    let currentString = input.value.trim();
-    this._deactivateNameInput(e);
-
-    if (initialString != currentString) {
-      this._disable();
-      this._name.value = currentString;
-      this.switch(this, currentString);
-    }
-  },
-
-  /**
-   * Deactivates this variable's editable mode and evaluates the new value.
-   */
-  _saveValueInput: function V__saveValueInput(e) {
-    let input = e.target;
+    let valueLabel = this._valueLabel;
     let initialString = this._valueLabel.getAttribute("value");
-    let currentString = input.value.trim();
-    this._deactivateValueInput(e);
+    let currentString = input.value;
+
+    this._deactivateInput(e);
 
     if (initialString != currentString) {
-      this._disable();
-      this.eval(this._symbolicName + "=" + currentString);
+      this._arrow.setAttribute("invisible", "");
+      this._separatorLabel.hidden = true;
+      this._valueLabel.hidden = true;
+      this._enum.hidden = true;
+      this._nonenum.hidden = true;
+      this.eval("(" + this._symbolicName + "=" + currentString + ")");
     }
   },
 
   /**
-   * The key press listener for this variable's editable name textbox.
+   * The key press listener for this variable's editable mode textbox.
    */
-  _onNameInputKeyPress: function V__onNameInputKeyPress(e) {
+  _onInputKeyPress: function V__onInputKeyPress(e) {
     switch(e.keyCode) {
       case e.DOM_VK_RETURN:
       case e.DOM_VK_ENTER:
-        this._saveNameInput(e);
+        this._saveInput(e);
         return;
       case e.DOM_VK_ESCAPE:
-        this._deactivateNameInput(e);
-        return;
-    }
-  },
-
-  /**
-   * The key press listener for this variable's editable value textbox.
-   */
-  _onValueInputKeyPress: function V__onValueInputKeyPress(e) {
-    switch(e.keyCode) {
-      case e.DOM_VK_RETURN:
-      case e.DOM_VK_ENTER:
-        this._saveValueInput(e);
-        return;
-      case e.DOM_VK_ESCAPE:
-        this._deactivateValueInput(e);
+        this._deactivateInput(e);
         return;
     }
   },
@@ -1497,7 +1361,6 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   _initialDescriptor: null,
   _separatorLabel: null,
   _valueLabel: null,
-  _closeNode: null,
   _tooltip: null,
   _valueGrip: null,
   _valueString: "",
@@ -1837,7 +1700,6 @@ XPCOMUtils.defineLazyGetter(L10N, "stringBundle", function() {
 
 /**
  * The separator label between the variables or properties name and value.
- * This property applies non-recursively to the current scope.
  */
 Scope.prototype.separator = L10N.getStr("variablesSeparatorLabel");
 

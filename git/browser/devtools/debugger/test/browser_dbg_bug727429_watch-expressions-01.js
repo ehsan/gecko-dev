@@ -52,20 +52,6 @@ function test()
     is(gWatch.getExpressions().length, 1,
       "Duplicate watch expressions are automatically removed");
 
-    addAndCheckExpressions(2, 0, "a\t", true);
-    addAndCheckExpressions(2, 0, "a\r", true);
-    addAndCheckExpressions(2, 0, "a\n", true);
-    gDebugger.editor.focus();
-    is(gWatch.getExpressions().length, 1,
-      "Duplicate watch expressions are automatically removed");
-
-    addAndCheckExpressions(2, 0, "\ta", true);
-    addAndCheckExpressions(2, 0, "\ra", true);
-    addAndCheckExpressions(2, 0, "\na", true);
-    gDebugger.editor.focus();
-    is(gWatch.getExpressions().length, 1,
-      "Duplicate watch expressions are automatically removed");
-
 
     addAndCheckCustomExpression(2, 0, "bazΩΩka");
     addAndCheckCustomExpression(3, 0, "bambøøcha");
@@ -208,7 +194,7 @@ function test()
   }
 
   function removeAndCheckExpression(total, index, string) {
-    gWatch.removeExpressionAt(index);
+    gWatch.removeExpression(index);
 
     is(gWatch.getExpressions().length, total,
       "There should be " + total + " watch expressions available (1)");

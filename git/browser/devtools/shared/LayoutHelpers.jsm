@@ -326,12 +326,10 @@ this.LayoutHelpers = LayoutHelpers = {
    *
    * @param Node aElemKey
    *        The key element to get the modifiers from.
-   * @param boolean aAllowCloverleaf
-   *        Pass true to use the cloverleaf symbol instead of a descriptive string.
    * @return string
    *         A prettified and properly separated modifier keys string.
    */
-  prettyKey: function LH_prettyKey(aElemKey, aAllowCloverleaf)
+  prettyKey: function LH_prettyKey(aElemKey)
   {
     let elemString = "";
     let elemMod = aElemKey.getAttribute("modifiers");
@@ -340,12 +338,9 @@ this.LayoutHelpers = LayoutHelpers = {
       if (Services.appinfo.OS == "Darwin") {
         // XXX bug 779642 Use "Cmd-" literal vs. cloverleaf meta-key until
         // Orion adds variable height lines.
-        if (!aAllowCloverleaf) {
-          elemString += "Cmd-";
-        } else {
-          elemString += PlatformKeys.GetStringFromName("VK_META") +
-                        PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
-        }
+        // elemString += PlatformKeys.GetStringFromName("VK_META") +
+        //               PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
+        elemString += "Cmd-";
       } else {
         elemString += PlatformKeys.GetStringFromName("VK_CONTROL") +
                       PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
