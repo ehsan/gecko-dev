@@ -59,16 +59,13 @@
 #include "nsTraceRefcnt.h"
 #include "nsITransferable.h"
 #include "nsIVariant.h"
-#include "nsStyleConsts.h"
 
-#ifdef MOZ_IPC
 namespace mozilla {
 namespace dom {
   class PBrowserParent;
   class PBrowserChild;
 }
 }
-#endif // MOZ_IPC
 
 #ifdef ACCESSIBILITY
 class nsAccessible;
@@ -544,11 +541,9 @@ protected:
     MOZ_COUNT_CTOR(nsEvent);
   }
 
-#ifdef MOZ_IPC
   nsEvent()
   {
   }
-#endif // MOZ_IPC
 
 public:
   nsEvent(PRBool isTrusted, PRUint32 msg)
@@ -601,12 +596,10 @@ protected:
   {
   }
 
-#ifdef MOZ_IPC
   nsGUIEvent()
     : pluginEvent(nsnull)
   {
   }
-#endif // MOZ_IPC
 
 public:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -772,11 +765,9 @@ protected:
   {
   }
 
-#ifdef MOZ_IPC
   nsInputEvent()
   {
   }
-#endif // MOZ_IPC
 
 public:
   nsInputEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -958,12 +949,12 @@ public:
 struct nsTextRangeStyle
 {
   enum {
-    LINESTYLE_NONE   = NS_STYLE_TEXT_DECORATION_STYLE_NONE,
-    LINESTYLE_SOLID  = NS_STYLE_TEXT_DECORATION_STYLE_SOLID,
-    LINESTYLE_DOTTED = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED,
-    LINESTYLE_DASHED = NS_STYLE_TEXT_DECORATION_STYLE_DASHED,
-    LINESTYLE_DOUBLE = NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE,
-    LINESTYLE_WAVY   = NS_STYLE_TEXT_DECORATION_STYLE_WAVY
+    LINESTYLE_NONE   = 0,
+    LINESTYLE_SOLID  = 1,
+    LINESTYLE_DOTTED = 2,
+    LINESTYLE_DASHED = 3,
+    LINESTYLE_DOUBLE = 4,
+    LINESTYLE_WAVY   = 5
   };
 
   enum {
@@ -1074,7 +1065,6 @@ typedef nsTextRange* nsTextRangeArray;
 
 class nsTextEvent : public nsInputEvent
 {
-#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1085,7 +1075,6 @@ private:
 
 public:
   PRUint32 seqno;
-#endif // MOZ_IPC
 
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1105,7 +1094,6 @@ public:
 
 class nsCompositionEvent : public nsInputEvent
 {
-#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1116,7 +1104,6 @@ private:
 
 public:
   PRUint32 seqno;
-#endif // MOZ_IPC
 
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1235,7 +1222,6 @@ public:
 
 class nsQueryContentEvent : public nsGUIEvent
 {
-#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1245,7 +1231,6 @@ private:
     mReply.mContentsRoot = nsnull;
     mReply.mFocusedWidget = nsnull;
   }
-#endif // MOZ_IPC
 
 public:
   nsQueryContentEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
@@ -1339,7 +1324,6 @@ public:
 
 class nsSelectionEvent : public nsGUIEvent
 {
-#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1350,7 +1334,6 @@ private:
 
 public:
   PRUint32 seqno;
-#endif // MOZ_IPC
 
 public:
   nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :

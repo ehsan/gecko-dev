@@ -12,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla code.
+ * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Roy Frostig <froystig@cs.stanford.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,34 +35,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsDOMScrollAreaEvent_h__
-#define nsDOMScrollAreaEvent_h__
+#include "nsISupports.idl"
+#include "domstubs.idl"
+%{C++
+#include "nsString.h"
+%}
+/** Handle plaintext citations, as in mail quoting.
+  * Used by the editor but not dependant on it.
+  */
 
-#include "nsIDOMScrollAreaEvent.h"
-#include "nsDOMUIEvent.h"
+[scriptable, uuid(a6cf9102-15b3-11d2-932e-00805f8add32)]
 
-#include "nsGUIEvent.h"
-#include "nsClientRect.h"
-
-class nsDOMScrollAreaEvent : public nsDOMUIEvent,
-                             public nsIDOMScrollAreaEvent
+interface nsICiter  : nsISupports
 {
-public:
-  nsDOMScrollAreaEvent(nsPresContext *aPresContext,
-                       nsScrollAreaEvent *aEvent);
-  virtual ~nsDOMScrollAreaEvent();
 
-  NS_DECL_ISUPPORTS_INHERITED
+  DOMString GetCiteString(in DOMString aInString);
 
-  NS_DECL_NSIDOMSCROLLAREAEVENT
+  DOMString StripCites(in DOMString  aInString);
 
-  NS_FORWARD_TO_NSDOMUIEVENT
-
-    virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
-    virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
-
-protected:
-  nsClientRect mClientArea;
+  DOMString Rewrap(in DOMString aInString,
+                    in unsigned long aWrapCol, in unsigned long aFirstLineOffset,
+                    in boolean aRespectNewlines);
 };
 
-#endif // nsDOMScrollAreaEvent_h__
+
