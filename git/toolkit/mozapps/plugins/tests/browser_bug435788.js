@@ -82,16 +82,13 @@ function pfs_loaded() {
   info("PFS loaded");
   var docEle = gPFS.document.documentElement;
 
-  var onwizardfinish = function () {
-    info("wizardfinish event");
-  };
-  var onwizardnext = function () {
-    info("wizardnext event");
-  };
-
   docEle.addEventListener("pageshow", page_shown, false);
-  docEle.addEventListener("wizardfinish", onwizardfinish, false);
-  docEle.addEventListener("wizardnext", onwizardnext, false);
+  docEle.addEventListener("wizardfinish", function onwizardfinish() {
+    info("wizardfinish event");
+  }, false);
+  docEle.addEventListener("wizardnext", function onwizardnext() {
+    info("wizardnext event");
+  }, false);
 
   gPFS.addEventListener("unload", function() {
     info("unload event");

@@ -72,7 +72,6 @@
 #include "nsNavHistoryQuery.h"
 
 #include "mozilla/storage.h"
-#include "mozilla/storage/StatementCache.h"
 
 #define QUERYUPDATE_TIME 0
 #define QUERYUPDATE_SIMPLE 1
@@ -138,6 +137,8 @@ namespace places {
   , DB_ADD_NEW_PAGE
   , DB_GET_URL_PAGE_INFO
   , DB_SET_PLACE_TITLE
+  , DB_PAGE_INFO_FOR_FRECENCY
+  , DB_VISITS_FOR_FRECENCY
   };
 
   enum JournalMode {
@@ -492,32 +493,31 @@ public:
         return GetStatement(mDBGetURLPageInfo);
       case DB_SET_PLACE_TITLE:
         return GetStatement(mDBSetPlaceTitle);
+      case DB_PAGE_INFO_FOR_FRECENCY:
+        return GetStatement(mDBPageInfoForFrecency);
+      case DB_VISITS_FOR_FRECENCY:
+        return GetStatement(mDBVisitsForFrecency);
     }
     return nsnull;
   }
 
-  /**
-   * This cache should be used only for background thread statements.
-   *
-   * @pre must be running on the background thread of mDBConn.
-   */
-  mutable mozilla::storage::StatementCache<mozIStorageStatement> mAsyncThreadStatements;
-  mutable mozilla::storage::StatementCache<mozIStorageStatement> mStatements;
-
-  template<int N>
-  already_AddRefed<mozIStorageStatement>
-  GetStatementByStoragePool(const char (&aQuery)[N]) const
+  mozIStorageStatement* GetStatementByStoragePool(
+    enum mozilla::places::HistoryStatementId aStatementId
+  ) const
   {
-    nsDependentCString query(aQuery, N - 1);
-    return GetStatementByStoragePool(query);
-  }
+    using namespace mozilla::places;
 
-  already_AddRefed<mozIStorageStatement>
-  GetStatementByStoragePool(const nsACString& aQuery) const
-  {
-    return NS_IsMainThread()
-      ? mStatements.GetCachedStatement(aQuery)
-      : mAsyncThreadStatements.GetCachedStatement(aQuery);
+    switch(aStatementId) {
+      case DB_PAGE_INFO_FOR_FRECENCY:
+        return NS_IsMainThread() ? mDBPageInfoForFrecency
+                                 : mDBAsyncThreadPageInfoForFrecency;
+      case DB_VISITS_FOR_FRECENCY:
+        return NS_IsMainThread() ? mDBVisitsForFrecency
+                                 : mDBAsyncThreadVisitsForFrecency;
+      default:
+        NS_NOTREACHED("Trying to handle an unknown statement");
+    }
+    return nsnull;
   }
 
   PRInt32 GetFrecencyAgedWeight(PRInt32 aAgeInDays) const
@@ -578,11 +578,6 @@ public:
         NS_WARN_IF_FALSE(!aTransitionType, "new transition but no bonus for frecency");
         return mDefaultVisitBonus;
     }
-  }
-
-  PRInt32 GetNumVisitsForFrecency() const
-  {
-    return mNumVisitsForFrecency;
   }
 
   PRInt64 GetNewSessionID();
@@ -652,6 +647,14 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBUrlToUrlResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecency;
   nsCOMPtr<mozIStorageStatement> mDBUpdateHiddenOnFrecency;
+  nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
+  // Cached statements used in frecency calculation.  Since it could happen on
+  // both main thread or storage async thread, we keep two versions of them
+  // for thread-safety.
+  mutable nsCOMPtr<mozIStorageStatement> mDBVisitsForFrecency;
+  mutable nsCOMPtr<mozIStorageStatement> mDBPageInfoForFrecency;
+  mutable nsCOMPtr<mozIStorageStatement> mDBAsyncThreadVisitsForFrecency;
+  mutable nsCOMPtr<mozIStorageStatement> mDBAsyncThreadPageInfoForFrecency;
 #ifdef MOZ_XUL
   // AutoComplete stuff
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;

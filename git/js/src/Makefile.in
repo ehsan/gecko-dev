@@ -296,7 +296,6 @@ VPATH		+= \
 EXPORTS_NAMESPACES += mozilla
 
 EXPORTS_mozilla = \
-		RangedPtr.h \
 		Types.h		\
 		Util.h          \
 		$(NULL)
