@@ -46,7 +46,8 @@ TelephonyCall::TelephonyCall(nsPIDOMWindow* aOwner)
   : nsDOMEventTargetHelper(aOwner),
     mCallIndex(kOutgoingPlaceholderCallIndex),
     mCallState(nsITelephonyProvider::CALL_STATE_UNKNOWN),
-    mLive(false)
+    mLive(false),
+    mOutgoing(false)
 {
 }
 
@@ -103,6 +104,10 @@ TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
 
   mState = stateString;
   mCallState = aCallState;
+
+  if (aCallState == nsITelephonyProvider::CALL_STATE_DIALING) {
+    mOutgoing = true;
+  }
 
   if (aCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
     NS_ASSERTION(mLive, "Should be live!");

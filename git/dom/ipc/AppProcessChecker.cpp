@@ -189,16 +189,12 @@ GetAppPrincipal(uint32_t aAppId)
 {
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
 
-  nsCOMPtr<mozIApplication> app;
-  nsresult rv = appsService->GetAppByLocalId(aAppId, getter_AddRefs(app));
-  NS_ENSURE_SUCCESS(rv, nullptr);
-
-  nsString origin;
-  rv = app->GetOrigin(origin);
+  nsString manifestURL;
+  nsresult rv = appsService->GetManifestURLByLocalId(aAppId, manifestURL);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
   nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), origin);
+  NS_NewURI(getter_AddRefs(uri), manifestURL);
 
   nsCOMPtr<nsIScriptSecurityManager> secMan =
     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
