@@ -303,12 +303,4 @@ class ProcessMetrics {
 
 }  // namespace base
 
-#if defined(OS_WIN)
-// Undo the windows.h damage
-#undef GetMessage
-#undef CreateEvent
-#undef GetClassName
-#undef GetBinaryType
-#endif
-
 #endif  // BASE_PROCESS_UTIL_H_

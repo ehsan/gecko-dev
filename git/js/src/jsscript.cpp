@@ -36,7 +36,6 @@
 #include "jit/BaselineJIT.h"
 #include "jit/IonCode.h"
 #include "js/OldDebugAPI.h"
-#include "js/Utility.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Compression.h"
 #include "vm/Debugger.h"
@@ -3583,9 +3582,12 @@ LazyScript::CreateRaw(ExclusiveContext *cx, HandleFunction fun,
     size_t bytes = (p.numFreeVariables * sizeof(HeapPtrAtom))
                  + (p.numInnerFunctions * sizeof(HeapPtrFunction));
 
-    ScopedJSFreePtr<void> table(bytes ? cx->malloc_(bytes) : nullptr);
-    if (bytes && !table)
-        return nullptr;
+    void *table = nullptr;
+    if (bytes) {
+        table = cx->malloc_(bytes);
+        if (!table)
+            return nullptr;
+    }
 
     LazyScript *res = js_NewGCLazyScript(cx);
     if (!res)
@@ -3593,7 +3595,7 @@ LazyScript::CreateRaw(ExclusiveContext *cx, HandleFunction fun,
 
     cx->compartment()->scheduleDelazificationForDebugMode();
 
-    return new (res) LazyScript(fun, table.forget(), packed, begin, end, lineno, column);
+    return new (res) LazyScript(fun, table, packed, begin, end, lineno, column);
 }
 
 /* static */ LazyScript *

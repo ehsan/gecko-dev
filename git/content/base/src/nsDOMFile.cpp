@@ -443,12 +443,6 @@ nsDOMFileBase::SetMutable(bool aMutable)
   return rv;
 }
 
-NS_IMETHODIMP_(bool)
-nsDOMFileBase::IsMemoryFile(void)
-{
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMFile implementation
 
@@ -640,12 +634,6 @@ nsDOMMemoryFile::GetInternalStream(nsIInputStream **aStream)
     return NS_ERROR_FAILURE;
 
   return DataOwnerAdapter::Create(mDataOwner, mStart, mLength, aStream);
-}
-
-NS_IMETHODIMP_(bool)
-nsDOMMemoryFile::IsMemoryFile(void)
-{
-  return true;
 }
 
 /* static */ StaticMutex

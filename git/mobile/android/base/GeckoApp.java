@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.GeckoProfileDirectories.NoMozillaDirectoryException;
 import org.mozilla.gecko.background.announcements.AnnouncementsBroadcastService;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.favicons.Favicons;
@@ -209,7 +208,7 @@ public abstract class GeckoApp
 
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
-    abstract protected String getDefaultProfileName() throws NoMozillaDirectoryException;
+    abstract protected String getDefaultProfileName();
 
     private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
     private static final String RESTARTER_CLASS = "org.mozilla.gecko.Restarter";
@@ -1200,15 +1199,7 @@ public abstract class GeckoApp
                         profilePath =  m.group(1);
                     }
                     if (profileName == null) {
-                        try {
-                            profileName = getDefaultProfileName();
-                        } catch (NoMozillaDirectoryException e) {
-                            Log.wtf(LOGTAG, "Unable to fetch default profile name!", e);
-                            // There's nothing at all we can do now. If the Mozilla directory
-                            // didn't exist, then we're screwed.
-                            // Crash here so we can fix the bug.
-                            throw new RuntimeException(e);
-                        }
+                        profileName = getDefaultProfileName();
                         if (profileName == null)
                             profileName = GeckoProfile.DEFAULT_PROFILE;
                     }

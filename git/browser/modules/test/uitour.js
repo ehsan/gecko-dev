@@ -160,10 +160,10 @@ if (typeof Mozilla == 'undefined') {
 		});
 	};
 
-	Mozilla.UITour.getConfiguration = function(configName, callback) {
+	Mozilla.UITour.getSyncConfiguration = function(callback) {
 		_sendEvent('getConfiguration', {
 			callbackID: _waitForCallback(callback),
-			configuration: configName,
+			configuration: "sync",
 		});
 	};
 })();

@@ -18,12 +18,14 @@ VideoPlaybackQuality::VideoPlaybackQuality(HTMLMediaElement* aElement,
                                            DOMHighResTimeStamp aCreationTime,
                                            uint64_t aTotalFrames,
                                            uint64_t aDroppedFrames,
-                                           uint64_t aCorruptedFrames)
+                                           uint64_t aCorruptedFrames,
+                                           double aTotalFrameDelay)
   : mElement(aElement)
   , mCreationTime(aCreationTime)
   , mTotalFrames(aTotalFrames)
   , mDroppedFrames(aDroppedFrames)
   , mCorruptedFrames(aCorruptedFrames)
+  , mTotalFrameDelay(aTotalFrameDelay)
 {
   SetIsDOMBinding();
 }

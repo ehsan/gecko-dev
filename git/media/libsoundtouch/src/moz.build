@@ -39,5 +39,3 @@ FINAL_LIBRARY = 'gkmedias'
 
 # Use abort() instead of exception in SoundTouch.
 DEFINES['ST_NO_EXCEPTION_HANDLING'] = 1
-
-DEFINES['BUILDING_SOUNDTOUCH'] = True

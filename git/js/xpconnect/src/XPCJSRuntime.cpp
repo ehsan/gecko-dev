@@ -1304,7 +1304,7 @@ XPCJSRuntime::GetWatchdogTimestamp(WatchdogTimestampCategory aCategory)
     return mWatchdogManager->GetTimestamp(aCategory);
 }
 
-void
+NS_EXPORT_(void)
 xpc::SimulateActivityCallback(bool aActive)
 {
     XPCJSRuntime::ActivityCallback(XPCJSRuntime::Get(), aActive);

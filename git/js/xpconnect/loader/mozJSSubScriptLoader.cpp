@@ -348,8 +348,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
 
     bool ok = false;
     if (function) {
-        ok = JS_CallFunction(cx, targetObj, function, JS::HandleValueArray::empty(),
-                             retval);
+        ok = JS_CallFunction(cx, targetObj, function, JS::EmptyValueArray, retval);
     } else {
         ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval.address(), version);
     }

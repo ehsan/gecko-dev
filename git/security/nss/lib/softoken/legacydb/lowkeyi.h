@@ -26,10 +26,10 @@ extern void lg_prepare_low_rsa_priv_key_for_asn1(NSSLOWKEYPrivateKey *key);
 extern void lg_prepare_low_pqg_params_for_asn1(PQGParams *params);
 extern void lg_prepare_low_dsa_priv_key_for_asn1(NSSLOWKEYPrivateKey *key);
 extern void lg_prepare_low_dh_priv_key_for_asn1(NSSLOWKEYPrivateKey *key);
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 extern void lg_prepare_low_ec_priv_key_for_asn1(NSSLOWKEYPrivateKey *key);
 extern void lg_prepare_low_ecparams_for_asn1(ECParams *params);
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 typedef char * (* NSSLOWKEYDBNameFunc)(void *arg, int dbVersion);
     
@@ -135,7 +135,7 @@ extern char *
 nsslowkey_FindKeyNicknameByPublicKey(NSSLOWKEYDBHandle *handle,
                                         SECItem *modulus, SDB *sdb);
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 /*
  * smaller version of EC_FillParams. In this code, we only need
  * oid and DER data.
