@@ -122,7 +122,6 @@ OnSharedPreferenceChangeListener
 
     public static final String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession3";
     public static final String PREFS_SUGGESTED_SITES = NON_PREF_PREFIX + "home_suggested_sites";
-    public static final String PREFS_NEW_TABLET_UI = NON_PREF_PREFIX + "new_tablet_ui";
 
     // These values are chosen to be distinct from other Activity constants.
     private static final int REQUEST_CODE_PREF_SCREEN = 5;
@@ -659,12 +658,6 @@ OnSharedPreferenceChangeListener
                     preferences.removePreference(pref);
                     i--;
                     continue;
-                } else if (AppConstants.RELEASE_BUILD &&
-                           PREFS_NEW_TABLET_UI.equals(key)) {
-                    // Remove toggle for new tablet UI on release builds.
-                    preferences.removePreference(pref);
-                    i--;
-                    continue;
                 } else if (!AppConstants.MOZ_TELEMETRY_REPORTING &&
                            PREFS_TELEMETRY_ENABLED.equals(key)) {
                     preferences.removePreference(pref);
@@ -1002,8 +995,6 @@ OnSharedPreferenceChangeListener
                              sharedPreferences.getString(key, null));
         } else if (PREFS_SUGGESTED_SITES.equals(key)) {
             refreshSuggestedSites();
-        } else if (PREFS_NEW_TABLET_UI.equals(key)) {
-            Toast.makeText(this, "Restart the browser for the changes to take effect", Toast.LENGTH_SHORT).show();
         }
     }
 
