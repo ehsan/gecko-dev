@@ -18,7 +18,6 @@ loader.lazyGetter(this, "HTMLBreadcrumbs", () => require("devtools/inspector/bre
 loader.lazyGetter(this, "Highlighter", () => require("devtools/inspector/highlighter").Highlighter);
 loader.lazyGetter(this, "ToolSidebar", () => require("devtools/framework/sidebar").ToolSidebar);
 loader.lazyGetter(this, "SelectorSearch", () => require("devtools/inspector/selector-search").SelectorSearch);
-loader.lazyGetter(this, "InspectorFront", () => require("devtools/server/actors/inspector").InspectorFront);
 
 const LAYOUT_CHANGE_TIMER = 250;
 
@@ -61,7 +60,6 @@ function InspectorPanel(iframeWindow, toolbox) {
   this.panelDoc = iframeWindow.document;
   this.panelWin = iframeWindow;
   this.panelWin.inspector = this;
-  this._inspector = null;
 
   this._onBeforeNavigate = this._onBeforeNavigate.bind(this);
   this._target.on("will-navigate", this._onBeforeNavigate);
@@ -83,16 +81,6 @@ InspectorPanel.prototype = {
     }).then(defaultSelection => {
       return this._deferredOpen(defaultSelection);
     }).then(null, console.error);
-  },
-
-  get inspector() {
-    if (!this._target.form) {
-      throw new Error("Target.inspector requires an initialized remote actor.");
-    }
-    if (!this._inspector) {
-      this._inspector = InspectorFront(this._target.client, this._target.form);
-    }
-    return this._inspector;
   },
 
   _deferredOpen: function(defaultSelection) {
@@ -196,9 +184,10 @@ InspectorPanel.prototype = {
   },
 
   _getWalker: function() {
-    return this.inspector.getWalker().then(walker => {
+    let inspector = this.target.inspector;
+    return inspector.getWalker().then(walker => {
       this.walker = walker;
-      return this.inspector.getPageStyle();
+      return inspector.getPageStyle();
     }).then(pageStyle => {
       this.pageStyle = pageStyle;
     });
@@ -511,12 +500,7 @@ InspectorPanel.prototype = {
 
     if (this.walker) {
       this.walker.off("new-root", this.onNewRoot);
-      this._destroyPromise = this.walker.release()
-        .then(() => this._inspector.destroy())
-        .then(() => {
-          this._inspector = null;
-        }, console.error);
-
+      this._destroyPromise = this.walker.release().then(null, console.error);
       delete this.walker;
       delete this.pageStyle;
     } else {
