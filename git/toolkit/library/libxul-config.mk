@@ -306,12 +306,8 @@ endif
 
 STATIC_LIBS += thebes ycbcr
 
-ifneq ($(OS_ARCH),Linux)
+ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
 STATIC_LIBS += angle
-else
-ifdef FORCE_BUILD_ANGLE
-STATIC_LIBS += angle
-endif
 endif
 
 COMPONENT_LIBS += gkgfxthebes

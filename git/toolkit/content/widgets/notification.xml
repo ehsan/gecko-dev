@@ -399,8 +399,9 @@
 
             var button = aEvent.target.buttonInfo;
             if (button.popup) {
+              document.popupNode = aEvent.target;
               document.getElementById(button.popup).
-                openPopup(aEvent.originalTarget, "after_start", 0, 0, false, false, aEvent);
+                showPopup(aEvent.originalTarget, -1, -1, "popup", "bottomleft", "topleft");
               aEvent.stopPropagation();
             }
             else {
@@ -424,7 +425,7 @@
                  xbl:inherits="popupid"/>
       <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
-                         xbl:inherits="xbl:text=label"/>
+                         xbl:inherits="value=label"/>
         <xul:spacer flex="1"/>
         <xul:hbox pack="end">
           <xul:button anonid="button"

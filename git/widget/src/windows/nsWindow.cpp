@@ -409,7 +409,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mExitToNonClientArea  = 0;
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
-  mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
+  mIMEEnabled           = nsIWidget::IME_STATUS_ENABLED;
 #ifdef MOZ_XUL
   mTransparentSurface   = nsnull;
   mMemoryDC             = nsnull;
@@ -711,11 +711,8 @@ NS_METHOD nsWindow::Destroy()
   
   // Our windows can be subclassed which may prevent us receiving WM_DESTROY. If OnDestroy()
   // didn't get called, call it now.
-  if (PR_FALSE == mOnDestroyCalled) {
-    LRESULT result;
-    mWindowHook.Notify(mWnd, WM_DESTROY, 0, 0, &result);
+  if (PR_FALSE == mOnDestroyCalled)
     OnDestroy();
-  }
 
   return NS_OK;
 }
@@ -4438,6 +4435,7 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 
     case WM_DEADCHAR:
     case WM_SYSDEADCHAR:
+    case WM_CONTEXTMENU:
 
     case WM_CUT:
     case WM_COPY:
@@ -4582,11 +4580,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-    case WM_THEMECHANGED:
+    case WM_XP_THEMECHANGED:
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
-      nsUXThemeData::InitTitlebarInfo();
       nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
@@ -5276,25 +5273,22 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
 #ifndef WINCE
     case WM_SYSCOMMAND:
-    {
-      WPARAM filteredWParam = (wParam &0xFFF0);
       // prevent Windows from trimming the working set. bug 76831
-      if (!sTrimOnMinimize && filteredWParam == SC_MINIMIZE) {
+      if (!sTrimOnMinimize && wParam == SC_MINIMIZE) {
         ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
         result = PR_TRUE;
       }
 
       // Handle the system menu manually when we're in full screen mode
       // so we can set the appropriate options.
-      if (filteredWParam == SC_KEYMENU && lParam == VK_SPACE &&
+      if (wParam == SC_KEYMENU && lParam == VK_SPACE &&
           mSizeMode == nsSizeMode_Fullscreen) {
         DisplaySystemMenu(mWnd, mSizeMode, mIsRTL,
                           MOZ_SYSCONTEXT_X_POS,
                           MOZ_SYSCONTEXT_Y_POS);
         result = PR_TRUE;
       }
-    }
-    break;
+      break;
 #endif
 
 
@@ -7538,26 +7532,25 @@ NS_IMETHODIMP nsWindow::GetIMEOpenState(PRBool* aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::SetInputMode(const IMEContext& aContext)
+NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
 {
-  PRUint32 status = aContext.mStatus;
 #ifdef NS_ENABLE_TSF
-  nsTextStore::SetInputMode(aContext);
+  nsTextStore::SetIMEEnabled(aState);
 #endif //NS_ENABLE_TSF
 #ifdef DEBUG_KBSTATE
-  printf("SetInputMode: %s\n", (status == nsIWidget::IME_STATUS_ENABLED ||
-                                status == nsIWidget::IME_STATUS_PLUGIN) ? 
-                               "Enabled" : "Disabled");
+  printf("SetIMEEnabled: %s\n", (aState == nsIWidget::IME_STATUS_ENABLED ||
+                                 aState == nsIWidget::IME_STATUS_PLUGIN)? 
+                                "Enabled": "Disabled");
 #endif 
   if (nsIMM32Handler::IsComposing()) {
     ResetInputState();
   }
-  mIMEContext = aContext;
-  PRBool enable = (status == nsIWidget::IME_STATUS_ENABLED ||
-                   status == nsIWidget::IME_STATUS_PLUGIN);
+  mIMEEnabled = aState;
+  PRBool enable = (aState == nsIWidget::IME_STATUS_ENABLED ||
+                   aState == nsIWidget::IME_STATUS_PLUGIN);
 
 #if defined(WINCE_HAVE_SOFTKB)
-  sSoftKeyboardState = (status != nsIWidget::IME_STATUS_DISABLED);
+  sSoftKeyboardState = (aState != nsIWidget::IME_STATUS_DISABLED);
   nsWindowCE::ToggleSoftKB(mWnd, sSoftKeyboardState);
 #endif
 
@@ -7569,12 +7562,12 @@ NS_IMETHODIMP nsWindow::SetInputMode(const IMEContext& aContext)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::GetInputMode(IMEContext& aContext)
+NS_IMETHODIMP nsWindow::GetIMEEnabled(PRUint32* aState)
 {
 #ifdef DEBUG_KBSTATE
-  printf("GetInputMode: %s\n", mIMEContext.mStatus ? "Enabled" : "Disabled");
+  printf("GetIMEEnabled: %s\n", mIMEEnabled? "Enabled": "Disabled");
 #endif 
-  aContext = mIMEContext;
+  *aState = mIMEEnabled;
   return NS_OK;
 }
 
@@ -7607,7 +7600,7 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
 NS_IMETHODIMP
 nsWindow::OnIMEFocusChange(PRBool aFocus)
 {
-  nsresult rv = nsTextStore::OnFocusChange(aFocus, this, mIMEContext.mStatus);
+  nsresult rv = nsTextStore::OnFocusChange(aFocus, this, mIMEEnabled);
   if (rv == NS_ERROR_NOT_AVAILABLE)
     rv = NS_ERROR_NOT_IMPLEMENTED; // TSF is not enabled, maybe.
   return rv;
@@ -8252,22 +8245,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
         //
         // So if we are NOT supposed to be consuming events, let it go through
         if (consumeRollupEvent && inMsg != WM_RBUTTONDOWN) {
-          *outResult = MA_ACTIVATE;
-
-          // However, don't activate panels
-#ifndef WINCE
-          if (inMsg == WM_MOUSEACTIVATE) {
-            nsWindow* activateWindow = GetNSWindowPtr(inWnd);
-            if (activateWindow) {
-              nsWindowType wintype;
-              activateWindow->GetWindowType(wintype);
-              if (wintype == eWindowType_popup && activateWindow->PopupType() == ePopupTypePanel) {
-                *outResult = MA_NOACTIVATE;
-              }
-            }
-          }
-#endif
-
+          *outResult = TRUE;
           return TRUE;
         }
 #ifndef WINCE

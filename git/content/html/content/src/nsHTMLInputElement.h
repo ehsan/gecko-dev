@@ -45,11 +45,11 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+
 #include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
 #include "nsDOMFile.h"
-#include "nsHTMLFormElement.h" // for ShouldShowInvalidUI()
 
 //
 // Accessors for mBitField
@@ -66,8 +66,6 @@
 #define BF_CHECKED_IS_TOGGLED 9
 #define BF_INDETERMINATE 10
 #define BF_INHIBIT_RESTORATION 11
-#define BF_CAN_SHOW_INVALID_UI 12
-#define BF_CAN_SHOW_VALID_UI 13
 
 #define GET_BOOLBIT(bitfield, field) (((bitfield) & (0x01 << (field))) \
                                         ? PR_TRUE : PR_FALSE)
@@ -218,13 +216,11 @@ public:
   // nsIFileControlElement
   void GetDisplayFileName(nsAString& aFileName) const;
   const nsCOMArray<nsIDOMFile>& GetFiles();
-  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
+  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
-  PRBool GetCheckedChanged() const {
-    return GET_BOOLBIT(mBitField, BF_CHECKED_CHANGED);
-  }
-  void AddedToRadioGroup();
+  PRBool GetCheckedChanged();
+  void AddedToRadioGroup(PRBool aNotify = PR_TRUE);
   void WillRemoveFromRadioGroup();
   /**
    * Get the radio group container for this button (form or document)
@@ -371,9 +367,16 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  void ClearFiles(bool aSetValueChanged) {
+  void ClearFiles() {
     nsCOMArray<nsIDOMFile> files;
-    SetFiles(files, aSetValueChanged);
+    SetFiles(files);
+  }
+
+  void SetSingleFile(nsIDOMFile* aFile) {
+    nsCOMArray<nsIDOMFile> files;
+    nsCOMPtr<nsIDOMFile> file = aFile;
+    files.AppendObject(file);
+    SetFiles(files);
   }
 
   nsresult SetIndeterminateInternal(PRBool aValue,
@@ -536,77 +539,6 @@ protected:
    * VALUE_MODE_VALUE.
    */
   nsresult SetDefaultValueAsValue();
-
-  /**
-   * Returns whether the value has been changed since the element has been created.
-   * @return Whether the value has been changed since the element has been created.
-   */
-  PRBool GetValueChanged() const {
-    return GET_BOOLBIT(mBitField, BF_VALUE_CHANGED);
-  }
-
-  /**
-   * Return if an invalid element should have a specific UI for being invalid
-   * (with :-moz-ui-invalid pseudo-class.
-   *
-   * @return Whether the invalid elemnet should have a UI for being invalid.
-   * @note The caller has to be sure the element is invalid before calling.
-   */
-  bool ShouldShowInvalidUI() const {
-    NS_ASSERTION(!IsValid(), "You should not call ShouldShowInvalidUI if the "
-                             "element is valid!");
-
-    /**
-     * Always show the invalid UI if:
-     * - the form has already tried to be submitted but was invalid;
-     * - the element is suffering from a custom error;
-     * - the element has had its value changed
-     *
-     * Otherwise, show the invalid UI if the element's value has been changed.
-     */
-    if ((mForm && mForm->HasEverTriedInvalidSubmit()) ||
-        GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
-      return true;
-    }
-
-    switch (GetValueMode()) {
-      case VALUE_MODE_DEFAULT:
-        return true;
-      case VALUE_MODE_DEFAULT_ON:
-        return GetCheckedChanged();
-      case VALUE_MODE_VALUE:
-      case VALUE_MODE_FILENAME:
-        return GetValueChanged();
-      default:
-        NS_NOTREACHED("We should not be there: there are no other modes.");
-        return false;
-    }
-  }
-
-  /**
-   * Return whether an element should show the valid UI.
-   *
-   * @return Whether the valid UI should be shown.
-   * @note This doesn't take into account the validity of the element.
-   */
-  bool ShouldShowValidUI() const {
-    if (mForm && mForm->HasEverTriedInvalidSubmit()) {
-      return true;
-    }
-
-    switch (GetValueMode()) {
-      case VALUE_MODE_DEFAULT:
-        return true;
-      case VALUE_MODE_DEFAULT_ON:
-        return GetCheckedChanged();
-      case VALUE_MODE_VALUE:
-      case VALUE_MODE_FILENAME:
-        return GetValueChanged();
-      default:
-        NS_NOTREACHED("We should not be there: there are no other modes.");
-        return false;
-    }
-  }
 
   nsCOMPtr<nsIControllers> mControllers;
 

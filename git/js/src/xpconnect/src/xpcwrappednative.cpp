@@ -519,8 +519,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             nsCOMPtr<nsIXPConnectWrappedJS> wrappedjs(do_QueryInterface(Object));
             JSObject *obj;
             wrappedjs->GetJSObject(&obj);
-            if(xpc::AccessCheck::isChrome(obj->compartment()) &&
-               !xpc::AccessCheck::isChrome(Scope->GetGlobalJSObject()->compartment()))
+            if(xpc::AccessCheck::isChrome(obj->getCompartment()) &&
+               !xpc::AccessCheck::isChrome(Scope->GetGlobalJSObject()->getCompartment()))
             {
                 needsCOW = JS_TRUE;
             }
@@ -1202,11 +1202,8 @@ XPCWrappedNative::FinishInit(XPCCallContext &ccx)
     mThread = do_GetCurrentThread();
 
     if(HasProto() && GetProto()->ClassIsMainThreadOnly() && !NS_IsMainThread())
-    {
         DEBUG_ReportWrapperThreadSafetyError(ccx,
             "MainThread only wrapper created on the wrong thread", this);
-        return JS_FALSE;
-    }
 #endif
 
     // A hack for bug 517665, increase the probability for GC.
@@ -1508,30 +1505,15 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
         return NS_OK;
     }
 
-    bool crosscompartment = aOldScope->GetGlobalJSObject()->compartment() !=
-                            aNewScope->GetGlobalJSObject()->compartment();
-#ifdef DEBUG
-    if(crosscompartment)
-    {
-        NS_ASSERTION(aNewParent, "won't be able to find the new parent");
-        NS_ASSERTION(wrapper, "can't transplant slim wrappers");
-    }
-#endif
-
     // ReparentWrapperIfFound is really only meant to be called from DOM code
     // which must happen only on the main thread. Bail if we're on some other
     // thread or have a non-main-thread-only wrapper.
     if (!XPCPerThreadData::IsMainThread(ccx) ||
         (wrapper &&
          wrapper->GetProto() &&
-         !wrapper->GetProto()->ClassIsMainThreadOnly()))
-    {
+         !wrapper->GetProto()->ClassIsMainThreadOnly())) {
         return NS_ERROR_FAILURE;
     }
-
-    JSAutoEnterCompartment ac;
-    if(!ac.enter(ccx, aNewScope->GetGlobalJSObject()))
-        return NS_ERROR_FAILURE;
 
     if(aOldScope != aNewScope)
     {
@@ -1604,46 +1586,20 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
             // We only try to fixup the __proto__ JSObject if the wrapper
             // is directly using that of its XPCWrappedNativeProto.
 
-            if(crosscompartment)
+            if(wrapper->HasProto() &&
+               flat->getProto() == oldProto->GetJSProtoObject())
             {
-                JSObject *newobj = flat->clone(ccx, newProto->GetJSProtoObject(),
-                                               aNewParent);
-                if(!newobj)
+                if(!JS_SetPrototype(ccx, flat, newProto->GetJSProtoObject()))
+                {
+                    // this is bad, very bad
+                    NS_ERROR("JS_SetPrototype failed");
                     return NS_ERROR_FAILURE;
-
-                JS_SetPrivate(ccx, flat, nsnull);
-
-                JSObject *propertyHolder =
-                    JS_NewObjectWithGivenProto(ccx, NULL, NULL, aNewParent);
-                if(!propertyHolder || !propertyHolder->copyPropertiesFrom(ccx, flat))
-                    return NS_ERROR_OUT_OF_MEMORY;
-
-                flat = JS_TransplantObject(ccx, flat, newobj);
-                if(!flat)
-                    return NS_ERROR_FAILURE;
-                wrapper->mFlatJSObject = flat;
-                if(cache)
-                    cache->SetWrapper(flat);
-                if (!flat->copyPropertiesFrom(ccx, propertyHolder))
-                    return NS_ERROR_FAILURE;
+                }
             }
             else
             {
-                if(wrapper->HasProto() &&
-                   flat->getProto() == oldProto->GetJSProtoObject())
-                {
-                    if(!JS_SetPrototype(ccx, flat, newProto->GetJSProtoObject()))
-                    {
-                        // this is bad, very bad
-                        NS_ERROR("JS_SetPrototype failed");
-                        return NS_ERROR_FAILURE;
-                    }
-                }
-                else
-                {
-                    NS_WARNING("Moving XPConnect wrappedNative to new scope, "
-                               "but can't fixup __proto__");
-                }
+                NS_WARNING("Moving XPConnect wrappedNative to new scope, "
+                           "but can't fixup __proto__");
             }
         }
         else

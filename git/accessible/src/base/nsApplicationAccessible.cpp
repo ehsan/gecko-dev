@@ -379,6 +379,12 @@ nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
 }
 
 PRUint32
+nsApplicationAccessible::Role()
+{
+  return NativeRole();
+}
+
+PRUint32
 nsApplicationAccessible::NativeRole()
 {
   return nsIAccessibleRole::ROLE_APP_ROOT;

@@ -1061,11 +1061,11 @@ namespace nanojit
             Register r = findRegFor(p, GpRegs);
             MOVQSPR(stk_off, r);    // movq [rsp+d8], r
             if (ty == ARGTYPE_I) {
-                // sign extend int32 to int64
+                // extend int32 to int64
                 NanoAssert(p->isI());
                 MOVSXDR(r, r);
             } else if (ty == ARGTYPE_UI) {
-                // zero extend uint32 to uint64
+                // extend uint32 to uint64
                 NanoAssert(p->isI());
                 MOVLR(r, r);
             } else {
@@ -1081,14 +1081,7 @@ namespace nanojit
         Register rr, ra;
         beginOp1Regs(ins, GpRegs, rr, ra);
         NanoAssert(IsGpReg(ra));
-        // If ra==rr we do nothing.  This is valid because we don't assume the
-        // upper 32-bits of a 64-bit GPR are zero when doing a 32-bit
-        // operation.  More specifically, we widen 32-bit to 64-bit in three
-        // places, all of which explicitly sign- or zero-extend: asm_ui2uq(),
-        // asm_regarg() and asm_stkarg().  For the first this is required, for
-        // the latter two it's unclear if this is required, but it can't hurt.
-        if (ra != rr)
-            MOVLR(rr, ra);
+        MOVLR(rr, ra);  // 32bit mov zeros the upper 32bits of the target
         endOpRegs(ins, rr, ra);
     }
 

@@ -155,7 +155,7 @@ txExecutionState::init(const txXPathNode& aNode,
     mInitialEvalContext = mEvalContext;
 
     // Set up output and result-handler
-    txAXMLEventHandler* handler;
+    txAXMLEventHandler* handler = 0;
     rv = mOutputHandlerFactory->
         createHandlerWith(mStylesheet->getOutputFormat(), &handler);
     NS_ENSURE_SUCCESS(rv, rv);

@@ -192,18 +192,20 @@ public:
   static nsresult Init();
 
   /**
-   * Get a scope from aNewDocument. Also get a context through the scope of one
-   * of the documents, from the stack or the safe context.
+   * Get a scope from aOldDocument and one from aNewDocument. Also get a
+   * context through one of the scopes, from the stack or the safe context.
    *
-   * @param aOldDocument The document to try to get a context from. May be null.
+   * @param aOldDocument The document to get aOldScope from.
    * @param aNewDocument The document to get aNewScope from.
    * @param aCx [out] Context gotten through one of the scopes, from the stack
    *                  or the safe context.
+   * @param aOldScope [out] Scope gotten from aOldDocument.
    * @param aNewScope [out] Scope gotten from aNewDocument.
    */
-  static nsresult GetContextAndScope(nsIDocument *aOldDocument,
-                                     nsIDocument *aNewDocument,
-                                     JSContext **aCx, JSObject **aNewScope);
+  static nsresult GetContextAndScopes(nsIDocument *aOldDocument,
+                                      nsIDocument *aNewDocument,
+                                      JSContext **aCx, JSObject **aOldScope,
+                                      JSObject **aNewScope);
 
   /**
    * When a document's scope changes (e.g., from document.open(), call this
@@ -1518,8 +1520,6 @@ public:
   static void ASCIIToUpper(nsAString& aStr);
   static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
-  // Returns NS_OK for same origin, error (NS_ERROR_DOM_BAD_URI) if not.
-  static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
   static nsIThreadJSContextStack* ThreadJSContextStack()
@@ -1708,12 +1708,6 @@ public:
    */
   static void FlushLayoutForTree(nsIDOMWindow* aWindow);
 
-  /**
-   * Returns true if content with the given principal is allowed to use XUL
-   * and XBL and false otherwise.
-   */
-  static bool AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal);
-
 private:
 
   static PRBool InitializeEventTable();
@@ -1803,7 +1797,6 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
-  static PRBool sAllowXULXBL_for_file;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

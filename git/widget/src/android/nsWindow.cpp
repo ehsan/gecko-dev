@@ -1,4 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
+/* -*- Mode: c++; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -40,20 +40,9 @@
 #include <android/log.h>
 #include <math.h>
 
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/unused.h"
-
-using mozilla::dom::ContentParent;
-using mozilla::dom::ContentChild;
-using mozilla::unused;
-#endif
-
 #include "nsAppShell.h"
 #include "nsIdleService.h"
 #include "nsWindow.h"
-#include "nsIObserverService.h"
 
 #include "nsIDeviceContext.h"
 #include "nsIRenderingContext.h"
@@ -82,43 +71,6 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
 // The dimensions of the current android view
 static gfxIntSize gAndroidBounds;
-
-#ifdef MOZ_IPC
-class ContentCreationNotifier;
-static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
-// A helper class to send updates when content processes
-// are created. Currently an update for the screen size is sent.
-class ContentCreationNotifier : public nsIObserver
-{
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD Observe(nsISupports* aSubject,
-                       const char* aTopic,
-                       const PRUnichar* aData)
-    {
-        if (!strcmp(aTopic, "ipc:content-created")) {
-            ContentParent *cp = ContentParent::GetSingleton(PR_FALSE);
-            NS_ABORT_IF_FALSE(cp, "Must have content process if notified of its creation");
-            unused << cp->SendScreenSizeChanged(gAndroidBounds);
-        } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-            nsCOMPtr<nsIObserverService>
-                obs(do_GetService("@mozilla.org/observer-service;1"));
-            if (obs) {
-                obs->RemoveObserver(static_cast<nsIObserver*>(this),
-                                    "xpcom-shutdown");
-                obs->RemoveObserver(static_cast<nsIObserver*>(this),
-                                    "ipc:content-created");
-            }
-            gContentCreationNotifier = nsnull;
-        }
-
-        return NS_OK;
-    }
-};
-
-NS_IMPL_ISUPPORTS1(ContentCreationNotifier,
-                   nsIObserver)
-#endif
 
 static PRBool gLeftShift;
 static PRBool gRightShift;
@@ -750,27 +702,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                     gTopLevelWindows[i]->Resize(gAndroidBounds.width, gAndroidBounds.height, PR_TRUE);
             }
 
-#ifdef MOZ_IPC
-            if (XRE_GetProcessType() == GeckoProcessType_Default) {
-                if (!gContentCreationNotifier) {
-                    nsCOMPtr<nsIObserverService> obs =
-                        do_GetService("@mozilla.org/observer-service;1");
-                    if (obs) {
-                        nsCOMPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
-                        if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", PR_FALSE))) {
-                            if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", PR_FALSE)))
-                                gContentCreationNotifier = notifier;
-                            else {
-                                obs->RemoveObserver(notifier, "ipc:content-created");
-                            }
-                        }
-                    }
-                }
-                ContentParent *cp = ContentParent::GetSingleton(PR_FALSE);
-                if (cp)
-                    unused << cp->SendScreenSizeChanged(gAndroidBounds);
-            }
-#endif
             break;
         }
 
@@ -1051,11 +982,6 @@ nsWindow::SetInitialAndroidBounds(const gfxIntSize& sz)
 gfxIntSize
 nsWindow::GetAndroidBounds()
 {
-#ifdef MOZ_IPC
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
-        return ContentChild::GetSingleton()->GetScreenSize();
-    }
-#endif
     return gAndroidBounds;
 }
 
@@ -1720,19 +1646,19 @@ nsWindow::ResetInputState()
 }
 
 NS_IMETHODIMP
-nsWindow::SetInputMode(const IMEContext& aContext)
+nsWindow::SetIMEEnabled(PRUint32 aState)
 {
-    ALOGIME("IME: SetInputMode: s=%d", aContext.mStatus);
+    ALOGIME("IME: SetIMEEnabled: s=%d", aState);
 
-    mIMEContext = aContext;
-    AndroidBridge::NotifyIMEEnabled(int(aContext.mStatus), aContext.mHTMLInputType, aContext.mActionHint);
+    mIMEEnabled = aState;
+    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_SETENABLED, int(aState));
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetInputMode(IMEContext& aContext)
+nsWindow::GetIMEEnabled(PRUint32* aState)
 {
-    aContext = mIMEContext;
+    *aState = mIMEEnabled;
     return NS_OK;
 }
 
@@ -1764,12 +1690,6 @@ nsWindow::OnIMEFocusChange(PRBool aFocus)
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 
                              int(aFocus));
-
-    if (aFocus) {
-        OnIMETextChange(0, 0, 0);
-        OnIMESelectionChange();
-    }
-
     return NS_OK;
 }
 
@@ -1779,22 +1699,25 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
             aStart, aOldEnd, aNewEnd);
 
-    // A quirk in Android makes it necessary to pass the whole text.
-    // The more efficient way would have been passing the substring from index
-    // aStart to index aNewEnd
+    // A quirk in Android makes it necessary to pass the whole text
+    // from index 0 to index aNewEnd. The more efficient way would
+    // have been passing the substring from index aStart to index aNewEnd
 
-    nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
-    InitEvent(event, nsnull);
-    event.InitForQueryTextContent(0, PR_UINT32_MAX);
+    if (aNewEnd > 0) {
+        nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
+        InitEvent(event, nsnull);
+        event.InitForQueryTextContent(0, aNewEnd);
 
-    DispatchEvent(&event);
-    if (!event.mSucceeded)
-        return NS_OK;
+        DispatchEvent(&event);
+        if (!event.mSucceeded)
+            return NS_OK;
 
-    AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
-                                   event.mReply.mString.Length(),
-                                   aStart, aOldEnd, aNewEnd);
-
+        AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
+                                       event.mReply.mString.Length(),
+                                       aStart, aOldEnd, aNewEnd);
+    } else {
+        AndroidBridge::NotifyIMEChange(nsnull, 0, aStart, aOldEnd, aNewEnd);
+    }
     return NS_OK;
 }
 

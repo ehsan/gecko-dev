@@ -1251,13 +1251,10 @@ nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder)
     ToReferenceFrame();
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   if (mozilla::LAYER_ACTIVE == f->GetLayerState(aBuilder, nsnull)) {
-    ImageContainer* c = f->GetImageContainer();
-    if (c) {
-      gfxIntSize size = c->GetCurrentSize();
-      PRInt32 appUnitsPerDevPixel = f->PresContext()->AppUnitsPerDevPixel();
-      r -= nsPoint((r.width - size.width * appUnitsPerDevPixel) / 2,
-                   (r.height - size.height * appUnitsPerDevPixel) / 2);
-    }
+    gfxIntSize size = f->GetImageContainer()->GetCurrentSize();
+    PRInt32 appUnitsPerDevPixel = f->PresContext()->AppUnitsPerDevPixel();
+    r -= nsPoint((r.width - size.width * appUnitsPerDevPixel) / 2,
+                 (r.height - size.height * appUnitsPerDevPixel) / 2);
   }
   return r;
 }
@@ -1686,15 +1683,13 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
 ImageContainer*
 nsObjectFrame::GetImageContainer()
 {
+  if (mImageContainer)
+    return mImageContainer;
+
   nsRefPtr<LayerManager> manager =
     nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc());
-  if (!manager) {
+  if (!manager)
     return nsnull;
-  }
-
-  if (mImageContainer && mImageContainer->Manager() == manager) {
-    return mImageContainer;
-  }
 
   mImageContainer = manager->CreateImageContainer();
   return mImageContainer;
@@ -2917,13 +2912,7 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsPluginInstanceOwner::SetInstance(nsIPluginInstance *aInstance)
 {
-  NS_ASSERTION(!mInstance || !aInstance, "mInstance should only be set or unset!");
-
-  // If we're going to null out mInstance after use, be sure to call
-  // mInstance->InvalidateOwner() here, since it now won't be called
-  // from our destructor.  This fixes bug 613376.
-  if (mInstance && !aInstance)
-    mInstance->InvalidateOwner();
+  NS_ASSERTION(!mInstance || !aInstance, "mInstance should only be set once!");
 
   mInstance = aInstance;
 
@@ -3152,7 +3141,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
               presContext->DevPixelsToAppUnits(invalidRect->top),
               presContext->DevPixelsToAppUnits(invalidRect->right - invalidRect->left),
               presContext->DevPixelsToAppUnits(invalidRect->bottom - invalidRect->top));
-  mObjectFrame->InvalidateLayer(rect + mObjectFrame->GetUsedBorderAndPadding().TopLeft(), nsDisplayItem::TYPE_PLUGIN);
+  mObjectFrame->Invalidate(rect + mObjectFrame->GetUsedBorderAndPadding().TopLeft());
   return NS_OK;
 }
 
@@ -5383,9 +5372,7 @@ nsPluginInstanceOwner::PrepareToStop(PRBool aDelayedStop)
   // Drop image reference because the child may destroy the surface after we return.
   if (mLayerSurface) {
      nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
-     if (container) {
-       container->SetCurrentImage(nsnull);
-     }
+     container->SetCurrentImage(nsnull);
      mLayerSurface = nsnull;
   }
 

@@ -55,7 +55,7 @@ public:
   virtual ~nsHTMLFieldSetElement();
 
   // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsIDOMNode
   NS_FORWARD_NSIDOMNODE(nsGenericHTMLFormElement::)

@@ -41,7 +41,6 @@
 #include "nscore.h"
 #include "nsISupportsImpl.h"
 #include "nsIThread.h"
-#include "nsAutoPtr.h"
 
 class nsAudioStream : public nsISupports
 {
@@ -64,7 +63,7 @@ public:
 
   // Thread, usually for MOZ_IPC handling, that is shared between audio streams.
   // This may return null in the child process
-  virtual nsIThread *GetThread();
+  static nsIThread *GetGlobalThread();
 
   // AllocateStream will return either a local stream or a remoted stream
   // depending on where you call it from.  If MOZ_IPC is enabled, and you
@@ -115,9 +114,6 @@ public:
 
   // Returns PR_TRUE when the audio stream is paused.
   virtual PRBool IsPaused() = 0;
-
-protected:
-  nsCOMPtr<nsIThread> mAudioPlaybackThread;
 };
 
 #endif

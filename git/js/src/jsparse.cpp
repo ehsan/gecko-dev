@@ -3143,7 +3143,7 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
          * sub-statement.
          */
         op = JSOP_DEFFUN;
-        outertc->noteMightAliasLocals();
+        outertc->noteHasDefFun();
     }
 
     funbox->kids = funtc.functionList;
@@ -3608,7 +3608,6 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     if (stmt && stmt->type == STMT_WITH) {
         data->fresh = false;
         pn->pn_dflags |= PND_DEOPTIMIZED;
-        tc->noteMightAliasLocals();
         return true;
     }
 

@@ -524,10 +524,9 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
+   * Instructs this window to synchronously dispatch a hashchange event.
    */
-  virtual nsresult DispatchAsyncHashchange() = 0;
+  virtual nsresult DispatchSyncHashchange() = 0;
 
   /**
    * Instructs this window to synchronously dispatch a popState event.
@@ -621,10 +620,6 @@ protected:
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.
   PRUint64 mWindowID;
-
-  // This is only used by the inner window. Set to true once we've sent
-  // the (chrome|content)-document-global-created notification.
-  PRPackedBool mHasNotifiedGlobalCreated;
 };
 
 

@@ -199,19 +199,12 @@ body {
 
 /* Search
 ----------------------------------*/
-#searchshade{
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  z-index: 1000;
-}
 
 #search{
   position: absolute;
   top: 0px;
   left: 0px;
-  pointer-events: none;
-  z-index: 1050;
+  z-index: 1000;  
 }
 
 html[dir=rtl] #search {
@@ -223,6 +216,7 @@ html[dir=rtl] #search {
   position: absolute;
   right: 20px;
   top: 20px;
+  z-index: 1050;
 }
 
 html[dir=rtl] #searchbox {
@@ -234,7 +228,7 @@ html[dir=rtl] #searchbox {
   position: absolute;
   top: 100px;
   right: 0px;
-  z-index: 10;
+  z-index:10;
 }
 
 html[dir=rtl] #actions {

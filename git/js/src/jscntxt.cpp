@@ -495,10 +495,7 @@ JSThreadData::init()
     if (!stackSpace.init())
         return false;
 #ifdef JS_TRACER
-    if (!InitJIT(&traceMonitor)) {
-        finish();
-        return false;
-    }
+    InitJIT(&traceMonitor);
 #endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
@@ -646,15 +643,7 @@ js_CurrentThread(JSRuntime *rt)
         JS_ASSERT(p->value == thread);
     }
     JS_ASSERT(thread->id == id);
-
-#ifdef DEBUG
-    char* gnsb = (char*) GetNativeStackBase();
-    JS_ASSERT(gnsb + 0      == (char*) thread->data.nativeStackBase ||
-              /* Work around apparent glibc bug; see bug 608526. */
-              gnsb + 0x1000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x2000 == (char*) thread->data.nativeStackBase ||
-              gnsb + 0x3000 == (char*) thread->data.nativeStackBase);
-#endif
+    JS_ASSERT(thread->data.nativeStackBase == GetNativeStackBase());
 
     return thread;
 }

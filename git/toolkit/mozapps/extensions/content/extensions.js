@@ -72,7 +72,9 @@ const UPDATES_RELEASENOTES_TRANSFORMFILE = "chrome://mozapps/content/extensions/
 
 const XMLURI_PARSE_ERROR = "http://www.mozilla.org/newlayout/xml/parsererror.xml"
 
-const VIEW_DEFAULT = "addons://discover/";
+const VIEW_DEFAULT = "addons://list/extension";
+
+const INTEGER_FIELDS = ["dateUpdated", "size", "relevancescore"];
 
 var gStrings = {};
 XPCOMUtils.defineLazyServiceGetter(gStrings, "bundleSvc",
@@ -1161,79 +1163,14 @@ function createItem(aObj, aIsInstall, aIsRemote) {
   // the binding handles the rest
   item.setAttribute("value", aObj.id);
 
+  // The XUL sort service only supports 32 bit integers so we strip the
+  // milliseconds to make this small enough
+  if (aObj.updateDate)
+    item.setAttribute("dateUpdated", aObj.updateDate.getTime() / 1000);
+
+  if (aObj.size)
+    item.setAttribute("size", aObj.size);
   return item;
-}
-
-function sortElements(aElements, aSortBy, aAscending) {
-  const DATE_FIELDS = ["updateDate"];
-  const INTEGER_FIELDS = ["size", "relevancescore"];
-
-  function dateCompare(a, b) {
-    var aTime = a.getTime();
-    var bTime = b.getTime();
-    if (aTime < bTime)
-      return -1;
-    if (aTime > bTime)
-      return 1;
-    return 0;
-  }
-
-  function intCompare(a, b) {
-    return a - b;
-  }
-
-  function stringCompare(a, b) {
-    return a.localeCompare(b);
-  }
-
-  function getValue(aObj) {
-    if (!aObj)
-      return null;
-
-    if (aObj.hasAttribute(aSortBy))
-      return aObj.getAttribute(aSortBy);
-
-    addon = aObj.mAddon || aObj.mInstall;
-    if (!addon)
-      return null;
-
-    return addon[aSortBy];
-  }
-
-  var sortFunc = stringCompare;
-  if (DATE_FIELDS.indexOf(aSortBy) != -1)
-    sortFunc = dateCompare;
-  else if (INTEGER_FIELDS.indexOf(aSortBy) != -1)
-    sortFunc = intCompare;
-
-  aElements.sort(function(a, b) {
-    if (!aAscending)
-      [a, b] = [b, a];
-
-    var aValue = getValue(a);
-    var bValue = getValue(b);
-
-    if (!aValue && !bValue)
-      return 0;
-    if (!aValue)
-      return -1;
-    if (!bValue)
-      return 1;
-
-    return sortFunc(aValue, bValue);
-  });
-}
-
-function sortList(aList, aSortBy, aAscending) {
-  var elements = Array.slice(aList.childNodes, 0);
-  sortElements(elements, aSortBy, aAscending);
-
-  while (aList.listChild)
-    aList.removeChild(aList.lastChild);
-
-  elements.forEach(function(aElement) {
-    aList.appendChild(aElement);
-  });
 }
 
 function getAddonsAndInstalls(aType, aCallback) {
@@ -1412,10 +1349,12 @@ var gCategories = {
 
 var gHeader = {
   _search: null,
+  _searching: null,
   _dest: "",
 
   initialize: function() {
     this._search = document.getElementById("header-search");
+    this._searching = document.getElementById("header-searching");
 
     this._search.addEventListener("command", function(aEvent) {
       var query = aEvent.target.value;
@@ -1469,6 +1408,17 @@ var gHeader = {
   set searchQuery(aQuery) {
     this._search.value = aQuery;
   },
+
+  get isSearching() {
+    return this._searching.hasAttribute("active");
+  },
+
+  set isSearching(aIsSearching) {
+    if (aIsSearching)
+      this._searching.setAttribute("active", true);
+    else
+      this._searching.removeAttribute("active");
+  }
 };
 
 
@@ -1558,7 +1508,6 @@ var gSearchView = {
   node: null,
   _filter: null,
   _sorters: null,
-  _loading: null,
   _listBox: null,
   _emptyNotice: null,
   _allResultsLink: null,
@@ -1571,7 +1520,6 @@ var gSearchView = {
     this._filter = document.getElementById("search-filter-radiogroup");
     this._sorters = document.getElementById("search-sorters");
     this._sorters.handler = this;
-    this._loading = document.getElementById("search-loading");
     this._listBox = document.getElementById("search-list");
     this._emptyNotice = document.getElementById("search-list-empty");
     this._allResultsLink = document.getElementById("search-allresults-link");
@@ -1601,9 +1549,9 @@ var gSearchView = {
   show: function(aQuery, aRequest) {
     gEventManager.registerInstallListener(this);
 
+    gHeader.isSearching = true;
     this.showEmptyNotice(false);
     this.showAllResultsLink(0);
-    this.showLoading(true);
 
     gHeader.searchQuery = aQuery;
     aQuery = aQuery.trim().toLocaleLowerCase();
@@ -1625,9 +1573,8 @@ var gSearchView = {
     this._pendingSearches = 2;
     this._sorters.setSort("relevancescore", false);
 
-    var elements = [];
-
     function createSearchResults(aObjsList, aIsInstall, aIsRemote) {
+      var createdCount = 0;
       aObjsList.forEach(function(aObj) {
         let score = 0;
         if (aQuery.length > 0) {
@@ -1641,18 +1588,16 @@ var gSearchView = {
         if (aIsRemote)
           gCachedAddons[aObj.id] = aObj;
 
-        elements.push(item);
+        self._listBox.insertBefore(item, self._listBox.lastChild);
+        createdCount++;
       });
+
+      return createdCount;
     }
 
     function finishSearch(createdCount) {
-      if (elements.length > 0) {
-        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
-        elements.forEach(function(aElement) {
-          self._listBox.insertBefore(aElement, self._listBox.lastChild);
-        });
-        self.updateListAttributes();
-      }
+      if (createdCount > 0)
+        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
 
       self._pendingSearches--;
       self.updateView();
@@ -1665,9 +1610,9 @@ var gSearchView = {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
-      createSearchResults(aAddons, false, false);
-      createSearchResults(aInstalls, true, false);
-      finishSearch();
+      var createdCount = createSearchResults(aAddons, false, false);
+      createdCount += createSearchResults(aInstalls, true, false);
+      finishSearch(createdCount);
     });
 
     var maxRemoteResults = 0;
@@ -1705,18 +1650,13 @@ var gSearchView = {
       }
     });
   },
-  
-  showLoading: function(aLoading) {
-    this._loading.hidden = !aLoading;
-    this._listBox.hidden = aLoading;
-  },
 
   updateView: function() {
     var showLocal = this._filter.value == "local";
     this._listBox.setAttribute("local", showLocal);
     this._listBox.setAttribute("remote", !showLocal);
 
-    this.showLoading(this.isSearching && !showLocal);
+    gHeader.isSearching = this.isSearching;
     if (!this.isSearching) {
       var isEmpty = true;
       var results = this._listBox.getElementsByTagName("richlistitem");
@@ -1795,7 +1735,6 @@ var gSearchView = {
 
   showEmptyNotice: function(aShow) {
     this._emptyNotice.hidden = !aShow;
-    this._listBox.hidden = aShow;
   },
 
   showAllResultsLink: function(aTotalResults) {
@@ -1807,46 +1746,23 @@ var gSearchView = {
     var linkStr = gStrings.ext.GetStringFromName("showAllSearchResults");
     linkStr = PluralForm.get(aTotalResults, linkStr);
     linkStr = linkStr.replace("#1", aTotalResults);
-    this._allResultsLink.setAttribute("value", linkStr);
+    this._allResultsLink.value = linkStr;
 
-    this._allResultsLink.setAttribute("href",
-                                      AddonRepository.getSearchURL(this._lastQuery));
+    this._allResultsLink.href = AddonRepository.getSearchURL(this._lastQuery);
     this._allResultsLink.hidden = false;
  },
-
-  updateListAttributes: function() {
-    var item = this._listBox.querySelector("richlistitem[remote='true'][first]");
-    if (item)
-      item.removeAttribute("first");
-    item = this._listBox.querySelector("richlistitem[remote='true'][last]");
-    if (item)
-      item.removeAttribute("last");
-    var items = this._listBox.querySelectorAll("richlistitem[remote='true']");
-    if (items.length > 0) {
-      items[0].setAttribute("first", true);
-      items[items.length - 1].setAttribute("last", true);
-    }
-
-    item = this._listBox.querySelector("richlistitem:not([remote='true'])[first]");
-    if (item)
-      item.removeAttribute("first");
-    item = this._listBox.querySelector("richlistitem:not([remote='true'])[last]");
-    if (item)
-      item.removeAttribute("last");
-    items = this._listBox.querySelectorAll("richlistitem:not([remote='true'])");
-    if (items.length > 0) {
-      items[0].setAttribute("first", true);
-      items[items.length - 1].setAttribute("last", true);
-    }
-
-  },
 
   onSortChanged: function(aSortBy, aAscending) {
     var footer = this._listBox.lastChild;
     this._listBox.removeChild(footer);
 
-    sortList(this._listBox, aSortBy, aAscending);
-    this.updateListAttributes();
+    var hints = aAscending ? "ascending" : "descending";
+    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
+      hints += " integer";
+
+    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
+                      getService(Ci.nsIXULSortService);
+    sortService.sort(this._listBox, aSortBy, hints);
 
     this._listBox.appendChild(footer);
   },
@@ -1924,22 +1840,20 @@ var gListView = {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
-      var elements = [];
-
-      for (let i = 0; i < aAddonsList.length; i++)
-        elements.push(createItem(aAddonsList[i]));
-
-      for (let i = 0; i < aInstallsList.length; i++)
-        elements.push(createItem(aInstallsList[i], true));
-
-      if (elements.length > 0) {
-        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
-        elements.forEach(function(aElement) {
-          self._listBox.appendChild(aElement);
-        });
-      } else {
-        self.showEmptyNotice(true);
+      for (let i = 0; i < aAddonsList.length; i++) {
+        let item = createItem(aAddonsList[i]);
+        self._listBox.appendChild(item);
       }
+
+      for (let i = 0; i < aInstallsList.length; i++) {
+        let item = createItem(aInstallsList[i], true);
+        self._listBox.appendChild(item);
+      }
+
+      if (self._listBox.childElementCount > 0)
+        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
+      else
+        self.showEmptyNotice(true);
 
       gEventManager.registerInstallListener(self);
       gViewController.updateCommands();
@@ -1972,7 +1886,13 @@ var gListView = {
   },
 
   onSortChanged: function(aSortBy, aAscending) {
-    sortList(this._listBox, aSortBy, aAscending);
+    var hints = aAscending ? "ascending" : "descending";
+    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
+      hints += " integer";
+
+    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
+                      getService(Ci.nsIXULSortService);
+    sortService.sort(this._listBox, aSortBy, hints);
   },
 
   onNewInstall: function(aInstall) {
@@ -2462,23 +2382,19 @@ var gUpdatesView = {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
-      var elements = [];
       let threshold = Date.now() - UPDATES_RECENT_TIMESPAN;
       aAddonsList.forEach(function(aAddon) {
         if (!aAddon.updateDate || aAddon.updateDate.getTime() < threshold)
           return;
 
-        elements.push(createItem(aAddon));
+        let item = createItem(aAddon);
+        self._listBox.appendChild(item);
       });
 
-      if (elements.length > 0) {
-        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
-        elements.forEach(function(aElement) {
-          self._listBox.appendChild(aElement);
-        });
-      } else {
+      if (self._listBox.itemCount > 0)
+        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
+      else
         self.showEmptyNotice(true);
-      }
 
       gViewController.notifyViewChanged();
     });
@@ -2504,8 +2420,6 @@ var gUpdatesView = {
           self._listBox.removeItemAt(0);
       }
 
-      var elements = [];
-
       aInstallsList.forEach(function(aInstall) {
         if (!self.isManualUpdate(aInstall))
           return;
@@ -2515,15 +2429,12 @@ var gUpdatesView = {
         item.addEventListener("IncludeUpdateChanged", function() {
           self.maybeDisableUpdateSelected();
         }, false);
-        elements.push(item);
+        self._listBox.appendChild(item);
       });
 
-      if (elements.length > 0) {
+      if (self._listBox.itemCount > 0) {
         self._updateSelected.hidden = false;
-        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
-        elements.forEach(function(aElement) {
-          self._listBox.appendChild(aElement);
-        });
+        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
       } else {
         self.showEmptyNotice(true);
       }
@@ -2644,7 +2555,13 @@ var gUpdatesView = {
   },
 
   onSortChanged: function(aSortBy, aAscending) {
-    sortList(this._listBox, aSortBy, aAscending);
+    var hints = aAscending ? "ascending" : "descending";
+    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
+      hints += " integer";
+
+    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
+                      getService(Ci.nsIXULSortService);
+    sortService.sort(this._listBox, aSortBy, hints);
   },
 
   onNewInstall: function(aInstall) {

@@ -64,8 +64,9 @@ public:
     enum {
         NOTIFY_IME_RESETINPUTSTATE = 0,
         NOTIFY_IME_SETOPENSTATE = 1,
-        NOTIFY_IME_CANCELCOMPOSITION = 2,
-        NOTIFY_IME_FOCUSCHANGE = 3
+        NOTIFY_IME_SETENABLED = 2,
+        NOTIFY_IME_CANCELCOMPOSITION = 3,
+        NOTIFY_IME_FOCUSCHANGE = 4
     };
 
     static AndroidBridge *ConstructBridge(JNIEnv *jEnv,
@@ -105,9 +106,6 @@ public:
 
     /* These are all implemented in Java */
     static void NotifyIME(int aType, int aState);
-
-    static void NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
-                                 const nsAString& aActionHint);
 
     static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
@@ -234,7 +232,6 @@ protected:
 
     // other things
     jmethodID jNotifyIME;
-    jmethodID jNotifyIMEEnabled;
     jmethodID jNotifyIMEChange;
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;

@@ -110,19 +110,11 @@ nsShmImage::Create(const gfxIntSize& aSize,
     shm->mSize = aSize;
     switch (shm->mImage->depth) {
     case 24:
-        // Only xRGB is supported.
-        if ((shm->mImage->red_mask == 0xff0000) &&
-            (shm->mImage->green_mask == 0xff00) &&
-            (shm->mImage->blue_mask == 0xff)) {
-            shm->mFormat = gfxASurface::ImageFormatRGB24;
-            break;
-        }
-        goto unsupported;
+        shm->mFormat = gfxASurface::ImageFormatRGB24; break;
     case 16:
         shm->mFormat = gfxASurface::ImageFormatRGB16_565; break;
-    unsupported:
     default:
-        NS_WARNING("Unsupported XShm Image format!");
+        NS_WARNING("Unsupported XShm Image depth!");
         gShmAvailable = PR_FALSE;
         return nsnull;
     }

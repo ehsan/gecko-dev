@@ -57,7 +57,6 @@ IPDLDIRS =  \
   uriloader/exthandler \
   dom/plugins  \
   dom/ipc  \
-  dom/src/storage \
   gfx/layers/ipc \
   ipc/ipdl/test/cxx  \
   ipc/testshell  \

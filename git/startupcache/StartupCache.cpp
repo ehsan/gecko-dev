@@ -471,6 +471,8 @@ StartupCacheDebugOutputStream::CheckReferences(nsISupports* aObject)
 nsresult
 StartupCacheDebugOutputStream::WriteObject(nsISupports* aObject, PRBool aIsStrongRef)
 {
+  nsresult rv;
+  
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   NS_ASSERTION(rootObject.get() == aObject,
@@ -483,6 +485,7 @@ StartupCacheDebugOutputStream::WriteObject(nsISupports* aObject, PRBool aIsStron
 nsresult
 StartupCacheDebugOutputStream::WriteSingleRefObject(nsISupports* aObject)
 {
+  nsresult rv;
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   NS_ASSERTION(rootObject.get() == aObject,
@@ -497,6 +500,7 @@ StartupCacheDebugOutputStream::WriteCompoundObject(nsISupports* aObject,
                                                 const nsIID& aIID,
                                                 PRBool aIsStrongRef)
 {
+  nsresult rv;
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   nsCOMPtr<nsISupports> roundtrip;

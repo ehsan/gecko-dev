@@ -38,6 +38,7 @@
 
 #include "nsSVGStylableElement.h"
 #include "nsIDOMSVGStopElement.h"
+#include "nsSVGAnimatedNumberList.h"
 #include "nsSVGNumber2.h"
 #include "nsSVGUtils.h"
 #include "nsGenericHTMLElement.h"

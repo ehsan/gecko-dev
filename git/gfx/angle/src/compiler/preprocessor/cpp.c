@@ -670,7 +670,7 @@ static int CPPextension(yystypepp * yylvalpp)
 {
 
     int token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
-    char extensionName[MAX_SYMBOL_NAME_LEN + 1];
+    char extensionName[80];
 
     if(token=='\n'){
 		DecLineNumber();
@@ -682,8 +682,7 @@ static int CPPextension(yystypepp * yylvalpp)
     if (token != CPP_IDENTIFIER)
         CPPErrorToInfoLog("#extension");
     
-    strncpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident), MAX_SYMBOL_NAME_LEN);
-    extensionName[MAX_SYMBOL_NAME_LEN] = '\0';
+    strcpy(extensionName, GetAtomString(atable, yylvalpp->sc_ident));
 	    
     token = cpp->currentInput->scan(cpp->currentInput, yylvalpp);
     if (token != ':') {

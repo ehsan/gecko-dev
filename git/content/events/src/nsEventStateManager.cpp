@@ -2790,7 +2790,6 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
-#ifdef XP_MACOSX
 static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
@@ -2811,7 +2810,6 @@ NodeAllowsClickThrough(nsINode* aNode)
   }
   return true;
 }
-#endif
 
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
@@ -3827,8 +3825,6 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
   switch(aEvent->message) {
   case NS_DRAGDROP_OVER:
     {
-      // when dragging from one frame to another, events are fired in the
-      // order: dragexit, dragenter, dragleave
       if (mLastDragOverFrame != mCurrentTarget) {
         //We'll need the content, too, to check if it changed separately from the frames.
         nsCOMPtr<nsIContent> lastContent;
@@ -3839,17 +3835,14 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
           //The frame has changed but the content may not have. Check before dispatching to content
           mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
+          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                              targetContent, lastContent, mLastDragOverFrame);
           FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                               targetContent, lastContent, mLastDragOverFrame);
         }
 
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_ENTER,
                             lastContent, targetContent, mCurrentTarget);
-
-        if (mLastDragOverFrame) {
-          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
-                              targetContent, lastContent, mLastDragOverFrame);
-        }
 
         mLastDragOverFrame = mCurrentTarget;
       }
@@ -3863,9 +3856,9 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
         nsCOMPtr<nsIContent> lastContent;
         mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
-        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
-                            nsnull, lastContent, mLastDragOverFrame);
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                            nsnull, lastContent, mLastDragOverFrame);
+        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                             nsnull, lastContent, mLastDragOverFrame);
 
         mLastDragOverFrame = nsnull;

@@ -155,8 +155,7 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
     if (aRepeat) {
         pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
         pattern->SetFilter(aFilter);
-    } else if (aContext->CurrentMatrix().HasNonIntegerTranslation() ||
-               aTransform.HasNonIntegerTranslation()) {
+    } else {
         nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
         gfxASurface::gfxSurfaceType surfaceType = currentTarget->GetType();
         gfxMatrix deviceSpaceToImageSpace =

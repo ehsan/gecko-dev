@@ -45,7 +45,7 @@ UniformLocation::UniformLocation(const std::string &name, unsigned int element, 
 {
 }
 
-Program::Program(ResourceManager *manager, GLuint handle) : mResourceManager(manager), mHandle(handle), mSerial(issueSerial())
+Program::Program(ResourceManager *manager, GLuint handle) : mResourceManager(manager), mHandle(handle)
 {
     mFragmentShader = NULL;
     mVertexShader = NULL;
@@ -63,6 +63,8 @@ Program::Program(ResourceManager *manager, GLuint handle) : mResourceManager(man
     mDeleteStatus = false;
 
     mRefCount = 0;
+
+    mSerial = issueSerial();
 }
 
 Program::~Program()
@@ -241,22 +243,26 @@ void Program::setSamplerDirty(unsigned int samplerIndex, bool dirty)
 
 GLint Program::getUniformLocation(const char *name, bool decorated)
 {
-    std::string _name = decorated ? name : decorate(name);
+    std::string nameStr(name);
     int subscript = 0;
-
-    // Strip any trailing array operator and retrieve the subscript
-    size_t open = _name.find_last_of('[');
-    size_t close = _name.find_last_of(']');
-    if (open != std::string::npos && close == _name.length() - 1)
+    size_t beginB = nameStr.find('[');
+    size_t endB = nameStr.find(']');
+    if (beginB != std::string::npos && endB != std::string::npos)
     {
-        subscript = atoi(_name.substr(open + 1).c_str());
-        _name.erase(open);
+        std::string subscrStr = nameStr.substr(beginB + 1, beginB - endB - 1);
+        nameStr.erase(beginB);
+        subscript = atoi(subscrStr.c_str());
+    }
+
+    if (!decorated)
+    {
+        nameStr = decorate(nameStr);
     }
 
     unsigned int numUniforms = mUniformIndex.size();
     for (unsigned int location = 0; location < numUniforms; location++)
     {
-        if (mUniformIndex[location].name == _name &&
+        if (mUniformIndex[location].name == nameStr &&
             mUniformIndex[location].element == subscript)
         {
             return location;
@@ -999,9 +1005,6 @@ ID3DXBuffer *Program::compileToBinary(const char *hlsl, const char *profile, ID3
 // Returns the number of used varying registers, or -1 if unsuccesful
 int Program::packVaryings(const Varying *packing[][4])
 {
-    Context *context = getContext();
-    const int maxVaryingVectors = context->getMaximumVaryingVectors();
-
     for (VaryingList::iterator varying = mFragmentShader->varyings.begin(); varying != mFragmentShader->varyings.end(); varying++)
     {
         int n = VariableRowCount(varying->type) * varying->size;
@@ -1010,7 +1013,7 @@ int Program::packVaryings(const Varying *packing[][4])
 
         if (m == 2 || m == 3 || m == 4)
         {
-            for (int r = 0; r <= maxVaryingVectors - n && !success; r++)
+            for (int r = 0; r <= MAX_VARYING_VECTORS - n && !success; r++)
             {
                 bool available = true;
 
@@ -1044,7 +1047,7 @@ int Program::packVaryings(const Varying *packing[][4])
 
             if (!success && m == 2)
             {
-                for (int r = maxVaryingVectors - n; r >= 0 && !success; r--)
+                for (int r = MAX_VARYING_VECTORS - n; r >= 0 && !success; r--)
                 {
                     bool available = true;
 
@@ -1081,7 +1084,7 @@ int Program::packVaryings(const Varying *packing[][4])
         {
             int space[4] = {0};
 
-            for (int y = 0; y < maxVaryingVectors; y++)
+            for (int y = 0; y < MAX_VARYING_VECTORS; y++)
             {
                 for (int x = 0; x < 4; x++)
                 {
@@ -1101,7 +1104,7 @@ int Program::packVaryings(const Varying *packing[][4])
 
             if (space[column] > n)
             {
-                for (int r = 0; r < maxVaryingVectors; r++)
+                for (int r = 0; r < MAX_VARYING_VECTORS; r++)
                 {
                     if (!packing[r][column])
                     {
@@ -1134,7 +1137,7 @@ int Program::packVaryings(const Varying *packing[][4])
     // Return the number of used registers
     int registers = 0;
 
-    for (int r = 0; r < maxVaryingVectors; r++)
+    for (int r = 0; r < MAX_VARYING_VECTORS; r++)
     {
         if (packing[r][0] || packing[r][1] || packing[r][2] || packing[r][3])
         {
@@ -1152,7 +1155,7 @@ bool Program::linkVaryings()
         return false;
     }
 
-    const Varying *packing[MAX_VARYING_VECTORS_SM3][4] = {NULL};
+    const Varying *packing[MAX_VARYING_VECTORS][4] = {NULL};
     int registers = packVaryings(packing);
 
     if (registers < 0)
@@ -1160,11 +1163,7 @@ bool Program::linkVaryings()
         return false;
     }
 
-    Context *context = getContext();
-    const bool sm3 = context->supportsShaderModel3();
-    const int maxVaryingVectors = context->getMaximumVaryingVectors();
-
-    if (registers == maxVaryingVectors && mFragmentShader->mUsesFragCoord)
+    if (registers == MAX_VARYING_VECTORS && mFragmentShader->mUsesFragCoord)
     {
         appendToInfoLog("No varying registers left to support gl_FragCoord");
 
@@ -1202,6 +1201,8 @@ bool Program::linkVaryings()
         }
     }
 
+    Context *context = getContext();
+    bool sm3 = context->supportsShaderModel3();
     std::string varyingSemantic = (sm3 ? "COLOR" : "TEXCOORD");
 
     mVertexHLSL += "struct VS_INPUT\n"
@@ -1374,9 +1375,6 @@ bool Program::linkVaryings()
     if (mFragmentShader->mUsesFragCoord)
     {
         mPixelHLSL += "    float4 gl_FragCoord : " + varyingSemantic + str(registers) + ";\n";
-        if (sm3) {
-            mPixelHLSL += "    float2 dx_VPos : VPOS;\n";
-        }
     }
 
     if (mFragmentShader->mUsesPointCoord && sm3)
@@ -1401,15 +1399,10 @@ bool Program::linkVaryings()
 
     if (mFragmentShader->mUsesFragCoord)
     {
-        mPixelHLSL += "    float rhw = 1.0 / input.gl_FragCoord.w;\n";
-        if (sm3) {
-            mPixelHLSL += "    gl_FragCoord.x = input.dx_VPos.x;\n"
-                          "    gl_FragCoord.y = input.dx_VPos.y;\n";
-        } else {
-            mPixelHLSL += "    gl_FragCoord.x = (input.gl_FragCoord.x * rhw) * dx_Viewport.x + dx_Viewport.z;\n"
-                          "    gl_FragCoord.y = (input.gl_FragCoord.y * rhw) * dx_Viewport.y + dx_Viewport.w;\n";
-        }
-        mPixelHLSL += "    gl_FragCoord.z = (input.gl_FragCoord.z * rhw) * dx_Depth.x + dx_Depth.y;\n"
+        mPixelHLSL += "    float rhw = 1.0 / input.gl_FragCoord.w;\n"
+                      "    gl_FragCoord.x = (input.gl_FragCoord.x * rhw) * dx_Viewport.x + dx_Viewport.z;\n"
+                      "    gl_FragCoord.y = (input.gl_FragCoord.y * rhw) * dx_Viewport.y + dx_Viewport.w;\n"
+                      "    gl_FragCoord.z = (input.gl_FragCoord.z * rhw) * dx_Depth.x + dx_Depth.y;\n"
                       "    gl_FragCoord.w = rhw;\n";
     }
 
@@ -1536,7 +1529,9 @@ void Program::link()
 
             // these uniforms are searched as already-decorated because gl_ and dx_
             // are reserved prefixes, and do not receive additional decoration
-            mDxDepthRangeLocation = getUniformLocation("dx_DepthRange", true);
+            mDepthRangeNearLocation = getUniformLocation("gl_DepthRange.near", true);
+            mDepthRangeFarLocation = getUniformLocation("gl_DepthRange.far", true);
+            mDepthRangeDiffLocation = getUniformLocation("gl_DepthRange.diff", true);
             mDxDepthLocation = getUniformLocation("dx_Depth", true);
             mDxViewportLocation = getUniformLocation("dx_Viewport", true);
             mDxHalfPixelSizeLocation = getUniformLocation("dx_HalfPixelSize", true);
@@ -1673,23 +1668,18 @@ bool Program::defineUniform(const D3DXHANDLE &constantHandle, const D3DXCONSTANT
     {
       case D3DXPC_STRUCT:
         {
-            for (unsigned int arrayIndex = 0; arrayIndex < constantDescription.Elements; arrayIndex++)
+            for (unsigned int field = 0; field < constantDescription.StructMembers; field++)
             {
-                for (unsigned int field = 0; field < constantDescription.StructMembers; field++)
+                D3DXHANDLE fieldHandle = mConstantTablePS->GetConstant(constantHandle, field);
+
+                D3DXCONSTANT_DESC fieldDescription;
+                UINT descriptionCount = 1;
+
+                mConstantTablePS->GetConstantDesc(fieldHandle, &fieldDescription, &descriptionCount);
+
+                if (!defineUniform(fieldHandle, fieldDescription, name + constantDescription.Name + "."))
                 {
-                    D3DXHANDLE fieldHandle = mConstantTablePS->GetConstant(constantHandle, field);
-
-                    D3DXCONSTANT_DESC fieldDescription;
-                    UINT descriptionCount = 1;
-
-                    mConstantTablePS->GetConstantDesc(fieldHandle, &fieldDescription, &descriptionCount);
-
-                    std::string structIndex = (constantDescription.Elements > 1) ? ("[" + str(arrayIndex) + "]") : "";
-
-                    if (!defineUniform(fieldHandle, fieldDescription, name + constantDescription.Name + structIndex + "."))
-                    {
-                        return false;
-                    }
+                    return false;
                 }
             }
 
@@ -2455,7 +2445,9 @@ void Program::unlink(bool destroy)
         mUniforms.pop_back();
     }
 
-    mDxDepthRangeLocation = -1;
+    mDepthRangeDiffLocation = -1;
+    mDepthRangeNearLocation = -1;
+    mDepthRangeFarLocation = -1;
     mDxDepthLocation = -1;
     mDxViewportLocation = -1;
     mDxHalfPixelSizeLocation = -1;
@@ -2643,25 +2635,17 @@ GLint Program::getActiveAttributeMaxLength()
 
 void Program::getActiveUniform(GLuint index, GLsizei bufsize, GLsizei *length, GLint *size, GLenum *type, GLchar *name)
 {
-    // Skip over internal uniforms
-    unsigned int activeUniform = 0;
-    unsigned int uniform;
-    for (uniform = 0; uniform < mUniforms.size(); uniform++)
+    unsigned int uniform = 0;
+    for (unsigned int i = 0; i < index; i++)
     {
-        while (mUniforms[uniform]->name.substr(0, 3) == "dx_")
+        do
         {
             uniform++;
-        }
 
-        if (activeUniform == index)
-        {
-            break;
+            ASSERT(uniform < mUniforms.size());   // index must be smaller than getActiveUniformCount()
         }
-
-        activeUniform++;
+        while (mUniforms[uniform]->name.substr(0, 3) == "dx_");
     }
-
-    ASSERT(uniform < mUniforms.size());   // index must be smaller than getActiveUniformCount()
 
     if (bufsize > 0)
     {
@@ -2790,9 +2774,19 @@ void Program::getConstantHandles(Uniform *targetUniform, D3DXHANDLE *constantPS,
     *constantVS = targetUniform->vsHandle;
 }
 
-GLint Program::getDxDepthRangeLocation() const
+GLint Program::getDepthRangeDiffLocation() const
 {
-    return mDxDepthRangeLocation;
+    return mDepthRangeDiffLocation;
+}
+
+GLint Program::getDepthRangeNearLocation() const
+{
+    return mDepthRangeNearLocation;
+}
+
+GLint Program::getDepthRangeFarLocation() const
+{
+    return mDepthRangeFarLocation;
 }
 
 GLint Program::getDxDepthLocation() const

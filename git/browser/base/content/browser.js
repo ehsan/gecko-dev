@@ -585,9 +585,27 @@ const gPopupBlockerObserver = {
 
   dontShowMessage: function ()
   {
+#if 0 
+    // Disabled until bug 594294 is fixed.
     var showMessage = gPrefService.getBoolPref("privacy.popups.showBrowserMessage");
+    var firstTime = gPrefService.getBoolPref("privacy.popups.firstTime");
+
+    // If the info message is showing at the top of the window, and the user has never
+    // hidden the message before, show an info box telling the user where the info
+    // will be displayed.
+    if (showMessage && firstTime)
+      this._displayPageReportFirstTime();
+
     gPrefService.setBoolPref("privacy.popups.showBrowserMessage", !showMessage);
+#endif
+
     gBrowser.getNotificationBox().removeCurrentNotification();
+  },
+
+  _displayPageReportFirstTime: function ()
+  {
+    window.openDialog("chrome://browser/content/pageReportFirstTime.xul", "_blank",
+                      "dependent");
   }
 };
 
@@ -639,39 +657,45 @@ const gXPInstallObserver = {
     };
 
     switch (aTopic) {
-    case "addon-install-disabled":
-      notificationID = "xpinstall-disabled"
+    case "addon-install-blocked":
+      var enabled = true;
+      try {
+        enabled = gPrefService.getBoolPref("xpinstall.enabled");
+      }
+      catch (e) {
+      }
 
-      if (gPrefService.prefIsLocked("xpinstall.enabled")) {
-        messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
-        buttons = [];
+      if (!enabled) {
+        notificationID = "xpinstall-disabled"
+
+        if (gPrefService.prefIsLocked("xpinstall.enabled")) {
+          messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
+          buttons = [];
+        }
+        else {
+          messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
+
+          action = {
+            label: gNavigatorBundle.getString("xpinstallDisabledButton"),
+            accessKey: gNavigatorBundle.getString("xpinstallDisabledButton.accesskey"),
+            callback: function editPrefs() {
+              gPrefService.setBoolPref("xpinstall.enabled", true);
+            }
+          };
+        }
       }
       else {
-        messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
+        messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
+                          [brandShortName, installInfo.originatingURI.host]);
 
         action = {
-          label: gNavigatorBundle.getString("xpinstallDisabledButton"),
-          accessKey: gNavigatorBundle.getString("xpinstallDisabledButton.accesskey"),
-          callback: function editPrefs() {
-            gPrefService.setBoolPref("xpinstall.enabled", true);
+          label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
+          accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
+          callback: function() {
+            installInfo.install();
           }
         };
       }
-
-      PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action, null, options);
-      break;
-    case "addon-install-blocked":
-      messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                        [brandShortName, installInfo.originatingURI.host]);
-
-      action = {
-        label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
-        accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
-        callback: function() {
-          installInfo.install();
-        }
-      };
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               action, null, options);
@@ -1228,9 +1252,6 @@ function BrowserStartup() {
 
   BookmarksMenuButton.init();
 
-  // initialize the private browsing UI
-  gPrivateBrowsingUI.init();
-
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -1348,7 +1369,6 @@ function prepareForStartup() {
 
 function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);
-  Services.obs.addObserver(gXPInstallObserver, "addon-install-disabled", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
   Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
@@ -1518,6 +1538,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
+  // initialize the private browsing UI
+  gPrivateBrowsingUI.init();
+
   gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
@@ -1595,7 +1618,6 @@ function BrowserShutdown()
   }
 
   Services.obs.removeObserver(gSessionHistoryObserver, "browser:purge-session-history");
-  Services.obs.removeObserver(gXPInstallObserver, "addon-install-disabled");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-blocked");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
   Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
@@ -2887,7 +2909,7 @@ var homeButtonObserver = {
       browserDragAndDrop.dragOver(aEvent, "droponhomebutton");
       aEvent.dropEffect = "link";
     },
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
     {
       XULWindowBrowser.setStatusText("");
     }
@@ -2930,7 +2952,7 @@ var bookmarksButtonObserver = {
     aEvent.dropEffect = "link";
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
     XULWindowBrowser.setStatusText("");
   }
@@ -2942,7 +2964,7 @@ var newTabButtonObserver = {
     browserDragAndDrop.dragOver(aEvent, "droponnewtabbutton");
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
     XULWindowBrowser.setStatusText("");
   },
@@ -2964,7 +2986,7 @@ var newWindowButtonObserver = {
   {
     browserDragAndDrop.dragOver(aEvent, "droponnewwindowbutton");
   },
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
     XULWindowBrowser.setStatusText("");
   },
@@ -2991,7 +3013,7 @@ var DownloadsButtonDNDObserver = {
       aEvent.preventDefault();
   },
 
-  onDragExit: function (aEvent)
+  onDragLeave: function (aEvent)
   {
     XULWindowBrowser.setStatusText("");
   },
@@ -3977,29 +3999,18 @@ var XULBrowserWindow = {
     if (originalTarget != "" || !isAppTab)
       return originalTarget;
 
-    // External links from within app tabs should always open in new tabs
-    // instead of replacing the app tab's page (Bug 575561)
-    let linkHost;
-    let docHost;
+    let docURI = linkNode.ownerDocument.documentURIObject;
     try {
-      linkHost = linkURI.host;
-      docHost = linkNode.ownerDocument.documentURIObject.host;
+      let docURIDomain = Services.eTLD.getBaseDomain(docURI, 0);
+      let linkURIDomain = Services.eTLD.getBaseDomain(linkURI, 0);
+      // External links from within app tabs should always open in new tabs
+      // instead of replacing the app tab's page (Bug 575561)
+      if (docURIDomain != linkURIDomain)
+        return "_blank";
     } catch(e) {
-      // nsIURI.host can throw for non-nsStandardURL nsIURIs.
-      // If we fail to get either host, just return originalTarget.
-      return originalTarget;
+      // If getBaseDomain fails, we return originalTarget below.
     }
-
-    if (docHost == linkHost)
-      return originalTarget;
-
-    // Special case: ignore "www" prefix if it is part of host string
-    let [longHost, shortHost] =
-      linkHost.length > docHost.length ? [linkHost, docHost] : [docHost, linkHost];
-    if (longHost == "www." + shortHost)
-      return originalTarget;
-
-    return "_blank";
+    return originalTarget;
   },
 
   onLinkIconAvailable: function (aIconURL) {
@@ -4316,8 +4327,6 @@ var XULBrowserWindow = {
     var location = gBrowser.contentWindow.location;
     var locationObj = {};
     try {
-      // about:blank can be used by webpages so pretend it is http
-      locationObj.protocol = location == "about:blank" ? "http:" : location.protocol;
       locationObj.host = location.host;
       locationObj.hostname = location.hostname;
       locationObj.port = location.port;
@@ -5439,8 +5448,6 @@ function setStyleDisabled(disabled) {
 /* End of the Page Style functions */
 
 var BrowserOffline = {
-  _inited: false,
-
   /////////////////////////////////////////////////////////////////////////////
   // BrowserOffline Public Methods
   init: function ()
@@ -5451,14 +5458,13 @@ var BrowserOffline = {
     Services.obs.addObserver(this, "network:offline-status-changed", false);
 
     this._updateOfflineUI(Services.io.offline);
-
-    this._inited = true;
   },
 
   uninit: function ()
   {
-    if (this._inited) {
+    try {
       Services.obs.removeObserver(this, "network:offline-status-changed");
+    } catch (ex) {
     }
   },
 
@@ -6786,7 +6792,6 @@ function undoCloseTab(aIndex) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
   if (ss.getClosedTabCount(window) > (aIndex || 0)) {
-    TabView.prepareUndoCloseTab();
     tab = ss.undoCloseTab(window, aIndex || 0);
 
     if (blankTabToRemove)
@@ -6887,12 +6892,10 @@ var gIdentityHandler = {
   IDENTITY_MODE_DOMAIN_VERIFIED  : "verifiedDomain",   // Minimal SSL CA-signed domain verification
   IDENTITY_MODE_UNKNOWN          : "unknownIdentity",  // No trusted identity information
   IDENTITY_MODE_MIXED_CONTENT    : "unknownIdentity mixedContent",  // SSL with unauthenticated content
-  IDENTITY_MODE_CHROMEUI         : "chromeUI",         // Part of the product's UI
 
   // Cache the most recent SSLStatus and Location seen in checkIdentity
   _lastStatus : null,
   _lastLocation : null,
-  _mode : "unknownIdentity",
 
   // smart getters
   get _encryptionLabel () {
@@ -7032,9 +7035,7 @@ var gIdentityHandler = {
     this._lastLocation = location;
 
     let nsIWebProgressListener = Ci.nsIWebProgressListener;
-    if (location.protocol == "chrome:" || location.protocol == "about:")
-      this.setMode(this.IDENTITY_MODE_CHROMEUI);
-    else if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
+    if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
       this.setMode(this.IDENTITY_MODE_IDENTIFIED);
     else if (state & nsIWebProgressListener.STATE_SECURE_HIGH)
       this.setMode(this.IDENTITY_MODE_DOMAIN_VERIFIED);
@@ -7083,8 +7084,6 @@ var gIdentityHandler = {
     // Update the popup too, if it's open
     if (this._identityPopup.state == "open")
       this.setPopupMessages(newMode);
-
-    this._mode = newMode;
   },
 
   /**
@@ -7150,12 +7149,6 @@ var gIdentityHandler = {
       // Unicode Bidirectional Algorithm proper (at the paragraph level).
       icon_labels_dir = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/.test(icon_label) ?
                         "rtl" : "ltr";
-    }
-    else if (newMode == this.IDENTITY_MODE_CHROMEUI) {
-      icon_label = "";
-      tooltip = "";
-      icon_country_label = "";
-      icon_labels_dir = "ltr";
     }
     else {
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
@@ -7250,9 +7243,6 @@ var gIdentityHandler = {
 
     // Revert the contents of the location bar, see bug 406779
     gURLBar.handleRevert();
-
-    if (this._mode == this.IDENTITY_MODE_CHROMEUI)
-      return;
 
     // Make sure that the display:none style we set in xul is removed now that
     // the popup is actually needed
@@ -7454,7 +7444,6 @@ let gPrivateBrowsingUI = {
   _privateBrowsingService: null,
   _searchBarValue: null,
   _findBarValue: null,
-  _inited: false,
 
   init: function PBUI_init() {
     Services.obs.addObserver(this, "private-browsing", false);
@@ -7465,14 +7454,9 @@ let gPrivateBrowsingUI = {
 
     if (this.privateBrowsingEnabled)
       this.onEnterPrivateBrowsing(true);
-
-    this._inited = true;
   },
 
   uninit: function PBUI_unint() {
-    if (!this._inited)
-      return;
-
     Services.obs.removeObserver(this, "private-browsing");
     Services.obs.removeObserver(this, "private-browsing-transition-complete");
   },
@@ -7498,8 +7482,11 @@ let gPrivateBrowsingUI = {
     }
     else if (aTopic == "private-browsing-transition-complete") {
       if (this._disableUIOnToggle) {
-        document.getElementById("Tools:PrivateBrowsing")
-                .removeAttribute("disabled");
+        // use setTimeout here in order to make the code testable
+        setTimeout(function() {
+          document.getElementById("Tools:PrivateBrowsing")
+                  .removeAttribute("disabled");
+        }, 0);
       }
     }
   },

@@ -1232,8 +1232,6 @@ CallPropertyOp(JSContext *cx, JSObject *obj, jsid id, Value *vp,
     return true;
 }
 
-namespace js {
-
 static JSBool
 GetCallArguments(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
@@ -1247,7 +1245,7 @@ SetCallArguments(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-GetCallArg(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+js_GetCallArg(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_ARG);
 }
@@ -1271,13 +1269,13 @@ SetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-GetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+js_GetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_VAR);
 }
 
 JSBool
-GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+js_GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     if (!CallPropertyOp(cx, obj, id, vp, JSCPK_VAR))
         return false;
@@ -1290,8 +1288,6 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_VAR, true);
 }
-
-} // namespace js
 
 #if JS_TRACER
 JSBool JS_FASTCALL
@@ -2066,7 +2062,7 @@ fun_finalize(JSContext *cx, JSObject *obj)
      * very early.
      */
     if (FUN_INTERPRETED(fun) && fun->u.i.script)
-        js_DestroyScriptFromGC(cx, fun->u.i.script, NULL);
+        js_DestroyScript(cx, fun->u.i.script);
 }
 
 int
@@ -3074,7 +3070,7 @@ JSFunction::lastArg() const
 {
     const Shape *shape = lastVar();
     if (u.i.nvars != 0) {
-        while (shape->previous() && shape->getter() != GetCallArg)
+        while (shape->previous() && shape->getter() != js_GetCallArg)
             shape = shape->previous();
     }
     return shape;
@@ -3111,7 +3107,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
         JS_ASSERT(u.i.nupvars == 0);
 
         indexp = &nargs;
-        getter = GetCallArg;
+        getter = js_GetCallArg;
         setter = SetCallArg;
         slot += nargs;
     } else if (kind == JSLOCAL_UPVAR) {
@@ -3123,7 +3119,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
         JS_ASSERT(u.i.nupvars == 0);
 
         indexp = &u.i.nvars;
-        getter = GetCallVar;
+        getter = js_GetCallVar;
         setter = SetCallVar;
         if (kind == JSLOCAL_CONST)
             attrs |= JSPROP_READONLY;
@@ -3172,7 +3168,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
     }
 
     if (findArgInsertionPoint) {
-        while (parent->parent && parent->getter() != GetCallArg) {
+        while (parent->parent && parent->getter() != js_GetCallArg) {
             ++parent->slot;
             JS_ASSERT(parent->slot == parent->slotSpan);
             ++parent->slotSpan;
@@ -3201,7 +3197,7 @@ JSFunction::lookupLocal(JSContext *cx, JSAtom *atom, uintN *indexp)
     if (shape) {
         JSLocalKind localKind;
 
-        if (shape->getter() == GetCallArg)
+        if (shape->getter() == js_GetCallArg)
             localKind = JSLOCAL_ARG;
         else if (shape->getter() == GetFlatUpvar)
             localKind = JSLOCAL_UPVAR;
@@ -3245,7 +3241,7 @@ JSFunction::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
         uintN index = uint16(shape.shortid);
         jsuword constFlag = 0;
 
-        if (shape.getter() == GetCallArg) {
+        if (shape.getter() == js_GetCallArg) {
             JS_ASSERT(index < nargs);
         } else if (shape.getter() == GetFlatUpvar) {
             JS_ASSERT(index < u.i.nupvars);
@@ -3262,7 +3258,7 @@ JSFunction::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
             atom = JSID_TO_ATOM(shape.id);
         } else {
             JS_ASSERT(JSID_IS_INT(shape.id));
-            JS_ASSERT(shape.getter() == GetCallArg);
+            JS_ASSERT(shape.getter() == js_GetCallArg);
             atom = NULL;
         }
 

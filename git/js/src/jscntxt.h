@@ -898,10 +898,6 @@ typedef HashMap<jsbytecode*,
 
 class Oracle;
 
-typedef HashSet<JSScript *,
-                DefaultHasher<JSScript *>,
-                SystemAllocPolicy> TracedScriptSet;
-
 /*
  * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
  * JS_THREADSAFE) has an associated trace monitor that keeps track of loop
@@ -1001,9 +997,6 @@ struct TraceMonitor {
     // This must be used in only one place at a given time. It must be cleared
     // before use.
     TypeMap*                cachedTempTypeMap;
-
-    /* Scripts with recorded fragments. */
-    TracedScriptSet         tracedScripts;
 
 #ifdef DEBUG
     /* Fields needed for fragment/guard profiling. */
@@ -2369,24 +2362,10 @@ struct JSContext
         DOLLAR_AMP,
         DOLLAR_PLUS,
         DOLLAR_TICK,
-        DOLLAR_QUOT,
-        DOLLAR_EMPTY,
-        DOLLAR_1,
-        DOLLAR_2,
-        DOLLAR_3,
-        DOLLAR_4,
-        DOLLAR_5,
-        DOLLAR_OTHER
+        DOLLAR_QUOT
     };
-#ifdef XP_WIN
     volatile DollarPath *dollarPath;
-    volatile JSSubString *sub;
     volatile jschar *blackBox;
-    volatile jschar **repstrChars;
-    volatile jschar **repstrDollar;
-    volatile jschar **repstrDollarEnd;
-    volatile size_t *peekLen;
-#endif
 
 private:
 

@@ -91,7 +91,7 @@
 #include "nsSVGPathGeometryFrame.h"
 #include "prdtoa.h"
 #include "mozilla/dom/Element.h"
-#include "gfxUtils.h"
+#include "nsIDOMSVGNumberList.h"
 
 using namespace mozilla::dom;
 
@@ -637,7 +637,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
                          TransformBounds(gfxRect(x, y, width, height));
       bounds.RoundOut();
       nsIntRect r;
-      if (gfxUtils::GfxRectToIntRect(bounds, &r)) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(bounds, &r))) {
         rect = r;
       } else {
         NS_NOTREACHED("Not going to invalidate the correct area");
@@ -956,7 +956,7 @@ public:
       gfxRect dirtyBounds = userToDeviceSpace.TransformBounds(
         gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
       dirtyBounds.RoundOut();
-      if (gfxUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect)) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
         dirtyRect = &tmpDirtyRect;
       }
     }
@@ -1516,6 +1516,21 @@ nsSVGUtils::NumberFromString(const nsAString& aString, float* aValue,
     }
   }
   return PR_FALSE;
+}
+
+/* static */ float
+nsSVGUtils::GetNumberListValue(nsIDOMSVGNumberList *aList, PRUint32 aIndex)
+{
+  if (!aList) {
+    return 0.0f;
+  }
+  nsCOMPtr<nsIDOMSVGNumber> number;
+  nsresult rv = aList->GetItem(aIndex, getter_AddRefs(number));
+  float value = 0.0f;
+  if (NS_SUCCEEDED(rv)) {
+    number->GetValue(&value);
+  }
+  return value;
 }
 
 // ----------------------------------------------------------------------
