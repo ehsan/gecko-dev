@@ -214,8 +214,9 @@ public:
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
+  // nsIFileControlElement
   void GetDisplayFileName(nsAString& aFileName) const;
-  const nsCOMArray<nsIDOMFile>& GetFiles() const;
+  const nsCOMArray<nsIDOMFile>& GetFiles();
   void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
@@ -270,9 +271,9 @@ public:
 
   // nsIConstraintValidation
   PRBool   IsTooLong();
-  PRBool   IsValueMissing() const;
-  PRBool   HasTypeMismatch() const;
-  PRBool   HasPatternMismatch() const;
+  PRBool   IsValueMissing();
+  PRBool   HasTypeMismatch();
+  PRBool   HasPatternMismatch();
   void     UpdateTooLongValidityState();
   void     UpdateValueMissingValidityState();
   void     UpdateTypeMismatchValidityState();
@@ -389,15 +390,6 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  nsresult GetValueInternal(nsAString& aValue) const;
-
-  /**
-   * Returns whether the current value is the empty string.
-   *
-   * @return whether the current value is the empty string.
-   */
-  bool IsValueEmpty() const;
-
   void ClearFiles(bool aSetValueChanged) {
     nsCOMArray<nsIDOMFile> files;
     SetFiles(files, aSetValueChanged);
@@ -439,6 +431,11 @@ protected:
   {
     return AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                        nsGkAtoms::image, eIgnoreCase);
+  }
+
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_TRUE;
   }
 
   /**
@@ -526,7 +523,7 @@ protected:
   /**
    * Returns if the maxlength attribute applies for the current type.
    */
-  bool MaxLengthApplies() const { return IsSingleLineTextControl(false, mType); }
+  bool MaxLengthApplies() const { return IsSingleLineTextControlInternal(PR_FALSE, mType); }
 
   void FreeData();
   nsTextEditorState *GetEditorState() const;
@@ -545,7 +542,7 @@ protected:
   /**
    * Returns whether the placeholder attribute applies for the current type.
    */
-  bool PlaceholderApplies() const { return IsSingleLineTextControl(false, mType); }
+  bool PlaceholderApplies() const { return IsSingleLineTextControlInternal(PR_FALSE, mType); }
 
   /**
    * Set the current default value to the value of the input element.

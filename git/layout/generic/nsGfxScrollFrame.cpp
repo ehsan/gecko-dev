@@ -3565,7 +3565,7 @@ nsGfxScrollFrameInner::PostScrolledAreaEvent()
     return;
   }
   mScrolledAreaEvent = new ScrolledAreaEvent(this);
-  nsContentUtils::AddScriptRunner(mScrolledAreaEvent.get());
+  NS_DispatchToCurrentThread(mScrolledAreaEvent.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
