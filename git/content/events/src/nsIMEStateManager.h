@@ -99,7 +99,6 @@ protected:
   static nsIContent*    sContent;
   static nsPresContext* sPresContext;
   static PRBool         sInstalledMenuKeyboardListener;
-  static PRBool         sInSecureInputMode;
 
   static nsTextStateManager* sTextStateObserver;
 };

@@ -467,11 +467,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
     nsCOMPtr<nsICharsetDetector>  mChardet;
 
     /**
-     * If false, don't push data to chardet.
-     */
-    PRBool                        mFeedChardet;
-
-    /**
      * Timer for flushing tree ops once in a while when not speculating.
      */
     nsCOMPtr<nsITimer>            mFlushTimer;

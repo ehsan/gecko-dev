@@ -63,8 +63,6 @@ public:
         mNP_GetEntryPoints(nsnull),
 #endif
         mNPP_New(nsnull),
-        mNPP_ClearSiteData(nsnull),
-        mNPP_GetSitesWithData(nsnull),
         mLibrary(aLibrary)
     {
         NS_ASSERTION(mLibrary, "need non-null lib");
@@ -135,10 +133,6 @@ public:
                              char* argv[], NPSavedData* saved,
                              NPError* error);
 
-    virtual nsresult NPP_ClearSiteData(const char* site, uint64_t flags,
-                                       uint64_t maxAge);
-    virtual nsresult NPP_GetSitesWithData(InfallibleTArray<nsCString>& result);
-
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
     virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface);
     NS_OVERRIDE virtual bool UseAsyncPainting() { return false; }
@@ -154,8 +148,6 @@ private:
     NP_GetEntryPointsFunc mNP_GetEntryPoints;
 #endif
     NPP_NewProcPtr mNPP_New;
-    NPP_ClearSiteDataPtr mNPP_ClearSiteData;
-    NPP_GetSitesWithDataPtr mNPP_GetSitesWithData;
     PRLibrary* mLibrary;
 };
 

@@ -54,7 +54,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsPluginLogging.h"
 #include "nsICategoryManager.h"
-#include "nsNPAPIPlugin.h"
 #include "mozilla/TimeStamp.h"
 
 using mozilla::TimeStamp;

@@ -670,8 +670,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpNeedsCharsetSwitchTo: {
       char* str = mOne.charPtr;
-      PRInt32 charsetSource = mInt;
-      aBuilder->NeedsCharsetSwitchTo(str, charsetSource);
+      aBuilder->NeedsCharsetSwitchTo(str);
       return rv;    
     }
     case eTreeOpUpdateStyleSheet: {

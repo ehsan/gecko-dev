@@ -109,8 +109,6 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     : mSubprocess(new PluginProcessParent(aFilePath))
     , mPluginThread(0)
     , mShutdown(false)
-    , mClearSiteDataSupported(false)
-    , mGetSitesWithDataSupported(false)
     , mNPNIface(NULL)
     , mPlugin(NULL)
     , mProcessStartTime(time(NULL))
@@ -385,11 +383,7 @@ PluginModuleParent::SetPluginFuncs(NPPluginFuncs* aFuncs)
     aFuncs->version = (NP_VERSION_MAJOR << 8) | NP_VERSION_MINOR;
     aFuncs->javaClass = nsnull;
 
-    // Gecko should always call these functions through a PluginLibrary object.
-    aFuncs->newp = NULL;
-    aFuncs->clearsitedata = NULL;
-    aFuncs->getsiteswithdata = NULL;
-
+    aFuncs->newp = nsnull; // Gecko should always call this through a PluginLibrary object
     aFuncs->destroy = NPP_Destroy;
     aFuncs->setwindow = NPP_SetWindow;
     aFuncs->newstream = NPP_NewStream;
@@ -406,12 +400,9 @@ PluginModuleParent::SetPluginFuncs(NPPluginFuncs* aFuncs)
     aFuncs->lostfocus = NULL;
     aFuncs->urlredirectnotify = NULL;
 
-    // Provide 'NPP_URLRedirectNotify', 'NPP_ClearSiteData', and
-    // 'NPP_GetSitesWithData' functionality if it is supported by the plugin.
+    // Provide 'NPP_URLRedirectNotify' if it is supported by the plugin.
     bool urlRedirectSupported = false;
-    unused << CallOptionalFunctionsSupported(&urlRedirectSupported,
-                                             &mClearSiteDataSupported,
-                                             &mGetSitesWithDataSupported);
+    CallURLRedirectNotifySupported(&urlRedirectSupported);
     if (urlRedirectSupported) {
       aFuncs->urlredirectnotify = NPP_URLRedirectNotify;
     }
@@ -840,41 +831,6 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
         NPP_Destroy(instance, 0);
         return NS_ERROR_FAILURE;
     }
-
-    return NS_OK;
-}
-
-nsresult
-PluginModuleParent::NPP_ClearSiteData(const char* site, uint64_t flags,
-                                      uint64_t maxAge)
-{
-    if (!mClearSiteDataSupported)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    NPError result;
-    if (!CallNPP_ClearSiteData(NullableString(site), flags, maxAge, &result))
-        return NS_ERROR_FAILURE;
-
-    switch (result) {
-    case NPERR_NO_ERROR:
-        return NS_OK;
-    case NPERR_TIME_RANGE_NOT_SUPPORTED:
-        return NS_ERROR_PLUGIN_TIME_RANGE_NOT_SUPPORTED;
-    case NPERR_MALFORMED_SITE:
-        return NS_ERROR_INVALID_ARG;
-    default:
-        return NS_ERROR_FAILURE;
-    }
-}
-
-nsresult
-PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
-{
-    if (!mGetSitesWithDataSupported)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    if (!CallNPP_GetSitesWithData(&result))
-        return NS_ERROR_FAILURE;
 
     return NS_OK;
 }

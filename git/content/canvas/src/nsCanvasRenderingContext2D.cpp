@@ -1164,7 +1164,7 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
     // then the surface became cleared, and we need to redraw everything.
     Redraw();
 
-    return mValid ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -736,6 +736,7 @@ gfxWindowsPlatform::GetFontCacheSize(nsAString& aSize)
 {
     WIN32_FIND_DATAW findFileData;
     HANDLE file;
+    LARGE_INTEGER fileSize;
     WCHAR path[MAX_PATH];
 
     aSize.Assign(L"n/a");
@@ -756,9 +757,8 @@ gfxWindowsPlatform::GetFontCacheSize(nsAString& aSize)
     double sizeMB = (double(findFileData.nFileSizeLow) +
                      findFileData.nFileSizeHigh * (double(MAXDWORD) + 1))
                     / 1000000.0;
-    swprintf_s(size, sizeof(size), L"%.2f MB", sizeMB);
+    swprintf(size, L"%.2f MB", sizeMB);
     aSize.Assign(size);
-    FindClose(file);
 }
 
 void

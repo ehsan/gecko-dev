@@ -261,7 +261,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     if (sUserIsActive) {
       sUserIsActive = PR_FALSE;
       if (!sGCTimer) {
-        nsJSContext::MaybeCC(PR_FALSE, PR_TRUE);
+        nsJSContext::MaybeCC(PR_FALSE);
         return NS_OK;
       }
     }
@@ -3430,7 +3430,7 @@ nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
 
 //static
 PRBool
-nsJSContext::MaybeCC(PRBool aHigherProbability, PRBool aForceGC)
+nsJSContext::MaybeCC(PRBool aHigherProbability)
 {
   ++sDelayedCCollectCount;
 
@@ -3473,7 +3473,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability, PRBool aForceGC)
       ((sCCSuspectChanges > NS_MIN_SUSPECT_CHANGES &&
         GetGCRunsSinceLastCC() > NS_MAX_GC_COUNT) ||
        (sCCSuspectChanges > NS_MAX_SUSPECT_CHANGES))) {
-    return IntervalCC(aForceGC);
+    return IntervalCC();
   }
   return PR_FALSE;
 }
@@ -3483,7 +3483,7 @@ void
 nsJSContext::CCIfUserInactive()
 {
   if (sUserIsActive) {
-    MaybeCC(PR_TRUE, PR_TRUE);
+    MaybeCC(PR_TRUE);
   } else {
     IntervalCC(PR_TRUE);
   }

@@ -3309,7 +3309,8 @@ nsHTMLDocument::EditingStateChanged()
     // If we're entering the design mode, put the selection at the beginning of
     // the document for compatibility reasons.
     if (designMode && oldState == eOff) {
-      editor->BeginningOfDocument();
+      rv = editor->BeginningOfDocument();
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     nsCOMArray<nsIStyleSheet> agentSheets;

@@ -1095,12 +1095,9 @@ public:
     explicit gfxFcFontSet(FcPattern *aPattern,
                                gfxUserFontSet *aUserFontSet)
         : mSortPattern(aPattern), mUserFontSet(aUserFontSet),
-          mFcFontsTrimmed(0),
+          mFcFontSet(SortPreferredFonts()), mFcFontsTrimmed(0),
           mHaveFallbackFonts(PR_FALSE)
     {
-        PRBool waitForUserFont;
-        mFcFontSet = SortPreferredFonts(waitForUserFont);
-        mWaitingForUserFont = waitForUserFont;
     }
 
     // A reference is held by the FontSet.
@@ -1121,12 +1118,8 @@ public:
 
     FcPattern *GetFontPatternAt(PRUint32 i);
 
-    PRBool WaitingForUserFont() const {
-        return mWaitingForUserFont;
-    }
-
 private:
-    nsReturnRef<FcFontSet> SortPreferredFonts(PRBool& aWaitForUserFont);
+    nsReturnRef<FcFontSet> SortPreferredFonts();
     nsReturnRef<FcFontSet> SortFallbackFonts();
 
     struct FontEntry {
@@ -1174,17 +1167,13 @@ private:
     // True iff fallback fonts are either stored in mFcFontSet or have been
     // trimmed and added to mFonts (so that mFcFontSet is NULL).
     PRPackedBool mHaveFallbackFonts;
-    // True iff there was a user font set with pending downloads,
-    // so the set may be updated when downloads complete
-    PRPackedBool mWaitingForUserFont;
 };
 
 // Find the FcPattern for an @font-face font suitable for CSS family |aFamily|
 // and style |aStyle| properties.
 static const nsTArray< nsCountedRef<FcPattern> >*
 FindFontPatterns(gfxUserFontSet *mUserFontSet,
-                const nsACString &aFamily, PRUint8 aStyle, PRUint16 aWeight,
-                PRBool& aWaitForUserFont)
+                const nsACString &aFamily, PRUint8 aStyle, PRUint16 aWeight)
 {
     // Convert to UTF16
     NS_ConvertUTF8toUTF16 utf16Family(aFamily);
@@ -1199,15 +1188,13 @@ FindFontPatterns(gfxUserFontSet *mUserFontSet,
     style.weight = aWeight;
 
     gfxUserFcFontEntry *fontEntry = static_cast<gfxUserFcFontEntry*>
-        (mUserFontSet->FindFontEntry(utf16Family, style, needsBold,
-                                     aWaitForUserFont));
+        (mUserFontSet->FindFontEntry(utf16Family, style, needsBold));
 
     // Accept synthetic oblique for italic and oblique.
     if (!fontEntry && aStyle != FONT_STYLE_NORMAL) {
         style.style = FONT_STYLE_NORMAL;
         fontEntry = static_cast<gfxUserFcFontEntry*>
-            (mUserFontSet->FindFontEntry(utf16Family, style, needsBold,
-                                         aWaitForUserFont));
+            (mUserFontSet->FindFontEntry(utf16Family, style, needsBold));
     }
 
     if (!fontEntry)
@@ -1283,10 +1270,8 @@ SizeIsAcceptable(FcPattern *aFont, double aRequestedSize)
 // Sorting only the preferred fonts first usually saves having to sort through
 // every font on the system.
 nsReturnRef<FcFontSet>
-gfxFcFontSet::SortPreferredFonts(PRBool &aWaitForUserFont)
+gfxFcFontSet::SortPreferredFonts()
 {
-    aWaitForUserFont = PR_FALSE;
-
     gfxFontconfigUtils *utils = gfxFontconfigUtils::GetFontconfigUtils();
     if (!utils)
         return nsReturnRef<FcFontSet>();
@@ -1365,13 +1350,8 @@ gfxFcFontSet::SortPreferredFonts(PRBool &aWaitForUserFont)
                 PRUint16 thebesWeight =
                     gfxFontconfigUtils::GetThebesWeight(mSortPattern);
 
-                PRBool waitForUserFont;
                 familyFonts = FindFontPatterns(mUserFontSet, cssFamily,
-                                               thebesStyle, thebesWeight,
-                                               waitForUserFont);
-                if (waitForUserFont) {
-                    aWaitForUserFont = PR_TRUE;
-                }
+                                               thebesStyle, thebesWeight);
             }
         }
 
@@ -1880,7 +1860,6 @@ gfxPangoFontGroup::UpdateFontList()
     mFontSets.Clear();
     mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
     mCurrGeneration = newGeneration;
-    mSkipDrawing = PR_FALSE;
 }
 
 already_AddRefed<gfxFcFontSet>
@@ -1909,8 +1888,6 @@ gfxPangoFontGroup::MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
 
     nsRefPtr<gfxFcFontSet> fontset =
         new gfxFcFontSet(pattern, mUserFontSet);
-
-    mSkipDrawing = fontset->WaitingForUserFont();
 
     if (aMatchPattern)
         aMatchPattern->steal(pattern);

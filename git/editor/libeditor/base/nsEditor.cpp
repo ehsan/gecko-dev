@@ -3883,7 +3883,8 @@ nsEditor::GetStartNodeAndOffset(nsISelection *aSelection,
   NS_ENSURE_TRUE(outStartNode && outStartOffset && aSelection, NS_ERROR_NULL_POINTER);
 
   *outStartNode = nsnull;
-  *outStartOffset = 0;
+
+  // brade:  set outStartNode to null or ?
 
   nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(aSelection));
   nsCOMPtr<nsIEnumerator> enumerator;

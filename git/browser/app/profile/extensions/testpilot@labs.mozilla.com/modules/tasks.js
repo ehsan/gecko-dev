@@ -390,7 +390,8 @@ TestPilotExperiment.prototype = {
                 getService(Components.interfaces.nsIStringBundleService).
 	          createBundle("chrome://testpilot/locale/main.properties");
 	    let link =
-	      '<a href="' + self.infoPageUrl + '">' + self.title + '</a>';
+	      '<a href="' + this.infoPageUrl + '">&quot;' + this.title +
+	      '&quot;</a>';
 	    content =
 	      '<h2>' + stringBundle.formatStringFromName(
 	        "testpilot.finishedTask.finishedStudy", [link], 1) + '</h2>' +

@@ -2439,7 +2439,8 @@ nsXULElement::SetDrawsInTitlebar(PRBool aState)
 {
     nsIWidget* mainWidget = GetWindowWidget();
     if (mainWidget) {
-        nsContentUtils::AddScriptRunner(new SetDrawInTitleBarEvent(mainWidget, aState));
+        nsCOMPtr<nsIRunnable> event = new SetDrawInTitleBarEvent(mainWidget, aState);
+        NS_DispatchToCurrentThread(event);
     }
 }
 

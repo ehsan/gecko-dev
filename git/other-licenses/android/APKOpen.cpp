@@ -504,7 +504,7 @@ static void * mozload(const char * path, void *zip,
       __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s from cache", path + 4);
 #endif
     if (fd < 0) {
-      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't open " ASHMEM_NAME_DEF ", Error %d, %s", errno, strerror(errno));
+      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't get an ashmem buffer");
       return NULL;
     }
     buf = mmap(NULL, lib_size,
@@ -599,7 +599,7 @@ extern "C" void simple_linker_init(void);
 static void
 loadLibs(const char *apkName)
 {
-  chdir(getenv("GRE_HOME"));
+  chdir("/data/data/" ANDROID_PACKAGE_NAME);
 
   simple_linker_init();
 

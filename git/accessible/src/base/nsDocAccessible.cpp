@@ -1383,6 +1383,9 @@ nsDocAccessible::UnbindFromDocument(nsAccessible* aAccessible)
       mNodeToAccessibleMap.Get(aAccessible->GetNode()) == aAccessible)
     mNodeToAccessibleMap.Remove(aAccessible->GetNode());
 
+  if (!aAccessible->IsDefunct())
+    RemoveDependentIDsFor(aAccessible);
+
   void* uniqueID = aAccessible->UniqueID();
 
   NS_ASSERTION(!aAccessible->IsDefunct(), "Shutdown the shutdown accessible!");
@@ -1459,12 +1462,11 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
     // invalidation list.
     for (PRUint32 idx = 0; idx < mInvalidationList.Length(); idx++) {
       nsIContent* content = mInvalidationList[idx];
-      if (!HasAccessible(content)) {
-        // Make sure we keep children updated. While we're inside of caching
-        // loop then we must exist it with cached children.
-        nsAccessible* container = GetContainerAccessible(content);
-        container->UpdateChildren();
-      }
+      nsAccessible* container = GetContainerAccessible(content);
+
+      // Make sure we keep children updated. While we're inside of caching loop
+      // then we must exist it with cached children.
+      container->UpdateChildren();
     }
     mInvalidationList.Clear();
 
@@ -1936,12 +1938,12 @@ nsDocAccessible::CacheChildrenInSubtree(nsAccessible* aRoot)
 void
 nsDocAccessible::UncacheChildrenInSubtree(nsAccessible* aRoot)
 {
-  if (aRoot->IsElement())
-    RemoveDependentIDsFor(aRoot);
-
   PRUint32 count = aRoot->GetCachedChildCount();
   for (PRUint32 idx = 0; idx < count; idx++)
     UncacheChildrenInSubtree(aRoot->GetCachedChildAt(idx));
+
+  if (aRoot->IsTextLeaf())
+    mNotificationController->CancelTextUpdate(aRoot->GetContent());
 
   if (aRoot->IsPrimaryForNode() &&
       mNodeToAccessibleMap.Get(aRoot->GetNode()) == aRoot)

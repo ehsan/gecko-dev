@@ -20,7 +20,6 @@ EXPORTS	= \
 	gfxColor.h \
 	gfxContext.h \
 	gfxDrawable.h \
-	gfxFailure.h \
 	gfxFont.h \
 	gfxFontConstants.h \
 	gfxFontUtils.h \

@@ -953,7 +953,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
                   mPluginWndProc = reinterpret_cast<WNDPROC>(
                       SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
                                        reinterpret_cast<LONG_PTR>(PluginWindowProc)));
-                  NS_ASSERTION(mPluginWndProc != PluginWindowProc, "WTF?");
               }
               RemoveProp(mPluginWindowHWND, kPluginIgnoreSubclassProperty);
               HookSetWindowLongPtr();
@@ -1151,7 +1150,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
     }
 
     NS_ASSERTION(self->mPluginWindowHWND == hWnd, "Wrong window!");
-    NS_ASSERTION(self->mPluginWndProc != PluginWindowProc, "Self-referential windowproc. Infinite recursion will happen soon.");
 
     // Adobe's shockwave positions the plugin window relative to the browser
     // frame when it initializes. With oopp disabled, this wouldn't have an
@@ -1201,8 +1199,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
         self->FlashThrottleMessage(hWnd, message, wParam, lParam, true);
         return 0;
     }
-
-    NS_ASSERTION(self->mPluginWndProc != PluginWindowProc, "Self-referential windowproc happened inside our hook proc. Infinite recursion will happen soon.");
 
     LRESULT res = CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
                                  lParam);
@@ -1368,9 +1364,8 @@ PluginInstanceChild::SetWindowLongAHook(HWND hWnd,
         reinterpret_cast<WNDPROC>(GetWindowLongPtr(hWnd, GWLP_WNDPROC));
     if (currentProc != PluginWindowProc) {
         self->mPluginWndProc =
-            reinterpret_cast<WNDPROC>(sUser32SetWindowLongWHookStub(hWnd, nIndex,
+            reinterpret_cast<WNDPROC>(sUser32SetWindowLongAHookStub(hWnd, nIndex,
                 reinterpret_cast<LONG_PTR>(PluginWindowProc)));
-        NS_ASSERTION(self->mPluginWndProc != PluginWindowProc, "Infinite recursion coming up!");
     }
     return proc;
 }
@@ -1402,9 +1397,8 @@ PluginInstanceChild::SetWindowLongWHook(HWND hWnd,
         reinterpret_cast<WNDPROC>(GetWindowLongPtr(hWnd, GWLP_WNDPROC));
     if (currentProc != PluginWindowProc) {
         self->mPluginWndProc =
-            reinterpret_cast<WNDPROC>(sUser32SetWindowLongWHookStub(hWnd, nIndex,
+            reinterpret_cast<WNDPROC>(sUser32SetWindowLongAHookStub(hWnd, nIndex,
                 reinterpret_cast<LONG_PTR>(PluginWindowProc)));
-        NS_ASSERTION(self->mPluginWndProc != PluginWindowProc, "Infinite recursion coming up!");
     }
     return proc;
 }

@@ -139,18 +139,7 @@ protected:
     AnswerNP_Shutdown(NPError *rv);
 
     virtual bool
-    AnswerOptionalFunctionsSupported(bool *aURLRedirectNotify,
-                                     bool *aClearSiteData,
-                                     bool *aGetSitesWithData);
-
-    virtual bool
-    AnswerNPP_ClearSiteData(const nsCString& aSite,
-                            const uint64_t& aFlags,
-                            const uint64_t& aMaxAge,
-                            NPError* aResult);
-
-    virtual bool
-    AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult);
+    AnswerURLRedirectNotifySupported(bool *aBoolVal);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);

@@ -155,17 +155,15 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
-          ok(!("value" in cursor), "No value");
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
+             "Correct value");
 
           cursor.continue();
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
-          ok(!("value" in cursor), "No value");
 
           keyIndex++;
         }
@@ -188,14 +186,14 @@
         if (cursor) {
           is(cursor.key, objectStoreDataWeightSort[keyIndex].value.weight,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataWeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataWeightSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
 
           is(cursor.key, objectStoreDataWeightSort[keyIndex].value.weight,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataWeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataWeightSort[keyIndex].key,
              "Correct value");
 
           keyIndex++;
@@ -228,14 +226,14 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           keyIndex--;
@@ -260,7 +258,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -286,7 +284,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -312,7 +310,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -338,7 +336,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -364,7 +362,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -390,7 +388,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -416,7 +414,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -442,7 +440,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -468,7 +466,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -493,8 +491,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -510,8 +506,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -544,8 +538,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -561,8 +553,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -596,8 +586,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -613,8 +601,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -648,8 +634,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -665,8 +649,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -700,8 +682,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -717,8 +697,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -752,8 +730,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -769,8 +745,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -804,8 +778,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -821,8 +793,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -857,7 +827,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataHeightSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -884,7 +854,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataHeightSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -910,7 +880,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
+          is(cursor.value, objectStoreDataHeightSort[keyIndex].key,
              "Correct value");
 
           cursor.continue();
@@ -939,8 +909,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataHeightSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -976,8 +944,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataHeightSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -1012,8 +978,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataHeightSort[keyIndex].value.height,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataHeightSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataHeightSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -1050,7 +1014,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           let nextKey = !keyIndex ? "Pat" : undefined;
@@ -1059,7 +1023,7 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           if (!keyIndex) {
@@ -1088,7 +1052,7 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           let nextKey = !keyIndex ? "Flo" : undefined;
@@ -1097,7 +1061,7 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
+          is(cursor.value, objectStoreDataNameSort[keyIndex].key,
              "Correct value");
 
           keyIndex += keyIndex ? 1 : 2;
@@ -1121,8 +1085,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -1140,8 +1102,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -1179,8 +1139,6 @@
         if (cursor) {
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,
@@ -1198,8 +1156,6 @@
 
           is(cursor.key, objectStoreDataNameSort[keyIndex].value.name,
              "Correct key");
-          is(cursor.primaryKey, objectStoreDataNameSort[keyIndex].key,
-             "Correct primary key");
           is(cursor.value.name, objectStoreDataNameSort[keyIndex].value.name,
              "Correct name");
           is(cursor.value.height,

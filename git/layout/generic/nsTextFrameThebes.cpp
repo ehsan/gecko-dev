@@ -4310,10 +4310,6 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
   if (!decorations.HasDecorationlines())
     return;
 
-  // Hide text decorations if we're currently hiding @font-face fallback text
-  if (aProvider.GetFontGroup()->ShouldSkipDrawing())
-    return;
-
   gfxFont* firstFont = aProvider.GetFontGroup()->GetFontAt(0);
   if (!firstFont)
     return; // OOM
@@ -4864,10 +4860,6 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     PropertyProvider& aProvider, nsTextPaintStyle& aTextPaintStyle,
     SelectionDetails* aDetails, SelectionType aSelectionType)
 {
-  // Hide text decorations if we're currently hiding @font-face fallback text
-  if (aProvider.GetFontGroup()->ShouldSkipDrawing())
-    return;
-
   PRInt32 contentOffset = aProvider.GetStart().GetOriginalOffset();
   PRInt32 contentLength = aProvider.GetOriginalLength();
 

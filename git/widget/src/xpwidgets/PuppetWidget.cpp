@@ -276,37 +276,36 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
                   nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
-  NS_ABORT_IF_FALSE(!mChild || mChild->mWindowType == eWindowType_popup,
-                    "Unexpected event dispatch!");
-
   aStatus = nsEventStatus_eIgnore;
+  if (mEventCallback) {
+    if (event->message == NS_COMPOSITION_START) {
+      mIMEComposing = PR_TRUE;
+    }
+    switch (event->eventStructType) {
+    case NS_COMPOSITION_EVENT:
+      mIMELastReceivedSeqno = static_cast<nsCompositionEvent*>(event)->seqno;
+      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+        return NS_OK;
+      break;
+    case NS_TEXT_EVENT:
+      mIMELastReceivedSeqno = static_cast<nsTextEvent*>(event)->seqno;
+      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+        return NS_OK;
+      break;
+    case NS_SELECTION_EVENT:
+      mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
+      if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
+        return NS_OK;
+      break;
+    }
+    aStatus = (*mEventCallback)(event);
 
-  NS_ABORT_IF_FALSE(mViewCallback, "No view callback!");
-
-  if (event->message == NS_COMPOSITION_START) {
-    mIMEComposing = PR_TRUE;
-  }
-  switch (event->eventStructType) {
-  case NS_COMPOSITION_EVENT:
-    mIMELastReceivedSeqno = static_cast<nsCompositionEvent*>(event)->seqno;
-    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-      return NS_OK;
-    break;
-  case NS_TEXT_EVENT:
-    mIMELastReceivedSeqno = static_cast<nsTextEvent*>(event)->seqno;
-    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-      return NS_OK;
-    break;
-  case NS_SELECTION_EVENT:
-    mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
-    if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
-      return NS_OK;
-    break;
-  }
-  aStatus = (*mViewCallback)(event);
-
-  if (event->message == NS_COMPOSITION_END) {
-    mIMEComposing = PR_FALSE;
+    if (event->message == NS_COMPOSITION_END) {
+      mIMEComposing = PR_FALSE;
+    }
+  } else if (mChild) {
+    event->widget = mChild;
+    mChild->DispatchEvent(event, aStatus);
   }
 
   return NS_OK;

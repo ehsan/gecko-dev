@@ -92,14 +92,9 @@ GeckoStart(void *data)
 
     nsresult rv;
     nsCOMPtr<nsILocalFile> appini;
-    char* greHome = getenv("GRE_HOME");
-    if (!greHome) {
-        LOG("Failed to get GRE_HOME from the env vars");
-        return 0;
-    }
-    nsCAutoString appini_path(greHome);
-    appini_path.AppendLiteral("/application.ini");
-    rv = NS_NewNativeLocalFile(appini_path, PR_FALSE, getter_AddRefs(appini));
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/" ANDROID_PACKAGE_NAME "/application.ini"),
+                         PR_FALSE,
+                         getter_AddRefs(appini));
     if (NS_FAILED(rv)) {
         LOG("Failed to create nsILocalFile for appdata\n");
         return 0;
@@ -108,12 +103,14 @@ GeckoStart(void *data)
     nsXREAppData *appData;
     rv = XRE_CreateAppData(appini, &appData);
     if (NS_FAILED(rv)) {
-        LOG("Failed to load application.ini from %s\n", appini_path.get());
+        LOG("Failed to load application.ini from /data/data/" ANDROID_PACKAGE_NAME "/application.ini\n");
         return 0;
     }
 
     nsCOMPtr<nsILocalFile> xreDir;
-    rv = NS_NewNativeLocalFile(nsDependentCString(greHome), PR_FALSE, getter_AddRefs(xreDir));
+    rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/data/" ANDROID_PACKAGE_NAME),
+                         PR_FALSE,
+                         getter_AddRefs(xreDir));
     if (NS_FAILED(rv)) {
         LOG("Failed to create nsIFile for xreDirectory");
         return 0;
