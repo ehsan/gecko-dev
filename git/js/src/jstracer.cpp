@@ -397,15 +397,16 @@ public:
         int t = isNumber(v)
                 ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
                 : JSVAL_TAG(v);
-         return t;
+        return t;
     }
 
     /* Write out a type map for the current scopes and all outer scopes,
        up until the entry scope. */
     virtual LInsp insGuard(LOpcode v, LIns *c, SideExit *x) {
         uint8* m = x->typeMap;
-        unsigned _ngslots = ((VMFragmentInfo*)_fragment->vmprivate)->ngslots;
-        uint16* _gslots = ((VMFragmentInfo*)_fragment->vmprivate)->gslots;
+        VMFragmentInfo* fi = (VMFragmentInfo*)_fragment->root->vmprivate;
+        unsigned _ngslots = fi->ngslots;
+        uint16* _gslots = fi->gslots;
         FORALL_SLOTS_IN_PENDING_FRAMES(_cx, _ngslots, _gslots, _entryFrame, _cx->fp,
             *m++ = getStoreType(*vp));
         return out->insGuard(v, c, x);
@@ -427,10 +428,12 @@ public:
     }
 };
 
-TraceRecorder::TraceRecorder(JSContext* cx, Fragment* _fragment, uint8* typemap)
+TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor, 
+        Fragment* _fragment, uint8* typeMap)
 {
     this->cx = cx;
     this->globalObj = JS_GetGlobalForObject(cx, cx->fp->scopeChain);
+    this->anchor = _anchor;
     this->fragment = _fragment;
     this->lirbuf = _fragment->lirbuf;
     entryFrame = cx->fp;
@@ -462,25 +465,13 @@ TraceRecorder::TraceRecorder(JSContext* cx, Fragment* _fragment, uint8* typemap)
     lirbuf->sp = addName(lir->insLoadi(lirbuf->state, offsetof(InterpState, sp)), "sp");
     lirbuf->rp = addName(lir->insLoadi(lirbuf->state, offsetof(InterpState, rp)), "rp");
     cx_ins = addName(lir->insLoadi(lirbuf->state, offsetof(InterpState, cx)), "cx");
-
-    uint8* m = fragmentInfo->typeMap;
-    jsuword* localNames = NULL;
-#ifdef DEBUG
-    void* mark = NULL;
-    if (cx->fp->fun) {
-        mark = JS_ARENA_MARK(&cx->tempPool);
-        localNames = js_GetLocalNameArray(cx, cx->fp->fun, &cx->tempPool);
-    }
-#else
-    localNames = NULL;
-#endif
+    
+    uint8* m = typeMap;
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, fragmentInfo->ngslots, fragmentInfo->gslots,
                                    entryFrame, entryFrame,
-        import(vp, *m, vpname, vpnum, localNames); m++
+        import(vp, *m, vpname, vpnum);
+        m++
     );
-#ifdef DEBUG
-    JS_ARENA_RELEASE(&cx->tempPool, mark);
-#endif
 
     recompileFlag = false;
 }
@@ -801,7 +792,7 @@ box(JSContext* cx, unsigned ngslots, uint16* gslots,
 
 /* Emit load instructions onto the trace that read the initial stack state. */
 void
-TraceRecorder::import(jsval* p, uint8& t, const char *prefix, int index, jsuword *localNames)
+TraceRecorder::import(jsval* p, uint8& t, const char *prefix, int index)
 {
     JS_ASSERT(TYPEMAP_GET_TYPE(t) != TYPEMAP_TYPE_ANY);
     JS_ASSERT(onFrame(p));
@@ -824,24 +815,10 @@ TraceRecorder::import(jsval* p, uint8& t, const char *prefix, int index, jsuword
     }
     tracker.set(p, ins);
 #ifdef DEBUG
-    char name[64];
+    char name[16];
     JS_ASSERT(strlen(prefix) < 10);
-    if (!strcmp(prefix, "argv")) {
-        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[index]);
-        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, cx->fp->fun->atom),
-                    js_AtomToPrintableString(cx, atom));
-    } else if (!strcmp(prefix, "vars")) {
-        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[index + cx->fp->fun->nargs]);
-        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, cx->fp->fun->atom),
-                    js_AtomToPrintableString(cx, atom));
-    } else if (!strcmp(prefix, "global")) {
-        JSAtom *atom = cx->fp->script->atomMap.vector[index];
-        JS_snprintf(name, sizeof name, "$%s", js_AtomToPrintableString(cx, atom));
-    } else {
-        JS_snprintf(name, sizeof name, "$%s%d", prefix, index);
-    }
+    JS_snprintf(name, sizeof name, "$%s%d", prefix, index);
     addName(ins, name);
-
     static const char* typestr[] = {
         "object", "int", "double", "3", "string", "5", "boolean", "any"
     };
@@ -989,7 +966,13 @@ TraceRecorder::closeLoop(Fragmento* fragmento)
         return;
     }
     fragment->lastIns = lir->insGuard(LIR_loop, lir->insImm(1), snapshot());
+    if (anchor) {
+        anchor->target = fragment;
+        fragment->addLink(anchor);
+    }
     compile(fragmento->assm(), fragment);
+    if (anchor)
+        fragmento->assm()->patch(anchor);
 #ifdef DEBUG
     char* label;
     asprintf(&label, "%s:%u", cx->fp->script->filename, 
@@ -1084,10 +1067,10 @@ js_DeleteRecorder(JSContext* cx)
 }
 
 bool
-js_StartRecorder(JSContext* cx, Fragment* f, uint8* typeMap)
+js_StartRecorder(JSContext* cx, GuardRecord* anchor, Fragment* f, uint8* typeMap)
 {
     /* start recording if no exception during construction */
-    JS_TRACE_MONITOR(cx).recorder = new (&gc) TraceRecorder(cx, f, typeMap);
+    JS_TRACE_MONITOR(cx).recorder = new (&gc) TraceRecorder(cx, anchor, f, typeMap);
     if (cx->throwing) {
         js_AbortRecording(cx, "setting up recorder failed");
         return false;
@@ -1144,13 +1127,13 @@ js_LoopEdge(JSContext* cx)
             return false; /* we stay away from shared global objects */
         }
 #endif
-        if (cx->fp->regs->pc == r->getFragment()->ip) { /* did we hit the start point? */
+        if (cx->fp->regs->pc == r->getFragment()->root->ip) { /* did we hit the start point? */
             AUDIT(traceCompleted);
             r->closeLoop(JS_TRACE_MONITOR(cx).fragmento);
             js_DeleteRecorder(cx);
         } else {
             AUDIT(returnToDifferentLoopHeader);
-            js_AbortRecording(cx, "Loop edge does not return to header.");
+            js_AbortRecording(cx, "Loop edge does not return to header");
         }
         return false; /* done recording */
     }
@@ -1206,7 +1189,7 @@ js_LoopEdge(JSContext* cx)
                 );
             }
             /* recording primary trace */
-            return js_StartRecorder(cx, f, fi->typeMap);
+            return js_StartRecorder(cx, NULL, f, fi->typeMap);
         }
         return false;
     }
@@ -1259,6 +1242,8 @@ js_LoopEdge(JSContext* cx)
 
     AUDIT(sideExitIntoInterpreter);
     
+    return false; // disable trees for now
+    
     /* if the side exit terminates the loop, don't try to attach a trace here */
     if (js_IsLoopExit(cx, cx->fp->script, cx->fp->regs->pc)) 
         return false;
@@ -1273,10 +1258,9 @@ js_LoopEdge(JSContext* cx)
     c->parent = f;
     c->root = f->root;
     c->calldepth = lr->calldepth;
-    c->addLink(lr);
     
     /* record secondary trace */
-    return js_StartRecorder(cx, c, lr->guard->exit()->typeMap);
+    return js_StartRecorder(cx, lr, c, lr->guard->exit()->typeMap);
 }
 
 void
