@@ -312,7 +312,7 @@ NfcContentHelper.prototype = {
                                          result.isFormatable);
             }
 
-            let tagInfo = new TagInfo(result.techList, result.tagId);
+            let tagInfo = new TagInfo(result.techList);
             this.eventListener.notifyTagFound(result.sessionToken,
                                               tagInfo,
                                               ndefInfo,
@@ -411,15 +411,13 @@ TagNDEFInfo.prototype = {
   isFormatable: false
 };
 
-function TagInfo(techList, tagId) {
+function TagInfo(techList) {
   this.techList = techList;
-  this.tagId = tagId;
 }
 TagInfo.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsITagInfo]),
 
   techList: null,
-  tagId: null,
 };
 
 if (NFC_ENABLED) {

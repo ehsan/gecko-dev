@@ -156,16 +156,6 @@ public class GeckoMenuInflater extends MenuInflater {
     }
 
     public void setValues(ParsedItem item, MenuItem menuItem) {
-        // We are blocking any presenter updates during inflation.
-        GeckoMenuItem geckoItem = null;
-        if (menuItem instanceof GeckoMenuItem) {
-            geckoItem = (GeckoMenuItem) menuItem;
-        }
-
-        if (geckoItem != null) {
-            geckoItem.stopDispatchingChanges();
-        }
-
         menuItem.setChecked(item.checked)
                 .setVisible(item.visible)
                 .setEnabled(item.enabled)
@@ -174,12 +164,6 @@ public class GeckoMenuInflater extends MenuInflater {
 
         if (Versions.feature11Plus) {
             menuItem.setShowAsAction(item.showAsAction);
-        }
-
-        if (geckoItem != null) {
-            // We don't need to allow presenter updates during inflation,
-            // so we use the weak form of re-enabling changes.
-            geckoItem.resumeDispatchingChanges();
         }
     }
 }

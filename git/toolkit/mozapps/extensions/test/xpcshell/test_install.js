@@ -564,21 +564,17 @@ function run_test_9() {
 function check_test_9(install) {
   prepare_test({}, [
     "onDownloadCancelled"
-  ], function() {
-    let file = install.file;
-
-    // Allow the file removal to complete
-    do_execute_soon(function() {
-      AddonManager.getAllInstalls(function(activeInstalls) {
-        do_check_eq(activeInstalls.length, 0);
-        do_check_false(file.exists());
-
-        run_test_10();
-      });
-    });
-  });
+  ]);
 
   install.cancel();
+
+  ensure_test_completed();
+
+  AddonManager.getAllInstalls(function(activeInstalls) {
+    do_check_eq(activeInstalls.length, 0);
+
+    run_test_10();
+  });
 }
 
 // Tests that after cancelling a pending install it is removed from the active
@@ -1017,31 +1013,28 @@ function run_test_14() {
 function check_test_14(install) {
   prepare_test({ }, [
     "onDownloadCancelled"
-  ], function() {
-    let file = install.file;
+  ]);
 
-    install.addListener({
-      onDownloadProgress: function() {
-        do_throw("Download should not have continued");
-      },
-      onDownloadEnded: function() {
-        do_throw("Download should not have continued");
-      }
-    });
+  install.cancel();
 
-    // Allow the listener to return to see if it continues downloading. The
-    // The listener only really tests if we give it time to see progress, the
-    // file check isn't ideal either
-    do_execute_soon(function() {
-      do_check_false(file.exists());
+  ensure_test_completed();
 
-      run_test_15();
-    });
+  install.addListener({
+    onDownloadProgress: function() {
+      do_throw("Download should not have continued");
+    },
+    onDownloadEnded: function() {
+      do_throw("Download should not have continued");
+    }
   });
 
-  // Wait for the channel to be ready to cancel
+  // Allow the listener to return to see if it continues downloading. The
+  // The listener only really tests if we give it time to see progress, the
+  // file check isn't ideal either
   do_execute_soon(function() {
-    install.cancel();
+    do_check_eq(install.file, null);
+
+    run_test_15();
   });
 }
 
@@ -1640,10 +1633,7 @@ function check_test_27(aInstall) {
     "onInstallEnded"
   ], finish_test_27);
 
-  let file = aInstall.file;
   aInstall.install();
-  do_check_neq(file.path, aInstall.file.path);
-  do_check_false(file.exists());
 }
 
 function finish_test_27(aInstall) {

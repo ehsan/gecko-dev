@@ -37,7 +37,6 @@ dictionary NfcEventOptions
 
   boolean isP2P;
   sequence<NFCTechType> techList;
-  Uint8Array tagId;
   sequence<MozNDEFRecordOptions> records;
 
   NFCTagType tagType;
