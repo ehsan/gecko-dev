@@ -228,7 +228,7 @@ nsBackgroundTextAttr::GetColor(nsIFrame *aFrame)
 
   nsIFrame *parentFrame = aFrame->GetParent();
   if (!parentFrame)
-    return aFrame->PresContext()->DefaultBackgroundColor();
+    return styleBackground->mBackgroundColor;
 
   // Each frame of parents chain for the initially passed 'aFrame' has
   // transparent background color. So background color isn't changed from

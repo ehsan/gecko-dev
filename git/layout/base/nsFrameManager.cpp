@@ -1635,7 +1635,7 @@ nsFrameManager::RestoreFrameStateFor(nsIFrame* aFrame,
     return;
   }
 
-  // Only restore state for stateful frames
+  // Only capture state for stateful frames
   nsIStatefulFrame* statefulFrame;
   CallQueryInterface(aFrame, &statefulFrame);
   if (!statefulFrame) {

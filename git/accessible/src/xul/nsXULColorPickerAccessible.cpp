@@ -91,6 +91,12 @@ nsXULColorPickerTileAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
+nsresult
+nsXULColorPickerTileAccessible::GetNameInternal(nsAString& aName)
+{
+  return GetXULName(aName);
+}
+
 NS_IMETHODIMP nsXULColorPickerTileAccessible::GetValue(nsAString& _retval)
 {
   if (!mDOMNode)

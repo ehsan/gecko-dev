@@ -3240,7 +3240,8 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   }
 
   // global object will be null for documents that don't have windows.
-  nsPIDOMWindow* window = doc->GetInnerWindow();
+  nsCOMPtr<nsPIDOMWindow> window;
+  window = do_QueryInterface(doc->GetScriptGlobalObject());
   // This relies on nsEventListenerManager::AddEventListener, which sets
   // all mutation bits when there is a listener for DOMSubtreeModified event.
   if (window && !window->HasMutationListeners(aType)) {

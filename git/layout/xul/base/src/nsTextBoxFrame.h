@@ -134,8 +134,7 @@ private:
   void PaintOneShadow(gfxContext *     aCtx,
                       const nsRect&    aTextRect,
                       nsCSSShadowItem* aShadowDetails,
-                      const nscolor&   aForegroundColor,
-                      const nsRect&    aDirtyRect);
+                      const nscolor&   aForegroundColor);
 
 
   CroppingStyle mCropType;

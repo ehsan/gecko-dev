@@ -345,7 +345,7 @@ public:
   // nsINode interface methods
   virtual PRUint32 GetChildCount() const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
@@ -771,8 +771,6 @@ protected:
    *                      needed if aFireMutation or aNotify is true.
    * @param aFireMutation should mutation-events be fired?
    * @param aNotify       should we notify document-observers?
-   * @param aValueForAfterSetAttr If not null, AfterSetAttr will be called
-   *                      with the value pointed by this parameter.
    */
   nsresult SetAttrAndNotify(PRInt32 aNamespaceID,
                             nsIAtom* aName,
@@ -781,8 +779,7 @@ protected:
                             nsAttrValue& aParsedValue,
                             PRBool aModification,
                             PRBool aFireMutation,
-                            PRBool aNotify,
-                            const nsAString* aValueForAfterSetAttr);
+                            PRBool aNotify);
 
   /**
    * Convert an attribute string value to attribute type based on the type of

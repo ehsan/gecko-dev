@@ -12067,15 +12067,14 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
 
   // Destroy the old text frame's continuations (the old text frame
   // will be destroyed when its letter frame is destroyed).
-  nsIFrame* nextTextFrame = textFrame->GetNextContinuation();
-  while (nextTextFrame) {
+  nsIFrame* nextTextFrame = textFrame->GetNextInFlow();
+  if (nextTextFrame) {
     nsIFrame* nextTextParent = nextTextFrame->GetParent();
     if (nextTextParent) {
-      nsSplittableFrame::RemoveFromFlow(nextTextFrame);
+      nsSplittableFrame::BreakFromPrevFlow(nextTextFrame);
       ::DeletingFrameSubtree(aFrameManager, nextTextFrame);
       aFrameManager->RemoveFrame(nextTextParent, nsnull, nextTextFrame);
     }
-    nextTextFrame = textFrame->GetNextContinuation();
   }
 
   // First find out where (in the content) the placeholder frames

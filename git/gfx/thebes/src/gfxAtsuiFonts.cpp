@@ -170,7 +170,7 @@ ATSUFontID gfxAtsuiFont::GetATSUFontID()
 }
 
 static void
-DisableUncommonLigaturesAndLineBoundarySwashes(ATSUStyle aStyle)
+DisableUncommonLigatures(ATSUStyle aStyle)
 {
     static const ATSUFontFeatureType types[] = {
         kLigaturesType,
@@ -178,9 +178,7 @@ DisableUncommonLigaturesAndLineBoundarySwashes(ATSUStyle aStyle)
         kLigaturesType,
         kLigaturesType,
         kLigaturesType,
-        kLigaturesType,
-        kSmartSwashType,
-        kSmartSwashType
+        kLigaturesType
     };
     static const ATSUFontFeatureType selectors[NS_ARRAY_LENGTH(types)] = {
         kRareLigaturesOffSelector,
@@ -188,9 +186,7 @@ DisableUncommonLigaturesAndLineBoundarySwashes(ATSUStyle aStyle)
         kRebusPicturesOffSelector,
         kDiphthongLigaturesOffSelector,
         kSquaredLigaturesOffSelector,
-        kAbbrevSquaredLigaturesOffSelector,
-        kLineInitialSwashesOffSelector,
-        kLineFinalSwashesOffSelector
+        kAbbrevSquaredLigaturesOffSelector
     };
     ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
 }
@@ -257,11 +253,7 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     // Disable uncommon ligatures, but *don't* enable common ones;
     // the font may have default settings that disable common ligatures
     // and we want to respect that.
-    // Also disable line boundary swashes because we can't handle them properly;
-    // we don't know where the line-breaks are at the time we're applying shaping,
-    // and it would be bad to put words with line-end swashes into the text-run
-    // cache until we have a way to distinguish them from mid-line occurrences.
-    DisableUncommonLigaturesAndLineBoundarySwashes(mATSUStyle);
+    DisableUncommonLigatures(mATSUStyle);
 
     /* Now pull out the metrics */
 

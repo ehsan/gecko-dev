@@ -819,11 +819,26 @@ nsTreeSelection::FireOnSelectHandler()
      return NS_ERROR_UNEXPECTED;
   nsCOMPtr<nsIDOMElement> elt;
   boxObject->GetElement(getter_AddRefs(elt));
-  NS_ENSURE_STATE(elt);
 
-  nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(elt, NS_LITERAL_STRING("select"));
-  event->RunDOMEventWhenSafe();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(elt));
+  nsCOMPtr<nsIDocument> document = content->GetDocument();
+  
+  // we might be firing on a delay, so it's possible in rare cases that
+  // the document may have been destroyed by the time it fires
+  if (!document)
+    return NS_OK;
+
+  nsIPresShell *shell = document->GetPrimaryShell();
+  if (shell) {
+    // Retrieve the context in which our DOM event will fire.
+    nsCOMPtr<nsPresContext> aPresContext = shell->GetPresContext();
+
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsEvent event(PR_TRUE, NS_FORM_SELECTED);
+
+    nsEventDispatcher::Dispatch(content, aPresContext, &event, nsnull, &status);
+  }
+
   return NS_OK;
 }
 

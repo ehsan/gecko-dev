@@ -2685,11 +2685,11 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
  * @param aPt a point in the same coordinate system as the rectangle
  */
 static gfxPoint
-MapToFloatImagePixels(const gfxSize& aSize,
-                      const gfxRect& aDest, const gfxPoint& aPt)
+MapToFloatImagePixels(const nsIntSize& aSize,
+                      const nsRect& aDest, const nsPoint& aPt)
 {
-  return gfxPoint(((aPt.x - aDest.pos.x)*aSize.width)/aDest.size.width,
-                  ((aPt.y - aDest.pos.y)*aSize.height)/aDest.size.height);
+  return gfxPoint((gfxFloat(aPt.x - aDest.x)*aSize.width)/aDest.width,
+                  (gfxFloat(aPt.y - aDest.y)*aSize.height)/aDest.height);
 }
 
 /**
@@ -2701,7 +2701,7 @@ MapToFloatImagePixels(const gfxSize& aSize,
  * @param aPt a point in image space
  */
 static gfxPoint
-MapToFloatUserPixels(const gfxSize& aSize,
+MapToFloatUserPixels(const nsIntSize& aSize,
                      const gfxRect& aDest, const gfxPoint& aPt)
 {
   return gfxPoint(aPt.x*aDest.size.width/aSize.width + aDest.pos.x,
@@ -2723,11 +2723,6 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
   aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
   gfxFloat appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
   gfxContext *ctx = aRenderingContext->ThebesContext();
-
-  gfxRect devPixelDest(aDest.x/appUnitsPerDevPixel,
-                       aDest.y/appUnitsPerDevPixel,
-                       aDest.width/appUnitsPerDevPixel,
-                       aDest.height/appUnitsPerDevPixel);
 
   // Compute the pixel-snapped area that should be drawn
   gfxRect devPixelFill(aFill.x/appUnitsPerDevPixel,
@@ -2754,18 +2749,17 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
   nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
   if (!img) return NS_ERROR_FAILURE;
 
-  nsIntSize intImageSize;
-  aImage->GetWidth(&intImageSize.width);
-  aImage->GetHeight(&intImageSize.height);
-  if (intImageSize.width == 0 || intImageSize.height == 0)
+  nsIntSize imageSize;
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
+  if (imageSize.width == 0 || imageSize.height == 0)
     return NS_OK;
-  gfxSize imageSize(intImageSize.width, intImageSize.height);
 
   // Compute the set of pixels that would be sampled by an ideal rendering
   gfxPoint subimageTopLeft =
-    MapToFloatImagePixels(imageSize, devPixelDest, devPixelFill.TopLeft());
+    MapToFloatImagePixels(imageSize, aDest, aFill.TopLeft());
   gfxPoint subimageBottomRight =
-    MapToFloatImagePixels(imageSize, devPixelDest, devPixelFill.BottomRight());
+    MapToFloatImagePixels(imageSize, aDest, aFill.BottomRight());
   nsIntRect intSubimage;
   intSubimage.MoveTo(NSToIntFloor(subimageTopLeft.x),
                      NSToIntFloor(subimageTopLeft.y));
@@ -2778,57 +2772,56 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
   gfxPoint anchorPoint(aAnchor.x/appUnitsPerDevPixel,
                        aAnchor.y/appUnitsPerDevPixel);
   gfxPoint imageSpaceAnchorPoint =
-    MapToFloatImagePixels(imageSize, devPixelDest, anchorPoint);
-  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
+    MapToFloatImagePixels(imageSize, aDest, aAnchor);
+  gfxMatrix currentMatrix = ctx->CurrentMatrix();
 
+  gfxRect finalFillRect = fill;
   if (didSnap) {
-    NS_ASSERTION(!saveMatrix.Matrix().HasNonAxisAlignedTransform(),
+    NS_ASSERTION(!currentMatrix.HasNonAxisAlignedTransform(),
                  "How did we snap, then?");
     imageSpaceAnchorPoint.Round();
     anchorPoint = imageSpaceAnchorPoint;
+    gfxRect devPixelDest(aDest.x/appUnitsPerDevPixel,
+                         aDest.y/appUnitsPerDevPixel,
+                         aDest.width/appUnitsPerDevPixel,
+                         aDest.height/appUnitsPerDevPixel);
     anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);
-    anchorPoint = saveMatrix.Matrix().Transform(anchorPoint);
+    anchorPoint = currentMatrix.Transform(anchorPoint);
     anchorPoint.Round();
 
     // This form of Transform is safe to call since non-axis-aligned
     // transforms wouldn't be snapped.
-    dirty = saveMatrix.Matrix().Transform(dirty);
+    dirty = currentMatrix.Transform(dirty);
+    dirty.RoundOut();
+    finalFillRect = fill.Intersect(dirty);
+    if (finalFillRect.IsEmpty())
+      return NS_OK;
 
     ctx->IdentityMatrix();
   }
+  // If we're not snapping, then we ignore the dirty rect. It's hard
+  // to correctly use it with arbitrary transforms --- it really *has*
+  // to be aligned perfectly with pixel boundaries or the choice of
+  // dirty rect will affect the values of rendered pixels.
 
   gfxFloat scaleX = imageSize.width*appUnitsPerDevPixel/aDest.width;
   gfxFloat scaleY = imageSize.height*appUnitsPerDevPixel/aDest.height;
   if (didSnap) {
     // ctx now has the identity matrix, so we need to adjust our
     // scales to match
-    scaleX /= saveMatrix.Matrix().xx;
-    scaleY /= saveMatrix.Matrix().yy;
+    scaleX /= currentMatrix.xx;
+    scaleY /= currentMatrix.yy;
   }
   gfxFloat translateX = imageSpaceAnchorPoint.x - anchorPoint.x*scaleX;
   gfxFloat translateY = imageSpaceAnchorPoint.y - anchorPoint.y*scaleY;
   gfxMatrix transform(scaleX, 0, 0, scaleY, translateX, translateY);
-
-  gfxRect finalFillRect = fill;
-  // If the user-space-to-image-space transform is not a straight
-  // translation by integers, then filtering will occur, and
-  // restricting the fill rect to the dirty rect would change the values
-  // computed for edge pixels, which we can't allow.
-  // Also, if didSnap is false then rounding out 'dirty' might not
-  // produce pixel-aligned coordinates, which would also break the values
-  // computed for edge pixels.
-  if (didSnap && !transform.HasNonIntegerTranslation()) {
-    dirty.RoundOut();
-    finalFillRect = fill.Intersect(dirty);
-  }
-  if (finalFillRect.IsEmpty())
-    return NS_OK;
 
   nsIntRect innerRect;
   imgFrame->GetRect(innerRect);
   nsIntMargin padding(innerRect.x, innerRect.y,
     imageSize.width - innerRect.XMost(), imageSize.height - innerRect.YMost());
   img->Draw(ctx, transform, finalFillRect, padding, intSubimage);
+  ctx->SetMatrix(currentMatrix);
   return NS_OK;
 }
 

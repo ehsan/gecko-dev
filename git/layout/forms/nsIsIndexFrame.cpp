@@ -76,7 +76,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "nsLayoutErrors.h"
 
 nsIFrame*
 NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -553,7 +552,6 @@ nsIsIndexFrame::RestoreState(nsPresState* aState)
   nsresult res = aState->GetStateProperty(NS_LITERAL_STRING("value"), stateString);
   NS_ENSURE_SUCCESS(res, res);
 
-  if (res == NS_STATE_PROPERTY_EXISTS)
-    SetInputValue(stateString);
+  SetInputValue(stateString);
   return NS_OK;
 }
