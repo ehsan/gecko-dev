@@ -508,6 +508,7 @@ protected:
   HIMC          mOldIMC;
   PRUint32      mIMEEnabled;
 
+  static HKL    gKeyboardLayout;
   static PRBool gSwitchKeyboardLayout;
 
   HKL           mLastKeyboardLayout;

@@ -751,6 +751,9 @@ nsWindow::nsWindow() : nsBaseWidget()
 #endif
 }
 
+#ifndef WINCE
+HKL nsWindow::gKeyboardLayout = 0;
+#endif
 //-------------------------------------------------------------------------
 //
 // nsWindow destructor
