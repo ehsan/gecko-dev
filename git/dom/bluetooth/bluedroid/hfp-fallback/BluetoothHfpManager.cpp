@@ -146,32 +146,6 @@ BluetoothHfpManager::Init()
   return true;
 }
 
-// static
-void
-BluetoothHfpManager::InitHfpInterface()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * TODO:
-   *   Implement InitHfpInterface() for applications that want to create SCO
-   *   link without a HFP connection (e.g., VoIP).
-   */
-}
-
-// static
-void
-BluetoothHfpManager::DeinitHfpInterface()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  /**
-   * TODO:
-   *   Implement DeinitHfpInterface() for applications that want to create SCO
-   *   link without a HFP connection (e.g., VoIP).
-   */
-}
-
 void
 BluetoothHfpManager::HandleShutdown()
 {

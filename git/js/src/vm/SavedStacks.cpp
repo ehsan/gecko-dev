@@ -12,7 +12,6 @@
 #include "jsfriendapi.h"
 #include "jsnum.h"
 
-#include "gc/Marking.h"
 #include "vm/GlobalObject.h"
 #include "vm/StringBuffer.h"
 
@@ -443,19 +442,6 @@ SavedStacks::sweep(JSRuntime *rt)
     }
 }
 
-void
-SavedStacks::trace(JSTracer *trc)
-{
-    if (!pcLocationMap.initialized())
-        return;
-
-    // Mark each of the source strings in our pc to location cache.
-    for (PCLocationMap::Enum e(pcLocationMap); !e.empty(); e.popFront()) {
-        LocationValue &loc = e.front().value();
-        MarkString(trc, &loc.source, "SavedStacks::PCLocationMap's memoized script source name");
-    }
-}
-
 uint32_t
 SavedStacks::count()
 {
@@ -500,14 +486,14 @@ SavedStacks::insertFrames(JSContext *cx, ScriptFrameIter &iter, MutableHandleSav
     if (!insertFrames(cx, ++iter, &parentFrame))
         return false;
 
-    AutoLocationValueRooter location(cx);
+    LocationValue location;
     if (!getLocation(cx, script, pc, &location))
         return false;
 
     SavedFrame::AutoLookupRooter lookup(cx,
-                                        location.get().source,
-                                        location.get().line,
-                                        location.get().column,
+                                        location.source,
+                                        location.line,
+                                        location.column,
                                         callee ? callee->displayAtom() : nullptr,
                                         parentFrame,
                                         compartment->principals);
@@ -603,7 +589,7 @@ SavedStacks::sweepPCLocationMap()
 
 bool
 SavedStacks::getLocation(JSContext *cx, JSScript *script, jsbytecode *pc,
-                         MutableHandleLocationValue locationp)
+                         LocationValue *locationp)
 {
     PCKey key(script, pc);
     PCLocationMap::AddPtr p = pcLocationMap.lookupForAdd(key);
@@ -622,7 +608,7 @@ SavedStacks::getLocation(JSContext *cx, JSScript *script, jsbytecode *pc,
             return false;
     }
 
-    locationp.set(p->value());
+    *locationp = p->value();
     return true;
 }
 

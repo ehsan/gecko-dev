@@ -24,5 +24,3 @@ LOCAL_INCLUDES += [
     '/content/base/src',
     '/editor/libeditor/base',
 ]
-
-FAIL_ON_WARNINGS = True

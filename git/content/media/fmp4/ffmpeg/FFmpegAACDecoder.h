@@ -13,17 +13,12 @@
 namespace mozilla
 {
 
-template <int V> class FFmpegAACDecoder
-{
-};
-
-template <>
-class FFmpegAACDecoder<LIBAV_VER> : public FFmpegDataDecoder<LIBAV_VER>
+class FFmpegAACDecoder : public FFmpegDataDecoder
 {
 public:
   FFmpegAACDecoder(MediaTaskQueue* aTaskQueue,
                    MediaDataDecoderCallback* aCallback,
-                   const mp4_demuxer::AudioDecoderConfig& aConfig);
+                   const mp4_demuxer::AudioDecoderConfig &aConfig);
   virtual ~FFmpegAACDecoder();
 
   virtual nsresult Init() MOZ_OVERRIDE;

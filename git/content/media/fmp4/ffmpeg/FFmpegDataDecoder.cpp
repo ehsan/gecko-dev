@@ -9,25 +9,23 @@
 
 #include "MediaTaskQueue.h"
 #include "mp4_demuxer/mp4_demuxer.h"
-#include "FFmpegLibs.h"
-#include "FFmpegLog.h"
+#include "FFmpegRuntimeLinker.h"
+
 #include "FFmpegDataDecoder.h"
-#include "prsystem.h"
 
 namespace mozilla
 {
 
-bool FFmpegDataDecoder<LIBAV_VER>::sFFmpegInitDone = false;
+bool FFmpegDataDecoder::sFFmpegInitDone = false;
 
-FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(MediaTaskQueue* aTaskQueue,
-                                                AVCodecID aCodecID)
+FFmpegDataDecoder::FFmpegDataDecoder(MediaTaskQueue* aTaskQueue,
+                                     AVCodecID aCodecID)
   : mTaskQueue(aTaskQueue), mCodecID(aCodecID)
 {
   MOZ_COUNT_CTOR(FFmpegDataDecoder);
 }
 
-FFmpegDataDecoder<LIBAV_VER>::~FFmpegDataDecoder()
-{
+FFmpegDataDecoder::~FFmpegDataDecoder() {
   MOZ_COUNT_DTOR(FFmpegDataDecoder);
 }
 
@@ -53,9 +51,14 @@ ChoosePixelFormat(AVCodecContext* aCodecContext, const PixelFormat* aFormats)
 }
 
 nsresult
-FFmpegDataDecoder<LIBAV_VER>::Init()
+FFmpegDataDecoder::Init()
 {
   FFMPEG_LOG("Initialising FFmpeg decoder.");
+
+  if (!FFmpegRuntimeLinker::Link()) {
+    NS_WARNING("Failed to link FFmpeg shared libraries.");
+    return NS_ERROR_FAILURE;
+  }
 
   if (!sFFmpegInitDone) {
     av_register_all();
@@ -84,10 +87,6 @@ FFmpegDataDecoder<LIBAV_VER>::Init()
   // FFmpeg will call back to this to negotiate a video pixel format.
   mCodecContext.get_format = ChoosePixelFormat;
 
-  mCodecContext.thread_count = PR_GetNumberOfProcessors();
-  mCodecContext.thread_type = FF_THREAD_FRAME;
-  mCodecContext.thread_safe_callbacks = false;
-
   mCodecContext.extradata = mExtraData.begin();
   mCodecContext.extradata_size = mExtraData.length();
 
@@ -109,7 +108,7 @@ FFmpegDataDecoder<LIBAV_VER>::Init()
 }
 
 nsresult
-FFmpegDataDecoder<LIBAV_VER>::Flush()
+FFmpegDataDecoder::Flush()
 {
   mTaskQueue->Flush();
   avcodec_flush_buffers(&mCodecContext);
@@ -117,7 +116,7 @@ FFmpegDataDecoder<LIBAV_VER>::Flush()
 }
 
 nsresult
-FFmpegDataDecoder<LIBAV_VER>::Shutdown()
+FFmpegDataDecoder::Shutdown()
 {
   if (sFFmpegInitDone) {
     avcodec_close(&mCodecContext);

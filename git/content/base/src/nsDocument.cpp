@@ -2826,8 +2826,9 @@ nsDocument::InitCSP(nsIChannel* aChannel)
 
     // PermitsAncestry sends violation reports when necessary
     rv = csp->PermitsAncestry(docShell, &safeAncestry);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    if (NS_FAILED(rv) || !safeAncestry) {
+    if (!safeAncestry) {
 #ifdef PR_LOGGING
       PR_LOG(gCspPRLog, PR_LOG_DEBUG,
               ("CSP doesn't like frame's ancestry, not loading."));

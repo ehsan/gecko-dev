@@ -26,7 +26,7 @@ class TextureHost;
 
 struct GrallocBufferRef {
   base::ProcessId mOwner;
-  int64_t mKey;
+  int mKey;
 
   GrallocBufferRef()
     : mOwner(0)
