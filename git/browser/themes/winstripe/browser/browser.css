@@ -1097,7 +1097,7 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   margin: 1px 3px;
   padding: 2px;
   background-clip: padding-box;
-  border: 1px solid ThreeDShadow;
+  border: 1px solid ThreeDDarkShadow;
   border-radius: 3.5px;
 }
 
@@ -1557,7 +1557,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 %ifndef WINSTRIPE_AERO
 @media all and (-moz-windows-default-theme) {
-  #main-window[sizemode=normal] #TabsToolbar {
+  #main-window[sizemode=normal] #TabsToolbar:not([inFullscreen]) {
     padding-left: 2px;
     padding-right: 2px;
   }

@@ -160,10 +160,6 @@
 #include "nsIWebBrowserChrome3.h"
 #include "nsITabChild.h"
 #include "nsIStrictTransportSecurityService.h"
-#include "nsStructuredCloneContainer.h"
-#include "nsIStructuredCloneContainer.h"
-#include "nsIFaviconService.h"
-#include "mozIAsyncFavicons.h"
 
 // Editor-related
 #include "nsIEditingSession.h"
@@ -588,6 +584,8 @@ SendPing(void *closure, nsIContent *content, nsIURI *uri, nsIIOService *ios)
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept"),
                              EmptyCString(), PR_FALSE);
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-language"),
+                             EmptyCString(), PR_FALSE);
+  httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-charset"),
                              EmptyCString(), PR_FALSE);
   httpChan->SetRequestHeader(NS_LITERAL_CSTRING("accept-encoding"),
                              EmptyCString(), PR_FALSE);
@@ -1389,11 +1387,6 @@ nsDocShell::LoadURI(nsIURI * aURI,
             // Set it back to false
             inheritOwner = PR_FALSE;
         }
-    }
-
-    if (aLoadFlags & LOAD_FLAGS_DISALLOW_INHERIT_OWNER) {
-        inheritOwner = PR_FALSE;
-        owner = do_CreateInstance("@mozilla.org/nullprincipal;1");
     }
 
     PRUint32 flags = 0;
@@ -6482,10 +6475,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
     // from inside this pagehide.
     mLoadingURI = nsnull;
     
-    // Stop any in-progress loading, so that we don't accidentally trigger any
-    // PageShow notifications from Embed() interrupting our loading below.
-    Stop();
-
     // Notify the current document that it is about to be unloaded!!
     //
     // It is important to fire the unload() notification *before* any state
@@ -7754,21 +7743,21 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 nsresult
 nsDocShell::SetDocCurrentStateObj(nsISHEntry *shEntry)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
     NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
-    nsCOMPtr<nsIStructuredCloneContainer> scContainer;
+    nsAutoString stateData;
     if (shEntry) {
-        nsresult rv = shEntry->GetStateData(getter_AddRefs(scContainer));
+        rv = shEntry->GetStateData(stateData);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        // If shEntry is null, just set the document's state object to null.
+        // if shEntry is null, we just set the pending state object to the
+        // empty string.
     }
 
-    // It's OK for scContainer too be null here; that just means there's no
-    // state data associated with this history entry.
-    document->SetStateObject(scContainer);
-
+    document->SetCurrentStateObject(stateData);
     return NS_OK;
 }
 
@@ -8022,19 +8011,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
             inherits) {
 
-            owner = GetInheritedPrincipal(PR_TRUE);
-        }
-    }
-
-    // Don't allow loads that would inherit our security context
-    // if this document came from an unsafe channel.
-    {
-        PRBool willInherit;
-        // This condition needs to match the one in DoChannelLoad.
-        // Except we reverse the rv check to be safe in case
-        // URIInheritsSecurityContext fails here and succeeds there.
-        rv = URIInheritsSecurityContext(aURI, &willInherit);
-        if (NS_FAILED(rv) || willInherit || IsAboutBlank(aURI)) {
+            // Don't allow loads that would inherit our security context
+            // if this document came from an unsafe channel.
             nsCOMPtr<nsIDocShellTreeItem> treeItem = this;
             do {
                 nsCOMPtr<nsIDocShell> itemDocShell =
@@ -8050,9 +8028,11 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 treeItem->GetSameTypeParent(getter_AddRefs(parent));
                 parent.swap(treeItem);
             } while (treeItem);
+
+            owner = GetInheritedPrincipal(PR_TRUE);
         }
     }
-    
+
     //
     // Resolve the window target before going any further...
     // If the load has been targeted to another DocShell, then transfer the
@@ -8861,8 +8841,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     PRBool inherit;
     // We expect URIInheritsSecurityContext to return success for an
     // about:blank URI, so don't call IsAboutBlank() if this call fails.
-    // This condition needs to match the one in InternalLoad where
-    // we're checking for things that will use the owner.
     rv = URIInheritsSecurityContext(aURI, &inherit);
     if (NS_SUCCEEDED(rv) && (inherit || IsAboutBlank(aURI))) {
         channel->SetOwner(aOwner);
@@ -9437,42 +9415,65 @@ nsDocShell::SetReferrerURI(nsIURI * aURI)
 // nsDocShell: Session History
 //*****************************************************************************
 
-namespace
+nsresult
+nsDocShell::StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
+                                  nsAString &aResult)
 {
-    // Callback used in nsDocShell::AddState.  When we change URIs with
-    // push/replaceState, we use this callback to ensure that Places associates
-    // a favicon with the new URI.
-    class nsAddStateFaviconCallback : public nsIFaviconDataCallback
-    {
-    public:
-        NS_DECL_ISUPPORTS
+    nsresult rv;
+    aResult.Truncate();
 
-        nsAddStateFaviconCallback(nsIURI *aNewURI)
-          : mNewURI(aNewURI)
-        {
+    // First, try to extract a jsval from the variant |aData|.  This works only
+    // if the variant implements GetAsJSVal.
+    jsval jsData;
+    rv = aData->GetAsJSVal(&jsData);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
+
+    nsCOMPtr<nsIJSContextStack> contextStack;
+    JSContext *cx = aCx;
+    if (!cx) {
+        // Now get the JSContext associated with the current document.
+        // First get the current document.
+        nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+        NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
+
+        // Get the JSContext from the document, like we do in
+        // nsContentUtils::GetContextFromDocument().
+        nsIScriptGlobalObject *sgo = document->GetScopeObject();
+        NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
+
+        nsIScriptContext *scx = sgo->GetContext();
+        NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
+
+        cx = (JSContext *)scx->GetNativeContext();
+
+        // If our json call triggers a JS-to-C++ call, we want that call to use
+        // aCx as the context.  So we push aCx onto the context stack.
+        contextStack =
+            do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        contextStack->Push(cx);
+    }
+
+    nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");
+    if(json) {
+        // Do the encoding
+        rv = json->EncodeFromJSVal(&jsData, cx, aResult);
+    }
+    else {
+        rv = NS_ERROR_FAILURE;
+    }
+
+    if (contextStack) {
+        if (NS_FAILED(rv)) {
+            JS_ClearPendingException(cx);
         }
 
-        NS_IMETHODIMP
-        OnFaviconDataAvailable(nsIURI *aFaviconURI, PRUint32 aDataLen,
-                               const PRUint8 *aData, const nsACString &aMimeType)
-        {
-            NS_ASSERTION(aDataLen == 0,
-                         "We weren't expecting the callback to deliver data.");
-            nsCOMPtr<mozIAsyncFavicons> favSvc =
-                do_GetService("@mozilla.org/browser/favicon-service;1");
-            NS_ENSURE_STATE(favSvc);
+        contextStack->Pop(&cx);
+    }
 
-            return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
-                                                     PR_FALSE, nsnull);
-        }
-
-    private:
-        nsCOMPtr<nsIURI> mNewURI;
-    };
-
-    NS_IMPL_ISUPPORTS1(nsAddStateFaviconCallback, nsIFaviconDataCallback)
-
-} // anonymous namespace
+    return rv;
+}
 
 NS_IMETHODIMP
 nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
@@ -9481,7 +9482,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     // Implements History.pushState and History.replaceState
 
     // Here's what we do, roughly in the order specified by HTML5:
-    // 1. Serialize aData using structured clone.
+    // 1. Serialize aData to JSON.
     // 2. If the third argument is present,
     //     a. Resolve the url, relative to the first script's base URL
     //     b. If (a) fails, raise a SECURITY_ERR
@@ -9515,16 +9516,13 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     nsresult rv;
 
-    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
-    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
-
-    // Step 1: Serialize aData using structured clone.
-    nsCOMPtr<nsIStructuredCloneContainer> scContainer;
-
-    // scContainer->Init might cause arbitrary JS to run, and this code might
-    // navigate the page we're on, potentially to a different origin! (bug
+    // Step 1: Clone aData by getting its JSON representation.
+    //
+    // StringifyJSValVariant might cause arbitrary JS to run, and this code
+    // might navigate the page we're on, potentially to a different origin! (bug
     // 634834)  To protect against this, we abort if our principal changes due
-    // to the InitFromVariant() call.
+    // to the stringify call.
+    nsString dataStr;
     {
         nsCOMPtr<nsIDocument> origDocument =
             do_GetInterface(GetAsSupports(this));
@@ -9532,18 +9530,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
             return NS_ERROR_DOM_SECURITY_ERR;
         nsCOMPtr<nsIPrincipal> origPrincipal = origDocument->NodePrincipal();
 
-        scContainer = new nsStructuredCloneContainer();
-        JSContext *cx = aCx;
-        if (!cx) {
-            cx = nsContentUtils::GetContextFromDocument(document);
-        }
-        rv = scContainer->InitFromVariant(aData, cx);
-
-        // If we're running in the document's context and the structured clone
-        // failed, clear the context's pending exception.  See bug 637116.
-        if (NS_FAILED(rv) && !aCx) {
-            JS_ClearPendingException(aCx);
-        }
+        rv = StringifyJSValVariant(aCx, aData, dataStr);
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIDocument> newDocument =
@@ -9558,7 +9545,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     }
 
     // Check that the state object isn't too long.
-    // Default max length: 640k bytes.
+    // Default max length: 640k chars.
     PRInt32 maxStateObjSize = 0xA0000;
     if (mPrefs) {
         mPrefs->GetIntPref("browser.history.maxStateObjectSize",
@@ -9567,13 +9554,11 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     if (maxStateObjSize < 0) {
         maxStateObjSize = 0;
     }
-
-    PRUint64 scSize;
-    rv = scContainer->GetSerializedNBytes(&scSize);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_ENSURE_TRUE(scSize <= (PRUint32)maxStateObjSize,
+    NS_ENSURE_TRUE(dataStr.Length() <= (PRUint32)maxStateObjSize,
                    NS_ERROR_ILLEGAL_VALUE);
+
+    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
     // Step 2: Resolve aURL
     PRBool equalURIs = PR_TRUE;
@@ -9699,11 +9684,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         NS_ENSURE_SUCCESS(newSHEntry->SetDocIdentifier(ourDocIdent),
                           NS_ERROR_FAILURE);
 
-        // Set the new SHEntry's title (bug 655273).
-        nsString title;
-        mOSHE->GetTitle(getter_Copies(title));
-        newSHEntry->SetTitle(title);
-
         // AddToSessionHistory may not modify mOSHE.  In case it doesn't,
         // we'll just set mOSHE here.
         mOSHE = newSHEntry;
@@ -9715,7 +9695,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     // Step 4: Modify new/original session history entry and clear its POST
     // data, if there is any.
-    newSHEntry->SetStateData(scContainer);
+    newSHEntry->SetStateData(dataStr);
     newSHEntry->SetPostData(nsnull);
 
     // Step 5: If aReplace is false, indicating that we're doing a pushState
@@ -9749,33 +9729,11 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         document->SetDocumentURI(newURI);
 
         AddURIVisit(newURI, oldURI, oldURI, 0);
-
-        // AddURIVisit doesn't set the title for the new URI in global history,
-        // so do that here.
-        if (mUseGlobalHistory) {
-            nsCOMPtr<IHistory> history = services::GetHistoryService();
-            if (history) {
-                history->SetURITitle(newURI, mTitle);
-            }
-            else if (mGlobalHistory) {
-                mGlobalHistory->SetPageTitle(newURI, mTitle);
-            }
-        }
-
-        // Inform the favicon service that our old favicon applies to this new
-        // URI.
-        nsCOMPtr<mozIAsyncFavicons> favSvc =
-            do_GetService("@mozilla.org/browser/favicon-service;1");
-        if (favSvc) {
-            nsCOMPtr<nsIFaviconDataCallback> callback =
-                new nsAddStateFaviconCallback(newURI);
-            favSvc->GetFaviconURLForPage(oldURI, callback);
-        }
     }
     else {
         FireDummyOnLocationChange();
     }
-    document->SetStateObject(scContainer);
+    document->SetCurrentStateObject(dataStr);
 
     return NS_OK;
 }

@@ -1068,8 +1068,7 @@ DOMCSSDeclarationImpl::GetParentRule(nsIDOMCSSRule **aParent)
     return NS_OK;
   }
 
-  NS_IF_ADDREF(*aParent = mRule->GetDOMRule());
-  return NS_OK;
+  return mRule->GetDOMRule(aParent);
 }
 
 nsresult
@@ -1170,7 +1169,9 @@ DOMCSSStyleRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
     *aSheet = nsnull;
     return NS_OK;
   }
-  return Rule()->GetParentStyleSheet(aSheet);
+  nsRefPtr<nsCSSStyleSheet> sheet = Rule()->GetParentStyleSheet();
+  sheet.forget(aSheet);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1180,7 +1181,12 @@ DOMCSSStyleRule::GetParentRule(nsIDOMCSSRule** aParentRule)
     *aParentRule = nsnull;
     return NS_OK;
   }
-  return Rule()->GetParentRule(aParentRule);
+  GroupRule* rule = Rule()->GetParentRule();
+  if (!rule) {
+    *aParentRule = nsnull;
+    return NS_OK;
+  }
+  return rule->GetDOMRule(aParentRule);
 }
 
 NS_IMETHODIMP
@@ -1300,8 +1306,9 @@ NS_INTERFACE_MAP_BEGIN(StyleRule)
     return NS_OK;
   }
   else
+  NS_INTERFACE_MAP_ENTRY(nsICSSRule)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSRule)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_INHERITED(StyleRule, Rule)
@@ -1329,19 +1336,20 @@ StyleRule::RuleMatched()
 /* virtual */ PRInt32
 StyleRule::GetType() const
 {
-  return Rule::STYLE_RULE;
+  return nsICSSRule::STYLE_RULE;
 }
 
-/* virtual */ already_AddRefed<Rule>
+/* virtual */ already_AddRefed<nsICSSRule>
 StyleRule::Clone() const
 {
-  nsRefPtr<Rule> clone = new StyleRule(*this);
+  nsCOMPtr<nsICSSRule> clone = new StyleRule(*this);
   return clone.forget();
 }
 
-/* virtual */ nsIDOMCSSRule*
-StyleRule::GetDOMRule()
+nsIDOMCSSRule*
+StyleRule::GetDOMRuleWeak(nsresult *aResult)
 {
+  *aResult = NS_OK;
   if (!mSheet) {
     // inline style rules aren't supposed to have a DOM rule object, only
     // a declaration.
@@ -1349,6 +1357,10 @@ StyleRule::GetDOMRule()
   }
   if (!mDOMRule) {
     mDOMRule = new DOMCSSStyleRule(this);
+    if (!mDOMRule) {
+      *aResult = NS_ERROR_OUT_OF_MEMORY;
+      return nsnull;
+    }
     NS_ADDREF(mDOMRule);
   }
   return mDOMRule;

@@ -80,7 +80,8 @@ nsStorageStream::nsStorageStream()
 
 nsStorageStream::~nsStorageStream()
 {
-    delete mSegmentedBuffer;
+    if (mSegmentedBuffer)
+        delete mSegmentedBuffer;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsStorageStream,

@@ -66,7 +66,6 @@ class ShadowCanvasLayer;
 class SurfaceDescriptor;
 class ThebesBuffer;
 class Transaction;
-class SharedImage;
 
 /**
  * We want to share layer trees across thread contexts and address
@@ -166,7 +165,7 @@ public:
    */
   void CreatedImageBuffer(ShadowableLayer* aImage,
                           nsIntSize aSize,
-                          const SharedImage& aInitialFrontImage);
+                          const SurfaceDescriptor& aInitialFrontSurface);
   void CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                            nsIntSize aSize,
                            const SurfaceDescriptor& aInitialFrontSurface);
@@ -226,7 +225,7 @@ public:
    * ImageLayers.  This is slow, and will be optimized.
    */
   void PaintedImage(ShadowableLayer* aImage,
-                    const SharedImage& aNewFrontImage);
+                    const SurfaceDescriptor& aNewFrontSurface);
   void PaintedCanvas(ShadowableLayer* aCanvas,
                      const SurfaceDescriptor& aNewFrontSurface);
 
@@ -620,13 +619,13 @@ public:
    * transaction to bring in real pixels.  Init() may only be called
    * once.
    */
-  virtual PRBool Init(const SharedImage& front, const nsIntSize& aSize) = 0;
+  virtual PRBool Init(const SurfaceDescriptor& front, const nsIntSize& aSize) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
    * @see ShadowCanvasLayer::Swap
    */
-  virtual void Swap(const SharedImage& aFront, SharedImage* aNewBack) = 0;
+  virtual void Swap(const SurfaceDescriptor& aFront, SurfaceDescriptor* aNewBack) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY

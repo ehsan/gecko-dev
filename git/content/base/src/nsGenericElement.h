@@ -350,6 +350,8 @@ public:
   }
   virtual nsresult SetTextContent(const nsAString& aTextContent)
   {
+    // Batch possible DOMSubtreeModified events.
+    mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
     return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
   }
 
@@ -766,11 +768,6 @@ public:
   virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
   {
   }
-
-  /**
-   * Fire a DOMNodeRemoved mutation event for all children of this node
-   */
-  void FireNodeRemovedForChildren();
 
 protected:
   /**

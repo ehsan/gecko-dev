@@ -49,9 +49,11 @@ nsTransactionItem::nsTransactionItem(nsITransaction *aTransaction)
 
 nsTransactionItem::~nsTransactionItem()
 {
-  delete mRedoStack;
+  if (mRedoStack)
+    delete mRedoStack;
 
-  delete mUndoStack;
+  if (mUndoStack)
+    delete mUndoStack;
 }
 
 nsrefcnt

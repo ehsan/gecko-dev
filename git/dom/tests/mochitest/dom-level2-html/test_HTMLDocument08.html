@@ -38,7 +38,7 @@ function setUpPage() {
       if (typeof(this.doc) != 'undefined') {
         docRef = this.doc;
       }
-      docsLoaded += preload(docRef, "doc", "document-with-applet");
+      docsLoaded += preload(docRef, "doc", "document");
         
        if (docsLoaded == 1) {
           setUpPage = 'complete';
@@ -91,7 +91,7 @@ function HTMLDocument08() {
       if (typeof(this.doc) != 'undefined') {
         docRef = this.doc;
       }
-      doc = load(docRef, "doc", "document-with-applet");
+      doc = load(docRef, "doc", "document");
       vapplets = doc.applets;
 
       vlength = vapplets.length;
@@ -129,7 +129,7 @@ function HTMLDocument08() {
 			</p>
 <p>See W3C License <a href="http://www.w3.org/Consortium/Legal/">http://www.w3.org/Consortium/Legal/</a> 
  for more details.</p>
-<iframe name="doc" src="files/document-with-applet.html"></iframe>
+<iframe name="doc" src="files/document.html"></iframe>
 <br>
 </body>
 </html>

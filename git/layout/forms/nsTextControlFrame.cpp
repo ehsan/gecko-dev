@@ -387,14 +387,11 @@ nsTextControlFrame::EnsureEditorInitialized()
   // editor.
   mUseEditor = PR_TRUE;
 
-  // Set the selection to the beginning of the text field.
-  SetSelectionEndPoints(0, 0);
-
   return NS_OK;
 }
 
 nsresult
-nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
+nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
   NS_ASSERTION(mContent, "We should have a content!");
 

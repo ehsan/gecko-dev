@@ -58,8 +58,6 @@ class ExecuteFrameGuard;
 class DummyFrameGuard;
 class GeneratorFrameGuard;
 
-class ArgumentsObject;
-
 namespace mjit { struct JITScript; }
 namespace detail { struct OOMCheck; }
 
@@ -261,8 +259,8 @@ class StackFrame
         JSFunction      *fun;           /*   function frame, pre GetScopeChain */
     } exec;
     union {                             /* describes the arguments of a function */
-        uintN           nactual;        /*   before js_GetArgsObject */
-        ArgumentsObject *obj;           /*   after js_GetArgsObject */
+        uintN           nactual;        /*   pre GetArgumentsObject */
+        JSObject        *obj;           /*   post GetArgumentsObject */
         JSScript        *script;        /* eval has no args, but needs a script */
     } args;
     mutable JSObject    *scopeChain_;   /* current scope chain */
@@ -308,8 +306,7 @@ class StackFrame
     /* Used for eval. */
     inline void initEvalFrame(JSContext *cx, JSScript *script, StackFrame *prev,
                               uint32 flags);
-    inline void initGlobalFrame(JSScript *script, JSObject &chain, StackFrame *prev,
-                                uint32 flags);
+    inline void initGlobalFrame(JSScript *script, JSObject &chain, uint32 flags);
 
     /* Used when activating generators. */
     inline void stealFrameAndSlots(js::Value *vp, StackFrame *otherfp,
@@ -549,17 +546,17 @@ class StackFrame
         return !!(flags_ & HAS_ARGS_OBJ);
     }
 
-    ArgumentsObject &argsObj() const {
+    JSObject &argsObj() const {
         JS_ASSERT(hasArgsObj());
         JS_ASSERT(!isEvalFrame());
         return *args.obj;
     }
 
-    ArgumentsObject *maybeArgsObj() const {
+    JSObject *maybeArgsObj() const {
         return hasArgsObj() ? &argsObj() : NULL;
     }
 
-    inline void setArgsObj(ArgumentsObject &obj);
+    inline void setArgsObj(JSObject &obj);
 
     /*
      * This value
@@ -853,8 +850,8 @@ class StackFrame
         return !!(flags_ & DEBUGGER);
     }
 
-    bool isDirectEvalOrDebuggerFrame() const {
-        return (flags_ & (EVAL | DEBUGGER)) && !(flags_ & GLOBAL);
+    bool isEvalOrDebuggerFrame() const {
+        return !!(flags_ & (EVAL | DEBUGGER));
     }
 
     bool hasOverriddenArgs() const {

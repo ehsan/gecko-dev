@@ -82,7 +82,6 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
-
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
@@ -106,15 +105,12 @@
 #include "jsvector.h"
 #include "jswrapper.h"
 
-#include "vm/ArgumentsObject.h"
-
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
 
-#include "vm/ArgumentsObject-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -221,12 +217,9 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp)
         return true;
     }
 
-    if (obj->isArguments()) {
-        ArgumentsObject *argsobj = obj->asArguments();
-        if (!argsobj->hasOverriddenLength()) {
-            *lengthp = argsobj->initialLength();
-            return true;
-        }
+    if (obj->isArguments() && !obj->isArgsLengthOverridden()) {
+        *lengthp = obj->getArgsInitialLength();
+        return true;
     }
 
     AutoValueRooter tvr(cx);
@@ -240,6 +233,21 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp)
 
     JS_STATIC_ASSERT(sizeof(jsuint) == sizeof(uint32_t));
     return ValueToECMAUint32(cx, tvr.value(), (uint32_t *)lengthp);
+}
+
+JSBool JS_FASTCALL
+js_IndexToId(JSContext *cx, jsuint index, jsid *idp)
+{
+    JSString *str;
+
+    if (index <= JSID_INT_MAX) {
+        *idp = INT_TO_JSID(index);
+        return JS_TRUE;
+    }
+    str = js_NumberToString(cx, index);
+    if (!str)
+        return JS_FALSE;
+    return js_ValueToStringId(cx, StringValue(str), idp);
 }
 
 static JSBool
@@ -270,7 +278,7 @@ BigIndexToId(JSContext *cx, JSObject *obj, jsuint index, JSBool createAtom,
      */
     if (!createAtom &&
         ((clasp = obj->getClass()) == &js_SlowArrayClass ||
-         obj->isArguments() ||
+         clasp == &js_ArgumentsClass ||
          clasp == &js_ObjectClass)) {
         atom = js_GetExistingStringAtom(cx, start, JS_ARRAY_END(buf) - start);
         if (!atom) {
@@ -356,17 +364,15 @@ GetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp
         *hole = JS_FALSE;
         return JS_TRUE;
     }
-    if (obj->isArguments()) {
-        ArgumentsObject *argsobj = obj->asArguments();
-        if (index < argsobj->initialLength() &&
-            !(*vp = argsobj->element(uint32(index))).isMagic(JS_ARGS_HOLE)) {
-            *hole = JS_FALSE;
-            StackFrame *fp = reinterpret_cast<StackFrame *>(argsobj->getPrivate());
-            if (fp != JS_ARGUMENTS_OBJECT_ON_TRACE) {
-                if (fp)
-                    *vp = fp->canonicalActualArg(index);
-                return JS_TRUE;
-            }
+    if (obj->isArguments() &&
+        index < obj->getArgsInitialLength() &&
+        !(*vp = obj->getArgsElement(uint32(index))).isMagic(JS_ARGS_HOLE)) {
+        *hole = JS_FALSE;
+        StackFrame *fp = (StackFrame *)obj->getPrivate();
+        if (fp != JS_ARGUMENTS_OBJECT_ON_TRACE) {
+            if (fp)
+                *vp = fp->canonicalActualArg(index);
+            return JS_TRUE;
         }
     }
 
@@ -399,27 +405,16 @@ namespace js {
 
 struct STATIC_SKIP_INFERENCE CopyNonHoleArgsTo
 {
-    CopyNonHoleArgsTo(ArgumentsObject *argsobj, Value *dst) : argsobj(argsobj), dst(dst) {}
-    ArgumentsObject *argsobj;
+    CopyNonHoleArgsTo(JSObject *aobj, Value *dst) : aobj(aobj), dst(dst) {}
+    JSObject *aobj;
     Value *dst;
     bool operator()(uintN argi, Value *src) {
-        if (argsobj->element(argi).isMagic(JS_ARGS_HOLE))
+        if (aobj->getArgsElement(argi).isMagic(JS_ARGS_HOLE))
             return false;
         *dst++ = *src;
         return true;
     }
 };
-
-static bool
-GetElementsSlow(JSContext *cx, JSObject *aobj, uint32 length, Value *vp)
-{
-    for (uint32 i = 0; i < length; i++) {
-        if (!aobj->getProperty(cx, INT_TO_JSID(jsint(i)), &vp[i]))
-            return false;
-    }
-
-    return true;
-}
 
 bool
 GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
@@ -431,38 +426,38 @@ GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
         Value *srcend = srcbeg + length;
         for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src)
             *dst = src->isMagic(JS_ARRAY_HOLE) ? UndefinedValue() : *src;
-        return true;
-    }
-
-    if (aobj->isArguments()) {
-        ArgumentsObject *argsobj = aobj->asArguments();
-        if (!argsobj->hasOverriddenLength() && !js_PrototypeHasIndexedProperties(cx, argsobj)) {
-            /*
-             * If the argsobj is for an active call, then the elements are the
-             * live args on the stack. Otherwise, the elements are the args that
-             * were copied into the argsobj by PutActivationObjects when the
-             * function returned. In both cases, it is necessary to fall off the
-             * fast path for deleted properties (MagicValue(JS_ARGS_HOLE) since
-             * this requires general-purpose property lookup.
-             */
-            if (StackFrame *fp = reinterpret_cast<StackFrame *>(argsobj->getPrivate())) {
-                JS_ASSERT(fp->numActualArgs() <= JS_ARGS_LENGTH_MAX);
-                if (fp->forEachCanonicalActualArg(CopyNonHoleArgsTo(argsobj, vp)))
-                    return true;
-            } else {
-                Value *srcbeg = argsobj->elements();
-                Value *srcend = srcbeg + length;
-                for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src) {
-                    if (src->isMagic(JS_ARGS_HOLE))
-                        return GetElementsSlow(cx, argsobj, length, vp);
-                    *dst = *src;
-                }
-                return true;
+    } else if (aobj->isArguments() && !aobj->isArgsLengthOverridden() &&
+               !js_PrototypeHasIndexedProperties(cx, aobj)) {
+        /*
+         * If the argsobj is for an active call, then the elements are the
+         * live args on the stack. Otherwise, the elements are the args that
+         * were copied into the argsobj by PutActivationObjects when the
+         * function returned. In both cases, it is necessary to fall off the
+         * fast path for deleted properties (MagicValue(JS_ARGS_HOLE) since
+         * this requires general-purpose property lookup.
+         */
+        if (StackFrame *fp = (StackFrame *) aobj->getPrivate()) {
+            JS_ASSERT(fp->numActualArgs() <= JS_ARGS_LENGTH_MAX);
+            if (!fp->forEachCanonicalActualArg(CopyNonHoleArgsTo(aobj, vp)))
+                goto found_deleted_prop;
+        } else {
+            Value *srcbeg = aobj->getArgsElements();
+            Value *srcend = srcbeg + length;
+            for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src) {
+                if (src->isMagic(JS_ARGS_HOLE))
+                    goto found_deleted_prop;
+                *dst = *src;
             }
+        }
+    } else {
+      found_deleted_prop:
+        for (uintN i = 0; i < length; i++) {
+            if (!aobj->getProperty(cx, INT_TO_JSID(jsint(i)), &vp[i]))
+                return JS_FALSE;
         }
     }
 
-    return GetElementsSlow(cx, aobj, length, vp);
+    return true;
 }
 
 }
@@ -800,7 +795,8 @@ array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Val
         }
 
         vp->setUndefined();
-        if (!LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags, &obj2, &prop))
+        if (js_LookupPropertyWithFlags(cx, proto, id, cx->resolveFlags,
+                                       &obj2, &prop) < 0)
             return JS_FALSE;
 
         if (prop && obj2->isNative()) {
@@ -892,9 +888,7 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
     return JS_FALSE;
 }
 
-namespace js {
-
-JSBool
+static JSBool
 array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
                      PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
@@ -929,8 +923,6 @@ array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
     return js_DefineProperty(cx, obj, id, value, getter, setter, attrs);
 }
 
-} // namespace js
-
 static JSBool
 array_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
@@ -947,9 +939,7 @@ array_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
     return JS_FALSE;
 }
 
-namespace js {
-
-JSBool
+static JSBool
 array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
     uint32 i;
@@ -971,8 +961,6 @@ array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool 
     rval->setBoolean(true);
     return JS_TRUE;
 }
-
-} // namespace js
 
 static void
 array_trace(JSTracer *trc, JSObject *obj)
@@ -2150,7 +2138,7 @@ ArrayCompPushImpl(JSContext *cx, JSObject *obj, const Value &v)
     if (obj->isSlowArray()) {
         /* This can happen in one evil case. See bug 630377. */
         jsid id;
-        return IndexToId(cx, length, &id) &&
+        return js_IndexToId(cx, length, &id) &&
                js_DefineProperty(cx, obj, id, &v, NULL, NULL, JSPROP_ENUMERATE);
     }
 

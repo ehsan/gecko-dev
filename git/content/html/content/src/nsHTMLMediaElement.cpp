@@ -1955,9 +1955,7 @@ void nsHTMLMediaElement::MetadataLoaded(PRUint32 aChannels, PRUint32 aRate)
 
 void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
 {
-  ChangeReadyState(aResourceFullyLoaded ?
-    nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA :
-    nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
   ChangeDelayLoadStatus(PR_FALSE);
 
   NS_ASSERTION(!mSuspendedAfterFirstFrame, "Should not have already suspended");
@@ -1976,9 +1974,7 @@ void nsHTMLMediaElement::ResourceLoaded()
   mBegun = PR_FALSE;
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
   AddRemoveSelfReference();
-  if (mReadyState >= nsIDOMHTMLMediaElement::HAVE_METADATA) {
-    ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  }
+  ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
   // Ensure a progress event is dispatched at the end of download.
   DispatchAsyncEvent(NS_LITERAL_STRING("progress"));
   // The download has stopped.
@@ -2234,9 +2230,6 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
     return nsnull;
 
   mImageContainer = manager->CreateImageContainer();
-  if (manager->IsCompositingCheap()) {
-    mImageContainer->SetDelayedConversion(PR_TRUE);
-  }
   return mImageContainer;
 }
 

@@ -110,7 +110,6 @@ members = [
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
     'nsIDOMDocument.defaultView',
-    'nsIDOMDocument.createNodeIterator',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -287,7 +286,6 @@ members = [
     'nsIDOMHTMLOptionElement.disabled',
     'nsIDOMHTMLOptionsCollection.item',
     'nsIDOMHTMLOptionsCollection.length',
-    'nsIDOMHTMLProgressElement.*',
     'nsIDOMHTMLSelectElement.name',
     'nsIDOMHTMLSelectElement.form',
     'nsIDOMHTMLSelectElement.add',
@@ -390,6 +388,7 @@ members = [
     # dom/interfaces/threads - None.
 
     # dom/interfaces/traversal
+    'nsIDOMDocumentTraversal.createNodeIterator',
     'nsIDOMNodeIterator.nextNode',
 
     # dom/interfaces/xbl - None.

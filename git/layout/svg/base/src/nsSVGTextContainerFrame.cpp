@@ -42,7 +42,7 @@
 #include "nsIDOMSVGAnimatedLengthList.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGNumberList.h"
-#include "nsSVGGlyphFrame.h"
+#include "nsISVGGlyphFragmentLeaf.h"
 #include "nsDOMError.h"
 #include "SVGLengthList.h"
 #include "nsSVGTextPositioningElement.h"
@@ -136,12 +136,12 @@ nsSVGTextContainerFrame::GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint
   }
 
   PRUint32 offset;
-  nsSVGGlyphFrame *frame = GetGlyphFrameAtCharNum(node, charnum, &offset);
-  if (!frame) {
+  nsISVGGlyphFragmentLeaf *fragment = GetGlyphFragmentAtCharNum(node, charnum, &offset);
+  if (!fragment) {
     return NS_ERROR_FAILURE;
   }
 
-  return frame->GetStartPositionOfChar(charnum - offset, _retval);
+  return fragment->GetStartPositionOfChar(charnum - offset, _retval);
 }
 
 NS_IMETHODIMP
@@ -159,12 +159,12 @@ nsSVGTextContainerFrame::GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint *
   }
 
   PRUint32 offset;
-  nsSVGGlyphFrame *frame = GetGlyphFrameAtCharNum(node, charnum, &offset);
-  if (!frame) {
+  nsISVGGlyphFragmentLeaf *fragment = GetGlyphFragmentAtCharNum(node, charnum, &offset);
+  if (!fragment) {
     return NS_ERROR_FAILURE;
   }
 
-  return frame->GetEndPositionOfChar(charnum - offset, _retval);
+  return fragment->GetEndPositionOfChar(charnum - offset, _retval);
 }
 
 NS_IMETHODIMP
@@ -182,12 +182,12 @@ nsSVGTextContainerFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retv
   }
 
   PRUint32 offset;
-  nsSVGGlyphFrame *frame = GetGlyphFrameAtCharNum(node, charnum, &offset);
-  if (!frame) {
+  nsISVGGlyphFragmentLeaf *fragment = GetGlyphFragmentAtCharNum(node, charnum, &offset);
+  if (!fragment) {
     return NS_ERROR_FAILURE;
   }
 
-  return frame->GetExtentOfChar(charnum - offset, _retval);
+  return fragment->GetExtentOfChar(charnum - offset, _retval);
 }
 
 NS_IMETHODIMP
@@ -205,12 +205,12 @@ nsSVGTextContainerFrame::GetRotationOfChar(PRUint32 charnum, float *_retval)
   }
 
   PRUint32 offset;
-  nsSVGGlyphFrame *frame = GetGlyphFrameAtCharNum(node, charnum, &offset);
-  if (!frame) {
+  nsISVGGlyphFragmentLeaf *fragment = GetGlyphFragmentAtCharNum(node, charnum, &offset);
+  if (!fragment) {
     return NS_ERROR_FAILURE;
   }
 
-  return frame->GetRotationOfChar(charnum - offset, _retval);
+  return fragment->GetRotationOfChar(charnum - offset, _retval);
 }
 
 PRUint32
@@ -323,21 +323,21 @@ nsSVGTextContainerFrame::GetNextGlyphFragmentChildNode(nsISVGGlyphFragmentNode *
 // Private functions
 // -------------------------------------------------------------------------
 
-nsSVGGlyphFrame *
-nsSVGTextContainerFrame::GetGlyphFrameAtCharNum(nsISVGGlyphFragmentNode* node,
-                                                PRUint32 charnum,
-                                                PRUint32 *offset)
+nsISVGGlyphFragmentLeaf *
+nsSVGTextContainerFrame::GetGlyphFragmentAtCharNum(nsISVGGlyphFragmentNode* node,
+                                                   PRUint32 charnum,
+                                                   PRUint32 *offset)
 {
-  nsSVGGlyphFrame *frame = node->GetFirstGlyphFrame();
+  nsISVGGlyphFragmentLeaf *fragment = node->GetFirstGlyphFragment();
   *offset = 0;
   
-  while (frame) {
-    PRUint32 count = frame->GetNumberOfChars();
+  while (fragment) {
+    PRUint32 count = fragment->GetNumberOfChars();
     if (count > charnum)
-      return frame;
+      return fragment;
     charnum -= count;
     *offset += count;
-    frame = frame->GetNextGlyphFrame();
+    fragment = fragment->GetNextGlyphFragment();
   }
 
   // not found
@@ -450,10 +450,10 @@ nsSVGTextContainerFrame::BuildPositionList(PRUint32 aOffset,
   nsIFrame* kid = mFrames.FirstChild();
   while (kid) {
     nsSVGTextContainerFrame *text = do_QueryFrame(kid);
+    nsISVGGlyphFragmentLeaf *leaf = do_QueryFrame(kid);
     if (text) {
       startIndex += text->BuildPositionList(startIndex, aDepth + 1);
-    } else if (kid->GetType() == nsGkAtoms::svgGlyphFrame) {
-      nsSVGGlyphFrame *leaf = static_cast<nsSVGGlyphFrame*>(kid);
+    } else if (leaf) {
       leaf->SetStartIndex(startIndex);
       startIndex += leaf->GetNumberOfChars();
     }

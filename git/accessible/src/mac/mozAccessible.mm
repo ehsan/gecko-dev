@@ -238,7 +238,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute])
     return NSAccessibilityRoleDescription([self role], nil);
 #endif
-  if ([attribute isEqualToString: (NSString*) kInstanceDescriptionAttribute])
+  if ([attribute isEqualToString:kInstanceDescriptionAttribute])
     return [self customDescription];
   if ([attribute isEqualToString:NSAccessibilityFocusedAttribute])
     return [NSNumber numberWithBool:[self isFocused]];
@@ -246,7 +246,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     return [self size];
   if ([attribute isEqualToString:NSAccessibilityWindowAttribute])
     return [self window];
-  if ([attribute isEqualToString: (NSString*) kTopLevelUIElementAttribute])
+  if ([attribute isEqualToString:kTopLevelUIElementAttribute])
     return [self window];
   if ([attribute isEqualToString:NSAccessibilityTitleAttribute] || 
       [attribute isEqualToString:NSAccessibilityTitleUIElementAttribute])
@@ -471,7 +471,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(mGeckoAccessible),
                "Does not support nsIAccessibleText when it should");
 #endif
-  return (NSString*) AXRoles[mRole];
+  return AXRoles[mRole];
 }
 
 - (NSString*)subrole

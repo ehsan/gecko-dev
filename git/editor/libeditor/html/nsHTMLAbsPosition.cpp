@@ -50,7 +50,7 @@
 #include "nsEditorUtils.h"
 #include "nsHTMLEditUtils.h"
 #include "nsTextEditRules.h"
-#include "nsHTMLEditRules.h"
+#include "nsIHTMLEditRules.h"
 
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
@@ -595,7 +595,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     res = HasStyleOrIdOrClass(aElement, &hasStyleOrIdOrClass);
     NS_ENSURE_SUCCESS(res, res);
     if (!hasStyleOrIdOrClass && nsHTMLEditUtils::IsDiv(aElement)) {
-      nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+      nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
       res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
       NS_ENSURE_SUCCESS(res, res);

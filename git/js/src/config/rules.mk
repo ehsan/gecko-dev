@@ -142,10 +142,9 @@ SOLO_FILE ?= $(error Specify a test filename in SOLO_FILE when using check-inter
 
 libs::
 	$(foreach dir,$(XPCSHELL_TESTS),$(_INSTALL_TESTS))
-	$(PYTHON) $(MOZILLA_DIR)/build/xpccheck.py \
-	  $(topsrcdir) \
-	  $(topsrcdir)/testing/xpcshell/xpcshell.ini \
-	  $(addprefix $(MOZILLA_DIR)/$(relativesrcdir)/,$(XPCSHELL_TESTS))
+	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
+	  $(testxpcobjdir)/all-test-dirs.list \
+	  $(addprefix $(relativesrcdir)/,$(XPCSHELL_TESTS))
 
 testxpcsrcdir = $(topsrcdir)/testing/xpcshell
 
@@ -157,7 +156,7 @@ xpcshell-tests:
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
 	  $(EXTRA_TEST_ARGS) \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE), but don't automatically
@@ -171,7 +170,7 @@ check-interactive:
 	  --test-path=$(SOLO_FILE) \
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --interactive \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE)
@@ -184,7 +183,7 @@ check-one:
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --verbose \
 	  $(EXTRA_TEST_ARGS) \
-	  $(LIBXUL_DIST)/bin/xpcshell \
+	  $(DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 endif # XPCSHELL_TESTS

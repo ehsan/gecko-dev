@@ -82,7 +82,15 @@
    Composite() calls should also be forwarded to the root view manager.
 */
 
-class nsInvalidateEvent;
+class nsViewManagerEvent : public nsRunnable {
+public:
+  nsViewManagerEvent(class nsViewManager *vm) : mViewManager(vm) {
+    NS_ASSERTION(mViewManager, "null parameter");
+  }
+  void Revoke() { mViewManager = nsnull; }
+protected:
+  class nsViewManager *mViewManager;
+};
 
 class nsViewManager : public nsIViewManager {
 public:
@@ -133,8 +141,8 @@ public:
 
   NS_IMETHOD  SetViewZIndex(nsIView *aView, PRBool aAuto, PRInt32 aZIndex, PRBool aTopMost=PR_FALSE);
 
-  virtual void SetViewObserver(nsIViewObserver *aObserver) { mObserver = aObserver; }
-  virtual nsIViewObserver* GetViewObserver() { return mObserver; }
+  NS_IMETHOD  SetViewObserver(nsIViewObserver *aObserver);
+  NS_IMETHOD  GetViewObserver(nsIViewObserver *&aObserver);
 
   NS_IMETHOD  GetDeviceContext(nsDeviceContext *&aContext);
 
@@ -148,6 +156,9 @@ public:
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime);
   void ProcessInvalidateEvent();
   static PRUint32 gLastUserEventTime;
+
+  NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll);
+  void ProcessSynthMouseMoveEvent(PRBool aFromScroll);
 
   /* Update the cached RootViewManager pointer on this view manager. */
   void InvalidateHierarchy();
@@ -252,6 +263,8 @@ public: // NOT in nsIViewManager, so private to the view module
 
   PRBool IsRefreshEnabled() { return RootViewManager()->mUpdateBatchCnt == 0; }
 
+  nsIViewObserver* GetViewObserver() { return mObserver; }
+
   // Call this when you need to let the viewmanager know that it now has
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
@@ -264,6 +277,8 @@ public: // NOT in nsIViewManager, so private to the view module
 private:
   nsRefPtr<nsDeviceContext> mContext;
   nsIViewObserver   *mObserver;
+  // relative to mRootView and set only on the root view manager
+  nsPoint           mMouseLocation;
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.
@@ -275,7 +290,8 @@ private:
   // never null (if we have no ancestors, it will be |this|).
   nsViewManager     *mRootViewManager;
 
-  nsRevocableEventPtr<nsInvalidateEvent> mInvalidateEvent;
+  nsRevocableEventPtr<nsViewManagerEvent> mSynthMouseMoveEvent;
+  nsRevocableEventPtr<nsViewManagerEvent> mInvalidateEvent;
 
   // The following members should not be accessed directly except by
   // the root view manager.  Some have accessor functions to enforce
@@ -303,21 +319,5 @@ private:
 
 //when the refresh happens, should it be double buffered?
 #define NS_VMREFRESH_DOUBLE_BUFFER      0x0001
-
-class nsInvalidateEvent : public nsRunnable {
-public:
-  nsInvalidateEvent(class nsViewManager *vm) : mViewManager(vm) {
-    NS_ASSERTION(mViewManager, "null parameter");
-  }
-  void Revoke() { mViewManager = nsnull; }
-
-  NS_IMETHOD Run() {
-    if (mViewManager)
-      mViewManager->ProcessInvalidateEvent();
-    return NS_OK;
-  }
-protected:
-  class nsViewManager *mViewManager;
-};
 
 #endif /* nsViewManager_h___ */

@@ -275,6 +275,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
 
   PRBool protectCurrentDirectory = PR_TRUE;
 
+#ifndef WINCE
   nsAutoString pluginFolderPath;
   plugin->GetPath(pluginFolderPath);
 
@@ -297,6 +298,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     restoreOrigDir = SetCurrentDirectoryW(pluginFolderPath.get());
     NS_ASSERTION(restoreOrigDir, "Error in Loading plugin");
   }
+#endif
 
   if (protectCurrentDirectory) {
     mozilla::NS_SetDllDirectory(NULL);
@@ -310,10 +312,12 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     mozilla::NS_SetDllDirectory(L"");
   }
 
+#ifndef WINCE    
   if (restoreOrigDir) {
     BOOL bCheck = SetCurrentDirectoryW(aOrigDir);
     NS_ASSERTION(bCheck, "Error in Loading plugin");
   }
+#endif
 
   return rv;
 }
@@ -343,7 +347,12 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   if (NS_FAILED(rv = mPlugin->GetLeafName(fileName)))
     return rv;
 
+#ifdef WINCE
+    // WinCe takes a non const file path string, while desktop take a const
+  LPWSTR lpFilepath = const_cast<LPWSTR>(fullPath.get());
+#else
   LPCWSTR lpFilepath = fullPath.get();
+#endif
 
   versionsize = ::GetFileVersionInfoSizeW(lpFilepath, &zerome);
 

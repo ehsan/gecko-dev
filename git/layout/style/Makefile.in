@@ -75,6 +75,7 @@ EXPORTS		= \
 		nsICSSDeclaration.h \
 		nsICSSLoaderObserver.h \
 		nsICSSPseudoComparator.h \
+		nsICSSRule.h \
 		nsICSSRuleList.h \
 		nsICSSStyleRuleDOMWrapper.h \
 		nsIStyleRule.h \
@@ -102,7 +103,6 @@ EXPORTS_mozilla/css = \
 		ImportRule.h \
 		Loader.h \
 		NameSpaceRule.h \
-		Rule.h \
 		StyleRule.h \
 		$(NULL)
 

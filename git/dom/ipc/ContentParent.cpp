@@ -100,7 +100,6 @@
 
 #ifdef ANDROID
 #include "gfxAndroidPlatform.h"
-#include "AndroidBridge.h"
 #endif
 
 #include "nsIClipboard.h"
@@ -533,22 +532,6 @@ ContentParent::RecvClipboardHasText(PRBool* hasText)
 
     clipboard->HasDataMatchingFlavors(sClipboardTextFlavors, 1, 
                                       nsIClipboard::kGlobalClipboard, hasText);
-    return true;
-}
-
-bool
-ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors)
-{
-#ifdef ANDROID
-    if (!AndroidBridge::Bridge())
-        return false;
-
-    colors->AppendElements(colorsCount);
-
-    // The array elements correspond to the members of AndroidSystemColors structure,
-    // so just pass the pointer to the elements buffer
-    AndroidBridge::Bridge()->GetSystemColors((AndroidSystemColors*)colors->Elements());
-#endif
     return true;
 }
 

@@ -38,7 +38,6 @@ function test() {
       if (!callback)
         callback = finish;
 
-      assertOneSingleGroupItem();
       callback();
     });
   }
@@ -112,7 +111,7 @@ function test() {
     // some callback waiting to be fired after gBrowser.loadOneTab(). After
     // that the browser is in a state where loadURI() will create a new entry
     // in the session history (that is vital for back/forward functionality).
-    afterAllTabsLoaded(function () executeSoon(continueTest));
+    afterAllTabsLoaded(function () SimpleTest.executeSoon(continueTest));
   }
 
   // ----------
@@ -191,7 +190,7 @@ function enterAndLeavePrivateBrowsing(callback) {
       pb.privateBrowsingEnabled = false;
     else {
       Services.obs.removeObserver(pbObserver, "private-browsing-transition-complete");
-      afterAllTabsLoaded(function () executeSoon(callback));
+      afterAllTabsLoaded(callback);
     }
   }
 

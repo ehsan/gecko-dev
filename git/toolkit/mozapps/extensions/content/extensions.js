@@ -699,13 +699,6 @@ var gViewController = {
       }
     },
 
-    cmd_pluginCheck: {
-      isEnabled: function() true,
-      doCommand: function() {
-        openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
-      }
-    },
-
     cmd_toggleAutoUpdateDefault: {
       isEnabled: function() true,
       doCommand: function() {
@@ -1296,7 +1289,7 @@ function sortElements(aElements, aSortBy, aAscending) {
     if (aObj.hasAttribute(aKey))
       return aObj.getAttribute(aKey);
 
-    var addon = aObj.mAddon || aObj.mInstall;
+    addon = aObj.mAddon || aObj.mInstall;
     if (!addon)
       return null;
 

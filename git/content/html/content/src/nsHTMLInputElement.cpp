@@ -1740,7 +1740,13 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
     }
   }
 
-  UpdateAllValidityStates(aNotify);
+  if (mType == NS_FORM_INPUT_CHECKBOX) {
+    UpdateAllValidityStates(aNotify);
+  }
+
+  if (mType == NS_FORM_INPUT_RADIO) {
+    UpdateValueMissingValidityState();
+  }
 }
 
 NS_IMETHODIMP

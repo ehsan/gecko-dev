@@ -76,9 +76,10 @@ nsPluginTag::nsPluginTag(nsPluginTag* aPluginTag)
 : mPluginHost(nsnull),
 mName(aPluginTag->mName),
 mDescription(aPluginTag->mDescription),
-mMimeTypes(aPluginTag->mMimeTypes),
-mMimeDescriptions(aPluginTag->mMimeDescriptions),
-mExtensions(aPluginTag->mExtensions),
+mVariants(aPluginTag->mVariants),
+mMimeTypeArray(nsnull),
+mMimeDescriptionArray(aPluginTag->mMimeDescriptionArray),
+mExtensionsArray(nsnull),
 mLibrary(nsnull),
 mCanUnloadLibrary(PR_TRUE),
 mIsJavaPlugin(aPluginTag->mIsJavaPlugin),
@@ -90,12 +91,26 @@ mVersion(aPluginTag->mVersion),
 mLastModifiedTime(0),
 mFlags(NS_PLUGIN_FLAG_ENABLED)
 {
+  if (aPluginTag->mMimeTypeArray != nsnull) {
+    mMimeTypeArray = new char*[mVariants];
+    for (int i = 0; i < mVariants; i++)
+      mMimeTypeArray[i] = new_str(aPluginTag->mMimeTypeArray[i]);
+  }
+  
+  if (aPluginTag->mExtensionsArray != nsnull) {
+    mExtensionsArray = new char*[mVariants];
+    for (int i = 0; i < mVariants; i++)
+      mExtensionsArray[i] = new_str(aPluginTag->mExtensionsArray[i]);
+  }
 }
 
 nsPluginTag::nsPluginTag(nsPluginInfo* aPluginInfo)
 : mPluginHost(nsnull),
 mName(aPluginInfo->fName),
 mDescription(aPluginInfo->fDescription),
+mVariants(aPluginInfo->fVariantCount),
+mMimeTypeArray(nsnull),
+mExtensionsArray(nsnull),
 mLibrary(nsnull),
 #ifdef XP_MACOSX
 mCanUnloadLibrary(PR_FALSE),
@@ -111,37 +126,39 @@ mVersion(aPluginInfo->fVersion),
 mLastModifiedTime(0),
 mFlags(NS_PLUGIN_FLAG_ENABLED)
 {
-  if (!aPluginInfo->fMimeTypeArray) {
-    return;
-  }
+  PRInt32 javaSentinelVariant = -1;
 
-  for (PRUint32 i = 0; i < aPluginInfo->fVariantCount; i++) {
-    // First fill in the MIME types.
-    char* currentMIMEType = aPluginInfo->fMimeTypeArray[i];
-    if (currentMIMEType) {
+  if (aPluginInfo->fMimeTypeArray) {
+    mMimeTypeArray = new char*[mVariants];
+    for (int i = 0; i < mVariants; i++) {
+      char* currentMIMEType = aPluginInfo->fMimeTypeArray[i];
+      if (!currentMIMEType) {
+        continue;
+      }
+
       if (mIsJavaPlugin) {
         if (strcmp(currentMIMEType, "application/x-java-vm-npruntime") == 0) {
           // This "magic MIME type" should not be exposed, but is just a signal
           // to the browser that this is new-style java.
-          // Don't add it or its associated information to our arrays.
+          // Remove it and its associated MIME description from our arrays.
           mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-          continue;
+          javaSentinelVariant = i;
         }
       }
-      mMimeTypes.AppendElement(nsCString(currentMIMEType));
-      if (nsPluginHost::IsJavaMIMEType(currentMIMEType)) {
+
+      mMimeTypeArray[i] = new_str(currentMIMEType);
+
+      if (nsPluginHost::IsJavaMIMEType(mMimeTypeArray[i])) {
         mIsJavaPlugin = PR_TRUE;
       }
       else if (strcmp(currentMIMEType, "application/x-shockwave-flash") == 0) {
         mIsFlashPlugin = PR_TRUE;
       }
-    } else {
-      continue;
     }
+  }
 
-    // Now fill in the MIME descriptions.
-    if (aPluginInfo->fMimeDescriptionArray &&
-        aPluginInfo->fMimeDescriptionArray[i]) {
+  if (aPluginInfo->fMimeDescriptionArray) {
+    for (int i = 0; i < mVariants; i++) {
       // we should cut off the list of suffixes which the mime
       // description string may have, see bug 53895
       // it is usually in form "some description (*.sf1, *.sf2)"
@@ -157,25 +174,27 @@ mFlags(NS_PLUGIN_FLAG_ENABLED)
           cur = *p;
           *p = '\0';
         }
+        
       }
-      mMimeDescriptions.AppendElement(nsCString(aPluginInfo->fMimeDescriptionArray[i]));
+      mMimeDescriptionArray.AppendElement(
+                                          aPluginInfo->fMimeDescriptionArray[i]);
       // restore the original string
       if (cur != '\0')
         *p = cur;
       if (pre != '\0')
-        *(p - 1) = pre;      
-    } else {
-      mMimeDescriptions.AppendElement(nsCString());
+        *(p - 1) = pre;
     }
-
-    // Now fill in the extensions.
-    if (aPluginInfo->fExtensionArray &&
-        aPluginInfo->fExtensionArray[i]) {
-      mExtensions.AppendElement(nsCString(aPluginInfo->fExtensionArray[i]));
-    } else {
-      mExtensions.AppendElement(nsCString());
-    }
+  } else {
+    mMimeDescriptionArray.SetLength(mVariants);
   }
+  
+  if (aPluginInfo->fExtensionArray != nsnull) {
+    mExtensionsArray = new char*[mVariants];
+    for (int i = 0; i < mVariants; i++)
+      mExtensionsArray[i] = new_str(aPluginInfo->fExtensionArray[i]);
+  }
+  
+  RemoveJavaSentinel(javaSentinelVariant);
 
   EnsureMembersAreUTF8();
 }
@@ -195,6 +214,9 @@ nsPluginTag::nsPluginTag(const char* aName,
 : mPluginHost(nsnull),
 mName(aName),
 mDescription(aDescription),
+mVariants(aVariants),
+mMimeTypeArray(nsnull),
+mExtensionsArray(nsnull),
 mLibrary(nsnull),
 mCanUnloadLibrary(aCanUnload),
 mIsJavaPlugin(PR_FALSE),
@@ -205,19 +227,28 @@ mVersion(aVersion),
 mLastModifiedTime(aLastModifiedTime),
 mFlags(0) // Caller will read in our flags from cache
 {
-  for (PRInt32 i = 0; i < aVariants; i++) {
-    if (mIsJavaPlugin && aMimeTypes[i] &&
-        strcmp(aMimeTypes[i], "application/x-java-vm-npruntime") == 0) {
-      mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-      continue;
-    }
-    mMimeTypes.AppendElement(nsCString(aMimeTypes[i]));
-    mMimeDescriptions.AppendElement(nsCString(aMimeDescriptions[i]));
-    mExtensions.AppendElement(nsCString(aExtensions[i]));
-    if (nsPluginHost::IsJavaMIMEType(mMimeTypes[i].get())) {
-      mIsJavaPlugin = PR_TRUE;
+  PRInt32 javaSentinelVariant = -1;
+
+  if (aVariants) {
+    mMimeTypeArray        = new char*[mVariants];
+    mExtensionsArray      = new char*[mVariants];
+    
+    for (PRInt32 i = 0; i < aVariants; ++i) {
+      if (mIsJavaPlugin && aMimeTypes[i] &&
+          strcmp(aMimeTypes[i], "application/x-java-vm-npruntime") == 0) {
+        mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
+        javaSentinelVariant = i;
+      }
+      
+      mMimeTypeArray[i]        = new_str(aMimeTypes[i]);
+      mMimeDescriptionArray.AppendElement(aMimeDescriptions[i]);
+      mExtensionsArray[i]      = new_str(aExtensions[i]);
+      if (nsPluginHost::IsJavaMIMEType(mMimeTypeArray[i]))
+        mIsJavaPlugin = PR_TRUE;
     }
   }
+
+  RemoveJavaSentinel(javaSentinelVariant);
 
   if (!aArgsAreUTF8)
     EnsureMembersAreUTF8();
@@ -226,6 +257,22 @@ mFlags(0) // Caller will read in our flags from cache
 nsPluginTag::~nsPluginTag()
 {
   NS_ASSERTION(!mNext, "Risk of exhausting the stack space, bug 486349");
+  
+  if (mMimeTypeArray) {
+    for (int i = 0; i < mVariants; i++)
+      delete[] mMimeTypeArray[i];
+    
+    delete[] (mMimeTypeArray);
+    mMimeTypeArray = nsnull;
+  }
+  
+  if (mExtensionsArray) {
+    for (int i = 0; i < mVariants; i++)
+      delete[] mExtensionsArray[i];
+    
+    delete[] (mExtensionsArray);
+    mExtensionsArray = nsnull;
+  }
 }
 
 NS_IMPL_ISUPPORTS1(nsPluginTag, nsIPluginTag)
@@ -287,8 +334,8 @@ nsresult nsPluginTag::EnsureMembersAreUTF8()
     
     ConvertToUTF8(decoder, mName);
     ConvertToUTF8(decoder, mDescription);
-    for (PRUint32 i = 0; i < mMimeDescriptions.Length(); ++i) {
-      ConvertToUTF8(decoder, mMimeDescriptions[i]);
+    for (PRUint32 i = 0; i < mMimeDescriptionArray.Length(); ++i) {
+      ConvertToUTF8(decoder, mMimeDescriptionArray[i]);
     }
   }
   return NS_OK;
@@ -383,6 +430,9 @@ void
 nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
                                          nsPluginTag::nsRegisterType aType)
 {
+  if (!mMimeTypeArray)
+    return;
+  
   PLUGIN_LOG(PLUGIN_LOG_NORMAL,
              ("nsPluginTag::RegisterWithCategoryManager plugin=%s, removing = %s\n",
               mFileName.get(), aType == ePluginUnregister ? "yes" : "no"));
@@ -414,16 +464,16 @@ nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
   }
   
   nsACString::const_iterator start, end;
-  for (PRUint32 i = 0; i < mMimeTypes.Length(); i++) {
+  for (int i = 0; i < mVariants; i++) {
     if (aType == ePluginUnregister) {
       nsXPIDLCString value;
       if (NS_SUCCEEDED(catMan->GetCategoryEntry("Gecko-Content-Viewers",
-                                                mMimeTypes[i].get(),
+                                                mMimeTypeArray[i],
                                                 getter_Copies(value)))) {
         // Only delete the entry if a plugin registered for it
         if (strcmp(value, contractId) == 0) {
           catMan->DeleteCategoryEntry("Gecko-Content-Viewers",
-                                      mMimeTypes[i].get(),
+                                      mMimeTypeArray[i],
                                       PR_TRUE);
         }
       }
@@ -431,13 +481,14 @@ nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
       overrideTypesFormatted.BeginReading(start);
       overrideTypesFormatted.EndReading(end);
       
+      nsDependentCString mimeType(mMimeTypeArray[i]);
       nsCAutoString commaSeparated; 
       commaSeparated.Assign(',');
-      commaSeparated += mMimeTypes[i];
+      commaSeparated += mimeType;
       commaSeparated.Append(',');
       if (!FindInReadable(commaSeparated, start, end)) {
         catMan->AddCategoryEntry("Gecko-Content-Viewers",
-                                 mMimeTypes[i].get(),
+                                 mMimeTypeArray[i],
                                  contractId,
                                  PR_FALSE, /* persist: broken by bug 193031 */
                                  aOverrideInternalTypes, /* replace if we're told to */
@@ -447,7 +498,7 @@ nsPluginTag::RegisterWithCategoryManager(PRBool aOverrideInternalTypes,
     
     PLUGIN_LOG(PLUGIN_LOG_NOISY,
                ("nsPluginTag::RegisterWithCategoryManager mime=%s, plugin=%s\n",
-                mMimeTypes[i].get(), mFileName.get()));
+                mMimeTypeArray[i], mFileName.get()));
   }
 }
 
@@ -498,16 +549,15 @@ PRBool nsPluginTag::Equals(nsPluginTag *aPluginTag)
   
   if ((!mName.Equals(aPluginTag->mName)) ||
       (!mDescription.Equals(aPluginTag->mDescription)) ||
-      (mMimeTypes.Length() != aPluginTag->mMimeTypes.Length())) {
+      (mVariants != aPluginTag->mVariants))
     return PR_FALSE;
-  }
-
-  for (PRUint32 i = 0; i < mMimeTypes.Length(); i++) {
-    if (!mMimeTypes[i].Equals(aPluginTag->mMimeTypes[i])) {
-      return PR_FALSE;
+  
+  if (mVariants && mMimeTypeArray && aPluginTag->mMimeTypeArray) {
+    for (PRInt32 i = 0; i < mVariants; i++) {
+      if (PL_strcmp(mMimeTypeArray[i], aPluginTag->mMimeTypeArray[i]) != 0)
+        return PR_FALSE;
     }
   }
-
   return PR_TRUE;
 }
 
@@ -535,4 +585,34 @@ void nsPluginTag::TryUnloadPlugin()
   if (mPluginHost) {
     RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
   }
+}
+
+void
+nsPluginTag::RemoveJavaSentinel(PRInt32 sentinelIndex)
+{
+  if (sentinelIndex == -1)
+    return;
+
+  delete[] mMimeTypeArray[sentinelIndex];
+  mMimeDescriptionArray.RemoveElementAt(sentinelIndex);
+  if (mExtensionsArray)
+    delete[] mExtensionsArray[sentinelIndex];
+
+  // Move the subsequent entries in the arrays.
+  if (mVariants > sentinelIndex + 1) {
+    memmove(mMimeTypeArray + sentinelIndex,
+            mMimeTypeArray + sentinelIndex + 1,
+            (mVariants - sentinelIndex - 1) * sizeof(mMimeTypeArray[0]));
+
+    if (mExtensionsArray) {
+      memmove(mExtensionsArray + sentinelIndex,
+              mExtensionsArray + sentinelIndex + 1,
+              (mVariants - sentinelIndex - 1) * sizeof(mExtensionsArray[0]));
+    }
+  }
+  --mVariants;
+
+  mMimeTypeArray[mVariants] = NULL;
+  if (mExtensionsArray)
+    mExtensionsArray[mVariants] = NULL;
 }

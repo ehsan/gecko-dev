@@ -25,12 +25,6 @@ function test() {
 
   Services.prefs.setBoolPref(prefname, true);
 
-  gURLBar.focus();
-
-  testVal("http://mozilla.org/");
-
-  gBrowser.selectedBrowser.focus();
-
   testVal("<http://>mozilla.org");
   testVal("<http://>mozilla.org</>");
   testVal("<http://>mözilla.org</>");

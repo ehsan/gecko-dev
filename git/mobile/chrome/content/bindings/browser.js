@@ -5,6 +5,8 @@ let Ci = Components.interfaces;
 dump("!! remote browser loaded\n");
 
 let WebProgressListener = {
+  _lastLocation: null,
+
   init: function() {
     let flags = Ci.nsIWebProgress.NOTIFY_LOCATION |
                 Ci.nsIWebProgress.NOTIFY_SECURITY |
@@ -49,6 +51,10 @@ let WebProgressListener = {
     };
 
     sendAsyncMessage("Content:LocationChange", json);
+
+    // Keep track of hash changes
+    this.hashChanged = (location == this._lastLocation);
+    this._lastLocation = location;
 
     // When a new page is loaded fire a message for the first paint
     addEventListener("MozAfterPaint", function(aEvent) {
@@ -211,6 +217,15 @@ let DOMEvents =  {
           persisted: aEvent.persisted
         };
 
+        // Clear onload focus to prevent the VKB to be shown unexpectingly
+        // but only if the location has really changed and not only the
+        // fragment identifier
+        let contentWindowID = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+        if (!WebProgressListener.hashChanged && contentWindowID == util.currentInnerWindowID) {
+          let focusManager = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+          focusManager.clearFocus(content);
+        }
+
         sendAsyncMessage(aEvent.type, json);
         break;
       }
@@ -322,10 +337,6 @@ let ContentScroll =  {
         if (!element)
           break;
 
-        let binding = element.ownerDocument.getBindingParent(element);
-        if (binding instanceof Ci.nsIDOMHTMLInputElement && binding.mozIsTextField(false))
-          break;
-
         // Set the scroll offset for this element if specified
         if (json.scrollX >= 0 && json.scrollY >= 0) {
           this.setScrollOffsetForElement(element, json.scrollX, json.scrollY)
@@ -388,10 +399,18 @@ let ContentScroll =  {
         if (content != doc.defaultView) // We are only interested in root scroll pane changes
           return;
 
+        // Adjust width and height from the incoming event properties so that we
+        // ignore changes to width and height contributed by growth in page
+        // quadrants other than x > 0 && y > 0.
+        let scrollOffset = this.getScrollOffset(content);
+        let x = aEvent.x + scrollOffset.x;
+        let y = aEvent.y + scrollOffset.y;
+        let width = aEvent.width + (x < 0 ? x : 0);
+        let height = aEvent.height + (y < 0 ? y : 0);
+
         sendAsyncMessage("MozScrolledAreaChanged", {
-          width: aEvent.width,
-          height: aEvent.height,
-          left: aEvent.x
+          width: width,
+          height: height
         });
 
         break;

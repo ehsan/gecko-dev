@@ -125,7 +125,7 @@ public:
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  NS_METHOD GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance);
+  NS_IMETHOD GetPluginInstance(nsIPluginInstance*& aPluginInstance);
   virtual nsresult Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamListener);
   virtual nsresult Instantiate(const char* aMimeType, nsIURI* aURI);
   virtual void TryNotifyContentObjectWrapper();
@@ -339,7 +339,8 @@ public:
                      nsRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion);
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG);
 
   NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 

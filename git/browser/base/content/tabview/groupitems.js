@@ -739,6 +739,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.droppable(true);
     this.setTrenches(this.bounds);
 
+    UI.setActive(this);
+
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
       "opacity": 1
@@ -748,13 +750,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         self._children.forEach(function(child) {
           iQ(child.container).show();
         });
-
-        UI.setActive(self);
-        self._sendToSubscribers("groupShown", { groupItemId: self.id });
       }
     });
 
     GroupItems.updateGroupCloseButtons();
+    self._sendToSubscribers("groupShown", { groupItemId: self.id });
   },
 
   // ----------
@@ -1913,7 +1913,7 @@ let GroupItems = {
 
   // ----------
   // Function: uninit
-  uninit: function GroupItems_uninit() {
+  uninit : function GroupItems_uninit () {
     // call our cleanup functions
     this._cleanupFunctions.forEach(function(func) {
       func();
@@ -1928,7 +1928,7 @@ let GroupItems = {
   // ----------
   // Function: newGroup
   // Creates a new empty group.
-  newGroup: function GroupItems_newGroup() {
+  newGroup: function () {
     let bounds = new Rect(20, 20, 250, 200);
     return new GroupItem([], {bounds: bounds, immediately: true});
   },
@@ -2163,16 +2163,7 @@ let GroupItems = {
         }
 
         toClose.forEach(function(groupItem) {
-          // All remaining children in to-be-closed groups are re-used by
-          // session restore. Reconnect them so that they're put into their
-          // right groups.
-          groupItem.getChildren().forEach(function (tabItem) {
-            if (tabItem.parent && tabItem.parent.hidden)
-              iQ(tabItem.container).show();
-            tabItem._reconnected = false;
-            tabItem._reconnect();
-          });
-          groupItem.close({immediately: true});
+          groupItem.destroy({immediately: true});
         });
       }
 

@@ -83,17 +83,6 @@ union SurfaceDescriptor {
   SurfaceDescriptorX11;
 };
 
-struct YUVImage {
-  Shmem Ydata;
-  Shmem Udata;
-  Shmem Vdata;
-};
-
-union SharedImage {
-  SurfaceDescriptor;
-  YUVImage;
-};
-
 struct ThebesBuffer {
   SurfaceDescriptor buffer;
   nsIntRect rect;
@@ -120,7 +109,7 @@ struct OpDestroyCanvasFrontBuffer { PLayer layer; };
 struct OpCreateImageBuffer {
   PLayer layer;
   nsIntSize size;
-  SharedImage initialFront;
+  SurfaceDescriptor initialFront;
 };
 struct OpDestroyImageFrontBuffer { PLayer layer; };
 
@@ -189,7 +178,7 @@ struct OpPaintCanvas  {
 
 struct OpPaintImage  {
   PLayer layer;
-  SharedImage newFrontBuffer;
+  SurfaceDescriptor newFrontBuffer;
 };
 
 
@@ -223,8 +212,6 @@ union Edit {
 // Replies to operations
 struct OpBufferSwap   { PLayer layer; SurfaceDescriptor newBackBuffer; };
 
-struct OpImageSwap { PLayer layer; SharedImage newBackImage; };
-
 struct OpThebesBufferSwap {
   PLayer layer;
   ThebesBuffer newBackBuffer;
@@ -246,7 +233,6 @@ struct OpThebesBufferSwap {
 union EditReply {
   OpBufferSwap;
   OpThebesBufferSwap;
-  OpImageSwap;
 };
 
 

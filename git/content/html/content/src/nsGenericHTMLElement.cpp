@@ -315,8 +315,8 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
       // to reparse the string into style data until the node is
-      // inserted into the document.  Clone the Rule instead.
-      nsRefPtr<mozilla::css::Rule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
+      // inserted into the document.  Clone the nsICSSRule instead.
+      nsCOMPtr<nsICSSRule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
       nsRefPtr<mozilla::css::StyleRule> styleRule = do_QueryObject(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 
@@ -702,20 +702,15 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 
   nsresult rv = NS_OK;
 
-  // Batch possible DOMSubtreeModified events.
-  mozAutoSubtreeModified subtree(doc, nsnull);
-
-  FireNodeRemovedForChildren();
-
   // This BeginUpdate/EndUpdate pair is important to make us reenable the
   // scriptloader before the last EndUpdate call.
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, PR_TRUE);
 
-  // Remove childnodes.
-  // i is unsigned, so i >= is always true
-  for (PRUint32 i = GetChildCount(); i-- != 0; ) {
-    RemoveChildAt(i, PR_TRUE);
-  }
+  // Batch possible DOMSubtreeModified events.
+  mozAutoSubtreeModified subtree(doc, nsnull);
+
+  // Remove childnodes
+  nsContentUtils::SetNodeTextContent(this, EmptyString(), PR_FALSE);
 
   nsCOMPtr<nsIDOMDocumentFragment> df;
 
@@ -747,9 +742,12 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 
     // HTML5 parser has notified, but not fired mutation events.
     // Fire mutation events. Optimize for the case when there are no listeners
+    nsPIDOMWindow* window = nsnull;
     PRInt32 newChildCount = GetChildCount();
-    if (newChildCount && nsContentUtils::
-          HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEINSERTED)) {
+    if (newChildCount &&
+        (((window = doc->GetInnerWindow()) &&
+          window->HasMutationListeners(NS_EVENT_BITS_MUTATION_NODEINSERTED)) ||
+         !window)) {
       nsCOMArray<nsIContent> childNodes;
       NS_ASSERTION(newChildCount - oldChildCount >= 0,
                    "What, some unexpected dom mutation has happened?");
@@ -1090,9 +1088,15 @@ nsGenericHTMLElement::GetHrefURIForAnchors() const
 
   // We use the nsAttrValue's copy of the URI string to avoid copying.
   nsCOMPtr<nsIURI> uri;
-  GetURIAttr(nsGkAtoms::href, nsnull, getter_AddRefs(uri));
+  GetURIAttr(nsGkAtoms::href, nsnull, PR_FALSE, getter_AddRefs(uri));
 
   return uri.forget();
+}
+
+void
+nsGenericHTMLElement::GetHrefURIToMutate(nsIURI** aURI)
+{
+  GetURIAttr(nsGkAtoms::href, nsnull, PR_TRUE, aURI);
 }
 
 nsresult
@@ -2187,7 +2191,7 @@ nsresult
 nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult)
 {
   nsCOMPtr<nsIURI> uri;
-  PRBool hadAttr = GetURIAttr(aAttr, aBaseAttr, getter_AddRefs(uri));
+  PRBool hadAttr = GetURIAttr(aAttr, aBaseAttr, PR_FALSE, getter_AddRefs(uri));
   if (!hadAttr) {
     aResult.Truncate();
     return NS_OK;
@@ -2206,7 +2210,8 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& 
 }
 
 PRBool
-nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const
+nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
+                                 PRBool aCloneIfCached, nsIURI** aURI) const
 {
   *aURI = nsnull;
 
@@ -2727,8 +2732,7 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   return
     type != NS_FORM_LABEL &&
     type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT &&
-    type != NS_FORM_PROGRESS;
+    type != NS_FORM_OUTPUT;
 }
 
 PRBool

@@ -74,9 +74,6 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
 
   mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
 
-  RemoveFencesAndSeparators();
-  CreateFencesAndSeparators(PresContext());
-
   return NS_OK;
 }
 
@@ -119,8 +116,8 @@ nsMathMLmfencedFrame::ChildListChanged(PRInt32 aModType)
 void
 nsMathMLmfencedFrame::RemoveFencesAndSeparators()
 {
-  delete mOpenChar;
-  delete mCloseChar;
+  if (mOpenChar) delete mOpenChar;
+  if (mCloseChar) delete mCloseChar;
   if (mSeparatorsChar) delete[] mSeparatorsChar;
 
   mOpenChar = nsnull;

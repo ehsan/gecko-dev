@@ -749,8 +749,7 @@ PlacesViewBase.prototype = {
       aPopup._endOptOpenAllInTabs = document.createElement("menuitem");
       aPopup._endOptOpenAllInTabs.className = "openintabs-menuitem";
       aPopup._endOptOpenAllInTabs.setAttribute("oncommand",
-        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event, " +
-                                               "PlacesUIUtils.getViewForNode(this));");
+        "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._placesNode, event);");
       aPopup._endOptOpenAllInTabs.setAttribute("onclick",
         "checkForMiddleClick(this, event); event.stopPropagation();");
       aPopup._endOptOpenAllInTabs.setAttribute("label",

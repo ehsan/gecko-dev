@@ -290,10 +290,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetTransform(common.transform());
       layer->SetTileSourceRect(common.useTileSourceRect() ? &common.tileSourceRect() : NULL);
-      static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
-      if (fixedPositionLayersEnabled) {
-        layer->SetIsFixedPosition(common.isFixedPosition());
-      }
+      layer->SetIsFixedPosition(common.isFixedPosition());
 
       typedef SpecificLayerAttributes Specific;
       const SpecificLayerAttributes& specific = attrs.specific();
@@ -435,14 +432,14 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
         static_cast<ShadowImageLayer*>(shadow->AsLayer());
 
       SurfaceDescriptor newFront = op.newFrontBuffer();
-      SharedImage newBack;
+      SurfaceDescriptor newBack;
       image->Swap(op.newFrontBuffer(), &newBack);
-      if (newFront == newBack.get_SurfaceDescriptor()) {
+      if (newFront == newBack) {
         newFront = SurfaceDescriptor();
       }
 
-      replyv.push_back(OpImageSwap(shadow, NULL,
-                                   newBack));
+      replyv.push_back(OpBufferSwap(shadow, NULL,
+                                    newBack));
 
       break;
     }

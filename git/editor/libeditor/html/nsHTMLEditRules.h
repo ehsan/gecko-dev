@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   Sebastian Kromp <46b@gulli.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -41,7 +40,7 @@
 #define nsHTMLEditRules_h__
 
 #include "nsTextEditRules.h"
-#include "nsIHTMLEditor.h"
+#include "nsIHTMLEditRules.h"
 #include "nsIEditActionListener.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
@@ -76,7 +75,7 @@ struct StyleCache : public PropItem
 
 #define SIZE_STYLE_TABLE 19
 
-class nsHTMLEditRules : public nsTextEditRules, public nsIEditActionListener
+class nsHTMLEditRules : public nsTextEditRules, public nsIHTMLEditRules, public nsIEditActionListener
 {
 public:
 
@@ -95,12 +94,14 @@ public:
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
   NS_IMETHOD DocumentModified();
 
-  nsresult GetListState(PRBool *aMixed, PRBool *aOL, PRBool *aUL, PRBool *aDL);
-  nsresult GetListItemState(PRBool *aMixed, PRBool *aLI, PRBool *aDT, PRBool *aDD);
-  nsresult GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent);
-  nsresult GetAlignment(PRBool *aMixed, nsIHTMLEditor::EAlignment *aAlign);
-  nsresult GetParagraphState(PRBool *aMixed, nsAString &outFormat);
-  nsresult MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode);
+  // nsIHTMLEditRules methods
+  
+  NS_IMETHOD GetListState(PRBool *aMixed, PRBool *aOL, PRBool *aUL, PRBool *aDL);
+  NS_IMETHOD GetListItemState(PRBool *aMixed, PRBool *aLI, PRBool *aDT, PRBool *aDD);
+  NS_IMETHOD GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent);
+  NS_IMETHOD GetAlignment(PRBool *aMixed, nsIHTMLEditor::EAlignment *aAlign);
+  NS_IMETHOD GetParagraphState(PRBool *aMixed, nsAString &outFormat);
+  NS_IMETHOD MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode);
 
   // nsIEditActionListener methods
   
@@ -317,6 +318,8 @@ protected:
   nsRangeStore            mRangeItem;
   StyleCache              mCachedStyles[SIZE_STYLE_TABLE];
 };
+
+nsresult NS_NewHTMLEditRules(nsIEditRules** aInstancePtrResult);
 
 #endif //nsHTMLEditRules_h__
 

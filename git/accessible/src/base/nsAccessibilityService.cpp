@@ -68,7 +68,7 @@
 #include "nsImageFrame.h"
 #include "nsILink.h"
 #include "nsIObserverService.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsISupportsUtils.h"
 #include "nsObjectFrame.h"
 #include "nsOuterDocAccessible.h"
@@ -346,8 +346,8 @@ nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame,
 
 #if defined(XP_WIN) || defined(MOZ_ACCESSIBILITY_ATK)
   // 2) for plugins
-  nsRefPtr<nsNPAPIPluginInstance> pluginInstance;
-  if (NS_SUCCEEDED(aFrame->GetPluginInstance(getter_AddRefs(pluginInstance))) &&
+  nsCOMPtr<nsIPluginInstance> pluginInstance;
+  if (NS_SUCCEEDED(aFrame->GetPluginInstance(*getter_AddRefs(pluginInstance))) &&
       pluginInstance) {
 #ifdef XP_WIN
     // Note: pluginPort will be null if windowless.
@@ -1432,7 +1432,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
       break;
 
     case nsIAccessibleProvider::XULProgressMeter:
-      accessible = new XULProgressMeterAccessible(aContent, aWeakShell);
+      accessible = new nsXULProgressMeterAccessible(aContent, aWeakShell);
       break;
 
     case nsIAccessibleProvider::XULStatusBar:
@@ -1687,13 +1687,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
 
   if (tag == nsAccessibilityAtoms::output) {
     nsAccessible* accessible = new nsHTMLOutputAccessible(aContent, aWeakShell);
-    NS_IF_ADDREF(accessible);
-    return accessible;
-  }
-
-  if (tag == nsAccessibilityAtoms::progress) {
-    nsAccessible* accessible =
-      new HTMLProgressMeterAccessible(aContent, aWeakShell);
     NS_IF_ADDREF(accessible);
     return accessible;
   }

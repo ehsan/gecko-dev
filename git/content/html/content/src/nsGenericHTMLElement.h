@@ -192,6 +192,11 @@ public:
   nsresult PostHandleEventForAnchors(nsEventChainPostVisitor& aVisitor);
   PRBool IsHTMLLink(nsIURI** aURI) const;
 
+  // As above, but makes sure to return a URI object that we can mutate with
+  // impunity without changing our current URI.  That is, if the URI is cached
+  // it clones it and returns the clone.
+  void GetHrefURIToMutate(nsIURI** aURI);
+
   // HTML element methods
   void Compact() { mAttrsAndChildren.Compact(); }
 
@@ -703,9 +708,13 @@ protected:
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
    * nsIURI in the out param.
    *
+   * @param aCloneIfCached if true, clone the URI before returning if
+   * it's cached.
+   *
    * @return PR_TRUE if we had the attr, PR_FALSE otherwise.
    */
-  NS_HIDDEN_(PRBool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aURI) const;
+  NS_HIDDEN_(PRBool) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
+                                PRBool aCloneIfCached, nsIURI** aURI) const;
 
   /**
    * This method works like GetURIAttr, except that it supports multiple
@@ -1569,7 +1578,6 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Output)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Progress)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Select)
 #if defined(MOZ_MEDIA)

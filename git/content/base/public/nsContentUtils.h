@@ -130,7 +130,6 @@ class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
 class nsIChannel;
-class nsAutoScriptBlockerSuppressNodeRemoved;
 struct nsIntMargin;
 class nsPIDOMWindow;
 class nsIDocumentLoaderFactory;
@@ -185,16 +184,10 @@ struct nsShortcutCandidate {
 
 class nsContentUtils
 {
-  friend class nsAutoScriptBlockerSuppressNodeRemoved;
   typedef mozilla::dom::Element Element;
 
 public:
   static nsresult Init();
-
-  /**
-   * Get a JSContext from the document's scope object.
-   */
-  static JSContext* GetContextFromDocument(nsIDocument *aDocument);
 
   /**
    * Get a scope from aNewDocument. Also get a context through the scope of one
@@ -320,6 +313,20 @@ public:
                                PRBool* aDisconnected = nsnull);
 
   /**
+   * Find the first child of aParent with a resolved tag matching
+   * aNamespace and aTag. Both the explicit and anonymous children of
+   * aParent are examined. The return value is not addrefed.
+   *
+   * XXXndeakin this should return the first child whether in anonymous or
+   * explicit children, but currently XBL doesn't tell us the relative
+   * ordering of anonymous vs explicit children, so instead it searches
+   * the explicit children first then the anonymous children.
+   */
+  static nsIContent* FindFirstChildWithResolvedTag(nsIContent* aParent,
+                                                   PRInt32 aNamespace,
+                                                   nsIAtom* aTag);
+
+  /**
    * Brute-force search of the element subtree rooted at aContent for
    * an element with the given id.  aId must be nonempty, otherwise
    * this method may return nodes even if they have no id!
@@ -330,6 +337,24 @@ public:
    * Similar to above, but to be used if one already has an atom for the ID
    */
   static Element* MatchElementId(nsIContent *aContent, const nsIAtom* aId);
+
+  /**
+   * Given a URI containing an element reference (#whatever),
+   * resolve it to the target content element with the given ID.
+   *
+   * If aFromContent is anonymous XBL content then the URI
+   * must refer to its binding document and we will return
+   * a node in the same anonymous content subtree as aFromContent,
+   * if one exists with the correct ID.
+   *
+   * @param aFromContent the context of the reference;
+   *   currently we only support references to elements in the
+   *   same document as the context, so this must be non-null
+   *
+   * @return the element, or nsnull on failure
+   */
+  static nsIContent* GetReferencedElement(nsIURI* aURI,
+                                          nsIContent *aFromContent);
 
   /**
    * Reverses the document position flags passed in.
@@ -407,6 +432,14 @@ public:
   // Check if the (JS) caller can access aWindow.
   // aWindow can be either outer or inner window.
   static PRBool CanCallerAccess(nsPIDOMWindow* aWindow);
+
+  /**
+   * Get the docshell through the JS context that's currently on the stack.
+   * If there's no JS context currently on the stack aDocShell will be null.
+   *
+   * @param aDocShell The docshell or null if no JS context
+   */
+  static nsIDocShell *GetDocShellFromCaller();
 
   /**
    * Get the window through the JS context that's currently on the stack.
@@ -896,34 +929,6 @@ public:
   static PRBool HasMutationListeners(nsINode* aNode,
                                      PRUint32 aType,
                                      nsINode* aTargetForSubtreeModified);
-
-  /**
-   * Quick helper to determine whether there are any mutation listeners
-   * of a given type that apply to any content in this document. It is valid
-   * to pass null for aDocument here, in which case this function always
-   * returns PR_TRUE.
-   *
-   * @param aDocument The document to search for listeners
-   * @param aType     The type of listener (NS_EVENT_BITS_MUTATION_*)
-   *
-   * @return true if there are mutation listeners of the specified type
-   */
-  static PRBool HasMutationListeners(nsIDocument* aDocument,
-                                     PRUint32 aType);
-  /**
-   * Synchronously fire DOMNodeRemoved on aChild. Only fires the event if
-   * there really are listeners by checking using the HasMutationListeners
-   * function above. The function makes sure to hold the relevant objects alive
-   * for the duration of the event firing. However there are no guarantees
-   * that any of the objects are alive by the time the function returns.
-   * If you depend on that you need to hold references yourself.
-   *
-   * @param aChild    The node to fire DOMNodeRemoved at.
-   * @param aParent   The parent of aChild.
-   * @param aOwnerDoc The ownerDocument of aChild.
-   */
-  static void MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
-                                   nsIDocument* aOwnerDoc);
 
   /**
    * This method creates and dispatches a trusted event.
@@ -1659,6 +1664,16 @@ public:
   static nsresult CreateStructuredClone(JSContext* cx, jsval val, jsval* rval);
 
   /**
+   * Reparents the given object and all subobjects to the given scope. Also
+   * fixes all the prototypes. Assumes obj is properly rooted, that obj has no
+   * getter functions that can cause side effects, and that the only types of
+   * objects nested within obj are the types that are cloneable via the
+   * CreateStructuredClone function above.
+   */
+  static nsresult ReparentClonedObjectToScope(JSContext* cx, JSObject* obj,
+                                              JSObject* scope);
+
+  /**
    * Strip all \n, \r and nulls from the given string
    * @param aString the string to remove newlines from [in/out]
    */
@@ -1865,9 +1880,6 @@ private:
   static PRBool sInitialized;
   static PRUint32 sScriptBlockerCount;
   static PRUint32 sRemovableScriptBlockerCount;
-#ifdef DEBUG
-  static PRUint32 sDOMNodeRemovedSuppressCount;
-#endif
   static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
   static PRUint32 sRunnersCountAtFirstBlocker;
   static PRUint32 sScriptBlockerCountWhereRunnersPrevented;
@@ -1957,21 +1969,6 @@ private:
   nsCOMPtr<nsIDocument> mDocument;
   nsCOMPtr<nsIDocumentObserver> mObserver;
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
-                          public nsAutoScriptBlocker {
-public:
-  nsAutoScriptBlockerSuppressNodeRemoved() {
-#ifdef DEBUG
-    ++nsContentUtils::sDOMNodeRemovedSuppressCount;
-#endif
-  }
-  ~nsAutoScriptBlockerSuppressNodeRemoved() {
-#ifdef DEBUG
-    --nsContentUtils::sDOMNodeRemovedSuppressCount;
-#endif
-  }
 };
 
 #define NS_INTERFACE_MAP_ENTRY_TEAROFF(_interface, _allocator)                \
