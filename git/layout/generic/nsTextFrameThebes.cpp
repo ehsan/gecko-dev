@@ -4812,21 +4812,7 @@ CountCharsFit(gfxTextRun* aTextRun, PRUint32 aStart, PRUint32 aLength,
 }
 
 nsIFrame::ContentOffsets
-nsTextFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint)
-{
-  return GetCharacterOffsetAtFramePointInternal(aPoint, PR_TRUE);
-}
-
-nsIFrame::ContentOffsets
-nsTextFrame::GetCharacterOffsetAtFramePoint(const nsPoint &aPoint)
-{
-  return GetCharacterOffsetAtFramePointInternal(aPoint, PR_FALSE);
-}
-
-nsIFrame::ContentOffsets
-nsTextFrame::GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
-                                                    PRBool aForInsertionPoint)
-{
+nsTextFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint) {
   ContentOffsets offsets;
   
   gfxSkipCharsIterator iter = EnsureTextRun();
@@ -4858,7 +4844,7 @@ nsTextFrame::GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
         mTextRun->GetAdvanceWidth(extraCluster.GetSkippedOffset(),
                                   GetSkippedDistance(extraCluster, extraClusterLastChar) + 1,
                                   &provider);
-    selectedOffset = !aForInsertionPoint || width <= fitWidth + charWidth/2
+    selectedOffset = width <= fitWidth + charWidth/2
         ? extraCluster.GetOriginalOffset()
         : extraClusterLastChar.GetOriginalOffset() + 1;
   } else {
@@ -5032,12 +5018,11 @@ nsTextFrame::SetSelected(nsPresContext* aPresContext,
     // If the selection state is changed in this content, we need to reflow
     // to recompute the overflow area for underline of spellchecking or IME if
     // their underline is thicker than normal decoration line.
-    PRBool didHaveOverflowingSelection =
-      (mState & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
+    PRBool didHaveSelectionUnderline =
+             !!(mState & TEXT_SELECTION_UNDERLINE_OVERFLOWED);
     nsRect r(nsPoint(0, 0), GetSize());
-    PRBool willHaveOverflowingSelection =
-      aSelected && CombineSelectionUnderlineRect(PresContext(), r);
-    if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
+    if (didHaveSelectionUnderline != aSelected ||
+        (aSelected && CombineSelectionUnderlineRect(PresContext(), r))) {
       PresContext()->PresShell()->FrameNeedsReflow(this,
                                                    nsIPresShell::eStyleChange,
                                                    NS_FRAME_IS_DIRTY);

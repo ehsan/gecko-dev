@@ -15,50 +15,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
   <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/events.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/actions.js"></script>
-  <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/role.js"></script>
 
   <script type="application/javascript">
-
-    function focusChecker(aAcc)
-    {
-      this.type = EVENT_FOCUS;
-      this.target = aAcc;
-      this.getID = function focusChecker_getID()
-      {
-        return "focus handling";
-      }
-    }
-
-    function nameChecker(aAcc, aName)
-    {
-      this.type = EVENT_NAME_CHANGE;
-      this.target = aAcc;
-      this.getID = function nameChecker_getID()
-      {
-        return "name change handling";
-      },
-      this.check = function focusChecker_check(aEvent)
-      {
-        is(aEvent.accessible.name, aName,
-           "Wrong name of " + prettyName(aEvent.accessible) + " on focus");
-      }
-    }
-
     function doTest()
     {
-      //////////////////////////////////////////////////////////////////////////
-      // test the accessible tree
-
       var accTree = {
         role: ROLE_GROUPING,
         children: [
           { // start/stop button
-            role: ROLE_PUSHBUTTON,
-            name: "Play"
+            role: ROLE_PUSHBUTTON
           },
           { // buffer bar
             role: ROLE_PROGRESSBAR
@@ -67,53 +33,23 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
             role: ROLE_PROGRESSBAR
           },
           { // slider of progress bar
-            role: ROLE_SLIDER,
-            name: "0:00 of 0:01 elapsed"
+            role: ROLE_SLIDER
           },
-          { // duration label, role="presentation"
-            role: ROLE_NOTHING
+          { // duration label
+            role: ROLE_LABEL
           },
           { // mute button
-            role: ROLE_PUSHBUTTON,
-            name: "Mute"
+            role: ROLE_PUSHBUTTON
           }
         ]
       };
       testAccessibleTree("audio", accTree);
 
-      //////////////////////////////////////////////////////////////////////////
-      // test actions of audio controls
-
-      var audioElm = getAccessible("audio");
-      var playBtn = audioElm.firstChild;
-      var muteBtn = audioElm.lastChild;
-
-      var actions = [
-        {
-          ID: muteBtn,
-          actionName: "press",
-          events: CLICK_EVENTS,
-          eventSeq: [
-            new focusChecker(muteBtn),
-            new nameChecker(muteBtn, "Unmute"),
-          ]
-        },
-        {
-          ID: playBtn,
-          actionName: "press",
-          events: CLICK_EVENTS,
-          eventSeq: [
-            new focusChecker(playBtn),
-            new nameChecker(playBtn, "Pause"),
-          ]
-        }
-      ];
-
-      testActions(actions); // Will call SimpleTest.finish();
+      SimpleTest.finish();
     }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(doTest);
+    addLoadEvent(doTest);
   </script>
 </head>
 <body>
@@ -127,6 +63,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=483573
   </pre>
 
   <audio id="audio" src="chrome://mochikit/content/a11y/accessible/bug461281.ogg"
-         controls="true"></audio>
+         autoplay="true" controls="true">
 </body>
 </html>

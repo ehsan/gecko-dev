@@ -208,7 +208,6 @@ protected:
   nsTArray<PRUint8> mAttributeArray;
 
   PRInt32 mCursorPosition;
-  PRUint32 mCompositionStart;
 
   PRPackedBool mIsComposing;
   PRPackedBool mNativeCaretIsCreated;
@@ -222,7 +221,15 @@ protected:
 #endif // #ifndef WINCE
 
 #ifdef ENABLE_IME_MOUSE_HANDLING
+
+#define IME_MAX_CHAR_POS 64
+  // For describing composing frame
+  // XXX mnakano -  We should remove this, because its value may be wrong in
+  // some cases, and we should query it when it is needed.
+  RECT mCompCharPos[IME_MAX_CHAR_POS];
+
   PRBool OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction);
+  PRBool IMECompositionHitTest(const POINT& aPos);
 #endif // ENABLE_IME_MOUSE_HANDLING
 
 };

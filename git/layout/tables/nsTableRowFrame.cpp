@@ -1238,18 +1238,21 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
           PRBool collapseGroup = (NS_STYLE_VISIBILITY_COLLAPSE ==
                                   groupVis->mVisible);
           PRBool isCollapsed = collapseCol || collapseGroup;
-          if (!isCollapsed) {
+          if (isCollapsed) {
+            tableFrame->SetNeedToCollapse(PR_TRUE);
+          }
+          else {
             cRect.width += tableFrame->GetColumnWidth(colX);
             isVisible = PR_TRUE;
-            if ((actualColSpan > 1)) {
-              nsTableColFrame* nextColFrame =
-                tableFrame->GetColFrame(colX + colIncrement);
-              const nsStyleVisibility* nextColVis =
+          }
+          if (!isCollapsed &&  (actualColSpan > 1)) {
+            nsTableColFrame* nextColFrame =
+              tableFrame->GetColFrame(colX + colIncrement);
+            const nsStyleVisibility* nextColVis =
               nextColFrame->GetStyleVisibility();
-              if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
-                  tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
-                cRect.width += cellSpacingX;
-              }
+            if ( (NS_STYLE_VISIBILITY_COLLAPSE != nextColVis->mVisible) &&
+                tableFrame->ColumnHasCellSpacingBefore(colX + colIncrement)) {
+              cRect.width += cellSpacingX;
             }
           }
         }

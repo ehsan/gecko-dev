@@ -4,9 +4,6 @@
 /* Define if building universal (internal helper macro) */
 /* #undef AC_APPLE_UNIVERSAL_BUILD */
 
-/* Define if the compiler implements enums as signed values. */
-/* #undef ALLOW_SIGNED_ENUMS */
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
@@ -70,7 +67,7 @@
 #define OGGZ_OFF_MAX 0x7FFFFFFFFFFFFFFFLL
 
 /* Define if <ogg/ogg.h> is const-correct */
-#define OGG_H_CONST_CORRECT /**/
+/* #undef OGG_H_CONST_CORRECT */
 
 /* Name of package */
 #define PACKAGE "liboggz"
@@ -109,7 +106,7 @@
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "0.9.9"
+#define VERSION "0.9.8"
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

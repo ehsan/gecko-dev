@@ -196,10 +196,6 @@ function StartTests()
         ReadTopManifest(window.arguments[0]);
         BuildUseCounts();
         gTotalTests = gURLs.length;
-
-        if (!gTotalTests)
-            throw "No tests to run";
-
         gURICanvases = {};
         StartCurrentTest();
     } catch (ex) {
@@ -253,7 +249,7 @@ function ReadManifest(aURL)
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
     sandbox.http = {};
-    for each (var prop in [ "userAgent", "appName", "appVersion",
+    for each (var prop in [ "userAgent", "appName", "appVersion", 
                             "vendor", "vendorSub", "vendorComment",
                             "product", "productSub", "productComment",
                             "platform", "oscpu", "language", "misc" ])
@@ -492,7 +488,7 @@ function StartCurrentURI(aState)
 {
     gCurrentTestStartTime = Date.now();
     if (gFailureTimeout != null) {
-        dump("REFTEST TEST-UNEXPECTED-FAIL | " +
+        dump("REFTEST TEST-UNEXPECTED-FAIL | " + 
              "| program error managing timeouts\n");
         ++gTestResults.Exception;
     }
@@ -563,13 +559,13 @@ function setupZoom(contentRootElement) {
 function resetZoom() {
     gBrowser.markupDocumentViewer.fullZoom = 1.0;
 }
-
+    
 function OnDocumentLoad(event)
 {
     if (event.target != gBrowser.contentDocument)
         // Ignore load events for subframes.
         return;
-
+        
     if (gClearingForAssertionCheck &&
         gBrowser.contentDocument.location.href == BLANK_URL_FOR_CLEARING) {
         DoAssertionCheck();
@@ -875,8 +871,7 @@ function DocumentLoaded()
             var test_passed = (equal == gURLs[0].equal);
             // what is expected on this platform (PASS, FAIL, or RANDOM)
             var expected = gURLs[0].expected;
-
-            // Not 'const ...' because of 'EXPECTED_*' value dependency.
+            
             var outputs = {};
             const randomMsg = "(EXPECTED RANDOM)";
             outputs[EXPECTED_PASS] = {
