@@ -313,6 +313,7 @@
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLTitleElement.h"
 #include "nsIDOMHTMLUListElement.h"
+#include "nsIDOMHTMLUnknownElement.h"
 #include "nsIDOMMediaError.h"
 #include "nsIDOMTimeRanges.h"
 #include "nsIDOMHTMLSourceElement.h"
@@ -2823,8 +2824,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLUnknownElement, nsIDOMHTMLElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLElement)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLUnknownElement, nsIDOMHTMLUnknownElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLUnknownElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
