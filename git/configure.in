@@ -7954,11 +7954,9 @@ if test "$MOZ_TREE_CAIRO"; then
     MOZ_CAIRO_CFLAGS='-I$(LIBXUL_DIST)/include/cairo'
     AC_DEFINE(MOZ_TREE_CAIRO)
 
-    if test "$OS_ARCH" = "WINNT"; then
-        # For now we assume that we will have a uint64_t available through
-        # one of the above headers or mozstdint.h.
-        AC_DEFINE(HAVE_UINT64_T)
-    fi
+    # For now we assume that we will have a uint64_t available through
+    # one of the above headers or mozstdint.h.
+    AC_DEFINE(HAVE_UINT64_T)
 
     # Define macros for cairo-features.h
     TEE_SURFACE_FEATURE="#define CAIRO_HAS_TEE_SURFACE 1"

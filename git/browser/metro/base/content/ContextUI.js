@@ -112,7 +112,7 @@ var ContextUI = {
     }
 
     if (shown) {
-      ContentAreaObserver.updateContentArea();
+      ContentAreaObserver.update(window.innerWidth, window.innerHeight);
     }
 
     return shown;
@@ -144,7 +144,7 @@ var ContextUI = {
     }
 
     if (dismissed) {
-      ContentAreaObserver.updateContentArea();
+      ContentAreaObserver.update(window.innerWidth, window.innerHeight);
     }
 
     return dismissed;

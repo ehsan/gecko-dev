@@ -96,10 +96,6 @@ BackgroundFileSaver::BackgroundFileSaver()
 
 BackgroundFileSaver::~BackgroundFileSaver()
 {
-  nsNSSShutDownPreventionLock lock;
-  if (isAlreadyShutDown()) {
-    return;
-  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -107,6 +103,10 @@ BackgroundFileSaver::~BackgroundFileSaver()
 void
 BackgroundFileSaver::destructorSafeDestroyNSSReference()
 {
+  nsNSSShutDownPreventionLock lock;
+  if (isAlreadyShutDown()) {
+    return;
+  }
   if (mDigestContext) {
     mozilla::psm::PK11_DestroyContext_true(mDigestContext.forget());
     mDigestContext = nullptr;

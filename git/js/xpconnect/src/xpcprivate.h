@@ -1055,7 +1055,6 @@ enum WrapperType {
 /***************************************************************************/
 // XPCWrappedNativeScope is one-to-one with a JS global object.
 
-class nsXPCComponentsBase;
 class XPCWrappedNativeScope : public PRCList
 {
 public:
@@ -1072,15 +1071,8 @@ public:
     ClassInfo2WrappedNativeProtoMap*
     GetWrappedNativeProtoMap() const {return mWrappedNativeProtoMap;}
 
-    nsXPCComponentsBase*
+    nsXPCComponents*
     GetComponents() const {return mComponents;}
-
-    // Forces the creation of a privileged |Components| object, even in
-    // content scopes. This will crash if used outside of automation.
-    void
-    ForcePrivilegedComponents();
-
-    bool AttachComponentsObject(JSContext *aCx);
 
     // Returns the JS object reflection of the Components object.
     JSObject*
@@ -1216,7 +1208,7 @@ private:
     XPCJSRuntime*                    mRuntime;
     Native2WrappedNativeMap*         mWrappedNativeMap;
     ClassInfo2WrappedNativeProtoMap* mWrappedNativeProtoMap;
-    nsRefPtr<nsXPCComponentsBase>    mComponents;
+    nsRefPtr<nsXPCComponents>        mComponents;
     XPCWrappedNativeScope*           mNext;
     // The JS global object for this scope.  If non-null, this will be the
     // default parent for the XPCWrappedNatives that have us as the scope,
@@ -2779,7 +2771,7 @@ class nsJSID : public nsIJSID
 public:
     NS_DEFINE_STATIC_CID_ACCESSOR(NS_JS_ID_CID)
 
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIJSID
 
     bool InitWithName(const nsID& id, const char *nameString);
@@ -2810,10 +2802,11 @@ protected:
 // nsJSIID
 
 class nsJSIID : public nsIJSIID,
-                public nsIXPCScriptable
+                public nsIXPCScriptable,
+                public nsISecurityCheckedComponent
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
 
     // we manually delagate these to nsJSID
     NS_DECL_NSIJSID
@@ -2821,6 +2814,7 @@ public:
     // we implement the rest...
     NS_DECL_NSIJSIID
     NS_DECL_NSIXPCSCRIPTABLE
+    NS_DECL_NSISECURITYCHECKEDCOMPONENT
 
     static nsJSIID* NewID(nsIInterfaceInfo* aInfo);
 
@@ -2837,7 +2831,7 @@ private:
 class nsJSCID : public nsIJSCID, public nsIXPCScriptable
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
 
     // we manually delagate these to nsJSID
     NS_DECL_NSIJSID
@@ -2926,63 +2920,44 @@ private:
 };
 
 /***************************************************************************/
-// 'Components' object implementations. nsXPCComponentsBase has the
-// less-privileged stuff that we're willing to expose to XBL.
+// 'Components' object
 
-class nsXPCComponentsBase : public nsIXPCComponentsBase
+class nsXPCComponents : public nsIXPCComponents,
+                        public nsIXPCScriptable,
+                        public nsIClassInfo,
+                        public nsISecurityCheckedComponent
 {
 public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIXPCCOMPONENTSBASE
+    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_NSIXPCCOMPONENTS
+    NS_DECL_NSIXPCSCRIPTABLE
+    NS_DECL_NSICLASSINFO
+    NS_DECL_NSISECURITYCHECKEDCOMPONENT
 
 public:
-    void SystemIsBeingShutDown() { ClearMembers(); }
-    virtual ~nsXPCComponentsBase() { ClearMembers(); }
+    static bool
+    AttachComponentsObject(JSContext* aCx, XPCWrappedNativeScope* aScope);
 
-    XPCWrappedNativeScope *GetScope() { return mScope; }
+    void SystemIsBeingShutDown() {ClearMembers();}
 
-protected:
-    nsXPCComponentsBase(XPCWrappedNativeScope* aScope);
-    virtual void ClearMembers();
+    virtual ~nsXPCComponents();
 
+private:
+    nsXPCComponents(XPCWrappedNativeScope* aScope);
+    void ClearMembers();
+
+private:
+    friend class XPCWrappedNativeScope;
     XPCWrappedNativeScope*          mScope;
-
-    // Unprivileged members from nsIXPCComponentsBase.
     nsXPCComponents_Interfaces*     mInterfaces;
     nsXPCComponents_InterfacesByID* mInterfacesByID;
-    nsXPCComponents_Results*        mResults;
-
-    friend class XPCWrappedNativeScope;
-};
-
-class nsXPCComponents : public nsXPCComponentsBase,
-                        public nsIXPCComponents
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_FORWARD_NSIXPCCOMPONENTSBASE(nsXPCComponentsBase::)
-    NS_DECL_NSIXPCCOMPONENTS
-
-protected:
-    nsXPCComponents(XPCWrappedNativeScope* aScope);
-
-    // One might think we could rely on the superclass destructor invoking
-    // the virtual cleanup function. But by the time we hit the superclass
-    // destructor, the derived class will be gone and the vtable pointer
-    // will be updated to point to that of the superclass, giving us only
-    // the superclass' cleanup.
-    virtual ~nsXPCComponents() { ClearMembers(); }
-    virtual void ClearMembers() MOZ_OVERRIDE;
-
-    // Privileged members added by nsIXPCComponents.
     nsXPCComponents_Classes*        mClasses;
     nsXPCComponents_ClassesByID*    mClassesByID;
+    nsXPCComponents_Results*        mResults;
     nsXPCComponents_ID*             mID;
     nsXPCComponents_Exception*      mException;
     nsXPCComponents_Constructor*    mConstructor;
     nsXPCComponents_Utils*          mUtils;
-
-    friend class XPCWrappedNativeScope;
 };
 
 

@@ -10,13 +10,14 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/TelemetryTimestamps.jsm");
-Cu.import("resource://gre/modules/TelemetryPing.jsm");
 
 const Telemetry = Services.telemetry;
 const bundle = Services.strings.createBundle(
   "chrome://global/locale/aboutTelemetry.properties");
 const brandBundle = Services.strings.createBundle(
   "chrome://branding/locale/brand.properties");
+const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].
+  getService(Ci.nsITelemetryPing);
 
 // Maximum height of a histogram bar (in em for html, in chars for text)
 const MAX_BAR_HEIGHT = 18;
@@ -410,55 +411,6 @@ let ChromeHangs = {
   }
 };
 
-let ThreadHangStats = {
-
-  /**
-   * Renders raw thread hang stats data
-   */
-  render: function() {
-    let div = document.getElementById("thread-hang-stats");
-    clearDivData(div);
-
-    let stats = Telemetry.threadHangStats;
-    stats.forEach((thread) => {
-      div.appendChild(this.renderThread(thread));
-    });
-    if (stats.length) {
-      setHasData("thread-hang-stats-section", true);
-    }
-  },
-
-  /**
-   * Creates and fills data corresponding to a thread
-   */
-  renderThread: function(aThread) {
-    let div = document.createElement("div");
-
-    let title = document.createElement("h2");
-    title.textContent = aThread.name;
-    div.appendChild(title);
-
-    // Don't localize the histogram name, because the
-    // name is also used as the div element's ID
-    Histogram.render(div, aThread.name + "-Activity",
-                     aThread.activity, {exponential: true});
-    aThread.hangs.forEach((hang, index) => {
-      let hangName = aThread.name + "-Hang-" + (index + 1);
-      let hangDiv = Histogram.render(
-        div, hangName, hang.histogram, {exponential: true});
-      let stackDiv = document.createElement("div");
-      hang.stack.forEach((frame) => {
-        stackDiv.appendChild(document.createTextNode(frame));
-        // Leave an extra <br> at the end of the stack listing
-        stackDiv.appendChild(document.createElement("br"));
-      });
-      // Insert stack after the histogram title
-      hangDiv.insertBefore(stackDiv, hangDiv.childNodes[1]);
-    });
-    return div;
-  },
-};
-
 let Histogram = {
 
   hgramSamplesCaption: bundle.GetStringFromName("histogramSamples"),
@@ -475,12 +427,9 @@ let Histogram = {
    * @param aParent Parent element
    * @param aName Histogram name
    * @param aHgram Histogram information
-   * @param aOptions Object with render options
-   *                 * exponential: bars follow logarithmic scale
    */
-  render: function Histogram_render(aParent, aName, aHgram, aOptions) {
+  render: function Histogram_render(aParent, aName, aHgram) {
     let hgram = this.unpack(aHgram);
-    let options = aOptions || {};
 
     let outerDiv = document.createElement("div");
     outerDiv.className = "histogram";
@@ -502,8 +451,7 @@ let Histogram = {
     if (isRTL())
       hgram.values.reverse();
 
-    let textData = this.renderValues(outerDiv, hgram.values, hgram.max,
-                                     hgram.sample_count, options);
+    let textData = this.renderValues(outerDiv, hgram.values, hgram.max, hgram.sample_count);
 
     // The 'Copy' button contains the textual data, copied to clipboard on click
     let copyButton = document.createElement("button");
@@ -517,7 +465,6 @@ let Histogram = {
     outerDiv.appendChild(copyButton);
 
     aParent.appendChild(outerDiv);
-    return outerDiv;
   },
 
   /**
@@ -569,16 +516,6 @@ let Histogram = {
   },
 
   /**
-   * Return a non-negative, logarithmic representation of a non-negative number.
-   * e.g. 0 => 0, 1 => 1, 10 => 2, 100 => 3
-   *
-   * @param aNumber Non-negative number
-   */
-  getLogValue: function(aNumber) {
-    return Math.max(0, Math.log10(aNumber) + 1);
-  },
-
-  /**
    * Create histogram HTML bars, also returns a textual representation
    * Both aMaxValue and aSumValues must be positive.
    * Values are assumed to use 0 as baseline.
@@ -587,26 +524,21 @@ let Histogram = {
    * @param aValues Histogram values
    * @param aMaxValue Value of the longest bar (length, not label)
    * @param aSumValues Sum of all bar values
-   * @param aOptions Object with render options (@see #render)
    */
-  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue, aSumValues, aOptions) {
+  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue, aSumValues) {
     let text = "";
     // If the last label is not the longest string, alignment will break a little
     let labelPadTo = String(aValues[aValues.length -1][0]).length;
-    let maxBarValue = aOptions.exponential ? this.getLogValue(aMaxValue) : aMaxValue;
 
     for (let [label, value] of aValues) {
-      let barValue = aOptions.exponential ? this.getLogValue(value) : value;
-
       // Create a text representation: <right-aligned-label> |<bar-of-#><value>  <percentage>
       text += EOL
               + " ".repeat(Math.max(0, labelPadTo - String(label).length)) + label // Right-aligned label
-              + " |" + "#".repeat(Math.round(MAX_BAR_CHARS * barValue / maxBarValue)) // Bar
-              + "  " + value // Value
+              + " |" + "#".repeat(Math.round(MAX_BAR_CHARS * value / aMaxValue)) + value // Bars and value
               + "  " + Math.round(100 * value / aSumValues) + "%"; // Percentage
 
       // Construct the HTML labels + bars
-      let belowEm = Math.round(MAX_BAR_HEIGHT * (barValue / maxBarValue) * 10) / 10;
+      let belowEm = Math.round(MAX_BAR_HEIGHT * (value / aMaxValue) * 10) / 10;
       let aboveEm = MAX_BAR_HEIGHT - belowEm;
 
       let barDiv = document.createElement("div");
@@ -933,9 +865,6 @@ function onLoad() {
 
   // Show chrome hang stacks
   ChromeHangs.render();
-
-  // Show thread hang stats
-  ThreadHangStats.render();
 
   // Show histogram data
   let histograms = Telemetry.histogramSnapshots;

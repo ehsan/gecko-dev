@@ -351,7 +351,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       nscoord phi;
       // Rule 11, App. G, TeXbook
       // psi = clearance between rule and content
-      if (StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK)
+      if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags))
         phi = fm->XHeight();
       else
         phi = mRuleThickness;

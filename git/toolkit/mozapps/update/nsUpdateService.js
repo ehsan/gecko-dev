@@ -257,9 +257,9 @@ const PING_BGUC_ADDON_UPDATES_FOR_INCOMPAT   = 29;
 // Incompatible add-ons found (update notification)
 const PING_BGUC_ADDON_HAVE_INCOMPAT          = 30;
 
-var gLocale = null;
+var gLocale     = null;
 
-#ifdef MOZ_WIDGET_GONK
+#ifdef MOZ_B2G
 XPCOMUtils.defineLazyGetter(this, "gExtStorage", function aus_gExtStorage() {
     return Services.env.get("EXTERNAL_STORAGE");
 });
@@ -2957,7 +2957,7 @@ UpdateService.prototype = {
     // the add-on will become incompatible.
     let bs = Cc["@mozilla.org/extensions/blocklist;1"].
              getService(Ci.nsIBlocklistService);
-    if (bs.isAddonBlocklisted(addon,
+    if (bs.isAddonBlocklisted(addon.id, install.version,
                               gUpdates.update.appVersion,
                               gUpdates.update.platformVersion))
       return;

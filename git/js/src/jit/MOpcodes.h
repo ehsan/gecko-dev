@@ -209,7 +209,7 @@ namespace jit {
     _(LambdaPar)                                                            \
     _(RestPar)                                                              \
     _(ForkJoinSlice)                                                        \
-    _(GuardThreadExclusive)                                                 \
+    _(GuardThreadLocalObject)                                               \
     _(CheckInterruptPar)                                                    \
     _(RecompileCheck)
 

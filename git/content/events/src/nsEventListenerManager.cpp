@@ -700,7 +700,6 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
                                  NS_ConvertUTF8toUTF16(asciiSpec),
                                  scriptSample,
                                  0,
-                                 EmptyString(),
                                  EmptyString());
       }
 

@@ -46,8 +46,18 @@ nsMathMLmfracFrame::GetMathMLFrameType()
 NS_IMETHODIMP
 nsMathMLmfracFrame::TransmitAutomaticData()
 {
-  // The TeXbook (Ch 17. p.141) says the numerator inherits the compression
-  //  while the denominator is compressed
+  // 1. The REC says:
+  //    The <mfrac> element sets displaystyle to "false", or if it was already
+  //    false increments scriptlevel by 1, within numerator and denominator.
+  // 2. The TeXbook (Ch 17. p.141) says the numerator inherits the compression
+  //    while the denominator is compressed
+  bool increment = !NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags);
+  SetIncrementScriptLevel(0, increment);
+  SetIncrementScriptLevel(1, increment);
+
+  UpdatePresentationDataFromChildAt(0, -1,
+    ~NS_MATHML_DISPLAYSTYLE,
+     NS_MATHML_DISPLAYSTYLE);
   UpdatePresentationDataFromChildAt(1,  1,
      NS_MATHML_COMPRESSED,
      NS_MATHML_COMPRESSED);
@@ -242,7 +252,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
     GetNumeratorShifts(fm, numShift1, numShift2, numShift3);
     GetDenominatorShifts(fm, denShift1, denShift2);
-    if (StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK) {
+    if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags)) {
       // C > T
       numShift = numShift1;
       denShift = denShift1;
@@ -261,7 +271,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       // Rule 15c, App. G, TeXbook
 
       // min clearance between numerator and denominator
-      minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK ?
+      minClearance = (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags)) ?
         7 * defaultRuleThickness : 3 * defaultRuleThickness;
       actualClearance =
         (numShift - bmNum.descent) - (bmDen.ascent - denShift);
@@ -279,14 +289,14 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
     // TeX has a different interpretation of the thickness.
     // Try $a \above10pt b$ to see. Here is what TeX does:
-    // minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK
-    // ? 3 * actualRuleThickness : actualRuleThickness;
+//     minClearance = (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags)) ?
+//      3 * actualRuleThickness : actualRuleThickness;
  
     // we slightly depart from TeX here. We use the defaultRuleThickness instead
     // of the value coming from the linethickness attribute, i.e., we recover what
     // TeX does if the user hasn't set linethickness. But when the linethickness
     // is set, we avoid the wide gap problem.
-     minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK ?
+     minClearance = (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags)) ?
       3 * defaultRuleThickness : defaultRuleThickness + onePixel;
 
       // adjust numShift to maintain minClearance if needed
@@ -404,7 +414,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       denShift += delta;
     }
 
-    if (StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK) {
+    if (NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags)) {
       delta = std::min(bmDen.ascent + bmDen.descent,
                      bmNum.ascent + bmNum.descent) / 2;
       numShift += delta;
@@ -487,6 +497,31 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMathMLmfracFrame::UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
+                                                      int32_t         aLastIndex,
+                                                      uint32_t        aFlagsValues,
+                                                      uint32_t        aFlagsToUpdate)
+{
+  // The REC says "The <mfrac> element sets displaystyle to "false" within
+  // numerator and denominator"
+#if 0
+  // At one point I thought that it meant that the displaystyle state of
+  // the numerator and denominator cannot be modified by an ancestor, i.e.,
+  // to change the displaystyle, one has to use displaystyle="true" with mstyle:
+  // <mfrac> <mstyle>numerator</mstyle> <mstyle>denominator</mstyle> </mfrac>
+
+  // Commenting out for now until it is clear what the intention really is.
+  // See also the variants for <mover>, <munder>, <munderover>
+
+  aFlagsToUpdate &= ~NS_MATHML_DISPLAYSTYLE;
+  aFlagsValues &= ~NS_MATHML_DISPLAYSTYLE;
+#endif
+  return nsMathMLContainerFrame::
+    UpdatePresentationDataFromChildAt(aFirstIndex, aLastIndex,
+                                      aFlagsValues, aFlagsToUpdate);
 }
 
 class nsDisplayMathMLSlash : public nsDisplayItem {

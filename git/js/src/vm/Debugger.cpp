@@ -3428,17 +3428,16 @@ DebuggerScript_getLineOffsets(JSContext *cx, unsigned argc, Value *vp)
     REQUIRE_ARGC("Debugger.Script.getLineOffsets", 1);
 
     /* Parse lineno argument. */
-    RootedValue linenoValue(cx, args[0]);
     size_t lineno;
-    if (!ToNumber(cx, &linenoValue))
-        return false;
-    {
-        double d = linenoValue.toNumber();
+    bool ok = false;
+    if (args[0].isNumber()) {
+        double d = args[0].toNumber();
         lineno = size_t(d);
-        if (lineno != d) {
-            JS_ReportErrorNumber(cx,  js_GetErrorMessage, nullptr, JSMSG_DEBUG_BAD_LINE);
-            return false;
-        }
+        ok = (lineno == d);
+    }
+    if (!ok) {
+        JS_ReportErrorNumber(cx,  js_GetErrorMessage, nullptr, JSMSG_DEBUG_BAD_LINE);
+        return false;
     }
 
     /*

@@ -89,10 +89,6 @@ ThreadStackHelper::GetStack(Stack& aStack)
   }
 
 #if defined(XP_LINUX)
-  if (profiler_is_active()) {
-    // Profiler can interfere with our Linux signal handling
-    return;
-  }
   if (!sInitialized) {
     MOZ_ASSERT(false);
     return;
