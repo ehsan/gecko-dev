@@ -3598,7 +3598,6 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   lastURI: null,
-  isBusy: false,
 
   statusTimeoutInEffect: false,
 
@@ -3737,8 +3736,6 @@ var XULBrowserWindow = {
           aRequest && aWebProgress.DOMWindow == content)
         this.startDocumentLoad(aRequest);
 
-      this.isBusy = true;
-
       if (this.throbberElement) {
         // Turn the throbber on.
         this.throbberElement.setAttribute("busy", "true");
@@ -3809,8 +3806,6 @@ var XULBrowserWindow = {
         else
           this.isImage.setAttribute('disabled', 'true');
       }
-
-      this.isBusy = false;
 
       // Turn the progress meter and throbber off.
       gProgressCollapseTimer = window.setTimeout(function () {

@@ -272,7 +272,11 @@
            defaultmode="icons">
     <!-- Menu -->
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
+#ifdef XP_MACOSX
              defaultset="menubar-items"
+#else
+             defaultset="menubar-items,spring,throbber-box"
+#endif
              mode="icons" iconsize="small" defaulticonsize="small"
              context="toolbar-context-menu">
       <toolbaritem id="menubar-items" align="center">
@@ -413,9 +417,9 @@
                      label="&printButton.label;" command="cmd_print"
                      tooltiptext="&printButton.tooltip;"/>
 
-      <toolbaritem id="navigator-throbber" title="&throbberItem.title;" align="center" pack="center"
+      <toolbaritem id="throbber-box" title="&throbberItem.title;" align="center" pack="center"
                    mousethrough="always">
-        <image/>
+        <button id="navigator-throbber" disabled="true"/>
       </toolbaritem>
 
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;">
@@ -479,7 +483,7 @@
              fullscreentoolbar="true" mode="icons" iconsize="large"
              customizable="true"
 #ifdef XP_MACOSX
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,throbber-box"
 #else
              defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
 #endif
