@@ -26,27 +26,43 @@ function consoleOpened(HUD) {
     content.console.log("test message " + i);
   }
 
-  HUD.jsterm.execute("1+1", performTest);
+  HUD.jsterm.execute("1+1");
 
-  function performTest(node) {
-    let scrollNode = HUD.outputNode.parentNode;
-    isnot(scrollNode.scrollTop, 0, "scroll location is not at the top");
+  function performTest() {
+    let scrollBox = HUD.outputNode.scrollBoxObject.element;
+    isnot(scrollBox.scrollTop, 0, "scroll location is not at the top");
 
+    let node = HUD.outputNode.getItemAtIndex(HUD.outputNode.itemCount - 1);
     let rectNode = node.getBoundingClientRect();
-    let rectOutput = scrollNode.getBoundingClientRect();
+    let rectOutput = HUD.outputNode.getBoundingClientRect();
 
     // Visible scroll viewport.
-    let height = scrollNode.scrollHeight - scrollNode.scrollTop;
+    let height = scrollBox.scrollHeight - scrollBox.scrollTop;
 
     // Top position of the last message node, relative to the outputNode.
-    let top = rectNode.top + scrollNode.scrollTop;
-    let bottom = top + node.clientHeight;
-    info("output height " + height + " node top " + top + " node bottom " + bottom + " node height " + node.clientHeight);
+    let top = rectNode.top - rectOutput.top;
 
-    ok(top >= 0 && bottom <= height, "last message is visible");
+    // Bottom position of the last message node, relative to the outputNode.
+    let bottom = rectNode.bottom - rectOutput.top;
+
+    ok(top >= 0 && Math.floor(bottom) <= height + 1,
+       "last message is visible");
 
     finishTest();
   };
+
+  waitForSuccess({
+    name: "console output displayed",
+    validatorFn: function()
+    {
+      return HUD.outputNode.itemCount >= 103;
+    },
+    successFn: performTest,
+    failureFn: function() {
+      info("itemCount: " + HUD.outputNode.itemCount);
+      finishTest();
+    },
+  });
 }
 
 function test() {

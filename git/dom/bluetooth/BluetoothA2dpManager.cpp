@@ -325,8 +325,6 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
         OnDisconnect(EmptyString());
       }
       break;
-    default:
-      break;
   }
 }
 
@@ -343,7 +341,7 @@ BluetoothA2dpManager::NotifyConnectionStatusChanged()
   if (NS_FAILED(obs->NotifyObservers(this,
                                      BLUETOOTH_A2DP_STATUS_CHANGED_ID,
                                      mDeviceAddress.get()))) {
-    BT_WARNING("Failed to notify bluetooth-a2dp-status-changed observsers!");
+    NS_WARNING("Failed to notify bluetooth-a2dp-status-changed observsers!");
   }
 
   // Dispatch an event of status change

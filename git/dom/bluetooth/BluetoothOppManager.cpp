@@ -113,7 +113,7 @@ public:
     nsresult rv = mInputStream->Read(buf, mAvailablePacketSize, &numRead);
     if (NS_FAILED(rv)) {
       // Needs error handling here
-      BT_WARNING("Failed to read from input stream");
+      NS_WARNING("Failed to read from input stream");
       return NS_ERROR_FAILURE;
     }
 
@@ -123,7 +123,7 @@ public:
       nsRefPtr<SendSocketDataTask> task =
         new SendSocketDataTask((uint8_t*)buf.forget(), numRead);
       if (NS_FAILED(NS_DispatchToMainThread(task))) {
-        BT_WARNING("Failed to dispatch to main thread!");
+        NS_WARNING("Failed to dispatch to main thread!");
         return NS_ERROR_FAILURE;
       }
     }
@@ -308,7 +308,7 @@ BluetoothOppManager::Listen()
   MOZ_ASSERT(NS_IsMainThread());
 
   if (mSocket) {
-    BT_WARNING("mSocket exists. Failed to listen.");
+    NS_WARNING("mSocket exists. Failed to listen.");
     return false;
   }
 
@@ -317,7 +317,7 @@ BluetoothOppManager::Listen()
       new BluetoothSocket(this, BluetoothSocketType::RFCOMM, true, true);
 
     if (!mRfcommSocket->Listen(BluetoothReservedChannels::CHANNEL_OPUSH)) {
-      BT_WARNING("[OPP] Can't listen on RFCOMM socket!");
+      NS_WARNING("[OPP] Can't listen on RFCOMM socket!");
       mRfcommSocket = nullptr;
       return false;
     }
@@ -328,7 +328,7 @@ BluetoothOppManager::Listen()
       new BluetoothSocket(this, BluetoothSocketType::EL2CAP, true, true);
 
     if (!mL2capSocket->Listen(BluetoothReservedChannels::CHANNEL_OPUSH_L2CAP)) {
-      BT_WARNING("[OPP] Can't listen on L2CAP socket!");
+      NS_WARNING("[OPP] Can't listen on L2CAP socket!");
       mRfcommSocket->Disconnect();
       mRfcommSocket = nullptr;
       mL2capSocket = nullptr;
@@ -450,7 +450,7 @@ BluetoothOppManager::AfterOppConnected()
   if (!AcquireSdcardMountLock()) {
     // If we fail to get a mount lock, abort this transaction
     // Directly sending disconnect-request is better than abort-request
-    BT_WARNING("BluetoothOPPManager couldn't get a mount lock!");
+    NS_WARNING("BluetoothOPPManager couldn't get a mount lock!");
     Disconnect(nullptr);
   }
 }
@@ -580,7 +580,7 @@ BluetoothOppManager::ExtractBlobHeaders()
 
   nsresult rv = mBlob->GetType(mContentType);
   if (NS_FAILED(rv)) {
-    BT_WARNING("Can't get content type");
+    NS_WARNING("Can't get content type");
     SendDisconnectRequest();
     return false;
   }
@@ -588,7 +588,7 @@ BluetoothOppManager::ExtractBlobHeaders()
   uint64_t fileLength;
   rv = mBlob->GetSize(&fileLength);
   if (NS_FAILED(rv)) {
-    BT_WARNING("Can't get file size");
+    NS_WARNING("Can't get file size");
     SendDisconnectRequest();
     return false;
   }
@@ -599,7 +599,7 @@ BluetoothOppManager::ExtractBlobHeaders()
   // larger than UINT32_MAX, it needs to parse another OBEX Header
   // and I would like to leave it as a feature.
   if (fileLength > (uint64_t)UINT32_MAX) {
-    BT_WARNING("The file size is too large for now");
+    NS_WARNING("The file size is too large for now");
     SendDisconnectRequest();
     return false;
   }
@@ -607,7 +607,7 @@ BluetoothOppManager::ExtractBlobHeaders()
   mFileLength = fileLength;
   rv = NS_NewThread(getter_AddRefs(mReadFileThread));
   if (NS_FAILED(rv)) {
-    BT_WARNING("Can't create thread");
+    NS_WARNING("Can't create thread");
     SendDisconnectRequest();
     return false;
   }
@@ -829,10 +829,10 @@ BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
              opCode == ObexRequestCode::GetFinal ||
              opCode == ObexRequestCode::SetPath) {
     ReplyError(ObexResponseCode::BadRequest);
-    BT_WARNING("Unsupported ObexRequestCode");
+    NS_WARNING("Unsupported ObexRequestCode");
   } else {
     ReplyError(ObexResponseCode::NotImplemented);
-    BT_WARNING("Unrecognized ObexRequestCode");
+    NS_WARNING("Unrecognized ObexRequestCode");
   }
 }
 
@@ -878,7 +878,7 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
     str += "[OPP] 0x";
     str.AppendInt(mLastCommand, 16);
     str += " failed";
-    BT_WARNING(str.get());
+    NS_WARNING(str.get());
     FileTransferComplete();
     return;
   }
@@ -942,7 +942,7 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
     if (!mInputStream) {
       rv = mBlob->GetInternalStream(getter_AddRefs(mInputStream));
       if (NS_FAILED(rv)) {
-        BT_WARNING("Can't get internal stream of blob");
+        NS_WARNING("Can't get internal stream of blob");
         SendDisconnectRequest();
         return;
       }
@@ -952,11 +952,11 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
                                                    mRemoteMaxPacketLength);
     rv = mReadFileThread->Dispatch(task, NS_DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
-      BT_WARNING("Cannot dispatch read file task!");
+      NS_WARNING("Cannot dispatch read file task!");
       SendDisconnectRequest();
     }
   } else {
-    BT_WARNING("Unhandled ObexRequestCode");
+    NS_WARNING("Unhandled ObexRequestCode");
   }
 }
 
@@ -1029,7 +1029,7 @@ BluetoothOppManager::SendPutRequest(uint8_t* aFileBody,
 
   if (!mConnected) return;
   if (aFileBodyLength > packetLeftSpace) {
-    BT_WARNING("Not allowed such a small MaxPacketLength value");
+    NS_WARNING("Not allowed such a small MaxPacketLength value");
     return;
   }
 
@@ -1234,7 +1234,7 @@ BluetoothOppManager::FileTransferComplete()
   parameters.AppendElement(BluetoothNamedValue(name, v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to broadcast [bluetooth-opp-transfer-complete]");
+    NS_WARNING("Failed to broadcast [bluetooth-opp-transfer-complete]");
     return;
   }
 
@@ -1270,7 +1270,7 @@ BluetoothOppManager::StartFileTransfer()
   parameters.AppendElement(BluetoothNamedValue(name, v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to broadcast [bluetooth-opp-transfer-start]");
+    NS_WARNING("Failed to broadcast [bluetooth-opp-transfer-start]");
     return;
   }
 }
@@ -1300,7 +1300,7 @@ BluetoothOppManager::UpdateProgress()
   parameters.AppendElement(BluetoothNamedValue(name, v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to broadcast [bluetooth-opp-update-progress]");
+    NS_WARNING("Failed to broadcast [bluetooth-opp-update-progress]");
     return;
   }
 }
@@ -1330,7 +1330,7 @@ BluetoothOppManager::ReceivingFileConfirmation()
   parameters.AppendElement(BluetoothNamedValue(name, v));
 
   if (!BroadcastSystemMessage(type, parameters)) {
-    BT_WARNING("Failed to send [bluetooth-opp-receiving-file-confirmation]");
+    NS_WARNING("Failed to send [bluetooth-opp-receiving-file-confirmation]");
     return;
   }
 }

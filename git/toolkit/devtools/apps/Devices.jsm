@@ -18,7 +18,7 @@ const Devices = {
   },
   set helperAddonInstalled(v) {
     addonInstalled = v;
-    this.emit("addon-status-updated", v);
+    this.emit("addon-installed", v);
   },
 
   register: function (name, device) {

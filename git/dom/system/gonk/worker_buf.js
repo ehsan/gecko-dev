@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+const INT32_MAX   = 2147483647;
+const UINT8_SIZE  = 1;
+const UINT16_SIZE = 2;
+const UINT32_SIZE = 4;
 
 /**
  * This object contains helpers buffering incoming data & deconstructing it
@@ -17,100 +21,95 @@
  */
 
 let Buf = {
-  INT32_MAX: 2147483647,
-  UINT8_SIZE: 1,
-  UINT16_SIZE: 2,
-  UINT32_SIZE: 4,
-  PARCEL_SIZE_SIZE: 4,
-  PDU_HEX_OCTET_SIZE: 4,
+  PARCEL_SIZE_SIZE: UINT32_SIZE,
 
-  incomingBufferLength: 1024,
-  incomingBuffer: null,
-  incomingBytes: null,
-  incomingWriteIndex: 0,
-  incomingReadIndex: 0,
-  readIncoming: 0,
-  readAvailable: 0,
-  currentParcelSize: 0,
+  mIncomingBufferLength: 1024,
+  mIncomingBuffer: null,
+  mIncomingBytes: null,
+  mIncomingWriteIndex: 0,
+  mIncomingReadIndex: 0,
+  mReadIncoming: 0,
+  mReadAvailable: 0,
+  mCurrentParcelSize: 0,
 
-  outgoingBufferLength: 1024,
-  outgoingBuffer: null,
-  outgoingBytes: null,
-  outgoingIndex: 0,
-  outgoingBufferCalSizeQueue: null,
+  mOutgoingBufferLength: 1024,
+  mOutgoingBuffer: null,
+  mOutgoingBytes: null,
+  mOutgoingIndex: 0,
+  mOutgoingBufferCalSizeQueue: null,
 
   _init: function _init() {
-    this.incomingBuffer = new ArrayBuffer(this.incomingBufferLength);
-    this.outgoingBuffer = new ArrayBuffer(this.outgoingBufferLength);
+    this.mIncomingBuffer = new ArrayBuffer(this.mIncomingBufferLength);
+    this.mOutgoingBuffer = new ArrayBuffer(this.mOutgoingBufferLength);
 
-    this.incomingBytes = new Uint8Array(this.incomingBuffer);
-    this.outgoingBytes = new Uint8Array(this.outgoingBuffer);
+    this.mIncomingBytes = new Uint8Array(this.mIncomingBuffer);
+    this.mOutgoingBytes = new Uint8Array(this.mOutgoingBuffer);
 
     // Track where incoming data is read from and written to.
-    this.incomingWriteIndex = 0;
-    this.incomingReadIndex = 0;
+    this.mIncomingWriteIndex = 0;
+    this.mIncomingReadIndex = 0;
 
     // Leave room for the parcel size for outgoing parcels.
-    this.outgoingIndex = this.PARCEL_SIZE_SIZE;
+    this.mOutgoingIndex = this.PARCEL_SIZE_SIZE;
 
     // How many bytes we've read for this parcel so far.
-    this.readIncoming = 0;
+    this.mReadIncoming = 0;
 
     // How many bytes available as parcel data.
-    this.readAvailable = 0;
+    this.mReadAvailable = 0;
 
     // Size of the incoming parcel. If this is zero, we're expecting a new
     // parcel.
-    this.currentParcelSize = 0;
+    this.mCurrentParcelSize = 0;
 
     // Queue for storing outgoing override points
-    this.outgoingBufferCalSizeQueue = [];
+    this.mOutgoingBufferCalSizeQueue = [];
   },
 
   /**
-   * Mark current outgoingIndex as start point for calculation length of data
-   * written to outgoingBuffer.
+   * Mark current mOutgoingIndex as start point for calculation length of data
+   * written to mOutgoingBuffer.
    * Mark can be nested for here uses queue to remember marks.
    *
    * @param writeFunction
-   *        Function to write data length into outgoingBuffer, this function is
+   *        Function to write data length into mOutgoingBuffer, this function is
    *        also used to allocate buffer for data length.
    *        Raw data size(in Uint8) is provided as parameter calling writeFunction.
    *        If raw data size is not in proper unit for writing, user can adjust
    *        the length value in writeFunction before writing.
    **/
   startCalOutgoingSize: function startCalOutgoingSize(writeFunction) {
-    let sizeInfo = {index: this.outgoingIndex,
+    let sizeInfo = {index: this.mOutgoingIndex,
                     write: writeFunction};
 
     // Allocate buffer for data lemgtj.
     writeFunction.call(0);
 
     // Get size of data length buffer for it is not counted into data size.
-    sizeInfo.size = this.outgoingIndex - sizeInfo.index;
+    sizeInfo.size = this.mOutgoingIndex - sizeInfo.index;
 
     // Enqueue size calculation information.
-    this.outgoingBufferCalSizeQueue.push(sizeInfo);
+    this.mOutgoingBufferCalSizeQueue.push(sizeInfo);
   },
 
   /**
    * Calculate data length since last mark, and write it into mark position.
    **/
   stopCalOutgoingSize: function stopCalOutgoingSize() {
-    let sizeInfo = this.outgoingBufferCalSizeQueue.pop();
+    let sizeInfo = this.mOutgoingBufferCalSizeQueue.pop();
 
-    // Remember current outgoingIndex.
-    let currentOutgoingIndex = this.outgoingIndex;
+    // Remember current mOutgoingIndex.
+    let currentOutgoingIndex = this.mOutgoingIndex;
     // Calculate data length, in uint8.
-    let writeSize = this.outgoingIndex - sizeInfo.index - sizeInfo.size;
+    let writeSize = this.mOutgoingIndex - sizeInfo.index - sizeInfo.size;
 
     // Write data length to mark, use same function for allocating buffer to make
     // sure there is no buffer overloading.
-    this.outgoingIndex = sizeInfo.index;
+    this.mOutgoingIndex = sizeInfo.index;
     sizeInfo.write(writeSize);
 
-    // Restore outgoingIndex.
-    this.outgoingIndex = currentOutgoingIndex;
+    // Restore mOutgoingIndex.
+    this.mOutgoingIndex = currentOutgoingIndex;
   },
 
   /**
@@ -122,34 +121,34 @@ let Buf = {
    */
   growIncomingBuffer: function growIncomingBuffer(min_size) {
     if (DEBUG) {
-      debug("Current buffer of " + this.incomingBufferLength +
+      debug("Current buffer of " + this.mIncomingBufferLength +
             " can't handle incoming " + min_size + " bytes.");
     }
-    let oldBytes = this.incomingBytes;
-    this.incomingBufferLength =
+    let oldBytes = this.mIncomingBytes;
+    this.mIncomingBufferLength =
       2 << Math.floor(Math.log(min_size)/Math.log(2));
-    if (DEBUG) debug("New incoming buffer size: " + this.incomingBufferLength);
-    this.incomingBuffer = new ArrayBuffer(this.incomingBufferLength);
-    this.incomingBytes = new Uint8Array(this.incomingBuffer);
-    if (this.incomingReadIndex <= this.incomingWriteIndex) {
+    if (DEBUG) debug("New incoming buffer size: " + this.mIncomingBufferLength);
+    this.mIncomingBuffer = new ArrayBuffer(this.mIncomingBufferLength);
+    this.mIncomingBytes = new Uint8Array(this.mIncomingBuffer);
+    if (this.mIncomingReadIndex <= this.mIncomingWriteIndex) {
       // Read and write index are in natural order, so we can just copy
       // the old buffer over to the bigger one without having to worry
       // about the indexes.
-      this.incomingBytes.set(oldBytes, 0);
+      this.mIncomingBytes.set(oldBytes, 0);
     } else {
       // The write index has wrapped around but the read index hasn't yet.
       // Write whatever the read index has left to read until it would
       // circle around to the beginning of the new buffer, and the rest
       // behind that.
-      let head = oldBytes.subarray(this.incomingReadIndex);
-      let tail = oldBytes.subarray(0, this.incomingReadIndex);
-      this.incomingBytes.set(head, 0);
-      this.incomingBytes.set(tail, head.length);
-      this.incomingReadIndex = 0;
-      this.incomingWriteIndex += head.length;
+      let head = oldBytes.subarray(this.mIncomingReadIndex);
+      let tail = oldBytes.subarray(0, this.mIncomingReadIndex);
+      this.mIncomingBytes.set(head, 0);
+      this.mIncomingBytes.set(tail, head.length);
+      this.mIncomingReadIndex = 0;
+      this.mIncomingWriteIndex += head.length;
     }
     if (DEBUG) {
-      debug("New incoming buffer size is " + this.incomingBufferLength);
+      debug("New incoming buffer size is " + this.mIncomingBufferLength);
     }
   },
 
@@ -162,17 +161,17 @@ let Buf = {
    */
   growOutgoingBuffer: function growOutgoingBuffer(min_size) {
     if (DEBUG) {
-      debug("Current buffer of " + this.outgoingBufferLength +
+      debug("Current buffer of " + this.mOutgoingBufferLength +
             " is too small.");
     }
-    let oldBytes = this.outgoingBytes;
-    this.outgoingBufferLength =
+    let oldBytes = this.mOutgoingBytes;
+    this.mOutgoingBufferLength =
       2 << Math.floor(Math.log(min_size)/Math.log(2));
-    this.outgoingBuffer = new ArrayBuffer(this.outgoingBufferLength);
-    this.outgoingBytes = new Uint8Array(this.outgoingBuffer);
-    this.outgoingBytes.set(oldBytes, 0);
+    this.mOutgoingBuffer = new ArrayBuffer(this.mOutgoingBufferLength);
+    this.mOutgoingBytes = new Uint8Array(this.mOutgoingBuffer);
+    this.mOutgoingBytes.set(oldBytes, 0);
     if (DEBUG) {
-      debug("New outgoing buffer size is " + this.outgoingBufferLength);
+      debug("New outgoing buffer size is " + this.mOutgoingBufferLength);
     }
   },
 
@@ -187,10 +186,10 @@ let Buf = {
    *
    * @param index
    *        Data position in incoming parcel, valid from 0 to
-   *        currentParcelSize.
+   *        mCurrentParcelSize.
    */
   ensureIncomingAvailable: function ensureIncomingAvailable(index) {
-    if (index >= this.currentParcelSize) {
+    if (index >= this.mCurrentParcelSize) {
       throw new Error("Trying to read data beyond the parcel end!");
     } else if (index < 0) {
       throw new Error("Trying to read data before the parcel begin!");
@@ -204,48 +203,48 @@ let Buf = {
    *        Seek offset in relative to current position.
    */
   seekIncoming: function seekIncoming(offset) {
-    // Translate to 0..currentParcelSize
-    let cur = this.currentParcelSize - this.readAvailable;
+    // Translate to 0..mCurrentParcelSize
+    let cur = this.mCurrentParcelSize - this.mReadAvailable;
 
     let newIndex = cur + offset;
     this.ensureIncomingAvailable(newIndex);
 
-    // ... incomingReadIndex -->|
-    // 0               new     cur           currentParcelSize
+    // ... mIncomingReadIndex -->|
+    // 0               new     cur           mCurrentParcelSize
     // |================|=======|====================|
-    // |<--        cur       -->|<- readAvailable ->|
-    // |<-- newIndex -->|<--  new readAvailable  -->|
-    this.readAvailable = this.currentParcelSize - newIndex;
+    // |<--        cur       -->|<- mReadAvailable ->|
+    // |<-- newIndex -->|<--  new mReadAvailable  -->|
+    this.mReadAvailable = this.mCurrentParcelSize - newIndex;
 
     // Translate back:
-    if (this.incomingReadIndex < cur) {
-      // The incomingReadIndex is wrapped.
-      newIndex += this.incomingBufferLength;
+    if (this.mIncomingReadIndex < cur) {
+      // The mIncomingReadIndex is wrapped.
+      newIndex += this.mIncomingBufferLength;
     }
-    newIndex += (this.incomingReadIndex - cur);
-    newIndex %= this.incomingBufferLength;
-    this.incomingReadIndex = newIndex;
+    newIndex += (this.mIncomingReadIndex - cur);
+    newIndex %= this.mIncomingBufferLength;
+    this.mIncomingReadIndex = newIndex;
   },
 
   readUint8Unchecked: function readUint8Unchecked() {
-    let value = this.incomingBytes[this.incomingReadIndex];
-    this.incomingReadIndex = (this.incomingReadIndex + 1) %
-                             this.incomingBufferLength;
+    let value = this.mIncomingBytes[this.mIncomingReadIndex];
+    this.mIncomingReadIndex = (this.mIncomingReadIndex + 1) %
+                             this.mIncomingBufferLength;
     return value;
   },
 
   readUint8: function readUint8() {
-    // Translate to 0..currentParcelSize
-    let cur = this.currentParcelSize - this.readAvailable;
+    // Translate to 0..mCurrentParcelSize
+    let cur = this.mCurrentParcelSize - this.mReadAvailable;
     this.ensureIncomingAvailable(cur);
 
-    this.readAvailable--;
+    this.mReadAvailable--;
     return this.readUint8Unchecked();
   },
 
   readUint8Array: function readUint8Array(length) {
-    // Translate to 0..currentParcelSize
-    let last = this.currentParcelSize - this.readAvailable;
+    // Translate to 0..mCurrentParcelSize
+    let last = this.mCurrentParcelSize - this.mReadAvailable;
     last += (length - 1);
     this.ensureIncomingAvailable(last);
 
@@ -254,7 +253,7 @@ let Buf = {
       array[i] = this.readUint8Unchecked();
     }
 
-    this.readAvailable -= length;
+    this.mReadAvailable -= length;
     return array;
   },
 
@@ -278,7 +277,7 @@ let Buf = {
 
   readString: function readString() {
     let string_len = this.readUint32();
-    if (string_len < 0 || string_len >= this.INT32_MAX) {
+    if (string_len < 0 || string_len >= INT32_MAX) {
       return null;
     }
     let s = "";
@@ -329,19 +328,19 @@ let Buf = {
    *
    * @param index
    *        Data position in outgoing parcel, valid from 0 to
-   *        outgoingBufferLength.
+   *        mOutgoingBufferLength.
    */
   ensureOutgoingAvailable: function ensureOutgoingAvailable(index) {
-    if (index >= this.outgoingBufferLength) {
+    if (index >= this.mOutgoingBufferLength) {
       this.growOutgoingBuffer(index + 1);
     }
   },
 
   writeUint8: function writeUint8(value) {
-    this.ensureOutgoingAvailable(this.outgoingIndex);
+    this.ensureOutgoingAvailable(this.mOutgoingIndex);
 
-    this.outgoingBytes[this.outgoingIndex] = value;
-    this.outgoingIndex++;
+    this.mOutgoingBytes[this.mOutgoingIndex] = value;
+    this.mOutgoingIndex++;
   },
 
   writeUint16: function writeUint16(value) {
@@ -391,13 +390,13 @@ let Buf = {
      *  array, but the last thing written. Store the current index off
      *  to a temporary to be reset after we write the size.
      */
-    let currentIndex = this.outgoingIndex;
-    this.outgoingIndex = 0;
+    let currentIndex = this.mOutgoingIndex;
+    this.mOutgoingIndex = 0;
     this.writeUint8((value >> 24) & 0xff);
     this.writeUint8((value >> 16) & 0xff);
     this.writeUint8((value >> 8) & 0xff);
     this.writeUint8(value & 0xff);
-    this.outgoingIndex = currentIndex;
+    this.mOutgoingIndex = currentIndex;
   },
 
   copyIncomingToOutgoing: function copyIncomingToOutgoing(length) {
@@ -406,36 +405,36 @@ let Buf = {
     }
 
     let translatedReadIndexEnd =
-      this.currentParcelSize - this.readAvailable + length - 1;
+      this.mCurrentParcelSize - this.mReadAvailable + length - 1;
     this.ensureIncomingAvailable(translatedReadIndexEnd);
 
-    let translatedWriteIndexEnd = this.outgoingIndex + length - 1;
+    let translatedWriteIndexEnd = this.mOutgoingIndex + length - 1;
     this.ensureOutgoingAvailable(translatedWriteIndexEnd);
 
-    let newIncomingReadIndex = this.incomingReadIndex + length;
-    if (newIncomingReadIndex < this.incomingBufferLength) {
+    let newIncomingReadIndex = this.mIncomingReadIndex + length;
+    if (newIncomingReadIndex < this.mIncomingBufferLength) {
       // Reading won't cause wrapping, go ahead with builtin copy.
-      this.outgoingBytes
-          .set(this.incomingBytes.subarray(this.incomingReadIndex,
-                                           newIncomingReadIndex),
-               this.outgoingIndex);
+      this.mOutgoingBytes
+          .set(this.mIncomingBytes.subarray(this.mIncomingReadIndex,
+                                            newIncomingReadIndex),
+               this.mOutgoingIndex);
     } else {
       // Not so lucky.
-      newIncomingReadIndex %= this.incomingBufferLength;
-      this.outgoingBytes
-          .set(this.incomingBytes.subarray(this.incomingReadIndex,
-                                           this.incomingBufferLength),
-               this.outgoingIndex);
+      newIncomingReadIndex %= this.mIncomingBufferLength;
+      this.mOutgoingBytes
+          .set(this.mIncomingBytes.subarray(this.mIncomingReadIndex,
+                                            this.mIncomingBufferLength),
+               this.mOutgoingIndex);
       if (newIncomingReadIndex) {
-        let firstPartLength = this.incomingBufferLength - this.incomingReadIndex;
-        this.outgoingBytes.set(this.incomingBytes.subarray(0, newIncomingReadIndex),
-                               this.outgoingIndex + firstPartLength);
+        let firstPartLength = this.mIncomingBufferLength - this.mIncomingReadIndex;
+        this.mOutgoingBytes.set(this.mIncomingBytes.subarray(0, newIncomingReadIndex),
+                               this.mOutgoingIndex + firstPartLength);
       }
     }
 
-    this.incomingReadIndex = newIncomingReadIndex;
-    this.readAvailable -= length;
-    this.outgoingIndex += length;
+    this.mIncomingReadIndex = newIncomingReadIndex;
+    this.mReadAvailable -= length;
+    this.mOutgoingIndex += length;
   },
 
   /**
@@ -453,25 +452,25 @@ let Buf = {
     // we process any backlog in parcels immediately, before writing
     // new data to the buffer. So the only edge case we need to handle
     // is when the incoming data is larger than the buffer size.
-    let minMustAvailableSize = incoming.length + this.readIncoming;
-    if (minMustAvailableSize > this.incomingBufferLength) {
+    let minMustAvailableSize = incoming.length + this.mReadIncoming;
+    if (minMustAvailableSize > this.mIncomingBufferLength) {
       this.growIncomingBuffer(minMustAvailableSize);
     }
 
     // We can let the typed arrays do the copying if the incoming data won't
     // wrap around the edges of the circular buffer.
-    let remaining = this.incomingBufferLength - this.incomingWriteIndex;
+    let remaining = this.mIncomingBufferLength - this.mIncomingWriteIndex;
     if (remaining >= incoming.length) {
-      this.incomingBytes.set(incoming, this.incomingWriteIndex);
+      this.mIncomingBytes.set(incoming, this.mIncomingWriteIndex);
     } else {
       // The incoming data would wrap around it.
       let head = incoming.subarray(0, remaining);
       let tail = incoming.subarray(remaining);
-      this.incomingBytes.set(head, this.incomingWriteIndex);
-      this.incomingBytes.set(tail, 0);
+      this.mIncomingBytes.set(head, this.mIncomingWriteIndex);
+      this.mIncomingBytes.set(tail, 0);
     }
-    this.incomingWriteIndex = (this.incomingWriteIndex + incoming.length) %
-                               this.incomingBufferLength;
+    this.mIncomingWriteIndex = (this.mIncomingWriteIndex + incoming.length) %
+                               this.mIncomingBufferLength;
   },
 
   /**
@@ -483,73 +482,73 @@ let Buf = {
   processIncoming: function processIncoming(incoming) {
     if (DEBUG) {
       debug("Received " + incoming.length + " bytes.");
-      debug("Already read " + this.readIncoming);
+      debug("Already read " + this.mReadIncoming);
     }
 
     this.writeToIncoming(incoming);
-    this.readIncoming += incoming.length;
+    this.mReadIncoming += incoming.length;
     while (true) {
-      if (!this.currentParcelSize) {
+      if (!this.mCurrentParcelSize) {
         // We're expecting a new parcel.
-        if (this.readIncoming < this.PARCEL_SIZE_SIZE) {
+        if (this.mReadIncoming < this.PARCEL_SIZE_SIZE) {
           // We don't know how big the next parcel is going to be, need more
           // data.
           if (DEBUG) debug("Next parcel size unknown, going to sleep.");
           return;
         }
-        this.currentParcelSize = this.readParcelSize();
+        this.mCurrentParcelSize = this.readParcelSize();
         if (DEBUG) {
-          debug("New incoming parcel of size " + this.currentParcelSize);
+          debug("New incoming parcel of size " + this.mCurrentParcelSize);
         }
         // The size itself is not included in the size.
-        this.readIncoming -= this.PARCEL_SIZE_SIZE;
+        this.mReadIncoming -= this.PARCEL_SIZE_SIZE;
       }
 
-      if (this.readIncoming < this.currentParcelSize) {
+      if (this.mReadIncoming < this.mCurrentParcelSize) {
         // We haven't read enough yet in order to be able to process a parcel.
-        if (DEBUG) debug("Read " + this.readIncoming + ", but parcel size is "
-                         + this.currentParcelSize + ". Going to sleep.");
+        if (DEBUG) debug("Read " + this.mReadIncoming + ", but parcel size is "
+                         + this.mCurrentParcelSize + ". Going to sleep.");
         return;
       }
 
       // Alright, we have enough data to process at least one whole parcel.
       // Let's do that.
-      let expectedAfterIndex = (this.incomingReadIndex + this.currentParcelSize)
-                               % this.incomingBufferLength;
+      let expectedAfterIndex = (this.mIncomingReadIndex + this.mCurrentParcelSize)
+                               % this.mIncomingBufferLength;
 
       if (DEBUG) {
         let parcel;
-        if (expectedAfterIndex < this.incomingReadIndex) {
-          let head = this.incomingBytes.subarray(this.incomingReadIndex);
-          let tail = this.incomingBytes.subarray(0, expectedAfterIndex);
+        if (expectedAfterIndex < this.mIncomingReadIndex) {
+          let head = this.mIncomingBytes.subarray(this.mIncomingReadIndex);
+          let tail = this.mIncomingBytes.subarray(0, expectedAfterIndex);
           parcel = Array.slice(head).concat(Array.slice(tail));
         } else {
-          parcel = Array.slice(this.incomingBytes.subarray(
-            this.incomingReadIndex, expectedAfterIndex));
+          parcel = Array.slice(this.mIncomingBytes.subarray(
+            this.mIncomingReadIndex, expectedAfterIndex));
         }
-        debug("Parcel (size " + this.currentParcelSize + "): " + parcel);
+        debug("Parcel (size " + this.mCurrentParcelSize + "): " + parcel);
       }
 
       if (DEBUG) debug("We have at least one complete parcel.");
       try {
-        this.readAvailable = this.currentParcelSize;
+        this.mReadAvailable = this.mCurrentParcelSize;
         this.processParcel();
       } catch (ex) {
         if (DEBUG) debug("Parcel handling threw " + ex + "\n" + ex.stack);
       }
 
       // Ensure that the whole parcel was consumed.
-      if (this.incomingReadIndex != expectedAfterIndex) {
+      if (this.mIncomingReadIndex != expectedAfterIndex) {
         if (DEBUG) {
           debug("Parcel handler didn't consume whole parcel, " +
-                Math.abs(expectedAfterIndex - this.incomingReadIndex) +
+                Math.abs(expectedAfterIndex - this.mIncomingReadIndex) +
                 " bytes left over");
         }
-        this.incomingReadIndex = expectedAfterIndex;
+        this.mIncomingReadIndex = expectedAfterIndex;
       }
-      this.readIncoming -= this.currentParcelSize;
-      this.readAvailable = 0;
-      this.currentParcelSize = 0;
+      this.mReadIncoming -= this.mCurrentParcelSize;
+      this.mReadAvailable = 0;
+      this.mCurrentParcelSize = 0;
     }
   },
 
@@ -560,23 +559,23 @@ let Buf = {
     // Compute the size of the parcel and write it to the front of the parcel
     // where we left room for it. Note that he parcel size does not include
     // the size itself.
-    let parcelSize = this.outgoingIndex - this.PARCEL_SIZE_SIZE;
+    let parcelSize = this.mOutgoingIndex - this.PARCEL_SIZE_SIZE;
     this.writeParcelSize(parcelSize);
 
     // This assumes that postRILMessage will make a copy of the ArrayBufferView
     // right away!
-    let parcel = this.outgoingBytes.subarray(0, this.outgoingIndex);
+    let parcel = this.mOutgoingBytes.subarray(0, this.mOutgoingIndex);
     if (DEBUG) debug("Outgoing parcel: " + Array.slice(parcel));
     this.onSendParcel(parcel);
-    this.outgoingIndex = this.PARCEL_SIZE_SIZE;
+    this.mOutgoingIndex = this.PARCEL_SIZE_SIZE;
   },
 
   getCurrentParcelSize: function getCurrentParcelSize() {
-    return this.currentParcelSize;
+    return this.mCurrentParcelSize;
   },
 
   getReadAvailable: function getReadAvailable() {
-    return this.readAvailable;
+    return this.mReadAvailable;
   }
 
   /**

@@ -38,11 +38,12 @@ function onExecuteFoo()
   executeSoon(() => gJSTerm.execute("foo2 = 'newFoo'; window.foo2", onNewFoo2));
 }
 
-function onNewFoo2(msg)
+function onNewFoo2()
 {
   is(gWebConsole.outputNode.textContent.indexOf("undefined"), -1,
      "|undefined| is not displayed after adding |foo2|");
 
+  let msg = gWebConsole.outputNode.querySelector(".webconsole-msg-output");
   ok(msg, "output result found");
 
   isnot(msg.textContent.indexOf("newFoo"), -1,

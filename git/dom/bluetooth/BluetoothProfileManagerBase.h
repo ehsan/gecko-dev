@@ -63,11 +63,6 @@ public:
    */
   virtual void OnConnect(const nsAString& aErrorStr) = 0;
   virtual void OnDisconnect(const nsAString& aErrorStr) = 0;
-
-  /**
-   * Returns string of profile name
-   */
-  virtual void GetName(nsACString& aName) = 0;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -152,9 +152,9 @@ public class WebAppImpl extends GeckoApp {
     }
 
     @Override
-    protected boolean getSessionRestoreState(Bundle savedInstanceState) {
+    protected int getSessionRestoreState(Bundle savedInstanceState) {
         // for now webapps never restore your session
-        return false;
+        return RESTORE_NONE;
     }
 
     @Override

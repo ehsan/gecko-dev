@@ -108,6 +108,9 @@ abstract public class BrowserApp extends GeckoApp
     private View mHomePagerContainer;
     protected Telemetry.Timer mAboutHomeStartupTimer = null;
 
+    // Set the default session restore value
+    private int mSessionRestore = -1;
+
     private static final int GECKO_TOOLS_MENU = -1;
     private static final int ADDON_MENU_OFFSET = 1000;
     private class MenuItemInfo {
@@ -383,14 +386,23 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     @Override
+    protected int getSessionRestoreState(Bundle savedInstanceState) {
+        if (mSessionRestore > -1) {
+            return mSessionRestore;
+        }
+
+        return super.getSessionRestoreState(savedInstanceState);
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
 
         String args = getIntent().getStringExtra("args");
         if (args != null && args.contains(GUEST_BROWSING_ARG)) {
             mProfile = GeckoProfile.createGuestProfile(this);
-        } else {
-            GeckoProfile.maybeCleanupGuestProfile(this);
+        } else if (GeckoProfile.maybeCleanupGuestProfile(this)) {
+            mSessionRestore = RESTORE_NORMAL;
         }
 
         super.onCreate(savedInstanceState);
@@ -448,20 +460,6 @@ abstract public class BrowserApp extends GeckoApp
         mBrowserToolbar.setOnFilterListener(new BrowserToolbar.OnFilterListener() {
             public void onFilter(String searchText, AutocompleteHandler handler) {
                 filterEditingMode(searchText, handler);
-            }
-        });
-
-        mBrowserToolbar.setOnStartEditingListener(new BrowserToolbar.OnStartEditingListener() {
-            public void onStartEditing() {
-                // Temporarily disable doorhanger notifications.
-                mDoorHangerPopup.disable();
-            }
-        });
-
-        mBrowserToolbar.setOnStopEditingListener(new BrowserToolbar.OnStopEditingListener() {
-            public void onStopEditing() {
-                // Re-enable doorhanger notifications.
-                mDoorHangerPopup.enable();
             }
         });
 
@@ -828,7 +826,7 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     protected void loadStartupTab(String url) {
         // We aren't showing about:home, so cancel the telemetry timer
-        if (url != null || mShouldRestore) {
+        if (url != null || mRestoreMode != RESTORE_NONE) {
             mAboutHomeStartupTimer.cancel();
         }
 
@@ -961,6 +959,13 @@ abstract public class BrowserApp extends GeckoApp
         if (mSiteIdentityPopup != null) {
             mSiteIdentityPopup.dismiss();
         }
+    }
+
+    public View getActionBarLayout() {
+        RelativeLayout actionBar = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.browser_toolbar, null);
+        actionBar.setLayoutParams(new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.FILL_PARENT,
+                                                                  (int) getResources().getDimension(R.dimen.browser_toolbar_height)));
+        return actionBar;
     }
 
     @Override
@@ -1406,7 +1411,7 @@ abstract public class BrowserApp extends GeckoApp
         animator.start();
     }
 
-    private void commitEditingMode() {
+    void commitEditingMode() {
         if (!mBrowserToolbar.isEditing()) {
             return;
         }
@@ -1481,7 +1486,7 @@ abstract public class BrowserApp extends GeckoApp
         }
     }
 
-    private boolean dismissEditingMode() {
+    boolean dismissEditingMode() {
         if (!mBrowserToolbar.isEditing()) {
             return false;
         }

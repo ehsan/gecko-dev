@@ -298,6 +298,10 @@ TargetEventsHandler.prototype = {
         NetMonitorView.Sidebar.reset();
         NetMonitorView.NetworkDetails.reset();
 
+        // Reset global helpers cache.
+        nsIURL.store.clear();
+        drain.store.clear();
+
         window.emit(EVENTS.TARGET_WILL_NAVIGATE);
         break;
       }

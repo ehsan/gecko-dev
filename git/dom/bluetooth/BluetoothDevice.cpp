@@ -130,7 +130,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
 
     JS::Rooted<JSObject*> uuids(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, uuids.address()))) {
-      BT_WARNING("Cannot set JS UUIDs object!");
+      NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
     mJsUuids = uuids;
@@ -145,7 +145,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
 
     JS::Rooted<JSObject*> services(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mServices, services.address()))) {
-      BT_WARNING("Cannot set JS Services object!");
+      NS_WARNING("Cannot set JS Services object!");
       return;
     }
     mJsServices = services;
@@ -154,7 +154,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling device property: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(name));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
   }
 }
 
@@ -175,7 +175,7 @@ BluetoothDevice::Create(nsPIDOMWindow* aWindow,
 void
 BluetoothDevice::Notify(const BluetoothSignal& aData)
 {
-  BT_LOGD("[D] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
+  BT_LOG("[D] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
 
   BluetoothValue v = aData.value();
   if (aData.name().EqualsLiteral("PropertyChanged")) {
@@ -192,7 +192,7 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling device signal: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
 #endif
   }
 }
@@ -201,7 +201,7 @@ JS::Value
 BluetoothDevice::GetUuids(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsUuids) {
-    BT_WARNING("UUIDs not yet set!");
+    NS_WARNING("UUIDs not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::NullValue();
   }
@@ -214,7 +214,7 @@ JS::Value
 BluetoothDevice::GetServices(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsServices) {
-    BT_WARNING("Services not yet set!");
+    NS_WARNING("Services not yet set!\n");
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::Value(JSVAL_NULL);
   }

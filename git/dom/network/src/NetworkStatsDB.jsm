@@ -15,9 +15,8 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 
 const DB_NAME = "net_stats";
-const DB_VERSION = 2;
-const STORE_NAME = "net_stats"; // Deprecated. Use "net_stats_v2" instead.
-const STORE_NAME_V2 = "net_stats_v2";
+const DB_VERSION = 1;
+const STORE_NAME = "net_stats";
 
 // Constant defining the maximum values allowed per interface. If more, older
 // will be erased.
@@ -31,7 +30,7 @@ this.NetworkStatsDB = function NetworkStatsDB(aGlobal, aConnectionTypes) {
     debug("Constructor");
   }
   this._connectionTypes = aConnectionTypes;
-  this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME_V2], aGlobal);
+  this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME], aGlobal);
 }
 
 NetworkStatsDB.prototype = {
@@ -44,7 +43,7 @@ NetworkStatsDB.prototype = {
     function errorCb(error) {
       txnCb(error, null);
     }
-    return this.newTxn(txn_type, STORE_NAME_V2, callback, successCb, errorCb);
+    return this.newTxn(txn_type, STORE_NAME, callback, successCb, errorCb);
   },
 
   upgradeSchema: function upgradeSchema(aTransaction, aDb, aOldVersion, aNewVersion) {
@@ -90,52 +89,14 @@ NetworkStatsDB.prototype = {
         if (DEBUG) {
           debug("Database initialized");
         }
-      } else if (currVersion == 1) {
-        // In order to support per-app traffic data storage, the original
-        // objectStore needs to be replaced by a new objectStore with new
-        // key path ("appId") and new index ("appId").
-        let newObjectStore;
-        newObjectStore = db.createObjectStore(STORE_NAME_V2, { keyPath: ["appId", "connectionType", "timestamp"] });
-        newObjectStore.createIndex("appId", "appId", { unique: false });
-        newObjectStore.createIndex("connectionType", "connectionType", { unique: false });
-        newObjectStore.createIndex("timestamp", "timestamp", { unique: false });
-        newObjectStore.createIndex("rxBytes", "rxBytes", { unique: false });
-        newObjectStore.createIndex("txBytes", "txBytes", { unique: false });
-        newObjectStore.createIndex("rxTotalBytes", "rxTotalBytes", { unique: false });
-        newObjectStore.createIndex("txTotalBytes", "txTotalBytes", { unique: false });
-        if (DEBUG) {
-          debug("Created new object stores and indexes");
-        }
-
-        // Copy the data from the original objectStore to the new objectStore.
-        objectStore = aTransaction.objectStore(STORE_NAME);
-        objectStore.openCursor().onsuccess = function(event) {
-          let cursor = event.target.result;
-          if (!cursor) {
-            // Delete the original object store.
-            db.deleteObjectStore(STORE_NAME);
-            return;
-          }
-
-          let oldStats = cursor.value;
-          let newStats = { appId:          0,
-                           connectionType: oldStats.connectionType,
-                           timestamp:      oldStats.timestamp,
-                           rxBytes:        oldStats.rxBytes,
-                           txBytes:        oldStats.txBytes,
-                           rxTotalBytes:   oldStats.rxTotalBytes,
-                           txTotalBytes:   oldStats.txTotalBytes };
-          this._saveStats(aTransaction, newObjectStore, newStats);
-          cursor.continue();
-        }.bind(this);
       }
     }
   },
 
-  normalizeDate: function normalizeDate(aDate) {
+   normalizeDate: function normalizeDate(aDate) {
     // Convert to UTC according to timezone and
     // filter timestamp to get SAMPLE_RATE precission
-    let timestamp = aDate.getTime() - aDate.getTimezoneOffset() * 60 * 1000;
+    let timestamp = aDate.getTime() - (new Date()).getTimezoneOffset() * 60 * 1000;
     timestamp = Math.floor(timestamp / SAMPLE_RATE) * SAMPLE_RATE;
     return timestamp;
   },
@@ -143,13 +104,12 @@ NetworkStatsDB.prototype = {
   saveStats: function saveStats(stats, aResultCb) {
     let timestamp = this.normalizeDate(stats.date);
 
-    stats = { appId:          stats.appId,
-              connectionType: stats.connectionType,
-              timestamp:      timestamp,
-              rxBytes:        (stats.appId == 0) ? 0 : stats.rxBytes,
-              txBytes:        (stats.appId == 0) ? 0 : stats.txBytes,
-              rxTotalBytes:   (stats.appId == 0) ? stats.rxBytes : 0,
-              txTotalBytes:   (stats.appId == 0) ? stats.txBytes : 0 };
+    stats = {connectionType: stats.connectionType,
+             timestamp:      timestamp,
+             rxBytes:        0,
+             txBytes:        0,
+             rxTotalBytes:   stats.rxBytes,
+             txTotalBytes:   stats.txBytes};
 
     this.dbNewTxn("readwrite", function(txn, store) {
       if (DEBUG) {
@@ -166,18 +126,13 @@ NetworkStatsDB.prototype = {
           return;
         }
 
-        if (stats.appId != cursor.value.appId) {
-          cursor.continue();
-          return;
-        }
-
         // There are old samples
         if (DEBUG) {
           debug("Last value " + JSON.stringify(cursor.value));
         }
 
         // Remove stats previous to now - VALUE_MAX_LENGTH
-        this._removeOldStats(txn, store, stats.appId, stats.connectionType, stats.timestamp);
+        this._removeOldStats(txn, store, stats.connectionType, stats.timestamp);
 
         // Process stats before save
         this._processSamplesDiff(txn, store, cursor, stats);
@@ -205,32 +160,17 @@ NetworkStatsDB.prototype = {
       debug("New: " + newSample.timestamp + " - Last: " + lastSample.timestamp + " - diff: " + diff);
     }
 
-    // If the incoming data is obtained from netd (|newSample.appId| is 0),
-    // the new |txBytes|/|rxBytes| is assigend by the differnce between the new
-    // |txTotalBytes|/|rxTotalBytes| and the last |txTotalBytes|/|rxTotalBytes|.
-    // Else, the incoming data is per-app data (|newSample.appId| is not 0),
-    // the |txBytes|/|rxBytes| is directly the new |txBytes|/|rxBytes|.
-    if (newSample.appId == 0) {
-      let rxDiff = newSample.rxTotalBytes - lastSample.rxTotalBytes;
-      let txDiff = newSample.txTotalBytes - lastSample.txTotalBytes;
-      if (rxDiff < 0 || txDiff < 0) {
-        rxDiff = newSample.rxTotalBytes;
-        txDiff = newSample.txTotalBytes;
-      }
-      newSample.rxBytes = rxDiff;
-      newSample.txBytes = txDiff;
+    let rxDiff = newSample.rxTotalBytes - lastSample.rxTotalBytes;
+    let txDiff = newSample.txTotalBytes - lastSample.txTotalBytes;
+    if (rxDiff < 0 || txDiff < 0) {
+      rxDiff = newSample.rxTotalBytes;
+      txDiff = newSample.txTotalBytes;
     }
+    newSample.rxBytes = rxDiff;
+    newSample.txBytes = txDiff;
 
     if (diff == 1) {
       // New element.
-
-      // If the incoming data is per-data data, new |rxTotalBytes|/|txTotalBytes|
-      // needs to be obtained by adding new |rxBytes|/|txBytes| to last
-      // |rxTotalBytes|/|txTotalBytes|.
-      if (newSample.appId != 0) {
-        newSample.rxTotalBytes = newSample.rxBytes + lastSample.rxTotalBytes;
-        newSample.txTotalBytes = newSample.txBytes + lastSample.txTotalBytes;
-      }
       this._saveStats(txn, store, newSample);
       return;
     }
@@ -245,8 +185,7 @@ NetworkStatsDB.prototype = {
       let data = [];
       for (let i = diff - 2; i >= 0; i--) {
         let time = newSample.timestamp - SAMPLE_RATE * (i + 1);
-        let sample = {appId:          newSample.appId,
-                      connectionType: newSample.connectionType,
+        let sample = {connectionType: newSample.connectionType,
                       timestamp:      time,
                       rxBytes:        0,
                       txBytes:        0,
@@ -266,21 +205,10 @@ NetworkStatsDB.prototype = {
 
       // If diff < 0, clock or timezone changed back. Place data in the last sample.
 
-      lastSample.rxBytes += newSample.rxBytes;
-      lastSample.txBytes += newSample.txBytes;
-
-      // If incoming data is obtained from netd, last |rxTotalBytes|/|txTotalBytes|
-      // needs to get updated by replacing the new |rxTotalBytes|/|txTotalBytes|.
-      if (newSample.appId == 0) {
-        lastSample.rxTotalBytes = newSample.rxTotalBytes;
-        lastSample.txTotalBytes = newSample.txTotalBytes;
-      } else {
-        // Else, the incoming data is per-app data, old |rxTotalBytes|/
-        // |txTotalBytes| needs to get updated by adding the new
-        // |rxBytes|/|txBytes| to last |rxTotalBytes|/|txTotalBytes|.
-        lastSample.rxTotalBytes += newSample.rxBytes;
-        lastSample.txTotalBytes += newSample.txBytes;
-      }
+      lastSample.rxBytes += rxDiff;
+      lastSample.txBytes += txDiff;
+      lastSample.rxTotalBytes = newSample.rxTotalBytes;
+      lastSample.txTotalBytes = newSample.txTotalBytes;
       if (DEBUG) {
         debug("Update: " + JSON.stringify(lastSample));
       }
@@ -303,12 +231,12 @@ NetworkStatsDB.prototype = {
     }
   },
 
-  _removeOldStats: function _removeOldStats(txn, store, appId, connType, date) {
+  _removeOldStats: function _removeOldStats(txn, store, connType, date) {
     // Callback function to remove old items when new ones are added.
     let filterDate = date - (SAMPLE_RATE * VALUES_MAX_LENGTH - 1);
-    let lowerFilter = [appId, connType, 0];
-    let upperFilter = [appId, connType, filterDate];
-    let range = this.dbGlobal.IDBKeyRange.bound(lowerFilter, upperFilter, false, false);
+    let lowFilter = [connType, 0];
+    let upFilter = [connType, filterDate];
+    let range = this.dbGlobal.IDBKeyRange.bound(lowFilter, upFilter, false, false);
     store.openCursor(range).onsuccess = function(event) {
       var cursor = event.target.result;
       if (cursor) {
@@ -333,16 +261,15 @@ NetworkStatsDB.prototype = {
     let end = this.normalizeDate(aOptions.end);
 
     if (DEBUG) {
-      debug("Find: appId: " + aOptions.appId + " connectionType:" +
-            aOptions.connectionType + " start: " + start + " end: " + end);
+      debug("Find: connectionType:" + aOptions.connectionType + " start: " + start + " end: " + end);
       debug("Start time: " + new Date(start));
       debug("End time: " + new Date(end));
     }
 
     this.dbNewTxn("readonly", function(txn, store) {
-      let lowerFilter = [aOptions.appId, aOptions.connectionType, start];
-      let upperFilter = [aOptions.appId, aOptions.connectionType, end];
-      let range = this.dbGlobal.IDBKeyRange.bound(lowerFilter, upperFilter, false, false);
+      let lowFilter = [aOptions.connectionType, start];
+      let upFilter = [aOptions.connectionType, end];
+      let range = this.dbGlobal.IDBKeyRange.bound(lowFilter, upFilter, false, false);
 
       let data = [];
 
@@ -364,7 +291,6 @@ NetworkStatsDB.prototype = {
         // now - VALUES_MAX_LENGTH, fill with empty samples.
         this.fillResultSamples(start + offset, end + offset, data);
 
-        txn.result.manifestURL = aOptions.manifestURL;
         txn.result.connectionType = aOptions.connectionType;
         txn.result.start = aOptions.start;
         txn.result.end = aOptions.end;
@@ -379,15 +305,14 @@ NetworkStatsDB.prototype = {
     let end = this.normalizeDate(aOptions.end);
 
     if (DEBUG) {
-      debug("FindAll: appId: " + aOptions.appId +
-            " start: " + start + " end: " + end + "\n");
+      debug("FindAll: start: " + start + " end: " + end + "\n");
     }
 
     let self = this;
     this.dbNewTxn("readonly", function(txn, store) {
-      let lowerFilter = start;
-      let upperFilter = end;
-      let range = this.dbGlobal.IDBKeyRange.bound(lowerFilter, upperFilter, false, false);
+      let lowFilter = start;
+      let upFilter = end;
+      let range = this.dbGlobal.IDBKeyRange.bound(lowFilter, upFilter, false, false);
 
       let data = [];
 
@@ -398,11 +323,6 @@ NetworkStatsDB.prototype = {
       let request = store.index("timestamp").openCursor(range).onsuccess = function(event) {
         var cursor = event.target.result;
         if (cursor) {
-          if (cursor.value.appId != aOptions.appId) {
-            cursor.continue();
-            return;
-          }
-
           if (data.length > 0 &&
               data[data.length - 1].date.getTime() == cursor.value.timestamp + offset) {
             // Time is the same, so add values.
@@ -419,7 +339,6 @@ NetworkStatsDB.prototype = {
 
         this.fillResultSamples(start + offset, end + offset, data);
 
-        txn.result.manifestURL = aOptions.manifestURL;
         txn.result.connectionType = aOptions.connectionType;
         txn.result.start = aOptions.start;
         txn.result.end = aOptions.end;

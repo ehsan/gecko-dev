@@ -81,6 +81,3 @@ function testShowPanel(assert, panel) {
 
   return promise;
 }
-
-//Test disabled because of bug 911071
-module.exports = {}
