@@ -368,7 +368,6 @@ struct JSAtomState
     JSAtom              *configurableAtom;
     JSAtom              *writableAtom;
     JSAtom              *valueAtom;
-    JSAtom              *testAtom;
     JSAtom              *useStrictAtom;
 
 #if JS_HAS_XML_SUPPORT
@@ -525,7 +524,6 @@ extern const char   js_enumerable_str[];
 extern const char   js_configurable_str[];
 extern const char   js_writable_str[];
 extern const char   js_value_str[];
-extern const char   js_test_str[];
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate
