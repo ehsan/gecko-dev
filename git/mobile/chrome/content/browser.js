@@ -58,6 +58,9 @@ function getBrowser() {
 
 const kDefaultBrowserWidth = 800;
 
+// how many milliseconds before the mousedown and the overlay of an element
+const kTapOverlayTimeout = 200;
+
 // Override sizeToContent in the main window. It breaks things (bug 565887)
 window.sizeToContent = function() {
   Components.utils.reportError("window.sizeToContent is not allowed in this window");
@@ -500,9 +503,8 @@ var Browser = {
     browsers.addEventListener("command", this._handleContentCommand, true);
     browsers.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver.onUpdatePageReport, false);
 
-    // Login Manager and Form History initialization
+    // Login Manager
     Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
-    Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
 
     // Make sure we're online before attempting to load
     Util.forceOnline();
@@ -1530,7 +1532,7 @@ const BrowserSearch = {
   },
 
   updatePageSearchEngines: function updatePageSearchEngines(aNode) {
-    let items = Browser.selectedBrowser.searchEngines.filter(this.isPermanentSearchEngine);
+    let items = Browser.selectedBrowser.searchEngines;
     if (!items.length)
       return false;
 
@@ -1544,20 +1546,14 @@ const BrowserSearch = {
     return true;
   },
 
-  addPermanentSearchEngine: function addPermanentSearchEngine(aEngine) {
+  addPermanentSearchEngine: function (aEngine) {
     let iconURL = BrowserUI._favicon.src;
     Services.search.addEngine(aEngine.href, Ci.nsISearchEngine.DATA_XML, iconURL, false);
 
     this._engines = null;
   },
 
-  isPermanentSearchEngine: function isPermanentSearchEngine(aEngine) {
-    return !BrowserSearch.engines.some(function(item) {
-      return aEngine.title == item.name;
-    });
-  },
-
-  updateSearchButtons: function updateSearchButtons() {
+  updateSearchButtons: function() {
     let container = document.getElementById("search-buttons");
     if (this._engines && container.hasChildNodes())
       return;

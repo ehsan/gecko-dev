@@ -649,9 +649,7 @@ var BrowserUI = {
     } catch(e) { }
   },
 
-  handleEscape: function (aEvent) {
-    aEvent.stopPropagation();
-
+  handleEscape: function () {
     // Check open dialogs
     let dialog = this.activeDialog;
     if (dialog) {
@@ -712,7 +710,7 @@ var BrowserUI = {
       // Window events
       case "keypress":
         if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
-          this.handleEscape(aEvent);
+          this.handleEscape();
         break;
       case "AppCommand":
         aEvent.stopPropagation();
@@ -1090,7 +1088,7 @@ var PageActions = {
 
     lm.findLogins({}, host.prePath, "", null).forEach(function(login) {
       if (login.hostname == host.prePath)
-        lm.removeLogin(login);
+        lm.removeLogin(siteLogins[i]);
     });
   },
 
@@ -1178,25 +1176,22 @@ var PageActions = {
   _updateAttributes: function _updateAttributes() {
     let container = document.getElementById("pageactions-container");
     let visibleNodes = container.querySelectorAll("pageaction:not([hidden=true])");
-    let visibleCount = visibleNodes.length;
+    let len = visibleNodes.length;
 
     let first = null, last = null;
-    for (let i = 0; i < visibleCount; i++) {
+    for (let i = 0; i < len; i++) {
       let node = visibleNodes[i];
       node.removeAttribute("selector");
       // Note: CSS indexes start at one, so even/odd are swapped.
       node.setAttribute("even", (i % 2) ? "true" : "false");
     }
-
-    if (visibleCount >= 1) {
-      visibleNodes[visibleCount - 1].setAttribute("selector", "last-child");
+    if (len >= 1) {
       visibleNodes[0].setAttribute("selector", "first-child");
+      visibleNodes[len-1].setAttribute("selector", "last-child");
     }
-
-    if (visibleCount >= 2) {
-      visibleNodes[visibleCount - 2].setAttribute("selector", "second-last-child");
-      visibleNodes[0].setAttribute("selector", "first-child");
+    if (len >= 2) {
       visibleNodes[1].setAttribute("selector", "second-child");
+      visibleNodes[len-2].setAttribute("selector", "second-last-child");
     }
   }
 };
