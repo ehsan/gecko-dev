@@ -418,8 +418,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     printf("Starting ProcessPendingUpdates\n");
 #endif
     mViewManagerFlushIsPending = false;
-    nsCOMPtr<nsIViewManager> vm = mPresContext->GetPresShell()->GetViewManager();
-    vm->ProcessPendingUpdates();
+    mPresContext->GetPresShell()->GetViewManager()->ProcessPendingUpdates();
 #ifdef DEBUG_INVALIDATIONS
     printf("Ending ProcessPendingUpdates\n");
 #endif

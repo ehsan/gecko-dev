@@ -127,17 +127,14 @@ struct THEBES_API gfxFontStyle {
     int8_t ComputeWeight() const;
 
     bool Equals(const gfxFontStyle& other) const {
-        return
-            (*reinterpret_cast<const uint64_t*>(&size) ==
-             *reinterpret_cast<const uint64_t*>(&other.size)) &&
+        return (size == other.size) &&
             (style == other.style) &&
             (systemFont == other.systemFont) &&
             (printerFont == other.printerFont) &&
             (weight == other.weight) &&
             (stretch == other.stretch) &&
             (language == other.language) &&
-            (*reinterpret_cast<const uint32_t*>(&sizeAdjust) ==
-             *reinterpret_cast<const uint32_t*>(&other.sizeAdjust)) &&
+            (sizeAdjust == other.sizeAdjust) &&
             (featureSettings == other.featureSettings) &&
             (languageOverride == other.languageOverride);
     }

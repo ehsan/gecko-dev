@@ -1026,8 +1026,7 @@ nsView::RequestWindowClose(nsIWidget* aWidget)
 void
 nsView::WillPaintWindow(nsIWidget* aWidget, bool aWillSendDidPaint)
 {
-  nsCOMPtr<nsViewManager> vm = mViewManager;
-  vm->WillPaintWindow(aWidget, aWillSendDidPaint);
+  mViewManager->WillPaintWindow(aWidget, aWillSendDidPaint);
 }
 
 bool
@@ -1040,8 +1039,7 @@ nsView::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, bool aSentWillPaint
 void
 nsView::DidPaintWindow()
 {
-  nsCOMPtr<nsViewManager> vm = mViewManager;
-  vm->DidPaintWindow();
+  mViewManager->DidPaintWindow();
 }
 
 nsEventStatus
