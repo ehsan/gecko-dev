@@ -555,8 +555,7 @@ nsOpenTypeTable::MakeTextRun(gfxContext*        aThebesContext,
     aThebesContext, nullptr, nullptr, nullptr, 0, aAppUnitsPerDevPixel
   };
   gfxTextRun* textRun = gfxTextRun::Create(&params, 1, aFontGroup, 0);
-  textRun->AddGlyphRun(aFontGroup->GetFirstValidFont(),
-                       gfxTextRange::kFontGroup, 0,
+  textRun->AddGlyphRun(aFontGroup->GetFontAt(0), gfxTextRange::kFontGroup, 0,
                        false, gfxTextRunFactory::TEXT_ORIENT_HORIZONTAL);
                               // We don't care about CSS writing mode here;
                               // math runs are assumed to be horizontal.
@@ -564,7 +563,7 @@ nsOpenTypeTable::MakeTextRun(gfxContext*        aThebesContext,
   detailedGlyph.mGlyphID = aGlyph.glyphID;
   detailedGlyph.mAdvance =
     NSToCoordRound(aAppUnitsPerDevPixel *
-                   aFontGroup->GetFirstValidFont()->
+                   aFontGroup->GetFontAt(0)->
                    GetGlyphHAdvance(aThebesContext, aGlyph.glyphID));
   detailedGlyph.mXOffset = detailedGlyph.mYOffset = 0;
   gfxShapedText::CompressedGlyph g;
@@ -994,7 +993,7 @@ nsMathMLChar::SetFontFamily(nsPresContext*          aPresContext,
                     *getter_AddRefs(fm));
     // Set the font if it is an unicode table
     // or if the same family name has been found
-    gfxFont *firstFont = fm->GetThebesFontGroup()->GetFirstValidFont();
+    gfxFont *firstFont = fm->GetThebesFontGroup()->GetFontAt(0);
     FontFamilyList firstFontList;
     if (firstFont) {
       firstFontList.Append(
@@ -1440,7 +1439,7 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const FontFamilyName& aFamily,
     glyphTable = &gGlyphTableList->mUnicodeTable;
   } else {
     // If the font contains an Open Type MATH table, use it.
-    openTypeTable = nsOpenTypeTable::Create(fontGroup->GetFirstValidFont());
+    openTypeTable = nsOpenTypeTable::Create(fontGroup->GetFontAt(0));
     if (openTypeTable) {
       glyphTable = openTypeTable;
     } else {

@@ -180,20 +180,6 @@ protected:
 };
 
 } // namespace css
-
-struct CSSFontFaceDescriptors
-{
-#define CSS_FONT_DESC(name_, method_) nsCSSValue m##method_;
-#include "nsCSSFontDescList.h"
-#undef CSS_FONT_DESC
-
-  const nsCSSValue& Get(nsCSSFontDesc aFontDescID) const;
-  nsCSSValue& Get(nsCSSFontDesc aFontDescID);
-
-private:
-  static nsCSSValue CSSFontFaceDescriptors::* const Fields[];
-};
-
 } // namespace mozilla
 
 // A nsCSSFontFaceStyleDecl is always embedded in a nsCSSFontFaceRule.
@@ -226,11 +212,13 @@ protected:
   ~nsCSSFontFaceStyleDecl() {}
 
   friend class nsCSSFontFaceRule;
+#define CSS_FONT_DESC(name_, method_) nsCSSValue m##method_;
+#include "nsCSSFontDescList.h"
+#undef CSS_FONT_DESC
 
+  static nsCSSValue nsCSSFontFaceStyleDecl::* const Fields[];
   inline nsCSSFontFaceRule* ContainingRule();
   inline const nsCSSFontFaceRule* ContainingRule() const;
-
-  mozilla::CSSFontFaceDescriptors mDescriptors;
 
 private:
   // NOT TO BE IMPLEMENTED

@@ -134,31 +134,31 @@ ClockResolutionNs()
 namespace mozilla {
 
 double
-BaseTimeDurationPlatformUtils::ToSeconds(int64_t aTicks)
+TimeDuration::ToSeconds() const
 {
-  return double(aTicks) / kNsPerSecd;
+  return double(mValue) / kNsPerSecd;
 }
 
 double
-BaseTimeDurationPlatformUtils::ToSecondsSigDigits(int64_t aTicks)
+TimeDuration::ToSecondsSigDigits() const
 {
   // don't report a value < mResolution ...
-  int64_t valueSigDigs = sResolution * (aTicks / sResolution);
+  int64_t valueSigDigs = sResolution * (mValue / sResolution);
   // and chop off insignificant digits
   valueSigDigs = sResolutionSigDigs * (valueSigDigs / sResolutionSigDigs);
   return double(valueSigDigs) / kNsPerSecd;
 }
 
-int64_t
-BaseTimeDurationPlatformUtils::TicksFromMilliseconds(double aMilliseconds)
+TimeDuration
+TimeDuration::FromMilliseconds(double aMilliseconds)
 {
-  return aMilliseconds * kNsPerMsd;
+  return TimeDuration::FromTicks(aMilliseconds * kNsPerMsd);
 }
 
-int64_t
-BaseTimeDurationPlatformUtils::ResolutionInTicks()
+TimeDuration
+TimeDuration::Resolution()
 {
-  return static_cast<int64_t>(sResolution);
+  return TimeDuration::FromTicks(int64_t(sResolution));
 }
 
 static bool gInitialized = false;

@@ -5,8 +5,8 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#ifndef nsPluginFrame_h___
-#define nsPluginFrame_h___
+#ifndef nsObjectFrame_h___
+#define nsObjectFrame_h___
 
 #include "mozilla/Attributes.h"
 #include "nsIObjectFrame.h"
@@ -40,9 +40,9 @@ class LayerManager;
 }
 }
 
-typedef nsFrame nsPluginFrameSuper;
+typedef nsFrame nsObjectFrameSuper;
 
-class nsPluginFrame : public nsPluginFrameSuper,
+class nsObjectFrame : public nsObjectFrameSuper,
                       public nsIObjectFrame,
                       public nsIReflowCallback {
 public:
@@ -57,7 +57,7 @@ public:
   friend nsIFrame* NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_QUERYFRAME_TARGET(nsPluginFrame)
+  NS_DECL_QUERYFRAME_TARGET(nsObjectFrame)
 
   virtual void Init(nsIContent*       aContent,
                     nsContainerFrame* aParent,
@@ -83,7 +83,7 @@ public:
 
   virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
   {
-    return nsPluginFrameSuper::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
+    return nsObjectFrameSuper::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
   }
 
   virtual bool NeedsView() MOZ_OVERRIDE { return true; }
@@ -183,14 +183,14 @@ public:
   nsRect GetPaintedRect(nsDisplayPlugin* aItem);
 
   /**
-   * If aSupports has a nsPluginFrame, then prepare it for a DocShell swap.
+   * If aSupports has a nsObjectFrame, then prepare it for a DocShell swap.
    * @see nsSubDocumentFrame::BeginSwapDocShells.
    * There will be a call to EndSwapDocShells after we were moved to the
    * new view tree.
    */
   static void BeginSwapDocShells(nsISupports* aSupports, void*);
   /**
-   * If aSupports has a nsPluginFrame, then set it up after a DocShell swap.
+   * If aSupports has a nsObjectFrame, then set it up after a DocShell swap.
    * @see nsSubDocumentFrame::EndSwapDocShells.
    */
   static void EndSwapDocShells(nsISupports* aSupports, void*);
@@ -211,8 +211,8 @@ public:
   void SetInstanceOwner(nsPluginInstanceOwner* aOwner);
 
 protected:
-  explicit nsPluginFrame(nsStyleContext* aContext);
-  virtual ~nsPluginFrame();
+  explicit nsObjectFrame(nsStyleContext* aContext);
+  virtual ~nsObjectFrame();
 
   // NOTE:  This frame class does not inherit from |nsLeafFrame|, so
   // this is not a virtual method implementation.
@@ -273,7 +273,7 @@ private:
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
   /**
-   * This is owned by the ReadbackLayer for this nsPluginFrame. It is
+   * This is owned by the ReadbackLayer for this nsObjectFrame. It is
    * automatically cleared if the PluginBackgroundSink is destroyed.
    */
   PluginBackgroundSink*           mBackgroundSink;
@@ -327,7 +327,7 @@ public:
                                              LayerManager* aManager,
                                              const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE
   {
-    return static_cast<nsPluginFrame*>(mFrame)->BuildLayer(aBuilder,
+    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder,
                                                            aManager, 
                                                            this,
                                                            aContainerParameters);
@@ -337,9 +337,9 @@ public:
                                    LayerManager* aManager,
                                    const ContainerLayerParameters& aParameters) MOZ_OVERRIDE
   {
-    return static_cast<nsPluginFrame*>(mFrame)->GetLayerState(aBuilder,
+    return static_cast<nsObjectFrame*>(mFrame)->GetLayerState(aBuilder,
                                                               aManager);
   }
 };
 
-#endif /* nsPluginFrame_h___ */
+#endif /* nsObjectFrame_h___ */

@@ -1542,9 +1542,6 @@ Toolbox.prototype = {
       }
     }));
 
-    // We need to grab a reference to win before this._host is destroyed.
-    let win = this.frame.ownerGlobal;
-
     // Remove the host UI
     outstanding.push(this.destroyHost());
 
@@ -1571,6 +1568,9 @@ Toolbox.prototype = {
       return target.destroy();
     }, console.error).then(() => {
       this.emit("destroyed");
+
+      // We need to grab a reference to win before this._host is destroyed.
+      let win = this.frame.ownerGlobal;
 
       // Free _host after the call to destroyed in order to let a chance
       // to destroyed listeners to still query toolbox attributes

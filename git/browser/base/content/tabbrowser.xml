@@ -580,6 +580,9 @@
               if (this.mBlank)
                 return false;
 
+              if (gMultiProcessBrowser)
+                return true;
+
               // Don't show progress indicators in tabs for about: URIs
               // pointing to local resources.
               try {

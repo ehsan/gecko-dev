@@ -7,3 +7,4 @@
 ]>
 
   <iframe id="iframe" name="iframename" src="test2.xul"/>
+</dialog>
