@@ -467,7 +467,6 @@ function start() {
   }
 
   SimpleTest.requestLongerTimeout(requestLongerTimeoutLen);
-  SimpleTest.requestFlakyTimeout("We're embedding the WebGL test harness, which uses timeouts internally, so we have to abide. :(");
 
   var statusElem = document.getElementById("status");
   var statusTextNode = document.createTextNode('');

@@ -241,11 +241,7 @@ bool
 SharedFrameMetricsHelper::AboutToCheckerboard(const FrameMetrics& aContentMetrics,
                                               const FrameMetrics& aCompositorMetrics)
 {
-  CSSRect painted =
-        (aContentMetrics.mCriticalDisplayPort.IsEmpty() ? aContentMetrics.mDisplayPort : aContentMetrics.mCriticalDisplayPort)
-        + aContentMetrics.GetScrollOffset();
-  CSSRect showing = CSSRect(aCompositorMetrics.GetScrollOffset(), aCompositorMetrics.CalculateBoundedCompositedSizeInCssPixels());
-  return !painted.Contains(showing);
+  return !aContentMetrics.mDisplayPort.Contains(aCompositorMetrics.CalculateCompositedRectInCssPixels() - aCompositorMetrics.GetScrollOffset());
 }
 
 ClientTiledLayerBuffer::ClientTiledLayerBuffer(ClientTiledThebesLayer* aThebesLayer,

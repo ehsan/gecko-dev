@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko.util;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
-
 import java.util.Map;
 
 import android.os.Handler;
@@ -120,7 +118,6 @@ public final class ThreadUtils {
         assertOnThread(getUiThread(), AssertBehavior.THROW);
     }
 
-    @RobocopTarget
     public static void assertOnGeckoThread() {
         assertOnThread(sGeckoThread, AssertBehavior.THROW);
     }
