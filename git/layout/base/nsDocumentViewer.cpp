@@ -1025,15 +1025,20 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
     }
   }
 
-  // Now that the document has loaded, we can tell the presshell
-  // to unsuppress painting.
-  if (mPresShell && !mStopped) {
-    nsCOMPtr<nsIPresShell> shellDeathGrip(mPresShell);
-    mPresShell->UnsuppressPainting();
-    // mPresShell could have been removed now, see bug 378682/421432
+  if (!mStopped) {
+    if (mDocument) {
+      mDocument->ScrollToRef();
+    }
+
+    // Now that the document has loaded, we can tell the presshell
+    // to unsuppress painting.
     if (mPresShell) {
-      mPresShell->ScrollToAnchor();
-      mPresShell->LoadComplete();
+      nsCOMPtr<nsIPresShell> shellDeathGrip(mPresShell);
+      mPresShell->UnsuppressPainting();
+      // mPresShell could have been removed now, see bug 378682/421432
+      if (mPresShell) {
+        mPresShell->LoadComplete();
+      }
     }
   }
 
@@ -1054,7 +1059,19 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
 }
 
 NS_IMETHODIMP
-nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
+nsDocumentViewer::PermitUnload(bool aCallerClosesWindow,
+                               bool *aPermitUnload)
+{
+  bool shouldPrompt = true;
+  return PermitUnloadInternal(aCallerClosesWindow, &shouldPrompt,
+                              aPermitUnload);
+}
+
+
+nsresult
+nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
+                                       bool *aShouldPrompt,
+                                       bool *aPermitUnload)
 {
   *aPermitUnload = true;
 
@@ -1133,8 +1150,8 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
   nsCOMPtr<nsIDocShellTreeNode> docShellNode(mContainer);
   nsAutoString text;
   beforeUnload->GetReturnValue(text);
-  if (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
-      !text.IsEmpty()) {
+  if (*aShouldPrompt && (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
+                         !text.IsEmpty())) {
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
@@ -1186,6 +1203,11 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
 
       // Button 0 == leave, button 1 == stay
       *aPermitUnload = (buttonPressed == 0);
+      // If the user decided to go ahead, make sure not to prompt the user again
+      // by toggling the internal prompting bool to false:
+      if (*aPermitUnload) {
+        *aShouldPrompt = false;
+      }
     }
   }
 
@@ -1204,7 +1226,8 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
         docShell->GetContentViewer(getter_AddRefs(cv));
 
         if (cv) {
-          cv->PermitUnload(aCallerClosesWindow, aPermitUnload);
+          cv->PermitUnloadInternal(aCallerClosesWindow, aShouldPrompt,
+                                   aPermitUnload);
         }
       }
     }
