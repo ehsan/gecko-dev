@@ -23,7 +23,6 @@ public:
     nsHttpResponseHead() : mVersion(NS_HTTP_VERSION_1_1)
                          , mStatus(200)
                          , mContentLength(UINT64_MAX)
-                         , mCacheControlPrivate(false)
                          , mCacheControlNoStore(false)
                          , mCacheControlNoCache(false)
                          , mPragmaNoCache(false) {}
@@ -38,7 +37,6 @@ public:
     int64_t               ContentLength() const { return mContentLength; }
     const nsAFlatCString &ContentType()   const { return mContentType; }
     const nsAFlatCString &ContentCharset() const { return mContentCharset; }
-    bool                  Private() const { return mCacheControlPrivate; }
     bool                  NoStore() const { return mCacheControlNoStore; }
     bool                  NoCache() const { return (mCacheControlNoCache || mPragmaNoCache); }
     /**
@@ -130,7 +128,6 @@ private:
     int64_t           mContentLength;
     nsCString         mContentType;
     nsCString         mContentCharset;
-    bool              mCacheControlPrivate;
     bool              mCacheControlNoStore;
     bool              mCacheControlNoCache;
     bool              mPragmaNoCache;

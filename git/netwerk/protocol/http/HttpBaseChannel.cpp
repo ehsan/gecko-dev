@@ -1366,15 +1366,6 @@ HttpBaseChannel::IsNoCacheResponse(bool *value)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::IsPrivateResponse(bool *value)
-{
-  if (!mResponseHead)
-    return NS_ERROR_NOT_AVAILABLE;
-  *value = mResponseHead->Private();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 HttpBaseChannel::GetResponseStatus(uint32_t *aValue)
 {
   if (!mResponseHead)

@@ -13,8 +13,8 @@ function test() {
   whenNewWindowLoaded(undefined, function (win) {
     whenDelayedStartupFinished(win, function () {
       let selectedBrowser = win.gBrowser.selectedBrowser;
-      selectedBrowser.addEventListener("pageshow", function pageshowListener() {
-        selectedBrowser.removeEventListener("pageshow", pageshowListener, true);
+      selectedBrowser.addEventListener("pageshow", function() {
+        selectedBrowser.removeEventListener("pageshow", arguments.callee, true);
         ok(true, "pageshow listener called: " + win.content.location);
         waitForFocus(function () {
           onFocus(win);
@@ -39,11 +39,7 @@ function onFocus(win) {
   ok(!win.gFindBarInitialized, "find bar is not yet initialized");
   let findBar = win.gFindBar;
   selectText(win.content);
-
-  findBar.onFindCommand().then(onInitialized.bind(null, findBar, win));
-}
-
-function onInitialized(findBar, win) {
+  findBar.onFindCommand();
   // When the OS supports the Find Clipboard (OSX), the find field value is
   // persisted across Fx sessions, thus not useful to test.
   if (!HasFindClipboard)

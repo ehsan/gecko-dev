@@ -53,10 +53,7 @@ struct nsDiscriminatedUnion
     nsACString*    mCStringValue;
     struct
     {
-      // This is an owning reference that cannot be an nsCOMPtr because
-      // nsDiscriminatedUnion needs to be POD.  AddRef/Release are manually
-      // called on this.
-      nsISupports* MOZ_OWNING_REF mInterfaceValue;
+      nsISupports* mInterfaceValue;
       nsIID        mInterfaceID;
     } iface;
     struct

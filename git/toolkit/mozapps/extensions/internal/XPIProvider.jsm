@@ -2094,8 +2094,6 @@ this.XPIProvider = {
       // Changes to installed extensions may have changed which theme is selected
       this.applyThemeChange();
 
-      AddonManagerPrivate.markProviderSafe(this);
-
       if (aAppChanged === undefined) {
         // For new profiles we will never need to show the add-on selection UI
         Services.prefs.setBoolPref(PREF_SHOWN_SELECTION_UI, true);

@@ -175,9 +175,7 @@ private:
 
   // For callees that know we exist, we can be a stringbuffer/length/null-flag
   // triple.
-  nsStringBuffer* MOZ_UNSAFE_REF("The ways in which this can be safe are "
-                                 "documented above and enforced through "
-                                 "assertions") mStringBuffer;
+  nsStringBuffer* mStringBuffer;
   uint32_t mLength;
   bool mIsNull;
 };

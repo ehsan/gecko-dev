@@ -11,10 +11,12 @@ nsSupportsArrayEnumerator::nsSupportsArrayEnumerator(nsISupportsArray* array)
   , mCursor(0)
 {
   NS_ASSERTION(array, "null array");
+  NS_ADDREF(mArray);
 }
 
 nsSupportsArrayEnumerator::~nsSupportsArrayEnumerator()
 {
+  NS_RELEASE(mArray);
 }
 
 NS_IMPL_ISUPPORTS(nsSupportsArrayEnumerator, nsIBidirectionalEnumerator,
