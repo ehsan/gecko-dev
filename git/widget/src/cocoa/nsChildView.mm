@@ -204,8 +204,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 - (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
 
-- (BOOL)inactiveWindowAcceptsMouseEvent:(NSEvent*)aEvent;
-
 @end
 
 #pragma mark -
@@ -2208,14 +2206,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mKeyPressHandled = NO;
     mKeyPressSent = NO;
     mPendingDisplay = NO;
-    mBlockedLastMouseDown = NO;
 
     // initialization for NSTextInput
     mMarkedRange.location = NSNotFound;
     mMarkedRange.length = 0;
 
     mLastMouseDownEvent = nil;
-    mClickThroughMouseDownEvent = nil;
     mDragService = nsnull;
 
 #ifndef NP_NO_CARBON
@@ -2280,7 +2276,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [mGLContext release];
   [mPendingDirtyRects release];
   [mLastMouseDownEvent release];
-  [mClickThroughMouseDownEvent release];
   ChildViewMouseTracker::OnDestroyView(self);
 #ifndef NP_NO_CARBON
   if (mPluginTSMDoc)
@@ -2487,20 +2482,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 // this to be a 'focused' widget for event dispatch.
 - (BOOL)acceptsFirstResponder
 {
-  return YES;
-}
-
-// Accept mouse down events on background windows
-- (BOOL)acceptsFirstMouse:(NSEvent*)aEvent
-{
-  if (![[self window] isKindOfClass:[PopupWindow class]]) {
-    // We rely on this function to tell us that the mousedown was on a
-    // background window. Inside mouseDown we can't tell whether we were
-    // inactive because at that point we've already been made active.
-    // Unfortunately, acceptsFirstMouse is called for PopupWindows even when
-    // their parent window is active, so ignore this on them for now.
-    mClickThroughMouseDownEvent = [aEvent retain];
-  }
   return YES;
 }
 
@@ -3113,9 +3094,9 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   if (![[self window] isKindOfClass:[PopupWindow class]])
     return NO;
 
-  // Don't reorder when we don't have a parent window, like when we're a
-  // context menu or a tooltip.
-  return ![[self window] parentWindow];
+  // Don't reorder when we're already accepting mouse events, for example
+  // because we're a context menu.
+  return ChildViewMouseTracker::WindowAcceptsEvent([self window], aEvent);
 }
 
 - (void)mouseDown:(NSEvent*)theEvent
@@ -3141,21 +3122,11 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   [gLastDragMouseDownEvent release];
   gLastDragMouseDownEvent = [theEvent retain];
 
-  // We need isClickThrough because at this point the window we're in might
-  // already have become main, so the check for isMainWindow in
-  // WindowAcceptsEvent isn't enough. It also has to check isClickThrough.
-  BOOL isClickThrough = (theEvent == mClickThroughMouseDownEvent);
-  [mClickThroughMouseDownEvent release];
-  mClickThroughMouseDownEvent = nil;
-
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent] ||
-      !ChildViewMouseTracker::WindowAcceptsEvent([self window], theEvent, self, isClickThrough)) {
-    // Remember blocking because that means we want to block mouseup as well.
-    mBlockedLastMouseDown = YES;
+      !ChildViewMouseTracker::WindowAcceptsEvent([self window], theEvent))
     return;
-  }
 
 #if USE_CLICK_HOLD_CONTEXTMENU
   // fire off timer to check for click-hold after two seconds. retains |theEvent|
@@ -3170,15 +3141,7 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_BUTTON_DOWN, nsnull, nsMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
-
-  NSInteger clickCount = [theEvent clickCount];
-  if (mBlockedLastMouseDown && clickCount > 1) {
-    // Don't send a double click if the first click of the double click was
-    // blocked.
-    clickCount--;
-  }
-  geckoEvent.clickCount = clickCount;
-
+  geckoEvent.clickCount = [theEvent clickCount];
   if (modifierFlags & NSControlKeyMask)
     geckoEvent.button = nsMouseEvent::eRightButton;
   else
@@ -3207,7 +3170,7 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
     cocoaEvent.data.mouse.pluginX = point.x;
     cocoaEvent.data.mouse.pluginY = point.y;
     cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-    cocoaEvent.data.mouse.clickCount = clickCount;
+    cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
@@ -3215,7 +3178,6 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   }
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
-  mBlockedLastMouseDown = NO;
 
   // XXX maybe call markedTextSelectionChanged:client: here?
 
@@ -3226,7 +3188,7 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!mGeckoChild || mBlockedLastMouseDown)
+  if (!mGeckoChild)
     return;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
@@ -3588,7 +3550,7 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent] ||
-      !ChildViewMouseTracker::WindowAcceptsEvent([self window], theEvent, self))
+      !ChildViewMouseTracker::WindowAcceptsEvent([self window], theEvent))
     return;
 
   if (!mGeckoChild)
@@ -4218,8 +4180,8 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NS_ASSERTION(outGeckoEvent, "convertCocoaMouseEvent:toGeckoEvent: requires non-null aoutGeckoEvent");
-  if (!outGeckoEvent)
+  NS_ASSERTION(aMouseEvent && outGeckoEvent, "convertCocoaMouseEvent:toGeckoEvent: requires non-null arguments");
+  if (!aMouseEvent || !outGeckoEvent)
     return;
 
   [self convertGenericCocoaEvent:aMouseEvent toGeckoEvent:outGeckoEvent];
@@ -5697,13 +5659,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (BOOL)inactiveWindowAcceptsMouseEvent:(NSEvent*)aEvent
-{
-  nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_ACTIVATE, nsnull, nsMouseEvent::eReal);
-  [self convertCocoaMouseEvent:aEvent toGeckoEvent:&geckoEvent];
-  return !mGeckoChild->DispatchWindowEvent(geckoEvent);
-}
-
 - (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
 {
   if (!mGeckoChild)
@@ -6406,17 +6361,13 @@ ChildView*
 ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
 {
   NSWindow* window = WindowForEvent(aEvent);
-  if (!window)
+  if (!window || !WindowAcceptsEvent(window, aEvent))
     return nil;
 
   NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(aEvent, window);
   NSView* view = [[[window contentView] superview] hitTest:windowEventLocation];
   NS_ASSERTION(view, "How can the mouse be over a window but not over a view in that window?");
-  if (![view isKindOfClass:[ChildView class]])
-    return nil;
-
-  ChildView* childView = (ChildView*)view;
-  return WindowAcceptsEvent(window, aEvent, childView) ? childView : nil;
+  return [view isKindOfClass:[ChildView class]] ? (ChildView*)view : nil;
 }
 
 static CGWindowLevel kDockWindowLevel = 0;
@@ -6518,8 +6469,7 @@ ChildViewMouseTracker::WindowForEvent(NSEvent* anEvent)
 }
 
 BOOL
-ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
-                                          ChildView* aView, BOOL aIsClickThrough)
+ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent)
 {
   // Right mouse down events may get through to all windows, even to a top level
   // window with an open sheet.
@@ -6545,7 +6495,7 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
       // accept mouse move events on context menus even when none of our windows
       // is active, which is the right thing to do.
       // For panels, the parent window is the XUL window that owns the panel.
-      return WindowAcceptsEvent([aWindow parentWindow], aEvent, aView, aIsClickThrough);
+      return WindowAcceptsEvent([aWindow parentWindow], aEvent);
 
     case eWindowType_toplevel:
     case eWindowType_dialog:
@@ -6568,15 +6518,15 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
   }
 
   if (!topLevelWindow ||
-      ([topLevelWindow isMainWindow] && !aIsClickThrough) ||
+      [topLevelWindow isMainWindow] ||
       [aEvent type] == NSOtherMouseDown ||
       (([aEvent modifierFlags] & NSCommandKeyMask) != 0 &&
        [aEvent type] != NSMouseMoved))
     return YES;
 
   // If we're here then we're dealing with a left click or mouse move on an
-  // inactive window or something similar. Ask Gecko what to do.
-  return [aView inactiveWindowAcceptsMouseEvent:aEvent];
+  // inactive window or something similar. Return NO for now.
+  return NO;
 }
 
 #pragma mark -
