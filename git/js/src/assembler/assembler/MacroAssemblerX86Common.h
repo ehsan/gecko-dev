@@ -1168,19 +1168,6 @@ private:
              );
 #endif
 #elif WTF_COMPILER_SUNPRO
-#if WTF_CPU_X86_64
-        asm (
-             "movl $0x1, %%eax;"
-             "pushq %%rbx;"
-             "cpuid;"
-             "popq %%rbx;"
-             "movl %%ecx, (%rsi);"
-             "movl %%edx, (%rdi);"
-             :
-             : "S" (&flags_ecx), "D" (&flags_edx)
-             : "%eax", "%ecx", "%edx"
-             );
-#else
         asm (
              "movl $0x1, %eax;"
              "pushl %ebx;"
@@ -1192,7 +1179,6 @@ private:
              : "S" (&flags_ecx), "D" (&flags_edx)
              : "%eax", "%ecx", "%edx"
              );
-#endif
 #endif
         static const int SSEFeatureBit = 1 << 25;
         static const int SSE2FeatureBit = 1 << 26;

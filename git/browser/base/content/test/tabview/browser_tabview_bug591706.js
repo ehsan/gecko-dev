@@ -85,7 +85,9 @@ function onTabViewWindowLoaded() {
 
     ok(group.isEmpty(), "The group is empty again");
 
-    is(contentWindow.GroupItems.getActiveGroupItem(), currentGroup, "There is an active group");
+    is(contentWindow.GroupItems.getActiveGroupItem(), null, "The active group is gone");
+    contentWindow.GroupItems.setActiveGroupItem(currentGroup);
+    isnot(contentWindow.GroupItems.getActiveGroupItem(), null, "There is an active group");
     is(gBrowser.tabs.length, 1, "There is only one tab left");
     is(gBrowser.visibleTabs.length, 1, "There is also only one visible tab");
 

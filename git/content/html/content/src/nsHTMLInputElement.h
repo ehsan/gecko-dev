@@ -110,6 +110,7 @@ private:
   PRBool mInPrivateBrowsing;
 };
 
+class nsIRadioGroupContainer;
 class nsIRadioVisitor;
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,
@@ -282,15 +283,6 @@ public:
   void     UpdateBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
-  /**
-   * Update the value missing validity state for radio elements when they have
-   * a group.
-   *
-   * @param aIgnoreSelf Whether the required attribute and the checked state
-   * of the current radio should be ignored.
-   * @note This method shouldn't be called if the radio elemnet hasn't a group.
-   */
-  void     UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf);
 
   /**
    * Returns the filter which should be used for the file picker according to
@@ -428,6 +420,11 @@ protected:
   }
 
   /**
+   * Fire the onChange event
+   */
+  void FireOnChange();
+
+  /**
    * Visit the group of radio buttons this radio belongs to
    * @param aVisitor the visitor to visit with
    */
@@ -560,8 +557,6 @@ protected:
                              "element is valid!");
 
     /**
-     * Never show the invalid UI if the form has the novalidate attribute set.
-     *
      * Always show the invalid UI if:
      * - the form has already tried to be submitted but was invalid;
      * - the element is suffering from a custom error;
@@ -569,16 +564,8 @@ protected:
      *
      * Otherwise, show the invalid UI if the element's value has been changed.
      */
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
-    }
-
-    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
+    if ((mForm && mForm->HasEverTriedInvalidSubmit()) ||
+        GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
       return true;
     }
 
@@ -603,13 +590,8 @@ protected:
    * @note This doesn't take into account the validity of the element.
    */
   bool ShouldShowValidUI() const {
-    if (mForm) {
-      if (mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) {
-        return false;
-      }
-      if (mForm->HasEverTriedInvalidSubmit()) {
-        return true;
-      }
+    if (mForm && mForm->HasEverTriedInvalidSubmit()) {
+      return true;
     }
 
     switch (GetValueMode()) {

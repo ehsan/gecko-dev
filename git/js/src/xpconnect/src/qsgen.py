@@ -508,8 +508,7 @@ argumentUnboxingTemplates = {
 # From JSData2Native.
 #
 # Omitted optional arguments are treated as though the caller had passed JS
-# `null`; this behavior is from XPCWrappedNative::CallMethod. The 'jsval' type,
-# however, defaults to 'undefined'.
+# `null`; this behavior is from XPCWrappedNative::CallMethod.
 #
 def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
                           nullBehavior, undefinedBehavior):
@@ -523,19 +522,13 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
     # optional - bool - True if the parameter is optional.
     # rvdeclared - bool - False if no |nsresult rv| has been declared earlier.
 
-    typeName = getBuiltinOrNativeTypeName(type)
-
     isSetter = (i is None)
 
     if isSetter:
         argPtr = "vp"
         argVal = "*vp"
     elif optional:
-        if typeName == "[jsval]":
-            val = "JSVAL_VOID"
-        else:
-            val = "JSVAL_NULL"
-        argVal = "(%d < argc ? argv[%d] : %s)" % (i, i, val)
+        argVal = "(%d < argc ? argv[%d] : JSVAL_NULL)" % (i, i)
         argPtr = "(%d < argc ? &argv[%d] : NULL)" % (i, i)
     else:
         argVal = "argv[%d]" % i
@@ -549,6 +542,7 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
         'undefinedBehavior': undefinedBehavior or 'DefaultUndefinedBehavior'
         }
 
+    typeName = getBuiltinOrNativeTypeName(type)
     if typeName is not None:
         template = argumentUnboxingTemplates.get(typeName)
         if template is not None:

@@ -159,6 +159,7 @@ nsDOMWorkerFunctions::MakeTimeout(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -207,6 +208,7 @@ nsDOMWorkerFunctions::KillTimeout(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -235,6 +237,7 @@ nsDOMWorkerFunctions::LoadScripts(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -310,6 +313,7 @@ nsDOMWorkerFunctions::NewXMLHttpRequest(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -359,6 +363,7 @@ nsDOMWorkerFunctions::AtoB(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -367,8 +372,39 @@ nsDOMWorkerFunctions::AtoB(JSContext* aCx,
     return JS_FALSE;
   }
 
-  return nsXPConnect::Base64Decode(aCx, JS_ARGV(aCx, aVp)[0],
-                                   &JS_RVAL(aCx, aVp));
+  JSString* str = JS_ValueToString(aCx, JS_ARGV(aCx, aVp)[0]);
+  if (!str) {
+    NS_ASSERTION(JS_IsExceptionPending(aCx), "Need to set an exception!");
+    return JS_FALSE;
+  }
+
+  size_t len = JS_GetStringEncodingLength(aCx, str);
+  if (len == size_t(-1))
+      return JS_FALSE;
+
+  JSUint32 alloc_len = (len + 1) * sizeof(char);
+  char *buffer = static_cast<char *>(nsMemory::Alloc(alloc_len));
+  if (!buffer)
+      return JS_FALSE;
+
+  JS_EncodeStringToBuffer(str, buffer, len);
+  buffer[len] = '\0';
+
+  nsDependentCString string(buffer, len);
+  nsCAutoString result;
+
+  if (NS_FAILED(nsXPConnect::Base64Decode(string, result))) {
+    JS_ReportError(aCx, "Failed to decode base64 string!");
+    return JS_FALSE;
+  }
+
+  str = JS_NewStringCopyN(aCx, result.get(), result.Length());
+  if (!str) {
+    return JS_FALSE;
+  }
+
+  JS_SET_RVAL(aCx, aVp, STRING_TO_JSVAL(str));
+  return JS_TRUE;
 }
 
 JSBool
@@ -380,6 +416,7 @@ nsDOMWorkerFunctions::BtoA(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -388,8 +425,39 @@ nsDOMWorkerFunctions::BtoA(JSContext* aCx,
     return JS_FALSE;
   }
 
-  return nsXPConnect::Base64Encode(aCx, JS_ARGV(aCx, aVp)[0],
-                                   &JS_RVAL(aCx, aVp));
+  JSString* str = JS_ValueToString(aCx, JS_ARGV(aCx, aVp)[0]);
+  if (!str) {
+    NS_ASSERTION(JS_IsExceptionPending(aCx), "Need to set an exception!");
+    return JS_FALSE;
+  }
+
+  size_t len = JS_GetStringEncodingLength(aCx, str);
+  if (len == size_t(-1))
+      return JS_FALSE;
+
+  JSUint32 alloc_len = (len + 1) * sizeof(char);
+  char *buffer = static_cast<char *>(nsMemory::Alloc(alloc_len));
+  if (!buffer)
+      return JS_FALSE;
+
+  JS_EncodeStringToBuffer(str, buffer, len);
+  buffer[len] = '\0';
+
+  nsDependentCString string(buffer, len);
+  nsCAutoString result;
+
+  if (NS_FAILED(nsXPConnect::Base64Encode(string, result))) {
+    JS_ReportError(aCx, "Failed to encode base64 data!");
+    return JS_FALSE;
+  }
+
+  str = JS_NewStringCopyN(aCx, result.get(), result.Length());
+  if (!str) {
+    return JS_FALSE;
+  }
+
+  JS_SET_RVAL(aCx, aVp, STRING_TO_JSVAL(str));
+  return JS_TRUE;
 }
 
 JSBool
@@ -423,6 +491,7 @@ nsDOMWorkerFunctions::MakeNewWorker(JSContext* aCx,
   NS_ASSERTION(worker, "This should be set by the DOM thread service!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -516,6 +585,7 @@ nsDOMWorkerFunctions::CTypesLazyGetter(JSContext* aCx,
   NS_ASSERTION(worker->IsPrivileged(), "This shouldn't be possible!");
 
   if (worker->IsCanceled()) {
+    JS_ReportError(aCx, "Worker is canceled");
     return JS_FALSE;
   }
 
@@ -1598,9 +1668,9 @@ nsDOMWorker::PostMessageInternal(PRBool aToInner)
 
   JSAutoRequest ar(cx);
 
-  JSAutoStructuredCloneBuffer buffer;
+  JSAutoStructuredCloneBuffer buffer(cx);
 
-  if (!buffer.write(cx, argv[0])) {
+  if (!buffer.write(argv[0])) {
     return NS_ERROR_DOM_DATA_CLONE_ERR;
   }
 

@@ -105,13 +105,8 @@ inline bool
 JSObject::unbrand(JSContext *cx)
 {
     JS_ASSERT(isNative());
-    if (branded()) {
-        generateOwnShape(cx);
-        if (js_IsPropertyCacheDisabled(cx))  // check for rt->shapeGen overflow
-            return false;
-        flags &= ~BRANDED;
-    }
-    setGeneric();
+    if (!branded())
+        setGeneric();
     return true;
 }
 
@@ -194,12 +189,14 @@ ChangesMethodValue(const js::Value &prev, const js::Value &v)
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
-    if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
-        const js::Value &prev = nativeGetSlot(shape.slot);
+    if (flags & (BRANDED | METHOD_BARRIER)) {
+        if (shape.slot != SHAPE_INVALID_SLOT) {
+            const js::Value &prev = nativeGetSlot(shape.slot);
 
-        if (ChangesMethodValue(prev, v)) {
-            JS_FUNCTION_METER(cx, mwritebarrier);
-            return methodShapeChange(cx, shape);
+            if (ChangesMethodValue(prev, v)) {
+                JS_FUNCTION_METER(cx, mwritebarrier);
+                return methodShapeChange(cx, shape);
+            }
         }
     }
     return true;
@@ -208,7 +205,7 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
 inline bool
 JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
 {
-    if (brandedOrHasMethodBarrier()) {
+    if (flags & (BRANDED | METHOD_BARRIER)) {
         const js::Value &prev = nativeGetSlot(slot);
 
         if (ChangesMethodValue(prev, v)) {
@@ -934,18 +931,6 @@ namespace WithProto {
  * Note that as a template, there will be lots of instantiations, which means
  * the internals will be specialized based on the template parameters.
  */
-static JS_ALWAYS_INLINE bool
-FindProto(JSContext *cx, js::Class *clasp, JSObject *parent, JSObject ** proto)
-{
-    JSProtoKey protoKey = GetClassProtoKey(clasp);
-    if (!js_GetClassPrototype(cx, parent, protoKey, proto, clasp))
-        return false;
-    if (!(*proto) && !js_GetClassPrototype(cx, parent, JSProto_Object, proto))
-        return false;
-
-    return true;
-}
-
 namespace detail
 {
 template <bool withProto, bool isFunction>
@@ -955,8 +940,11 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent,
 {
     /* Bootstrap the ur-object, and make it the default prototype object. */
     if (withProto == WithProto::Class && !proto) {
-        if (!FindProto (cx, clasp, parent, &proto))
-          return NULL;
+        JSProtoKey protoKey = GetClassProtoKey(clasp);
+        if (!js_GetClassPrototype(cx, parent, protoKey, &proto, clasp))
+            return NULL;
+        if (!proto && !js_GetClassPrototype(cx, parent, JSProto_Object, &proto))
+            return NULL;
     }
 
     /*
@@ -1035,6 +1023,13 @@ NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
 {
     gc::FinalizeKind kind = gc::GetGCObjectKind(JSCLASS_RESERVED_SLOTS(clasp));
     return NewObject<withProto>(cx, clasp, proto, parent, kind);
+}
+
+/* Creates a new array with a zero length and the given finalize kind. */
+static inline JSObject *
+NewArrayWithKind(JSContext* cx, gc::FinalizeKind kind)
+{
+    return NewNonFunction<WithProto::Class>(cx, &js_ArrayClass, NULL, NULL, kind);
 }
 
 /*

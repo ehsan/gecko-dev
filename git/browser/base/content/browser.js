@@ -372,35 +372,15 @@ function findChildShell(aDocument, aDocShell, aSoughtURI) {
   return null;
 }
 
-var gPopupBlockerObserver = {
-  _reportButton: null,
-  
-  onReportButtonClick: function (aEvent)
-  {
-    if (aEvent.button != 0 || aEvent.target != this._reportButton)
-      return;
+const gPopupBlockerObserver = {
 
-    document.getElementById("blockedPopupOptions")
-            .openPopup(this._reportButton, "after_end", 0, 2, false, false, aEvent);
-  },
-
-  handleEvent: function (aEvent)
+  onUpdatePageReport: function (aEvent)
   {
     if (aEvent.originalTarget != gBrowser.selectedBrowser)
       return;
 
-    if (!this._reportButton && gURLBar)
-      this._reportButton = document.getElementById("page-report-button");
-
-    if (!gBrowser.pageReport) {
-      // Hide the icon in the location bar (if the location bar exists)
-      if (gURLBar)
-        this._reportButton.hidden = true;
+    if (!gBrowser.pageReport)
       return;
-    }
-
-    if (gURLBar)
-      this._reportButton.hidden = false;
 
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
@@ -558,16 +538,7 @@ var gPopupBlockerObserver = {
     var blockedPopupDontShowMessage = document.getElementById("blockedPopupDontShowMessage");
     var showMessage = gPrefService.getBoolPref("privacy.popups.showBrowserMessage");
     blockedPopupDontShowMessage.setAttribute("checked", !showMessage);
-    if (aEvent.target.anchorNode.id == "page-report-button") {
-      aEvent.target.anchorNode.setAttribute("open", "true");
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromLocationbar"));
-    } else
-      blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromMessage"));
-  },
-
-  onPopupHiding: function (aEvent) {
-    if (aEvent.target.anchorNode.id == "page-report-button")
-      aEvent.target.anchorNode.removeAttribute("open");
+    blockedPopupDontShowMessage.setAttribute("label", gNavigatorBundle.getString("popupWarningDontShowFromMessage"));
   },
 
   showBlockedPopup: function (aEvent)
@@ -828,25 +799,19 @@ const gFormSubmitObserver = {
 
     element.focus();
 
-    // If the user interacts with the element and makes it valid or leaves it,
-    // we want to remove the popup.
+    // If the user type something or blur the element, we want to remove the popup.
     // We could check for clicks but a click is already removing the popup.
-    function blurHandler() {
+    let eventHandler = function(e) {
       gFormSubmitObserver.panel.hidePopup();
     };
-    function inputHandler(e) {
-      if (e.originalTarget.validity.valid) {
-        gFormSubmitObserver.panel.hidePopup();
-      }
-    };
-    element.addEventListener("input", inputHandler, false);
-    element.addEventListener("blur", blurHandler, false);
+    element.addEventListener("input", eventHandler, false);
+    element.addEventListener("blur", eventHandler, false);
 
-    // One event to bring them all and in the darkness bind them.
+    // One event to bring them all and in the darkness bind them all.
     this.panel.addEventListener("popuphiding", function(aEvent) {
       aEvent.target.removeEventListener("popuphiding", arguments.callee, false);
-      element.removeEventListener("input", inputHandler, false);
-      element.removeEventListener("blur", blurHandler, false);
+      element.removeEventListener("input", eventHandler, false);
+      element.removeEventListener("blur", eventHandler, false);
     }, false);
 
     this.panel.hidden = false;
@@ -1299,7 +1264,7 @@ function HandleAppCommandEvent(evt) {
 }
 
 function prepareForStartup() {
-  gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
+  gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver.onUpdatePageReport, false);
 
   gBrowser.addEventListener("PluginNotFound",     gPluginHandler, true);
   gBrowser.addEventListener("PluginCrashed",      gPluginHandler, true);
@@ -1407,6 +1372,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   }
 
   UpdateUrlbarSearchSplitterState();
+
+  PlacesStarButton.init();
 
   if (isLoadingBlank && gURLBar && isElementVisible(gURLBar))
     gURLBar.focus();
@@ -2822,8 +2789,7 @@ function FillInHTMLTooltip(tipElement)
        tipElement instanceof HTMLTextAreaElement ||
        tipElement instanceof HTMLSelectElement ||
        tipElement instanceof HTMLButtonElement) &&
-      !tipElement.hasAttribute('title') &&
-      (!tipElement.form || !tipElement.form.noValidate)) {
+      !tipElement.hasAttribute('title')) {
     // If the element is barred from constraint validation or valid,
     // the validation message will be the empty string.
     titleText = tipElement.validationMessage;
@@ -4161,6 +4127,16 @@ var XULBrowserWindow = {
       }
     }
 
+    // Show or hide browser chrome based on the whitelist
+    var disableChrome = this.inContentWhitelist.some(function(aSpec) {
+      return aSpec == location;
+    });
+
+    if (disableChrome)
+      document.documentElement.setAttribute("disablechrome", "true");
+    else
+      document.documentElement.removeAttribute("disablechrome");
+
     // This code here does not compare uris exactly when determining
     // whether or not the message should be hidden since the message
     // may be prematurely hidden when an install is invoked by a click
@@ -4232,16 +4208,6 @@ var XULBrowserWindow = {
         // Update starring UI
         PlacesStarButton.updateState();
       }
-
-      // Show or hide browser chrome based on the whitelist
-      var disableChrome = this.inContentWhitelist.some(function(aSpec) {
-        return aSpec == location;
-      });
-
-      if (disableChrome)
-        document.documentElement.setAttribute("disablechrome", "true");
-      else
-        document.documentElement.removeAttribute("disablechrome");
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
 
@@ -5840,7 +5806,6 @@ var IndexedDBPromptHelper = {
 
   _quotaPrompt: "indexedDB-quota-prompt",
   _quotaResponse: "indexedDB-quota-response",
-  _quotaCancel: "indexedDB-quota-cancel",
 
   _notificationIcon: "indexedDB-notification-icon",
 
@@ -5848,21 +5813,18 @@ var IndexedDBPromptHelper = {
   function IndexedDBPromptHelper_init() {
     Services.obs.addObserver(this, this._permissionsPrompt, false);
     Services.obs.addObserver(this, this._quotaPrompt, false);
-    Services.obs.addObserver(this, this._quotaCancel, false);
   },
 
   uninit:
   function IndexedDBPromptHelper_uninit() {
     Services.obs.removeObserver(this, this._permissionsPrompt, false);
     Services.obs.removeObserver(this, this._quotaPrompt, false);
-    Services.obs.removeObserver(this, this._quotaCancel, false);
   },
 
   observe:
   function IndexedDBPromptHelper_observe(subject, topic, data) {
     if (topic != this._permissionsPrompt &&
-        topic != this._quotaPrompt &&
-        topic != this._quotaCancel) {
+        topic != this._quotaPrompt) {
       throw new Error("Unexpected topic!");
     }
 
@@ -5894,22 +5856,14 @@ var IndexedDBPromptHelper = {
                                                     [ host, data ]);
       responseTopic = this._quotaResponse;
     }
-    else if (topic == this._quotaCancel) {
-      responseTopic = this._quotaResponse;
-    }
 
-    const hiddenTimeoutDuration = 30000; // 30 seconds
-    const firstTimeoutDuration = 360000; // 5 minutes
-
-    var timeoutId;
-
+    var self = this;
     var observer = requestor.getInterface(Ci.nsIObserver);
 
     var mainAction = {
       label: gNavigatorBundle.getString("offlineApps.allow"),
       accessKey: gNavigatorBundle.getString("offlineApps.allowAccessKey"),
       callback: function() {
-        clearTimeout(timeoutId);
         observer.observe(null, responseTopic,
                          Ci.nsIPermissionManager.ALLOW_ACTION);
       }
@@ -5920,70 +5874,15 @@ var IndexedDBPromptHelper = {
         label: gNavigatorBundle.getString("offlineApps.never"),
         accessKey: gNavigatorBundle.getString("offlineApps.neverAccessKey"),
         callback: function() {
-          clearTimeout(timeoutId);
           observer.observe(null, responseTopic,
                            Ci.nsIPermissionManager.DENY_ACTION);
         }
       }
     ];
 
-    // This will be set to the result of PopupNotifications.show() below, or to
-    // the result of PopupNotifications.getNotification() if this is a
-    // quotaCancel notification.
-    var notification;
+    PopupNotifications.show(browser, topic, message, this._notificationIcon,
+                            mainAction, secondaryActions);
 
-    function timeoutNotification() {
-      // Remove the notification.
-      if (notification) {
-        notification.remove();
-      }
-
-      // Clear all of our timeout stuff. We may be called directly, not just
-      // when the timeout actually elapses.
-      clearTimeout(timeoutId);
-
-      // And tell the page that the popup timed out.
-      observer.observe(null, responseTopic,
-                       Ci.nsIPermissionManager.UNKNOWN_ACTION);
-    }
-
-    var options = {
-      eventCallback: function(state) {
-        // Don't do anything if the timeout has not been set yet.
-        if (!timeoutId) {
-          return;
-        }
-
-        // If the popup is being dismissed start the short timeout.
-        if (state == "dismissed") {
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(timeoutNotification, hiddenTimeoutDuration);
-          return;
-        }
-
-        // If the popup is being re-shown then clear the timeout allowing
-        // unlimited waiting.
-        if (state == "shown") {
-          clearTimeout(timeoutId);
-        }
-      }
-    };
-
-    if (topic == this._quotaCancel) {
-      notification = PopupNotifications.getNotification(this._quotaPrompt,
-                                                        browser);
-      timeoutNotification();
-      return;
-    }
-
-    notification = PopupNotifications.show(browser, topic, message,
-                                           this._notificationIcon, mainAction,
-                                           secondaryActions, options);
-
-    // Set the timeoutId after the popup has been created, and use the long
-    // timeout value. If the user doesn't notice the popup after this amount of
-    // time then it is most likely not visible and we want to alert the page.
-    timeoutId = setTimeout(timeoutNotification, firstTimeoutDuration);
   }
 };
 

@@ -60,7 +60,7 @@
 #include "nsDOMError.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGInnerSVGFrame.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGClipPathFrame.h"
 #include "nsSVGMaskFrame.h"
@@ -91,8 +91,9 @@
 #include "mozilla/dom/Element.h"
 #include "gfxUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
+
+gfxASurface *nsSVGUtils::gThebesComputationalSurface = nsnull;
 
 // c = n / 255
 // (c <= 0.0031308 ? c * 12.92 : 1.055 * pow(c, 1 / 2.4) - 0.055) * 255 + 0.5
@@ -406,10 +407,10 @@ nsSVGUtils::ReportToConsole(nsIDocument* doc,
   return nsContentUtils::ReportToConsole(nsContentUtils::eSVG_PROPERTIES,
                                          aWarning,
                                          aParams, aParamsLength,
-                                         nsnull,
+                                         doc ? doc->GetDocumentURI() : nsnull,
                                          EmptyString(), 0, 0,
                                          nsIScriptError::warningFlag,
-                                         "SVG", doc);
+                                         "SVG");
 }
 
 float
@@ -778,29 +779,13 @@ nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
-                                const SVGAnimatedPreserveAspectRatio &aPreserveAspectRatio)
+                                const nsSVGPreserveAspectRatio &aPreserveAspectRatio)
 {
-  return GetViewBoxTransform(aElement,
-                             aViewportWidth, aViewportHeight,
-                             aViewboxX, aViewboxY,
-                             aViewboxWidth, aViewboxHeight,
-                             aPreserveAspectRatio.GetAnimValue());
-}
-
-gfxMatrix
-nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
-                                float aViewportWidth, float aViewportHeight,
-                                float aViewboxX, float aViewboxY,
-                                float aViewboxWidth, float aViewboxHeight,
-                                const SVGPreserveAspectRatio &aPreserveAspectRatio)
-{
-  NS_ASSERTION(aViewportWidth  >= 0, "viewport width must be nonnegative!");
-  NS_ASSERTION(aViewportHeight >= 0, "viewport height must be nonnegative!");
-  NS_ASSERTION(aViewboxWidth  > 0, "viewBox width must be greater than zero!");
+  NS_ASSERTION(aViewboxWidth > 0, "viewBox width must be greater than zero!");
   NS_ASSERTION(aViewboxHeight > 0, "viewBox height must be greater than zero!");
 
-  PRUint16 align = aPreserveAspectRatio.GetAlign();
-  PRUint16 meetOrSlice = aPreserveAspectRatio.GetMeetOrSlice();
+  PRUint16 align = aPreserveAspectRatio.GetAnimValue().GetAlign();
+  PRUint16 meetOrSlice = aPreserveAspectRatio.GetAnimValue().GetMeetOrSlice();
 
   // default to the defaults
   if (align == nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_UNKNOWN)
@@ -1013,7 +998,7 @@ nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
   PRBool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : PR_TRUE;
 
   if (!isOK) {
-    // Some resource is invalid. We shouldn't paint anything.
+    // Some resource is missing. We shouldn't paint anything.
     return;
   }
   

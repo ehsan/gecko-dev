@@ -5,7 +5,7 @@
       android:installLocation="auto"
       android:versionCode="1"
       android:versionName="@MOZ_APP_VERSION@"
-      android:sharedUserId="org.mozilla.sharedID">
+      android:sharedUserId="@ANDROID_PACKAGE_NAME@.sharedID">
     <uses-sdk android:minSdkVersion="5"
               android:targetSdkVersion="5"/>
 
@@ -64,12 +64,14 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name="NotificationHandler">
+        <activity android:name="NotificationHandler"
+                  android:label="@MOZ_APP_DISPLAYNAME@ Notification"
+                  android:theme="@android:style/Theme.NoTitleBar">
             <intent-filter>
                 <action android:name="org.mozilla.gecko.ACTION_ALERT_CLICK" />
                 <action android:name="org.mozilla.gecko.ACTION_ALERT_CLEAR" />
             </intent-filter>
-        </receiver>
+        </activity>
 
         <activity android:name="Restarter"
                   android:theme="@android:style/Theme.Light.NoTitleBar">

@@ -510,7 +510,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 bool
 NodeBuilder::newArray(NodeVector &elts, Value *dst)
 {
-    JSObject *array = NewDenseEmptyArray(cx);
+    JSObject *array = js_NewArrayObject(cx, 0, NULL);
     if (!array)
         return false;
 

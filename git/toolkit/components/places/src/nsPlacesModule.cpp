@@ -58,16 +58,10 @@ const mozilla::Module::ContractIDEntry kPlacesContracts[] = {
   { NULL }
 };
 
-const mozilla::Module::CategoryEntry kPlacesCategories[] = {
-  { "vacuum-participant", "Places", NS_NAVHISTORYSERVICE_CONTRACTID },
-  { NULL }
-};
-
 const mozilla::Module kPlacesModule = {
   mozilla::Module::kVersion,
   kPlacesCIDs,
-  kPlacesContracts,
-  kPlacesCategories
+  kPlacesContracts
 };
 
 NSMODULE_DEFN(nsPlacesModule) = &kPlacesModule;

@@ -444,7 +444,7 @@ AsyncClickHandler::Run()
     nsContentUtils::DispatchTrustedEvent(mInput->GetOwnerDoc(),
                                          static_cast<nsIDOMHTMLInputElement*>(mInput.get()),
                                          NS_LITERAL_STRING("change"), PR_TRUE,
-                                         PR_FALSE);
+                                         PR_TRUE);
   }
 
   return NS_OK;
@@ -1712,8 +1712,25 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
   }
 
   if (mType == NS_FORM_INPUT_RADIO) {
-    UpdateValueMissingValidityState();
+    // OnValueChanged is going to be called for all radios in the radio group.
+    nsCOMPtr<nsIRadioVisitor> visitor =
+      NS_GetRadioUpdateValueMissingVisitor();
+    VisitGroup(visitor, aNotify);
   }
+}
+
+
+void
+nsHTMLInputElement::FireOnChange()
+{
+  //
+  // Since the value is changing, send out an onchange event (bug 23571)
+  //
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsEvent event(PR_TRUE, NS_FORM_CHANGE);
+  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
+                              &event, nsnull, &status);
 }
 
 NS_IMETHODIMP
@@ -2217,10 +2234,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         DoSetChecked(originalCheckedValue, PR_TRUE, PR_TRUE);
       }
     } else {
-      nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
-                                           static_cast<nsIDOMHTMLInputElement*>(this),
-                                           NS_LITERAL_STRING("change"), PR_TRUE,
-                                           PR_FALSE);
+      FireOnChange();
 #ifdef ACCESSIBILITY
       // Fire an event to notify accessibility
       if (mType == NS_FORM_INPUT_CHECKBOX) {
@@ -3503,8 +3517,14 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
     if (container) {
       container->SetCurrentRadioButton(name, nsnull);
     }
-  }
 
+    // Removing a checked radio from the group can change the validity state.
+    // Let's ask other radio to update their value missing validity state.
+    nsCOMPtr<nsIRadioVisitor> visitor =
+      NS_GetRadioUpdateValueMissingVisitor();
+    VisitGroup(visitor, PR_FALSE);
+  }
+  
   //
   // Remove this radio from its group in the container
   //
@@ -3517,9 +3537,6 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
       }
       gotName = PR_TRUE;
     }
-
-    UpdateValueMissingValidityStateForRadio(true);
-
     container->RemoveFromRadioGroup(name,
                                     static_cast<nsIFormControl*>(this));
   }
@@ -3802,6 +3819,11 @@ nsHTMLInputElement::IsValueMissing()
   {
     case NS_FORM_INPUT_CHECKBOX:
       return !GetChecked();
+    case NS_FORM_INPUT_RADIO:
+      {
+        nsCOMPtr<nsIDOMHTMLInputElement> selected = GetSelectedRadioButton();
+        return !selected;
+      }
     case NS_FORM_INPUT_FILE:
       {
         const nsCOMArray<nsIDOMFile>& files = GetFiles();
@@ -3885,43 +3907,8 @@ nsHTMLInputElement::UpdateTooLongValidityState()
 }
 
 void
-nsHTMLInputElement::UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf)
-{
-  PRBool notify = !GET_BOOLBIT(mBitField, BF_PARSER_CREATING);
-  nsCOMPtr<nsIDOMHTMLInputElement> selection = GetSelectedRadioButton();
-  // If there is no selection, that might mean the radio is not in a group.
-  // In that case, we can look for the checked state of the radio.
-  bool selected = selection ? true
-                            : aIgnoreSelf ? false : GetChecked();
-  bool required = aIgnoreSelf ? false
-                              : HasAttr(kNameSpaceID_None, nsGkAtoms::required);
-  bool valueMissing = false;
-
-  // If the current radio is required, don't check the entire group.
-  if (!required) {
-    nsCOMPtr<nsIRadioVisitor> visitor =
-      NS_GetRadioGroupRequiredVisitor(this, &required);
-    VisitGroup(visitor, notify);
-  }
-
-  valueMissing = required && !selected;
-
-  SetValidityState(VALIDITY_STATE_VALUE_MISSING, valueMissing);
-
-  nsCOMPtr<nsIRadioVisitor> visitor =
-    NS_SetRadioValueMissingState(this, GetCurrentDoc(), valueMissing,
-                                 notify);
-  VisitGroup(visitor, notify);
-}
-
-void
 nsHTMLInputElement::UpdateValueMissingValidityState()
 {
-  if (mType == NS_FORM_INPUT_RADIO) {
-    UpdateValueMissingValidityStateForRadio(false);
-    return;
-  }
-
   SetValidityState(VALIDITY_STATE_VALUE_MISSING, IsValueMissing());
 }
 
@@ -4252,72 +4239,32 @@ protected:
   nsIFormControl* mExcludeElement;
 };
 
-class nsRadioGroupRequiredVisitor : public nsRadioVisitor {
+class nsRadioUpdateValueMissingVisitor : public nsRadioVisitor {
 public:
-  nsRadioGroupRequiredVisitor(nsIFormControl* aExcludeElement, bool* aRequired)
-    : mRequired(aRequired)
-    , mExcludeElement(aExcludeElement)
+  nsRadioUpdateValueMissingVisitor()
+    : nsRadioVisitor()
     { }
+
+  virtual ~nsRadioUpdateValueMissingVisitor() { };
 
   NS_IMETHOD Visit(nsIFormControl* aRadio, PRBool* aStop)
   {
-    if (aRadio == mExcludeElement) {
-      return NS_OK;
-    }
-
-    *mRequired = static_cast<nsHTMLInputElement*>(aRadio)
-      ->HasAttr(kNameSpaceID_None, nsGkAtoms::required);
-
-    if (*mRequired) {
-      *aStop = PR_TRUE;
-    }
-
+    /**
+     * The simplest way to update the value missing validity state is to do a
+     * global update of the validity state by simulationg a value change.
+     * OnValueChanged() is declared into nsITextControlElement. That may sound
+     * to be a weird way to update the validity states for radio controls but
+     * they are also implementing nsITextControlElement interface.
+     *
+     * When OnValueChanged() is called on a radio control, it will check if any
+     * radio in the group is checked. If none, the required radio will be
+     * suffering from being missing.
+     */
+    nsCOMPtr<nsITextControlElement> textCtl(do_QueryInterface(aRadio));
+    NS_ASSERTION(textCtl, "Visit() passed a null or non-radio pointer");
+    textCtl->OnValueChanged(PR_TRUE);
     return NS_OK;
   }
-
-protected:
-  bool* mRequired;
-  nsIFormControl* mExcludeElement;
-};
-
-class nsRadioSetValueMissingState : public nsRadioVisitor {
-public:
-  nsRadioSetValueMissingState(nsIFormControl* aExcludeElement,
-                              nsIDocument* aDocument, bool aValidity,
-                              bool aNotify)
-    : mExcludeElement(aExcludeElement)
-    , mDocument(aDocument)
-    , mValidity(aValidity)
-    , mNotify(aNotify)
-    { }
-
-  NS_IMETHOD Visit(nsIFormControl* aRadio, PRBool* aStop)
-  {
-    if (aRadio == mExcludeElement) {
-      return NS_OK;
-    }
-
-    nsHTMLInputElement* input = static_cast<nsHTMLInputElement*>(aRadio);
-
-    input->SetValidityState(nsIConstraintValidation::VALIDITY_STATE_VALUE_MISSING,
-                            mValidity);
-
-    if (mNotify && mDocument) {
-      mDocument->ContentStatesChanged(input, nsnull,
-                                      NS_EVENT_STATE_VALID |
-                                      NS_EVENT_STATE_INVALID |
-                                      NS_EVENT_STATE_MOZ_UI_VALID |
-                                      NS_EVENT_STATE_MOZ_UI_INVALID);
-    }
-
-    return NS_OK;
-  }
-
-protected:
-  nsIFormControl* mExcludeElement;
-  nsIDocument* mDocument;
-  bool mValidity;
-  bool mNotify;
 };
 
 nsresult
@@ -4391,8 +4338,8 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
 }
 
 /*
- * These methods are factores: they let callers to create an instance of
- * a radio group visitor without the class declaration and definition.
+ * This method is a factory: it lets callers to create an instance of
+ * nsRadioUpdateValueMissing without the class declaration and definition.
  *
  * TODO:
  * Do we really need factories for radio visitors? Or at least, we should move
@@ -4401,19 +4348,9 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
  * See bug 586298
  */
 nsIRadioVisitor*
-NS_GetRadioGroupRequiredVisitor(nsIFormControl* aExcludeElement,
-                                bool* aRequired)
+NS_GetRadioUpdateValueMissingVisitor()
 {
-  return new nsRadioGroupRequiredVisitor(aExcludeElement, aRequired);
-}
-
-nsIRadioVisitor*
-NS_SetRadioValueMissingState(nsIFormControl* aExcludeElement,
-                             nsIDocument* aDocument,
-                             bool aValidity, bool aNotify)
-{
-  return new nsRadioSetValueMissingState(aExcludeElement, aDocument, aValidity,
-                                         aNotify);
+  return new nsRadioUpdateValueMissingVisitor();
 }
 
 NS_IMETHODIMP_(PRBool)

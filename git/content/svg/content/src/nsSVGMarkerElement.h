@@ -44,7 +44,7 @@
 #include "nsSVGEnum.h"
 #include "nsSVGAngle.h"
 #include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 
 class nsSVGOrientType
 {
@@ -111,8 +111,6 @@ protected:
   nsSVGMarkerElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -159,7 +157,7 @@ protected:
   virtual AngleAttributesInfo GetAngleInfo();
   virtual EnumAttributesInfo GetEnumInfo();
   virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
   enum { REFX, REFY, MARKERWIDTH, MARKERHEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -175,7 +173,7 @@ protected:
   static AngleInfo sAngleInfo[1];
 
   nsSVGViewBox             mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 
   // derived properties (from 'orient') handled separately
   nsSVGOrientType                        mOrientType;

@@ -134,10 +134,10 @@ IsAncestorBinding(nsIDocument* aDocument,
       nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                       "TooDeepBindingRecursion",
                                       params, NS_ARRAY_LENGTH(params),
-                                      nsnull,
+                                      aDocument->GetDocumentURI(),
                                       EmptyString(), 0, 0,
                                       nsIScriptError::warningFlag,
-                                      "XBL", aDocument);
+                                      "XBL");
       return PR_TRUE;
     }
   }
@@ -978,10 +978,10 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
               nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                               "InvalidExtendsBinding",
                                               params, NS_ARRAY_LENGTH(params),
-                                              nsnull,
+                                              doc->GetDocumentURI(),
                                               EmptyString(), 0, 0,
                                               nsIScriptError::errorFlag,
-                                              "XBL", doc);
+                                              "XBL");
               NS_ASSERTION(!IsChromeOrResourceURI(aURI),
                            "Invalid extends value");
               return NS_ERROR_ILLEGAL_VALUE;
@@ -1014,10 +1014,10 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
             nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                             "CircularExtendsBinding",
                                             params, NS_ARRAY_LENGTH(params),
-                                            nsnull,
+                                            boundDocument->GetDocumentURI(),
                                             EmptyString(), 0, 0,
                                             nsIScriptError::warningFlag,
-                                            "XBL", boundDocument);
+                                            "XBL");
             return NS_ERROR_ILLEGAL_VALUE;
           }
         }

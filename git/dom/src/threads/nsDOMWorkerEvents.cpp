@@ -310,8 +310,8 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSAutoRequest ar(cx);
-    JSAutoStructuredCloneBuffer buffer;
-    buffer.adopt(cx, mData, mDataLen);
+    JSAutoStructuredCloneBuffer buffer(cx);
+    buffer.adopt(mData, mDataLen);
     mData = nsnull;
     mDataLen = 0;
 

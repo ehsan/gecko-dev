@@ -98,6 +98,7 @@ CPPSRCS		= \
 		nsSVGPolyElement.cpp \
 		nsSVGPolygonElement.cpp \
 		nsSVGPolylineElement.cpp \
+		nsSVGPreserveAspectRatio.cpp \
 		nsSVGScriptElement.cpp \
 		nsSVGString.cpp \
 		nsSVGStringProxyValue.cpp \
@@ -125,7 +126,6 @@ CPPSRCS		= \
 		SVGAnimatedNumberList.cpp \
 		SVGAnimatedPathSegList.cpp \
 		SVGAnimatedPointList.cpp \
-		SVGAnimatedPreserveAspectRatio.cpp \
 		SVGLength.cpp \
 		SVGLengthList.cpp \
 		SVGNumberList.cpp \

@@ -1628,10 +1628,14 @@ nsListControlFrame::FireOnChange()
       return;
   }
 
-  // Dispatch the change event.
-  nsContentUtils::DispatchTrustedEvent(mContent->GetOwnerDoc(), mContent,
-                                       NS_LITERAL_STRING("change"), PR_TRUE,
-                                       PR_FALSE);
+  // Dispatch the NS_FORM_CHANGE event
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsEvent event(PR_TRUE, NS_FORM_CHANGE);
+
+  nsCOMPtr<nsIPresShell> presShell = PresContext()->GetPresShell();
+  if (presShell) {
+    presShell->HandleEventWithTarget(&event, this, nsnull, &status);
+  }
 }
 
 NS_IMETHODIMP

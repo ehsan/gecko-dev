@@ -87,7 +87,6 @@ class nsISelectionController;
 class nsIDOMEventTarget;
 class nsCSSStyleSheet;
 class nsKeyEvent;
-class nsIDOMNSEvent;
 
 #define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
@@ -100,8 +99,7 @@ class nsIDOMNSEvent;
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIPhonetic,
-                 public nsIEditor_MOZILLA_2_0_BRANCH
+                 public nsIPhonetic
 {
 public:
 
@@ -157,9 +155,6 @@ public:
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
 
-  // nsIEditor_MOZILLA_2_0_BRANCH
-  NS_DECL_NSIEDITOR_MOZILLA_2_0_BRANCH
-
 public:
 
   
@@ -203,9 +198,6 @@ public:
   virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
                                         nsIPrivateTextRangeList *aTextRange)=0;
   nsresult EndIMEComposition();
-
-  void BeginKeypressHandling(nsIDOMNSEvent* aEvent);
-  void EndKeypressHandling() { mLastKeypressEventWasTrusted = eTriUnset; }
 
 protected:
   nsCString mContentMIMEType;       // MIME type of the doc we are editing.
@@ -753,8 +745,6 @@ protected:
   nsString* mPhonetic;
 
  nsCOMPtr<nsIDOMEventListener> mEventListener;
-
-  Tristate mLastKeypressEventWasTrusted;
 
   friend PRBool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

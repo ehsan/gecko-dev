@@ -50,7 +50,7 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "mozilla/dom/FromParser.h"
 
 #ifdef MOZ_SMIL
@@ -130,7 +130,6 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 {
   friend class nsSVGOuterSVGFrame;
   friend class nsSVGInnerSVGFrame;
-  friend class nsSVGImageFrame;
 
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
@@ -140,8 +139,6 @@ protected:
                   mozilla::dom::FromParser aFromParser);
   
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-  typedef mozilla::SVGPreserveAspectRatio SVGPreserveAspectRatio;
 
   // interfaces:
   NS_DECL_ISUPPORTS_INHERITED
@@ -212,10 +209,6 @@ public:
   gfxMatrix GetViewBoxTransform();
   PRBool    HasValidViewbox() const { return mViewBox.IsValid(); }
 
-  // This flushes any pending notifications for a preserveAspectRatio override
-  // in this document.  (Only applicable in SVG-as-an-image documents.)
-  virtual void FlushPreserveAspectRatioOverride();
-
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   svgFloatSize GetViewportSize() const {
@@ -235,14 +228,6 @@ public:
   // of imagelib in non-libxul builds.
   virtual void RemoveAllRenderingObservers();
 #endif // !MOZ_LIBXUL
-
-private:
-  // Methods for <image> elements to override my "PreserveAspectRatio" value.
-  // These are private so that only our friends (nsSVGImageFrame in
-  // particular) have access.
-  void SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR);
-  void ClearImageOverridePreserveAspectRatio();
-  const SVGPreserveAspectRatio* GetImageOverridePreserveAspectRatio();
 
 protected:
   // nsSVGElement overrides
@@ -281,11 +266,6 @@ protected:
   // invalidate viewbox -> viewport xform & inform frames
   void InvalidateTransformNotifyFrame();
 
-  // Returns PR_TRUE if we have at least one of the following:
-  // - a (valid or invalid) value for the preserveAspectRatio attribute
-  // - a SMIL-animated value for the preserveAspectRatio attribute
-  PRBool HasPreserveAspectRatio();
-
   virtual LengthAttributesInfo GetLengthInfo();
 
   enum { X, Y, WIDTH, HEIGHT };
@@ -300,12 +280,12 @@ protected:
   static EnumInfo sEnumInfo[1];
 
   virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
-  nsSVGViewBox                   mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsSVGViewBox             mViewBox;
+  nsSVGPreserveAspectRatio mPreserveAspectRatio;
 
-  nsSVGSVGElement               *mCoordCtx;
+  nsSVGSVGElement                  *mCoordCtx;
 
   // The size of the rectangular SVG viewport into which we render. This is
   // not (necessarily) the same as the content area. See:
@@ -339,7 +319,6 @@ protected:
   // to manually kick off animation when they are bound to the tree.
   PRPackedBool                      mStartAnimationOnBindToTree;
 #endif // MOZ_SMIL
-  PRPackedBool                      mNeedsPreserveAspectRatioFlush;
 };
 
 #endif

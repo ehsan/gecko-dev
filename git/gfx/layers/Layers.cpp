@@ -204,6 +204,7 @@ Layer::CanUseOpaqueSurface()
     parent->CanUseOpaqueSurface();
 }
 
+
 #ifdef MOZ_IPC
 // NB: eventually these methods will be defined unconditionally, and
 // can be moved into Layers.h
@@ -332,9 +333,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
     useIntermediateSurface = PR_TRUE;
   } else {
     useIntermediateSurface = PR_FALSE;
-    gfxMatrix contTransform;
-    if (!mEffectiveTransform.Is2D(&contTransform) ||
-        !contTransform.PreservesAxisAlignedRectangles()) {
+    if (!mEffectiveTransform.IsIdentity()) {
       for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
         const nsIntRect *clipRect = child->GetEffectiveClipRect();
         /* We can't (easily) forward our transform to children with a non-empty clip
@@ -444,8 +443,11 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (GetContentFlags() & CONTENT_OPAQUE) {
     aTo += " [opaqueContent]";
   }
-  if (GetContentFlags() & CONTENT_COMPONENT_ALPHA) {
-    aTo += " [componentAlpha]";
+  if (GetContentFlags() & CONTENT_NO_TEXT) {
+    aTo += " [noText]";
+  }
+  if (GetContentFlags() & CONTENT_NO_TEXT_OVER_TRANSPARENT) {
+    aTo += " [noTextOverTransparent]";
   }
 
   return aTo;
