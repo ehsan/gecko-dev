@@ -20,17 +20,17 @@ EXPORTS.mozilla.net += [
 ]
 
 SOURCES += [
-    'nsEffectiveTLDService.cpp', # Excluded from UNIFIED_SOURCES due to special build flags.
-]
-
-UNIFIED_SOURCES += [
-    'DNS.cpp',
     'nameprep.c',
-    'nsDNSService2.cpp',
-    'nsHostResolver.cpp',
-    'nsIDNService.cpp',
     'punycode.c',
     'race.c',
+]
+
+SOURCES += [
+    'DNS.cpp',
+    'nsDNSService2.cpp',
+    'nsEffectiveTLDService.cpp',
+    'nsHostResolver.cpp',
+    'nsIDNService.cpp',
 ]
 
 FAIL_ON_WARNINGS = True

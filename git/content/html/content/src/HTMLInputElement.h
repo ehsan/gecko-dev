@@ -108,7 +108,6 @@ public:
 
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
   using nsGenericHTMLElement::Focus;
-  virtual void Blur(ErrorResult& aError) MOZ_OVERRIDE;
   virtual void Focus(ErrorResult& aError) MOZ_OVERRIDE;
 
   // nsIDOMHTMLInputElement
@@ -575,13 +574,6 @@ public:
   void SetType(const nsAString& aValue, ErrorResult& aRv)
   {
     SetHTMLAttr(nsGkAtoms::type, aValue, aRv);
-    if (aValue.Equals(NS_LITERAL_STRING("number"))) {
-      // For NS_FORM_INPUT_NUMBER we rely on having frames to process key
-      // events. Make sure we have them in case someone changes the type of
-      // this element to "number" and then expects to be able to send key
-      // events to it (type changes are rare, so not a big perf issue):
-      FlushFrames();
-    }
   }
 
   // XPCOM GetDefaultValue() is OK
@@ -1096,13 +1088,9 @@ protected:
    */
   static bool IsExperimentalMobileType(uint8_t aType)
   {
-    return aType == NS_FORM_INPUT_DATE || aType == NS_FORM_INPUT_TIME;
+    return aType == NS_FORM_INPUT_NUMBER || aType == NS_FORM_INPUT_DATE ||
+           aType == NS_FORM_INPUT_TIME;
   }
-
-  /**
-   * Flushes the layout frame tree to make sure we have up-to-date frames.
-   */
-  void FlushFrames();
 
   /**
    * Returns true if the element should prevent dispatching another DOMActivate.
@@ -1255,8 +1243,7 @@ private:
 
   static bool MayFireChangeOnBlur(uint8_t aType) {
     return IsSingleLineTextControl(false, aType) ||
-           aType == NS_FORM_INPUT_RANGE ||
-           aType == NS_FORM_INPUT_NUMBER;
+           aType == NS_FORM_INPUT_RANGE;
   }
 
   struct nsFilePickerFilter {

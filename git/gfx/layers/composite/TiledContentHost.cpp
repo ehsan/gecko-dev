@@ -184,10 +184,6 @@ TiledContentHost::RenderTile(const TiledTexture& aTile,
 
   RefPtr<TexturedEffect> effect =
     CreateTexturedEffect(aTile.mDeprecatedTextureHost, aFilter);
-  if (!effect) {
-    return;
-  }
-
   if (aTile.mDeprecatedTextureHost->Lock()) {
     aEffectChain.mPrimaryEffect = effect;
   } else {

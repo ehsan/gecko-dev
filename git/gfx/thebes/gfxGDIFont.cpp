@@ -6,7 +6,6 @@
 #include "gfxGDIFont.h"
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/WindowsVersion.h"
 
 #include "gfxGDIShaper.h"
 #include "gfxUniscribeShaper.h"
@@ -96,7 +95,8 @@ UseUniscribe(gfxShapedText *aShapedText,
     uint32_t flags = aShapedText->Flags();
     bool useGDI;
 
-    bool isXP = !IsVistaOrLater();
+    bool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
+                       < gfxWindowsPlatform::kWindowsVista);
 
     // bug 561304 - Uniscribe bug produces bad positioning at certain
     // font sizes on XP, so default to GDI on XP using logic of 3.6
@@ -146,7 +146,8 @@ gfxGDIFont::ShapeText(gfxContext      *aContext,
 
     if (!ok && mHarfBuzzShaper) {
         if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript) ||
-            (!IsVistaOrLater() &&
+            (gfxWindowsPlatform::WindowsOSVersion() <
+                 gfxWindowsPlatform::kWindowsVista &&
              ScriptShapingType(aScript) == SHAPING_INDIC &&
              !Preferences::GetBool("gfx.font_rendering.winxp-indic-uniscribe",
                                    false))) {

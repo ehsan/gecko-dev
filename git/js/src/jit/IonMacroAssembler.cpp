@@ -685,12 +685,12 @@ MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Labe
 }
 
 void
-MacroAssembler::newGCThing(const Register &result, JSObject *templateObject,
-                           Label *fail, gc::InitialHeap initialHeap)
+MacroAssembler::newGCThing(const Register &result, JSObject *templateObject, Label *fail)
 {
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
 
+    gc::InitialHeap initialHeap = templateObject->type()->initialHeapForJITAlloc();
     newGCThing(result, allocKind, fail, initialHeap);
 }
 

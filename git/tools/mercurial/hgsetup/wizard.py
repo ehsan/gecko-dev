@@ -18,10 +18,7 @@ from mozversioncontrol.repoupdate import (
     update_git_repo,
 )
 
-from .config import (
-    HOST_FINGERPRINTS,
-    MercurialConfig,
-)
+from .config import MercurialConfig
 
 
 INITIAL_MESSAGE = '''
@@ -266,20 +263,17 @@ class MercurialSetupWizard(object):
         return 0
 
     def update_mercurial_repo(self, hg, url, dest, branch, msg):
-        # We always pass the host fingerprints that we "know" to be canonical
-        # because the existing config may have outdated fingerprints and this
-        # may cause Mercurial to abort.
         return self._update_repo(hg, url, dest, branch, msg,
-            update_mercurial_repo, hostfingerprints=HOST_FINGERPRINTS)
+            update_mercurial_repo)
 
     def update_git_repo(self, git, url, dest, ref, msg):
         return self._update_repo(git, url, dest, ref, msg, update_git_repo)
 
-    def _update_repo(self, binary, url, dest, branch, msg, fn, *args, **kwargs):
+    def _update_repo(self, binary, url, dest, branch, msg, fn):
         print('=' * 80)
         print(msg)
         try:
-            fn(binary, url, dest, branch, *args, **kwargs)
+            fn(binary, url, dest, branch)
         finally:
             print('=' * 80)
             print('')
