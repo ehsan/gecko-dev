@@ -5555,13 +5555,14 @@ nsContentUtils::GetCurrentJSContextForThread()
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToLower(nsAString& aStr)
 {
   char16_t* iter = aStr.BeginWriting();
   char16_t* end = aStr.EndWriting();
-  MOZ_ASSERT(iter && end);
-
+  if (MOZ_UNLIKELY(!iter || !end)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   while (iter != end) {
     char16_t c = *iter;
     if (c >= 'A' && c <= 'Z') {
@@ -5569,38 +5570,43 @@ nsContentUtils::ASCIIToLower(nsAString& aStr)
     }
     ++iter;
   }
+  return NS_OK;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 {
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
-  MOZ_ASSERT(aDest.Length() == len);
-
-  char16_t* dest = aDest.BeginWriting();
-  MOZ_ASSERT(dest);
-
-  const char16_t* iter = aSource.BeginReading();
-  const char16_t* end = aSource.EndReading();
-  while (iter != end) {
-    char16_t c = *iter;
-    *dest = (c >= 'A' && c <= 'Z') ?
-       c + ('a' - 'A') : c;
-    ++iter;
-    ++dest;
+  if (aDest.Length() == len) {
+    char16_t* dest = aDest.BeginWriting();
+    if (MOZ_UNLIKELY(!dest)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    const char16_t* iter = aSource.BeginReading();
+    const char16_t* end = aSource.EndReading();
+    while (iter != end) {
+      char16_t c = *iter;
+      *dest = (c >= 'A' && c <= 'Z') ?
+         c + ('a' - 'A') : c;
+      ++iter;
+      ++dest;
+    }
+    return NS_OK;
   }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToUpper(nsAString& aStr)
 {
   char16_t* iter = aStr.BeginWriting();
   char16_t* end = aStr.EndWriting();
-  MOZ_ASSERT(iter && end);
-
+  if (MOZ_UNLIKELY(!iter || !end)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   while (iter != end) {
     char16_t c = *iter;
     if (c >= 'a' && c <= 'z') {
@@ -5608,28 +5614,32 @@ nsContentUtils::ASCIIToUpper(nsAString& aStr)
     }
     ++iter;
   }
+  return NS_OK;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
 {
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
-  MOZ_ASSERT(aDest.Length() == len);
-
-  char16_t* dest = aDest.BeginWriting();
-  MOZ_ASSERT(dest);
-
-  const char16_t* iter = aSource.BeginReading();
-  const char16_t* end = aSource.EndReading();
-  while (iter != end) {
-    char16_t c = *iter;
-    *dest = (c >= 'a' && c <= 'z') ?
-      c + ('A' - 'a') : c;
-    ++iter;
-    ++dest;
+  if (aDest.Length() == len) {
+    char16_t* dest = aDest.BeginWriting();
+    if (MOZ_UNLIKELY(!dest)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    const char16_t* iter = aSource.BeginReading();
+    const char16_t* end = aSource.EndReading();
+    while (iter != end) {
+      char16_t c = *iter;
+      *dest = (c >= 'a' && c <= 'z') ?
+         c + ('A' - 'a') : c;
+      ++iter;
+      ++dest;
+    }
+    return NS_OK;
   }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 /* static */

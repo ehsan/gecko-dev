@@ -1368,7 +1368,7 @@ nsHTMLEditor::RebuildDocumentFromSource(const nsAString& aSourceString)
       CreateElementWithDefaults(NS_LITERAL_STRING("div"));
     NS_ENSURE_TRUE(divElement, NS_ERROR_FAILURE);
 
-    CloneAttributes(bodyElement, divElement);
+    CloneAttributes(bodyElement->AsDOMNode(), divElement->AsDOMNode());
 
     return BeginningOfDocument();
   }
@@ -1404,10 +1404,11 @@ nsHTMLEditor::RebuildDocumentFromSource(const nsAString& aSourceString)
   NS_ENSURE_TRUE(docfrag, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIContent> child = docfrag->GetFirstChild();
-  NS_ENSURE_TRUE(child && child->IsElement(), NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(child, NS_ERROR_NULL_POINTER);
   
   // Copy all attributes from the div child to current body element
-  CloneAttributes(bodyElement, child->AsElement());
+  res = CloneAttributes(bodyElement->AsDOMNode(), child->AsDOMNode());
+  NS_ENSURE_SUCCESS(res, res);
   
   // place selection at first editable content
   return BeginningOfDocument();
@@ -2574,14 +2575,13 @@ nsHTMLEditor::CreateElementWithDefaults(const nsAString& aTagName)
   // the transaction system
 
   // New call to use instead to get proper HTML element, bug 39919
-  nsCOMPtr<Element> newElement =
-    CreateHTMLContent(nsCOMPtr<nsIAtom>(do_GetAtom(realTagName)));
-  if (!newElement) {
+  ErrorResult rv;
+  nsCOMPtr<dom::Element> newElement = CreateHTMLContent(realTagName, rv);
+  if (rv.Failed() || !newElement) {
     return nullptr;
   }
 
   // Mark the new element dirty, so it will be formatted
-  ErrorResult rv;
   newElement->SetAttribute(NS_LITERAL_STRING("_moz_dirty"), EmptyString(), rv);
 
   // Set default values for new elements

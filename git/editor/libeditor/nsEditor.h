@@ -208,7 +208,7 @@ public:
                                int32_t *aInOutOffset,
                                nsIDOMDocument *aDoc);
   nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
-                                      mozilla::dom::Text* aTextNode,
+                                      nsINode* aTextNode,
                                       int32_t aOffset,
                                       bool aSuppressIME = false);
   nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
@@ -224,15 +224,18 @@ public:
   nsresult DeleteNode(nsINode* aNode);
   nsresult InsertNode(nsIContent* aContent, nsINode* aParent,
                       int32_t aPosition);
-  enum ECloneAttributes { eDontCloneAttributes, eCloneAttributes };
-  already_AddRefed<mozilla::dom::Element> ReplaceContainer(
-                            mozilla::dom::Element* aOldContainer,
-                            nsIAtom* aNodeType,
-                            nsIAtom* aAttribute = nullptr,
+  nsresult ReplaceContainer(nsINode* inNode,
+                            mozilla::dom::Element** outNode,
+                            const nsAString& aNodeType,
+                            const nsAString* aAttribute = nullptr,
                             const nsAString* aValue = nullptr,
-                            ECloneAttributes aCloneAttributes = eDontCloneAttributes);
-  void CloneAttributes(mozilla::dom::Element* aDest,
-                       mozilla::dom::Element* aSource);
+                            bool aCloneAttributes = false);
+  nsresult ReplaceContainer(nsIDOMNode *inNode, 
+                            nsCOMPtr<nsIDOMNode> *outNode, 
+                            const nsAString &aNodeType,
+                            const nsAString *aAttribute = nullptr,
+                            const nsAString *aValue = nullptr,
+                            bool aCloneAttributes = false);
 
   nsresult RemoveContainer(nsINode* aNode);
   nsresult RemoveContainer(nsIDOMNode *inNode);
@@ -252,9 +255,10 @@ public:
 
   /* Method to replace certain CreateElementNS() calls. 
      Arguments:
-      nsIAtom* aTag          - tag you want
+      nsString& aTag          - tag you want
   */
-  already_AddRefed<mozilla::dom::Element> CreateHTMLContent(nsIAtom* aTag);
+  already_AddRefed<mozilla::dom::Element>
+    CreateHTMLContent(const nsAString& aTag, mozilla::ErrorResult& rv);
 
   // IME event handlers
   virtual nsresult BeginIMEComposition(mozilla::WidgetCompositionEvent* aEvent);

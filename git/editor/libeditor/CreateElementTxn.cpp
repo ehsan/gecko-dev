@@ -66,8 +66,9 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
-  nsCOMPtr<Element> newContent =
-    mEditor->CreateHTMLContent(nsCOMPtr<nsIAtom>(do_GetAtom(mTag)));
+  ErrorResult rv;
+  nsCOMPtr<Element> newContent = mEditor->CreateHTMLContent(mTag, rv);
+  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
   NS_ENSURE_STATE(newContent);
 
   mNewNode = newContent->AsDOMNode();

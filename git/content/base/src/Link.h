@@ -14,7 +14,7 @@
 #include "mozilla/IHistory.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/URLSearchParams.h"
-#include "nsIContent.h" // for nsLinkState
+#include "nsIContent.h"
 
 namespace mozilla {
 

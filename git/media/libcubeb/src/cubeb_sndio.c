@@ -67,7 +67,7 @@ sndio_mainloop(void *arg)
 #define MAXFDS 8
   struct pollfd pfds[MAXFDS];
   cubeb_stream *s = arg;
-  int n, nfds, revents, state = CUBEB_STATE_STARTED;
+  int n, nfds, revents, state;
   size_t start = 0, end = 0;
   long nfr;
 
@@ -271,7 +271,7 @@ static int
 sndio_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency_ms)
 {
   // XXX Not yet implemented.
-  *latency_ms = 40;
+  latency_ms = 40;
 
   return CUBEB_OK;
 }
@@ -342,10 +342,9 @@ sndio_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
 }
 
 int
-sndio_stream_set_panning(cubeb_stream * stm, float panning)
+sndio_stream_set_volume(cubeb_stream * stm, float panning)
 {
-  assert(false && "not implemented");
-  return CUBEB_OK;
+  assert(0 && "not implemented");
 }
 
 static struct cubeb_ops const sndio_ops = {

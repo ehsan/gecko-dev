@@ -171,6 +171,8 @@
 #endif
 #endif /* XP_WIN */
 
+#include "nsINode.h"
+
 /***************************************************************************/
 // default initial sizes for maps (hashtables)
 

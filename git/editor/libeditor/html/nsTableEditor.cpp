@@ -1942,12 +1942,13 @@ nsHTMLEditor::SplitCellIntoRows(nsIDOMElement *aTable, int32_t aRowIndex, int32_
 NS_IMETHODIMP
 nsHTMLEditor::SwitchTableCellHeaderType(nsIDOMElement *aSourceCell, nsIDOMElement **aNewCell)
 {
-  nsCOMPtr<Element> sourceCell = do_QueryInterface(aSourceCell);
-  NS_ENSURE_TRUE(sourceCell, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aSourceCell, NS_ERROR_NULL_POINTER);
 
   nsAutoEditBatch beginBatching(this);
   // Prevent auto insertion of BR in new cell created by ReplaceContainer
   nsAutoRules beginRulesSniffing(this, EditAction::insertNode, nsIEditor::eNext);
+
+  nsCOMPtr<nsIDOMNode> newNode;
 
   // Save current selection to restore when done
   // This is needed so ReplaceContainer can monitor selection
@@ -1958,13 +1959,13 @@ nsHTMLEditor::SwitchTableCellHeaderType(nsIDOMElement *aSourceCell, nsIDOMElemen
 
   // Set to the opposite of current type
   nsCOMPtr<nsIAtom> atom = nsEditor::GetTag(aSourceCell);
-  nsIAtom* newCellType = atom == nsEditProperty::td
-    ? nsGkAtoms::th : nsGkAtoms::td;
+  nsString newCellType( (atom == nsEditProperty::td) ? NS_LITERAL_STRING("th") : NS_LITERAL_STRING("td"));
 
   // This creates new node, moves children, copies attributes (true)
   //   and manages the selection!
-  nsCOMPtr<Element> newNode = ReplaceContainer(sourceCell, newCellType,
-      nullptr, nullptr, nsEditor::eCloneAttributes);
+  nsresult res = ReplaceContainer(aSourceCell, address_of(newNode),
+                                  newCellType, nullptr, nullptr, true);
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(newNode, NS_ERROR_FAILURE);
 
   // Return the new cell

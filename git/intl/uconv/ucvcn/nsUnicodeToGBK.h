@@ -28,7 +28,7 @@ public:
   /**
    * Class constructor.
    */
-  explicit nsUnicodeToGBK(uint32_t aMaxLengthFactor = 2);
+  nsUnicodeToGBK(uint32_t aMaxLengthFactor = 2);
   virtual ~nsUnicodeToGBK() {}
 
 protected:

@@ -18,10 +18,7 @@
  * binding's <xbl:content> element.
  */
 
-#include <stdint.h>
-#include "nsAutoPtr.h"
-
-class nsIContent;
+#include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {

@@ -27,7 +27,6 @@
 #include "nsWrapperCache.h"
 #include "nsHashKeys.h"
 #include "mozilla/HashFunctions.h"
-#include "mozilla/dom/NameSpaceConstants.h"
 
 namespace mozilla {
 namespace dom {

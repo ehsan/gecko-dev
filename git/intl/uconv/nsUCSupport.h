@@ -131,7 +131,7 @@ public:
   /**
    * Class constructor.
    */
-  explicit nsBufferDecoderSupport(uint32_t aMaxLengthFactor);
+  nsBufferDecoderSupport(uint32_t aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -242,7 +242,7 @@ public:
   /**
    * Class constructor.
    */
-  explicit nsOneByteDecoderSupport(uMappingTable * aMappingTable);
+  nsOneByteDecoderSupport(uMappingTable * aMappingTable);
 
   /**
    * Class destructor.
@@ -353,7 +353,7 @@ public:
   /**
    * Class constructor.
    */
-  explicit nsEncoderSupport(uint32_t aMaxLengthFactor);
+  nsEncoderSupport(uint32_t aMaxLengthFactor);
 
   /**
    * Class destructor.

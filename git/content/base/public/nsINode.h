@@ -74,7 +74,6 @@ class Element;
 class EventHandlerNonNull;
 class OnErrorEventHandlerNonNull;
 template<typename T> class Optional;
-class Text;
 class TextOrElementOrDocument;
 struct DOMPointInit;
 } // namespace dom
@@ -426,13 +425,6 @@ public:
   {
     return const_cast<nsINode*>(this)->AsContent();
   }
-
-  /**
-   * Return this node as Text if it is one, otherwise null.  This is defined
-   * inline in Text.h.
-   */
-  mozilla::dom::Text* GetAsText();
-  const mozilla::dom::Text* GetAsText() const;
 
   virtual nsIDOMNode* AsDOMNode() = 0;
 

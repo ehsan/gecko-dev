@@ -17,8 +17,6 @@
 #include "mozIApplication.h"
 #include "nsIPermissionManager.h"
 #include "GeckoProfiler.h"
-#include "nsIDocument.h"
-#include "nsPIDOMWindow.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

@@ -282,11 +282,16 @@ class MOZ_STACK_CLASS nsWSRunObject
     // stored in the struct.
     struct MOZ_STACK_CLASS WSPoint
     {
-      nsRefPtr<mozilla::dom::Text> mTextNode;
+      nsCOMPtr<nsIContent> mTextNode;
       uint32_t mOffset;
       char16_t mChar;
 
       WSPoint() : mTextNode(0),mOffset(0),mChar(0) {}
+      WSPoint(nsIContent* aNode, int32_t aOffset, char16_t aChar) :
+                     mTextNode(aNode),mOffset(aOffset),mChar(aChar)
+      {
+        MOZ_ASSERT(mTextNode->IsNodeOfType(nsINode::eTEXT));
+      }
       WSPoint(mozilla::dom::Text* aTextNode, int32_t aOffset, char16_t aChar) :
                      mTextNode(aTextNode),mOffset(aOffset),mChar(aChar) {}
     };    
@@ -328,13 +333,13 @@ class MOZ_STACK_CLASS nsWSRunObject
     nsresult ConvertToNBSP(WSPoint aPoint,
                            AreaRestriction aAR = eAnywhere);
     void     GetAsciiWSBounds(int16_t aDir, nsINode* aNode, int32_t aOffset,
-                              mozilla::dom::Text** outStartNode,
+                              nsIContent** outStartNode,
                               int32_t* outStartOffset,
-                              mozilla::dom::Text** outEndNode,
+                              nsIContent** outEndNode,
                               int32_t* outEndOffset);
     void     FindRun(nsINode* aNode, int32_t aOffset, WSFragment** outRun,
                      bool after);
-    char16_t GetCharAt(mozilla::dom::Text* aTextNode, int32_t aOffset);
+    char16_t GetCharAt(nsIContent *aTextNode, int32_t aOffset);
     WSPoint  GetWSPointAfter(nsINode* aNode, int32_t aOffset);
     WSPoint  GetWSPointBefore(nsINode* aNode, int32_t aOffset);
     nsresult CheckTrailingNBSPOfRun(WSFragment *aRun);
@@ -366,10 +371,10 @@ class MOZ_STACK_CLASS nsWSRunObject
     WSType mEndReason;                 // reason why ws ends (eText, eOtherBlock, etc)
     nsCOMPtr<nsINode> mEndReasonNode;  // the node that implicated by end reason
     
-    nsRefPtr<mozilla::dom::Text> mFirstNBSPNode; // location of first nbsp in ws run, if any
+    nsCOMPtr<nsINode> mFirstNBSPNode;  // location of first nbsp in ws run, if any
     int32_t mFirstNBSPOffset;          // ...
     
-    nsRefPtr<mozilla::dom::Text> mLastNBSPNode; // location of last nbsp in ws run, if any
+    nsCOMPtr<nsINode> mLastNBSPNode;   // location of last nbsp in ws run, if any
     int32_t mLastNBSPOffset;           // ...
     
     // the list of nodes containing ws in this run

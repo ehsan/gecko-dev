@@ -14,7 +14,6 @@
 #include "nsWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "AndroidBridge.h"
-#include "nsIContent.h"
 
 using mozilla::layers::APZCCallbackHelper;
 using mozilla::layers::APZCTreeManager;

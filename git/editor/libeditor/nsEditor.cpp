@@ -512,12 +512,15 @@ nsEditor::GetIsSelectionEditable(bool *aIsSelectionEditable)
   NS_ENSURE_ARG_POINTER(aIsSelectionEditable);
 
   // get current selection
-  nsRefPtr<Selection> selection = GetSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   // XXX we just check that the anchor node is editable at the moment
   //     we should check that all nodes in the selection are editable
-  nsCOMPtr<nsINode> anchorNode = selection->GetAnchorNode();
+  nsCOMPtr<nsIDOMNode> anchorNode;
+  selection->GetAnchorNode(getter_AddRefs(anchorNode));
   *aIsSelectionEditable = anchorNode && IsEditable(anchorNode);
 
   return NS_OK;
@@ -527,7 +530,7 @@ NS_IMETHODIMP
 nsEditor::GetIsDocumentEditable(bool *aIsDocumentEditable)
 {
   NS_ENSURE_ARG_POINTER(aIsDocumentEditable);
-  nsCOMPtr<nsIDocument> doc = GetDocument();
+  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
   *aIsDocumentEditable = !!doc;
 
   return NS_OK;
@@ -552,7 +555,8 @@ nsEditor::GetDOMDocument()
 NS_IMETHODIMP 
 nsEditor::GetDocument(nsIDOMDocument **aDoc)
 {
-  *aDoc = GetDOMDocument().take();
+  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
+  doc.forget(aDoc);
   return *aDoc ? NS_OK : NS_ERROR_NOT_INITIALIZED;
 }
 
@@ -1523,61 +1527,87 @@ nsEditor::DeleteNode(nsINode* aNode)
 //                   to be of type aNodeType.  Put inNodes children into outNode.
 //                   Callers responsibility to make sure inNode's children can 
 //                   go in outNode.
-already_AddRefed<Element>
-nsEditor::ReplaceContainer(Element* aOldContainer,
-                           nsIAtom* aNodeType,
-                           nsIAtom* aAttribute,
-                           const nsAString* aValue,
-                           ECloneAttributes aCloneAttributes)
+nsresult
+nsEditor::ReplaceContainer(nsIDOMNode *inNode, 
+                           nsCOMPtr<nsIDOMNode> *outNode, 
+                           const nsAString &aNodeType,
+                           const nsAString *aAttribute,
+                           const nsAString *aValue,
+                           bool aCloneAttributes)
 {
-  MOZ_ASSERT(aOldContainer && aNodeType);
+  NS_ENSURE_TRUE(inNode && outNode, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsIContent> parent = aOldContainer->GetParent();
-  NS_ENSURE_TRUE(parent, nullptr);
+  nsCOMPtr<nsINode> node = do_QueryInterface(inNode);
+  NS_ENSURE_STATE(node);
 
-  int32_t offset = parent->IndexOf(aOldContainer);
+  nsCOMPtr<dom::Element> element;
+  nsresult rv = ReplaceContainer(node, getter_AddRefs(element), aNodeType,
+                                 aAttribute, aValue, aCloneAttributes);
+  *outNode = element ? element->AsDOMNode() : nullptr;
+  return rv;
+}
+
+nsresult
+nsEditor::ReplaceContainer(nsINode* aNode,
+                           dom::Element** outNode,
+                           const nsAString& aNodeType,
+                           const nsAString* aAttribute,
+                           const nsAString* aValue,
+                           bool aCloneAttributes)
+{
+  MOZ_ASSERT(aNode);
+  MOZ_ASSERT(outNode);
+
+  *outNode = nullptr;
+
+  nsCOMPtr<nsIContent> parent = aNode->GetParent();
+  NS_ENSURE_STATE(parent);
+
+  int32_t offset = parent->IndexOf(aNode);
 
   // create new container
-  nsCOMPtr<Element> ret = CreateHTMLContent(aNodeType);
-  NS_ENSURE_TRUE(ret, nullptr);
+  ErrorResult rv;
+  *outNode = CreateHTMLContent(aNodeType, rv).take();
+  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
+
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(*outNode);
+  
+  nsIDOMNode* inNode = aNode->AsDOMNode();
 
   // set attribute if needed
   nsresult res;
-  if (aAttribute && aValue && aAttribute != nsGkAtoms::_empty) {
-    res = ret->SetAttr(kNameSpaceID_None, aAttribute, *aValue, true);
-    NS_ENSURE_SUCCESS(res, nullptr);
+  if (aAttribute && aValue && !aAttribute->IsEmpty()) {
+    res = elem->SetAttribute(*aAttribute, *aValue);
+    NS_ENSURE_SUCCESS(res, res);
   }
-  if (aCloneAttributes == eCloneAttributes) {
-    CloneAttributes(ret, aOldContainer);
+  if (aCloneAttributes) {
+    res = CloneAttributes(elem, inNode);
+    NS_ENSURE_SUCCESS(res, res);
   }
   
   // notify our internal selection state listener
   // (Note: A nsAutoSelectionReset object must be created
   //  before calling this to initialize mRangeUpdater)
-  nsAutoReplaceContainerSelNotify selStateNotify(mRangeUpdater,
-      aOldContainer->AsDOMNode(), ret->AsDOMNode());
+  nsAutoReplaceContainerSelNotify selStateNotify(mRangeUpdater, inNode, elem);
   {
     nsAutoTxnsConserveSelection conserveSelection(this);
-    while (aOldContainer->HasChildren()) {
-      nsCOMPtr<nsIContent> child = aOldContainer->GetFirstChild();
+    while (aNode->HasChildren()) {
+      nsCOMPtr<nsIDOMNode> child = aNode->GetFirstChild()->AsDOMNode();
 
       res = DeleteNode(child);
-      NS_ENSURE_SUCCESS(res, nullptr);
+      NS_ENSURE_SUCCESS(res, res);
 
-      res = InsertNode(child, ret, -1);
-      NS_ENSURE_SUCCESS(res, nullptr);
+      res = InsertNode(child, elem, -1);
+      NS_ENSURE_SUCCESS(res, res);
     }
   }
 
   // insert new container into tree
-  res = InsertNode(ret, parent, offset);
-  NS_ENSURE_SUCCESS(res, nullptr);
+  res = InsertNode(elem, parent->AsDOMNode(), offset);
+  NS_ENSURE_SUCCESS(res, res);
   
   // delete old container
-  res = DeleteNode(aOldContainer);
-  NS_ENSURE_SUCCESS(res, nullptr);
-
-  return ret.forget();
+  return DeleteNode(inNode);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1660,9 +1690,9 @@ nsEditor::InsertContainerAbove(nsIContent* aNode,
   int32_t offset = parent->IndexOf(aNode);
 
   // create new container
-  nsCOMPtr<Element> newContent =
-    CreateHTMLContent(nsCOMPtr<nsIAtom>(do_GetAtom(aNodeType)));
-  NS_ENSURE_STATE(newContent);
+  ErrorResult rv;
+  nsCOMPtr<Element> newContent = CreateHTMLContent(aNodeType, rv);
+  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
 
   // set attribute if needed
   nsresult res;
@@ -2217,60 +2247,87 @@ nsEditor::CloneAttribute(const nsAString & aAttribute,
 
 // Objects must be DOM elements
 NS_IMETHODIMP
-nsEditor::CloneAttributes(nsIDOMNode* aDest, nsIDOMNode* aSource)
+nsEditor::CloneAttributes(nsIDOMNode *aDestNode, nsIDOMNode *aSourceNode)
 {
-  NS_ENSURE_TRUE(aDest && aSource, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aDestNode && aSourceNode, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<Element> dest = do_QueryInterface(aDest);
-  nsCOMPtr<Element> source = do_QueryInterface(aSource);
-  NS_ENSURE_TRUE(dest && source, NS_ERROR_NO_INTERFACE);
+  nsCOMPtr<nsIDOMElement> destElement = do_QueryInterface(aDestNode);
+  nsCOMPtr<nsIDOMElement> sourceElement = do_QueryInterface(aSourceNode);
+  NS_ENSURE_TRUE(destElement && sourceElement, NS_ERROR_NO_INTERFACE);
 
-  CloneAttributes(dest, source);
-
-  return NS_OK;
-}
-
-void
-nsEditor::CloneAttributes(Element* aDest, Element* aSource)
-{
-  MOZ_ASSERT(aDest && aSource);
+  nsCOMPtr<nsIDOMMozNamedAttrMap> sourceAttributes;
+  sourceElement->GetAttributes(getter_AddRefs(sourceAttributes));
+  nsCOMPtr<nsIDOMMozNamedAttrMap> destAttributes;
+  destElement->GetAttributes(getter_AddRefs(destAttributes));
+  NS_ENSURE_TRUE(sourceAttributes && destAttributes, NS_ERROR_FAILURE);
 
   nsAutoEditBatch beginBatching(this);
 
-  // Use transaction system for undo only if destination is already in the
-  // document
-  NS_ENSURE_TRUE(GetRoot(), );
-  bool destInBody = GetRoot()->Contains(aDest);
+  // Use transaction system for undo only if destination
+  //   is already in the document
+  nsCOMPtr<nsIDOMNode> p = aDestNode;
+  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(GetRoot());
+  NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
+  bool destInBody = true;
+  while (p && p != rootNode)
+  {
+    nsCOMPtr<nsIDOMNode> tmp;
+    if (NS_FAILED(p->GetParentNode(getter_AddRefs(tmp))) || !tmp)
+    {
+      destInBody = false;
+      break;
+    }
+    p = tmp;
+  }
+
+  uint32_t sourceCount;
+  sourceAttributes->GetLength(&sourceCount);
+  uint32_t destCount;
+  destAttributes->GetLength(&destCount);
+  nsCOMPtr<nsIDOMAttr> attr;
 
   // Clear existing attributes
-  nsRefPtr<nsDOMAttributeMap> destAttributes = aDest->Attributes();
-  while (nsRefPtr<Attr> attr = destAttributes->Item(0)) {
-    if (destInBody) {
-      RemoveAttribute(static_cast<nsIDOMElement*>(GetAsDOMNode(aDest)),
-                      attr->NodeName());
-    } else {
-      ErrorResult ignored;
-      aDest->RemoveAttribute(attr->NodeName(), ignored);
+  for (uint32_t i = 0; i < destCount; i++) {
+    // always remove item number 0 (first item in list)
+    if (NS_SUCCEEDED(destAttributes->Item(0, getter_AddRefs(attr))) && attr) {
+      nsString str;
+      if (NS_SUCCEEDED(attr->GetName(str))) {
+        if (destInBody) {
+          RemoveAttribute(destElement, str);
+        } else {
+          destElement->RemoveAttribute(str);
+        }
+      }
     }
   }
 
+  nsresult result = NS_OK;
+
   // Set just the attributes that the source element has
-  nsRefPtr<nsDOMAttributeMap> sourceAttributes = aSource->Attributes();
-  uint32_t sourceCount = sourceAttributes->Length();
-  for (uint32_t i = 0; i < sourceCount; i++) {
-    nsRefPtr<Attr> attr = sourceAttributes->Item(i);
-    nsAutoString value;
-    attr->GetValue(value);
-    if (destInBody) {
-      SetAttributeOrEquivalent(static_cast<nsIDOMElement*>(GetAsDOMNode(aDest)),
-                               attr->NodeName(), value, false);
-    } else {
-      // The element is not inserted in the document yet, we don't want to put
-      // a transaction on the UndoStack
-      SetAttributeOrEquivalent(static_cast<nsIDOMElement*>(GetAsDOMNode(aDest)),
-                               attr->NodeName(), value, true);
+  for (uint32_t i = 0; i < sourceCount; i++)
+  {
+    if (NS_SUCCEEDED(sourceAttributes->Item(i, getter_AddRefs(attr))) && attr) {
+      nsString sourceAttrName;
+      if (NS_SUCCEEDED(attr->GetName(sourceAttrName))) {
+        nsString sourceAttrValue;
+        /* Presence of an attribute in the named node map indicates that it was
+         * set on the element even if it has no value.
+         */
+        if (NS_SUCCEEDED(attr->GetValue(sourceAttrValue))) {
+          if (destInBody) {
+            result = SetAttributeOrEquivalent(destElement, sourceAttrName, sourceAttrValue, false);
+          } else {
+            // the element is not inserted in the document yet, we don't want to put a
+            // transaction on the UndoStack
+            result = SetAttributeOrEquivalent(destElement, sourceAttrName, sourceAttrValue, true);
+          }
+        } else {
+          // Do we ever get here?
+        }
+      }
     }
   }
+  return result;
 }
 
 
@@ -2389,7 +2446,7 @@ nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
 
 
 nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
-                                              Text* aTextNode,
+                                              nsINode* aTextNode,
                                               int32_t aOffset,
                                               bool aSuppressIME)
 {
@@ -4710,27 +4767,29 @@ nsresult nsEditor::ClearSelection()
 }
 
 already_AddRefed<Element>
-nsEditor::CreateHTMLContent(nsIAtom* aTag)
+nsEditor::CreateHTMLContent(const nsAString& aTag, ErrorResult& rv)
 {
-  MOZ_ASSERT(aTag);
-
   nsCOMPtr<nsIDocument> doc = GetDocument();
   if (!doc) {
+    rv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
   // XXX Wallpaper over editor bug (editor tries to create elements with an
   //     empty nodename).
-  if (aTag == nsGkAtoms::_empty) {
+  if (aTag.IsEmpty()) {
     NS_ERROR("Don't pass an empty tag to nsEditor::CreateHTMLContent, "
              "check caller.");
+    rv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
   nsCOMPtr<nsIContent> ret;
-  nsresult res = doc->CreateElem(nsDependentAtomString(aTag), nullptr,
-                                 kNameSpaceID_XHTML, getter_AddRefs(ret));
-  NS_ENSURE_SUCCESS(res, nullptr);
+  nsresult res = doc->CreateElem(aTag, nullptr, kNameSpaceID_XHTML,
+                                 getter_AddRefs(ret));
+  if (NS_FAILED(res)) {
+    rv.Throw(res);
+  }
   return dont_AddRef(ret.forget().take()->AsElement());
 }
 

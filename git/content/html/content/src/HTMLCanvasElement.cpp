@@ -467,12 +467,14 @@ HTMLCanvasElement::ToDataURLImpl(JSContext* aCx,
   }
 
   nsAutoString type;
-  nsContentUtils::ASCIIToLower(aMimeType, type);
+  nsresult rv = nsContentUtils::ASCIIToLower(aMimeType, type);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsAutoString params;
   bool usingCustomParseOptions;
-  nsresult rv =
-    ParseParams(aCx, type, aEncoderOptions, params, &usingCustomParseOptions);
+  rv = ParseParams(aCx, type, aEncoderOptions, params, &usingCustomParseOptions);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -513,7 +515,10 @@ HTMLCanvasElement::ToBlob(JSContext* aCx,
   }
 
   nsAutoString type;
-  nsContentUtils::ASCIIToLower(aType, type);
+  aRv = nsContentUtils::ASCIIToLower(aType, type);
+  if (aRv.Failed()) {
+    return;
+  }
 
   nsAutoString params;
   bool usingCustomParseOptions;

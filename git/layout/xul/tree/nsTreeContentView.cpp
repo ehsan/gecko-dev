@@ -16,7 +16,6 @@
 #include "nsTreeBodyFrame.h"
 #include "mozilla/dom/Element.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 

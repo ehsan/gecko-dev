@@ -6,6 +6,8 @@
 #define nsHtml5TreeOpExecutor_h
 
 #include "nsIAtom.h"
+#include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "nsHtml5TreeOperation.h"
 #include "nsHtml5SpeculativeLoad.h"
@@ -27,8 +29,6 @@ class nsHtml5Parser;
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
 class nsHtml5StreamParser;
-class nsIContent;
-class nsIDocument;
 
 class nsHtml5TreeOpExecutor : public nsHtml5DocumentBuilder,
                               public nsIContentSink,

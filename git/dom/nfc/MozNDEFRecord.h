@@ -15,10 +15,11 @@
 #include "nsWrapperCache.h"
 #include "jsapi.h"
 
+#include "nsIDocument.h"
+
 #include "mozilla/dom/TypedArray.h"
 #include "jsfriendapi.h"
 #include "js/GCAPI.h"
-#include "nsPIDOMWindow.h"
 
 struct JSContext;
 

@@ -1495,11 +1495,9 @@ CacheStorageService::CheckStorageEntry(CacheStorage const* aStorage,
 namespace { // anon
 
 class CacheEntryDoomByKeyCallback : public CacheFileIOListener
-                                  , public nsIRunnable
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIRUNNABLE
 
   explicit CacheEntryDoomByKeyCallback(nsICacheEntryDoomCallback* aCallback)
     : mCallback(aCallback) { }
@@ -1515,7 +1513,6 @@ private:
   NS_IMETHOD OnFileRenamed(CacheFileHandle *aHandle, nsresult aResult) { return NS_OK; }
 
   nsCOMPtr<nsICacheEntryDoomCallback> mCallback;
-  nsresult mResult;
 };
 
 CacheEntryDoomByKeyCallback::~CacheEntryDoomByKeyCallback()
@@ -1530,23 +1527,11 @@ NS_IMETHODIMP CacheEntryDoomByKeyCallback::OnFileDoomed(CacheFileHandle *aHandle
   if (!mCallback)
     return NS_OK;
 
-  mResult = aResult;
-  if (NS_IsMainThread()) {
-    Run();
-  } else {
-    NS_DispatchToMainThread(this);
-  }
-
+  mCallback->OnCacheEntryDoomed(aResult);
   return NS_OK;
 }
 
-NS_IMETHODIMP CacheEntryDoomByKeyCallback::Run()
-{
-  mCallback->OnCacheEntryDoomed(mResult);
-  return NS_OK;
-}
-
-NS_IMPL_ISUPPORTS(CacheEntryDoomByKeyCallback, CacheFileIOListener, nsIRunnable);
+NS_IMPL_ISUPPORTS(CacheEntryDoomByKeyCallback, CacheFileIOListener);
 
 } // anon
 
@@ -1618,22 +1603,8 @@ CacheStorageService::DoomStorageEntry(CacheStorage const* aStorage,
     return NS_OK;
   }
 
-  class Callback : public nsRunnable
-  {
-  public:
-    Callback(nsICacheEntryDoomCallback* aCallback) : mCallback(aCallback) { }
-    NS_IMETHODIMP Run()
-    {
-      mCallback->OnCacheEntryDoomed(NS_ERROR_NOT_AVAILABLE);
-      return NS_OK;
-    }
-    nsCOMPtr<nsICacheEntryDoomCallback> mCallback;
-  };
-
-  if (aCallback) {
-    nsRefPtr<nsRunnable> callback = new Callback(aCallback);
-    return NS_DispatchToMainThread(callback);
-  }
+  if (aCallback)
+    aCallback->OnCacheEntryDoomed(NS_ERROR_NOT_AVAILABLE);
 
   return NS_OK;
 }
@@ -1729,7 +1700,7 @@ CacheStorageService::DoomStorageEntries(nsCSubstring const& aContextKey,
 
   if (aCallback) {
     nsRefPtr<nsRunnable> callback = new Callback(aCallback);
-    return NS_DispatchToMainThread(callback);
+    return NS_DispatchToCurrentThread(callback);
   }
 
   return NS_OK;

@@ -9,7 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
-#include "nsIContent.h"
 #include "nsITextControlFrame.h"
 #include "nsITextControlElement.h"
 #include "nsIStatefulFrame.h"

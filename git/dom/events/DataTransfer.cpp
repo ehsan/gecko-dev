@@ -381,7 +381,10 @@ DataTransfer::GetData(const nsAString& aFormat, nsAString& aData,
     // for the URL type, parse out the first URI from the list. The URIs are
     // separated by newlines
     nsAutoString lowercaseFormat;
-    nsContentUtils::ASCIIToLower(aFormat, lowercaseFormat);
+    aRv = nsContentUtils::ASCIIToLower(aFormat, lowercaseFormat);
+    if (aRv.Failed()) {
+      return;
+    }
 
     if (lowercaseFormat.EqualsLiteral("url")) {
       int32_t lastidx = 0, idx;

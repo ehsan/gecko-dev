@@ -12,7 +12,7 @@
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "gfxSVGGlyphs.h"
-#include "nsIContent.h" // for GetContent
+#include "nsIContent.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGPaintServerFrame.h"
 
