@@ -107,6 +107,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMessageEvent.h"
 #include "nsIDOMPopupBlockedEvent.h"
+#include "nsIDOMPkcs11.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsDOMString.h"
@@ -348,6 +349,7 @@ static NS_DEFINE_CID(kXULControllersCID, NS_XULCONTROLLERS_CID);
 static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
 
 static const char kCryptoContractID[] = NS_CRYPTO_CONTRACTID;
+static const char kPkcs11ContractID[] = NS_PKCS11_CONTRACTID;
 
 static PRBool
 IsAboutBlank(nsIURI* aURI)
@@ -2959,6 +2961,20 @@ nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
 }
 
 NS_IMETHODIMP
+nsGlobalWindow::GetPkcs11(nsIDOMPkcs11** aPkcs11)
+{
+  FORWARD_TO_OUTER(GetPkcs11, (aPkcs11), NS_ERROR_NOT_INITIALIZED);
+
+  if (!mPkcs11) {
+    mPkcs11 = do_CreateInstance(kPkcs11ContractID);
+  }
+
+  NS_IF_ADDREF(*aPkcs11 = mPkcs11);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsGlobalWindow::GetControllers(nsIControllers** aResult)
 {
   FORWARD_TO_OUTER(GetControllers, (aResult), NS_ERROR_NOT_INITIALIZED);
@@ -3218,12 +3234,18 @@ nsGlobalWindow::GetInnerWidth(PRInt32* aInnerWidth)
   EnsureSizeUpToDate();
 
   nsCOMPtr<nsIBaseWindow> docShellWin(do_QueryInterface(mDocShell));
-  PRInt32 width = 0;
-  PRInt32 notused;
-  if (docShellWin)
-    docShellWin->GetSize(&width, &notused);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
 
-  *aInnerWidth = DevToCSSIntPixels(width);
+  if (docShellWin && presContext) {
+    PRInt32 width, notused;
+    docShellWin->GetSize(&width, &notused);
+    *aInnerWidth = nsPresContext::
+      AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(width));
+  } else {
+    *aInnerWidth = 0;
+  }
+
   return NS_OK;
 }
 
@@ -3275,12 +3297,17 @@ nsGlobalWindow::GetInnerHeight(PRInt32* aInnerHeight)
   EnsureSizeUpToDate();
 
   nsCOMPtr<nsIBaseWindow> docShellWin(do_QueryInterface(mDocShell));
-  PRInt32 height = 0;
-  PRInt32 notused;
-  if (docShellWin)
-    docShellWin->GetSize(&notused, &height);
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
 
-  *aInnerHeight = DevToCSSIntPixels(height);
+  if (docShellWin && presContext) {
+    PRInt32 height, notused;
+    docShellWin->GetSize(&notused, &height);
+    *aInnerHeight = nsPresContext::
+      AppUnitsToIntCSSPixels(presContext->DevPixelsToAppUnits(height));
+  } else {
+    *aInnerHeight = 0;
+  }
   return NS_OK;
 }
 
