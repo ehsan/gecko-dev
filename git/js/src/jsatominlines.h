@@ -14,6 +14,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
+
 #include "gc/Barrier.h"
 #include "vm/String.h"
 

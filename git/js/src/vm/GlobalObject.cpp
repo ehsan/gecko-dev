@@ -19,6 +19,7 @@
 #include "builtin/MapObject.h"
 #include "builtin/Object.h"
 #include "builtin/RegExp.h"
+#include "frontend/BytecodeEmitter.h"
 
 #include "jsobjinlines.h"
 

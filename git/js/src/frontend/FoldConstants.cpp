@@ -111,7 +111,7 @@ FoldType(JSContext *cx, ParseNode *pn, ParseNodeKind kind)
  */
 static bool
 FoldBinaryNumeric(JSContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
-                  ParseNode *pn)
+                  ParseNode *pn, Parser<FullParseHandler> *parser)
 {
     double d, d2;
     int32_t i, j;
@@ -203,20 +203,39 @@ enum Truthiness { Truthy, Falsy, Unknown };
 static Truthiness
 Boolish(ParseNode *pn)
 {
-    switch (pn->getKind()) {
-      case PNK_NUMBER:
+    switch (pn->getOp()) {
+      case JSOP_DOUBLE:
         return (pn->pn_dval != 0 && !IsNaN(pn->pn_dval)) ? Truthy : Falsy;
 
-      case PNK_STRING:
+      case JSOP_STRING:
         return (pn->pn_atom->length() > 0) ? Truthy : Falsy;
 
-      case PNK_TRUE:
-      case PNK_FUNCTION:
-      case PNK_GENEXP:
+#if JS_HAS_GENERATOR_EXPRS
+      case JSOP_CALL:
+      {
+        /*
+         * A generator expression as an if or loop condition has no effects, it
+         * simply results in a truthy object reference. This condition folding
+         * is needed for the decompiler. See bug 442342 and bug 443074.
+         */
+        if (pn->pn_count != 1)
+            return Unknown;
+        ParseNode *pn2 = pn->pn_head;
+        if (!pn2->isKind(PNK_FUNCTION))
+            return Unknown;
+        if (!(pn2->pn_funbox->inGenexpLambda))
+            return Unknown;
+        return Truthy;
+      }
+#endif
+
+      case JSOP_DEFFUN:
+      case JSOP_LAMBDA:
+      case JSOP_TRUE:
         return Truthy;
 
-      case PNK_FALSE:
-      case PNK_NULL:
+      case JSOP_NULL:
+      case JSOP_FALSE:
         return Falsy;
 
       default:
@@ -247,11 +266,8 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
 
     switch (pn->getArity()) {
       case PN_CODE:
-        if (pn->isKind(PNK_FUNCTION) &&
-            pn->pn_funbox->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
-        {
+        if (pn->pn_funbox->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
             return true;
-        }
         if (pn->getKind() == PNK_MODULE) {
             if (!FoldConstants(cx, &pn->pn_body, parser))
                 return false;
@@ -623,11 +639,11 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
 
                 pn2 = pn1->pn_next;
                 pn3 = pn2->pn_next;
-                if (!FoldBinaryNumeric(cx, op, pn1, pn2, pn))
+                if (!FoldBinaryNumeric(cx, op, pn1, pn2, pn, parser))
                     return false;
                 while ((pn2 = pn3) != NULL) {
                     pn3 = pn2->pn_next;
-                    if (!FoldBinaryNumeric(cx, op, pn, pn2, pn))
+                    if (!FoldBinaryNumeric(cx, op, pn, pn2, pn, parser))
                         return false;
                 }
             }
@@ -638,7 +654,7 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
                 return false;
             }
             if (pn1->isKind(PNK_NUMBER) && pn2->isKind(PNK_NUMBER)) {
-                if (!FoldBinaryNumeric(cx, pn->getOp(), pn1, pn2, pn))
+                if (!FoldBinaryNumeric(cx, pn->getOp(), pn1, pn2, pn, parser))
                     return false;
             }
         }
@@ -655,19 +671,19 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
 
             /* Operate on one numeric constant. */
             d = pn1->pn_dval;
-            switch (pn->getKind()) {
-              case PNK_BITNOT:
+            switch (pn->getOp()) {
+              case JSOP_BITNOT:
                 d = ~ToInt32(d);
                 break;
 
-              case PNK_NEG:
+              case JSOP_NEG:
                 d = -d;
                 break;
 
-              case PNK_POS:
+              case JSOP_POS:
                 break;
 
-              case PNK_NOT:
+              case JSOP_NOT:
                 if (d == 0 || IsNaN(d)) {
                     pn->setKind(PNK_TRUE);
                     pn->setOp(JSOP_TRUE);

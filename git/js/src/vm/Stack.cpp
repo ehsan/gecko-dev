@@ -8,21 +8,22 @@
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
-#include "jsopcode.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
 #include "ion/BaselineFrame.h"
 #include "ion/IonFrames.h"
 #include "ion/IonCompartment.h"
 #endif
-#include "vm/Stack.h"
-#include "vm/ForkJoin.h"
+#include "Stack.h"
+#include "ForkJoin.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
-#include "vm/Interpreter-inl.h"
-#include "vm/Stack-inl.h"
-#include "vm/Probes-inl.h"
+
+#include "jsopcode.h"
+
+#include "Interpreter-inl.h"
+#include "Stack-inl.h"
 
 /* Includes to get to low-level memory-mapping functionality. */
 #ifdef XP_WIN

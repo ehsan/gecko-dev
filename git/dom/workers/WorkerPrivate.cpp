@@ -26,14 +26,11 @@
 #include "nsIXPCScriptNotify.h"
 #include "nsPrintfCString.h"
 
-#include <algorithm>
 #include "jsfriendapi.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 #include "jsprf.h"
 #include "js/MemoryMetrics.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
@@ -47,6 +44,9 @@
 #include "nsSandboxFlags.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/Likely.h"
+#include <algorithm>
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -63,6 +63,10 @@
 #include "WorkerFeature.h"
 #include "WorkerScope.h"
 
+#if 0 // Define to run GC more often.
+#define EXTRA_GC
+#endif
+
 // GC will run once every thirty seconds during normal execution.
 #define NORMAL_GC_TIMER_DELAY_MS 30000
 
@@ -73,7 +77,6 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
-using mozilla::AutoPushJSContext;
 using mozilla::AutoSafeJSContext;
 
 USING_WORKERS_NAMESPACE
@@ -1304,22 +1307,19 @@ public:
 
 class UpdateJSContextOptionsRunnable : public WorkerControlRunnable
 {
-  uint32_t mContentOptions;
-  uint32_t mChromeOptions;
+  uint32_t mOptions;
 
 public:
   UpdateJSContextOptionsRunnable(WorkerPrivate* aWorkerPrivate,
-                                 uint32_t aContentOptions,
-                                 uint32_t aChromeOptions)
+                                 uint32_t aOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mContentOptions(aContentOptions), mChromeOptions(aChromeOptions)
+    mOptions(aOptions)
   { }
 
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    aWorkerPrivate->UpdateJSContextOptionsInternal(aCx, mContentOptions,
-                                                   mChromeOptions);
+    aWorkerPrivate->UpdateJSContextOptionsInternal(aCx, mOptions);
     return true;
   }
 };
@@ -1349,42 +1349,22 @@ public:
 class UpdateGCZealRunnable : public WorkerControlRunnable
 {
   uint8_t mGCZeal;
-  uint32_t mFrequency;
 
 public:
   UpdateGCZealRunnable(WorkerPrivate* aWorkerPrivate,
-                       uint8_t aGCZeal,
-                       uint32_t aFrequency)
+                       uint8_t aGCZeal)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mGCZeal(aGCZeal), mFrequency(aFrequency)
+    mGCZeal(aGCZeal)
   { }
 
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    aWorkerPrivate->UpdateGCZealInternal(aCx, mGCZeal, mFrequency);
+    aWorkerPrivate->UpdateGCZealInternal(aCx, mGCZeal);
     return true;
   }
 };
 #endif
-
-class UpdateJITHardeningRunnable : public WorkerControlRunnable
-{
-  bool mJITHardening;
-
-public:
-  UpdateJITHardeningRunnable(WorkerPrivate* aWorkerPrivate, bool aJITHardening)
-  : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mJITHardening(aJITHardening)
-  { }
-
-  bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
-  {
-    aWorkerPrivate->UpdateJITHardeningInternal(aCx, mJITHardening);
-    return true;
-  }
-};
 
 class GarbageCollectRunnable : public WorkerControlRunnable
 {
@@ -1420,33 +1400,6 @@ public:
   {
     aWorkerPrivate->GarbageCollectInternal(aCx, mShrinking, mCollectChildren);
     return true;
-  }
-};
-
-class SynchronizeAndResumeRunnable : public nsRunnable
-{
-protected:
-  WorkerPrivate* mWorkerPrivate;
-  nsCOMPtr<nsIScriptContext> mCx;
-
-public:
-  SynchronizeAndResumeRunnable(WorkerPrivate* aWorkerPrivate,
-                               nsIScriptContext* aCx)
-  : mWorkerPrivate(aWorkerPrivate), mCx(aCx)
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  }
-
-  NS_IMETHOD Run()
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-    AutoPushJSContext cx(mCx ? mCx->GetNativeContext() :
-                         nsContentUtils::GetSafeJSContext());
-    JSAutoRequest ar(cx);
-    mWorkerPrivate->Resume(cx);
-
-    return NS_OK;
   }
 };
 
@@ -1859,7 +1812,9 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mMemoryReportCondVar(mMutex, "WorkerPrivateParent Memory Report CondVar"),
   mJSObject(aObject), mParent(aParent), mParentJSContext(aParentJSContext),
   mScriptURL(aScriptURL), mDomain(aDomain), mBusyCount(0),
-  mParentStatus(Pending), mJSObjectRooted(false), mParentSuspended(false),
+  mParentStatus(Pending), mJSContextOptions(0),
+  mJSRuntimeHeapSize(0), mJSWorkerAllocationThreshold(3),
+  mGCZeal(0), mJSObjectRooted(false), mParentSuspended(false),
   mIsChromeWorker(aIsChromeWorker), mPrincipalIsSystem(false),
   mMainThreadObjectsForgotten(false), mEvalAllowed(aEvalAllowed),
   mReportCSPViolations(aReportCSPViolations)
@@ -1881,17 +1836,32 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   if (aParent) {
     aParent->AssertIsOnWorkerThread();
 
-    aParent->CopyJSSettings(mJSSettings);
-
-    NS_ASSERTION(JS_GetOptions(aCx) == (aParent->IsChromeWorker() ?
-                                        mJSSettings.chrome.options :
-                                        mJSSettings.content.options),
+    NS_ASSERTION(JS_GetOptions(aCx) == aParent->GetJSContextOptions(),
                  "Options mismatch!");
+    mJSContextOptions = aParent->GetJSContextOptions();
+
+    NS_ASSERTION(JS_GetGCParameter(JS_GetRuntime(aCx), JSGC_MAX_BYTES) ==
+                 aParent->GetJSRuntimeHeapSize(),
+                 "Runtime heap size mismatch!");
+    mJSRuntimeHeapSize = aParent->GetJSRuntimeHeapSize();
+
+    mJSWorkerAllocationThreshold = aParent->GetJSWorkerAllocationThreshold();
+
+#ifdef JS_GC_ZEAL
+    mGCZeal = aParent->GetGCZeal();
+#endif
   }
   else {
     AssertIsOnMainThread();
 
-    RuntimeService::GetDefaultJSSettings(mJSSettings);
+    mJSContextOptions = RuntimeService::GetDefaultJSContextOptions();
+    mJSRuntimeHeapSize =
+      RuntimeService::GetDefaultJSWorkerMemoryParameter(JSGC_MAX_BYTES);
+    mJSWorkerAllocationThreshold =
+      RuntimeService::GetDefaultJSWorkerMemoryParameter(JSGC_ALLOCATION_THRESHOLD);
+#ifdef JS_GC_ZEAL
+    mGCZeal = RuntimeService::GetDefaultGCZeal();
+#endif
   }
 }
 
@@ -1989,7 +1959,7 @@ WorkerPrivateParent<Derived>::Suspend(JSContext* aCx)
 }
 
 template <class Derived>
-void
+bool
 WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 {
   AssertIsOnParentThread();
@@ -2001,11 +1971,11 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
     MutexAutoLock lock(mMutex);
 
     if (mParentStatus >= Terminating) {
-      return;
+      return true;
     }
   }
 
-  // Execute queued runnables before waking up the worker, otherwise the worker
+  // Dispatch queued runnables before waking up the worker, otherwise the worker
   // could post new messages before we run those that have been queued.
   if (!mQueuedRunnables.IsEmpty()) {
     AssertIsOnMainThread();
@@ -2015,31 +1985,19 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 
     for (uint32_t index = 0; index < runnables.Length(); index++) {
       nsRefPtr<WorkerRunnable>& runnable = runnables[index];
-      runnable->Run();
+      if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
+        NS_WARNING("Failed to dispatch queued runnable!");
+      }
     }
   }
 
   nsRefPtr<ResumeRunnable> runnable =
     new ResumeRunnable(ParentAsWorkerPrivate());
-  runnable->Dispatch(aCx);
-}
+  if (!runnable->Dispatch(aCx)) {
+    return false;
+  }
 
-template <class Derived>
-bool
-WorkerPrivateParent<Derived>::SynchronizeAndResume(nsIScriptContext* aCx)
-{
-  AssertIsOnParentThread();
-  NS_ASSERTION(mParentSuspended, "Not yet suspended!");
-
-  // NB: There may be pending unqueued messages.  If we resume here we will
-  // execute those messages out of order.  Instead we post an event to the
-  // end of the event queue, allowing all of the outstanding messages to be
-  // queued up in order on the worker.  Then and only then we execute all of
-  // the messages.
-
-  nsRefPtr<SynchronizeAndResumeRunnable> runnable =
-    new SynchronizeAndResumeRunnable(ParentAsWorkerPrivate(), aCx);
-  return NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable));
+  return true;
 }
 
 template <class Derived>
@@ -2252,20 +2210,14 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
-                                                     uint32_t aContentOptions,
-                                                     uint32_t aChromeOptions)
+                                                     uint32_t aOptions)
 {
   AssertIsOnParentThread();
 
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.content.options = aContentOptions;
-    mJSSettings.chrome.options = aChromeOptions;
-  }
+  mJSContextOptions = aOptions;
 
   nsRefPtr<UpdateJSContextOptionsRunnable> runnable =
-    new UpdateJSContextOptionsRunnable(ParentAsWorkerPrivate(), aContentOptions,
-                                       aChromeOptions);
+    new UpdateJSContextOptionsRunnable(ParentAsWorkerPrivate(), aOptions);
   if (!runnable->Dispatch(aCx)) {
     NS_WARNING("Failed to update worker context options!");
     JS_ClearPendingException(aCx);
@@ -2279,67 +2231,44 @@ WorkerPrivateParent<Derived>::UpdateJSWorkerMemoryParameter(JSContext* aCx,
                                                             uint32_t aValue)
 {
   AssertIsOnParentThread();
-
-  bool found = false;
-
-  {
-    MutexAutoLock lock(mMutex);
-    found = mJSSettings.ApplyGCSetting(aKey, aValue);
+  switch(aKey) {
+    case JSGC_ALLOCATION_THRESHOLD:
+      mJSWorkerAllocationThreshold = aValue;
+      break;
+    case JSGC_MAX_BYTES:
+      mJSRuntimeHeapSize = aValue;
+      break;
+    default:
+      break;
   }
 
-  if (found) {
-    nsRefPtr<UpdateJSWorkerMemoryParameterRunnable> runnable =
-      new UpdateJSWorkerMemoryParameterRunnable(ParentAsWorkerPrivate(), aKey,
-                                                aValue);
-    if (!runnable->Dispatch(aCx)) {
-      NS_WARNING("Failed to update memory parameter!");
-      JS_ClearPendingException(aCx);
-    }
+  nsRefPtr<UpdateJSWorkerMemoryParameterRunnable> runnable =
+    new UpdateJSWorkerMemoryParameterRunnable(ParentAsWorkerPrivate(),
+                                              aKey,
+                                              aValue);
+  if (!runnable->Dispatch(aCx)) {
+    NS_WARNING("Failed to update memory parameter!");
+    JS_ClearPendingException(aCx);
   }
 }
 
 #ifdef JS_GC_ZEAL
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal,
-                                           uint32_t aFrequency)
+WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal)
 {
   AssertIsOnParentThread();
 
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.gcZeal = aGCZeal;
-    mJSSettings.gcZealFrequency = aFrequency;
-  }
+  mGCZeal = aGCZeal;
 
   nsRefPtr<UpdateGCZealRunnable> runnable =
-    new UpdateGCZealRunnable(ParentAsWorkerPrivate(), aGCZeal, aFrequency);
+    new UpdateGCZealRunnable(ParentAsWorkerPrivate(), aGCZeal);
   if (!runnable->Dispatch(aCx)) {
     NS_WARNING("Failed to update worker gczeal!");
     JS_ClearPendingException(aCx);
   }
 }
 #endif
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::UpdateJITHardening(JSContext* aCx,
-                                                 bool aJITHardening)
-{
-  AssertIsOnParentThread();
-
-  {
-    MutexAutoLock lock(mMutex);
-    mJSSettings.jitHardening = aJITHardening;
-  }
-
-  nsRefPtr<UpdateJITHardeningRunnable> runnable =
-    new UpdateJITHardeningRunnable(ParentAsWorkerPrivate(), aJITHardening);
-  if (!runnable->Dispatch(aCx)) {
-    NS_WARNING("Failed to update worker jit hardening!");
-    JS_ClearPendingException(aCx);
-  }
-}
 
 template <class Derived>
 void
@@ -2823,6 +2752,11 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
           }
         }
 
+#ifdef EXTRA_GC
+        // Find GC bugs...
+        JS_GC(aCx);
+#endif
+
         // Keep track of whether or not this is the idle GC event.
         eventIsNotIdleGCEvent = event != idleGCEvent;
 
@@ -2833,8 +2767,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
       currentStatus = mStatus;
       scheduleIdleGC = mControlQueue.IsEmpty() &&
                        mQueue.IsEmpty() &&
-                       eventIsNotIdleGCEvent &&
-                       JS_GetGlobalForScopeChain(aCx);
+                       eventIsNotIdleGCEvent;
     }
 
     // Take care of the GC timer. If we're starting the close sequence then we
@@ -2850,12 +2783,6 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
     }
 
     if (scheduleIdleGC) {
-      NS_ASSERTION(JS_GetGlobalForScopeChain(aCx), "Should have global here!");
-
-      // Now *might* be a good time to GC. Let the JS engine make the decision.
-      JSAutoCompartment ac(aCx, JS_GetGlobalForScopeChain(aCx));
-      JS_MaybeGC(aCx);
-
       if (NS_SUCCEEDED(gcTimer->SetTarget(idleGCEventTarget)) &&
           NS_SUCCEEDED(gcTimer->InitWithFuncCallback(
                                                     DummyCallback, nullptr,
@@ -2866,6 +2793,11 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
         JS_ReportError(aCx, "Failed to start idle GC timer!");
       }
     }
+
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(aCx);
+#endif
 
     if (currentStatus != Running && !HasActiveFeatures()) {
       // If the close handler has finished and all features are done then we can
@@ -3530,8 +3462,18 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
       }
     }
 
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(mJSContext);
+#endif
+
     static_cast<nsIRunnable*>(event)->Run();
     NS_RELEASE(event);
+
+#ifdef EXTRA_GC
+    // Find GC bugs...
+    JS_GC(mJSContext);
+#endif
 
     if (syncQueue->mComplete) {
       NS_ASSERTION(mSyncQueues.Length() - 1 == aSyncLoopKey,
@@ -3704,10 +3646,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
                  previousStatus == Terminating,
                  "Bad previous status!");
 
-    uint32_t killSeconds = IsChromeWorker() ?
-      RuntimeService::GetChromeCloseHandlerTimeoutSeconds() :
-      RuntimeService::GetContentCloseHandlerTimeoutSeconds();
-
+    uint32_t killSeconds = RuntimeService::GetCloseHandlerTimeoutSeconds();
     if (killSeconds) {
       mKillTime = TimeStamp::Now() + TimeDuration::FromSeconds(killSeconds);
 
@@ -4122,17 +4061,14 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 }
 
 void
-WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx,
-                                              uint32_t aContentOptions,
-                                              uint32_t aChromeOptions)
+WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions)
 {
   AssertIsOnWorkerThread();
 
-  JS_SetOptions(aCx, IsChromeWorker() ? aChromeOptions : aContentOptions);
+  JS_SetOptions(aCx, aOptions);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateJSContextOptions(aCx, aContentOptions,
-                                                 aChromeOptions);
+    mChildWorkers[index]->UpdateJSContextOptions(aCx, aOptions);
   }
 }
 
@@ -4142,14 +4078,7 @@ WorkerPrivate::UpdateJSWorkerMemoryParameterInternal(JSContext* aCx,
                                                      uint32_t aValue)
 {
   AssertIsOnWorkerThread();
-
-  // XXX aValue might be 0 here (telling us to unset a previous value for child
-  // workers). Calling JS_SetGCParameter with a value of 0 isn't actually
-  // supported though. We really need some way to revert to a default value
-  // here.
-  if (aValue) {
-    JS_SetGCParameter(JS_GetRuntime(aCx), aKey, aValue);
-  }
+  JS_SetGCParameter(JS_GetRuntime(aCx), aKey, aValue);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSWorkerMemoryParameter(aCx, aKey, aValue);
@@ -4158,30 +4087,18 @@ WorkerPrivate::UpdateJSWorkerMemoryParameterInternal(JSContext* aCx,
 
 #ifdef JS_GC_ZEAL
 void
-WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal,
-                                    uint32_t aFrequency)
+WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal)
 {
   AssertIsOnWorkerThread();
 
-  JS_SetGCZeal(aCx, aGCZeal, aFrequency);
+  uint32_t frequency = aGCZeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
+  JS_SetGCZeal(aCx, aGCZeal, frequency);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateGCZeal(aCx, aGCZeal, aFrequency);
+    mChildWorkers[index]->UpdateGCZeal(aCx, aGCZeal);
   }
 }
 #endif
-
-void
-WorkerPrivate::UpdateJITHardeningInternal(JSContext* aCx, bool aJITHardening)
-{
-  AssertIsOnWorkerThread();
-
-  JS_SetJitHardening(JS_GetRuntime(aCx), aJITHardening);
-
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateJITHardening(aCx, aJITHardening);
-  }
-}
 
 void
 WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
@@ -4189,22 +4106,13 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
 {
   AssertIsOnWorkerThread();
 
-  if (aCollectChildren) {
-    JSRuntime* rt = JS_GetRuntime(aCx);
-    JS::PrepareForFullGC(rt);
-    if (aShrinking) {
-      JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
-    }
-    else {
-      JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
-    }
+  JSRuntime *rt = JS_GetRuntime(aCx);
+  JS::PrepareForFullGC(rt);
+  if (aShrinking) {
+    JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
   }
   else {
-    // If aCollectChildren is false then it means this collection request was
-    // not generated by the main thread. At the moment only the periodic GC
-    // timer can end up here, so rather than force a collection let the JS
-    // engine decide if we need one.
-    JS_MaybeGC(aCx);
+    JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
   }
 
   if (aCollectChildren) {

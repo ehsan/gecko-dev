@@ -545,7 +545,7 @@ class GetPropertyIC : public RepatchIonCache
 
     bool attachReadSlot(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
                         HandleShape shape);
-    bool attachDOMProxyShadowed(JSContext *cx, IonScript *ion, JSObject *obj, void *returnAddr);
+    bool attachListBaseShadowed(JSContext *cx, IonScript *ion, JSObject *obj, void *returnAddr);
     bool attachCallGetter(JSContext *cx, IonScript *ion, JSObject *obj, JSObject *holder,
                           HandleShape shape,
                           const SafepointIndex *safepointIndex, void *returnAddr);

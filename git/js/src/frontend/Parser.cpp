@@ -39,9 +39,9 @@
 #include "jsscript.h"
 #include "jsstr.h"
 
-#include "frontend/BytecodeCompiler.h"
 #include "frontend/FoldConstants.h"
 #include "frontend/ParseMaps.h"
+#include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "vm/Interpreter.h"
@@ -597,12 +597,6 @@ Parser<ParseHandler>::trace(JSTracer *trc)
     traceListHead->trace(trc);
 }
 
-void
-MarkParser(JSTracer *trc, AutoGCRooter *parser)
-{
-    static_cast<Parser<FullParseHandler> *>(parser)->trace(trc);
-}
-
 /*
  * Parse a top-level JS script.
  */
@@ -836,7 +830,10 @@ Parser<ParseHandler>::checkStrictBinding(HandlePropertyName name, Node pn)
     if (!pc->sc->needStrictChecks())
         return true;
 
-    if (name == context->names().eval || name == context->names().arguments || IsKeyword(name)) {
+    if (name == context->names().eval ||
+        name == context->names().arguments ||
+        FindKeyword(name->charsZ(), name->length()))
+    {
         JSAutoByteString bytes;
         if (!js_AtomToPrintableString(context, name, &bytes))
             return false;
@@ -3824,7 +3821,11 @@ Parser<FullParseHandler>::forStatement()
          * any, else NULL. Note that the "declaration with initializer" case
          * rewrites the loop-head, moving the decl and setting pn1 to NULL.
          */
+        pn2 = NULL;
         if (forDecl) {
+            /* Tell EmitVariables that pn1 is part of a for/in. */
+            pn1->pn_xflags |= PNX_FORINVAR;
+
             pn2 = pn1->pn_head;
             if ((pn2->isKind(PNK_NAME) && pn2->maybeExpr())
 #if JS_HAS_DESTRUCTURING
@@ -3851,12 +3852,14 @@ Parser<FullParseHandler>::forStatement()
                     return null();
 
                 /*
-                 * All of 'var x = i' is hoisted above 'for (x in o)'.
+                 * All of 'var x = i' is hoisted above 'for (x in o)',
+                 * so clear PNX_FORINVAR.
                  *
                  * Request JSOP_POP here since the var is for a simple
                  * name (it is not a destructuring binding's left-hand
                  * side) and it has an initializer.
                  */
+                pn1->pn_xflags &= ~PNX_FORINVAR;
                 pn1->pn_xflags |= PNX_POPVAR;
                 pn1 = NULL;
 
@@ -6058,6 +6061,7 @@ Parser<FullParseHandler>::comprehensionTail(ParseNode *kid, unsigned blockid, bo
         vars->pn_pos = pn3->pn_pos;
         vars->makeEmpty();
         vars->append(pn3);
+        vars->pn_xflags |= PNX_FORINVAR;
 
         /* Definitions can't be passed directly to EmitAssignment as lhs. */
         pn3 = cloneLeftHandSide(pn3);
@@ -6536,6 +6540,13 @@ Parser<FullParseHandler>::newRegExp(const jschar *buf, size_t length, RegExpFlag
 
     if (!reobj)
         return NULL;
+
+    if (!compileAndGo) {
+        if (!JSObject::clearParent(context, reobj))
+            return NULL;
+        if (!JSObject::clearType(context, reobj))
+            return NULL;
+    }
 
     pn->pn_objbox = newObjectBox(reobj);
     if (!pn->pn_objbox)

@@ -32,7 +32,6 @@
 #include "jsopcode.h"
 #include "jsscript.h"
 
-#include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
 #include "js/CharacterEncoding.h"
@@ -50,13 +49,6 @@ using mozilla::PodAssign;
 using mozilla::PodCopy;
 using mozilla::PodZero;
 
-struct KeywordInfo {
-    const char  *chars;         /* C string with keyword text */
-    TokenKind   tokentype;
-    JSOp        op;             /* JSOp */
-    JSVersion   version;        /* JSVersion */
-};
-
 static const KeywordInfo keywords[] = {
 #define KEYWORD_INFO(keyword, name, type, op, version) \
     {js_##keyword##_str, type, op, version},
@@ -64,17 +56,13 @@ static const KeywordInfo keywords[] = {
 #undef KEYWORD_INFO
 };
 
-/*
- * Returns a KeywordInfo for the specified characters, or NULL if the string is
- * not a keyword.
- */
-static const KeywordInfo *
-FindKeyword(const jschar *s, size_t length)
+const KeywordInfo *
+frontend::FindKeyword(const jschar *s, size_t length)
 {
     JS_ASSERT(length != 0);
 
     register size_t i;
-    const KeywordInfo *kw;
+    const struct KeywordInfo *kw;
     const char *chars;
 
 #define JSKW_LENGTH()           length
@@ -123,12 +111,6 @@ frontend::IsIdentifier(JSLinearString *str)
             return false;
     }
     return true;
-}
-
-bool
-frontend::IsKeyword(JSLinearString *str)
-{
-    return FindKeyword(str->chars(), str->length()) != NULL;
 }
 
 TokenStream::SourceCoords::SourceCoords(JSContext *cx, uint32_t ln)

@@ -217,6 +217,6 @@ public class WebAppImpl extends GeckoApp {
     @Override
     protected void geckoConnected() {
         super.geckoConnected();
-        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        getLayerView().setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 };

@@ -130,7 +130,6 @@ class TestEmitterBasic(unittest.TestCase):
             CSRCS=['fans.c', 'tans.c'],
             DEFINES=['-Dfans', '-Dtans'],
             EXTRA_COMPONENTS=['fans.js', 'tans.js'],
-            HOST_CSRCS=['fans.c', 'tans.c'],
             SIMPLE_PROGRAMS=['fans.x', 'tans.x'],
             XPIDLSRCS=['bar.idl', 'biz.idl', 'foo.idl'],
             XPIDL_MODULE='module_name',

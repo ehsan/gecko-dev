@@ -302,13 +302,13 @@ ICStub::trace(JSTracer *trc)
         MarkShape(trc, &propStub->holderShape(), "baseline-getpropnativeproto-stub-holdershape");
         break;
       }
-      case ICStub::GetProp_CallDOMProxyNative:
-      case ICStub::GetProp_CallDOMProxyWithGenerationNative: {
-        ICGetPropCallDOMProxyNativeStub *propStub;
-        if (kind() ==  ICStub::GetProp_CallDOMProxyNative)
-            propStub = toGetProp_CallDOMProxyNative();
+      case ICStub::GetProp_CallListBaseNative:
+      case ICStub::GetProp_CallListBaseWithGenerationNative: {
+        ICGetPropCallListBaseNativeStub *propStub;
+        if (kind() ==  ICStub::GetProp_CallListBaseNative)
+            propStub = toGetProp_CallListBaseNative();
         else
-            propStub = toGetProp_CallDOMProxyWithGenerationNative();
+            propStub = toGetProp_CallListBaseWithGenerationNative();
         MarkShape(trc, &propStub->shape(), "baseline-getproplistbasenative-stub-shape");
         if (propStub->expandoShape()) {
             MarkShape(trc, &propStub->expandoShape(),
@@ -319,8 +319,8 @@ ICStub::trace(JSTracer *trc)
         MarkObject(trc, &propStub->getter(), "baseline-getproplistbasenative-stub-getter");
         break;
       }
-      case ICStub::GetProp_DOMProxyShadowed: {
-        ICGetProp_DOMProxyShadowed *propStub = toGetProp_DOMProxyShadowed();
+      case ICStub::GetProp_ListBaseShadowed: {
+        ICGetProp_ListBaseShadowed *propStub = toGetProp_ListBaseShadowed();
         MarkShape(trc, &propStub->shape(), "baseline-getproplistbaseshadowed-stub-shape");
         MarkString(trc, &propStub->name(), "baseline-getproplistbaseshadowed-stub-name");
         break;
@@ -618,10 +618,10 @@ ICStubCompiler::guardProfilingEnabled(MacroAssembler &masm, Register scratch, La
     // This should only be called from the following stubs.
     JS_ASSERT(kind == ICStub::Call_Scripted      || kind == ICStub::Call_AnyScripted     ||
               kind == ICStub::Call_Native        || kind == ICStub::GetProp_CallScripted ||
-              kind == ICStub::GetProp_CallNative || kind == ICStub::GetProp_CallDOMProxyNative ||
+              kind == ICStub::GetProp_CallNative || kind == ICStub::GetProp_CallListBaseNative ||
               kind == ICStub::Call_ScriptedApplyArguments ||
-              kind == ICStub::GetProp_CallDOMProxyWithGenerationNative ||
-              kind == ICStub::GetProp_DOMProxyShadowed ||
+              kind == ICStub::GetProp_CallListBaseWithGenerationNative ||
+              kind == ICStub::GetProp_ListBaseShadowed ||
               kind == ICStub::SetProp_CallScripted || kind == ICStub::SetProp_CallNative);
 
     // Guard on bit in frame that indicates if the SPS frame was pushed in the first
@@ -3058,47 +3058,47 @@ static void GetFixedOrDynamicSlotOffset(HandleObject obj, uint32_t slot,
 }
 
 static bool
-IsCacheableDOMProxy(JSObject *obj)
+IsCacheableListBase(JSObject *obj)
 {
     if (!obj->isProxy())
         return false;
 
     BaseProxyHandler *handler = GetProxyHandler(obj);
 
-    if (handler->family() != GetDOMProxyHandlerFamily())
+    if (handler->family() != GetListBaseHandlerFamily())
         return false;
 
-    if (obj->numFixedSlots() <= GetDOMProxyExpandoSlot())
+    if (obj->numFixedSlots() <= GetListBaseExpandoSlot())
         return false;
 
     return true;
 }
 
 static JSObject *
-GetDOMProxyProto(JSObject *obj)
+GetListBaseProto(JSObject *obj)
 {
-    JS_ASSERT(IsCacheableDOMProxy(obj));
+    JS_ASSERT(IsCacheableListBase(obj));
     return obj->getTaggedProto().toObjectOrNull();
 }
 
 static void
-GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, Register object,
+GenerateListBaseChecks(JSContext *cx, MacroAssembler &masm, Register object,
                        Address checkProxyHandlerAddr,
                        Address *checkExpandoShapeAddr,
                        Address *expandoAndGenerationAddr,
                        Address *generationAddr,
                        Register scratch,
-                       GeneralRegisterSet &domProxyRegSet,
+                       GeneralRegisterSet &listBaseRegSet,
                        Label *checkFailed)
 {
     // Guard the following:
-    //      1. The object is a DOMProxy.
+    //      1. The object is a ListBase.
     //      2. The object does not have expando properties, or has an expando
     //          which is known to not have the desired property.
     Address handlerAddr(object, JSObject::getFixedSlotOffset(JSSLOT_PROXY_HANDLER));
-    Address expandoAddr(object, JSObject::getFixedSlotOffset(GetDOMProxyExpandoSlot()));
+    Address expandoAddr(object, JSObject::getFixedSlotOffset(GetListBaseExpandoSlot()));
 
-    // Check that object is a DOMProxy.
+    // Check that object is a ListBase.
     masm.loadPtr(checkProxyHandlerAddr, scratch);
     masm.branchPrivatePtr(Assembler::NotEqual, handlerAddr, scratch, checkFailed);
 
@@ -3108,23 +3108,23 @@ GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, Register object,
 
     // For the remaining code, we need to reserve some registers to load a value.
     // This is ugly, but unavoidable.
-    ValueOperand tempVal = domProxyRegSet.takeAnyValue();
+    ValueOperand tempVal = listBaseRegSet.takeAnyValue();
     masm.pushValue(tempVal);
 
-    Label failDOMProxyCheck;
-    Label domProxyOk;
+    Label failListBaseCheck;
+    Label listBaseOk;
 
     if (expandoAndGenerationAddr) {
         JS_ASSERT(generationAddr);
 
         masm.loadPtr(*expandoAndGenerationAddr, tempVal.scratchReg());
         masm.branchPrivatePtr(Assembler::NotEqual, expandoAddr, tempVal.scratchReg(),
-                              &failDOMProxyCheck);
+                              &failListBaseCheck);
 
         masm.load32(*generationAddr, scratch);
         masm.branch32(Assembler::NotEqual,
                       Address(tempVal.scratchReg(), offsetof(ExpandoAndGeneration, expando)),
-                      scratch, &failDOMProxyCheck);
+                      scratch, &failListBaseCheck);
 
         masm.loadValue(Address(tempVal.scratchReg(), 0), tempVal);
     } else {
@@ -3133,27 +3133,27 @@ GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, Register object,
 
     // If the incoming object does not have an expando object then we're sure we're not
     // shadowing.
-    masm.branchTestUndefined(Assembler::Equal, tempVal, &domProxyOk);
+    masm.branchTestUndefined(Assembler::Equal, tempVal, &listBaseOk);
 
     // The reference object used to generate this check may not have had an
     // expando object at all, in which case the presence of a non-undefined
     // expando value in the incoming object is automatically a failure.
     masm.loadPtr(*checkExpandoShapeAddr, scratch);
-    masm.branchPtr(Assembler::Equal, scratch, ImmWord((void*)NULL), &failDOMProxyCheck);
+    masm.branchPtr(Assembler::Equal, scratch, ImmWord((void*)NULL), &failListBaseCheck);
 
     // Otherwise, ensure that the incoming object has an object for its expando value and that
     // the shape matches.
-    masm.branchTestObject(Assembler::NotEqual, tempVal, &failDOMProxyCheck);
+    masm.branchTestObject(Assembler::NotEqual, tempVal, &failListBaseCheck);
     Register objReg = masm.extractObject(tempVal, tempVal.scratchReg());
-    masm.branchTestObjShape(Assembler::Equal, objReg, scratch, &domProxyOk);
+    masm.branchTestObjShape(Assembler::Equal, objReg, scratch, &listBaseOk);
 
     // Failure case: restore the tempVal registers and jump to failures.
-    masm.bind(&failDOMProxyCheck);
+    masm.bind(&failListBaseCheck);
     masm.popValue(tempVal);
     masm.jump(checkFailed);
 
     // Success case: restore the tempval and proceed.
-    masm.bind(&domProxyOk);
+    masm.bind(&listBaseOk);
     masm.popValue(tempVal);
 }
 
@@ -3163,29 +3163,29 @@ GenerateDOMProxyChecks(JSContext *cx, MacroAssembler &masm, Register object,
 static bool
 EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
                            MutableHandleObject holder, MutableHandleShape shape,
-                           bool *checkDOMProxy=NULL,
-                           DOMProxyShadowsResult *shadowsResult=NULL,
-                           bool *domProxyHasGeneration=NULL)
+                           bool *checkListBase=NULL,
+                           ListBaseShadowsResult *shadowsResult=NULL,
+                           bool *listBaseHasGeneration=NULL)
 {
     shape.set(NULL);
     holder.set(NULL);
 
-    bool isDOMProxy = false;
-    if (checkDOMProxy)
-        *checkDOMProxy = false;
+    bool isListBase = false;
+    if (checkListBase)
+        *checkListBase = false;
 
     // Check for list base if asked to.
     RootedObject checkObj(cx, obj);
-    if (checkDOMProxy && IsCacheableDOMProxy(obj)) {
-        JS_ASSERT(domProxyHasGeneration);
+    if (checkListBase && IsCacheableListBase(obj)) {
+        JS_ASSERT(listBaseHasGeneration);
         JS_ASSERT(shadowsResult);
 
-        *checkDOMProxy = isDOMProxy = true;
+        *checkListBase = isListBase = true;
         if (obj->hasUncacheableProto())
             return true;
 
         RootedId id(cx, NameToId(name));
-        *shadowsResult = GetDOMProxyShadowsCheck()(cx, obj, id);
+        *shadowsResult = GetListBaseShadowsCheck()(cx, obj, id);
         if (*shadowsResult == ShadowCheckFailed)
             return false;
 
@@ -3194,12 +3194,12 @@ EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName n
             return true;
         }
 
-        *domProxyHasGeneration = (*shadowsResult == DoesntShadowUnique);
+        *listBaseHasGeneration = (*shadowsResult == DoesntShadowUnique);
 
-        checkObj = GetDOMProxyProto(obj);
+        checkObj = GetListBaseProto(obj);
     }
 
-    if (!isDOMProxy && !obj->isNative())
+    if (!isListBase && !obj->isNative())
         return true;
 
     if (checkObj->hasIdempotentProtoChain()) {
@@ -3214,10 +3214,10 @@ EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName n
 }
 
 static bool
-IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isDOMProxy=false)
+IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isListBase=false)
 {
-    JS_ASSERT_IF(isDOMProxy, IsCacheableDOMProxy(obj));
-    JS_ASSERT_IF(!isDOMProxy, obj->isNative());
+    JS_ASSERT_IF(isListBase, IsCacheableListBase(obj));
+    JS_ASSERT_IF(!isListBase, obj->isNative());
 
     // Don't handle objects which require a prototype guard. This should
     // be uncommon so handling it is likely not worth the complexity.
@@ -3230,7 +3230,7 @@ IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isDOMProxy=false)
         // chain and must check for null proto. The prototype chain can be
         // altered during the lookupProperty call.
         JSObject *proto;
-        if (isDOMProxy && cur == obj)
+        if (isListBase && cur == obj)
             proto = cur->getTaggedProto().toObjectOrNull();
         else
             proto = cur->getProto();
@@ -3247,9 +3247,9 @@ IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isDOMProxy=false)
 }
 
 static bool
-IsCacheableGetPropReadSlot(JSObject *obj, JSObject *holder, Shape *shape, bool isDOMProxy=false)
+IsCacheableGetPropReadSlot(JSObject *obj, JSObject *holder, Shape *shape, bool isListBase=false)
 {
-    if (!shape || !IsCacheableProtoChain(obj, holder, isDOMProxy))
+    if (!shape || !IsCacheableProtoChain(obj, holder, isListBase))
         return false;
 
     if (!shape->hasSlot() || !shape->hasDefaultGetter())
@@ -3260,7 +3260,7 @@ IsCacheableGetPropReadSlot(JSObject *obj, JSObject *holder, Shape *shape, bool i
 
 static bool
 IsCacheableGetPropCall(JSObject *obj, JSObject *holder, Shape *shape, bool *isScripted,
-                       bool isDOMProxy=false)
+                       bool isListBase=false)
 {
     JS_ASSERT(isScripted);
 
@@ -3268,7 +3268,7 @@ IsCacheableGetPropCall(JSObject *obj, JSObject *holder, Shape *shape, bool *isSc
     if (obj == holder)
         return false;
 
-    if (!shape || !IsCacheableProtoChain(obj, holder, isDOMProxy))
+    if (!shape || !IsCacheableProtoChain(obj, holder, isListBase))
         return false;
 
     if (shape->hasSlot() || shape->hasDefaultGetter())
@@ -5207,16 +5207,16 @@ TryAttachLengthStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub
 }
 
 static bool
-UpdateExistingGenerationalDOMProxyStub(ICGetProp_Fallback *stub,
+UpdateExistingGenerationalListBaseStub(ICGetProp_Fallback *stub,
                                        HandleObject obj)
 {
-    Value expandoSlot = obj->getFixedSlot(GetDOMProxyExpandoSlot());
+    Value expandoSlot = obj->getFixedSlot(GetListBaseExpandoSlot());
     JS_ASSERT(!expandoSlot.isObject() && !expandoSlot.isUndefined());
     ExpandoAndGeneration *expandoAndGeneration = (ExpandoAndGeneration*)expandoSlot.toPrivate();
     for (ICStubConstIterator iter = stub->beginChainConst(); !iter.atEnd(); iter++) {
-        if (iter->isGetProp_CallDOMProxyWithGenerationNative()) {
-            ICGetProp_CallDOMProxyWithGenerationNative* updateStub =
-                iter->toGetProp_CallDOMProxyWithGenerationNative();
+        if (iter->isGetProp_CallListBaseWithGenerationNative()) {
+            ICGetProp_CallListBaseWithGenerationNative* updateStub =
+                iter->toGetProp_CallListBaseWithGenerationNative();
             if (updateStub->expandoAndGeneration() == expandoAndGeneration) {
                 // Update generation
                 uint32_t generation = expandoAndGeneration->generation;
@@ -5244,22 +5244,22 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     RootedObject obj(cx, &val.toObject());
 
-    bool isDOMProxy;
-    bool domProxyHasGeneration;
-    DOMProxyShadowsResult domProxyShadowsResult;
+    bool isListBase;
+    bool listBaseHasGeneration;
+    ListBaseShadowsResult listBaseShadowsResult;
     RootedShape shape(cx);
     RootedObject holder(cx);
-    if (!EffectlesslyLookupProperty(cx, obj, name, &holder, &shape, &isDOMProxy,
-                                    &domProxyShadowsResult, &domProxyHasGeneration))
+    if (!EffectlesslyLookupProperty(cx, obj, name, &holder, &shape, &isListBase,
+                                    &listBaseShadowsResult, &listBaseHasGeneration))
     {
         return false;
     }
 
-    if (!isDOMProxy && !obj->isNative())
+    if (!isListBase && !obj->isNative())
         return true;
 
     ICStub *monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
-    if (!isDOMProxy && IsCacheableGetPropReadSlot(obj, holder, shape)) {
+    if (!isListBase && IsCacheableGetPropReadSlot(obj, holder, shape)) {
         bool isFixedSlot;
         uint32_t offset;
         GetFixedOrDynamicSlotOffset(holder, shape->slot(), &isFixedSlot, &offset);
@@ -5268,7 +5268,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
                                             : ICStub::GetProp_NativePrototype;
 
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(%s %s) stub",
-                    isDOMProxy ? "DOMProxy" : "Native",
+                    isListBase ? "ListBase" : "Native",
                     (obj == holder) ? "direct" : "prototype");
         ICGetPropNativeCompiler compiler(cx, kind, monitorStub, obj, holder, isFixedSlot, offset);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
@@ -5281,10 +5281,10 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     }
 
     bool isScripted = false;
-    bool cacheableCall = IsCacheableGetPropCall(obj, holder, shape, &isScripted, isDOMProxy);
+    bool cacheableCall = IsCacheableGetPropCall(obj, holder, shape, &isScripted, isListBase);
 
     // Try handling scripted getters.
-    if (cacheableCall && isScripted && !isDOMProxy) {
+    if (cacheableCall && isScripted && !isListBase) {
         RootedFunction callee(cx, shape->getterObject()->toFunction());
         JS_ASSERT(obj != holder);
         JS_ASSERT(callee->hasScript());
@@ -5310,23 +5310,23 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         JS_ASSERT(callee->isNative());
 
         IonSpew(IonSpew_BaselineIC, "  Generating GetProp(%s%s/NativeGetter %p) stub",
-                isDOMProxy ? "DOMProxyObj" : "NativeObj",
-                isDOMProxy && domProxyHasGeneration ? "WithGeneration" : "",
+                isListBase ? "ListBaseObj" : "NativeObj",
+                isListBase && listBaseHasGeneration ? "WithGeneration" : "",
                 callee->native());
 
         ICStub *newStub = NULL;
-        if (isDOMProxy) {
+        if (isListBase) {
             ICStub::Kind kind;
-            if (domProxyHasGeneration) {
-                if (UpdateExistingGenerationalDOMProxyStub(stub, obj)) {
+            if (listBaseHasGeneration) {
+                if (UpdateExistingGenerationalListBaseStub(stub, obj)) {
                     *attached = true;
                     return true;
                 }
-                kind = ICStub::GetProp_CallDOMProxyWithGenerationNative;
+                kind = ICStub::GetProp_CallListBaseWithGenerationNative;
             } else {
-                kind = ICStub::GetProp_CallDOMProxyNative;
+                kind = ICStub::GetProp_CallListBaseNative;
             }
-            ICGetPropCallDOMProxyNativeCompiler compiler(cx, kind, monitorStub, obj, holder, callee,
+            ICGetPropCallListBaseNativeCompiler compiler(cx, kind, monitorStub, obj, holder, callee,
                                                             pc - script->code);
             newStub = compiler.getStub(compiler.getStubSpace(script));
         } else {
@@ -5342,11 +5342,11 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     }
 
     // If it's a shadowed listbase proxy property, attach stub to call Proxy::get instead.
-    if (isDOMProxy && domProxyShadowsResult == Shadows) {
+    if (isListBase && listBaseShadowsResult == Shadows) {
         JS_ASSERT(obj == holder);
 
-        IonSpew(IonSpew_BaselineIC, "  Generating GetProp(DOMProxyProxy) stub");
-        ICGetProp_DOMProxyShadowed::Compiler compiler(cx, monitorStub, obj, name,
+        IonSpew(IonSpew_BaselineIC, "  Generating GetProp(ListBaseProxy) stub");
+        ICGetProp_ListBaseShadowed::Compiler compiler(cx, monitorStub, obj, name,
                                                       pc - script->code);
         ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
@@ -5849,7 +5849,7 @@ ICGetProp_CallNative::Compiler::generateStubCode(MacroAssembler &masm)
 }
 
 bool
-ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm,
+ICGetPropCallListBaseNativeCompiler::generateStubCode(MacroAssembler &masm,
                                                       Address* expandoAndGenerationAddr,
                                                       Address* generationAddr)
 {
@@ -5864,29 +5864,29 @@ ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm,
     Register objReg = masm.extractObject(R0, ExtractTemp0);
 
     // Shape guard.
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfShape()), scratch);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfShape()), scratch);
     masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
     // Guard for ListObject.
     {
-        GeneralRegisterSet domProxyRegSet(GeneralRegisterSet::All());
-        domProxyRegSet.take(BaselineStubReg);
-        domProxyRegSet.take(objReg);
-        domProxyRegSet.take(scratch);
-        Address expandoShapeAddr(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfExpandoShape());
-        GenerateDOMProxyChecks(
+        GeneralRegisterSet listBaseRegSet(GeneralRegisterSet::All());
+        listBaseRegSet.take(BaselineStubReg);
+        listBaseRegSet.take(objReg);
+        listBaseRegSet.take(scratch);
+        Address expandoShapeAddr(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfExpandoShape());
+        GenerateListBaseChecks(
                 cx, masm, objReg,
-                Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfProxyHandler()),
+                Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfProxyHandler()),
                 &expandoShapeAddr, expandoAndGenerationAddr, generationAddr,
                 scratch,
-                domProxyRegSet,
+                listBaseRegSet,
                 &failure);
     }
 
     Register holderReg = regs.takeAny();
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfHolder()),
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfHolder()),
                  holderReg);
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfHolderShape()),
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfHolderShape()),
                  scratch);
     masm.branchTestObjShape(Assembler::NotEqual, holderReg, scratch, &failure);
     regs.add(holderReg);
@@ -5896,7 +5896,7 @@ ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm,
 
     // Load callee function.
     Register callee = regs.takeAny();
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfGetter()), callee);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfGetter()), callee);
 
     // Push args for vm call.
     masm.push(objReg);
@@ -5915,7 +5915,7 @@ ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm,
         guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
 
         // Update profiling entry before leaving function.
-        masm.load32(Address(BaselineStubReg, ICGetProp_CallDOMProxyNative::offsetOfPCOffset()),
+        masm.load32(Address(BaselineStubReg, ICGetProp_CallListBaseNative::offsetOfPCOffset()),
                     pcIdx);
         masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
 
@@ -5937,33 +5937,33 @@ ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm,
 }
 
 bool
-ICGetPropCallDOMProxyNativeCompiler::generateStubCode(MacroAssembler &masm)
+ICGetPropCallListBaseNativeCompiler::generateStubCode(MacroAssembler &masm)
 {
-    if (kind == ICStub::GetProp_CallDOMProxyNative)
+    if (kind == ICStub::GetProp_CallListBaseNative)
         return generateStubCode(masm, NULL, NULL);
 
     Address internalStructAddress(BaselineStubReg,
-        ICGetProp_CallDOMProxyWithGenerationNative::offsetOfInternalStruct());
+        ICGetProp_CallListBaseWithGenerationNative::offsetOfInternalStruct());
     Address generationAddress(BaselineStubReg,
-        ICGetProp_CallDOMProxyWithGenerationNative::offsetOfGeneration());
+        ICGetProp_CallListBaseWithGenerationNative::offsetOfGeneration());
     return generateStubCode(masm, &internalStructAddress, &generationAddress);
 }
 
 ICStub *
-ICGetPropCallDOMProxyNativeCompiler::getStub(ICStubSpace *space)
+ICGetPropCallListBaseNativeCompiler::getStub(ICStubSpace *space)
 {
     RootedShape shape(cx, obj_->lastProperty());
     RootedShape holderShape(cx, holder_->lastProperty());
 
-    Value expandoSlot = obj_->getFixedSlot(GetDOMProxyExpandoSlot());
+    Value expandoSlot = obj_->getFixedSlot(GetListBaseExpandoSlot());
     RootedShape expandoShape(cx, NULL);
     ExpandoAndGeneration *expandoAndGeneration;
     int32_t generation;
     Value expandoVal;
-    if (kind == ICStub::GetProp_CallDOMProxyNative) {
+    if (kind == ICStub::GetProp_CallListBaseNative) {
         expandoVal = expandoSlot;
     } else {
-        JS_ASSERT(kind == ICStub::GetProp_CallDOMProxyWithGenerationNative);
+        JS_ASSERT(kind == ICStub::GetProp_CallListBaseWithGenerationNative);
         JS_ASSERT(!expandoSlot.isObject() && !expandoSlot.isUndefined());
         expandoAndGeneration = (ExpandoAndGeneration*)expandoSlot.toPrivate();
         expandoVal = expandoAndGeneration->expando;
@@ -5973,23 +5973,23 @@ ICGetPropCallDOMProxyNativeCompiler::getStub(ICStubSpace *space)
     if (expandoVal.isObject())
         expandoShape = expandoVal.toObject().lastProperty();
 
-    if (kind == ICStub::GetProp_CallDOMProxyNative) {
-        return ICGetProp_CallDOMProxyNative::New(
+    if (kind == ICStub::GetProp_CallListBaseNative) {
+        return ICGetProp_CallListBaseNative::New(
             space, getStubCode(), firstMonitorStub_, shape, GetProxyHandler(obj_),
             expandoShape, holder_, holderShape, getter_, pcOffset_);
     }
 
-    return ICGetProp_CallDOMProxyWithGenerationNative::New(
+    return ICGetProp_CallListBaseWithGenerationNative::New(
         space, getStubCode(), firstMonitorStub_, shape, GetProxyHandler(obj_),
         expandoAndGeneration, generation, expandoShape, holder_, holderShape, getter_,
         pcOffset_);
 }
 
 ICStub *
-ICGetProp_DOMProxyShadowed::Compiler::getStub(ICStubSpace *space)
+ICGetProp_ListBaseShadowed::Compiler::getStub(ICStubSpace *space)
 {
     RootedShape shape(cx, obj_->lastProperty());
-    return ICGetProp_DOMProxyShadowed::New(space, getStubCode(), firstMonitorStub_,
+    return ICGetProp_ListBaseShadowed::New(space, getStubCode(), firstMonitorStub_,
                                            shape, GetProxyHandler(obj_), name_, pcOffset_);
 }
 
@@ -6005,7 +6005,7 @@ typedef bool (*ProxyGetFn)(JSContext *cx, HandleObject proxy, HandlePropertyName
 static const VMFunction ProxyGetInfo = FunctionInfo<ProxyGetFn>(ProxyGet);
 
 bool
-ICGetProp_DOMProxyShadowed::Compiler::generateStubCode(MacroAssembler &masm)
+ICGetProp_ListBaseShadowed::Compiler::generateStubCode(MacroAssembler &masm)
 {
     Label failure;
 
@@ -6022,21 +6022,21 @@ ICGetProp_DOMProxyShadowed::Compiler::generateStubCode(MacroAssembler &masm)
     Register objReg = masm.extractObject(R0, ExtractTemp0);
 
     // Shape guard.
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_DOMProxyShadowed::offsetOfShape()), scratch);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_ListBaseShadowed::offsetOfShape()), scratch);
     masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
     // Guard for ListObject.
     {
-        GeneralRegisterSet domProxyRegSet(GeneralRegisterSet::All());
-        domProxyRegSet.take(BaselineStubReg);
-        domProxyRegSet.take(objReg);
-        domProxyRegSet.take(scratch);
-        GenerateDOMProxyChecks(
+        GeneralRegisterSet listBaseRegSet(GeneralRegisterSet::All());
+        listBaseRegSet.take(BaselineStubReg);
+        listBaseRegSet.take(objReg);
+        listBaseRegSet.take(scratch);
+        GenerateListBaseChecks(
                 cx, masm, objReg,
-                Address(BaselineStubReg, ICGetProp_DOMProxyShadowed::offsetOfProxyHandler()),
+                Address(BaselineStubReg, ICGetProp_ListBaseShadowed::offsetOfProxyHandler()),
                 /*expandoShapeAddr=*/NULL, /*expandoAndGenerationAddr=*/NULL, /*generationAddr=*/NULL,
                 scratch,
-                domProxyRegSet,
+                listBaseRegSet,
                 &failure);
     }
 
@@ -6046,7 +6046,7 @@ ICGetProp_DOMProxyShadowed::Compiler::generateStubCode(MacroAssembler &masm)
     enterStubFrame(masm, scratch);
 
     // Push property name and proxy object.
-    masm.loadPtr(Address(BaselineStubReg, ICGetProp_DOMProxyShadowed::offsetOfName()), scratch);
+    masm.loadPtr(Address(BaselineStubReg, ICGetProp_ListBaseShadowed::offsetOfName()), scratch);
     masm.push(scratch);
     masm.push(objReg);
 
@@ -6063,7 +6063,7 @@ ICGetProp_DOMProxyShadowed::Compiler::generateStubCode(MacroAssembler &masm)
         guardProfilingEnabled(masm, scratch, &skipProfilerUpdate);
 
         // Update profiling entry before leaving function.
-        masm.load32(Address(BaselineStubReg, ICGetProp_DOMProxyShadowed::offsetOfPCOffset()), pcIdx);
+        masm.load32(Address(BaselineStubReg, ICGetProp_ListBaseShadowed::offsetOfPCOffset()), pcIdx);
         masm.spsUpdatePCIdx(&cx->runtime->spsProfiler, pcIdx, scratch);
 
         masm.bind(&skipProfilerUpdate);
@@ -8428,7 +8428,7 @@ ICCall_Native::ICCall_Native(IonCode *stubCode, ICStub *firstMonitorStub, Handle
     pcOffset_(pcOffset)
 { }
 
-ICGetPropCallDOMProxyNativeStub::ICGetPropCallDOMProxyNativeStub(Kind kind, IonCode *stubCode,
+ICGetPropCallListBaseNativeStub::ICGetPropCallListBaseNativeStub(Kind kind, IonCode *stubCode,
                                                                  ICStub *firstMonitorStub,
                                                                  HandleShape shape,
                                                                  BaseProxyHandler *proxyHandler,
@@ -8447,7 +8447,7 @@ ICGetPropCallDOMProxyNativeStub::ICGetPropCallDOMProxyNativeStub(Kind kind, IonC
     pcOffset_(pcOffset)
 { }
 
-ICGetPropCallDOMProxyNativeCompiler::ICGetPropCallDOMProxyNativeCompiler(JSContext *cx,
+ICGetPropCallListBaseNativeCompiler::ICGetPropCallListBaseNativeCompiler(JSContext *cx,
                                                                          ICStub::Kind kind,
                                                                          ICStub *firstMonitorStub,
                                                                          HandleObject obj,
@@ -8461,19 +8461,19 @@ ICGetPropCallDOMProxyNativeCompiler::ICGetPropCallDOMProxyNativeCompiler(JSConte
     getter_(cx, getter),
     pcOffset_(pcOffset)
 {
-    JS_ASSERT(kind == ICStub::GetProp_CallDOMProxyNative ||
-              kind == ICStub::GetProp_CallDOMProxyWithGenerationNative);
+    JS_ASSERT(kind == ICStub::GetProp_CallListBaseNative ||
+              kind == ICStub::GetProp_CallListBaseWithGenerationNative);
     JS_ASSERT(obj_->isProxy());
-    JS_ASSERT(GetProxyHandler(obj_)->family() == GetDOMProxyHandlerFamily());
+    JS_ASSERT(GetProxyHandler(obj_)->family() == GetListBaseHandlerFamily());
 }
 
-ICGetProp_DOMProxyShadowed::ICGetProp_DOMProxyShadowed(IonCode *stubCode,
+ICGetProp_ListBaseShadowed::ICGetProp_ListBaseShadowed(IonCode *stubCode,
                                                        ICStub *firstMonitorStub,
                                                        HandleShape shape,
                                                        BaseProxyHandler *proxyHandler,
                                                        HandlePropertyName name,
                                                        uint32_t pcOffset)
-  : ICMonitoredStub(ICStub::GetProp_DOMProxyShadowed, stubCode, firstMonitorStub),
+  : ICMonitoredStub(ICStub::GetProp_ListBaseShadowed, stubCode, firstMonitorStub),
     shape_(shape),
     proxyHandler_(proxyHandler),
     name_(name),
