@@ -366,6 +366,7 @@ class ExclusiveContext : public ThreadSafeContext
     }
 
     // Zone local methods that can be used freely from an ExclusiveContext.
+    inline bool typeInferenceEnabled() const;
     types::TypeObject *getNewType(const Class *clasp, TaggedProto proto, JSFunction *fun = nullptr);
     types::TypeObject *getLazyType(const Class *clasp, TaggedProto proto);
     inline js::LifoAlloc &typeLifoAlloc();

@@ -7,7 +7,6 @@
 
 #include "jsapi.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLFormControlsCollection.h"
 #include "mozilla/dom/HTMLFormElementBinding.h"
 #include "nsIHTMLDocument.h"
@@ -47,6 +46,8 @@
 #include "nsIRadioVisitor.h"
 
 #include "nsLayoutUtils.h"
+
+#include "nsEventDispatcher.h"
 
 #include "mozAutoDocUpdate.h"
 #include "nsIHTMLCollection.h"
@@ -288,7 +289,8 @@ NS_IMETHODIMP
 HTMLFormElement::Reset()
 {
   InternalFormEvent event(true, NS_FORM_RESET);
-  EventDispatcher::Dispatch(static_cast<nsIContent*>(this), nullptr, &event);
+  nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), nullptr,
+                              &event);
   return NS_OK;
 }
 
@@ -480,7 +482,7 @@ HTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-HTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mWantsWillHandleEvent = true;
   if (aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this)) {
@@ -509,7 +511,7 @@ HTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-HTMLFormElement::WillHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLFormElement::WillHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   // If this is the bubble stage and there is a nested form below us which
   // received a submit event we do *not* want to handle the submit event
@@ -524,7 +526,7 @@ HTMLFormElement::WillHandleEvent(EventChainPostVisitor& aVisitor)
 }
 
 nsresult
-HTMLFormElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLFormElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   if (aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this)) {
     uint32_t msg = aVisitor.mEvent->message;

@@ -18,11 +18,11 @@
 #include "mozilla/EventForwards.h"
 #include "mozilla/TextRange.h"
 
+class nsDispatchingCallback;
 class nsIEditor;
 
 namespace mozilla {
 
-class EventDispatchingCallback;
 class IMEStateManager;
 
 /**
@@ -219,7 +219,7 @@ private:
    */
   void DispatchEvent(WidgetGUIEvent* aEvent,
                      nsEventStatus* aStatus,
-                     EventDispatchingCallback* aCallBack);
+                     nsDispatchingCallback* aCallBack);
 
   /**
    * Calculate composition offset then notify composition update to widget

@@ -10,7 +10,6 @@
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/AttrBinding.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsError.h"
@@ -19,6 +18,7 @@
 #include "nsIContentInlines.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
+#include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
 #include "nsCOMArray.h"
 #include "nsNameSpaceManager.h"
@@ -361,7 +361,7 @@ Attr::RemoveChildAt(uint32_t aIndex, bool aNotify)
 }
 
 nsresult
-Attr::PreHandleEvent(EventChainPreVisitor& aVisitor)
+Attr::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
   return NS_OK;

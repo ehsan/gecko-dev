@@ -15,8 +15,9 @@ TBPL_FLAGS = [
     ['--ion-eager', '--ion-parallel-compile=off'], # implies --baseline-eager
     ['--ion-eager', '--ion-parallel-compile=off', '--ion-check-range-analysis', '--no-sse3'],
     ['--baseline-eager'],
-    ['--baseline-eager', '--no-fpu'],
+    ['--baseline-eager', '--no-ti', '--no-fpu'],
     ['--no-baseline', '--no-ion'],
+    ['--no-baseline', '--no-ion', '--no-ti'],
 ]
 
 def do_run_cmd(cmd):

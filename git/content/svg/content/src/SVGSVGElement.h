@@ -28,10 +28,9 @@ class nsSVGInnerSVGFrame;
 class nsSVGImageFrame;
 
 namespace mozilla {
-class AutoSVGRenderingState;
 class DOMSVGAnimatedPreserveAspectRatio;
-class EventChainPreVisitor;
 class SVGFragmentIdentifier;
+class AutoSVGRenderingState;
 
 namespace dom {
 class SVGAngle;
@@ -128,7 +127,7 @@ public:
 
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
   virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 

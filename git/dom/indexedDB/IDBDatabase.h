@@ -27,7 +27,6 @@ class nsIScriptContext;
 class nsPIDOMWindow;
 
 namespace mozilla {
-class EventChainPostVisitor;
 namespace dom {
 class ContentParent;
 namespace quota {
@@ -82,8 +81,7 @@ public:
   }
 
   // nsIDOMEventTarget
-  virtual nsresult PostHandleEvent(
-                     EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
 
   DatabaseInfo* Info() const
   {

@@ -25,6 +25,7 @@
 
 #include "nsITimer.h"
 
+#include "nsEventDispatcher.h"
 #include "nsIDOMProgressEvent.h"
 #include "MediaError.h"
 #include "MediaDecoder.h"

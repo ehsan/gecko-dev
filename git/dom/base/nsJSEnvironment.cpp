@@ -32,7 +32,7 @@
 #include "nsIAtom.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
-#include "mozilla/EventDispatcher.h"
+#include "nsEventDispatcher.h"
 #include "nsIContent.h"
 #include "nsCycleCollector.h"
 #include "nsNetUtil.h"
@@ -336,8 +336,8 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
                                 aErrorEventInit);
       event->SetTrusted(true);
 
-      EventDispatcher::DispatchDOMEvent(win, nullptr, event, presContext,
-                                        aStatus);
+      nsEventDispatcher::DispatchDOMEvent(win, nullptr, event, presContext,
+                                          aStatus);
       called = true;
     }
     --errorDepth;
@@ -491,8 +491,8 @@ public:
                                   NS_LITERAL_STRING("error"), init);
         event->SetTrusted(true);
 
-        EventDispatcher::DispatchDOMEvent(win, nullptr, event, presContext,
-                                          &status);
+        nsEventDispatcher::DispatchDOMEvent(win, nullptr, event, presContext,
+                                            &status);
       }
     }
 

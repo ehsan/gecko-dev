@@ -57,6 +57,7 @@
 #include "nsITheme.h"
 #include "nsTransform2D.h"
 #include "nsEventStateManager.h"
+#include "nsEventDispatcher.h"
 #include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"

@@ -517,6 +517,12 @@ class js::AutoDebugModeInvalidation
 
 namespace js {
 
+inline bool
+ExclusiveContext::typeInferenceEnabled() const
+{
+    return zone()->types.inferenceEnabled;
+}
+
 inline js::Handle<js::GlobalObject*>
 ExclusiveContext::global() const
 {

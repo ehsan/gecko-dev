@@ -29,10 +29,6 @@ class nsIRadioVisitor;
 class nsTextEditorState;
 
 namespace mozilla {
-
-class EventChainPostVisitor;
-class EventChainPreVisitor;
-
 namespace dom {
 
 class Date;
@@ -152,10 +148,9 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
 
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult PostHandleEvent(
-                     EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-  void PostHandleEventForRangeThumb(EventChainPostVisitor& aVisitor);
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  void PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor);
   void StartRangeThumbDrag(WidgetGUIEvent* aEvent);
   void FinishRangeThumbDrag(WidgetGUIEvent* aEvent = nullptr);
   void CancelRangeThumbDrag(bool aIsForUserEvent = true);
@@ -896,7 +891,7 @@ protected:
    * Determine whether the editor needs to be initialized explicitly for
    * a particular event.
    */
-  bool NeedToInitializeEditorForEvent(EventChainPreVisitor& aVisitor) const;
+  bool NeedToInitializeEditorForEvent(nsEventChainPreVisitor& aVisitor) const;
 
   /**
    * Get the value mode of the element, depending of the type.
@@ -1184,7 +1179,7 @@ protected:
    * this function checks if it is needed, and if so, open the corresponding
    * picker (color picker or file picker).
    */
-  nsresult MaybeInitPickers(EventChainPostVisitor& aVisitor);
+  nsresult MaybeInitPickers(nsEventChainPostVisitor& aVisitor);
 
   enum FilePickerType {
     FILE_PICKER_FILE,

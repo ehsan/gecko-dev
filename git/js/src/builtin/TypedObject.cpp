@@ -1411,7 +1411,8 @@ TypedObject::createUnattachedWithClass(JSContext *cx,
 
     // Tag the type object for this instance with the type
     // representation, if that has not been done already.
-    if (!type->is<SimpleTypeDescr>()) { // FIXME Bug 929651
+    if (cx->typeInferenceEnabled() && !type->is<SimpleTypeDescr>()) {
+        // FIXME Bug 929651           ^~~~~~~~~~~~~~~~~~~~~~~~~~~
         RootedTypeObject typeObj(cx, obj->getType(cx));
         if (typeObj) {
             if (!typeObj->addTypedObjectAddendum(cx, type))

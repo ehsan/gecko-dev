@@ -21,7 +21,6 @@ class nsIFrame;
 class nsXBLBinding;
 
 namespace mozilla {
-class EventChainPreVisitor;
 namespace dom {
 class ShadowRoot;
 struct CustomElementData;
@@ -914,8 +913,7 @@ public:
   // Overloaded from nsINode
   virtual already_AddRefed<nsIURI> GetBaseURI() const MOZ_OVERRIDE;
 
-  virtual nsresult PreHandleEvent(
-                     mozilla::EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
   virtual bool IsPurple() = 0;
   virtual void RemovePurple() = 0;

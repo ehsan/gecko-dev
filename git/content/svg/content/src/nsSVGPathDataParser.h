@@ -8,6 +8,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/gfx/Point.h"
+#include "gfxPoint.h"
 #include "nsSVGDataParser.h"
 
 namespace mozilla {

@@ -493,7 +493,7 @@ STRIP_CPP_TESTS := 1
 endif
 endif
 
-stage-cppunittests: make-stage-dir
+stage-cppunittests:
 	$(NSINSTALL) -D $(PKG_STAGE)/cppunittests
 ifdef STRIP_CPP_TESTS
 	$(foreach bin,$(CPP_UNIT_TEST_BINS),$(OBJCOPY) $(or $(STRIP_FLAGS),--strip-unneeded) $(bin) $(bin:$(DIST)/%=$(PKG_STAGE)/%);)
@@ -508,7 +508,7 @@ endif
 	$(NSINSTALL) $(topsrcdir)/startupcache/test/TestStartupCacheTelemetry.js $(PKG_STAGE)/cppunittests
 	$(NSINSTALL) $(topsrcdir)/startupcache/test/TestStartupCacheTelemetry.manifest $(PKG_STAGE)/cppunittests
 
-stage-jittest: make-stage-dir
+stage-jittest:
 	$(NSINSTALL) -D $(PKG_STAGE)/jit-test/tests
 	cp -RL $(topsrcdir)/js/src/jsapi.h $(PKG_STAGE)/jit-test
 	cp -RL $(topsrcdir)/js/src/jit-test $(PKG_STAGE)/jit-test/jit-test
@@ -516,7 +516,7 @@ stage-jittest: make-stage-dir
 	cp -RL $(topsrcdir)/js/src/tests/js1_8_5 $(PKG_STAGE)/jit-test/tests/js1_8_5
 	cp -RL $(topsrcdir)/js/src/tests/lib $(PKG_STAGE)/jit-test/tests/lib
 
-stage-steeplechase: make-stage-dir
+stage-steeplechase:
 	$(NSINSTALL) -D $(PKG_STAGE)/steeplechase/
 	cp -RL $(DEPTH)/_tests/steeplechase $(PKG_STAGE)/steeplechase/tests
 	cp -RL $(DIST)/xpi-stage/specialpowers $(PKG_STAGE)/steeplechase

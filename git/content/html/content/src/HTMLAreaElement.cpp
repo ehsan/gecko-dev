@@ -8,7 +8,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLAreaElementBinding.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/MemoryReporting.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
@@ -93,13 +92,13 @@ HTMLAreaElement::SetTarget(const nsAString& aValue)
 }
 
 nsresult
-HTMLAreaElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   return PreHandleEventForAnchors(aVisitor);
 }
 
 nsresult
-HTMLAreaElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return PostHandleEventForAnchors(aVisitor);
 }

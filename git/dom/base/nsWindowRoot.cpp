@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
@@ -13,6 +12,7 @@
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
 #include "nsString.h"
+#include "nsEventDispatcher.h"
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
 #include "nsIContent.h"
@@ -76,7 +76,7 @@ NS_IMETHODIMP
 nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsresult rv =  EventDispatcher::DispatchDOMEvent(
+  nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
     static_cast<EventTarget*>(this), nullptr, aEvt, nullptr, &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
@@ -88,9 +88,9 @@ nsWindowRoot::DispatchDOMEvent(WidgetEvent* aEvent,
                                nsPresContext* aPresContext,
                                nsEventStatus* aEventStatus)
 {
-  return EventDispatcher::DispatchDOMEvent(static_cast<EventTarget*>(this),
-                                           aEvent, aDOMEvent,
-                                           aPresContext, aEventStatus);
+  return nsEventDispatcher::DispatchDOMEvent(static_cast<EventTarget*>(this),
+                                             aEvent, aDOMEvent,
+                                             aPresContext, aEventStatus);
 }
 
 NS_IMETHODIMP
@@ -168,7 +168,7 @@ nsWindowRoot::GetContextForEventHandlers(nsresult* aRv)
 }
 
 nsresult
-nsWindowRoot::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
   aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
@@ -179,7 +179,7 @@ nsWindowRoot::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-nsWindowRoot::PostHandleEvent(EventChainPostVisitor& aVisitor)
+nsWindowRoot::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return NS_OK;
 }

@@ -330,8 +330,10 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         Rooted<TypedArrayObject*> obj(cx);
         if (proto)
             obj = makeProtoInstance(cx, proto);
-        else
+        else if (cx->typeInferenceEnabled())
             obj = makeTypedInstance(cx, len);
+        else
+            obj = &NewBuiltinClassInstance(cx, fastClass())->as<TypedArrayObject>();
         if (!obj)
             return nullptr;
         JS_ASSERT_IF(obj->isTenured(),
@@ -1323,14 +1325,16 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         if (!type)
             return nullptr;
         obj->setType(type);
-    } else if (byteLength >= TypedArrayObject::SINGLETON_TYPE_BYTE_LENGTH) {
-        JS_ASSERT(obj->hasSingletonType());
-    } else {
-        jsbytecode *pc;
-        RootedScript script(cx, cx->currentScript(&pc));
-        if (script) {
-            if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))
-                return nullptr;
+    } else if (cx->typeInferenceEnabled()) {
+        if (byteLength >= TypedArrayObject::SINGLETON_TYPE_BYTE_LENGTH) {
+            JS_ASSERT(obj->hasSingletonType());
+        } else {
+            jsbytecode *pc;
+            RootedScript script(cx, cx->currentScript(&pc));
+            if (script) {
+                if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))
+                    return nullptr;
+            }
         }
     }
 

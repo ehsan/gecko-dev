@@ -27,8 +27,6 @@ class nsIMutableArray;
 class nsIURI;
 
 namespace mozilla {
-class EventChainPostVisitor;
-class EventChainPreVisitor;
 namespace dom {
 class HTMLFormControlsCollection;
 class HTMLImageElement;
@@ -91,11 +89,9 @@ public:
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult) MOZ_OVERRIDE;
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult WillHandleEvent(
-                     EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult PostHandleEvent(
-                     EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult WillHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,

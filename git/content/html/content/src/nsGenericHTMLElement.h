@@ -40,9 +40,6 @@ class nsIDOMHTMLCollection;
 class nsDOMSettableTokenList;
 
 namespace mozilla {
-class EventChainPostVisitor;
-class EventChainPreVisitor;
-class EventChainVisitor;
 class EventListenerManager;
 namespace dom {
 class HTMLFormElement;
@@ -591,10 +588,9 @@ public:
    * Check if an event for an anchor can be handled
    * @return true if the event can be handled, false otherwise
    */
-  bool CheckHandleEventForAnchorsPreconditions(
-         mozilla::EventChainVisitor& aVisitor);
-  nsresult PreHandleEventForAnchors(mozilla::EventChainPreVisitor& aVisitor);
-  nsresult PostHandleEventForAnchors(mozilla::EventChainPostVisitor& aVisitor);
+  bool CheckHandleEventForAnchorsPreconditions(nsEventChainVisitor& aVisitor);
+  nsresult PreHandleEventForAnchors(nsEventChainPreVisitor& aVisitor);
+  nsresult PostHandleEventForAnchors(nsEventChainPostVisitor& aVisitor);
   bool IsHTMLLink(nsIURI** aURI) const;
 
   // HTML element methods
@@ -1330,8 +1326,7 @@ public:
   virtual IMEState GetDesiredIMEState() MOZ_OVERRIDE;
   virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
-  virtual nsresult PreHandleEvent(
-                     mozilla::EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
   virtual bool IsDisabled() const MOZ_OVERRIDE;
 

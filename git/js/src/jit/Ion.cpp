@@ -747,8 +747,7 @@ IonScript::IonScript()
     osiIndexOffset_(0),
     osiIndexEntries_(0),
     snapshots_(0),
-    snapshotsListSize_(0),
-    snapshotsRVATableSize_(0),
+    snapshotsSize_(0),
     constantTable_(0),
     constantEntries_(0),
     callTargetList_(0),
@@ -764,8 +763,7 @@ IonScript::IonScript()
 
 IonScript *
 IonScript::New(JSContext *cx, types::RecompileInfo recompileInfo,
-               uint32_t frameSlots, uint32_t frameSize,
-               size_t snapshotsListSize, size_t snapshotsRVATableSize,
+               uint32_t frameSlots, uint32_t frameSize, size_t snapshotsSize,
                size_t bailoutEntries, size_t constants, size_t safepointIndices,
                size_t osiIndices, size_t cacheEntries, size_t runtimeSize,
                size_t safepointsSize, size_t callTargetEntries, size_t backedgeEntries,
@@ -773,7 +771,7 @@ IonScript::New(JSContext *cx, types::RecompileInfo recompileInfo,
 {
     static const int DataAlignment = sizeof(void *);
 
-    if (snapshotsListSize >= MAX_BUFFER_SIZE ||
+    if (snapshotsSize >= MAX_BUFFER_SIZE ||
         (bailoutEntries >= MAX_BUFFER_SIZE / sizeof(uint32_t)))
     {
         js_ReportOutOfMemory(cx);
@@ -783,7 +781,7 @@ IonScript::New(JSContext *cx, types::RecompileInfo recompileInfo,
     // This should not overflow on x86, because the memory is already allocated
     // *somewhere* and if their total overflowed there would be no memory left
     // at all.
-    size_t paddedSnapshotsSize = AlignBytes(snapshotsListSize + snapshotsRVATableSize, DataAlignment);
+    size_t paddedSnapshotsSize = AlignBytes(snapshotsSize, DataAlignment);
     size_t paddedBailoutSize = AlignBytes(bailoutEntries * sizeof(uint32_t), DataAlignment);
     size_t paddedConstantsSize = AlignBytes(constants * sizeof(Value), DataAlignment);
     size_t paddedSafepointIndicesSize = AlignBytes(safepointIndices * sizeof(SafepointIndex), DataAlignment);
@@ -837,8 +835,7 @@ IonScript::New(JSContext *cx, types::RecompileInfo recompileInfo,
     offsetCursor += paddedOsiIndicesSize;
 
     script->snapshots_ = offsetCursor;
-    script->snapshotsListSize_ = snapshotsListSize;
-    script->snapshotsRVATableSize_ = snapshotsRVATableSize;
+    script->snapshotsSize_ = snapshotsSize;
     offsetCursor += paddedSnapshotsSize;
 
     script->constantTable_ = offsetCursor;
@@ -892,14 +889,8 @@ IonScript::writeBarrierPre(Zone *zone, IonScript *ionScript)
 void
 IonScript::copySnapshots(const SnapshotWriter *writer)
 {
-    MOZ_ASSERT(writer->listSize() == snapshotsListSize_);
-    memcpy((uint8_t *)this + snapshots_,
-           writer->listBuffer(), snapshotsListSize_);
-
-    MOZ_ASSERT(snapshotsRVATableSize_);
-    MOZ_ASSERT(writer->RVATableSize() == snapshotsRVATableSize_);
-    memcpy((uint8_t *)this + snapshots_ + snapshotsListSize_,
-           writer->RVATableBuffer(), snapshotsRVATableSize_);
+    JS_ASSERT(writer->size() == snapshotsSize_);
+    memcpy((uint8_t *)this + snapshots_, writer->buffer(), snapshotsSize_);
 }
 
 void

@@ -2389,8 +2389,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 #endif
 
-  list.ComputeVisibilityForRoot(&builder, &visibleRegion,
-                                usingDisplayPort ? rootScrollFrame : nullptr);
+  list.ComputeVisibilityForRoot(&builder, &visibleRegion);
 
   uint32_t flags = nsDisplayList::PAINT_DEFAULT;
   if (aFlags & PAINT_WIDGET_LAYERS) {

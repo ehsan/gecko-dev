@@ -45,6 +45,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsSubDocumentFrame.h"
 #include "nsError.h"
+#include "nsEventDispatcher.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIDOMHTMLDocument.h"

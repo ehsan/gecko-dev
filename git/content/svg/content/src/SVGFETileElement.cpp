@@ -6,6 +6,7 @@
 #include "mozilla/dom/SVGFETileElement.h"
 #include "mozilla/dom/SVGFETileElementBinding.h"
 #include "nsSVGFilterInstance.h"
+#include "gfxUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FETile)
 

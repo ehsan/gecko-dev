@@ -110,11 +110,11 @@ static const char sPrintOptionsContractID[] =
 #include "nsIDOMEventListener.h"
 #include "nsISelectionController.h"
 
-#include "mozilla/EventDispatcher.h"
 #include "nsISHEntry.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIWebNavigation.h"
+#include "nsEventDispatcher.h"
 #include "nsXMLHttpRequest.h"
 
 //paint forcing
@@ -999,7 +999,8 @@ nsDocumentViewer::LoadComplete(nsresult aStatus)
                           "content-document-loaded",
                           nullptr);
 
-      EventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
+      nsEventDispatcher::Dispatch(window, mPresContext, &event, nullptr,
+                                  &status);
       if (timing) {
         timing->NotifyLoadEventEnd();
       }
@@ -1140,8 +1141,8 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
     utils->DisableDialogs();
 
     mInPermitUnload = true;
-    EventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
-                                      nullptr);
+    nsEventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
+                                        nullptr);
     mInPermitUnload = false;
     if (dialogsWereEnabled) {
       utils->EnableDialogs();
@@ -1322,7 +1323,7 @@ nsDocumentViewer::PageHide(bool aIsUnload)
     // here.
     nsAutoPopupStatePusher popupStatePusher(openAbused, true);
 
-    EventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
+    nsEventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
   }
 
 #ifdef MOZ_XUL

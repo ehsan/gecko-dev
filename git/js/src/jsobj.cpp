@@ -66,6 +66,9 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
+using js::frontend::IsIdentifier;
+using mozilla::ArrayLength;
+using mozilla::DebugOnly;
 using mozilla::Maybe;
 using mozilla::RoundUpPow2;
 
@@ -1560,7 +1563,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
         res = NewObjectWithClassProto(cx, &JSObject::class_, proto, callee->getParent(), allocKind, newKind);
     }
 
-    if (res) {
+    if (res && cx->typeInferenceEnabled()) {
         JSScript *script = callee->as<JSFunction>().getOrCreateScript(cx);
         if (!script)
             return nullptr;

@@ -14,7 +14,6 @@
 #include "mozilla/dom/ValidityState.h"
 
 namespace mozilla {
-class EventChainPreVisitor;
 namespace dom {
 
 class HTMLFieldSetElement MOZ_FINAL : public nsGenericHTMLFormElement,
@@ -39,7 +38,7 @@ public:
   NS_DECL_NSIDOMHTMLFIELDSETELEMENT
 
   // nsIContent
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify) MOZ_OVERRIDE;
 

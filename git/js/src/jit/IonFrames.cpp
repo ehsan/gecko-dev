@@ -1293,22 +1293,18 @@ OsiIndex::returnPointDisplacement() const
 
 SnapshotIterator::SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshotOffset,
                                    IonJSFrameLayout *fp, const MachineState &machine)
-  : SnapshotReader(ionScript->snapshots(),
-                   snapshotOffset,
-                   ionScript->snapshotsRVATableSize(),
-                   ionScript->snapshotsListSize()),
+  : SnapshotReader(ionScript->snapshots() + snapshotOffset,
+                   ionScript->snapshots() + ionScript->snapshotsSize()),
     fp_(fp),
     machine_(machine),
     ionScript_(ionScript)
 {
-    JS_ASSERT(snapshotOffset < ionScript->snapshotsListSize());
+    JS_ASSERT(snapshotOffset < ionScript->snapshotsSize());
 }
 
 SnapshotIterator::SnapshotIterator(const IonFrameIterator &iter)
-  : SnapshotReader(iter.ionScript()->snapshots(),
-                   iter.osiIndex()->snapshotOffset(),
-                   iter.ionScript()->snapshotsRVATableSize(),
-                   iter.ionScript()->snapshotsListSize()),
+  : SnapshotReader(iter.ionScript()->snapshots() + iter.osiIndex()->snapshotOffset(),
+                   iter.ionScript()->snapshots() + iter.ionScript()->snapshotsSize()),
     fp_(iter.jsFrame()),
     machine_(iter.machineState()),
     ionScript_(iter.ionScript())
@@ -1316,16 +1312,35 @@ SnapshotIterator::SnapshotIterator(const IonFrameIterator &iter)
 }
 
 SnapshotIterator::SnapshotIterator()
-  : SnapshotReader(nullptr, 0, 0, 0),
+  : SnapshotReader(nullptr, nullptr),
     fp_(nullptr),
     ionScript_(nullptr)
 {
 }
 
-uintptr_t
-SnapshotIterator::fromStack(int32_t offset) const
+bool
+SnapshotIterator::hasRegister(const Location &loc)
 {
-    return ReadFrameSlot(fp_, offset);
+    return machine_.has(loc.reg());
+}
+
+uintptr_t
+SnapshotIterator::fromRegister(const Location &loc)
+{
+    return machine_.read(loc.reg());
+}
+
+bool
+SnapshotIterator::hasStack(const Location &loc)
+{
+    JS_ASSERT(loc.isStackOffset());
+    return true;
+}
+
+uintptr_t
+SnapshotIterator::fromStack(const Location &loc)
+{
+    return ReadFrameSlot(fp_, loc.stackOffset());
 }
 
 static Value
@@ -1362,25 +1377,25 @@ SnapshotIterator::allocationReadable(const RValueAllocation &alloc)
 {
     switch (alloc.mode()) {
       case RValueAllocation::DOUBLE_REG:
-        return hasRegister(alloc.fpuReg());
+        return machine_.has(alloc.floatReg());
 
       case RValueAllocation::TYPED_REG:
-        return hasRegister(alloc.reg());
+        return machine_.has(alloc.reg());
 
 #if defined(JS_NUNBOX32)
       case RValueAllocation::UNTYPED_REG_REG:
-        return hasRegister(alloc.reg()) && hasRegister(alloc.reg2());
+        return hasRegister(alloc.type()) && hasRegister(alloc.payload());
       case RValueAllocation::UNTYPED_REG_STACK:
-        return hasRegister(alloc.reg()) && hasStack(alloc.stackOffset2());
+        return hasRegister(alloc.type()) && hasStack(alloc.payload());
       case RValueAllocation::UNTYPED_STACK_REG:
-        return hasStack(alloc.stackOffset()) && hasRegister(alloc.reg2());
+        return hasStack(alloc.type()) && hasRegister(alloc.payload());
       case RValueAllocation::UNTYPED_STACK_STACK:
-        return hasStack(alloc.stackOffset()) && hasStack(alloc.stackOffset2());
+        return hasStack(alloc.type()) && hasStack(alloc.payload());
 #elif defined(JS_PUNBOX64)
       case RValueAllocation::UNTYPED_REG:
-        return hasRegister(alloc.reg());
+        return hasRegister(alloc.value());
       case RValueAllocation::UNTYPED_STACK:
-        return hasStack(alloc.stackOffset());
+        return hasStack(alloc.value());
 #endif
 
       default:
@@ -1392,17 +1407,8 @@ Value
 SnapshotIterator::allocationValue(const RValueAllocation &alloc)
 {
     switch (alloc.mode()) {
-      case RValueAllocation::CONSTANT:
-        return ionScript_->getConstant(alloc.index());
-
-      case RValueAllocation::CST_UNDEFINED:
-        return UndefinedValue();
-
-      case RValueAllocation::CST_NULL:
-        return NullValue();
-
       case RValueAllocation::DOUBLE_REG:
-        return DoubleValue(fromRegister(alloc.fpuReg()));
+        return DoubleValue(machine_.read(alloc.floatReg()));
 
       case RValueAllocation::FLOAT32_REG:
       {
@@ -1410,7 +1416,7 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc)
             double d;
             float f;
         } pun;
-        pun.d = fromRegister(alloc.fpuReg());
+        pun.d = machine_.read(alloc.floatReg());
         // The register contains the encoding of a float32. We just read
         // the bits without making any conversion.
         return Float32Value(pun.f);
@@ -1420,21 +1426,21 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc)
         return Float32Value(ReadFrameFloat32Slot(fp_, alloc.stackOffset()));
 
       case RValueAllocation::TYPED_REG:
-        return FromTypedPayload(alloc.knownType(), fromRegister(alloc.reg2()));
+        return FromTypedPayload(alloc.knownType(), machine_.read(alloc.reg()));
 
       case RValueAllocation::TYPED_STACK:
       {
         switch (alloc.knownType()) {
           case JSVAL_TYPE_DOUBLE:
-            return DoubleValue(ReadFrameDoubleSlot(fp_, alloc.stackOffset2()));
+            return DoubleValue(ReadFrameDoubleSlot(fp_, alloc.stackOffset()));
           case JSVAL_TYPE_INT32:
-            return Int32Value(ReadFrameInt32Slot(fp_, alloc.stackOffset2()));
+            return Int32Value(ReadFrameInt32Slot(fp_, alloc.stackOffset()));
           case JSVAL_TYPE_BOOLEAN:
-            return BooleanValue(ReadFrameBooleanSlot(fp_, alloc.stackOffset2()));
+            return BooleanValue(ReadFrameBooleanSlot(fp_, alloc.stackOffset()));
           case JSVAL_TYPE_STRING:
-            return FromStringPayload(fromStack(alloc.stackOffset2()));
+            return FromStringPayload(ReadFrameSlot(fp_, alloc.stackOffset()));
           case JSVAL_TYPE_OBJECT:
-            return FromObjectPayload(fromStack(alloc.stackOffset2()));
+            return FromObjectPayload(ReadFrameSlot(fp_, alloc.stackOffset()));
           default:
             MOZ_ASSUME_UNREACHABLE("Unexpected type");
         }
@@ -1444,49 +1450,61 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc)
       case RValueAllocation::UNTYPED_REG_REG:
       {
         jsval_layout layout;
-        layout.s.tag = (JSValueTag) fromRegister(alloc.reg());
-        layout.s.payload.word = fromRegister(alloc.reg2());
+        layout.s.tag = (JSValueTag) fromRegister(alloc.type());
+        layout.s.payload.word = fromRegister(alloc.payload());
         return IMPL_TO_JSVAL(layout);
       }
 
       case RValueAllocation::UNTYPED_REG_STACK:
       {
         jsval_layout layout;
-        layout.s.tag = (JSValueTag) fromRegister(alloc.reg());
-        layout.s.payload.word = fromStack(alloc.stackOffset2());
+        layout.s.tag = (JSValueTag) fromRegister(alloc.type());
+        layout.s.payload.word = fromStack(alloc.payload());
         return IMPL_TO_JSVAL(layout);
       }
 
       case RValueAllocation::UNTYPED_STACK_REG:
       {
         jsval_layout layout;
-        layout.s.tag = (JSValueTag) fromStack(alloc.stackOffset());
-        layout.s.payload.word = fromRegister(alloc.reg2());
+        layout.s.tag = (JSValueTag) fromStack(alloc.type());
+        layout.s.payload.word = fromRegister(alloc.payload());
         return IMPL_TO_JSVAL(layout);
       }
 
       case RValueAllocation::UNTYPED_STACK_STACK:
       {
         jsval_layout layout;
-        layout.s.tag = (JSValueTag) fromStack(alloc.stackOffset());
-        layout.s.payload.word = fromStack(alloc.stackOffset2());
+        layout.s.tag = (JSValueTag) fromStack(alloc.type());
+        layout.s.payload.word = fromStack(alloc.payload());
         return IMPL_TO_JSVAL(layout);
       }
 #elif defined(JS_PUNBOX64)
       case RValueAllocation::UNTYPED_REG:
       {
         jsval_layout layout;
-        layout.asBits = fromRegister(alloc.reg());
+        layout.asBits = fromRegister(alloc.value());
         return IMPL_TO_JSVAL(layout);
       }
 
       case RValueAllocation::UNTYPED_STACK:
       {
         jsval_layout layout;
-        layout.asBits = fromStack(alloc.stackOffset());
+        layout.asBits = fromStack(alloc.value());
         return IMPL_TO_JSVAL(layout);
       }
 #endif
+
+      case RValueAllocation::JS_UNDEFINED:
+        return UndefinedValue();
+
+      case RValueAllocation::JS_NULL:
+        return NullValue();
+
+      case RValueAllocation::JS_INT32:
+        return Int32Value(alloc.int32Value());
+
+      case RValueAllocation::CONSTANT:
+        return ionScript_->getConstant(alloc.constantIndex());
 
       default:
         MOZ_ASSUME_UNREACHABLE("huh?");

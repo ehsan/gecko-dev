@@ -1523,6 +1523,7 @@ ReloadPrefsCallback(const char *pref, void *data)
     }
 
     bool useBaseline = Preferences::GetBool(JS_OPTIONS_DOT_STR "baselinejit") && !safeMode;
+    bool useTypeInference = Preferences::GetBool(JS_OPTIONS_DOT_STR "typeinference") && !safeMode;
     bool useIon = Preferences::GetBool(JS_OPTIONS_DOT_STR "ion") && !safeMode;
     bool useAsmJS = Preferences::GetBool(JS_OPTIONS_DOT_STR "asmjs") && !safeMode;
 
@@ -1534,6 +1535,7 @@ ReloadPrefsCallback(const char *pref, void *data)
     bool useIonEager = Preferences::GetBool(JS_OPTIONS_DOT_STR "ion.unsafe_eager_compilation");
 
     JS::RuntimeOptionsRef(rt).setBaseline(useBaseline)
+                             .setTypeInference(useTypeInference)
                              .setIon(useIon)
                            .  setAsmJS(useAsmJS);
 

@@ -6,8 +6,6 @@
 #include "mozilla/dom/SVGRect.h"
 #include "nsSVGElement.h"
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace dom {
 
@@ -49,9 +47,9 @@ NS_NewSVGRect(nsIContent* aParent, float aX, float aY, float aWidth,
 }
 
 already_AddRefed<mozilla::dom::SVGRect>
-NS_NewSVGRect(nsIContent* aParent, const Rect& aRect)
+NS_NewSVGRect(nsIContent* aParent, const gfxRect& aRect)
 {
-  return NS_NewSVGRect(aParent, aRect.x, aRect.y,
-                       aRect.width, aRect.height);
+  return NS_NewSVGRect(aParent, aRect.X(), aRect.Y(),
+                       aRect.Width(), aRect.Height());
 }
 

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLOptGroupElement.h"
 #include "mozilla/dom/HTMLOptGroupElementBinding.h"
 #include "mozilla/dom/HTMLSelectElement.h" // SafeOptionListMutation
@@ -12,6 +11,8 @@
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsEventStates.h"
+
+#include "nsEventDispatcher.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
@@ -47,7 +48,7 @@ NS_IMPL_STRING_ATTR(HTMLOptGroupElement, Label, label)
 
 
 nsresult
-HTMLOptGroupElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLOptGroupElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = false;
   // Do not process any DOM events if the element is disabled

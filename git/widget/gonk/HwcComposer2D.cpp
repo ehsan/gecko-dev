@@ -267,6 +267,17 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return false;
     }
 
+
+    // OK!  We can compose this layer with hwc.
+
+    int current = mList ? mList->numHwLayers : 0;
+    if (!mList || current >= mMaxLayerCount) {
+        if (!ReallocLayerList() || current >= mMaxLayerCount) {
+            LOGE("PrepareLayerList failed! Could not increase the maximum layer count");
+            return false;
+        }
+    }
+
     nsIntRect visibleRect = visibleRegion.GetBounds();
 
     nsIntRect bufferRect;
@@ -283,51 +294,30 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         }
     }
 
-    hwc_rect_t sourceCrop, displayFrame;
+    HwcLayer& hwcLayer = mList->hwLayers[current];
+    hwc_rect_t sourceCrop;
+
     if(!HwcUtils::PrepareLayerRects(visibleRect,
                           transform * aGLWorldTransform,
                           clip,
                           bufferRect,
                           state.YFlipped(),
                           &(sourceCrop),
-                          &(displayFrame)))
+                          &(hwcLayer.displayFrame)))
     {
         return true;
     }
 
-    // OK!  We can compose this layer with hwc.
-    int current = mList ? mList->numHwLayers : 0;
-
-    // Do not compose any layer below full-screen Opaque layer
-    // Note: It can be generalized to non-fullscreen Opaque layers.
-    bool isOpaque = (opacity == 0xFF) && (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE);
-    if (current && isOpaque) {
-        nsIntRect displayRect = nsIntRect(displayFrame.left, displayFrame.top,
-            displayFrame.right - displayFrame.left, displayFrame.bottom - displayFrame.top);
-        if (displayRect.Contains(mScreenRect)) {
-            // In z-order, all previous layers are below
-            // the current layer. We can ignore them now.
-            mList->numHwLayers = current = 0;
-            mHwcLayerMap.Clear();
-        }
-    }
-
-    if (!mList || current >= mMaxLayerCount) {
-        if (!ReallocLayerList() || current >= mMaxLayerCount) {
-            LOGE("PrepareLayerList failed! Could not increase the maximum layer count");
-            return false;
-        }
-    }
-
-    HwcLayer& hwcLayer = mList->hwLayers[current];
-    hwcLayer.displayFrame = displayFrame;
     setCrop(&hwcLayer, sourceCrop);
     buffer_handle_t handle = fillColor ? nullptr : state.mSurface->getNativeBuffer()->handle;
     hwcLayer.handle = handle;
 
     hwcLayer.flags = 0;
     hwcLayer.hints = 0;
-    hwcLayer.blending = isOpaque ? HWC_BLENDING_NONE : HWC_BLENDING_PREMULT;
+    hwcLayer.blending = HWC_BLENDING_PREMULT;
+    if ((opacity == 0xFF) && (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
+        hwcLayer.blending = HWC_BLENDING_NONE;
+    }
 #if ANDROID_VERSION >= 17
     hwcLayer.compositionType = HWC_FRAMEBUFFER;
 
@@ -581,7 +571,7 @@ HwcComposer2D::TryHwComposition()
                 return false;
             }
             mList->hwLayers[idx].handle = fbsurface->lastHandle;
-            mList->hwLayers[idx].acquireFenceFd = fbsurface->GetPrevFBAcquireFd();
+            mList->hwLayers[idx].acquireFenceFd = fbsurface->lastFenceFD;
         }
     }
 
@@ -611,7 +601,7 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur)
     if (mPrepared) {
         // No mHwc prepare, if already prepared in current draw cycle
         mList->hwLayers[mList->numHwLayers - 1].handle = fbsurface->lastHandle;
-        mList->hwLayers[mList->numHwLayers - 1].acquireFenceFd = fbsurface->GetPrevFBAcquireFd();
+        mList->hwLayers[mList->numHwLayers - 1].acquireFenceFd = fbsurface->lastFenceFD;
     } else {
         mList->numHwLayers = 2;
         mList->hwLayers[0].hints = 0;
@@ -621,7 +611,7 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur)
         mList->hwLayers[0].acquireFenceFd = -1;
         mList->hwLayers[0].releaseFenceFd = -1;
         mList->hwLayers[0].displayFrame = {0, 0, mScreenRect.width, mScreenRect.height};
-        Prepare(fbsurface->lastHandle, fbsurface->GetPrevFBAcquireFd());
+        Prepare(fbsurface->lastHandle, fbsurface->lastFenceFD);
     }
 
     // GPU or partial HWC Composition

@@ -19,6 +19,7 @@
 #include "imgIContainer.h"
 #include "nsIPresShell.h"
 #include "nsFocusManager.h"
+#include "nsEventDispatcher.h"
 #include "mozilla/dom/DataTransfer.h"
 
 #include "nsIDocShell.h"
@@ -47,9 +48,9 @@
 
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/EventDispatcher.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
+
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -651,8 +652,8 @@ nsCopySupport::FireClipboardEvent(int32_t aType, int32_t aClipboardType, nsIPres
     nsEventStatus status = nsEventStatus_eIgnore;
     InternalClipboardEvent evt(true, aType);
     evt.clipboardData = clipboardData;
-    EventDispatcher::Dispatch(content, presShell->GetPresContext(), &evt,
-                              nullptr, &status);
+    nsEventDispatcher::Dispatch(content, presShell->GetPresContext(), &evt, nullptr,
+                                &status);
     // If the event was cancelled, don't do the clipboard operation
     doDefault = (status != nsEventStatus_eConsumeNoDefault);
   }

@@ -8,7 +8,6 @@
 
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLLinkElementBinding.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsContentUtils.h"
@@ -303,13 +302,13 @@ HTMLLinkElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
 }
 
 nsresult
-HTMLLinkElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLLinkElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   return PreHandleEventForAnchors(aVisitor);
 }
 
 nsresult
-HTMLLinkElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLLinkElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return PostHandleEventForAnchors(aVisitor);
 }
