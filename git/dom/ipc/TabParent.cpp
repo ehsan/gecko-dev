@@ -59,6 +59,7 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsFrameLoader.h"
 #include "nsNetUtil.h"
+#include "jsarray.h"
 #include "nsContentUtils.h"
 #include "nsContentPermissionHelper.h"
 #include "nsIDOMNSHTMLFrameElement.h"

@@ -62,7 +62,6 @@
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdbgapi.h"
-#include "jsdtoa.h"
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -301,7 +300,7 @@ JSContext *
 js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 {
     JSContext *cx;
-    JSBool first;
+    JSBool ok, first;
     JSContextCallback cxCallback;
 
     /*
@@ -318,7 +317,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #if JS_STACK_GROWTH_DIRECTION > 0
     cx->stackLimit = (jsuword) -1;
 #endif
-    cx->iterValue.setMagic(JS_NO_ITER_VALUE);
     JS_STATIC_ASSERT(JSVERSION_DEFAULT == 0);
     JS_ASSERT(cx->findVersion() == JSVERSION_DEFAULT);
     VOUCH_DOES_NOT_REQUIRE_STACK();
@@ -384,7 +382,17 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #ifdef JS_THREADSAFE
         JS_BeginRequest(cx);
 #endif
-        JSBool ok = js_InitCommonAtoms(cx);
+        ok = js_InitCommonAtoms(cx);
+
+        /*
+         * scriptFilenameTable may be left over from a previous episode of
+         * non-zero contexts alive in rt, so don't re-init the table if it's
+         * not necessary.
+         */
+        if (ok && !rt->scriptFilenameTable)
+            ok = js_InitRuntimeScriptState(rt);
+        if (ok)
+            ok = js_InitRuntimeNumberState(cx);
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);
@@ -606,6 +614,8 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 JS_BeginRequest(cx);
 #endif
 
+            js_FinishRuntimeNumberState(cx);
+
             /* Unpin all common atoms before final GC. */
             js_FinishCommonAtoms(cx);
 
@@ -671,7 +681,7 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
     JSContext *cx = *iterp;
 
     Maybe<AutoLockGC> lockIf;
-    if (unlocked)
+    if (unlocked) 
         lockIf.construct(rt);
     cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
     if (&cx->link == &rt->contextList)
@@ -1451,9 +1461,6 @@ JSContext::JSContext(JSRuntime *rt)
     compartment(NULL),
     stack(thisDuringConstruction()),
     busyArrays()
-#ifdef DEBUG
-    , stackIterAssertionEnabled(true)
-#endif
 {}
 
 JSContext::~JSContext()
@@ -1711,17 +1718,6 @@ LeaveTrace(JSContext *cx)
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx))
         DeepBail(cx);
-#endif
-}
-
-bool
-CanLeaveTrace(JSContext *cx)
-{
-    JS_ASSERT(JS_ON_TRACE(cx));
-#ifdef JS_TRACER
-    return JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit != NULL;
-#else
-    return false;
 #endif
 }
 
