@@ -11,7 +11,6 @@
 [JSImplementation="@mozilla.org/nfc/NFCPeer;1"]
 interface MozNFCPeer {
   DOMRequest sendNDEF(sequence<MozNdefRecord> records);
-  DOMRequest sendFile(Blob blob);
 };
 
 // Mozilla Only

@@ -87,7 +87,14 @@ var ConsoleAPIObserver = {
         output = type;
         break;
       default:
-        output = aResult.toString();
+        if (aResult.toSource) {
+          try {
+            output = aResult.toSource();
+          } catch (ex) { }
+        }
+        if (!output || output == "({})") {
+          output = aResult.toString();
+        }
         break;
     }
 

@@ -140,10 +140,7 @@ function run(options) {
 
     // TODO: When bug 564675 is implemented this will no longer be needed
     // Always set the default prefs, because they disappear on restart
-    if (options.prefsURI) {
-      // Only set if `prefsURI` specified
-      setDefaultPrefs(options.prefsURI);
-    }
+    setDefaultPrefs(options.prefsURI);
 
     // this is where the addon's main.js finally run.
     let program = main(options.loader, options.main);

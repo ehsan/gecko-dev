@@ -389,7 +389,7 @@ BluetoothHfpManager::Reset()
   mCMER = false;
   mConnectScoRequest = false;
   mSlcConnected = false;
-  mIsHsp = false;
+  mHspConnected = false;
   mReceiveVgsFlag = false;
 
 #ifdef MOZ_B2G_RIL
@@ -620,10 +620,14 @@ BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
   }
   UpdateCIND(CINDType::SERVICE, service);
 
+  uint8_t signal;
   JS::Value value;
   voiceInfo->GetRelSignalStrength(&value);
-  NS_ENSURE_TRUE_VOID(value.isNumber());
-  uint8_t signal = ceil(value.toNumber() / 20.0);
+  if (!value.isNumber()) {
+    BT_WARNING("Failed to get relSignalStrength in BluetoothHfpManager");
+    return;
+  }
+  signal = ceil(value.toNumber() / 20.0);
   UpdateCIND(CINDType::SIGNAL, signal);
 
   /**
@@ -1638,14 +1642,13 @@ BluetoothHfpManager::OnSocketConnectSuccess(BluetoothSocket* aSocket)
    */
   if (aSocket == mHandsfreeSocket) {
     MOZ_ASSERT(!mSocket);
-    mIsHsp = false;
     mHandsfreeSocket.swap(mSocket);
 
     mHeadsetSocket->Disconnect();
     mHeadsetSocket = nullptr;
   } else if (aSocket == mHeadsetSocket) {
     MOZ_ASSERT(!mSocket);
-    mIsHsp = true;
+    mHspConnected = true;
     mHeadsetSocket.swap(mSocket);
 
     mHandsfreeSocket->Disconnect();
@@ -1740,8 +1743,6 @@ BluetoothHfpManager::OnGetServiceChannel(const nsAString& aDeviceAddress,
     } else if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress,
                                                hspUuid, this))) {
       OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    } else {
-      mIsHsp = true;
     }
 
     return;
@@ -1828,7 +1829,7 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
 
   // If we are not using HSP, we have to make sure Service Level Connection
   // established before we start to set up SCO (synchronous connection).
-  if (!mSlcConnected && !mIsHsp) {
+  if (!mSlcConnected && !mHspConnected) {
     mConnectScoRequest = true;
     BT_WARNING("ConnectSco called before Service Level Connection established");
     return false;

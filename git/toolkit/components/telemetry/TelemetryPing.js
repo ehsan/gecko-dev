@@ -14,7 +14,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 #ifndef MOZ_WIDGET_GONK
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 #endif
+Cu.import("resource://gre/modules/ctypes.jsm");
 Cu.import("resource://gre/modules/ThirdPartyCookieProbe.jsm");
+Cu.import("resource://gre/modules/TelemetryFile.jsm");
+Cu.import("resource://gre/modules/UITelemetry.jsm");
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -64,8 +67,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManagerPrivate",
                                   "resource://gre/modules/AddonManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryFile",
-                                  "resource://gre/modules/TelemetryFile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
                                   "resource://gre/modules/UITelemetry.jsm");
 
@@ -92,7 +93,6 @@ let processInfo = {
   },
   getCounters_Windows: function() {
     if (!this._initialized){
-      Cu.import("resource://gre/modules/ctypes.jsm");
       this._IO_COUNTERS = new ctypes.StructType("IO_COUNTERS", [
         {'readOps': ctypes.unsigned_long_long},
         {'writeOps': ctypes.unsigned_long_long},

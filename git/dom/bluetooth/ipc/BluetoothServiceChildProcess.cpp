@@ -18,7 +18,7 @@ USING_BLUETOOTH_NAMESPACE
 
 namespace {
 
-BluetoothChild* sBluetoothChild;
+BluetoothChild* gBluetoothChild;
 
 inline
 void
@@ -27,13 +27,13 @@ SendRequest(BluetoothReplyRunnable* aRunnable, const Request& aRequest)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aRunnable);
 
-  NS_WARN_IF_FALSE(sBluetoothChild,
+  NS_WARN_IF_FALSE(gBluetoothChild,
                    "Calling methods on BluetoothServiceChildProcess during "
                    "shutdown!");
 
-  if (sBluetoothChild) {
+  if (gBluetoothChild) {
     BluetoothRequestChild* actor = new BluetoothRequestChild(aRunnable);
-    sBluetoothChild->SendPBluetoothRequestConstructor(actor, aRequest);
+    gBluetoothChild->SendPBluetoothRequestConstructor(actor, aRequest);
   }
 }
 
@@ -43,7 +43,7 @@ SendRequest(BluetoothReplyRunnable* aRunnable, const Request& aRequest)
 BluetoothServiceChildProcess*
 BluetoothServiceChildProcess::Create()
 {
-  MOZ_ASSERT(!sBluetoothChild);
+  MOZ_ASSERT(!gBluetoothChild);
 
   mozilla::dom::ContentChild* contentChild =
     mozilla::dom::ContentChild::GetSingleton();
@@ -51,8 +51,8 @@ BluetoothServiceChildProcess::Create()
 
   BluetoothServiceChildProcess* btService = new BluetoothServiceChildProcess();
 
-  sBluetoothChild = new BluetoothChild(btService);
-  contentChild->SendPBluetoothConstructor(sBluetoothChild);
+  gBluetoothChild = new BluetoothChild(btService);
+  contentChild->SendPBluetoothConstructor(gBluetoothChild);
 
   return btService;
 }
@@ -63,14 +63,14 @@ BluetoothServiceChildProcess::BluetoothServiceChildProcess()
 
 BluetoothServiceChildProcess::~BluetoothServiceChildProcess()
 {
-  sBluetoothChild = nullptr;
+  gBluetoothChild = nullptr;
 }
 
 void
 BluetoothServiceChildProcess::NoteDeadActor()
 {
-  MOZ_ASSERT(sBluetoothChild);
-  sBluetoothChild = nullptr;
+  MOZ_ASSERT(gBluetoothChild);
+  gBluetoothChild = nullptr;
 }
 
 void
@@ -78,8 +78,8 @@ BluetoothServiceChildProcess::RegisterBluetoothSignalHandler(
                                               const nsAString& aNodeName,
                                               BluetoothSignalObserver* aHandler)
 {
-  if (sBluetoothChild && !IsSignalRegistered(aNodeName)) {
-    sBluetoothChild->SendRegisterSignalHandler(nsString(aNodeName));
+  if (gBluetoothChild && !IsSignalRegistered(aNodeName)) {
+    gBluetoothChild->SendRegisterSignalHandler(nsString(aNodeName));
   }
   BluetoothService::RegisterBluetoothSignalHandler(aNodeName, aHandler);
 }
@@ -90,8 +90,8 @@ BluetoothServiceChildProcess::UnregisterBluetoothSignalHandler(
                                               BluetoothSignalObserver* aHandler)
 {
   BluetoothService::UnregisterBluetoothSignalHandler(aNodeName, aHandler);
-  if (sBluetoothChild && !IsSignalRegistered(aNodeName)) {
-    sBluetoothChild->SendUnregisterSignalHandler(nsString(aNodeName));
+  if (gBluetoothChild && !IsSignalRegistered(aNodeName)) {
+    gBluetoothChild->SendUnregisterSignalHandler(nsString(aNodeName));
   }
 }
 
@@ -361,8 +361,8 @@ BluetoothServiceChildProcess::HandleShutdown()
 {
   // If this process is shutting down then we need to disconnect ourselves from
   // the parent.
-  if (sBluetoothChild) {
-    sBluetoothChild->BeginShutdown();
+  if (gBluetoothChild) {
+    gBluetoothChild->BeginShutdown();
   }
   return NS_OK;
 }

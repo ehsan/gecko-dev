@@ -539,16 +539,16 @@ SessionStore.prototype = {
     aBrowser.__SS_data = tabData;
   },
 
-  _getTabData: function(aWindow) {
-    return aWindow.Browser.tabs.map(tab => {
+  _saveTabData: function(aTabList, aWinData) {
+    for (let tab of aTabList) {
       let browser = tab.browser;
       if (browser.__SS_data) {
         let tabData = browser.__SS_data;
         if (browser.__SS_extdata)
           tabData.extData = browser.__SS_extdata;
-        return tabData;
+        aWinData.tabs.push(tabData);
       }
-    });
+    }
   },
 
   _collectWindowData: function ss__collectWindowData(aWindow) {
@@ -557,12 +557,14 @@ SessionStore.prototype = {
       return;
 
     let winData = this._windows[aWindow.__SSID];
+    winData.tabs = [];
 
     let index = aWindow.Elements.browsers.selectedIndex;
     winData.selected = parseInt(index) + 1; // 1-based
 
-    let tabData = this._getTabData(aWindow);
-    winData.tabs = tabData.concat(this._tabsFromOtherGroups);
+    let tabs = aWindow.Browser.tabs;
+    this._saveTabData(tabs, winData);
+    this._saveTabData(this._tabsFromOtherGroups, winData);
   },
 
   _forEachBrowserWindow: function ss_forEachBrowserWindow(aFunc) {
@@ -791,9 +793,8 @@ SessionStore.prototype = {
             this._windows[SSID] = data.windows[i];
           } else {
             SSID = window.__SSID;
-            this._windows[SSID].extData = data.windows[i].extData;
             this._windows[SSID]._closedTabs =
-              this._windows[SSID]._closedTabs.concat(data.windows[i]._closedTabs);
+              this._windows[SSID]._closedTabs.concat(data.windows[windowIndex]._closedTabs);
           }
           this._orderedWindows.push(SSID);
         }

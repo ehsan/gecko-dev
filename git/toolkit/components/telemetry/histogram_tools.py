@@ -172,17 +172,14 @@ is enabled."""
 
     @staticmethod
     def check_expiration(name, definition):
-        expiration = definition.get('expires_in_version')
+        expiration = definition['expires_in_version']
 
         if not expiration:
             return
 
-        if re.match(r'^[1-9][0-9]*$', expiration):
-            expiration = expiration + ".0a1"
-        elif re.match(r'^[1-9][0-9]*\.0$', expiration):
-            expiration = expiration + "a1"
-
-        definition['expires_in_version'] = expiration
+        if not re.match(r'[1-9][0-9]*\..*|never', expiration):
+            raise BaseException, '%s not permitted as an expiration version for %s; the complete version name is required ' \
+                                 '(see https://developer.mozilla.org/en-US/docs/Performance/Adding_a_new_Telemetry_probe)' % (expiration, name)
 
     @staticmethod
     def check_keys(name, definition, allowed_keys):

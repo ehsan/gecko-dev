@@ -33,13 +33,6 @@ function test() {
   // select the inspector
     .then(function () toolbox.selectTool("inspector"))
 
-  // wait until inspector ready
-    .then(function () {
-      let deferred = promise.defer();
-      toolbox.getPanel("inspector").once("inspector-updated", deferred.resolve);
-      return deferred.promise;
-    })
-
   // navigate to URL_2
     .then(function () {
       let deferred = promise.defer();
