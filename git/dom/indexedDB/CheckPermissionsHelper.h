@@ -21,7 +21,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com>
  *   Ben Turner <bent.mozilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -38,79 +37,57 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_indexeddb_idbrequest_h__
-#define mozilla_dom_indexeddb_idbrequest_h__
+#ifndef mozilla_dom_indexeddb_checkpermissionshelper_h__
+#define mozilla_dom_indexeddb_checkpermissionshelper_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+// Only meant to be included in IndexedDB source files, not exported.
+#include "AsyncConnectionHelper.h"
 
-#include "nsIIDBRequest.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIObserver.h"
+#include "nsIRunnable.h"
 
-#include "nsDOMEventTargetHelper.h"
-#include "nsCycleCollectionParticipant.h"
-
-class nsIScriptContext;
-class nsPIDOMWindow;
+class nsIDOMWindow;
+class nsIThread;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBRequest : public nsDOMEventTargetHelper,
-                   public nsIIDBRequest
+class CheckPermissionsHelper : public nsIRunnable,
+                               public nsIInterfaceRequestor,
+                               public nsIObserver
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIIDBREQUEST
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBRequest,
-                                           nsDOMEventTargetHelper)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIRUNNABLE
+  NS_DECL_NSIINTERFACEREQUESTOR
+  NS_DECL_NSIOBSERVER
 
-  static
-  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
-                                      nsIScriptContext* aScriptContext,
-                                      nsPIDOMWindow* aOwner);
-
-  already_AddRefed<nsISupports> Source()
+  CheckPermissionsHelper(AsyncConnectionHelper* aHelper,
+                         nsIThread* aThread,
+                         nsIDOMWindow* aWindow,
+                         const nsACString& aASCIIOrigin)
+  : mHelper(aHelper),
+    mThread(aThread),
+    mWindow(aWindow),
+    mASCIIOrigin(aASCIIOrigin),
+    mHasPrompted(PR_FALSE),
+    mPromptResult(0)
   {
-    nsCOMPtr<nsISupports> source(mSource);
-    return source.forget();
+    NS_ASSERTION(aHelper, "Null pointer!");
+    NS_ASSERTION(aThread, "Null pointer!");
+    NS_ASSERTION(aWindow, "Null pointer!");
+    NS_ASSERTION(!aASCIIOrigin.IsEmpty(), "Empty host!");
   }
 
-  void SetDone()
-  {
-    NS_ASSERTION(mReadyState != nsIIDBRequest::DONE, "Already set!");
-    mReadyState = nsIIDBRequest::DONE;
-  }
-
-  nsIScriptContext* ScriptContext()
-  {
-    NS_ASSERTION(mScriptContext, "This should never be null!");
-    return mScriptContext;
-  }
-
-  nsPIDOMWindow* Owner()
-  {
-    NS_ASSERTION(mOwner, "This should never be null!");
-    return mOwner;
-  }
-
-protected:
-  IDBRequest()
-  : mReadyState(nsIIDBRequest::LOADING)
-  { }
-
-  ~IDBRequest()
-  {
-    if (mListenerManager) {
-      mListenerManager->Disconnect();
-    }
-  }
-
-  nsCOMPtr<nsISupports> mSource;
-
-  nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
-
-  PRUint16 mReadyState;
+private:
+  nsRefPtr<AsyncConnectionHelper> mHelper;
+  nsCOMPtr<nsIThread> mThread;
+  nsCOMPtr<nsIDOMWindow> mWindow;
+  nsCString mASCIIOrigin;
+  PRBool mHasPrompted;
+  PRUint32 mPromptResult;
 };
 
 END_INDEXEDDB_NAMESPACE
 
-#endif // mozilla_dom_indexeddb_idbrequest_h__
+#endif // mozilla_dom_indexeddb_checkpermissionshelper_h__
