@@ -172,6 +172,11 @@ class nsContentUtils
 public:
   static nsresult Init();
 
+  /**
+   * Get a JSContext from the document's scope object.
+   */
+  static JSContext* GetContextFromDocument(nsIDocument *aDocument);
+
   static bool     IsCallerChrome();
   static bool     ThreadsafeIsCallerChrome();
   static bool     IsCallerContentXBL();
@@ -1514,13 +1519,6 @@ public:
   static bool IsSafeToRunScript() {
     return sScriptBlockerCount == 0;
   }
-
-  /**
-   * Call this function if !IsSafeToRunScript() and we fail to run the script
-   * (rather than using AddScriptRunner as we usually do). |aDocument| is
-   * optional as it is only used for showing the URL in the console.
-   */
-  static void WarnScriptWasIgnored(nsIDocument* aDocument);
 
   /**
    * Retrieve information about the viewport as a data structure.

@@ -16,99 +16,80 @@
       // Test the following accOrElmOrID.
       var tests = [{
         accOrElmOrID: "anchor1",
-        expected: [{"string": "link"}, "title"]
+        expected: ["link", "title"]
       }, {
         accOrElmOrID: "anchor2",
-        expected: [{"string": "link"}, "This is a link"]
+        expected: ["link", "This is a link"]
       }, {
         accOrElmOrID: "button1",
-        expected: [{"string": "pushbutton"}, "Press me"]
+        expected: ["button", "Press me"]
       }, {
         accOrElmOrID: "button2",
-        expected: [{"string": "pushbutton"}, "Press me"]
+        expected: ["button", "Press me"]
       }, {
         accOrElmOrID: "textarea1",
-        expected: [{"string": "textarea"}, "This is the text area text.",
-          "Test Text Area"]
+        expected: ["text area", "This is the text area text.", "Test Text Area"]
       }, {
         accOrElmOrID: "textarea2",
-        expected: [{"string": "textarea"}, "This is the text area text."]
+        expected: ["text area", "This is the text area text."]
       }, {
         accOrElmOrID: "heading1",
-        expected: [{"string": "headingLevel", "args": [1]}, "Test heading",
-          "This is the heading."]
+        expected: ["heading level 1", "Test heading", "This is the heading."]
       }, {
         accOrElmOrID: "heading1",
         oldAccOrElmOrID: null,
         expected: [null /* parent doc title */, document.title,
-          {"string": "headingLevel", "args": [1]}, "Test heading",
-          "This is the heading."]
+		   "heading level 1", "Test heading", "This is the heading."]
       }, {
         accOrElmOrID: "heading2",
-        expected: [{"string": "headingLevel", "args": [1]},
-          "This is the heading."]
+        expected: ["heading level 1", "This is the heading."]
       }, {
         accOrElmOrID: "list",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 2},
-          "Test List", {"string": "listStart"}, "Top of the list",
-          {"string": "listEnd"}, "2.", "list two"]
+        expected: ["list 2 items", "Test List", "First item", "Top of the list",
+          "Last item", "2.", "list two"]
       }, {
         accOrElmOrID: "dlist",
-        expected: [{"string": "definitionlist"},
-          {"string": "listItemsCount", "count": 0.5}, "Test Definition List",
+        expected: ["definition list 0.5 items", "Test Definition List",
           "dd one"]
       }, {
         accOrElmOrID: "li_one",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 2},
-          "Test List", {"string": "listStart"}, "Top of the list"]
+        expected: ["list 2 items", "Test List", "First item", "Top of the list"]
       }, {
         accOrElmOrID: "li_two",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 2},
-          "Test List", {"string": "listEnd"}, "2.", "list two"]
+        expected: ["list 2 items", "Test List", "Last item", "2.", "list two"]
       }, {
         accOrElmOrID: "cell",
-        expected: [{"string": "table"},
-          {"string": "tblColumnInfo", "count": 1},
-          {"string": "tblRowInfo", "count": 1}, "Fruits and vegetables",
-          {"string": "columnInfo", "args": [1]},
-          {"string": "rowInfo", "args": [1]}, "List of Fruits",
-          {"string": "list"}, {"string": "listItemsCount", "count": 4},
-          {"string": "listStart"}, {"string": "link"}, "Apples",
-          {"string": "link"}, "Bananas",
-          {"string": "link"}, "Peaches", {"string": "listEnd"},
-          {"string": "link"}, "Plums"]
+        expected: ["table with 1 column and 1 row", "Fruits and vegetables",
+          "Column 1 Row 1", "List of Fruits", "list 4 items", "First item",
+          "link", "Apples", "link", "Bananas", "link", "Peaches", "Last item",
+          "link", "Plums"]
       }, {
         accOrElmOrID: "app.net",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 2},
-          {"string": "listStart"}, {"string": "link"}, "star",
-          {"string": "listEnd"}, {"string": "link"}, "repost"]
+        expected: ["list 2 items", "First item", "link", "star", "Last item",
+          "link", "repost"]
       }, {
         // Test pivot to list from li_one.
         accOrElmOrID: "list",
         oldAccOrElmOrID: "li_one",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 2},
-          "Test List", {"string": "listStart"}, "Top of the list",
-          {"string": "listEnd"}, "2.", "list two"]
+        expected: ["list 2 items", "Test List", "First item", "Top of the list",
+          "Last item", "2.", "list two"]
       }, {
         // Test pivot to li_one from list.
         accOrElmOrID: "li_one",
         oldAccOrElmOrID: "list",
-        expected: [{"string": "listStart"}, "Top of the list"]
+        expected: ["First item", "Top of the list"]
       }, {
         // Test pivot to "apples" link from the table cell.
         accOrElmOrID: "apples",
         oldAccOrElmOrID: "cell",
-        expected: [{"string": "list"}, {"string": "listItemsCount", "count": 4},
-          {"string": "listStart"}, {"string": "link"}, "Apples"]
+        expected: ["list 4 items", "First item", "link", "Apples"]
       }, {
         // Test pivot to the table cell from the "apples" link.
         accOrElmOrID: "cell",
         oldAccOrElmOrID: "apples",
-        expected: ["List of Fruits", {"string": "list"},
-          {"string": "listItemsCount", "count": 4}, {"string": "listStart"},
-          {"string": "link"}, "Apples", {"string": "link"}, "Bananas",
-          {"string": "link"}, "Peaches", {"string": "listEnd"},
-          {"string": "link"}, "Plums"]
+        expected: ["List of Fruits", "list 4 items", "First item", "link",
+          "Apples", "link", "Bananas", "link", "Peaches", "Last item", "link",
+          "Plums"]
       }];
 
       SpecialPowers.setIntPref(PREF_UTTERANCE_ORDER, 0);

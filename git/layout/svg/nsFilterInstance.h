@@ -273,11 +273,6 @@ private:
   gfxRect                 mTargetBBox;
 
   /**
-   * The SVG bbox of the element that is being filtered, in filter space.
-   */
-  nsIntRect               mTargetBBoxInFilterSpace;
-
-  /**
    * The transform from filter space to outer-<svg> device space.
    */
   gfxMatrix               mFilterSpaceToDeviceSpaceTransform;

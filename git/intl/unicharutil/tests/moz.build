@@ -23,7 +23,6 @@ USE_STATIC_LIBS = True
 
 USE_LIBS += [
     'mozalloc',
-    'nspr',
     'unicharutil_external_s',
     'xul',
 ]

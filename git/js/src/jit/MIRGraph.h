@@ -471,7 +471,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         entryResumePoint_ = nullptr;
     }
     MResumePoint *callerResumePoint() {
-        return entryResumePoint() ? entryResumePoint()->caller() : nullptr;
+        return entryResumePoint()->caller();
     }
     void setCallerResumePoint(MResumePoint *caller) {
         entryResumePoint()->setCaller(caller);

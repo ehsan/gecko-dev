@@ -32,21 +32,21 @@ class TestRecursiveMakeTraversal(unittest.TestCase):
         traversal.add('', dirs=['D'])
         traversal.add('A')
         traversal.add('B', dirs=['E', 'F'])
-        traversal.add('C', dirs=['G', 'H'])
-        traversal.add('D', dirs=['I', 'K'])
-        traversal.add('D', dirs=['J', 'L'])
+        traversal.add('C', parallel=['G', 'H'])
+        traversal.add('D', parallel=['I'], dirs=['K'])
+        traversal.add('D', parallel=['J'], dirs=['L'])
         traversal.add('E')
         traversal.add('F')
         traversal.add('G')
         traversal.add('H')
         traversal.add('I', dirs=['M', 'N'])
-        traversal.add('J', dirs=['O', 'P'])
-        traversal.add('K', dirs=['Q', 'R'])
+        traversal.add('J', parallel=['O', 'P'])
+        traversal.add('K', parallel=['Q', 'R'])
         traversal.add('L', dirs=['S'])
         traversal.add('M')
         traversal.add('N', dirs=['T'])
         traversal.add('O')
-        traversal.add('P', dirs=['U'])
+        traversal.add('P', parallel=['U'])
         traversal.add('Q')
         traversal.add('R', dirs=['V'])
         traversal.add('S', dirs=['W'])
@@ -56,14 +56,8 @@ class TestRecursiveMakeTraversal(unittest.TestCase):
         traversal.add('W', dirs=['X'])
         traversal.add('X')
 
-        parallels = set(('G', 'H', 'I', 'J', 'O', 'P', 'Q', 'R', 'U'))
-        def filter(current, subdirs):
-            return (current, [d for d in subdirs.dirs if d in parallels],
-                [d for d in subdirs.dirs if d not in parallels])
-
-        start, deps = traversal.compute_dependencies(filter)
+        start, deps = traversal.compute_dependencies()
         self.assertEqual(start, ('X',))
-        self.maxDiff = None
         self.assertEqual(deps, {
             'A': ('',),
             'B': ('A',),
@@ -91,21 +85,21 @@ class TestRecursiveMakeTraversal(unittest.TestCase):
             'X': ('W',),
         })
 
-        self.assertEqual(list(traversal.traverse('', filter)),
+        self.assertEqual(list(traversal.traverse('')),
                          ['', 'A', 'B', 'E', 'F', 'C', 'G', 'H', 'D', 'I',
                          'M', 'N', 'T', 'J', 'O', 'P', 'U', 'K', 'Q', 'R',
                          'V', 'L', 'S', 'W', 'X'])
 
-        self.assertEqual(list(traversal.traverse('C', filter)),
+        self.assertEqual(list(traversal.traverse('C')),
                          ['C', 'G', 'H'])
 
     def test_traversal_2(self):
         traversal = RecursiveMakeTraversal()
         traversal.add('', dirs=['A', 'B', 'C'])
         traversal.add('A')
-        traversal.add('B', dirs=['D', 'E', 'F'])
-        traversal.add('C', dirs=['G', 'H', 'I'])
-        traversal.add('D')
+        traversal.add('B', static=['D'], dirs=['E', 'F'])
+        traversal.add('C', parallel=['G', 'H'], dirs=['I'])
+        # Don't register D
         traversal.add('E')
         traversal.add('F')
         traversal.add('G')
@@ -122,16 +116,16 @@ class TestRecursiveMakeTraversal(unittest.TestCase):
             'E': ('D',),
             'F': ('E',),
             'G': ('C',),
-            'H': ('G',),
-            'I': ('H',),
+            'H': ('C',),
+            'I': ('G', 'H'),
         })
 
     def test_traversal_filter(self):
         traversal = RecursiveMakeTraversal()
         traversal.add('', dirs=['A', 'B', 'C'])
         traversal.add('A')
-        traversal.add('B', dirs=['D', 'E', 'F'])
-        traversal.add('C', dirs=['G', 'H', 'I'])
+        traversal.add('B', static=['D'], dirs=['E', 'F'])
+        traversal.add('C', parallel=['G', 'H'], dirs=['I'])
         traversal.add('D')
         traversal.add('E')
         traversal.add('F')
@@ -142,19 +136,18 @@ class TestRecursiveMakeTraversal(unittest.TestCase):
         def filter(current, subdirs):
             if current == 'B':
                 current = None
-            return current, [], subdirs.dirs
+            return current, subdirs.parallel, subdirs.dirs
 
         start, deps = traversal.compute_dependencies(filter)
         self.assertEqual(start, ('I',))
         self.assertEqual(deps, {
             'A': ('',),
             'C': ('F',),
-            'D': ('A',),
-            'E': ('D',),
+            'E': ('A',),
             'F': ('E',),
             'G': ('C',),
-            'H': ('G',),
-            'I': ('H',),
+            'H': ('C',),
+            'I': ('G', 'H'),
         })
 
 class TestRecursiveMakeBackend(BackendTester):

@@ -13,9 +13,10 @@
 using namespace mozilla;
 
 WebGLBuffer::WebGLBuffer(WebGLContext *context)
-    : WebGLBindableName()
-    , WebGLContextBoundObject(context)
+    : WebGLContextBoundObject(context)
+    , mHasEverBeenBound(false)
     , mByteLength(0)
+    , mTarget(LOCAL_GL_NONE)
 {
     SetIsDOMBinding();
     mContext->MakeContextCurrent();
@@ -37,7 +38,8 @@ WebGLBuffer::Delete() {
 }
 
 void
-WebGLBuffer::OnTargetChanged() {
+WebGLBuffer::SetTarget(GLenum target) {
+    mTarget = target;
     if (!mCache && mTarget == LOCAL_GL_ELEMENT_ARRAY_BUFFER)
         mCache = new WebGLElementArrayCache;
 }

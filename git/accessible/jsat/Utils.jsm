@@ -2,34 +2,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global Components, XPCOMUtils, Services, PluralForm, Logger, Rect, Utils,
-          States, Relations, Roles, dump, Events, PivotContext, PrefCache */
-/* exported Utils, Logger, PivotContext, PrefCache, SettingCache */
-
 'use strict';
 
-const {classes: Cc, utils: Cu, interfaces: Ci} = Components;
+const Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
-Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Services', // jshint ignore:line
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, 'Services',
   'resource://gre/modules/Services.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Rect', // jshint ignore:line
+XPCOMUtils.defineLazyModuleGetter(this, 'Rect',
   'resource://gre/modules/Geometry.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Roles', // jshint ignore:line
+XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Events', // jshint ignore:line
+XPCOMUtils.defineLazyModuleGetter(this, 'Events',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'Relations', // jshint ignore:line
+XPCOMUtils.defineLazyModuleGetter(this, 'Relations',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'States', // jshint ignore:line
+XPCOMUtils.defineLazyModuleGetter(this, 'States',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'PluralForm', // jshint ignore:line
-  'resource://gre/modules/PluralForm.jsm');
 
-this.EXPORTED_SYMBOLS = ['Utils', 'Logger', 'PivotContext', 'PrefCache',  // jshint ignore:line
-                         'SettingCache'];
+this.EXPORTED_SYMBOLS = ['Utils', 'Logger', 'PivotContext', 'PrefCache', 'SettingCache'];
 
-this.Utils = { // jshint ignore:line
+this.Utils = {
   _buildAppMap: {
     '{3c2e2abc-06d4-11e1-ac3b-374f68613e61}': 'b2g',
     '{ec8030f7-c20a-464f-9b0e-13a3a9e97384}': 'browser',
@@ -38,10 +33,10 @@ this.Utils = { // jshint ignore:line
   },
 
   init: function Utils_init(aWindow) {
-    if (this._win) {
+    if (this._win)
       // XXX: only supports attaching to one window now.
       throw new Error('Only one top-level window could used with AccessFu');
-    }
+
     this._win = Cu.getWeakReference(aWindow);
   },
 
@@ -82,39 +77,34 @@ this.Utils = { // jshint ignore:line
   },
 
   get MozBuildApp() {
-    if (!this._buildApp) {
+    if (!this._buildApp)
       this._buildApp = this._buildAppMap[Services.appinfo.ID];
-    }
     return this._buildApp;
   },
 
   get OS() {
-    if (!this._OS) {
+    if (!this._OS)
       this._OS = Services.appinfo.OS;
-    }
     return this._OS;
   },
 
   get widgetToolkit() {
-    if (!this._widgetToolkit) {
+    if (!this._widgetToolkit)
       this._widgetToolkit = Services.appinfo.widgetToolkit;
-    }
     return this._widgetToolkit;
   },
 
   get ScriptName() {
-    if (!this._ScriptName) {
+    if (!this._ScriptName)
       this._ScriptName =
         (Services.appinfo.processType == 2) ? 'AccessFuContent' : 'AccessFu';
-    }
     return this._ScriptName;
   },
 
   get AndroidSdkVersion() {
     if (!this._AndroidSdkVersion) {
       if (Services.appinfo.OS == 'Android') {
-        this._AndroidSdkVersion = Services.sysinfo.getPropertyAsInt32(
-          'version');
+        this._AndroidSdkVersion = Services.sysinfo.getPropertyAsInt32('version');
       } else {
         // Most useful in desktop debugging.
         this._AndroidSdkVersion = 16;
@@ -148,9 +138,8 @@ this.Utils = { // jshint ignore:line
     if (!this.BrowserApp) {
       return null;
     }
-    if (this.MozBuildApp == 'b2g') {
+    if (this.MozBuildApp == 'b2g')
       return this.BrowserApp.contentBrowser;
-    }
     return this.BrowserApp.selectedBrowser;
   },
 
@@ -166,7 +155,7 @@ this.Utils = { // jshint ignore:line
       for (let i = 0; i < mm.childCount; i++) {
         let childMM = mm.getChildAt(i);
 
-        if ('sendAsyncMessage' in childMM) {
+        if ("sendAsyncMessage" in childMM) {
           messageManagers.push(childMM);
         } else {
           collectLeafMessageManagers(childMM);
@@ -200,49 +189,10 @@ this.Utils = { // jshint ignore:line
     return this.isContentProcess;
   },
 
-  localize: function localize(aOutput) {
-    let outputArray = Array.isArray(aOutput) ? aOutput : [aOutput];
-    let localized =
-      [this.stringBundle.get(details) for (details of outputArray)]; // jshint ignore:line
-    // Clean up the white space.
-    let trimmed;
-    return [trimmed for (word of localized) if (word && // jshint ignore:line
-      (trimmed = word.trim()))]; // jshint ignore:line
-  },
-
   get stringBundle() {
     delete this.stringBundle;
-    let bundle = Services.strings.createBundle(
+    this.stringBundle = Services.strings.createBundle(
       'chrome://global/locale/AccessFu.properties');
-    this.stringBundle = {
-      get: function stringBundle_get(aDetails = {}) {
-        if (!aDetails || typeof aDetails === 'string') {
-          return aDetails;
-        }
-        let str = '';
-        let string = aDetails.string;
-        if (!string) {
-          return str;
-        }
-        try {
-          let args = aDetails.args;
-          let count = aDetails.count;
-          if (args) {
-            str = bundle.formatStringFromName(string, args, args.length);
-          } else {
-            str = bundle.GetStringFromName(string);
-          }
-          if (count) {
-            str = PluralForm.get(count, str);
-            str = str.replace('#1', count);
-          }
-        } catch (e) {
-          Logger.debug('Failed to get a string from a bundle for', string);
-        } finally {
-          return str;
-        }
-      }
-    };
     return this.stringBundle;
   },
 
@@ -312,7 +262,7 @@ this.Utils = { // jshint ignore:line
       let accText = aAccessible.QueryInterface(Ci.nsIAccessibleText);
       let objX = {}, objY = {}, objW = {}, objH = {};
       accText.getRangeExtents(aStart, aEnd, objX, objY, objW, objH,
-        Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
+                              Ci.nsIAccessibleCoordinateType.COORDTYPE_SCREEN_RELATIVE);
       return new Rect(objX.value, objY.value, objW.value, objH.value);
   },
 
@@ -450,7 +400,7 @@ State.prototype = {
   }
 };
 
-this.Logger = { // jshint ignore:line
+this.Logger = {
   DEBUG: 0,
   INFO: 1,
   WARNING: 2,
@@ -462,9 +412,8 @@ this.Logger = { // jshint ignore:line
   test: false,
 
   log: function log(aLogLevel) {
-    if (aLogLevel < this.logLevel) {
+    if (aLogLevel < this.logLevel)
       return;
-    }
 
     let args = Array.prototype.slice.call(arguments, 1);
     let message = (typeof(args[0]) === 'function' ? args[0]() : args).join(' ');
@@ -518,8 +467,7 @@ this.Logger = { // jshint ignore:line
         }
         stackMessage = stackLines.join('\n');
       } else {
-        stackMessage =
-          '(' + aException.fileName + ':' + aException.lineNumber + ')';
+        stackMessage = '(' + aException.fileName + ':' + aException.lineNumber + ')';
       }
       this.error(aErrorMessage + ':\n ' +
                  aException.message + '\n' +
@@ -567,26 +515,21 @@ this.Logger = { // jshint ignore:line
   },
 
   dumpTree: function dumpTree(aLogLevel, aRootAccessible) {
-    if (aLogLevel < this.logLevel) {
+    if (aLogLevel < this.logLevel)
       return;
-    }
 
     this._dumpTreeInternal(aLogLevel, aRootAccessible, 0);
   },
 
-  _dumpTreeInternal:
-    function _dumpTreeInternal(aLogLevel, aAccessible, aIndent) {
-      let indentStr = '';
-      for (let i = 0; i < aIndent; i++) {
-        indentStr += ' ';
-      }
-      this.log(aLogLevel, indentStr,
-               this.accessibleToString(aAccessible),
-               '(' + this.statesToString(aAccessible) + ')');
-      for (let i = 0; i < aAccessible.childCount; i++) {
-        this._dumpTreeInternal(aLogLevel, aAccessible.getChildAt(i),
-          aIndent + 1);
-      }
+  _dumpTreeInternal: function _dumpTreeInternal(aLogLevel, aAccessible, aIndent) {
+    let indentStr = '';
+    for (var i=0; i < aIndent; i++)
+      indentStr += ' ';
+    this.log(aLogLevel, indentStr,
+             this.accessibleToString(aAccessible),
+             '(' + this.statesToString(aAccessible) + ')');
+    for (var i=0; i < aAccessible.childCount; i++)
+      this._dumpTreeInternal(aLogLevel, aAccessible.getChildAt(i), aIndent + 1);
     }
 };
 
@@ -600,7 +543,7 @@ this.Logger = { // jshint ignore:line
  * label. In this case the |accessible| field would be the embedded control,
  * and the |accessibleForBounds| field would be the label.
  */
-this.PivotContext = function PivotContext(aAccessible, aOldAccessible, // jshint ignore:line
+this.PivotContext = function PivotContext(aAccessible, aOldAccessible,
   aStartOffset, aEndOffset, aIgnoreAncestry = false,
   aIncludeInvisible = false) {
   this._accessible = aAccessible;
@@ -611,7 +554,7 @@ this.PivotContext = function PivotContext(aAccessible, aOldAccessible, // jshint
   this.endOffset = aEndOffset;
   this._ignoreAncestry = aIgnoreAncestry;
   this._includeInvisible = aIncludeInvisible;
-};
+}
 
 PivotContext.prototype = {
   get accessible() {
@@ -641,10 +584,8 @@ PivotContext.prototype = {
       let result = {startOffset: this.startOffset,
                     endOffset: this.endOffset,
                     text: this._accessible.QueryInterface(Ci.nsIAccessibleText).
-                          getText(0,
-                            Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT)};
-      let hypertextAcc = this._accessible.QueryInterface(
-        Ci.nsIAccessibleHyperText);
+                          getText(0, Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT)};
+      let hypertextAcc = this._accessible.QueryInterface(Ci.nsIAccessibleHyperText);
 
       // Iterate through the links in backwards order so text replacements don't
       // affect the offsets of links yet to be processed.
@@ -653,8 +594,7 @@ PivotContext.prototype = {
         let linkText = '';
         if (link instanceof Ci.nsIAccessibleText) {
           linkText = link.QueryInterface(Ci.nsIAccessibleText).
-                          getText(0,
-                            Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT);
+                          getText(0, Ci.nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT);
         }
 
         let start = link.startIndex;
@@ -726,9 +666,9 @@ PivotContext.prototype = {
    */
   get newAncestry() {
     if (!this._newAncestry) {
-      this._newAncestry = this._ignoreAncestry ? [] : [currentAncestor for ( // jshint ignore:line
-        [index, currentAncestor] of Iterator(this.currentAncestry)) if ( // jshint ignore:line
-          currentAncestor !== this.oldAncestry[index])]; // jshint ignore:line
+      this._newAncestry = this._ignoreAncestry ? [] : [currentAncestor for (
+        [index, currentAncestor] of Iterator(this.currentAncestry)) if (
+          currentAncestor !== this.oldAncestry[index])];
     }
     return this._newAncestry;
   },
@@ -739,7 +679,7 @@ PivotContext.prototype = {
    * Note: needSubtree is a function argument that can be used to determine
    * whether aAccessible's subtree is required.
    */
-  _traverse: function* _traverse(aAccessible, aPreorder, aStop) {
+  _traverse: function _traverse(aAccessible, aPreorder, aStop) {
     if (aStop && aStop(aAccessible)) {
       return;
     }
@@ -754,9 +694,9 @@ PivotContext.prototype = {
       if (include) {
         if (aPreorder) {
           yield child;
-          [yield node for (node of this._traverse(child, aPreorder, aStop))]; // jshint ignore:line
+          [yield node for (node of this._traverse(child, aPreorder, aStop))];
         } else {
-          [yield node for (node of this._traverse(child, aPreorder, aStop))]; // jshint ignore:line
+          [yield node for (node of this._traverse(child, aPreorder, aStop))];
           yield child;
         }
       }
@@ -803,7 +743,7 @@ PivotContext.prototype = {
         return null;
       }
     };
-    let getHeaders = function* getHeaders(aHeaderCells) {
+    let getHeaders = function getHeaders(aHeaderCells) {
       let enumerator = aHeaderCells.enumerate();
       while (enumerator.hasMoreElements()) {
         yield enumerator.getNext().QueryInterface(Ci.nsIAccessible).name;
@@ -854,12 +794,12 @@ PivotContext.prototype = {
     cellInfo.columnHeaders = [];
     if (cellInfo.columnChanged && cellInfo.current.role !==
       Roles.COLUMNHEADER) {
-      cellInfo.columnHeaders = [headers for (headers of getHeaders( // jshint ignore:line
+      cellInfo.columnHeaders = [headers for (headers of getHeaders(
         cellInfo.current.columnHeaderCells))];
     }
     cellInfo.rowHeaders = [];
     if (cellInfo.rowChanged && cellInfo.current.role === Roles.CELL) {
-      cellInfo.rowHeaders = [headers for (headers of getHeaders( // jshint ignore:line
+      cellInfo.rowHeaders = [headers for (headers of getHeaders(
         cellInfo.current.rowHeaderCells))];
     }
 
@@ -884,7 +824,7 @@ PivotContext.prototype = {
   }
 };
 
-this.PrefCache = function PrefCache(aName, aCallback, aRunCallbackNow) { // jshint ignore:line
+this.PrefCache = function PrefCache(aName, aCallback, aRunCallbackNow) {
   this.name = aName;
   this.callback = aCallback;
 
@@ -924,7 +864,7 @@ PrefCache.prototype = {
     }
   },
 
-  observe: function observe(aSubject) {
+  observe: function observe(aSubject, aTopic, aData) {
     this.value = this._getValue(aSubject.QueryInterface(Ci.nsIPrefBranch));
     if (this.callback) {
       try {
@@ -939,7 +879,7 @@ PrefCache.prototype = {
                                           Ci.nsISupportsWeakReference])
 };
 
-this.SettingCache = function SettingCache(aName, aCallback, aOptions = {}) { // jshint ignore:line
+this.SettingCache = function SettingCache(aName, aCallback, aOptions = {}) {
   this.value = aOptions.defaultValue;
   let runCallback = () => {
     if (aCallback) {
@@ -963,8 +903,7 @@ this.SettingCache = function SettingCache(aName, aCallback, aOptions = {}) { // 
   let req = lock.get(aName);
 
   req.addEventListener('success', () => {
-    this.value = req.result[aName] === undefined ?
-      aOptions.defaultValue : req.result[aName];
+    this.value = req.result[aName] == undefined ? aOptions.defaultValue : req.result[aName];
     if (aOptions.callbackNow) {
       runCallback();
     }

@@ -1353,7 +1353,7 @@ static MOZ_ALWAYS_INLINE void
 ExposeValueToActiveJS(const Value &v)
 {
     if (v.isMarkable())
-        js::gc::ExposeGCThingToActiveJS(v.toGCThing(), v.gcKind());
+        ExposeGCThingToActiveJS(v.toGCThing(), v.gcKind());
 }
 
 /************************************************************************/
@@ -1636,9 +1636,6 @@ template <> struct GCMethods<JS::Value>
     static JS::Value initial() { return JS::UndefinedValue(); }
     static bool poisoned(const JS::Value &v) {
         return v.isMarkable() && JS::IsPoisonedPtr(v.toGCThing());
-    }
-    static gc::Cell *asGCThingOrNull(const JS::Value &v) {
-        return v.isMarkable() ? v.toGCThing() : nullptr;
     }
     static bool needsPostBarrier(const JS::Value &v) {
         return v.isObject() && gc::IsInsideNursery(reinterpret_cast<gc::Cell*>(&v.toObject()));

@@ -963,15 +963,6 @@ nsTextStore::DidLockGranted()
     mNativeCaretIsCreated = false;
   }
   if (IsReadWriteLocked()) {
-    if (IsPendingCompositionUpdateIncomplete()) {
-      // FreeCJ (TIP for Traditional Chinese) calls SetSelection() to set caret
-      // to the start of composition string and insert a full width space for
-      // a placeholder with a call of SetText().  After that, it calls
-      // OnUpdateComposition() without new range.  Therefore, let's record the
-      // composition update information here.
-      RecordCompositionUpdateAction();
-    }
-
     FlushPendingActions();
   }
 
@@ -1630,7 +1621,7 @@ nsTextStore::RecordCompositionUpdateAction()
     return E_FAIL;
   }
 
-  PendingAction* action = LastOrNewPendingCompositionUpdate();
+  PendingAction* action = GetPendingCompositionUpdate();
   action->mData = mComposition.mString;
   // The ranges might already have been initialized, however, if this is
   // called again, that means we need to overwrite the ranges with current
@@ -1722,8 +1713,6 @@ nsTextStore::RecordCompositionUpdateAction()
   caretRange.mStartOffset = caretRange.mEndOffset = uint32_t(caretPosition);
   caretRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
   action->mRanges->AppendElement(caretRange);
-
-  action->mIncomplete = false;
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: 0x%p   nsTextStore::RecordCompositionUpdateAction() "
@@ -2936,8 +2925,6 @@ nsTextStore::OnUpdateComposition(ITfCompositionView* pComposition,
 
   // pRangeNew is null when the update is not complete
   if (!pRangeNew) {
-    PendingAction* action = LastOrNewPendingCompositionUpdate();
-    action->mIncomplete = true;
     PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
            ("TSF: 0x%p   nsTextStore::OnUpdateComposition() succeeded but "
             "not complete", this));

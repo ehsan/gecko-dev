@@ -304,15 +304,12 @@ public:
   /* Hit testing - check if point hits the clipPath of indicated
    * frame.  Returns true if no clipPath set. */
   static bool
-  HitTestClip(nsIFrame *aFrame, const gfxPoint &aPoint);
+  HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint);
   
-  /**
-   * Hit testing - check if point hits any children of aFrame.  aPoint is
-   * expected to be in the coordinate space established by aFrame for its
-   * children (e.g. the space established by the 'viewBox' attribute on <svg>).
-   */
+  /* Hit testing - check if point hits any children of frame. */
+
   static nsIFrame *
-  HitTestChildren(nsSVGDisplayContainerFrame *aFrame, const gfxPoint &aPoint);
+  HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint);
 
   /*
    * Returns the CanvasTM of the indicated frame, whether it's a

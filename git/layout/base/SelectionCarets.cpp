@@ -609,25 +609,11 @@ SelectionCarets::DragSelection(const nsPoint &movePoint)
   // Find out which content we point to
   nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(canvasFrame, movePoint,
     nsLayoutUtils::IGNORE_PAINT_SUPPRESSION | nsLayoutUtils::IGNORE_CROSS_DOC);
-  if (!ptFrame) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
-  nsIFrame* caretFocusFrame = GetCaretFocusFrame();
-  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
-
-  nsresult result;
-  nsIFrame *newFrame = nullptr;
-  nsPoint newPoint;
+  NS_ENSURE_TRUE(ptFrame, nsEventStatus_eConsumeNoDefault);
   nsPoint ptInFrame = movePoint;
   nsLayoutUtils::TransformPoint(canvasFrame, ptFrame, ptInFrame);
-  result = fs->ConstrainFrameAndPointToAnchorSubtree(ptFrame, ptInFrame, &newFrame, newPoint);
-  if (NS_FAILED(result) || !newFrame) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
   nsFrame::ContentOffsets offsets =
-    newFrame->GetContentOffsetsFromPoint(newPoint);
+    ptFrame->GetContentOffsetsFromPoint(ptInFrame);
   NS_ENSURE_TRUE(offsets.content, nsEventStatus_eConsumeNoDefault);
 
   nsISelection* caretSelection = GetSelection();
@@ -637,6 +623,8 @@ SelectionCarets::DragSelection(const nsPoint &movePoint)
   }
 
   nsRefPtr<nsRange> range = selection->GetRangeAt(0);
+  nsIFrame* caretFocusFrame = GetCaretFocusFrame();
+  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
   if (!CompareRangeWithContentOffset(range, fs, offsets, mDragMode)) {
     return nsEventStatus_eConsumeNoDefault;
   }

@@ -48,7 +48,11 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gtk2':
         'mochitest/pointerlock/mochitest.ini',
     ]
 
-if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
+if CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
+    MOCHITEST_MANIFESTS += [
+        'mochitest/crypto/mochitest-no-legacy.ini',
+    ]
+else:
     MOCHITEST_MANIFESTS += [
         'mochitest/crypto/mochitest-legacy.ini',
     ]

@@ -149,7 +149,7 @@ public:
     return nullptr;
   }
 
-  virtual bool IsDualDrawTarget() const
+  virtual bool IsDualDrawTarget()
   {
     return true;
   }

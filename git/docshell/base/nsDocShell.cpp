@@ -166,6 +166,7 @@
 #endif
 
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsILoadInfo.h"
@@ -191,7 +192,6 @@
 #include "nsIWebBrowserFind.h"
 #include "nsIWidget.h"
 #include "mozilla/dom/EncodingUtils.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -10772,7 +10772,19 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
         nsCOMPtr<nsIPrincipal> origPrincipal = origDocument->NodePrincipal();
 
         scContainer = new nsStructuredCloneContainer();
-        rv = scContainer->InitFromJSVal(aData);
+        JSContext *cx = aCx;
+        nsCxPusher pusher;
+        if (!cx) {
+            cx = nsContentUtils::GetContextFromDocument(document);
+            pusher.Push(cx);
+        }
+        rv = scContainer->InitFromJSVal(aData, cx);
+
+        // If we're running in the document's context and the structured clone
+        // failed, clear the context's pending exception.  See bug 637116.
+        if (NS_FAILED(rv) && !aCx) {
+            JS_ClearPendingException(aCx);
+        }
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIDocument> newDocument = GetDocument();
@@ -12590,8 +12602,8 @@ public:
   NS_IMETHOD Run() {
     nsAutoPopupStatePusher popupStatePusher(mPopupState);
 
-    AutoJSAPI jsapi;
-    if (mIsTrusted || jsapi.Init(mContent->OwnerDoc()->GetScopeObject())) {
+    nsCxPusher pusher;
+    if (mIsTrusted || pusher.Push(mContent)) {
       mHandler->OnLinkClickSync(mContent, mURI,
                                 mTargetSpec.get(), mFileName,
                                 mPostDataStream, mHeadersDataStream,

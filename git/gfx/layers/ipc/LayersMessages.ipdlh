@@ -276,14 +276,8 @@ union TileLock {
   uintptr_t;
 };
 
-union MaybeTexture {
-  PTexture;
-  null_t;
-};
-
 struct TexturedTileDescriptor {
   PTexture texture;
-  MaybeTexture textureOnWhite;
   TileLock sharedLock;
 };
 

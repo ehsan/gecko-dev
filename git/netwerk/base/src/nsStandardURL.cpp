@@ -1569,13 +1569,8 @@ nsStandardURL::SetHost(const nsACString &input)
             buf.AppendInt(mPort);
             port_length = buf.Length();
         }
-        if (mAuthority.mLen > 0) {
-            mHost.mPos = mAuthority.mPos + mAuthority.mLen - port_length;
-            mHost.mLen = 0;
-        } else if (mScheme.mLen > 0) {
-            mHost.mPos = mScheme.mPos + mScheme.mLen + 3;
-            mHost.mLen = 0;
-        }
+        mHost.mPos = mAuthority.mPos + mAuthority.mLen - port_length;
+        mHost.mLen = 0;
     }
 
     int32_t shift = ReplaceSegment(mHost.mPos, mHost.mLen, host, len);
@@ -1665,6 +1660,7 @@ nsStandardURL::SetPath(const nsACString &input)
     ENSURE_MUTABLE();
 
     const nsPromiseFlatCString &path = PromiseFlatCString(input);
+
     LOG(("nsStandardURL::SetPath [path=%s]\n", path.get()));
 
     InvalidateCache();

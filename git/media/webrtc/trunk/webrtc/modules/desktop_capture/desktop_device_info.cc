@@ -4,7 +4,6 @@
 
 #include "webrtc/modules/desktop_capture/desktop_device_info.h"
 #include "webrtc/modules/desktop_capture/window_capturer.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 
 #include <cstddef>
 #include <cstdlib>
@@ -147,11 +146,11 @@ DesktopDeviceInfoImpl::~DesktopDeviceInfoImpl() {
   }
   desktop_display_list_.clear();
 
-  std::map<intptr_t, DesktopDisplayDevice *>::iterator iterWindow;
-  for (iterWindow = desktop_window_list_.begin(); iterWindow != desktop_window_list_.end(); iterWindow++) {
-    DesktopDisplayDevice * pWindow = iterWindow->second;
+  std::map<intptr_t, DesktopDisplayDevice *>::iterator itrWindow;
+  for (itrWindow = desktop_window_list_.begin(); itrWindow != desktop_window_list_.end(); itrWindow++) {
+    DesktopDisplayDevice *pWindow = itrWindow->second;
     delete pWindow;
-    iterWindow->second = NULL;
+    itrWindow->second = NULL;
   }
   desktop_window_list_.clear();
 
@@ -195,7 +194,7 @@ int32_t DesktopDeviceInfoImpl::getWindowInfo(int32_t nIndex,
 
   std::map<intptr_t, DesktopDisplayDevice *>::iterator itr = desktop_window_list_.begin();
   std::advance(itr, nIndex);
-  DesktopDisplayDevice * pWindow = itr->second;
+  DesktopDisplayDevice *pWindow = itr->second;
   if (!pWindow) {
     return -1;
   }
@@ -225,7 +224,7 @@ int32_t DesktopDeviceInfoImpl::getApplicationInfo(int32_t nIndex,
 }
 
 int32_t DesktopDeviceInfoImpl::initializeWindowList() {
-  scoped_ptr<WindowCapturer> pWinCap(WindowCapturer::Create());
+  WindowCapturer *pWinCap = WindowCapturer::Create();
   WindowCapturer::WindowList list;
   if (pWinCap && pWinCap->GetWindowList(&list)) {
     WindowCapturer::WindowList::iterator itr;
@@ -248,19 +247,6 @@ int32_t DesktopDeviceInfoImpl::initializeWindowList() {
       desktop_window_list_[pWinDevice->getScreenId()] = pWinDevice;
     }
   }
-
-  return 0;
-}
-
-int32_t DesktopDeviceInfoImpl::RefreshWindowList() {
-  std::map<intptr_t, DesktopDisplayDevice *>::iterator iterWindow;
-  for (iterWindow = desktop_window_list_.begin(); iterWindow != desktop_window_list_.end(); iterWindow++) {
-    DesktopDisplayDevice * pWindow = iterWindow->second;
-    delete pWindow;
-    iterWindow->second = NULL;
-  }
-  desktop_window_list_.clear();
-  initializeWindowList();
 
   return 0;
 }

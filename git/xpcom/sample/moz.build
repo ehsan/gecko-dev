@@ -42,7 +42,6 @@ RESOURCE_FILES.samples += [
 
 USE_LIBS += [
     'mozalloc',
-    'nspr',
     'xpcomglue_s',
     'xul',
 ]

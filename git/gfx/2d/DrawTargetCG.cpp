@@ -653,9 +653,7 @@ DrawGradient(CGColorSpaceRef aColorSpace,
   if (aPattern.GetType() == PatternType::LINEAR_GRADIENT) {
     const LinearGradientPattern& pat = static_cast<const LinearGradientPattern&>(aPattern);
     GradientStopsCG *stops = static_cast<GradientStopsCG*>(pat.mStops.get());
-    CGAffineTransform patternMatrix = GfxMatrixToCGAffineTransform(pat.mMatrix);
-    CGContextConcatCTM(cg, patternMatrix);
-    CGRect extents = CGRectApplyAffineTransform(aExtents, CGAffineTransformInvert(patternMatrix));
+    CGContextConcatCTM(cg, GfxMatrixToCGAffineTransform(pat.mMatrix));
     if (stops->mExtend == ExtendMode::CLAMP) {
 
       // XXX: we should take the m out of the properties of LinearGradientPatterns
@@ -669,13 +667,11 @@ DrawGradient(CGColorSpaceRef aColorSpace,
       CGContextDrawLinearGradient(cg, stops->mGradient, startPoint, endPoint,
                                   kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     } else if (stops->mExtend == ExtendMode::REPEAT || stops->mExtend == ExtendMode::REFLECT) {
-      DrawLinearRepeatingGradient(aColorSpace, cg, pat, extents, stops->mExtend == ExtendMode::REFLECT);
+      DrawLinearRepeatingGradient(aColorSpace, cg, pat, aExtents, stops->mExtend == ExtendMode::REFLECT);
     }
   } else if (aPattern.GetType() == PatternType::RADIAL_GRADIENT) {
     const RadialGradientPattern& pat = static_cast<const RadialGradientPattern&>(aPattern);
-    CGAffineTransform patternMatrix = GfxMatrixToCGAffineTransform(pat.mMatrix);
-    CGContextConcatCTM(cg, patternMatrix);
-    CGRect extents = CGRectApplyAffineTransform(aExtents, CGAffineTransformInvert(patternMatrix));
+    CGContextConcatCTM(cg, GfxMatrixToCGAffineTransform(pat.mMatrix));
     GradientStopsCG *stops = static_cast<GradientStopsCG*>(pat.mStops.get());
     if (stops->mExtend == ExtendMode::CLAMP) {
 
@@ -689,7 +685,7 @@ DrawGradient(CGColorSpaceRef aColorSpace,
       CGContextDrawRadialGradient(cg, stops->mGradient, startCenter, startRadius, endCenter, endRadius,
                                   kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     } else if (stops->mExtend == ExtendMode::REPEAT || stops->mExtend == ExtendMode::REFLECT) {
-      DrawRadialRepeatingGradient(aColorSpace, cg, pat, extents, stops->mExtend == ExtendMode::REFLECT);
+      DrawRadialRepeatingGradient(aColorSpace, cg, pat, aExtents, stops->mExtend == ExtendMode::REFLECT);
     }
   } else {
     assert(0);
@@ -1598,9 +1594,8 @@ DrawTargetCG::MarkChanged()
 CGContextRef
 BorrowedCGContext::BorrowCGContextFromDrawTarget(DrawTarget *aDT)
 {
-  if ((aDT->GetBackendType() == BackendType::COREGRAPHICS ||
-       aDT->GetBackendType() == BackendType::COREGRAPHICS_ACCELERATED) &&
-      !aDT->IsTiledDrawTarget() && !aDT->IsDualDrawTarget()) {
+  if (aDT->GetBackendType() == BackendType::COREGRAPHICS ||
+      aDT->GetBackendType() == BackendType::COREGRAPHICS_ACCELERATED) {
     DrawTargetCG* cgDT = static_cast<DrawTargetCG*>(aDT);
     cgDT->MarkChanged();
 

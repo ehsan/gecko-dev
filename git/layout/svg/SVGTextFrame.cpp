@@ -3113,12 +3113,8 @@ nsDisplaySVGText::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
   SVGTextFrame *frame = static_cast<SVGTextFrame*>(mFrame);
   nsPoint pointRelativeToReferenceFrame = aRect.Center();
   // ToReferenceFrame() includes frame->GetPosition(), our user space position.
-  nsPoint userSpacePtInAppUnits = pointRelativeToReferenceFrame -
-                                    (ToReferenceFrame() - frame->GetPosition());
-
-  gfxPoint userSpacePt =
-    gfxPoint(userSpacePtInAppUnits.x, userSpacePtInAppUnits.y) /
-      frame->PresContext()->AppUnitsPerCSSPixel();
+  nsPoint userSpacePt = pointRelativeToReferenceFrame -
+                          (ToReferenceFrame() - frame->GetPosition());
 
   nsIFrame* target = frame->GetFrameForPoint(userSpacePt);
   if (target) {
@@ -3432,11 +3428,8 @@ SVGTextFrame::FindCloserFrameForSelection(
     userRect.Scale(devPxPerCSSPx);
 
     if (!userRect.IsEmpty()) {
-      gfxMatrix m;
-      if (!NS_SVGDisplayListHitTestingEnabled()) {
-        m = GetCanvasTM(FOR_OUTERSVG_TM);
-      }
-      nsRect rect = nsSVGUtils::ToCanvasBounds(userRect.ToThebesRect(), m,
+      nsRect rect = nsSVGUtils::ToCanvasBounds(userRect.ToThebesRect(),
+                                               GetCanvasTM(FOR_HIT_TESTING),
                                                presContext);
 
       if (nsLayoutUtils::PointIsCloserToRect(aPoint, rect,
@@ -3697,7 +3690,7 @@ SVGTextFrame::PaintSVG(nsRenderingContext* aContext,
 }
 
 nsIFrame*
-SVGTextFrame::GetFrameForPoint(const gfxPoint& aPoint)
+SVGTextFrame::GetFrameForPoint(const nsPoint& aPoint)
 {
   NS_ASSERTION(GetFirstPrincipalChild(), "must have a child frame");
 
@@ -3711,19 +3704,10 @@ SVGTextFrame::GetFrameForPoint(const gfxPoint& aPoint)
     NS_ASSERTION(!NS_SUBTREE_DIRTY(this), "reflow should have happened");
   }
 
-  // Hit-testing any clip-path will typically be a lot quicker than the
-  // hit-testing of our text frames in the loop below, so we do the former up
-  // front to avoid unnecessarily wasting cycles on the latter.
-  if (!nsSVGUtils::HitTestClip(this, aPoint)) {
-    return nullptr;
-  }
-
   nsPresContext* presContext = PresContext();
 
-  // Ideally we'd iterate backwards so that we can just return the first frame
-  // that is under aPoint.  In practice this will rarely matter though since it
-  // is rare for text in/under an SVG <text> element to overlap (i.e. the first
-  // text frame that is hit will likely be the only text frame that is hit).
+  gfxPoint pointInOuterSVGUserUnits =
+    gfxPoint(aPoint.x, aPoint.y) / PresContext()->AppUnitsPerCSSPixel();
 
   TextRenderedRunIterator it(this);
   nsIFrame* hit = nullptr;
@@ -3733,17 +3717,19 @@ SVGTextFrame::GetFrameForPoint(const gfxPoint& aPoint)
       continue;
     }
 
-    gfxMatrix m = run.GetTransformFromRunUserSpaceToUserSpace(presContext);
+    gfxMatrix m = run.GetTransformFromRunUserSpaceToUserSpace(presContext) *
+                    GetCanvasTM(FOR_HIT_TESTING);
     if (!m.Invert()) {
       return nullptr;
     }
 
-    gfxPoint pointInRunUserSpace = m.Transform(aPoint);
+    gfxPoint pointInRunUserSpace = m.Transform(pointInOuterSVGUserUnits);
     gfxRect frameRect =
       run.GetRunUserSpaceRect(presContext, TextRenderedRun::eIncludeFill |
                                            TextRenderedRun::eIncludeStroke).ToThebesRect();
 
-    if (Inside(frameRect, pointInRunUserSpace)) {
+    if (Inside(frameRect, pointInRunUserSpace) &&
+        nsSVGUtils::HitTestClip(this, aPoint)) {
       hit = run.mFrame;
     }
   }
@@ -3895,6 +3881,9 @@ SVGTextFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
       !aTransformRoot) {
     if (aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
+    }
+    if (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled()) {
+      return gfxMatrix();
     }
   }
   if (!mCanvasTM) {

@@ -46,7 +46,6 @@ enum ShaderFeatures {
 
 class KnownUniform {
 public:
-  // this needs to be kept in sync with strings in 'AddUniforms'
   enum KnownUniformName {
     NotAKnownUniform = -1,
 

@@ -12,7 +12,6 @@ public:
   ~DesktopDeviceInfoNull();
 
   virtual int32_t Init();
-  virtual int32_t Refresh();
 };
 
 DesktopDeviceInfo * DesktopDeviceInfoImpl::Create() {
@@ -33,11 +32,6 @@ DesktopDeviceInfoNull::~DesktopDeviceInfoNull() {
 int32_t
 DesktopDeviceInfoNull::Init() {
   initializeWindowList();
-  return 0;
-}
-
-int32_t
-DesktopDeviceInfoNull::Refresh() {
   return 0;
 }
 

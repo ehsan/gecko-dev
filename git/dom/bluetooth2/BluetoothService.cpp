@@ -20,7 +20,6 @@
 #include "BluetoothUtils.h"
 
 #include "jsapi.h"
-#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/unused.h"
@@ -664,15 +663,15 @@ BluetoothService::Get()
   }
 
   // Create new instance, register, return
-  sBluetoothService = BluetoothService::Create();
-  NS_ENSURE_TRUE(sBluetoothService, nullptr);
+  nsRefPtr<BluetoothService> service = BluetoothService::Create();
+  NS_ENSURE_TRUE(service, nullptr);
 
-  if (!sBluetoothService->Init()) {
-    sBluetoothService->Cleanup();
+  if (!service->Init()) {
+    service->Cleanup();
     return nullptr;
   }
 
-  ClearOnShutdown(&sBluetoothService);
+  sBluetoothService = service;
   return sBluetoothService;
 }
 

@@ -55,7 +55,7 @@ public:
   virtual nsresult PaintSVG(nsRenderingContext* aContext,
                             const nsIntRect *aDirtyRect,
                             nsIFrame* aTransformRoot) MOZ_OVERRIDE;
-  nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;
+  nsIFrame* GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
   nsRect GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
   virtual SVGBBox GetBBoxContribution(const Matrix &aToBBoxUserspace,
@@ -128,7 +128,7 @@ nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
 
 
 nsIFrame*
-nsSVGSwitchFrame::GetFrameForPoint(const gfxPoint& aPoint)
+nsSVGSwitchFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
                (mState & NS_FRAME_IS_NONDISPLAY),
@@ -138,20 +138,7 @@ nsSVGSwitchFrame::GetFrameForPoint(const gfxPoint& aPoint)
   nsIFrame *kid = GetActiveChildFrame();
   nsISVGChildFrame* svgFrame = do_QueryFrame(kid);
   if (svgFrame) {
-    // Transform the point from our SVG user space to our child's.
-    gfxPoint point = aPoint;
-    gfxMatrix m =
-      static_cast<const nsSVGElement*>(mContent)->
-        PrependLocalTransformsTo(gfxMatrix(), nsSVGElement::eChildToUserSpace);
-    m = static_cast<const nsSVGElement*>(kid->GetContent())->
-          PrependLocalTransformsTo(m, nsSVGElement::eUserSpaceToParent);
-    if (!m.IsIdentity()) {
-      if (!m.Invert()) {
-        return nullptr;
-      }
-      point = m.Transform(point);
-    }
-    return svgFrame->GetFrameForPoint(point);
+    return svgFrame->GetFrameForPoint(aPoint);
   }
 
   return nullptr;

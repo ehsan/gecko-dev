@@ -565,10 +565,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
-    // Make sure there's an nsAutoScriptBlocker on the stack when dispatching
-    // urgent messages.
-    GetIPCChannel()->BlockScripts();
-
 #ifdef MOZ_X11
     // Send the parent our X socket to act as a proxy reference for our X
     // resources.
@@ -1650,8 +1646,8 @@ ContentChild::RecvActivateA11y()
 #ifdef ACCESSIBILITY
     // Start accessibility in content process if it's running in chrome
     // process.
-	nsCOMPtr<nsIAccessibilityService> accService =
-        services::GetAccessibilityService();
+    nsCOMPtr<nsIAccessibilityService> accService =
+        do_GetService("@mozilla.org/accessibilityService;1");
 #endif
     return true;
 }

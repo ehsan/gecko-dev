@@ -63,14 +63,6 @@ js::ForgetSourceHook(JSRuntime *rt)
     return Move(rt->sourceHook);
 }
 
-#ifdef NIGHTLY_BUILD
-JS_FRIEND_API(void)
-js::SetAssertOnScriptEntryHook(JSRuntime *rt, AssertOnScriptEntryHook hook)
-{
-    rt->assertOnScriptEntryHook_ = hook;
-}
-#endif
-
 JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 {
@@ -950,6 +942,8 @@ JS::IncrementalObjectBarrier(JSObject *obj)
 
     JS_ASSERT(!obj->zone()->runtimeFromMainThread()->isHeapMajorCollecting());
 
+    AutoMarkInDeadZone amn(obj->zone());
+
     JSObject::writeBarrierPre(obj);
 }
 
@@ -963,13 +957,13 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
         return;
 
     gc::Cell *cell = static_cast<gc::Cell *>(ptr);
-
-#ifdef DEBUG
     Zone *zone = kind == JSTRACE_OBJECT
                  ? static_cast<JSObject *>(cell)->zone()
                  : cell->tenuredZone();
+
     JS_ASSERT(!zone->runtimeFromMainThread()->isHeapMajorCollecting());
-#endif
+
+    AutoMarkInDeadZone amn(zone);
 
     if (kind == JSTRACE_OBJECT)
         JSObject::writeBarrierPre(static_cast<JSObject*>(cell));
