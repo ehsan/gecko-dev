@@ -89,14 +89,10 @@ public:
     NS_IMETHODIMP Run()
     {
       MOZ_ASSERT(NS_IsMainThread());
-      mRecorder->mReadThread->Shutdown();
-      mRecorder->mReadThread = nullptr;
-
-      // Setting mState to Inactive here is for the case where SourceStream
-      // ends itself, thus the recorder should stop itself too.
       mRecorder->mState = RecordingState::Inactive;
       mRecorder->DispatchSimpleEvent(NS_LITERAL_STRING("stop"));
-
+      mRecorder->mReadThread->Shutdown();
+      mRecorder->mReadThread = nullptr;
       return NS_OK;
     }
 
@@ -158,7 +154,7 @@ MediaRecorder::ExtractEncodedData()
       NS_DispatchToMainThread(new PushBlobTask(this));
       lastBlobTimeStamp = TimeStamp::Now();
     }
-  } while (!mEncoder->IsShutdown());
+  } while (mState == RecordingState::Recording && !mEncoder->IsShutdown());
 
   NS_DispatchToMainThread(new PushBlobTask(this));
 }
@@ -233,12 +229,7 @@ MediaRecorder::Stop(ErrorResult& aResult)
     return;
   }
   mState = RecordingState::Inactive;
-
-  mStreamPort->Destroy();
-  mStreamPort = nullptr;
-
-  mTrackUnionStream->Destroy();
-  mTrackUnionStream = nullptr;
+  mTrackUnionStream->RemoveListener(mEncoder);
 }
 
 void
