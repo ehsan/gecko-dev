@@ -294,8 +294,7 @@ nsFormFillController::SetPopupOpen(PRBool aPopupOpen)
       NS_ENSURE_STATE(presShell);
       presShell->ScrollContentIntoView(content,
                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                       NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                       nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                       NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
       // mFocusedPopup can be destroyed after ScrollContentIntoView, see bug 420089
       if (mFocusedPopup)
         mFocusedPopup->OpenAutocompletePopup(this, mFocusedInput);

@@ -1238,6 +1238,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     }
   }    
 
+  if (!chromeWindow)
+    newDefaultJSOptions |= JSOPTION_ROPES;
+
   if (useTraceJIT)
     newDefaultJSOptions |= JSOPTION_JIT;
   else
@@ -2534,7 +2537,7 @@ nsJSContext::CreateNativeGlobalForInner(
           InitClassesWithNewWrappedGlobal(mContext,
                                           aNewInner, NS_GET_IID(nsISupports),
                                           aIsChrome ? systemPrincipal.get() : aPrincipal,
-                                          nsnull, flags,
+                                          EmptyCString(), flags,
                                           getter_AddRefs(jsholder));
   if (NS_FAILED(rv))
     return rv;

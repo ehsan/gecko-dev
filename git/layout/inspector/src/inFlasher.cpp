@@ -196,8 +196,7 @@ inFlasher::ScrollElementIntoView(nsIDOMElement *aElement)
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   presShell->ScrollContentIntoView(content,
                                    NS_PRESSHELL_SCROLL_ANYWHERE /* VPercent */,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE /* HPercent */,
-                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                   NS_PRESSHELL_SCROLL_ANYWHERE /* HPercent */);
 
   return NS_OK;
 }

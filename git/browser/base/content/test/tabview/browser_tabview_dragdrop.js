@@ -95,8 +95,10 @@ function addTest(contentWindow, groupOneId, groupTwoId, originalTab) {
   ok(tabItem, "The tab item exists");
 
   // calculate the offsets
-  let groupTwoRectCenter = groupTwo.getBounds().center();
-  let tabItemRectCenter = tabItem.getBounds().center();
+  let groupTwoRect = groupTwo.getBounds();
+  let groupTwoRectCenter = groupTwoRect.center();
+  let tabItemRect = tabItem.getBounds();
+  let tabItemRectCenter = tabItemRect.center();
   let offsetX =
     Math.round(groupTwoRectCenter.x - tabItemRectCenter.x);
   let offsetY =
@@ -130,23 +132,41 @@ function addTest(contentWindow, groupOneId, groupTwoId, originalTab) {
   simulateDragDrop(tabItem.container, offsetX, offsetY, contentWindow);
 }
 
-function simulateDragDrop(element, offsetX, offsetY, contentWindow) {
-  let rect = element.getBoundingClientRect();
-  let startX = (rect.right - rect.left)/2;
-  let startY = (rect.bottom - rect.top)/2;
-  let incrementX = offsetX / 2;
-  let incrementY = offsetY / 2;
+function simulateDragDrop(tabItem, offsetX, offsetY, contentWindow) {
+  // enter drag mode
+  let dataTransfer;
 
   EventUtils.synthesizeMouse(
-    element, startX, startY, { type: "mousedown" });
-  
-  for (let i = 1; i <= 2; i++) {
-    EventUtils.synthesizeMouse(
-      element, (startX + incrementX * i), (startY + incrementY * i), 
-      { type: "mousemove" });
+    tabItem, 1, 1, { type: "mousedown" }, contentWindow);
+  event = contentWindow.document.createEvent("DragEvents");
+  event.initDragEvent(
+    "dragenter", true, true, contentWindow, 0, 0, 0, 0, 0,
+    false, false, false, false, 1, null, dataTransfer);
+  tabItem.dispatchEvent(event);
+
+  // drag over
+  if (offsetX || offsetY) {
+    let Ci = Components.interfaces;
+    let utils = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
+                              getInterface(Ci.nsIDOMWindowUtils);
+    let rect = tabItem.getBoundingClientRect();
+    for (let i = 1; i <= 5; i++) {
+      let left = rect.left + Math.round(i * offsetX / 5);
+      let top = rect.top + Math.round(i * offsetY / 5);
+      utils.sendMouseEvent("mousemove", left, top, 0, 1, 0);
+    }
+    event = contentWindow.document.createEvent("DragEvents");
+    event.initDragEvent(
+      "dragover", true, true, contentWindow, 0, 0, 0, 0, 0,
+      false, false, false, false, 0, null, dataTransfer);
+    tabItem.dispatchEvent(event);
   }
-
-  EventUtils.synthesizeMouse(
-    element, (startX + incrementX * 2), (startY + incrementY * 2), 
-    { type: "mouseup" });
+  
+  // drop
+  EventUtils.synthesizeMouse(tabItem, 0, 0, { type: "mouseup" }, contentWindow);
+  event = contentWindow.document.createEvent("DragEvents");
+  event.initDragEvent(
+    "drop", true, true, contentWindow, 0, 0, 0, 0, 0,
+    false, false, false, false, 0, null, dataTransfer);
+  tabItem.dispatchEvent(event);
 }

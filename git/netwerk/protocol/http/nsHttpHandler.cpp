@@ -76,7 +76,6 @@
 #include "nsNetUtil.h"
 #include "nsIOService.h"
 #include "nsAsyncRedirectVerifyHelper.h"
-#include "nsSocketTransportService2.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -855,7 +854,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-connections"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-connections"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxConnections = (PRUint16) NS_CLAMP(val, 1, NS_SOCKET_MAX_COUNT);
+            mMaxConnections = (PRUint16) NS_CLAMP(val, 1, 0xffff);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_CONNECTIONS,
                                       mMaxConnections);

@@ -102,11 +102,6 @@ function uninstall_test_addons(aCallback) {
 }
 
 function open_compatibility_window(aInactiveAddonIds, aCallback) {
-  // This will reset the longer timeout multiplier to 2 which will give each
-  // test that calls open_compatibility_window a minimum of 60 seconds to
-  // complete.
-  requestLongerTimeout(2);
-
   var variant = Cc["@mozilla.org/variant;1"].
                 createInstance(Ci.nsIWritableVariant);
   variant.setFromVariant(aInactiveAddonIds);
@@ -124,8 +119,7 @@ function open_compatibility_window(aInactiveAddonIds, aCallback) {
     info("Compatibility dialog opened");
 
     function page_shown(aEvent) {
-      if (aEvent.target.pageid)
-        info("Page " + aEvent.target.pageid + " shown");
+      info("Page " + aEvent.target.id + " shown");
     }
 
     win.addEventListener("pageshow", page_shown, false);

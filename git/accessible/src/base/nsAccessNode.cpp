@@ -382,8 +382,7 @@ nsAccessNode::ScrollTo(PRUint32 aScrollType)
 
   PRInt16 vPercent, hPercent;
   nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
-  return shell->ScrollContentIntoView(content, vPercent, hPercent,
-                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+  return shell->ScrollContentIntoView(content, vPercent, hPercent);
 }
 
 NS_IMETHODIMP

@@ -1015,8 +1015,7 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder,
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
-                   OnItemAdded(*aNewBookmarkId, aFolder, index, TYPE_BOOKMARK,
-                               aURI));
+                   OnItemAdded(*aNewBookmarkId, aFolder, index, TYPE_BOOKMARK));
 
   // If the bookmark has been added to a tag container, notify all
   // bookmark-folder result nodes which contain a bookmark for the new
@@ -1281,8 +1280,7 @@ nsNavBookmarks::CreateContainerWithID(PRInt64 aItemId,
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
-                   OnItemAdded(*aNewFolder, aParent, index, containerType,
-                               nsnull));
+                   OnItemAdded(*aNewFolder, aParent, index, containerType));
 
   *aIndex = index;
   return NS_OK;
@@ -1328,8 +1326,7 @@ nsNavBookmarks::InsertSeparator(PRInt64 aParent,
 
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavBookmarkObserver,
-                   OnItemAdded(*aNewItemId, aParent, index, TYPE_SEPARATOR,
-                               nsnull));
+                   OnItemAdded(*aNewItemId, aParent, index, TYPE_SEPARATOR));
 
   return NS_OK;
 }

@@ -5,7 +5,6 @@
 // Bug 557943 - Searching for addons can result in wrong results
 
 var gManagerWindow;
-var gProvider;
 
 function test() {
   waitForExplicitFinish();

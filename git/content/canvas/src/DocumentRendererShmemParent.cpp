@@ -11,15 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the utilities for tabview.
+ * The Original Code is Fennec Electrolysis.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,17 +34,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function createEmptyGroupItem(contentWindow, width, height, padding, noAnimation) {
-  let pageBounds = contentWindow.Items.getPageBounds();
-  pageBounds.inset(padding, padding);
+#include "mozilla/ipc/DocumentRendererShmemParent.h"
 
-  let box = new contentWindow.Rect(pageBounds);
-  box.width = width;
-  box.height = height;
-  
-  let immediately = noAnimation ? true: false;
-  let emptyGroupItem = 
-    new contentWindow.GroupItem([], { bounds: box, immediately: immediately });
+using namespace mozilla::ipc;
 
-  return emptyGroupItem;
+DocumentRendererShmemParent::DocumentRendererShmemParent()
+{}
+
+DocumentRendererShmemParent::~DocumentRendererShmemParent()
+{}
+
+void
+DocumentRendererShmemParent::SetCanvas(nsICanvasRenderingContextInternal* aCanvas)
+{
+    mCanvas = aCanvas;
+}
+
+bool
+DocumentRendererShmemParent::Recv__delete__(const PRInt32& x, const PRInt32& y,
+                                            const PRInt32& w, const PRInt32& h,
+                                            Shmem& data)
+{
+    mCanvas->Swap(data, x, y, w, h);
+    return true;
 }

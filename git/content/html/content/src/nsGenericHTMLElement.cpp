@@ -808,8 +808,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop, PRUint8 optional_argc)
     NS_PRESSHELL_SCROLL_BOTTOM;
 
   presShell->ScrollContentIntoView(this, vpercent,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE,
-                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                   NS_PRESSHELL_SCROLL_ANYWHERE);
 
   return NS_OK;
 }
