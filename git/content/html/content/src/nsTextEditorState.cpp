@@ -1252,7 +1252,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     // Note that any script that's directly trying to access our value
     // has to be going through some scriptable object to do that and that
     // already does the relevant security checks.
-    AutoNoJSAPI nojsapi;
+    AutoSystemCaller asc;
 
     rv = newEditor->Init(domdoc, GetRootNode(), mSelCon, editorFlags);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1740,8 +1740,8 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
     // XXXbz if we could just get the textContent of our anonymous content (eg
     // if plaintext editor didn't create <br> nodes all over), we wouldn't need
     // this.
-    { /* Scope for AutoNoJSAPI. */
-      AutoNoJSAPI nojsapi;
+    { /* Scope for AutoSystemCaller. */
+      AutoSystemCaller asc;
 
       mEditor->OutputToString(NS_LITERAL_STRING("text/plain"), flags,
                               aValue);
@@ -1820,7 +1820,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
       // for why this is needed.  Note that we have to do this up here, because
       // otherwise SelectAll() will fail.
       {
-        AutoNoJSAPI nojsapi;
+        AutoSystemCaller asc;
 
         nsCOMPtr<nsISelection> domSel;
         nsCOMPtr<nsISelectionPrivate> selPriv;

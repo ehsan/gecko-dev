@@ -57,10 +57,10 @@ public:
     /**
      * Create a rendering context and initialize it.  Only call this
      * method on device contexts that were initialized for printing.
-     *
-     * @return the new rendering context (guaranteed to be non-null)
+     * @param aContext out parameter for new rendering context
+     * @return error status
      */
-    already_AddRefed<nsRenderingContext> CreateRenderingContext();
+    nsresult CreateRenderingContext(nsRenderingContext *&aContext);
 
     /**
      * Gets the number of app units in one CSS pixel; this number is global,

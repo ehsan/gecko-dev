@@ -23,6 +23,7 @@
 #include "jit/CodeGenerator.h"
 #include "jit/EdgeCaseAnalysis.h"
 #include "jit/EffectiveAddressAnalysis.h"
+#include "jit/ExecutionModeInlines.h"
 #include "jit/IonAnalysis.h"
 #include "jit/IonBuilder.h"
 #include "jit/IonOptimizationLevels.h"
@@ -46,8 +47,6 @@
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-
-#include "jit/ExecutionMode-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -2804,11 +2803,7 @@ static void
 FinishInvalidationOf(FreeOp *fop, JSScript *script, IonScript *ionScript)
 {
     types::TypeZone &types = script->zone()->types;
-
-    // Note: If the script is about to be swept, the compiler output may have
-    // already been destroyed.
-    if (types::CompilerOutput *output = ionScript->recompileInfo().compilerOutput(types))
-        output->invalidate();
+    ionScript->recompileInfo().compilerOutput(types)->invalidate();
 
     // If this script has Ion code on the stack, invalidated() will return
     // true. In this case we have to wait until destroying it.

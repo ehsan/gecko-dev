@@ -310,8 +310,6 @@ void
 ShadowLayerForwarder::UseTiledLayerBuffer(CompositableClient* aCompositable,
                                           const SurfaceDescriptorTiles& aTileLayerDescriptor)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
   mTxn->AddNoSwapPaint(OpUseTiledLayerBuffer(nullptr, aCompositable->GetIPDLActor(),
                                              aTileLayerDescriptor));
 }
@@ -352,8 +350,6 @@ void
 ShadowLayerForwarder::UpdatePictureRect(CompositableClient* aCompositable,
                                         const nsIntRect& aRect)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
   mTxn->AddNoSwapPaint(OpUpdatePictureRect(nullptr, aCompositable->GetIPDLActor(), aRect));
 }
 
@@ -362,10 +358,6 @@ ShadowLayerForwarder::UpdatedTexture(CompositableClient* aCompositable,
                                      TextureClient* aTexture,
                                      nsIntRegion* aRegion)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aTexture);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
-  MOZ_ASSERT(aTexture->GetIPDLActor());
   MaybeRegion region = aRegion ? MaybeRegion(*aRegion)
                                : MaybeRegion(null_t());
   if (aTexture->GetFlags() & TEXTURE_IMMEDIATE_UPLOAD) {
@@ -383,10 +375,6 @@ void
 ShadowLayerForwarder::UseTexture(CompositableClient* aCompositable,
                                  TextureClient* aTexture)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aTexture);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
-  MOZ_ASSERT(aTexture->GetIPDLActor());
   mTxn->AddEdit(OpUseTexture(nullptr, aCompositable->GetIPDLActor(),
                              nullptr, aTexture->GetIPDLActor()));
 }
@@ -396,12 +384,6 @@ ShadowLayerForwarder::UseComponentAlphaTextures(CompositableClient* aCompositabl
                                                 TextureClient* aTextureOnBlack,
                                                 TextureClient* aTextureOnWhite)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aTextureOnWhite);
-  MOZ_ASSERT(aTextureOnBlack);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
-  MOZ_ASSERT(aTextureOnBlack->GetIPDLActor());
-  MOZ_ASSERT(aTextureOnWhite->GetIPDLActor());
   MOZ_ASSERT(aTextureOnBlack->GetSize() == aTextureOnWhite->GetSize());
   mTxn->AddEdit(OpUseComponentAlphaTextures(nullptr, aCompositable->GetIPDLActor(),
                                             nullptr, aTextureOnBlack->GetIPDLActor(),
@@ -412,10 +394,6 @@ void
 ShadowLayerForwarder::RemoveTextureFromCompositable(CompositableClient* aCompositable,
                                                     TextureClient* aTexture)
 {
-  MOZ_ASSERT(aCompositable);
-  MOZ_ASSERT(aTexture);
-  MOZ_ASSERT(aCompositable->GetIPDLActor());
-  MOZ_ASSERT(aTexture->GetIPDLActor());
   mTxn->AddEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
                                 nullptr, aTexture->GetIPDLActor()));
   if (aTexture->GetFlags() & TEXTURE_DEALLOCATE_CLIENT) {
@@ -428,7 +406,6 @@ ShadowLayerForwarder::RemoveTextureFromCompositable(CompositableClient* aComposi
 void
 ShadowLayerForwarder::RemoveTexture(TextureClient* aTexture)
 {
-  MOZ_ASSERT(aTexture);
   aTexture->ForceRemove();
 }
 
@@ -641,7 +618,6 @@ ShadowLayerForwarder::CreatedIncrementalBuffer(CompositableClient* aCompositable
                                                const TextureInfo& aTextureInfo,
                                                const nsIntRect& aBufferRect)
 {
-  MOZ_ASSERT(aCompositable);
   mTxn->AddNoSwapPaint(OpCreatedIncrementalTexture(nullptr, aCompositable->GetIPDLActor(),
                                                    aTextureInfo, aBufferRect));
 }

@@ -791,10 +791,8 @@ EventListenerManager::CompileEventHandlerInternal(Listener* aListener,
   nsIScriptContext* context = global->GetScriptContext();
   NS_ENSURE_STATE(context);
 
-  // Activate JSAPI, and make sure that exceptions are reported on the right
-  // Window.
-  AutoJSAPIWithErrorsReportedToWindow jsapi(context);
-  JSContext* cx = jsapi.cx();
+  // Push a context to make sure exceptions are reported in the right place.
+  AutoPushJSContextForErrorReporting cx(context->GetNativeContext());
 
   nsCOMPtr<nsIAtom> typeAtom = aListener->mTypeAtom;
   nsIAtom* attrName = typeAtom;

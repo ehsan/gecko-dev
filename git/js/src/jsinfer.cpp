@@ -37,8 +37,6 @@
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
-#include "jit/ExecutionMode-inl.h"
-
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
@@ -3123,29 +3121,6 @@ TypeObject::clearNewScriptAddendum(ExclusiveContext *cx)
 }
 
 void
-TypeObject::maybeClearNewScriptAddendumOnOOM()
-{
-    if (!isMarked())
-        return;
-
-    if (!addendum || addendum->kind != TypeObjectAddendum::NewScript)
-        return;
-
-    for (unsigned i = 0; i < getPropertyCount(); i++) {
-        Property *prop = getProperty(i);
-        if (!prop)
-            continue;
-        if (prop->types.definiteProperty())
-            prop->types.setNonDataPropertyIgnoringConstraints();
-    }
-
-    // This method is called during GC sweeping, so there is no write barrier
-    // that needs to be triggered.
-    js_free(addendum);
-    addendum.unsafeSet(nullptr);
-}
-
-void
 TypeObject::clearTypedObjectAddendum(ExclusiveContext *cx)
 {
 }
@@ -3968,7 +3943,7 @@ ExclusiveContext::getSingletonType(const Class *clasp, TaggedProto proto)
 /////////////////////////////////////////////////////////////////////
 
 void
-ConstraintTypeSet::sweep(Zone *zone, bool *oom)
+ConstraintTypeSet::sweep(Zone *zone)
 {
     /*
      * Purge references to type objects that are no longer live. Type sets hold
@@ -3989,14 +3964,9 @@ ConstraintTypeSet::sweep(Zone *zone, bool *oom)
                 TypeObjectKey **pentry =
                     HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                         (zone->types.typeLifoAlloc, objectSet, objectCount, object);
-                if (pentry) {
-                    *pentry = object;
-                } else {
-                    *oom = true;
-                    flags |= TYPE_FLAG_ANYOBJECT;
-                    clearObjects();
-                    return;
-                }
+                if (!pentry)
+                    CrashAtUnhandlableOOM("OOM in ConstraintTypeSet::sweep");
+                *pentry = object;
             }
         }
         setBaseObjectCount(objectCount);
@@ -4017,12 +3987,10 @@ ConstraintTypeSet::sweep(Zone *zone, bool *oom)
     while (constraint) {
         TypeConstraint *copy;
         if (constraint->sweep(zone->types, &copy)) {
-            if (copy) {
-                copy->next = constraintList;
-                constraintList = copy;
-            } else {
-                *oom = true;
-            }
+            if (!copy)
+                CrashAtUnhandlableOOM("OOM in ConstraintTypeSet::sweep");
+            copy->next = constraintList;
+            constraintList = copy;
         }
         constraint = constraint->next;
     }
@@ -4043,7 +4011,7 @@ TypeObject::clearProperties()
  * so that type objects do not need later finalization.
  */
 inline void
-TypeObject::sweep(FreeOp *fop, bool *oom)
+TypeObject::sweep(FreeOp *fop)
 {
     if (!isMarked()) {
         if (addendum)
@@ -4051,7 +4019,7 @@ TypeObject::sweep(FreeOp *fop, bool *oom)
         return;
     }
 
-    LifoAlloc &typeLifoAlloc = zone()->types.typeLifoAlloc;
+    js::LifoAlloc &typeLifoAlloc = zone()->types.typeLifoAlloc;
 
     /*
      * Properties were allocated from the old arena, and need to be copied over
@@ -4078,21 +4046,17 @@ TypeObject::sweep(FreeOp *fop, bool *oom)
                 }
 
                 Property *newProp = typeLifoAlloc.new_<Property>(*prop);
-                if (newProp) {
-                    Property **pentry =
-                        HashSetInsert<jsid,Property,Property>
-                            (typeLifoAlloc, propertySet, propertyCount, prop->id);
-                    if (pentry) {
-                        *pentry = newProp;
-                        newProp->types.sweep(zone(), oom);
-                        continue;
-                    }
-                }
+                if (!newProp)
+                    CrashAtUnhandlableOOM("OOM in TypeObject::sweep");
 
-                *oom = true;
-                addFlags(OBJECT_FLAG_DYNAMIC_MASK | OBJECT_FLAG_UNKNOWN_PROPERTIES);
-                clearProperties();
-                return;
+                Property **pentry =
+                    HashSetInsert<jsid,Property,Property>
+                        (typeLifoAlloc, propertySet, propertyCount, prop->id);
+                if (!pentry)
+                    CrashAtUnhandlableOOM("OOM in TypeObject::sweep");
+
+                *pentry = newProp;
+                newProp->types.sweep(zone());
             }
         }
         setBasePropertyCount(propertyCount);
@@ -4103,16 +4067,17 @@ TypeObject::sweep(FreeOp *fop, bool *oom)
             clearProperties();
         } else {
             Property *newProp = typeLifoAlloc.new_<Property>(*prop);
-            if (newProp) {
-                propertySet = (Property **) newProp;
-                newProp->types.sweep(zone(), oom);
-            } else {
-                *oom = true;
-                addFlags(OBJECT_FLAG_DYNAMIC_MASK | OBJECT_FLAG_UNKNOWN_PROPERTIES);
-                clearProperties();
-                return;
-            }
+            if (!newProp)
+                CrashAtUnhandlableOOM("OOM in TypeObject::sweep");
+
+            propertySet = (Property **) newProp;
+            newProp->types.sweep(zone());
         }
+    }
+
+    if (basePropertyCount() <= SET_ARRAY_SIZE) {
+        for (unsigned i = 0; i < basePropertyCount(); i++)
+            JS_ASSERT(propertySet[i]);
     }
 }
 
@@ -4231,7 +4196,7 @@ TypeCompartment::~TypeCompartment()
 }
 
 /* static */ void
-TypeScript::Sweep(FreeOp *fop, JSScript *script, bool *oom)
+TypeScript::Sweep(FreeOp *fop, JSScript *script)
 {
     JSCompartment *compartment = script->compartment();
     JS_ASSERT(compartment->zone()->isGCSweeping());
@@ -4241,7 +4206,7 @@ TypeScript::Sweep(FreeOp *fop, JSScript *script, bool *oom)
 
     /* Remove constraints and references to dead objects from the persistent type sets. */
     for (unsigned i = 0; i < num; i++)
-        typeArray[i].sweep(compartment->zone(), oom);
+        typeArray[i].sweep(compartment->zone());
 }
 
 void
@@ -4313,7 +4278,7 @@ TypeZone::~TypeZone()
 }
 
 void
-TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
+TypeZone::sweep(FreeOp *fop, bool releaseTypes)
 {
     JS_ASSERT(zone()->isGCSweeping());
 
@@ -4333,12 +4298,10 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
             CompilerOutput &output = (*compilerOutputs)[i];
             if (output.isValid()) {
                 JSScript *script = output.script();
-                if (IsScriptAboutToBeFinalized(&script)) {
-                    jit::GetIonScript(script, output.mode())->recompileInfoRef() = uint32_t(-1);
+                if (IsScriptAboutToBeFinalized(&script))
                     output.invalidate();
-                } else {
+                else
                     output.setSweepIndex(newCompilerOutputCount++);
-                }
             }
         }
     }
@@ -4349,7 +4312,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
         for (CellIterUnderGC i(zone(), FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
             if (script->types) {
-                types::TypeScript::Sweep(fop, script, oom);
+                types::TypeScript::Sweep(fop, script);
 
                 if (releaseTypes) {
                     if (script->hasParallelIonScript()) {
@@ -4388,7 +4351,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
              !iter.done(); iter.next())
         {
             TypeObject *object = iter.get<TypeObject>();
-            object->sweep(fop, oom);
+            object->sweep(fop);
         }
 
         for (CompartmentsInZoneIter comp(zone()); !comp.done(); comp.next())
@@ -4420,17 +4383,6 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
     {
         gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
         rt->freeLifoAlloc.transferFrom(&oldAlloc);
-    }
-}
-
-void
-TypeZone::clearAllNewScriptAddendumsOnOOM()
-{
-    for (gc::CellIterUnderGC iter(zone(), gc::FINALIZE_TYPE_OBJECT);
-         !iter.done(); iter.next())
-    {
-        TypeObject *object = iter.get<TypeObject>();
-        object->maybeClearNewScriptAddendumOnOOM();
     }
 }
 

@@ -176,7 +176,6 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     }
 
     if (!mFrontBuffer->Lock(OPEN_WRITE_ONLY)) {
-      mFrontBuffer = nullptr;
       return false;
     }
     bool status = mFrontBuffer->AsTextureClientYCbCr()->UpdateYCbCr(*data);
@@ -244,7 +243,6 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     }
 
     if (!mFrontBuffer->Lock(OPEN_WRITE_ONLY)) {
-      mFrontBuffer = nullptr;
       return false;
     }
 
