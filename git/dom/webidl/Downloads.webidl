@@ -46,10 +46,10 @@ interface DOMDownloadManager : EventTarget {
  Func="Navigator::HasDownloadsSupport"]
 interface DOMDownload : EventTarget {
   // The full size of the resource.
-  readonly attribute long long totalBytes;
+  readonly attribute long totalBytes;
 
   // The number of bytes that we have currently downloaded.
-  readonly attribute long long currentBytes;
+  readonly attribute long currentBytes;
 
   // The url of the resource.
   readonly attribute DOMString url;

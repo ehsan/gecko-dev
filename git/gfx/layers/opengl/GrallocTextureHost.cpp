@@ -115,9 +115,6 @@ void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
    * texture using fEGLImageTargetTexture2D.
    */
   MOZ_ASSERT(gl());
-  if (!IsValid()) {
-    return;
-  }
   gl()->MakeCurrent();
 
   GLuint tex = GetGLTexture();
@@ -158,9 +155,6 @@ GLenum
 GrallocTextureSourceOGL::GetTextureTarget() const
 {
   MOZ_ASSERT(mGraphicBuffer.get());
-  if (!mGraphicBuffer.get()) {
-    return LOCAL_GL_TEXTURE_EXTERNAL;
-  }
   return TextureTargetForAndroidPixelFormat(mGraphicBuffer->getPixelFormat());
 }
 
@@ -178,7 +172,7 @@ GrallocTextureSourceOGL::GetFormat() const {
 void
 GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
 {
-  if (!aBackendData || !mGraphicBuffer.get()) {
+  if (!aBackendData) {
     mCompositableBackendData = nullptr;
     DeallocateDeviceData();
     return;
@@ -245,23 +239,17 @@ GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
                                              const NewSurfaceDescriptorGralloc& aDescriptor)
   : TextureHost(aFlags)
 {
-  android::GraphicBuffer* graphicBuffer = nullptr;
-  gfx::SurfaceFormat format = gfx::SurfaceFormat::UNKNOWN;
-
-  mSize = aDescriptor.size();
   mGrallocActor =
     static_cast<GrallocBufferActor*>(aDescriptor.bufferParent());
 
-  if (mGrallocActor) {
-    mGrallocActor->AddTextureHost(this);
-    graphicBuffer = mGrallocActor->GetGraphicBuffer();
-  }
+  mGrallocActor->AddTextureHost(this);
 
-  if (graphicBuffer) {
-    format =
-      SurfaceFormatForAndroidPixelFormat(graphicBuffer->getPixelFormat(),
-                                         aFlags & TEXTURE_RB_SWAPPED);
-  }
+  android::GraphicBuffer* graphicBuffer = mGrallocActor->GetGraphicBuffer();
+
+  mSize = aDescriptor.size();
+  gfx::SurfaceFormat format =
+    SurfaceFormatForAndroidPixelFormat(graphicBuffer->getPixelFormat(),
+                                     aFlags & TEXTURE_RB_SWAPPED);
   mTextureSource = new GrallocTextureSourceOGL(nullptr,
                                                graphicBuffer,
                                                format);
@@ -360,9 +348,6 @@ GrallocTextureHostOGL::GetAsSurface() {
 TemporaryRef<gfx::DataSourceSurface>
 GrallocTextureSourceOGL::GetAsSurface() {
   MOZ_ASSERT(gl());
-  if (!IsValid()) {
-    return nullptr;
-  }
   gl()->MakeCurrent();
 
   GLuint tex = GetGLTexture();

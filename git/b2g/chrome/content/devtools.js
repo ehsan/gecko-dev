@@ -4,36 +4,29 @@
 
 'use strict';
 
-const DEVELOPER_HUD_LOG_PREFIX = 'DeveloperHUD';
-
-XPCOMUtils.defineLazyGetter(this, 'devtools', function() {
-  const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-  return devtools;
-});
+const WIDGET_PANEL_LOG_PREFIX = 'WidgetPanel';
 
 XPCOMUtils.defineLazyGetter(this, 'DebuggerClient', function() {
   return Cu.import('resource://gre/modules/devtools/dbg-client.jsm', {}).DebuggerClient;
 });
 
 XPCOMUtils.defineLazyGetter(this, 'WebConsoleUtils', function() {
+  let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
   return devtools.require("devtools/toolkit/webconsole/utils").Utils;
 });
 
 XPCOMUtils.defineLazyGetter(this, 'EventLoopLagFront', function() {
+  const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
   return devtools.require("devtools/server/actors/eventlooplag").EventLoopLagFront;
-});
-
-XPCOMUtils.defineLazyGetter(this, 'MemoryFront', function() {
-  return devtools.require("devtools/server/actors/memory").MemoryFront;
 });
 
 
 /**
- * The Developer HUD is an on-device developer tool that displays widgets,
+ * The Widget Panel is an on-device developer tool that displays widgets,
  * showing visual debug information about apps. Each widget corresponds to a
  * metric as tracked by a metric watcher (e.g. consoleWatcher).
  */
-let developerHUD = {
+let devtoolsWidgetPanel = {
 
   _apps: new Map(),
   _urls: new Map(),
@@ -114,7 +107,7 @@ let developerHUD = {
     if (this._apps.has(manifestURL))
       return;
 
-    // FIXME(Bug 962577) Factor getAppActor out of webappsActor.
+    // FIXME(Bug 962577) Factor getAppActor and watchApps out of webappsActor.
     this._client.request({
       to: this._webappsActor,
       type: 'getAppActor',
@@ -186,7 +179,7 @@ let developerHUD = {
   },
 
   log: function dwp_log(message) {
-    dump(DEVELOPER_HUD_LOG_PREFIX + ': ' + message + '\n');
+    dump(WIDGET_PANEL_LOG_PREFIX + ': ' + message + '\n');
   }
 
 };
@@ -215,7 +208,7 @@ App.prototype = {
       }
     }
 
-    shell.sendCustomEvent('developer-hud-update', data);
+    shell.sendCustomEvent('widget-panel-update', data);
     // FIXME(after bug 963239 lands) return event.isDefaultPrevented();
     return false;
   }
@@ -245,9 +238,9 @@ let consoleWatcher = {
 
     for (let key in watching) {
       let metric = key;
-      SettingsListener.observe('hud.' + metric, false, watch => {
+      SettingsListener.observe('devtools.hud.' + metric, false, value => {
         // Watch or unwatch the metric.
-        if (watching[metric] = watch) {
+        if (watching[metric] = value) {
           return;
         }
 
@@ -363,7 +356,7 @@ let consoleWatcher = {
 
     if (!app.display()) {
       // If the information was not displayed, log it.
-      developerHUD.log(output);
+      devtoolsWidgetPanel.log(output);
     }
   },
 
@@ -379,10 +372,11 @@ let consoleWatcher = {
     return source;
   }
 };
-developerHUD.registerWatcher(consoleWatcher);
+
+devtoolsWidgetPanel.registerWatcher(consoleWatcher);
 
 
-let eventLoopLagWatcher = {
+let jankWatcher = {
   _client: null,
   _fronts: new Map(),
   _active: false,
@@ -390,7 +384,8 @@ let eventLoopLagWatcher = {
   init: function(client) {
     this._client = client;
 
-    SettingsListener.observe('hud.jank', false, this.settingsListener.bind(this));
+    SettingsListener.observe('devtools.hud.jank', false,
+      this.settingsListener.bind(this));
   },
 
   settingsListener: function(value) {
@@ -422,7 +417,7 @@ let eventLoopLagWatcher = {
       app.metrics.set('jank', time);
 
       if (!app.display()) {
-        developerHUD.log('jank: ' + time + 'ms');
+        devtoolsWidgetPanel.log('jank: ' + time + 'ms');
       }
     });
 
@@ -439,108 +434,5 @@ let eventLoopLagWatcher = {
     }
   }
 };
-developerHUD.registerWatcher(eventLoopLagWatcher);
 
-
-/**
- * The Memory Watcher uses devtools actors to track memory usage.
- */
-let memoryWatcher = {
-
-  _client: null,
-  _fronts: new Map(),
-  _timers: new Map(),
-  _watching: {
-    jsobjects: false,
-    jsstrings: false,
-    jsother: false,
-    dom: false,
-    style: false,
-    other: false
-  },
-  _active: false,
-
-  init: function mw_init(client) {
-    this._client = client;
-    let watching = this._watching;
-
-    for (let key in watching) {
-      let category = key;
-      SettingsListener.observe('hud.' + category, false, watch => {
-        watching[category] = watch;
-      });
-    }
-
-    SettingsListener.observe('hud.appmemory', false, enabled => {
-      if (this._active = enabled) {
-        for (let app of this._fronts.keys()) {
-          this.measure(app);
-        }
-      } else {
-        for (let timer of this._timers.values()) {
-          clearTimeout(this._timers.get(app));
-        }
-      }
-    });
-  },
-
-  measure: function mw_measure(app) {
-
-    // TODO Also track USS (bug #976024).
-
-    let watch = this._watching;
-    let front = this._fronts.get(app);
-
-    front.measure().then((data) => {
-
-      let total = 0;
-      if (watch.jsobjects) {
-        total += parseInt(data.jsObjectsSize);
-      }
-      if (watch.jsstrings) {
-        total += parseInt(data.jsStringsSize);
-      }
-      if (watch.jsother) {
-        total += parseInt(data.jsOtherSize);
-      }
-      if (watch.dom) {
-        total += parseInt(data.domSize);
-      }
-      if (watch.style) {
-        total += parseInt(data.styleSize);
-      }
-      if (watch.other) {
-        total += parseInt(data.otherSize);
-      }
-      // TODO Also count images size (bug #976007).
-
-      app.metrics.set('memory', total);
-      app.display();
-      let duration = parseInt(data.jsMilliseconds) + parseInt(data.nonJSMilliseconds);
-      let timer = setTimeout(() => this.measure(app), 100 * duration);
-      this._timers.set(app, timer);
-    }, (err) => {
-      console.error(err);
-    });
-  },
-
-  trackApp: function mw_trackApp(app) {
-    app.metrics.set('uss', 0);
-    app.metrics.set('memory', 0);
-    this._fronts.set(app, MemoryFront(this._client, app.actor));
-    if (this._active) {
-      this.measure(app);
-    }
-  },
-
-  untrackApp: function mw_untrackApp(app) {
-    let front = this._fronts.get(app);
-    if (front) {
-      front.destroy();
-      clearTimeout(this._timers.get(app));
-      this._fronts.delete(app);
-      this._timers.delete(app);
-    }
-  }
-};
-developerHUD.registerWatcher(memoryWatcher);
+devtoolsWidgetPanel.registerWatcher(jankWatcher);
