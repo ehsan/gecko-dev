@@ -229,8 +229,8 @@ WinNativeApp.prototype = {
   install: function() {
     try {
       this._copyPrebuiltFiles();
-      this._createShortcutFiles();
       this._createConfigFiles();
+      this._createShortcutFiles();
       this._writeSystemKeys();
     } catch (ex) {
       this._removeInstallation(false);
@@ -279,29 +279,6 @@ WinNativeApp.prototype = {
 
     this.uninstallSubkeyStr = this.uniqueName;
 
-    // ${UninstallDir}/shortcuts_log.ini
-    this.shortcutLogsINI = this.uninstallDir.clone();
-    this.shortcutLogsINI.append("shortcuts_log.ini");
-
-    if (this.shortcutLogsINI.exists()) {
-      // If it's a reinstallation (or an update) get the shortcut names
-      // from the shortcut_log.ini file
-      let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
-                      .getService(Ci.nsIINIParserFactory);
-      let parser = factory.createINIParser(this.shortcutLogsINI);
-
-      this.shortcutName = parser.getString("STARTMENU", "Shortcut0");
-    } else {
-      let desktop = Services.dirsvc.get("Desk", Ci.nsIFile);
-      let startMenu = Services.dirsvc.get("Progs", Ci.nsIFile);
-
-      // Check in both directories to see if a shortcut with the same name
-      // already exists.
-      this.shortcutName = getAvailableFileName([ startMenu, desktop ],
-                                               this.appNameAsFilename,
-                                               ".lnk");
-    }
-
     // Remove previously installed app (for update purposes)
     this._removeInstallation(true);
 
@@ -329,11 +306,11 @@ WinNativeApp.prototype = {
         uninstallKey.close();
     }
 
-    let desktopShortcut = Services.dirsvc.get("Desk", Ci.nsIFile);
-    desktopShortcut.append(this.shortcutName);
+    let desktopShortcut = Services.dirsvc.get("Desk", Ci.nsILocalFile);
+    desktopShortcut.append(this.appNameAsFilename + ".lnk");
 
-    let startMenuShortcut = Services.dirsvc.get("Progs", Ci.nsIFile);
-    startMenuShortcut.append(this.shortcutName);
+    let startMenuShortcut = Services.dirsvc.get("Progs", Ci.nsILocalFile);
+    startMenuShortcut.append(this.appNameAsFilename + ".lnk");
 
     let filesToRemove = [desktopShortcut, startMenuShortcut];
 
@@ -405,9 +382,13 @@ WinNativeApp.prototype = {
     writer.setString("WebappRT", "InstallDir", this.runtimeFolder.path);
     writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
-    writer = factory.createINIParser(this.shortcutLogsINI).QueryInterface(Ci.nsIINIParserWriter);
-    writer.setString("STARTMENU", "Shortcut0", this.shortcutName);
-    writer.setString("DESKTOP", "Shortcut0", this.shortcutName);
+    // ${UninstallDir}/shortcuts_log.ini
+    let shortcutLogsINI = this.uninstallDir.clone().QueryInterface(Ci.nsILocalFile);
+    shortcutLogsINI.append("shortcuts_log.ini");
+
+    writer = factory.createINIParser(shortcutLogsINI).QueryInterface(Ci.nsIINIParserWriter);
+    writer.setString("STARTMENU", "Shortcut0", this.appNameAsFilename + ".lnk");
+    writer.setString("DESKTOP", "Shortcut0", this.appNameAsFilename + ".lnk");
     writer.setString("TASKBAR", "Migrated", "true");
     writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
@@ -467,7 +448,7 @@ WinNativeApp.prototype = {
    */
   _createShortcutFiles: function() {
     let shortcut = this.installDir.clone().QueryInterface(Ci.nsILocalFileWin);
-    shortcut.append(this.shortcutName);
+    shortcut.append(this.appNameAsFilename + ".lnk");
 
     let target = this.installDir.clone();
     target.append(this.webapprt.leafName);
@@ -481,8 +462,8 @@ WinNativeApp.prototype = {
     let desktop = Services.dirsvc.get("Desk", Ci.nsILocalFile);
     let startMenu = Services.dirsvc.get("Progs", Ci.nsILocalFile);
 
-    shortcut.copyTo(desktop, this.shortcutName);
-    shortcut.copyTo(startMenu, this.shortcutName);
+    shortcut.copyTo(desktop, this.appNameAsFilename + ".lnk");
+    shortcut.copyTo(startMenu, this.appNameAsFilename + ".lnk");
 
     shortcut.followLinks = false;
     shortcut.remove(false);
@@ -679,13 +660,13 @@ MacNativeApp.prototype = {
 
   _moveToApplicationsFolder: function() {
     let appDir = Services.dirsvc.get("LocApp", Ci.nsILocalFile);
-    let destinationName = getAvailableFileName([appDir],
-                                               this.appNameAsFilename,
-                                              ".app");
-    if (!destinationName) {
+    let destination = getAvailableFile(appDir,
+                                       this.appNameAsFilename,
+                                       ".app");
+    if (!destination) {
       return false;
     }
-    this.installDir.moveTo(appDir, destinationName);
+    this.installDir.moveTo(destination.parent, destination.leafName);
   },
 
   /**
@@ -986,61 +967,38 @@ function stripStringForFilename(aPossiblyBadFilenameString) {
 /**
  * Finds a unique name available in a folder (i.e., non-existent file)
  *
- * @param aFolderSet a set of nsIFile objects that represents the set of
- * directories where we want to write
+ * @param aFolder nsIFile that represents the directory where we want to write
  * @param aName   string with the filename (minus the extension) desired
  * @param aExtension string with the file extension, including the dot
 
- * @return file name or null if folder is unwritable or unique name
+ * @return nsILocalFile or null if folder is unwritable or unique name
  *         was not available
  */
-function getAvailableFileName(aFolderSet, aName, aExtension) {
-  let fileSet = [];
-  let name = aName + aExtension;
-  let isUnique = true;
-
-  // Check if the plain name is a unique name in all the directories.
-  for (let folder of aFolderSet) {
-    folder.followLinks = false;
-    if (!folder.isDirectory() || !folder.isWritable()) {
-      return null;
-    }
-
-    let file = folder.clone();
-    file.append(name);
-    // Avoid exists() call if we already know this file name is not unique in
-    // one of the directories.
-    if (isUnique && file.exists()) {
-      isUnique = false;
-    }
-
-    fileSet.push(file);
+function getAvailableFile(aFolder, aName, aExtension) {
+  let folder = aFolder.QueryInterface(Ci.nsILocalFile);
+  folder.followLinks = false;
+  if (!folder.isDirectory() || !folder.isWritable()) {
+    return null;
   }
 
-  if (isUnique) {
-    return name;
+  let file = folder.clone();
+  file.append(aName + aExtension);
+
+  if (!file.exists()) {
+    return file;
   }
 
-
-  function checkUnique(aName) {
-    for (let file of fileSet) {
-      file.leafName = aName;
-
-      if (file.exists()) {
-        return false;
-      }
+  for (let i = 2; i < 10; i++) {
+    file.leafName = aName + " (" + i + ")" + aExtension;
+    if (!file.exists()) {
+      return file;
     }
-
-    return true;
   }
 
-  // If we're here, the plain name wasn't enough. Let's try modifying the name
-  // by adding "(" + num + ")".
-  for (let i = 2; i < 100; i++) {
-    name = aName + " (" + i + ")" + aExtension;
-
-    if (checkUnique(name)) {
-      return name;
+  for (let i = 10; i < 100; i++) {
+    file.leafName = aName + "-" + i + aExtension;
+    if (!file.exists()) {
+      return file;
     }
   }
 
