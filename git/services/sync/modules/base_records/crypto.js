@@ -168,13 +168,6 @@ function CollectionKeyManager() {
 // Note that the last modified time needs to be preserved.
 CollectionKeyManager.prototype = {
   
-  clear: function clear() {
-    this._log.info("Clearing CollectionKeys...");
-    this._lastModified = 0;
-    this._collections = {};
-    this._default = null;
-  },
-  
   keyForCollection: function(collection) {
                       
     // Moderately temporary debugging code.
@@ -330,9 +323,6 @@ function KeyBundle(realm, collectionName, keyStr) {
   Identity.call(this, realm, collectionName, keyStr);
   this._hmac    = null;
   this._encrypt = null;
-  
-  // Cache the key object.
-  this._hmacObj = null;
 }
 
 KeyBundle.prototype = {
@@ -355,11 +345,11 @@ KeyBundle.prototype = {
   
   set hmacKey(value) {
     this._hmac = value;
-    this._hmacObj = value ? Utils.makeHMACKey(value) : null;
   },
   
   get hmacKeyObject() {
-    return this._hmacObj;
+    if (this.hmacKey)
+      return Utils.makeHMACKey(this.hmacKey);
   },
 }
 
@@ -393,7 +383,7 @@ BulkKeyBundle.prototype = {
       let hm = value[1];
       
       this.password = json;
-      this.hmacKey  = Utils.safeAtoB(hm);
+      this._hmac    = Utils.safeAtoB(hm);
       this._encrypt = en;          // Store in base64.
     }
     else {
@@ -423,8 +413,7 @@ SyncKeyBundle.prototype = {
 
   set keyStr(value) {
     this.password = value;
-    this._hmac    = null;
-    this._hmacObj = null;
+    this._hmac = null;
     this._encrypt = null;
     this.generateEntry();
   },
@@ -446,12 +435,6 @@ SyncKeyBundle.prototype = {
     if (!this._hmac)
       this.generateEntry();
     return this._hmac;
-  },
-  
-  get hmacKeyObject() {
-    if (!this._hmacObj)
-      this.generateEntry();
-    return this._hmacObj;
   },
   
   /*
@@ -477,10 +460,7 @@ SyncKeyBundle.prototype = {
       
       // Save them.
       this._encrypt = btoa(enc);
-      
-      // Individual sets: cheaper than calling parent setter.
-      this._hmac = hmac;
-      this._hmacObj = Utils.makeHMACKey(hmac);
+      this._hmac    = hmac;
     }
   }
 };

@@ -48,7 +48,7 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGMatrix.h"
-#include "DOMSVGPoint.h"
+#include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
@@ -130,9 +130,8 @@ nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
   float x = mVal->GetX();
   float y = mVal->GetY();
-
-  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
-  return NS_OK;
+  
+  return NS_NewSVGPoint(_retval, a*x + c*y + e, b*x + d*y + f);
 }
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
@@ -656,8 +655,7 @@ nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGPoint(0, 0));
-  return NS_OK;
+  return NS_NewSVGPoint(_retval);
 }
 
 /* nsIDOMSVGMatrix createSVGMatrix (); */

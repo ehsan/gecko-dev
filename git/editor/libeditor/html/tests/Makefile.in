@@ -68,7 +68,6 @@ _TEST_FILES = \
 		test_bug599322.html \
 		test_bug607584.html \
 		test_bug611182.html \
-		test_bug612128.html \
 		test_bug612447.html \
 		test_CF_HTML_clipboard.html \
 		test_contenteditable_focus.html \
@@ -89,7 +88,6 @@ _DATA_FILES = \
 _CHROME_TEST_FILES = \
 		test_bug490879.xul \
 		test_bug607584.xul \
-		test_bug616590.xul \
 		green.png \
 		$(NULL)
 

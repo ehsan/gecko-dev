@@ -232,8 +232,7 @@ protected:
             id == sScrollMaxY_id   ||
             id == sLength_id       ||
             id == sFrames_id       ||
-            id == sSelf_id         ||
-            id == sURL_id);
+            id == sSelf_id);
   }
 
   static inline PRBool IsWritableReplaceable(jsid id)
@@ -390,7 +389,6 @@ protected:
   static jsid sOnbeforescriptexecute_id;
   static jsid sOnafterscriptexecute_id;
   static jsid sWrappedJSObject_id;
-  static jsid sURL_id;
 
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
   static JSPropertyOp sXrayWrapperPropertyHolderGetPropertyOp;

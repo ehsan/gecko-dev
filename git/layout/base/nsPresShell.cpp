@@ -5557,7 +5557,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsRect ancestorRect = ancestorFrame->GetVisualOverflowRect();
 
   // get a display list containing the range
-  info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
@@ -9241,8 +9240,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
-  NS_PRECONDITION(mDocument, "should only be called with a document");
-
   mIsActive = aIsActive;
   nsPresContext* presContext = GetPresContext();
   if (presContext &&
@@ -9251,8 +9248,10 @@ PresShell::SetIsActive(PRBool aIsActive)
   }
 
   // Propagate state-change to my resource documents' PresShells
-  mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
-                                        &aIsActive);
+  if (mDocument) {
+    mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
+                                          &aIsActive);
+  }
   return UpdateImageLockingState();
 }
 

@@ -62,10 +62,9 @@ namespace {
  */
 class LayerManagerData : public LayerUserData {
 public:
-  LayerManagerData(LayerManager *aManager) :
+  LayerManagerData() :
     mInvalidateAllThebesContent(PR_FALSE),
-    mInvalidateAllLayers(PR_FALSE),
-    mLayerManager(aManager)
+    mInvalidateAllLayers(PR_FALSE)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
     mFramesWithLayers.Init();
@@ -84,8 +83,6 @@ public:
   nsTHashtable<nsPtrHashKey<nsIFrame> > mFramesWithLayers;
   PRPackedBool mInvalidateAllThebesContent;
   PRPackedBool mInvalidateAllLayers;
-  /** Layer manager we belong to, we hold a reference to this object. */
-  nsRefPtr<LayerManager> mLayerManager;
 };
 
 static void DestroyRegion(void* aPropertyValue)
@@ -410,11 +407,12 @@ FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
     NS_ASSERTION(data, "Frame with layer should have been recorded");
     data->mFramesWithLayers.RemoveEntry(aFrame);
     if (data->mFramesWithLayers.Count() == 0) {
-      // Destroying our user data will consume a reference from the layer
-      // manager. But don't actually release until we've released all the layers
-      // in the DisplayItemData array below!
-      managerRef = manager;
       manager->RemoveUserData(&gLayerManagerUserData);
+      // Consume the reference we added when we set the user data
+      // in DidEndTransaction. But don't actually release until we've
+      // released all the layers in the DisplayItemData array below!
+      managerRef = manager;
+      NS_RELEASE(manager);
     }
   }
 
@@ -487,8 +485,11 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
     // Update all the frames that used to have layers.
     data->mFramesWithLayers.EnumerateEntries(UpdateDisplayItemDataForFrame, this);
   } else {
-    data = new LayerManagerData(mRetainingManager);
+    data = new LayerManagerData();
     mRetainingManager->SetUserData(&gLayerManagerUserData, data);
+    // Addref mRetainingManager. We'll release it when 'data' is
+    // removed.
+    NS_ADDREF(mRetainingManager);
   }
   // Now go through all the frames that didn't have any retained
   // display items before, and record those retained display items.

@@ -1914,7 +1914,6 @@ var gListView = {
   },
 
   show: function(aType, aRequest) {
-    this.node.setAttribute("type", aType);
     this.showEmptyNotice(false);
 
     while (this._listBox.itemCount > 0)
@@ -2114,7 +2113,7 @@ var gDetailView = {
     if ("contributionURL" in aAddon && aAddon.contributionURL) {
       contributions.hidden = false;
       var amount = document.getElementById("detail-contrib-suggested");
-      amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
+      amount.value = gStrings.ext.formatStringFromName("contributionAmount",
                                                        [aAddon.contributionAmount],
                                                        1);
     } else {
@@ -2405,6 +2404,7 @@ var gUpdatesView = {
   _updateSelected: null,
   _updatePrefs: null,
   _categoryItem: null,
+  _numManualUpdaters: 0,
 
   initialize: function() {
     this.node = document.getElementById("updates-view");
@@ -2423,6 +2423,7 @@ var gUpdatesView = {
     this._updatePrefs = Services.prefs.getBranch("extensions.update.");
     this._updatePrefs.QueryInterface(Ci.nsIPrefBranch2);
     this._updatePrefs.addObserver("", this, false);
+    this.updateManualUpdatersCount(true);
     this.updateAvailableCount(true);
 
     AddonManager.addAddonListener(this);
@@ -2453,8 +2454,6 @@ var gUpdatesView = {
 
   hide: function() {
     this._updateSelected.hidden = true;
-
-    this._categoryItem.disabled = this._categoryItem.badgeCount == 0;
   },
 
   _showRecentUpdates: function(aRequest) {
@@ -2551,12 +2550,45 @@ var gUpdatesView = {
   observe: function(aSubject, aTopic, aData) {
     if (aTopic != "nsPref:changed")
       return;
+    if (aData == "autoUpdateDefault")
+      this.updateManualUpdatersCount();
   },
 
   maybeRefresh: function() {
-    if (gViewController.currentViewId == "addons://updates/available")
+    if (gViewController.currentViewId == "addons://updates/available") {
       this._showAvailableUpdates(true);
-    this.updateAvailableCount();
+    } else {
+      this.updateManualUpdatersCount();
+      this.updateAvailableCount();
+    }
+  },
+
+  maybeShowCategory: function() {
+    var hide = this._numManualUpdaters == 0;
+    if (this._categoryItem.disabled != hide) {
+      this._categoryItem.disabled = hide;
+      var event = document.createEvent("Events");
+      event.initEvent("CategoryVisible", true, true);
+      this._categoryItem.dispatchEvent(event);
+    }
+  },
+
+  updateManualUpdatersCount: function(aInitializing) {
+    if (aInitializing)
+      gPendingInitializations++;
+    var self = this;
+    var autoUpdateDefault = AddonManager.autoUpdateDefault;
+    AddonManager.getAllAddons(function(aAddonList) {
+      var manualUpdaters = aAddonList.filter(function(aAddon) {
+        if (!("applyBackgroundUpdates" in aAddon))
+          return false;
+        return !shouldAutoUpdate(aAddon, autoUpdateDefault);
+      });
+      self._numManualUpdaters = manualUpdaters.length;
+      self.maybeShowCategory();
+      if (aInitializing)
+        notifyInitialized();
+    });
   },
 
   updateAvailableCount: function(aInitializing) {
@@ -2567,8 +2599,6 @@ var gUpdatesView = {
       var count = aInstallsList.filter(function(aInstall) {
         return self.isManualUpdate(aInstall, true);
       }).length;
-      self._categoryItem.disabled = gViewController.currentViewObj != self &&
-                                    count == 0;
       self._categoryItem.badgeCount = count;
       if (aInitializing)
         notifyInitialized();
@@ -2623,8 +2653,18 @@ var gUpdatesView = {
     this.maybeRefresh();
   },
 
-  onInstallStarted: function(aInstall) {
-    this.updateAvailableCount();
+  onExternalInstall: function(aAddon) {
+    if (!shouldAutoUpdate(aAddon)) {
+      this._numManualUpdaters++;
+      this.maybeShowCategory();
+    }
+  },
+
+  onInstallEnded: function(aAddon) {
+    if (!shouldAutoUpdate(aAddon)) {
+      this._numManualUpdaters++;
+      this.maybeShowCategory();
+    }
   },
 
   onInstallCancelled: function(aInstall) {
@@ -2635,7 +2675,7 @@ var gUpdatesView = {
 
   onPropertyChanged: function(aAddon, aProperties) {
     if (aProperties.indexOf("applyBackgroundUpdates") != -1)
-      this.updateAvailableCount();
+      this.updateManualUpdatersCount();
   }
 };
 

@@ -49,7 +49,7 @@ function init() {
 
   document.title = extensionsStrings.getFormattedString("aboutWindowTitle", [addon.name]);
   var extensionName = document.getElementById("extensionName");
-  extensionName.textContent = addon.name;
+  extensionName.setAttribute("value", addon.name);
 
   var extensionVersion = document.getElementById("extensionVersion");
   if (addon.version)
@@ -98,8 +98,6 @@ function init() {
 
   var acceptButton = document.documentElement.getButton("accept");
   acceptButton.label = extensionsStrings.getString("aboutWindowCloseButton");
-  
-  setTimeout(sizeToContent, 0);
 }
 
 function appendToList(aHeaderId, aNodeId, aItems) {
@@ -113,7 +111,7 @@ function appendToList(aHeaderId, aNodeId, aItems) {
 
   for (let i = 0; i < aItems.length; i++) {
     var label = document.createElement("label");
-    label.textContent = aItems[i];
+    label.setAttribute("value", aItems[i]);
     label.setAttribute("class", "contributor");
     node.appendChild(label);
   }

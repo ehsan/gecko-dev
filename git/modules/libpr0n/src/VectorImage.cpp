@@ -346,18 +346,8 @@ VectorImage::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 VectorImage::GetType(PRUint16* aType)
 {
-  NS_ENSURE_ARG_POINTER(aType);
-
-  *aType = GetType();
+  *aType = imgIContainer::TYPE_VECTOR;
   return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript, notxpcom] PRUint16 GetType(); */
-NS_IMETHODIMP_(PRUint16)
-VectorImage::GetType()
-{
-  return imgIContainer::TYPE_VECTOR;
 }
 
 //******************************************************************************

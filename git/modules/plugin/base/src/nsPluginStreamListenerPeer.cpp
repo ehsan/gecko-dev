@@ -608,9 +608,15 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
           mPluginInstance->Start();
           mOwner->CreateWidget();
           // If we've got a native window, the let the plugin know about it.
-          nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
-          if (owner)
-            owner->SetWindow();
+          if (window->window) {
+            ((nsPluginNativeWindow*)window)->CallSetWindow(pluginInstCOMPtr);
+          } else {
+            PRBool useAsyncPainting = PR_FALSE;
+            mPluginInstance->UseAsyncPainting(&useAsyncPainting);
+            if (useAsyncPainting) {
+              mPluginInstance->AsyncSetWindow(window);
+            }
+          }
         }
       }
     }
@@ -809,9 +815,10 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
       window->window = widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
     }
 #endif
-    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
-    if (owner)
-      owner->SetWindow();
+    if (window->window) {
+      nsCOMPtr<nsIPluginInstance> pluginInstCOMPtr = mPluginInstance.get();
+      ((nsPluginNativeWindow*)window)->CallSetWindow(pluginInstCOMPtr);
+    }
   }
   
   mSeekable = PR_FALSE;

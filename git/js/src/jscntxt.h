@@ -1369,8 +1369,6 @@ struct JSRuntime {
     js::Value           negativeInfinityValue;
     js::Value           positiveInfinityValue;
 
-    js::DeflatedStringCache *deflatedStringCache;
-
     JSString            *emptyString;
 
     /* List of active contexts sharing this runtime; protected by gcLock. */
@@ -2357,6 +2355,30 @@ struct JSContext
     }
 #else
     void assertValidStackDepth(uintN /*depth*/) {}
+#endif
+
+    enum DollarPath {
+        DOLLAR_LITERAL = 1,
+        DOLLAR_AMP,
+        DOLLAR_PLUS,
+        DOLLAR_TICK,
+        DOLLAR_QUOT,
+        DOLLAR_EMPTY,
+        DOLLAR_1,
+        DOLLAR_2,
+        DOLLAR_3,
+        DOLLAR_4,
+        DOLLAR_5,
+        DOLLAR_OTHER
+    };
+#ifdef XP_WIN
+    volatile DollarPath *dollarPath;
+    volatile JSSubString *sub;
+    volatile jschar *blackBox;
+    volatile jschar **repstrChars;
+    volatile jschar **repstrDollar;
+    volatile jschar **repstrDollarEnd;
+    volatile size_t *peekLen;
 #endif
 
 private:

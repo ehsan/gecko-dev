@@ -669,7 +669,7 @@ nsHtml5TreeBuilder::IsDiscretionaryFlushSafe()
 {
   return !(charBufferLen && 
            currentPtr >= 0 && 
-           stack[currentPtr]->isFosterParenting());
+           stack[currentPtr]->fosterParenting);
 }
 
 void

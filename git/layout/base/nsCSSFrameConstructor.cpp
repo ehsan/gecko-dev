@@ -144,10 +144,12 @@
 #ifdef MOZ_MATHML
 #include "nsMathMLParts.h"
 #endif
+#ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
 #include "nsSVGEffects.h"
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
+#endif
 
 #include "nsRefreshDriver.h"
 
@@ -162,8 +164,11 @@ nsIFrame*
 NS_NewHTMLVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 #endif
 
+#ifdef MOZ_SVG
 #include "nsSVGTextContainerFrame.h"
 
+PRBool
+NS_SVGEnabled();
 nsIFrame*
 NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
@@ -212,6 +217,7 @@ nsIFrame*
 NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewSVGLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+#endif
 
 #include "nsIDocument.h"
 #include "nsIDOMElement.h"
@@ -2402,8 +2408,9 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
   }
   else
 #endif
+#ifdef MOZ_SVG
   if (aDocElement->GetNameSpaceID() == kNameSpaceID_SVG) {
-    if (aDocElement->Tag() == nsGkAtoms::svg) {
+    if (aDocElement->Tag() == nsGkAtoms::svg && NS_SVGEnabled()) {
       contentFrame = NS_NewSVGOuterSVGFrame(mPresShell, styleContext);
       if (NS_UNLIKELY(!contentFrame)) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -2429,7 +2436,10 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     } else {
       return NS_ERROR_FAILURE;
     }
-  } else {
+  }
+  else
+#endif
+  {
     PRBool docElemIsTable = (display->mDisplay == NS_STYLE_DISPLAY_TABLE);
     if (docElemIsTable) {
       // We're going to call the right function ourselves, so no need to give a
@@ -3361,6 +3371,7 @@ FindAncestorWithGeneratedContentPseudo(nsIFrame* aFrame)
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindTextData(nsIFrame* aParentFrame)
 {
+#ifdef MOZ_SVG
   if (aParentFrame && aParentFrame->IsFrameOfType(nsIFrame::eSVG)) {
     nsIFrame *ancestorFrame =
       nsSVGUtils::GetFirstNonAAncestorFrame(aParentFrame);
@@ -3374,6 +3385,7 @@ nsCSSFrameConstructor::FindTextData(nsIFrame* aParentFrame)
     }
     return nsnull;
   }
+#endif
 
   static const FrameConstructionData sTextData =
     FCDATA_DECL(FCDATA_IS_LINE_PARTICIPANT, NS_NewTextFrame);
@@ -3915,31 +3927,6 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
   return NS_OK;
 }
 
-static void
-SetFlagsOnSubtree(nsIContent *aNode, PtrBits aFlagsToSet)
-{
-#ifdef DEBUG
-  // Make sure that the node passed to us doesn't have any XBL children
-  {
-    nsIDocument *doc = aNode->GetOwnerDoc();
-    NS_ASSERTION(doc, "The node must be in a document");
-    NS_ASSERTION(!doc->BindingManager()->GetXBLChildNodesFor(aNode),
-                 "The node should not have any XBL children");
-  }
-#endif
-
-  // Set the flag on the node itself
-  aNode->SetFlags(aFlagsToSet);
-
-  // Set the flag on all of its children recursively
-  PRUint32 count;
-  nsIContent * const *children = aNode->GetChildArray(&count);
-
-  for (PRUint32 index = 0; index < count; ++index) {
-    SetFlagsOnSubtree(children[index], aFlagsToSet);
-  }
-}
-
 nsresult
 nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
                                            nsIFrame* aParentFrame,
@@ -3958,26 +3945,19 @@ nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
     nsIContent* content = aContent[i];
     NS_ASSERTION(content, "null anonymous content?");
 
+#ifdef MOZ_SVG
     // least-surprise CSS binding until we do the SVG specified
     // cascading rules for <svg:use> - bug 265894
     if (aParent &&
         aParent->NodeInfo()->Equals(nsGkAtoms::use, kNameSpaceID_SVG)) {
       content->SetFlags(NODE_IS_ANONYMOUS);
-    } else {
+    } else
+#endif
+    {
       content->SetNativeAnonymous();
     }
 
-    PRBool anonContentIsEditable = content->HasFlag(NODE_IS_EDITABLE);
     rv = content->BindToTree(mDocument, aParent, aParent, PR_TRUE);
-    // If the anonymous content creator requested that the content should be
-    // editable, honor its request.
-    // We need to set the flag on the whole subtree, because existing
-    // children's flags have already been set as part of the BindToTree operation.
-    if (anonContentIsEditable) {
-      NS_ASSERTION(aParentFrame->GetType() == nsGkAtoms::textInputFrame,
-                   "We only expect this for anonymous content under a text control frame");
-      SetFlagsOnSubtree(content, NODE_IS_EDITABLE);
-    }
     if (NS_FAILED(rv)) {
       content->UnbindFromTree();
       return rv;
@@ -4752,6 +4732,7 @@ nsCSSFrameConstructor::FindMathMLData(nsIContent* aContent,
 }
 #endif // MOZ_MATHML
 
+#ifdef MOZ_SVG
 // Only outer <svg> elements can be floated or positioned.  All other SVG
 // should be in-flow.
 #define SIMPLE_SVG_FCDATA(_func)                                        \
@@ -4769,7 +4750,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
                                    nsIFrame* aParentFrame,
                                    nsStyleContext* aStyleContext)
 {
-  if (aNameSpaceID != kNameSpaceID_SVG) {
+  if (aNameSpaceID != kNameSpaceID_SVG || !NS_SVGEnabled()) {
     return nsnull;
   }
 
@@ -4825,25 +4806,27 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     return &sSuppressData;
   }
 
-  if (aTag == nsGkAtoms::svg && !parentIsSVG) {
-    // We need outer <svg> elements to have an nsSVGOuterSVGFrame regardless
-    // of whether they fail conditional processing attributes, since various
-    // SVG frames assume that one exists.  We handle the non-rendering
-    // of failing outer <svg> element contents like <switch> statements,
-    // and do the PassesConditionalProcessingTests call in
-    // nsSVGOuterSVGFrame::Init.
+  // Elements with failing conditional processing attributes never get
+  // rendered.  Note that this is not where we select which frame in a
+  // <switch> to render!  That happens in nsSVGSwitchFrame::PaintSVG.
+  if (!nsSVGFeatures::PassesConditionalProcessingTests(aContent)) {
+    return &sContainerData;
+  }
+
+  // Special case for aTag == nsGkAtoms::svg because we don't want to
+  // have to recompute parentIsSVG for it.
+  if (aTag == nsGkAtoms::svg) {
+    if (parentIsSVG) {
+      static const FrameConstructionData sInnerSVGData =
+        SIMPLE_SVG_FCDATA(NS_NewSVGInnerSVGFrame);
+      return &sInnerSVGData;
+    }
+
     static const FrameConstructionData sOuterSVGData =
       FCDATA_DECL(FCDATA_FORCE_VIEW | FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DISALLOW_GENERATED_CONTENT,
                   NS_NewSVGOuterSVGFrame);
     return &sOuterSVGData;
-  }
-  
-  if (!nsSVGFeatures::PassesConditionalProcessingTests(aContent)) {
-    // Elements with failing conditional processing attributes never get
-    // rendered.  Note that this is not where we select which frame in a
-    // <switch> to render!  That happens in nsSVGSwitchFrame::PaintSVG.
-    return &sContainerData;
   }
 
   // Special cases for text/tspan/textPath, because the kind of frame
@@ -4875,7 +4858,6 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
   }
 
   static const FrameConstructionDataByTag sSVGData[] = {
-    SIMPLE_SVG_CREATE(svg, NS_NewSVGInnerSVGFrame),
     SIMPLE_SVG_CREATE(g, NS_NewSVGGFrame),
     SIMPLE_SVG_CREATE(svgSwitch, NS_NewSVGSwitchFrame),
     SIMPLE_SVG_CREATE(polygon, NS_NewSVGPathGeometryFrame),
@@ -4990,6 +4972,8 @@ nsCSSFrameConstructor::ConstructSVGForeignObjectFrame(nsFrameConstructorState& a
 
   return rv;
 }
+
+#endif // MOZ_SVG
 
 void
 nsCSSFrameConstructor::AddPageBreakItem(nsIContent* aContent,
@@ -5208,11 +5192,14 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
   const FrameConstructionData* data;
   if (isText) {
     data = FindTextData(aParentFrame);
+#ifdef MOZ_SVG
     if (!data) {
       // Nothing to do here; suppressed text inside SVG
       return;
     }
+#endif /* MOZ_SVG */
   } else {
+#ifdef MOZ_SVG
     // Don't create frames for non-SVG element children of SVG elements.
     if (aNameSpaceID != kNameSpaceID_SVG &&
         aParentFrame &&
@@ -5223,6 +5210,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
                               isGeneratedContent);
       return;
     }
+#endif /* MOZ_SVG */
 
     data = FindHTMLData(aContent, aTag, aNameSpaceID, aParentFrame,
                         styleContext);
@@ -5234,10 +5222,12 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
       data = FindMathMLData(aContent, aTag, aNameSpaceID, styleContext);
     }
 #endif
+#ifdef MOZ_SVG
     if (!data) {
       data = FindSVGData(aContent, aTag, aNameSpaceID, aParentFrame,
                          styleContext);
     }
+#endif /* MOZ_SVG */
 
     // Now check for XUL display types
     if (!data) {
@@ -6207,6 +6197,25 @@ nsCSSFrameConstructor::ReframeTextIfNeeded(nsIContent* aParentContent,
   ContentInserted(aParentContent, aContent, nsnull, PR_FALSE);
 }
 
+// We want to disable lazy frame construction for nodes that are under an
+// editor. We use nsINode::IsEditable, but that includes inputs with type text
+// and password and textareas, which are common and aren't really editable (the
+// native anonymous content under them is what is actually editable) so we want
+// to construct frames for those lazily.
+// The logic for this check is based on
+// nsGenericHTMLFormElement::UpdateEditableFormControlState and so must be kept
+// in sync with that. The presence of the NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
+// flag only indicates a contenteditable attribute, it doesn't indicate if it
+// is true or false, so we force eager construction in some cases when the node
+// is not editable, but that should be rare.
+static inline PRBool
+IsActuallyEditable(nsIContent* aContainer, nsIContent* aChild)
+{
+  return (aChild->IsEditable() &&
+          (aContainer->IsEditable() ||
+           aChild->HasFlag(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR)));
+}
+
 // For inserts aChild should be valid, for appends it should be null.
 // Returns true if this operation can be lazy, false if not.
 PRBool
@@ -6221,7 +6230,7 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
 
   if (aOperation == CONTENTINSERT) {
     if (aChild->IsRootOfAnonymousSubtree() ||
-        aChild->IsEditable() || aChild->IsXUL()) {
+        aChild->IsXUL() || IsActuallyEditable(aContainer, aChild)) {
       return PR_FALSE;
     }
   } else { // CONTENTAPPEND
@@ -6230,7 +6239,7 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
     for (nsIContent* child = aChild; child; child = child->GetNextSibling()) {
       NS_ASSERTION(!child->IsRootOfAnonymousSubtree(),
                    "Should be coming through the CONTENTAPPEND case");
-      if (child->IsXUL() || child->IsEditable()) {
+      if (child->IsXUL() || IsActuallyEditable(aContainer, child)) {
         return PR_FALSE;
       }
     }
@@ -7730,6 +7739,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
       if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+#ifdef MOZ_SVG
         if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
           nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(aFrame);
           if (outerSVGFrame) {
@@ -7747,6 +7757,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
             outerSVGFrame->UpdateAndInvalidateCoveredRegion(aFrame);
           }
         }
+#endif
       } else {
         aFrame->InvalidateOverflowRect();
       }
@@ -8035,9 +8046,11 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       RecreateFramesForContent(content, PR_FALSE);
     } else {
       NS_ASSERTION(frame, "This shouldn't happen");
+#ifdef MOZ_SVG
       if (hint & nsChangeHint_UpdateEffects) {
         nsSVGEffects::UpdateEffects(frame);
       }
+#endif
       if (hint & nsChangeHint_NeedReflow) {
         StyleChangeReflow(frame, hint);
         didReflow = PR_TRUE;

@@ -154,9 +154,6 @@ PuppetWidget::Destroy()
   Base::Destroy();
   mPaintTask.Revoke();
   mChild = nsnull;
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
   mLayerManager = nsnull;
   mTabChild = nsnull;
   return NS_OK;
@@ -315,7 +312,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 }
 
 LayerManager*
-PuppetWidget::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
+PuppetWidget::GetLayerManager(bool* aAllowRetaining)
 {
   if (!mLayerManager) {
     mLayerManager = new BasicShadowLayerManager(this);

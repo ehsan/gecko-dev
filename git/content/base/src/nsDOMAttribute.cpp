@@ -448,7 +448,7 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 NS_IMETHODIMP
 nsDOMAttribute::CloneNode(PRBool aDeep, nsIDOMNode** aResult)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, PR_TRUE, aResult);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, aResult);
 }
 
 NS_IMETHODIMP
