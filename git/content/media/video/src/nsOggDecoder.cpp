@@ -474,7 +474,6 @@ private:
   // They are only accessed from the decoder thread.
   PRInt32 mVideoTrack;
   float   mFramerate;
-  float   mAspectRatio;
 
   // Audio data. These are initially set when the metadata is loaded.
   // They are only accessed from the decoder thread.
@@ -650,7 +649,6 @@ nsOggDecodeStateMachine::nsOggDecodeStateMachine(nsOggDecoder* aDecoder) :
   mCallbackPeriod(1.0),
   mVideoTrack(-1),
   mFramerate(0.0),
-  mAspectRatio(0.0),
   mAudioRate(0),
   mAudioChannels(0),
   mAudioTrack(-1),
@@ -904,8 +902,7 @@ void nsOggDecodeStateMachine::PlayVideo(FrameData* aFrame)
 
     oggplay_yuv2bgra(&yuv, &rgb);
 
-    mDecoder->SetRGBData(aFrame->mVideoWidth, aFrame->mVideoHeight,
-                         mFramerate, mAspectRatio, buffer.forget());
+    mDecoder->SetRGBData(aFrame->mVideoWidth, aFrame->mVideoHeight, mFramerate, buffer.forget());
   }
 }
 
@@ -1110,6 +1107,15 @@ void nsOggDecodeStateMachine::Shutdown()
     mBufferExhausted = PR_FALSE;
     oggplay_prepare_for_close(mPlayer);
   }
+  if (mStepDecodeThread) {
+    // nsOggDecodeStateMachine::Shutdown is called at a safe
+    // time to spin the event loop. This makes the following call
+    // also safe.
+    mon.Exit();
+    mStepDecodeThread->Shutdown();
+    mon.Enter();
+    mStepDecodeThread = nsnull;
+  }
 }
 
 void nsOggDecodeStateMachine::Decode()
@@ -1146,19 +1152,6 @@ nsresult nsOggDecodeStateMachine::Run()
     case DECODER_STATE_SHUTDOWN:
       if (mPlaying) {
         StopPlayback();
-      }
-      // Ensure mStepDecodeThread exits
-      if (mStepDecodeThread) {
-        mDecodingCompleted = PR_TRUE;
-        mBufferExhausted = PR_FALSE;
-        mon.NotifyAll();
-
-        mon.Exit();
-        mStepDecodeThread->Shutdown();
-        mon.Enter();
-        NS_ASSERTION(mState == DECODER_STATE_SHUTDOWN,
-                     "How did we escape from the shutdown state???");
-        mStepDecodeThread = nsnull;
       }
       return NS_OK;
 
@@ -1225,7 +1218,7 @@ nsresult nsOggDecodeStateMachine::Run()
 
         // Get the decoded frames and store them in our queue of decoded frames
         QueueDecodedFrames();
-        while (mDecodedFrames.IsEmpty() && !mDecodingCompleted) {
+        while (mDecodedFrames.IsEmpty()) {
           mon.Wait(PR_MillisecondsToInterval(PRInt64(mCallbackPeriod*500)));
           if (mState != DECODER_STATE_DECODING)
             break;
@@ -1241,9 +1234,6 @@ nsresult nsOggDecodeStateMachine::Run()
           mDecodingCompleted = PR_FALSE;
           mBufferExhausted = PR_FALSE;
           mon.NotifyAll();
-          // We can call Shutdown here without releasing our monitor
-          // because mStepDecodeThread has already exited
-          // nsOggStepDecodeEvent.
           mStepDecodeThread->Shutdown();
           mStepDecodeThread = nsnull;
           continue;
@@ -1328,8 +1318,6 @@ nsresult nsOggDecodeStateMachine::Run()
           mDecodingCompleted = PR_FALSE;
           mStepDecodeThread = nsnull;
         }
-
-        StopPlayback();
 
         // Remove all frames decoded prior to seek from the queue
         while (!mDecodedFrames.IsEmpty()) {
@@ -1510,14 +1498,10 @@ void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader)
         mCallbackPeriod = 1.0 / mFramerate;
         LOG(PR_LOG_DEBUG, ("Frame rate: %f", mFramerate));
 
-        int aspectd, aspectn;
-        oggplay_get_video_aspect_ratio(mPlayer, i, &aspectd, &aspectn);
-        mAspectRatio = aspectd == 0 ? 0.0 : float(aspectn)/float(aspectd);
-
         int y_width;
         int y_height;
         oggplay_get_video_y_size(mPlayer, i, &y_width, &y_height);
-        mDecoder->SetRGBData(y_width, y_height, mFramerate, mAspectRatio, nsnull);
+        mDecoder->SetRGBData(y_width, y_height, mFramerate, nsnull);
       }
       else if (mAudioTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_VORBIS) {
         mAudioTrack = i;
@@ -1776,13 +1760,11 @@ public:
 
   NS_IMETHOD Run() {
     NS_ASSERTION(NS_IsMainThread(), "Should be called on main thread");
-
     // The decode thread must die before the state machine can die.
     // The state machine must die before the reader.
     // The state machine must die before the decoder.
     if (mDecodeThread)
       mDecodeThread->Shutdown();
-
     mDecodeThread = nsnull;
     mDecodeStateMachine = nsnull;
     mReader = nsnull;
@@ -1841,6 +1823,7 @@ void nsOggDecoder::Stop()
                                                           mDecodeThread);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
+  // Null data fields. They can be reinitialized in future Load()s safely now.
   mDecodeThread = nsnull;
   mDecodeStateMachine = nsnull;
   UnregisterShutdownObserver();
