@@ -47,7 +47,7 @@
   http://www.mozilla.org/projects/netlib/dirindexformat.html
 
   One added change is for a description entry, for when the
-  target does not match the filename
+  target does not match the filename (ie gopher)
 
 */
 
@@ -107,6 +107,7 @@ static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
 
 // Various protocols we have to special case
 static const char               kFTPProtocol[] = "ftp://";
+static const char               kGopherProtocol[] = "gopher://";
 
 //----------------------------------------------------------------------
 //
@@ -199,25 +200,24 @@ nsHTTPIndex::OnFTPControlLog(PRBool server, const char *msg)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_OK);
 
-    JSContext* cx = reinterpret_cast<JSContext*>
-                                    (context->GetNativeContext());
-    NS_ENSURE_TRUE(cx, NS_OK);
+    JSContext* jscontext = reinterpret_cast<JSContext*>
+                                           (context->GetNativeContext());
+    NS_ENSURE_TRUE(jscontext, NS_OK);
 
-    JSObject* global = JS_GetGlobalObject(cx);
+    JSObject* global = JS_GetGlobalObject(jscontext);
     NS_ENSURE_TRUE(global, NS_OK);
 
     jsval params[2];
 
     nsString unicodeMsg;
     unicodeMsg.AssignWithConversion(msg);
-    JSAutoRequest ar(cx);
-    JSString* jsMsgStr = JS_NewUCStringCopyZ(cx, (jschar*) unicodeMsg.get());
+    JSString* jsMsgStr = JS_NewUCStringCopyZ(jscontext, (jschar*) unicodeMsg.get());
 
     params[0] = BOOLEAN_TO_JSVAL(server);
     params[1] = STRING_TO_JSVAL(jsMsgStr);
     
     jsval val;
-    JS_CallFunctionName(cx,
+    JS_CallFunctionName(jscontext, 
                         global, 
                         "OnFTPControlLog",
                         2, 
@@ -277,9 +277,9 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-    JSContext* cx = reinterpret_cast<JSContext*>
-                                    (context->GetNativeContext());
-    JSObject* global = JS_GetGlobalObject(cx);
+    JSContext* jscontext = reinterpret_cast<JSContext*>
+                                           (context->GetNativeContext());
+    JSObject* global = JS_GetGlobalObject(jscontext);
 
     // Using XPConnect, wrap the HTTP index object...
     static NS_DEFINE_CID(kXPConnectCID, NS_XPCONNECT_CID);
@@ -287,7 +287,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = xpc->WrapNative(cx,
+    rv = xpc->WrapNative(jscontext,
                          global,
                          static_cast<nsIHTTPIndex*>(this),
                          NS_GET_IID(nsIHTTPIndex),
@@ -306,8 +306,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 
     // ...and stuff it into the global context
     PRBool ok;
-    JSAutoRequest ar(cx);
-    ok = JS_SetProperty(cx, global, "HTTPIndex", &jslistener);
+    ok = JS_SetProperty(jscontext, global, "HTTPIndex", &jslistener);
 
     NS_ASSERTION(ok, "unable to set Listener property");
     if (! ok)
@@ -420,19 +419,26 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
   const char* baseStr;
   parentRes->GetValueConst(&baseStr);
   if (! baseStr) {
-    NS_ERROR("Could not reconstruct base uri");
+    NS_ERROR("Could not reconstruct base uri\n");
     return NS_ERROR_UNEXPECTED;
   }
 
   // we found the filename; construct a resource for its entry
   nsCAutoString entryuriC(baseStr);
 
+  // gopher resources don't point to an entry in the same directory
+  // like ftp uris. So the entryuriC is just a unique string, while
+  // the URL attribute is the destination of this element
+  // The naming scheme for the attributes is taken from the bookmarks
   nsXPIDLCString filename;
   nsresult rv = aIndex->GetLocation(getter_Copies(filename));
   if (NS_FAILED(rv)) return rv;
   entryuriC.Append(filename);
 
   // if its a directory, make sure it ends with a trailing slash.
+  // This doesn't matter for gopher, (where directories don't have
+  // to end in a trailing /), because the filename is used for the URL
+  // attribute.
   PRUint32 type;
   rv = aIndex->GetType(&type);
   if (NS_FAILED(rv))
@@ -456,7 +462,14 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
     nsCOMPtr<nsIRDFLiteral> lit;
     nsString str;
 
-    str.AssignWithConversion(entryuriC.get());
+    // For gopher, the target is the filename. We still have to do all
+    // the above string manipulation though, because we need the entryuric
+    // as the key for the RDF data source
+    if (!strncmp(entryuriC.get(), kGopherProtocol, sizeof(kGopherProtocol)-1))
+      str.AssignWithConversion(filename);
+    else {
+      str.AssignWithConversion(entryuriC.get());
+    }
 
     rv = mDirRDF->GetLiteral(str.get(), getter_AddRefs(lit));
 
@@ -774,6 +787,7 @@ void nsHTTPIndex::GetDestination(nsIRDFResource* r, nsXPIDLCString& dest) {
 //            get double the # of answers we really want... also, "rdf:file" is
 //            less expensive in terms of both memory usage as well as speed
 
+// We also handle gopher now
 
 
 // We use an rdf attribute to mark if this is a container or not.
@@ -793,12 +807,31 @@ nsHTTPIndex::isWellknownContainerURI(nsIRDFResource *r)
   } else {
     nsXPIDLCString uri;
     
+    // For gopher, we need to follow the URL attribute to get the
+    // real destination
     GetDestination(r,uri);
 
     if ((uri.get()) && (!strncmp(uri, kFTPProtocol, sizeof(kFTPProtocol) - 1))) {
       if (uri.Last() == '/') {
         isContainerFlag = PR_TRUE;
       }
+    }
+
+    // A gopher url is of the form:
+    // gopher://example.com/xFileNameToGet
+    // where x is a single character representing the type of file
+    // 1 is a directory, and 7 is a search.
+    // Searches will cause a dialog to be popped up (asking the user what
+    // to search for), and so even though searches return a directory as a
+    // result, don't treat it as a directory here.
+
+    // The isContainerFlag test above will correctly handle this when a
+    // search url is passed in as the baseuri
+    if ((uri.get()) &&
+        (!strncmp(uri,kGopherProtocol, sizeof(kGopherProtocol)-1))) {
+      char* pos = PL_strchr(uri+sizeof(kGopherProtocol)-1, '/');
+      if (!pos || pos[1] == '\0' || pos[1] == '1')
+        isContainerFlag = PR_TRUE;
     }
   }
   return isContainerFlag;

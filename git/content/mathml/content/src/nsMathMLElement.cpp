@@ -22,7 +22,6 @@
  * Contributor(s):
  *    Vlad Sukhoy <vladimir.sukhoy@gmail.com> (original developer)
  *    Daniel Kraft <d@domob.eu> (nsMathMLElement patch, attachment 262925)
- *    Frederic Wang <fred.wang@free.fr>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,6 +47,7 @@
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
 #include "nsIEventStateManager.h"
+#include "nsPresShellIterator.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
@@ -56,16 +56,35 @@
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-DOMCI_NODE_DATA(MathMLElement, nsMathMLElement)
+NS_IMETHODIMP 
+nsMathMLElement::QueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
 
-NS_INTERFACE_TABLE_HEAD(nsMathMLElement)
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsMathMLElement)
-    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMNode)
-    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMElement)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MathMLElement)
-NS_ELEMENT_INTERFACE_MAP_END
+  nsresult rv = nsMathMLElementBase::QueryInterface(aIID, aInstancePtr);
+
+  if (NS_SUCCEEDED(rv))
+    return rv;
+
+  nsISupports *inst = nsnull;
+
+  if (aIID.Equals(NS_GET_IID(nsIDOMNode))) {
+    inst = static_cast<nsIDOMNode *>(this);
+  } else if (aIID.Equals(NS_GET_IID(nsIDOMElement))) {
+    inst = static_cast<nsIDOMElement *>(this);
+  } else if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
+    inst = NS_GetDOMClassInfoInstance(eDOMClassInfo_Element_id);
+    NS_ENSURE_TRUE(inst, NS_ERROR_OUT_OF_MEMORY);
+  } else {
+    return PostQueryInterface(aIID, aInstancePtr);
+  }
+
+  NS_ADDREF(inst);
+
+  *aInstancePtr = inst;
+
+  return NS_OK;
+}
 
 NS_IMPL_ADDREF_INHERITED(nsMathMLElement, nsMathMLElementBase)
 NS_IMPL_RELEASE_INHERITED(nsMathMLElement, nsMathMLElementBase)
@@ -75,7 +94,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                             nsIContent* aBindingParent,
                             PRBool aCompileEventHandlers)
 {
-  static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
+  static const char kMathMLStyleSheetURI[] = "resource://gre/res/mathml.css";
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
@@ -89,12 +108,16 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     aDocument->SetMathMLEnabled();
     aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
 
-    // Rebuild style data for the presshell, because style system
+    // Rebuild style data for all the presshells, because style system
     // optimizations may have taken place assuming MathML was disabled.
     // (See nsRuleNode::CheckSpecifiedProperties.)
-    nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
-    if (shell) {
-      shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
+    // nsPresShellIterator skips hidden presshells, but that's OK because
+    // if we're changing the document for one of those presshells the whole
+    // presshell will be torn down.
+    nsPresShellIterator iter(aDocument);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell()) != nsnull) {
+      shell->GetPresContext()->PostRebuildAllStyleDataEvent();
     }
   }
 
@@ -112,7 +135,7 @@ nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::mathcolor_ ||
         aAttribute == nsGkAtoms::background ||
         aAttribute == nsGkAtoms::mathbackground_) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
   }
 
@@ -123,7 +146,9 @@ nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
 static nsGenericElement::MappedAttributeEntry sTokenStyles[] = {
   { &nsGkAtoms::mathsize_ },
   { &nsGkAtoms::fontsize_ },
+  { &nsGkAtoms::mathcolor_ },
   { &nsGkAtoms::color },
+  { &nsGkAtoms::mathbackground_ },
   { &nsGkAtoms::fontfamily_ },
   { nsnull }
 };
@@ -136,67 +161,27 @@ static nsGenericElement::MappedAttributeEntry sEnvironmentStyles[] = {
   { nsnull }
 };
 
-static nsGenericElement::MappedAttributeEntry sCommonPresStyles[] = {
-  { &nsGkAtoms::mathcolor_ },
-  { &nsGkAtoms::mathbackground_ },
-  { nsnull }
-};
-
 PRBool
 nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry* const tokenMap[] = {
-    sTokenStyles,
-    sCommonPresStyles
+    sTokenStyles
   };
   static const MappedAttributeEntry* const mstyleMap[] = {
     sTokenStyles,
-    sEnvironmentStyles,
-    sCommonPresStyles
-  };
-  static const MappedAttributeEntry* const commonPresMap[] = {
-    sCommonPresStyles
+    sEnvironmentStyles
   };
   
   // We don't support mglyph (yet).
   nsIAtom* tag = Tag();
   if (tag == nsGkAtoms::ms_ || tag == nsGkAtoms::mi_ ||
       tag == nsGkAtoms::mn_ || tag == nsGkAtoms::mo_ ||
-      tag == nsGkAtoms::mtext_ || tag == nsGkAtoms::mspace_)
+      tag == nsGkAtoms::mtext_)
     return FindAttributeDependence(aAttribute, tokenMap,
                                    NS_ARRAY_LENGTH(tokenMap));
   if (tag == nsGkAtoms::mstyle_)
     return FindAttributeDependence(aAttribute, mstyleMap,
                                    NS_ARRAY_LENGTH(mstyleMap));
-
-  if (tag == nsGkAtoms::maction_ ||
-      tag == nsGkAtoms::maligngroup_ ||
-      tag == nsGkAtoms::malignmark_ ||
-      tag == nsGkAtoms::math ||
-      tag == nsGkAtoms::menclose_ ||
-      tag == nsGkAtoms::merror_ ||
-      tag == nsGkAtoms::mfenced_ ||
-      tag == nsGkAtoms::mfrac_ ||
-      tag == nsGkAtoms::mover_ ||
-      tag == nsGkAtoms::mpadded_ ||
-      tag == nsGkAtoms::mphantom_ ||
-      tag == nsGkAtoms::mprescripts_ ||
-      tag == nsGkAtoms::mroot_ ||
-      tag == nsGkAtoms::mrow_ ||
-      tag == nsGkAtoms::msqrt_ ||
-      tag == nsGkAtoms::msub_ ||
-      tag == nsGkAtoms::msubsup_ ||
-      tag == nsGkAtoms::msup_ ||
-      tag == nsGkAtoms::mtable_ ||
-      tag == nsGkAtoms::mtd_ ||
-      tag == nsGkAtoms::mtr_ ||
-      tag == nsGkAtoms::munder_ ||
-      tag == nsGkAtoms::munderover_ ||
-      tag == nsGkAtoms::none) {
-    return FindAttributeDependence(aAttribute, commonPresMap,
-                                   NS_ARRAY_LENGTH(commonPresMap));
-  }
-
   return PR_FALSE;
 }
 
@@ -389,7 +374,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           NS_STYLE_FONT_SIZE_LARGE
         };
         str.CompressWhitespace();
-        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
+        for (PRInt32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
             aData->mFontData->mSize.SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
@@ -402,7 +387,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     if (value && value->Type() == nsAttrValue::eString &&
         aData->mFontData->mFamily.GetUnit() == eCSSUnit_Null) {
       aData->mFontData->mFamily.SetStringValue(value->GetStringValue(),
-                                               eCSSUnit_Families);
+                                               eCSSUnit_String);
       aData->mFontData->mFamilyFromHTML = PR_FALSE;
     }
   }
@@ -436,17 +421,17 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
 
 NS_IMPL_ELEMENT_CLONE(nsMathMLElement)
 
-nsEventStates
+PRInt32
 nsMathMLElement::IntrinsicState() const
 {
   return nsMathMLElementBase::IntrinsicState() |
-    (mIncrementScriptLevel ? NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL : nsEventStates());
+    (mIncrementScriptLevel ? NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL : 0);
 }
 
 PRBool
 nsMathMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~eCONTENT);
+  return !(aFlags & ~(eCONTENT | eELEMENT | eMATHML));
 }
 
 void

@@ -114,19 +114,22 @@ enum {
 };
 
 typedef PRIntn
-(* nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
+(*PR_CALLBACK nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
 
 typedef nsresult
-(* nsHashtableReadEntryFunc)(nsIObjectInputStream *aStream, nsHashKey **aKey,
-                             void **aData);
+(*PR_CALLBACK nsHashtableReadEntryFunc)(nsIObjectInputStream *aStream,
+                                        nsHashKey **aKey,
+                                        void **aData);
 
 // NB: may be called with null aKey or aData, to free just one of the two.
 typedef void
-(* nsHashtableFreeEntryFunc)(nsIObjectInputStream *aStream, nsHashKey *aKey,
-                             void *aData);
+(*PR_CALLBACK nsHashtableFreeEntryFunc)(nsIObjectInputStream *aStream,
+                                        nsHashKey *aKey,
+                                        void *aData);
 
 typedef nsresult
-(* nsHashtableWriteDataFunc)(nsIObjectOutputStream *aStream, void *aData);
+(*PR_CALLBACK nsHashtableWriteDataFunc)(nsIObjectOutputStream *aStream,
+                                        void *aData);
 
 class NS_COM nsHashtable {
   protected:
@@ -161,7 +164,7 @@ class NS_COM nsHashtable {
 // nsObjectHashtable: an nsHashtable where the elements are C++ objects to be
 // deleted
 
-typedef void* (* nsHashtableCloneElementFunc)(nsHashKey *aKey, void *aData, void* aClosure);
+typedef void* (*PR_CALLBACK nsHashtableCloneElementFunc)(nsHashKey *aKey, void *aData, void* aClosure);
 
 class NS_COM nsObjectHashtable : public nsHashtable {
   public:
@@ -177,9 +180,9 @@ class NS_COM nsObjectHashtable : public nsHashtable {
     PRBool RemoveAndDelete(nsHashKey *aKey);
 
   protected:
-    static PLDHashOperator CopyElement(PLDHashTable* table,
-                                       PLDHashEntryHdr* hdr,
-                                       PRUint32 i, void *arg);
+    static PLDHashOperator PR_CALLBACK CopyElement(PLDHashTable* table,
+                                                   PLDHashEntryHdr* hdr,
+                                                   PRUint32 i, void *arg);
     
     nsHashtableCloneElementFunc mCloneElementFun;
     void*                       mCloneElementClosure;
@@ -196,7 +199,7 @@ class NS_COM nsSupportsHashtable
   : private nsHashtable
 {
   public:
-    typedef PRBool (* EnumFunc) (nsHashKey *aKey, void *aData, void* aClosure);
+    typedef PRBool (* PR_CALLBACK EnumFunc) (nsHashKey *aKey, void *aData, void* aClosure);
 
     nsSupportsHashtable(PRUint32 aSize = 16, PRBool threadSafe = PR_FALSE)
       : nsHashtable(aSize, threadSafe) {}
@@ -220,10 +223,10 @@ class NS_COM nsSupportsHashtable
     void Reset();
 
   private:
-    static PRBool ReleaseElement(nsHashKey *, void *, void *);
-    static PLDHashOperator EnumerateCopy(PLDHashTable*,
-                                         PLDHashEntryHdr* hdr,
-                                         PRUint32 i, void *arg);
+    static PRBool PR_CALLBACK ReleaseElement(nsHashKey *, void *, void *);
+    static PLDHashOperator PR_CALLBACK EnumerateCopy(PLDHashTable*,
+                                                     PLDHashEntryHdr* hdr,
+                                                     PRUint32 i, void *arg);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +336,48 @@ class nsVoidKey : public nsHashKey {
 
     void* GetValue() { return mKey; }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// nsIDKey: Where keys are nsIDs (e.g. nsIID, nsCID).
+
+#include "nsID.h"
+
+class NS_COM nsIDKey : public nsHashKey {
+  protected:
+    nsID mID;
+    
+  public:
+    nsIDKey(const nsIDKey& aKey) : mID(aKey.mID) {
+#ifdef DEBUG
+          mKeyType = IDKey;
+#endif
+    }
+
+    nsIDKey(const nsID &aID) {
+#ifdef DEBUG
+        mKeyType = IDKey;
+#endif
+        mID = aID;
+    }
+    
+    PRUint32 HashCode(void) const {
+        return mID.m0;
+    }
+
+    PRBool Equals(const nsHashKey *aKey) const {
+        NS_ASSERTION(aKey->GetKeyType() == IDKey, "mismatched key types");
+        return (mID.Equals(((const nsIDKey *) aKey)->mID));
+    }
+
+    nsHashKey *Clone() const {
+        return new nsIDKey(mID);
+    }
+
+    nsIDKey(nsIObjectInputStream* aStream, nsresult *aResult);
+    nsresult Write(nsIObjectOutputStream* aStream) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 #include "nsString.h"
 

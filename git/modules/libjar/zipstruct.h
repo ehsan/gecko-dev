@@ -122,10 +122,6 @@ typedef struct ZipEnd_
 #define CENTRALSIG  0x02014B50l
 #define ENDSIG      0x06054B50l
 
-/* extra fields */
-#define EXTENDED_TIMESTAMP_FIELD   0x5455
-#define EXTENDED_TIMESTAMP_MODTIME 0x01
-
 /* compression methods */
 #define STORED            0
 #define SHRUNK            1

@@ -38,15 +38,6 @@
 #include "nsRect.h"
 #include "nsString.h"
 #include "nsIDeviceContext.h"
-#include "prlog.h"
-#include <limits.h>
-
-// the mozilla::css::Side sequence must match the nsMargin nscoord sequence
-PR_STATIC_ASSERT((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3));
-
-
-/* static */
-const nsIntRect nsIntRect::kMaxSizedIntRect(0, 0, INT_MAX, INT_MAX);
 
 // Containment
 PRBool nsRect::Contains(nscoord aX, nscoord aY) const
@@ -58,7 +49,7 @@ PRBool nsRect::Contains(nscoord aX, nscoord aY) const
 //Also Returns true if aRect is Empty
 PRBool nsRect::Contains(const nsRect &aRect) const
 {
-  return aRect.IsEmpty() ||
+  return aRect.IsEmpty() || 
           ((PRBool) ((aRect.x >= x) && (aRect.y >= y) &&
                     (aRect.XMost() <= XMost()) && (aRect.YMost() <= YMost())));
 }
@@ -87,20 +78,20 @@ PRBool nsRect::IntersectRect(const nsRect &aRect1, const nsRect &aRect2)
   // Compute the destination width
   temp = PR_MIN(xmost1, xmost2);
   if (temp <= x) {
-    width = 0;
-  } else {
-    width = temp - x;
+    Empty();
+    return PR_FALSE;
   }
+  width = temp - x;
 
   // Compute the destination height
   temp = PR_MIN(ymost1, ymost2);
   if (temp <= y) {
-    height = 0;
-  } else {
-    height = temp - y;
+    Empty();
+    return PR_FALSE;
   }
+  height = temp - y;
 
-  return !IsEmpty();
+  return PR_TRUE;
 }
 
 // Computes the smallest rectangle that contains both aRect1 and aRect2 and
@@ -182,24 +173,47 @@ void nsRect::Deflate(const nsMargin &aMargin)
   height = PR_MAX(0, height - aMargin.TopBottom());
 }
 
-// Find difference between rects as an nsMargin
-nsMargin nsRect::operator-(const nsRect& aRect) const
+// scale the rect but round to smallest containing rect
+nsRect& nsRect::ScaleRoundOut(float aScale) 
 {
-  nsMargin margin;
-  margin.left = aRect.x - x;
-  margin.right = XMost() - aRect.XMost();
-  margin.top = aRect.y - y;
-  margin.bottom = YMost() - aRect.YMost();
-  return margin;
+  nscoord right = NSToCoordCeil(float(XMost()) * aScale);
+  nscoord bottom = NSToCoordCeil(float(YMost()) * aScale);
+  x = NSToCoordFloor(float(x) * aScale);
+  y = NSToCoordFloor(float(y) * aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
 }
 
-// scale the rect but round to smallest containing rect
-nsRect& nsRect::ScaleRoundOut(float aXScale, float aYScale)
+nsRect& nsRect::ScaleRoundOutInverse(float aScale) 
 {
-  nscoord right = NSToCoordCeil(float(XMost()) * aXScale);
-  nscoord bottom = NSToCoordCeil(float(YMost()) * aYScale);
-  x = NSToCoordFloor(float(x) * aXScale);
-  y = NSToCoordFloor(float(y) * aYScale);
+  nscoord right = NSToCoordCeil(float(XMost()) / aScale);
+  nscoord bottom = NSToCoordCeil(float(YMost()) / aScale);
+  x = NSToCoordFloor(float(x) / aScale);
+  y = NSToCoordFloor(float(y) / aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
+}
+
+// scale the rect but round to largest contained rect
+nsRect& nsRect::ScaleRoundIn(float aScale) 
+{
+  nscoord right = NSToCoordFloor(float(XMost()) * aScale);
+  nscoord bottom = NSToCoordFloor(float(YMost()) * aScale);
+  x = NSToCoordCeil(float(x) * aScale);
+  y = NSToCoordCeil(float(y) * aScale);
+  width = (right - x);
+  height = (bottom - y);
+  return *this;
+}
+
+nsRect& nsRect::ScaleRoundPreservingCentersInverse(float aScale)
+{
+  nscoord right = NSToCoordRound(float(XMost()) / aScale);
+  nscoord bottom = NSToCoordRound(float(YMost()) / aScale);
+  x = NSToCoordRound(float(x) / aScale);
+  y = NSToCoordRound(float(y) / aScale);
   width = (right - x);
   height = (bottom - y);
   return *this;
@@ -230,8 +244,7 @@ FILE* operator<<(FILE* out, const nsRect& rect)
   return out;
 }
 
-#endif // DEBUG
-
+#ifdef NS_COORD_IS_FLOAT
 // Computes the area in which aRect1 and aRect2 overlap and fills 'this' with
 // the result. Returns FALSE if the rectangles don't intersect.
 PRBool nsIntRect::IntersectRect(const nsIntRect &aRect1, const nsIntRect &aRect2)
@@ -301,4 +314,6 @@ PRBool nsIntRect::UnionRect(const nsIntRect &aRect1, const nsIntRect &aRect2)
 
   return result;
 }
+#endif
 
+#endif // DEBUG

@@ -45,7 +45,6 @@
 #include <qabstracteventdispatcher.h>
 
 #include "prenv.h"
-#include "nsQAppInstance.h"
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
@@ -63,7 +62,6 @@ static int sPokeEvent;
 
 nsAppShell::~nsAppShell()
 {
-    nsQAppInstance::Release();
 }
 
 nsresult
@@ -84,9 +82,6 @@ nsAppShell::Init()
 #else
     sPokeEvent = QEvent::User+5000;
 #endif
-
-    nsQAppInstance::AddRef();
-
     return nsBaseAppShell::Init();
 }
 
@@ -101,16 +96,18 @@ nsAppShell::ScheduleNativeEventCallback()
 PRBool
 nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 {
-    QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents;
+   QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents;
+     
+     if (mayWait)
+         flags |= QEventLoop::WaitForMoreEvents;
+     
+     
+     QAbstractEventDispatcher *dispatcher =  QAbstractEventDispatcher::instance(qApp->thread());
+     if (!dispatcher)
+         return PR_FALSE ;
+     
+     return dispatcher->processEvents(flags)?PR_TRUE:PR_FALSE;
 
-    if (mayWait)
-        flags |= QEventLoop::WaitForMoreEvents;
-
-    QAbstractEventDispatcher *dispatcher =  QAbstractEventDispatcher::instance(qApp->thread());
-    if (!dispatcher)
-        return PR_FALSE;
-
-    return dispatcher->processEvents(flags) ? PR_TRUE : PR_FALSE;
 }
 
 bool

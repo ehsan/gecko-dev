@@ -212,8 +212,8 @@ PROT_UrlCryptoKeyManager.prototype.reKey = function() {
   G_Debug(this, "Attempting to re-key");
   // If the keyUrl isn't set, we don't do anything.
   if (!this.testing_ && this.keyUrl_) {
-    this.fetcher_ = new PROT_XMLFetcher();
-    this.fetcher_.get(this.keyUrl_, BindToObject(this.onGetKeyResponse, this));
+    (new PROT_XMLFetcher()).get(this.keyUrl_,
+                                BindToObject(this.onGetKeyResponse, this));
     this.updating_ = true;
 
     // Calculate the next time we're allowed to re-key.
@@ -348,7 +348,6 @@ PROT_UrlCryptoKeyManager.prototype.onGetKeyResponse = function(responseText) {
   var wrappedKey = response[this.WRAPPED_KEY_NAME];
 
   this.updating_ = false;
-  this.fetcher_ = null;
 
   if (response && clientKey && wrappedKey) {
     G_Debug(this, "Got new key from: " + responseText);
@@ -419,13 +418,6 @@ PROT_UrlCryptoKeyManager.prototype.maybeLoadOldKey = function() {
   }
 }
 
-PROT_UrlCryptoKeyManager.prototype.shutdown = function() {
-  if (this.fetcher_) {
-    this.fetcher_.cancel();
-    this.fetcher_ = null;
-  }
-}
-
 
 #ifdef DEBUG
 /**
@@ -458,7 +450,7 @@ function TEST_PROT_UrlCryptoKeyManager() {
 
     G_Assert(z, !km.hasKey(), "KM already has key?");
     km.maybeLoadOldKey();
-    G_Assert(z, !km.hasKey(), "KM loaded nonexistent key?");
+    G_Assert(z, !km.hasKey(), "KM loaded non-existent key?");
     km.onGetKeyResponse(null);
     G_Assert(z, !km.hasKey(), "KM got key from null response?");
     km.onGetKeyResponse("");

@@ -43,6 +43,7 @@
 #include "nsXBLDocumentInfo.h"
 #include "nsXBLPrototypeHandler.h"
 #include "nsXBLProtoImpl.h"
+#include "nsICSSParser.h"
 #include "nsLayoutCID.h"
 
 /*
@@ -55,7 +56,7 @@ typedef enum {
   eXBL_InResources,      /* Inside a <resources> */
   eXBL_InImplementation, /* Inside a <implementation> */
   eXBL_InHandlers,       /* Inside a <handlers> */
-  eXBL_Error             /* An error has occurred.  Suspend binding construction */
+  eXBL_Error             /* An error has occured.  Suspend binding construction */
 } XBLPrimaryState;
 
 /*
@@ -118,13 +119,11 @@ protected:
                            PRInt32 aNameSpaceID, 
                            nsIAtom* aTagName,
                            PRUint32 aLineNumber);
-
-    PRBool NotifyForDocElement() { return PR_FALSE; }
-
+    
     nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                            nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                            nsIContent** aResult, PRBool* aAppendContent,
-                           mozilla::dom::FromParser aFromParser);
+                           PRBool aFromParser);
     
     nsresult AddAttributes(const PRUnichar** aAtts, 
                            nsIContent* aContent);
@@ -147,7 +146,7 @@ protected:
   
 
   // nsXMLContentSink overrides
-  nsresult FlushText(PRBool aReleaseTextNode = PR_TRUE);
+  nsresult FlushText();
 
   // nsIExpatSink overrides
   NS_IMETHOD ReportError(const PRUnichar* aErrorText,
@@ -163,7 +162,7 @@ protected:
   
   XBLPrimaryState mState;
   XBLSecondaryState mSecondaryState;
-  nsXBLDocumentInfo* mDocInfo;
+  nsIXBLDocumentInfo* mDocInfo;
   PRPackedBool mIsChromeOrResource; // For bug #45989
   PRPackedBool mFoundFirstBinding;
 

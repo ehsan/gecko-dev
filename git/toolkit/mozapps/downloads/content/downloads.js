@@ -27,7 +27,6 @@
 #   Josh Aas <josh@mozilla.com>
 #   Shawn Wilsher <me@shawnwilsher.com> (v3.0)
 #   Edward Lee <edward.lee@engineering.uiuc.edu>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,7 +47,6 @@
 
 const PREF_BDM_CLOSEWHENDONE = "browser.download.manager.closeWhenDone";
 const PREF_BDM_ALERTONEXEOPEN = "browser.download.manager.alertOnEXEOpen";
-const PREF_BDM_SCANWHENDONE = "browser.download.manager.scanWhenDone";
 
 const nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
                                            "nsILocalFile", "initWithPath");
@@ -63,9 +61,6 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 const nsIDM = Ci.nsIDownloadManager;
 
 let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
-let gDownloadManagerUI = Cc["@mozilla.org/download-manager-ui;1"].
-                         getService(Ci.nsIDownloadManagerUI);
-
 let gDownloadListener = null;
 let gDownloadsView = null;
 let gSearchBox = null;
@@ -120,7 +115,19 @@ let gStr = {
 };
 
 // The statement to query for downloads that are active or match the search
-let gStmt = null;
+let gStmt = gDownloadManager.DBConnection.createStatement(
+  "SELECT id, target, name, source, state, startTime, endTime, referrer, " +
+         "currBytes, maxBytes, state IN (?1, ?2, ?3, ?4, ?5) isActive " +
+  "FROM moz_downloads " +
+  "ORDER BY isActive DESC, endTime DESC, startTime DESC");
+
+////////////////////////////////////////////////////////////////////////////////
+//// Utility Functions
+
+function getDownload(aID)
+{
+  return document.getElementById("dl" + aID);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Start/Stop Observers
@@ -170,8 +177,6 @@ function downloadCompleted(aDownload)
 
     if (gDownloadManager.activeDownloadCount == 0)
       document.title = document.documentElement.getAttribute("statictitle");
-
-    gDownloadManagerUI.getAttention();
   }
   catch (e) { }
 }
@@ -294,21 +299,6 @@ function openDownload(aDownload)
       dontAsk = !pref.getBoolPref(PREF_BDM_ALERTONEXEOPEN);
     } catch (e) { }
 
-#ifdef XP_WIN
-#ifndef WINCE
-    // On Vista and above, we rely on native security prompting for
-    // downloaded content unless it's disabled.
-    try {
-      var sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
-      if (parseFloat(sysInfo.getProperty("version")) >= 6 &&
-          pref.getBoolPref(PREF_BDM_SCANWHENDONE)) {
-        dontAsk = true;
-      }
-    } catch (ex) { }
-#endif
-#endif
-
     if (!dontAsk) {
       var strings = document.getElementById("downloadStrings");
       var name = aDownload.getAttribute("target");
@@ -328,15 +318,6 @@ function openDownload(aDownload)
     }
   }
   try {
-    try {
-      let download = gDownloadManager.getDownload(aDownload.getAttribute("dlid"));
-      let mimeInfo = download.MIMEInfo;
-      if (mimeInfo.preferredAction == mimeInfo.useHelperApp) {
-        mimeInfo.launchWithFile(f);
-        return;
-      }
-    } catch (ex) {
-    }
     f.launch();
   } catch (ex) {
     // if launch fails, try sending it through the system's external
@@ -458,7 +439,6 @@ function Startup()
       gStr[name] = typeof value == "string" ? getStr(value) : value.map(getStr);
   }
 
-  initStatement();
   buildDownloadList(true);
 
   // The DownloadProgressListener (DownloadProgressListener.js) handles progress
@@ -479,8 +459,6 @@ function Startup()
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
   obs.addObserver(gDownloadObserver, "download-manager-remove-download", false);
-  obs.addObserver(gDownloadObserver, "private-browsing", false);
-  obs.addObserver(gDownloadObserver, "browser-lastwindow-close-granted", false);
 
   // Clear the search box and move focus to the list on escape from the box
   gSearchBox.addEventListener("keypress", function(e) {
@@ -490,14 +468,6 @@ function Startup()
       e.preventDefault();
     }
   }, false);
-
-#ifdef XP_WIN
-#ifndef WINCE
-  let tempScope = {};
-  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", tempScope);
-  tempScope.DownloadTaskbarProgress.onDownloadWindowLoad(window);
-#endif
-#endif
 }
 
 function Shutdown()
@@ -506,9 +476,7 @@ function Shutdown()
 
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
-  obs.removeObserver(gDownloadObserver, "private-browsing");
   obs.removeObserver(gDownloadObserver, "download-manager-remove-download");
-  obs.removeObserver(gDownloadObserver, "browser-lastwindow-close-granted");
 
   clearTimeout(gBuilder);
   gStmt.reset();
@@ -519,7 +487,7 @@ let gDownloadObserver = {
   observe: function gdo_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "download-manager-remove-download":
-        // A null subject here indicates "remove multiple", so we just rebuild.
+        // A null subject here indicates "remove all"
         if (!aSubject) {
           // Rebuild the default view
           buildDownloadList(true);
@@ -530,34 +498,6 @@ let gDownloadObserver = {
         let id = aSubject.QueryInterface(Ci.nsISupportsPRUint32);
         let dl = getDownload(id.data);
         removeFromView(dl);
-        break;
-      case "private-browsing":
-        if (aData == "enter" || aData == "exit") {
-          // We need to reset the title here, because otherwise the title of
-          // the download manager would still reflect the progress of current
-          // active downloads, if any, after switching the private browsing
-          // mode, even though the downloads will no longer be accessible.
-          // If any download is auto-started after switching the private
-          // browsing mode, the title will be updated as needed by the progress
-          // listener.
-          document.title = document.documentElement.getAttribute("statictitle");
-
-          // We might get this notification before the download manager
-          // service, so the new database connection might not be ready
-          // yet.  Defer this until all private-browsing notifications
-          // have been processed.
-          setTimeout(function() {
-            initStatement();
-            buildDownloadList(true);
-          }, 0);
-        }
-        break;
-      case "browser-lastwindow-close-granted":
-#ifndef XP_MACOSX
-        if (gDownloadManager.activeDownloadCount == 0) {
-          setTimeout(gCloseDownloadManager, 0);
-        }
-#endif
         break;
     }
   }
@@ -704,45 +644,35 @@ function buildContextMenu(aEvent)
 
   return false;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Drag and Drop
+
 var gDownloadDNDObserver =
 {
-  onDragStart: function (aEvent)
+  onDragOver: function (aEvent, aFlavour, aDragSession)
   {
-    if (!gDownloadsView.selectedItem)
-      return;
-    var dl = gDownloadsView.selectedItem;
-    var f = getLocalFileFromNativePathOrUrl(dl.getAttribute("file"));
-    if (!f.exists())
-      return;
-
-    var dt = aEvent.dataTransfer;
-    dt.mozSetDataAt("application/x-moz-file", f, 0);
-    dt.effectAllowed = "copyMove";
-    dt.addElement(dl);
+    aDragSession.canDrop = true;
   },
 
-  onDragOver: function (aEvent)
+  onDrop: function(aEvent, aXferData, aDragSession)
   {
-    var types = aEvent.dataTransfer.types;
-    if (types.contains("text/uri-list") ||
-        types.contains("text/x-moz-url") ||
-        types.contains("text/plain"))
-      aEvent.preventDefault();
-  },
-
-  onDrop: function(aEvent)
-  {
-    var dt = aEvent.dataTransfer;
-    var url = dt.getData("URL");
-    var name;
-    if (!url) {
-      url = dt.getData("text/x-moz-url") || dt.getData("text/plain");
-      [url, name] = url.split("\n");
+    var split = aXferData.data.split("\n");
+    var url = split[0];
+    if (url != aXferData.data) {  //do nothing, not a valid URL
+      var name = split[1];
+      saveURL(url, name, null, true, true);
     }
-    if (url)
-      saveURL(url, name ? name : url, null, true, true);
+  },
+  _flavourSet: null,
+  getSupportedFlavours: function ()
+  {
+    if (!this._flavourSet) {
+      this._flavourSet = new FlavourSet();
+      this._flavourSet.appendFlavour("text/x-moz-url");
+      this._flavourSet.appendFlavour("text/unicode");
+    }
+    return this._flavourSet;
   }
 }
 
@@ -1344,7 +1274,7 @@ function downloadMatchesSearch(aItem)
 
   // Make sure each of the terms are found
   for each (let term in gSearchTerms)
-    if (combinedSearch.indexOf(term) == -1)
+    if (combinedSearch.search(term) == -1)
       return false;
 
   return true;
@@ -1384,28 +1314,4 @@ function updateClearListButton()
   let button = document.getElementById("clearListButton");
   // The button is enabled if we have items in the list and we can clean up
   button.disabled = !(gDownloadsView.itemCount && gDownloadManager.canCleanUp);
-}
-
-function getDownload(aID)
-{
-  return document.getElementById("dl" + aID);
-}
-
-/**
- * Initialize the statement which is used to retrieve the list of downloads.
- *
- * This function gets called both at startup, and when entering the private
- * browsing mode (because the database connection is changed when entering
- * the private browsing mode, and a new statement should be initialized.
- */
-function initStatement()
-{
-  if (gStmt)
-    gStmt.finalize();
-
-  gStmt = gDownloadManager.DBConnection.createStatement(
-    "SELECT id, target, name, source, state, startTime, endTime, referrer, " +
-           "currBytes, maxBytes, state IN (?1, ?2, ?3, ?4, ?5) isActive " +
-    "FROM moz_downloads " +
-    "ORDER BY isActive DESC, endTime DESC, startTime DESC");
 }

@@ -44,18 +44,14 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 
+#include "nsTransform2D.h"
 #include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
-#include "imgIDecoderObserver.h"
-
-#include "Layers.h"
-#include "ImageLayers.h"
-#include "nsDisplayList.h"
-#include "imgIContainer.h"
 
 class nsIFrame;
 class nsImageMap;
@@ -65,12 +61,8 @@ struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
-class nsPresContext;
-class nsImageFrame;
-class nsTransform2D;
 
-using namespace mozilla;
-using namespace mozilla::layers;
+class nsImageFrame;
 
 class nsImageListener : public nsStubImageDecoderObserver
 {
@@ -81,13 +73,13 @@ public:
   NS_DECL_ISUPPORTS
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
-                             const nsIntRect *aRect);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
+                             const nsRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
+                          nsRect * dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -95,20 +87,19 @@ private:
   nsImageFrame *mFrame;
 };
 
-#define IMAGE_SIZECONSTRAINED       NS_FRAME_STATE_BIT(20)
-#define IMAGE_GOTINITIALREFLOW      NS_FRAME_STATE_BIT(21)
+#define IMAGE_SIZECONSTRAINED       0x00100000
+#define IMAGE_GOTINITIALREFLOW      0x00200000
 
 #define ImageFrameSuper nsSplittableFrame
 
 class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsImageFrame(nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
+  // nsISupports 
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -117,7 +108,6 @@ public:
                               const nsDisplayListSet& aLists);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -137,7 +127,7 @@ public:
                               PRInt32 aModType);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -186,13 +176,14 @@ public:
   virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
 
-  nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager,
-                                        imgIContainer* aImage);
-
 protected:
+  // nsISupports
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+
   virtual ~nsImageFrame();
 
-  void EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext);
+  void EnsureIntrinsicSize(nsPresContext* aPresContext);
 
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -227,19 +218,20 @@ protected:
                       const nsRect&        aRect);
 
   void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                  const nsRect& aDirtyRect, imgIContainer* aImage,
-                  PRUint32 aFlags);
-
+                  const nsRect& aDirtyRect, imgIContainer* aImage);
+                  
 protected:
   friend class nsImageListener;
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  nsresult OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
-                           const nsIntRect *rect);
+  nsresult OnDataAvailable(imgIRequest *aRequest,
+                           gfxIImageFrame *aFrame,
+                           const nsRect * rect);
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
   nsresult FrameChanged(imgIContainer *aContainer,
-                        const nsIntRect *aDirtyRect);
+                        gfxIImageFrame *aNewframe,
+                        nsRect *aDirtyRect);
 
 private:
   // random helpers
@@ -250,34 +242,19 @@ private:
                            nsILoadGroup **aLoadGroup);
   nscoord GetContinuationOffset() const;
   void GetDocumentCharacterSet(nsACString& aCharset) const;
-  bool ShouldDisplaySelection();
 
   /**
    * Recalculate mIntrinsicSize from the image.
    *
    * @return whether aImage's size did _not_
-   *         match our previous intrinsic size.
+   *         match our previous intrinsic size
    */
   PRBool UpdateIntrinsicSize(imgIContainer* aImage);
 
   /**
-   * Recalculate mIntrinsicRatio from the image.
-   *
-   * @return whether aImage's ratio did _not_
-   *         match our previous intrinsic ratio.
+   * This function will recalculate mTransform.
    */
-  PRBool UpdateIntrinsicRatio(imgIContainer* aImage);
-
-  /**
-   * This function calculates the transform for converting between
-   * source space & destination space. May fail if our image has a
-   * percent-valued or zero-valued height or width.
-   *
-   * @param aTransform The transform object to populate.
-   *
-   * @return whether we succeeded in creating the transform.
-   */
-  PRBool GetSourceToDestTransform(nsTransform2D& aTransform);
+  void RecalculateTransform();
 
   /**
    * Helper functions to check whether the request or image container
@@ -291,21 +268,17 @@ private:
    * Function to convert a dirty rect in the source image to a dirty
    * rect for the image frame.
    */
-  nsRect SourceRectToDest(const nsIntRect & aRect);
+  nsRect SourceRectToDest(const nsRect & aRect);
 
   nsImageMap*         mImageMap;
 
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsSize mComputedSize;
-  nsIFrame::IntrinsicSize mIntrinsicSize;
-  nsSize mIntrinsicRatio;
-
-  PRBool mDisplayingIcon;
-
-  static nsIIOService* sIOService;
+  nsSize mIntrinsicSize;
+  nsTransform2D mTransform;
   
-  nsRefPtr<ImageContainer> mImageContainer; 
+  static nsIIOService* sIOService;
 
   /* loading / broken image icon support */
 
@@ -318,51 +291,42 @@ private:
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
                     imgIRequest **aRequest);
+  
+  // HandleIconLoads: See if the request is for an Icon load. If it
+  // is, handle it and return TRUE otherwise, return FALSE (aCompleted
+  // is an input arg telling the routine if the request has completed)
+  PRBool HandleIconLoads(imgIRequest* aRequest, PRBool aCompleted);
 
-  class IconLoad : public nsIObserver,
-                   public imgIDecoderObserver {
-    // private class that wraps the data and logic needed for
+  class IconLoad : public nsIObserver {
+    // private class that wraps the data and logic needed for 
     // broken image and loading image icons
   public:
-    IconLoad();
+    IconLoad(imgIDecoderObserver* aObserver);
 
     void Shutdown()
     {
       // in case the pref service releases us later
       if (mLoadingImage) {
-        mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mLoadingImage->Cancel(NS_ERROR_FAILURE);
         mLoadingImage = nsnull;
       }
       if (mBrokenImage) {
-        mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mBrokenImage->Cancel(NS_ERROR_FAILURE);
         mBrokenImage = nsnull;
       }
     }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
-    NS_DECL_IMGICONTAINEROBSERVER
-    NS_DECL_IMGIDECODEROBSERVER
-
-    void AddIconObserver(nsImageFrame *frame) {
-        NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
-                          "Observer shouldn't aleady be in array");
-        mIconObservers.AppendElement(frame);
-    }
-
-    void RemoveIconObserver(nsImageFrame *frame) {
-        PRBool rv = mIconObservers.RemoveElement(frame);
-        NS_ABORT_IF_FALSE(rv, "Observer not in array");
-    }
 
   private:
     void GetPrefs();
-    nsTObserverArray<nsImageFrame*> mIconObservers;
-
 
   public:
     nsCOMPtr<imgIRequest> mLoadingImage;
     nsCOMPtr<imgIRequest> mBrokenImage;
+    nsCOMPtr<imgIDecoderObserver> mLoadObserver; // keeps the observer alive
+    PRUint8          mIconsLoaded;
     PRPackedBool     mPrefForceInlineAltText;
     PRPackedBool     mPrefShowPlaceholders;
   };
@@ -371,43 +335,6 @@ public:
   static IconLoad* gIconLoad; // singleton pattern: one LoadIcons instance is used
   
   friend class nsDisplayImage;
-};
-
-/**
- * Note that nsDisplayImage does not receive events. However, an image element
- * is replaced content so its background will be z-adjacent to the
- * image itself, and hence receive events just as if the image itself
- * received events.
- */
-class nsDisplayImage : public nsDisplayItem {
-public:
-  nsDisplayImage(nsDisplayListBuilder* aBuilder, nsImageFrame* aFrame,
-                 imgIContainer* aImage)
-    : nsDisplayItem(aBuilder, aFrame), mImage(aImage) {
-    MOZ_COUNT_CTOR(nsDisplayImage);
-  }
-  virtual ~nsDisplayImage() {
-    MOZ_COUNT_DTOR(nsDisplayImage);
-  }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  nsCOMPtr<imgIContainer> GetImage();
- 
-  /**
-   * Returns an ImageContainer for this image if the image type
-   * supports it (TYPE_RASTER only).
-   */
-  nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager);
-  
-  /**
-   * Configure an ImageLayer for this display item.
-   * Set the required filter and scaling transform.
-   */
-  void ConfigureLayer(ImageLayer* aLayer);
-
-  NS_DISPLAY_DECL_NAME("Image", TYPE_IMAGE)
-private:
-  nsCOMPtr<imgIContainer> mImage;
 };
 
 #endif /* nsImageFrame_h___ */

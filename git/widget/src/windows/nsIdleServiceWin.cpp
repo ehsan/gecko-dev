@@ -41,33 +41,16 @@
 #include "nsIdleServiceWin.h"
 #include <windows.h>
 
-NS_IMPL_ISUPPORTS2(nsIdleServiceWin, nsIIdleService, nsIdleService)
+NS_IMPL_ISUPPORTS1(nsIdleServiceWin, nsIIdleService)
 
-bool
-nsIdleServiceWin::PollIdleTime(PRUint32 *aIdleTime)
+NS_IMETHODIMP
+nsIdleServiceWin::GetIdleTime(PRUint32 *aTimeDiff)
 {
-#ifndef WINCE
     LASTINPUTINFO inputInfo;
     inputInfo.cbSize = sizeof(inputInfo);
     if (!::GetLastInputInfo(&inputInfo))
-        return false;
+        return NS_ERROR_FAILURE;
 
-    *aIdleTime = SAFE_COMPARE_EVEN_WITH_WRAPPING(GetTickCount(), inputInfo.dwTime);
-
-    return true;
-#else
-    // On WinCE we don't pull the idle time from the system.
-    return false;
-#endif
-}
-
-bool
-nsIdleServiceWin::UsePollMode()
-{
-#ifndef WINCE
-    return true;
-#else
-    // On WinCE we don't pull the idle time from the system.
-    return false;
-#endif
+    *aTimeDiff = GetTickCount() - inputInfo.dwTime;
+    return NS_OK;
 }

@@ -5,7 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=421602
 -->
 <head>
   <title>Test for Bug 421602</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -38,7 +38,7 @@ function loadTestImage() {
   var img1 = new Image();
   img1.onload = function() { img1loaded = true; }
   img1.onerror = function() {
-    is(img2errored, false, "Image 2 should not error before image 1");
+    is(img2errored, false, "Image 3 should not error before image 2");
     img1errored = true;
   }
   img1.src = window.location.href + "?image1=true";

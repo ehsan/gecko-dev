@@ -45,27 +45,184 @@
 #ifndef nsIStyleRuleProcessor_h___
 #define nsIStyleRuleProcessor_h___
 
+#include <stdio.h>
+
 #include "nsISupports.h"
+#include "nsPresContext.h" // for nsCompatability
+#include "nsILinkHandler.h"
+#include "nsString.h"
 #include "nsChangeHint.h"
-#include "nsIContent.h"
 
-struct RuleProcessorData;
-struct ElementRuleProcessorData;
-struct PseudoElementRuleProcessorData;
-struct AnonBoxRuleProcessorData;
-#ifdef MOZ_XUL
-struct XULTreeRuleProcessorData;
-#endif
-struct StateRuleProcessorData;
-struct AttributeRuleProcessorData;
+class nsIStyleSheet;
 class nsPresContext;
+class nsIContent;
+class nsIAtom;
+class nsICSSPseudoComparator;
+class nsRuleWalker;
+class nsAttrValue;
 
-// IID for the nsIStyleRuleProcessor interface
-// {b8e44bbe-aaac-4125-8ab2-0f42802e14ad}
+// The implementation of the constructor and destructor are currently in
+// nsCSSRuleProcessor.cpp.
+
+struct RuleProcessorData {
+  RuleProcessorData(nsPresContext* aPresContext,
+                    nsIContent* aContent, 
+                    nsRuleWalker* aRuleWalker,
+                    nsCompatibility* aCompat = nsnull);
+  
+  // NOTE: not |virtual|
+  ~RuleProcessorData();
+
+  // This should be used for all heap-allocation of RuleProcessorData
+  static RuleProcessorData* Create(nsPresContext* aPresContext,
+                                   nsIContent* aContent, 
+                                   nsRuleWalker* aRuleWalker,
+                                   nsCompatibility aCompat)
+  {
+    if (NS_LIKELY(aPresContext)) {
+      return new (aPresContext) RuleProcessorData(aPresContext, aContent,
+                                                  aRuleWalker, &aCompat);
+    }
+
+    return new RuleProcessorData(aPresContext, aContent, aRuleWalker,
+                                 &aCompat);
+  }
+  
+  void Destroy() {
+    nsPresContext * pc = mPresContext;
+    if (NS_LIKELY(pc)) {
+      this->~RuleProcessorData();
+      pc->FreeToShell(sizeof(RuleProcessorData), this);
+      return;
+    }
+    delete this;
+  }
+
+  // For placement new
+  void* operator new(size_t sz, RuleProcessorData* aSlot) CPP_THROW_NEW {
+    return aSlot;
+  }
+private:
+  void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
+    return aContext->AllocateFromShell(sz);
+  }
+  void* operator new(size_t sz) CPP_THROW_NEW {
+    return ::operator new(sz);
+  }
+public:
+  const nsString* GetLang();
+
+  // Returns a 1-based index of the child in its parent.  If the child
+  // is not in its parent's child list (i.e., it is anonymous content),
+  // returns 0.
+  // If aCheckEdgeOnly is true, the function will return 1 if the result
+  // is 1, and something other than 1 (maybe or maybe not a valid
+  // result) otherwise.
+  PRInt32 GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
+                      PRBool aCheckEdgeOnly);
+
+  nsPresContext*    mPresContext;
+  nsIContent*       mContent;       // weak ref
+  nsIContent*       mParentContent; // if content, content->GetParent(); weak ref
+  nsRuleWalker*     mRuleWalker; // Used to add rules to our results.
+  nsIContent*       mScopedRoot;    // Root of scoped stylesheet (set and unset by the supplier of the scoped stylesheet
+  
+  nsIAtom*          mContentTag;    // if content, then content->GetTag()
+  nsIAtom*          mContentID;     // if styled content, then weak reference to styledcontent->GetID()
+  PRPackedBool      mIsHTMLContent; // if content, then does QI on HTMLContent, true or false
+  PRPackedBool      mIsLink;        // if content, calls nsStyleUtil::IsHTMLLink or nsStyleUtil::IsLink
+  PRPackedBool      mHasAttributes; // if content, content->GetAttrCount() > 0
+  nsCompatibility   mCompatMode;    // Possibly remove use of this in SelectorMatches?
+  nsLinkState       mLinkState;     // if a link, this is the state, otherwise unknown
+  PRInt32           mEventState;    // if content, eventStateMgr->GetContentState()
+  PRInt32           mNameSpaceID;   // if content, content->GetNameSapce()
+  const nsAttrValue* mClasses;      // if styled content, styledcontent->GetClasses()
+  // mPreviousSiblingData and mParentData are always RuleProcessorData
+  // and never a derived class.  They are allocated lazily, when
+  // selectors require matching of prior siblings or ancestors.
+  RuleProcessorData* mPreviousSiblingData;
+  RuleProcessorData* mParentData;
+
+protected:
+  nsString *mLanguage; // NULL means we haven't found out the language yet
+
+  // This node's index for :nth-child(), :nth-last-child(),
+  // :nth-of-type(), :nth-last-of-type().  If -2, needs to be computed.
+  // If -1, needs to be computed but known not to be 1.
+  // If 0, the node is not at any index in its parent.
+  // The first subscript is 0 for -child and 1 for -of-type, the second
+  // subscript is 0 for nth- and 1 for nth-last-.
+  PRInt32 mNthIndices[2][2];
+};
+
+struct ElementRuleProcessorData : public RuleProcessorData {
+  ElementRuleProcessorData(nsPresContext* aPresContext,
+                           nsIContent* aContent, 
+                           nsRuleWalker* aRuleWalker)
+  : RuleProcessorData(aPresContext,aContent,aRuleWalker)
+  {
+    NS_PRECONDITION(aPresContext, "null pointer");
+    NS_PRECONDITION(aContent, "null pointer");
+    NS_PRECONDITION(aRuleWalker, "null pointer");
+  }
+};
+
+struct PseudoRuleProcessorData : public RuleProcessorData {
+  PseudoRuleProcessorData(nsPresContext* aPresContext,
+                          nsIContent* aParentContent,
+                          nsIAtom* aPseudoTag,
+                          nsICSSPseudoComparator* aComparator,
+                          nsRuleWalker* aRuleWalker)
+  : RuleProcessorData(aPresContext, aParentContent, aRuleWalker)
+  {
+    NS_PRECONDITION(aPresContext, "null pointer");
+    NS_PRECONDITION(aPseudoTag, "null pointer");
+    NS_PRECONDITION(aRuleWalker, "null pointer");
+    mPseudoTag = aPseudoTag;
+    mComparator = aComparator;
+  }
+
+  nsIAtom*                 mPseudoTag;
+  nsICSSPseudoComparator*  mComparator;
+};
+
+struct StateRuleProcessorData : public RuleProcessorData {
+  StateRuleProcessorData(nsPresContext* aPresContext,
+                         nsIContent* aContent,
+                         PRInt32 aStateMask)
+    : RuleProcessorData(aPresContext, aContent, nsnull),
+      mStateMask(aStateMask)
+  {
+    NS_PRECONDITION(aPresContext, "null pointer");
+    NS_PRECONDITION(aContent, "null pointer");
+  }
+  const PRInt32 mStateMask; // |HasStateDependentStyle| for which state(s)?
+                            //  Constants defined in nsIEventStateManager.h .
+};
+
+struct AttributeRuleProcessorData : public RuleProcessorData {
+  AttributeRuleProcessorData(nsPresContext* aPresContext,
+                             nsIContent* aContent,
+                             nsIAtom* aAttribute,
+                             PRInt32 aModType,
+                             PRUint32 aStateMask)
+    : RuleProcessorData(aPresContext, aContent, nsnull),
+      mAttribute(aAttribute),
+      mModType(aModType),
+      mStateMask(aStateMask)
+  {
+    NS_PRECONDITION(aPresContext, "null pointer");
+    NS_PRECONDITION(aContent, "null pointer");
+  }
+  nsIAtom* mAttribute; // |HasAttributeDependentStyle| for which attribute?
+  PRInt32 mModType;    // The type of modification (see nsIDOMMutationEvent).
+  PRUint32 mStateMask; // The states that changed with the attr change.
+};
+
+
+// IID for the nsIStyleRuleProcessor interface {015575fe-7b6c-11d3-ba05-001083023c2b}
 #define NS_ISTYLE_RULE_PROCESSOR_IID     \
-{ 0xb8e44bbe, 0xaaac, 0x4125, \
- { 0x8a, 0xb2, 0x0f, 0x42, 0x80, 0x2e, 0x14, 0xad } }
-
+{0x015575fe, 0x7b6c, 0x11d3, {0xba, 0x05, 0x00, 0x10, 0x83, 0x02, 0x3c, 0x2b}}
 
 /* The style rule processor interface is a mechanism to separate the matching
  * of style rules from style sheet instances.
@@ -81,7 +238,7 @@ public:
 
   // Shorthand for:
   //  nsCOMArray<nsIStyleRuleProcessor>::nsCOMArrayEnumFunc
-  typedef PRBool (* EnumFunc)(nsIStyleRuleProcessor*, void*);
+  typedef PRBool (* PR_CALLBACK EnumFunc)(nsIStyleRuleProcessor*, void*);
 
   /**
    * Find the |nsIStyleRule|s matching the given content node and
@@ -89,71 +246,41 @@ public:
    * tree representing that ordered list of rules (with higher
    * precedence being farther from the root of the lexicographic tree).
    */
-  virtual void RulesMatching(ElementRuleProcessorData* aData) = 0;
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData) = 0;
 
   /**
    * Just like the previous |RulesMatching|, except for a given content
    * node <em>and pseudo-element</em>.
    */
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) = 0;
+  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData) = 0;
 
   /**
-   * Just like the previous |RulesMatching|, except for a given anonymous box.
-   */
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) = 0;
-
-#ifdef MOZ_XUL
-  /**
-   * Just like the previous |RulesMatching|, except for a given content
-   * node <em>and tree pseudo</em>.
-   */
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData) = 0;
-#endif
-
-  /**
-   * Return whether style can depend on a change of the given document state.
-   *
-   * Document states are defined in nsIDocument.h.
-   */
-  virtual PRBool
-    HasDocumentStateDependentStyle(StateRuleProcessorData* aData) = 0;
-
-  /**
-   * Return how (as described by nsRestyleHint) style can depend on a
+   * Return how (as described by nsReStyleHint) style can depend on a
    * change of the given content state on the given content node.  This
    * test is used for optimization only, and may err on the side of
    * reporting more dependencies than really exist.
    *
    * Event states are defined in nsIEventStateManager.h.
    */
-  virtual nsRestyleHint
-    HasStateDependentStyle(StateRuleProcessorData* aData) = 0;
+  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
+                                    nsReStyleHint* aResult) = 0;
 
   /**
-   * This method will be called twice for every attribute change.
-   * During the first call, aData->mAttrHasChanged will be false and
-   * the attribute change will not have happened yet.  During the
-   * second call, aData->mAttrHasChanged will be true and the
-   * change will have already happened.  The bitwise OR of the two
-   * return values must describe the style changes that are needed due
-   * to the attribute change.  It's up to the rule processor
-   * implementation to decide how to split the bits up amongst the two
-   * return values.  For example, it could return the bits needed by
-   * rules that might stop matching the node from the first call and
-   * the bits needed by rules that might have started matching the
-   * node from the second call.  This test is used for optimization
-   * only, and may err on the side of reporting more dependencies than
-   * really exist.
+   * Return how (as described by nsReStyleHint) style can depend on the
+   * presence or value of the given attribute for the given content
+   * node.  This test is used for optimization only, and may err on the
+   * side of reporting more dependencies than really exist.
    */
-  virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData) = 0;
+  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                        nsReStyleHint* aResult) = 0;
 
   /**
    * Do any processing that needs to happen as a result of a change in
    * the characteristics of the medium, and return whether this rule
    * processor's rules have changed (e.g., because of media queries).
    */
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext) = 0;
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIStyleRuleProcessor,

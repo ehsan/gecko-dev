@@ -52,9 +52,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-
-#if defined(XP_MACOSX)
-#include <Carbon/Carbon.h>
+#if defined(XP_MAC) || defined(XP_MACOSX)
+  #include <Errors.h>
 #endif
 
 #if defined(SUNOS4)
@@ -714,7 +713,7 @@ static int _bufio_flushBuf( BufioFile* file )
 *  sets the file buffer size to bufsize, clearing the buffer in the process.
 *
 *  accepts bufsize of -1 to mean default buffer size, defined by BUFIO_BUFSIZE_DEFAULT
-*  returns new buffers size, or -1 if error occurred
+*  returns new buffers size, or -1 if error occured
 */
 
 int bufio_SetBufferSize(BufioFile* file, int bufsize)

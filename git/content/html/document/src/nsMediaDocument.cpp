@@ -85,7 +85,7 @@ nsMediaDocumentStreamListener::OnStartRequest(nsIRequest* request, nsISupports *
     return mNextStream->OnStartRequest(request, ctxt);
   }
 
-  return NS_BINDING_ABORTED;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -141,8 +141,8 @@ nsMediaDocument::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create a bundle for the localization
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
+  nsCOMPtr<nsIStringBundleService> stringService(
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID));
   if (stringService) {
     stringService->CreateBundle(NSMEDIADOCUMENT_PROPERTIES_URI,
                                 getter_AddRefs(mStringBundle));
@@ -234,10 +234,10 @@ nsMediaDocument::CreateSyntheticDocument()
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
-                                           kNameSpaceID_XHTML);
+                                           kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsGenericHTMLElement> root = NS_NewHTMLHtmlElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> root = NS_NewHTMLHtmlElement(nodeInfo);
   if (!root) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -247,11 +247,11 @@ nsMediaDocument::CreateSyntheticDocument()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head, nsnull,
-                                           kNameSpaceID_XHTML);
+                                           kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Create a <head> so our title has somewhere to live
-  nsRefPtr<nsGenericHTMLElement> head = NS_NewHTMLHeadElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> head = NS_NewHTMLHeadElement(nodeInfo);
   if (!head) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -259,10 +259,10 @@ nsMediaDocument::CreateSyntheticDocument()
   root->AppendChildTo(head, PR_FALSE);
 
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::body, nsnull,
-                                           kNameSpaceID_XHTML);
+                                           kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsGenericHTMLElement> body = NS_NewHTMLBodyElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> body = NS_NewHTMLBodyElement(nodeInfo);
   if (!body) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -276,56 +276,23 @@ nsresult
 nsMediaDocument::StartLayout()
 {
   mMayStartLayout = PR_TRUE;
-  nsCOMPtr<nsIPresShell> shell = GetShell();
-  // Don't mess with the presshell if someone has already handled
-  // its initial reflow.
-  if (shell && !shell->DidInitialReflow()) {
+  nsPresShellIterator iter(this);
+  nsCOMPtr<nsIPresShell> shell;
+  while ((shell = iter.GetNextShell())) {
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
+    nsCOMPtr<nsIPresShell> shellGrip = shell;
     nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Now trigger a refresh.  vm might be null if the presshell got
+    // Destroy() called already.
+    nsIViewManager* vm = shell->GetViewManager();
+    if (vm) {
+      vm->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
+    }
   }
 
   return NS_OK;
-}
-
-void
-nsMediaDocument::GetFileName(nsAString& aResult)
-{
-  aResult.Truncate();
-
-  nsCOMPtr<nsIURL> url = do_QueryInterface(mDocumentURI);
-  if (!url)
-    return;
-
-  nsCAutoString fileName;
-  url->GetFileName(fileName);
-  if (fileName.IsEmpty())
-    return;
-
-  nsCAutoString docCharset;
-  // Now that the charset is set in |StartDocumentLoad| to the charset of
-  // the document viewer instead of a bogus value ("ISO-8859-1" set in
-  // |nsDocument|'s ctor), the priority is given to the current charset. 
-  // This is necessary to deal with a media document being opened in a new 
-  // window or a new tab, in which case |originCharset| of |nsIURI| is not 
-  // reliable.
-  if (mCharacterSetSource != kCharsetUninitialized) {  
-    docCharset = mCharacterSet;
-  } else {  
-    // resort to |originCharset|
-    url->GetOriginCharset(docCharset);
-    SetDocumentCharacterSet(docCharset);
-  }
-
-  nsresult rv;
-  nsCOMPtr<nsITextToSubURI> textToSubURI = 
-    do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
-  if (NS_SUCCEEDED(rv)) {
-    // UnEscapeURIForUI always succeeds
-    textToSubURI->UnEscapeURIForUI(docCharset, fileName, aResult);
-  } else {
-    CopyUTF8toUTF16(fileName, aResult);
-  }
 }
 
 void 
@@ -335,7 +302,40 @@ nsMediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                        const nsAString& aStatus)
 {
   nsXPIDLString fileStr;
-  GetFileName(fileStr);
+  if (mDocumentURI) {
+    nsCAutoString fileName;
+    nsCOMPtr<nsIURL> url = do_QueryInterface(mDocumentURI);
+    if (url)
+      url->GetFileName(fileName);
+
+    nsCAutoString docCharset;
+
+    // Now that the charset is set in |StartDocumentLoad| to the charset of
+    // the document viewer instead of a bogus value ("ISO-8859-1" set in
+    // |nsDocument|'s ctor), the priority is given to the current charset. 
+    // This is necessary to deal with a media document being opened in a new 
+    // window or a new tab, in which case |originCharset| of |nsIURI| is not 
+    // reliable.
+    if (mCharacterSetSource != kCharsetUninitialized) {  
+      docCharset = mCharacterSet;
+    }
+    else {  
+      // resort to |originCharset|
+      mDocumentURI->GetOriginCharset(docCharset);
+      SetDocumentCharacterSet(docCharset);
+    }
+    if (!fileName.IsEmpty()) {
+      nsresult rv;
+      nsCOMPtr<nsITextToSubURI> textToSubURI = 
+        do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
+      if (NS_SUCCEEDED(rv))
+        // UnEscapeURIForUI always succeeds
+        textToSubURI->UnEscapeURIForUI(docCharset, fileName, fileStr);
+      else 
+        CopyUTF8toUTF16(fileName, fileStr);
+    }
+  }
+
 
   NS_ConvertASCIItoUTF16 typeStr(aTypeStr);
   nsXPIDLString title;

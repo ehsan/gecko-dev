@@ -71,6 +71,12 @@ char nsFilePicker::mLastUsedDirectory[MAX_PATH+1] = { 0 };
 
 #define MAX_EXTENSION_LENGTH 10
 
+#ifndef BIF_USENEWUI
+// BIF_USENEWUI isn't defined in the platform SDK that comes with
+// MSVC6.0. 
+#define BIF_USENEWUI 0x50
+#endif
+
 //-------------------------------------------------------------------------
 //
 // nsFilePicker constructor
@@ -100,7 +106,7 @@ nsFilePicker::~nsFilePicker()
 //
 //-------------------------------------------------------------------------
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
   if (uMsg == BFFM_INITIALIZED)
@@ -144,7 +150,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
   mUnicodeFile.Truncate();
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 
   if (mMode == modeGetFolder) {
     PRUnichar dirBuffer[MAX_PATH+1];
@@ -152,7 +158,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
     BROWSEINFOW browserInfo;
     browserInfo.hwndOwner      = (HWND)
-      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : 0); 
+      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
     browserInfo.pidlRoot       = nsnull;
     browserInfo.pszDisplayName = (LPWSTR)dirBuffer;
     browserInfo.lpszTitle      = mTitle.get();
@@ -183,7 +189,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
   }
   else 
-#endif // WINCE_WINDOWS_MOBILE
+#endif // WINCE
   {
 
     OPENFILENAMEW ofn;
@@ -198,12 +204,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
     ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
     ofn.nFilterIndex = mSelectedType;
-#ifdef WINCE_WINDOWS_MOBILE
-    // If we're running fullscreen the dialog inherits that, which is bad
-    ofn.hwndOwner    = (HWND) 0;
-#else
-    ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : 0); 
-#endif
+    ofn.hwndOwner    = (HWND)
+      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
     ofn.lpstrFile    = fileBuffer;
     ofn.nMaxFile     = FILE_BUFFER_SIZE;
 
@@ -236,7 +238,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
 
 #ifndef WINCE
-    MOZ_SEH_TRY {
+    try {
 #endif
       if (mMode == modeOpen) {
         // FILE MUST EXIST!
@@ -263,30 +265,21 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         result = ::GetSaveFileNameW(&ofn);
         if (!result) {
           // Error, find out what kind.
-          if (::GetLastError() == ERROR_INVALID_PARAMETER 
-#ifndef WINCE
-              || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
-#endif
-              ) {
+          if (::GetLastError() == ERROR_INVALID_PARAMETER ||
+              ::CommDlgExtendedError() == FNERR_INVALIDFILENAME) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
             ofn.lpstrFile[0] = 0;
             result = ::GetSaveFileNameW(&ofn);
           }
         }
-      } 
-#ifdef WINCE_WINDOWS_MOBILE
-      else if (mMode == modeGetFolder) {
-        ofn.Flags = OFN_PROJECT | OFN_FILEMUSTEXIST;
-        result = ::GetOpenFileNameW(&ofn);
       }
-#endif
       else {
-        NS_ERROR("unsupported mode"); 
+        NS_ASSERTION(0, "unsupported mode"); 
       }
 #ifndef WINCE
     }
-    MOZ_SEH_EXCEPT(PR_TRUE) {
+    catch(...) {
       MessageBoxW(ofn.hwndOwner,
                   0,
                   L"The filepicker was unexpectedly closed by Windows.",
@@ -294,13 +287,15 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
       result = PR_FALSE;
     }
 #endif
-
-    if (result) {
+  
+    if (result == PR_TRUE) {
       // Remember what filter type the user selected
       mSelectedType = (PRInt16)ofn.nFilterIndex;
 
       // Set user-selected location of file or directory
       if (mMode == modeOpenMultiple) {
+        nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+        NS_ENSURE_SUCCESS(rv,rv);
         
         // from msdn.microsoft.com, "Open and Save As Dialog Boxes" section:
         // If you specify OFN_EXPLORER,
@@ -316,7 +311,6 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (current[dirName.Length() - 1] != '\\')
           dirName.Append((PRUnichar)'\\');
         
-        nsresult rv;
         while (current && *current && *(current + nsCRT::strlen(current) + 1)) {
           current = current + nsCRT::strlen(current) + 1;
           
@@ -326,7 +320,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(dirName + nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
         
@@ -342,7 +336,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
       }
@@ -352,9 +346,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         mUnicodeFile.Assign(fileBuffer);
       }
     }
-    if (ofn.hwndOwner) {
-      ::DestroyWindow(ofn.hwndOwner);
-    }
+
   }
 
   if (result) {
@@ -465,13 +457,13 @@ NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
     nameIndex ++;
   nameLength = mDefault.Length() - nameIndex;
   
-  if (nameLength > MAX_PATH) {
+  if (nameLength > _MAX_FNAME) {
     PRInt32 extIndex = mDefault.RFind(".");
     if (extIndex == kNotFound)
       extIndex = mDefault.Length();
 
     //Let's try to shave the needed characters from the name part
-    PRInt32 charsToRemove = nameLength - MAX_PATH;
+    PRInt32 charsToRemove = nameLength - _MAX_FNAME;
     if (extIndex - nameIndex >= charsToRemove) {
       mDefault.Cut(extIndex - charsToRemove, charsToRemove);
     }

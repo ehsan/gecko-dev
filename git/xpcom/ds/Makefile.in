@@ -48,16 +48,17 @@ LIBRARY_NAME	= xpcomds_s
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
+REQUIRES	= \
+		  string \
+		  $(NULL)
 
 CPPSRCS		= \
-		nsArray.cpp \
 		nsAtomTable.cpp \
 		nsAtomService.cpp \
 		nsByteBuffer.cpp \
 		nsCheapSets.cpp \
 		nsCRT.cpp \
 		nsFixedSizeAllocator.cpp \
-		nsHashPropertyBag.cpp \
 		nsHashSets.cpp \
 		nsHashtable.cpp \
 		nsINIParserImpl.cpp \
@@ -71,22 +72,12 @@ CPPSRCS		= \
 		nsSupportsArray.cpp \
 		nsSupportsArrayEnumerator.cpp \
 		nsSupportsPrimitives.cpp \
-		nsTimelineService.cpp \
 		nsUnicharBuffer.cpp \
 		nsVariant.cpp \
+		nsTimelineService.cpp \
+		nsArray.cpp \
+		nsHashPropertyBag.cpp \
 		$(NULL)
-
-ifdef HAVE_CLOCK_MONOTONIC
-CPPSRCS += TimeStamp_posix.cpp
-else
-CPPSRCS += TimeStamp.cpp
-endif
-
-EXPORTS_NAMESPACES = mozilla
-
-EXPORTS_mozilla = \
-  TimeStamp.h \
-  $(NULL)
 
 EXPORTS		= \
 		nsAtomService.h \
@@ -113,8 +104,7 @@ EXPORTS		= \
 		nsStringEnumerator.h \
 		nsHashPropertyBag.h \
 		nsWhitespaceTokenizer.h \
-		nsCharSeparatedTokenizer.h \
-		CheckedInt.h \
+		nsCommaSeparatedTokenizer.h \
 		$(NULL)			
 
 XPIDLSRCS	= \
@@ -155,10 +145,7 @@ XPIDLSRCS += nsIWindowsRegKey.idl
 EXPORTS += nsWindowsRegKey.h
 endif
 
-EXTRA_COMPONENTS = \
-  nsINIProcessor.js \
-  nsINIProcessor.manifest \
-  $(NULL)
+EXPORTS		:= $(addprefix $(srcdir)/, $(EXPORTS))
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1

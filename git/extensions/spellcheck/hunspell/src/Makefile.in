@@ -45,6 +45,13 @@ LIBRARY_NAME     = hunspell_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY   = 1
 
+REQUIRES         = xpcom \
+                   string \
+                   uconv \
+                   unicharutil \
+                   spellchecker \
+                   xulapp \
+                   $(NULL)
 
 CPPSRCS          = mozHunspell.cpp \
                    mozHunspellDirProvider.cpp \
@@ -54,17 +61,11 @@ ifndef MOZ_NATIVE_HUNSPELL
 CPPSRCS         += affentry.cpp \
                    affixmgr.cpp \
                    csutil.cpp \
-                   dictmgr.cpp \
-                   filemgr.cpp \
                    hashmgr.cpp \
                    hunspell.cpp \
-                   hunzip.cpp \
                    phonet.cpp \
-                   replist.cpp \
                    suggestmgr.cpp \
                    $(NULL)
-
-DEFINES = -DHUNSPELL_STATIC
 endif
 
 EXTRA_DSO_LDOPTS = \

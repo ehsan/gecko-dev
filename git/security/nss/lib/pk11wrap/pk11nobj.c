@@ -116,7 +116,7 @@ pk11_HandleTrustObject(PK11SlotInfo *slot, CERTCertificate *cert, CERTCertTrust 
   if( NULL == arena ) return PR_FALSE;
 
   /* Unfortunately, it seems that PK11_GetAttributes doesn't deal
-   * well with nonexistent attributes.  I guess we have to check 
+   * well with nonexistant attributes.  I guess we have to check 
    * the trust info fields one at a time.
    */
 
@@ -527,7 +527,6 @@ PK11_PutCrl(PK11SlotInfo *slot, SECItem *crl, SECItem *name,
 	nssCryptokiObject_Destroy(object);
     } else {
 	rvH = CK_INVALID_HANDLE;
-        PORT_SetError(SEC_ERROR_CRL_IMPORT_FAILED);
     }
     return rvH;
 }

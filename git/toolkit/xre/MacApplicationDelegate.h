@@ -39,11 +39,10 @@
 // This file defines the interface between Cocoa-specific Obj-C++ and generic C++,
 // so it itself cannot have any Obj-C bits in it.
 
-#ifndef MacApplicationDelegate_h_
-#define MacApplicationDelegate_h_
+#ifndef __MacApplicationDelegate_h__
+#define __MacApplicationDelegate_h__
 
 void EnsureUseCocoaDockAPI(void);
 void SetupMacApplicationDelegate(void);
-void ProcessPendingGetURLAppleEvents(void);
 
 #endif

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+/* vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,19 +36,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsPlacesTables.h"
-
 #ifndef __nsPlacesTriggers_h__
 #define __nsPlacesTriggers_h__
 
 /**
- * Exclude these visit types:
- *  0 - invalid
- *  4 - EMBED
- *  7 - DOWNLOAD
- *  7 - FRAMED_LINK
- **/
-#define EXCLUDED_VISIT_TYPES "0, 4, 7, 8"
+ * Trigger increments the visit count by one for each inserted visit that isn't
+ * an invalid transition, embedded transition, or a download transition.
+ */
+#define CREATE_VISIT_COUNT_INSERT_TRIGGER NS_LITERAL_CSTRING( \
+  "CREATE TRIGGER moz_historyvisits_afterinsert_v1_trigger " \
+  "AFTER INSERT ON moz_historyvisits FOR EACH ROW " \
+  "WHEN NEW.visit_type NOT IN (0, 4, 7) " /* invalid, EMBED, DOWNLOAD */ \
+  "BEGIN " \
+    "UPDATE moz_places " \
+    "SET visit_count = visit_count + 1 " \
+    "WHERE moz_places.id = NEW.place_id; " \
+  "END" \
+)
+
+/**
+ * Trigger decrements the visit count by one for each removed visit that isn't
+ * an invalid transition, embeded transition, or a download transition.  To be
+ * safe, we ensure that the visit count will not fall below zero.
+ */
+#define CREATE_VISIT_COUNT_DELETE_TRIGGER NS_LITERAL_CSTRING( \
+  "CREATE TRIGGER moz_historyvisits_afterdelete_v1_trigger " \
+  "AFTER DELETE ON moz_historyvisits FOR EACH ROW " \
+  "WHEN OLD.visit_type NOT IN (0, 4, 7) " /* invalid, EMBED, DOWNLOAD */ \
+  "BEGIN " \
+    "UPDATE moz_places " \
+    "SET visit_count = visit_count - 1 " \
+    "WHERE moz_places.id = OLD.place_id " \
+    "AND visit_count > 0; " \
+  "END" \
+)
+
 /**
  * Trigger checks to ensure that at least one bookmark is still using a keyword
  * when any bookmark is deleted.  If there are no more bookmarks using it, the
@@ -69,50 +90,6 @@
       "AND id <> OLD.id " \
       "LIMIT 1 " \
     ");" \
-  "END" \
-)
-
-/**
- * This triggers update visit_count and last_visit_date based on historyvisits
- * table changes.
- */
-#define CREATE_HISTORYVISITS_AFTERINSERT_TRIGGER NS_LITERAL_CSTRING( \
-  "CREATE TEMP TRIGGER moz_historyvisits_afterinsert_v2_trigger " \
-  "AFTER INSERT ON moz_historyvisits FOR EACH ROW " \
-  "BEGIN " \
-    "UPDATE moz_places SET " \
-      "visit_count = visit_count + (SELECT NEW.visit_type NOT IN (" EXCLUDED_VISIT_TYPES ")), "\
-      "last_visit_date = MAX(IFNULL(last_visit_date, 0), NEW.visit_date) " \
-    "WHERE id = NEW.place_id;" \
-  "END" \
-)
-
-#define CREATE_HISTORYVISITS_AFTERDELETE_TRIGGER NS_LITERAL_CSTRING( \
-  "CREATE TEMP TRIGGER moz_historyvisits_afterdelete_v2_trigger " \
-  "AFTER DELETE ON moz_historyvisits FOR EACH ROW " \
-  "BEGIN " \
-    "UPDATE moz_places SET " \
-      "visit_count = visit_count - (SELECT OLD.visit_type NOT IN (" EXCLUDED_VISIT_TYPES ")), "\
-      "last_visit_date = (SELECT visit_date FROM moz_historyvisits " \
-                         "WHERE place_id = OLD.place_id " \
-                         "ORDER BY visit_date DESC LIMIT 1) " \
-    "WHERE id = OLD.place_id;" \
-  "END" \
-)
-
-/**
- * This trigger removes a row from moz_openpages_temp when open_count reaches 0.
- *
- * @note this should be kept up-to-date with the definition in
- *       nsPlacesAutoComplete.js
- */
-#define CREATE_REMOVEOPENPAGE_CLEANUP_TRIGGER NS_LITERAL_CSTRING( \
-  "CREATE TEMPORARY TRIGGER moz_openpages_temp_afterupdate_trigger " \
-  "AFTER UPDATE OF open_count ON moz_openpages_temp FOR EACH ROW " \
-  "WHEN NEW.open_count = 0 " \
-  "BEGIN " \
-    "DELETE FROM moz_openpages_temp " \
-    "WHERE url = NEW.url;" \
   "END" \
 )
 

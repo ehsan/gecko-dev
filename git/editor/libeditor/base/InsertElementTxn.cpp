@@ -51,34 +51,21 @@ InsertElementTxn::InsertElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(InsertElementTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(InsertElementTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(InsertElementTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(InsertElementTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP InsertElementTxn::Init(nsIDOMNode *aNode,
                                      nsIDOMNode *aParent,
                                      PRInt32     aOffset,
                                      nsIEditor  *aEditor)
 {
   NS_ASSERTION(aNode && aParent && aEditor, "bad arg");
-  NS_ENSURE_TRUE(aNode && aParent && aEditor, NS_ERROR_NULL_POINTER);
+  if (!aNode || !aParent || !aEditor)
+    return NS_ERROR_NULL_POINTER;
 
   mNode = do_QueryInterface(aNode);
   mParent = do_QueryInterface(aParent);
   mOffset = aOffset;
   mEditor = aEditor;
-  NS_ENSURE_TRUE(mNode && mParent && mEditor, NS_ERROR_INVALID_ARG);
+  if (!mNode || !mParent || !mEditor)
+    return NS_ERROR_INVALID_ARG;
   return NS_OK;
 }
 
@@ -94,20 +81,17 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
     mNode->GetNodeName(namestr);
     char* nodename = ToNewCString(namestr);
     printf("%p Do Insert Element of %p <%s> into parent %p at offset %d\n", 
-           static_cast<void*>(this),
-           static_cast<void*>(nodeAsContent.get()),
-           nodename,
-           static_cast<void*>(parentAsContent.get()),
-           mOffset); 
+           this, nodeAsContent.get(), nodename,
+           parentAsContent.get(), mOffset); 
     nsMemory::Free(nodename);
   }
 #endif
 
-  NS_ENSURE_TRUE(mNode && mParent, NS_ERROR_NOT_INITIALIZED);
+  if (!mNode || !mParent) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIDOMNodeList> childNodes;
   nsresult result = mParent->GetChildNodes(getter_AddRefs(childNodes));
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
   nsCOMPtr<nsIDOMNode>refNode;
   if (childNodes)
   {
@@ -117,7 +101,7 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
     // -1 is sentinel value meaning "append at end"
     if (mOffset == -1) mOffset = count;
     result = childNodes->Item(mOffset, getter_AddRefs(refNode));
-    NS_ENSURE_SUCCESS(result, result); 
+    if (NS_FAILED(result)) return result; 
     // note, it's ok for mRefNode to be null.  that means append
   }
 
@@ -125,8 +109,8 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
 
   nsCOMPtr<nsIDOMNode> resultNode;
   result = mParent->InsertBefore(mNode, refNode, getter_AddRefs(resultNode));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(resultNode, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!resultNode) return NS_ERROR_NULL_POINTER;
 
   // only set selection to insertion point if editor gives permission
   PRBool bAdjustSelection;
@@ -135,8 +119,8 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!selection) return NS_ERROR_NULL_POINTER;
     // place the selection just after the inserted element
     selection->Collapse(mParent, mOffset+1);
   }
@@ -150,17 +134,11 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
 NS_IMETHODIMP InsertElementTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("%p Undo Insert Element of %p into parent %p at offset %d\n",
-           static_cast<void*>(this),
-           static_cast<void*>(mNode.get()),
-           static_cast<void*>(mParent.get()),
-           mOffset);
-  }
+  if (gNoisy) { printf("%p Undo Insert Element of %p into parent %p at offset %d\n", 
+                       this, mNode.get(), mParent.get(), mOffset); }
 #endif
 
-  NS_ENSURE_TRUE(mNode && mParent, NS_ERROR_NOT_INITIALIZED);
+  if (!mNode || !mParent) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIDOMNode> resultNode;
   return mParent->RemoveChild(mNode, getter_AddRefs(resultNode));

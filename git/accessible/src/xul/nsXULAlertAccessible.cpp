@@ -38,32 +38,29 @@
 #include "nsXULAlertAccessible.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULAlertAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-nsXULAlertAccessible::
-  nsXULAlertAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
-{
-}
+// ------------------------ Alert  -----------------------------
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsXULAlertAccessible, nsAccessible)
 
-PRUint32
-nsXULAlertAccessible::NativeRole()
+nsXULAlertAccessible::nsXULAlertAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
-  return nsIAccessibleRole::ROLE_ALERT;
 }
 
-nsresult
-nsXULAlertAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP nsXULAlertAccessible::GetRole(PRUint32 *aRole)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  *aRole = nsIAccessibleRole::ROLE_ALERT;
+  return NS_OK;
+}
 
-  // XUL has no markup for low, medium or high
-  *aState |= nsIAccessibleStates::STATE_ALERT_MEDIUM;
+NS_IMETHODIMP
+nsXULAlertAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+{
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (mDOMNode) {
+    *aState |= nsIAccessibleStates::STATE_ALERT_MEDIUM; // XUL has no markup for low, medium or high
+  }
   return NS_OK;
 }
 

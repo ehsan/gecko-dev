@@ -158,8 +158,7 @@ _compute_transform (cairo_win32_scaled_font_t *scaled_font,
 {
     cairo_status_t status;
 
-    if (NEARLY_ZERO (sc->yx) && NEARLY_ZERO (sc->xy) &&
-	    !NEARLY_ZERO(sc->xx) && !NEARLY_ZERO(sc->yy)) {
+    if (NEARLY_ZERO (sc->yx) && NEARLY_ZERO (sc->xy)) {
 	scaled_font->preserve_axes = TRUE;
 	scaled_font->x_scale = sc->xx;
 	scaled_font->swap_x = (sc->xx < 0);
@@ -167,8 +166,7 @@ _compute_transform (cairo_win32_scaled_font_t *scaled_font,
 	scaled_font->swap_y = (sc->yy < 0);
 	scaled_font->swap_axes = FALSE;
 
-    } else if (NEARLY_ZERO (sc->xx) && NEARLY_ZERO (sc->yy) &&
-	    !NEARLY_ZERO(sc->yx) && !NEARLY_ZERO(sc->xy)) {
+    } else if (NEARLY_ZERO (sc->xx) && NEARLY_ZERO (sc->yy)) {
 	scaled_font->preserve_axes = TRUE;
 	scaled_font->x_scale = sc->yx;
 	scaled_font->swap_x = (sc->yx < 0);
@@ -239,14 +237,14 @@ _have_cleartype_quality (void)
 	     version_info.dwMinorVersion >= 1));	/* XP or newer */
 }
 
-BYTE
-_cairo_win32_get_system_text_quality (void)
+static BYTE
+_get_system_quality (void)
 {
     BOOL font_smoothing;
     UINT smoothing_type;
 
     if (!SystemParametersInfo (SPI_GETFONTSMOOTHING, 0, &font_smoothing, 0)) {
-	_cairo_win32_print_gdi_error ("_cairo_win32_get_system_text_quality");
+	_cairo_win32_print_gdi_error ("_get_system_quality");
 	return DEFAULT_QUALITY;
     }
 
@@ -254,7 +252,7 @@ _cairo_win32_get_system_text_quality (void)
 	if (_have_cleartype_quality ()) {
 	    if (!SystemParametersInfo (SPI_GETFONTSMOOTHINGTYPE,
 				       0, &smoothing_type, 0)) {
-		_cairo_win32_print_gdi_error ("_cairo_win32_get_system_text_quality");
+		_cairo_win32_print_gdi_error ("_get_system_quality");
 		return DEFAULT_QUALITY;
 	    }
 
@@ -307,7 +305,7 @@ _win32_scaled_font_create (LOGFONTW                   *logfont,
      *      here is the hint_metrics options.
      */
     if (options->antialias == CAIRO_ANTIALIAS_DEFAULT)
-	f->quality = _cairo_win32_get_system_text_quality ();
+	f->quality = _get_system_quality ();
     else {
 	switch (options->antialias) {
 	case CAIRO_ANTIALIAS_NONE:
@@ -521,8 +519,11 @@ _cairo_win32_scaled_font_done_unscaled_font (cairo_scaled_font_t *scaled_font)
 /* implement the font backend interface */
 
 static cairo_status_t
-_cairo_win32_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
-				       cairo_font_face_t      **font_face)
+_cairo_win32_scaled_font_create_toy (cairo_toy_font_face_t *toy_face,
+				     const cairo_matrix_t        *font_matrix,
+				     const cairo_matrix_t        *ctm,
+				     const cairo_font_options_t  *options,
+				     cairo_scaled_font_t        **scaled_font_out)
 {
     LOGFONTW logfont;
     uint16_t *face_name;
@@ -534,11 +535,12 @@ _cairo_win32_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
     if (status)
 	return status;
 
-    if (face_name_len > LF_FACESIZE - 1)
-	face_name_len = LF_FACESIZE - 1;
+    if (face_name_len > LF_FACESIZE - 1) {
+	free (face_name);
+	return _cairo_error (CAIRO_STATUS_INVALID_STRING);
+    }
 
-    memcpy (logfont.lfFaceName, face_name, sizeof (uint16_t) * face_name_len);
-    logfont.lfFaceName[face_name_len] = 0;
+    memcpy (logfont.lfFaceName, face_name, sizeof (uint16_t) * (face_name_len + 1));
     free (face_name);
 
     logfont.lfHeight = 0;	/* filled in later */
@@ -579,9 +581,12 @@ _cairo_win32_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
     logfont.lfQuality = DEFAULT_QUALITY; /* filled in later */
     logfont.lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
 
-    *font_face = cairo_win32_font_face_create_for_logfontw (&logfont);
+    if (!logfont.lfFaceName)
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    return CAIRO_STATUS_SUCCESS;
+    return _win32_scaled_font_create (&logfont, NULL, &toy_face->base,
+			              font_matrix, ctm, options,
+				      scaled_font_out);
 }
 
 static void
@@ -635,25 +640,21 @@ _cairo_win32_scaled_font_type1_text_to_glyphs (cairo_win32_scaled_font_t *scaled
 
     if (GetGlyphIndicesW (hdc, utf16, n16, glyph_indices, 0) == GDI_ERROR) {
 	status = _cairo_win32_print_gdi_error ("_cairo_win32_scaled_font_type1_text_to_glyphs:GetGlyphIndicesW");
-	goto FAIL3;
+	goto FAIL2;
     }
 
     *num_glyphs = n16;
     *glyphs = _cairo_malloc_ab (n16, sizeof (cairo_glyph_t));
     if (!*glyphs) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	goto FAIL3;
+	goto FAIL2;
     }
 
     x_pos = x;
     y_pos = y;
-
     mat = scaled_font->base.ctm;
     status = cairo_matrix_invert (&mat);
     assert (status == CAIRO_STATUS_SUCCESS);
-
-    _cairo_scaled_font_freeze_cache (&scaled_font->base);
-
     for (i = 0; i < n16; i++) {
 	cairo_scaled_glyph_t *scaled_glyph;
 
@@ -667,8 +668,7 @@ _cairo_win32_scaled_font_type1_text_to_glyphs (cairo_win32_scaled_font_t *scaled
 					     &scaled_glyph);
 	if (status) {
 	    free (*glyphs);
-	    *glyphs = NULL;
-	    break;
+	    goto FAIL2;
 	}
 
 	x = scaled_glyph->x_advance;
@@ -678,10 +678,8 @@ _cairo_win32_scaled_font_type1_text_to_glyphs (cairo_win32_scaled_font_t *scaled
 	y_pos += y;
     }
 
-    _cairo_scaled_font_thaw_cache (&scaled_font->base);
-
-FAIL3:
     cairo_win32_scaled_font_done_font (&scaled_font->base);
+
 FAIL2:
     free (glyph_indices);
 FAIL1:
@@ -977,22 +975,12 @@ _cairo_win32_scaled_font_init_glyph_metrics (cairo_win32_scaled_font_t *scaled_f
 	if (GetGlyphOutlineW (hdc, _cairo_scaled_glyph_index (scaled_glyph),
 			      GGO_METRICS | GGO_GLYPH_INDEX,
 			      &metrics, 0, NULL, &matrix) == GDI_ERROR) {
-	    memset (&metrics, 0, sizeof (GLYPHMETRICS));
-	} else {
-	    if (metrics.gmBlackBoxX > 0 && scaled_font->base.options.antialias != CAIRO_ANTIALIAS_NONE) {
-		/* The bounding box reported by Windows supposedly contains the glyph's "black" area;
-		 * however, antialiasing (especially with ClearType) means that the actual image that
-		 * needs to be rendered may "bleed" into the adjacent pixels, mainly on the right side.
-		 * To avoid clipping the glyphs when drawn by _cairo_surface_fallback_show_glyphs,
-		 * for example, or other code that uses glyph extents to determine the area to update,
-		 * we add a pixel of "slop" to left side of the nominal "black" area returned by GDI,
-		 * and two pixels to the right (as tests show some glyphs bleed into this column).
-		 */
-		metrics.gmptGlyphOrigin.x -= 1;
-		metrics.gmBlackBoxX += 3;
-	    }
+	  status = _cairo_win32_print_gdi_error ("_cairo_win32_scaled_font_init_glyph_metrics:GetGlyphOutlineW");
+	  memset (&metrics, 0, sizeof (GLYPHMETRICS));
 	}
 	cairo_win32_scaled_font_done_font (&scaled_font->base);
+	if (status)
+	    return status;
 
 	if (scaled_font->swap_axes) {
 	    extents.x_bearing = - metrics.gmptGlyphOrigin.y / scaled_font->y_scale;
@@ -1031,9 +1019,12 @@ _cairo_win32_scaled_font_init_glyph_metrics (cairo_win32_scaled_font_t *scaled_f
 	if (GetGlyphOutlineW (hdc, _cairo_scaled_glyph_index (scaled_glyph),
 	                      GGO_METRICS | GGO_GLYPH_INDEX,
 			      &metrics, 0, NULL, &matrix) == GDI_ERROR) {
-	    memset (&metrics, 0, sizeof (GLYPHMETRICS));
+	  status = _cairo_win32_print_gdi_error ("_cairo_win32_scaled_font_init_glyph_metrics:GetGlyphOutlineW");
+	  memset (&metrics, 0, sizeof (GLYPHMETRICS));
 	}
 	_cairo_win32_scaled_font_done_unscaled_font (&scaled_font->base);
+	if (status)
+	    return status;
 
 	extents.x_bearing = (double)metrics.gmptGlyphOrigin.x / scaled_font->em_square;
 	extents.y_bearing = - (double)metrics.gmptGlyphOrigin.y / scaled_font->em_square;
@@ -1187,12 +1178,12 @@ _add_glyph (cairo_glyph_state_t *state,
 	    if (status)
 		return status;
 	    state->start_x = logical_x;
-	} else {
-	    dx = logical_x - state->last_x;
-	    status = _cairo_array_append (&state->dx, &dx);
-	    if (status)
-		return status;
 	}
+
+	dx = logical_x - state->last_x;
+	status = _cairo_array_append (&state->dx, &dx);
+	if (status)
+	    return status;
     } else {
 	state->start_x = logical_x;
     }
@@ -1361,20 +1352,19 @@ _cairo_win32_scaled_font_glyph_init (void		       *abstract_font,
 }
 
 static cairo_int_status_t
-_cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
-				      cairo_operator_t		 op,
-				      const cairo_pattern_t	*pattern,
-				      cairo_surface_t		*generic_surface,
-				      int			 source_x,
-				      int			 source_y,
-				      int			 dest_x,
-				      int			 dest_y,
-				      unsigned int		 width,
-				      unsigned int		 height,
-				      cairo_glyph_t		*glyphs,
-				      int			 num_glyphs,
-				      cairo_region_t		*clip_region,
-				      int			*remaining_glyphs)
+_cairo_win32_scaled_font_show_glyphs (void		       *abstract_font,
+				      cairo_operator_t    	op,
+				      cairo_pattern_t          *pattern,
+				      cairo_surface_t          *generic_surface,
+				      int                 	source_x,
+				      int                 	source_y,
+				      int			dest_x,
+				      int			dest_y,
+				      unsigned int		width,
+				      unsigned int		height,
+				      cairo_glyph_t	       *glyphs,
+				      int                 	num_glyphs,
+				      int		       *remaining_glyphs)
 {
     cairo_win32_scaled_font_t *scaled_font = abstract_font;
     cairo_win32_surface_t *surface = (cairo_win32_surface_t *)generic_surface;
@@ -1385,7 +1375,6 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 
     if (_cairo_surface_is_win32 (generic_surface) &&
 	surface->format == CAIRO_FORMAT_RGB24 &&
-	(generic_surface->permit_subpixel_antialiasing || scaled_font->quality != CLEARTYPE_QUALITY) &&
 	op == CAIRO_OPERATOR_OVER &&
 	_cairo_pattern_is_opaque_solid (pattern)) {
 
@@ -1396,17 +1385,15 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 	 */
 	COLORREF new_color;
 
-	status = _cairo_win32_surface_set_clip_region (surface, clip_region);
-	if (unlikely (status))
-	    return status;
-
 	new_color = RGB (((int)solid_pattern->color.red_short) >> 8,
 			 ((int)solid_pattern->color.green_short) >> 8,
 			 ((int)solid_pattern->color.blue_short) >> 8);
 
-	return _draw_glyphs_on_surface (surface, scaled_font, new_color,
-					0, 0,
-					glyphs, num_glyphs);
+	status = _draw_glyphs_on_surface (surface, scaled_font, new_color,
+					  0, 0,
+					  glyphs, num_glyphs);
+
+	return status;
     } else {
 	/* Otherwise, we need to draw using software fallbacks. We create a mask
 	 * surface by drawing the the glyphs onto a DIB, black-on-white then
@@ -1417,8 +1404,6 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 	cairo_win32_surface_t *tmp_surface;
 	cairo_surface_t *mask_surface;
 	cairo_surface_pattern_t mask;
-	cairo_bool_t use_subpixel_antialiasing =
-	    scaled_font->quality == CLEARTYPE_QUALITY && generic_surface->permit_subpixel_antialiasing;
 	RECT r;
 
 	tmp_surface = (cairo_win32_surface_t *)cairo_win32_surface_create_with_dib (CAIRO_FORMAT_ARGB32, width, height);
@@ -1440,7 +1425,7 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 	    return status;
 	}
 
-	if (use_subpixel_antialiasing) {
+	if (scaled_font->quality == CLEARTYPE_QUALITY) {
 	    /* For ClearType, we need a 4-channel mask. If we are compositing on
 	     * a surface with alpha, we need to compute the alpha channel of
 	     * the mask (we just copy the green channel). But for a destination
@@ -1453,6 +1438,10 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 		_invert_argb32_mask (tmp_surface);
 
 	    mask_surface = &tmp_surface->base;
+
+	    /* XXX: Hacky, should expose this in cairo_image_surface */
+	    pixman_image_set_component_alpha (((cairo_image_surface_t *)tmp_surface->image)->pixman_image, TRUE);
+
 	} else {
 	    mask_surface = _compute_a8_mask (tmp_surface);
 	    cairo_surface_destroy (&tmp_surface->base);
@@ -1466,10 +1455,6 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 	 * destination
 	 */
 	_cairo_pattern_init_for_surface (&mask, mask_surface);
-	cairo_surface_destroy (mask_surface);
-
-	if (use_subpixel_antialiasing)
-	    mask.base.has_component_alpha = TRUE;
 
 	status = _cairo_surface_composite (op, pattern,
 					   &mask.base,
@@ -1477,10 +1462,11 @@ _cairo_win32_scaled_font_show_glyphs (void			*abstract_font,
 					   source_x, source_y,
 					   0, 0,
 					   dest_x, dest_y,
-					   width, height,
-					   clip_region);
+					   width, height);
 
 	_cairo_pattern_fini (&mask.base);
+
+	cairo_surface_destroy (mask_surface);
 
 	return status;
     }
@@ -1555,7 +1541,6 @@ _cairo_win32_scaled_font_index_to_ucs4 (void		*abstract_font,
 	goto exit1;
     }
 
-    *ucs4 = (uint32_t) -1;
     for (i = 0; i < glyph_set->cRanges; i++) {
 	num_glyphs = glyph_set->ranges[i].cGlyphs;
 
@@ -1833,10 +1818,7 @@ _cairo_win32_scaled_font_init_glyph_path (cairo_win32_scaled_font_t *scaled_font
     free (buffer);
 
  CLEANUP_FONT:
-    if (scaled_font->base.options.hint_style == CAIRO_HINT_STYLE_NONE)
-	_cairo_win32_scaled_font_done_unscaled_font (&scaled_font->base);
-    else
-	cairo_win32_scaled_font_done_font (&scaled_font->base);
+    cairo_win32_scaled_font_done_font (&scaled_font->base);
 
  CLEANUP_PATH:
     if (status != CAIRO_STATUS_SUCCESS)
@@ -1847,6 +1829,7 @@ _cairo_win32_scaled_font_init_glyph_path (cairo_win32_scaled_font_t *scaled_font
 
 const cairo_scaled_font_backend_t _cairo_win32_scaled_font_backend = {
     CAIRO_FONT_TYPE_WIN32,
+    _cairo_win32_scaled_font_create_toy,
     _cairo_win32_scaled_font_fini,
     _cairo_win32_scaled_font_glyph_init,
     NULL, /* _cairo_win32_scaled_font_text_to_glyphs, FIXME */
@@ -1912,9 +1895,8 @@ _cairo_win32_font_face_scaled_font_create (void			*abstract_face,
 				      font);
 }
 
-const cairo_font_face_backend_t _cairo_win32_font_face_backend = {
+static const cairo_font_face_backend_t _cairo_win32_font_face_backend = {
     CAIRO_FONT_TYPE_WIN32,
-    _cairo_win32_font_face_create_for_toy,
     _cairo_win32_font_face_destroy,
     _cairo_win32_font_face_scaled_font_create
 };
@@ -1922,7 +1904,7 @@ const cairo_font_face_backend_t _cairo_win32_font_face_backend = {
 /**
  * cairo_win32_font_face_create_for_logfontw_hfont:
  * @logfont: A #LOGFONTW structure specifying the font to use.
- *   If @font is %NULL then the lfHeight, lfWidth, lfOrientation and lfEscapement
+ *   If hfont is null then the lfHeight, lfWidth, lfOrientation and lfEscapement
  *   fields of this structure are ignored. Otherwise lfWidth, lfOrientation and
  *   lfEscapement must be zero.
  * @font: An #HFONT that can be used when the font matrix is a scale by

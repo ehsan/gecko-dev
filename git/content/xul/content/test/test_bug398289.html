@@ -7,8 +7,8 @@
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/WindowSnapshot.js"></script>
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 </head>
-<body style="height: 100%" onload="setTimeout(onBodyLoad, 0);">
-  <iframe id="test" src="398289-resource.xul" width="100%" height="100%">
+<body style="height: 100%" onload="onBodyLoad();">
+  <iframe id="test" src="chrome://mochikit/content/chrome/content/xul/content/test/398289-resource.xul" width="100%" height="100%">
   </iframe>
 
   <script class="testbody" type="text/javascript">
@@ -30,7 +30,7 @@
       snap2 = snapshotWindow(window);
 
       var equal, str1, str2;
-      [equal, str1, str2] = compareSnapshots(snap1, snap2, true);
+      [equal, str1, str2] = compareSnapshots(snap1, snap2);
 
       ok(equal, "persistent attribute in tab box broken, expected: "+str1+" got: "+str2);
           

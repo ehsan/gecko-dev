@@ -43,13 +43,10 @@
 #include "nsNativeTheme.h"
 #include <windows.h>
 
-struct nsIntRect;
-struct nsIntSize;
-
 class nsNativeThemeWin : private nsNativeTheme,
                          public nsITheme {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // The nsITheme interface.
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
@@ -61,12 +58,12 @@ public:
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsIntMargin* aResult);
+                             nsMargin* aResult);
 
   virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult);
+                                  nsMargin* aResult);
 
   virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame,
@@ -75,10 +72,8 @@ public:
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntSize* aResult,
+                                  nsSize* aResult,
                                   PRBool* aIsOverridable);
-
-  virtual Transparency GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType);
 
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                 nsIAtom* aAttribute, PRBool* aShouldRepaint);
@@ -112,11 +107,11 @@ protected:
   nsresult ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsIntMargin* aResult);
+                             nsMargin* aResult);
 
   nsresult ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntSize* aResult,
+                                  nsSize* aResult,
                                   PRBool* aIsOverridable);
 
   PRBool ClassicThemeSupportsWidget(nsPresContext* aPresContext, 

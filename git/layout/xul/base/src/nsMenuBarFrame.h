@@ -51,20 +51,19 @@
 #include "nsBoxFrame.h"
 #include "nsMenuFrame.h"
 #include "nsMenuBarListener.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
+#include "nsIWidget.h"
 
 class nsIContent;
 
 nsIFrame* NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsMenuBarFrame : public nsBoxFrame, public nsMenuParent
+class nsMenuBarFrame : public nsBoxFrame, public nsIMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  // nsMenuParent interface
+  // nsIMenuParentInterface
   virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem);
   virtual void CurrentMenuIsBeingDestroyed();
@@ -87,12 +86,9 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
-
-  virtual void LockMenuUntilClosed(PRBool aLock) {}
-  virtual PRBool IsMenuLocked() { return PR_FALSE; }
 
 // Non-interface helpers
 
@@ -102,9 +98,6 @@ public:
   // Called when a menu on the menu bar is clicked on. Returns a menu if one
   // needs to be closed.
   nsMenuFrame* ToggleMenuActiveState();
-
-  PRBool IsActiveByKeyboard() { return mActiveByKeyboard; }
-  void SetActiveByKeyboard() { mActiveByKeyboard = PR_TRUE; }
 
   // indicate that a menu on the menubar was closed. Returns true if the caller
   // may deselect the menuitem.
@@ -140,10 +133,6 @@ protected:
   PRPackedBool mStayActive;
 
   PRPackedBool mIsActive; // Whether or not the menu bar is active (a menu item is highlighted or shown).
-
-  // whether the menubar was made active via the keyboard.
-  PRPackedBool mActiveByKeyboard;
-
   // The current menu that is active (highlighted), which may not be open. This will
   // be null if no menu is active.
   nsMenuFrame* mCurrentMenu;

@@ -47,25 +47,53 @@
 #include "nsFont.h"
 
 #include "gfxPlatform.h"
-#include "qcms.h"
+#include "lcms.h"
 
 #ifdef DEBUG
 #include "nsSize.h"
 #endif
-
+ 
 NS_IMPL_ISUPPORTS2(nsXPLookAndFeel, nsILookAndFeel, nsIObserver)
 
 nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
 {
+  { "ui.windowTitleHeight", eMetric_WindowTitleHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.windowBorderWidth", eMetric_WindowBorderWidth, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.windowBorderHeight", eMetric_WindowBorderHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.widget3DBorder", eMetric_Widget3DBorder, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textFieldBorder", eMetric_TextFieldBorder, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textFieldHeight", eMetric_TextFieldHeight, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.buttonHorizontalInsidePaddingNavQuirks",
+    eMetric_ButtonHorizontalInsidePaddingNavQuirks, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.buttonHorizontalInsidePaddingOffsetNavQuirks",
+    eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.checkboxSize", eMetric_CheckboxSize, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.radioboxSize", eMetric_RadioboxSize, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textHorizontalInsideMinimumPadding",
+    eMetric_TextHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textVerticalInsidePadding", eMetric_TextVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textShouldUseVerticalInsidePadding",
+    eMetric_TextShouldUseVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.textShouldUseHorizontalInsideMinimumPadding",
+    eMetric_TextShouldUseHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listShouldUseHorizontalInsideMinimumPadding",
+    eMetric_ListShouldUseHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listHorizontalInsideMinimumPadding",
+    eMetric_ListHorizontalInsideMinimumPadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listShouldUseVerticalInsidePadding",
+    eMetric_ListShouldUseVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.listVerticalInsidePadding", eMetric_ListVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretBlinkTime", eMetric_CaretBlinkTime, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretWidth", eMetric_CaretWidth, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.caretVisibleWithSelection", eMetric_ShowCaretDuringSelection, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.submenuDelay", eMetric_SubmenuDelay, PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.dragFullWindow", eMetric_DragFullWindow, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.dragThresholdX", eMetric_DragThresholdX, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.dragThresholdY", eMetric_DragThresholdY, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.useAccessibilityTheme", eMetric_UseAccessibilityTheme, PR_FALSE, nsLookAndFeelTypeInt, 0 },
-  { "ui.scrollbarsCanOverlapContent", eMetric_ScrollbarsCanOverlapContent,
-    PR_FALSE, nsLookAndFeelTypeInt, 0 },
+  { "ui.isScreenReaderActive", eMetric_IsScreenReaderActive, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.menusCanOverlapOSBar", eMetric_MenusCanOverlapOSBar,
     PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.skipNavigatingDisabledMenuItem", eMetric_SkipNavigatingDisabledMenuItem, PR_FALSE, nsLookAndFeelTypeInt, 0 },
@@ -93,17 +121,28 @@ nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
     eMetric_IMEConvertedTextUnderlineStyle, PR_FALSE, nsLookAndFeelTypeInt, 0 },
   { "ui.IMESelectedConvertedTextUnderlineStyle",
     eMetric_IMESelectedConvertedTextUnderline, PR_FALSE, nsLookAndFeelTypeInt, 0 },
-  { "ui.SpellCheckerUnderlineStyle",
-    eMetric_SpellCheckerUnderlineStyle, PR_FALSE, nsLookAndFeelTypeInt, 0 },
 };
 
 nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =
 {
+  { "ui.textFieldVerticalInsidePadding",
+    eMetricFloat_TextFieldVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textFieldHorizontalInsidePadding",
+    eMetricFloat_TextFieldHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textAreaVerticalInsidePadding", eMetricFloat_TextAreaVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.textAreaHorizontalInsidePadding",
+    eMetricFloat_TextAreaHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.listVerticalInsidePadding",
+    eMetricFloat_ListVerticalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.listHorizontalInsidePadding",
+    eMetricFloat_ListHorizontalInsidePadding, PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.buttonVerticalInsidePadding", eMetricFloat_ButtonVerticalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
+  { "ui.buttonHorizontalInsidePadding", eMetricFloat_ButtonHorizontalInsidePadding,
+    PR_FALSE, nsLookAndFeelTypeFloat, 0 },
   { "ui.IMEUnderlineRelativeSize", eMetricFloat_IMEUnderlineRelativeSize,
     PR_FALSE, nsLookAndFeelTypeFloat, 0 },
-  { "ui.SpellCheckerUnderlineRelativeSize",
-    eMetricFloat_SpellCheckerUnderlineRelativeSize, PR_FALSE,
-    nsLookAndFeelTypeFloat, 0 },
   { "ui.caretAspectRatio", eMetricFloat_CaretAspectRatio, PR_FALSE,
     nsLookAndFeelTypeFloat, 0 },
 };
@@ -145,7 +184,6 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.IMESelectedConvertedTextBackground",
   "ui.IMESelectedConvertedTextForeground",
   "ui.IMESelectedConvertedTextUnderline",
-  "ui.SpellCheckerUnderline",
   "ui.activeborder",
   "ui.activecaption",
   "ui.appworkspace",
@@ -188,32 +226,32 @@ const char nsXPLookAndFeel::sColorPrefs[][38] =
   "ui.-moz_buttonhovertext",
   "ui.-moz_menuhover",
   "ui.-moz_menuhovertext",
-  "ui.-moz_menubartext",
   "ui.-moz_menubarhovertext",
   "ui.-moz_eventreerow",
   "ui.-moz_oddtreerow",
-  "ui.-moz_mac_chrome_active",
-  "ui.-moz_mac_chrome_inactive",
   "ui.-moz-mac-focusring",
   "ui.-moz-mac-menuselect",
   "ui.-moz-mac-menushadow",
   "ui.-moz-mac-menutextdisable",
   "ui.-moz-mac-menutextselect",
-  "ui.-moz_mac_disabledtoolbartext",
+  "ui.-moz-mac-accentlightesthighlight",
+  "ui.-moz-mac-accentregularhighlight",
+  "ui.-moz-mac-accentface",
+  "ui.-moz-mac-accentlightshadow",
+  "ui.-moz-mac-accentregularshadow",
+  "ui.-moz-mac-accentdarkshadow",
+  "ui.-moz-mac-accentdarkestshadow",
   "ui.-moz-mac-alternateprimaryhighlight",
   "ui.-moz-mac-secondaryhighlight",
   "ui.-moz-win-mediatext",
   "ui.-moz-win-communicationstext",
-  "ui.-moz-nativehyperlinktext",
-  "ui.-moz-comboboxtext",
-  "ui.-moz-combobox"
+  "ui.-moz-nativehyperlinktext"
 };
 
 PRInt32 nsXPLookAndFeel::sCachedColors[nsILookAndFeel::eColor_LAST_COLOR] = {0};
 PRInt32 nsXPLookAndFeel::sCachedColorBits[COLOR_CACHE_SIZE] = {0};
 
 PRBool nsXPLookAndFeel::sInitialized = PR_FALSE;
-PRBool nsXPLookAndFeel::sUseNativeColors = PR_TRUE;
 
 nsXPLookAndFeel::nsXPLookAndFeel() : nsILookAndFeel()
 {
@@ -273,13 +311,14 @@ nsXPLookAndFeel::ColorPrefChanged (unsigned int index, const char *prefName)
     if (NS_SUCCEEDED(rv) && !colorStr.IsEmpty()) {
       nscolor thecolor;
       if (colorStr[0] == '#') {
-        if (NS_HexToRGB(NS_ConvertASCIItoUTF16(Substring(colorStr, 1, colorStr.Length() - 1)),
-                        &thecolor)) {
+        if (NS_SUCCEEDED(NS_HexToRGB(NS_ConvertASCIItoUTF16(Substring(colorStr, 1, colorStr.Length() - 1)),
+                                     &thecolor))) {
           PRInt32 id = NS_PTR_TO_INT32(index);
           CACHE_COLOR(id, thecolor);
         }
       }
-      else if (NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(colorStr), &thecolor)) {
+      else if (NS_SUCCEEDED(NS_ColorNameToRGB(NS_ConvertASCIItoUTF16(colorStr),
+                                         &thecolor))) {
         PRInt32 id = NS_PTR_TO_INT32(index);
         CACHE_COLOR(id, thecolor);
 #ifdef DEBUG_akkana
@@ -332,11 +371,11 @@ nsXPLookAndFeel::InitColorFromPref(PRInt32 i, nsIPrefBranch* aPrefBranch)
     if (colorNSStr[0] == '#') {
       nsAutoString hexString;
       colorNSStr.Right(hexString, colorNSStr.Length() - 1);
-      if (NS_HexToRGB(hexString, &thecolor)) {
+      if (NS_SUCCEEDED(NS_HexToRGB(hexString, &thecolor))) {
         CACHE_COLOR(i, thecolor);
       }
     }
-    else if (NS_ColorNameToRGB(colorNSStr, &thecolor))
+    else if (NS_SUCCEEDED(NS_ColorNameToRGB(colorNSStr, &thecolor)))
     {
       CACHE_COLOR(i, thecolor);
     }
@@ -411,11 +450,6 @@ nsXPLookAndFeel::Init()
     InitColorFromPref(i, prefs);
     prefBranchInternal->AddObserver(sColorPrefs[i], this, PR_FALSE);
   }
-
-  PRBool val;
-  if (NS_SUCCEEDED(prefs->GetBoolPref("ui.use_native_colors", &val))) {
-    sUseNativeColors = val;
-  }
 }
 
 nsXPLookAndFeel::~nsXPLookAndFeel()
@@ -440,8 +474,7 @@ nsXPLookAndFeel::IsSpecialColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMEConvertedTextUnderline:
     case eColor_IMESelectedRawTextUnderline:
     case eColor_IMESelectedConvertedTextUnderline:
-    case eColor_SpellCheckerUnderline:
-      return NS_IS_SELECTION_SPECIAL_COLOR(aColor);
+      return NS_IS_IME_SPECIAL_COLOR(aColor);
     default:
       /*
        * In GetColor(), every color that is not a special color is color
@@ -568,26 +601,26 @@ nsXPLookAndFeel::GetColor(const nsColorID aID, nscolor &aColor)
   if (aID == eColor_TextHighlightBackground) {
     // This makes the matched text stand out when findbar highlighting is on
     // Used with nsISelectionController::SELECTION_FIND
-    aColor = NS_RGB(0xef, 0x0f, 0xff);
+    aColor = NS_RGB(0xf0, 0xe0, 0x20);
     return NS_OK;
   }
 
   if (aID == eColor_TextHighlightForeground) {
     // The foreground color for the matched text in findbar highlighting
     // Used with nsISelectionController::SELECTION_FIND
-    aColor = NS_RGB(0xff, 0xff, 0xff);
+    aColor = NS_RGB(0x00, 0x00, 0x00);
     return NS_OK;
   }
 
-  if (sUseNativeColors && NS_SUCCEEDED(NativeGetColor(aID, aColor))) {
+  if (NS_SUCCEEDED(NativeGetColor(aID, aColor))) {
     if ((gfxPlatform::GetCMSMode() == eCMSMode_All) && !IsSpecialColor(aID, aColor)) {
-      qcms_transform *transform = gfxPlatform::GetCMSInverseRGBTransform();
+      cmsHTRANSFORM transform = gfxPlatform::GetCMSInverseRGBTransform();
       if (transform) {
         PRUint8 color[3];
         color[0] = NS_GET_R(aColor);
         color[1] = NS_GET_G(aColor);
         color[2] = NS_GET_B(aColor);
-        qcms_transform_data(transform, color, color, 1);
+        cmsDoTransform(transform, color, color, 1);
         aColor = NS_RGB(color[0], color[1], color[2]);
       }
     }

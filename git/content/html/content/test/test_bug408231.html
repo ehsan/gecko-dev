@@ -5,7 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=408231
 -->
 <head>
   <title>Test for Bug 408231</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -182,7 +182,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=408231
 
     function runTests() {
       document.designMode='on';
-      window.getSelection().collapse(document.body, 0);
       testQueryCommand(commandEnabledResults, callQueryCommandEnabled, "queryCommandEnabled");
       testQueryCommand(commandStateResults, callQueryCommandState, "queryCommandState");
       testQueryCommand(commandValueResults, callQueryCommandValue, "queryCommandValue");

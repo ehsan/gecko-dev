@@ -44,10 +44,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE       = build
-
-ifeq ($(USE_ELF_HACK)$(HOST_OS_ARCH)$(OS_ARCH),1LinuxLinux)
-DIRS = elfhack
-endif
+PACKAGE_FILE = unix.pkg
 
 include $(topsrcdir)/config/rules.mk
 

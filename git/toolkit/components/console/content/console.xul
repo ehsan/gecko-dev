@@ -45,6 +45,7 @@
 
 <!DOCTYPE window [
   <!ENTITY % console SYSTEM "chrome://global/locale/console.dtd"> %console;
+  <!ENTITY % global SYSTEM "chrome://global/locale/global.dtd"> %global;
 ]>
 
 <window id="JSConsoleWindow"
@@ -79,7 +80,7 @@
   </keyset>
 
   <popupset id="ContextMenus">
-    <menupopup id="ConsoleContext">
+    <popup id="ConsoleContext">
       <menuitem type="radio" id="Console:sortAscend"
                 label="&sortFirst.label;" accesskey="&sortFirst.accesskey;"
                 oncommand="changeSortOrder('forward');"/>
@@ -89,31 +90,29 @@
       <menuseparator/>
       <menuitem id="menu_copy_cm" command="cmd_copy"
                 label="&copyCmd.label;" accesskey="&copyCmd.accesskey;"/>
-    </menupopup>
+    </popup>
   </popupset>
   
-  <toolbox id="console-toolbox">
+  <toolbox id="console-toolbox" chromedir="&locale.dir;">
     <toolbar class="chromeclass-toolbar" id="ToolbarMode">
-      <hbox id="viewGroup">
-        <toolbarbutton type="radio" group="mode" id="Console:modeAll" 
-                       label="&all.label;" accesskey="&all.accesskey;"
-                       oncommand="changeMode('All');"/>
-        <toolbarbutton type="radio" group="mode" id="Console:modeErrors"
-                       label="&errors.label;" accesskey="&errors.accesskey;"
-                       oncommand="changeMode('Errors');"/>
-        <toolbarbutton type="radio" group="mode" id="Console:modeWarnings"
-                       label="&warnings.label;" accesskey="&warnings.accesskey;"
-                       oncommand="changeMode('Warnings');"/>
-        <toolbarbutton type="radio" group="mode" id="Console:modeMessages"
-                     label="&messages.label;" accesskey="&messages.accesskey;"
-                     oncommand="changeMode('Messages');"/>
-      </hbox>
+      <toolbarbutton type="radio" group="mode" id="Console:modeAll" 
+                     label="&all.label;" accesskey="&all.accesskey;"
+                     oncommand="changeMode('All');"/>
+      <toolbarbutton type="radio" group="mode" id="Console:modeErrors"
+                     label="&errors.label;" accesskey="&errors.accesskey;"
+                     oncommand="changeMode('Errors');"/>
+      <toolbarbutton type="radio" group="mode" id="Console:modeWarnings"
+                     label="&warnings.label;" accesskey="&warnings.accesskey;"
+                     oncommand="changeMode('Warnings');"/>
+      <toolbarbutton type="radio" group="mode" id="Console:modeMessages"
+                   label="&messages.label;" accesskey="&messages.accesskey;"
+                   oncommand="changeMode('Messages');"/>
       <toolbarseparator/>
       <toolbarbutton id="Console:clear" oncommand="clearConsole();"
                      label="&clear.label;" accesskey="&clear.accesskey;"/>
     </toolbar>
   
-    <toolbar class="chromeclass-toolbar" id="ToolbarEval" align="center" nowindowdrag="true">
+    <toolbar class="chromeclass-toolbar" id="ToolbarEval" align="center">
       <label value="&codeEval.label;" accesskey="&codeEval.accesskey;" control="TextboxEval"/>
       <textbox id="TextboxEval" class="toolbar" value="" onkeypress="onEvalKeyPress(event)" flex="1"/>
       <toolbarbutton id="ButtonEval" label="&evaluate.label;"

@@ -48,6 +48,7 @@
 
 #include "nsIWidget.h"
 
+#include "nsIEventListener.h"
 #include "nsString.h"
 #include "nsRegion.h"
 
@@ -94,13 +95,33 @@ public:
 
 	// nsIWidget interface
 	NS_IMETHOD              Create(nsIWidget *aParent,
-	                               nsNativeWidget aNativeParent,
 	                               const nsRect &aRect,
 	                               EVENT_CALLBACK aHandleEventFunction,
 	                               nsIDeviceContext *aContext,
 	                               nsIAppShell *aAppShell = nsnull,
 	                               nsIToolkit *aToolkit = nsnull,
 	                               nsWidgetInitData *aInitData = nsnull);
+	NS_IMETHOD              Create(nsNativeWidget aParent,
+	                               const nsRect &aRect,
+	                               EVENT_CALLBACK aHandleEventFunction,
+	                               nsIDeviceContext *aContext,
+	                               nsIAppShell *aAppShell = nsnull,
+	                               nsIToolkit *aToolkit = nsnull,
+	                               nsWidgetInitData *aInitData = nsnull);
+
+	// Utility method for implementing both Create(nsIWidget ...) and
+	// Create(nsNativeWidget...)
+
+	NS_IMETHOD          PreCreateWidget(nsWidgetInitData *aWidgetInitData);
+
+	virtual nsresult        StandardWindowCreate(nsIWidget *aParent,
+	                                             const nsRect &aRect,
+	                                             EVENT_CALLBACK aHandleEventFunction,
+	                                             nsIDeviceContext *aContext,
+	                                             nsIAppShell *aAppShell,
+	                                             nsIToolkit *aToolkit,
+	                                             nsWidgetInitData *aInitData,
+	                                             nsNativeWidget aNativeParent = nsnull);
 
 	gfxASurface*            GetThebesSurface();
 
@@ -109,7 +130,6 @@ public:
 	NS_IMETHOD              Show(PRBool bState);
  	NS_IMETHOD              CaptureMouse(PRBool aCapture);
 	NS_IMETHOD              CaptureRollupEvents(nsIRollupListener *aListener,
-	                                            nsIMenuRollup *aMenuRollup,
 	                                            PRBool aDoCapture,
 	                                            PRBool aConsumeRollupEvent);
 	NS_IMETHOD              IsVisible(PRBool & aState);
@@ -132,6 +152,7 @@ public:
 	NS_IMETHOD              GetScreenBounds(nsRect &aRect);
 	NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
 	NS_IMETHOD              SetCursor(nsCursor aCursor);
+	NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
 	NS_IMETHOD              Invalidate(const nsRect & aRect, PRBool aIsSynchronous);
 	NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion,
 	                                         PRBool aIsSynchronous);
@@ -144,6 +165,10 @@ public:
 	NS_IMETHOD              ShowMenuBar(PRBool aShow) { return NS_ERROR_FAILURE; }
 	NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
 	NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
+	NS_IMETHOD              BeginResizingChildren(void);
+	NS_IMETHOD              EndResizingChildren(void);
+	NS_IMETHOD              GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
+	NS_IMETHOD              SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight);
 	NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 	NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
 
@@ -159,8 +184,8 @@ public:
 	                                           PRUint16 aButton = nsMouseEvent::eLeftButton);
 
 
-	void                    InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
-	NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
+	void                   InitEvent(nsGUIEvent& event, nsPoint* aPoint = nsnull);
+
 protected:
 
 	static PRBool           EventIsInsideWindow(nsWindow* aWindow, nsPoint pos) ;
@@ -193,13 +218,6 @@ protected:
 	PRBool                  DispatchWindowEvent(nsGUIEvent* event);
 	void                    HideKids(PRBool state);
 
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
 
 	nsCOMPtr<nsIWidget> mParent;
 	nsWindow*        mWindowParent;
@@ -207,6 +225,8 @@ protected:
 	nsIFontMetrics*  mFontMetrics;
 
 	nsViewBeOS*      mView;
+	PRInt32          mPreferredWidth;
+	PRInt32          mPreferredHeight;
 	window_feel      mBWindowFeel;
 	window_look      mBWindowLook;
 
@@ -215,10 +235,6 @@ protected:
 	//Just for saving space we use packed bools.
 	PRPackedBool           mIsTopWidgetWindow;
 	PRPackedBool           mIsMetaDown;
-	PRPackedBool           mIsShiftDown;
-	PRPackedBool           mIsControlDown;
-	PRPackedBool           mIsAltDown;
-	PRPackedBool           mIsDestroying;
 	PRPackedBool           mIsVisible;
 	PRPackedBool           mEnabled;
 	PRPackedBool           mIsScrolling;

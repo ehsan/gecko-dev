@@ -35,18 +35,82 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// Special stuff for the Macintosh implementation of command-line service.
+
 #ifndef nsCommandLineServiceMac_h_
 #define nsCommandLineServiceMac_h_
 
+#include <Files.h>
+
 #include "nscore.h"
+#include "nsError.h"
+#include "nsString.h"
 
-namespace CommandLineServiceMac {
-  void SetupMacCommandLine(int& argc, char**& argv, PRBool forRestart);
+#include "nsAEDefs.h"
 
-  // Add a URL to the command line currently being set up via
-  // SetupMacCommandLine. Returns false if no command line is
-  // being set up or the addition fails for any other reason.
-  PRBool AddURLToCurrentCommandLine(const char* aURL);
+#ifdef __cplusplus
+
+class nsMacCommandLine
+{
+public:
+
+
+  enum
+  {
+    kArgsGrowSize      = 20  
+  };
+
+                  nsMacCommandLine();
+                  ~nsMacCommandLine();
+
+  nsresult        Initialize(int& argc, char**& argv);
+  void            SetupCommandLine(int& argc, char**& argv);
+  
+  nsresult        AddToCommandLine(const char* inArgText);
+  nsresult        AddToCommandLine(const char* inOptionString, const FSSpec& inFileSpec);
+  nsresult        AddToEnvironmentVars(const char* inArgText);
+
+  OSErr           HandleOpenOneDoc(const FSSpec& inFileSpec, OSType inFileType);
+  OSErr           HandlePrintOneDoc(const FSSpec& inFileSpec, OSType fileType);
+
+	OSErr						DispatchURLToNewBrowser(const char* url);
+	  
+  OSErr						Quit(TAskSave askSave);
+  
+protected:
+
+  OSErr           OpenURL(const char* aURL);
+
+  nsresult        OpenWindow(const char *chrome, const PRUnichar *url);
+    
+  char**          mArgs;              // array of arg pointers (augmented argv)
+  PRUint32        mArgsAllocated;     // number of slots available in mArgs
+  PRUint32        mArgsUsed;          // number of slots used in mArgs
+
+  PRBool          mStartedUp;
+
+public:
+
+  static nsMacCommandLine& GetMacCommandLine() { return sMacCommandLine; }
+  
+private:
+
+  static nsMacCommandLine sMacCommandLine;
+  
+};
+
+#endif    //__cplusplus
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void SetupMacCommandLine(int& argc, char**& argv);
+
+#ifdef __cplusplus
 }
+#endif
+
 
 #endif // nsCommandLineServiceMac_h_

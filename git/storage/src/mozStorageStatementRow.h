@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,34 +36,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGESTATEMENTROW_H
-#define MOZSTORAGESTATEMENTROW_H
+#ifndef _MOZSTORAGESTATEMENTROW_H_
+#define _MOZSTORAGESTATEMENTROW_H_
 
 #include "mozIStorageStatementWrapper.h"
 #include "nsIXPCScriptable.h"
+#include "mozStorageStatement.h"
+#include "nsString.h"
+#include "nsVoidArray.h"
 
-namespace mozilla {
-namespace storage {
-
-class Statement;
-
-class StatementRow : public mozIStorageStatementRow
-                   , public nsIXPCScriptable
+class mozStorageStatementRow : public mozIStorageStatementRow,
+                               public nsIXPCScriptable
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESTATEMENTROW
-  NS_DECL_NSIXPCSCRIPTABLE
+    mozStorageStatementRow(mozStorageStatement *aStatement);
 
-  StatementRow(Statement *aStatement);
+    // nsISupports interface
+    NS_DECL_ISUPPORTS
+
+    // mozIStorageStatementRow interface (empty)
+    NS_DECL_MOZISTORAGESTATEMENTROW
+
+    // nsIXPCScriptable interface
+    NS_DECL_NSIXPCSCRIPTABLE
 protected:
+    sqlite3_stmt* NativeStatement() {
+        return mStatement->GetNativeStatementPointer();
+    }
 
-  Statement *mStatement;
-
-  friend class Statement;
+    nsRefPtr<mozStorageStatement> mStatement;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif /* MOZSTORAGESTATEMENTROW_H */
+#endif /* _MOZSTORAGESTATEMENTROW_H_ */

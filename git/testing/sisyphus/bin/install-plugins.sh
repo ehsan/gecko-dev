@@ -46,20 +46,20 @@ options="p:b:x:D:d:"
 function usage()
 {
     cat <<EOF
-usage:
+usage: 
 $SCRIPT -p product -b branch -x executablepath -D directory [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox.
--b branch           required. one of supported branches. see library.sh
+-p product          required. firefox|thunderbird
+-b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
 -x executablepath   required. path to browser executable
 -D directory        required. path to location of plugins/components
--d datafiles        optional. one or more filenames of files containing
-                    environment
+-d datafiles        optional. one or more filenames of files containing 
+                    environment 
                     variable definitions to be included.
 
-note that the environment variables should have the same names as in the
+note that the environment variables should have the same names as in the 
 "variable" column.
 
 EOF
@@ -68,8 +68,8 @@ EOF
 
 unset product branch executablepath directory datafiles
 
-while getopts $options optname ;
-  do
+while getopts $options optname ; 
+  do 
   case $optname in
       p) product=$OPTARG;;
       b) branch=$OPTARG;;
@@ -87,7 +87,9 @@ if [[ -z "$product" || -z "$branch" || \
     usage
 fi
 
-checkProductBranch $product $branch
+if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
+    error "product \"$product\" must be one of firefox or thunderbird" $LINENO
+fi
 
 executable=`get_executable $product $branch $executablepath`
 
@@ -98,3 +100,4 @@ executablepath=`dirname $executable`
 #
 echo "$SCRIPT: installing plugins from $directory/ in $executablepath/"
 cp -r "$directory/$OSID/" "$executablepath/"
+

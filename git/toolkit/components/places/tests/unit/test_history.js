@@ -38,11 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Get history services
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var gh = histsvc.QueryInterface(Ci.nsIGlobalHistory2);
-var bh = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
 
 /**
  * Adds a test URI visit to the database, and checks for a valid place ID.
@@ -54,16 +55,14 @@ var bh = histsvc.QueryInterface(Ci.nsIBrowserHistory);
  * @returns the place id for aURI.
  */
 function add_visit(aURI, aReferrer) {
-  var visitId = histsvc.addVisit(aURI,
+  var placeID = histsvc.addVisit(aURI,
                                  Date.now() * 1000,
                                  aReferrer,
                                  histsvc.TRANSITION_TYPED, // user typed in URL bar
                                  false, // not redirect
                                  0);
-  dump("### Added visit with id of " + visitId + "\n");
-  do_check_true(gh.isVisited(aURI));
-  do_check_guid_for_uri(aURI);
-  return visitId;
+  do_check_true(placeID > 0);
+  return placeID;
 }
 
 /**
@@ -87,9 +86,6 @@ function uri_in_db(aURI) {
 
 // main
 function run_test() {
-  // we have a new profile, so we should have imported bookmarks
-  do_check_eq(histsvc.databaseStatus, histsvc.DATABASE_STATUS_CREATE);
-
   // add a visit
   var testURI = uri("http://mozilla.com");
   add_visit(testURI);
@@ -184,12 +180,12 @@ function run_test() {
   do_check_eq(result.root.childCount, 1);
   do_check_eq(result.root.getChild(0).uri, "http://google.com/");
 
-  // By default history is enabled.
+  // by default, browser.history_expire_days is 9
   do_check_true(!histsvc.historyDisabled);
 
   // test getPageTitle
   var title = histsvc.getPageTitle(uri("http://mozilla.com"));
-  do_check_eq(title, null);
+  do_check_eq(title, "mozilla.com");
 
   // query for the visit
   do_check_true(uri_in_db(testURI));
@@ -198,14 +194,10 @@ function run_test() {
   // get direct db connection
   var db = histsvc.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
   var q = "SELECT id FROM moz_bookmarks";
-  var statement;
   try {
-     statement = db.createStatement(q);
+    var statement = db.createStatement(q);
   } catch(ex) {
     do_throw("bookmarks table does not have id field, schema is too old!");
-  }
-  finally {
-    statement.finalize();
   }
 
   // bug 394741 - regressed history text searches
@@ -226,12 +218,14 @@ function run_test() {
   do_check_true(uri_in_db(referrerURI));
 
   // test to ensure history.dat gets deleted if all history is being cleared
-  var file = do_get_file("history.dat");
-  var histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  var file = do_get_file("toolkit/components/places/tests/unit/history.dat");
+  var histFile = dirSvc.get("ProfD", Ci.nsIFile);
   file.copyTo(histFile, "history.dat");
   histFile.append("history.dat");
   do_check_true(histFile.exists());
 
-  bh.removeAllPages();
+  var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
+                                .getService(Components.interfaces.nsIBrowserHistory);
+  globalHistory.removeAllPages();
   do_check_false(histFile.exists());
 }

@@ -45,7 +45,6 @@
 #include "nsDisplayList.h"
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
-#include "nsIEventStateManager.h"
 
 #define ACTIVE   "active"
 #define HOVER    "hover"
@@ -87,54 +86,15 @@ nsButtonFrameRenderer::SetDisabled(PRBool aDisabled, PRBool notify)
 PRBool
 nsButtonFrameRenderer::isDisabled() 
 {
-  // NOTE: we might want to remove this method to prevent calling too often
-  // IntrinsicState().
-  return mFrame->GetContent()->IntrinsicState().HasState(NS_EVENT_STATE_DISABLED);
-}
-
-class nsDisplayButtonBoxShadowOuter : public nsDisplayItem {
-public:
-  nsDisplayButtonBoxShadowOuter(nsDisplayListBuilder* aBuilder,
-                                nsButtonFrameRenderer* aRenderer)
-    : nsDisplayItem(aBuilder, aRenderer->GetFrame()), mBFR(aRenderer) {
-    MOZ_COUNT_CTOR(nsDisplayButtonBoxShadowOuter);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayButtonBoxShadowOuter() {
-    MOZ_COUNT_DTOR(nsDisplayButtonBoxShadowOuter);
-  }
-#endif  
-  
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("ButtonBoxShadowOuter", TYPE_BUTTON_BOX_SHADOW_OUTER)
-private:
-  nsButtonFrameRenderer* mBFR;
-};
-
-nsRect
-nsDisplayButtonBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
-}
-
-void
-nsDisplayButtonBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
-                                     nsIRenderingContext* aCtx) {
-  nsRect frameRect = nsRect(ToReferenceFrame(), mFrame->GetSize());
-
-  nsRect buttonRect;
-  mBFR->GetButtonRect(frameRect, buttonRect);
-
-  nsCSSRendering::PaintBoxShadowOuter(mFrame->PresContext(), *aCtx, mFrame,
-                                      buttonRect, mVisibleRect);
+  // get the content
+  return mFrame->GetContent()->HasAttr(kNameSpaceID_None,
+                                       nsGkAtoms::disabled);
 }
 
 class nsDisplayButtonBorderBackground : public nsDisplayItem {
 public:
-  nsDisplayButtonBorderBackground(nsDisplayListBuilder* aBuilder,
-                                  nsButtonFrameRenderer* aRenderer)
-    : nsDisplayItem(aBuilder, aRenderer->GetFrame()), mBFR(aRenderer) {
+  nsDisplayButtonBorderBackground(nsButtonFrameRenderer* aRenderer)
+    : nsDisplayItem(aRenderer->GetFrame()), mBFR(aRenderer) {
     MOZ_COUNT_CTOR(nsDisplayButtonBorderBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -143,22 +103,21 @@ public:
   }
 #endif  
   
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    aOutFrames->AppendElement(mFrame);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) {
+    return mFrame;
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("ButtonBorderBackground", TYPE_BUTTON_BORDER_BACKGROUND)
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  NS_DISPLAY_DECL_NAME("ButtonBorderBackground")
 private:
   nsButtonFrameRenderer* mBFR;
 };
 
 class nsDisplayButtonForeground : public nsDisplayItem {
 public:
-  nsDisplayButtonForeground(nsDisplayListBuilder* aBuilder,
-                            nsButtonFrameRenderer* aRenderer)
-    : nsDisplayItem(aBuilder, aRenderer->GetFrame()), mBFR(aRenderer) {
+  nsDisplayButtonForeground(nsButtonFrameRenderer* aRenderer)
+    : nsDisplayItem(aRenderer->GetFrame()), mBFR(aRenderer) {
     MOZ_COUNT_CTOR(nsDisplayButtonForeground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -167,35 +126,36 @@ public:
   }
 #endif  
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("ButtonForeground", TYPE_BUTTON_FOREGROUND)
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  NS_DISPLAY_DECL_NAME("ButtonForeground")
 private:
   nsButtonFrameRenderer* mBFR;
 };
 
 void nsDisplayButtonBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                            nsIRenderingContext* aCtx)
+                                            nsIRenderingContext* aCtx,
+                                            const nsRect& aDirtyRect)
 {
   NS_ASSERTION(mFrame, "No frame?");
   nsPresContext* pc = mFrame->PresContext();
-  nsRect r = nsRect(ToReferenceFrame(), mFrame->GetSize());
+  nsRect r = nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
   
   // draw the border and background inside the focus and outline borders
-  mBFR->PaintBorderAndBackground(pc, *aCtx, mVisibleRect, r,
-                                 aBuilder->GetBackgroundPaintFlags());
+  mBFR->PaintBorderAndBackground(pc, *aCtx, aDirtyRect, r);
 }
 
 void nsDisplayButtonForeground::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsIRenderingContext* aCtx)
+                                      nsIRenderingContext* aCtx,
+                                      const nsRect& aDirtyRect)
 {
   nsPresContext *presContext = mFrame->PresContext();
   const nsStyleDisplay *disp = mFrame->GetStyleDisplay();
   if (!mFrame->IsThemed(disp) ||
       !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, mFrame, disp->mAppearance)) {
     // draw the focus and outline borders
-    nsRect r = nsRect(ToReferenceFrame(), mFrame->GetSize());
-    mBFR->PaintOutlineAndFocusBorders(presContext, *aCtx, mVisibleRect, r);
+    nsRect r = nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
+    mBFR->PaintOutlineAndFocusBorders(presContext, *aCtx, aDirtyRect, r);
   }
 }
 
@@ -204,18 +164,12 @@ nsButtonFrameRenderer::DisplayButton(nsDisplayListBuilder* aBuilder,
                                      nsDisplayList* aBackground,
                                      nsDisplayList* aForeground)
 {
-  if (mFrame->GetStyleBorder()->mBoxShadow) {
-    nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
-        nsDisplayButtonBoxShadowOuter(aBuilder, this));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
-      nsDisplayButtonBorderBackground(aBuilder, this));
+      nsDisplayButtonBorderBackground(this));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return aForeground->AppendNewToTop(new (aBuilder)
-      nsDisplayButtonForeground(aBuilder, this));
+      nsDisplayButtonForeground(this));
 }
 
 void
@@ -238,8 +192,9 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     GetButtonOuterFocusRect(aRect, rect);
 
+    const nsStyleBorder* border = mOuterFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, mOuterFocusStyle);
+                                aDirtyRect, rect, *border, mOuterFocusStyle);
   }
 
   if (mInnerFocusStyle) { 
@@ -247,8 +202,9 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     GetButtonInnerFocusRect(aRect, rect);
 
+    const nsStyleBorder* border = mInnerFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, mInnerFocusStyle);
+                                aDirtyRect, rect, *border, mInnerFocusStyle);
   }
 }
 
@@ -257,8 +213,7 @@ void
 nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
           nsIRenderingContext& aRenderingContext,
           const nsRect& aDirtyRect,
-          const nsRect& aRect,
-          PRUint32 aBGFlags)
+          const nsRect& aRect)
 
 {
   // get the button rect this is inside the focus and outline rects
@@ -267,12 +222,12 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
 
   nsStyleContext* context = mFrame->GetStyleContext();
 
+  const nsStyleBorder* border = context->GetStyleBorder();
+
   nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, mFrame,
-                                  aDirtyRect, buttonRect, aBGFlags);
-  nsCSSRendering::PaintBoxShadowInner(aPresContext, aRenderingContext,
-                                      mFrame, buttonRect, aDirtyRect);
+                                  aDirtyRect, buttonRect, PR_FALSE);
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                              aDirtyRect, buttonRect, context);
+                              aDirtyRect, buttonRect, *border, context);
 }
 
 
@@ -353,6 +308,20 @@ nsButtonFrameRenderer::GetButtonInnerFocusBorderAndPadding()
   return result;
 }
 
+nsMargin
+nsButtonFrameRenderer::GetButtonOutlineBorderAndPadding()
+{
+  nsMargin borderAndPadding(0,0,0,0);
+  return borderAndPadding;
+}
+
+// gets the full size of our border with all the focus borders
+nsMargin
+nsButtonFrameRenderer::GetFullButtonBorderAndPadding()
+{
+  return GetAddedButtonBorderAndPadding() + GetButtonBorderAndPadding();
+}
+
 // gets all the focus borders and padding that will be added to the regular border
 nsMargin
 nsButtonFrameRenderer::GetAddedButtonBorderAndPadding()
@@ -371,16 +340,14 @@ nsButtonFrameRenderer::ReResolveStyles(nsPresContext* aPresContext)
   nsStyleSet *styleSet = aPresContext->StyleSet();
 
   // style for the inner such as a dotted line (Windows)
-  mInnerFocusStyle =
-    styleSet->ProbePseudoElementStyle(mFrame->GetContent()->AsElement(),
-                                      nsCSSPseudoElements::ePseudo_mozFocusInner,
-                                      context);
+  mInnerFocusStyle = styleSet->ProbePseudoStyleFor(mFrame->GetContent(),
+                                                   nsCSSPseudoElements::mozFocusInner,
+                                                   context);
 
   // style for outer focus like a ridged border (MAC).
-  mOuterFocusStyle =
-    styleSet->ProbePseudoElementStyle(mFrame->GetContent()->AsElement(),
-                                      nsCSSPseudoElements::ePseudo_mozFocusOuter,
-                                      context);
+  mOuterFocusStyle = styleSet->ProbePseudoStyleFor(mFrame->GetContent(),
+                                                   nsCSSPseudoElements::mozFocusOuter,
+                                                   context);
 }
 
 nsStyleContext*

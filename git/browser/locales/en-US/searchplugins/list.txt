@@ -1,5 +1,6 @@
 amazondotcom
-bing
+answers
+creativecommons
 eBay
 google
 wikipedia

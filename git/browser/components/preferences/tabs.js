@@ -42,6 +42,12 @@ var gTabsPane = {
   /*
    * Preferences:
    *
+   * browser.link.open_external
+   * - determines where pages opened by external applications are opened:
+   *     0 opens such links in the default window,
+   *     1 opens such links in the most recent window or tab,
+   *     2 opens such links in a new window,
+   *     3 opens such links in a new tab
    * browser.link.open_newwindow
    * - determines where pages which would open in a new window are opened:
    *     0 opens such links in the default window,
@@ -60,26 +66,7 @@ var gTabsPane = {
    * browser.tabs.warnOnOpen
    * - true if the user should be warned if he attempts to open a lot of tabs at
    *   once (e.g. a large folder of bookmarks), false otherwise
-   * browser.taskbar.previews.enable
-   * - true if tabs are to be shown in the Windows 7 taskbar
    */
-
-#ifdef XP_WIN
-  /**
-   * Initialize any platform-specific UI.
-   */
-  init: function () {
-    const Cc = Components.classes;
-    const Ci = Components.interfaces;
-    try {
-      let sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
-      let ver = parseFloat(sysInfo.getProperty("version"));
-      let showTabsInTaskbar = document.getElementById("showTabsInTaskbar");
-      showTabsInTaskbar.hidden = ver < 6.1;
-    } catch (ex) {}
-  },
-#endif
 
   /**
    * Determines where a link which opens a new window will open.
@@ -87,18 +74,22 @@ var gTabsPane = {
    * @returns |true| if such links should be opened in new tabs
    */
   readLinkTarget: function() {
-    var openNewWindow = document.getElementById("browser.link.open_newwindow");
-    return openNewWindow.value != 2;
+    var openExternal = document.getElementById("browser.link.open_external");
+    return openExternal.value != 2;
   },
 
   /**
-   * Determines where a link which opens a new window will open.
+   * Ensures that pages opened in new windows by web pages and pages opened by
+   * external applications both open in the same way (e.g. in a new tab, window,
+   * etc.).
    *
    * @returns 2 if such links should be opened in new windows,
    *          3 if such links should be opened in new tabs
    */
   writeLinkTarget: function() {
     var linkTargeting = document.getElementById("linkTargeting");
-    return linkTargeting.checked ? 3 : 2;
+    var linkTarget = linkTargeting.checked ? 3 : 2;
+    document.getElementById("browser.link.open_newwindow").value = linkTarget;
+    return linkTarget;
   }
 };

@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MacLaunchHelper_h_
-#define MacLaunchHelper_h_
+#ifndef __MacLaunchHelper_h__
+#define __MacLaunchHelper_h__
 
 extern "C" {
   void LaunchChildMac(int aArgc, char** aArgv);

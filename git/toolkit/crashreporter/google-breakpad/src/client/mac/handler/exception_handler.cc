@@ -33,7 +33,6 @@
 #include "client/mac/handler/exception_handler.h"
 #include "client/mac/handler/minidump_generator.h"
 #include "common/mac/macho_utilities.h"
-#include "common/mac/scoped_task_suspend-inl.h"
 
 #ifndef USE_PROTECTED_ALLOCATIONS
 #define USE_PROTECTED_ALLOCATIONS 0
@@ -52,14 +51,6 @@
 namespace google_breakpad {
 
 using std::map;
-
-// Message ID telling the handler thread to write a dump.
-static const mach_msg_id_t kWriteDumpMessage = 0;
-// Message ID telling the handler thread to quit.
-static const mach_msg_id_t kQuitMessage = 1;
-// Message ID telling the handler thread to write a dump and include
-// an exception stream.
-static const mach_msg_id_t kWriteDumpWithExceptionMessage = 2;
 
 // These structures and techniques are illustrated in
 // Mac OS X Internals, Amit Singh, ch 9.7
@@ -92,7 +83,7 @@ struct ExceptionReplyMessage {
 
 // Only catch these three exceptions.  The other ones are nebulously defined
 // and may result in treating a non-fatal exception as fatal.
-exception_mask_t s_exception_mask = EXC_MASK_BAD_ACCESS |
+exception_mask_t s_exception_mask = EXC_MASK_BAD_ACCESS | 
 EXC_MASK_BAD_INSTRUCTION | EXC_MASK_ARITHMETIC | EXC_MASK_BREAKPOINT;
 
 extern "C"
@@ -101,15 +92,12 @@ extern "C"
   boolean_t exc_server(mach_msg_header_t *request,
                        mach_msg_header_t *reply);
 
-  // This symbol must be visible to dlsym() - see
-  // http://code.google.com/p/google-breakpad/issues/detail?id=345 for details.
   kern_return_t catch_exception_raise(mach_port_t target_port,
                                       mach_port_t failed_thread,
                                       mach_port_t task,
                                       exception_type_t exception,
                                       exception_data_t code,
-                                      mach_msg_type_number_t code_count)
-      __attribute__((visibility("default")));
+                                      mach_msg_type_number_t code_count);
 
   kern_return_t ForwardException(mach_port_t task,
                                  mach_port_t failed_thread,
@@ -132,10 +120,10 @@ extern "C"
                           exception_data_t exception_code,
                           mach_msg_type_number_t code_count,
                           thread_state_flavor_t *target_flavor,
-                          thread_state_t in_thread_state,
-                          mach_msg_type_number_t in_thread_state_count,
-                          thread_state_t out_thread_state,
-                          mach_msg_type_number_t *out_thread_state_count);
+                          thread_state_t thread_state,
+                          mach_msg_type_number_t thread_state_count,
+                          thread_state_t thread_state,
+                          mach_msg_type_number_t *thread_state_count);
 
   kern_return_t
     exception_raise_state_identity(mach_port_t target_port,
@@ -145,100 +133,24 @@ extern "C"
                                    exception_data_t exception_code,
                                    mach_msg_type_number_t exception_code_count,
                                    thread_state_flavor_t *target_flavor,
-                                   thread_state_t in_thread_state,
-                                   mach_msg_type_number_t in_thread_state_count,
-                                   thread_state_t out_thread_state,
-                                   mach_msg_type_number_t *out_thread_state_count);
-
-  kern_return_t breakpad_exception_raise_state(mach_port_t exception_port,
-                                               exception_type_t exception,
-                                               const exception_data_t code,
-                                               mach_msg_type_number_t codeCnt,
-                                               int *flavor,
-                                               const thread_state_t old_state,
-                                               mach_msg_type_number_t old_stateCnt,
-                                               thread_state_t new_state,
-                                               mach_msg_type_number_t *new_stateCnt
-                                               );
-
-  kern_return_t breakpad_exception_raise_state_identity(mach_port_t exception_port,
-                                                        mach_port_t thread,
-                                                        mach_port_t task,
-                                                        exception_type_t exception,
-                                                        exception_data_t code,
-                                                        mach_msg_type_number_t codeCnt,
-                                                        int *flavor,
-                                                        thread_state_t old_state,
-                                                        mach_msg_type_number_t old_stateCnt,
-                                                        thread_state_t new_state,
-                                                        mach_msg_type_number_t *new_stateCnt
-                                                        );
-
-  kern_return_t breakpad_exception_raise(mach_port_t port, mach_port_t failed_thread,
-                                         mach_port_t task,
-                                         exception_type_t exception,
-                                         exception_data_t code,
-                                         mach_msg_type_number_t code_count);
+                                   thread_state_t thread_state,
+                                   mach_msg_type_number_t thread_state_count,
+                                   thread_state_t thread_state,
+                                   mach_msg_type_number_t *thread_state_count);
 }
-
-
-
-kern_return_t breakpad_exception_raise_state(mach_port_t exception_port,
-					     exception_type_t exception,
-					     const exception_data_t code,
-					     mach_msg_type_number_t codeCnt,
-					     int *flavor,
-					     const thread_state_t old_state,
-					     mach_msg_type_number_t old_stateCnt,
-					     thread_state_t new_state,
-					     mach_msg_type_number_t *new_stateCnt
-                                             )
-{
-  return KERN_SUCCESS;
-}
-
-kern_return_t breakpad_exception_raise_state_identity(mach_port_t exception_port,
-						      mach_port_t thread,
-						      mach_port_t task,
-						      exception_type_t exception,
-						      exception_data_t code,
-						      mach_msg_type_number_t codeCnt,
-						      int *flavor,
-						      thread_state_t old_state,
-						      mach_msg_type_number_t old_stateCnt,
-						      thread_state_t new_state,
-						      mach_msg_type_number_t *new_stateCnt
-                                                      )
-{
-  return KERN_SUCCESS;
-}
-
-kern_return_t breakpad_exception_raise(mach_port_t port, mach_port_t failed_thread,
-                                       mach_port_t task,
-                                       exception_type_t exception,
-                                       exception_data_t code,
-                                       mach_msg_type_number_t code_count) {
-
-  if (task != mach_task_self()) {
-    return KERN_FAILURE;
-  }
-  return ForwardException(task, failed_thread, exception, code, code_count);
-}
-
 
 ExceptionHandler::ExceptionHandler(const string &dump_path,
                                    FilterCallback filter,
                                    MinidumpCallback callback,
                                    void *callback_context,
-                                   bool install_handler,
-				   const char *port_name)
+                                   bool install_handler)
     : dump_path_(),
       filter_(filter),
       callback_(callback),
       callback_context_(callback_context),
       directCallback_(NULL),
       handler_thread_(NULL),
-      handler_port_(MACH_PORT_NULL),
+      handler_port_(0),
       previous_(NULL),
       installed_exception_handler_(false),
       is_in_teardown_(false),
@@ -247,8 +159,6 @@ ExceptionHandler::ExceptionHandler(const string &dump_path,
   // This will update to the ID and C-string pointers
   set_dump_path(dump_path);
   MinidumpGenerator::GatherSystemInformation();
-  if (port_name)
-    crash_generation_client_.reset(new CrashGenerationClient(port_name));
   Setup(install_handler);
 }
 
@@ -263,7 +173,7 @@ ExceptionHandler::ExceptionHandler(DirectCallback callback,
       callback_context_(callback_context),
       directCallback_(callback),
       handler_thread_(NULL),
-      handler_port_(MACH_PORT_NULL),
+      handler_port_(0),
       previous_(NULL),
       installed_exception_handler_(false),
       is_in_teardown_(false),
@@ -277,7 +187,7 @@ ExceptionHandler::~ExceptionHandler() {
   Teardown();
 }
 
-bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
+bool ExceptionHandler::WriteMinidump() {
   // If we're currently writing, just return
   if (use_minidump_write_mutex_)
     return false;
@@ -289,15 +199,13 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
   if (pthread_mutex_lock(&minidump_write_mutex_) == 0) {
     // Send an empty message to the handle port so that a minidump will
     // be written
-    SendMessageToHandlerThread(write_exception_stream ?
-                               kWriteDumpWithExceptionMessage
-                               : kWriteDumpMessage);
+    SendEmptyMachMessage();
 
     // Wait for the minidump writer to complete its writing.  It will unlock
     // the mutex when completed
     pthread_mutex_lock(&minidump_write_mutex_);
   }
-
+  
   use_minidump_write_mutex_ = false;
   UpdateNextID();
   return last_minidump_write_result_;
@@ -305,72 +213,24 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
 
 // static
 bool ExceptionHandler::WriteMinidump(const string &dump_path,
-                                     bool write_exception_stream,
                                      MinidumpCallback callback,
                                      void *callback_context) {
-  ExceptionHandler handler(dump_path, NULL, callback, callback_context, false,
-			   NULL);
-  return handler.WriteMinidump(write_exception_stream);
-}
-
-// static
-bool ExceptionHandler::WriteMinidumpForChild(mach_port_t child,
-					     mach_port_t child_blamed_thread,
-					     const string &dump_path,
-					     MinidumpCallback callback,
-					     void *callback_context) {
-  ScopedTaskSuspend suspend(child);
-
-  MinidumpGenerator generator(child, MACH_PORT_NULL);
-  string dump_id;
-  string dump_filename = generator.UniqueNameInDirectory(dump_path, &dump_id);
-
-  generator.SetExceptionInformation(EXC_BREAKPOINT,
-#if defined (__i386__) || defined(__x86_64__)
-				    EXC_I386_BPT,
-#elif defined (__ppc__) || defined (__ppc64__)
-				    EXC_PPC_BREAKPOINT,
-#else
-  #error architecture not supported
-#endif
-				    0,
-				    child_blamed_thread);
-  bool result = generator.Write(dump_filename.c_str());
-
-  if (callback) {
-    return callback(dump_path.c_str(), dump_id.c_str(),
-		    callback_context, result);
-  }
-  return result;
+  ExceptionHandler handler(dump_path, NULL, callback, callback_context, false);
+  return handler.WriteMinidump();
 }
 
 bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
                                                   int exception_code,
-                                                  int exception_subcode,
-                                                  mach_port_t thread_name,
-                                                  bool exit_after_write) {
+                                                  mach_port_t thread_name) {
   bool result = false;
 
   if (directCallback_) {
     if (directCallback_(callback_context_,
                         exception_type,
                         exception_code,
-                        exception_subcode,
                         thread_name) ) {
-      if (exit_after_write)
+      if (exception_type && exception_code)
         _exit(exception_type);
-    }
-  } else if (IsOutOfProcess()) {
-    if (exception_type && exception_code) {
-      // If this is a real exception, give the filter (if any) a chance to
-      // decide if this should be sent.
-      if (filter_ && !filter_(callback_context_))
-	return false;
-      return crash_generation_client_->RequestDumpForException(
-	         exception_type,
-		 exception_code,
-		 exception_subcode,
-		 thread_name);
     }
   } else {
     string minidump_id;
@@ -381,12 +241,11 @@ bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
       MinidumpGenerator md;
       if (exception_type && exception_code) {
         // If this is a real exception, give the filter (if any) a chance to
-        // decide if this should be sent.
+        // decided if this should be sent
         if (filter_ && !filter_(callback_context_))
           return false;
 
-        md.SetExceptionInformation(exception_type, exception_code,
-                                   exception_subcode, thread_name);
+        md.SetExceptionInformation(exception_type, exception_code, thread_name);
       }
 
       result = md.Write(next_minidump_path_c_);
@@ -397,14 +256,14 @@ bool ExceptionHandler::WriteMinidumpWithException(int exception_type,
       // If the user callback returned true and we're handling an exception
       // (rather than just writing out the file), then we should exit without
       // forwarding the exception to the next handler.
-      if (callback_(dump_path_c_, next_minidump_id_c_, callback_context_,
+      if (callback_(dump_path_c_, next_minidump_id_c_, callback_context_, 
                     result)) {
-        if (exit_after_write)
+        if (exception_type && exception_code)
           _exit(exception_type);
       }
     }
   }
-
+  
   return result;
 }
 
@@ -413,20 +272,20 @@ kern_return_t ForwardException(mach_port_t task, mach_port_t failed_thread,
                                exception_data_t code,
                                mach_msg_type_number_t code_count) {
   // At this time, we should have called Uninstall() on the exception handler
-  // so that the current exception ports are the ones that we should be
+  // so that the current exception ports are the ones that we should be 
   // forwarding to.
   ExceptionParameters current;
-
+  
   current.count = EXC_TYPES_COUNT;
   mach_port_t current_task = mach_task_self();
-  kern_return_t result = task_get_exception_ports(current_task,
+  kern_return_t result = task_get_exception_ports(current_task, 
                                                   s_exception_mask,
                                                   current.masks,
                                                   &current.count,
                                                   current.ports,
                                                   current.behaviors,
                                                   current.flavors);
-
+  
   // Find the first exception handler that matches the exception
   unsigned int found;
   for (found = 0; found < current.count; ++found) {
@@ -498,9 +357,6 @@ kern_return_t catch_exception_raise(mach_port_t port, mach_port_t failed_thread,
                                     exception_type_t exception,
                                     exception_data_t code,
                                     mach_msg_type_number_t code_count) {
-  if (task != mach_task_self()) {
-    return KERN_FAILURE;
-  }
   return ForwardException(task, failed_thread, exception, code, code_count);
 }
 
@@ -513,19 +369,18 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
   // Wait for the exception info
   while (1) {
     receive.header.msgh_local_port = self->handler_port_;
-    receive.header.msgh_size = static_cast<mach_msg_size_t>(sizeof(receive));
+    receive.header.msgh_size = sizeof(receive);
     kern_return_t result = mach_msg(&(receive.header),
                                     MACH_RCV_MSG | MACH_RCV_LARGE, 0,
-                                    receive.header.msgh_size,
-                                    self->handler_port_,
+                                    sizeof(receive), self->handler_port_,
                                     MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
 
-
+    
     if (result == KERN_SUCCESS) {
       // Uninstall our handler so that we don't get in a loop if the process of
       // writing out a minidump causes an exception.  However, if the exception
       // was caused by a fork'd process, don't uninstall things
-
+      if (receive.task.name == mach_task_self())
       // If the actual exception code is zero, then we're calling this handler
       // in a way that indicates that we want to either exit this thread or
       // generate a minidump
@@ -534,9 +389,7 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
       // to avoid misleading stacks.  If appropriate they will be resumed
       // afterwards.
       if (!receive.exception) {
-        // Don't touch self, since this message could have been sent
-        // from its destructor.
-        if (receive.header.msgh_id == kQuitMessage)
+        if (self->is_in_teardown_)
           return NULL;
 
         self->SuspendThreads();
@@ -546,26 +399,9 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
           gBreakpadAllocator->Unprotect();
 #endif
 
-        mach_port_t thread = MACH_PORT_NULL;
-        int exception_type = 0;
-        int exception_code = 0;
-        if (receive.header.msgh_id == kWriteDumpWithExceptionMessage) {
-          thread = receive.thread.name;
-          exception_type = EXC_BREAKPOINT;
-#if defined (__i386__) || defined(__x86_64__)
-          exception_code = EXC_I386_BPT;
-#elif defined (__ppc__) || defined (__ppc64__)
-          exception_code = EXC_PPC_BREAKPOINT;
-#else
-  #error architecture not supported
-#endif
-        }
-
         // Write out the dump and save the result for later retrieval
         self->last_minidump_write_result_ =
-          self->WriteMinidumpWithException(exception_type, exception_code,
-                                           0, thread,
-                                           exception_type != EXC_BREAKPOINT);
+          self->WriteMinidumpWithException(0, 0, 0);
 
         self->UninstallHandler(false);
 
@@ -579,48 +415,45 @@ void *ExceptionHandler::WaitForMessage(void *exception_handler_class) {
         if (self->use_minidump_write_mutex_)
           pthread_mutex_unlock(&self->minidump_write_mutex_);
       } else {
+
         // When forking a child process with the exception handler installed,
         // if the child crashes, it will send the exception back to the parent
-        // process.  The check for task == self_task() ensures that only
-        // exceptions that occur in the parent process are caught and
-        // processed.  If the exception was not caused by this task, we
-        // still need to call into the exception server and have it return
-        // KERN_FAILURE (see breakpad_exception_raise) in order for the kernel
-        // to move onto the host exception handler for the child task
+        // process.  The check for task == self_task() ensures that only 
+        // exceptions that occur in the parent process are caught and 
+        // processed.
         if (receive.task.name == mach_task_self()) {
           self->SuspendThreads();
-
+          
 #if USE_PROTECTED_ALLOCATIONS
         if(gBreakpadAllocator)
           gBreakpadAllocator->Unprotect();
 #endif
 
-        int subcode = 0;
-        if (receive.exception == EXC_BAD_ACCESS && receive.code_count > 1)
-          subcode = receive.code[1];
-
-        // Generate the minidump with the exception data.
-        self->WriteMinidumpWithException(receive.exception, receive.code[0],
-                                         subcode, receive.thread.name, true);
-
-        self->UninstallHandler(true);
+          // Generate the minidump with the exception data.
+          self->WriteMinidumpWithException(receive.exception, receive.code[0],
+                                           receive.thread.name);
+        
+          self->UninstallHandler(true);
 
 #if USE_PROTECTED_ALLOCATIONS
         if(gBreakpadAllocator)
           gBreakpadAllocator->Protect();
 #endif
-        }
-        // Pass along the exception to the server, which will setup the
-        // message and call breakpad_exception_raise() and put the return
-        // code into the reply.
-        ExceptionReplyMessage reply;
-        if (!exc_server(&receive.header, &reply.header))
-          exit(1);
 
-        // Send a reply and exit
-        result = mach_msg(&(reply.header), MACH_SEND_MSG,
-                          reply.header.msgh_size, 0, MACH_PORT_NULL,
-                          MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+          // Pass along the exception to the server, which will setup the 
+          // message and call catch_exception_raise() and put the KERN_SUCCESS
+          // into the reply.
+          ExceptionReplyMessage reply;
+          if (!exc_server(&receive.header, &reply.header))
+            exit(1);
+
+          // Send a reply and exit
+          result = mach_msg(&(reply.header), MACH_SEND_MSG,
+                            reply.header.msgh_size, 0, MACH_PORT_NULL,
+                            MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+        } else {
+          // An exception occurred in a child process 
+        }
       }
     }
   }
@@ -632,11 +465,11 @@ bool ExceptionHandler::InstallHandler() {
   try {
 #if USE_PROTECTED_ALLOCATIONS
     previous_ = new (gBreakpadAllocator->Allocate(sizeof(ExceptionParameters)) )
-      ExceptionParameters();
+      ExceptionParameters();    
 #else
     previous_ = new ExceptionParameters();
 #endif
-
+  
   }
   catch (std::bad_alloc) {
     return false;
@@ -645,14 +478,14 @@ bool ExceptionHandler::InstallHandler() {
   // Save the current exception ports so that we can forward to them
   previous_->count = EXC_TYPES_COUNT;
   mach_port_t current_task = mach_task_self();
-  kern_return_t result = task_get_exception_ports(current_task,
+  kern_return_t result = task_get_exception_ports(current_task, 
                                                   s_exception_mask,
                                                   previous_->masks,
                                                   &previous_->count,
                                                   previous_->ports,
                                                   previous_->behaviors,
                                                   previous_->flavors);
-
+  
   // Setup the exception ports on this task
   if (result == KERN_SUCCESS)
     result = task_set_exception_ports(current_task, s_exception_mask,
@@ -666,10 +499,10 @@ bool ExceptionHandler::InstallHandler() {
 
 bool ExceptionHandler::UninstallHandler(bool in_exception) {
   kern_return_t result = KERN_SUCCESS;
-
+  
   if (installed_exception_handler_) {
     mach_port_t current_task = mach_task_self();
-
+    
     // Restore the previous ports
     for (unsigned int i = 0; i < previous_->count; ++i) {
        result = task_set_exception_ports(current_task, previous_->masks[i],
@@ -679,20 +512,20 @@ bool ExceptionHandler::UninstallHandler(bool in_exception) {
       if (result != KERN_SUCCESS)
         return false;
     }
-
+    
     // this delete should NOT happen if an exception just occurred!
     if (!in_exception) {
 #if USE_PROTECTED_ALLOCATIONS
       previous_->~ExceptionParameters();
 #else
-      delete previous_;
+      delete previous_; 
 #endif
     }
-
+    
     previous_ = NULL;
     installed_exception_handler_ = false;
   }
-
+  
   return result == KERN_SUCCESS;
 }
 
@@ -719,7 +552,7 @@ bool ExceptionHandler::Setup(bool install_handler) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    int thread_create_result = pthread_create(&handler_thread_, &attr,
+    int thread_create_result = pthread_create(&handler_thread_, &attr, 
                                               &WaitForMessage, this);
     pthread_attr_destroy(&attr);
     result = thread_create_result ? KERN_FAILURE : KERN_SUCCESS;
@@ -734,9 +567,9 @@ bool ExceptionHandler::Teardown() {
 
   if (!UninstallHandler(false))
     return false;
-
+  
   // Send an empty message so that the handler_thread exits
-  if (SendMessageToHandlerThread(kQuitMessage)) {
+  if (SendEmptyMachMessage()) {
     mach_port_t current_task = mach_task_self();
     result = mach_port_deallocate(current_task, handler_port_);
     if (result != KERN_SUCCESS)
@@ -744,7 +577,7 @@ bool ExceptionHandler::Teardown() {
   } else {
     return false;
   }
-
+  
   handler_thread_ = NULL;
   handler_port_ = NULL;
   pthread_mutex_destroy(&minidump_write_mutex_);
@@ -752,24 +585,16 @@ bool ExceptionHandler::Teardown() {
   return result == KERN_SUCCESS;
 }
 
-bool ExceptionHandler::SendMessageToHandlerThread(mach_msg_id_t message_id) {
-  ExceptionMessage msg;
-  memset(&msg, 0, sizeof(msg));
-  msg.header.msgh_id = message_id;
-  if (message_id == kWriteDumpMessage ||
-      message_id == kWriteDumpWithExceptionMessage) {
-    // Include this thread's port.
-    msg.thread.name = mach_thread_self();
-    msg.thread.disposition = MACH_MSG_TYPE_PORT_SEND;
-    msg.thread.type = MACH_MSG_PORT_DESCRIPTOR;
-  }
-  msg.header.msgh_size = sizeof(msg) - sizeof(msg.padding);
-  msg.header.msgh_remote_port = handler_port_;
-  msg.header.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND,
+bool ExceptionHandler::SendEmptyMachMessage() {
+  ExceptionMessage empty;
+  memset(&empty, 0, sizeof(empty));
+  empty.header.msgh_size = sizeof(empty) - sizeof(empty.padding);
+  empty.header.msgh_remote_port = handler_port_;
+  empty.header.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND,
                                           MACH_MSG_TYPE_MAKE_SEND_ONCE);
-  kern_return_t result = mach_msg(&(msg.header),
+  kern_return_t result = mach_msg(&(empty.header),
                                   MACH_SEND_MSG | MACH_SEND_TIMEOUT,
-                                  msg.header.msgh_size, 0, 0,
+                                  empty.header.msgh_size, 0, 0,
                                   MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
 
   return result == KERN_SUCCESS;
@@ -797,7 +622,7 @@ bool ExceptionHandler::SuspendThreads() {
         return false;
     }
   }
-
+  
   return true;
 }
 
@@ -815,7 +640,7 @@ bool ExceptionHandler::ResumeThreads() {
         return false;
     }
   }
-
+  
   return true;
 }
 

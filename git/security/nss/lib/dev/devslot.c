@@ -35,10 +35,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: devslot.c,v $ $Revision: 1.27 $ $Date: 2010/04/03 18:27:30 $";
+static const char CVS_ID[] = "@(#) $RCSfile: devslot.c,v $ $Revision: 1.24 $ $Date: 2008/08/09 01:25:58 $";
 #endif /* DEBUG */
 
-#include "pkcs11.h"
+#ifndef NSSCKEPV_H
+#include "nssckepv.h"
+#endif /* NSSCKEPV_H */
 
 #ifndef DEVM_H
 #include "devm.h"
@@ -70,7 +72,7 @@ nssSlot_Destroy (
 )
 {
     if (slot) {
-	if (PR_ATOMIC_DECREMENT(&slot->base.refCount) == 0) {
+	if (PR_AtomicDecrement(&slot->base.refCount) == 0) {
 	    PZ_DestroyLock(slot->base.lock);
 	    return nssArena_Destroy(slot->base.arena);
 	}
@@ -107,7 +109,7 @@ nssSlot_AddRef (
   NSSSlot *slot
 )
 {
-    PR_ATOMIC_INCREMENT(&slot->base.refCount);
+    PR_AtomicIncrement(&slot->base.refCount);
     return slot;
 }
 
@@ -217,7 +219,6 @@ nssSlot_IsTokenPresent (
      */
     session = nssToken_GetDefaultSession(slot->token);
     if (session) {
-	PRBool isPresent = PR_FALSE;
 	nssSession_EnterMonitor(session);
 	if (session->handle != CK_INVALID_SESSION) {
 	    CK_SESSION_INFO sessionInfo;
@@ -228,10 +229,9 @@ nssSlot_IsTokenPresent (
 		session->handle = CK_INVALID_SESSION;
 	    }
 	}
-	isPresent = session->handle != CK_INVALID_SESSION;
 	nssSession_ExitMonitor(session);
 	/* token not removed, finished */
-	if (isPresent)
+	if (session->handle != CK_INVALID_SESSION)
 	    return PR_TRUE;
     } 
     /* the token has been removed, and reinserted, or the slot contains

@@ -45,29 +45,9 @@
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsIServiceManager.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIDOMNode.h"
 #include "nsXBLPrototypeBinding.h"
-
-// Checks that the version is not modified in a given scope.
-class AutoVersionChecker
-{
-  JSContext * const cx;
-  JSVersion versionBefore;
-
-public:
-  explicit AutoVersionChecker(JSContext *cx) : cx(cx) {
-#ifdef DEBUG
-    versionBefore = JS_GetVersion(cx);
-#endif
-  }
-
-  ~AutoVersionChecker() {
-#ifdef DEBUG
-    JSVersion versionAfter = JS_GetVersion(cx);
-    NS_ABORT_IF_FALSE(versionAfter == versionBefore, "version must not change");
-#endif
-  }
-};
 
 nsresult
 nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIContent* aBoundElement)
@@ -84,7 +64,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   nsIDocument* document = aBoundElement->GetOwnerDoc();
   if (!document) return NS_OK;
 
-  nsIScriptGlobalObject *global = document->GetScopeObject();
+  nsIScriptGlobalObject *global = document->GetScriptGlobalObject();
   if (!global) return NS_OK;
 
   nsCOMPtr<nsIScriptContext> context = global->GetContext();
@@ -104,8 +84,8 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   holder->GetJSObject(&targetScriptObject);
 
   JSContext *cx = (JSContext *)context->GetNativeContext();
-
-  AutoVersionChecker avc(cx);
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);
   
   // Walk our member list and install each one in turn.
   for (nsXBLProtoImplMember* curr = mMembers;
@@ -114,6 +94,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
     curr->InstallMember(context, aBoundElement, targetScriptObject,
                         targetClassObject, mClassName);
 
+  ::JS_SetVersion(cx, oldVersion);
   return NS_OK;
 }
 
@@ -141,7 +122,9 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScriptGlobalObject())) {
+    NS_ERROR("Can't find global object for bound content!");
+
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -150,21 +133,31 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   JSContext* jscontext = (JSContext*)aContext->GetNativeContext();
   JSObject* global = sgo->GetGlobalJSObject();
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-  jsval v;
-  rv = nsContentUtils::WrapNative(jscontext, global, aBoundElement, &v,
-                                  getter_AddRefs(wrapper));
+  rv = nsContentUtils::XPConnect()->WrapNative(jscontext, global,
+                                               aBoundElement,
+                                               NS_GET_IID(nsISupports),
+                                               getter_AddRefs(wrapper));
+  NS_ENSURE_SUCCESS(rv, rv);
+  JSObject * object = nsnull;
+  rv = wrapper->GetJSObject(&object);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // All of the above code was just obtaining the bound element's script object and its immediate
   // concrete base class.  We need to alter the object so that our concrete class is interposed
   // between the object and its base class.  We become the new base class of the object, and the
   // object's old base class becomes the new class' base class.
-  rv = aBinding->InitClass(mClassName, jscontext, global, JSVAL_TO_OBJECT(v),
+  rv = aBinding->InitClass(mClassName, jscontext, global, object,
                            aTargetClassObject);
   if (NS_FAILED(rv))
     return rv;
 
-  nsContentUtils::PreserveWrapper(aBoundElement, aBoundElement);
+  // Root ourselves in the document.
+  nsIDocument* doc = aBoundElement->GetOwnerDoc();
+  if (doc) {
+    nsCOMPtr<nsIXPConnectWrappedNative> nativeWrapper(do_QueryInterface(wrapper));
+    if (nativeWrapper)
+      doc->AddReference(aBoundElement, nativeWrapper);
+  }
 
   wrapper.swap(*aScriptObjectHolder);
   
@@ -178,7 +171,7 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   // bind the prototype to a real xbl instance, we'll clone the pre-compiled JS into the real instance's 
   // context.
   nsCOMPtr<nsIScriptGlobalObjectOwner> globalOwner(
-      do_QueryObject(aBinding->XBLDocumentInfo()));
+      do_QueryInterface(aBinding->XBLDocumentInfo()));
   nsIScriptGlobalObject* globalObject = globalOwner->GetScriptGlobalObject();
   NS_ENSURE_TRUE(globalObject, NS_ERROR_UNEXPECTED);
 
@@ -199,7 +192,8 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   if (!mClassObject)
     return NS_ERROR_FAILURE;
 
-  AutoVersionChecker avc(cx);
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);
 
   // Now that we have a class object installed, we walk our member list and compile each of our
   // properties and methods in turn.
@@ -209,10 +203,12 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
     nsresult rv = curr->CompileMember(context, mClassName, mClassObject);
     if (NS_FAILED(rv)) {
       DestroyMembers();
+      ::JS_SetVersion(cx, oldVersion);
       return rv;
     }
   }
 
+  ::JS_SetVersion(cx, oldVersion);
   return NS_OK;
 }
 
@@ -255,7 +251,8 @@ nsXBLProtoImpl::FindField(const nsString& aFieldName) const
 PRBool
 nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
 {
-  AutoVersionChecker avc(cx);
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);  
   for (nsXBLProtoImplField* f = mFields; f; f = f->GetNext()) {
     // Using OBJ_LOOKUP_PROPERTY is a pain, since what we have is a
     // PRUnichar* for the property name.  Let's just use the public API and
@@ -265,10 +262,12 @@ nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
     if (!::JS_LookupUCProperty(cx, obj,
                                reinterpret_cast<const jschar*>(name.get()),
                                name.Length(), &dummy)) {
+      ::JS_SetVersion(cx, oldVersion);
       return PR_FALSE;
     }
   }
 
+  ::JS_SetVersion(cx, oldVersion);
   return PR_TRUE;
 }
 

@@ -128,15 +128,14 @@ public:
 
     // This is really ugly hack but it should be fast
     PRUnichar backup_char;
-    PRUint32 minLength = mMinLength;
-    if (minLength)
+    if (mMinLength)
     {
-      backup_char = mValue[minLength-1];
-      mValue.SetCharAt('x', minLength-1);
+      backup_char = mValue[mMinLength-1];
+      mValue.SetCharAt('x', mMinLength-1);
     }
     mValue.Trim(trimThese, PR_FALSE, PR_TRUE);
-    if (minLength)
-      mValue.SetCharAt(backup_char, minLength-1);
+    if (mMinLength)
+      mValue.SetCharAt(backup_char, mMinLength-1);
 
     mProps->SetStringProperty(NS_ConvertUTF16toUTF8(mKey), mValue, aOldValue);
     mSpecialState = eParserSpecial_None;
@@ -508,7 +507,7 @@ nsPersistentProperties::Init()
   return NS_OK;
 }
 
-nsresult
+NS_METHOD
 nsPersistentProperties::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter)
@@ -576,9 +575,6 @@ nsPersistentProperties::SetStringProperty(const nsACString& aKey,
                                "the property %s already exists\n",
                                flatKey.get()).get());
   }
-  else {
-    aOldValue.Truncate();
-  }
 
   entry->mKey = ArenaStrdup(flatKey, &mArena);
   entry->mValue = ArenaStrdup(PromiseFlatString(aNewValue), &mArena);
@@ -619,7 +615,7 @@ nsPersistentProperties::GetStringProperty(const nsACString& aKey,
   return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AddElemToArray(PLDHashTable* table, PLDHashEntryHdr *hdr,
                PRUint32 i, void *arg)
 {

@@ -48,6 +48,7 @@
 #include "nsIRDFDataSource.h"
 #include "nsIRDFObserver.h"
 #include "nsIServiceManager.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsRDFCID.h"
 #include "rdfutil.h"
@@ -139,7 +140,7 @@ FileSystemDataSource::isDirURI(nsIRDFResource* source)
     {
         PRBool isPackageFlag = PR_FALSE;
         rv = aMacFile->IsPackage(&isPackageFlag);
-        if (NS_SUCCEEDED(rv) && isPackageFlag)
+        if (NS_SUCCEEDED(rv) && (isPackageFlag == PR_TRUE))
         {
             isDirFlag = PR_FALSE;
         }
@@ -255,7 +256,6 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(FileSystemDataSource)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(FileSystemDataSource)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(FileSystemDataSource)
     NS_INTERFACE_MAP_ENTRY(nsIRDFDataSource)
-    NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
@@ -798,7 +798,7 @@ FileSystemDataSource::ArcLabelsOut(nsIRDFResource *source,
         if (isDirURI(source))
         {
 #ifdef  XP_WIN
-            if (isValidFolder(source))
+            if (isValidFolder(source) == PR_TRUE)
             {
                 array->AppendElement(mNC_Child);
             }
@@ -898,6 +898,33 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 
     nsCOMPtr<nsIRDFResource> vol;
 
+#ifdef  XP_MAC
+    StrFileName     fname;
+    HParamBlockRec  pb;
+    for (int16 volNum = 1; ; volNum++)
+    {
+        pb.volumeParam.ioCompletion = NULL;
+        pb.volumeParam.ioVolIndex = volNum;
+        pb.volumeParam.ioNamePtr = (StringPtr)fname;
+        if (PBHGetVInfo(&pb,FALSE) != noErr)
+            break;
+        FSSpec fss(pb.volumeParam.ioVRefNum, fsRtParID, fname);
+        nsCOMPtr<nsILocalFileMac> lf;
+        NS_NewLocalFileWithFSSpec(fss, true, getter_AddRefs(lf));
+
+        nsCOMPtr<nsIURI> furi;
+        NS_NewFileURI(getter_AddRefs(furi), lf); 
+
+        nsXPIDLCString spec;
+        furi->GetSpec(getter_Copies(spec);
+
+        rv = mRDFService->GetResource(spec, getter_AddRefs(vol));
+        if (NS_FAILED(rv)) return rv;
+
+        volumes->AppendElement(vol);
+    }
+#endif
+
 #if defined (XP_WIN) && !defined (WINCE)
 
     PRInt32         driveType;
@@ -925,7 +952,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
     }
 #endif
 
-#if defined(XP_UNIX) || defined(XP_BEOS) || defined(WINCE)
+#if defined(XP_UNIX) || defined(XP_BEOS)
     mRDFService->GetResource(NS_LITERAL_CSTRING("file:///"), getter_AddRefs(vol));
     volumes->AppendElement(vol);
 #endif
@@ -983,7 +1010,7 @@ FileSystemDataSource::isValidFolder(nsIRDFResource *source)
         {
             PRBool      hasAny = PR_FALSE, hasMore;
             while (NS_SUCCEEDED(folderEnum->HasMoreElements(&hasMore)) &&
-                   hasMore)
+                    (hasMore == PR_TRUE))
             {
                 hasAny = PR_TRUE;
 
@@ -1010,7 +1037,7 @@ FileSystemDataSource::isValidFolder(nsIRDFResource *source)
                     break;
                 }
             }
-            if (!hasAny) isValid = PR_TRUE;
+            if (hasAny == PR_FALSE) isValid = PR_TRUE;
         }
     }
     return(isValid);
@@ -1065,7 +1092,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, PRBool allowHidden,
 
     PRBool          hasMore;
     while(NS_SUCCEEDED(rv = dirContents->HasMoreElements(&hasMore)) &&
-          hasMore)
+        (hasMore == PR_TRUE))
     {
         nsCOMPtr<nsISupports>   isupports;
         if (NS_FAILED(rv = dirContents->GetNext(getter_AddRefs(isupports))))
@@ -1075,12 +1102,12 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, PRBool allowHidden,
         if (!aFile)
             break;
 
-        if (!allowHidden)
+        if (allowHidden == PR_FALSE)
         {
             PRBool          hiddenFlag = PR_FALSE;
             if (NS_FAILED(rv = aFile->IsHidden(&hiddenFlag)))
                 break;
-            if (hiddenFlag)
+            if (hiddenFlag == PR_TRUE)
                 continue;
         }
 
@@ -1120,7 +1147,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, PRBool allowHidden,
 
         PRBool          dirFlag = PR_FALSE;
         rv = aFile->IsDirectory(&dirFlag);
-        if (NS_SUCCEEDED(rv) && dirFlag)
+        if (NS_SUCCEEDED(rv) && (dirFlag == PR_TRUE))
         {
             fullURI.Append('/');
         }
@@ -1130,7 +1157,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, PRBool allowHidden,
 
         nameArray->AppendElement(fileRes);
 
-        if (onlyFirst)
+        if (onlyFirst == PR_TRUE)
             break;
     }
 
@@ -1222,7 +1249,7 @@ FileSystemDataSource::GetFileSize(nsIRDFResource *source, nsIRDFInt **aResult)
     PRBool  isDir = PR_FALSE;
     if (NS_FAILED(rv = aFile->IsDirectory(&isDir)))
         return(rv);
-    if (isDir)
+    if (isDir == PR_TRUE)
         return(NS_RDF_NO_VALUE);
 
     PRInt64     aFileSize64;
@@ -1292,7 +1319,7 @@ FileSystemDataSource::GetName(nsIRDFResource *source, nsIRDFLiteral **aResult)
     {
         PRBool isPackageFlag = PR_FALSE;
         rv = aMacFile->IsPackage(&isPackageFlag);
-        if (NS_SUCCEEDED(rv) && isPackageFlag)
+        if (NS_SUCCEEDED(rv) && (isPackageFlag == PR_TRUE))
         {
             // mungle package names under Mac OS 9/X
             PRUint32 len = name.Length();

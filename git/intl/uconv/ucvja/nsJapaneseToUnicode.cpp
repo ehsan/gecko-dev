@@ -38,27 +38,37 @@
 
 #include "nsUCSupport.h"
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+
 #include "japanese.map"
 
 #include "nsICharsetConverterManager.h"
 #include "nsIServiceManager.h"
 static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 
-#ifdef XP_OS2
-  // HTML5-incompliant behavior for OS/2, see bug 108136
-  // This is bogus. The right fix would be working around the font problems
-  // in OS/2 gfx, since this "fix" introduces script-visible DOM differences
-  // between the platforms.
-  #define SJIS_INDEX gIBM943Index[0]
-  #define JIS0208_INDEX gIBM943Index[1]
-#else
-  // HTML5 says to use Windows-31J instead of the real Shift_JIS for decoding
-  #define SJIS_INDEX gCP932Index[0]
-  #define JIS0208_INDEX gCP932Index[1]
-#endif
-
+#define SJIS_INDEX mMapIndex[0]
+#define JIS0208_INDEX mMapIndex[1]
 #define JIS0212_INDEX gJIS0212Index
-#define SJIS_UNMAPPED	0x30fb
+
+void nsJapaneseToUnicode::setMapMode()
+{
+  nsresult res;
+
+  mMapIndex = gIndex;
+
+  nsCOMPtr<nsIPrefBranch> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (!prefBranch) return;
+  nsXPIDLCString prefMap;
+  res = prefBranch->GetCharPref("intl.jis0208.map", getter_Copies(prefMap));
+  if (!NS_SUCCEEDED(res)) return;
+  nsCaseInsensitiveCStringComparator comparator;
+  if ( prefMap.Equals(NS_LITERAL_CSTRING("cp932"), comparator) ) {
+    mMapIndex = gCP932Index;
+  } else if ( prefMap.Equals(NS_LITERAL_CSTRING("ibm943"), comparator) ) {
+    mMapIndex = gIBM943Index;
+  }
+}
 
 NS_IMETHODIMP nsShiftJISToUnicode::Convert(
    const char * aSrc, PRInt32 * aSrcLen,
@@ -143,9 +153,7 @@ NS_IMETHODIMP nsShiftJISToUnicode::Convert(
                        break;
 
                      default:
-                       if (mErrBehavior == kOnError_Signal)
-                         goto error_invalidchar;
-                       *dest++ = SJIS_UNMAPPED;
+                       *dest++ = 0x30FB;
                    }
                    if(dest >= destEnd)
                      goto error1;
@@ -170,16 +178,11 @@ NS_IMETHODIMP nsShiftJISToUnicode::Convert(
           {
             PRUint8 off = sbIdx[*src];
             if(0xFF == off) {
-               if (mErrBehavior == kOnError_Signal)
-                 goto error_invalidchar;
-               *dest++ = SJIS_UNMAPPED;
+               *dest++ = 0x30FB;
             } else {
                PRUnichar ch = gJapaneseMap[mData+off];
-               if(ch == 0xfffd) {
-                 if (mErrBehavior == kOnError_Signal)
-                   goto error_invalidchar;
-                 ch = SJIS_UNMAPPED;
-               }
+               if(ch == 0xfffd) 
+                 ch = 0x30fb;
                *dest++ = ch;
             }
             mState = 0;
@@ -192,10 +195,7 @@ NS_IMETHODIMP nsShiftJISToUnicode::Convert(
           {
             PRUint8 off = sbIdx[*src];
             if(0xFF == off) {
-               if (mErrBehavior == kOnError_Signal)
-                 goto error_invalidchar;
-
-               *dest++ = SJIS_UNMAPPED;
+               *dest++ = 0x30fb;
             } else {
                *dest++ = mData + off;
             }
@@ -210,12 +210,8 @@ NS_IMETHODIMP nsShiftJISToUnicode::Convert(
    }
    *aDestLen = dest - aDest;
    return NS_OK;
-error_invalidchar:
-   *aDestLen = dest - aDest;
-   *aSrcLen = src - (const unsigned char*)aSrc;
-   return NS_ERROR_ILLEGAL_INPUT;
 error1:
-   *aDestLen = dest - aDest;
+   *aDestLen = dest-aDest;
    src++;
    if ((mState == 0) && (src == srcEnd)) {
      return NS_OK;
@@ -224,11 +220,8 @@ error1:
    return NS_OK_UDEC_MOREOUTPUT;
 }
 
-PRUnichar
-nsShiftJISToUnicode::GetCharacterForUnMapped()
-{
-  return PRUnichar(SJIS_UNMAPPED);
-}
+
+
 
 NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
    const char * aSrc, PRInt32 * aSrcLen,
@@ -310,8 +303,6 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
                  mState = 3; // JIS0212
                } else {
                  // others 
-                 if (mErrBehavior == kOnError_Signal)
-                   goto error_invalidchar;
                  *dest++ = 0xFFFD;
                  if(dest >= destEnd)
                    goto error1;
@@ -329,14 +320,12 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
           {
             PRUint8 off = sbIdx[*src];
             if(0xFF == off) {
-              if (mErrBehavior == kOnError_Signal)
-                goto error_invalidchar;
               *dest++ = 0xFFFD;
                // if the first byte is valid for EUC-JP but the second 
-               // is not while being a valid US-ASCII, save it
+               // is not while being a valid US-ASCII(i.e. < 0xc0), save it
                // instead of eating it up !
-              if ( (PRUint8)*src < (PRUint8)0x7f )
-                --src;
+               if ( ! (*src & 0xc0)  )
+                 *dest++ = (PRUnichar) *src;;
             } else {
                *dest++ = gJapaneseMap[mData+off];
             }
@@ -351,13 +340,11 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
             if((0xA1 <= *src) && (*src <= 0xDF)) {
               *dest++ = (0xFF61-0x00A1) + *src;
             } else {
-              if (mErrBehavior == kOnError_Signal)
-                goto error_invalidchar;
               *dest++ = 0xFFFD;             
               // if 0x8e is not followed by a valid JIS X 0201 byte
               // but by a valid US-ASCII, save it instead of eating it up.
               if ( (PRUint8)*src < (PRUint8)0x7f )
-                --src;
+                 *dest++ = (PRUnichar) *src;
             }
             mState = 0;
             if(dest >= destEnd)
@@ -385,8 +372,6 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
           {
             PRUint8 off = sbIdx[*src];
             if(0xFF == off) {
-              if (mErrBehavior == kOnError_Signal)
-                goto error_invalidchar;
                *dest++ = 0xFFFD;
             } else {
                *dest++ = gJapaneseMap[mData+off];
@@ -398,8 +383,6 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
           break;
           case 5: // two bytes undefined
           {
-            if (mErrBehavior == kOnError_Signal)
-              goto error_invalidchar;
             *dest++ = 0xFFFD;
             mState = 0;
             if(dest >= destEnd)
@@ -411,12 +394,8 @@ NS_IMETHODIMP nsEUCJPToUnicodeV2::Convert(
    }
    *aDestLen = dest - aDest;
    return NS_OK;
-error_invalidchar:
-   *aDestLen = dest - aDest;
-   *aSrcLen = src - (const unsigned char*)aSrc;
-   return NS_ERROR_ILLEGAL_INPUT;
 error1:
-   *aDestLen = dest - aDest;
+   *aDestLen = dest-aDest;
    src++;
    if ((mState == 0) && (src == srcEnd)) {
      return NS_OK;
@@ -567,8 +546,6 @@ NS_IMETHODIMP nsISO2022JPToUnicodeV2::Convert(
               if (mRunLength == 0 && mLastLegalState != mState_ASCII) {
                 if((dest+1) >= destEnd)
                   goto error1;
-                if (mErrBehavior == kOnError_Signal)
-                  goto error2;
                 *dest++ = 0xFFFD;
               }
               mRunLength = 0;
@@ -942,7 +919,7 @@ NS_IMETHODIMP nsISO2022JPToUnicodeV2::Convert(
    *aDestLen = dest - aDest;
    return NS_OK;
 error1:
-   *aDestLen = dest - aDest;
+   *aDestLen = dest-aDest;
    src++;
    if ((mState == 0) && (src == srcEnd)) {
      return NS_OK;
@@ -951,6 +928,6 @@ error1:
    return NS_OK_UDEC_MOREOUTPUT;
 error2:
    *aSrcLen = src - (const unsigned char*)aSrc;
-   *aDestLen = dest - aDest;
+   *aDestLen = dest-aDest;
    return NS_ERROR_UNEXPECTED;
 }

@@ -61,8 +61,8 @@
 
 static nsAppShell *sAppShell;
 
-static nsresult
-nsAppShellInit()
+PR_STATIC_CALLBACK(nsresult)
+nsAppShellInit(nsIModule *module)
 {
   NS_ASSERTION(!sAppShell, "already initialized");
 
@@ -80,13 +80,13 @@ nsAppShellInit()
   return NS_OK;
 }
 
-static void
-nsAppShellShutdown()
+PR_STATIC_CALLBACK(void)
+nsAppShellShutdown(nsIModule *module)
 {
   NS_RELEASE(sAppShell);
 }
 
-static nsresult
+static NS_METHOD
 nsAppShellConstructor(nsISupports *outer, const nsIID &iid, void **result)
 {
   NS_ENSURE_TRUE(!outer, NS_ERROR_NO_AGGREGATION);

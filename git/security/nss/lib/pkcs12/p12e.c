@@ -162,6 +162,7 @@ struct sec_pkcs12_hmac_and_output_info {
 typedef struct sec_PKCS12EncoderContextStr {
     PRArenaPool *arena;
     SEC_PKCS12ExportContext *p12exp;
+    PK11SymKey *encryptionKey;
 
     /* encoder information - this is set up based on whether 
      * password based or public key pased privacy is being used
@@ -1179,6 +1180,97 @@ loser:
     return SECFailure;
 }
 
+/* SEC_PKCS12AddEncryptedKey
+ *	Extracts the key associated with a particular certificate and exports
+ *	it.
+ *
+ *	p12ctxt - the export context 
+ *	safe - the safeInfo to place the key in
+ *	nestedDest - the nested safeContents to place a key
+ *	cert - the certificate which the key belongs to
+ *	shroudKey - encrypt the private key for export.  This value should 
+ *		always be true.  lower level code will not allow the export
+ *		of unencrypted private keys.
+ *	algorithm - the algorithm with which to encrypt the private key
+ *	pwitem - the password to encrypted the private key with
+ *	keyId - the keyID attribute
+ *	nickName - the nickname attribute
+ */
+static SECStatus
+SEC_PKCS12AddEncryptedKey(SEC_PKCS12ExportContext *p12ctxt, 
+		SECKEYEncryptedPrivateKeyInfo *epki, SEC_PKCS12SafeInfo *safe,
+		void *nestedDest, SECItem *keyId, SECItem *nickName)
+{
+    void *mark;
+    void *keyItem;
+    SECOidTag keyType;
+    SECStatus rv = SECFailure;
+    sec_PKCS12SafeBag *returnBag;
+
+    if(!p12ctxt || !safe || !epki) {
+	return SECFailure;
+    }
+
+    mark = PORT_ArenaMark(p12ctxt->arena);
+
+    keyItem = PORT_ArenaZAlloc(p12ctxt->arena, 
+				sizeof(SECKEYEncryptedPrivateKeyInfo));
+    if(!keyItem) {
+	PORT_SetError(SEC_ERROR_NO_MEMORY);
+	goto loser;
+    }
+
+    rv = SECKEY_CopyEncryptedPrivateKeyInfo(p12ctxt->arena, 
+					(SECKEYEncryptedPrivateKeyInfo *)keyItem,
+					epki);
+    keyType = SEC_OID_PKCS12_V1_PKCS8_SHROUDED_KEY_BAG_ID;
+
+    if(rv != SECSuccess) {
+	goto loser;
+    }
+	
+    /* create the safe bag and set any attributes */
+    returnBag = sec_PKCS12CreateSafeBag(p12ctxt, keyType, keyItem);
+    if(!returnBag) {
+	rv = SECFailure;
+	goto loser;
+    }
+
+    if(nickName) {
+	if(sec_PKCS12AddAttributeToBag(p12ctxt, returnBag, 
+				       SEC_OID_PKCS9_FRIENDLY_NAME, nickName) 
+				       != SECSuccess) {
+	    goto loser;
+	}
+    }
+	   
+    if(keyId) {
+	if(sec_PKCS12AddAttributeToBag(p12ctxt, returnBag, 
+	                               SEC_OID_PKCS9_LOCAL_KEY_ID,
+				       keyId) != SECSuccess) {
+	    goto loser;
+	}
+    }
+
+    if(nestedDest) {
+	rv = sec_pkcs12_append_bag_to_safe_contents(p12ctxt->arena, 
+					   (sec_PKCS12SafeContents*)nestedDest,
+					   returnBag);
+    } else {
+	rv = sec_pkcs12_append_bag(p12ctxt, safe, returnBag);
+    }
+
+loser:
+
+    if (rv != SECSuccess) {
+	PORT_ArenaRelease(p12ctxt->arena, mark);
+    } else {
+	PORT_ArenaUnmark(p12ctxt->arena, mark);
+    }
+
+    return rv;
+}
+
 /* SEC_PKCS12AddKeyForCert
  *	Extracts the key associated with a particular certificate and exports
  *	it.
@@ -1333,27 +1425,108 @@ loser:
     return rv;
 }
 
-/* SEC_PKCS12AddCertOrChainAndKey
+/* SEC_PKCS12AddCertAndEncryptedKey
  *	Add a certificate and key pair to be exported.
  *
- *	p12ctxt          - the export context 
- * 	certSafe         - the safeInfo where the cert is stored
- *	certNestedDest   - the nested safeContents to store the cert
- *	keySafe          - the safeInfo where the key is stored
- *	keyNestedDest    - the nested safeContents to store the key
- *	shroudKey        - extract the private key encrypted?
- *	pwitem           - the password with which the key is encrypted
- *	algorithm        - the algorithm with which the key is encrypted
- *	includeCertChain - also add certs from chain to bag.
+ *	p12ctxt - the export context 
+ * 	certSafe - the safeInfo where the cert is stored
+ *	certNestedDest - the nested safeContents to store the cert
+ *	keySafe - the safeInfo where the key is stored
+ *	keyNestedDest - the nested safeContents to store the key
+ *	shroudKey - extract the private key encrypted?
+ *	pwitem - the password with which the key is encrypted
+ *	algorithm - the algorithm with which the key is encrypted
  */
 SECStatus
-SEC_PKCS12AddCertOrChainAndKey(SEC_PKCS12ExportContext *p12ctxt, 
-			       void *certSafe, void *certNestedDest, 
-			       CERTCertificate *cert, CERTCertDBHandle *certDb,
-			       void *keySafe, void *keyNestedDest, 
-			       PRBool shroudKey, SECItem *pwitem, 
-			       SECOidTag algorithm, PRBool includeCertChain)
-{
+SEC_PKCS12AddDERCertAndEncryptedKey(SEC_PKCS12ExportContext *p12ctxt, 
+		void *certSafe, void *certNestedDest, 
+		SECItem *derCert, void *keySafe, 
+		void *keyNestedDest, SECKEYEncryptedPrivateKeyInfo *epki,
+		char *nickname)
+{		
+    SECStatus rv = SECFailure;
+    SGNDigestInfo *digest = NULL;
+    void *mark = NULL;
+    CERTCertificate *cert;
+    SECItem nick = {siBuffer, NULL,0}, *nickPtr = NULL; 
+
+    if(!p12ctxt || !certSafe || !keySafe || !derCert) {
+	return SECFailure;
+    }
+
+    mark = PORT_ArenaMark(p12ctxt->arena);
+
+    cert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                   derCert, NULL, PR_FALSE, PR_FALSE);
+    if(!cert) {
+	PORT_ArenaRelease(p12ctxt->arena, mark);
+	PORT_SetError(SEC_ERROR_NO_MEMORY);
+	return SECFailure;
+    }
+    cert->nickname = nickname;
+
+    /* generate the thumbprint of the cert to use as a keyId */
+    digest = sec_pkcs12_compute_thumbprint(&cert->derCert);
+    if(!digest) {
+	CERT_DestroyCertificate(cert);
+	return SECFailure;
+    }
+
+    /* add the certificate */
+    rv = SEC_PKCS12AddCert(p12ctxt, (SEC_PKCS12SafeInfo*)certSafe, 
+			   certNestedDest, cert, NULL,
+    			   &digest->digest, PR_FALSE);
+    if(rv != SECSuccess) {
+	goto loser;
+    }
+
+    if(nickname) {
+	nick.data = (unsigned char *)nickname;
+	nick.len = PORT_Strlen(nickname);
+	nickPtr = &nick;
+    } else {
+	nickPtr = NULL;
+    }
+
+    /* add the key */
+    rv = SEC_PKCS12AddEncryptedKey(p12ctxt, epki, (SEC_PKCS12SafeInfo*)keySafe,
+				   keyNestedDest, &digest->digest, nickPtr );
+    if(rv != SECSuccess) {
+	goto loser;
+    }
+
+    SGN_DestroyDigestInfo(digest);
+
+    PORT_ArenaUnmark(p12ctxt->arena, mark);
+    return SECSuccess;
+
+loser:
+    SGN_DestroyDigestInfo(digest);
+    CERT_DestroyCertificate(cert);
+    PORT_ArenaRelease(p12ctxt->arena, mark);
+    
+    return SECFailure; 
+}
+
+/* SEC_PKCS12AddCertAndKey
+ *	Add a certificate and key pair to be exported.
+ *
+ *	p12ctxt - the export context 
+ * 	certSafe - the safeInfo where the cert is stored
+ *	certNestedDest - the nested safeContents to store the cert
+ *	keySafe - the safeInfo where the key is stored
+ *	keyNestedDest - the nested safeContents to store the key
+ *	shroudKey - extract the private key encrypted?
+ *	pwitem - the password with which the key is encrypted
+ *	algorithm - the algorithm with which the key is encrypted
+ */
+SECStatus
+SEC_PKCS12AddCertAndKey(SEC_PKCS12ExportContext *p12ctxt, 
+			void *certSafe, void *certNestedDest, 
+			CERTCertificate *cert, CERTCertDBHandle *certDb,
+			void *keySafe, void *keyNestedDest, 
+			PRBool shroudKey, SECItem *pwitem, SECOidTag algorithm)
+{		
     SECStatus rv = SECFailure;
     SGNDigestInfo *digest = NULL;
     void *mark = NULL;
@@ -1374,7 +1547,7 @@ SEC_PKCS12AddCertOrChainAndKey(SEC_PKCS12ExportContext *p12ctxt,
     /* add the certificate */
     rv = SEC_PKCS12AddCert(p12ctxt, (SEC_PKCS12SafeInfo*)certSafe, 
 			   (SEC_PKCS12SafeInfo*)certNestedDest, cert, certDb,
-    			   &digest->digest, includeCertChain);
+    			   &digest->digest, PR_TRUE);
     if(rv != SECSuccess) {
 	goto loser;
     }
@@ -1399,20 +1572,6 @@ loser:
     
     return SECFailure; 
 }
-
-/* like SEC_PKCS12AddCertOrChainAndKey, but always adds cert chain */
-SECStatus
-SEC_PKCS12AddCertAndKey(SEC_PKCS12ExportContext *p12ctxt, 
-			void *certSafe, void *certNestedDest, 
-			CERTCertificate *cert, CERTCertDBHandle *certDb,
-			void *keySafe, void *keyNestedDest, 
-			PRBool shroudKey, SECItem *pwItem, SECOidTag algorithm)
-{
-    return SEC_PKCS12AddCertOrChainAndKey(p12ctxt, certSafe, certNestedDest,
-    		cert, certDb, keySafe, keyNestedDest, shroudKey, pwItem, 
-		algorithm, PR_TRUE);
-}
-
 
 /* SEC_PKCS12CreateNestedSafeContents
  * 	Allows nesting of safe contents to be implemented.  No limit imposed on 
@@ -1477,40 +1636,11 @@ loser:
  * Encoding routines
  *********************************/
 
-/* Clean up the resources allocated by a sec_PKCS12EncoderContext. */
-static void
-sec_pkcs12_encoder_destroy_context(sec_PKCS12EncoderContext *p12enc)
-{
-    if(p12enc) {
-	if(p12enc->outerA1ecx) {
-	    SEC_ASN1EncoderFinish(p12enc->outerA1ecx);
-	    p12enc->outerA1ecx = NULL;
-	}
-	if(p12enc->aSafeCinfo) {
-	    SEC_PKCS7DestroyContentInfo(p12enc->aSafeCinfo);
-	    p12enc->aSafeCinfo = NULL;
-	}
-	if(p12enc->middleP7ecx) {
-	    SEC_PKCS7EncoderFinish(p12enc->middleP7ecx, p12enc->p12exp->pwfn,
-				   p12enc->p12exp->pwfnarg);
-	    p12enc->middleP7ecx = NULL;
-	}
-	if(p12enc->middleA1ecx) {
-	    SEC_ASN1EncoderFinish(p12enc->middleA1ecx);
-	    p12enc->middleA1ecx = NULL;
-	}
-	if(p12enc->hmacCx) {
-	    PK11_DestroyContext(p12enc->hmacCx, PR_TRUE);
-	    p12enc->hmacCx = NULL;
-	}
-    }
-}
-
 /* set up the encoder context based on information in the export context
  * and return the newly allocated enocoder context.  A return of NULL 
  * indicates an error occurred. 
  */
-static sec_PKCS12EncoderContext *
+sec_PKCS12EncoderContext *
 sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 {
     sec_PKCS12EncoderContext *p12enc = NULL;
@@ -1601,7 +1731,6 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 	    }
 	    if(SECITEM_CopyItem(p12exp->arena, &(p12enc->mac.macSalt), salt) 
 			!= SECSuccess) {
-		/* XXX salt is leaked */
 		PORT_SetError(SEC_ERROR_NO_MEMORY);
 		goto loser;
 	    }   
@@ -1610,7 +1739,6 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 	    if(!sec_pkcs12_convert_item_to_unicode(NULL, &pwd, 
 			p12exp->integrityInfo.pwdInfo.password, PR_TRUE, 
 			PR_TRUE, PR_TRUE)) {
-		/* XXX salt is leaked */
 		goto loser;
 	    }
 	    /*
@@ -1631,7 +1759,6 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
 	    case SEC_OID_MD2:
 		integrityMechType = CKM_NETSCAPE_PBE_MD2_HMAC_KEY_GEN;  break;
 	    default:
-		/* XXX params is leaked */
 		goto loser;
 	    }
 
@@ -1670,7 +1797,14 @@ sec_pkcs12_encoder_start_context(SEC_PKCS12ExportContext *p12exp)
     return p12enc;
 
 loser:
-    sec_pkcs12_encoder_destroy_context(p12enc);
+    if(p12enc) {
+	if(p12enc->aSafeCinfo) {
+	    SEC_PKCS7DestroyContentInfo(p12enc->aSafeCinfo);
+	}
+	if(p12enc->hmacCx) {
+	    PK11_DestroyContext(p12enc->hmacCx, PR_TRUE);
+	}
+    }
     if (p12exp->arena != NULL)
 	PORT_ArenaRelease(p12exp->arena, mark);
 
@@ -2042,14 +2176,12 @@ SEC_PKCS12Encode(SEC_PKCS12ExportContext *p12exp,
     SEC_ASN1EncoderClearStreaming(p12enc->middleA1ecx);
     SEC_ASN1EncoderUpdate(p12enc->middleA1ecx, NULL, 0);
     SEC_ASN1EncoderFinish(p12enc->middleA1ecx);
-    p12enc->middleA1ecx = NULL;
 
     sec_FlushPkcs12OutputBuffer( &p12enc->middleBuf);
 
     /* finish the encoding of the authenticated safes */
     rv = SEC_PKCS7EncoderFinish(p12enc->middleP7ecx, p12exp->pwfn, 
     				p12exp->pwfnarg);
-    p12enc->middleP7ecx = NULL;
     if(rv != SECSuccess) {
 	goto loser;
     }
@@ -2067,10 +2199,8 @@ SEC_PKCS12Encode(SEC_PKCS12ExportContext *p12exp,
     rv = SEC_ASN1EncoderUpdate(p12enc->outerA1ecx, NULL, 0);
 
     SEC_ASN1EncoderFinish(p12enc->outerA1ecx);
-    p12enc->outerA1ecx = NULL;
 
 loser:
-    sec_pkcs12_encoder_destroy_context(p12enc);
     return rv;
 }
 
@@ -2100,3 +2230,144 @@ SEC_PKCS12DestroyExportContext(SEC_PKCS12ExportContext *p12ecx)
 
     PORT_FreeArena(p12ecx->arena, PR_TRUE);
 }
+
+
+/*********************************
+ * All-in-one routines for exporting certificates 
+ *********************************/
+struct inPlaceEncodeInfo {
+    PRBool error;
+    SECItem outItem;
+};
+
+static void 
+sec_pkcs12_in_place_encoder_output(void *arg, const char *buf, unsigned long len)
+{
+    struct inPlaceEncodeInfo *outInfo = (struct inPlaceEncodeInfo*)arg;
+
+    if(!outInfo || !len || outInfo->error) {
+	return;
+    }
+
+    if(!outInfo->outItem.data) {
+	outInfo->outItem.data = (unsigned char*)PORT_ZAlloc(len);
+	outInfo->outItem.len = 0;
+    } else {
+	if(!PORT_Realloc(&(outInfo->outItem.data), (outInfo->outItem.len + len))) {
+	    SECITEM_ZfreeItem(&(outInfo->outItem), PR_FALSE);
+	    outInfo->outItem.data = NULL;
+	    PORT_SetError(SEC_ERROR_NO_MEMORY);
+	    outInfo->error = PR_TRUE;
+	    return;
+	}
+    }
+
+    PORT_Memcpy(&(outInfo->outItem.data[outInfo->outItem.len]), buf, len);
+    outInfo->outItem.len += len;
+
+    return;
+}
+
+/*
+ * SEC_PKCS12ExportCertifcateAndKeyUsingPassword
+ *	Exports a certificate/key pair using password-based encryption and
+ *	authentication.
+ *
+ * pwfn, pwfnarg - password function and argument for the key database
+ * cert - the certificate to export
+ * certDb - certificate database
+ * pwitem - the password to use
+ * shroudKey - encrypt the key externally, 
+ * keyShroudAlg - encryption algorithm for key
+ * encryptionAlg - the algorithm with which data is encrypted
+ * integrityAlg - the algorithm for integrity
+ */
+SECItem *
+SEC_PKCS12ExportCertificateAndKeyUsingPassword(
+				SECKEYGetPasswordKey pwfn, void *pwfnarg,
+				CERTCertificate *cert, PK11SlotInfo *slot,
+				CERTCertDBHandle *certDb, SECItem *pwitem,
+				PRBool shroudKey, SECOidTag shroudAlg,
+				PRBool encryptCert, SECOidTag certEncAlg,
+				SECOidTag integrityAlg, void *wincx)
+{
+    struct inPlaceEncodeInfo outInfo;
+    SEC_PKCS12ExportContext *p12ecx = NULL;
+    SEC_PKCS12SafeInfo *keySafe, *certSafe;
+    SECItem *returnItem = NULL;
+
+    if(!cert || !pwitem || !slot) {
+	return NULL;
+    }
+
+    outInfo.error = PR_FALSE;
+    outInfo.outItem.data = NULL;
+    outInfo.outItem.len = 0;
+
+    p12ecx = SEC_PKCS12CreateExportContext(pwfn, pwfnarg, slot, wincx);
+    if(!p12ecx) {
+	return NULL;
+    }
+
+    /* set up cert safe */
+    if(encryptCert) {
+	certSafe = SEC_PKCS12CreatePasswordPrivSafe(p12ecx, pwitem, certEncAlg);
+    } else {
+	certSafe = SEC_PKCS12CreateUnencryptedSafe(p12ecx);
+    }
+    if(!certSafe) {
+	goto loser;
+    }
+
+    /* set up key safe */
+    if(shroudKey) {
+	keySafe = SEC_PKCS12CreateUnencryptedSafe(p12ecx);
+    } else {
+	keySafe = certSafe;
+    }
+    if(!keySafe) {
+	goto loser;
+    }
+
+    /* add integrity mode */
+    if(SEC_PKCS12AddPasswordIntegrity(p12ecx, pwitem, integrityAlg) 
+		!= SECSuccess) {
+	goto loser;
+    }
+
+    /* add cert and key pair */
+    if(SEC_PKCS12AddCertAndKey(p12ecx, certSafe, NULL, cert, certDb, 
+			       keySafe, NULL, shroudKey, pwitem, shroudAlg)
+		!= SECSuccess) {
+	goto loser;
+    }
+
+    /* encode the puppy */
+    if(SEC_PKCS12Encode(p12ecx, sec_pkcs12_in_place_encoder_output, &outInfo)
+		!= SECSuccess) {
+	goto loser;
+    }
+    if(outInfo.error) {
+	goto loser;
+    }
+
+    SEC_PKCS12DestroyExportContext(p12ecx);
+	
+    returnItem = SECITEM_DupItem(&outInfo.outItem);
+    SECITEM_ZfreeItem(&outInfo.outItem, PR_FALSE);
+
+    return returnItem;
+
+loser:
+    if(outInfo.outItem.data) {
+	SECITEM_ZfreeItem(&(outInfo.outItem), PR_TRUE);
+    }
+
+    if(p12ecx) {
+	SEC_PKCS12DestroyExportContext(p12ecx);
+    }
+
+    return NULL;
+}
+
+

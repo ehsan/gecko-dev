@@ -39,7 +39,6 @@
 
 #include "nsTreeImageListener.h"
 #include "nsITreeBoxObject.h"
-#include "imgIRequest.h"
 #include "imgIContainer.h"
 
 NS_IMPL_ISUPPORTS3(nsTreeImageListener, imgIDecoderObserver, imgIContainerObserver, nsITreeImageListener)
@@ -59,23 +58,22 @@ nsTreeImageListener::~nsTreeImageListener()
 NS_IMETHODIMP nsTreeImageListener::OnStartContainer(imgIRequest *aRequest,
                                                     imgIContainer *aImage)
 {
-  // Ensure the animation (if any) is started. Note: There is no
-  // corresponding call to Decrement for this. This Increment will be
-  // 'cleaned up' by the Request when it is destroyed, but only then.
-  aRequest->IncrementAnimationConsumers();
+  // Ensure the animation (if any) is started
+  aImage->StartAnimation();                                                     
   return NS_OK;
 }
 
 NS_IMETHODIMP nsTreeImageListener::OnDataAvailable(imgIRequest *aRequest,
-                                                   PRBool aCurrentFrame,
-                                                   const nsIntRect *aRect)
+                                                   gfxIImageFrame *aFrame,
+                                                   const nsRect *aRect)
 {
   Invalidate();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsTreeImageListener::FrameChanged(imgIContainer *aContainer,
-                                                const nsIntRect *aDirtyRect)
+                                                gfxIImageFrame *newframe,
+                                                nsRect * dirtyRect)
 {
   Invalidate();
   return NS_OK;

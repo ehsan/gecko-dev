@@ -60,6 +60,7 @@
 #include "nsIComponentManager.h"
 #include "nsHTMLParts.h"
 #include "nsLinebreakConverter.h"
+#include "nsILinkHandler.h"
 #include "nsIHTMLDocument.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -75,9 +76,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "nsLayoutErrors.h"
-
-namespace dom = mozilla::dom;
 
 nsIFrame*
 NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -85,12 +83,10 @@ NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsIsIndexFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsIsIndexFrame)
-
 nsIsIndexFrame::nsIsIndexFrame(nsStyleContext* aContext) :
-  nsBlockFrame(aContext)
+  nsAreaFrame(aContext)
 {
-  SetFlags(NS_BLOCK_FLOAT_MGR);
+  SetFlags(NS_BLOCK_SPACE_MGR);
 }
 
 nsIsIndexFrame::~nsIsIndexFrame()
@@ -98,22 +94,20 @@ nsIsIndexFrame::~nsIsIndexFrame()
 }
 
 void
-nsIsIndexFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsIsIndexFrame::Destroy()
 {
   // remove ourself as a listener of the text control (bug 40533)
   if (mInputContent) {
-    if (mListener) {
-      mInputContent->RemoveEventListenerByIID(mListener, NS_GET_IID(nsIDOMKeyListener));
-    }
+    mInputContent->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMKeyListener));
     nsContentUtils::DestroyAnonymousContent(&mInputContent);
   }
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsAreaFrame::Destroy();
 }
 
-// REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
+// REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
 nsresult
@@ -136,7 +130,7 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
     // it might not be the string "This is a searchable index. Enter search keywords: "
     result =
       nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
-                                         "IsIndexPromptWithSpace", prompt);
+                                         "IsIndexPrompt", prompt);
   }
 
   mTextContent->SetText(prompt, aNotify);
@@ -147,12 +141,12 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
 nsresult
 nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 {
+  nsIPresShell *presShell = PresContext()->GetPresShell();
   if (!mInputContent) NS_WARNING("null content - cannot restore state");
-  if (mInputContent) {
-    nsIFrame *frame = mInputContent->GetPrimaryFrame();
+  if (presShell && mInputContent) {
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(mInputContent);
     if (frame) {
-      *oFrame = do_QueryFrame(frame);
-      return *oFrame ? NS_OK : NS_NOINTERFACE;
+      return CallQueryInterface(frame, oFrame);
     }
   }
   return NS_OK;
@@ -161,18 +155,20 @@ nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 void
 nsIsIndexFrame::GetInputValue(nsString& oString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->GetTextEditorValue(oString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->GetValue(oString, PR_FALSE);
   }
 }
 
 void
 nsIsIndexFrame::SetInputValue(const nsString& aString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->SetTextEditorValue(aString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->SetValue(aString);
   }
 }
 
@@ -195,10 +191,9 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create an hr
   nsCOMPtr<nsINodeInfo> hrInfo;
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
+  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_None);
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -214,10 +209,9 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create text input field
   nsCOMPtr<nsINodeInfo> inputInfo;
-  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
+  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None);
 
-  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -228,35 +222,41 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Register as an event listener to submit on Enter press
-  mListener = new nsIsIndexFrame::KeyListener(this);
-  mInputContent->AddEventListenerByIID(mListener, NS_GET_IID(nsIDOMKeyListener));
+  mInputContent->AddEventListenerByIID(this, NS_GET_IID(nsIDOMKeyListener));
 
   // Create an hr
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo, PR_FALSE);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
 }
 
-void
-nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                         PRUint32 aFilter)
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  aElements.MaybeAppendElement(mTextContent);
-  aElements.MaybeAppendElement(mInputContent);
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
+    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIStatefulFrame))) {
+    *aInstancePtr = static_cast<nsIStatefulFrame*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIDOMKeyListener))) {
+    *aInstancePtr = static_cast<nsIDOMKeyListener*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIDOMEventListener))) {
+    *aInstancePtr = static_cast<nsIDOMEventListener*>(this);
+    return NS_OK;
+  }
+
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
-
-NS_QUERYFRAME_HEAD(nsIsIndexFrame)
-  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
-  NS_QUERYFRAME_ENTRY(nsIStatefulFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
-
-NS_IMPL_ISUPPORTS2(nsIsIndexFrame::KeyListener,
-                   nsIDOMKeyListener,
-                   nsIDOMEventListener)
 
 nscoord
 nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
@@ -265,7 +265,7 @@ nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width; the rest of our reflow is
-  // happily handled by nsBlockFrame
+  // happily handled by nsAreaFrame
   result = GetPrefWidth(aRenderingContext);
   return result;
 }
@@ -285,19 +285,13 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
   if (nsGkAtoms::prompt == aAttribute) {
     rv = UpdatePromptLabel(PR_TRUE);
   } else {
-    rv = nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+    rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
   return rv;
 }
 
-nsresult 
-nsIsIndexFrame::KeyListener::KeyPress(nsIDOMEvent* aEvent)
-{
-  mOwner->KeyPress(aEvent);
-  return NS_OK;
-}
 
-void
+nsresult 
 nsIsIndexFrame::KeyPress(nsIDOMEvent* aEvent)
 {
   nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
@@ -312,6 +306,8 @@ nsIsIndexFrame::KeyPress(nsIDOMEvent* aEvent)
       aEvent->PreventDefault(); // XXX Needed?
     }
   }
+
+  return NS_OK;
 }
 
 #ifdef NS_DEBUG
@@ -350,6 +346,8 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   // End ProcessAsURLEncoded
 
   // make the url string
+  nsILinkHandler *handler = aPresContext->GetLinkHandler();
+
   nsAutoString href;
 
   // Get the document.
@@ -359,9 +357,9 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   if (!document) return NS_OK; // No doc means don't submit, see Bug 28988
 
   // Resolve url to an absolute url
-  nsIURI *baseURI = document->GetDocBaseURI();
+  nsIURI *baseURI = document->GetBaseURI();
   if (!baseURI) {
-    NS_ERROR("No Base URL found in Form Submit!");
+    NS_ERROR("No Base URL found in Form Submit!\n");
     return NS_OK; // No base URL -> exit early, see Bug 30721
   }
 
@@ -394,7 +392,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
       href.Truncate(queryStart);
     }
   } else {
-    NS_ERROR("Rel path couldn't be formed in form submit!");
+    NS_ERROR("Rel path couldn't be formed in form submit!\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -427,9 +425,10 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
                      flatDocCharset.get(), baseURI);
   if (NS_FAILED(result)) return result;
 
-  // Now pretend we're triggering a link
-  nsContentUtils::TriggerLink(mContent, aPresContext, uri,
-                              EmptyString(), PR_TRUE, PR_TRUE);
+  // Now pass on absolute url to the click handler
+  if (handler) {
+    handler->OnLinkClick(mContent, uri, nsnull);
+  }
   return result;
 }
 
@@ -535,18 +534,9 @@ nsIsIndexFrame::SaveState(SpecialStateID aStateID, nsPresState** aState)
   if (! stateString.IsEmpty()) {
 
     // Construct a pres state and store value in it.
-    *aState = new nsPresState();
-    if (!*aState)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    nsCOMPtr<nsISupportsString> state
-      (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
-
-    if (!state)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    state->SetData(stateString);
-    (*aState)->SetStateProperty(state);
+    res = NS_NewPresState(aState);
+    NS_ENSURE_SUCCESS(res, res);
+    res = (*aState)->SetStateProperty(NS_LITERAL_STRING("value"), stateString);
   }
 
   return res;
@@ -558,12 +548,10 @@ nsIsIndexFrame::RestoreState(nsPresState* aState)
   NS_ENSURE_ARG_POINTER(aState);
 
   // Set the value to the stored state.
-  nsCOMPtr<nsISupportsString> stateString
-    (do_QueryInterface(aState->GetStateProperty()));
-  
-  nsAutoString data;
-  stateString->GetData(data);
-  SetInputValue(data);
+  nsAutoString stateString;
+  nsresult res = aState->GetStateProperty(NS_LITERAL_STRING("value"), stateString);
+  NS_ENSURE_SUCCESS(res, res);
 
+  SetInputValue(stateString);
   return NS_OK;
 }

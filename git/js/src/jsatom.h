@@ -44,83 +44,29 @@
  */
 #include <stddef.h>
 #include "jsversion.h"
+#include "jstypes.h"
+#include "jshash.h" /* Added by JSIFY */
+#include "jsdhash.h"
 #include "jsapi.h"
 #include "jsprvtd.h"
-#include "jshash.h"
-#include "jshashtable.h"
 #include "jspubtd.h"
-#include "jsstr.h"
 #include "jslock.h"
-#include "jsvalue.h"
+
+JS_BEGIN_EXTERN_C
 
 #define ATOM_PINNED     0x1       /* atom is pinned against GC */
 #define ATOM_INTERNED   0x2       /* pinned variant for JS_Intern* API */
 #define ATOM_NOCOPY     0x4       /* don't copy atom string bytes */
 #define ATOM_TMPSTR     0x8       /* internal, to avoid extra string */
 
-#define STRING_TO_ATOM(str)       (JS_ASSERT(str->isAtomized()),             \
-                                   (JSAtom *)str)
-#define ATOM_TO_STRING(atom)      (atom)
-#define ATOM_TO_JSVAL(atom)       STRING_TO_JSVAL(ATOM_TO_STRING(atom))
+#define ATOM_KEY(atom)            ((jsval)(atom))
+#define ATOM_IS_DOUBLE(atom)      JSVAL_IS_DOUBLE(ATOM_KEY(atom))
+#define ATOM_TO_DOUBLE(atom)      JSVAL_TO_DOUBLE(ATOM_KEY(atom))
+#define ATOM_IS_STRING(atom)      JSVAL_IS_STRING(ATOM_KEY(atom))
+#define ATOM_TO_STRING(atom)      JSVAL_TO_STRING(ATOM_KEY(atom))
 
-/* Engine-internal extensions of jsid */
-
-static JS_ALWAYS_INLINE jsid
-JSID_FROM_BITS(size_t bits)
-{
-    jsid id;
-    JSID_BITS(id) = bits;
-    return id;
-}
-
-static JS_ALWAYS_INLINE jsid
-ATOM_TO_JSID(JSAtom *atom)
-{
-    JS_ASSERT(((size_t)atom & 0x7) == 0);
-    return JSID_FROM_BITS((size_t)atom);
-}
-
-/* All strings stored in jsids are atomized. */
-static JS_ALWAYS_INLINE JSBool
-JSID_IS_ATOM(jsid id)
-{
-    return JSID_IS_STRING(id);
-}
-
-static JS_ALWAYS_INLINE JSBool
-JSID_IS_ATOM(jsid id, JSAtom *atom)
-{
-    return JSID_BITS(id) == JSID_BITS(ATOM_TO_JSID(atom));
-}
-
-static JS_ALWAYS_INLINE JSAtom *
-JSID_TO_ATOM(jsid id)
-{
-    return (JSAtom *)JSID_TO_STRING(id);
-}
-
-namespace js {
-
-static JS_ALWAYS_INLINE Value
-IdToValue(jsid id)
-{
-    if (JSID_IS_STRING(id))
-        return StringValue(JSID_TO_STRING(id));
-    if (JS_LIKELY(JSID_IS_INT(id)))
-        return Int32Value(JSID_TO_INT(id));
-    if (JS_LIKELY(JSID_IS_OBJECT(id)))
-        return ObjectValue(*JSID_TO_OBJECT(id));
-    JS_ASSERT(JSID_IS_DEFAULT_XML_NAMESPACE(id) || JSID_IS_VOID(id));
-    return UndefinedValue();
-}
-
-static JS_ALWAYS_INLINE jsval
-IdToJsval(jsid id)
-{
-    return Jsvalify(IdToValue(id));
-}
-
-}
+JS_STATIC_ASSERT(sizeof(JSHashNumber) == 4);
+JS_STATIC_ASSERT(sizeof(JSAtom *) == JS_BYTES_PER_WORD);
 
 #if JS_BYTES_PER_WORD == 4
 # define ATOM_HASH(atom)          ((JSHashNumber)(atom) >> 2)
@@ -133,166 +79,72 @@ IdToJsval(jsid id)
 
 /*
  * Return a printable, lossless char[] representation of a string-type atom.
- * The lifetime of the result matches the lifetime of bytes.
+ * The lifetime of the result extends at least until the next GC activation,
+ * longer if cx's string newborn root is not overwritten.
  */
 extern const char *
-js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes);
+js_AtomToPrintableString(JSContext *cx, JSAtom *atom);
 
 struct JSAtomListElement {
     JSHashEntry         entry;
 };
 
 #define ALE_ATOM(ale)   ((JSAtom *) (ale)->entry.key)
-#define ALE_INDEX(ale)  (jsatomid(uintptr_t((ale)->entry.value)))
-#define ALE_VALUE(ale)  ((jsboxedword) (ale)->entry.value)
+#define ALE_INDEX(ale)  ((jsatomid) JS_PTR_TO_UINT32((ale)->entry.value))
+#define ALE_JSOP(ale)   ((JSOp) JS_PTR_TO_UINT32((ale)->entry.value))
+#define ALE_VALUE(ale)  ((jsval) (ale)->entry.value)
 #define ALE_NEXT(ale)   ((JSAtomListElement *) (ale)->entry.next)
 
-/*
- * In an upvars list, ALE_DEFN(ale)->resolve() is the outermost definition the
- * name may reference. If a with block or a function that calls eval encloses
- * the use, the name may end up referring to something else at runtime.
- */
-#define ALE_DEFN(ale)   ((JSDefinition *) (ale)->entry.value)
-
 #define ALE_SET_ATOM(ale,atom)  ((ale)->entry.key = (const void *)(atom))
-#define ALE_SET_INDEX(ale,index)((ale)->entry.value = (void *)(index))
-#define ALE_SET_DEFN(ale, dn)   ((ale)->entry.value = (void *)(dn))
+#define ALE_SET_INDEX(ale,index)((ale)->entry.value = JS_UINT32_TO_PTR(index))
+#define ALE_SET_JSOP(ale,op)    ((ale)->entry.value = JS_UINT32_TO_PTR(op))
 #define ALE_SET_VALUE(ale, v)   ((ale)->entry.value = (void *)(v))
-#define ALE_SET_NEXT(ale,nxt)   ((ale)->entry.next = (JSHashEntry *)(nxt))
 
-/*
- * NB: JSAtomSet must be plain-old-data as it is embedded in the pn_u union in
- * JSParseNode. JSAtomList encapsulates all operational uses of a JSAtomSet.
- *
- * The JSAtomList name is traditional, even though the implementation is a map
- * (not to be confused with JSAtomMap). In particular the "ALE" and "ale" short
- * names for JSAtomListElement variables roll off the fingers, compared to ASE
- * or AME alternatives.
- */
-struct JSAtomSet {
+struct JSAtomList {
     JSHashEntry         *list;          /* literals indexed for mapping */
     JSHashTable         *table;         /* hash table if list gets too long */
     jsuint              count;          /* count of indexed literals */
 };
 
-struct JSAtomList : public JSAtomSet
-{
-#ifdef DEBUG
-    const JSAtomSet* set;               /* asserted null in mutating methods */
-#endif
+#define ATOM_LIST_INIT(al)  ((al)->list = NULL, (al)->table = NULL,           \
+                             (al)->count = 0)
 
-    JSAtomList() {
-        list = NULL; table = NULL; count = 0;
-#ifdef DEBUG
-        set = NULL;
-#endif
-    }
+#define ATOM_LIST_SEARCH(_ale,_al,_atom)                                      \
+    JS_BEGIN_MACRO                                                            \
+        JSHashEntry **_hep;                                                   \
+        ATOM_LIST_LOOKUP(_ale, _hep, _al, _atom);                             \
+    JS_END_MACRO
 
-    JSAtomList(const JSAtomSet& as) {
-        list = as.list; table = as.table; count = as.count;
-#ifdef DEBUG
-        set = &as;
-#endif
-    }
-
-    void clear() { JS_ASSERT(!set); list = NULL; table = NULL; count = 0; }
-
-    JSAtomListElement *lookup(JSAtom *atom) {
-        JSHashEntry **hep;
-        return rawLookup(atom, hep);
-    }
-
-    JSAtomListElement *rawLookup(JSAtom *atom, JSHashEntry **&hep);
-
-    enum AddHow { UNIQUE, SHADOW, HOIST };
-
-    JSAtomListElement *add(js::Parser *parser, JSAtom *atom, AddHow how = UNIQUE);
-
-    void remove(js::Parser *parser, JSAtom *atom) {
-        JSHashEntry **hep;
-        JSAtomListElement *ale = rawLookup(atom, hep);
-        if (ale)
-            rawRemove(parser, ale, hep);
-    }
-
-    void rawRemove(js::Parser *parser, JSAtomListElement *ale, JSHashEntry **hep);
-};
-
-/*
- * A subclass of JSAtomList with a destructor.  This atom list owns its
- * hash table and its entries, but no keys or values.
- */
-struct JSAutoAtomList: public JSAtomList
-{
-    JSAutoAtomList(js::Parser *p): parser(p) {}
-    ~JSAutoAtomList();
-  private:
-    js::Parser *parser;         /* For freeing list entries. */
-};
-
-/*
- * Iterate over an atom list. We define a call operator to minimize the syntax
- * tax for users. We do not use a more standard pattern using ++ and * because
- * (a) it's the wrong pattern for a non-scalar; (b) it's overkill -- one method
- * is enough. (This comment is overkill!)
- */
-class JSAtomListIterator {
-    JSAtomList*         list;
-    JSAtomListElement*  next;
-    uint32              index;
-
-  public:
-    JSAtomListIterator(JSAtomList* al) : list(al) { reset(); }
-
-    void reset() {
-        next = (JSAtomListElement *) list->list;
-        index = 0;
-    }
-
-    JSAtomListElement* operator ()();
-};
+#define ATOM_LIST_LOOKUP(_ale,_hep,_al,_atom)                                 \
+    JS_BEGIN_MACRO                                                            \
+        if ((_al)->table) {                                                   \
+            _hep = JS_HashTableRawLookup((_al)->table, ATOM_HASH(_atom),      \
+                                         _atom);                              \
+            _ale = *_hep ? (JSAtomListElement *) *_hep : NULL;                \
+        } else {                                                              \
+            JSHashEntry **_alep = &(_al)->list;                               \
+            _hep = NULL;                                                      \
+            while ((_ale = (JSAtomListElement *)*_alep) != NULL) {            \
+                if (ALE_ATOM(_ale) == (_atom)) {                              \
+                    /* Hit, move atom's element to the front of the list. */  \
+                    *_alep = (_ale)->entry.next;                              \
+                    (_ale)->entry.next = (_al)->list;                         \
+                    (_al)->list = &_ale->entry;                               \
+                    break;                                                    \
+                }                                                             \
+                _alep = &_ale->entry.next;                                    \
+            }                                                                 \
+        }                                                                     \
+    JS_END_MACRO
 
 struct JSAtomMap {
     JSAtom              **vector;       /* array of ptrs to indexed atoms */
     jsatomid            length;         /* count of (to-be-)indexed atoms */
 };
 
-namespace js {
-
-#define ATOM_ENTRY_FLAG_MASK            ((size_t)(ATOM_PINNED | ATOM_INTERNED))
-
-JS_STATIC_ASSERT(ATOM_ENTRY_FLAG_MASK < JS_GCTHING_ALIGN);
-
-typedef uintptr_t AtomEntryType;
-
-static JS_ALWAYS_INLINE JSAtom *
-AtomEntryToKey(AtomEntryType entry)
-{
-    JS_ASSERT(entry != 0);
-    return (JSAtom *)(entry & ~ATOM_ENTRY_FLAG_MASK);
-}
-
-struct AtomHasher
-{
-    typedef JSLinearString *Lookup;
-
-    static HashNumber hash(JSLinearString *str) {
-        return js_HashString(str);
-    }
-
-    static bool match(AtomEntryType entry, JSLinearString *lookup) {
-        return entry ? EqualStrings(AtomEntryToKey(entry), lookup) : false;
-    }
-};
-
-typedef HashSet<AtomEntryType, AtomHasher, SystemAllocPolicy> AtomSet;
-
-}  /* namespace js */
-
-struct JSAtomState
-{
-    js::AtomSet         atoms;
-
+struct JSAtomState {
+    JSDHashTable        stringAtoms;    /* hash table with shared strings */
+    JSDHashTable        doubleAtoms;    /* hash table with shared doubles */
 #ifdef JS_THREADSAFE
     JSThinLock          lock;
 #endif
@@ -310,12 +162,9 @@ struct JSAtomState
     /* The rt->emptyString atom, see jsstr.c's js_InitRuntimeStringState. */
     JSAtom              *emptyAtom;
 
-    /*
-     * Literal value and type names.
-     * NB: booleanAtoms must come right before typeAtoms!
-     */
-    JSAtom              *booleanAtoms[2];
+    /* Type names and value literals. */
     JSAtom              *typeAtoms[JSTYPE_LIMIT];
+    JSAtom              *booleanAtoms[2];
     JSAtom              *nullAtom;
 
     /* Standard class constructor or prototype names. */
@@ -323,59 +172,38 @@ struct JSAtomState
 
     /* Various built-in or commonly-used atoms, pinned on first context. */
     JSAtom              *anonymousAtom;
-    JSAtom              *applyAtom;
     JSAtom              *argumentsAtom;
     JSAtom              *arityAtom;
-    JSAtom              *callAtom;
     JSAtom              *calleeAtom;
     JSAtom              *callerAtom;
     JSAtom              *classPrototypeAtom;
     JSAtom              *constructorAtom;
+    JSAtom              *countAtom;
     JSAtom              *eachAtom;
     JSAtom              *evalAtom;
     JSAtom              *fileNameAtom;
     JSAtom              *getAtom;
-    JSAtom              *globalAtom;
-    JSAtom              *ignoreCaseAtom;
+    JSAtom              *getterAtom;
     JSAtom              *indexAtom;
     JSAtom              *inputAtom;
-    JSAtom              *toISOStringAtom;
     JSAtom              *iteratorAtom;
-    JSAtom              *joinAtom;
-    JSAtom              *lastIndexAtom;
     JSAtom              *lengthAtom;
     JSAtom              *lineNumberAtom;
     JSAtom              *messageAtom;
-    JSAtom              *multilineAtom;
     JSAtom              *nameAtom;
     JSAtom              *nextAtom;
     JSAtom              *noSuchMethodAtom;
-    JSAtom              *objectNullAtom;
-    JSAtom              *objectUndefinedAtom;
+    JSAtom              *parentAtom;
     JSAtom              *protoAtom;
     JSAtom              *setAtom;
-    JSAtom              *sourceAtom;
+    JSAtom              *setterAtom;
     JSAtom              *stackAtom;
-    JSAtom              *stickyAtom;
-    JSAtom              *toGMTStringAtom;
     JSAtom              *toLocaleStringAtom;
     JSAtom              *toSourceAtom;
     JSAtom              *toStringAtom;
-    JSAtom              *toUTCStringAtom;
     JSAtom              *valueOfAtom;
     JSAtom              *toJSONAtom;
     JSAtom              *void0Atom;
-    JSAtom              *enumerableAtom;
-    JSAtom              *configurableAtom;
-    JSAtom              *writableAtom;
-    JSAtom              *valueAtom;
-    JSAtom              *testAtom;
-    JSAtom              *useStrictAtom;
-    JSAtom              *locAtom;
-    JSAtom              *lineAtom;
-    JSAtom              *InfinityAtom;
-    JSAtom              *NaNAtom;
-    JSAtom              *builderAtom;
 
 #if JS_HAS_XML_SUPPORT
     JSAtom              *etagoAtom;
@@ -388,28 +216,20 @@ struct JSAtomState
     JSAtom              *starQualifierAtom;
     JSAtom              *tagcAtom;
     JSAtom              *xmlAtom;
-
-    /* Represents an invalid URI, for internal use only. */
-    JSAtom              *functionNamespaceURIAtom;
 #endif
 
-    JSAtom              *ProxyAtom;
-
-    JSAtom              *getOwnPropertyDescriptorAtom;
-    JSAtom              *getPropertyDescriptorAtom;
-    JSAtom              *definePropertyAtom;
-    JSAtom              *deleteAtom;
-    JSAtom              *getOwnPropertyNamesAtom;
-    JSAtom              *enumerateAtom;
-    JSAtom              *fixAtom;
-
-    JSAtom              *hasAtom;
-    JSAtom              *hasOwnAtom;
-    JSAtom              *keysAtom;
-    JSAtom              *iterateAtom;
+#ifdef NARCISSUS
+    JSAtom              *callAtom;
+    JSAtom              *constructAtom;
+    JSAtom              *hasInstanceAtom;
+    JSAtom              *ExecutionContextAtom;
+    JSAtom              *currentAtom;
+#endif
 
     /* Less frequently used atoms, pinned lazily by JS_ResolveStandardClass. */
     struct {
+        JSAtom          *InfinityAtom;
+        JSAtom          *NaNAtom;
         JSAtom          *XMLListAtom;
         JSAtom          *decodeURIAtom;
         JSAtom          *decodeURIComponentAtom;
@@ -418,6 +238,7 @@ struct JSAtomState
         JSAtom          *encodeURIAtom;
         JSAtom          *encodeURIComponentAtom;
         JSAtom          *escapeAtom;
+        JSAtom          *functionNamespaceURIAtom;
         JSAtom          *hasOwnPropertyAtom;
         JSAtom          *isFiniteAtom;
         JSAtom          *isNaNAtom;
@@ -435,20 +256,16 @@ struct JSAtomState
     } lazy;
 };
 
-#define ATOM(name) cx->runtime->atomState.name##Atom
-
 #define ATOM_OFFSET_START       offsetof(JSAtomState, emptyAtom)
 #define LAZY_ATOM_OFFSET_START  offsetof(JSAtomState, lazy)
 #define ATOM_OFFSET_LIMIT       (sizeof(JSAtomState))
 
 #define COMMON_ATOMS_START(state)                                             \
-    ((JSAtom **)((uint8 *)(state) + ATOM_OFFSET_START))
-#define COMMON_ATOM_INDEX(name)                                               \
-    ((offsetof(JSAtomState, name##Atom) - ATOM_OFFSET_START)                  \
-     / sizeof(JSAtom*))
-#define COMMON_TYPE_ATOM_INDEX(type)                                          \
-    ((offsetof(JSAtomState, typeAtoms[type]) - ATOM_OFFSET_START)             \
-     / sizeof(JSAtom*))
+    (JSAtom **)((uint8 *)(state) + ATOM_OFFSET_START)
+
+/* Start and limit offsets should correspond to atoms. */
+JS_STATIC_ASSERT(ATOM_OFFSET_START % sizeof(JSAtom *) == 0);
+JS_STATIC_ASSERT(ATOM_OFFSET_LIMIT % sizeof(JSAtom *) == 0);
 
 #define ATOM_OFFSET(name)       offsetof(JSAtomState, name##Atom)
 #define OFFSET_TO_ATOM(rt,off)  (*(JSAtom **)((char*)&(rt)->atomState + (off)))
@@ -458,13 +275,19 @@ struct JSAtomState
     ((cx)->runtime->atomState.classAtoms[JSProto_##name])
 
 extern const char *const js_common_atom_names[];
-extern const size_t      js_common_atom_count;
 
 /*
- * Macros to access C strings for JSType and boolean literals.
+ * Macros to access C strings for JSType and boolean literals together with
+ * checks that type names and booleans starts from index 1 and 1+JSTYPE_LIMIT
+ * correspondingly.
  */
-#define JS_BOOLEAN_STR(type) (js_common_atom_names[1 + (type)])
-#define JS_TYPE_STR(type)    (js_common_atom_names[1 + 2 + (type)])
+#define JS_TYPE_STR(type)    (js_common_atom_names[1 + (type)])
+#define JS_BOOLEAN_STR(type) (js_common_atom_names[1 + JSTYPE_LIMIT + (type)])
+
+JS_STATIC_ASSERT(1 * sizeof(JSAtom *) ==
+                 offsetof(JSAtomState, typeAtoms) - ATOM_OFFSET_START);
+JS_STATIC_ASSERT((1 + JSTYPE_LIMIT) * sizeof(JSAtom *) ==
+                 offsetof(JSAtomState, booleanAtoms) - ATOM_OFFSET_START);
 
 /* Well-known predefined C strings. */
 #define JS_PROTO(name,code,init) extern const char js_##name##_str[];
@@ -472,10 +295,8 @@ extern const size_t      js_common_atom_count;
 #undef JS_PROTO
 
 extern const char   js_anonymous_str[];
-extern const char   js_apply_str[];
 extern const char   js_arguments_str[];
 extern const char   js_arity_str[];
-extern const char   js_call_str[];
 extern const char   js_callee_str[];
 extern const char   js_caller_str[];
 extern const char   js_class_prototype_str[];
@@ -488,50 +309,45 @@ extern const char   js_eval_str[];
 extern const char   js_fileName_str[];
 extern const char   js_get_str[];
 extern const char   js_getter_str[];
-extern const char   js_global_str[];
-extern const char   js_ignoreCase_str[];
 extern const char   js_index_str[];
 extern const char   js_input_str[];
 extern const char   js_iterator_str[];
-extern const char   js_join_str[];
-extern const char   js_lastIndex_str[];
 extern const char   js_length_str[];
 extern const char   js_lineNumber_str[];
 extern const char   js_message_str[];
-extern const char   js_multiline_str[];
 extern const char   js_name_str[];
 extern const char   js_namespace_str[];
 extern const char   js_next_str[];
 extern const char   js_noSuchMethod_str[];
 extern const char   js_object_str[];
+extern const char   js_parent_str[];
 extern const char   js_proto_str[];
 extern const char   js_ptagc_str[];
 extern const char   js_qualifier_str[];
 extern const char   js_send_str[];
 extern const char   js_setter_str[];
 extern const char   js_set_str[];
-extern const char   js_source_str[];
 extern const char   js_space_str[];
 extern const char   js_stack_str[];
-extern const char   js_sticky_str[];
 extern const char   js_stago_str[];
 extern const char   js_star_str[];
 extern const char   js_starQualifier_str[];
 extern const char   js_tagc_str[];
-extern const char   js_toGMTString_str[];
-extern const char   js_toLocaleString_str[];
 extern const char   js_toSource_str[];
 extern const char   js_toString_str[];
-extern const char   js_toUTCString_str[];
+extern const char   js_toLocaleString_str[];
 extern const char   js_undefined_str[];
 extern const char   js_valueOf_str[];
 extern const char   js_toJSON_str[];
 extern const char   js_xml_str[];
-extern const char   js_enumerable_str[];
-extern const char   js_configurable_str[];
-extern const char   js_writable_str[];
-extern const char   js_value_str[];
-extern const char   js_test_str[];
+
+#ifdef NARCISSUS
+extern const char   js_call_str[];
+extern const char   js_construct_str[];
+extern const char   js_hasInstance_str[];
+extern const char   js_ExecutionContext_str[];
+extern const char   js_current_str[];
+#endif
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate
@@ -553,7 +369,7 @@ js_FinishAtomState(JSRuntime *rt);
  */
 
 extern void
-js_TraceAtomState(JSTracer *trc);
+js_TraceAtomState(JSTracer *trc, JSBool allAtoms);
 
 extern void
 js_SweepAtomState(JSContext *cx);
@@ -563,6 +379,13 @@ js_InitCommonAtoms(JSContext *cx);
 
 extern void
 js_FinishCommonAtoms(JSContext *cx);
+
+/*
+ * Find or create the atom for a double value. Return null on failure to
+ * allocate memory.
+ */
+extern JSAtom *
+js_AtomizeDouble(JSContext *cx, jsdouble d);
 
 /*
  * Find or create the atom for a string. Return null on failure to allocate
@@ -584,6 +407,18 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags);
 extern JSAtom *
 js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length);
 
+/*
+ * This variant handles all primitive values.
+ */
+JSBool
+js_AtomizePrimitiveValue(JSContext *cx, jsval v, JSAtom **atomp);
+
+/*
+ * Convert v to an atomized string and wrap it as an id.
+ */
+extern JSBool
+js_ValueToStringId(JSContext *cx, jsval v, jsid *idp);
+
 #ifdef DEBUG
 
 extern JS_FRIEND_API(void)
@@ -591,18 +426,12 @@ js_DumpAtoms(JSContext *cx, FILE *fp);
 
 #endif
 
-inline bool
-js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp);
+/*
+ * Assign atom an index and insert it on al.
+ */
+extern JSAtomListElement *
+js_IndexAtom(JSContext *cx, JSAtom *atom, JSAtomList *al);
 
-inline bool
-js_ValueToStringId(JSContext *cx, const js::Value &v, jsid *idp);
-
-inline bool
-js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
-                         jsid *idp);
-inline bool
-js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
-                         jsid *idp, js::Value *vp);
 /*
  * For all unmapped atoms recorded in al, add a mapping from the atom's index
  * to its address. map->length must already be set to the number of atoms in
@@ -610,5 +439,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
  */
 extern void
 js_InitAtomMap(JSContext *cx, JSAtomMap *map, JSAtomList *al);
+
+JS_END_EXTERN_C
 
 #endif /* jsatom_h___ */

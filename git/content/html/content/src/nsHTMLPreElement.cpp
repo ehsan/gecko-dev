@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 #include "nsCSSStruct.h"
@@ -50,7 +51,7 @@ class nsHTMLPreElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLPreElement
 {
 public:
-  nsHTMLPreElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLPreElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLPreElement();
 
   // nsISupports
@@ -77,15 +78,13 @@ public:
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Pre)
 
 
-nsHTMLPreElement::nsHTMLPreElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLPreElement::nsHTMLPreElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -99,13 +98,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLPreElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLPreElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLPreElement, nsHTMLPreElement)
-
 // QueryInterface implementation for nsHTMLPreElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLPreElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLPreElement, nsIDOMHTMLPreElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLPreElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLPreElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLPreElement, nsIDOMHTMLPreElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLPreElement)
 
 
@@ -142,7 +137,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     // variable
     if (aAttributes->GetAttr(nsGkAtoms::variable))
       aData->mFontData->mFamily.SetStringValue(NS_LITERAL_STRING("serif"),
-                                               eCSSUnit_Families);
+                                               eCSSUnit_String);
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
     if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {

@@ -49,23 +49,19 @@
 
 /* miscellaneous form elements */
 
-fieldset > legend {
+legend {
   padding-left: 2px;
   padding-right: 2px;
   border: none;
-  position: static;
-  float: none;
-  width: -moz-fit-content;
-  min-width: 0;
-  max-width: none;
-  height: auto;
-  min-height: 0;
-  max-height: none;
+  position: static ! important;
+  float: none ! important;
+  width: -moz-fit-content ! important;
+  min-width: 0 ! important;
+  max-width: none ! important;
+  height: auto ! important;
+  min-height: 0 ! important;
+  max-height: none ! important;
   white-space: nowrap;
-}
-
-legend {
-  display: block;
 }
 
 fieldset {
@@ -109,9 +105,8 @@ input {
 }
 
 input > .anonymous-div {
+  white-space: pre;
   word-wrap: normal !important;
-  /* Make the line-height equal to the available height */
-  line-height: -moz-block-height;
 }
 
 textarea {
@@ -127,13 +122,12 @@ textarea {
   letter-spacing: normal;
   vertical-align: text-bottom;
   cursor: text;
-  resize: both;
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#textAreas");
   -moz-appearance: textfield-multiline;
   text-indent: 0;
   -moz-user-select: text;
   text-shadow: none;
-  word-wrap: break-word;
+  word-wrap: break-word !important;
 }
 
 textarea > scrollbar {
@@ -142,7 +136,6 @@ textarea > scrollbar {
 
 textarea > .anonymous-div,
 input > .anonymous-div {
-  white-space: pre;
   overflow: auto;
   border: 0px !important;
   /* The 1px horizontal padding is for parity with Win/IE */
@@ -152,37 +145,6 @@ input > .anonymous-div {
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
   ime-mode: inherit;
-  resize: inherit;
-}
-
-textarea > .anonymous-div.wrap,
-input > .anonymous-div.wrap {
-  white-space: pre-wrap;
-}
-textarea > .anonymous-div.inherit-overflow,
-input > .anonymous-div.inherit-overflow {
-  overflow: inherit;
-}
-
-input:-moz-placeholder,
-textarea:-moz-placeholder {
-  color: GrayText;
-}
-
-input > .placeholder,
-textarea > .placeholder {
-  overflow: hidden;
-  pointer-events: none;
-  resize: none;
-}
-
-textarea > .placeholder {
-  white-space: pre-wrap;
-}
-
-input > .placeholder.hidden,
-textarea > .placeholder.hidden {
-  visibility: hidden;
 }
 
 input:-moz-read-write,
@@ -193,8 +155,8 @@ textarea:-moz-read-write {
 select {
   margin: 0;
   border-color: ThreeDFace;
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
@@ -218,8 +180,6 @@ select[size],
 select[multiple],
 select[size][multiple] {
   /* Different alignment and padding for listbox vs combobox */
-  background-color: -moz-Field;
-  color: -moz-FieldText;
   vertical-align: text-bottom;
   padding: 1px 0 1px 0;
   -moz-appearance: listbox;
@@ -228,8 +188,6 @@ select[size][multiple] {
 select[size="0"],
 select[size="1"] {
   /* Except this is not a listbox */
-  background-color: -moz-Combobox;
-  color: -moz-ComboboxText;
   vertical-align: baseline;
   padding: 0;
   -moz-appearance: menulist;
@@ -273,6 +231,7 @@ select:empty {
   padding-bottom: 1px;
   -moz-padding-start: 4px;
   -moz-padding-end: 0;
+  background-color: inherit;
   color: inherit;
   white-space: nowrap;
   text-align: inherit;
@@ -280,6 +239,10 @@ select:empty {
   /* Make sure to size correctly if the combobox has a non-auto height. */
   height: 100% ! important;
   -moz-box-sizing: border-box ! important;
+}
+
+select::-moz-scrolled-content {
+  display: block !important;
 }
 
 option {
@@ -356,13 +319,11 @@ optgroup:before {
   border-left-width: 2px ! important;
 } 
 
-input:disabled,
-textarea:disabled,
-option:disabled,
-optgroup:disabled,
-select:disabled:disabled /* Need the pseudo-class twice to have the specificity
-                            be at least the same as select[size][multiple] above */
-{
+input[disabled],
+textarea[disabled],
+option[disabled],
+optgroup[disabled],
+select[disabled] {
   -moz-user-input: disabled;
   -moz-user-focus: ignore;
   color: GrayText;
@@ -370,15 +331,15 @@ select:disabled:disabled /* Need the pseudo-class twice to have the specificity
   cursor: inherit;
 }
 
-option:disabled,
-optgroup:disabled {
+option[disabled],
+optgroup[disabled] {
   background-color: transparent;
 }
 
 /* hidden inputs */
 input[type="hidden"] {
   -moz-appearance: none;
-  display: none !important;
+  display: none;
   padding: 0;
   border: 0;
   cursor: auto;
@@ -398,11 +359,11 @@ input[type="image"] {
   -moz-binding: none;
 }
 
-input[type="image"]:disabled {
+input[type="image"][disabled] {
   cursor: inherit;
 }
 
-input[type="image"]:-moz-focusring {
+input[type="image"]:focus {
   /* Don't specify the outline-color, we should always use initial value. */
   outline: 1px dotted;
 }
@@ -431,52 +392,53 @@ input[type="file"] > input[type="button"] {
   height: inherit;
   font-size: inherit;
   letter-spacing: inherit;
-  cursor: inherit;
 }
 
 /* radio buttons */
 input[type="radio"] {
-  -moz-appearance: radio;
+  -moz-appearance: radio-small;
+  width: 13px;
+  height: 13px;
   margin: 3px 3px 0px 5px;
-  border-radius: 100% !important;
+  padding: 0 !important;
+  cursor: default;
+  -moz-binding: none;
+
+  -moz-border-radius: 100% !important;
 }
 
 /* check boxes */
 input[type="checkbox"] {
-  -moz-appearance: checkbox;
+  -moz-appearance: checkbox-small;
+  width: 13px;
+  height: 13px;
   margin: 3px 3px 3px 4px;
-  border-radius: 0 !important;
+  padding: 0 !important;
+  cursor: default;
+  -moz-binding: none;
+
+  -moz-border-radius: 0 !important;
 }
 
 /* common features of radio buttons and check boxes */
 
-/* NOTE: The width, height, border-width, and padding here must all
-   add up the way nsFormControlFrame::GetIntrinsic(Width|Height)
-   expects them to, or they will not come out with total width equal
-   to total height on sites that set their 'width' or 'height' to 'auto'.
-   (Should we maybe set !important on width and height, then?)  */
 input[type="radio"],
 input[type="checkbox"] {
-  -moz-box-sizing: border-box;
-  width: 13px;
-  height: 13px;
-  cursor: default;
-  padding: 0 !important;
-  -moz-binding: none;
   /* same colors as |input| rule, but |!important| this time. */
+  -moz-box-sizing: border-box;
   background-color: -moz-Field ! important;
   color: -moz-FieldText ! important;
   border: 2px inset ThreeDFace ! important;
 }
 
-input[type="radio"]:disabled,
-input[type="radio"]:disabled:active,
-input[type="radio"]:disabled:hover,
-input[type="radio"]:disabled:hover:active,
-input[type="checkbox"]:disabled,
-input[type="checkbox"]:disabled:active,
-input[type="checkbox"]:disabled:hover,
-input[type="checkbox"]:disabled:hover:active {
+input[type="radio"][disabled],
+input[type="radio"][disabled]:active,
+input[type="radio"][disabled]:hover,
+input[type="radio"][disabled]:hover:active,
+input[type="checkbox"][disabled],
+input[type="checkbox"][disabled]:active,
+input[type="checkbox"][disabled]:hover,
+input[type="checkbox"][disabled]:hover:active {
   padding: 1px;
   border: 1px inset ThreeDShadow ! important;
   /* same as above, but !important */
@@ -485,8 +447,8 @@ input[type="checkbox"]:disabled:hover:active {
   cursor: inherit; 
 }
 
-input[type="checkbox"]:-moz-focusring,
-input[type="radio"]:-moz-focusring {
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
   border-style: groove !important;
 }
 
@@ -494,6 +456,13 @@ input[type="checkbox"]:hover:active,
 input[type="radio"]:hover:active {
   background-color: ThreeDFace ! important;
   border-style: inset !important;
+}
+
+*|*::-moz-radio {
+  width: 4px;
+  height: 4px;
+  background-color: -moz-FieldText ! important;
+  -moz-border-radius: 3px;
 }
 
 /* buttons */
@@ -561,23 +530,23 @@ input[type="file"] > input[type="button"]::-moz-focus-inner {
   border: 1px dotted transparent;
 }
 
-button:-moz-focusring::-moz-focus-inner,
-input[type="reset"]:-moz-focusring::-moz-focus-inner,
-input[type="button"]:-moz-focusring::-moz-focus-inner,
-input[type="submit"]:-moz-focusring::-moz-focus-inner,
-input[type="file"] > input[type="button"]:-moz-focusring::-moz-focus-inner {
+button:focus::-moz-focus-inner,
+input[type="reset"]:focus::-moz-focus-inner,
+input[type="button"]:focus::-moz-focus-inner,
+input[type="submit"]:focus::-moz-focus-inner,
+input[type="file"] > input[type="button"]:focus::-moz-focus-inner {
   border-color: ButtonText;
 }
 
-button:disabled:active, button:disabled,
-input[type="reset"]:disabled:active,
-input[type="reset"]:disabled,
-input[type="button"]:disabled:active,
-input[type="button"]:disabled,
-select:disabled > input[type="button"],
-select:disabled > input[type="button"]:active,
-input[type="submit"]:disabled:active,
-input[type="submit"]:disabled {
+button[disabled]:active, button[disabled],
+input[type="reset"][disabled]:active,
+input[type="reset"][disabled],
+input[type="button"][disabled]:active,
+input[type="button"][disabled],
+select[disabled] > input[type="button"],
+select[disabled] > input[type="button"]:active,
+input[type="submit"][disabled]:active,
+input[type="submit"][disabled] {
   /* The sum of border-top, border-bottom, padding-top, padding-bottom
      must be the same here and for text inputs */
   padding: 0px 6px 0px 6px;
@@ -622,27 +591,18 @@ input[type="file"] > input[type="text"] {
   text-align: inherit;
 }
 
-/**
- * Set default style for invalid elements.
- */
-:not(output):-moz-ui-invalid {
-  box-shadow: 0 0 1.5px 1px red;
-}
-
-:not(output):-moz-ui-invalid:-moz-focusring {
-  box-shadow: 0 0 2px 2px rgba(255,0,0,0.4);
-}
-
-output:-moz-ui-invalid {
-  color: red;
-}
-
 @media print {
   input, textarea, select, button {
     -moz-user-input: none !important;
   }
 
   input[type="file"] { height: 2em; }
+}
+
+video > xul|videocontrols {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+  -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#videoControls");
 }
 
 %if OSARCH==OS2

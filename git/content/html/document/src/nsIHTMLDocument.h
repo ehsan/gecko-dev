@@ -45,17 +45,20 @@ class nsIImageMap;
 class nsString;
 class nsIDOMNodeList;
 class nsIDOMHTMLCollection;
+class nsIDOMHTMLFormElement;
 class nsIDOMHTMLMapElement;
 class nsHTMLStyleSheet;
 class nsIStyleSheet;
+class nsICSSLoader;
 class nsIContent;
 class nsIDOMHTMLBodyElement;
 class nsIScriptElement;
 class nsIEditor;
 
+// 5a959364-a2f4-4cac-9a2c-957055dc3569
 #define NS_IHTMLDOCUMENT_IID \
-{ 0x840cacc9, 0x1956, 0x4987, \
-  { 0x80, 0x6e, 0xc6, 0xab, 0x19, 0x1b, 0x92, 0xd2 } }
+{ 0x5a959364, 0xa2f4, 0x4cac, \
+  { 0x9a, 0x2c, 0x95, 0x70, 0x55, 0xdc, 0x35, 0x69 } }
 
 
 /**
@@ -66,7 +69,11 @@ class nsIHTMLDocument : public nsISupports
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IHTMLDOCUMENT_IID)
 
+  virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap) = 0;
+
   virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName) = 0;
+
+  virtual void RemoveImageMap(nsIDOMHTMLMapElement* aMap) = 0;
 
   /**
    * Set compatibility mode for this document
@@ -75,8 +82,7 @@ public:
 
   virtual nsresult ResolveName(const nsAString& aName,
                                nsIDOMHTMLFormElement *aForm,
-                               nsISupports **aResult,
-                               nsWrapperCache **aCache) = 0;
+                               nsISupports **aResult) = 0;
 
   /**
    * Called from the script loader to notify this document that a new
@@ -167,6 +173,14 @@ public:
   virtual nsresult SetEditingState(EditingState aState) = 0;
 
   /**
+   * Returns the result of document.all[aID] which can either be a node
+   * or a nodelist depending on if there are multiple nodes with the same
+   * id.
+   */
+  virtual nsresult GetDocumentAllResult(const nsAString& aID,
+                                        nsISupports** aResult) = 0;
+
+  /**
    * Disables getting and setting cookies
    */
   virtual void DisableCookieAccess() = 0;
@@ -183,8 +197,6 @@ public:
   virtual void TearingDownEditor(nsIEditor *aEditor) = 0;
 
   virtual void SetIsXHTML(PRBool aXHTML) = 0;
-
-  virtual void SetDocWriteDisabled(PRBool aDisabled) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLDocument, NS_IHTMLDOCUMENT_IID)

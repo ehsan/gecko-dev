@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIEventStateManager.h"
@@ -56,7 +57,7 @@ class nsHTMLOptGroupElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLOptGroupElement
 {
 public:
-  nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLOptGroupElement();
 
   // nsISupports
@@ -77,16 +78,15 @@ public:
   // nsGenericElement
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
  
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   /**
@@ -100,7 +100,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
 
-nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLOptGroupElement::nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -114,14 +114,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
-
 // QueryInterface implementation for nsHTMLOptGroupElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLOptGroupElement,
-                                   nsIDOMHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptGroupElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLOptGroupElement,
+                                nsIDOMHTMLOptGroupElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptGroupElement)
 
 
@@ -138,8 +135,10 @@ nsHTMLOptGroupElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
-    return NS_OK;
+  PRBool disabled;
+  nsresult rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   nsIFrame* frame = GetPrimaryFrame();
@@ -158,7 +157,8 @@ nsIContent*
 nsHTMLOptGroupElement::GetSelect()
 {
   nsIContent* parent = this;
-  while ((parent = parent->GetParent()) && parent->IsHTML()) {
+  while ((parent = parent->GetParent()) &&
+         parent->IsNodeOfType(eHTML)) {
     if (parent->Tag() == nsGkAtoms::select) {
       return parent;
     }
@@ -175,7 +175,7 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
                                      PRUint32 aIndex,
                                      PRBool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, aKid, aIndex, aNotify);
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, aKid, aIndex);
   nsresult rv = nsGenericHTMLElement::InsertChildAt(aKid, aIndex, aNotify);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
@@ -184,22 +184,23 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 }
 
 nsresult
-nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex, aNotify);
-  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+  nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
+  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
   }
   return rv;
 }
 
-nsEventStates
+PRInt32
 nsHTMLOptGroupElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
-
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
+  PRBool disabled;
+  GetBoolAttr(nsGkAtoms::disabled, &disabled);
+  if (disabled) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {

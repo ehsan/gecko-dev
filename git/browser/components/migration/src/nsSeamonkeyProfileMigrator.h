@@ -44,22 +44,11 @@
 #include "nsISupportsArray.h"
 #include "nsNetscapeProfileMigratorBase.h"
 #include "nsStringAPI.h"
-#include "nsTArray.h"
 
 class nsIFile;
 class nsIPrefBranch;
 class nsIPrefService;
-
-struct FontPref {
-  char*         prefName;
-  PRInt32       type;
-  union {
-    char*       stringValue;
-    PRInt32     intValue;
-    PRBool      boolValue;
-    PRUnichar*  wstringValue;
-  };
-};
+class nsVoidArray;
 
 class nsSeamonkeyProfileMigrator : public nsNetscapeProfileMigratorBase, 
                                    public nsIBrowserProfileMigrator
@@ -83,10 +72,8 @@ protected:
   nsresult CopyPreferences(PRBool aReplace);
   nsresult TransformPreferences(const nsAString& aSourcePrefFileName,
                                 const nsAString& aTargetPrefFileName);
-  void     ReadFontsBranch(nsIPrefService* aPrefService,
-                           nsTArray<FontPref>* aPrefs);
-  void     WriteFontsBranch(nsIPrefService* aPrefService,
-                            nsTArray<FontPref>* aPrefs);
+  void     ReadFontsBranch(nsIPrefService* aPrefService, nsVoidArray* aPrefs);
+  void     WriteFontsBranch(nsIPrefService* aPrefService, nsVoidArray* aPrefs);
 
   nsresult CopyUserContentSheet();
 

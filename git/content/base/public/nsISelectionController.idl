@@ -51,7 +51,7 @@ interface nsIDOMNode;
 interface nsISelection;
 interface nsISelectionDisplay;
 
-[scriptable, uuid(ff11fa25-788f-444f-8f69-dcdf14348fb3)]
+[scriptable, uuid(29a6d846-e100-4933-ad7a-2e19d91eb692)]
 interface nsISelectionController : nsISelectionDisplay
 {
    const short SELECTION_NONE=0;
@@ -67,8 +67,7 @@ interface nsISelectionController : nsISelectionDisplay
 
    const short SELECTION_ANCHOR_REGION = 0;
    const short SELECTION_FOCUS_REGION = 1;
-   const short SELECTION_WHOLE_SELECTION = 2;
-   const short NUM_SELECTION_REGIONS = 3;
+   const short NUM_SELECTION_REGIONS = 2;
 
    const short SELECTION_OFF = 0;
    const short SELECTION_HIDDEN =1;//>HIDDEN displays selection
@@ -95,27 +94,20 @@ interface nsISelectionController : nsISelectionDisplay
    */
     nsISelection getSelection(in short type);
 
-   const short SCROLL_SYNCHRONOUS = 1<<1;
-   const short SCROLL_FIRST_ANCESTOR_ONLY = 1<<2;
-
    /**
    * ScrollSelectionIntoView scrolls a region of the selection,
    * so that it is visible in the scrolled view.
    *
    * @param aType the selection to scroll into view. //SelectionType
    * @param aRegion the region inside the selection to scroll into view. //SelectionRegion
-   * @param aFlags the scroll flags.  Valid bits include:
-   * SCROLL_SYNCHRONOUS: when set, scrolls the selection into view
-   * before returning. If not set, posts a request which is processed
+   * @param aIsSynchronous when true, scrolls the selection into view
+   * before returning. If false, posts a request which is processed
    * at some point after the method returns.
-   * SCROLL_FIRST_ANCESTOR_ONLY: if set, only the first ancestor will be scrolled
-   * into view.
    *
    * Note that if isSynchronous is true, then this might flush the pending
    * reflow. It's dangerous for some objects. See bug 418470 comment 12.
    */
-    void scrollSelectionIntoView(in short type, in short region, in short flags);
-
+    void scrollSelectionIntoView(in short type, in short region, in boolean isSynchronous);
    /**
    * RepaintSelection repaints the selection specified by aType.
    *
@@ -172,21 +164,6 @@ interface nsISelectionController : nsISelectionDisplay
    *  @param aExtend  should it collapse the selection of extend it?
    */
     void characterMove(in boolean forward, in boolean extend);
-
-   /**
-    * CharacterExtendForDelete will extend the selection one character cell
-    * forward in the document.
-    * this method is used internally for handling del key.
-    */
-    [noscript] void characterExtendForDelete();
-
-   /**
-    * CharacterExtendForBackspace will extend the selection one character cell
-    * backward in the document.
-    * this method is used internally for handling backspace key only when we're
-    * after UTF-16 surrogates.
-    */
-    [noscript] void characterExtendForBackspace();
 
    /** WordMove will move the selection one word forward/backward in the document.
    *  this will also have the effect of collapsing the selection if the aExtend = PR_FALSE

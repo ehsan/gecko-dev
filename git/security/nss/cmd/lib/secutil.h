@@ -286,8 +286,8 @@ extern int SECU_PrintPKCS7ContentInfo(FILE *out, SECItem *der, char *m,
 extern SECStatus SECU_PKCS11Init(PRBool readOnly);
 
 /* Dump contents of signed data */
-extern int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m, 
-                                int level, SECU_PPFunc inner);
+extern int SECU_PrintSignedData(FILE *out, SECItem *der, char *m, int level,
+				SECU_PPFunc inner);
 
 /* Print cert data and its trust flags */
 extern SECStatus SEC_PrintCertificateAndTrust(CERTCertificate *cert,
@@ -320,6 +320,7 @@ extern SECKEYLowPublicKey *SECU_ConvHighToLow(SECKEYPublicKey *pubHighKey);
 extern char *SECU_GetModulePassword(PK11SlotInfo *slot, PRBool retry, void *arg);
 
 extern SECStatus DER_PrettyPrint(FILE *out, SECItem *it, PRBool raw);
+extern void SEC_Init(void);
 
 extern char *SECU_SECModDBName(void);
 
@@ -449,16 +450,10 @@ char *SECU_ErrorStringRaw(int16 err);
 
 void printflags(char *trusts, unsigned int flags);
 
-#if !defined(XP_UNIX) && !defined(XP_OS2)
+#ifndef XP_UNIX
 extern int ffs(unsigned int i);
 #endif
 
-/* Finds certificate by searching it in the DB or by examinig file
- * in the local directory. */
-CERTCertificate*
-SECU_FindCertByNicknameOrFilename(CERTCertDBHandle *handle,
-                                  char *name, PRBool ascii,
-                                  void *pwarg);
 #include "secerr.h"
 #include "sslerr.h"
 

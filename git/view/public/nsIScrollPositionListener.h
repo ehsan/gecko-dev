@@ -40,18 +40,34 @@
 #ifndef nsIScrollPositionListener_h___
 #define nsIScrollPositionListener_h___
 
+#include "nsISupports.h"
 #include "nsCoord.h"
+
+// forward declarations
+class nsIScrollableView;
+
+// IID for the nsIScrollPositionListener interface
+// {98a0c040-09cf-408b-b55f-321b4f8d9d67}
+
+#define NS_ISCROLLPOSITIONLISTENER_IID \
+    { 0x98a0c040, 0x09cf, 0x408b, \
+      { 0xb5, 0x5f, 0x32, 0x1b, 0x4f, 0x8d, 0x9d, 0x67 } }
 
 /**
  * Provides a way for a client of an nsIScrollableView to learn about scroll position
  * changes.
  */
-class nsIScrollPositionListener {
+class nsIScrollPositionListener : public nsISupports {
 public:
+	NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCROLLPOSITIONLISTENER_IID)
 
-	virtual void ScrollPositionWillChange(nscoord aX, nscoord aY) = 0;
-	virtual void ScrollPositionDidChange(nscoord aX, nscoord aY) = 0;
+	NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY) = 0;
+	virtual void ViewPositionDidChange(nsIScrollableView* aScrollable) = 0;
+	NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY) = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIScrollPositionListener,
+                              NS_ISCROLLPOSITIONLISTENER_IID)
 
 #endif /* nsIScrollPositionListener_h___ */
 

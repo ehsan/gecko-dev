@@ -55,7 +55,7 @@ XPIDLSRCS	= \
 		nsIDirIndexListener.idl \
 		$(NULL)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 XPIDLSRCS += \
 		nsIAppleFileDecoder.idl \
 		$(NULL)

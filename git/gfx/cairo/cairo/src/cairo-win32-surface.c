@@ -51,11 +51,7 @@
 #include "cairo-paginated-private.h"
 #include "cairo-win32-private.h"
 #include "cairo-scaled-font-subsets-private.h"
-#include "cairo-surface-fallback-private.h"
-#include "cairo-surface-clipper-private.h"
-#include "cairo-gstate-private.h"
-#include "cairo-private.h"
-#include <wchar.h>
+
 #include <windows.h>
 
 #if defined(__MINGW32__) && !defined(ETO_PDY)
@@ -91,7 +87,7 @@ _cairo_win32_print_gdi_error (const char *context)
     void *lpMsgBuf;
     DWORD last_error = GetLastError ();
 
-    if (!FormatMessageW (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+    if (!FormatMessageA (FORMAT_MESSAGE_ALLOCATE_BUFFER |
 			 FORMAT_MESSAGE_FROM_SYSTEM,
 			 NULL,
 			 last_error,
@@ -100,11 +96,10 @@ _cairo_win32_print_gdi_error (const char *context)
 			 0, NULL)) {
 	fprintf (stderr, "%s: Unknown GDI error", context);
     } else {
-	fprintf (stderr, "%s: %S", context, (char *)lpMsgBuf);
+	fprintf (stderr, "%s: %s", context, (char *)lpMsgBuf);
 
 	LocalFree (lpMsgBuf);
     }
-    fflush(stderr);
 
     /* We should switch off of last_status, but we'd either return
      * CAIRO_STATUS_NO_MEMORY or CAIRO_STATUS_UNKNOWN_ERROR and there
@@ -342,8 +337,6 @@ _cairo_win32_surface_create_for_dc (HDC             original_dc,
     if (surface == NULL)
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
-    surface->clip_region = NULL;
-
     status = _create_dc_and_bitmap (surface, original_dc, format,
 				    width, height,
 				    &bits, &rowstride);
@@ -394,15 +387,12 @@ _cairo_win32_surface_create_similar_internal (void	    *abstract_src,
 {
     cairo_win32_surface_t *src = abstract_src;
     cairo_format_t format = _cairo_format_from_content (content);
-    cairo_surface_t *new_surf = NULL;
+    cairo_win32_surface_t *new_surf;
 
     /* We force a DIB always if:
      * - we need alpha; or
      * - the parent is a DIB; or
      * - the parent is for printing (because we don't care about the bit depth at that point)
-     *
-     * We also might end up with a DIB even if a DDB is requested if DDB creation failed
-     * due to out of memory.
      */
     if (src->is_dib ||
 	(content & CAIRO_CONTENT_ALPHA) ||
@@ -411,19 +401,30 @@ _cairo_win32_surface_create_similar_internal (void	    *abstract_src,
 	force_dib = TRUE;
     }
 
-    if (!force_dib) {
-	/* try to create a ddb */
-	new_surf = cairo_win32_surface_create_with_ddb (src->dc, CAIRO_FORMAT_RGB24, width, height);
+    if (force_dib) {
+	new_surf = (cairo_win32_surface_t*)
+	    _cairo_win32_surface_create_for_dc (src->dc, format, width, height);
+    } else {
+	/* otherwise, create a ddb */
+	HBITMAP ddb = CreateCompatibleBitmap (src->dc, width, height);
+	HDC ddb_dc = CreateCompatibleDC (src->dc);
+	HBITMAP saved_dc_bitmap;
 
-	if (new_surf->status != CAIRO_STATUS_SUCCESS)
-	    new_surf = NULL;
+	saved_dc_bitmap = SelectObject (ddb_dc, ddb);
+
+	new_surf = (cairo_win32_surface_t*) cairo_win32_surface_create (ddb_dc);
+	if (new_surf->base.status == CAIRO_STATUS_SUCCESS) {
+	    new_surf->bitmap = ddb;
+	    new_surf->saved_dc_bitmap = saved_dc_bitmap;
+	    new_surf->is_dib = FALSE;
+	} else {
+	    SelectObject (ddb_dc, saved_dc_bitmap);
+	    DeleteDC (ddb_dc);
+	    DeleteObject (ddb);
+	}
     }
 
-    if (new_surf == NULL) {
-	new_surf = _cairo_win32_surface_create_for_dc (src->dc, format, width, height);
-    }
-
-    return new_surf;
+    return (cairo_surface_t*) new_surf;
 }
 
 cairo_surface_t *
@@ -434,6 +435,49 @@ _cairo_win32_surface_create_similar (void	    *abstract_src,
 {
     return _cairo_win32_surface_create_similar_internal (abstract_src, content, width, height, FALSE);
 }
+
+cairo_status_t
+_cairo_win32_surface_clone_similar (void *abstract_surface,
+				    cairo_surface_t *src,
+				    int src_x,
+				    int src_y,
+				    int width,
+				    int height,
+				    cairo_surface_t **clone_out)
+{
+    cairo_content_t src_content;
+    cairo_surface_t *new_surface;
+    cairo_status_t status;
+    cairo_surface_pattern_t pattern;
+
+    src_content = cairo_surface_get_content(src);
+    new_surface =
+	_cairo_win32_surface_create_similar_internal (abstract_surface, src_content, width, height, FALSE);
+
+    if (cairo_surface_status(new_surface))
+	return cairo_surface_status(new_surface);
+
+    _cairo_pattern_init_for_surface (&pattern, src);
+
+    status = _cairo_surface_composite (CAIRO_OPERATOR_SOURCE,
+				       &pattern.base,
+				       NULL,
+				       new_surface,
+				       src_x, src_y,
+				       0, 0,
+				       0, 0,
+				       width, height);
+
+    _cairo_pattern_fini (&pattern.base);
+
+    if (status == CAIRO_STATUS_SUCCESS)
+	*clone_out = new_surface;
+    else
+	cairo_surface_destroy (new_surface);
+
+    return status;
+}
+
 
 cairo_status_t
 _cairo_win32_surface_finish (void *abstract_surface)
@@ -476,10 +520,8 @@ _cairo_win32_surface_get_subimage (cairo_win32_surface_t  *surface,
     local =
 	(cairo_win32_surface_t *) _cairo_win32_surface_create_similar_internal
 	(surface, content, width, height, TRUE);
-    if (local == NULL)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
     if (local->base.status)
-	return local->base.status;
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     status = CAIRO_INT_STATUS_UNSUPPORTED;
 
@@ -514,79 +556,19 @@ _cairo_win32_surface_get_subimage (cairo_win32_surface_t  *surface,
     return CAIRO_STATUS_SUCCESS;
 }
 
-static void
-_cairo_win32_convert_ddb_to_dib (cairo_win32_surface_t *surface)
-{
-    cairo_win32_surface_t *new_surface;
-    int width = surface->extents.width;
-    int height = surface->extents.height;
-
-    BOOL ok;
-    HBITMAP oldbitmap;
-
-    new_surface = (cairo_win32_surface_t*)
-	_cairo_win32_surface_create_for_dc (surface->dc,
-					    surface->format,
-					    width,
-					    height);
-
-    if (new_surface->base.status)
-	return;
-
-    /* DDB can't be 32bpp, so BitBlt is safe */
-    ok = BitBlt (new_surface->dc,
-		 0, 0, width, height,
-		 surface->dc,
-		 0, 0, SRCCOPY);
-
-    if (!ok)
-	goto out;
-
-    /* Now swap around new_surface and surface's internal bitmap
-     * pointers. */
-    DeleteDC (new_surface->dc);
-    new_surface->dc = NULL;
-
-    oldbitmap = SelectObject (surface->dc, new_surface->bitmap);
-    DeleteObject (oldbitmap);
-
-    surface->image = new_surface->image;
-    surface->is_dib = new_surface->is_dib;
-    surface->bitmap = new_surface->bitmap;
-
-    new_surface->bitmap = NULL;
-    new_surface->image = NULL;
-
-    /* Finally update flags */
-    surface->flags = _cairo_win32_flags_for_dc (surface->dc);
-
-  out:
-    cairo_surface_destroy ((cairo_surface_t*)new_surface);
-}
-
 static cairo_status_t
 _cairo_win32_surface_acquire_source_image (void                    *abstract_surface,
 					   cairo_image_surface_t  **image_out,
 					   void                   **image_extra)
 {
     cairo_win32_surface_t *surface = abstract_surface;
-    cairo_win32_surface_t *local;
+    cairo_win32_surface_t *local = NULL;
     cairo_status_t status;
-
-    if (!surface->image && !surface->is_dib && surface->bitmap &&
-	(surface->flags & CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB) != 0)
-    {
-	/* This is a DDB, and we're being asked to use it as a source for
-	 * something that we couldn't support natively.  So turn it into
-	 * a DIB, so that we have an equivalent image surface, as long
-	 * as we're allowed to via flags.
-	 */
-	_cairo_win32_convert_ddb_to_dib (surface);
-    }
 
     if (surface->image) {
 	*image_out = (cairo_image_surface_t *)surface->image;
 	*image_extra = NULL;
+
 	return CAIRO_STATUS_SUCCESS;
     }
 
@@ -598,6 +580,7 @@ _cairo_win32_surface_acquire_source_image (void                    *abstract_sur
 
     *image_out = (cairo_image_surface_t *)local->image;
     *image_extra = local;
+
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -622,28 +605,61 @@ _cairo_win32_surface_acquire_dest_image (void                    *abstract_surfa
     cairo_win32_surface_t *surface = abstract_surface;
     cairo_win32_surface_t *local = NULL;
     cairo_status_t status;
+    RECT clip_box;
+    int x1, y1, x2, y2;
 
     if (surface->image) {
 	GdiFlush();
 
-	*image_out = (cairo_image_surface_t *) surface->image;
+	image_rect->x = 0;
+	image_rect->y = 0;
+	image_rect->width = surface->extents.width;
+	image_rect->height = surface->extents.height;
+
+	*image_out = (cairo_image_surface_t *)surface->image;
 	*image_extra = NULL;
-	*image_rect = surface->extents;
+
+	return CAIRO_STATUS_SUCCESS;
+    }
+
+    if (GetClipBox (surface->dc, &clip_box) == ERROR)
+	return _cairo_win32_print_gdi_error ("_cairo_win3_surface_acquire_dest_image");
+
+    x1 = clip_box.left;
+    x2 = clip_box.right;
+    y1 = clip_box.top;
+    y2 = clip_box.bottom;
+
+    if (interest_rect->x > x1)
+	x1 = interest_rect->x;
+    if (interest_rect->y > y1)
+	y1 = interest_rect->y;
+    if (interest_rect->x + interest_rect->width < x2)
+	x2 = interest_rect->x + interest_rect->width;
+    if (interest_rect->y + interest_rect->height < y2)
+	y2 = interest_rect->y + interest_rect->height;
+
+    if (x1 >= x2 || y1 >= y2) {
+	*image_out = NULL;
+	*image_extra = NULL;
+
 	return CAIRO_STATUS_SUCCESS;
     }
 
     status = _cairo_win32_surface_get_subimage (abstract_surface,
-						interest_rect->x,
-						interest_rect->y,
-						interest_rect->width,
-						interest_rect->height,
+						x1, y1, x2 - x1, y2 - y1,
 						&local);
     if (status)
 	return status;
 
-    *image_out = (cairo_image_surface_t *) local->image;
+    *image_out = (cairo_image_surface_t *)local->image;
     *image_extra = local;
-    *image_rect = *interest_rect;
+
+    image_rect->x = x1;
+    image_rect->y = y1;
+    image_rect->width = x2 - x1;
+    image_rect->height = y2 - y1;
+
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -660,10 +676,6 @@ _cairo_win32_surface_release_dest_image (void                    *abstract_surfa
     if (!local)
 	return;
 
-    /* clear any clip that's currently set on the surface
-       so that we can blit uninhibited. */
-    _cairo_win32_surface_set_clip_region (surface, NULL);
-
     if (!BitBlt (surface->dc,
 		 image_rect->x, image_rect->y,
 		 image_rect->width, image_rect->height,
@@ -673,107 +685,6 @@ _cairo_win32_surface_release_dest_image (void                    *abstract_surfa
 	_cairo_win32_print_gdi_error ("_cairo_win32_surface_release_dest_image");
 
     cairo_surface_destroy ((cairo_surface_t *)local);
-}
-
-cairo_status_t
-_cairo_win32_surface_set_clip_region (void           *abstract_surface,
-				      cairo_region_t *region)
-{
-    cairo_win32_surface_t *surface = abstract_surface;
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
-
-    if (surface->clip_region == region)
-	return CAIRO_STATUS_SUCCESS;
-
-    cairo_region_destroy (surface->clip_region);
-    surface->clip_region = cairo_region_reference (region);
-
-    /* The semantics we want is that any clip set by cairo combines
-     * is intersected with the clip on device context that the
-     * surface was created for. To implement this, we need to
-     * save the original clip when first setting a clip on surface.
-     */
-
-    /* Clear any clip set by cairo, return to the original first */
-    status = _cairo_win32_restore_initial_clip (surface);
-
-    /* Then combine any new region with it */
-    if (region) {
-	cairo_rectangle_int_t extents;
-	int num_rects;
-	RGNDATA *data;
-	size_t data_size;
-	RECT *rects;
-	int i;
-	HRGN gdi_region;
-
-	/* Create a GDI region for the cairo region */
-
-	cairo_region_get_extents (region, &extents);
-	num_rects = cairo_region_num_rectangles (region);
-	/* XXX see notes in _cairo_win32_save_initial_clip --
-	 * this code will interact badly with a HDC which had an initial
-	 * world transform -- we should probably manually transform the
-	 * region rects, because SelectClipRgn takes device units, not
-	 * logical units (unlike IntersectClipRect).
-	 */
-
-	data_size = sizeof (RGNDATAHEADER) + num_rects * sizeof (RECT);
-	data = malloc (data_size);
-	if (!data)
-	    return _cairo_error(CAIRO_STATUS_NO_MEMORY);
-	rects = (RECT *)data->Buffer;
-
-	data->rdh.dwSize = sizeof (RGNDATAHEADER);
-	data->rdh.iType = RDH_RECTANGLES;
-	data->rdh.nCount = num_rects;
-	data->rdh.nRgnSize = num_rects * sizeof (RECT);
-	data->rdh.rcBound.left = extents.x;
-	data->rdh.rcBound.top = extents.y;
-	data->rdh.rcBound.right = extents.x + extents.width;
-	data->rdh.rcBound.bottom = extents.y + extents.height;
-
-	for (i = 0; i < num_rects; i++) {
-	    cairo_rectangle_int_t rect;
-
-	    cairo_region_get_rectangle (region, i, &rect);
-
-	    rects[i].left   = rect.x;
-	    rects[i].top    = rect.y;
-	    rects[i].right  = rect.x + rect.width;
-	    rects[i].bottom = rect.y + rect.height;
-	}
-
-	gdi_region = ExtCreateRegion (NULL, data_size, data);
-	free (data);
-
-	if (!gdi_region)
-	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-#ifndef WINCE
-	/* AND the new region into our DC */
-	if (ExtSelectClipRgn (surface->dc, gdi_region, RGN_AND) == ERROR)
-	    status = _cairo_win32_print_gdi_error ("_cairo_win32_surface_set_clip_region");
-#else
-	// The ExtSelectClipRgn function combines the specified
-	// region with the current clipping region using the
-	// specified mode.  Here we do similar using basic
-	// functions available on WINCE.
-	{
-	    HRGN currentClip, newClip;
-	    GetClipRgn(surface->dc, &currentClip);
-
-	    if (CombineRgn(newClip, currentClip, gdi_region, RGN_AND) != ERROR) {
-		SelectClipRgn(surface->dc, newClip);
-		DeleteObject(newClip);
-	    }
-	}
-#endif
-
-	DeleteObject (gdi_region);
-    }
-
-    return status;
 }
 
 #if !defined(AC_SRC_OVER)
@@ -837,7 +748,7 @@ _composite_alpha_blend (cairo_win32_surface_t *dst,
 	if (VER_PLATFORM_WIN32_WINDOWS != os.dwPlatformId ||
 	    os.dwMajorVersion != 4 || os.dwMinorVersion != 10)
 	{
-	    HMODULE msimg32_dll = LoadLibraryW (L"msimg32");
+	    HMODULE msimg32_dll = LoadLibraryA ("msimg32");
 
 	    if (msimg32_dll != NULL)
 		alpha_blend = (cairo_alpha_blend_func_t)GetProcAddress (msimg32_dll,
@@ -957,13 +868,10 @@ _cairo_win32_surface_composite_inner (cairo_win32_surface_t *src,
     return CAIRO_STATUS_SUCCESS;
 }
 
-/* from pixman-private.h */
-#define MOD(a,b) ((a) < 0 ? ((b) - ((-(a) - 1) % (b))) - 1 : (a) % (b))
-
 static cairo_int_status_t
 _cairo_win32_surface_composite (cairo_operator_t	op,
-				const cairo_pattern_t	*pattern,
-				const cairo_pattern_t	*mask_pattern,
+				cairo_pattern_t       	*pattern,
+				cairo_pattern_t		*mask_pattern,
 				void			*abstract_dst,
 				int			src_x,
 				int			src_y,
@@ -972,8 +880,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 				int			dst_x,
 				int			dst_y,
 				unsigned int		width,
-				unsigned int		height,
-				cairo_region_t	       *clip_region)
+				unsigned int		height)
 {
     cairo_win32_surface_t *dst = abstract_dst;
     cairo_win32_surface_t *src;
@@ -1114,7 +1021,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
     fflush (stderr);
 #endif
 
-    /* If the src rectangle doesn't wholly lie within the src extents,
+    /* If the src recangle doesn't wholly lie within the src extents,
      * fudge things.  We really need to do fixup on the unpainted
      * region -- e.g. the SOURCE operator is broken for areas outside
      * of the extents, because it won't clear that area to transparent
@@ -1234,10 +1141,6 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
     fflush (stderr);
 #endif
 
-    status = _cairo_win32_surface_set_clip_region (dst, clip_region);
-    if (status)
-	return status;
-
     /* If we need to repeat, we turn the repeated blit into
      * a bunch of piece-by-piece blits.
      */
@@ -1246,8 +1149,8 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	uint32_t rendered_width = 0, rendered_height = 0;
 	uint32_t to_render_height, to_render_width;
 	int32_t piece_x, piece_y;
-	int32_t src_start_x = MOD(src_r.x, src_extents.width);
-	int32_t src_start_y = MOD(src_r.y, src_extents.height);
+	int32_t src_start_x = src_r.x % src_extents.width;
+	int32_t src_start_y = src_r.y % src_extents.height;
 
 	if (needs_scale)
 	    goto UNSUPPORTED;
@@ -1371,8 +1274,7 @@ UNSUPPORTED:
 					       src_x, src_y,
 					       mask_x, mask_y,
 					       dst_x, dst_y,
-					       width, height,
-					       clip_region);
+					       width, height);
     }
 
     return CAIRO_INT_STATUS_UNSUPPORTED;
@@ -1476,10 +1378,6 @@ _cairo_win32_surface_fill_rectangles (void			*abstract_surface,
     if (surface->format != CAIRO_FORMAT_RGB24)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    status = _cairo_win32_surface_set_clip_region (surface, NULL);
-    if (status)
-	return status;
-
     /* Optimize for no destination alpha (surface->pixman_image is non-NULL for all
      * surfaces with alpha.)
      */
@@ -1525,20 +1423,134 @@ _cairo_win32_surface_fill_rectangles (void			*abstract_surface,
     return status;
 }
 
-cairo_bool_t
+static cairo_int_status_t
+_cairo_win32_surface_set_clip_region (void           *abstract_surface,
+				      cairo_region_t *region)
+{
+    cairo_win32_surface_t *surface = abstract_surface;
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
+
+    /* If we are in-memory, then we set the clip on the image surface
+     * as well as on the underlying GDI surface.
+     */
+    if (surface->image) {
+	unsigned int serial;
+
+	serial = _cairo_surface_allocate_clip_serial (surface->image);
+	status = _cairo_surface_set_clip_region (surface->image, region, serial);
+	if (status)
+	    return status;
+    }
+
+    /* The semantics we want is that any clip set by cairo combines
+     * is intersected with the clip on device context that the
+     * surface was created for. To implement this, we need to
+     * save the original clip when first setting a clip on surface.
+     */
+
+    /* Clear any clip set by cairo, return to the original first */
+    status = _cairo_win32_restore_initial_clip (surface);
+
+    /* Then combine any new region with it */
+    if (region) {
+	cairo_rectangle_int_t extents;
+	cairo_box_int_t *boxes;
+	int num_boxes;
+	RGNDATA *data;
+	size_t data_size;
+	RECT *rects;
+	int i;
+	HRGN gdi_region;
+
+	/* Create a GDI region for the cairo region */
+
+	_cairo_region_get_extents (region, &extents);
+	status = _cairo_region_get_boxes (region, &num_boxes, &boxes);
+	if (status)
+	    return status;
+
+	if (num_boxes == 1 && 
+	    boxes[0].p1.x == 0 &&
+	    boxes[0].p1.y == 0 &&
+	    boxes[0].p2.x == surface->extents.width &&
+	    boxes[0].p2.y == surface->extents.height)
+	{
+	    gdi_region = NULL;
+
+	    SelectClipRgn (surface->dc, NULL);
+	    IntersectClipRect (surface->dc,
+			       boxes[0].p1.x,
+			       boxes[0].p1.y,
+			       boxes[0].p2.x,
+			       boxes[0].p2.y);
+
+	    _cairo_region_boxes_fini (region, boxes);
+	} else {
+	    /* XXX see notes in _cairo_win32_save_initial_clip --
+	     * this code will interact badly with a HDC which had an initial
+	     * world transform -- we should probably manually transform the
+	     * region rects, because SelectClipRgn takes device units, not
+	     * logical units (unlike IntersectClipRect).
+	     */
+
+	    data_size = sizeof (RGNDATAHEADER) + num_boxes * sizeof (RECT);
+	    data = malloc (data_size);
+	    if (!data) {
+		_cairo_region_boxes_fini (region, boxes);
+		return _cairo_error(CAIRO_STATUS_NO_MEMORY);
+	    }
+	    rects = (RECT *)data->Buffer;
+
+	    data->rdh.dwSize = sizeof (RGNDATAHEADER);
+	    data->rdh.iType = RDH_RECTANGLES;
+	    data->rdh.nCount = num_boxes;
+	    data->rdh.nRgnSize = num_boxes * sizeof (RECT);
+	    data->rdh.rcBound.left = extents.x;
+	    data->rdh.rcBound.top = extents.y;
+	    data->rdh.rcBound.right = extents.x + extents.width;
+	    data->rdh.rcBound.bottom = extents.y + extents.height;
+
+	    for (i = 0; i < num_boxes; i++) {
+		rects[i].left = boxes[i].p1.x;
+		rects[i].top = boxes[i].p1.y;
+		rects[i].right = boxes[i].p2.x;
+		rects[i].bottom = boxes[i].p2.y;
+	    }
+
+	    _cairo_region_boxes_fini (region, boxes);
+
+	    gdi_region = ExtCreateRegion (NULL, data_size, data);
+	    free (data);
+
+	    if (!gdi_region)
+		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
+	    /* AND the new region into our DC */
+	    if (ExtSelectClipRgn (surface->dc, gdi_region, RGN_AND) == ERROR)
+		status = _cairo_win32_print_gdi_error ("_cairo_win32_surface_set_clip_region");
+
+	    DeleteObject (gdi_region);
+	}
+    }
+
+    return status;
+}
+
+cairo_int_status_t
 _cairo_win32_surface_get_extents (void		          *abstract_surface,
 				  cairo_rectangle_int_t   *rectangle)
 {
     cairo_win32_surface_t *surface = abstract_surface;
 
     *rectangle = surface->extents;
-    return TRUE;
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_status_t
 _cairo_win32_surface_flush (void *abstract_surface)
 {
-    return _cairo_win32_surface_set_clip_region (abstract_surface, NULL);
+    return _cairo_surface_reset_clip (abstract_surface);
 }
 
 #define STACK_GLYPH_SIZE 256
@@ -1546,168 +1558,150 @@ _cairo_win32_surface_flush (void *abstract_surface)
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
 				  cairo_scaled_font_t	*scaled_font,
-				  cairo_clip_t		*clip,
 				  int			*remaining_glyphs)
 {
-#if defined(CAIRO_HAS_WIN32_FONT) && !defined(WINCE)
-    if (scaled_font->backend->type == CAIRO_FONT_TYPE_DWRITE) {
-#ifdef CAIRO_HAS_DWRITE_FONT
-        return _cairo_dwrite_show_glyphs_on_surface(surface, op, source, glyphs, num_glyphs, scaled_font, clip);
-#endif
-    } else {
-	cairo_win32_surface_t *dst = surface;
-        
-	WORD glyph_buf_stack[STACK_GLYPH_SIZE];
-	WORD *glyph_buf = glyph_buf_stack;
-	int dxy_buf_stack[2 * STACK_GLYPH_SIZE];
-	int *dxy_buf = dxy_buf_stack;
+#if CAIRO_HAS_WIN32_FONT
+    cairo_win32_surface_t *dst = surface;
 
-	BOOL win_result = 0;
-	int i, j;
+    WORD glyph_buf_stack[STACK_GLYPH_SIZE];
+    WORD *glyph_buf = glyph_buf_stack;
+    int dxy_buf_stack[2 * STACK_GLYPH_SIZE];
+    int *dxy_buf = dxy_buf_stack;
 
-	cairo_solid_pattern_t *solid_pattern;
-	COLORREF color;
+    BOOL win_result = 0;
+    int i, j;
 
-	cairo_matrix_t device_to_logical;
+    cairo_solid_pattern_t *solid_pattern;
+    COLORREF color;
 
-	int start_x, start_y;
-	double user_x, user_y;
-	int logical_x, logical_y;
-	unsigned int glyph_index_option;
+    cairo_matrix_t device_to_logical;
 
-	/* We can only handle win32 fonts */
-	if (cairo_scaled_font_get_type (scaled_font) != CAIRO_FONT_TYPE_WIN32)
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+    int start_x, start_y;
+    double user_x, user_y;
+    int logical_x, logical_y;
+    unsigned int glyph_index_option;
 
-	/* We can only handle opaque solid color sources */
-	if (!_cairo_pattern_is_opaque_solid(source))
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+    /* We can only handle win32 fonts */
+    if (cairo_scaled_font_get_type (scaled_font) != CAIRO_FONT_TYPE_WIN32)
+	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-	/* We can only handle operator SOURCE or OVER with the destination
-	 * having no alpha */
-	if ((op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER) ||
-	    (dst->format != CAIRO_FORMAT_RGB24))
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+    /* We can only handle opaque solid color sources */
+    if (!_cairo_pattern_is_opaque_solid(source))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-	/* If we have a fallback mask clip set on the dst, we have
-	 * to go through the fallback path, but only if we're not
-	 * doing this for printing */
-	if (clip != NULL) {
-	    if ((dst->flags & CAIRO_WIN32_SURFACE_FOR_PRINTING) == 0) {
-		cairo_region_t *clip_region;
-		cairo_status_t status;
+    /* We can only handle operator SOURCE or OVER with the destination
+     * having no alpha */
+    if ((op != CAIRO_OPERATOR_SOURCE && op != CAIRO_OPERATOR_OVER) ||
+	(dst->format != CAIRO_FORMAT_RGB24))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-		status = _cairo_clip_get_region (clip, &clip_region);
-		assert (status != CAIRO_INT_STATUS_NOTHING_TO_DO);
-		if (status)
-		    return status;
+    /* If we have a fallback mask clip set on the dst, we have
+     * to go through the fallback path, but only if we're not
+     * doing this for printing */
+    if (dst->base.clip  &&
+	!(dst->flags & CAIRO_WIN32_SURFACE_FOR_PRINTING) &&
+	(dst->base.clip->mode != CAIRO_CLIP_MODE_REGION ||
+	 dst->base.clip->surface != NULL))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-		_cairo_win32_surface_set_clip_region (surface, clip_region);
-	    }
-	} else {
-	    _cairo_win32_surface_set_clip_region (surface, NULL);
-	}
+    solid_pattern = (cairo_solid_pattern_t *)source;
+    color = RGB(((int)solid_pattern->color.red_short) >> 8,
+		((int)solid_pattern->color.green_short) >> 8,
+		((int)solid_pattern->color.blue_short) >> 8);
 
-	solid_pattern = (cairo_solid_pattern_t *)source;
-	color = RGB(((int)solid_pattern->color.red_short) >> 8,
-		    ((int)solid_pattern->color.green_short) >> 8,
-		    ((int)solid_pattern->color.blue_short) >> 8);
+    cairo_win32_scaled_font_get_device_to_logical(scaled_font, &device_to_logical);
 
-	cairo_win32_scaled_font_get_device_to_logical(scaled_font, &device_to_logical);
+    SaveDC(dst->dc);
 
-	SaveDC(dst->dc);
+    cairo_win32_scaled_font_select_font(scaled_font, dst->dc);
+    SetTextColor(dst->dc, color);
+    SetTextAlign(dst->dc, TA_BASELINE | TA_LEFT);
+    SetBkMode(dst->dc, TRANSPARENT);
 
-	cairo_win32_scaled_font_select_font(scaled_font, dst->dc);
-	SetTextColor(dst->dc, color);
-	SetTextAlign(dst->dc, TA_BASELINE | TA_LEFT);
-	SetBkMode(dst->dc, TRANSPARENT);
-
-	if (num_glyphs > STACK_GLYPH_SIZE) {
-	    glyph_buf = (WORD *) _cairo_malloc_ab (num_glyphs, sizeof(WORD));
-	    dxy_buf = (int *) _cairo_malloc_abc (num_glyphs, sizeof(int), 2);
-	}
-
-	/* It is vital that dx values for dxy_buf are calculated from the delta of
-	 * _logical_ x coordinates (not user x coordinates) or else the sum of all
-	 * previous dx values may start to diverge from the current glyph's x
-	 * coordinate due to accumulated rounding error. As a result strings could
-	 * be painted shorter or longer than expected. */
-
-	user_x = glyphs[0].x;
-	user_y = glyphs[0].y;
-
-	cairo_matrix_transform_point(&device_to_logical,
-				     &user_x, &user_y);
-
-	logical_x = _cairo_lround (user_x);
-	logical_y = _cairo_lround (user_y);
-
-	start_x = logical_x;
-	start_y = logical_y;
-
-	for (i = 0, j = 0; i < num_glyphs; ++i, j = 2 * i) {
-	    glyph_buf[i] = (WORD) glyphs[i].index;
-	    if (i == num_glyphs - 1) {
-		dxy_buf[j] = 0;
-		dxy_buf[j+1] = 0;
-	    } else {
-		double next_user_x = glyphs[i+1].x;
-		double next_user_y = glyphs[i+1].y;
-		int next_logical_x, next_logical_y;
-
-		cairo_matrix_transform_point(&device_to_logical,
-					     &next_user_x, &next_user_y);
-
-		next_logical_x = _cairo_lround (next_user_x);
-		next_logical_y = _cairo_lround (next_user_y);
-
-		dxy_buf[j] = _cairo_lround (next_logical_x - logical_x);
-		dxy_buf[j+1] = _cairo_lround (logical_y - next_logical_y);
-		    /* note that GDI coordinate system is inverted */
-
-		logical_x = next_logical_x;
-		logical_y = next_logical_y;
-	    }
-	}
-
-	/* Using glyph indices for a Type 1 font does not work on a
-	 * printer DC. The win32 printing surface will convert the the
-	 * glyph indices of Type 1 fonts to the unicode values.
-	 */
-	if ((dst->flags & CAIRO_WIN32_SURFACE_FOR_PRINTING) &&
-	    _cairo_win32_scaled_font_is_type1 (scaled_font))
-	{
-	    glyph_index_option = 0;
-	}
-	else
-	{
-	    glyph_index_option = ETO_GLYPH_INDEX;
-	}
-
-	win_result = ExtTextOutW(dst->dc,
-				 start_x,
-				 start_y,
-				 glyph_index_option | ETO_PDY,
-				 NULL,
-				 glyph_buf,
-				 num_glyphs,
-				 dxy_buf);
-	if (!win_result) {
-	    _cairo_win32_print_gdi_error("_cairo_win32_surface_show_glyphs(ExtTextOutW failed)");
-	}
-
-	RestoreDC(dst->dc, -1);
-
-	if (glyph_buf != glyph_buf_stack) {
-	    free(glyph_buf);
-	    free(dxy_buf);
-	}
-	return (win_result) ? CAIRO_STATUS_SUCCESS : CAIRO_INT_STATUS_UNSUPPORTED;
+    if (num_glyphs > STACK_GLYPH_SIZE) {
+	glyph_buf = (WORD *) _cairo_malloc_ab (num_glyphs, sizeof(WORD));
+        dxy_buf = (int *) _cairo_malloc_abc (num_glyphs, sizeof(int), 2);
     }
+
+    /* It is vital that dx values for dxy_buf are calculated from the delta of
+     * _logical_ x coordinates (not user x coordinates) or else the sum of all
+     * previous dx values may start to diverge from the current glyph's x
+     * coordinate due to accumulated rounding error. As a result strings could
+     * be painted shorter or longer than expected. */
+
+    user_x = glyphs[0].x;
+    user_y = glyphs[0].y;
+
+    cairo_matrix_transform_point(&device_to_logical,
+                                 &user_x, &user_y);
+
+    logical_x = _cairo_lround (user_x);
+    logical_y = _cairo_lround (user_y);
+
+    start_x = logical_x;
+    start_y = logical_y;
+
+    for (i = 0, j = 0; i < num_glyphs; ++i, j = 2 * i) {
+        glyph_buf[i] = (WORD) glyphs[i].index;
+        if (i == num_glyphs - 1) {
+            dxy_buf[j] = 0;
+            dxy_buf[j+1] = 0;
+        } else {
+            double next_user_x = glyphs[i+1].x;
+            double next_user_y = glyphs[i+1].y;
+            int next_logical_x, next_logical_y;
+
+            cairo_matrix_transform_point(&device_to_logical,
+                                         &next_user_x, &next_user_y);
+
+            next_logical_x = _cairo_lround (next_user_x);
+            next_logical_y = _cairo_lround (next_user_y);
+
+            dxy_buf[j] = _cairo_lround (next_logical_x - logical_x);
+            dxy_buf[j+1] = _cairo_lround (next_logical_y - logical_y);
+
+            logical_x = next_logical_x;
+            logical_y = next_logical_y;
+        }
+    }
+
+    /* Using glyph indices for a Type 1 font does not work on a
+     * printer DC. The win32 printing surface will convert the the
+     * glyph indices of Type 1 fonts to the unicode values.
+     */
+    if ((dst->flags & CAIRO_WIN32_SURFACE_FOR_PRINTING) &&
+	_cairo_win32_scaled_font_is_type1 (scaled_font))
+    {
+	glyph_index_option = 0;
+    }
+    else
+    {
+	glyph_index_option = ETO_GLYPH_INDEX;
+    }
+
+    win_result = ExtTextOutW(dst->dc,
+                             start_x,
+                             start_y,
+                             glyph_index_option | ETO_PDY,
+                             NULL,
+                             glyph_buf,
+                             num_glyphs,
+                             dxy_buf);
+    if (!win_result) {
+        _cairo_win32_print_gdi_error("_cairo_win32_surface_show_glyphs(ExtTextOutW failed)");
+    }
+
+    RestoreDC(dst->dc, -1);
+
+    if (glyph_buf != glyph_buf_stack) {
+	free(glyph_buf);
+        free(dxy_buf);
+    }
+    return (win_result) ? CAIRO_STATUS_SUCCESS : CAIRO_INT_STATUS_UNSUPPORTED;
 #else
     return CAIRO_INT_STATUS_UNSUPPORTED;
 #endif
@@ -1715,12 +1709,29 @@ _cairo_win32_surface_show_glyphs (void			*surface,
 
 #undef STACK_GLYPH_SIZE
 
-static cairo_surface_t *
-cairo_win32_surface_create_internal (HDC hdc, cairo_format_t format)
+/**
+ * cairo_win32_surface_create:
+ * @hdc: the DC to create a surface for
+ *
+ * Creates a cairo surface that targets the given DC.  The DC will be
+ * queried for its initial clip extents, and this will be used as the
+ * size of the cairo surface.  The resulting surface will always be of
+ * format %CAIRO_FORMAT_RGB24; should you need another surface format,
+ * you will need to create one through
+ * cairo_win32_surface_create_with_dib().
+ *
+ * Return value: the newly created surface
+ **/
+cairo_surface_t *
+cairo_win32_surface_create (HDC hdc)
 {
     cairo_win32_surface_t *surface;
 
+    cairo_format_t format;
     RECT rect;
+
+    /* Assume that everything coming in as a HDC is RGB24 */
+    format = CAIRO_FORMAT_RGB24;
 
     surface = malloc (sizeof (cairo_win32_surface_t));
     if (surface == NULL)
@@ -1731,7 +1742,6 @@ cairo_win32_surface_create_internal (HDC hdc, cairo_format_t format)
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
-    surface->clip_region = NULL;
     surface->image = NULL;
     surface->format = format;
 
@@ -1754,48 +1764,7 @@ cairo_win32_surface_create_internal (HDC hdc, cairo_format_t format)
     _cairo_surface_init (&surface->base, &cairo_win32_surface_backend,
 			 _cairo_content_from_format (format));
 
-    return &surface->base;
-}
-
-/**
- * cairo_win32_surface_create:
- * @hdc: the DC to create a surface for
- *
- * Creates a cairo surface that targets the given DC.  The DC will be
- * queried for its initial clip extents, and this will be used as the
- * size of the cairo surface.  The resulting surface will always be of
- * format %CAIRO_FORMAT_RGB24; should you need another surface format,
- * you will need to create one through
- * cairo_win32_surface_create_with_dib() or call
- * cairo_win32_surface_create_with_alpha.
- *
- * Return value: the newly created surface
- **/
-cairo_surface_t *
-cairo_win32_surface_create (HDC hdc)
-{
-    /* Assume everything comes in as RGB24 */
-    return cairo_win32_surface_create_internal(hdc, CAIRO_FORMAT_RGB24);
-}
-
-/**
- * cairo_win32_surface_create_with_alpha:
- * @hdc: the DC to create a surface for
- *
- * Creates a cairo surface that targets the given DC.  The DC will be
- * queried for its initial clip extents, and this will be used as the
- * size of the cairo surface.  The resulting surface will always be of
- * format %CAIRO_FORMAT_ARGB32; this format is used when drawing into
- * transparent windows.
- *
- * Return value: the newly created surface
- *
- * Since: 1.10
- **/
-cairo_surface_t *
-cairo_win32_surface_create_with_alpha (HDC hdc)
-{
-    return cairo_win32_surface_create_internal(hdc, CAIRO_FORMAT_ARGB32);
+    return (cairo_surface_t *)surface;
 }
 
 /**
@@ -1862,6 +1831,7 @@ cairo_win32_surface_create_with_ddb (HDC hdc,
 
     ddb_dc = CreateCompatibleDC (hdc);
     if (ddb_dc == NULL) {
+	_cairo_win32_print_gdi_error("CreateCompatibleDC");
 	new_surf = (cairo_win32_surface_t*) _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 	goto FINISH;
     }
@@ -1872,9 +1842,9 @@ cairo_win32_surface_create_with_ddb (HDC hdc,
 
 	/* Note that if an app actually does hit this out of memory
 	 * condition, it's going to have lots of other issues, as
-	 * video memory is probably exhausted.  However, it can often
-	 * continue using DIBs instead of DDBs.
+	 * video memory is probably exhausted.
 	 */
+	_cairo_win32_print_gdi_error("CreateCompatibleBitmap");
 	new_surf = (cairo_win32_surface_t*) _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 	goto FINISH;
     }
@@ -1936,71 +1906,15 @@ cairo_win32_surface_get_dc (cairo_surface_t *surface)
 
 	target = _cairo_paginated_surface_get_target (surface);
 
-#ifndef CAIRO_OMIT_WIN32_PRINTING
 	if (_cairo_surface_is_win32_printing (target)) {
 	    winsurf = (cairo_win32_surface_t *) target;
+
 	    return winsurf->dc;
 	}
-#endif
     }
 
     return NULL;
 }
-
-
-HDC
-cairo_win32_get_dc_with_clip (cairo_t *cr)
-{
-    cairo_surface_t *surface = cr->gstate->target;
-    cairo_clip_t clip;
-    _cairo_clip_init_copy(&clip, &cr->gstate->clip);
-
-    if (_cairo_surface_is_win32 (surface)){
-	cairo_win32_surface_t *winsurf = (cairo_win32_surface_t *) surface;
-	cairo_region_t *clip_region = NULL;
-	cairo_status_t status;
-
-	if (clip.path) {
-	    status = _cairo_clip_get_region (&clip, &clip_region);
-	    assert (status != CAIRO_INT_STATUS_NOTHING_TO_DO);
-	    if (status) {
-		_cairo_clip_fini(&clip);
-		return NULL;
-	    }
-	}
-	_cairo_win32_surface_set_clip_region (winsurf, clip_region);
-
-	_cairo_clip_fini(&clip);
-	return winsurf->dc;
-    }
-
-    if (_cairo_surface_is_paginated (surface)) {
-	cairo_surface_t *target;
-
-	target = _cairo_paginated_surface_get_target (surface);
-
-#ifndef CAIRO_OMIT_WIN32_PRINTING
-	if (_cairo_surface_is_win32_printing (target)) {
-	    cairo_status_t status;
-	    cairo_win32_surface_t *winsurf = (cairo_win32_surface_t *) target;
-
-	    status = _cairo_surface_clipper_set_clip (&winsurf->clipper, &clip);
-
-	    _cairo_clip_fini(&clip);
-
-	    if (status)
-		return NULL;
-
-	    return winsurf->dc;
-	}
-#endif
-    }
-
-    _cairo_clip_fini(&clip);
-    return NULL;
-}
-
-
 
 /**
  * cairo_win32_surface_get_image
@@ -2035,157 +1949,18 @@ _cairo_win32_surface_is_similar (void *surface_a,
     return a->dc == b->dc;
 }
 
-typedef struct _cairo_win32_surface_span_renderer {
-    cairo_span_renderer_t base;
-
-    cairo_operator_t op;
-    const cairo_pattern_t *pattern;
-    cairo_antialias_t antialias;
-
-    uint8_t *mask_data;
-    uint32_t mask_stride;
-
-    cairo_image_surface_t *mask;
-    cairo_win32_surface_t *dst;
-    cairo_region_t *clip_region;
-
-    cairo_composite_rectangles_t composite_rectangles;
-} cairo_win32_surface_span_renderer_t;
-
 static cairo_status_t
-_cairo_win32_surface_span_renderer_render_rows (
-    void				*abstract_renderer,
-    int					 y,
-    int					 height,
-    const cairo_half_open_span_t	*spans,
-    unsigned				 num_spans)
+_cairo_win32_surface_reset (void *abstract_surface)
 {
-    cairo_win32_surface_span_renderer_t *renderer = abstract_renderer;
-    while (height--)
-	_cairo_image_surface_span_render_row (y++, spans, num_spans, renderer->mask_data, renderer->mask_stride);
-    return CAIRO_STATUS_SUCCESS;
-}
-
-static void
-_cairo_win32_surface_span_renderer_destroy (void *abstract_renderer)
-{
-    cairo_win32_surface_span_renderer_t *renderer = abstract_renderer;
-    if (!renderer) return;
-
-    if (renderer->mask != NULL)
-	cairo_surface_destroy (&renderer->mask->base);
-
-    free (renderer);
-}
-
-static cairo_status_t
-_cairo_win32_surface_span_renderer_finish (void *abstract_renderer)
-{
-    cairo_win32_surface_span_renderer_t *renderer = abstract_renderer;
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
-
-    if (renderer->pattern == NULL || renderer->mask == NULL)
-	return CAIRO_STATUS_SUCCESS;
-
-    status = cairo_surface_status (&renderer->mask->base);
-    if (status == CAIRO_STATUS_SUCCESS) {
-	cairo_composite_rectangles_t *rects = &renderer->composite_rectangles;
-	cairo_win32_surface_t *dst = renderer->dst;
-	cairo_pattern_t *mask_pattern = cairo_pattern_create_for_surface (&renderer->mask->base);
-	/* composite onto the image surface directly if we can */
-	if (dst->image) {
-	    GdiFlush(); /* XXX: I'm not sure if this needed or not */
-
-	    status = dst->image->backend->composite (renderer->op,
-		    renderer->pattern, mask_pattern, dst->image,
-		    rects->src.x,
-		    rects->src.y,
-		    0, 0,		/* mask.x, mask.y */
-		    rects->dst.x, rects->dst.y,
-		    rects->width, rects->height,
-		    renderer->clip_region);
-	} else {
-	    /* otherwise go through the fallback_composite path which
-	     * will do the appropriate surface acquisition */
-	    status = _cairo_surface_fallback_composite (
-		    renderer->op,
-		    renderer->pattern, mask_pattern, &dst->base,
-		    rects->src.x,
-		    rects->src.y,
-		    0, 0,		/* mask.x, mask.y */
-		    rects->dst.x, rects->dst.y,
-		    rects->width, rects->height,
-		    renderer->clip_region);
-	}
-	cairo_pattern_destroy (mask_pattern);
-
-    }
-    if (status != CAIRO_STATUS_SUCCESS)
-	return _cairo_span_renderer_set_error (abstract_renderer,
-					       status);
-    return CAIRO_STATUS_SUCCESS;
-}
-
-static cairo_bool_t
-_cairo_win32_surface_check_span_renderer (cairo_operator_t	  op,
-					  const cairo_pattern_t  *pattern,
-					  void			 *abstract_dst,
-					  cairo_antialias_t	  antialias)
-{
-    (void) op;
-    (void) pattern;
-    (void) abstract_dst;
-    (void) antialias;
-    return TRUE;
-}
-
-static cairo_span_renderer_t *
-_cairo_win32_surface_create_span_renderer (cairo_operator_t	 op,
-					   const cairo_pattern_t  *pattern,
-					   void			*abstract_dst,
-					   cairo_antialias_t	 antialias,
-					   const cairo_composite_rectangles_t *rects,
-					   cairo_region_t	*clip_region)
-{
-    cairo_win32_surface_t *dst = abstract_dst;
-    cairo_win32_surface_span_renderer_t *renderer;
+    cairo_win32_surface_t *surface = abstract_surface;
     cairo_status_t status;
-    int width = rects->width;
-    int height = rects->height;
 
-    renderer = calloc(1, sizeof(*renderer));
-    if (renderer == NULL)
-	return _cairo_span_renderer_create_in_error (CAIRO_STATUS_NO_MEMORY);
+    status = _cairo_win32_surface_set_clip_region (surface, NULL);
+    if (status)
+	return status;
 
-    renderer->base.destroy = _cairo_win32_surface_span_renderer_destroy;
-    renderer->base.finish = _cairo_win32_surface_span_renderer_finish;
-    renderer->base.render_rows = _cairo_win32_surface_span_renderer_render_rows;
-    renderer->op = op;
-    renderer->pattern = pattern;
-    renderer->antialias = antialias;
-    renderer->dst = dst;
-    renderer->clip_region = clip_region;
-
-    renderer->composite_rectangles = *rects;
-
-    /* TODO: support rendering to A1 surfaces (or: go add span
-     * compositing to pixman.) */
-    renderer->mask = (cairo_image_surface_t *)
-	cairo_image_surface_create (CAIRO_FORMAT_A8,
-				    width, height);
-
-    status = cairo_surface_status (&renderer->mask->base);
-
-    if (status != CAIRO_STATUS_SUCCESS) {
-	_cairo_win32_surface_span_renderer_destroy (renderer);
-	return _cairo_span_renderer_create_in_error (status);
-    }
-
-    renderer->mask_data = renderer->mask->data - rects->mask.x - rects->mask.y * renderer->mask->stride;
-    renderer->mask_stride = renderer->mask->stride;
-    return &renderer->base;
+    return CAIRO_STATUS_SUCCESS;
 }
-
 
 static const cairo_surface_backend_t cairo_win32_surface_backend = {
     CAIRO_SURFACE_TYPE_WIN32,
@@ -2195,14 +1970,14 @@ static const cairo_surface_backend_t cairo_win32_surface_backend = {
     _cairo_win32_surface_release_source_image,
     _cairo_win32_surface_acquire_dest_image,
     _cairo_win32_surface_release_dest_image,
-    NULL, /* clone similar */
+    _cairo_win32_surface_clone_similar,
     _cairo_win32_surface_composite,
     _cairo_win32_surface_fill_rectangles,
     NULL, /* composite_trapezoids */
-    _cairo_win32_surface_create_span_renderer,
-    _cairo_win32_surface_check_span_renderer,
     NULL, /* copy_page */
     NULL, /* show_page */
+    _cairo_win32_surface_set_clip_region,
+    NULL, /* intersect_clip_path */
     _cairo_win32_surface_get_extents,
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
@@ -2219,6 +1994,8 @@ static const cairo_surface_backend_t cairo_win32_surface_backend = {
 
     NULL,  /* snapshot */
     _cairo_win32_surface_is_similar,
+
+    _cairo_win32_surface_reset
 };
 
 /* Notes:
@@ -2235,6 +2012,34 @@ static const cairo_surface_backend_t cairo_win32_surface_backend = {
  *              multiplied by all the src components.
  */
 
+
+#if !defined(CAIRO_WIN32_STATIC_BUILD)
+
+/* declare to avoid "no previous prototype for 'DllMain'" warning */
+BOOL WINAPI
+DllMain (HINSTANCE hinstDLL,
+         DWORD     fdwReason,
+         LPVOID    lpvReserved);
+
+BOOL WINAPI
+DllMain (HINSTANCE hinstDLL,
+         DWORD     fdwReason,
+         LPVOID    lpvReserved)
+{
+    switch (fdwReason) {
+        case DLL_PROCESS_ATTACH:
+            CAIRO_MUTEX_INITIALIZE ();
+            break;
+
+        case DLL_PROCESS_DETACH:
+            CAIRO_MUTEX_FINALIZE ();
+            break;
+    }
+
+    return TRUE;
+}
+
+#endif
 
 cairo_int_status_t
 _cairo_win32_save_initial_clip (HDC hdc, cairo_win32_surface_t *surface)
@@ -2329,7 +2134,7 @@ void
 _cairo_win32_debug_dump_hrgn (HRGN rgn, char *header)
 {
     RGNDATA *rd;
-    unsigned int z;
+    int z;
 
     if (header)
 	fprintf (stderr, "%s\n", header);
@@ -2342,77 +2147,13 @@ _cairo_win32_debug_dump_hrgn (HRGN rgn, char *header)
     rd = (RGNDATA*) malloc(z);
     z = GetRegionData(rgn, z, rd);
 
-    fprintf (stderr, " %ld rects, bounds: %ld %ld %ld %ld\n",
-	     rd->rdh.nCount,
-	     rd->rdh.rcBound.left,
-	     rd->rdh.rcBound.top,
-	     rd->rdh.rcBound.right - rd->rdh.rcBound.left,
-	     rd->rdh.rcBound.bottom - rd->rdh.rcBound.top);
+    fprintf (stderr, " %d rects, bounds: %d %d %d %d\n", rd->rdh.nCount, rd->rdh.rcBound.left, rd->rdh.rcBound.top, rd->rdh.rcBound.right - rd->rdh.rcBound.left, rd->rdh.rcBound.bottom - rd->rdh.rcBound.top);
 
     for (z = 0; z < rd->rdh.nCount; z++) {
 	RECT r = ((RECT*)rd->Buffer)[z];
-	fprintf (stderr, " [%d]: [%ld %ld %ld %ld]\n",
-		 z, r.left, r.top, r.right - r.left, r.bottom - r.top);
+	fprintf (stderr, " [%d]: [%d %d %d %d]\n", z, r.left, r.top, r.right - r.left, r.bottom - r.top);
     }
 
     free(rd);
     fflush (stderr);
-}
-
-/**
- * cairo_win32_surface_set_can_convert_to_dib
- * @surface: a #cairo_surface_t
- * @can_convert: a #cairo_bool_t indicating whether this surface can
- *               be coverted to a DIB if necessary
- *
- * A DDB surface with this flag set can be converted to a DIB if it's
- * used as a source in a way that GDI can't natively handle; for
- * example, drawing a RGB24 DDB onto an ARGB32 DIB.  Doing this
- * conversion results in a significant speed optimization, because we
- * can call on pixman to perform the operation natively, instead of
- * reading the data from the DC each time.
- *
- * Return value: %CAIRO_STATUS_SUCCESS if the flag was successfully
- * changed, or an error otherwise.
- * 
- */
-cairo_status_t
-cairo_win32_surface_set_can_convert_to_dib (cairo_surface_t *asurface, cairo_bool_t can_convert)
-{
-    cairo_win32_surface_t *surface = (cairo_win32_surface_t*) asurface;
-    if (surface->base.type != CAIRO_SURFACE_TYPE_WIN32)
-	return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
-
-    if (surface->bitmap) {
-	if (can_convert)
-	    surface->flags |= CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB;
-	else
-	    surface->flags &= ~CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB;
-    }
-
-    return CAIRO_STATUS_SUCCESS;
-}
-
-/**
- * cairo_win32_surface_get_can_convert_to_dib
- * @surface: a #cairo_surface_t
- * @can_convert: a #cairo_bool_t* that receives the return value
- *
- * Returns the value of the flag indicating whether the surface can be
- * converted to a DIB if necessary, as set by
- * cairo_win32_surface_set_can_convert_to_dib.
- *
- * Return value: %CAIRO_STATUS_SUCCESS if the flag was successfully
- * retreived, or an error otherwise.
- * 
- */
-cairo_status_t
-cairo_win32_surface_get_can_convert_to_dib (cairo_surface_t *asurface, cairo_bool_t *can_convert)
-{
-    cairo_win32_surface_t *surface = (cairo_win32_surface_t*) asurface;
-    if (surface->base.type != CAIRO_SURFACE_TYPE_WIN32)
-	return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
-
-    *can_convert = ((surface->flags & CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB) != 0);
-    return CAIRO_STATUS_SUCCESS;
 }

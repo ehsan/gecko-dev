@@ -54,7 +54,6 @@
 #include "nsAutoPtr.h"
 #include NEW_H
 #include "nsFixedSizeAllocator.h"
-#include "prprf.h"
 
 static const size_t kNodeInfoPoolSizes[] = {
   sizeof(nsNodeInfo)
@@ -133,40 +132,7 @@ nsNodeInfo::Init(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsNodeInfo)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsNodeInfo)
-
-static const char* kNSURIs[] = {
-  " ([none])",
-  " (xmlns)",
-  " (xml)",
-  " (xhtml)",
-  " (XLink)",
-  " (XSLT)",
-  " (XBL)",
-  " (MathML)",
-  " (RDF)",
-  " (XUL)"
-};
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsNodeInfo)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[72];
-    PRUint32 nsid = tmp->NamespaceID();
-    nsAtomCString localName(tmp->NameAtom());
-    if (nsid < NS_ARRAY_LENGTH(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsNodeInfo%s %s", kNSURIs[nsid],
-                  localName.get());
-    }
-    else {
-      PR_snprintf(name, sizeof(name), "nsNodeInfo %s", localName.get());
-    }
-
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsNodeInfo), name);
-  }
-  else {
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsNodeInfo),
-                    "nsNodeInfo");
-  }
-
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNodeInfo)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mOwnerManager,
                                                   nsNodeInfoManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -282,22 +248,25 @@ nsNodeInfo::NamespaceEquals(const nsAString& aNamespaceURI) const
 }
 
 PRBool
-nsNodeInfo::QualifiedNameEqualsInternal(const nsAString& aQualifiedName) const
+nsNodeInfo::QualifiedNameEqualsInternal(const nsACString& aQualifiedName) const
 {
   NS_PRECONDITION(mInner.mPrefix, "Must have prefix");
   
-  nsAString::const_iterator start;
+  nsACString::const_iterator start;
   aQualifiedName.BeginReading(start);
 
-  nsAString::const_iterator colon(start);
+  nsACString::const_iterator colon(start);
 
-  nsDependentAtomString prefix(mInner.mPrefix);
+  const char* prefix;
+  mInner.mPrefix->GetUTF8String(&prefix);
 
-  if (prefix.Length() >= aQualifiedName.Length()) {
+  PRUint32 len = strlen(prefix);
+
+  if (len >= aQualifiedName.Length()) {
     return PR_FALSE;
   }
 
-  colon.advance(prefix.Length());
+  colon.advance(len);
 
   // If the character at the prefix length index is not a colon,
   // aQualifiedName is not equal to this string.
@@ -306,17 +275,17 @@ nsNodeInfo::QualifiedNameEqualsInternal(const nsAString& aQualifiedName) const
   }
 
   // Compare the prefix to the string from the start to the colon
-  if (!prefix.Equals(Substring(start, colon)))
+  if (!mInner.mPrefix->EqualsUTF8(Substring(start, colon)))
     return PR_FALSE;
 
   ++colon; // Skip the ':'
 
-  nsAString::const_iterator end;
+  nsACString::const_iterator end;
   aQualifiedName.EndReading(end);
 
   // Compare the local name to the string between the colon and the
   // end of aQualifiedName
-  return mInner.mName->Equals(Substring(colon, end));
+  return mInner.mName->EqualsUTF8(Substring(colon, end));
 }
 
 // static

@@ -46,11 +46,11 @@
 #include "nsIContent.h"
 #include "nsIDOMHTMLTableColElement.h"
 
-#define COL_TYPE_BITS                 (NS_FRAME_STATE_BIT(28) | \
-                                       NS_FRAME_STATE_BIT(29) | \
-                                       NS_FRAME_STATE_BIT(30) | \
-                                       NS_FRAME_STATE_BIT(31))
+#define COL_TYPE_BITS                 0xF0000000 // uses bits 29-32 from mState
 #define COL_TYPE_OFFSET               28
+
+#define COL_CONSTRAINT_BITS           0x07000000 // uses bits 25-27
+#define COL_CONSTRAINT_OFFSET         24
 
 nsTableColFrame::nsTableColFrame(nsStyleContext* aContext) :
   nsSplittableFrame(aContext)
@@ -81,22 +81,6 @@ nsTableColFrame::SetColType(nsTableColType aType)
                "spanned content cols must be continuations");
   PRUint32 type = aType - eColContent;
   mState |= (type << COL_TYPE_OFFSET);
-}
-
-/* virtual */ void
-nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  if (!aOldStyleContext) //avoid this on init
-    return;
-     
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-    
-  if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-    nsRect damageArea = nsRect(GetColIndex(), 0, 1, tableFrame->GetRowCount());
-    tableFrame->SetBCDamageArea(damageArea);
-  }
-  return;
 }
 
 void nsTableColFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
@@ -187,8 +171,6 @@ NS_NewTableColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableColFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsTableColFrame)
 
 nsTableColFrame*  
 nsTableColFrame::GetNextCol() const

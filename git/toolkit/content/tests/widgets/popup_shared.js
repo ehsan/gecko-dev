@@ -34,61 +34,40 @@ var gTestStepIndex = 0;
 var gTestEventIndex = 0;
 var gAutoHide = false;
 var gExpectedEventDetails = null;
-var gExpectedTriggerNode = null;
-var gWindowUtils;
 
 function startPopupTests(tests)
 {
-  document.addEventListener("popupshowing", eventOccurred, false);
-  document.addEventListener("popupshown", eventOccurred, false);
-  document.addEventListener("popuphiding", eventOccurred, false);
-  document.addEventListener("popuphidden", eventOccurred, false);
-  document.addEventListener("command", eventOccurred, false);
-  document.addEventListener("DOMMenuItemActive", eventOccurred, false);
-  document.addEventListener("DOMMenuItemInactive", eventOccurred, false);
-  document.addEventListener("DOMMenuInactive", eventOccurred, false);
-  document.addEventListener("DOMMenuBarActive", eventOccurred, false);
-  document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
+  document.addEventListener("popupshowing", eventOccured, false);
+  document.addEventListener("popupshown", eventOccured, false);
+  document.addEventListener("popuphiding", eventOccured, false);
+  document.addEventListener("popuphidden", eventOccured, false);
+  document.addEventListener("command", eventOccured, false);
+  document.addEventListener("DOMMenuItemActive", eventOccured, false);
+  document.addEventListener("DOMMenuItemInactive", eventOccured, false);
+  document.addEventListener("DOMMenuInactive", eventOccured, false);
+  document.addEventListener("DOMMenuBarActive", eventOccured, false);
+  document.addEventListener("DOMMenuBarInactive", eventOccured, false);
 
   gPopupTests = tests;
-  gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
   goNext();
 }
 
 function finish()
 {
-  if (window.opener) {
-    window.close();
-    window.opener.SimpleTest.finish();
-    return;
-  }
-  SimpleTest.finish();
-  return;
+  window.close();
+  window.opener.SimpleTest.finish();
 }
 
 function ok(condition, message) {
-  if (window.opener)
-    window.opener.SimpleTest.ok(condition, message);
-  else
-    SimpleTest.ok(condition, message);
+  window.opener.SimpleTest.ok(condition, message);
 }
 
 function is(left, right, message) {
-  if (window.opener)
-    window.opener.SimpleTest.is(left, right, message);
-  else
-    SimpleTest.is(left, right, message);
+  window.opener.SimpleTest.is(left, right, message);
 }
 
-function disableNonTestMouse(aDisable) {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-  gWindowUtils.disableNonTestMouseEvents(aDisable);
-}
-
-function eventOccurred(event)
+function eventOccured(event)
 {
    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
@@ -111,27 +90,16 @@ function eventOccurred(event)
     events = events();
   if (events) {
     if (events.length <= gTestEventIndex) {
-      ok(false, "Extra " + event.type + " event fired for " + event.target.id +
-                  " " +gPopupTests[gTestIndex].testname);
+      ok(false, "Extra " + event.type + " event fired " + gPopupTests[gTestIndex].testname);
       return;
     }
 
     var eventitem = events[gTestEventIndex].split(" ");
-    var matches;
-    if (eventitem[1] == "#tooltip") {
-      is(event.originalTarget.localName, "tooltip",
-         test.testname + " event.originalTarget.localName is 'tooltip'");
-      is(event.originalTarget.getAttribute("default"), "true",
-         test.testname + " event.originalTarget default attribute is 'true'");
-      matches = event.originalTarget.localName == "tooltip" &&
-          event.originalTarget.getAttribute("default") == "true";
-    } else {
-      is(event.type, eventitem[0],
-         test.testname + " event type " + event.type + " fired");
-      is(event.target.id, eventitem[1],
-         test.testname + " event target ID " + event.target.id);
-      matches = eventitem[0] == event.type && eventitem[1] == event.target.id;
-    }
+    var matches = (eventitem[1] == "#tooltip") ?
+                  (event.originalTarget.localName == "tooltip" &&
+                   event.originalTarget.getAttribute("default") == "true") :
+                  (eventitem[0] == event.type && eventitem[1] == event.target.id);
+    ok(matches, test.testname + " " + event.type + " fired");
 
     var expectedState;
     switch (event.type) {
@@ -139,18 +107,6 @@ function eventOccurred(event)
       case "popupshown": expectedState = "open"; break;
       case "popuphiding": expectedState = "hiding"; break;
       case "popuphidden": expectedState = "closed"; break;
-    }
-
-    if (gExpectedTriggerNode && event.type == "popupshowing") {
-      if (gExpectedTriggerNode == "notset") // check against null instead
-        gExpectedTriggerNode = null;
-
-      is(event.originalTarget.triggerNode, gExpectedTriggerNode, test.testname + " popupshowing triggerNode");
-      var isTooltip = (event.target.localName == "tooltip");
-      is(document.popupNode, isTooltip ? null : gExpectedTriggerNode,
-         test.testname + " popupshowing document.popupNode");
-      is(document.tooltipNode, isTooltip ? gExpectedTriggerNode : null,
-         test.testname + " popupshowing document.tooltipNode");
     }
 
     if (expectedState)
@@ -326,39 +282,6 @@ function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
   ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
      (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
      testname + " size");
-
-  var spaceIdx = edge.indexOf(" ");
-  if (spaceIdx > 0) {
-    let cornerX, cornerY;
-    let [anchor, align] = edge.split(" ");
-    switch (anchor) {
-      case "topleft": cornerX = anchorrect.left; cornerY = anchorrect.top; break;
-      case "topcenter": cornerX = anchorrect.left + anchorrect.width / 2; cornerY = anchorrect.top; break;
-      case "topright": cornerX = anchorrect.right; cornerY = anchorrect.top; break;
-      case "leftcenter": cornerX = anchorrect.left; cornerY = anchorrect.top + anchorrect.height / 2; break;
-      case "rightcenter": cornerX = anchorrect.right; cornerY = anchorrect.top + anchorrect.height / 2; break;
-      case "bottomleft": cornerX = anchorrect.left; cornerY = anchorrect.bottom; break;
-      case "bottomcenter": cornerX = anchorrect.left + anchorrect.width / 2; cornerY = anchorrect.bottom; break;
-      case "bottomright": cornerX = anchorrect.right; cornerY = anchorrect.bottom; break;
-    }
-
-    switch (align) {
-      case "topleft": cornerX += offsetX; cornerY += offsetY; break;
-      case "topright": cornerX += -popuprect.width + offsetX; cornerY += offsetY; break;
-      case "bottomleft": cornerX += offsetX; cornerY += -popuprect.height + offsetY; break;
-      case "bottomright": cornerX += -popuprect.width + offsetX; cornerY += -popuprect.height + offsetY; break;
-    }
-
-    is(Math.round(popuprect.left), Math.round(cornerX), testname + " x position");
-    is(Math.round(popuprect.top), Math.round(cornerY), testname + " y position");
-    return;
-  }
-
-  if (edge == "after_pointer") {
-    is(Math.round(popuprect.left), Math.round(anchorrect.left) + offsetX, testname + " x position");
-    is(Math.round(popuprect.top), Math.round(anchorrect.top) + offsetY + 21, testname + " y position");
-    return;
-  }
 
   if (edge == "overlap") {
     ok(Math.round(anchorrect.left) + offsetY == Math.round(popuprect.left) &&

@@ -35,7 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIOService.h"
 #include "nsAsyncStreamCopier.h"
 #include "nsIEventTarget.h"
 #include "nsStreamUtils.h"
@@ -57,7 +56,7 @@ static PRLogModuleInfo *gStreamCopierLog = nsnull;
 nsAsyncStreamCopier::nsAsyncStreamCopier()
     : mLock(nsnull)
     , mMode(NS_ASYNCCOPY_VIA_READSEGMENTS)
-    , mChunkSize(nsIOService::gDefaultSegmentSize)
+    , mChunkSize(NET_DEFAULT_SEGMENT_SIZE)
     , mStatus(NS_OK)
     , mIsPending(PR_FALSE)
 {
@@ -93,8 +92,6 @@ nsAsyncStreamCopier::Complete(nsresult status)
     nsCOMPtr<nsISupports> ctx;
     {
         nsAutoLock lock(mLock);
-        mCopierCtx = nsnull;
-
         if (mIsPending) {
             mIsPending = PR_FALSE;
             mStatus = status;
@@ -155,21 +152,25 @@ nsAsyncStreamCopier::GetStatus(nsresult *status)
 NS_IMETHODIMP
 nsAsyncStreamCopier::Cancel(nsresult status)
 {
-    nsCOMPtr<nsISupports> copierCtx;
-    {
-        nsAutoLock lock(mLock);
-        if (!mIsPending)
-            return NS_OK;
-        copierCtx.swap(mCopierCtx);
-    }
+    if (IsComplete())
+        return NS_OK;
 
     if (NS_SUCCEEDED(status)) {
         NS_WARNING("cancel with non-failure status code");
         status = NS_BASE_STREAM_CLOSED;
     }
 
-    if (copierCtx)
-        NS_CancelAsyncCopy(copierCtx, status);
+    nsCOMPtr<nsIAsyncInputStream> asyncSource = do_QueryInterface(mSource);
+    if (asyncSource)
+        asyncSource->CloseWithStatus(status);
+    else
+        mSource->Close();
+
+    nsCOMPtr<nsIAsyncOutputStream> asyncSink = do_QueryInterface(mSink);
+    if (asyncSink)
+        asyncSink->CloseWithStatus(status);
+    else
+        mSink->Close();
 
     return NS_OK;
 }
@@ -223,9 +224,7 @@ nsAsyncStreamCopier::Init(nsIInputStream *source,
                           nsIEventTarget *target,
                           PRBool sourceBuffered,
                           PRBool sinkBuffered,
-                          PRUint32 chunkSize,
-                          PRBool closeSource,
-                          PRBool closeSink)
+                          PRUint32 chunkSize)
 {
     NS_ASSERTION(sourceBuffered || sinkBuffered, "at least one stream must be buffered");
 
@@ -235,13 +234,11 @@ nsAsyncStreamCopier::Init(nsIInputStream *source,
         return NS_ERROR_OUT_OF_MEMORY;
 
     if (chunkSize == 0)
-        chunkSize = nsIOService::gDefaultSegmentSize;
+        chunkSize = NET_DEFAULT_SEGMENT_SIZE;
     mChunkSize = chunkSize;
 
     mSource = source;
     mSink = sink;
-    mCloseSource = closeSource;
-    mCloseSink = closeSink;
 
     mMode = sourceBuffered ? NS_ASYNCCOPY_VIA_READSEGMENTS
                            : NS_ASYNCCOPY_VIA_WRITESEGMENTS;
@@ -284,8 +281,7 @@ nsAsyncStreamCopier::AsyncCopy(nsIRequestObserver *observer, nsISupports *ctx)
     // OnAsyncCopyComplete.
     NS_ADDREF_THIS();
     rv = NS_AsyncCopy(mSource, mSink, mTarget, mMode, mChunkSize,
-                      OnAsyncCopyComplete, this, mCloseSource, mCloseSink,
-                      getter_AddRefs(mCopierCtx));
+                      OnAsyncCopyComplete, this);
     if (NS_FAILED(rv)) {
         NS_RELEASE_THIS();
         Cancel(rv);

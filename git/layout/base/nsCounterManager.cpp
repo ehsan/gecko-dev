@@ -41,7 +41,6 @@
 #include "nsCounterManager.h"
 #include "nsBulletFrame.h" // legacy location for list style type to text code
 #include "nsContentUtils.h"
-#include "nsTArray.h"
 
 PRBool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
@@ -99,21 +98,20 @@ nsCounterUseNode::GetText(nsString& aResult)
 {
     aResult.Truncate();
 
-    nsAutoTArray<nsCounterNode*, 8> stack;
+    nsAutoVoidArray stack;
     stack.AppendElement(static_cast<nsCounterNode*>(this));
 
     if (mAllCounters && mScopeStart)
         for (nsCounterNode *n = mScopeStart; n->mScopePrev; n = n->mScopeStart)
             stack.AppendElement(n->mScopePrev);
 
-    const nsCSSValue& styleItem = mCounterStyle->Item(mAllCounters ? 2 : 1);
-    PRInt32 style = styleItem.GetIntValue();
+    PRInt32 style = mCounterStyle->Item(mAllCounters ? 2 : 1).GetIntValue();
     const PRUnichar* separator;
     if (mAllCounters)
         separator = mCounterStyle->Item(1).GetStringBufferValue();
 
-    for (PRUint32 i = stack.Length() - 1;; --i) {
-        nsCounterNode *n = stack[i];
+    for (PRInt32 i = stack.Count() - 1;; --i) {
+        nsCounterNode *n = static_cast<nsCounterNode*>(stack[i]);
         nsBulletFrame::AppendCounterText(style, n->mValueAfter, aResult);
         if (i == 0)
             break;
@@ -287,7 +285,7 @@ nsCounterManager::CounterListFor(const nsSubstring& aCounterName)
     return counterList;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RecalcDirtyLists(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     if (aList->IsDirty())
@@ -312,7 +310,7 @@ struct DestroyNodesData {
     PRBool mDestroyedAny;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DestroyNodesInList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     DestroyNodesData *data = static_cast<DestroyNodesData*>(aClosure);
@@ -332,7 +330,7 @@ nsCounterManager::DestroyNodesFor(nsIFrame *aFrame)
 }
 
 #ifdef DEBUG
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DumpList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     printf("Counter named \"%s\":\n", NS_ConvertUTF16toUTF8(aKey).get());

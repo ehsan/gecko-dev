@@ -48,8 +48,8 @@
 #include "nsIParserService.h"
 #include "nsIWordBreaker.h"
 
+class nsIPresShell;
 class nsIAtom;
-class nsIContent;
 
 #define NS_FIND_CONTRACTID "@mozilla.org/embedcomp/rangefind;1"
 

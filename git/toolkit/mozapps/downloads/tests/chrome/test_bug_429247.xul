@@ -53,20 +53,16 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
-  <script type="application/javascript"
-          src="utils.js"/>
 
   <script type="application/javascript">
   <![CDATA[
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 function test()
 {
-  var dmui = getDMUI();
-  if (!dmui) {
-    todo(false, "skip test for toolkit download manager UI");
-    return;
-  }
-
   let ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
   let dmFile = Cc["@mozilla.org/file/directory_service;1"].
                getService(Ci.nsIProperties).get("TmpD", Ci.nsIFile);
@@ -92,16 +88,19 @@ function test()
   // Empty any old downloads
   db.executeSimpleSQL("DELETE FROM moz_downloads");
 
-  let stmt = db.createStatement(
+  let rawStmt = db.createStatement(
     "INSERT INTO moz_downloads (name, source, target, startTime, endTime, " +
       "state, currBytes, maxBytes, preferredAction, autoResume) " +
     "VALUES (:name, :source, :target, :startTime, :endTime, :state, " +
       ":currBytes, :maxBytes, :preferredAction, :autoResume)");
+  let stmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+             createInstance(Ci.mozIStorageStatementWrapper)
+  stmt.initialize(rawStmt);
   for (let prop in DownloadData)
     stmt.params[prop] = DownloadData[prop];
 
   stmt.execute();
-  stmt.finalize();
+  stmt.statement.finalize();
 
   // Close the UI if necessary
   let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
@@ -119,7 +118,6 @@ function test()
         return;
 
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.focus();
       let $ = function(aId) win.document.getElementById(aId);
       let downloadView = $("downloadView");
 
@@ -166,7 +164,8 @@ function test()
   obs.addObserver(testObs, DLMGR_UI_DONE, false);
 
   // Show the Download Manager UI
-  dmui.show();
+  Cc["@mozilla.org/download-manager-ui;1"].
+  getService(Ci.nsIDownloadManagerUI).show();
 
   SimpleTest.waitForExplicitFinish();
 }

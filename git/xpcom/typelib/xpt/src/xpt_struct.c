@@ -112,10 +112,11 @@ XPT_SizeOfHeader(XPTHeader *header)
 XPT_PUBLIC_API(PRUint32)
 XPT_SizeOfHeaderBlock(XPTHeader *header)
 {
-    PRUint32 ide_size = 16 /* IID */ + 4 /* name */ +
-        4 /* namespace */ + 4 /* descriptor */;
+    PRUint32 size = XPT_SizeOfHeader(header);
 
-    return XPT_SizeOfHeader(header) + header->num_interfaces * ide_size;
+    size += header->num_interfaces * sizeof (XPTInterfaceDirectoryEntry);
+
+    return size;
 }
 
 XPT_PUBLIC_API(XPTHeader *)

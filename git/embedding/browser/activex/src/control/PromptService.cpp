@@ -91,8 +91,8 @@ public:
         PRBool *_retval);
 
 protected:
-    static INT_PTR CALLBACK ConfirmProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
-    static INT_PTR CALLBACK PromptProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    static BOOL CALLBACK ConfirmProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    static BOOL CALLBACK PromptProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
     TCHAR *mTitle;
     TCHAR *mMessage;
@@ -202,7 +202,7 @@ nsresult PromptDlg::ConfirmEx(
     {
         NS_ENSURE_ARG_POINTER(checkValue);
         mCheckMessage = _tcsdup(W2T(checkMsg));
-        mCheckValue = *checkValue ? TRUE : FALSE;
+        mCheckValue = (*checkValue == PR_TRUE) ? TRUE : FALSE;
     }
 
     // Turn the button flags into strings. The nsIPromptService flags
@@ -284,7 +284,7 @@ PromptDlg::Prompt(HWND hwndParent, const PRUnichar *dialogTitle,
     {
         NS_ENSURE_ARG_POINTER(checkValue);
         mCheckMessage = _tcsdup(W2T(checkMsg));
-        mCheckValue = *checkValue ? TRUE : FALSE;
+        mCheckValue = (*checkValue == PR_TRUE) ? TRUE : FALSE;
     }
     if (value)
     {
@@ -342,7 +342,7 @@ PromptDlg::PromptUsernameAndPassword(HWND hwndParent,
     {
         NS_ENSURE_ARG_POINTER(checkValue);
         mCheckMessage = _tcsdup(W2T(checkMsg));
-        mCheckValue = *checkValue ? TRUE : FALSE;
+        mCheckValue = (*checkValue == PR_TRUE) ? TRUE : FALSE;
     }
     if (username)
     {
@@ -411,7 +411,7 @@ PromptDlg::PromptPassword(HWND hwndParent,
     {
         NS_ENSURE_ARG_POINTER(checkValue);
         mCheckMessage = _tcsdup(W2T(checkMsg));
-        mCheckValue = *checkValue ? TRUE : FALSE;
+        mCheckValue = (*checkValue == PR_TRUE) ? TRUE : FALSE;
     }
     if (password)
     {
@@ -446,15 +446,15 @@ PromptDlg::PromptPassword(HWND hwndParent,
 }
 
 
-INT_PTR CALLBACK
+BOOL CALLBACK
 PromptDlg::PromptProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    PromptDlg *pThis = (PromptDlg *) GetWindowLongPtr(hwndDlg, DWLP_USER);
+    PromptDlg *pThis = (PromptDlg *) GetWindowLong(hwndDlg, DWL_USER);
     switch (uMsg)
     {
     case WM_INITDIALOG:
         // Initialise pThis
-        SetWindowLongPtr(hwndDlg, DWLP_USER, lParam);
+        SetWindowLong(hwndDlg, DWL_USER, lParam);
         pThis = (PromptDlg *) lParam;
 
         // Set dialog title & message text
@@ -564,10 +564,10 @@ PromptDlg::PromptProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return FALSE;
 }
 
-INT_PTR CALLBACK
+BOOL CALLBACK
 PromptDlg::ConfirmProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    PromptDlg *pThis = (PromptDlg *) GetWindowLongPtr(hwndDlg, DWLP_USER);
+    PromptDlg *pThis = (PromptDlg *) GetWindowLong(hwndDlg, DWL_USER);
     int i;
 
     switch (uMsg)
@@ -575,7 +575,7 @@ PromptDlg::ConfirmProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_INITDIALOG:
 
         // Initialise pThis
-        SetWindowLongPtr(hwndDlg, DWLP_USER, lParam);
+        SetWindowLong(hwndDlg, DWL_USER, lParam);
         pThis = (PromptDlg *) lParam;
 
         // Set dialog title & message text
@@ -666,18 +666,18 @@ CMozillaBrowser *CPromptService::GetOwningBrowser(nsIDOMWindow *parent)
     if (parent == nsnull)
     {
         // return the first element from the list if there is one
-        if (CMozillaBrowser::sBrowserList.Length() > 0)
+        if (CMozillaBrowser::sBrowserList.Count() > 0)
         {
-            return CMozillaBrowser::sBrowserList[0];
+            return (CMozillaBrowser *) CMozillaBrowser::sBrowserList[0];
         }
         return NULL;
     }
 
     // Search for the browser with a content window matching the one provided
-    PRUint32 i;
-    for (i = 0; i < CMozillaBrowser::sBrowserList.Length(); i++)
+    PRInt32 i;
+    for (i = 0; i < CMozillaBrowser::sBrowserList.Count(); i++)
     {
-        CMozillaBrowser *p = CMozillaBrowser::sBrowserList[i];
+        CMozillaBrowser *p = (CMozillaBrowser *) CMozillaBrowser::sBrowserList[i];
         if (p->mWebBrowser)
         {
             nsCOMPtr<nsIDOMWindow> domWindow;

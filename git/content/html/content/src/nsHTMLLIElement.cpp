@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -46,7 +47,7 @@ class nsHTMLLIElement : public nsGenericHTMLElement,
                         public nsIDOMHTMLLIElement
 {
 public:
-  nsHTMLLIElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLLIElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLLIElement();
 
   // nsISupports
@@ -71,14 +72,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(LI)
 
 
-nsHTMLLIElement::nsHTMLLIElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLLIElement::nsHTMLLIElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -92,13 +92,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLIElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLIElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLLIElement, nsHTMLLIElement)
-
 // QueryInterface implementation for nsHTMLLIElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLLIElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLIElement, nsIDOMHTMLLIElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLIElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLLIElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLLIElement, nsIDOMHTMLLIElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLIElement)
 
 
@@ -136,7 +132,7 @@ nsHTMLLIElement::ParseAttribute(PRInt32 aNamespaceID,
     if (aAttribute == nsGkAtoms::type) {
       return aResult.ParseEnumValue(aValue, kOrderedListItemTypeTable,
                                     PR_TRUE) ||
-             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable, PR_FALSE);
+             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable);
     }
     if (aAttribute == nsGkAtoms::value) {
       return aResult.ParseIntWithBounds(aValue, 0);

@@ -249,8 +249,7 @@ static PK11Context *pk11_CreateNewContextInSlot(CK_MECHANISM_TYPE type,
     SECStatus rv;
 	
     PORT_Assert(slot != NULL);
-    if (!slot || (!symKey && ((operation != CKA_DIGEST) || 
-	                      (type == CKM_SKIPJACK_CBC64)))) {
+    if (!slot || (!symKey && operation != CKA_DIGEST)) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return NULL;
     }
@@ -292,7 +291,6 @@ static PK11Context *pk11_CreateNewContextInSlot(CK_MECHANISM_TYPE type,
 	    context->param = (SECItem *)&pk11_null_params;
 	}
     } else {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	context->param = NULL;
     }
     context->init = PR_FALSE;
@@ -693,7 +691,7 @@ PK11_CipherOp(PK11Context *context, unsigned char * out, int *outlen,
 
     /*
      * The fortezza hack is to send 8 extra bytes on the first encrypted and
-     * lose them on the first decrypt.
+     * loose them on the first decrypt.
      */
     if (context->fortezzaHack) {
 	unsigned char random[8];

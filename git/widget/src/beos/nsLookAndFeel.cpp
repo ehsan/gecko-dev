@@ -130,9 +130,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedConvertedTextUnderline:
       aColor = NS_TRANSPARENT;
       break;
-    case eColor_SpellCheckerUnderline:
-      aColor = NS_RGB(0xff, 0, 0);
-      break;
 	// two following colors get initialisation in XPLookAndFeel.
 	//eColor_TextSelectBackgroundDisabled,
     //eColor_TextSelectBackgroundAttention,
@@ -223,7 +220,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       }
       break;
     case eColor_menutext:
-    case eColor__moz_menubartext:
       {
         color = ui_color(B_MENU_ITEM_TEXT_COLOR);
         aColor = NS_RGB(color.red, color.green, color.blue);
@@ -259,12 +255,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor__moz_eventreerow:
     case eColor__moz_oddtreerow:
     case eColor__moz_field: 
-    case eColor__moz_combobox:
       // normal widget background
       aColor = NS_RGB(0xff, 0xff, 0xff);
       break;  
     case eColor__moz_fieldtext:
-    case eColor__moz_comboboxtext:
       aColor = NS_RGB(0x00, 0x00, 0x00);
       break;  
     case eColor__moz_dialog:
@@ -309,6 +303,64 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
 
   switch (aID) 
   {
+    case eMetric_WindowTitleHeight:
+      // 2*horizontal scrollbar height
+      aMetric = 28;
+      break;
+    case eMetric_WindowBorderWidth:
+      aMetric = 2;
+      break;
+    case eMetric_WindowBorderHeight:
+      aMetric = 2;
+      break;
+    case eMetric_Widget3DBorder:
+      aMetric = 5;
+      break;
+    case eMetric_TextFieldBorder:
+      aMetric = 3;
+      break;
+    case eMetric_TextFieldHeight:
+      aMetric = 24;
+      break;
+    case eMetric_TextVerticalInsidePadding:
+      aMetric = 0;
+      break;    
+    case eMetric_TextShouldUseVerticalInsidePadding:
+      aMetric = 0;
+      break;
+    case eMetric_TextHorizontalInsideMinimumPadding:
+      aMetric = 3;
+      break;
+    case eMetric_TextShouldUseHorizontalInsideMinimumPadding:
+      aMetric = 1;
+      break;    
+    case eMetric_ButtonHorizontalInsidePaddingNavQuirks:
+      aMetric = 10;
+      break;
+    case eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks:
+      aMetric = 8;
+      break;
+    case eMetric_CheckboxSize:
+      aMetric = 12;
+      break;
+    case eMetric_RadioboxSize:
+      aMetric = 12;
+      break;
+
+    case eMetric_ListShouldUseHorizontalInsideMinimumPadding:
+      aMetric = 0;
+      break;
+    case eMetric_ListHorizontalInsideMinimumPadding:
+      aMetric = 3;
+      break;
+      
+    case eMetric_ListShouldUseVerticalInsidePadding:
+      aMetric = 0;
+      break;
+    case eMetric_ListVerticalInsidePadding:
+      aMetric = 0;
+      break;
+      
     case eMetric_CaretBlinkTime:
       aMetric = 500;
       break;
@@ -327,6 +379,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       aMetric = 500;
       break;
     case eMetric_MenusCanOverlapOSBar: // can popups overlap menu/task bar?
+      aMetric = 0;
+      break;
+    case eMetric_DragFullWindow:
       aMetric = 0;
       break;
     case eMetric_ScrollArrowStyle:
@@ -369,12 +424,10 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_DWMCompositor:
     case eMetric_WindowsClassic:
     case eMetric_WindowsDefaultTheme:
-    case eMetric_TouchEnabled:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;
     case eMetric_MacGraphiteTheme:
-    case eMetric_MaemoClassic:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;
@@ -385,9 +438,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
       aMetric = NS_UNDERLINE_STYLE_NONE;
-      break;
-    case eMetric_SpellCheckerUnderlineStyle:
-      aMetric = NS_UNDERLINE_STYLE_WAVY;
       break;
     default:
         aMetric = 0;
@@ -404,10 +454,31 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
   res = NS_OK;
 
   switch (aID) {
-    case eMetricFloat_IMEUnderlineRelativeSize:
-        aMetric = 1.0f;
+    case eMetricFloat_TextFieldVerticalInsidePadding:
+        aMetric = 0.25f;
         break;
-    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
+    case eMetricFloat_TextFieldHorizontalInsidePadding:
+        aMetric = 0.95f;
+        break;
+    case eMetricFloat_TextAreaVerticalInsidePadding:
+        aMetric = 0.40f;
+        break;
+    case eMetricFloat_TextAreaHorizontalInsidePadding:
+        aMetric = 0.40f;
+        break;
+    case eMetricFloat_ListVerticalInsidePadding:
+        aMetric = 0.10f;
+        break;
+    case eMetricFloat_ListHorizontalInsidePadding:
+        aMetric = 0.40f;
+        break;
+    case eMetricFloat_ButtonVerticalInsidePadding:
+        aMetric = 0.25f;
+        break;
+    case eMetricFloat_ButtonHorizontalInsidePadding:
+        aMetric = 0.25f;
+        break;
+    case eMetricFloat_IMEUnderlineRelativeSize:
         aMetric = 1.0f;
         break;
     default:

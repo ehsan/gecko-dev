@@ -48,7 +48,7 @@
 #include "nsWidgetAtoms.h"
 #include "nsGUIEvent.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -57,41 +57,37 @@
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMElement.h"
 
+
 nsMenuItemX::nsMenuItemX()
 {
   mType           = eRegularMenuItemType;
   mNativeMenuItem = nil;
   mMenuParent     = nsnull;
-  mMenuGroupOwner = nsnull;
+  mMenuBar        = nsnull;
   mIsChecked      = PR_FALSE;
 
   MOZ_COUNT_CTOR(nsMenuItemX);
 }
 
+
 nsMenuItemX::~nsMenuItemX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Prevent the icon object from outliving us.
-  if (mIcon)
-    mIcon->Destroy();
-
-  // autorelease the native menu item so that anything else happening to this
-  // object happens before the native menu item actually dies
   [mNativeMenuItem autorelease];
-
   if (mContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mContent);
+    mMenuBar->UnregisterForContentChanges(mContent);
   if (mCommandContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mCommandContent);
+    mMenuBar->UnregisterForContentChanges(mCommandContent);
 
   MOZ_COUNT_DTOR(nsMenuItemX);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItemType aItemType,
-                             nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode)
+                             nsMenuBarX* aMenuBar, nsIContent* aNode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -99,26 +95,27 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
   mMenuParent = aParent;
   mContent = aNode;
 
-  mMenuGroupOwner = aMenuGroupOwner;
-  NS_ASSERTION(mMenuGroupOwner, "No menu owner given, must have one!");
+  mMenuBar = aMenuBar;
+  NS_ASSERTION(mMenuBar, "No menu bar given, must have one!");
 
-  mMenuGroupOwner->RegisterForContentChanges(mContent, this);
+  mMenuBar->RegisterForContentChanges(mContent, this);
 
-  nsIDocument *doc = mContent->GetCurrentDoc();
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mContent->GetCurrentDoc()));
 
   // if we have a command associated with this menu item, register for changes
   // to the command DOM node
-  if (doc) {
+  if (domDoc) {
     nsAutoString ourCommand;
     mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::command, ourCommand);
 
     if (!ourCommand.IsEmpty()) {
-      nsIContent *commandElement = doc->GetElementById(ourCommand);
+      nsCOMPtr<nsIDOMElement> commandElement;
+      domDoc->GetElementById(ourCommand, getter_AddRefs(commandElement));
 
       if (commandElement) {
-        mCommandContent = commandElement;
+        mCommandContent = do_QueryInterface(commandElement);
         // register to observe the command DOM element
-        mMenuGroupOwner->RegisterForContentChanges(mCommandContent, this);
+        mMenuBar->RegisterForContentChanges(mCommandContent, this);
       }
     }
   }
@@ -136,8 +133,9 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
     mNativeMenuItem = [[NSMenuItem separatorItem] retain];
   }
   else {
-    NSString *newCocoaLabelString = nsMenuUtilsX::GetTruncatedCocoaLabel(aLabel);
+    NSString *newCocoaLabelString = nsMenuUtilsX::CreateTruncatedCocoaLabel(aLabel);
     mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
+    [newCocoaLabelString release];
 
     [mNativeMenuItem setEnabled:(BOOL)isEnabled];
 
@@ -145,12 +143,14 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
                                      nsWidgetAtoms::_true, eCaseMatters));
 
     // Set key shortcut and modifiers
-    if (doc) {
+    if (domDoc) {
       nsAutoString keyValue;
       mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyValue);
       if (!keyValue.IsEmpty()) {
-        nsIContent *keyContent = doc->GetElementById(keyValue);
-        if (keyContent) {
+        nsCOMPtr<nsIDOMElement> keyElement;
+        domDoc->GetElementById(keyValue, getter_AddRefs(keyElement));
+        if (keyElement) {
+          nsCOMPtr<nsIContent> keyContent(do_QueryInterface(keyElement));
           nsAutoString keyChar(NS_LITERAL_STRING(" "));
           keyContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyChar);
 
@@ -172,6 +172,7 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 nsresult nsMenuItemX::SetChecked(PRBool aIsChecked)
 {
@@ -195,10 +196,12 @@ nsresult nsMenuItemX::SetChecked(PRBool aIsChecked)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 EMenuItemType nsMenuItemX::GetMenuItemType()
 {
   return mType;
 }
+
 
 // Executes the "cached" javaScript command.
 // Returns NS_OK if the command was executed properly, otherwise an error code.
@@ -213,8 +216,12 @@ void nsMenuItemX::DoCommand()
     /* the AttributeChanged code will update all the internal state */
   }
 
-  nsMenuUtilsX::DispatchCommandTo(mContent);
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+
+  mContent->DispatchDOMEvent(&event, nsnull, nsnull, &status);
 }
+    
 
 nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, PRBool *preventDefaultCalled)
 {
@@ -259,6 +266,7 @@ nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, PRBool *preven
   return NS_OK;  
 }
 
+
 // Walk the sibling list looking for nodes with the same name and
 // uncheck them all.
 void nsMenuItemX::UncheckRadioSiblings(nsIContent* inCheckedContent)
@@ -287,6 +295,7 @@ void nsMenuItemX::UncheckRadioSiblings(nsIContent* inCheckedContent)
   }
 }
 
+
 void nsMenuItemX::SetKeyEquiv(PRUint8 aModifiers, const nsString &aText)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -304,9 +313,11 @@ void nsMenuItemX::SetKeyEquiv(PRUint8 aModifiers, const nsString &aText)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 //
 // nsChangeObserver
 //
+
 
 void
 nsMenuItemX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aContent, nsIAtom *aAttribute)
@@ -369,20 +380,23 @@ nsMenuItemX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConten
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 void nsMenuItemX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild, PRInt32 aIndexInContainer)
 {
   if (aChild == mCommandContent) {
-    mMenuGroupOwner->UnregisterForContentChanges(mCommandContent);
+    mMenuBar->UnregisterForContentChanges(mCommandContent);
     mCommandContent = nsnull;
   }
 
   mMenuParent->SetRebuild(PR_TRUE);
 }
 
+
 void nsMenuItemX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild, PRInt32 aIndexInContainer)
 {
   mMenuParent->SetRebuild(PR_TRUE);
 }
+
 
 void nsMenuItemX::SetupIcon()
 {

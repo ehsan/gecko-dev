@@ -43,45 +43,19 @@ relativesrcdir  = testing/mochitest
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = \
-  MochiKit \
-  static \
-  dynamic \
-  tests \
-  chrome \
-  ssltunnel \
-  specialpowers \
-  $(NULL)
-
-
-NO_JS_MANIFEST = 1
-MOZ_CHROME_FILE_FORMAT = jar
-DIST_FILES = install.rdf
-
-# Used in install.rdf
-USE_EXTENSION_MANIFEST = 1
-
-XPI_NAME = mochijar
-
-# we turn this off for UNIVERSAL_BINARY
-CHROME_JAR = 1
+DIRS =	MochiKit \
+	static \
+	tests \
+	chrome \
+	ssltunnel \
+	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
-# We're installing to _tests/testing/mochitest, so this is the depth
-# necessary for relative objdir paths.
-TARGET_DEPTH = ../../..
-include $(topsrcdir)/build/automation-build.mk
 
 # files that get copied into $objdir/_tests/
 _SERV_FILES = 	\
 		runtests.py \
 		automation.py \
-		runtestsremote.py \
-		runtestsvmware.py \
-		$(topsrcdir)/build/mobile/devicemanager.py \
-		$(topsrcdir)/build/automationutils.py \
-		$(topsrcdir)/build/poster.zip \
-		$(topsrcdir)/build/mobile/remoteautomation.py \
 		gen_template.pl \
 		server.js \
 		harness-a11y.xul \
@@ -89,9 +63,6 @@ _SERV_FILES = 	\
 		harness.xul \
 		browser-test-overlay.xul \
 		browser-test.js \
-		chrome-harness.js \
-		ipc-overlay.xul \
-		ipc.js \
 		browser-harness.xul \
 		redirect-a11y.html \
 		redirect.html \
@@ -99,120 +70,74 @@ _SERV_FILES = 	\
 		$(topsrcdir)/build/pgo/server-locations.txt \
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
 		mozprefs.js \
-		pywebsocket_ignore_sigint.py \
 		$(NULL)	
 
-_PYWEBSOCKET_FILES = \
-		pywebsocket/standalone.py \
-		$(NULL)
-
-_MOD_PYWEBSOCKET_FILES = \
-		pywebsocket/mod_pywebsocket/__init__.py \
-		pywebsocket/mod_pywebsocket/dispatch.py \
-		pywebsocket/mod_pywebsocket/util.py \
-		pywebsocket/mod_pywebsocket/msgutil.py \
-		pywebsocket/mod_pywebsocket/memorizingfile.py \
-		pywebsocket/mod_pywebsocket/headerparserhandler.py \
-		$(NULL)
-
-_HANDSHAKE_FILES = \
-		pywebsocket/mod_pywebsocket/handshake/__init__.py \
-		pywebsocket/mod_pywebsocket/handshake/_base.py \
-		pywebsocket/mod_pywebsocket/handshake/draft75.py \
-		pywebsocket/mod_pywebsocket/handshake/handshake.py \
-		$(NULL)
 
 _DEST_DIR = $(DEPTH)/_tests/$(relativesrcdir)
+_CERTS_DIR = $(DEPTH)/_profile/pgo/certs
 
-libs:: 
-	(cd $(DIST)/xpi-stage && tar $(TAR_CREATE_FLAGS) - mochijar) | (cd $(_DEST_DIR) && tar -xf -)
+ifeq ($(USE_SHORT_LIBNAME), 1)
+PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
+else
+PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+endif
 
-libs:: $(_PYWEBSOCKET_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(_DEST_DIR)/pywebsocket
+ifeq ($(MOZ_BUILD_APP),camino)
+browser_path = \"../$(DIST)/Camino.app/Contents/MacOS/Camino\"
+else
+ifeq ($(OS_ARCH),Darwin)
+ifdef MOZ_DEBUG
+browser_path = \"../$(DIST)/$(MOZ_APP_DISPLAYNAME)Debug.app/Contents/MacOS/$(PROGRAM)\"
+else
+browser_path = \"../$(DIST)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/$(PROGRAM)\"
+endif
+else
+browser_path = \"../$(DIST)/bin/$(PROGRAM)\"
+endif
+endif
 
-libs:: $(_MOD_PYWEBSOCKET_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(_DEST_DIR)/pywebsocket/mod_pywebsocket
+# These go in _tests/ so they need to go up an extra path segement
+TEST_DRIVER_PPARGS = 	\
+			-DBROWSER_PATH=$(browser_path) \
+			-DXPC_BIN_PATH=\"../$(DIST)/bin\" \
+			-DBIN_SUFFIX=\"$(BIN_SUFFIX)\" \
+			-DCERTS_DIR=\"../$(_CERTS_DIR)\" \
+			$(NULL)
 
-libs:: $(_HANDSHAKE_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(_DEST_DIR)/pywebsocket/mod_pywebsocket/handshake
+ifeq ($(OS_ARCH),Darwin)
+TEST_DRIVER_PPARGS += -DIS_MAC=1
+else
+TEST_DRIVER_PPARGS += -DIS_MAC=0
+endif
+
+ifeq ($(MOZ_BUILD_APP),camino)
+TEST_DRIVER_PPARGS += -DIS_CAMINO=1
+else
+TEST_DRIVER_PPARGS += -DIS_CAMINO=0
+endif
+
+ifeq ($(host_os), cygwin)
+TEST_DRIVER_PPARGS += -DIS_CYGWIN=1
+endif
+
+ifeq ($(ENABLE_TESTS), 1)
+TEST_DRIVER_PPARGS += -DIS_TEST_BUILD=1
+else
+TEST_DRIVER_PPARGS += -DIS_TEST_BUILD=0
+endif
+
+runtests.py: runtests.py.in
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
+
+automation.py: $(topsrcdir)/build/pgo/automation.py.in
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
+
+GARBAGE += runtests.py automation.py
 
 libs:: $(_SERV_FILES)
 	$(INSTALL) $^ $(_DEST_DIR)
 
-# Binaries and scripts that don't get packaged with the build,
-# but that we need for the test harness
-TEST_HARNESS_BINS := \
-  xpcshell$(BIN_SUFFIX) \
-  ssltunnel$(BIN_SUFFIX) \
-  certutil$(BIN_SUFFIX) \
-  pk12util$(BIN_SUFFIX) \
-  fix_stack_using_bpsyms.py \
-  $(NULL)
-
-ifeq ($(OS_ARCH),WINNT)
-TEST_HARNESS_BINS += \
-  crashinject$(BIN_SUFFIX) \
-  crashinjectdll$(DLL_SUFFIX) \
-  vmwarerecordinghelper$(DLL_SUFFIX) \
-  $(NULL)
-endif
-
-ifeq ($(OS_ARCH),Darwin)
-TEST_HARNESS_BINS += fix_macosx_stack.py
-endif
-
-ifeq ($(OS_ARCH),Linux)
-TEST_HARNESS_BINS += fix-linux-stack.pl
-endif
-
-ifeq (gtk2_1,$(MOZ_WIDGET_TOOLKIT)_$(MOZ_X11))
-TEST_HARNESS_BINS += screentopng
-endif
-
-# Components / typelibs that don't get packaged with
-# the build, but that we need for the test harness.
-TEST_HARNESS_COMPONENTS := \
-  test_necko.xpt \
-  $(NULL)
-
-# We need the test plugin as some tests rely on it
-ifeq (Darwin,$(OS_TARGET))
-TEST_HARNESS_PLUGINS := \
-  Test.plugin/
-else
-TEST_HARNESS_PLUGINS := \
-  $(DLL_PREFIX)nptest$(DLL_SUFFIX)
-endif
-
-# Rules for staging the necessary harness bits for a test package
-PKG_STAGE = $(DIST)/test-package-stage
-DIST_BIN = $(DIST)/bin
-
-PKG_CHROMEJAR = $(PKG_STAGE)/mochitest/content/
-
-ifdef CHROME_JAR
-stage-chromejar:
-	$(NSINSTALL) -D $(PKG_CHROMEJAR)
-	cp -RL $(DEPTH)/_tests/testing/mochitest/browser $(PKG_CHROMEJAR)
-	cp -RL $(DEPTH)/_tests/testing/mochitest/chrome $(PKG_CHROMEJAR)
-ifdef ACCESSIBILITY
-	cp -RL $(DEPTH)/_tests/testing/mochitest/a11y $(PKG_CHROMEJAR)
-endif
-	@(cd $(PKG_STAGE)/mochitest && zip -r tests.jar content/)
-	@(rm -rf $(PKG_CHROMEJAR))
-
-stage-package: stage-chromejar
-endif
-
-$(_DEST_DIR):
-	$(NSINSTALL) -D $@
-
-stage-package:
-	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins
-	@(cd $(DEPTH)/_tests/testing/mochitest/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/mochitest && tar -xf -)
-	@(cd $(DIST_BIN) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
-	@(cd $(DIST_BIN)/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)
-	@(cd $(topsrcdir)/build/pgo/certs && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/certs && tar -xf -)
-ifdef MOZ_PLUGINS
-	@(cd $(DIST_BIN)/plugins && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_PLUGINS)) | (cd $(PKG_STAGE)/bin/plugins && tar -xf -)
-endif
+libs::
+	$(PYTHON) $(DEPTH)/_profile/pgo/genpgocert.py --gen-server

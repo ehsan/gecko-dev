@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.100 $ $Date: 2010/05/18 19:38:40 $";
+static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.96 $ $Date: 2008/08/09 01:26:05 $";
 #endif /* DEBUG */
 
 /*
@@ -101,15 +101,10 @@ STAN_InitTokenForSlotInfo(NSSTrustDomain *td, PK11SlotInfo *slot)
     NSSToken *token;
     if (!td) {
 	td = g_default_trust_domain;
-	if (!td) {
-	    /* we're called while still initting. slot will get added
-	     * appropriately through normal init processes */
-	    return PR_SUCCESS;
-	}
     }
     token = nssToken_CreateFromPK11SlotInfo(td, slot);
     PK11Slot_SetNSSToken(slot, token);
-    /* Don't add nonexistent token to TD's token list */
+    /* Don't add non-existent token to TD's token list */
     if (token) {
 	NSSRWLock_LockWrite(td->tokensLock);
 	nssList_Add(td->tokenList, token);
@@ -123,11 +118,6 @@ STAN_ResetTokenInterator(NSSTrustDomain *td)
 {
     if (!td) {
 	td = g_default_trust_domain;
-	if (!td) {
-	    /* we're called while still initting. slot will get added
-	     * appropriately through normal init processes */
-	    return PR_SUCCESS;
-	}
     }
     NSSRWLock_LockWrite(td->tokensLock);
     nssListIterator_Destroy(td->tokens);
@@ -678,7 +668,7 @@ STAN_GetCERTCertificateNameForInstance (
     }
     if (stanNick) {
 	/* fill other fields needed by NSS3 functions using CERTCertificate */
-	if (instance && (!PK11_IsInternalKeySlot(instance->token->pk11slot) || 
+	if (instance && (!PK11_IsInternal(instance->token->pk11slot) || 
 	                 PORT_Strchr(stanNick, ':') != NULL) ) {
 	    tokenName = nssToken_GetName(instance->token);
 	    tokenlen = nssUTF8_Size(tokenName, &nssrv);
@@ -744,7 +734,7 @@ fill_CERTCertificateFields(NSSCertificate *c, CERTCertificate *cc, PRBool forced
 	NSSUTF8 *tokenName = NULL;
 	char *nick;
 	if (instance && 
-	     (!PK11_IsInternalKeySlot(instance->token->pk11slot) || 
+	     (!PK11_IsInternal(instance->token->pk11slot) || 
 	      (stanNick && PORT_Strchr(stanNick, ':') != NULL))) {
 	    tokenName = nssToken_GetName(instance->token);
 	    tokenlen = nssUTF8_Size(tokenName, &nssrv);
@@ -817,7 +807,7 @@ fill_CERTCertificateFields(NSSCertificate *c, CERTCertificate *cc, PRBool forced
 
 	/* Assert that it is safe to cast &cc->nsCertType to "PRInt32 *" */
 	PORT_Assert(sizeof(cc->nsCertType) == sizeof(PRInt32));
-	PR_ATOMIC_SET((PRInt32 *)&cc->nsCertType, nsCertType);
+	PR_AtomicSet((PRInt32 *)&cc->nsCertType, nsCertType);
     }
 }
 
@@ -1171,7 +1161,7 @@ STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust)
 	                                   nssTrust->stepUpApproved, PR_TRUE);
 	/* If the selected token can't handle trust, dump the trust on 
 	 * the internal token */
-	if (!newInstance && !PK11_IsInternalKeySlot(tok->pk11slot)) {
+	if (!newInstance && !PK11_IsInternal(tok->pk11slot)) {
 	    PK11SlotInfo *slot = PK11_GetInternalKeySlot();
 	    NSSUTF8 *nickname = nssCertificate_GetNickname(c, NULL);
 	    NSSASCII7 *email = c->email;

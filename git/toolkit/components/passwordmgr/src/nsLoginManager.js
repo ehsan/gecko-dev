@@ -13,13 +13,12 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *  Justin Dolske <dolske@mozilla.com> (original author)
- *  Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,7 +39,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 function LoginManager() {
     this.init();
@@ -48,12 +46,32 @@ function LoginManager() {
 
 LoginManager.prototype = {
 
+    classDescription: "LoginManager",
+    contractID: "@mozilla.org/login-manager;1",
     classID: Components.ID("{cb9e0de8-3598-4ed7-857b-827f011ad5d8}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManager,
                                             Ci.nsISupportsWeakReference]),
 
 
     /* ---------- private memebers ---------- */
+
+
+    __logService : null, // Console logging service, used for debugging.
+    get _logService() {
+        if (!this.__logService)
+            this.__logService = Cc["@mozilla.org/consoleservice;1"].
+                                getService(Ci.nsIConsoleService);
+        return this.__logService;
+    },
+
+
+    __ioService: null, // IO service for string -> nsIURI conversion
+    get _ioService() {
+        if (!this.__ioService)
+            this.__ioService = Cc["@mozilla.org/network/io-service;1"].
+                               getService(Ci.nsIIOService);
+        return this.__ioService;
+    },
 
 
     __formFillService : null, // FormFillController, for username autocompleting
@@ -63,6 +81,15 @@ LoginManager.prototype = {
                             Cc["@mozilla.org/satchel/form-fill-controller;1"].
                             getService(Ci.nsIFormFillController);
         return this.__formFillService;
+    },
+
+
+    __observerService : null, // Observer Service, for notifications
+    get _observerService() {
+        if (!this.__observerService)
+            this.__observerService = Cc["@mozilla.org/observer-service;1"].
+                                     getService(Ci.nsIObserverService);
+        return this.__observerService;
     },
 
 
@@ -95,31 +122,6 @@ LoginManager.prototype = {
         return this.__storage;
     },
 
-
-    // Private Browsing Service
-    // If the service is not available, null will be returned.
-    __privateBrowsingService : undefined,
-    get _privateBrowsingService() {
-        if (this.__privateBrowsingService == undefined) {
-            if ("@mozilla.org/privatebrowsing;1" in Cc)
-                this.__privateBrowsingService = Cc["@mozilla.org/privatebrowsing;1"].
-                                                getService(Ci.nsIPrivateBrowsingService);
-            else
-                this.__privateBrowsingService = null;
-        }
-        return this.__privateBrowsingService;
-    },
-
-
-    // Whether we are in private browsing mode
-    get _inPrivateBrowsing() {
-        var pbSvc = this._privateBrowsingService;
-        if (pbSvc)
-            return pbSvc.privateBrowsingEnabled;
-        else
-            return false;
-    },
-
     _prefBranch  : null, // Preferences service
     _nsLoginInfo : null, // Constructor for nsILoginInfo implementation
 
@@ -145,7 +147,8 @@ LoginManager.prototype = {
         this._observer._pwmgr            = this;
 
         // Preferences. Add observer so we get notified of changes.
-        this._prefBranch = Services.prefs.getBranch("signon.");
+        this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                           getService(Ci.nsIPrefService).getBranch("signon.");
         this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
         this._prefBranch.addObserver("", this._observer, false);
 
@@ -161,14 +164,16 @@ LoginManager.prototype = {
 
 
         // Form submit observer checks forms for new logins and pw changes.
-        Services.obs.addObserver(this._observer, "earlyformsubmit", false);
-        Services.obs.addObserver(this._observer, "xpcom-shutdown", false);
+        this._observerService.addObserver(this._observer, "earlyformsubmit", false);
+        this._observerService.addObserver(this._observer, "xpcom-shutdown", false);
 
         // WebProgressListener for getting notification of new doc loads.
         var progress = Cc["@mozilla.org/docloaderservice;1"].
                        getService(Ci.nsIWebProgress);
         progress.addProgressListener(this._webProgressListener,
                                      Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+
+
     },
 
 
@@ -181,7 +186,7 @@ LoginManager.prototype = {
         if (!this._debug)
             return;
         dump("Login Manager: " + message + "\n");
-        Services.console.logStringMessage("Login Manager: " + message);
+        this._logService.logStringMessage("Login Manager: " + message);
     },
 
 
@@ -318,9 +323,6 @@ LoginManager.prototype = {
 
 
         handleEvent : function (event) {
-            if (!event.isTrusted)
-                return;
-
             this._pwmgr.log("domEventListener: got event " + event.type);
 
             switch (event.type) {
@@ -332,23 +334,15 @@ LoginManager.prototype = {
                 case "blur":
                     var acInputField = event.target;
                     var acForm = acInputField.form;
-
-                    // If the username is blank, bail out now -- we don't want
-                    // fillForm() to try filling in a login without a username
-                    // to filter on (bug 471906).
-                    if (!acInputField.value)
-                        return;
-
                     // Make sure the username field fillForm will use is the
                     // same field as the autocomplete was activated on. If
                     // not, the DOM has been altered and we'll just give up.
                     var [usernameField, passwordField, ignored] =
                         this._pwmgr._getFormFields(acForm, false);
                     if (usernameField == acInputField && passwordField) {
-                        // This shouldn't trigger a master password prompt,
-                        // because we don't attach to the input until after we
-                        // successfully obtain logins for the form.
-                        this._pwmgr._fillForm(acForm, true, true, true, null);
+                        // Clobber any existing password.
+                        passwordField.value = "";
+                        this._pwmgr._fillForm(acForm, true, true, null);
                     } else {
                         this._pwmgr.log("Oops, form changed before AC invoked");
                     }
@@ -490,21 +484,6 @@ LoginManager.prototype = {
 
 
     /*
-     * searchLogins
-     *
-     * Public wrapper around _searchLogins to convert the nsIPropertyBag to a
-     * JavaScript object and decrypt the results.
-     *
-     * Returns an array of decrypted nsILoginInfo.
-     */
-    searchLogins : function(count, matchData) {
-       this.log("Searching for logins");
-
-        return this._storage.searchLogins(count, matchData);
-    },
-
-
-    /*
      * countLogins
      *
      * Search for the known logins for entries matching the specified criteria,
@@ -515,14 +494,6 @@ LoginManager.prototype = {
             ", formSubmitURL: " + formSubmitURL + ", httpRealm: " + httpRealm);
 
         return this._storage.countLogins(hostname, formSubmitURL, httpRealm);
-    },
-
-
-    /*
-     * uiBusy
-     */
-    get uiBusy() {
-        return this._storage.uiBusy;
     },
 
 
@@ -570,17 +541,15 @@ LoginManager.prototype = {
         // aElement is nsIDOMHTMLInputElement
 
         if (!this._remember)
-            return null;
+            return false;
 
         this.log("AutoCompleteSearch invoked. Search is: " + aSearchString);
 
         var result = null;
 
-        if (aPreviousResult &&
-                aSearchString.substr(0, aPreviousResult.searchString.length) == aPreviousResult.searchString) {
+        if (aPreviousResult) {
             this.log("Using previous autocomplete result");
             result = aPreviousResult;
-            result.wrappedJSObject.searchString = aSearchString;
 
             // We have a list of results for a shorter search string, so just
             // filter them further based on the new search string.
@@ -605,19 +574,12 @@ LoginManager.prototype = {
             var origin = this._getPasswordOrigin(doc.documentURI);
             var actionOrigin = this._getActionOrigin(aElement.form);
 
-            // This shouldn't trigger a master password prompt, because we
-            // don't attach to the input until after we successfully obtain
-            // logins for the form.
             var logins = this.findLogins({}, origin, actionOrigin, null);
             var matchingLogins = [];
 
-            // Filter out logins that don't match the search prefix. Also
-            // filter logins without a username, since that's confusing to see
-            // in the dropdown and we can't autocomplete them anyway.
             for (i = 0; i < logins.length; i++) {
                 var username = logins[i].username.toLowerCase();
-                if (username &&
-                    aSearchString.length <= username.length &&
+                if (aSearchString.length <= username.length &&
                     aSearchString.toLowerCase() ==
                         username.substr(0, aSearchString.length))
                 {
@@ -652,17 +614,15 @@ LoginManager.prototype = {
         // Locate the password fields in the form.
         var pwFields = [];
         for (var i = 0; i < form.elements.length; i++) {
-            var element = form.elements[i];
-            if (!(element instanceof Ci.nsIDOMHTMLInputElement) ||
-                element.type != "password")
+            if (form.elements[i].type != "password")
                 continue;
 
-            if (skipEmptyFields && !element.value)
+            if (skipEmptyFields && !form.elements[i].value)
                 continue;
 
             pwFields[pwFields.length] = {
                                             index   : i,
-                                            element : element
+                                            element : form.elements[i]
                                         };
         }
 
@@ -711,16 +671,8 @@ LoginManager.prototype = {
         // username. We might not find a username field if the user is
         // already logged in to the site. 
         for (var i = pwFields[0].index - 1; i >= 0; i--) {
-            var element = form.elements[i];
-            var fieldType = (element.hasAttribute("type") ?
-                             element.getAttribute("type").toLowerCase() :
-                             element.type);
-            if (fieldType == "text"  ||
-                fieldType == "email" ||
-                fieldType == "url"   ||
-                fieldType == "tel"   ||
-                fieldType == "number") {
-                usernameField = element;
+            if (form.elements[i].type == "text") {
+                usernameField = form.elements[i];
                 break;
             }
         }
@@ -812,13 +764,6 @@ LoginManager.prototype = {
             return prompterSvc;
         }
 
-        if (this._inPrivateBrowsing) {
-            // We won't do anything in private browsing mode anyway,
-            // so there's no need to perform further checks.
-            this.log("(form submission ignored in private browsing mode)");
-            return;
-        }
-
         var doc = form.ownerDocument;
         var win = doc.defaultView;
 
@@ -846,7 +791,6 @@ LoginManager.prototype = {
         // Check for autocomplete=off attribute. We don't use it to prevent
         // autofilling (for existing logins), but won't save logins when it's
         // present.
-        // XXX spin out a bug that we don't update timeLastUsed in this case?
         if (this._isAutocompleteDisabled(form) ||
             this._isAutocompleteDisabled(usernameField) ||
             this._isAutocompleteDisabled(newPasswordField) ||
@@ -927,18 +871,26 @@ LoginManager.prototype = {
         if (existingLogin) {
             this.log("Found an existing login matching this form submission");
 
-            // Change password if needed.
+            /*
+             * Change password if needed.
+             *
+             * If the login has a username, change the password w/o prompting
+             * (because we can be fairly sure there's only one password
+             * associated with the username). But for logins without a
+             * username, ask the user... Some sites use a password-only "login"
+             * in different contexts (enter your PIN, answer a security
+             * question, etc), and without a username we can't be sure if
+             * modifying an existing login is the right thing to do.
+             */
             if (existingLogin.password != formLogin.password) {
-                this.log("...passwords differ, prompting to change.");
-                prompter = getPrompter(win);
-                prompter.promptToChangePassword(existingLogin, formLogin);
-            } else {
-                // Update the lastUsed timestamp.
-                var propBag = Cc["@mozilla.org/hash-property-bag;1"].
-                              createInstance(Ci.nsIWritablePropertyBag);
-                propBag.setProperty("timeLastUsed", Date.now());
-                propBag.setProperty("timesUsedIncrement", 1);
-                this.modifyLogin(existingLogin, propBag);
+                if (formLogin.username) {
+                    this.log("...Updating password for existing login.");
+                    this.modifyLogin(existingLogin, formLogin);
+                } else {
+                    this.log("...passwords differ, prompting to change.");
+                    prompter = getPrompter(win);
+                    prompter.promptToChangePassword(existingLogin, formLogin);
+                }
             }
 
             return;
@@ -959,7 +911,7 @@ LoginManager.prototype = {
     _getPasswordOrigin : function (uriString, allowJS) {
         var realm = "";
         try {
-            var uri = Services.io.newURI(uriString, null, null);
+            var uri = this._ioService.newURI(uriString, null, null);
 
             if (allowJS && uri.scheme == "javascript")
                 return "javascript:"
@@ -970,7 +922,7 @@ LoginManager.prototype = {
             // it's not the default. (We never want "http://foo.com:80")
             var port = uri.port;
             if (port != -1) {
-                var handler = Services.io.getProtocolHandler(uri.scheme);
+                var handler = this._ioService.getProtocolHandler(uri.scheme);
                 if (port != handler.defaultPort)
                     realm += ":" + port;
             }
@@ -988,7 +940,7 @@ LoginManager.prototype = {
     _getActionOrigin : function (form) {
         var uriString = form.action;
 
-        // A blank or missing action submits to where it came from.
+        // A blank or mission action submits to where it came from.
         if (uriString == "")
             uriString = form.baseURI; // ala bug 297761
 
@@ -1013,42 +965,10 @@ LoginManager.prototype = {
         if (!this.countLogins(formOrigin, "", null))
             return;
 
-        // If we're currently displaying a master password prompt, defer
-        // processing this document until the user handles the prompt.
-        if (this.uiBusy) {
-            this.log("deferring fillDoc for " + doc.documentURI);
-            let self = this;
-            let observer = {
-                QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsISupportsWeakReference]),
-
-                observe: function (subject, topic, data) {
-                    self.log("Got deferred fillDoc notification: " + topic);
-                    // Only run observer once.
-                    Services.obs.removeObserver(this, "passwordmgr-crypto-login");
-                    Services.obs.removeObserver(this, "passwordmgr-crypto-loginCanceled");
-                    if (topic == "passwordmgr-crypto-loginCanceled")
-                        return;
-                    self._fillDocument(doc);
-                },
-                handleEvent : function (event) {
-                    // Not expected to be called
-                }
-            };
-            // Trickyness follows: We want an observer, but don't want it to
-            // cause leaks. So add the observer with a weak reference, and use
-            // a dummy event listener (a strong reference) to keep it alive
-            // until the document is destroyed.
-            Services.obs.addObserver(observer, "passwordmgr-crypto-login", true);
-            Services.obs.addObserver(observer, "passwordmgr-crypto-loginCanceled", true);
-            doc.addEventListener("mozCleverClosureHack", observer, false);
-            return;
-        }
-
         this.log("fillDocument processing " + forms.length +
                  " forms on " + doc.documentURI);
 
-        var autofillForm = !this._inPrivateBrowsing &&
-                           this._prefBranch.getBoolPref("autofillForms");
+        var autofillForm = this._prefBranch.getBoolPref("autofillForms");
         var previousActionOrigin = null;
         var foundLogins = null;
 
@@ -1063,7 +983,7 @@ LoginManager.prototype = {
                 previousActionOrigin = actionOrigin;
             }
             this.log("_fillDocument processing form[" + i + "]");
-            foundLogins = this._fillForm(form, autofillForm, false, false, foundLogins)[1];
+            foundLogins = this._fillForm(form, autofillForm, false, foundLogins)[1];
         } // foreach form
     },
 
@@ -1080,8 +1000,7 @@ LoginManager.prototype = {
      * autocomplete=off attributes, and foundLogins is an array of nsILoginInfo
      * for optimization
      */
-    _fillForm : function (form, autofillForm, ignoreAutocomplete,
-                          clobberPassword, foundLogins) {
+    _fillForm : function (form, autofillForm, ignoreAutocomplete, foundLogins) {
         // Heuristically determine what the user/pass fields are
         // We do this before checking to see if logins are stored,
         // so that the user isn't prompted for a master password
@@ -1125,7 +1044,7 @@ LoginManager.prototype = {
         if (passwordField.maxLength >= 0)
             maxPasswordLen = passwordField.maxLength;
 
-        var logins = foundLogins.filter(function (l) {
+        logins = foundLogins.filter(function (l) {
                 var fit = (l.username.length <= maxUsernameLen &&
                            l.password.length <= maxPasswordLen);
                 if (!fit)
@@ -1140,11 +1059,6 @@ LoginManager.prototype = {
             return [false, foundLogins];
 
 
-        // The reason we didn't end up filling the form, if any.  We include
-        // this in the formInfo object we send with the passwordmgr-found-logins
-        // notification.  See the _notifyFoundLogins docs for possible values.
-        var didntFillReason = null;
-
         // Attach autocomplete stuff to the username field, if we have
         // one. This is normally used to select from multiple accounts,
         // but even with one account we should refill if the user edits.
@@ -1152,12 +1066,8 @@ LoginManager.prototype = {
             this._attachToInput(usernameField);
 
         // Don't clobber an existing password.
-        if (passwordField.value && !clobberPassword) {
-            didntFillReason = "existingPassword";
-            this._notifyFoundLogins(didntFillReason, usernameField,
-                                    passwordField, foundLogins, null);
+        if (passwordField.value)
             return [false, foundLogins];
-        }
 
         // If the form has an autocomplete=off attribute in play, don't
         // fill in the login automatically. We check this after attaching
@@ -1180,35 +1090,34 @@ LoginManager.prototype = {
         if (usernameField && usernameField.value) {
             // If username was specified in the form, only fill in the
             // password if we find a matching login.
+
             var username = usernameField.value.toLowerCase();
 
-            let matchingLogins = logins.filter(function(l)
-                                     l.username.toLowerCase() == username);
-            if (matchingLogins.length) {
-                selectedLogin = matchingLogins[0];
-            } else {
-                didntFillReason = "existingUsername";
+            var matchingLogin;
+            var found = logins.some(function(l) {
+                                matchingLogin = l;
+                                return (l.username.toLowerCase() == username);
+                            });
+            if (found)
+                selectedLogin = matchingLogin;
+            else
                 this.log("Password not filled. None of the stored " +
                          "logins match the username already present.");
-            }
+
+        } else if (usernameField && logins.length == 2) {
+            // Special case, for sites which have a normal user+pass
+            // login *and* a password-only login (eg, a PIN)...
+            // When we have a username field and 1 of 2 available
+            // logins is password-only, go ahead and prefill the
+            // one with a username.
+            if (!logins[0].username && logins[1].username)
+                selectedLogin = logins[1];
+            else if (!logins[1].username && logins[0].username)
+                selectedLogin = logins[0];
         } else if (logins.length == 1) {
             selectedLogin = logins[0];
         } else {
-            // We have multiple logins. Handle a special case here, for sites
-            // which have a normal user+pass login *and* a password-only login
-            // (eg, a PIN). Prefer the login that matches the type of the form
-            // (user+pass or pass-only) when there's exactly one that matches.
-            let matchingLogins;
-            if (usernameField)
-                matchingLogins = logins.filter(function(l) l.username);
-            else
-                matchingLogins = logins.filter(function(l) !l.username);
-            if (matchingLogins.length == 1) {
-                selectedLogin = matchingLogins[0];
-            } else {
-                didntFillReason = "multipleLogins";
-                this.log("Multiple logins for form, so not filling any.");
-            }
+            this.log("Multiple logins for form, so not filling any.");
         }
 
         var didFillForm = false;
@@ -1221,76 +1130,18 @@ LoginManager.prototype = {
         } else if (selectedLogin && !autofillForm) {
             // For when autofillForm is false, but we still have the information
             // to fill a form, we notify observers.
-            didntFillReason = "noAutofillForms";
-            Services.obs.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
+            this._observerService.notifyObservers(form, "passwordmgr-found-form", "noAutofillForms");
             this.log("autofillForms=false but form can be filled; notified observers");
         } else if (selectedLogin && isFormDisabled) {
             // For when autocomplete is off, but we still have the information
             // to fill a form, we notify observers.
-            didntFillReason = "autocompleteOff";
-            Services.obs.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
+            this._observerService.notifyObservers(form, "passwordmgr-found-form", "autocompleteOff");
             this.log("autocomplete=off but form can be filled; notified observers");
         }
-
-        this._notifyFoundLogins(didntFillReason, usernameField, passwordField,
-                                foundLogins, selectedLogin);
 
         return [didFillForm, foundLogins];
     },
 
-    /**
-     * Notify observers about an attempt to fill a form that resulted in some
-     * saved logins being found for the form.
-     *
-     * This does not get called if the login manager attempts to fill a form
-     * but does not find any saved logins.  It does, however, get called when
-     * the login manager does find saved logins whether or not it actually
-     * fills the form with one of them.
-     *
-     * @param didntFillReason {String}
-     *        the reason the login manager didn't fill the form, if any;
-     *        if the value of this parameter is null, then the form was filled;
-     *        otherwise, this parameter will be one of these values:
-     *          existingUsername: the username field already contains a username
-     *                            that doesn't match any stored usernames
-     *          existingPassword: the password field already contains a password
-     *          autocompleteOff:  autocomplete has been disabled for the form
-     *                            or its username or password fields
-     *          multipleLogins:   we have multiple logins for the form
-     *          noAutofillForms:  the autofillForms pref is set to false
-     *
-     * @param usernameField   {HTMLInputElement}
-     *        the username field detected by the login manager, if any;
-     *        otherwise null
-     *
-     * @param passwordField   {HTMLInputElement}
-     *        the password field detected by the login manager
-     *
-     * @param foundLogins     {Array}
-     *        an array of nsILoginInfos that can be used to fill the form
-     *
-     * @param selectedLogin   {nsILoginInfo}
-     *        the nsILoginInfo that was/would be used to fill the form, if any;
-     *        otherwise null; whether or not it was actually used depends on
-     *        the value of the didntFillReason parameter
-     */
-    _notifyFoundLogins : function (didntFillReason, usernameField,
-                                   passwordField, foundLogins, selectedLogin) {
-        // We need .setProperty(), which is a method on the original
-        // nsIWritablePropertyBag. Strangley enough, nsIWritablePropertyBag2
-        // doesn't inherit from that, so the additional QI is needed.
-        let formInfo = Cc["@mozilla.org/hash-property-bag;1"].
-                       createInstance(Ci.nsIWritablePropertyBag2).
-                       QueryInterface(Ci.nsIWritablePropertyBag);
-
-        formInfo.setPropertyAsACString("didntFillReason", didntFillReason);
-        formInfo.setPropertyAsInterface("usernameField", usernameField);
-        formInfo.setPropertyAsInterface("passwordField", passwordField);
-        formInfo.setProperty("foundLogins", foundLogins.concat());
-        formInfo.setPropertyAsInterface("selectedLogin", selectedLogin);
-
-        Services.obs.notifyObservers(formInfo, "passwordmgr-found-logins", null);
-    },
 
     /*
      * fillForm
@@ -1299,7 +1150,7 @@ LoginManager.prototype = {
      */
     fillForm : function (form) {
         this.log("fillForm processing form[id=" + form.id + "]");
-        return this._fillForm(form, true, true, false, null)[0];
+        return this._fillForm(form, true, true, null)[0];
     },
 
 
@@ -1355,12 +1206,6 @@ UserAutoCompleteResult.prototype = {
     // private
     logins : null,
 
-    // Allow autoCompleteSearch to get at the JS object so it can
-    // modify some readonly properties for internal use.
-    get wrappedJSObject() {
-        return this;
-    },
-
     // Interfaces from idl...
     searchString : null,
     searchResult : Ci.nsIAutoCompleteResult.RESULT_NOMATCH,
@@ -1373,10 +1218,6 @@ UserAutoCompleteResult.prototype = {
             throw "Index out of range.";
 
         return this.logins[index].username;
-    },
-
-    getLabelAt: function(index) {
-        return this.getValueAt(index);
     },
 
     getCommentAt : function (index) {
@@ -1409,4 +1250,7 @@ UserAutoCompleteResult.prototype = {
     }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManager]);
+var component = [LoginManager];
+function NSGetModule (compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

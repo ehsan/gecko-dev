@@ -40,7 +40,7 @@
 #include "txExprResult.h"
 #include "txNodeSet.h"
 #include "nsDOMError.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIAttribute.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMNode.h"
@@ -48,8 +48,6 @@
 #include "nsDOMString.h"
 #include "txXPathTreeWalker.h"
 #include "nsCycleCollectionParticipant.h"
-
-using namespace mozilla::dom;
 
 nsXPathResult::nsXPathResult() : mDocument(nsnull),
                                  mCurrentPos(0),
@@ -93,15 +91,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXPathResult, nsIDOMXPathResult)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXPathResult, nsIDOMXPathResult)
-
-DOMCI_DATA(XPathResult, nsXPathResult)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXPathResult)
     NS_INTERFACE_MAP_ENTRY(nsIDOMXPathResult)
     NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
     NS_INTERFACE_MAP_ENTRY(nsIXPathResult)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMXPathResult)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XPathResult)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XPathResult)
 NS_INTERFACE_MAP_END
 
 void
@@ -233,7 +228,6 @@ nsXPathResult::SnapshotItem(PRUint32 aIndex, nsIDOMNode **aResult)
 void
 nsXPathResult::NodeWillBeDestroyed(const nsINode* aNode)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     // Set to null to avoid unregistring unnecessarily
     mDocument = nsnull;
     Invalidate(aNode->IsNodeOfType(nsINode::eCONTENT) ?
@@ -250,18 +244,18 @@ nsXPathResult::CharacterDataChanged(nsIDocument* aDocument,
 
 void
 nsXPathResult::AttributeChanged(nsIDocument* aDocument,
-                                Element* aElement,
+                                nsIContent* aContent,
                                 PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute,
-                                PRInt32 aModType)
+                                PRInt32 aModType,
+                                PRUint32 aStateMask)
 {
-    Invalidate(aElement);
+    Invalidate(aContent);
 }
 
 void
 nsXPathResult::ContentAppended(nsIDocument* aDocument,
                                nsIContent* aContainer,
-                               nsIContent* aFirstNewContent,
                                PRInt32 aNewIndexInContainer)
 {
     Invalidate(aContainer);
@@ -280,8 +274,7 @@ void
 nsXPathResult::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer,
-                              nsIContent* aPreviousSibling)
+                              PRInt32 aIndexInContainer)
 {
     Invalidate(aContainer);
 }
@@ -384,12 +377,11 @@ nsXPathResult::Invalidate(const nsIContent* aChangeRoot)
         }
     }
 
-    mInvalidIteratorState = PR_TRUE;
-    // Make sure nulling out mDocument is the last thing we do.
     if (mDocument) {
         mDocument->RemoveMutationObserver(this);
         mDocument = nsnull;
     }
+    mInvalidIteratorState = PR_TRUE;
 }
 
 nsresult

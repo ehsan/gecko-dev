@@ -54,7 +54,8 @@
 #include "nsIAtom.h"
 #include "nsIHTMLToTextSink.h"
 #include "nsIDocumentEncoder.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
+
 
 class nsPlainTextSerializer : public nsIContentSerializer,
                               public nsIHTMLContentSink,
@@ -71,31 +72,33 @@ public:
                   const char* aCharSet, PRBool aIsCopying,
                   PRBool aIsWholeDocument);
 
-  NS_IMETHOD AppendText(nsIContent* aText, PRInt32 aStartOffset,
+  NS_IMETHOD AppendText(nsIDOMText* aText, PRInt32 aStartOffset,
                         PRInt32 aEndOffset, nsAString& aStr);
-  NS_IMETHOD AppendCDATASection(nsIContent* aCDATASection,
+  NS_IMETHOD AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                 PRInt32 aStartOffset, PRInt32 aEndOffset,
                                 nsAString& aStr);
-  NS_IMETHOD AppendProcessingInstruction(nsIContent* aPI,
+  NS_IMETHOD AppendProcessingInstruction(nsIDOMProcessingInstruction* aPI,
                                          PRInt32 aStartOffset,
                                          PRInt32 aEndOffset,
                                          nsAString& aStr)  { return NS_OK; }
-  NS_IMETHOD AppendComment(nsIContent* aComment, PRInt32 aStartOffset,
+  NS_IMETHOD AppendComment(nsIDOMComment* aComment, PRInt32 aStartOffset,
                            PRInt32 aEndOffset, nsAString& aStr)  { return NS_OK; }
-  NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
+  NS_IMETHOD AppendDoctype(nsIDOMDocumentType *aDoctype,
                            nsAString& aStr)  { return NS_OK; }
-  NS_IMETHOD AppendElementStart(nsIContent *aElement,
-                                nsIContent *aOriginalElement,
+  NS_IMETHOD AppendElementStart(nsIDOMElement *aElement,
+                                nsIDOMElement *aOriginalElement,
                                 nsAString& aStr); 
-  NS_IMETHOD AppendElementEnd(nsIContent *aElement,
+  NS_IMETHOD AppendElementEnd(nsIDOMElement *aElement,
                               nsAString& aStr);
   NS_IMETHOD Flush(nsAString& aStr);
 
-  NS_IMETHOD AppendDocumentStart(nsIDocument *aDocument,
+  NS_IMETHOD AppendDocumentStart(nsIDOMDocument *aDocument,
                                  nsAString& aStr);
 
   // nsIContentSink
-  NS_IMETHOD WillParse(void) { return NS_OK; }
+  NS_IMETHOD WillTokenize(void) { return NS_OK; }
+  NS_IMETHOD WillBuildModel(void) { return NS_OK; }
+  NS_IMETHOD DidBuildModel(void) { return NS_OK; }
   NS_IMETHOD WillInterrupt(void) { return NS_OK; }
   NS_IMETHOD WillResume(void) { return NS_OK; }
   NS_IMETHOD SetParser(nsIParser* aParser) { return NS_OK; }
@@ -129,7 +132,7 @@ public:
 protected:
   nsresult GetAttributeValue(const nsIParserNode* node, nsIAtom* aName, nsString& aValueRet);
   void AddToLine(const PRUnichar* aStringToAdd, PRInt32 aLength);
-  void EndLine(PRBool softlinebreak, PRBool aBreakBySpace = PR_FALSE);
+  void EndLine(PRBool softlinebreak);
   void EnsureVerticalSpace(PRInt32 noOfRows);
   void FlushLine();
   void OutputQuotesAndIndent(PRBool stripTrailingSpaces=PR_FALSE);
@@ -161,10 +164,10 @@ protected:
   }
 
   // Stack handling functions
-  PRBool GetLastBool(const nsTArray<PRPackedBool>& aStack);
-  void SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  void PushBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  PRBool PopBool(nsTArray<PRPackedBool>& aStack);
+  PRBool GetLastBool(const nsVoidArray& aStack);
+  void SetLastBool(nsVoidArray& aStack, PRBool aValue);
+  void PushBool(nsVoidArray& aStack, PRBool aValue);
+  PRBool PopBool(nsVoidArray& aStack);
   
 protected:
   nsString         mCurrentLine;
@@ -238,11 +241,11 @@ protected:
   nsCOMPtr<nsIContent> mContent;
 
   // For handling table rows
-  nsAutoTArray<PRPackedBool, 8> mHasWrittenCellsForRow;
+  nsAutoVoidArray mHasWrittenCellsForRow; // really an array of bools
   
   // Values gotten in OpenContainer that is (also) needed in CloseContainer
-  nsAutoTArray<PRPackedBool, 8> mCurrentNodeIsConverted;
-  nsAutoTArray<PRPackedBool, 8> mIsInCiteBlockquote;
+  nsAutoVoidArray     mCurrentNodeIsConverted; // really an array of bools
+  nsAutoVoidArray     mIsInCiteBlockquote; // really an array of bools
 
   // The output data
   nsAString*            mOutputString;
@@ -254,7 +257,7 @@ protected:
   // Content in the stack above this index should be ignored:
   PRUint32          mIgnoreAboveIndex;
 
-  // The stack for ordered lists
+  // The stack for ordered lists:
   PRInt32         *mOLStack;
   PRUint32         mOLStackIndex;
 

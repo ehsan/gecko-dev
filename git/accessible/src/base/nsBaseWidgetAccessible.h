@@ -43,6 +43,8 @@
 #include "nsHyperTextAccessibleWrap.h"
 #include "nsIContent.h"
 
+class nsIDOMNode;
+
 /**
   * This file contains a number of classes that are used as base
   *  classes for the different accessibility implementations of
@@ -55,36 +57,27 @@
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
-  using nsAccessible::GetChildAtPoint;
-
-  nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
-
-  // nsISupports
+  nsLeafAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsAccessible
-  virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                   PRBool aDeepestChild,
-                                   nsIAccessible **aChild);
-
-protected:
-
-  // nsAccessible
-  virtual void CacheChildren();
+  NS_IMETHOD GetFirstChild(nsIAccessible **_retval);
+  NS_IMETHOD GetLastChild(nsIAccessible **_retval);
+  NS_IMETHOD GetChildCount(PRInt32 *_retval);
+  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
+  NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY, nsIAccessible **aAccessible)
+    { NS_ENSURE_ARG_POINTER(aAccessible); NS_ADDREF(*aAccessible = this); return NS_OK; } // Don't walk into these
 };
 
 /**
- * Used for text or image accessible nodes contained by link accessibles or
- * accessibles for nodes with registered click event handler. It knows how to
- * report the state of the host link (traveled or not) and can activate (click)
- * the host accessible programmatically.
- */
-class nsLinkableAccessible : public nsAccessibleWrap
+  * A type of accessible for DOM nodes containing an href="" attribute.
+  *  It knows how to report the state of the link ( traveled or not )
+  *  and can activate ( click ) the link programmatically.
+  */
+class nsLinkableAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   enum { eAction_Jump = 0 };
 
-  nsLinkableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsLinkableAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -92,29 +85,28 @@ public:
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& _retval);
   NS_IMETHOD TakeFocus();
   NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
-  // nsAccessNode
-  virtual void Shutdown();
+  // nsIHyperLinkAccessible
+  NS_IMETHOD GetURI(PRInt32 i, nsIURI **aURI);
 
-  // nsAccessible
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-
-  // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
+  // nsPIAccessNode
+  NS_IMETHOD Init();
+  NS_IMETHOD Shutdown();
 
 protected:
-  // nsAccessible
-  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
-
-  // nsLinkableAccessible
-
   /**
    * Return an accessible for cached action node.
    */
-  nsAccessible *GetActionAccessible() const;
+  already_AddRefed<nsIAccessible> GetActionAccessible();
+
+  /**
+   * Cache action node.
+   */
+  virtual void CacheActionContent();
 
   nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;
@@ -127,14 +119,10 @@ protected:
 class nsEnumRoleAccessible : public nsAccessibleWrap
 {
 public:
-  nsEnumRoleAccessible(nsIContent *aContent, nsIWeakReference *aShell,
-                       PRUint32 aRole);
+  nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, PRUint32 aRole);
   virtual ~nsEnumRoleAccessible() { }
-
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  NS_IMETHODIMP GetRole(PRUint32 *aRole) { *aRole = mRole; return NS_OK; }
 
 protected:
   PRUint32 mRole;

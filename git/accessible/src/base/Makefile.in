@@ -46,46 +46,57 @@ MODULE = accessibility
 LIBRARY_NAME = accessibility_base_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= appshell \
+		  commandhandler \
+		  composer \
+		  content \
+		  docshell \
+		  dom \
+		  editor \
+		  gfx \
+		  thebes \
+		  intl \
+		  layout \
+		  locale \
+		  necko \
+		  plugin \
+		  pref \
+		  string \
+		  unicharutil \
+		  uriloader \
+		  view \
+		  webshell \
+		  widget \
+		  xpcom \
+		  xuldoc \
+		  imglib2 \
+		  $(NULL)
 
 CPPSRCS = \
-  AccCollector.cpp \
-  AccEvent.cpp \
-  AccGroupInfo.cpp \
-  AccIterator.cpp \
-  filters.cpp \
-  NotificationController.cpp \
-  nsAccDocManager.cpp \
   nsAccessNode.cpp \
-  nsARIAGridAccessible.cpp \
+  nsAccessibleEventData.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
   nsOuterDocAccessible.cpp \
   nsAccessibilityAtoms.cpp \
-  nsCoreUtils.cpp \
-  nsAccUtils.cpp \
-  nsRelUtils.cpp \
+  nsAccessibilityUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
-  nsAccTreeWalker.cpp \
+  nsAccessibleTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
-  nsEventShell.cpp \
   nsFormControlAccessible.cpp \
   nsRootAccessible.cpp \
   nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
-  nsTextEquivUtils.cpp \
-  nsTextAttrs.cpp \
+  nsTextUtils.cpp \
   $(NULL)
 
 EXPORTS = \
-  a11yGeneric.h \
-  nsAccDocManager.h \
-  nsAccessibilityService.h \
-  nsAccessible.h \
+  nsRootAccessible.h \
+  nsAccessibleEventData.h \
   nsAccessNode.h \
-  nsARIAMap.h \
   $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -95,7 +106,6 @@ include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
   -I$(srcdir) \
-  -I$(srcdir)/../xpcom \
   -I$(srcdir)/../html \
   -I$(srcdir)/../xul \
   -I$(srcdir)/../../../layout/generic \

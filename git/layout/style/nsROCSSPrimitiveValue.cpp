@@ -39,13 +39,16 @@
 
 #include "nsROCSSPrimitiveValue.h"
 
+#include "nsCOMPtr.h"
+#include "nsDOMError.h"
+#include "prprf.h"
+#include "nsContentUtils.h"
+#include "nsXPIDLString.h"
+#include "nsCRT.h"
 #include "nsPresContext.h"
-#include "nsStyleUtil.h"
-#include "nsDOMCSSRGBColor.h"
-#include "nsIDOMRect.h"
 
-nsROCSSPrimitiveValue::nsROCSSPrimitiveValue()
-  : mType(CSS_PX)
+nsROCSSPrimitiveValue::nsROCSSPrimitiveValue(PRInt32 aAppUnitsPerInch)
+  : mType(CSS_PX), mAppUnitsPerInch(aAppUnitsPerInch)
 {
   mValue.mAppUnits = 0;
 }
@@ -56,18 +59,54 @@ nsROCSSPrimitiveValue::~nsROCSSPrimitiveValue()
   Reset();
 }
 
+void
+nsROCSSPrimitiveValue::GetEscapedURI(nsIURI *aURI, PRUnichar **aReturn)
+{
+  nsCAutoString specUTF8;
+  aURI->GetSpec(specUTF8);
+  NS_ConvertUTF8toUTF16 spec(specUTF8);
+
+  PRUint16 length = spec.Length();
+  PRUnichar *escaped = (PRUnichar *)nsMemory::Alloc(length * 2 * sizeof(PRUnichar) + sizeof(PRUnichar('\0')));
+
+  if (escaped) {
+    PRUnichar *ptr = escaped;
+
+    for (PRUint16 i = 0; i < length; ++i) {
+      switch (spec[i]) {
+        case ' ' : // space
+        case '\t': // tab
+        case '(' : // opening parenthesis
+        case ')' : // closing parenthesis
+        case '\'': // single quote
+        case '"' : // double quote
+        case ',' : // comma
+        case '\\': // backslash
+          // We have one of the above special characters.
+          // Prepend it with a backslash.
+          *ptr++ = '\\';
+          break;
+        default:
+          break;
+      }
+      *ptr++ = spec[i];
+    }
+    *ptr = 0;
+  }
+  *aReturn = escaped;
+}
+
+
 NS_IMPL_ADDREF(nsROCSSPrimitiveValue)
 NS_IMPL_RELEASE(nsROCSSPrimitiveValue)
 
-
-DOMCI_DATA(ROCSSPrimitiveValue, nsROCSSPrimitiveValue)
 
 // QueryInterface implementation for nsROCSSPrimitiveValue
 NS_INTERFACE_MAP_BEGIN(nsROCSSPrimitiveValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSPrimitiveValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValue)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ROCSSPrimitiveValue)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCSSPrimitiveValue)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ROCSSPrimitiveValue)
 NS_INTERFACE_MAP_END
 
 
@@ -91,8 +130,9 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_IDENT :
       {
-        AppendUTF8toUTF16(nsCSSKeywords::GetStringValue(mValue.mKeyword),
-                          tmpStr);
+        const char *atomValue;
+        mValue.mAtom->GetUTF8String(&atomValue);
+        AppendUTF8toUTF16(atomValue, tmpStr);
         break;
       }
     case CSS_STRING :
@@ -103,14 +143,12 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_URI :
       {
+        nsXPIDLString uri;
         if (mValue.mURI) {
-          nsCAutoString specUTF8;
-          mValue.mURI->GetSpec(specUTF8);
-
-          tmpStr.AssignLiteral("url(");
-          nsStyleUtil::AppendEscapedCSSString(NS_ConvertUTF8toUTF16(specUTF8),
-                                              tmpStr);
-          tmpStr.AppendLiteral(")");
+          GetEscapedURI(mValue.mURI, getter_Copies(uri));
+          tmpStr.Assign(NS_LITERAL_STRING("url(") +
+                        uri +
+                        NS_LITERAL_STRING(")"));
         } else {
           // XXXldb Any better ideas?  It's good to have something that
           // doesn't parse so that things round-trip "correctly".
@@ -230,12 +268,6 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
 
         break;
       }
-    case CSS_S :
-      {
-        tmpStr.AppendFloat(mValue.mFloat);
-        tmpStr.AppendLiteral("s");
-        break;
-      }
     case CSS_CM :
     case CSS_MM :
     case CSS_IN :
@@ -248,6 +280,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_RAD :
     case CSS_GRAD :
     case CSS_MS :
+    case CSS_S :
     case CSS_HZ :
     case CSS_KHZ :
     case CSS_DIMENSION :
@@ -313,31 +346,28 @@ nsROCSSPrimitiveValue::GetFloatValue(PRUint16 aUnitType, float* aReturn)
     case CSS_CM :
       if (mType != CSS_PX)
         return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      *aReturn = mValue.mAppUnits * CM_PER_INCH_FLOAT /
-        nsPresContext::AppUnitsPerCSSInch();
+      *aReturn = mValue.mAppUnits * 2.54f / float(mAppUnitsPerInch);
       break;
     case CSS_MM :
       if (mType != CSS_PX)
         return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      *aReturn = mValue.mAppUnits * MM_PER_INCH_FLOAT /
-        nsPresContext::AppUnitsPerCSSInch();
+      *aReturn = mValue.mAppUnits * 25.4f / float(mAppUnitsPerInch);
       break;
     case CSS_IN :
       if (mType != CSS_PX)
         return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      *aReturn = mValue.mAppUnits / nsPresContext::AppUnitsPerCSSInch();
+      *aReturn = mValue.mAppUnits / float(mAppUnitsPerInch);
       break;
     case CSS_PT :
       if (mType != CSS_PX)
         return NS_ERROR_DOM_INVALID_ACCESS_ERR;
       *aReturn = mValue.mAppUnits * POINTS_PER_INCH_FLOAT / 
-        nsPresContext::AppUnitsPerCSSInch();
+        float(mAppUnitsPerInch);
       break;
     case CSS_PC :
       if (mType != CSS_PX)
         return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      *aReturn = mValue.mAppUnits * 6.0f /
-        nsPresContext::AppUnitsPerCSSInch();
+      *aReturn = mValue.mAppUnits * 6.0f / float(mAppUnitsPerInch);
       break;
     case CSS_PERCENTAGE :
       if (mType != CSS_PERCENTAGE)
@@ -387,7 +417,7 @@ nsROCSSPrimitiveValue::GetStringValue(nsAString& aReturn)
 {
   switch (mType) {
     case CSS_IDENT:
-      CopyUTF8toUTF16(nsCSSKeywords::GetStringValue(mValue.mKeyword), aReturn);
+      mValue.mAtom->ToString(aReturn);
       break;
     case CSS_STRING:
     case CSS_ATTR:
@@ -422,8 +452,7 @@ nsROCSSPrimitiveValue::GetRectValue(nsIDOMRect** aReturn)
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
   NS_ASSERTION(mValue.mRect, "mValue.mRect should never be null");
-  NS_ADDREF(*aReturn = mValue.mRect);
-  return NS_OK;
+  return CallQueryInterface(mValue.mRect, aReturn);
 }
 
 
@@ -435,165 +464,6 @@ nsROCSSPrimitiveValue::GetRGBColorValue(nsIDOMRGBColor** aReturn)
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
   NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
-  NS_ADDREF(*aReturn = mValue.mColor);
-  return NS_OK;
+  return CallQueryInterface(mValue.mColor, aReturn);
 }
 
-void
-nsROCSSPrimitiveValue::SetNumber(float aValue)
-{
-    Reset();
-    mValue.mFloat = aValue;
-    mType = CSS_NUMBER;
-}
-
-void
-nsROCSSPrimitiveValue::SetNumber(PRInt32 aValue)
-{
-  Reset();
-  mValue.mFloat = float(aValue);
-  mType = CSS_NUMBER;
-}
-
-void
-nsROCSSPrimitiveValue::SetNumber(PRUint32 aValue)
-{
-  Reset();
-  mValue.mFloat = float(aValue);
-  mType = CSS_NUMBER;
-}
-
-void
-nsROCSSPrimitiveValue::SetPercent(float aValue)
-{
-  Reset();
-  mValue.mFloat = aValue;
-  mType = CSS_PERCENTAGE;
-}
-
-void
-nsROCSSPrimitiveValue::SetAppUnits(nscoord aValue)
-{
-  Reset();
-  mValue.mAppUnits = aValue;
-  mType = CSS_PX;
-}
-
-void
-nsROCSSPrimitiveValue::SetAppUnits(float aValue)
-{
-  SetAppUnits(NSToCoordRound(aValue));
-}
-
-void
-nsROCSSPrimitiveValue::SetIdent(nsCSSKeyword aKeyword)
-{
-  NS_PRECONDITION(aKeyword != eCSSKeyword_UNKNOWN &&
-                  0 <= aKeyword && aKeyword < eCSSKeyword_COUNT,
-                  "bad keyword");
-  Reset();
-  mValue.mKeyword = aKeyword;
-  mType = CSS_IDENT;
-}
-
-// FIXME: CSS_STRING should imply a string with "" and a need for escaping.
-void
-nsROCSSPrimitiveValue::SetString(const nsACString& aString, PRUint16 aType)
-{
-  Reset();
-  mValue.mString = ToNewUnicode(aString);
-  if (mValue.mString) {
-    mType = aType;
-  } else {
-    // XXXcaa We should probably let the caller know we are out of memory
-    mType = CSS_UNKNOWN;
-  }
-}
-
-// FIXME: CSS_STRING should imply a string with "" and a need for escaping.
-void
-nsROCSSPrimitiveValue::SetString(const nsAString& aString, PRUint16 aType)
-{
-  Reset();
-  mValue.mString = ToNewUnicode(aString);
-  if (mValue.mString) {
-    mType = aType;
-  } else {
-    // XXXcaa We should probably let the caller know we are out of memory
-    mType = CSS_UNKNOWN;
-  }
-}
-
-void
-nsROCSSPrimitiveValue::SetURI(nsIURI *aURI)
-{
-  Reset();
-  mValue.mURI = aURI;
-  NS_IF_ADDREF(mValue.mURI);
-  mType = CSS_URI;
-}
-
-void
-nsROCSSPrimitiveValue::SetColor(nsDOMCSSRGBColor* aColor)
-{
-  NS_PRECONDITION(aColor, "Null RGBColor being set!");
-  Reset();
-  mValue.mColor = aColor;
-  if (mValue.mColor) {
-    NS_ADDREF(mValue.mColor);
-    mType = CSS_RGBCOLOR;
-  }
-  else {
-    mType = CSS_UNKNOWN;
-  }
-}
-
-void
-nsROCSSPrimitiveValue::SetRect(nsIDOMRect* aRect)
-{
-  NS_PRECONDITION(aRect, "Null rect being set!");
-  Reset();
-  mValue.mRect = aRect;
-  if (mValue.mRect) {
-    NS_ADDREF(mValue.mRect);
-    mType = CSS_RECT;
-  }
-  else {
-    mType = CSS_UNKNOWN;
-  }
-}
-
-void
-nsROCSSPrimitiveValue::SetTime(float aValue)
-{
-  Reset();
-  mValue.mFloat = aValue;
-  mType = CSS_S;
-}
-
-void
-nsROCSSPrimitiveValue::Reset()
-{
-  switch (mType) {
-    case CSS_IDENT:
-      break;
-    case CSS_STRING:
-    case CSS_ATTR:
-    case CSS_COUNTER: // FIXME: Counter should use an object
-      NS_ASSERTION(mValue.mString, "Null string should never happen");
-      nsMemory::Free(mValue.mString);
-      mValue.mString = nsnull;
-      break;
-    case CSS_URI:
-      NS_IF_RELEASE(mValue.mURI);
-      break;
-    case CSS_RECT:
-      NS_ASSERTION(mValue.mRect, "Null Rect should never happen");
-      NS_RELEASE(mValue.mRect);
-      break;
-    case CSS_RGBCOLOR:
-      NS_ASSERTION(mValue.mColor, "Null RGBColor should never happen");
-      NS_RELEASE(mValue.mColor);
-      break;
-  }
-}

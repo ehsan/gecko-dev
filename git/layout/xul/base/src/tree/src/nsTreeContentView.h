@@ -39,7 +39,7 @@
 #define nsTreeContentView_h__
 
 #include "nsFixedSizeAllocator.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIDocument.h"
 #include "nsStubDocumentObserver.h"
 #include "nsITreeBoxObject.h"
@@ -47,8 +47,6 @@
 #include "nsITreeView.h"
 #include "nsITreeContentView.h"
 #include "nsITreeSelection.h"
-
-class Row;
 
 nsresult NS_NewTreeContentView(nsITreeView** aResult);
 
@@ -61,9 +59,7 @@ class nsTreeContentView : public nsINativeTreeView,
 
     ~nsTreeContentView(void);
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTreeContentView,
-                                             nsINativeTreeView)
+    NS_DECL_ISUPPORTS
 
     NS_DECL_NSITREEVIEW
     // nsINativeTreeView: Untrusted code can use us
@@ -72,31 +68,29 @@ class nsTreeContentView : public nsINativeTreeView,
     NS_DECL_NSITREECONTENTVIEW
 
     // nsIDocumentObserver
-    NS_DECL_NSIDOCUMENTOBSERVER_CONTENTSTATESCHANGED
+    virtual void ContentStatesChanged(nsIDocument* aDocument,
+                                      nsIContent* aContent1,
+                                      nsIContent* aContent2,
+                                      PRInt32 aStateMask);
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
     NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
-    static PRBool CanTrustTreeSelection(nsISupports* aValue);
-
   protected:
     // Recursive methods which deal with serializing of nested content.
-    void Serialize(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex,
-                   nsTArray<Row*>& aRows);
+    void Serialize(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex, nsVoidArray& aRows);
 
-    void SerializeItem(nsIContent* aContent, PRInt32 aParentIndex,
-                       PRInt32* aIndex, nsTArray<Row*>& aRows);
+    void SerializeItem(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex, nsVoidArray& aRows);
 
-    void SerializeSeparator(nsIContent* aContent, PRInt32 aParentIndex,
-                            PRInt32* aIndex, nsTArray<Row*>& aRows);
+    void SerializeSeparator(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex, nsVoidArray& aRows);
 
     void SerializeOption(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex,
-                         nsTArray<Row*>& aRows);
+                         nsVoidArray& aRows);
 
     void SerializeOptGroup(nsIContent* aContent, PRInt32 aParentIndex, PRInt32* aIndex,
-                           nsTArray<Row*>& aRows);
+                           nsVoidArray& aRows);
 
     void GetIndexInSubtree(nsIContent* aContainer, nsIContent* aContent, PRInt32* aResult);
     
@@ -133,7 +127,7 @@ class nsTreeContentView : public nsINativeTreeView,
     nsCOMPtr<nsIContent>                mBody;
     nsIDocument*                        mDocument;      // WEAK
     nsFixedSizeAllocator                mAllocator;
-    nsTArray<Row*>                      mRows;
+    nsVoidArray                         mRows;
 
     PRPackedBool                        mUpdateSelection;
 };

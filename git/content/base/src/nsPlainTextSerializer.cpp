@@ -71,7 +71,7 @@ static const  PRInt32 kIndentSizeHeaders = 2;  /* Indention of h1, if
 static const  PRInt32 kIndentIncrementHeaders = 2;  /* If mHeaderStrategy = 1,
                                                 indent h(x+1) this many
                                                 columns more than h(x) */
-static const  PRInt32 kIndentSizeList = kTabSize;
+static const  PRInt32 kIndentSizeList = (kTabSize > kOLNumberWidth+3) ? kTabSize: kOLNumberWidth+3;
                                // Indention of non-first lines of ul and ol
 static const  PRInt32 kIndentSizeDD = kTabSize;  // Indention of <dd>
 static const  PRUnichar  kNBSP = 160;
@@ -120,7 +120,7 @@ nsPlainTextSerializer::nsPlainTextSerializer()
 
   // Flow
   mEmptyLines = 1; // The start of the document is an "empty line" in itself,
-  mInWhitespace = PR_FALSE;
+  mInWhitespace = PR_TRUE;
   mPreFormatted = PR_FALSE;
   mStartedOutput = PR_FALSE;
 
@@ -129,7 +129,7 @@ nsPlainTextSerializer::nsPlainTextSerializer()
   mTagStackIndex = 0;
   mIgnoreAboveIndex = (PRUint32)kNotFound;
 
-  // initialize the OL stack, where numbers for ordered lists are kept
+  // initialize the OL stack, where numbers for ordered lists are kept:
   mOLStack = new PRInt32[OLStackSize];
   mOLStackIndex = 0;
 
@@ -235,21 +235,21 @@ nsPlainTextSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
 }
 
 PRBool
-nsPlainTextSerializer::GetLastBool(const nsTArray<PRPackedBool>& aStack)
+nsPlainTextSerializer::GetLastBool(const nsVoidArray& aStack)
 {
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size == 0) {
     return PR_FALSE;
   }
-  return aStack.ElementAt(size-1);
+  return (aStack.ElementAt(size-1) != reinterpret_cast<void*>(PR_FALSE));
 }
 
 void
-nsPlainTextSerializer::SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue)
+nsPlainTextSerializer::SetLastBool(nsVoidArray& aStack, PRBool aValue)
 {
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size > 0) {
-    aStack.ElementAt(size-1) = aValue;
+    aStack.ReplaceElementAt(reinterpret_cast<void*>(aValue), size-1);
   }
   else {
     NS_ERROR("There is no \"Last\" value");
@@ -257,18 +257,18 @@ nsPlainTextSerializer::SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue
 }
 
 void
-nsPlainTextSerializer::PushBool(nsTArray<PRPackedBool>& aStack, PRBool aValue)
+nsPlainTextSerializer::PushBool(nsVoidArray& aStack, PRBool aValue)
 {
-    aStack.AppendElement(PRPackedBool(aValue));
+    aStack.AppendElement(reinterpret_cast<void*>(aValue));
 }
 
 PRBool
-nsPlainTextSerializer::PopBool(nsTArray<PRPackedBool>& aStack)
+nsPlainTextSerializer::PopBool(nsVoidArray& aStack)
 {
   PRBool returnValue = PR_FALSE;
-  PRUint32 size = aStack.Length();
+  PRUint32 size = aStack.Count();
   if (size > 0) {
-    returnValue = aStack.ElementAt(size-1);
+    returnValue = (aStack.ElementAt(size-1) != reinterpret_cast<void*>(PR_FALSE));
     aStack.RemoveElementAt(size-1);
   }
   return returnValue;
@@ -290,7 +290,7 @@ nsPlainTextSerializer::Initialize(nsAString* aOutString,
 }
 
 NS_IMETHODIMP 
-nsPlainTextSerializer::AppendText(nsIContent* aText,
+nsPlainTextSerializer::AppendText(nsIDOMText* aText, 
                                   PRInt32 aStartOffset,
                                   PRInt32 aEndOffset, 
                                   nsAString& aStr)
@@ -309,7 +309,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText,
   PRInt32 length = 0;
   nsAutoString textstr;
 
-  nsIContent* content = aText;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aText);
   const nsTextFragment* frag;
   if (!content || !(frag = content->GetText())) {
     return NS_ERROR_FAILURE;
@@ -372,7 +372,7 @@ nsPlainTextSerializer::AppendText(nsIContent* aText,
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendCDATASection(nsIContent* aCDATASection,
+nsPlainTextSerializer::AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                           PRInt32 aStartOffset,
                                           PRInt32 aEndOffset,
                                           nsAString& aStr)
@@ -381,13 +381,14 @@ nsPlainTextSerializer::AppendCDATASection(nsIContent* aCDATASection,
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendElementStart(nsIContent *aElement,
-                                          nsIContent *aOriginalElement,
+nsPlainTextSerializer::AppendElementStart(nsIDOMElement *aElement,
+                                          nsIDOMElement *aOriginalElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  mContent = aElement;
+  mContent = do_QueryInterface(aElement);
+  if (!mContent) return NS_ERROR_FAILURE;
 
   nsresult rv;
   PRInt32 id = GetIdForContent(mContent);
@@ -414,12 +415,13 @@ nsPlainTextSerializer::AppendElementStart(nsIContent *aElement,
 } 
  
 NS_IMETHODIMP 
-nsPlainTextSerializer::AppendElementEnd(nsIContent *aElement,
+nsPlainTextSerializer::AppendElementEnd(nsIDOMElement *aElement,
                                         nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  mContent = aElement;
+  mContent = do_QueryInterface(aElement);
+  if (!mContent) return NS_ERROR_FAILURE;
 
   nsresult rv;
   PRInt32 id = GetIdForContent(mContent);
@@ -454,8 +456,8 @@ nsPlainTextSerializer::Flush(nsAString& aStr)
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendDocumentStart(nsIDocument *aDocument,
-                                           nsAString& aStr)
+nsPlainTextSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
+                                             nsAString& aStr)
 {
   return NS_OK;
 }
@@ -642,8 +644,6 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
       }
     } 
     else {
-      /* See comment at end of function. */
-      mInWhitespace = PR_TRUE;
       mPreFormatted = PR_FALSE;
     }
 
@@ -681,7 +681,7 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
       AddToLine(NS_LITERAL_STRING("\t").get(), 1);
       mInWhitespace = PR_TRUE;
     }
-    else if (mHasWrittenCellsForRow.IsEmpty()) {
+    else if (mHasWrittenCellsForRow.Count() == 0) {
       // We don't always see a <tr> (nor a <table>) before the <td> if we're
       // copying part of a table
       PushBool(mHasWrittenCellsForRow, PR_TRUE); // will never be popped
@@ -699,26 +699,21 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
   }
   else if (type == eHTMLTag_ol) {
     EnsureVerticalSpace(mULCount + mOLStackIndex == 0 ? 1 : 0);
-    if (mFlags & nsIDocumentEncoder::OutputFormatted) {
-      // Must end the current line before we change indention
-      if (mOLStackIndex < OLStackSize) {
-        nsAutoString startAttr;
-        PRInt32 startVal = 1;
-        if(NS_SUCCEEDED(GetAttributeValue(aNode, nsGkAtoms::start, startAttr))){
-          PRInt32 rv = 0;
-          startVal = startAttr.ToInteger(&rv);
-          if (NS_FAILED(rv))
-            startVal = 1;
-        }
-        mOLStack[mOLStackIndex++] = startVal;
+    // Must end the current line before we change indention
+    if (mOLStackIndex < OLStackSize) {
+      nsAutoString startAttr;
+      PRInt32 startVal = 1;
+      if(NS_SUCCEEDED(GetAttributeValue(aNode, nsGkAtoms::start, startAttr))){
+        PRInt32 rv = 0;
+        startVal = startAttr.ToInteger(&rv);
+        if (NS_FAILED(rv))
+          startVal = 1;
       }
-    } else {
-      mOLStackIndex++;
+      mOLStack[mOLStackIndex++] = startVal;
     }
     mIndent += kIndentSizeList;  // see ul
   }
-  else if (type == eHTMLTag_li &&
-           (mFlags & nsIDocumentEncoder::OutputFormatted)) {
+  else if (type == eHTMLTag_li) {
     if (mTagStackIndex > 1 && IsInOL()) {
       if (mOLStackIndex > 0) {
         nsAutoString valueAttr;
@@ -744,7 +739,7 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
       char bulletChar = bulletCharArray[index % 4];
       mInIndentString.Append(PRUnichar(bulletChar));
     }
-
+    
     mInIndentString.Append(PRUnichar(' '));
   }
   else if (type == eHTMLTag_dl) {
@@ -858,13 +853,6 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
     Write(NS_LITERAL_STRING("_"));
   }
 
-  /* Container elements are always block elements, so we shouldn't
-     output any whitespace immediately after the container tag even if
-     there's extra whitespace there because the HTML is pretty-printed
-     or something. To ensure that happens, tell the serializer we're
-     already in whitespace so it won't output more. */
-  mInWhitespace = PR_TRUE;
-
   return NS_OK;
 }
 
@@ -923,15 +911,14 @@ nsPlainTextSerializer::DoCloseContainer(PRInt32 aTag)
     if (mFloatingLines < 0)
       mFloatingLines = 0;
     mLineBreakDue = PR_TRUE;
-  }
-  else if (((type == eHTMLTag_li) ||
-            (type == eHTMLTag_dt)) &&
-           (mFlags & nsIDocumentEncoder::OutputFormatted)) {
+  } 
+  else if ((type == eHTMLTag_li) ||
+           (type == eHTMLTag_dt)) {
     // Items that should always end a line, but get no more whitespace
     if (mFloatingLines < 0)
       mFloatingLines = 0;
     mLineBreakDue = PR_TRUE;
-  }
+  } 
   else if (type == eHTMLTag_pre) {
     mFloatingLines = GetLastBool(mIsInCiteBlockquote) ? 0 : 1;
     mLineBreakDue = PR_TRUE;
@@ -1139,24 +1126,36 @@ nsPlainTextSerializer::DoAddLeaf(const nsIParserNode *aNode, PRInt32 aTag,
       EnsureVerticalSpace(mEmptyLines+1);
     }
   }
-  else if (type == eHTMLTag_whitespace || type == eHTMLTag_newline) {
+  else if (type == eHTMLTag_whitespace) {
     // The only times we want to pass along whitespace from the original
     // html source are if we're forced into preformatted mode via flags,
     // or if we're prettyprinting and we're inside a <pre>.
     // Otherwise, either we're collapsing to minimal text, or we're
     // prettyprinting to mimic the html format, and in neither case
     // does the formatting of the html source help us.
+    // One exception: at the very beginning of a selection,
+    // we want to preserve whitespace.
     if (mFlags & nsIDocumentEncoder::OutputPreformatted ||
         (mPreFormatted && !mWrapColumn) ||
         IsInPre()) {
-      if (type == eHTMLTag_newline)
-        EnsureVerticalSpace(mEmptyLines+1);
-      else  
-        Write(aText);
+      Write(aText);
     }
-    else if(!mInWhitespace) {
+    else if(!mInWhitespace ||
+            (!mStartedOutput
+             && mFlags | nsIDocumentEncoder::OutputSelectionOnly)) {
+      mInWhitespace = PR_FALSE;
       Write(kSpace);
       mInWhitespace = PR_TRUE;
+    }
+  }
+  else if (type == eHTMLTag_newline) {
+    if (mFlags & nsIDocumentEncoder::OutputPreformatted ||
+        (mPreFormatted && !mWrapColumn) ||
+        IsInPre()) {
+      EnsureVerticalSpace(mEmptyLines+1);
+    }
+    else {
+      Write(kSpace);
     }
   }
   else if (type == eHTMLTag_hr &&
@@ -1215,12 +1214,10 @@ nsPlainTextSerializer::EnsureVerticalSpace(PRInt32 noOfRows)
   // realize that we should start a new line.
   if(noOfRows >= 0 && !mInIndentString.IsEmpty()) {
     EndLine(PR_FALSE);
-    mInWhitespace = PR_TRUE;
   }
 
   while(mEmptyLines < noOfRows) {
     EndLine(PR_FALSE);
-    mInWhitespace = PR_TRUE;
   }
   mLineBreakDue = PR_FALSE;
   mFloatingLines = -1;
@@ -1389,9 +1386,8 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
         // try to find another place to break
         goodSpace=(prefixwidth>mWrapColumn+1)?1:mWrapColumn-prefixwidth+1;
         if (mLineBreaker) {
-          if ((PRUint32)goodSpace < mCurrentLine.Length())
-            goodSpace = mLineBreaker->Next(mCurrentLine.get(), 
-                                           mCurrentLine.Length(), goodSpace);
+          goodSpace = mLineBreaker->Next(mCurrentLine.get(), 
+                                      mCurrentLine.Length(), goodSpace);
           if (goodSpace == NS_LINEBREAKER_NEED_MORE_TEXT)
             goodSpace = mCurrentLine.Length();
         }
@@ -1416,10 +1412,8 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
         else {
           mCurrentLine.Right(restOfLine, linelength-goodSpace);
         }
-        // if breaker was U+0020, it has to consider for delsp=yes support
-        PRBool breakBySpace = mCurrentLine.CharAt(goodSpace) == ' ';
         mCurrentLine.Truncate(goodSpace); 
-        EndLine(PR_TRUE, breakBySpace);
+        EndLine(PR_TRUE);
         mCurrentLine.Truncate();
         // Space stuff new line?
         if(mFlags & nsIDocumentEncoder::OutputFormatFlowed) {
@@ -1457,7 +1451,7 @@ nsPlainTextSerializer::AddToLine(const PRUnichar * aLineFragment,
  * preformatted.
  */
 void
-nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
+nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak)
 {
   PRUint32 currentlinelength = mCurrentLine.Length();
 
@@ -1489,13 +1483,7 @@ nsPlainTextSerializer::EndLine(PRBool aSoftlinebreak, PRBool aBreakBySpace)
     // Add the soft part of the soft linebreak (RFC 2646 4.1)
     // We only do this when there is no indentation since format=flowed
     // lines and indentation doesn't work well together.
-
-    // If breaker character is ASCII space with RFC 3676 support (delsp=yes),
-    // add twice space.
-    if (mFlags & nsIDocumentEncoder::OutputFormatDelSp && aBreakBySpace)
-      mCurrentLine.Append(NS_LITERAL_STRING("  "));
-    else
-      mCurrentLine.Append(PRUnichar(' '));
+    mCurrentLine.Append(PRUnichar(' '));
   }
 
   if(aSoftlinebreak) {
@@ -1829,7 +1817,8 @@ nsPlainTextSerializer::GetAttributeValue(const nsIParserNode* aNode,
     }
   }
   else if (aNode) {
-    nsDependentAtomString name(aName); 
+    nsAutoString name; 
+    aName->ToString(name);
 
     PRInt32 count = aNode->GetAttributeCount();
     for (PRInt32 i=0;i<count;i++) {
@@ -1863,7 +1852,7 @@ nsPlainTextSerializer::IsCurrentNodeConverted(const nsIParserNode* aNode)
 PRInt32
 nsPlainTextSerializer::GetIdForContent(nsIContent* aContent)
 {
-  if (!aContent->IsHTML()) {
+  if (!aContent->IsNodeOfType(nsINode::eHTML)) {
     return eHTMLTag_unknown;
   }
 

@@ -3,7 +3,7 @@
 <head>
   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
   <title>Test for Cross Site XMLHttpRequest</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -26,6 +26,12 @@ window.addEventListener("message", function(e) {
 gen = runTest();
 
 function runTest() {
+  if (navigator.platform == "MacIntel") {
+    todo(false, "httpd.js fails on Mac");
+    SimpleTest.finish();
+    yield;
+  }
+
   var loader = document.getElementById('loader');
   var loaderWindow = loader.contentWindow;
   loader.onload = function () { gen.next() };
@@ -69,7 +75,7 @@ function runTest() {
            { pass: 1,
              method: "GET",
              headers: { "y-my-header": "hello" },
-             allowHeaders: "y-my-header,x-my-header",
+             allowHeaders: "y-my-header",
              cacheTime: 3600,
            },
            { pass: 1,
@@ -158,6 +164,10 @@ function runTest() {
              allowHeaders: "second-header",
              cacheTime: 3600,
            },
+           { pass: 0,
+             method: "GET",
+             headers: { "third-header": "myValue" },
+           },
            { pass: 1,
              method: "GET",
              headers: { "third-header": "myValue" },
@@ -165,34 +175,10 @@ function runTest() {
              cacheTime: 2,
            },
            { pause: 2.1 },
-           { pass: 1,
-             method: "GET",
-             headers: { "second-header": "myValue" },
-           },
            { pass: 0,
              method: "GET",
              headers: { "first-header": "myValue" },
            },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "GET",
-             headers: { "first-header": "myValue" },
-             allowHeaders: "first-header",
-             cacheTime: 2,
-           },
-           { pass: 1,
-             method: "GET",
-             headers: { "second-header": "myValue" },
-             allowHeaders: "second-header",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "GET",
-             headers: { "third-header": "myValue" },
-             allowHeaders: "third-header",
-             cacheTime: 2,
-           },
-           { pause: 2.1 },
            { pass: 1,
              method: "GET",
              headers: { "second-header": "myValue" },
@@ -203,18 +189,18 @@ function runTest() {
            },
            { newTest: "*******" },
            { pass: 0,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE",
+             method: "XXDELETE",
+             allowMethods: "XXDELETE",
              cacheTime: 3600
            },
            { pass: 1,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { pass: 1,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { pass: 0,
              method: "PATCH",
@@ -234,36 +220,36 @@ function runTest() {
            { pass: 1,
              method: "PATCH",
            },
-           { pass: 0,
-             method: "DELETE",
+           { pass: 1,
+             method: "XXDELETE",
            },
            { pass: 0,
-             method: "PUT",
+             method: "XXPUT",
            },
            { newTest: "*******" },
            { pass: 0,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE",
+             method: "XXDELETE",
+             allowMethods: "XXDELETE",
              cacheTime: 2
            },
            { pause: 2.1 },
            { pass: 0,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { newTest: "*******" },
            { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE, PUT",
+             method: "XXDELETE",
+             allowMethods: "XXDELETE, XXPUT",
              cacheTime: 3600
            },
            { pass: 1,
-             method: "DELETE",
+             method: "XXDELETE",
            },
            { pass: 1,
-             method: "PUT",
+             method: "XXPUT",
            },
            { pass: 0,
              method: "PATCH",
@@ -279,28 +265,8 @@ function runTest() {
              allowMethods: "SECOND",
              cacheTime: 3600,
            },
-           { pass: 1,
-             method: "THIRD",
-             allowMethods: "THIRD",
-             cacheTime: 2,
-           },
-           { pause: 2.1 },
-           { pass: 1,
-             method: "SECOND",
-           },
            { pass: 0,
-             method: "FIRST",
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "FIRST",
-             allowMethods: "FIRST",
-             cacheTime: 2,
-           },
-           { pass: 1,
-             method: "SECOND",
-             allowMethods: "SECOND",
-             cacheTime: 3600,
+             method: "THIRD",
            },
            { pass: 1,
              method: "THIRD",
@@ -308,120 +274,19 @@ function runTest() {
              cacheTime: 2,
            },
            { pause: 2.1 },
+           { pass: 0,
+             method: "FIRST",
+           },
            { pass: 1,
              method: "SECOND",
            },
            { pass: 0,
              method: "THIRD",
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-             allowHeaders: "x-my-header",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" }
-           },
-           { pass: 0,
-             method: "GET",
-             headers: { "y-my-header": "y-value" }
-           },
-           { pass: 0,
-             method: "GET",
-             headers: { "x-my-header": "x-value" }
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-             allowHeaders: "x-my-header",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-           },
-           { pass: 0,
-             method: "PUT",
-           },
-           { pass: 0,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-             allowHeaders: "x-my-header",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-           },
-           { pass: 0,
-             method: "GET",
-             noOrigin: 1,
-           },
-           { pass: 0,
-             method: "GET",
-             headers: { "x-my-header": "x-value" },
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "DELETE"
-           },
-           { pass: 0,
-             method: "PUT"
-           },
-           { pass: 0,
-             method: "DELETE"
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "DELETE"
-           },
-           { pass: 0,
-             method: "DELETE",
-             headers: { "my-header": "value" },
-           },
-           { pass: 0,
-             method: "DELETE"
-           },
-           { newTest: "*******" },
-           { pass: 1,
-             method: "DELETE",
-             allowMethods: "DELETE",
-             cacheTime: 3600,
-           },
-           { pass: 1,
-             method: "DELETE"
-           },
-           { pass: 0,
-             method: "GET",
-             noOrigin: 1,
-           },
-           { pass: 0,
-             method: "DELETE"
            },
            ];
 
-  baseURL = "http://mochi.test:8888/tests/content/base/test/" +
+  baseURL = "http://localhost:8888/tests/content/base/test/" +
              "file_CrossSiteXHR_cache_server.sjs?";
-  setStateURL = baseURL + "setState=";
 
   var unique = Date.now();
   for each (test in tests) {
@@ -436,18 +301,19 @@ function runTest() {
     }
 
     req = {
-      url: baseURL + "c=" + unique,
+      url: baseURL + "c=" + unique +
+           "&allowOrigin=" + escape(origin),
       method: test.method,
       headers: test.headers,
     };
 
-    sec = { allowOrigin: test.noOrigin ? "" : origin,
-            allowHeaders: test.allowHeaders,
-            allowMethods: test.allowMethods,
-            cacheTime: test.cacheTime };
-    xhr = new XMLHttpRequest();
-    xhr.open("POST", setStateURL + escape(sec.toSource()), false);
-    xhr.send();
+    if (test.cacheTime || test.allowHeaders || test.allowMethods) {
+      sec = { allowHeaders: test.allowHeaders,
+              allowMethods: test.allowMethods,
+              cacheTime: test.cacheTime };
+      req.headers = req.headers || {};
+      req.headers["magic-" + escape(sec.toSource())] = "";
+    }
 
     loaderWindow.postMessage(req.toSource(), origin);
 

@@ -36,14 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLImageAccessible.h"
-
-#include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+
+#include "nsHTMLImageAccessible.h"
+#include "nsAccessibilityAtoms.h"
+#include "nsHTMLAreaAccessible.h"
+
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
+#include "nsIHTMLDocument.h"
 #include "nsIImageLoadingContent.h"
 #include "nsILink.h"
 #include "nsIPresShell.h"
@@ -52,32 +54,58 @@
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
 
+// --- image -----
+
+const PRUint32 kDefaultImageCacheSize = 256;
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageAccessible
-////////////////////////////////////////////////////////////////////////////////
 
-nsHTMLImageAccessible::
-  nsHTMLImageAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLinkableAccessible(aContent, aShell)
-{
+nsHTMLImageAccessible::nsHTMLImageAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
+nsLinkableAccessible(aDOMNode, aShell), mAccessNodeCache(nsnull)
+{ 
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(aDOMNode));
+  nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
+  if (!shell)
+    return;
+
+  nsIDocument *doc = shell->GetDocument();
+  nsAutoString mapElementName;
+
+  if (doc && element) {
+    nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(doc));
+    element->GetAttribute(NS_LITERAL_STRING("usemap"),mapElementName);
+    if (htmlDoc && !mapElementName.IsEmpty()) {
+      if (mapElementName.CharAt(0) == '#')
+        mapElementName.Cut(0,1);
+      mMapElement = htmlDoc->GetImageMap(mapElementName);
+    }
+  }
+
+  if (mMapElement) {
+    mAccessNodeCache = new nsAccessNodeHashtable();
+    mAccessNodeCache->Init(kDefaultImageCacheSize);
+  }
 }
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsAccessible,
                              nsIAccessibleImage)
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public
+// nsIAccessible
 
-nsresult
-nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // The state is a bitfield, get our inherited state, then logically OR it with
   // STATE_ANIMATED if this is an animated image.
 
-  nsresult rv = nsLinkableAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsLinkableAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
-  nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mContent));
+  nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<imgIRequest> imageRequest;
 
   if (content)
@@ -89,45 +117,99 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     imageRequest->GetImage(getter_AddRefs(imgContainer));
 
   if (imgContainer) {
-    PRBool animated;
-    imgContainer->GetAnimated(&animated);
-    if (animated)
+    PRUint32 numFrames;
+    imgContainer->GetNumFrames(&numFrames);
+    if (numFrames > 1)
       *aState |= nsIAccessibleStates::STATE_ANIMATED;
   }
 
   return NS_OK;
 }
 
-nsresult
-nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
+
+/* wstring getName (); */
+NS_IMETHODIMP nsHTMLImageAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+  
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "Image node always supports nsIContent");
+    
+  // No alt attribute means AT can repair if there is no accessible name
+  // alt="" with no title or aria-labelledby means image is presentational and 
+  // AT should leave accessible name empty
   PRBool hasAltAttrib =
-    mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
-
-  nsresult rv = nsAccessible::GetNameInternal(aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aName.IsEmpty() && hasAltAttrib) {
-    // No accessible name but empty 'alt' attribute is present. If further name
-    // computation algorithm doesn't provide non empty name then it means
-    // an empty 'alt' attribute was used to indicate a decorative image (see
-    // nsIAccessible::name attribute for details).
-    return NS_OK_EMPTY_NAME;
+    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
+  if (aName.IsEmpty()) {
+    if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label) ||
+        content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_labelledby)) {
+      // Use HTML label or DHTML accessibility's label or labelledby attribute for name
+      // GetHTMLName will also try title attribute as a last resort
+      GetHTMLName(aName, PR_FALSE);
+    }
+    if (aName.IsEmpty()) { // No name from alt or aria-labelledby
+      content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title, aName);
+      if (!hasAltAttrib && aName.IsEmpty()) { 
+        // Still no accessible name and no alt attribute is present.
+        // SetIsVoid() is different from empty string -- this means a name was not 
+        // provided by author and AT repair of the name is allowed.
+        aName.SetIsVoid(PR_TRUE);
+      }
+    }
   }
-
   return NS_OK;
 }
 
-PRUint32
-nsHTMLImageAccessible::NativeRole()
+/* wstring getRole (); */
+NS_IMETHODIMP nsHTMLImageAccessible::GetRole(PRUint32 *_retval)
 {
-  return nsIAccessibleRole::ROLE_GRAPHIC;
+  *_retval = mMapElement ? nsIAccessibleRole::ROLE_IMAGE_MAP :
+                           nsIAccessibleRole::ROLE_GRAPHIC;
+  return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessible
+void nsHTMLImageAccessible::CacheChildren()
+{
+  if (!mWeakShell) {
+    // This node has been shut down
+    mAccChildCount = eChildCountUninitialized;
+    return;
+  }
+
+  if (mAccChildCount != eChildCountUninitialized) {
+    return;
+  }
+
+  mAccChildCount = 0;
+  nsCOMPtr<nsIDOMHTMLCollection> mapAreas = GetAreaCollection();
+  if (!mapAreas)
+    return;
+
+  PRUint32 numMapAreas;
+  mapAreas->GetLength(&numMapAreas);
+  PRInt32 childCount = 0;
+  
+  nsCOMPtr<nsIAccessible> areaAccessible;
+  nsCOMPtr<nsPIAccessible> privatePrevAccessible;
+  while (childCount < (PRInt32)numMapAreas && 
+         (areaAccessible = GetAreaAccessible(mapAreas, childCount)) != nsnull) {
+    if (privatePrevAccessible) {
+      privatePrevAccessible->SetNextSibling(areaAccessible);
+    }
+    else {
+      SetFirstChild(areaAccessible);
+    }
+
+    ++ childCount;
+
+    privatePrevAccessible = do_QueryInterface(areaAccessible);
+    NS_ASSERTION(privatePrevAccessible, "nsIAccessible impl's should always support nsPIAccessible as well");
+    privatePrevAccessible->SetParent(this);
+  }
+  mAccChildCount = childCount;
+}
 
 NS_IMETHODIMP
 nsHTMLImageAccessible::GetNumActions(PRUint8 *aNumActions)
@@ -170,22 +252,83 @@ nsHTMLImageAccessible::DoAction(PRUint8 aIndex)
 
   if (IsValidLongDescIndex(aIndex)) {
     //get the long description uri and open in a new window
-    nsCOMPtr<nsIDOMHTMLImageElement> element(do_QueryInterface(mContent));
+    nsCOMPtr<nsIDOMHTMLImageElement> element(do_QueryInterface(mDOMNode));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
-
     nsAutoString longDesc;
     nsresult rv = element->GetLongDesc(longDesc);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    nsIDocument* document = mContent->GetOwnerDoc();
+    nsCOMPtr<nsIDOMDocument> domDocument;
+    rv = mDOMNode->GetOwnerDocument(getter_AddRefs(domDocument));
+    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
     nsCOMPtr<nsPIDOMWindow> piWindow = document->GetWindow();
     nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(piWindow));
     NS_ENSURE_TRUE(win, NS_ERROR_FAILURE);
     nsCOMPtr<nsIDOMWindow> tmp;
-    return win->Open(longDesc, EmptyString(), EmptyString(),
+    return win->Open(longDesc, NS_LITERAL_STRING(""), NS_LITERAL_STRING(""),
                      getter_AddRefs(tmp));
   }
   return nsLinkableAccessible::DoAction(aIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsIAccessibleHyperLink
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetAnchorCount(PRInt32 *aAnchorCount)
+{
+  NS_ENSURE_ARG_POINTER(aAnchorCount);
+
+  if (!mMapElement)
+    return nsLinkableAccessible::GetAnchorCount(aAnchorCount);
+
+  return GetChildCount(aAnchorCount);
+}
+
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
+{
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
+
+  if (!mMapElement)
+    return nsLinkableAccessible::GetURI(aIndex, aURI);
+
+  nsCOMPtr<nsIDOMHTMLCollection> mapAreas = GetAreaCollection();
+  if (!mapAreas)
+    return NS_OK;
+  
+  nsCOMPtr<nsIDOMNode> domNode;
+  mapAreas->Item(aIndex, getter_AddRefs(domNode));
+  if (!domNode)
+    return NS_ERROR_INVALID_ARG;
+
+  nsCOMPtr<nsILink> link(do_QueryInterface(domNode));
+  if (link)
+    link->GetHrefURI(aURI);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetAnchor(PRInt32 aIndex, nsIAccessible **aAccessible)
+{
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+
+  if (!mMapElement)
+    return nsLinkableAccessible::GetAnchor(aIndex, aAccessible);
+
+  nsCOMPtr<nsIDOMHTMLCollection> mapAreas = GetAreaCollection();
+  if (mapAreas) {
+    nsCOMPtr<nsIAccessible> accessible;
+    accessible = GetAreaAccessible(mapAreas, aIndex);
+    if (!accessible)
+      return NS_ERROR_INVALID_ARG;
+
+    NS_ADDREF(*aAccessible = accessible);
+  }
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +353,26 @@ nsHTMLImageAccessible::GetImageSize(PRInt32 *aWidth, PRInt32 *aHeight)
   return GetBounds(&x, &y, aWidth, aHeight);
 }
 
-// nsAccessible
+////////////////////////////////////////////////////////////////////////////////
+// nsPIAccessNode
+
+NS_IMETHODIMP
+nsHTMLImageAccessible::Shutdown()
+{
+  nsLinkableAccessible::Shutdown();
+
+  if (mAccessNodeCache) {
+    ClearCache(*mAccessNodeCache);
+    delete mAccessNodeCache;
+    mAccessNodeCache = nsnull;
+  }
+
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsHTMLImageAccessible
+
 nsresult
 nsHTMLImageAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
@@ -220,12 +382,66 @@ nsHTMLImageAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   nsresult rv = nsLinkableAccessible::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+
   nsAutoString src;
-  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src, src);
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src, src);
   if (!src.IsEmpty())
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::src, src);
 
   return NS_OK;
+}
+
+already_AddRefed<nsIDOMHTMLCollection>
+nsHTMLImageAccessible::GetAreaCollection()
+{
+  if (!mMapElement)
+    return nsnull;
+
+  nsIDOMHTMLCollection *mapAreas = nsnull;
+  nsresult rv = mMapElement->GetAreas(&mapAreas);
+  if (NS_FAILED(rv))
+    return nsnull;
+
+  return mapAreas;
+}
+
+already_AddRefed<nsIAccessible>
+nsHTMLImageAccessible::GetAreaAccessible(nsIDOMHTMLCollection *aAreaCollection,
+                                         PRInt32 aAreaNum)
+{
+  if (!aAreaCollection)
+    return nsnull;
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  aAreaCollection->Item(aAreaNum,getter_AddRefs(domNode));
+  if (!domNode)
+    return nsnull;
+  
+  nsCOMPtr<nsIAccessNode> accessNode;
+  GetCacheEntry(*mAccessNodeCache, (void*)(aAreaNum),
+                getter_AddRefs(accessNode));
+  
+  if (!accessNode) {
+    accessNode = new nsHTMLAreaAccessible(domNode, this, mWeakShell);
+    if (!accessNode)
+      return nsnull;
+    
+    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+    NS_ASSERTION(privateAccessNode,
+                 "Accessible doesn't implement nsPIAccessNode");
+    
+    nsresult rv = privateAccessNode->Init();
+    if (NS_FAILED(rv))
+      return nsnull;
+    
+    PutCacheEntry(*mAccessNodeCache, (void*)(aAreaNum), accessNode);
+  }
+
+  nsIAccessible *accessible = nsnull;
+  CallQueryInterface(accessNode, &accessible);
+
+  return accessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,7 +453,8 @@ nsHTMLImageAccessible::HasLongDesc()
   if (IsDefunct())
     return PR_FALSE;
 
-  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::longDesc);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  return (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::longDesc));
 }
 
 PRBool

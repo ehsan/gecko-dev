@@ -26,7 +26,6 @@
  *   Markus G. Kuhn <mkuhn@acm.org>
  *   Richard Verhoeven <river@win.tue.nl>
  *   Frank Tang <ftang@netscape.com> adopt into mozilla
- *   Ginn Chen <ginn.chen@sun.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,23 +48,20 @@
 #include "nsIServiceManager.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
-#include "nsIIOService.h"
-#include "nsIFileURL.h"
-#include "nsNetUtil.h"
 #include "prlog.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsPrimitiveHelpers.h"
 #include "prtime.h"
 #include "prthread.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkinvisible.h>
 #include <gdk/gdkx.h>
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "gfxASurface.h"
 #include "gfxXlibSurface.h"
 #include "gfxContext.h"
 #include "nsImageToPixbuf.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
@@ -73,44 +69,16 @@
 // This sets how opaque the drag image is
 #define DRAG_IMAGE_ALPHA_LEVEL 0.5
 
-// These values are copied from GtkDragResult (rather than using GtkDragResult
-// directly) so that this code can be compiled against versions of GTK+ that
-// do not have GtkDragResult.
-// GtkDragResult is available from GTK+ version 2.12.
-enum {
-  MOZ_GTK_DRAG_RESULT_SUCCESS,
-  MOZ_GTK_DRAG_RESULT_NO_TARGET
-};
-
-// Some gobject functions expect functions for gpointer arguments.
-// gpointer is void* but C++ doesn't like casting functions to void*.
-template<class T> static inline gpointer
-FuncToGpointer(T aFunction)
-{
-    return reinterpret_cast<gpointer>
-        (reinterpret_cast<uintptr_t>
-         // This cast just provides a warning if T is not a function.
-         (reinterpret_cast<void (*)()>(aFunction)));
-}
-
 static PRLogModuleInfo *sDragLm = NULL;
-static guint sMotionEventTimerID;
 
 static const char gMimeListType[] = "application/x-moz-internal-item-list";
 static const char gMozUrlType[] = "_NETSCAPE_URL";
 static const char gTextUriListType[] = "text/uri-list";
-static const char gTextPlainUTF8Type[] = "text/plain;charset=utf-8";
 
 static void
 invisibleSourceDragEnd(GtkWidget        *aWidget,
                        GdkDragContext   *aContext,
                        gpointer          aData);
-
-static gboolean
-invisibleSourceDragFailed(GtkWidget        *aWidget,
-                          GdkDragContext   *aContext,
-                          gint              aResult,
-                          gpointer          aData);
 
 static void
 invisibleSourceDragDataGet(GtkWidget        *aWidget,
@@ -125,7 +93,7 @@ nsDragService::nsDragService()
     // We have to destroy the hidden widget before the event loop stops
     // running.
     nsCOMPtr<nsIObserverService> obsServ =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     obsServ->AddObserver(this, "quit-application", PR_FALSE);
 
     // our hidden source widget
@@ -135,25 +103,15 @@ nsDragService::nsDragService()
     gtk_widget_realize(mHiddenWidget);
     // hook up our internal signals so that we can get some feedback
     // from our drag source
-    g_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_data_get",
-                     G_CALLBACK(invisibleSourceDragDataGet), this);
-    g_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_end",
-                     G_CALLBACK(invisibleSourceDragEnd), this);
-    // drag-failed is available from GTK+ version 2.12
-    guint dragFailedID = g_signal_lookup("drag-failed",
-                                         G_TYPE_FROM_INSTANCE(mHiddenWidget));
-    if (dragFailedID) {
-        g_signal_connect_closure_by_id(mHiddenWidget, dragFailedID, 0,
-                                       g_cclosure_new(G_CALLBACK(invisibleSourceDragFailed),
-                                                      this, NULL),
-                                       FALSE);
-    }
+    gtk_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_data_get",
+                       GTK_SIGNAL_FUNC(invisibleSourceDragDataGet), this);
+    gtk_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_end",
+                       GTK_SIGNAL_FUNC(invisibleSourceDragEnd), this);
 
     // set up our logging module
     if (!sDragLm)
-        sDragLm = PR_NewLogModule("nsDragService");
+    sDragLm = PR_NewLogModule("nsDragService");
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::nsDragService"));
-    mGrabWidget = 0;
     mTargetWidget = 0;
     mTargetDragContext = 0;
     mTargetTime = 0;
@@ -193,88 +151,6 @@ nsDragService::Observe(nsISupports *aSubject, const char *aTopic,
   return NS_OK;
 }
 
-// Support for periodic drag events
-
-// http://www.whatwg.org/specs/web-apps/current-work/multipage/dnd.html#drag-and-drop-processing-model
-// and the Xdnd protocol both recommend that drag events are sent periodically,
-// but GTK does not normally provide this.
-//
-// Here GTK is periodically stimulated by copies of the most recent mouse
-// motion events so as to send drag position messages to the destination when
-// appropriate (after it has received a status event from the previous
-// message).
-//
-// (If events were sent only on the destination side then the destination
-// would have no message to which it could reply with a drag status.  Without
-// sending a drag status to the source, the destination would not be able to
-// change its feedback re whether it could accept the drop, and so the
-// source's behavior on drop will not be consistent.)
-
-struct MotionEventData {
-    MotionEventData(GtkWidget *aWidget, GdkEvent *aEvent)
-        : mWidget(aWidget), mEvent(gdk_event_copy(aEvent))
-    {
-        MOZ_COUNT_CTOR(MotionEventData);
-        g_object_ref(mWidget);
-    }
-    ~MotionEventData()
-    {
-        MOZ_COUNT_DTOR(MotionEventData);
-        g_object_unref(mWidget);
-        gdk_event_free(mEvent);
-    }
-    GtkWidget *mWidget;
-    GdkEvent *mEvent;
-};
-
-static void
-DestroyMotionEventData(gpointer data)
-{
-    delete static_cast<MotionEventData*>(data);
-}
-
-static gboolean
-DispatchMotionEventCopy(gpointer aData)
-{
-    MotionEventData *data = static_cast<MotionEventData*>(aData);
-
-    // Clear the timer id before OnSourceGrabEventAfter is called during event dispatch.
-    sMotionEventTimerID = 0;
-
-    // If there is no longer a grab on the widget, then the drag is over and
-    // there is no need to continue drag motion.
-    if (gtk_grab_get_current() == data->mWidget) {
-        gtk_propagate_event(data->mWidget, data->mEvent);
-    }
-
-    // Cancel this timer;
-    // We've already started another if the motion event was dispatched.
-    return FALSE;
-}
-
-static void
-OnSourceGrabEventAfter(GtkWidget *widget, GdkEvent *event, gpointer user_data)
-{
-    if (event->type != GDK_MOTION_NOTIFY)
-        return;
-
-    if (sMotionEventTimerID) {
-        g_source_remove(sMotionEventTimerID);
-    }
-
-    MotionEventData *data = new MotionEventData(widget, event);
-
-    // G_PRIORITY_DEFAULT_IDLE is lower priority than GDK's redraw idle source
-    // and lower than GTK's idle source that sends drag position messages after
-    // motion-notify signals.
-    //
-    // http://www.whatwg.org/specs/web-apps/current-work/multipage/dnd.html#drag-and-drop-processing-model
-    // recommends an interval of 350ms +/- 200ms.
-    sMotionEventTimerID = 
-        g_timeout_add_full(G_PRIORITY_DEFAULT_IDLE, 350,
-                           DispatchMotionEventCopy, data, DestroyMotionEventData);
-}
-
 // nsIDragService
 
 NS_IMETHODIMP
@@ -297,45 +173,42 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     // length of this call
     mSourceDataItems = aArrayTransferables;
     // get the list of items we offer for drags
-    GtkTargetList *sourceList = GetSourceList();
+    GtkTargetList *sourceList = 0;
 
-    if (!sourceList)
-        return NS_OK;
+    sourceList = GetSourceList();
 
-    // save our action type
-    GdkDragAction action = GDK_ACTION_DEFAULT;
+    if (sourceList) {
+        // save our action type
+        GdkDragAction action = GDK_ACTION_DEFAULT;
 
-    if (aActionType & DRAGDROP_ACTION_COPY)
-        action = (GdkDragAction)(action | GDK_ACTION_COPY);
-    if (aActionType & DRAGDROP_ACTION_MOVE)
-        action = (GdkDragAction)(action | GDK_ACTION_MOVE);
-    if (aActionType & DRAGDROP_ACTION_LINK)
-        action = (GdkDragAction)(action | GDK_ACTION_LINK);
+        if (aActionType & DRAGDROP_ACTION_COPY)
+            action = (GdkDragAction)(action | GDK_ACTION_COPY);
+        if (aActionType & DRAGDROP_ACTION_MOVE)
+            action = (GdkDragAction)(action | GDK_ACTION_MOVE);
+        if (aActionType & DRAGDROP_ACTION_LINK)
+            action = (GdkDragAction)(action | GDK_ACTION_LINK);
 
-    // Create a fake event for the drag so we can pass the time
-    // (so to speak.)  If we don't do this the drag can end as a
-    // result of a button release that is actually _earlier_ than
-    // CurrentTime.  So we use the time on the last button press
-    // event, as that will always be older than the button release
-    // that ends any drag.
-    GdkEvent event;
-    memset(&event, 0, sizeof(GdkEvent));
-    event.type = GDK_BUTTON_PRESS;
-    event.button.window = mHiddenWidget->window;
-    event.button.time = nsWindow::sLastButtonPressTime;
+        // Create a fake event for the drag so we can pass the time
+        // (so to speak.)  If we don't do this the drag can end as a
+        // result of a button release that is actually _earlier_ than
+        // CurrentTime.  So we use the time on the last button press
+        // event, as that will always be older than the button release
+        // that ends any drag.
+        GdkEvent event;
+        memset(&event, 0, sizeof(GdkEvent));
+        event.type = GDK_BUTTON_PRESS;
+        event.button.window = mHiddenWidget->window;
+        event.button.time = nsWindow::mLastButtonPressTime;
 
-    // start our drag.
-    GdkDragContext *context = gtk_drag_begin(mHiddenWidget,
-                                             sourceList,
-                                             action,
-                                             1,
-                                             &event);
+        // start our drag.
+        GdkDragContext *context = gtk_drag_begin(mHiddenWidget,
+                                                 sourceList,
+                                                 action,
+                                                 1,
+                                                 &event);
 
-    if (!context) {
-        rv = NS_ERROR_FAILURE;
-    } else {
         PRBool needsFallbackIcon = PR_FALSE;
-        nsIntRect dragRect;
+        nsRect dragRect;
         nsPresContext* pc;
         nsRefPtr<gfxASurface> surface;
         if (mHasImage || mSelection) {
@@ -347,17 +220,15 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
           PRInt32 sx = mScreenX, sy = mScreenY;
           ConvertToUnscaledDevPixels(pc, &sx, &sy);
 
-          PRInt32 offsetX = sx - dragRect.x;
-          PRInt32 offsetY = sy - dragRect.y;
+          PRInt32 offsetX = sx - NSToIntRound(dragRect.x);
+          PRInt32 offsetY = sy - NSToIntRound(dragRect.y);
           if (!SetAlphaPixmap(surface, context, offsetX, offsetY, dragRect)) {
             GdkPixbuf* dragPixbuf =
               nsImageToPixbuf::SurfaceToPixbuf(surface, dragRect.width, dragRect.height);
-            if (dragPixbuf) {
+            if (dragPixbuf)
               gtk_drag_set_icon_pixbuf(context, dragPixbuf, offsetX, offsetY);
-              g_object_unref(dragPixbuf);
-            } else {
+            else
               needsFallbackIcon = PR_TRUE;
-            }
           }
         } else {
           needsFallbackIcon = PR_TRUE;
@@ -366,22 +237,10 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
         if (needsFallbackIcon)
           gtk_drag_set_icon_default(context);
 
-        // GTK uses another hidden window for receiving mouse events.
-        mGrabWidget = gtk_grab_get_current();
-        if (mGrabWidget) {
-            g_object_ref(mGrabWidget);
-            // Only motion events are required but connect to
-            // "event-after" as this is never blocked by other handlers.
-            g_signal_connect(mGrabWidget, "event-after",
-                             G_CALLBACK(OnSourceGrabEventAfter), NULL);
-        }
+        gtk_target_list_unref(sourceList);
     }
 
-    gtk_target_list_unref(sourceList);
-
-    StartDragSession();
-
-    return rv;
+    return NS_OK;
 }
 
 PRBool
@@ -389,7 +248,7 @@ nsDragService::SetAlphaPixmap(gfxASurface *aSurface,
                                  GdkDragContext *aContext,
                                  PRInt32 aXOffset,
                                  PRInt32 aYOffset,
-                                 const nsIntRect& dragRect)
+                                 const nsRect& dragRect)
 {
     GdkScreen* screen = gtk_widget_get_screen(mHiddenWidget);
 
@@ -430,7 +289,7 @@ nsDragService::SetAlphaPixmap(gfxASurface *aSurface,
     // The drag transaction addrefs the pixmap, so we can just unref it from us here
     gtk_drag_set_icon_pixmap(aContext, alphaColormap, pixmap, NULL,
                              aXOffset, aYOffset);
-    g_object_unref(pixmap);
+    gdk_pixmap_unref(pixmap);
     return PR_TRUE;
 }
 
@@ -444,21 +303,7 @@ nsDragService::StartDragSession()
 NS_IMETHODIMP
 nsDragService::EndDragSession(PRBool aDoneDrag)
 {
-    PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::EndDragSession %d",
-                                   aDoneDrag));
-
-    if (mGrabWidget) {
-        g_signal_handlers_disconnect_by_func(mGrabWidget,
-             FuncToGpointer(OnSourceGrabEventAfter), NULL);
-        g_object_unref(mGrabWidget);
-        mGrabWidget = NULL;
-
-        if (sMotionEventTimerID) {
-            g_source_remove(sMotionEventTimerID);
-            sMotionEventTimerID = 0;
-        }
-    }
-
+    PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::EndDragSession"));
     // unset our drag action
     SetDragAction(DRAGDROP_ACTION_NONE);
     return nsBaseDragService::EndDragSession(aDoneDrag);
@@ -676,8 +521,8 @@ nsDragService::GetData(nsITransferable * aTransferable,
             else {
                 PR_LOG(sDragLm, PR_LOG_DEBUG, ("dataFound = PR_FALSE\n"));
 
-                // Dragging and dropping from the file manager would cause us 
-                // to parse the source text as a nsILocalFile URL.
+                // Dragging and dropping from the file manager would cause us to parse the source text as a
+                // nsILocalFile URL.
                 if ( strcmp(flavorStr, kFileMime) == 0 ) {
                     gdkFlavor = gdk_atom_intern(kTextMime, FALSE);
                     GetTargetDragData(gdkFlavor);
@@ -690,27 +535,20 @@ nsDragService::GetData(nsITransferable * aTransferable,
                                            &convertedText, &convertedTextLen);
 
                         if (convertedText) {
-                            nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
-                            nsCOMPtr<nsIURI> fileURI;
-                            nsresult rv = ioService->NewURI(NS_ConvertUTF16toUTF8(convertedText),
-                                                            nsnull, nsnull, getter_AddRefs(fileURI));
+                            nsDependentString fileUrl = nsDependentString(convertedText);
+                            if (StringBeginsWith(fileUrl, NS_LITERAL_STRING("file://")))
+                                fileUrl.Cut(0, strlen("file://"));
+
+                            nsCOMPtr<nsILocalFile> file;
+                            nsresult rv = NS_NewLocalFile(fileUrl, PR_TRUE, getter_AddRefs(file));
                             if (NS_SUCCEEDED(rv)) {
-                                nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(fileURI, &rv);
-                                if (NS_SUCCEEDED(rv)) {
-                                    nsCOMPtr<nsIFile> file;
-                                    rv = fileURL->GetFile(getter_AddRefs(file));
-                                    if (NS_SUCCEEDED(rv)) {
-                                        // The common wrapping code at the end of 
-                                        // this function assumes the data is text
-                                        // and calls text-specific operations.
-                                        // Make a secret hideout here for nsILocalFile
-                                        // objects and return early.
-                                        aTransferable->SetTransferData(flavorStr, file,
-                                                                       convertedTextLen);
-                                        g_free(convertedText);
-                                        return NS_OK;
-                                    }
-                                }
+                                // The common wrapping code at the end of this function assumes the data is text
+                                // and calls text-specific operations.
+                                // Make a secret hideout here for nsILocalFile objects and return early.
+                                aTransferable->SetTransferData(flavorStr, file,
+                                                               fileUrl.Length() * sizeof(PRUnichar));
+                                g_free(convertedText);
+                                return NS_OK;
                             }
                             g_free(convertedText);
                         }
@@ -724,17 +562,18 @@ nsDragService::GetData(nsITransferable * aTransferable,
                 if ( strcmp(flavorStr, kUnicodeMime) == 0 ) {
                     PR_LOG(sDragLm, PR_LOG_DEBUG,
                            ("we were looking for text/unicode... \
-                           trying with text/plain;charset=utf-8\n"));
-                    gdkFlavor = gdk_atom_intern(gTextPlainUTF8Type, FALSE);
+                           trying again with text/plain\n"));
+                    gdkFlavor = gdk_atom_intern(kTextMime, FALSE);
                     GetTargetDragData(gdkFlavor);
                     if (mTargetDragData) {
                         PR_LOG(sDragLm, PR_LOG_DEBUG, ("Got textplain data\n"));
                         const char* castedText =
                                     reinterpret_cast<char*>(mTargetDragData);
                         PRUnichar* convertedText = nsnull;
-                        NS_ConvertUTF8toUTF16 ucs2string(castedText,
-                                                         mTargetDragDataLen);
-                        convertedText = ToNewUnicode(ucs2string);
+                        PRInt32 convertedTextLen = 0;
+                        nsPrimitiveHelpers::ConvertPlatformPlainTextToUnicode(
+                                            castedText, mTargetDragDataLen,
+                                            &convertedText, &convertedTextLen);
                         if ( convertedText ) {
                             PR_LOG(sDragLm, PR_LOG_DEBUG,
                                    ("successfully converted plain text \
@@ -742,36 +581,10 @@ nsDragService::GetData(nsITransferable * aTransferable,
                             // out with the old, in with the new
                             g_free(mTargetDragData);
                             mTargetDragData = convertedText;
-                            mTargetDragDataLen = ucs2string.Length() * 2;
+                            mTargetDragDataLen = convertedTextLen * 2;
                             dataFound = PR_TRUE;
                         } // if plain text data on clipboard
-                    } else {
-                        PR_LOG(sDragLm, PR_LOG_DEBUG,
-                               ("we were looking for text/unicode... \
-                               trying again with text/plain\n"));
-                        gdkFlavor = gdk_atom_intern(kTextMime, FALSE);
-                        GetTargetDragData(gdkFlavor);
-                        if (mTargetDragData) {
-                            PR_LOG(sDragLm, PR_LOG_DEBUG, ("Got textplain data\n"));
-                            const char* castedText =
-                                        reinterpret_cast<char*>(mTargetDragData);
-                            PRUnichar* convertedText = nsnull;
-                            PRInt32 convertedTextLen = 0;
-                            nsPrimitiveHelpers::ConvertPlatformPlainTextToUnicode(
-                                                castedText, mTargetDragDataLen,
-                                                &convertedText, &convertedTextLen);
-                            if ( convertedText ) {
-                                PR_LOG(sDragLm, PR_LOG_DEBUG,
-                                       ("successfully converted plain text \
-                                       to unicode.\n"));
-                                // out with the old, in with the new
-                                g_free(mTargetDragData);
-                                mTargetDragData = convertedText;
-                                mTargetDragDataLen = convertedTextLen * 2;
-                                dataFound = PR_TRUE;
-                            } // if plain text data on clipboard
-                        } // if plain text flavor present
-                    } // if plain text charset=utf-8 flavor present
+                    } // if plain text flavor present
                 } // if looking for text/unicode
 
                 // if we are looking for text/x-moz-url and we failed to find
@@ -956,7 +769,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for automatic text/uri-list -> text/x-moz-url mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, gTextUriListType) == 0) &&
             (strcmp(aDataFlavor, kURLMime) == 0)) {
@@ -966,7 +779,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for automatic _NETSCAPE_URL -> text/x-moz-url mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, gMozUrlType) == 0) &&
             (strcmp(aDataFlavor, kURLMime) == 0)) {
@@ -976,7 +789,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for auto text/plain -> text/unicode mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, kTextMime) == 0) &&
             ((strcmp(aDataFlavor, kUnicodeMime) == 0) ||
@@ -1101,7 +914,7 @@ nsDragService::IsTargetContextList(void)
         GdkAtom atom = GDK_POINTER_TO_ATOM(tmp->data);
         gchar *name = NULL;
         name = gdk_atom_name(atom);
-        if (name && strcmp(name, gMimeListType) == 0)
+        if (strcmp(name, gMimeListType) == 0)
             retval = PR_TRUE;
         g_free(name);
         if (retval)
@@ -1151,7 +964,7 @@ nsDragService::GetSourceList(void)
 {
     if (!mSourceDataItems)
         return NULL;
-    nsTArray<GtkTargetEntry*> targetArray;
+    nsVoidArray targetArray;
     GtkTargetEntry *targets;
     GtkTargetList  *targetList = 0;
     PRUint32 targetCount = 0;
@@ -1262,20 +1075,6 @@ nsDragService::GetSourceList(void)
                         // if we support text/unicode.
                         if (strcmp(flavorStr, kUnicodeMime) == 0) {
                             // get the atom for the unicode string
-                            GdkAtom plainUTF8Atom =
-                              gdk_atom_intern(gTextPlainUTF8Type, FALSE);
-                            GtkTargetEntry *plainUTF8Target =
-                             (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
-                            plainUTF8Target->target = g_strdup(gTextPlainUTF8Type);
-                            plainUTF8Target->flags = 0;
-                            /* Bug 331198 */
-                            plainUTF8Target->info = NS_PTR_TO_UINT32(plainUTF8Atom);
-                            PR_LOG(sDragLm, PR_LOG_DEBUG,
-                                   ("automatically adding target %s with \
-                                   id %ld\n", plainUTF8Target->target, plainUTF8Atom));
-                            targetArray.AppendElement(plainUTF8Target);
-
-                            // get the atom for the ASCII string
                             GdkAtom plainAtom =
                               gdk_atom_intern(kTextMime, FALSE);
                             GtkTargetEntry *plainTarget =
@@ -1314,14 +1113,15 @@ nsDragService::GetSourceList(void)
     } // if it is a single item drag
 
     // get all the elements that we created.
-    targetCount = targetArray.Length();
+    targetCount = targetArray.Count();
     if (targetCount) {
         // allocate space to create the list of valid targets
         targets =
           (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry) * targetCount);
         PRUint32 targetIndex;
         for ( targetIndex = 0; targetIndex < targetCount; ++targetIndex) {
-            GtkTargetEntry *disEntry = targetArray.ElementAt(targetIndex);
+            GtkTargetEntry *disEntry =
+              (GtkTargetEntry *)targetArray.ElementAt(targetIndex);
             // this is a string reference but it will be freed later.
             targets[targetIndex].target = disEntry->target;
             targets[targetIndex].flags = disEntry->flags;
@@ -1330,7 +1130,8 @@ nsDragService::GetSourceList(void)
         targetList = gtk_target_list_new(targets, targetCount);
         // clean up the target list
         for (PRUint32 cleanIndex = 0; cleanIndex < targetCount; ++cleanIndex) {
-            GtkTargetEntry *thisTarget = targetArray.ElementAt(cleanIndex);
+            GtkTargetEntry *thisTarget =
+              (GtkTargetEntry *)targetArray.ElementAt(cleanIndex);
             g_free(thisTarget->target);
             g_free(thisTarget);
         }
@@ -1340,65 +1141,10 @@ nsDragService::GetSourceList(void)
 }
 
 void
-nsDragService::SourceEndDragSession(GdkDragContext *aContext,
-                                    gint            aResult)
+nsDragService::SourceEndDrag(void)
 {
     // this just releases the list of data items that we provide
-    mSourceDataItems = nsnull;
-
-    if (!mDoingDrag)
-        return; // EndDragSession() was already called on drop or drag-failed
-
-    gint x, y;
-    GdkDisplay* display = gdk_display_get_default();
-    if (display) {
-      gdk_display_get_pointer(display, NULL, &x, &y, NULL);
-      SetDragEndPoint(nsIntPoint(x, y));
-    }
-
-    // Either the drag was aborted or the drop occurred outside the app.
-    // The dropEffect of mDataTransfer is not updated for motion outside the
-    // app, but is needed for the dragend event, so set it now.
-
-    PRUint32 dropEffect;
-
-    if (aResult == MOZ_GTK_DRAG_RESULT_SUCCESS) {
-
-        // With GTK+ versions 2.10.x and prior the drag may have been
-        // cancelled (but no drag-failed signal would have been sent).
-        // aContext->dest_window will be non-NULL only if the drop was sent.
-        GdkDragAction action =
-            aContext->dest_window ? aContext->action : (GdkDragAction)0;
-
-        // Only one bit of action should be set, but, just in case someone
-        // does something funny, erring away from MOVE, and not recording
-        // unusual action combinations as NONE.
-        if (!action)
-            dropEffect = DRAGDROP_ACTION_NONE;
-        else if (action & GDK_ACTION_COPY)
-            dropEffect = DRAGDROP_ACTION_COPY;
-        else if (action & GDK_ACTION_LINK)
-            dropEffect = DRAGDROP_ACTION_LINK;
-        else if (action & GDK_ACTION_MOVE)
-            dropEffect = DRAGDROP_ACTION_MOVE;
-        else
-            dropEffect = DRAGDROP_ACTION_COPY;
-
-    } else {
-
-        dropEffect = DRAGDROP_ACTION_NONE;
-
-        if (aResult != MOZ_GTK_DRAG_RESULT_NO_TARGET) {
-            mUserCancelled = PR_TRUE;
-        }
-    }
-
-    nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer =
-        do_QueryInterface(mDataTransfer);
-
-    if (dataTransfer) {
-        dataTransfer->SetDropEffectInt(dropEffect);
-    }
+    mSourceDataItems = 0;
 
     // Inform the drag session that we're ending the drag.
     EndDragSession(PR_TRUE);
@@ -1505,8 +1251,7 @@ nsDragService::SourceDataGet(GtkWidget        *aWidget,
         // we can convert it.
         PRBool needToDoConversionToPlainText = PR_FALSE;
         const char* actualFlavor = mimeFlavor;
-        if (strcmp(mimeFlavor, kTextMime) == 0 ||
-            strcmp(mimeFlavor, gTextPlainUTF8Type) == 0) {
+        if (strcmp(mimeFlavor,kTextMime) == 0) {
             actualFlavor = kUnicodeMime;
             needToDoConversionToPlainText = PR_TRUE;
         }
@@ -1542,18 +1287,11 @@ nsDragService::SourceDataGet(GtkWidget        *aWidget,
                 PRUnichar* castedUnicode = reinterpret_cast<PRUnichar*>
                                                            (tmpData);
                 PRInt32 plainTextLen = 0;
-                if (strcmp(mimeFlavor, gTextPlainUTF8Type) == 0) {
-                    plainTextData =
-                        ToNewUTF8String(
-                            nsDependentString(castedUnicode, tmpDataLen / 2),
-                            (PRUint32*)&plainTextLen);
-                } else {
-                    nsPrimitiveHelpers::ConvertUnicodeToPlatformPlainText(
-                                        castedUnicode,
-                                        tmpDataLen / 2,
-                                        &plainTextData,
-                                        &plainTextLen);
-                }
+                nsPrimitiveHelpers::ConvertUnicodeToPlatformPlainText(
+                                    castedUnicode,
+                                    tmpDataLen / 2,
+                                    &plainTextData,
+                                    &plainTextLen);
                 if (tmpData) {
                     // this was not allocated using glib
                     free(tmpData);
@@ -1595,30 +1333,10 @@ invisibleSourceDragDataGet(GtkWidget        *aWidget,
                            guint32           aTime,
                            gpointer          aData)
 {
-    PR_LOG(sDragLm, PR_LOG_DEBUG, ("invisibleSourceDragDataGet"));
+    PR_LOG(sDragLm, PR_LOG_DEBUG, ("invisibleDragDataGet"));
     nsDragService *dragService = (nsDragService *)aData;
     dragService->SourceDataGet(aWidget, aContext,
                                aSelectionData, aInfo, aTime);
-}
-
-/* static */
-gboolean
-invisibleSourceDragFailed(GtkWidget        *aWidget,
-                          GdkDragContext   *aContext,
-                          gint              aResult,
-                          gpointer          aData)
-{
-    PR_LOG(sDragLm, PR_LOG_DEBUG, ("invisibleSourceDragFailed %i", aResult));
-    nsDragService *dragService = (nsDragService *)aData;
-    // End the drag session now (rather than waiting for the drag-end signal)
-    // so that operations performed on dropEffect == none can start immediately
-    // rather than waiting for the drag-failed animation to finish.
-    dragService->SourceEndDragSession(aContext, aResult);
-
-    // We should return TRUE to disable the drag-failed animation iff the
-    // source performed an operation when dropEffect was none, but the handler
-    // of the dragend DOM event doesn't provide this information.
-    return FALSE;
 }
 
 /* static */
@@ -1627,10 +1345,9 @@ invisibleSourceDragEnd(GtkWidget        *aWidget,
                        GdkDragContext   *aContext,
                        gpointer          aData)
 {
-    PR_LOG(sDragLm, PR_LOG_DEBUG, ("invisibleSourceDragEnd"));
+    PR_LOG(sDragLm, PR_LOG_DEBUG, ("invisibleDragEnd"));
     nsDragService *dragService = (nsDragService *)aData;
-
     // The drag has ended.  Release the hostages!
-    dragService->SourceEndDragSession(aContext, MOZ_GTK_DRAG_RESULT_SUCCESS);
+    dragService->SourceEndDrag();
 }
 

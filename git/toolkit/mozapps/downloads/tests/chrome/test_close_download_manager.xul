@@ -55,13 +55,14 @@
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
   <script type="application/javascript"
-          src="utils.js"/>
+          src="chrome://mochikit/content/chrome/toolkit/mozapps/downloads/tests/chrome/utils.js"/>
 
   <script type="application/javascript">
 
   <![CDATA[
 
-const dmui = getDMUI();
+const dmui = Cc["@mozilla.org/download-manager-ui;1"].
+             getService(Ci.nsIDownloadManagerUI);
 
 function testCloseDMWithEscKey(aWin)
 {
@@ -90,11 +91,6 @@ function testCloseDMWithAccelKey(aWin)
 
 function runTest()
 {
-  if (!dmui) {
-    todo(false, "skip test for toolkit download manager UI");
-    return;
-  }
-
   const DLMGR_UI_DONE = "download-manager-ui-done";
 
   // Close the DM UI if it is already open
@@ -107,20 +103,17 @@ function runTest()
             getService(Ci.nsIObserverService);
   let testObs = {
     observe: function(aSubject, aTopic, aData) {
-      SimpleTest.waitForFocus(function () { closeDM(aSubject) }, aSubject);
+      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      switch(testPhase++) {
+        case 0:
+          testCloseDMWithEscKey(win);
+          break;
+        case 1:
+          obs.removeObserver(testObs, DLMGR_UI_DONE);
+          testCloseDMWithAccelKey(win);
+      }
     }
   };
-
-  function closeDM(win) {
-    switch(testPhase++) {
-      case 0:
-        testCloseDMWithEscKey(win);
-        break;
-      case 1:
-        obs.removeObserver(testObs, DLMGR_UI_DONE);
-        testCloseDMWithAccelKey(win);
-    }
-  }
   obs.addObserver(testObs, DLMGR_UI_DONE, false);
 
   dmui.show();

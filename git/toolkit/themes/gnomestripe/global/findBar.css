@@ -5,22 +5,52 @@
 }
 
 findbar {
+  -moz-appearance: none !important;
   border-top: 2px solid;
-  -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
-  padding-bottom: 1px;
+  -moz-border-top-colors: ThreeDShadow ThreeDHighlight !important;
+  border-bottom: 1px solid;
+  -moz-border-bottom-colors: transparent;
   min-width: 1px;
+}
+
+.find-buttons-container {
+  -moz-box-direction: reverse;
 }
 
 /* find-next button */
 
-.findbar-find-next > .toolbarbutton-icon {
-  -moz-appearance: button-arrow-next;
+.findbar-find-next {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu");
+}
+
+.findbar-find-next[disabled="true"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu&state=disabled");
+}
+
+.findbar-find-next[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
+}
+
+.findbar-find-next[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu&state=disabled");
 }
 
 /* find-previous button */
 
-.findbar-find-previous > .toolbarbutton-icon {
-  -moz-appearance: button-arrow-previous;
+.findbar-find-previous {
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu");
+}
+
+.findbar-find-previous[disabled="true"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu&state=disabled");
+}
+
+.findbar-find-previous[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
+}
+
+.findbar-find-previous[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu&state=disabled");
 }
 
 /* highlight button */
@@ -45,27 +75,37 @@ findbar {
 }
 
 .findbar-find-status {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  -moz-margin-start: 3px !important;
-  -moz-margin-end: 0 !important;
-  padding: 2px !important;
+  margin-top: 0;
+  margin-bottom: 0;
+  -moz-margin-start: 3px;
+  -moz-margin-end: 0;
+  padding: 2px;
 }
 
 .find-status-icon[status="notfound"] {
   list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
 }
 
-.findbar-textbox[status="notfound"] {
-  box-shadow: 0 0 0 1em #f66 inset;
-  color: white;
+.findbar-textbox {
+  -moz-binding: url("chrome://global/content/bindings/findbar.xml#findbar-textbox");
+  -moz-appearance: none;
+  border: none;
+  margin: 0;
 }
 
-.findbar-textbox[flash="true"] {
-  box-shadow: 0 0 0 1em yellow inset;
-  color: black;
+.findbar-textbox[status="notfound"] {
+  background-color: #FF6666;
+  color: #FFFFFF;
+}
+
+findbar[flash="true"] > .findbar-container > .find-field-container > .findbar-textbox {
+  background-color: yellow;
 }
 
 .find-status-icon[status="wrapped"] {
   list-style-image: url("chrome://global/skin/icons/wrap.png");
+}
+
+.find-field-container {
+  -moz-appearance: textfield;
 }

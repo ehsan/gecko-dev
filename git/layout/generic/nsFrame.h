@@ -45,12 +45,14 @@
 #include "nsRect.h"
 #include "nsString.h"
 #include "prlog.h"
+#ifdef NS_DEBUG
+#include "nsIFrameDebug.h"
+#endif
 
 #include "nsIPresShell.h"
 #include "nsFrameSelection.h"
 #include "nsHTMLReflowState.h"
 #include "nsHTMLReflowMetrics.h"
-#include "nsHTMLParts.h"
 
 /**
  * nsFrame logging constants. We redefine the nspr
@@ -68,7 +70,7 @@
 #ifdef NS_DEBUG
 #define NS_FRAME_LOG(_bit,_args)                                \
   PR_BEGIN_MACRO                                                \
-    if (NS_FRAME_LOG_TEST(nsFrame::GetLogModuleInfo(),_bit)) {  \
+    if (NS_FRAME_LOG_TEST(nsIFrameDebug::GetLogModuleInfo(),_bit)) { \
       PR_LogPrint _args;                                        \
     }                                                           \
   PR_END_MACRO
@@ -85,14 +87,14 @@
 // XXX remove me
 #define NS_FRAME_TRACE_MSG(_bit,_args)                          \
   PR_BEGIN_MACRO                                                \
-    if (NS_FRAME_LOG_TEST(nsFrame::GetLogModuleInfo(),_bit)) {  \
+    if (NS_FRAME_LOG_TEST(nsIFrameDebug::GetLogModuleInfo(),_bit)) { \
       TraceMsg _args;                                           \
     }                                                           \
   PR_END_MACRO
 
 #define NS_FRAME_TRACE(_bit,_args)                              \
   PR_BEGIN_MACRO                                                \
-    if (NS_FRAME_LOG_TEST(nsFrame::GetLogModuleInfo(),_bit)) {  \
+    if (NS_FRAME_LOG_TEST(nsIFrameDebug::GetLogModuleInfo(),_bit)) { \
       TraceMsg _args;                                           \
     }                                                           \
   PR_END_MACRO
@@ -111,22 +113,6 @@
 #define NS_FRAME_TRACE_REFLOW_OUT(_method, _status)
 #endif
 
-// Frame allocation boilerplate macros.  Every subclass of nsFrame
-// must define its own operator new and GetAllocatedSize.  If they do
-// not, the per-frame recycler lists in nsPresArena will not work
-// correctly, with potentially catastrophic consequences (not enough
-// memory is allocated for a frame object).
-
-#define NS_DECL_FRAMEARENA_HELPERS                                \
-  NS_MUST_OVERRIDE void* operator new(size_t, nsIPresShell*);     \
-  virtual NS_MUST_OVERRIDE nsQueryFrame::FrameIID GetFrameId();
-
-#define NS_IMPL_FRAMEARENA_HELPERS(class)                         \
-  void* class::operator new(size_t sz, nsIPresShell* aShell)      \
-  { return aShell->AllocateFrame(nsQueryFrame::class##_id, sz); } \
-  nsQueryFrame::FrameIID class::GetFrameId()                      \
-  { return nsQueryFrame::class##_id; }
-
 //----------------------------------------------------------------------
 
 struct nsBoxLayoutMetrics;
@@ -139,59 +125,61 @@ struct nsBoxLayoutMetrics;
  * behavior is to keep the frame and view position and size in sync.
  */
 class nsFrame : public nsBox
+#ifdef NS_DEBUG
+  , public nsIFrameDebug
+#endif
 {
 public:
   /**
    * Create a new "empty" frame that maps a given piece of content into a
    * 0,0 area.
    */
-  friend nsIFrame* NS_NewEmptyFrame(nsIPresShell* aShell,
-                                    nsStyleContext* aContext);
+  friend nsIFrame* NS_NewEmptyFrame(nsIPresShell* aShell, nsStyleContext* aContext);
+
+  // Overloaded new operator. Initializes the memory to 0 and relies on an arena
+  // (which comes from the presShell) to perform the allocation.
+  void* operator new(size_t sz, nsIPresShell* aPresShell) CPP_THROW_NEW;
+
+  // Overridden to prevent the global delete from being called, since the memory
+  // came out of an arena instead of the global delete operator's heap.  
+  // XXX Would like to make this private some day, but our UNIX compilers can't 
+  // deal with it.
+  void operator delete(void* aPtr, size_t sz);
+
+  // We compute and store the HTML content's overflow area. So don't
+  // try to compute it in the box code.
+  virtual PRBool ComputesOwnOverflowArea() { return PR_TRUE; }
 
 private:
-  // Left undefined; nsFrame objects are never allocated from the heap.
-  void* operator new(size_t sz) CPP_THROW_NEW;
-
-protected:
-  // Overridden to prevent the global delete from being called, since
-  // the memory came out of an arena instead of the heap.
-  //
-  // Ideally this would be private and undefined, like the normal
-  // operator new.  Unfortunately, the C++ standard requires an
-  // overridden operator delete to be accessible to any subclass that
-  // defines a virtual destructor, so we can only make it protected;
-  // worse, some C++ compilers will synthesize calls to this function
-  // from the "deleting destructors" that they emit in case of
-  // delete-expressions, so it can't even be undefined.
-  void operator delete(void* aPtr, size_t sz);
+  // The normal operator new is disallowed on nsFrames.
+  void* operator new(size_t sz) CPP_THROW_NEW { return nsnull; }
 
 public:
 
-  // nsQueryFrame
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  // nsISupports
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFrame
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
                    nsIFrame*        asPrevInFlow);
-  NS_IMETHOD  SetInitialChildList(nsIAtom*           aListName,
-                                  nsFrameList&       aChildList);
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
+                                  nsIFrame*       aChildList);
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext);
-  virtual void SetParent(nsIFrame* aParent);
+  NS_IMETHOD  SetParent(const nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
                           nsGUIEvent*     aEvent,
                           nsEventStatus*  aEventStatus);
@@ -216,7 +204,17 @@ public:
                                         PRInt8 aOutSideLimit
                                         );
 
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  /**
+   * Find the nearest frame with a mouse capturer. If no
+   * parent has mouse capture this will return null.
+   * @param aFrame Frame drag began in.
+   * @return Nearest capturing frame.
+   */
+  static nsIFrame* GetNearestCapturingFrame(nsIFrame* aFrame);
+
+  NS_IMETHOD  CharacterDataChanged(nsPresContext* aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend);
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
@@ -232,15 +230,22 @@ public:
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
   virtual nsIAtom* GetType() const;
   virtual PRBool IsContainingBlock() const;
+#ifdef NS_DEBUG
+  NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
+  NS_IMETHOD  VerifyTree() const;
+#endif
 
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 
   NS_IMETHOD  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon);
 
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState *aState);
   /**
@@ -262,7 +267,7 @@ public:
   virtual void ChildIsDirty(nsIFrame* aChild);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
@@ -340,8 +345,7 @@ public:
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
-                         nsEventStatus*  aEventStatus,
-                         PRBool          aControlHeld);
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,
@@ -355,8 +359,7 @@ public:
                                     nsSelectionAmount aAmountForward,
                                     PRInt32 aStartPos,
                                     nsPresContext* aPresContext,
-                                    PRBool aJumpLines,
-                                    PRBool aMultipleSelection);
+                                    PRBool aJumpLines);
 
 
   // Helper for GetContentAndOffsetsFromPoint; calculation of content offsets
@@ -369,10 +372,6 @@ public:
   virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
-
-  // We compute and store the HTML content's overflow area. So don't
-  // try to compute it in the box code.
-  virtual PRBool ComputesOwnOverflowArea() { return PR_TRUE; }
 
   //--------------------------------------------------
   // Additional methods
@@ -387,14 +386,13 @@ public:
    */
   void CheckInvalidateSizeChange(nsHTMLReflowMetrics&     aNewDesiredSize);
 
-  // Helper function that tests if the frame tree is too deep; if it is
-  // it marks the frame as "unflowable", zeroes out the metrics, sets
-  // the reflow status, and returns PR_TRUE. Otherwise, the frame is
-  // unmarked "unflowable" and the metrics and reflow status are not
-  // touched and PR_FALSE is returned.
+  // Helper function that tests if the frame tree is too deep; if it
+  // is it marks the frame as "unflowable" and zeros out the metrics
+  // and returns PR_TRUE. Otherwise, the frame is unmarked
+  // "unflowable" and the metrics are not touched and PR_FALSE is
+  // returned.
   PRBool IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics& aMetrics,
-                            nsReflowStatus& aStatus);
+                            nsHTMLReflowMetrics& aMetrics);
 
   // Do the work for getting the parent style context frame so that
   // other frame's |GetParentStyleContextFrame| methods can call this
@@ -405,10 +403,14 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 
-  // Incorporate the child overflow areas into aOverflowAreas.
-  // If the child does not have a overflow, use the child area.
-  void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
+  // incorporate the child overflow area into the parent overflow area
+  // if the child does not have a overflow use the child area
+  void ConsiderChildOverflow(nsRect&   aOverflowArea,
                              nsIFrame* aChildFrame);
+
+  //Mouse Capturing code used by the frames to tell the view to capture all the following events
+  NS_IMETHOD CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents);
+  PRBool   IsMouseCaptured(nsPresContext* aPresContext);
 
   virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
 
@@ -426,27 +428,31 @@ public:
 
   // Helper function that verifies that each frame in the list has the
   // NS_FRAME_IS_DIRTY bit set
-  static void VerifyDirtyBitSet(const nsFrameList& aFrameList);
+  static void VerifyDirtyBitSet(nsIFrame* aFrameList);
 
   // Helper function to return the index in parent of the frame's content
   // object. Returns -1 on error or if the frame doesn't have a content object
   static PRInt32 ContentIndexInContainer(const nsIFrame* aFrame);
 
+  void ListTag(FILE* out) const {
+    ListTag(out, (nsIFrame*)this);
+  }
+
+  static void ListTag(FILE* out, nsIFrame* aFrame) {
+    nsAutoString tmp;
+    nsIFrameDebug*  frameDebug;
+
+    if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
+      frameDebug->GetFrameName(tmp);
+    }
+    fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
+    fprintf(out, "@%p", static_cast<void*>(aFrame));
+  }
+
   static void IndentBy(FILE* out, PRInt32 aIndent) {
     while (--aIndent >= 0) fputs("  ", out);
   }
   
-  void ListTag(FILE* out) const {
-    ListTag(out, this);
-  }
-
-  static void ListTag(FILE* out, const nsIFrame* aFrame) {
-    nsAutoString tmp;
-    aFrame->GetFrameName(tmp);
-    fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
-    fprintf(out, "@%p", static_cast<const void*>(aFrame));
-  }
-
   static void XMLQuote(nsString& aString);
 
   /**
@@ -458,7 +464,7 @@ public:
    * some custom behavior that requires changing how the outer "frame"
    * XML container is dumped.
    */
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
   
   nsresult MakeFrameName(const nsAString& aKind, nsAString& aResult) const;
 
@@ -491,19 +497,6 @@ public:
   static void DisplayReflowShutdown();
 #endif
 
-  static void ShutdownLayerActivityTimer();
-
-  /**
-   * Adds display item for standard CSS background if necessary.
-   * Does not check IsVisibleForPainting.
-   * @param aForceBackground draw the background even if the frame
-   * background style appears to have no background --- this is useful
-   * for frames that might receive a propagated background via
-   * nsCSSRendering::FindBackground
-   */
-  nsresult DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
-                                          const nsDisplayListSet& aLists,
-                                          PRBool aForceBackground = PR_FALSE);
   /**
    * Adds display items for standard CSS borders, background and outline for
    * for this frame, as necessary. Checks IsVisibleForPainting and won't
@@ -546,18 +539,23 @@ protected:
   virtual ~nsFrame();
 
   /**
+   * @return PR_FALSE if this frame definitely has no borders at all
+   */                 
+  PRBool HasBorder() const;
+
+  /**
    * To be called by |BuildDisplayLists| of this class or derived classes to add
    * a translucent overlay if this frame's content is selected.
    * @param aContentType an nsISelectionDisplay DISPLAY_ constant identifying
    * which kind of content this is for
    */
   nsresult DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
-      nsDisplayList* aList, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
+      const nsDisplayListSet& aLists, PRUint16 aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
 
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   
   // Style post processing hook
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
 public:
   //given a frame five me the first/last leaf available
@@ -565,24 +563,8 @@ public:
   static void GetLastLeaf(nsPresContext* aPresContext, nsIFrame **aFrame);
   static void GetFirstLeaf(nsPresContext* aPresContext, nsIFrame **aFrame);
 
-  // Return the line number of the aFrame, and (optionally) the containing block
-  // frame.
-  // If aScrollLock is true, don't break outside scrollframes when looking for a
-  // containing block frame.
-  static PRInt32 GetLineNumber(nsIFrame *aFrame,
-                               PRBool aLockScroll,
-                               nsIFrame** aContainingBlock = nsnull);
-
-  // test whether aFrame should apply paginated overflow clipping.
-  static PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame)
-  {
-    // If we're paginated and a block, and have NS_BLOCK_CLIP_PAGINATED_OVERFLOW
-    // set, then we want to clip our overflow.
-    return
-      aFrame->PresContext()->IsPaginated() &&
-      aFrame->GetType() == nsGkAtoms::blockFrame &&
-      (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
-  }
+  // return the line number of the aFrame, and (optionally) the containing block frame.
+  static PRInt32 GetLineNumber(nsIFrame *aFrame, nsIFrame** aContainingBlock = nsnull);
 
 protected:
 
@@ -599,6 +581,8 @@ protected:
                                       nsIContent **aParentContent, PRInt32 *aContentOffset, 
                                       PRInt32 *aTarget);
 
+  virtual PRBool ParentDisablesSelection() const;
+
   // Fills aCursor with the appropriate information from ui
   static void FillCursorInformationFromStyle(const nsStyleUserInterface* ui,
                                              nsIFrame::Cursor& aCursor);
@@ -607,6 +591,9 @@ protected:
 #ifdef DEBUG_LAYOUT
   virtual void GetBoxName(nsAutoString& aName);
 #endif
+
+  virtual PRBool GetWasCollapsed(nsBoxLayoutState& aState);
+  virtual void SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas);
 
   void InitBoxMetrics(PRBool aClear);
   nsBoxLayoutMetrics* BoxMetrics() const;
@@ -627,77 +614,9 @@ private:
 
   NS_IMETHODIMP RefreshSizeCache(nsBoxLayoutState& aState);
 
-  virtual nsILineIterator* GetLineIterator();
-
-#ifdef NS_DEBUG
-public:
-  // Formerly the nsIFrameDebug interface
-
-  NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const;
-  /**
-   * lists the frames beginning from the root frame
-   * - calls root frame's List(...)
-   */
-  static void RootFrameList(nsPresContext* aPresContext,
-                            FILE* out, PRInt32 aIndent);
-
-  static void DumpFrameTree(nsIFrame* aFrame);
-
-  /**
-   * Get a printable from of the name of the frame type.
-   * XXX This should be eliminated and we use GetType() instead...
-   */
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
-  /**
-   * Return the state bits that are relevant to regression tests (that
-   * is, those bits which indicate a real difference when they differ
-   */
-  NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const;
-  /**
-   * Called to dump out regression data that describes the layout
-   * of the frame and its children, and so on. The format of the
-   * data is dictated to be XML (using a specific DTD); the
-   * specific kind of data dumped is up to the frame itself, with
-   * the caveat that some base types are defined.
-   * For more information, see XXX.
-   */
-  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext,
-                                 FILE* out, PRInt32 aIndent);
-
-  /**
-   * See if style tree verification is enabled. To enable style tree
-   * verification add "styleverifytree:1" to your NSPR_LOG_MODULES
-   * environment variable (any non-zero debug level will work). Or,
-   * call SetVerifyStyleTreeEnable with PR_TRUE.
-   */
-  static PRBool GetVerifyStyleTreeEnable();
-
-  /**
-   * Set the verify-style-tree enable flag.
-   */
-  static void SetVerifyStyleTreeEnable(PRBool aEnabled);
-
-  /**
-   * The frame class and related classes share an nspr log module
-   * for logging frame activity.
-   *
-   * Note: the log module is created during library initialization which
-   * means that you cannot perform logging before then.
-   */
-  static PRLogModuleInfo* GetLogModuleInfo();
-
-  // Show frame borders when rendering
-  static void ShowFrameBorders(PRBool aEnable);
-  static PRBool GetShowFrameBorders();
-
-  // Show frame border of event target
-  static void ShowEventTargetFrameBorder(PRBool aEnable);
-  static PRBool GetShowEventTargetFrameBorder();
-
-  static void PrintDisplayList(nsDisplayListBuilder* aBuilder,
-                               const nsDisplayList& aList);
-
-#endif
+protected:
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 };
 
 // Start Display Reflow Debugging
@@ -749,39 +668,7 @@ public:
     nsSize& mResult;
     void* mValue;
   };
-
-  struct DR_init_constraints_cookie {
-    DR_init_constraints_cookie(nsIFrame* aFrame, nsHTMLReflowState* aState,
-                               nscoord aCBWidth, nscoord aCBHeight,
-                               const nsMargin* aBorder,
-                               const nsMargin* aPadding);
-    ~DR_init_constraints_cookie();
-
-    nsIFrame* mFrame;
-    nsHTMLReflowState* mState;
-    void* mValue;
-  };
-
-  struct DR_init_offsets_cookie {
-    DR_init_offsets_cookie(nsIFrame* aFrame, nsCSSOffsetState* aState,
-                           nscoord aCBWidth, const nsMargin* aBorder,
-                           const nsMargin* aPadding);
-    ~DR_init_offsets_cookie();
-
-    nsIFrame* mFrame;
-    nsCSSOffsetState* mState;
-    void* mValue;
-  };
-
-  struct DR_init_type_cookie {
-    DR_init_type_cookie(nsIFrame* aFrame, nsHTMLReflowState* aState);
-    ~DR_init_type_cookie();
-
-    nsIFrame* mFrame;
-    nsHTMLReflowState* mState;
-    void* mValue;
-  };
-
+  
 #define DISPLAY_REFLOW(dr_pres_context, dr_frame, dr_rf_state, dr_rf_metrics, dr_rf_status) \
   DR_cookie dr_cookie(dr_pres_context, dr_frame, dr_rf_state, dr_rf_metrics, dr_rf_status); 
 #define DISPLAY_REFLOW_CHANGE() \
@@ -798,14 +685,6 @@ public:
   DR_intrinsic_size_cookie dr_cookie(dr_frame, "Min", dr_result)
 #define DISPLAY_MAX_SIZE(dr_frame, dr_result) \
   DR_intrinsic_size_cookie dr_cookie(dr_frame, "Max", dr_result)
-#define DISPLAY_INIT_CONSTRAINTS(dr_frame, dr_state, dr_cbw, dr_cbh,       \
-                                 dr_bdr, dr_pad)                           \
-  DR_init_constraints_cookie dr_cookie(dr_frame, dr_state, dr_cbw, dr_cbh, \
-                                       dr_bdr, dr_pad)
-#define DISPLAY_INIT_OFFSETS(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)  \
-  DR_init_offsets_cookie dr_cookie(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)
-#define DISPLAY_INIT_TYPE(dr_frame, dr_result) \
-  DR_init_type_cookie dr_cookie(dr_frame, dr_result)
 
 #else
 
@@ -817,13 +696,7 @@ public:
 #define DISPLAY_PREF_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
 #define DISPLAY_MIN_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
 #define DISPLAY_MAX_SIZE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
-#define DISPLAY_INIT_CONSTRAINTS(dr_frame, dr_state, dr_cbw, dr_cbh,       \
-                                 dr_bdr, dr_pad)                           \
-  PR_BEGIN_MACRO PR_END_MACRO
-#define DISPLAY_INIT_OFFSETS(dr_frame, dr_state, dr_cbw, dr_bdr, dr_pad)  \
-  PR_BEGIN_MACRO PR_END_MACRO
-#define DISPLAY_INIT_TYPE(dr_frame, dr_result) PR_BEGIN_MACRO PR_END_MACRO
-
+  
 #endif
 // End Display Reflow Debugging
 

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: set ts=2 sw=2 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -43,6 +42,7 @@
 #include "nsXULWindow.h"
 
 // Helper Classes
+#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
 
@@ -66,19 +66,13 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIWebNavigation.h"
-#include "nsIJSContextStack.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
-#if defined(XP_MACOSX)
-#include "nsThreadUtils.h"
-#endif
 
 // CIDs
 static NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
-
-static const char *sJSStackContractID="@mozilla.org/js/xpc/ContextStack;1";
 
 //*****************************************************************************
 //*** nsSiteWindow2 declaration
@@ -127,7 +121,6 @@ NS_INTERFACE_MAP_BEGIN(nsContentTreeOwner)
    NS_INTERFACE_MAP_ENTRY(nsIBaseWindow)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
-   NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome3)
    NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
    NS_INTERFACE_MAP_ENTRY(nsIWindowProvider)
    // NOTE: This is using aggregation because there are some properties and
@@ -431,29 +424,6 @@ nsContentTreeOwner::GetPersistence(PRBool* aPersistPosition,
   if (aPersistSizeMode)
     *aPersistSizeMode = persistString.Find("sizemode") >= 0 ? PR_TRUE : PR_FALSE;
 
-  return NS_OK;
-}
-
-//*****************************************************************************
-// nsContentTreeOwner::nsIWebBrowserChrome3
-//*****************************************************************************   
-
-NS_IMETHODIMP nsContentTreeOwner::OnBeforeLinkTraversal(const nsAString &originalTarget,
-                                                        nsIURI *linkURI,
-                                                        nsIDOMNode *linkNode,
-                                                        PRBool isAppTab,
-                                                        nsAString &_retval)
-{
-  NS_ENSURE_STATE(mXULWindow);
-
-  nsCOMPtr<nsIXULBrowserWindow> xulBrowserWindow;
-  mXULWindow->GetXULBrowserWindow(getter_AddRefs(xulBrowserWindow));
-
-  if (xulBrowserWindow)
-    return xulBrowserWindow->OnBeforeLinkTraversal(originalTarget, linkURI,
-                                                   linkNode, isAppTab, _retval);
-  
-  _retval = originalTarget;
   return NS_OK;
 }
 
@@ -810,41 +780,12 @@ NS_IMETHODIMP nsContentTreeOwner::SetTitle(const PRUnichar* aTitle)
   return mXULWindow->SetTitle(title.get());
 }
 
-NS_STACK_CLASS class NullJSContextPusher {
-public:
-  NullJSContextPusher() {
-    mService = do_GetService(sJSStackContractID);
-    if (mService) {
-#ifdef DEBUG
-      nsresult rv =
-#endif
-        mService->Push(nsnull);
-      NS_ASSERTION(NS_SUCCEEDED(rv), "Mismatched push/pop");
-    }
-  }
-
-  ~NullJSContextPusher() {
-    if (mService) {
-      JSContext *cx;
-#ifdef DEBUG
-      nsresult rv =
-#endif
-        mService->Pop(&cx);
-      NS_ASSERTION(NS_SUCCEEDED(rv) && !cx, "Bad pop!");
-    }
-  }
-
-private:
-  nsCOMPtr<nsIThreadJSContextStack> mService;
-};
-
 //*****************************************************************************
 // nsContentTreeOwner: nsIWindowProvider
 //*****************************************************************************   
 NS_IMETHODIMP
 nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
                                   PRUint32 aChromeFlags,
-                                  PRBool aCalledFromJS,
                                   PRBool aPositionSpecified,
                                   PRBool aSizeSpecified,
                                   nsIURI* aURI,
@@ -894,32 +835,30 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
     return NS_OK;
   }
 
-  if (aCalledFromJS) {
-    /* Now check our restriction pref.  The restriction pref is a power-user's
-       fine-tuning pref. values:     
-       0: no restrictions - divert everything
-       1: don't divert window.open at all
-       2: don't divert window.open with features
-    */
-    PRInt32 restrictionPref;
-    if (NS_FAILED(branch->GetIntPref("open_newwindow.restriction",
-                                     &restrictionPref)) ||
-        restrictionPref < 0 ||
-        restrictionPref > 2) {
-      restrictionPref = 2; // Sane default behavior
-    }
+  /* Now check our restriction pref.  The restriction pref is a power-user's
+     fine-tuning pref. values:     
+     0: no restrictions - divert everything
+     1: don't divert window.open at all
+     2: don't divert window.open with features
+  */
+  PRInt32 restrictionPref;
+  if (NS_FAILED(branch->GetIntPref("open_newwindow.restriction",
+                                   &restrictionPref)) ||
+      restrictionPref < 0 ||
+      restrictionPref > 2) {
+    restrictionPref = 2; // Sane default behavior
+  }
 
-    if (restrictionPref == 1) {
-      return NS_OK;
-    }
+  if (restrictionPref == 1) {
+    return NS_OK;
+  }
 
-    if (restrictionPref == 2 &&
-        // Only continue if there are no size/position features and no special
-        // chrome flags.
-        (aChromeFlags != nsIWebBrowserChrome::CHROME_ALL ||
-         aPositionSpecified || aSizeSpecified)) {
-      return NS_OK;
-    }
+  if (restrictionPref == 2 &&
+      // Only continue if there are no size/position features and no special
+      // chrome flags.
+      (aChromeFlags != nsIWebBrowserChrome::CHROME_ALL ||
+       aPositionSpecified || aSizeSpecified)) {
+    return NS_OK;
   }
 
   nsCOMPtr<nsIDOMWindowInternal> domWin;
@@ -939,40 +878,15 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
 
   *aWindowIsNew = (containerPref != nsIBrowserDOMWindow::OPEN_CURRENTWINDOW);
 
-  {
-    NullJSContextPusher pusher;
-
-    // Get a new rendering area from the browserDOMWin.  We don't want
-    // to be starting any loads here, so get it with a null URI.
-    return browserDOMWin->OpenURI(nsnull, aParent, containerPref,
-                                  nsIBrowserDOMWindow::OPEN_NEW, aReturn);
-  }
+  // Get a new rendering area from the browserDOMWin.  We don't want
+  // to be starting any loads here, so get it with a null URI.
+  return browserDOMWin->OpenURI(nsnull, aParent, containerPref,
+                                nsIBrowserDOMWindow::OPEN_NEW, aReturn);
 }
 
 //*****************************************************************************
 // nsContentTreeOwner: Accessors
-//*****************************************************************************
-
-#if defined(XP_MACOSX)
-class nsContentTitleSettingEvent : public nsRunnable
-{
-public:
-  nsContentTitleSettingEvent(nsIDOMElement *dse, const nsAString& wtm)
-    : mElement(dse),
-      mTitleDefault(wtm) {}
-
-  NS_IMETHOD Run()
-  {
-    mElement->SetAttribute(NS_LITERAL_STRING("titledefault"), mTitleDefault);
-    mElement->RemoveAttribute(NS_LITERAL_STRING("titlemodifier"));
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIDOMElement> mElement;
-  nsString mTitleDefault;
-};
-#endif
+//*****************************************************************************   
 
 void nsContentTreeOwner::XULWindow(nsXULWindow* aXULWindow)
 {
@@ -999,9 +913,9 @@ void nsContentTreeOwner::XULWindow(nsXULWindow* aXULWindow)
             // On OS X, treat the titlemodifier like it's the titledefault, and don't ever append
             // the separator + appname.
             if (mTitleDefault.IsEmpty()) {
-                NS_DispatchToCurrentThread(
-                    new nsContentTitleSettingEvent(docShellElement,
-                                                   mWindowTitleModifier));
+                docShellElement->SetAttribute(NS_LITERAL_STRING("titledefault"),
+                                              mWindowTitleModifier);
+                docShellElement->RemoveAttribute(NS_LITERAL_STRING("titlemodifier"));
                 mTitleDefault = mWindowTitleModifier;
                 mWindowTitleModifier.Truncate();
             }

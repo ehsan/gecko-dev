@@ -39,13 +39,12 @@
 #ifndef CAIRO_TYPES_PRIVATE_H
 #define CAIRO_TYPES_PRIVATE_H
 
+/* This is the only header file not including cairoint.h.  It only contains
+ * typedefs.*/
 #include "cairo.h"
 #include "cairo-fixed-type-private.h"
-#include "cairo-list-private.h"
-#include "cairo-reference-count-private.h"
 
 typedef struct _cairo_array cairo_array_t;
-typedef struct _cairo_backend cairo_backend_t;
 typedef struct _cairo_cache cairo_cache_t;
 typedef struct _cairo_clip cairo_clip_t;
 typedef struct _cairo_clip_path cairo_clip_path_t;
@@ -55,16 +54,15 @@ typedef struct _cairo_gstate cairo_gstate_t;
 typedef struct _cairo_hash_entry cairo_hash_entry_t;
 typedef struct _cairo_hash_table cairo_hash_table_t;
 typedef struct _cairo_image_surface cairo_image_surface_t;
-typedef struct _cairo_mime_data cairo_mime_data_t;
 typedef struct _cairo_output_stream cairo_output_stream_t;
 typedef struct _cairo_paginated_surface_backend cairo_paginated_surface_backend_t;
 typedef struct _cairo_path_fixed cairo_path_fixed_t;
 typedef struct _cairo_rectangle_int16 cairo_glyph_size_t;
+typedef struct _cairo_region cairo_region_t;
 typedef struct _cairo_scaled_font_backend   cairo_scaled_font_backend_t;
 typedef struct _cairo_scaled_font_subsets cairo_scaled_font_subsets_t;
 typedef struct _cairo_solid_pattern cairo_solid_pattern_t;
 typedef struct _cairo_surface_backend cairo_surface_backend_t;
-typedef struct _cairo_surface_wrapper cairo_surface_wrapper_t;
 typedef struct _cairo_unscaled_font_backend cairo_unscaled_font_backend_t;
 typedef struct _cairo_xlib_screen_info cairo_xlib_screen_info_t;
 
@@ -120,26 +118,20 @@ struct _cairo_array {
 struct _cairo_font_options {
     cairo_antialias_t antialias;
     cairo_subpixel_order_t subpixel_order;
+    cairo_lcd_filter_t lcd_filter;
     cairo_hint_style_t hint_style;
     cairo_hint_metrics_t hint_metrics;
 };
 
-/* XXX: Right now, the _cairo_color structure puts unpremultiplied
-   color in the doubles and premultiplied color in the shorts. Yes,
-   this is crazy insane, (but at least we don't export this
-   madness). I'm still working on a cleaner API, but in the meantime,
-   at least this does prevent precision loss in color when changing
-   alpha. */
-struct _cairo_color {
-    double red;
-    double green;
-    double blue;
-    double alpha;
+struct _cairo_cache {
+    cairo_hash_table_t *hash_table;
 
-    unsigned short red_short;
-    unsigned short green_short;
-    unsigned short blue_short;
-    unsigned short alpha_short;
+    cairo_destroy_func_t entry_destroy;
+
+    unsigned long max_size;
+    unsigned long size;
+
+    int freeze_count;
 };
 
 typedef enum _cairo_paginated_mode {
@@ -158,26 +150,29 @@ typedef enum _cairo_int_status {
     CAIRO_INT_STATUS_NOTHING_TO_DO,
     CAIRO_INT_STATUS_FLATTEN_TRANSPARENCY,
     CAIRO_INT_STATUS_IMAGE_FALLBACK,
-    CAIRO_INT_STATUS_ANALYZE_RECORDING_SURFACE_PATTERN,
+    CAIRO_INT_STATUS_ANALYZE_META_SURFACE_PATTERN,
 
     CAIRO_INT_STATUS_LAST_STATUS
 } cairo_int_status_t;
 
 typedef enum _cairo_internal_surface_type {
-    CAIRO_INTERNAL_SURFACE_TYPE_PAGINATED = 0x1000,
+    CAIRO_INTERNAL_SURFACE_TYPE_META = 0x1000,
+    CAIRO_INTERNAL_SURFACE_TYPE_PAGINATED,
     CAIRO_INTERNAL_SURFACE_TYPE_ANALYSIS,
+    CAIRO_INTERNAL_SURFACE_TYPE_TEST_META,
     CAIRO_INTERNAL_SURFACE_TYPE_TEST_FALLBACK,
     CAIRO_INTERNAL_SURFACE_TYPE_TEST_PAGINATED,
-    CAIRO_INTERNAL_SURFACE_TYPE_TEST_WRAPPING,
     CAIRO_INTERNAL_SURFACE_TYPE_NULL,
     CAIRO_INTERNAL_SURFACE_TYPE_TYPE3_GLYPH
 } cairo_internal_surface_type_t;
 
-#define CAIRO_HAS_TEST_PAGINATED_SURFACE 1
-#define CAIRO_HAS_TEST_NULL_SURFACE 1
-#define CAIRO_HAS_TEST_WRAPPING_SURFACE 1
+typedef struct _cairo_point {
+    cairo_fixed_t x;
+    cairo_fixed_t y;
+} cairo_point_t;
 
-typedef struct _cairo_slope {
+typedef struct _cairo_slope
+{
     cairo_fixed_t dx;
     cairo_fixed_t dy;
 } cairo_slope_t, cairo_distance_t;
@@ -202,61 +197,67 @@ typedef struct _cairo_trapezoid {
     cairo_line_t left, right;
 } cairo_trapezoid_t;
 
-typedef struct _cairo_point_int {
-    int x, y;
-} cairo_point_int_t;
+struct _cairo_rectangle_int16 {
+    int16_t x, y;
+    uint16_t width, height;
+};
 
-#define CAIRO_RECT_INT_MIN (INT_MIN >> CAIRO_FIXED_FRAC_BITS)
-#define CAIRO_RECT_INT_MAX (INT_MAX >> CAIRO_FIXED_FRAC_BITS)
+struct _cairo_rectangle_int32 {
+    int32_t x, y;
+    uint32_t width, height;
+};
 
-/* Rectangles that take part in a composite operation.
- *
- * This defines four translations that define which pixels of the
- * source pattern, mask, clip and destination surface take part in a
- * general composite operation.  The idea is that the pixels at
- *
- *	(i,j)+(src.x, src.y) of the source,
- *      (i,j)+(mask.x, mask.y) of the mask,
- *      (i,j)+(clip.x, clip.y) of the clip and
- *      (i,j)+(dst.x, dst.y) of the destination
- *
- * all combine together to form the result at (i,j)+(dst.x,dst.y),
- * for i,j ranging in [0,width) and [0,height) respectively.
- */
-typedef struct _cairo_composite_rectangles {
-        cairo_point_int_t src;
-        cairo_point_int_t mask;
-        cairo_point_int_t clip;
-        cairo_point_int_t dst;
-        int width;
-        int height;
-} cairo_composite_rectangles_t;
+struct _cairo_point_int16 {
+    int16_t x, y;
+};
+
+struct _cairo_point_int32 {
+    int32_t x, y;
+};
+
+#if CAIRO_FIXED_BITS == 32 && CAIRO_FIXED_FRAC_BITS >= 16
+typedef struct _cairo_rectangle_int16 cairo_rectangle_int_t;
+typedef struct _cairo_point_int16 cairo_point_int_t;
+#define CAIRO_RECT_INT_MIN (INT16_MIN >> (CAIRO_FIXED_FRAC_BITS - 16))
+#define CAIRO_RECT_INT_MAX (INT16_MAX >> (CAIRO_FIXED_FRAC_BITS - 16))
+#elif CAIRO_FIXED_BITS == 32
+typedef struct _cairo_rectangle_int32 cairo_rectangle_int_t;
+typedef struct _cairo_point_int32 cairo_point_int_t;
+#define CAIRO_RECT_INT_MIN (INT32_MIN >> CAIRO_FIXED_FRAC_BITS)
+#define CAIRO_RECT_INT_MAX (INT32_MAX >> CAIRO_FIXED_FRAC_BITS)
+#else
+#error Not sure how to pick a cairo_rectangle_int_t and cairo_point_int_t for your CAIRO_FIXED_BITS!
+#endif
+
+typedef struct _cairo_box_int {
+    cairo_point_int_t p1;
+    cairo_point_int_t p2;
+} cairo_box_int_t;
 
 typedef enum _cairo_direction {
     CAIRO_DIRECTION_FORWARD,
     CAIRO_DIRECTION_REVERSE
 } cairo_direction_t;
 
+typedef enum _cairo_clip_mode {
+    CAIRO_CLIP_MODE_PATH,
+    CAIRO_CLIP_MODE_REGION,
+    CAIRO_CLIP_MODE_MASK
+} cairo_clip_mode_t;
+
 typedef struct _cairo_edge {
-    cairo_line_t line;
-    int top, bottom;
-    int dir;
+    cairo_line_t edge;
+    int clockWise;
+
+    cairo_fixed_t current_x;
 } cairo_edge_t;
 
 typedef struct _cairo_polygon {
     cairo_status_t status;
 
     cairo_point_t first_point;
-    cairo_point_t last_point;
     cairo_point_t current_point;
-    cairo_slope_t current_edge;
     cairo_bool_t has_current_point;
-    cairo_bool_t has_current_edge;
-
-    cairo_box_t extents;
-    cairo_box_t limit;
-    const cairo_box_t *limits;
-    int num_limits;
 
     int num_edges;
     int edges_size;
@@ -264,25 +265,19 @@ typedef struct _cairo_polygon {
     cairo_edge_t  edges_embedded[32];
 } cairo_polygon_t;
 
-typedef cairo_warn cairo_status_t
-(*cairo_spline_add_point_func_t) (void *closure,
-				  const cairo_point_t *point);
-
 typedef struct _cairo_spline_knots {
     cairo_point_t a, b, c, d;
 } cairo_spline_knots_t;
-
 typedef struct _cairo_spline {
-    cairo_spline_add_point_func_t add_point_func;
-    void *closure;
-
     cairo_spline_knots_t knots;
 
     cairo_slope_t initial_slope;
     cairo_slope_t final_slope;
 
-    cairo_bool_t has_point;
-    cairo_point_t last_point;
+    int num_points;
+    int points_size;
+    cairo_point_t *points;
+    cairo_point_t  points_embedded[64];
 } cairo_spline_t;
 
 typedef struct _cairo_pen_vertex {
@@ -331,84 +326,5 @@ typedef enum _cairo_image_transparency {
     CAIRO_IMAGE_HAS_ALPHA,
     CAIRO_IMAGE_UNKNOWN
 } cairo_image_transparency_t;
-
-struct _cairo_mime_data {
-    cairo_reference_count_t ref_count;
-    unsigned char *data;
-    unsigned int length;
-    cairo_destroy_func_t destroy;
-    void *closure;
-};
-
-struct _cairo_pattern {
-    cairo_pattern_type_t	type;
-    cairo_reference_count_t	ref_count;
-    cairo_status_t		status;
-    cairo_user_data_array_t	user_data;
-
-    cairo_matrix_t		matrix;
-    cairo_filter_t		filter;
-    cairo_extend_t		extend;
-
-    cairo_bool_t		has_component_alpha;
-};
-
-struct _cairo_solid_pattern {
-    cairo_pattern_t base;
-    cairo_color_t color;
-    cairo_content_t content;
-};
-
-typedef struct _cairo_surface_pattern {
-    cairo_pattern_t base;
-
-    cairo_surface_t *surface;
-} cairo_surface_pattern_t;
-
-typedef struct _cairo_gradient_stop {
-    double offset;
-    cairo_color_t color;
-} cairo_gradient_stop_t;
-
-typedef struct _cairo_gradient_pattern {
-    cairo_pattern_t base;
-
-    unsigned int	    n_stops;
-    unsigned int	    stops_size;
-    cairo_gradient_stop_t  *stops;
-    cairo_gradient_stop_t   stops_embedded[2];
-} cairo_gradient_pattern_t;
-
-typedef struct _cairo_linear_pattern {
-    cairo_gradient_pattern_t base;
-
-    cairo_point_t p1;
-    cairo_point_t p2;
-} cairo_linear_pattern_t;
-
-typedef struct _cairo_radial_pattern {
-    cairo_gradient_pattern_t base;
-
-    cairo_point_t c1;
-    cairo_fixed_t r1;
-    cairo_point_t c2;
-    cairo_fixed_t r2;
-} cairo_radial_pattern_t;
-
-typedef union {
-    cairo_gradient_pattern_t base;
-
-    cairo_linear_pattern_t linear;
-    cairo_radial_pattern_t radial;
-} cairo_gradient_pattern_union_t;
-
-typedef union {
-    cairo_pattern_type_t	    type;
-    cairo_pattern_t		    base;
-
-    cairo_solid_pattern_t	    solid;
-    cairo_surface_pattern_t	    surface;
-    cairo_gradient_pattern_union_t  gradient;
-} cairo_pattern_union_t;
 
 #endif /* CAIRO_TYPES_PRIVATE_H */

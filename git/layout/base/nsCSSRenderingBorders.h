@@ -59,10 +59,10 @@
 #define SIDE_BIT_LEFT (1 << NS_SIDE_LEFT)
 #define SIDE_BITS_ALL (SIDE_BIT_TOP|SIDE_BIT_RIGHT|SIDE_BIT_BOTTOM|SIDE_BIT_LEFT)
 
-#define C_TL NS_CORNER_TOP_LEFT
-#define C_TR NS_CORNER_TOP_RIGHT
-#define C_BR NS_CORNER_BOTTOM_RIGHT
-#define C_BL NS_CORNER_BOTTOM_LEFT
+#define C_TL (gfxCorner::TOP_LEFT)
+#define C_TR (gfxCorner::TOP_RIGHT)
+#define C_BR (gfxCorner::BOTTOM_RIGHT)
+#define C_BL (gfxCorner::BOTTOM_LEFT)
 
 /*
  * Helper class that handles border rendering.
@@ -70,7 +70,7 @@
  * appUnitsPerPixel -- current value of AUPP
  * destContext -- the gfxContext to which the border should be rendered
  * outsideRect -- the rectangle on the outer edge of the border
- *
+ * 
  * For any parameter where an array of side values is passed in,
  * they are in top, right, bottom, left order.
  *
@@ -107,7 +107,8 @@ struct nsCSSBorderRenderer {
                       PRIntn aSkipSides,
                       nscolor aBackgroundColor);
 
-  gfxCornerSizes mBorderCornerDimensions;
+  // core app units per pixel
+  PRInt32 mAUPP;
 
   // destination context
   gfxContext* mContext;
@@ -119,16 +120,11 @@ struct nsCSSBorderRenderer {
   // the style and size of the border
   const PRUint8* mBorderStyles;
   const gfxFloat* mBorderWidths;
-  PRUint8* mSanitizedStyles;
-  gfxFloat* mSanitizedWidths;
   gfxCornerSizes mBorderRadii;
 
   // colors
   const nscolor* mBorderColors;
   nsBorderColors* const* mCompositeColors;
-
-  // core app units per pixel
-  PRInt32 mAUPP;
 
   // misc -- which sides to skip, the background color
   PRIntn mSkipSides;
@@ -138,24 +134,26 @@ struct nsCSSBorderRenderer {
   PRPackedBool mOneUnitBorder;
   PRPackedBool mNoBorderRadius;
 
+  gfxCornerSizes mBorderCornerDimensions;
+
   // For all the sides in the bitmask, would they be rendered
   // in an identical color and style?
   PRBool AreBorderSideFinalStylesSame(PRUint8 aSides);
 
   // For the given style, is the given corner a solid color?
-  PRBool IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCorner);
+  PRBool IsSolidCornerStyle(PRUint8 aStyle, gfxCorner::Corner aCorner);
 
   // For the given solid corner, what color style should be used?
-  BorderColorStyle BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css::Corner aCorner);
+  BorderColorStyle BorderColorStyleForSolidCorner(PRUint8 aStyle, gfxCorner::Corner aCorner);
 
   //
   // Path generation functions
   //
 
   // add the path for drawing the given corner to the context
-  void DoCornerSubPath(mozilla::css::Corner aCorner);
+  void DoCornerSubPath(PRUint8 aCorner);
   // add the path for drawing the given side without any adjacent corners to the context
-  void DoSideClipWithoutCornersSubPath(mozilla::css::Side aSide);
+  void DoSideClipWithoutCornersSubPath(PRUint8 aSide);
 
   // Create a clip path for the wedge that this side of
   // the border should take up.  This is only called
@@ -165,7 +163,7 @@ struct nsCSSBorderRenderer {
   // This code needs to make sure that the individual pieces
   // don't ever (mathematically) overlap; the pixel overlap
   // is taken care of by the ADD compositing.
-  void DoSideClipSubPath(mozilla::css::Side aSide);
+  void DoSideClipSubPath(PRUint8 aSide);
 
   // Given a set of sides to fill and a color, do so in the fastest way.
   //
@@ -198,43 +196,10 @@ struct nsCSSBorderRenderer {
   void DrawBorderSidesCompositeColors(PRIntn aSides, const nsBorderColors *compositeColors);
 
   // draw the given dashed side
-  void DrawDashedSide (mozilla::css::Side aSide);
-  
-  // Setup the stroke style for a given side
-  void SetupStrokeStyle(mozilla::css::Side aSize);
-
-  // Analyze if all border sides have the same width.
-  bool AllBordersSameWidth();
-
-  // Analyze if all borders are 'solid' this also considers hidden or 'none'
-  // borders because they can be considered 'solid' borders of 0 width and
-  // with no color effect.
-  bool AllBordersSolid(bool *aHasCompositeColors);
-
-  // Create a gradient pattern that will handle the color transition for a
-  // corner.
-  already_AddRefed<gfxPattern> CreateCornerGradient(mozilla::css::Corner aCorner,
-                                                    const gfxRGBA &aFirstColor,
-                                                    const gfxRGBA &aSecondColor);
-
-  // Draw a solid color border that is uniformly the same width.
-  void DrawSingleWidthSolidBorder();
-
-  // Draw any border which is solid on all sides and does not use
-  // CompositeColors.
-  void DrawNoCompositeColorSolidBorder();
-
-  // Draw a solid border that has no border radius (i.e. is rectangular) and
-  // uses CompositeColors.
-  void DrawRectangularCompositeColors();
+  void DrawDashedSide (PRUint8 aSide);
 
   // draw the entire border
   void DrawBorders ();
-
-  // utility function used for background painting as well as borders
-  static void ComputeInnerRadii(const gfxCornerSizes& aRadii,
-                                const gfxFloat *aBorderSizes,
-                                gfxCornerSizes *aInnerRadiiRet);
 };
 
 #ifdef DEBUG_NEW_BORDERS

@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 #
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -17,10 +17,8 @@
 #
 # The Initial Developer of the Original Code is
 # Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1994-2009
+# Portions created by the Initial Developer are Copyright (C) 1994-2000
 # the Initial Developer. All Rights Reserved.
-#
-# Contributors:
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,6 +47,8 @@
 # ---------------
 #   FIXME ... known problems, search for this string
 #   NOTE .... unexpected behavior
+#
+# FIXME - Netscape - NSS
 ########################################################################
 
 IOPR_CERT_SOURCED=1
@@ -124,9 +124,9 @@ download_file() {
     echo >> $req
 
     echo ${BINDIR}/tstclnt -d $trgDir -S -h $host -p $IOPR_DOWNLOAD_PORT \
-        -v -w ${R_PWFILE} -o 
+        -w ${R_PWFILE} -o 
     ${BINDIR}/tstclnt -d $trgDir -S -h $host -p $IOPR_DOWNLOAD_PORT \
-        -v -w ${R_PWFILE} -o < $req > $file
+        -w ${R_PWFILE} -o < $req > $file
     ret=$?
     rm -f $_tmp;
     return $ret

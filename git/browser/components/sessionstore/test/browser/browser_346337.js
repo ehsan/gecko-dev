@@ -36,19 +36,6 @@
 
 function test() {
   /** Test for Bug 346337 **/
-
-  var file = Components.classes["@mozilla.org/file/directory_service;1"]
-               .getService(Components.interfaces.nsIProperties)
-               .get("TmpD", Components.interfaces.nsILocalFile);
-  file.append("346337_test1.file");
-  file.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0666);
-  filePath1 = file.path;
-  file = Components.classes["@mozilla.org/file/directory_service;1"]
-             .getService(Components.interfaces.nsIProperties)
-             .get("TmpD", Components.interfaces.nsILocalFile);
-  file.append("346337_test2.file");
-  file.createUnique(Components.interfaces.nsIFile.NORMAL_FILE_TYPE, 0666);
-  filePath2 = file.path;
   
   let fieldList = {
     "//input[@name='input']":     Date.now().toString(),
@@ -64,8 +51,7 @@ function test() {
     "//textarea[1]":              "",
     "//textarea[2]":              "Some text... " + Math.random(),
     "//textarea[3]":              "Some more text\n" + new Date(),
-    "//input[@type='file'][1]":   [filePath1],
-    "//input[@type='file'][2]":   [filePath1, filePath2]
+    "//input[@type='file']":      "/dev/null"
   };
   
   function getElementByXPath(aTab, aQuery) {
@@ -82,8 +68,6 @@ function test() {
       node.checked = aValue;
     else if (typeof aValue == "number")
       node.selectedIndex = aValue;
-    else if (node instanceof Ci.nsIDOMHTMLInputElement && node.type == "file")
-      node.mozSetFileNameArray(aValue, aValue.length);
     else
       Array.forEach(node.options, function(aOpt, aIx)
                                     (aOpt.selected = aValue.indexOf(aIx) > -1));
@@ -93,15 +77,9 @@ function test() {
     let node = getElementByXPath(aTab, aQuery);
     if (!node)
       return false;
-    if (node instanceof Ci.nsIDOMHTMLInputElement) {
-      if (node.type == "file") {
-        let fileNames = node.mozGetFileNameArray();
-        return fileNames.length == aValue.length &&
-               Array.every(fileNames, function(aFile) aValue.indexOf(aFile) >= 0);
-      }
+    if (node instanceof Ci.nsIDOMHTMLInputElement)
       return aValue == (node.type == "checkbox" || node.type == "radio" ?
                         node.checked : node.value);
-    }
     if (node instanceof Ci.nsIDOMHTMLTextAreaElement)
       return aValue == node.value;
     if (!node.multiple)
@@ -111,23 +89,22 @@ function test() {
   }
   
   // test setup
-  let tabbrowser = gBrowser;
+  let tabbrowser = getBrowser();
   waitForExplicitFinish();
   
   // make sure we don't save form data at all (except for tab duplication)
+  let privacy_level = gPrefService.getIntPref("browser.sessionstore.privacy_level");
   gPrefService.setIntPref("browser.sessionstore.privacy_level", 2);
   
-  let rootDir = getRootDirectory(gTestPath);
-  let testURL = rootDir + "browser_346337_sample.html";
+  let testURL = "chrome://mochikit/content/browser/" +
+    "browser/components/sessionstore/test/browser/browser_346337_sample.html";
   let tab = tabbrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     for (let xpath in fieldList)
       setFormValue(tab, xpath, fieldList[xpath]);
     
     let tab2 = tabbrowser.duplicateTab(tab);
     tab2.linkedBrowser.addEventListener("load", function(aEvent) {
-      this.removeEventListener("load", arguments.callee, true);
       for (let xpath in fieldList)
         ok(compareFormValue(tab2, xpath, fieldList[xpath]),
            "The value for \"" + xpath + "\" was correctly restored");
@@ -138,18 +115,12 @@ function test() {
       
       tab = undoCloseTab();
       tab.linkedBrowser.addEventListener("load", function(aEvent) {
-        this.removeEventListener("load", arguments.callee, true);
         for (let xpath in fieldList)
           if (fieldList[xpath])
             ok(!compareFormValue(tab, xpath, fieldList[xpath]),
                "The value for \"" + xpath + "\" was correctly discarded");
         
-        if (gPrefService.prefHasUserValue("browser.sessionstore.privacy_level"))
-          gPrefService.clearUserPref("browser.sessionstore.privacy_level");
-        // undoCloseTab can reuse a single blank tab, so we have to
-        // make sure not to close the window when closing our last tab
-        if (tabbrowser.tabs.length == 1)
-          tabbrowser.addTab();
+        gPrefService.setIntPref("browser.sessionstore.privacy_level", privacy_level);
         tabbrowser.removeTab(tab);
         finish();
       }, true);

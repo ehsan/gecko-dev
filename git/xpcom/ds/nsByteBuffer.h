@@ -46,7 +46,7 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  static nsresult
+  static NS_METHOD
   Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
   NS_IMETHOD Init(PRUint32 aBufferSize);

@@ -330,7 +330,7 @@ nsPipe::nsPipe()
 nsPipe::~nsPipe()
 {
     if (mMonitor)
-        nsAutoMonitor::DestroyMonitor(mMonitor);
+        PR_DestroyMonitor(mMonitor);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsPipe, nsIPipe)
@@ -342,7 +342,7 @@ nsPipe::Init(PRBool nonBlockingIn,
              PRUint32 segmentCount,
              nsIMemory *segmentAlloc)
 {
-    mMonitor = nsAutoMonitor::NewMonitor("pipeMonitor");
+    mMonitor = PR_NewMonitor();
     if (!mMonitor)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1011,7 +1011,7 @@ nsPipeOutputStream::Wait()
         mon.Wait();
         mBlocked = PR_FALSE;
         LOG(("OOO pipe output: woke up [pipe-status=%x writable=%u]\n",
-            mPipe->mStatus, mWritable));
+            mPipe->mStatus, mWritable == PR_TRUE));
     }
 
     return mPipe->mStatus == NS_BASE_STREAM_CLOSED ? NS_OK : mPipe->mStatus;
@@ -1319,7 +1319,7 @@ NS_NewPipe2(nsIAsyncInputStream **pipeIn,
     return NS_OK;
 }
 
-nsresult
+NS_METHOD
 nsPipeConstructor(nsISupports *outer, REFNSIID iid, void **result)
 {
     if (outer)

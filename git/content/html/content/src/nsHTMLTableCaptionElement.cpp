@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -46,7 +47,7 @@ class nsHTMLTableCaptionElement :  public nsGenericHTMLElement,
                                    public nsIDOMHTMLTableCaptionElement
 {
 public:
-  nsHTMLTableCaptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableCaptionElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLTableCaptionElement();
 
   // nsISupports
@@ -72,15 +73,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCaption)
 
 
-nsHTMLTableCaptionElement::nsHTMLTableCaptionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableCaptionElement::nsHTMLTableCaptionElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -94,14 +93,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLTableCaptionElement, nsHTMLTableCaptionElement)
-
 // QueryInterface implementation for nsHTMLTableCaptionElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCaptionElement,
-                                   nsIDOMHTMLTableCaptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableCaptionElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableCaptionElement,
+                                nsIDOMHTMLTableCaptionElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableCaptionElement)
 
 
@@ -126,7 +122,7 @@ nsHTMLTableCaptionElement::ParseAttribute(PRInt32 aNamespaceID,
                                           nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::align && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kCaptionAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aValue, kCaptionAlignTable);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,

@@ -45,11 +45,6 @@
   by Patrick C. Beard.
  */
 
-#ifdef MOZ_IPC
-#include "GeckoChildProcessHost.h"
-#include "base/process_util.h"
-#endif
-
 #include "prlink.h"
 #include "prnetdb.h"
 #include "nsXPCOM.h"
@@ -75,22 +70,34 @@ typedef NS_NPAPIPLUGIN_CALLBACK(OSErr, BP_GETSUPPORTEDMIMETYPES) (BPSupportedMIM
 
 
 /*
-** Returns a CFBundleRef if the path refers to a Mac OS X bundle directory.
+** Returns a CFBundleRef if the FSSpec refers to a Mac OS X bundle directory.
 ** The caller is responsible for calling CFRelease() to deallocate.
 */
 static CFBundleRef getPluginBundle(const char* path)
 {
-  CFBundleRef bundle = NULL;
-  CFStringRef pathRef = ::CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
-  if (pathRef) {
-    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
-    if (bundleURL) {
-      bundle = ::CFBundleCreate(NULL, bundleURL);
-      ::CFRelease(bundleURL);
+    CFBundleRef bundle = NULL;
+    CFStringRef pathRef = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
+    if (pathRef) {
+        CFURLRef bundleURL = CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
+        if (bundleURL != NULL) {
+            bundle = CFBundleCreate(NULL, bundleURL);
+            CFRelease(bundleURL);
+        }
+        CFRelease(pathRef);
     }
-    ::CFRelease(pathRef);
-  }
-  return bundle;
+    return bundle;
+}
+
+static OSErr toFSSpec(nsIFile* file, FSSpec& outSpec)
+{
+    nsCOMPtr<nsILocalFileMac> lfm = do_QueryInterface(file);
+    if (!lfm)
+        return -1;
+    FSSpec foo;
+    lfm->GetFSSpec(&foo);
+    outSpec = foo;
+
+    return NS_OK;
 }
 
 static nsresult toCFURLRef(nsIFile* file, CFURLRef& outURL)
@@ -106,210 +113,168 @@ static nsresult toCFURLRef(nsIFile* file, CFURLRef& outURL)
   return rv;
 }
 
+// function to test whether or not this is a loadable plugin
+static PRBool IsLoadablePlugin(CFURLRef aURL)
+{
+  if (!aURL)
+    return PR_FALSE;
+  
+  PRBool isLoadable = PR_FALSE;
+  char path[PATH_MAX];
+  if (CFURLGetFileSystemRepresentation(aURL, TRUE, (UInt8*)path, sizeof(path))) {
+    UInt32 magic;
+    int f = open(path, O_RDONLY);
+    if (f != -1) {
+      // Mach-O headers use the byte ordering of the architecture on which
+      // they run, so test against the magic number in the byte order
+      // we're compiling for. Fat headers are always big-endian, so swap
+      // them to host before comparing to host representation of the magic
+      if (read(f, &magic, sizeof(magic)) == sizeof(magic)) {
+        if ((magic == MH_MAGIC) || (PR_ntohl(magic) == FAT_MAGIC))
+          isLoadable = PR_TRUE;
+#ifdef __POWERPC__
+        // if we're on ppc, we can use CFM plugins
+        if (isLoadable == PR_FALSE) {
+          UInt32 magic2;
+          if (read(f, &magic2, sizeof(magic2)) == sizeof(magic2)) {
+            UInt32 cfm_header1 = 0x4A6F7921; // 'Joy!'
+            UInt32 cfm_header2 = 0x70656666; // 'peff'
+            if (cfm_header1 == magic && cfm_header2 == magic2)
+              isLoadable = PR_TRUE;
+          }
+        }
+#endif
+      }
+      close(f);
+    }
+  }
+  return isLoadable;
+}
+
 PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
-  nsCString fileName;
-  file->GetNativeLeafName(fileName);
+  nsCString temp;
+  file->GetNativeLeafName(temp);
   /*
    * Don't load the VDP fake plugin, to avoid tripping a bad bug in OS X
    * 10.5.3 (see bug 436575).
    */
-  if (!strcmp(fileName.get(), "VerifiedDownloadPlugin.plugin")) {
+  if (!strcmp(temp.get(), "VerifiedDownloadPlugin.plugin")) {
     NS_WARNING("Preventing load of VerifiedDownloadPlugin.plugin (see bug 436575)");
     return PR_FALSE;
   }
-  return PR_TRUE;
+    
+  CFURLRef pluginURL = NULL;
+  if (NS_FAILED(toCFURLRef(file, pluginURL)))
+    return PR_FALSE;
+  
+  PRBool isPluginFile = PR_FALSE;
+  
+  CFBundleRef pluginBundle = CFBundleCreate(kCFAllocatorDefault, pluginURL);
+  if (pluginBundle) {
+    UInt32 packageType, packageCreator;
+    CFBundleGetPackageInfo(pluginBundle, &packageType, &packageCreator);
+    if (packageType == 'BRPL' || packageType == 'IEPL' || packageType == 'NSPL') {
+      CFURLRef executableURL = CFBundleCopyExecutableURL(pluginBundle);
+      if (executableURL) {
+        isPluginFile = IsLoadablePlugin(executableURL);
+        CFRelease(executableURL);
+      }
+    }
+    CFRelease(pluginBundle);
+  }
+  else {
+    LSItemInfoRecord info;
+    if (LSCopyItemInfoForURL(pluginURL, kLSRequestTypeCreator, &info) == noErr) {
+      if ((info.filetype == 'shlb' && info.creator == 'MOSS') ||
+          info.filetype == 'NSPL' ||
+          info.filetype == 'BRPL' ||
+          info.filetype == 'IEPL') {
+        isPluginFile = IsLoadablePlugin(pluginURL);
+      }
+    }
+  }
+  
+  CFRelease(pluginURL);
+  return isPluginFile;
 }
 
 // Caller is responsible for freeing returned buffer.
 static char* CFStringRefToUTF8Buffer(CFStringRef cfString)
 {
-  const char* buffer = ::CFStringGetCStringPtr(cfString, kCFStringEncodingUTF8);
-  if (buffer) {
-    return PL_strdup(buffer);
-  }
-
-  int bufferLength =
-    ::CFStringGetMaximumSizeForEncoding(::CFStringGetLength(cfString),
-                                        kCFStringEncodingUTF8) + 1;
+  int bufferLength = ::CFStringGetLength(cfString) + 1;
   char* newBuffer = static_cast<char*>(NS_Alloc(bufferLength));
-  if (!newBuffer) {
-    return nsnull;
-  }
-
-  if (!::CFStringGetCString(cfString, newBuffer, bufferLength,
-                            kCFStringEncodingUTF8)) {
+  if (!::CFStringGetCString(cfString, newBuffer, bufferLength, kCFStringEncodingUTF8)) {
     NS_Free(newBuffer);
-    return nsnull;
+    newBuffer = nsnull;
   }
-
-  newBuffer = static_cast<char*>(NS_Realloc(newBuffer,
-                                            PL_strlen(newBuffer) + 1));
   return newBuffer;
-}
-
-class AutoCFTypeObject {
-public:
-  AutoCFTypeObject(CFTypeRef object)
-  {
-    mObject = object;
-  }
-  ~AutoCFTypeObject()
-  {
-    ::CFRelease(mObject);
-  }
-private:
-  CFTypeRef mObject;
-};
-
-static Boolean MimeTypeEnabled(CFDictionaryRef mimeDict) {
-  if (!mimeDict) {
-    return true;
-  }
-  
-  CFTypeRef value;
-  if (::CFDictionaryGetValueIfPresent(mimeDict, CFSTR("WebPluginTypeEnabled"), &value)) {
-    if (value && ::CFGetTypeID(value) == ::CFBooleanGetTypeID()) {
-      return ::CFBooleanGetValue(static_cast<CFBooleanRef>(value));
-    }
-  }
-  return true;
-}
-
-static CFDictionaryRef ParsePlistForMIMETypesFilename(CFBundleRef bundle)
-{
-  CFTypeRef mimeFileName = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypesFilename"));
-  if (!mimeFileName || ::CFGetTypeID(mimeFileName) != ::CFStringGetTypeID()) {
-    return NULL;
-  }
-  
-  FSRef homeDir;
-  if (::FSFindFolder(kUserDomain, kCurrentUserFolderType, kDontCreateFolder, &homeDir) != noErr) {
-    return NULL;
-  }
-  
-  CFURLRef userDirURL = ::CFURLCreateFromFSRef(kCFAllocatorDefault, &homeDir);
-  if (!userDirURL) {
-    return NULL;
-  }
-  
-  AutoCFTypeObject userDirURLAutorelease(userDirURL);
-  CFStringRef mimeFilePath = ::CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("Library/Preferences/%@"), static_cast<CFStringRef>(mimeFileName));
-  if (!mimeFilePath) {
-    return NULL;
-  }
-  
-  AutoCFTypeObject mimeFilePathAutorelease(mimeFilePath);
-  CFURLRef mimeFileURL = ::CFURLCreateWithFileSystemPathRelativeToBase(kCFAllocatorDefault, mimeFilePath, kCFURLPOSIXPathStyle, false, userDirURL);
-  if (!mimeFileURL) {
-    return NULL;
-  }
-  
-  AutoCFTypeObject mimeFileURLAutorelease(mimeFileURL);
-  SInt32 errorCode = 0;
-  CFDataRef mimeFileData = NULL;
-  Boolean result = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault, mimeFileURL, &mimeFileData, NULL, NULL, &errorCode);
-  if (!result) {
-    return NULL;
-  }
-  
-  AutoCFTypeObject mimeFileDataAutorelease(mimeFileData);
-  if (errorCode != 0) {
-    return NULL;
-  }
-  
-  CFPropertyListRef propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault, mimeFileData, kCFPropertyListImmutable, NULL);
-  if (!propertyList) {
-    return NULL;
-  }
-  
-  AutoCFTypeObject propertyListAutorelease(propertyList);
-  if (::CFGetTypeID(propertyList) != ::CFDictionaryGetTypeID()) {
-    return NULL;
-  }
-
-  CFTypeRef mimeTypes = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyList), CFSTR("WebPluginMIMETypes"));
-  if (!mimeTypes || ::CFGetTypeID(mimeTypes) != ::CFDictionaryGetTypeID() || ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeTypes)) == 0) {
-    return NULL;
-  }
-  
-  return static_cast<CFDictionaryRef>(::CFRetain(mimeTypes));
 }
 
 static void ParsePlistPluginInfo(nsPluginInfo& info, CFBundleRef bundle)
 {
-  CFDictionaryRef mimeDict = ParsePlistForMIMETypesFilename(bundle);
-  
-  if (!mimeDict) {
-    CFTypeRef mimeTypes = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypes"));
-    if (!mimeTypes || ::CFGetTypeID(mimeTypes) != ::CFDictionaryGetTypeID() || ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeTypes)) == 0)
+  CFTypeRef mimeDict = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypes"));
+  if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID() && ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeDict)) > 0) {
+    int mimeDictKeyCount = ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeDict));
+
+    // Allocate memory for mime data
+    int mimeDataArraySize = mimeDictKeyCount * sizeof(char*);
+    info.fMimeTypeArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+    if (!info.fMimeTypeArray)
       return;
-    mimeDict = static_cast<CFDictionaryRef>(::CFRetain(mimeTypes));
-  }
-  
-  AutoCFTypeObject mimeDictAutorelease(mimeDict);
-  int mimeDictKeyCount = ::CFDictionaryGetCount(mimeDict);
+    memset(info.fMimeTypeArray, 0, mimeDataArraySize);
+    info.fExtensionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+    if (!info.fExtensionArray)
+      return;
+    memset(info.fExtensionArray, 0, mimeDataArraySize);
+    info.fMimeDescriptionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+    if (!info.fMimeDescriptionArray)
+      return;
+    memset(info.fMimeDescriptionArray, 0, mimeDataArraySize);
 
-  // Allocate memory for mime data
-  int mimeDataArraySize = mimeDictKeyCount * sizeof(char*);
-  info.fMimeTypeArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-  if (!info.fMimeTypeArray)
-    return;
-  memset(info.fMimeTypeArray, 0, mimeDataArraySize);
-  info.fExtensionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-  if (!info.fExtensionArray)
-    return;
-  memset(info.fExtensionArray, 0, mimeDataArraySize);
-  info.fMimeDescriptionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-  if (!info.fMimeDescriptionArray)
-    return;
-  memset(info.fMimeDescriptionArray, 0, mimeDataArraySize);
+    // Allocate memory for mime dictionary keys and values
+    nsAutoArrayPtr<CFTypeRef> keys(new CFTypeRef[mimeDictKeyCount]);
+    if (!keys)
+      return;
+    nsAutoArrayPtr<CFTypeRef> values(new CFTypeRef[mimeDictKeyCount]);
+    if (!values)
+      return;
 
-  // Allocate memory for mime dictionary keys and values
-  nsAutoArrayPtr<CFTypeRef> keys(new CFTypeRef[mimeDictKeyCount]);
-  if (!keys)
-    return;
-  nsAutoArrayPtr<CFTypeRef> values(new CFTypeRef[mimeDictKeyCount]);
-  if (!values)
-    return;
-  
-  info.fVariantCount = 0;
+    // Set the variant count now that we have safely allocated memory
+    info.fVariantCount = mimeDictKeyCount;
 
-  ::CFDictionaryGetKeysAndValues(mimeDict, keys, values);
-  for (int i = 0; i < mimeDictKeyCount; i++) {
-    CFTypeRef mimeString = keys[i];
-    if (!mimeString || ::CFGetTypeID(mimeString) != ::CFStringGetTypeID()) {
-      continue;
-    }
-    CFTypeRef mimeDict = values[i];
-    if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID()) {
-      if (!MimeTypeEnabled(static_cast<CFDictionaryRef>(mimeDict))) {
+    ::CFDictionaryGetKeysAndValues(static_cast<CFDictionaryRef>(mimeDict), keys, values);
+    for (int i = 0; i < mimeDictKeyCount; i++) {
+      CFTypeRef mimeString = keys[i];
+      if (mimeString && ::CFGetTypeID(mimeString) == ::CFStringGetTypeID()) {
+        info.fMimeTypeArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(mimeString));
+      }
+      else {
+        info.fVariantCount -= 1;
         continue;
       }
-      info.fMimeTypeArray[info.fVariantCount] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(mimeString));
-      if (!info.fMimeTypeArray[info.fVariantCount]) {
-        continue;
-      }
-      CFTypeRef extensions = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginExtensions"));
-      if (extensions && ::CFGetTypeID(extensions) == ::CFArrayGetTypeID()) {
-        int extensionCount = ::CFArrayGetCount(static_cast<CFArrayRef>(extensions));
-        CFMutableStringRef extensionList = ::CFStringCreateMutable(kCFAllocatorDefault, 0);
-        for (int j = 0; j < extensionCount; j++) {
-          CFTypeRef extension = ::CFArrayGetValueAtIndex(static_cast<CFArrayRef>(extensions), j);
-          if (extension && ::CFGetTypeID(extension) == ::CFStringGetTypeID()) {
-            if (j > 0)
-              ::CFStringAppend(extensionList, CFSTR(","));
-            ::CFStringAppend(static_cast<CFMutableStringRef>(extensionList), static_cast<CFStringRef>(extension));
+      CFTypeRef mimeDict = values[i];
+      if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID()) {
+        CFTypeRef extensions = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginExtensions"));
+        if (extensions && ::CFGetTypeID(extensions) == ::CFArrayGetTypeID()) {
+          int extensionCount = ::CFArrayGetCount(static_cast<CFArrayRef>(extensions));
+          CFMutableStringRef extensionList = ::CFStringCreateMutable(kCFAllocatorDefault, 0);
+          for (int j = 0; j < extensionCount; j++) {
+            CFTypeRef extension = ::CFArrayGetValueAtIndex(static_cast<CFArrayRef>(extensions), j);
+            if (extension && ::CFGetTypeID(extension) == ::CFStringGetTypeID()) {
+              if (j > 0)
+                ::CFStringAppend(extensionList, CFSTR(","));
+              ::CFStringAppend(static_cast<CFMutableStringRef>(extensionList), static_cast<CFStringRef>(extension));
+            }
           }
+          info.fExtensionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(extensionList));
+          ::CFRelease(extensionList);
         }
-        info.fExtensionArray[info.fVariantCount] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(extensionList));
-        ::CFRelease(extensionList);
+        CFTypeRef description = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginTypeDescription"));
+        if (description && ::CFGetTypeID(description) == ::CFStringGetTypeID())
+          info.fMimeDescriptionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(description));
       }
-      CFTypeRef description = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginTypeDescription"));
-      if (description && ::CFGetTypeID(description) == ::CFStringGetTypeID())
-        info.fMimeDescriptionArray[info.fVariantCount] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(description));
     }
-    info.fVariantCount++;
   }
 }
 
@@ -320,67 +285,41 @@ nsPluginFile::nsPluginFile(nsIFile *spec)
 
 nsPluginFile::~nsPluginFile() {}
 
-nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
+/**
+ * Loads the plugin into memory using NSPR's shared-library loading
+ * mechanism. Handles platform differences in loading shared libraries.
+ */
+nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 {
-  if (!mPlugin)
-    return NS_ERROR_NULL_POINTER;
+    const char* path;
 
-  // 64-bit NSPR does not (yet) support bundles.  So in 64-bit builds we need
-  // (for now) to load the bundle's executable.  However this can cause
-  // problems:  CFBundleCreate() doesn't run the bundle's executable's
-  // initialization code, while NSAddImage() and dlopen() do run it.  So using
-  // NSPR's dyld loading mechanisms here (NSAddImage() or dlopen()) can cause
-  // a bundle's initialization code to run earlier than expected, and lead to
-  // crashes.  See bug 577967.
-#ifdef __LP64__
-  char executablePath[PATH_MAX];
-  executablePath[0] = '\0';
-  nsCAutoString bundlePath;
-  mPlugin->GetNativePath(bundlePath);
-  CFStringRef pathRef = ::CFStringCreateWithCString(NULL, bundlePath.get(), kCFStringEncodingUTF8);
-  if (pathRef) {
-    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
-    if (bundleURL) {
-      CFBundleRef bundle = ::CFBundleCreate(NULL, bundleURL);
-      if (bundle) {
-        CFURLRef executableURL = ::CFBundleCopyExecutableURL(bundle);
-        if (executableURL) {
-          if (!::CFURLGetFileSystemRepresentation(executableURL, true, (UInt8*)&executablePath, PATH_MAX))
-            executablePath[0] = '\0';
-          ::CFRelease(executableURL);
-        }
-        ::CFRelease(bundle);
-      }
-      ::CFRelease(bundleURL);
+    if (!mPlugin)
+        return NS_ERROR_NULL_POINTER;
+
+    nsCAutoString temp;
+    mPlugin->GetNativePath(temp);
+    path = temp.get();
+
+    outLibrary = PR_LoadLibrary(path);
+    pLibrary = outLibrary;
+    if (!outLibrary) {
+        return NS_ERROR_FAILURE;
     }
-    ::CFRelease(pathRef); 
-  }
-#else
-  nsCAutoString bundlePath;
-  mPlugin->GetNativePath(bundlePath);
-  const char *executablePath = bundlePath.get();
-#endif
-
-  *outLibrary = PR_LoadLibrary(executablePath);
-  pLibrary = *outLibrary;
-  if (!pLibrary) {
-    return NS_ERROR_FAILURE;
-  }
 #ifdef DEBUG
-  printf("[loaded plugin %s]\n", bundlePath.get());
+    printf("[loaded plugin %s]\n", path);
 #endif
-  return NS_OK;
+    return NS_OK;
 }
 
 static char* p2cstrdup(StringPtr pstr)
 {
-  int len = pstr[0];
-  char* cstr = static_cast<char*>(NS_Alloc(len + 1));
-  if (cstr) {
-    memmove(cstr, pstr + 1, len);
-    cstr[len] = '\0';
-  }
-  return cstr;
+    int len = pstr[0];
+    char* cstr = new char[len + 1];
+    if (cstr != NULL) {
+        ::BlockMoveData(pstr + 1, cstr, len);
+        cstr[len] = '\0';
+    }
+    return cstr;
 }
 
 static char* GetNextPluginStringFromHandle(Handle h, short *index)
@@ -390,12 +329,11 @@ static char* GetNextPluginStringFromHandle(Handle h, short *index)
   return ret;
 }
 
-#ifndef __LP64__
 static char* GetPluginString(short id, short index)
 {
-  Str255 str;
-  ::GetIndString(str, id, index);
-  return p2cstrdup(str);
+    Str255 str;
+    ::GetIndString(str, id, index);
+    return p2cstrdup(str);
 }
 
 // Opens the resource fork for the plugin
@@ -403,12 +341,9 @@ static char* GetPluginString(short id, short index)
 static short OpenPluginResourceFork(nsIFile *pluginFile)
 {
   FSSpec spec;
-  nsCOMPtr<nsILocalFileMac> lfm = do_QueryInterface(pluginFile);
-  if (!lfm || NS_FAILED(lfm->GetFSSpec(&spec)))
-    return -1;
-
+  OSErr err = toFSSpec(pluginFile, spec);
   Boolean targetIsFolder, wasAliased;
-  ::ResolveAliasFile(&spec, true, &targetIsFolder, &wasAliased);
+  err = ::ResolveAliasFile(&spec, true, &targetIsFolder, &wasAliased);
   short refNum = ::FSpOpenResFile(&spec, fsRdPerm);
   if (refNum < 0) {
     nsCString path;
@@ -416,7 +351,7 @@ static short OpenPluginResourceFork(nsIFile *pluginFile)
     CFBundleRef bundle = getPluginBundle(path.get());
     if (bundle) {
       refNum = CFBundleOpenBundleResourceMap(bundle);
-      ::CFRelease(bundle);
+      CFRelease(bundle);
     }
   }
   return refNum;
@@ -445,86 +380,27 @@ public:
 private:
   short mRefNum;
 };
-#endif
-
-static PRBool IsCompatibleArch(nsIFile *file)
-{
-  CFURLRef pluginURL = NULL;
-  if (NS_FAILED(toCFURLRef(file, pluginURL)))
-    return PR_FALSE;
-  
-  PRBool isPluginFile = PR_FALSE;
-
-  CFBundleRef pluginBundle = ::CFBundleCreate(kCFAllocatorDefault, pluginURL);
-  if (pluginBundle) {
-    UInt32 packageType, packageCreator;
-    ::CFBundleGetPackageInfo(pluginBundle, &packageType, &packageCreator);
-    if (packageType == 'BRPL' || packageType == 'IEPL' || packageType == 'NSPL') {
-#ifdef MOZ_IPC
-      // Get path to plugin as a C string.
-      char executablePath[PATH_MAX];
-      executablePath[0] = '\0';
-      if (!::CFURLGetFileSystemRepresentation(pluginURL, true, (UInt8*)&executablePath, PATH_MAX)) {
-        executablePath[0] = '\0';
-      }
-
-      uint32 pluginLibArchitectures;
-      nsresult rv = mozilla::ipc::GeckoChildProcessHost::GetArchitecturesForBinary(executablePath, &pluginLibArchitectures);
-      if (NS_FAILED(rv)) {
-        return PR_FALSE;
-      }
-
-      uint32 containerArchitectures = mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
-
-      // Consider the plugin architecture valid if there is any overlap in the masks.
-      isPluginFile = !!(containerArchitectures & pluginLibArchitectures);
-#else
-      isPluginFile = !!::CFBundlePreflightExecutable(pluginBundle, NULL);
-#endif
-    }
-    ::CFRelease(pluginBundle);
-  }
-
-  ::CFRelease(pluginURL);
-  return isPluginFile;
-}
 
 /**
  * Obtains all of the information currently available for this plugin.
  */
-nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
+nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
-  *outLibrary = nsnull;
-
-  nsresult rv = NS_OK;
-
-  if (!IsCompatibleArch(mPlugin)) {
-      return NS_ERROR_FAILURE;
-  }
-
   // clear out the info, except for the first field.
-  memset(&info, 0, sizeof(info));
+  memset(&info.fName, 0, sizeof(info) - sizeof(PRUint32));
 
-#ifndef __LP64__
-  // Try to open a resource fork in case we have to use it.
+  if (info.fPluginInfoSize < sizeof(nsPluginInfo))
+    return NS_ERROR_FAILURE;
+
+  // First open up resource we can use to get plugin info.
+
+  // Try to open a resource fork.
   nsAutoCloseResourceObject resourceObject(mPlugin);
   bool resourceOpened = resourceObject.ResourceOpened();
-#endif
-
   // Try to get a bundle reference.
-  nsCAutoString path;
-  if (NS_FAILED(rv = mPlugin->GetNativePath(path)))
-    return rv;
+  nsCString path;
+  mPlugin->GetNativePath(path);
   CFBundleRef bundle = getPluginBundle(path.get());
-
-  // fill in full path
-  info.fFullPath = PL_strdup(path.get());
-
-  // fill in file name
-  nsCAutoString fileName;
-  if (NS_FAILED(rv = mPlugin->GetNativeLeafName(fileName)))
-    return rv;
-  info.fFileName = PL_strdup(fileName.get());
 
   // Get fBundle
   if (bundle)
@@ -536,12 +412,10 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     if (name && ::CFGetTypeID(name) == ::CFStringGetTypeID())
       info.fName = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(name));
   }
-#ifndef __LP64__
   if (!info.fName && resourceOpened) {
     // 'STR#', 126, 2 => plugin name.
     info.fName = GetPluginString(126, 2);
   }
-#endif
 
   // Get fDescription
   if (bundle) {
@@ -549,12 +423,18 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     if (description && ::CFGetTypeID(description) == ::CFStringGetTypeID())
       info.fDescription = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(description));
   }
-#ifndef __LP64__
   if (!info.fDescription && resourceOpened) {
     // 'STR#', 126, 1 => plugin description.
     info.fDescription = GetPluginString(126, 1);
   }
-#endif
+
+  // Get fFileName
+  FSSpec spec;
+  toFSSpec(mPlugin, spec);
+  info.fFileName = p2cstrdup(spec.name);
+
+  // Get fFullPath
+  info.fFullPath = PL_strdup(path.get());
 
   // Get fVersion
   if (bundle) {
@@ -574,18 +454,13 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     ParsePlistPluginInfo(info, bundle);
     ::CFRelease(bundle);
     if (info.fVariantCount > 0)
-      return NS_OK;
+      return NS_OK;    
   }
 
   // It's possible that our plugin has 2 entry points that'll give us mime type
   // info. Quicktime does this to get around the need of having admin rights to
   // change mime info in the resource fork. We need to use this info instead of
   // the resource. See bug 113464.
-
-  // Sadly we have to load the library for this to work.
-  rv = LoadPlugin(outLibrary);
-  if (NS_FAILED(rv))
-    return rv;
 
   // Try to get data from NP_GetMIMEDescription
   if (pLibrary) {
@@ -610,7 +485,6 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     }
   }
 
-#ifndef __LP64__
   // Try to get data from the resource fork
   if (!info.fVariantCount && resourceObject.ResourceOpened()) {
     mi.typeStrings = ::Get1Resource('STR#', 128);
@@ -629,23 +503,15 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
       ::HLock(mi.infoStrings);
     }
   }
-#endif
 
   // Fill in the info struct based on the data in the BPSupportedMIMETypes struct
   int variantCount = info.fVariantCount;
-  info.fMimeTypeArray = static_cast<char**>(NS_Alloc(variantCount * sizeof(char*)));
-  if (!info.fMimeTypeArray)
-    return NS_ERROR_OUT_OF_MEMORY;
-  info.fExtensionArray = static_cast<char**>(NS_Alloc(variantCount * sizeof(char*)));
-  if (!info.fExtensionArray)
-    return NS_ERROR_OUT_OF_MEMORY;
-  if (mi.infoStrings) {
-    info.fMimeDescriptionArray = static_cast<char**>(NS_Alloc(variantCount * sizeof(char*)));
-    if (!info.fMimeDescriptionArray)
-      return NS_ERROR_OUT_OF_MEMORY;
-  }
-  short mimeIndex = 2;
-  short descriptionIndex = 2;
+  info.fMimeTypeArray = new char*[variantCount];
+  info.fExtensionArray = new char*[variantCount];
+  if (mi.infoStrings)
+    info.fMimeDescriptionArray = new char*[variantCount];
+
+  short mimeIndex = 2, descriptionIndex = 2;
   for (int i = 0; i < variantCount; i++) {
     info.fMimeTypeArray[i] = GetNextPluginStringFromHandle(mi.typeStrings, &mimeIndex);
     info.fExtensionArray[i] = GetNextPluginStringFromHandle(mi.typeStrings, &mimeIndex);
@@ -665,20 +531,22 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 
 nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
 {
-  NS_Free(info.fName);
-  NS_Free(info.fDescription);
-  int variantCount = info.fVariantCount;
-  for (int i = 0; i < variantCount; i++) {
-    NS_Free(info.fMimeTypeArray[i]);
-    NS_Free(info.fExtensionArray[i]);
-    NS_Free(info.fMimeDescriptionArray[i]);
+  if (info.fPluginInfoSize <= sizeof(nsPluginInfo)) {
+    delete[] info.fName;
+    delete[] info.fDescription;
+    int variantCount = info.fVariantCount;
+    for (int i = 0; i < variantCount; i++) {
+      delete[] info.fMimeTypeArray[i];
+      delete[] info.fExtensionArray[i];
+      delete[] info.fMimeDescriptionArray[i];
+    }
+    delete[] info.fMimeTypeArray;
+    delete[] info.fMimeDescriptionArray;
+    delete[] info.fExtensionArray;
+    delete[] info.fFileName;
+    delete[] info.fFullPath;
+    delete[] info.fVersion;
   }
-  NS_Free(info.fMimeTypeArray);
-  NS_Free(info.fMimeDescriptionArray);
-  NS_Free(info.fExtensionArray);
-  NS_Free(info.fFileName);
-  NS_Free(info.fFullPath);
-  NS_Free(info.fVersion);
 
   return NS_OK;
 }

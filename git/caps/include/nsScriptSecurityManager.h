@@ -51,12 +51,12 @@
 #include "nsHashtable.h"
 #include "nsCOMPtr.h"
 #include "nsIPrefService.h"
+#include "nsISecurityPref.h"
 #include "nsIChannelEventSink.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserver.h"
 #include "pldhash.h"
 #include "plstr.h"
-#include "nsIScriptExternalNameSet.h"
 
 class nsIDocShell;
 class nsString;
@@ -148,7 +148,7 @@ private:
 // Property Policy
 union SecurityLevel
 {
-    PRWord   level;
+    PRInt32  level;
     char*    capability;
 };
 
@@ -175,28 +175,28 @@ union SecurityLevel
 
 struct PropertyPolicy : public PLDHashEntryHdr
 {
-    JSString       *key;  // interned string
+    jsval          key;  // property name as jsval
     SecurityLevel  mGet;
     SecurityLevel  mSet;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 InitPropertyPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
-    pp->key = (JSString *)key;
+    pp->key = (jsval)key;
     pp->mGet.level = SCRIPT_SECURITY_UNDEFINED_ACCESS;
     pp->mSet.level = SCRIPT_SECURITY_UNDEFINED_ACCESS;
     return PR_TRUE;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearPropertyPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
-    pp->key = NULL;
+    pp->key = JSVAL_VOID;
 }
 
 // Class Policy
@@ -212,7 +212,7 @@ struct ClassPolicy : public PLDHashEntryHdr
     DomainPolicy* mDomainWeAreWildcardFor;
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     ClassPolicy* cp = (ClassPolicy *)entry;
@@ -226,12 +226,12 @@ ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 
 // Note: actual impl is going to be after the DomainPolicy class definition,
 // since we need to access members of DomainPolicy in the impl
-static void
+PR_STATIC_CALLBACK(void)
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to);
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 InitClassPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
@@ -344,7 +344,7 @@ private:
 
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to)
@@ -369,6 +369,7 @@ MoveClassPolicyEntry(PLDHashTable *table,
 { 0xba, 0x18, 0x00, 0x60, 0xb0, 0xf1, 0x99, 0xa2 }}
 
 class nsScriptSecurityManager : public nsIScriptSecurityManager,
+                                public nsIPrefSecurityCheck,
                                 public nsIChannelEventSink,
                                 public nsIObserver
 {
@@ -380,6 +381,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCRIPTSECURITYMANAGER
     NS_DECL_NSIXPCSECURITYMANAGER
+    NS_DECL_NSIPREFSECURITYCHECK
     NS_DECL_NSICHANNELEVENTSINK
     NS_DECL_NSIOBSERVER
 
@@ -400,17 +402,14 @@ public:
      * false otherwise.
      */
     static PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-    static PRUint32 SecurityHashURI(nsIURI* aURI);
 
     static nsresult 
     ReportError(JSContext* cx, const nsAString& messageTag,
                 nsIURI* aSource, nsIURI* aTarget);
-
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
-                             nsIPrincipal* aObject);
-    static PRUint32
-    HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
+                             nsIPrincipal* aObject,
+                             PRBool aIsCheckConnect);
 
     static PRBool
     GetStrictFileOriginPolicy()
@@ -426,12 +425,8 @@ private:
 
     static JSBool
     CheckObjectAccess(JSContext *cx, JSObject *obj,
-                      jsid id, JSAccessMode mode,
+                      jsval id, JSAccessMode mode,
                       jsval *vp);
-
-    // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static JSBool
-    ContentSecurityPolicyPermitsJSAction(JSContext *cx);
 
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
@@ -453,17 +448,18 @@ private:
                             JSContext* cx, JSObject* aJSObject,
                             nsISupports* aObj, nsIURI* aTargetURI,
                             nsIClassInfo* aClassInfo,
-                            const char* aClassName, jsid aProperty,
+                            const char* aClassName, jsval aProperty,
                             void** aCachedClassPolicy);
 
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
                            nsIPrincipal* aObject,
-                           PRUint32 aAction);
+                           PRUint32 aAction,
+                           PRBool aIsCheckConnect);
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,
-                 ClassInfoData& aClassData, jsid aProperty,
+                 ClassInfoData& aClassData, jsval aProperty,
                  PRUint32 aAction,
                  ClassPolicy** aCachedClassPolicy,
                  SecurityLevel* result);
@@ -486,15 +482,15 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the
     // context.  Callers MUST pass in a non-null rv here.
-    nsIPrincipal*
+    static nsIPrincipal*
     GetSubjectPrincipal(JSContext* cx, nsresult* rv);
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the frame.
     // Callers MUST pass in a non-null rv here.
-    nsIPrincipal*
+    static nsIPrincipal*
     GetFramePrincipal(JSContext* cx, JSStackFrame* fp, nsresult* rv);
-
+                                                     
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script.  Callers MUST
     // pass in a non-null rv here.
@@ -514,7 +510,7 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script
     // running.  Callers MUST pass in a non-null rv here.
-    nsIPrincipal*
+    static nsIPrincipal*
     GetPrincipalAndFrame(JSContext *cx,
                          JSStackFrame** frameResult,
                          nsresult* rv);
@@ -529,46 +525,13 @@ private:
     nsresult
     SavePrincipal(nsIPrincipal* aToSave);
 
-    /**
-     * Check capability levels for an |aObj| that implements
-     * nsISecurityCheckedComponent.
-     *
-     * NB: This function also checks to see if aObj is a plugin and the user
-     * has set the "security.xpconnect.plugin.unrestricted" pref to allow
-     * anybody to script plugin objects from anywhere.
-     *
-     * @param cx The context we're running on.
-     *           NB: If null, "sameOrigin" does not have any effect.
-     * @param aObj The nsISupports representation of the object in question
-     *             object, possibly null.
-     * @param aJSObject The JSObject representation of the object in question
-     *                  if |cx| is non-null and |aObjectSecurityLevel| is
-     *                  "sameOrigin". If null will be calculated from aObj (if
-     *                  non-null) if and only if aObj is an XPCWrappedJS. The
-     *                  rationale behind this is that if we're creating a JS
-     *                  wrapper for an XPCWrappedJS, this object definitely
-     *                  expects to be exposed to JS.
-     * @param aSubjectPrincipal The nominal subject principal used when
-     *                          aObjectSecurityLevel is "sameOrigin". If null,
-     *                          this is calculated if it's needed.
-     * @param aObjectSecurityLevel Can be one of three values:
-     *                  - allAccess: Allow access no matter what.
-     *                  - noAccess: Deny access no matter what.
-     *                  - sameOrigin: If |cx| is null, behave like noAccess.
-     *                                Otherwise, possibly compute a subject
-     *                                and object principal and return true if
-     *                                and only if the subject has greater than
-     *                                or equal privileges to the object.
-     */
     nsresult
-    CheckXPCPermissions(JSContext* cx,
-                        nsISupports* aObj, JSObject* aJSObject,
-                        nsIPrincipal* aSubjectPrincipal,
+    CheckXPCPermissions(nsISupports* aObj,
                         const char* aObjectSecurityLevel);
 
     nsresult
     Init();
-
+    
     nsresult
     InitPrefs();
 
@@ -586,7 +549,8 @@ private:
                      DomainPolicy* aDomainPolicy);
 
     nsresult
-    InitPrincipals(PRUint32 prefCount, const char** prefNames);
+    InitPrincipals(PRUint32 prefCount, const char** prefNames,
+                   nsISecurityPref* securityPref);
 
 
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -600,24 +564,14 @@ private:
     PrintPolicyDB();
 #endif
 
-    struct ContextPrincipal {
-        ContextPrincipal(ContextPrincipal *next, JSContext *cx,
-                         JSStackFrame *fp, nsIPrincipal *principal)
-            : mNext(next), mCx(cx), mFp(fp), mPrincipal(principal) {}
-
-        ContextPrincipal *mNext;
-        JSContext *mCx;
-        JSStackFrame *mFp;
-        nsCOMPtr<nsIPrincipal> mPrincipal;
-    };
-
     // JS strings we need to clean up on shutdown
-    static jsid sEnabledID;
+    static jsval sEnabledID;
 
     inline void
     ScriptSecurityPrefChanged();
 
     static const char sJSEnabledPrefName[];
+    static const char sJSMailEnabledPrefName[];
     static const char sFileOriginPolicyPrefName[];
 
     nsObjectHashtable* mOriginToPolicyMap;
@@ -625,11 +579,13 @@ private:
     nsObjectHashtable* mCapabilities;
 
     nsCOMPtr<nsIPrefBranch> mPrefBranch;
+    nsCOMPtr<nsISecurityPref> mSecurityPref;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
-    ContextPrincipal *mContextPrincipals;
     nsInterfaceHashtable<PrincipalKey, nsIPrincipal> mPrincipals;
+    nsCOMPtr<nsIThreadJSContextStack> mJSContextStack;
     PRPackedBool mIsJavaScriptEnabled;
+    PRPackedBool mIsMailJavaScriptEnabled;
     PRPackedBool mIsWritingPrefs;
     PRPackedBool mPolicyPrefsChanged;
 #ifdef XPC_IDISPATCH_SUPPORT    
@@ -641,25 +597,8 @@ private:
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;
-    static nsIThreadJSContextStack* sJSContextStack;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
-};
-
-#define NS_SECURITYNAMESET_CID \
- { 0x7c02eadc, 0x76, 0x4d03, \
- { 0x99, 0x8d, 0x80, 0xd7, 0x79, 0xc4, 0x85, 0x89 } }
-#define NS_SECURITYNAMESET_CONTRACTID "@mozilla.org/security/script/nameset;1"
-
-class nsSecurityNameSet : public nsIScriptExternalNameSet 
-{
-public:
-    nsSecurityNameSet();
-    virtual ~nsSecurityNameSet();
-    
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD InitializeNameSet(nsIScriptContext* aScriptContext);
 };
 
 #endif // nsScriptSecurityManager_h__

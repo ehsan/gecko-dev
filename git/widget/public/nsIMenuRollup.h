@@ -40,34 +40,23 @@
 #define nsIMenuRollup_h___
 
 #include "nsISupports.h"
+#include "nsIWidget.h"
 #include "nsTArray.h"
 
-class nsIWidget;
-class nsIContent;
-class nsPIDOMWindow;
-
 #define NS_IMENUROLLUP_IID \
-  {0xa707b588, 0xa564, 0x488d, \
-    { 0x87, 0xb6, 0xdb, 0x71, 0x2d, 0x78, 0x9d, 0x4c }}
+  {0x2b65d177, 0xc3e4, 0x4564, \
+    { 0x8d, 0xed, 0x86, 0xd2, 0xfa, 0x2f, 0x65, 0x9a }}
 
 class nsIMenuRollup : public nsISupports {
  public: 
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IMENUROLLUP_IID)
 
-  /*
-   * Retrieve the widgets for open menus are store them in the array
-   * aWidgetChain. The number of menus of the same type should be returned,
-   * for example, if a context menu is open, return only the number of menus
-   * that are part of the context menu chain. This allows closing up only
-   * those menus in different situations.
-   */
-  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) = 0;
+  /* void GetSubmenuWidgetChain (nsTArray<nsIWidget*>*); */
+  virtual void GetSubmenuWidgetChain(nsTArray<nsIWidget*> *_retval) = 0;
 
-  /**
-   * Adjust the position of open panels when a window is moved or resized.
-   */ 
-  virtual void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow) = 0;
+  /* void AdjustPopupsOnWindowChange (); */
+  virtual void AdjustPopupsOnWindowChange(void) = 0;
 
 };
 

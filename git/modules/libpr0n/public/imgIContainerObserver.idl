@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
-#include "gfxidltypes.idl"
+#include "gfxtypes.idl"
 
 %{C++
 #include "nsRect.h"
@@ -46,15 +46,18 @@
 
 interface imgIContainer;
 
+interface gfxIImageFrame;
+
 /**
  * imgIContainerObserver interface
  *
  * @author Stuart Parmenter <pavlov@netscape.com>
  * @version 0.1
  */
-[scriptable, uuid(aa2068c1-6b91-4f52-8603-487b14ac5f04)]
+[scriptable, uuid(53102f15-0f53-4939-957e-aea353ad2700)]
 interface imgIContainerObserver : nsISupports
 {
   [noscript] void frameChanged(in imgIContainer aContainer,
-                               [const] in nsIntRect aDirtyRect);
+                               in gfxIImageFrame aFrame,
+                               in nsIntRect aDirtyRect);
 };

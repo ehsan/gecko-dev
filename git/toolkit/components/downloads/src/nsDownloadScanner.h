@@ -1,7 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: se cin sw=2 ts=2 et : */
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-
 #ifndef nsDownloadScanner_h_
 #define nsDownloadScanner_h_
 
@@ -21,9 +19,8 @@
 
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
+#include "nsDownloadManager.h"
 #include "nsTArray.h"
-#include "nsIObserver.h"
-#include "nsIURI.h"
 
 enum AVScanState
 {
@@ -43,9 +40,9 @@ enum AVCheckPolicyState
   AVPOLICY_BLOCKED
 };
 
+
 // See nsDownloadScanner.cpp for declaration and definition
 class nsDownloadScannerWatchdog;
-class nsDownload;
 
 class nsDownloadScanner
 {
@@ -57,10 +54,11 @@ public:
   AVCheckPolicyState CheckPolicy(nsIURI *aSource, nsIURI *aTarget);
 
 private:
-  PRBool mAESExists;
+  PRBool mHaveAVScanner;
+  PRBool mHaveAttachmentExecute;
   nsTArray<CLSID> mScanCLSID;
   PRBool IsAESAvailable();
-  PRBool EnumerateOAVProviders();
+  PRInt32 ListCLSID();
 
   nsAutoPtr<nsDownloadScannerWatchdog> mWatchdog;
 
@@ -99,6 +97,7 @@ private:
     // Also true if it is an ftp download
     PRBool mIsHttpDownload;
     PRBool mSkipSource;
+    PRBool mIsReadOnlyRequest;
 
     /* @summary Sets the Scan's state to newState if the current state is
                 expectedState
@@ -120,5 +119,3 @@ private:
   friend class nsDownloadScannerWatchdog;
 };
 #endif
-
-#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN

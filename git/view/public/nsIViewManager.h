@@ -40,18 +40,30 @@
 
 #include "nscore.h"
 #include "nsIView.h"
+#include "nsColor.h"
 #include "nsEvent.h"
 #include "nsIRenderingContext.h"
 
+class nsIScrollableView;
 class nsIWidget;
 struct nsRect;
 class nsRegion;
 class nsIDeviceContext;
 class nsIViewObserver;
 
+enum nsRectVisibility { 
+  nsRectVisibility_kVisible, 
+  nsRectVisibility_kAboveViewport, 
+  nsRectVisibility_kBelowViewport, 
+  nsRectVisibility_kLeftOfViewport, 
+  nsRectVisibility_kRightOfViewport, 
+  nsRectVisibility_kZeroAreaRect
+}; 
+
+// 7eae119d-9fc8-482d-92ec-145eef228a4a
 #define NS_IVIEWMANAGER_IID   \
-  { 0x4017112c, 0x64d7, 0x47bc, \
-   { 0xab, 0x66, 0x4e, 0x5f, 0xff, 0x83, 0xec, 0x7c } }
+{ 0x7eae119d, 0x9fc8, 0x482d, \
+  { 0x92, 0xec, 0x14, 0x5e, 0xef, 0x22, 0x8a, 0x4a } }
 
 class nsIViewManager : public nsISupports
 {
@@ -81,6 +93,19 @@ public:
   NS_IMETHOD_(nsIView*) CreateView(const nsRect& aBounds,
                                    const nsIView* aParent,
                                    nsViewVisibility aVisibilityFlag = nsViewVisibility_kShow) = 0;
+
+  /**
+   * Create an scrollable view
+   * @param aBounds initial bounds for view
+   *        XXX We should eliminate this parameter; you can set the bounds after CreateScrollableView
+   * @param aParent intended parent for view. this is not actually set in the
+   *        nsIView through this method. it is only used by the initialization
+   *        code to walk up the view tree, if necessary, to find resources.
+   *        XXX We should eliminate this parameter!
+   * @result The new view
+   */
+  NS_IMETHOD_(nsIScrollableView*) CreateScrollableView(const nsRect& aBounds,
+                                                       const nsIView* aParent) = 0;
 
   /**
    * Get the root of the view tree.
@@ -116,7 +141,7 @@ public:
   /**
    * Do any resizes that are pending.
    */
-  NS_IMETHOD  FlushDelayedResize(PRBool aDoReflow) = 0;
+  NS_IMETHOD  FlushDelayedResize() = 0;
 
   /**
    * Called to force a redrawing of any dirty areas.
@@ -137,15 +162,14 @@ public:
   NS_IMETHOD  UpdateView(nsIView *aView, PRUint32 aUpdateFlags) = 0;
 
   /**
-   * Called to inform the view manager that some portion of a view is dirty and
-   * needs to be redrawn. The rect passed in should be in the view's coordinate
-   * space. Does not check for paint suppression.
+   * Called to inform the view manager that some portion of a view
+   * is dirty and needs to be redrawn. The rect passed in
+   * should be in the view's coordinate space.
    * @param aView view to paint. should be root view
    * @param rect rect to mark as damaged
    * @param aUpdateFlags see bottom of nsIViewManager.h for description
    */
-  NS_IMETHOD  UpdateViewNoSuppression(nsIView *aView, const nsRect &aRect,
-                                      PRUint32 aUpdateFlags) = 0;
+  NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags) = 0;
 
   /**
    * Called to inform the view manager that it should redraw all views.
@@ -158,12 +182,25 @@ public:
    * Called to dispatch an event to the appropriate view. Often called
    * as a result of receiving a mouse or keyboard event from the widget
    * event system.
-   * @param aEvent event to dispatch
-   * @param aViewTarget dispatch the event to this view
-   * @param aStatus event handling status
+   * @param event event to dispatch
+   * @result event handling status
    */
-  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
-      nsIView* aViewTarget, nsEventStatus* aStatus) = 0;
+  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent, nsEventStatus* aStatus) = 0;
+
+  /**
+   * Used to grab/capture all mouse events for a specific view,
+   * irrespective of the cursor position at which the
+   * event occurred.
+   * @param aView view to capture mouse events
+   * @result event handling status
+   */
+  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool& aResult) = 0;
+
+  /**
+   * Get the current view, if any, that's capturing mouse events.
+   * @result view that is capturing mouse events or nsnull
+   */
+  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView) = 0;
 
   /**
    * Given a parent view, insert another view as its child.
@@ -219,12 +256,7 @@ public:
                          PRBool aRepaintExposedAreaOnly = PR_FALSE) = 0;
 
   /**
-   * Set the visibility of a view. Hidden views have the effect of hiding
-   * their descendants as well. This does not affect painting, so layout
-   * is responsible for ensuring that content in hidden views is not
-   * painted nor handling events. It does affect the visibility of widgets;
-   * if a view is hidden, descendant views with widgets have their widgets
-   * hidden.
+   * Set the visibility of a view.
    * The view manager generates the appropriate dirty regions.
    * @param aView view to change visibility state of
    * @param visible new visibility state
@@ -278,7 +310,24 @@ public:
    */
   NS_IMETHOD  GetDeviceContext(nsIDeviceContext *&aContext) = 0;
 
-  class UpdateViewBatch {
+  /**
+   * prevent the view manager from refreshing.
+   * @return error status
+   */
+  // XXXbz callers of this function don't seem to realize that it disables
+  // refresh for the entire view manager hierarchy.... Maybe it shouldn't do
+  // that?
+  NS_IMETHOD DisableRefresh(void) = 0;
+
+  /**
+   * allow the view manager to refresh. this may cause a synchronous
+   * paint to occur inside the call.
+   * @param aUpdateFlags see bottom of nsIViewManager.h for description
+   * @return error status
+   */
+  NS_IMETHOD EnableRefresh(PRUint32 aUpdateFlags) = 0;
+
+  class NS_STACK_CLASS UpdateViewBatch {
   public:
     UpdateViewBatch() {}
   /**
@@ -350,11 +399,29 @@ private:
   NS_IMETHOD EndUpdateViewBatch(PRUint32 aUpdateFlags) = 0;
 
 public:
+
   /**
-   * Retrieve the widget at the root of the nearest enclosing
-   * view manager whose root view has a widget.
+   * set the view that is is considered to be the root scrollable
+   * view for the document.
+   * @param aScrollable root scrollable view
+   * @return error status
    */
-  NS_IMETHOD GetRootWidget(nsIWidget **aWidget) = 0;
+  NS_IMETHOD SetRootScrollableView(nsIScrollableView *aScrollable) = 0;
+
+  /**
+   * get the view that is is considered to be the root scrollable
+   * view for the document.
+   * @param aScrollable out parameter for root scrollable view
+   * @return error status
+   */
+  NS_IMETHOD GetRootScrollableView(nsIScrollableView **aScrollable) = 0;
+
+  /**
+   * Retrieve the widget at the root of the view manager. This is the
+   * widget associated with the root view, if the root view exists and has
+   * a widget.
+   */
+  NS_IMETHOD GetWidget(nsIWidget **aWidget) = 0;
 
   /**
    * Force update of view manager widget
@@ -375,6 +442,22 @@ public:
   NS_IMETHOD IsPainting(PRBool& aIsPainting)=0;
 
   /**
+   * Set the default background color that the view manager should use
+   * to paint otherwise unowned areas. If the color isn't known, just set
+   * it to zero (which means 'transparent' since the color is RGBA).
+   *
+   * @param aColor the default background color
+   */
+  NS_IMETHOD SetDefaultBackgroundColor(nscolor aColor)=0;
+
+  /**
+   * Retrieve the default background color.
+   *
+   * @param aColor the default background color
+   */
+  NS_IMETHOD GetDefaultBackgroundColor(nscolor* aColor)=0;
+
+  /**
    * Retrieve the time of the last user event. User events
    * include mouse and keyboard events. The viewmanager
    * saves the time of the last user event.
@@ -384,11 +467,26 @@ public:
   NS_IMETHOD GetLastUserEventTime(PRUint32& aTime)=0;
 
   /**
+   * Determine if a rectangle specified in the view's coordinate system 
+   * is completely, or partially visible.
+   * @param aView view that aRect coordinates are specified relative to
+   * @param aRect rectangle in twips to test for visibility 
+   * @param aMinTwips is the min. pixel rows or cols at edge of screen 
+   *                  needed for object to be counted visible
+   * @param aRectVisibility returns eVisible if the rect is visible, 
+   *                        otherwise it returns an enum indicating why not
+   */
+  NS_IMETHOD GetRectVisibility(nsIView *aView, const nsRect &aRect, 
+                               PRUint16 aMinTwips, 
+                               nsRectVisibility *aRectVisibility)=0;
+
+  /**
    * Dispatch a mouse move event based on the most recent mouse
    * position.  This is used when the contents of the page moved
    * (aFromScroll is false) or scrolled (aFromScroll is true).
    */
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll)=0;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)

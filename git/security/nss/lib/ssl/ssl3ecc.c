@@ -40,7 +40,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 /* ECC code moved here from ssl3con.c */
-/* $Id: ssl3ecc.c,v 1.24 2010/03/15 08:03:14 nelson%bolyard.com Exp $ */
+/* $Id: ssl3ecc.c,v 1.22 2008/03/10 00:01:28 wtc%google.com Exp $ */
 
 #include "nss.h"
 #include "cert.h"
@@ -288,7 +288,7 @@ ssl3_ComputeECDHKeyHash(SECItem ec_params, SECItem server_ecpoint,
     PRINT_BUF(95, (NULL, "ECDHkey hash: MD5 result", hashes->md5, MD5_LENGTH));
     PRINT_BUF(95, (NULL, "ECDHkey hash: SHA1 result", hashes->sha, SHA1_LENGTH));
 
-    if (hashBuf != buf)
+    if (hashBuf != buf && hashBuf != NULL)
     	PORT_Free(hashBuf);
     return rv;
 }
@@ -1059,7 +1059,7 @@ ssl3_SendSupportedCurvesXtn(
 	if (!ss->sec.isServer) {
 	    TLSExtensionData *xtnData = &ss->xtnData;
 	    xtnData->advertised[xtnData->numAdvertised++] =
-		ssl_elliptic_curves_xtn;
+		elliptic_curves_xtn;
 	}
     }
     return (sizeof EClist);
@@ -1083,7 +1083,7 @@ ssl3_SendSupportedPointFormatsXtn(
 	if (!ss->sec.isServer) {
 	    TLSExtensionData *xtnData = &ss->xtnData;
 	    xtnData->advertised[xtnData->numAdvertised++] =
-		ssl_ec_point_formats_xtn;
+		ec_point_formats_xtn;
 	}
     }
     return (sizeof ECPtFmt);

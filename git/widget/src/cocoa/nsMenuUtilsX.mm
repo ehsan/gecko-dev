@@ -40,71 +40,44 @@
 #include "nsMenuBarX.h"
 #include "nsMenuX.h"
 #include "nsMenuItemX.h"
-#include "nsStandaloneNativeMenu.h"
 #include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
 #include "nsCocoaWindow.h"
 #include "nsWidgetAtoms.h"
-#include "nsIDocument.h"
-#include "nsIDOMDocumentEvent.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMXULCommandEvent.h"
-#include "nsIPrivateDOMEvent.h"
-#include "nsPIDOMWindow.h"
-#include "nsIDOMAbstractView.h"
 
-#include <Carbon/Carbon.h>
+#import <Carbon/Carbon.h>
 
-void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
+nsEventStatus nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
 
-  nsIDocument* doc = aTargetContent->GetOwnerDoc();
-  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(doc);
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTargetContent);
-  if (docEvent && target) {
-    nsCOMPtr<nsIDOMEvent> event;
-    docEvent->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
-                          getter_AddRefs(event));
-    nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryInterface(event);
-    nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(command);
-    nsCOMPtr<nsIDOMAbstractView> view = do_QueryInterface(doc->GetWindow());
+  nsEventStatus status = nsEventStatus_eConsumeNoDefault;
+  nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
 
-    // FIXME: Should probably figure out how to init this with the actual
-    // pressed keys, but this is a big old edge case anyway. -dwh
-    if (pEvent &&
-        NS_SUCCEEDED(command->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                               PR_TRUE, PR_TRUE, view, 0,
-                                               PR_FALSE, PR_FALSE, PR_FALSE,
-                                               PR_FALSE, nsnull))) {
-      pEvent->SetTrusted(PR_TRUE);
-      PRBool dummy;
-      target->DispatchEvent(event, &dummy);
-    }
-  }
+  // FIXME: Should probably figure out how to init this with the actual
+  // pressed keys, but this is a big old edge case anyway. -dwh
+
+  aTargetContent->DispatchDOMEvent(&event, nsnull, nsnull, &status);
+  return status;
 }
 
-NSString* nsMenuUtilsX::GetTruncatedCocoaLabel(const nsString& itemLabel)
+
+NSString* nsMenuUtilsX::CreateTruncatedCocoaLabel(const nsString& itemLabel)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-#ifdef __LP64__
-  // Don't do anything on 64-bit Mac OS X for now, there is no API that does
-  // what we want. We'll probably need to roll our own solution.
-  return [NSString stringWithCharacters:itemLabel.get() length:itemLabel.Length()];
-#else
   // ::TruncateThemeText() doesn't take the number of characters to truncate to, it takes a pixel with
   // to fit the string in. Ugh. I talked it over with sfraser and we couldn't come up with an 
   // easy way to compute what this should be given the system font, etc, so we're just going
   // to hard code it to something reasonable and bigger fonts will just have to deal.
   const short kMaxItemPixelWidth = 300;
-  NSMutableString *label = [NSMutableString stringWithCharacters:itemLabel.get() length:itemLabel.Length()];
+  NSMutableString *label = [[NSMutableString stringWithCharacters:itemLabel.get() length:itemLabel.Length()] retain];
   ::TruncateThemeText((CFMutableStringRef)label, kThemeMenuItemFont, kThemeStateActive, kMaxItemPixelWidth, truncMiddle, NULL);
-  return label;
-#endif
+  return label; // caller releases
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
+
 
 PRUint8 nsMenuUtilsX::GeckoModifiersForNodeAttribute(const nsString& modifiersAttribute)
 {
@@ -130,6 +103,7 @@ PRUint8 nsMenuUtilsX::GeckoModifiersForNodeAttribute(const nsString& modifiersAt
   return modifiers;
 }
 
+
 unsigned int nsMenuUtilsX::MacModifiersForGeckoModifiers(PRUint8 geckoModifiers)
 {
   unsigned int macModifiers = 0;
@@ -146,6 +120,7 @@ unsigned int nsMenuUtilsX::MacModifiersForGeckoModifiers(PRUint8 geckoModifiers)
   return macModifiers;
 }
 
+
 nsMenuBarX* nsMenuUtilsX::GetHiddenWindowMenuBar()
 {
   nsIWidget* hiddenWindowWidgetNoCOMPtr = nsCocoaUtils::GetHiddenWindowWidget();
@@ -155,18 +130,17 @@ nsMenuBarX* nsMenuUtilsX::GetHiddenWindowMenuBar()
     return nsnull;
 }
 
+
 // It would be nice if we could localize these edit menu names.
+static NSMenuItem* standardEditMenuItem = nil;
 NSMenuItem* nsMenuUtilsX::GetStandardEditMenuItem()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  // In principle we should be able to allocate this once and then always
-  // return the same object.  But wierd interactions happen between native
-  // app-modal dialogs and Gecko-modal dialogs that open above them.  So what
-  // we return here isn't always released before it needs to be added to
-  // another menu.  See bmo bug 468393.
-  NSMenuItem* standardEditMenuItem =
-    [[[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""] autorelease];
+  if (standardEditMenuItem)
+    return standardEditMenuItem;
+
+  standardEditMenuItem = [[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""];
   NSMenu* standardEditMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
   [standardEditMenuItem setSubmenu:standardEditMenu];
   [standardEditMenu release];
@@ -214,6 +188,7 @@ NSMenuItem* nsMenuUtilsX::GetStandardEditMenuItem()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+
 PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
 {
   return (inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidden,
@@ -222,47 +197,43 @@ PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
                                  nsWidgetAtoms::_true, eCaseMatters));
 }
 
+
 // Determines how many items are visible among the siblings in a menu that are
-// before the given child. This will not count the application menu.
-int nsMenuUtilsX::CalculateNativeInsertionPoint(nsMenuObjectX* aParent,
-                                                nsMenuObjectX* aChild)
+// before the given child. Note that this will not count the application menu.
+nsresult nsMenuUtilsX::CountVisibleBefore(nsMenuObjectX* aParentMenu, nsMenuObjectX* aChild, PRUint32* outVisibleBefore)
 {
-  int insertionPoint = 0;
-  nsMenuObjectTypeX parentType = aParent->MenuObjectType();
+  NS_ASSERTION(outVisibleBefore, "bad index param in nsMenuX::CountVisibleBefore");
+
+  nsMenuObjectTypeX parentType = aParentMenu->MenuObjectType();
   if (parentType == eMenuBarObjectType) {
-    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParent);
+    *outVisibleBefore = 0;
+    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParentMenu);
     PRUint32 numMenus = menubarParent->GetMenuCount();
     for (PRUint32 i = 0; i < numMenus; i++) {
       nsMenuX* currMenu = menubarParent->GetMenuAt(i);
       if (currMenu == aChild)
-        return insertionPoint; // we found ourselves, break out
-      if (currMenu && [currMenu->NativeMenuItem() menu])
-        insertionPoint++;
+        return NS_OK; // we found ourselves, break out
+      if (currMenu) {
+        nsIContent* menuContent = currMenu->Content();
+        if (menuContent->GetChildCount() > 0 &&
+            !nsMenuUtilsX::NodeIsHiddenOrCollapsed(menuContent)) {
+          ++(*outVisibleBefore);
+        }
+      }
     }
   }
-  else if (parentType == eSubmenuObjectType ||
-           parentType == eStandaloneNativeMenuObjectType) {
-    nsMenuX* menuParent;
-    if (parentType == eSubmenuObjectType)
-      menuParent = static_cast<nsMenuX*>(aParent);
-    else
-      menuParent = static_cast<nsStandaloneNativeMenu*>(aParent)->GetMenuXObject();
-
+  else if (parentType == eSubmenuObjectType) {
+    *outVisibleBefore = 0;
+    nsMenuX* menuParent = static_cast<nsMenuX*>(aParentMenu);
     PRUint32 numItems = menuParent->GetItemCount();
     for (PRUint32 i = 0; i < numItems; i++) {
       // Using GetItemAt instead of GetVisibleItemAt to avoid O(N^2)
       nsMenuObjectX* currItem = menuParent->GetItemAt(i);
       if (currItem == aChild)
-        return insertionPoint; // we found ourselves, break out
-      NSMenuItem* nativeItem = nil;
-      nsMenuObjectTypeX currItemType = currItem->MenuObjectType();
-      if (currItemType == eSubmenuObjectType)
-        nativeItem = static_cast<nsMenuX*>(currItem)->NativeMenuItem();
-      else
-        nativeItem = (NSMenuItem*)(currItem->NativeData());
-      if ([nativeItem menu])
-        insertionPoint++;
+        return NS_OK; // we found ourselves, break out
+      if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(currItem->Content()))
+        ++(*outVisibleBefore);
     }
   }
-  return insertionPoint;
+  return NS_ERROR_FAILURE;
 }

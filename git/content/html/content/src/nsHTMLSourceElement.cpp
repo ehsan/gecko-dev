@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * Version: ML 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -40,17 +40,15 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
-#include "nsHTMLMediaElement.h"
-#include "nsCOMPtr.h"
-#include "nsThreadUtils.h"
 
 class nsHTMLSourceElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLSourceElement
 {
 public:
-  nsHTMLSourceElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLSourceElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLSourceElement();
 
   // nsISupports
@@ -73,21 +71,13 @@ public:
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  // Override BindToTree() so that we can trigger a load when we add a
-  // child source element.
-  virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
-                              nsIContent *aBindingParent,
-                              PRBool aCompileEventHandlers);
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Source)
 
 
-nsHTMLSourceElement::nsHTMLSourceElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLSourceElement::nsHTMLSourceElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -101,13 +91,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSourceElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSourceElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLSourceElement, nsHTMLSourceElement)
-
 // QueryInterface implementation for nsHTMLSourceElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLSourceElement, nsIDOMHTMLSourceElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSourceElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLSourceElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLSourceElement, nsIDOMHTMLSourceElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSourceElement)
 
 
@@ -116,6 +102,8 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLSourceElement)
 
 NS_IMPL_URI_ATTR(nsHTMLSourceElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLSourceElement, Type, type)
+NS_IMPL_STRING_ATTR(nsHTMLSourceElement, Media, media)
+NS_IMPL_FLOAT_ATTR(nsHTMLSourceElement, PixelRatio, pixelratio)
 
 
 PRBool
@@ -134,26 +122,5 @@ nsHTMLSourceElement::ParseAttribute(PRInt32 aNamespaceID,
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
-}
-
-nsresult
-nsHTMLSourceElement::BindToTree(nsIDocument *aDocument,
-                                nsIContent *aParent,
-                                nsIContent *aBindingParent,
-                                PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument,
-                                                 aParent,
-                                                 aBindingParent,
-                                                 aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aParent || !aParent->IsNodeOfType(nsINode::eMEDIA))
-    return NS_OK;
-
-  nsHTMLMediaElement* media = static_cast<nsHTMLMediaElement*>(aParent);
-  media->NotifyAddedSource();
-
-  return NS_OK;
 }
 

@@ -1,31 +1,29 @@
-%include ../../global/shared.inc
-
 #downloadView {
   -moz-appearance: none;
   margin: 0;
   padding: 0;
   border-width: 0;
+  border-bottom: 1px solid #404040;
 }
 
 /* Download View Items */
 richlistitem[type="download"] {
-  padding: 5px;
-  min-height: 44px !important;
-  border: 1px solid transparent;
+  padding: 3px 8px;
+  min-height: 40px !important;
 }
 
 richlistitem[type="download"]:not([selected="true"]):nth-child(odd) {
   background-color: -moz-oddtreerow;
 }
 
+richlistitem[type="download"] .name {
+  font-size: small;
+}
+
 richlistitem[type="download"] .dateTime,
 richlistitem[type="download"] .status {
   font-size: smaller;
   color: #555;
-}
-
-richlistitem[selected="true"][type="download"] {
-  outline: none;
 }
 
 richlistbox:focus > richlistitem[selected="true"][type="download"] .dateTime,
@@ -107,30 +105,32 @@ richlistitem[type="download"] button {
 #search {
   -moz-box-pack: end;
   -moz-padding-end: 4px;
-  -moz-appearance: statusbar;
+  background-image: url("chrome://global/skin/toolbar/toolbar-background.gif");
+  background-color: #9f9f9f;
+  background-repeat: repeat-x;
+  background-position: top left;
+}
+
+#downloadManager:not([active="true"]) #search {
+  background-image: url("chrome://global/skin/toolbar/toolbar-background-inactive.png");
+  background-color: #cfcfcf;
+}
+
+#downloadManager:not([active="true"]) #search > * {
+  opacity: 0.7;
 }
 
 #clearListButton {
   -moz-appearance: none;
-  min-height: 18px;
+  border: 1px solid #5F5F5F;
+  -moz-border-radius: 4px;
+  background: url(chrome://global/skin/icons/white-gray-gradient.gif) #A09E9D repeat-x top center;
+  min-height: 0;
   min-width: 0;
+  padding: 2px;
   margin: 0 6px;
-  padding: 0 2px;
-  text-shadow: @loweredShadow@;
-  border: 1px solid @toolbarbuttonBorderColor@;
-  border-radius: @toolbarbuttonCornerRadius@;
-  box-shadow: @loweredShadow@;
-  background: @toolbarbuttonBackground@;
-  background-origin: border-box;
 }
 
 #clearListButton:hover:active:not([disabled="true"]) {
-  background: @toolbarbuttonPressedBackgroundColor@;
-  text-shadow: @loweredShadow@;
-  box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
-}
-
-#clearListButton:-moz-window-inactive {
-  border-color: @toolbarbuttonInactiveBorderColor@;
-  background-image: @toolbarbuttonInactiveBackgroundImage@;
+  background: url(chrome://global/skin/icons/white-gray-gradient-active.gif);
 }

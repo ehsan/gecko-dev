@@ -40,7 +40,6 @@ DEPTH		= ../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = browser/components/places/tests
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -48,6 +47,6 @@ MODULE		= test_browser_places
 
 XPCSHELL_TESTS = unit
 
-DIRS = browser chrome perf
+DIRS = browser perf
 
 include $(topsrcdir)/config/rules.mk

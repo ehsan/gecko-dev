@@ -128,8 +128,59 @@ _createJSDObject(JSDContext* jsdc, JSContext *cx, JSObject *obj)
         JS_APPEND_LINK(&jsdobj->links, &jsdc->objectsList);
         jsdobj->obj = obj;
         JS_HashTableAdd(jsdc->objectsTable, obj, jsdobj);
+
+        if (jsdc->flags & JSD_DISABLE_OBJECT_TRACE)
+            return jsdobj;
+        
+        /* walk the stack to find js frame (if any) causing creation */
+        while (NULL != (fp = JS_FrameIterator(cx, &iter)))
+        {
+            if( !JS_IsNativeFrame(cx, fp) )
+            {
+                JSScript* script = JS_GetFrameScript(cx, fp);
+                if( !script )
+                    continue;
+
+                newURL = JS_GetScriptFilename(cx, script);
+                if( newURL )
+                    jsdobj->newURL = jsd_AddAtom(jsdc, newURL);
+
+                pc = JS_GetFramePC(cx, fp);
+                if( pc )
+                    jsdobj->newLineno = JS_PCToLineNumber(cx, script, pc);
+
+                break;
+            }
+        }
     }
     return jsdobj;
+}
+
+void
+jsd_ObjectHook(JSContext *cx, JSObject *obj, JSBool isNew, void *closure)
+{
+    JSDObject* jsdobj;
+    JSDContext* jsdc = (JSDContext*) closure;
+
+    if( ! jsdc || ! jsdc->inited )
+        return;
+
+    JSD_LOCK_OBJECTS(jsdc);
+    if(isNew)
+    {
+        jsdobj = _createJSDObject(jsdc, cx, obj);
+        TRACEOBJ(jsdc, jsdobj, 0);
+    }
+    else
+    {
+        jsdobj = jsd_GetJSDObjectForJSObject(jsdc, obj);
+        if( jsdobj )
+        {
+            TRACEOBJ(jsdc, jsdobj, 1);
+            _destroyJSDObject(jsdc, jsdobj);
+        }
+    }
+    JSD_UNLOCK_OBJECTS(jsdc);
 }
 
 void
@@ -144,7 +195,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
 
     JSD_LOCK_OBJECTS(jsdc);
     jsdobj = jsd_GetJSDObjectForJSObject(jsdc, obj);
-    if( jsdobj && !jsdobj->ctorURL && JS_IsScriptFrame(cx, fp) )
+    if( jsdobj && !jsdobj->ctorURL && !JS_IsNativeFrame(cx, fp) )
     {
         script = JS_GetFrameScript(cx, fp);
         if( script )
@@ -154,11 +205,11 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
                 jsdobj->ctorURL = jsd_AddAtom(jsdc, ctorURL);
 
             JSD_LOCK_SCRIPTS(jsdc);
-            jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
+            jsdscript = jsd_FindJSDScript(jsdc, script);
             JSD_UNLOCK_SCRIPTS(jsdc);
             if( jsdscript )
             {
-                ctorName = jsd_GetScriptFunctionId(jsdc, jsdscript);
+                ctorName = jsd_GetScriptFunctionName(jsdc, jsdscript);
                 if( ctorName )
                     jsdobj->ctorName = jsd_AddAtom(jsdc, ctorName);
             }
@@ -172,7 +223,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
 static JSHashNumber
 _hash_root(const void *key)
 {
-    return ((JSHashNumber)(ptrdiff_t) key) >> 2; /* help lame MSVC1.5 on Win16 */
+    return ((JSHashNumber) key) >> 2; /* help lame MSVC1.5 on Win16 */
 }
 
 JSBool
@@ -182,24 +233,16 @@ jsd_InitObjectManager(JSDContext* jsdc)
     jsdc->objectsTable = JS_NewHashTable(256, _hash_root,
                                          JS_CompareValues, JS_CompareValues,
                                          NULL, NULL);
-    return !!jsdc->objectsTable;
+    return (JSBool) jsdc->objectsTable;
 }
 
 void
 jsd_DestroyObjectManager(JSDContext* jsdc)
 {
-    jsd_DestroyObjects(jsdc);
-    JSD_LOCK_OBJECTS(jsdc);
-    JS_HashTableDestroy(jsdc->objectsTable);
-    JSD_UNLOCK_OBJECTS(jsdc);
-}
-
-void
-jsd_DestroyObjects(JSDContext* jsdc)
-{
     JSD_LOCK_OBJECTS(jsdc);
     while( !JS_CLIST_IS_EMPTY(&jsdc->objectsList) )
         _destroyJSDObject(jsdc, (JSDObject*)JS_NEXT_LINK(&jsdc->objectsList));
+    JS_HashTableDestroy(jsdc->objectsTable);
     JSD_UNLOCK_OBJECTS(jsdc);
 }
 

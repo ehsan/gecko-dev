@@ -53,13 +53,12 @@
 
 #if !defined(XPCOM_GLUE_AVOID_NSPR)
 #include "prthread.h" /* needed for thread-safety checks */
-#include "nsAtomicRefcnt.h" /* for NS_Atomic{Increment,Decrement}Refcnt */
+#include "pratom.h"   /* needed for PR_AtomicIncrement and PR_AtomicDecrement */
 #endif
 
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
 #include "nsCycleCollector.h"
-#include "nsCycleCollectorUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
@@ -78,70 +77,40 @@ private:
 #define NS_DECL_OWNINGTHREAD            nsAutoOwningThread _mOwningThread;
 #define NS_ASSERT_OWNINGTHREAD(_class) \
   NS_CheckThreadSafe(_mOwningThread.GetThread(), #_class " not thread-safe")
-#define NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class) \
-  do { \
-    if (NS_IsCycleCollectorThread()) { \
-      NS_ERROR("Changing refcount of " #_class " object during Traverse is " \
-               "not permitted!"); \
-    } \
-    else { \
-      NS_ASSERT_OWNINGTHREAD(_class); \
-    } \
-  } while (0)
 
 #else // !NS_DEBUG
 
 #define NS_DECL_OWNINGTHREAD            /* nothing */
 #define NS_ASSERT_OWNINGTHREAD(_class)  ((void)0)
-#define NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class)  ((void)0)
 
 #endif // NS_DEBUG
 
-#define NS_CCAR_REFCNT_BIT 1
-#define NS_CCAR_REFCNT_TO_TAGGED(rc_) \
-  NS_INT32_TO_PTR((rc_ << 1) | NS_CCAR_REFCNT_BIT)
-#define NS_CCAR_PURPLE_ENTRY_TO_TAGGED(pe_) \
-  static_cast<void*>(pe_)
-#define NS_CCAR_TAGGED_TO_REFCNT(tagged_) \
-  nsrefcnt(NS_PTR_TO_INT32(tagged_) >> 1)
-#define NS_CCAR_TAGGED_TO_PURPLE_ENTRY(tagged_) \
-  static_cast<nsPurpleBufferEntry*>(tagged_)
-#define NS_CCAR_TAGGED_STABILIZED_REFCNT NS_CCAR_PURPLE_ENTRY_TO_TAGGED(0)
+#define NS_PURPLE_BIT ((PRUint32)(1 << 31))
+
+#define NS_PURPLE_MASK (~NS_PURPLE_BIT)
+#define NS_PURPLE_BIT_SET(x) ((x) & (NS_PURPLE_BIT))
+#define NS_CLEAR_PURPLE_BIT(x) ((x) &= (NS_PURPLE_MASK))
+#define NS_VALUE_WITHOUT_PURPLE_BIT(x) ((x) & (NS_PURPLE_MASK))
+
 
 // Support for ISupports classes which interact with cycle collector.
-
-/**
- * This struct (once shipped) will be FROZEN with respect to the
- * NS_CycleCollectorSuspect2 and NS_CycleCollectorForget2 functions.  If
- * we need to change the struct, we'll need Suspect3 and Forget3 for the
- * new versions.
- */
-struct nsPurpleBufferEntry {
-  union {
-    nsISupports *mObject;                 // when low bit unset
-    nsPurpleBufferEntry *mNextInFreeList; // when low bit set
-  };
-  // When an object is in the purple buffer, it replaces its reference
-  // count with a (tagged) pointer to this entry, so we store the
-  // reference count for it.
-  nsrefcnt mRefCnt;
-};
 
 class nsCycleCollectingAutoRefCnt {
 
 public:
   nsCycleCollectingAutoRefCnt()
-    : mTagged(NS_CCAR_REFCNT_TO_TAGGED(0))
+    : mValue(0)
   {}
 
   nsCycleCollectingAutoRefCnt(nsrefcnt aValue)
-    : mTagged(NS_CCAR_REFCNT_TO_TAGGED(aValue))
+    : mValue(aValue)
   {
+    NS_CLEAR_PURPLE_BIT(mValue);
   }
 
   nsrefcnt incr(nsISupports *owner)
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT)) {
       // The sentinel value "purple bit alone, refcount 0" means
       // that we're stabilized, during finalization. In this
       // state we lie about our actual refcount if anyone asks
@@ -151,96 +120,66 @@ public:
       return 2;
     }
 
-    nsrefcnt refcount;
-    if (IsPurple()) {
-      nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      NS_ASSERTION(e->mObject == owner, "wrong entry");
-      refcount = e->mRefCnt;
-      NS_ASSERTION(refcount != 0, "purple ISupports pointer with zero refcnt");
+    nsrefcnt tmp = get();
+    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
 
-      if (NS_LIKELY(NS_CycleCollectorForget2(e))) {
-        // |e| is now invalid
-        ++refcount;
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-      } else {
-        ++refcount;
-        e->mRefCnt = refcount;
-      }
-    } else {
-      refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      ++refcount;
-      mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
+    if (NS_UNLIKELY(purple)) {
+      NS_ASSERTION(tmp != 0, "purple ISupports pointer with zero refcnt");
+      if (!NS_CycleCollectorForget(owner))
+        tmp |= NS_PURPLE_BIT;
     }
 
-    return refcount;
+    mValue = tmp + 1;
+    return mValue;
   }
 
   void stabilizeForDeletion(nsISupports *owner)
   {
-    mTagged = NS_CCAR_TAGGED_STABILIZED_REFCNT;
+    mValue = NS_PURPLE_BIT;
   }
 
   nsrefcnt decr(nsISupports *owner)
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT))
       return 1;
 
-    nsrefcnt refcount;
-    if (IsPurple()) {
-      nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      NS_ASSERTION(e->mObject == owner, "wrong entry");
-      refcount = e->mRefCnt;
-      --refcount;
-      
-      if (NS_UNLIKELY(refcount == 0)) {
-        if (NS_UNLIKELY(!NS_CycleCollectorForget2(e))) {
-          NS_NOTREACHED("forget should not fail when reference count hits 0");
-          // Clear the entry's pointer to us.
-          e->mObject = nsnull;
-        }
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-      } else {
-        e->mRefCnt = refcount;
-      }
-    } else {
-      refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      --refcount;
+    nsrefcnt tmp = get();
+    NS_ASSERTION(tmp >= 1, "decr() called with zero refcnt");
 
-      nsPurpleBufferEntry *e;
-      if (NS_LIKELY(refcount > 0) &&
-          ((e = NS_CycleCollectorSuspect2(owner)))) {
-        e->mRefCnt = refcount;
-        mTagged = NS_CCAR_PURPLE_ENTRY_TO_TAGGED(e);
-      } else {
-        mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
+    PRBool purple = static_cast<PRBool>(NS_PURPLE_BIT_SET(mValue));
+    PRBool shouldBePurple = tmp > 1;
+
+    if (NS_UNLIKELY(shouldBePurple && !purple)) {
+      if (!NS_CycleCollectorSuspect(owner))
+        shouldBePurple = PR_FALSE;
+    } else if (NS_UNLIKELY(tmp == 1 && purple)) {
+      if (!NS_CycleCollectorForget(owner)) {
+        NS_NOTREACHED("forget should not fail when reference count hits 0");
       }
     }
 
-    return refcount;
+    --tmp;
+
+    if (shouldBePurple)
+      mValue = tmp | NS_PURPLE_BIT;
+    else
+      mValue = tmp;
+
+    return tmp;
   }
 
   void unmarkPurple()
   {
-    NS_ASSERTION(IsPurple(), "must be purple");
-    nsrefcnt refcount = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt;
-    mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
-  }
-
-  PRBool IsPurple() const
-  {
-    NS_ASSERTION(mTagged != NS_CCAR_TAGGED_STABILIZED_REFCNT,
-                 "should have checked for stabilization first");
-    return !(NS_PTR_TO_INT32(mTagged) & NS_CCAR_REFCNT_BIT);
+    if (NS_LIKELY(mValue != NS_PURPLE_BIT))
+      NS_CLEAR_PURPLE_BIT(mValue);
   }
 
   nsrefcnt get() const
   {
-    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mValue == NS_PURPLE_BIT))
       return 1;
 
-    return NS_UNLIKELY(IsPurple())
-             ? NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt
-             : NS_CCAR_TAGGED_TO_REFCNT(mTagged);
+    return NS_VALUE_WITHOUT_PURPLE_BIT(mValue);
   }
 
   operator nsrefcnt() const
@@ -249,7 +188,7 @@ public:
   }
 
  private:
-  void *mTagged;
+  nsrefcnt mValue;
 };
 
 class nsAutoRefCnt {
@@ -316,39 +255,6 @@ public:
 #define NS_INIT_ISUPPORTS() ((void)0)
 
 /**
- * Use this macro to declare and implement the AddRef & Release methods for a
- * given non-XPCOM <i>_class</i>.
- *
- * The implementations here should match NS_IMPL_ADDREF/NS_IMPL_RELEASE, minus
- * the nsrefcnt return-value and the NS_ASSERT_OWNINGTHREAD() call.
- *
- * @param _class The name of the class implementing the method
- */
-#define NS_INLINE_DECL_REFCOUNTING(_class)                                    \
-public:                                                                       \
-  void AddRef(void) {                                                         \
-    NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");                 \
-    NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
-    ++mRefCnt;                                                                \
-    NS_LOG_ADDREF(this, mRefCnt, #_class, sizeof(*this));                     \
-  }                                                                           \
-  void Release(void) {                                                        \
-    NS_PRECONDITION(0 != mRefCnt, "dup release");                             \
-    NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
-    --mRefCnt;                                                                \
-    NS_LOG_RELEASE(this, mRefCnt, #_class);                                   \
-    if (mRefCnt == 0) {                                                       \
-      NS_ASSERT_OWNINGTHREAD(_class);                                         \
-      mRefCnt = 1; /* stabilize */                                            \
-      delete this;                                                            \
-    }                                                                         \
-  }                                                                           \
-protected:                                                                    \
-  nsAutoRefCnt mRefCnt;                                                       \
-  NS_DECL_OWNINGTHREAD                                                        \
-public:
-
-/**
  * Use this macro to implement the AddRef method for a given <i>_class</i>
  * @param _class The name of the class implementing the method
  */
@@ -356,7 +262,7 @@ public:
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
   NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");                   \
-  NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
+  NS_ASSERT_OWNINGTHREAD(_class);                                             \
   ++mRefCnt;                                                                  \
   NS_LOG_ADDREF(this, mRefCnt, #_class, sizeof(*this));                       \
   return mRefCnt;                                                             \
@@ -399,11 +305,10 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
   NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
-  NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
+  NS_ASSERT_OWNINGTHREAD(_class);                                             \
   --mRefCnt;                                                                  \
   NS_LOG_RELEASE(this, mRefCnt, #_class);                                     \
   if (mRefCnt == 0) {                                                         \
-    NS_ASSERT_OWNINGTHREAD(_class);                                           \
     mRefCnt = 1; /* stabilize */                                              \
     _destroy;                                                                 \
     return 0;                                                                 \
@@ -425,7 +330,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
  * the refcount to |0|.
  */
 #define NS_IMPL_RELEASE(_class) \
-  NS_IMPL_RELEASE_WITH_DESTROY(_class, delete (this))
+  NS_IMPL_RELEASE_WITH_DESTROY(_class, NS_DELETEXPCOM(this))
 
 /**
  * Use this macro to implement the Release method for a given <i>_class</i>
@@ -446,7 +351,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
   NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");                   \
-  NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
+  NS_ASSERT_OWNINGTHREAD(_class);                                             \
   nsrefcnt count =                                                            \
     mRefCnt.incr(NS_CYCLE_COLLECTION_CLASSNAME(_class)::Upcast(this));        \
   NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                         \
@@ -460,12 +365,11 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
   NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
-  NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
+  NS_ASSERT_OWNINGTHREAD(_class);                                             \
   nsISupports *base = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Upcast(this);    \
   nsrefcnt count = mRefCnt.decr(base);                                        \
   NS_LOG_RELEASE(this, count, #_class);                                       \
   if (count == 0) {                                                           \
-    NS_ASSERT_OWNINGTHREAD(_class);                                           \
     mRefCnt.stabilizeForDeletion(base);                                       \
     _destroy;                                                                 \
     return 0;                                                                 \
@@ -480,10 +384,10 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
   NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, _destroy)
 
 #define NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(_class, _basetype)         \
-  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, delete (this))
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _basetype, NS_DELETEXPCOM(this))
 
 #define NS_IMPL_CYCLE_COLLECTING_RELEASE(_class)       \
-  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _class, delete (this))
+  NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(_class, _class, NS_DELETEXPCOM(this))
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -918,7 +822,7 @@ NS_IMETHODIMP_(nsrefcnt) Class::AddRef(void)                                  \
   nsrefcnt r = Super::AddRef();                                               \
   NS_LOG_ADDREF(this, r, #Class, sizeof(*this));                              \
   return r;                                                                   \
-}
+}                                                                             \
 
 #define NS_IMPL_RELEASE_INHERITED(Class, Super)                               \
 NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
@@ -926,23 +830,7 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
   nsrefcnt r = Super::Release();                                              \
   NS_LOG_RELEASE(this, r, #Class);                                            \
   return r;                                                                   \
-}
-
-/**
- * As above but not logging the addref/release; needed if the base
- * class might be aggregated.
- */
-#define NS_IMPL_NONLOGGING_ADDREF_INHERITED(Class, Super)                     \
-NS_IMETHODIMP_(nsrefcnt) Class::AddRef(void)                                  \
-{                                                                             \
-  return Super::AddRef();                                                     \
-}
-
-#define NS_IMPL_NONLOGGING_RELEASE_INHERITED(Class, Super)                    \
-NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
-{                                                                             \
-  return Super::Release();                                                    \
-}
+}                                                                             \
 
 #define NS_INTERFACE_TABLE_INHERITED0(Class) /* Nothing to do here */
 
@@ -1241,10 +1129,6 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
     NS_IMPL_ADDREF_INHERITED(Class, Super)                                    \
     NS_IMPL_RELEASE_INHERITED(Class, Super)                                   \
 
-#define NS_IMPL_ISUPPORTS_INHERITED8(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8) \
-    NS_IMPL_QUERY_INTERFACE_INHERITED8(Class, Super, i1, i2, i3, i4, i5, i6, i7, i8) \
-    NS_IMPL_ADDREF_INHERITED(Class, Super)                                    \
-    NS_IMPL_RELEASE_INHERITED(Class, Super)                                   \
 /*
  * Macro to glue together a QI that starts with an interface table
  * and segues into an interface map (e.g. it uses singleton classinfo
@@ -1275,32 +1159,29 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
   NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");                   \
-  nsrefcnt count = NS_AtomicIncrementRefcnt(mRefCnt);                         \
+  nsrefcnt count;                                                             \
+  count = PR_AtomicIncrement((PRInt32*)&mRefCnt);                             \
   NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                         \
-  return (nsrefcnt) count;                                                    \
+  return count;                                                               \
 }
 
 /**
  * Use this macro to implement the Release method for a given <i>_class</i>
  * @param _class The name of the class implementing the method
- *
- * Note that we don't need to use an atomic operation to stabilize the refcnt.
- * If the refcnt is released to 0, only the current thread has a reference to
- * the object; we thus don't have to use an atomic set to inform other threads
- * that we've changed the refcnt.
  */
 
 #define NS_IMPL_THREADSAFE_RELEASE(_class)                                    \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
+  nsrefcnt count;                                                             \
   NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
-  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);                         \
+  count = PR_AtomicDecrement((PRInt32 *)&mRefCnt);                            \
   NS_LOG_RELEASE(this, count, #_class);                                       \
   if (0 == count) {                                                           \
     mRefCnt = 1; /* stabilize */                                              \
     /* enable this to find non-threadsafe destructors: */                     \
     /* NS_ASSERT_OWNINGTHREAD(_class); */                                     \
-    delete (this);                                                            \
+    NS_DELETEXPCOM(this);                                                     \
     return 0;                                                                 \
   }                                                                           \
   return count;                                                               \

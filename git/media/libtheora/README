@@ -1,24 +1,15 @@
 -------------------------------------------------------------------------
-             The Xiph.org Foundation's libtheora 1.2
+          The Xiph.org Foundation's libtheora 1.0beta1 release
 -------------------------------------------------------------------------
 
 *** What is Theora?
 
 Theora is Xiph.Org's first publicly released video codec, intended
 for use within the Foundation's Ogg multimedia streaming system.
-Theora is derived directly from On2's VP3 codec, adds new features
-while allow it a longer useful lifetime as an competitive codec.
-
-The 1.0 release decoder supported all the new features, but the
-encoder is nearly identical to the VP3 code.
-
-The 1.1 release featured a completely rewritten encoder, offering
-better performance and compression, and making more complete use
-of the format's feature set.
-
-The 1.2 release features significant additional improvements in
-compression and performance. Files produced by newer encoders can
-be decoded by earlier releases.
+Theora is derived directly from On2's VP3 codec; Currently the 
+encoders are nearly identical, but Theora will make use of new
+features supported by the decoder to improve over what is 
+is possible with VP3.
 
 *** Where is Theora?
 
@@ -26,6 +17,12 @@ Theora's main site is www.theora.org.  Theora and related libraries
 can be gotten from www.theora.org or the main Xiph.Org site at
 www.xiph.org.  Development source is kept in an open subversion 
 repository, see http://theora.org/svn/ for instructions.
+
+*** What is the goal of this release?
+
+This is the first beta release of the 1.0 reference implementation.
+It is intended to completely support the decoder specification, and
+gather feedback on the implementation before declaring it stable.
 
 -------------------------------------------------------------------------
 Getting started with the code
@@ -35,42 +32,32 @@ Getting started with the code
 
 Requirements summary:
 
-  For libtheora:
-
+  For libtheora:  
+         
       libogg 1.1 or newer.
 
   For example encoder:
 
-      as above,
+      as above
 
       libvorbis and libvorbisenc 1.0.1 or newer.
-      (libvorbis 1.3.1 or newer for 5.1 audio)
-
-  For creating a source distribution package:
-
-      as above,
-
-      Doxygen to build the API documentation,
-      pdflatex and fig2dev to build the format specification
-        (transfig package in Ubuntu).
 
   For the player only:
 
-      as above,
+      as above, 
 
-      SDL (Simple Direct media Layer) libraries and headers,
-      OSS audio driver and development headers.
+      SDL (Simple Direct media Layer) libraries and headers
+ 
+      OSS audio driver and development headers
 
 The provided build system is the GNU automake/autoconf system, and
 the main library, libtheora, should already build smoothly on any
 system.  Failure of libtheora to build on a GNU-enabled system is
 considered a bug; please report problems to theora-dev@xiph.org.
 
-Windows build support is included in the win32 directory.
+Some windows build support is included in the win32 directory.
 
-Project files for Apple XCode are included in the macosx directory.
-
-There is also a more limited scons build.
+There is also an experimental scons build.
 
 *** How do I use the sample encoder?
 
@@ -96,7 +83,7 @@ files in that format.
 *** How do I use the sample player?
 
 The sample player takes an Ogg file on standard in; the file may be
-audio alone, video alone or video with audio.
+audio alone, video alone or video with audio.  
 
 *** What other tools are available?
 

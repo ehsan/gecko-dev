@@ -39,15 +39,22 @@
 #define nsXMLDocument_h___
 
 #include "nsDocument.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIChannelEventSink.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIScriptContext.h"
+#include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 
 class nsIParser;
 class nsIDOMNode;
 class nsIURI;
 class nsIChannel;
 
-class nsXMLDocument : public nsDocument
+class nsXMLDocument : public nsDocument,
+                      public nsIInterfaceRequestor,
+                      public nsIChannelEventSink
 {
 public:
   nsXMLDocument(const char* aContentType = "application/xml");
@@ -68,6 +75,12 @@ public:
 
   virtual void EndLoad();
 
+  // nsIInterfaceRequestor
+  NS_DECL_NSIINTERFACEREQUESTOR
+
+  // nsIHTTPEventSink
+  NS_DECL_NSICHANNELEVENTSINK
+
   // nsIDOMXMLDocument
   NS_DECL_NSIDOMXMLDOCUMENT
 
@@ -75,7 +88,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // mChannelIsPending indicates whether we're currently asynchronously loading
   // data from mChannel (via document.load() or normal load).  It's set to true
@@ -84,6 +96,7 @@ protected:
   // mChannel is also cancelled.  Note that if this member is true, mChannel
   // cannot be null.
   PRPackedBool mChannelIsPending;
+  PRPackedBool mLoadedAsInteractiveData;
   PRPackedBool mAsync;
   PRPackedBool mLoopingForSyncLoad;
 };

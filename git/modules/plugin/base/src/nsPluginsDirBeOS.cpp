@@ -139,14 +139,14 @@ nsPluginFile::~nsPluginFile()
  * Loads the plugin into memory using NSPR's shared-library loading
  * mechanism. Handles platform differences in loading shared libraries.
  */
-nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
+nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 {
         nsCAutoString path;
         nsresult rv = mPlugin->GetNativePath(path);
         if (NS_OK != rv) {
             return rv;
         }
-        pLibrary = *outLibrary = PR_LoadLibrary(path.get());
+        pLibrary = outLibrary = PR_LoadLibrary(path.get());
 
 #ifdef NS_DEBUG
         printf("LoadPlugin() %s returned %lx\n",path,(unsigned long)pLibrary);
@@ -161,21 +161,15 @@ typedef char* (*BeOS_Plugin_GetMIMEDescription)();
 /**
  * Obtains all of the information currently available for this plugin.
  */
-nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
+nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
-    *outLibrary = nsnull;
-
     info.fVersion = nsnull;
-
-    nsCAutoString fullPath;
-    if (NS_FAILED(rv = mPlugin->GetNativePath(fullPath)))
+    nsCAutoString fpath;
+    nsresult rv = mPlugin->GetNativePath(fpath);
+    if (NS_OK != rv) {
         return rv;
-
-    nsCAutoString fileName;
-    if (NS_FAILED(rv = mPlugin->GetNativeLeafName(fileName)))
-        return rv;
-
-    const char *path = fullPath.get();
+    }
+    const char *path = fpath.get();
     int i;
 
 #ifdef NS_PLUGIN_BEOS_DEBUG
@@ -249,8 +243,8 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     }
 
     info.fVariantCount = types_num;
-    info.fFullPath = PL_strdup(fullPath.get());
-    info.fFileName = PL_strdup(fileName.get());
+    info.fFileName = PL_strdup(path);
+
 
 #ifdef NS_PLUGIN_BEOS_DEBUG
     printf("info.fFileName = %s\n", info.fFileName);
@@ -283,9 +277,6 @@ nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
     PR_FREEIF(info.fMimeTypeArray);
     PR_FREEIF(info.fMimeDescriptionArray);
     PR_FREEIF(info.fExtensionArray);
-
-    if (info.fFullPath)
-        PL_strfree(info.fFullPath);
 
     if (info.fFileName)
         PL_strfree(info.fFileName);

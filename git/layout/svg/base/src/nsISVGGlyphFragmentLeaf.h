@@ -40,53 +40,56 @@
 #define __NS_ISVGGLYPHFRAGMENTLEAF_H__
 
 #include "nsISVGGlyphFragmentNode.h"
+#include "nsIDOMSVGLengthList.h"
 
 class nsIDOMSVGPoint;
 class nsIDOMSVGRect;
 class nsSVGTextPathFrame;
-namespace mozilla {
-class SVGUserUnitList;
-}
+
+
+// {ec9a9965-3ff2-4bb5-b0e2-dd8830e9f41a}
+#define NS_ISVGGLYPHFRAGMENTLEAF_IID \
+  { 0xec9a9965, 0x3ff2, 0x4bb5, \
+    { 0xb0, 0xe2, 0xdd, 0x88, 0x30, 0xe9, 0xf4, 0x1a } }
 
 class nsISVGGlyphFragmentLeaf : public nsISVGGlyphFragmentNode
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsISVGGlyphFragmentLeaf)
+
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGGLYPHFRAGMENTLEAF_IID)
 
   NS_IMETHOD GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval)=0;
   NS_IMETHOD GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval)=0;
   NS_IMETHOD GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)=0;
   NS_IMETHOD GetRotationOfChar(PRUint32 charnum, float *_retval)=0;
 
+  enum { BASELINE_ALPHABETIC = 0U };
+  enum { BASELINE_HANGING = 1U };
+  enum { BASELINE_IDEOGRAPHC = 2U };
+  enum { BASELINE_MATHEMATICAL = 3U };
+  enum { BASELINE_CENTRAL = 4U };
+  enum { BASELINE_MIDDLE = 5U };
+  enum { BASELINE_TEXT_BEFORE_EDGE = 6U };
+  enum { BASELINE_TEXT_AFTER_EDGE = 7U };
+
+  NS_IMETHOD_(float) GetBaselineOffset(PRUint16 baselineIdentifier,
+                                       PRBool aForceGlobalTransform)=0;
   NS_IMETHOD_(float) GetAdvance(PRBool aForceGlobalTransform)=0;
 
-  NS_IMETHOD_(void) SetGlyphPosition(gfxPoint *aPosition, PRBool aForceGlobalTransform)=0;
+  NS_IMETHOD_(void) SetGlyphPosition(float x, float y)=0;
   NS_IMETHOD_(nsSVGTextPathFrame*) FindTextPathParent()=0;
   NS_IMETHOD_(PRBool) IsStartOfChunk()=0; // == is new absolutely positioned chunk.
+  NS_IMETHOD_(void) GetAdjustedPosition(/* inout */ float &x, /* inout */ float &y)=0;
 
-  NS_IMETHOD_(void) GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY)=0;
-  NS_IMETHOD_(void) SetStartIndex(PRUint32 aStartIndex)=0;
-  /*
-   * Returns inherited x and y values instead of parent element's attribute
-   * values.
-   */
-  NS_IMETHOD_(void) GetEffectiveXY(PRInt32 strLength,
-                                   nsTArray<float> &aX, nsTArray<float> &aY)=0;
-  /*
-   * Returns inherited dx and dy values instead of parent element's attribute
-   * values.
-   */
-  NS_IMETHOD_(void) GetEffectiveDxDy(PRInt32 strLength, 
-                                     nsTArray<float> &aDx,
-                                     nsTArray<float> &aDy)=0;
-  /*
-   * Returns inherited rotate values instead of parent element's attribute
-   * values.
-   */
-  NS_IMETHOD_(void) GetEffectiveRotate(PRInt32 strLength,
-                                       nsTArray<float> &aRotate)=0;
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX()=0;
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY()=0;
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDx()=0;
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy()=0;
   NS_IMETHOD_(PRUint16) GetTextAnchor()=0;
   NS_IMETHOD_(PRBool) IsAbsolutelyPositioned()=0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGGlyphFragmentLeaf,
+                              NS_ISVGGLYPHFRAGMENTLEAF_IID)
 
 #endif // __NS_ISVGGLYPHFRAGMENTLEAF_H__

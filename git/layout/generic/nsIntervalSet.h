@@ -46,10 +46,10 @@
 #include "nsDebug.h"
 
 typedef void *
-(* IntervalSetAlloc)(size_t aBytes, void *aClosure);
+(* PR_CALLBACK IntervalSetAlloc)(size_t aBytes, void *aClosure);
 
 typedef void
-(* IntervalSetFree) (size_t aBytes, void *aPtr, void *aClosure);
+(* PR_CALLBACK IntervalSetFree) (size_t aBytes, void *aPtr, void *aClosure);
 
 /*
  * A list-based class (hopefully tree-based when I get around to it)
@@ -74,6 +74,11 @@ public:
      * implement ExcludeInterval if anyone wants it, though.
      */
     void IncludeInterval(coord_type aBegin, coord_type aEnd);
+
+    /*
+     * Is the point aPoint contained within the set of intervals?
+     */
+    PRBool HasPoint(coord_type aPoint) const;
 
     /*
      * Are _some_ points in [aBegin, aEnd] contained within the set

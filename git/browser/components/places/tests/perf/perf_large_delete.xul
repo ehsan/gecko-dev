@@ -87,7 +87,7 @@ function test()
   // Close the window if it's already open
   let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
            getService(Ci.nsIWindowMediator);
-  let win = wm.getMostRecentWindow("Places:Organizer");
+  let win = wm.getMostRecentWindow("Places:Orgainzier");
   if (win)
     win.close();
 
@@ -121,9 +121,10 @@ function test()
     // Select all the bookmarks
     synthesizeKey("a", {accelKey:true}, aWin);
 
-    // If we can, start profiling
+    // If we can, start shark
     try {
-      startProfiling();
+      connectShark();
+      startShark();
     }
     catch (e) { }
 
@@ -132,9 +133,10 @@ function test()
     synthesizeKey("VK_BACK_SPACE", {}, aWin);
     let end = Date.now();
 
-    // Stop profiling, if we can
+    // Stop shark, if we can
     try {
-      stopProfiling();
+      stopShark();
+      disconnectionShark();
     }
     catch (e) { }
 

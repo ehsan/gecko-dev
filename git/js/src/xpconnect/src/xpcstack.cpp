@@ -81,13 +81,10 @@ private:
 nsresult
 XPCJSStack::CreateStack(JSContext* cx, nsIStackFrame** stack)
 {
-    if(!cx)
+    if(!cx || !cx->fp)
         return NS_ERROR_FAILURE;
 
-    JSStackFrame *fp = NULL;
-    if (!JS_FrameIterator(cx, &fp))
-        return NS_ERROR_FAILURE;
-    return XPCJSStackFrame::CreateStack(cx, fp, (XPCJSStackFrame**) stack);
+    return XPCJSStackFrame::CreateStack(cx, cx->fp, (XPCJSStackFrame**) stack);
 }
 
 // static
@@ -141,16 +138,16 @@ XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
     {
         NS_ADDREF(self);
 
-        if(fp->prev())
+        if(fp->down)
         {
-            if(NS_FAILED(CreateStack(cx, fp->prev(),
+            if(NS_FAILED(CreateStack(cx, fp->down,
                          (XPCJSStackFrame**) &self->mCaller)))
                 failed = JS_TRUE;
         }
 
         if(!failed)
         {
-            if (!JS_IsScriptFrame(cx, fp))
+            if (JS_IsNativeFrame(cx, fp))
                 self->mLanguage = nsIProgrammingLanguage::CPLUSPLUS;
             else
                 self->mLanguage = nsIProgrammingLanguage::JAVASCRIPT;
@@ -174,19 +171,12 @@ XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
                     JSFunction* fun = JS_GetFrameFunction(cx, fp);
                     if(fun)
                     {
-                        JSString *funid = JS_GetFunctionId(fun);
-                        if(funid)
+                        const char* funname = JS_GetFunctionName(fun);
+                        if(funname)
                         {
-                            size_t length = JS_GetStringEncodingLength(cx, funid);
-                            if(length != size_t(-1))
-                            {
-                                self->mFunname = static_cast<char *>(nsMemory::Alloc(length + 1));
-                                if(self->mFunname)
-                                {
-                                    JS_EncodeStringToBuffer(funid, self->mFunname, length);
-                                    self->mFunname[length] = '\0';
-                                }
-                            }
+                        self->mFunname = (char*)
+                                nsMemory::Clone(funname,
+                                        sizeof(char)*(strlen(funname)+1));
                         }
                     }
                 }

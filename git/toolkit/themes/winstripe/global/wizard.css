@@ -40,11 +40,11 @@ wizard[branded="true"] .wizard-header-icon {
   margin: 10px;
 }
 
-.wizard-button[dlgtype="finish"],
-.wizard-button[dlgtype="next"] {
-  -moz-margin-start: 0px !important;
+.wizard-button[wizardbutton="finish"],
+.wizard-button[wizardbutton="next"] {
+  -moz-margin-start: -1px !important;
 }
 
-.wizard-button[dlgtype="back"] {
+.wizard-button[wizardbutton="back"] {
   -moz-margin-end: 0px !important;
 }

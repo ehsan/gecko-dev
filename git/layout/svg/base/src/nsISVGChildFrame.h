@@ -40,38 +40,28 @@
 #define __NS_ISVGCHILDFRAME_H__
 
 
-#include "nsQueryFrame.h"
+#include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsRect.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class gfxContext;
+class nsPresContext;
+class nsIDOMSVGRect;
+class nsIDOMSVGMatrix;
 class nsSVGRenderState;
 
-namespace mozilla {
-class SVGAnimatedNumberList;
-class SVGNumberList;
-class SVGAnimatedLengthList;
-class SVGLengthList;
-class SVGUserUnitList;
-}
+#define NS_ISVGCHILDFRAME_IID \
+{ 0x8b80b2a0, 0x2e1f, 0x4775, \
+  { 0xab, 0x47, 0xbe, 0xeb, 0x4b, 0x81, 0x63, 0x6d } }
 
-class nsISVGChildFrame : public nsQueryFrame
-{
+class nsISVGChildFrame : public nsISupports {
 public:
-  typedef mozilla::SVGAnimatedNumberList SVGAnimatedNumberList;
-  typedef mozilla::SVGNumberList SVGNumberList;
-  typedef mozilla::SVGAnimatedLengthList SVGAnimatedLengthList;
-  typedef mozilla::SVGLengthList SVGLengthList;
-  typedef mozilla::SVGUserUnitList SVGUserUnitList;
 
-  NS_DECL_QUERYFRAME_TARGET(nsISVGChildFrame)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGCHILDFRAME_IID)
 
   // Paint this frame - aDirtyRect is the area being redrawn, in frame
   // offset pixel coordinates
-  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
-                      const nsIntRect *aDirtyRect)=0;
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, nsIntRect *aDirtyRect)=0;
 
   // Check if this frame or children contain the given point,
   // specified in app units relative to the origin of the outer
@@ -110,25 +100,14 @@ public:
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate)=0;
   virtual PRBool GetMatrixPropagation()=0;
 
-  /**
-   * Get this frame's contribution to the rect returned by a GetBBox() call
-   * that occurred either on this element, or on one of its ancestors.
-   *
-   * SVG defines an element's bbox to be the element's fill bounds in the
-   * userspace established by that element. By allowing callers to pass in the
-   * transform from the userspace established by this element to the userspace
-   * established by an an ancestor, this method allows callers to obtain this
-   * element's fill bounds in the userspace established by that ancestor
-   * instead. In that case, since we return the bounds in a different userspace
-   * (the ancestor's), the bounds we return are not this element's bbox, but
-   * rather this element's contribution to the bbox of the ancestor.
-   *
-   * @param aToBBoxUserspace The transform from the userspace established by
-   *   this element to the userspace established by the ancestor on which
-   *   getBBox was called. This will be the identity matrix if we are the
-   *   element on which getBBox was called.
-   */
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace) = 0;
+  // Set the current transformation matrix to a particular matrix.
+  // Value is only used if matrix propagation is prevented
+  // (SetMatrixPropagation()).  nsnull aCTM means identity transform.
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM)=0;
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM()=0;
+
+  // XXX move this function into interface nsISVGLocatableMetrics
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval)=0; // bbox in local coords
 
   // Are we a container frame?
   NS_IMETHOD_(PRBool) IsDisplayContainer()=0;
@@ -136,6 +115,8 @@ public:
   // Does this frame have an current covered region in mRect (aka GetRect())?
   NS_IMETHOD_(PRBool) HasValidCoveredRect()=0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGChildFrame, NS_ISVGCHILDFRAME_IID)
 
 #endif // __NS_ISVGCHILDFRAME_H__
 

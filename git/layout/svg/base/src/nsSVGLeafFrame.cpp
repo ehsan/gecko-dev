@@ -45,8 +45,6 @@ protected:
   nsSVGLeafFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsFrame::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
@@ -59,7 +57,7 @@ public:
   }
 #endif
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 };
 
 nsIFrame*
@@ -68,11 +66,10 @@ NS_NewSVGLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGLeafFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGLeafFrame)
-
-/* virtual */ void
-nsSVGLeafFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsSVGLeafFrame::DidSetStyleContext()
 {
-  nsFrame::DidSetStyleContext(aOldStyleContext);
+  nsresult rv = nsFrame::DidSetStyleContext();
   nsSVGEffects::InvalidateRenderingObservers(this);
+  return rv;
 }

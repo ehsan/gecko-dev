@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "koi8u.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToKOI8UConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult) 
 {

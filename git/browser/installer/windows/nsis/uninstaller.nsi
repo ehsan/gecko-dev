@@ -52,9 +52,8 @@ RequestExecutionLevel user
 
 !addplugindir ./
 
-; On Vista and above attempt to elevate Standard Users in addition to users that
-; are a member of the Administrators group.
-!define NONADMIN_ELEVATE
+; USE_UAC_PLUGIN is temporary until Thunderbird has been updated to use the UAC plugin
+!define USE_UAC_PLUGIN
 
 ; prevents compiling of the reg write logging.
 !define NO_LOG
@@ -66,11 +65,11 @@ Var TmpVal
 !include FileFunc.nsh
 !include LogicLib.nsh
 !include MUI.nsh
+!include TextFunc.nsh
 !include WinMessages.nsh
 !include WinVer.nsh
 !include WordFunc.nsh
 
-!insertmacro GetSize
 !insertmacro StrFilter
 !insertmacro WordReplace
 
@@ -81,6 +80,7 @@ Var TmpVal
 !include defines.nsi
 !include common.nsh
 !include locales.nsi
+!include version.nsh
 
 ; This is named BrandShortName helper because we use this for software update
 ; post update cleanup.
@@ -89,19 +89,13 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
-!insertmacro ElevateUAC
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro IsHandlerForInstallDir
-!insertmacro LogDesktopShortcut
-!insertmacro LogQuickLaunchShortcut
-!insertmacro LogStartMenuShortcut
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
-!insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
-!insertmacro UpdateShortcutAppModelIDs
 !insertmacro UnloadUAC
 !insertmacro WriteRegDWORD2
 !insertmacro WriteRegStr2
@@ -111,7 +105,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro un.CleanUpdatesDir
 !insertmacro un.CleanVirtualStore
 !insertmacro un.DeleteRelativeProfiles
-!insertmacro un.DeleteShortcuts
 !insertmacro un.GetLongPath
 !insertmacro un.GetSecondInstallPath
 !insertmacro un.ManualCloseAppPrompt
@@ -122,7 +115,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro un.RegCleanUninstall
 !insertmacro un.RegCleanProtocolHandler
 !insertmacro un.RemoveQuotesFromPath
-!insertmacro un.SetAppLSPCategories
 !insertmacro un.SetBrandNameVars
 
 !include shared.nsh
@@ -132,15 +124,11 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro UninstallOnInitCommon
 
 !insertmacro un.OnEndCommon
-!insertmacro un.UninstallUnOnInitCommon
 
 Name "${BrandFullName}"
 OutFile "helper.exe"
-!ifdef HAVE_64BIT_OS
-  InstallDir "$PROGRAMFILES64\${BrandFullName}\"
-!else
-  InstallDir "$PROGRAMFILES32\${BrandFullName}\"
-!endif
+InstallDirRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${AppVersion})" "InstallLocation"
+InstallDir "$PROGRAMFILES\${BrandFullName}"
 ShowUnInstDetails nevershow
 
 ################################################################################
@@ -212,7 +200,7 @@ Section "Uninstall"
   ${If} ${Errors}
     ; If the user closed the application it can take several seconds for it to
     ; shut down completely. If the application is being used by another user we
-    ; can still delete the files when the system is restarted.
+    ; can still delete the files when the system is restarted. 
     Sleep 5000
     ${DeleteFile} "$INSTDIR\${FileMainEXE}"
     ClearErrors
@@ -229,23 +217,17 @@ Section "Uninstall"
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${un.RegCleanMain} "Software\Mozilla"
   ${un.RegCleanUninstall}
-  ${un.DeleteShortcuts}
-
-  ; Unregister resources associated with Win7 taskbar jump lists.
-  ApplicationID::UninstallJumpLists "${AppUserModelID}"
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all  ; Set SHCTX to HKLM
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${un.RegCleanMain} "Software\Mozilla"
     ${un.RegCleanUninstall}
-    ${un.DeleteShortcuts}
-    ${un.SetAppLSPCategories}
   ${EndIf}
 
   ${un.RegCleanAppHandler} "FirefoxURL"
@@ -295,9 +277,6 @@ Section "Uninstall"
     DeleteRegKey HKLM "$0"
     DeleteRegKey HKCU "$0"
     StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\${FileMainEXE}"
-    DeleteRegKey HKLM "$0"
-    DeleteRegKey HKCU "$0"
-    StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\plugin-container.exe"
     DeleteRegKey HKLM "$0"
     DeleteRegKey HKCU "$0"
     StrCpy $0 "Software\Classes\MIME\Database\Content Type\application/x-xpinstall;app=firefox"
@@ -404,8 +383,6 @@ Function un.leaveWelcome
   ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
     Banner::show /NOUNLOAD "$(BANNER_CHECK_EXISTING)"
 
-    ; If the message window has been found previously give the app an additional
-    ; five seconds to close.
     ${If} "$TmpVal" == "FoundMessageWindow"
       Sleep 5000
     ${EndIf}
@@ -416,14 +393,9 @@ Function un.leaveWelcome
 
     Banner::destroy
 
-    ; If there are files in use $TmpVal will be "true"
     ${If} "$TmpVal" == "true"
-      ; If the message window is found the call to ManualCloseAppPrompt will
-      ; abort leaving the value of $TmpVal set to "FoundMessageWindow".
       StrCpy $TmpVal "FoundMessageWindow"
       ${un.ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_UNINSTALL)"
-      ; If the message window is not found set $TmpVal to "true" so the restart
-      ; required message is displayed.
       StrCpy $TmpVal "true"
     ${EndIf}
   ${EndIf}
@@ -577,11 +549,18 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
+  GetFullPathName $INSTDIR "$INSTDIR\.."
+  ${un.GetLongPath} "$INSTDIR" $INSTDIR
+  ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
+    Abort
+  ${EndUnless}
+
   StrCpy $LANGUAGE 0
+  ${un.SetBrandNameVars} "$INSTDIR\distribution\setup.ini"
 
-  ${un.UninstallUnOnInitCommon}
-
-  !insertmacro InitInstallOptionsFile "unconfirm.ini"
+  ; Initialize $hHeaderBitmap to prevent redundant changing of the bitmap if
+  ; the user clicks the back button
+  StrCpy $hHeaderBitmap ""
 FunctionEnd
 
 Function .onGUIEnd

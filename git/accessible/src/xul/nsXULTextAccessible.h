@@ -41,66 +41,53 @@
 #define _nsXULTextAccessible_H_
 
 #include "nsBaseWidgetAccessible.h"
+#include "nsTextAccessibleWrap.h"
 #include "nsHyperTextAccessibleWrap.h"
 
-/**
- * Used for XUL description and label elements.
- */
+class nsIWeakReference;
+
 class nsXULTextAccessible : public nsHyperTextAccessibleWrap
 {
 
 public:
-  nsXULTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
-
-  // nsIAccessible
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  nsXULTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
+  NS_IMETHOD GetName(nsAString& _retval); 
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LABEL; return NS_OK; }
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType,
+                                  nsIAccessible **aRelated);
 };
 
-/**
- * Used for XUL tooltip element.
- */
 class nsXULTooltipAccessible : public nsLeafAccessible
 {
 
 public:
-  nsXULTooltipAccessible(nsIContent *aContent, nsIWeakReference *aShell);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  nsXULTooltipAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
+  NS_IMETHOD GetName(nsAString& _retval); 
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  NS_IMETHOD GetRole(PRUint32 *_retval); 
 };
 
 class nsXULLinkAccessible : public nsHyperTextAccessibleWrap
 {
 
 public:
-  nsXULLinkAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULLinkAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetName(nsAString& aName); 
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& aValue);
 
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-
-  // HyperLinkAccessible
-  virtual bool IsHyperLink();
-  virtual PRUint32 StartOffset();
-  virtual PRUint32 EndOffset();
-  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
+  // nsIAccessibleHyperLink
+  NS_IMETHOD GetURI(PRInt32 aIndex, nsIURI **aURI);
 
 protected:
   enum { eAction_Jump = 0 };

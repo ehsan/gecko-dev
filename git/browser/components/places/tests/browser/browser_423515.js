@@ -146,14 +146,9 @@ function test() {
         var node = PlacesUtils.getFolderContents(PlacesUtils.placesRootId, false, true).root;
         for (var i = 0; i < node.childCount; i++) {
           var child = node.getChild(i);
-          if (child.itemId == aId) {
-            node.containerOpen = false;
+          if (child.itemId == aId)
             return child;
-          }
         }
-        node.containerOpen = false;
-        ok(false, "Unable to find child node");
-        return null;
       }
 
       for (var i = 0; i < this.folders.length; i++) {
@@ -162,8 +157,8 @@ function test() {
         is(PlacesControllerDragHelper.canMoveContainer(id),
            false, "shouldn't be able to move special folder id");
 
+        //var node = PlacesUtils.getFolderContents(id, false, true).root;
         var node = getRootChildNode(id);
-        isnot(node, null, "Node found");
         is(PlacesControllerDragHelper.canMoveNode(node),
            false, "shouldn't be able to move special folder node");
 
@@ -172,11 +167,11 @@ function test() {
 
         is(shortcutNode.itemId, shortcutId, "shortcut id and shortcut node item id match");
 
-        dump("can move shortcut id?\n");
+        LOG("can move shortcut id?");
         is(PlacesControllerDragHelper.canMoveContainer(shortcutId),
            true, "should be able to move special folder shortcut id");
 
-        dump("can move shortcut node?\n");
+        LOG("can move shortcut node?");
         is(PlacesControllerDragHelper.canMoveNode(shortcutNode),
            true, "should be able to move special folder shortcut node");
       }
@@ -204,8 +199,6 @@ function test() {
       
       is(PlacesControllerDragHelper.canMoveNode(tagNode),
          false, "should not be able to move tag container node");
-
-      tagsNode.containerOpen = false;
     }
   });
 

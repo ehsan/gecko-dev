@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsIStyleRuleProcessor.h"
+#include "nsCOMArray.h"
 
 class nsIContent;
 class nsIAtom;
@@ -50,7 +51,7 @@ class nsIScriptContext;
 class nsSupportsHashtable;
 class nsXBLResourceLoader;
 class nsXBLPrototypeBinding;
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeResources class
@@ -68,8 +69,7 @@ public:
 
 // MEMBER VARIABLES
   nsXBLResourceLoader* mLoader; // A loader object. Exists only long enough to load resources, and then it dies.
-  typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
-  sheet_array_type mStyleSheetList; // A list of loaded stylesheets for this binding.
+  nsCOMArray<nsICSSStyleSheet> mStyleSheetList; // A list of loaded stylesheets for this binding.
 
   // The list of stylesheets converted to a rule processor.
   nsCOMPtr<nsIStyleRuleProcessor> mRuleProcessor;

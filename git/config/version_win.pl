@@ -54,9 +54,8 @@ sub daysFromBuildID
     $d || die("Unrecognized buildid string.");
 
     my $secondstodays = 60 * 60 * 24;
-    return sprintf("%d",
-		   (POSIX::mktime(00, 00, 00, $d, $m - 1, $y - 1900) -
-		    POSIX::mktime(00, 00, 00, 01, 00, 100)) / $secondstodays);
+    return (POSIX::mktime(00, 00, 00, $d, $m, $y - 1900) -
+            POSIX::mktime(00, 00, 00, 01, 01, 100)) / $secondstodays;
 }
 
 #Creates version resource file
@@ -75,7 +74,7 @@ sub daysFromBuildID
 # SRCDIR - Holds module.ver and source
 # BINARY - Holds the name of the binary file
 # DISPNAME - Holds the display name of the built application
-# APPVERSION - Holds the version string of the built application
+# BITS - 16 or 32 bit
 # RCINCLUDE - Holds the name of the RC File to include or ""
 # QUIET - Turns off output
 
@@ -104,7 +103,7 @@ sub getNextEntry
 	return undef;
 }
 
-my ($quiet,$objdir,$debug,$official,$milestone,$buildid,$module,$binary,$depth,$rcinclude,$srcdir,$fileversion,$productversion);
+my ($quiet,$objdir,$debug,$official,$milestone,$buildid,$module,$binary,$depth,$rcinclude,$bits,$srcdir,$fileversion,$productversion);
 
 GetOptions( "QUIET" => \$quiet,
 		"DEBUG=s" => \$debug,
@@ -113,24 +112,24 @@ GetOptions( "QUIET" => \$quiet,
 		"MODNAME=s" => \$module,
 		"BINARY=s" => \$binary,
 		"DISPNAME=s" => \$displayname,
-		"APPVERSION=s" => \$appversion,
 		"SRCDIR=s" => \$srcdir,
 		"TOPSRCDIR=s" => \$topsrcdir,
 		"DEPTH=s" => \$depth,
 		"RCINCLUDE=s" => \$rcinclude,
-		"OBJDIR=s" => \$objdir);
+		"OBJDIR=s" => \$objdir,
+		"BITS=s" => \$bits);
 if (!defined($debug)) {$debug="";}
 if (!defined($official)) {$official="";}
 if (!defined($milestone)) {$milestone="";}
 if (!defined($module)) {$module="";}
 if (!defined($binary)) {$binary="";}
 if (!defined($displayname)) {$displayname="Mozilla";}
-if (!defined($appversion)) {$appversion=$milestone;}
 if (!defined($depth)) {$depth=".";}
 if (!defined($rcinclude)) {$rcinclude="";}
 if (!defined($objdir)) {$objdir=".";}
 if (!defined($srcdir)) {$srcdir=".";}
 if (!defined($topsrcdir)) {$topsrcdir=".";}
+if (!defined($bits)) {$bits="";}
 my $mfversion = "Personal";
 my $mpversion = "Personal";
 my @fileflags = ("0");
@@ -141,6 +140,9 @@ if (!defined($module))
 	$module = $binary;
 	($module) = split(/\./,$module);
 }
+
+my $fileos = "VOS__WINDOWS32";
+if ($bits eq "16") { $fileos="VOS__WINDOWS16"; }
 
 my $bufferstr="    ";
 
@@ -224,9 +226,6 @@ if ($milestone eq "") {
 }
 
 $mfversion = $mpversion = $milestone;
-if ($appversion eq "") {
-  $appversion = $milestone;
-}
 
 if ($debug eq "1")
 {
@@ -253,18 +252,6 @@ else {
 }
 $fileversion = $productversion="$mstone[0],$mstone[1],$mstone[2],$daycount";
 
-my @appver = split(/\./,$appversion);
-for ($j = 1; $j < 4; $j++)
-{
-    if (!$appver[$j]) {
-        $appver[$j] = "0";
-    }
-    else {
-        $appver[$j] =~s/\D.*$//;
-    }
-}
-my $winappversion = "$appver[0],$appver[1],$appver[2],$appver[3]";
-
 my $copyright = "License: MPL 1.1/GPL 2.0/LGPL 2.1";
 my $company = "Mozilla Foundation";
 my $trademarks = "Mozilla";
@@ -273,16 +260,16 @@ my $productname = $displayname;
 
 if (defined($override_comment)){$override_comment =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $comment=$override_comment;}
 if (defined($override_description)){$override_description =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $description=$override_description;}
-if (defined($override_fileversion)){$override_fileversion =~ s/\@MOZ_APP_WINVERSION\@/$winappversion/g; $fileversion=$override_fileversion;}
-if (defined($override_mfversion)){$override_mfversion =~ s/\@MOZ_APP_VERSION\@/$appversion/g; $mfversion=$override_mfversion;}
+if (defined($override_fileversion)){$fileversion=$override_fileversion;}
+if (defined($override_mfversion)){$mfversion=$override_mfversion;}
 if (defined($override_company)){$company=$override_company;}
 if (defined($override_module)){$override_module =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $module=$override_module;}
 if (defined($override_copyright)){$override_copyright =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $copyright=$override_copyright;}
 if (defined($override_trademarks)){$override_trademarks =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $trademarks=$override_trademarks;}
 if (defined($override_filename)){$binary=$override_filename;}
 if (defined($override_productname)){$override_productname =~ s/\@MOZ_APP_DISPLAYNAME\@/$displayname/g; $productname=$override_productname;}
-if (defined($override_productversion)){$override_productversion =~ s/\@MOZ_APP_WINVERSION\@/$winappversion/g; $productversion=$override_productversion;}
-if (defined($override_mpversion)){$override_mpversion =~ s/\@MOZ_APP_VERSION\@/$appversion/g; $mpversion=$override_mpversion;}
+if (defined($override_productversion)){$productversion=$override_productversion;}
+if (defined($override_mpversion)){$mpversion=$override_mpversion;}
 
 
 #Override section
@@ -405,7 +392,7 @@ print RCFILE qq{
  PRODUCTVERSION $productversion
  FILEFLAGSMASK 0x3fL
  FILEFLAGS $fileflags
- FILEOS VOS__WINDOWS32
+ FILEOS $fileos
  FILETYPE VFT_DLL
  FILESUBTYPE 0x0L
 BEGIN

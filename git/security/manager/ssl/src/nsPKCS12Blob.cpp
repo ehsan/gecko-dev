@@ -302,7 +302,7 @@ nsPKCS12Blob::LoadCerts(const PRUnichar **certNames, int numCerts)
         return NS_ERROR_FAILURE;
       else continue; /* user may request to keep going */
     }
-    nsCOMPtr<nsIX509Cert> cert = nsNSSCertificate::Create(nssCert);
+    nsCOMPtr<nsIX509Cert> cert = new nsNSSCertificate(nssCert);
     CERT_DestroyCertificate(nssCert);
     if (!cert) {
       if (!handleError())

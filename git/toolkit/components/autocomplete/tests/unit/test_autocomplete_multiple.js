@@ -128,10 +128,6 @@ AutoCompleteResult.prototype = {
   getValueAt: function(aIndex) {
     return this._values[aIndex];
   },
-
-  getLabelAt: function(aIndex) {
-    return this.getValueAt(aIndex);
-  },
   
   getCommentAt: function(aIndex) {
     return this._comments[aIndex];

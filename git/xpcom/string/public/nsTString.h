@@ -280,9 +280,7 @@ class nsTString_CharT : public nsTSubstring_CharT
          * @return  int rep of string value, and possible (out) error code
          */
       NS_COM PRInt32 ToInteger( PRInt32* aErrorCode, PRUint32 aRadix=kRadix10 ) const;
-      PRInt32 ToInteger( nsresult* aErrorCode, PRUint32 aRadix=kRadix10 ) const {
-        return ToInteger(reinterpret_cast<PRInt32*>(aErrorCode), aRadix);
-      }
+      
 
         /**
          * |Left|, |Mid|, and |Right| are annoying signatures that seem better almost
@@ -384,6 +382,34 @@ class nsTString_CharT : public nsTSubstring_CharT
       NS_COM void AppendWithConversion( const nsTAString_IncompatibleCharT& aString );
       NS_COM void AppendWithConversion( const incompatible_char_type* aData, PRInt32 aLength=-1 );
 
+        /**
+         * Append the given integer to this string 
+         */
+      NS_COM void AppendInt( PRInt32 aInteger, PRInt32 aRadix=kRadix10 ); //radix=8,10 or 16
+
+        /**
+         * Append the given unsigned integer to this string
+         */
+      inline void AppendInt( PRUint32 aInteger, PRInt32 aRadix = kRadix10 )
+        {
+          AppendInt(PRInt32(aInteger), aRadix);
+        }
+
+        /**
+         * Append the given 64-bit integer to this string.
+         * @param aInteger The integer to append
+         * @param aRadix   The radix to use; can be 8, 10 or 16.
+         */
+      NS_COM void AppendInt( PRInt64 aInteger, PRInt32 aRadix=kRadix10 );
+
+        /**
+         * Append the given float to this string 
+         */
+
+      NS_COM void AppendFloat( float aFloat );
+
+      NS_COM void AppendFloat( double aFloat );
+
 #endif // !MOZ_STRING_WITH_OBSOLETE_API
 
 
@@ -418,20 +444,9 @@ class nsTFixedString_CharT : public nsTString_CharT
          *        the length of the string already contained in the buffer
          */
 
-      nsTFixedString_CharT( char_type* data, size_type storageSize )
-        : string_type(data, PRUint32(char_traits::length(data)), F_TERMINATED | F_FIXED | F_CLASS_FIXED)
-        , mFixedCapacity(storageSize - 1)
-        , mFixedBuf(data)
-        {}
+      NS_COM nsTFixedString_CharT( char_type* data, size_type storageSize );
 
-      nsTFixedString_CharT( char_type* data, size_type storageSize, size_type length )
-        : string_type(data, length, F_TERMINATED | F_FIXED | F_CLASS_FIXED)
-        , mFixedCapacity(storageSize - 1)
-        , mFixedBuf(data)
-        {
-          // null-terminate
-          mFixedBuf[length] = char_type(0);
-        }
+      NS_COM nsTFixedString_CharT( char_type* data, size_type storageSize, size_type length );
 
         // |operator=| does not inherit, so we must define our own
       self_type& operator=( char_type c )                                                       { Assign(c);        return *this; }
@@ -524,34 +539,6 @@ class NS_STACK_CLASS nsTAutoString_CharT : public nsTFixedString_CharT
   };
 
 
-  //
-  // nsAutoString stores pointers into itself which are invalidated when an
-  // nsTArray is resized, so nsTArray must not be instantiated with nsAutoString
-  // elements!
-  //
-  template<class E> class nsTArrayElementTraits;
-  template<>
-  class nsTArrayElementTraits<nsTAutoString_CharT> {
-    public:
-      template<class A> struct Dont_Instantiate_nsTArray_of;
-      template<class A> struct Instead_Use_nsTArray_of;
-
-      static Dont_Instantiate_nsTArray_of<nsTAutoString_CharT> *
-      Construct(Instead_Use_nsTArray_of<nsTString_CharT> *e) {
-        return 0;
-      }
-      template<class A>
-      static Dont_Instantiate_nsTArray_of<nsTAutoString_CharT> *
-      Construct(Instead_Use_nsTArray_of<nsTString_CharT> *e,
-                const A &arg) {
-        return 0;
-      }
-      static Dont_Instantiate_nsTArray_of<nsTAutoString_CharT> *
-      Destruct(Instead_Use_nsTArray_of<nsTString_CharT> *e) {
-        return 0;
-      }
-  };
-
   /**
    * nsTXPIDLString extends nsTString such that:
    *
@@ -573,11 +560,11 @@ class nsTXPIDLString_CharT : public nsTString_CharT
     public:
 
       nsTXPIDLString_CharT()
-        : string_type(char_traits::sEmptyBuffer, 0, F_TERMINATED | F_VOIDED) {}
+        : string_type(const_cast<char_type*>(char_traits::sEmptyBuffer), 0, F_TERMINATED | F_VOIDED) {}
 
         // copy-constructor required to avoid default
       nsTXPIDLString_CharT( const self_type& str )
-        : string_type(char_traits::sEmptyBuffer, 0, F_TERMINATED | F_VOIDED)
+        : string_type(const_cast<char_type*>(char_traits::sEmptyBuffer), 0, F_TERMINATED | F_VOIDED)
         {
           Assign(str);
         }

@@ -61,6 +61,7 @@
 #include <ctype.h>
 
 typedef struct _cairo_type1_font_subset {
+
     cairo_scaled_font_subset_t *scaled_font_subset;
 
     struct {
@@ -75,6 +76,7 @@ typedef struct _cairo_type1_font_subset {
 	unsigned long  header_size;
 	unsigned long  data_size;
 	unsigned long  trailer_size;
+
     } base;
 
     FT_Face face;
@@ -113,20 +115,21 @@ typedef struct _cairo_type1_font_subset {
 
 
 static cairo_status_t
-_cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
-			       cairo_unscaled_font_t      *unscaled_font,
-			       cairo_bool_t                hex_encode)
+_cairo_type1_font_subset_create (cairo_unscaled_font_t      *unscaled_font,
+				 cairo_type1_font_subset_t **subset_return,
+                                 cairo_bool_t                hex_encode)
 {
     cairo_ft_unscaled_font_t *ft_unscaled_font;
     cairo_status_t status;
     FT_Face face;
     PS_FontInfoRec font_info;
+    cairo_type1_font_subset_t *font;
     int i, j;
 
     ft_unscaled_font = (cairo_ft_unscaled_font_t *) unscaled_font;
 
     face = _cairo_ft_unscaled_font_lock_face (ft_unscaled_font);
-    if (unlikely (face == NULL))
+    if (face == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     if (FT_Get_PS_Font_Info(face, &font_info) != 0) {
@@ -142,7 +145,12 @@ _cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
     }
 #endif
 
-    memset (font, 0, sizeof (*font));
+    font = calloc (sizeof (cairo_type1_font_subset_t), 1);
+    if (font == NULL) {
+	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+        goto fail1;
+    }
+
     font->base.unscaled_font = _cairo_unscaled_font_reference (unscaled_font);
     font->base.num_glyphs = face->num_glyphs;
     font->base.x_min = face->bbox.xMin;
@@ -154,7 +162,7 @@ _cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
 
     if (face->family_name) {
 	font->base.base_font = strdup (face->family_name);
-	if (unlikely (font->base.base_font == NULL)) {
+	if (font->base.base_font == NULL) {
 	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	    goto fail2;
 	}
@@ -167,7 +175,7 @@ _cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
     }
 
     font->glyphs = calloc (face->num_glyphs, sizeof font->glyphs[0]);
-    if (unlikely (font->glyphs == NULL)) {
+    if (font->glyphs == NULL) {
         status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail3;
     }
@@ -181,6 +189,8 @@ _cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
 
     _cairo_ft_unscaled_font_unlock_face (ft_unscaled_font);
 
+    *subset_return = font;
+
     return CAIRO_STATUS_SUCCESS;
 
  fail3:
@@ -188,6 +198,7 @@ _cairo_type1_font_subset_init (cairo_type1_font_subset_t  *font,
 	free (font->base.base_font);
  fail2:
     _cairo_unscaled_font_destroy (unscaled_font);
+    free (font);
  fail1:
     _cairo_ft_unscaled_font_unlock_face (ft_unscaled_font);
 
@@ -235,7 +246,7 @@ cairo_type1_font_subset_find_segments (cairo_type1_font_subset_t *font)
 {
     unsigned char *p;
     const char *eexec_token;
-    int size, i;
+    int size;
 
     p = (unsigned char *) font->type1_data;
     font->type1_end = font->type1_data + font->type1_length;
@@ -266,10 +277,6 @@ cairo_type1_font_subset_find_segments (cairo_type1_font_subset_t *font)
 	font->eexec_segment_size = font->type1_length - font->header_segment_size;
 	font->eexec_segment = (char *) p + font->header_segment_size;
 	font->eexec_segment_is_ascii = TRUE;
-	for (i = 0; i < 4; i++) {
-	    if (!isxdigit(font->eexec_segment[i]))
-		font->eexec_segment_is_ascii = FALSE;
-	}
     }
 
     return CAIRO_STATUS_SUCCESS;
@@ -299,8 +306,8 @@ cairo_type1_font_erase_dict_key (cairo_type1_font_subset_t *font,
 	    p = start + strlen(key);
 	    /* skip integers or array of integers */
 	    while (p < segment_end &&
-		   (_cairo_isspace(*p) ||
-		    _cairo_isdigit(*p) ||
+		   (isspace(*p) ||
+		    isdigit(*p) ||
 		    *p == '[' ||
 		    *p == ']'))
 	    {
@@ -358,7 +365,7 @@ cairo_type1_font_subset_write_header (cairo_type1_font_subset_t *font,
     start = find_token (font->header_segment, segment_end, "/UniqueID");
     if (start) {
 	start += 9;
-	while (start < segment_end && _cairo_isspace (*start))
+	while (start < segment_end && isspace (*start))
 	    start++;
 	if (start + 5 < segment_end && memcmp(start, "known", 5) == 0) {
 	    _cairo_output_stream_write (font->output, font->header_segment,
@@ -471,14 +478,14 @@ cairo_type1_font_subset_decrypt_eexec_segment (cairo_type1_font_subset_t *font)
     end = (unsigned char *) in + font->eexec_segment_size;
 
     font->cleartext = malloc (font->eexec_segment_size);
-    if (unlikely (font->cleartext == NULL))
+    if (font->cleartext == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     out = font->cleartext;
     while (in < end) {
 	if (font->eexec_segment_is_ascii) {
 	    c = *in++;
-	    if (_cairo_isspace (c))
+	    if (isspace (c))
 		continue;
 	    c = (hex_to_int (c) << 4) | hex_to_int (*in++);
 	} else {
@@ -514,10 +521,10 @@ cairo_type1_font_subset_decrypt_eexec_segment (cairo_type1_font_subset_t *font)
 static const char *
 skip_token (const char *p, const char *end)
 {
-    while (p < end && _cairo_isspace(*p))
+    while (p < end && isspace(*p))
 	p++;
 
-    while (p < end && !_cairo_isspace(*p))
+    while (p < end && !isspace(*p))
 	p++;
 
     if (p == end)
@@ -557,27 +564,21 @@ cairo_type1_font_subset_get_glyph_names_and_widths (cairo_type1_font_subset_t *f
 	error = FT_Load_Glyph (font->face, i,
 			       FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING |
 			       FT_LOAD_NO_BITMAP | FT_LOAD_IGNORE_TRANSFORM);
-	if (error != FT_Err_Ok) {
-	    /* propagate fatal errors from FreeType */
-	    if (error == FT_Err_Out_Of_Memory)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+	if (error != 0) {
+	    printf ("could not load glyph %d\n", i);
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	}
 
 	font->glyphs[i].width = font->face->glyph->metrics.horiAdvance;
 
 	error = FT_Get_Glyph_Name(font->face, i, buffer, sizeof buffer);
-	if (error != FT_Err_Ok) {
-	    /* propagate fatal errors from FreeType */
-	    if (error == FT_Err_Out_Of_Memory)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+	if (error != 0) {
+	    printf ("could not get glyph name for glyph %d\n", i);
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	}
 
 	font->glyphs[i].name = strdup (buffer);
-	if (unlikely (font->glyphs[i].name == NULL))
+	if (font->glyphs[i].name == NULL)
 	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
@@ -842,7 +843,7 @@ cairo_type1_font_subset_look_for_seac(cairo_type1_font_subset_t *font,
     int command;
 
     charstring = malloc (encrypted_charstring_length);
-    if (unlikely (charstring == NULL))
+    if (charstring == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     cairo_type1_font_subset_decrypt_charstring ((const unsigned char *)
@@ -870,11 +871,11 @@ cairo_type1_font_subset_look_for_seac(cairo_type1_font_subset_t *font,
 		 * make sure those glyphs are present in the subset
 		 * under their standard names. */
 		status = use_standard_encoding_glyph (font, stack[3]);
-		if (unlikely (status))
+		if (status)
 		    return status;
 
 		status = use_standard_encoding_glyph (font, stack[4]);
-		if (unlikely (status))
+		if (status)
 		    return status;
 
 		sp = 0;
@@ -910,18 +911,18 @@ write_used_glyphs (cairo_type1_font_subset_t *font,
 		       "/%.*s %d %s ",
 		       name_length, name, charstring_length, font->rd);
     status = cairo_type1_font_subset_write_encrypted (font, buffer, length);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     status = cairo_type1_font_subset_write_encrypted (font,
 					              charstring,
 						      charstring_length);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     length = snprintf (buffer, sizeof buffer, "%s\n", font->nd);
     status = cairo_type1_font_subset_write_encrypted (font, buffer, length);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     return CAIRO_STATUS_SUCCESS;
@@ -973,7 +974,7 @@ cairo_type1_font_subset_for_each_glyph (cairo_type1_font_subset_t *font,
 
 	/* Skip binary data and |- or ND token. */
 	p = skip_token (charstring + charstring_length, dict_end);
-	while (p < dict_end && _cairo_isspace(*p))
+	while (p < dict_end && isspace(*p))
 	    p++;
 
 	/* In case any of the skip_token() calls above reached EOF, p will
@@ -987,7 +988,7 @@ cairo_type1_font_subset_for_each_glyph (cairo_type1_font_subset_t *font,
 	    cairo_status_t status = func (font,
 		                          name, name_length,
 					  charstring, charstring_length);
-	    if (unlikely (status))
+	    if (status)
 		return status;
 	}
     }
@@ -1044,7 +1045,7 @@ cairo_type1_font_subset_write_private_dict (cairo_type1_font_subset_t *font,
     dict_start = p;
 
     status = cairo_type1_font_subset_get_glyph_names_and_widths (font);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Now that we have the private dictionary broken down in
@@ -1056,7 +1057,7 @@ cairo_type1_font_subset_write_private_dict (cairo_type1_font_subset_t *font,
 						     font->cleartext_end,
 						     cairo_type1_font_subset_look_for_seac,
 						     &p);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     closefile_token = find_token (p, font->cleartext_end, "closefile");
@@ -1064,13 +1065,13 @@ cairo_type1_font_subset_write_private_dict (cairo_type1_font_subset_t *font,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
     status = cairo_type1_font_subset_get_glyph_names_and_widths (font);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* We're ready to start outputting. First write the header,
      * i.e. the public part of the font dict.*/
     status = cairo_type1_font_subset_write_header (font, name);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->base.header_size = _cairo_output_stream_get_position (font->output);
@@ -1080,21 +1081,21 @@ cairo_type1_font_subset_write_private_dict (cairo_type1_font_subset_t *font,
      * to the /CharStrings token. */
     status = cairo_type1_font_subset_write_encrypted (font, font->cleartext,
 					         charstrings - font->cleartext);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Write out new charstring count */
     length = snprintf (buffer, sizeof buffer,
 		       "/CharStrings %d", font->num_glyphs);
     status = cairo_type1_font_subset_write_encrypted (font, buffer, length);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Write out text between the charstring count and the first
      * charstring definition */
     status = cairo_type1_font_subset_write_encrypted (font, glyph_count_end,
 	                                          dict_start - glyph_count_end);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Write out the charstring definitions for each of the glyphs in
@@ -1104,18 +1105,17 @@ cairo_type1_font_subset_write_private_dict (cairo_type1_font_subset_t *font,
 						     font->cleartext_end,
 						     write_used_glyphs,
 						     &p);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Output what's left between the end of the glyph definitions and
      * the end of the private dict to the output. */
     status = cairo_type1_font_subset_write_encrypted (font, p,
 	                        closefile_token - p + strlen ("closefile") + 1);
-    if (unlikely (status))
+    if (status)
 	return status;
 
-    if (font->hex_encode)
-	_cairo_output_stream_write (font->output, "\n", 1);
+    _cairo_output_stream_write (font->output, "\n", 1);
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -1128,27 +1128,19 @@ cairo_type1_font_subset_write_trailer(cairo_type1_font_subset_t *font)
     static const char zeros[65] =
 	"0000000000000000000000000000000000000000000000000000000000000000\n";
 
+    /* Some fonts have conditional save/restore around the entire font
+     * dict, so we need to retain whatever postscript code that may
+     * come after 'cleartomark'. */
 
     for (i = 0; i < 8; i++)
 	_cairo_output_stream_write (font->output, zeros, sizeof zeros);
 
     cleartomark_token = find_token (font->type1_data, font->type1_end, "cleartomark");
-    if (cleartomark_token) {
-	/* Some fonts have conditional save/restore around the entire
-	 * font dict, so we need to retain whatever postscript code
-	 * that may come after 'cleartomark'. */
-
-	_cairo_output_stream_write (font->output, cleartomark_token,
-				    font->type1_end - cleartomark_token);
-    } else if (!font->eexec_segment_is_ascii) {
-	/* Fonts embedded in PDF may omit the fixed-content portion
-	 * that includes the 'cleartomark' operator. Type 1 in PDF is
-	 * always binary. */
-
-	_cairo_output_stream_printf (font->output, "cleartomark");
-    } else {
+    if (cleartomark_token == NULL)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
-    }
+
+    _cairo_output_stream_write (font->output, cleartomark_token,
+				font->type1_end - cleartomark_token);
 
     /* some fonts do not have a newline at the end of the last line */
     _cairo_output_stream_printf (font->output, "\n");
@@ -1171,11 +1163,11 @@ cairo_type1_font_subset_write (cairo_type1_font_subset_t *font,
     cairo_status_t status;
 
     status = cairo_type1_font_subset_find_segments (font);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     status = cairo_type1_font_subset_decrypt_eexec_segment (font);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     /* Determine which glyph definition delimiters to use. */
@@ -1194,14 +1186,14 @@ cairo_type1_font_subset_write (cairo_type1_font_subset_t *font,
     font->hex_column = 0;
 
     status = cairo_type1_font_subset_write_private_dict (font, name);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->base.data_size = _cairo_output_stream_get_position (font->output) -
 	font->base.header_size;
 
     status = cairo_type1_font_subset_write_trailer (font);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->base.trailer_size =
@@ -1223,25 +1215,20 @@ cairo_type1_font_subset_generate (void       *abstract_font,
 
     ft_unscaled_font = (cairo_ft_unscaled_font_t *) font->base.unscaled_font;
     font->face = _cairo_ft_unscaled_font_lock_face (ft_unscaled_font);
-    if (unlikely (font->face == NULL))
+    if (font->face == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     font->type1_length = font->face->stream->size;
     font->type1_data = malloc (font->type1_length);
-    if (unlikely (font->type1_data == NULL)) {
+    if (font->type1_data == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto fail;
     }
 
-    if (font->face->stream->read != NULL) {
-	/* Note that read() may be implemented as a macro, thanks POSIX!, so we
-	 * need to wrap the following usage in parentheses in order to
-	 * disambiguate it for the pre-processor - using the verbose function
-	 * pointer dereference for clarity.
-	 */
-	ret = (* font->face->stream->read) (font->face->stream, 0,
-					    (unsigned char *) font->type1_data,
-					    font->type1_length);
+    if (font->face->stream->read) {
+	ret = font->face->stream->read (font->face->stream, 0,
+					(unsigned char *) font->type1_data,
+					font->type1_length);
 	if (ret != font->type1_length) {
 	    status = _cairo_error (CAIRO_STATUS_READ_ERROR);
 	    goto fail;
@@ -1252,15 +1239,17 @@ cairo_type1_font_subset_generate (void       *abstract_font,
     }
 
     status = _cairo_array_grow_by (&font->contents, 4096);
-    if (unlikely (status))
+    if (status)
 	goto fail;
 
     font->output = _cairo_output_stream_create (type1_font_write, NULL, font);
-    if (unlikely ((status = font->output->status)))
+    if (_cairo_output_stream_get_status (font->output)) {
+	status = _cairo_output_stream_destroy (font->output);
 	goto fail;
+    }
 
     status = cairo_type1_font_subset_write (font, name);
-    if (unlikely (status))
+    if (status)
 	goto fail;
 
     font->base.data = _cairo_array_index (&font->contents, 0);
@@ -1271,10 +1260,10 @@ cairo_type1_font_subset_generate (void       *abstract_font,
     return status;
 }
 
-static cairo_status_t
-_cairo_type1_font_subset_fini (cairo_type1_font_subset_t *font)
+static void
+cairo_type1_font_subset_destroy (void *abstract_font)
 {
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
+    cairo_type1_font_subset_t *font = abstract_font;
     unsigned int i;
 
     /* If the subset generation failed, some of the pointers below may
@@ -1283,22 +1272,19 @@ _cairo_type1_font_subset_fini (cairo_type1_font_subset_t *font)
     _cairo_array_fini (&font->contents);
 
     free (font->type1_data);
-    if (font->glyphs != NULL) {
-	for (i = 0; i < font->base.num_glyphs; i++)
+    if (font->glyphs != NULL)
+	for (i = 0; i < font->base.num_glyphs; i++) {
 	    free (font->glyphs[i].name);
-    }
+	}
 
     _cairo_unscaled_font_destroy (font->base.unscaled_font);
-
-    if (font->output != NULL)
-	status = _cairo_output_stream_destroy (font->output);
 
     if (font->base.base_font)
 	free (font->base.base_font);
     free (font->glyphs);
-
-    return status;
+    free (font);
 }
+
 
 cairo_status_t
 _cairo_type1_subset_init (cairo_type1_subset_t		*type1_subset,
@@ -1306,8 +1292,8 @@ _cairo_type1_subset_init (cairo_type1_subset_t		*type1_subset,
 			  cairo_scaled_font_subset_t	*scaled_font_subset,
                           cairo_bool_t                   hex_encode)
 {
-    cairo_type1_font_subset_t font;
-    cairo_status_t status, status_ignored;
+    cairo_type1_font_subset_t *font = NULL; /* hide compiler warning */
+    cairo_status_t status;
     unsigned long parent_glyph, length;
     unsigned int i;
     cairo_unscaled_font_t *unscaled_font;
@@ -1322,68 +1308,69 @@ _cairo_type1_subset_init (cairo_type1_subset_t		*type1_subset,
 
     unscaled_font = _cairo_ft_scaled_font_get_unscaled_font (scaled_font_subset->scaled_font);
 
-    status = _cairo_type1_font_subset_init (&font, unscaled_font, hex_encode);
-    if (unlikely (status))
+    status = _cairo_type1_font_subset_create (unscaled_font, &font, hex_encode);
+    if (status)
 	return status;
 
     for (i = 0; i < scaled_font_subset->num_glyphs; i++) {
 	parent_glyph = scaled_font_subset->glyphs[i];
-	cairo_type1_font_subset_use_glyph (&font, parent_glyph);
+	cairo_type1_font_subset_use_glyph (font, parent_glyph);
     }
 
-    status = cairo_type1_font_subset_generate (&font, name);
-    if (unlikely (status))
+    status = cairo_type1_font_subset_generate (font, name);
+    if (status)
 	goto fail1;
 
-    if (font.base.base_font) {
-	type1_subset->base_font = strdup (font.base.base_font);
+    if (font->base.base_font) {
+	type1_subset->base_font = strdup (font->base.base_font);
     } else {
         snprintf(buf, sizeof (buf), "CairoFont-%u-%u",
                  scaled_font_subset->font_id, scaled_font_subset->subset_id);
 	type1_subset->base_font = strdup (buf);
     }
-    if (unlikely (type1_subset->base_font == NULL))
+    if (type1_subset->base_font == NULL)
 	goto fail1;
 
-    type1_subset->widths = calloc (sizeof (int), font.num_glyphs);
-    if (unlikely (type1_subset->widths == NULL))
+    type1_subset->widths = calloc (sizeof (int), font->num_glyphs);
+    if (type1_subset->widths == NULL)
 	goto fail2;
-    for (i = 0; i < font.base.num_glyphs; i++) {
-	if (font.glyphs[i].subset_index < 0)
+    for (i = 0; i < font->base.num_glyphs; i++) {
+	if (font->glyphs[i].subset_index < 0)
 	    continue;
-	type1_subset->widths[font.glyphs[i].subset_index] =
-	    font.glyphs[i].width;
+	type1_subset->widths[font->glyphs[i].subset_index] =
+	    font->glyphs[i].width;
     }
 
-    type1_subset->x_min = font.base.x_min;
-    type1_subset->y_min = font.base.y_min;
-    type1_subset->x_max = font.base.x_max;
-    type1_subset->y_max = font.base.y_max;
-    type1_subset->ascent = font.base.ascent;
-    type1_subset->descent = font.base.descent;
+    type1_subset->x_min = font->base.x_min;
+    type1_subset->y_min = font->base.y_min;
+    type1_subset->x_max = font->base.x_max;
+    type1_subset->y_max = font->base.y_max;
+    type1_subset->ascent = font->base.ascent;
+    type1_subset->descent = font->base.descent;
 
-    length = font.base.header_size +
-	     font.base.data_size +
-	     font.base.trailer_size;
+    length = font->base.header_size + font->base.data_size +
+	font->base.trailer_size;
     type1_subset->data = malloc (length);
-    if (unlikely (type1_subset->data == NULL))
+    if (type1_subset->data == NULL)
 	goto fail3;
 
     memcpy (type1_subset->data,
-	    _cairo_array_index (&font.contents, 0), length);
+	    _cairo_array_index (&font->contents, 0), length);
 
-    type1_subset->header_length = font.base.header_size;
-    type1_subset->data_length = font.base.data_size;
-    type1_subset->trailer_length = font.base.trailer_size;
+    type1_subset->header_length = font->base.header_size;
+    type1_subset->data_length = font->base.data_size;
+    type1_subset->trailer_length = font->base.trailer_size;
 
-    return _cairo_type1_font_subset_fini (&font);
+    cairo_type1_font_subset_destroy (font);
+
+    return CAIRO_STATUS_SUCCESS;
 
  fail3:
     free (type1_subset->widths);
  fail2:
     free (type1_subset->base_font);
  fail1:
-    status_ignored = _cairo_type1_font_subset_fini (&font);
+    cairo_type1_font_subset_destroy (font);
 
     return status;
 }

@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * Version: ML 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -39,6 +39,8 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLVideoElement.h"
 #include "nsGenericHTMLElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -64,21 +66,15 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsMediaError.h"
-
-using namespace mozilla::dom;
+#include "nsHTMLMediaError.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 
-DOMCI_NODE_DATA(HTMLVideoElement, nsHTMLVideoElement)
-
-NS_INTERFACE_TABLE_HEAD(nsHTMLVideoElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLVideoElement,
-                                               nsHTMLMediaElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLVideoElement, nsHTMLMediaElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLVideoElement, nsIDOMHTMLVideoElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLVideoElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLVideoElement)
@@ -86,24 +82,33 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLVideoElement)
 // nsIDOMHTMLVideoElement
 NS_IMPL_INT_ATTR(nsHTMLVideoElement, Width, width)
 NS_IMPL_INT_ATTR(nsHTMLVideoElement, Height, height)
+NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)
 
 // nsIDOMHTMLVideoElement
 /* readonly attribute unsigned long videoWidth; */
 NS_IMETHODIMP nsHTMLVideoElement::GetVideoWidth(PRUint32 *aVideoWidth)
 {
-  *aVideoWidth = mMediaSize.width == -1 ? 0 : mMediaSize.width;
+  nsIntSize size(0,0);
+  if (mDecoder) 
+    size = mDecoder->GetVideoSize(size);
+
+  *aVideoWidth = size.width;
   return NS_OK;
 }
 
 /* readonly attribute unsigned long videoHeight; */
 NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
 {
-  *aVideoHeight = mMediaSize.height == -1 ? 0 : mMediaSize.height;
+  nsIntSize size(0,0);
+  if (mDecoder) 
+    size = mDecoder->GetVideoSize(size);
+
+  *aVideoHeight = size.height;
   return NS_OK;
 }
 
-nsHTMLVideoElement::nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+
+nsHTMLVideoElement::nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }
@@ -112,74 +117,43 @@ nsHTMLVideoElement::~nsHTMLVideoElement()
 {
 }
 
-nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize aDefaultSize)
+nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize defaultSize)
 {
-  return mMediaSize.width == -1 && mMediaSize.height == -1 ? aDefaultSize : mMediaSize;
+  return mDecoder ? mDecoder->GetVideoSize(defaultSize) : defaultSize;
 }
 
-PRBool
-nsHTMLVideoElement::ParseAttribute(PRInt32 aNamespaceID,
-                                   nsIAtom* aAttribute,
-                                   const nsAString& aValue,
-                                   nsAttrValue& aResult)
-{
-   if (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height) {
-     return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
-   }
-
-   return nsHTMLMediaElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                             aResult);
+double nsHTMLVideoElement::GetVideoFramerate() {
+  return mDecoder ? mDecoder->GetVideoFramerate() : 0.0;
 }
 
-static void
-MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                      nsRuleData* aData)
+
+nsresult nsHTMLVideoElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                        nsIContent* aBindingParent,
+                                        PRBool aCompileEventHandlers)
 {
-  nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
-  nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
+  if (mDecoder)
+    mDecoder->ElementAvailable(this);
+
+  return nsHTMLMediaElement::BindToTree(aDocument, 
+                                        aParent, 
+                                        aBindingParent, 
+                                        aCompileEventHandlers);
 }
 
-NS_IMETHODIMP_(PRBool)
-nsHTMLVideoElement::IsAttributeMapped(const nsIAtom* aAttribute) const
+void nsHTMLVideoElement::UnbindFromTree(PRBool aDeep,
+                                        PRBool aNullParent)
 {
-  static const MappedAttributeEntry attributes[] = {
-    { &nsGkAtoms::width },
-    { &nsGkAtoms::height },
-    { nsnull }
-  };
+  nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
 
-  static const MappedAttributeEntry* const map[] = {
-    attributes,
-    sCommonAttributeMap
-  };
-
-  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
+  if (mDecoder) 
+    mDecoder->ElementUnavailable();
 }
 
-nsMapRuleToAttributesFunc
-nsHTMLVideoElement::GetAttributeMappingFunction() const
+nsresult nsHTMLVideoElement::InitializeDecoder(nsAString& aChosenMediaResource)
 {
-  return &MapAttributesIntoRule;
+  if (mDecoder) 
+    mDecoder->ElementAvailable(this);
+
+  return nsHTMLMediaElement::InitializeDecoder(aChosenMediaResource);
 }
 
-nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
-{
-    nsCAutoString value(
-#ifdef MOZ_WEBM
-        "video/webm,"
-#endif
-#ifdef MOZ_OGG
-        "video/ogg,"
-#endif
-        "video/*;q=0.9,"
-#ifdef MOZ_OGG
-        "application/ogg;q=0.7,"
-#endif
-        "audio/*;q=0.6,*/*;q=0.5");
-
-    return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                      value,
-                                      PR_FALSE);
-}
-
-NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)

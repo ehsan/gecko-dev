@@ -39,13 +39,14 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 
 class nsHTMLDivElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLDivElement
 {
 public:
-  nsHTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLDivElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLDivElement();
 
   // nsISupports
@@ -70,15 +71,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Div)
 
 
-nsHTMLDivElement::nsHTMLDivElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLDivElement::nsHTMLDivElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -91,13 +90,11 @@ nsHTMLDivElement::~nsHTMLDivElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLDivElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLDivElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLDivElement, nsHTMLDivElement)
+
 
 // QueryInterface implementation for nsHTMLDivElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLDivElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLDivElement, nsIDOMHTMLDivElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLDivElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLDivElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLDivElement, nsIDOMHTMLDivElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLDivElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLDivElement)
@@ -119,7 +116,7 @@ nsHTMLDivElement::ParseAttribute(PRInt32 aNamespaceID,
         return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
       }
       if (aAttribute == nsGkAtoms::bgcolor) {
-        return aResult.ParseColor(aValue);
+        return aResult.ParseColor(aValue, GetOwnerDoc());
       }
       if ((aAttribute == nsGkAtoms::hspace) ||
           (aAttribute == nsGkAtoms::vspace)) {
@@ -186,4 +183,3 @@ nsHTMLDivElement::GetAttributeMappingFunction() const
   }  
   return nsGenericHTMLElement::GetAttributeMappingFunction();
 }
-

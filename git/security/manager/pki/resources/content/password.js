@@ -47,13 +47,6 @@ var params;
 var tokenName="";
 var pw1;
 
-function doPrompt(msg)
-{
-  let prompts = Components.classes["@mozilla.org/embedcomp/prompt-service;1"].
-    getService(Components.interfaces.nsIPromptService);
-  prompts.alert(window, null, msg);
-}
-
 function onLoad()
 {
   document.documentElement.getButton("accept").disabled = true;
@@ -203,18 +196,18 @@ function setPassword()
             var secmoddb = Components.classes[nsPKCS11ModuleDB].getService(nsIPKCS11ModuleDB);
             if (secmoddb.isFIPSEnabled) {
               // empty passwords are not allowed in FIPS mode
-              doPrompt(bundle.GetStringFromName("pw_change2empty_in_fips_mode"));
+              alert(bundle.GetStringFromName("pw_change2empty_in_fips_mode"));
               passok = 0;
             }
           }
           if (passok) {
             token.changePassword(oldpw, pw1.value);
             if (pw1.value == "") {
-              doPrompt(bundle.GetStringFromName("pw_erased_ok")
+              alert(bundle.GetStringFromName("pw_erased_ok")
                     + " "
                     + bundle.GetStringFromName("pw_empty_warning"));
             } else {
-              doPrompt(bundle.GetStringFromName("pw_change_ok")); 
+              alert(bundle.GetStringFromName("pw_change_ok")); 
             }
             success = true;
           }
@@ -222,15 +215,15 @@ function setPassword()
       } else {
         oldpwbox.focus();
         oldpwbox.setAttribute("value", "");
-        doPrompt(bundle.GetStringFromName("incorrect_pw")); 
+        alert(bundle.GetStringFromName("incorrect_pw")); 
       }
     } catch (e) {
-      doPrompt(bundle.GetStringFromName("failed_pw_change")); 
+      alert(bundle.GetStringFromName("failed_pw_change")); 
     }
   } else {
     token.initPassword(pw1.value);
     if (pw1.value == "") {
-      doPrompt(bundle.GetStringFromName("pw_not_wanted")
+      alert(bundle.GetStringFromName("pw_not_wanted")
             + " " 
             + bundle.GetStringFromName("pw_empty_warning"));
     }
@@ -274,7 +267,7 @@ function setPasswordStrength()
 // upper and lower case characters
 
   var pw=document.getElementById('pw1').value;
-//  doPrompt("password='" + pw +"'");
+//  alert("password='" + pw +"'");
 
 //length of the password
   var pwlength=(pw.length);

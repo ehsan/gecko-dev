@@ -15,12 +15,11 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jim Mathies <jmathies@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,87 +35,52 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef IEnumeFE_h__
-#define IEnumeFE_h__
 
-/*
- * CEnumFormatEtc - implements IEnumFORMATETC
- */
-
+#ifndef _IENUMFE_H_
+#define _IENUMFE_H_
 #include <ole2.h>
 
-#include "nsTArray.h"
-
-// FORMATETC container
-class FormatEtc
-{
-public:
-  FormatEtc() { memset(&mFormat, 0, sizeof(FORMATETC)); }
-  FormatEtc(const FormatEtc& copy) { CopyIn(&copy.mFormat); }
-  ~FormatEtc() { if (mFormat.ptd) CoTaskMemFree(mFormat.ptd); }
-
-  void CopyIn(const FORMATETC *aSrc) {
-    if (!aSrc) {
-        memset(&mFormat, 0, sizeof(FORMATETC));
-        return;
-    }
-    mFormat = *aSrc;
-    if (aSrc->ptd) {
-        mFormat.ptd = (DVTARGETDEVICE*)CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
-        *(mFormat.ptd) = *(aSrc->ptd);
-    }
-  }
-
-  void CopyOut(LPFORMATETC aDest) {
-    if (!aDest)
-        return;
-    *aDest = mFormat;
-    if (mFormat.ptd) {
-        aDest->ptd = (DVTARGETDEVICE*)CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
-        *(aDest->ptd) = *(mFormat.ptd);
-    }
-  }
-
-private:
-  FORMATETC mFormat;
-};
-
 /*
- * CEnumFormatEtc is created within IDataObject::EnumFormatEtc. This object lives
- * on its own, that is, QueryInterface only knows IUnknown and IEnumFormatEtc,
- * nothing more.  We still use an outer unknown for reference counting, because as
- * long as this enumerator lives, the data object should live, thereby keeping the
- * application up.
+ * IEnumFORMATETC object that is created from
+ * IDataObject::EnumFormatEtc.  This object lives on its own,
+ * that is, QueryInterface only knows IUnknown and IEnumFormatEtc,
+ * nothing more.  We still use an outer unknown for reference
+ * counting, because as long as this enumerator lives, the data
+ * object should live, thereby keeping the application up.
  */
 
+class CEnumFormatEtc;
+typedef class CEnumFormatEtc *LPCEnumFormatEtc;
+
 class CEnumFormatEtc : public IEnumFORMATETC
-{
-public:
-    CEnumFormatEtc(nsTArray<FormatEtc>& aArray);
-    CEnumFormatEtc();
-    ~CEnumFormatEtc();
+    {
+    private:
+        ULONG           mRefCnt;      // Object reference count
+        ULONG           mCurrentInx;  // Current element
+        ULONG           mNumFEs;      // Number of FORMATETCs in us
+        LPFORMATETC     mFEList;      // Source of FORMATETCs
+        ULONG           mMaxNumFEs;   // Max number of us
 
-    // IUnknown impl.
-    STDMETHODIMP QueryInterface(REFIID riid, LPVOID *ppv);
-    STDMETHODIMP_(ULONG) AddRef();
-    STDMETHODIMP_(ULONG) Release();
+    public:
+        CEnumFormatEtc(ULONG, LPFORMATETC);
+        CEnumFormatEtc(ULONG aMaxSize);
+        ~CEnumFormatEtc(void);
 
-    // IEnumFORMATETC impl.
-    STDMETHODIMP Next(ULONG aMaxToFetch, FORMATETC *aResult, ULONG *aNumFetched);
-    STDMETHODIMP Skip(ULONG aSkipNum);
-    STDMETHODIMP Reset();
-    STDMETHODIMP Clone(LPENUMFORMATETC *aResult); // Addrefs
+        //IUnknown members that delegate to m_pUnkOuter.
+        STDMETHODIMP         QueryInterface(REFIID, LPVOID*);
+        STDMETHODIMP_(ULONG) AddRef(void);
+        STDMETHODIMP_(ULONG) Release(void);
 
-    // Utils 
-    void AddFormatEtc(LPFORMATETC aFormat);
+        //IEnumFORMATETC members
+        STDMETHODIMP Next(ULONG, LPFORMATETC, ULONG *);
+        STDMETHODIMP Skip(ULONG);
+        STDMETHODIMP Reset(void);
+        STDMETHODIMP Clone(IEnumFORMATETC **);
 
-private:
-    nsTArray<FormatEtc> mFormatList; // Formats
-    ULONG mRefCnt; // Object reference count
-    ULONG mCurrentIdx; // Current element
-
-    void SetIndex(PRUint32 aIdx);
-};
+        // Extra Methods
+        void AddFE(LPFORMATETC);
+        bool InsertFEAt(LPFORMATETC, ULONG);
+    };
 
 
 #endif //_IENUMFE_H_

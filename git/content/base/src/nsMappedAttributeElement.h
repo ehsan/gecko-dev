@@ -60,7 +60,7 @@ class nsMappedAttributeElement : public nsMappedAttributeElementBase
 
 protected:
 
-  nsMappedAttributeElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsMappedAttributeElement(nsINodeInfo *aNodeInfo)
     : nsMappedAttributeElementBase(aNodeInfo)
   {}
 

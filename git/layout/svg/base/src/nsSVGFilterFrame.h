@@ -47,13 +47,11 @@ typedef nsSVGContainerFrame nsSVGFilterFrameBase;
 class nsSVGFilterFrame : public nsSVGFilterFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGFilterFrame(nsStyleContext* aContext) : nsSVGFilterFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsresult FilterPaint(nsSVGRenderState *aContext,
                        nsIFrame *aTarget, nsSVGFilterPaintCallback *aPaintCallback,
                        const nsIntRect* aDirtyRect);
@@ -80,12 +78,6 @@ public:
    * @param aSourceBBox overrides the normal bbox for the source, if non-null
    */
   nsIntRect GetFilterBBox(nsIFrame *aTarget, const nsIntRect *aSourceBBox);
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame

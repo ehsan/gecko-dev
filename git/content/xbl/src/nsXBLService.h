@@ -49,7 +49,7 @@
 #include "nsTArray.h"
 
 class nsXBLBinding;
-class nsXBLDocumentInfo;
+class nsIXBLDocumentInfo;
 class nsIContent;
 class nsIDocument;
 class nsIAtom;
@@ -84,7 +84,7 @@ class nsXBLService : public nsIXBLService,
                                      nsIURI* aBindingURI,
                                      nsIPrincipal* aOriginPrincipal,
                                      PRBool aForceSyncLoad,
-                                     nsXBLDocumentInfo** aResult);
+                                     nsIXBLDocumentInfo** aResult);
 
   // Used by XUL key bindings and for window XBL.
   NS_IMETHOD AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget);
@@ -107,6 +107,9 @@ protected:
   nsresult FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoundDocument,
                                 nsIURI* aDocumentURI, nsIURI* aBindingURI, 
                                 PRBool aForceSyncLoad, nsIDocument** aResult);
+
+  nsIXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURI,
+                                         nsIContent* aBoundElement);
 
   /**
    * This method calls the one below with an empty |aDontExtendURIs| array.

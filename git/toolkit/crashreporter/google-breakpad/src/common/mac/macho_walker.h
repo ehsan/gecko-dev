@@ -99,10 +99,6 @@ class MachoWalker {
   struct mach_header_64 *current_header_;
   unsigned long current_header_size_;
   off_t current_header_offset_;
-  
- private:
-  MachoWalker(const MachoWalker &);
-  MachoWalker &operator=(const MachoWalker &);
 };
 
 }  // namespace MacFileUtilities

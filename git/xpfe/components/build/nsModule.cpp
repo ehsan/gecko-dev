@@ -35,14 +35,45 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
+#include "nsICategoryManager.h"
 #include "nsNetUtil.h"
+#include "nsXPIDLString.h"
 #include "nsDirectoryViewer.h"
 #ifdef MOZ_RDF
 #include "rdf.h"
 #include "nsRDFCID.h"
 #endif
+
+#ifdef MOZ_SUITE
+#include "nsRelatedLinksHandlerImpl.h"
+#include "nsDocShellCID.h"
+#ifdef SUITE_USING_XPFE_DM
+#include "nsDownloadManager.h"
+#include "nsDownloadProxy.h"
+#endif
+
+#if !defined(MOZ_PLACES)
+#include "nsGlobalHistory.h"
+#endif
+
+#endif // MOZ_SUITE
+
+#if !defined(MOZ_MACBROWSER)
+#include "nsBrowserStatusFilter.h"
+#include "nsBrowserInstance.h"
+#endif
 #include "nsCURILoader.h"
+#include "nsXPFEComponentsCID.h"
+
+#if !defined(MOZ_PLACES)
+// {9491C382-E3C4-11D2-BDBE-0050040A9B44}
+#define NS_GLOBALHISTORY_CID \
+{ 0x9491c382, 0xe3c4, 0x11d2, { 0xbd, 0xbe, 0x0, 0x50, 0x4, 0xa, 0x9b, 0x44} }
+
+#define NS_GLOBALHISTORY_DATASOURCE_CONTRACTID \
+    "@mozilla.org/rdf/datasource;1?name=history"
+#endif
 
 #ifdef MOZ_RDF
 // Factory constructors
@@ -50,39 +81,102 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHTTPIndex, Init)
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDirectoryViewerFactory)
 
-NS_DEFINE_NAMED_CID(NS_DIRECTORYVIEWERFACTORY_CID);
-#ifdef MOZ_RDF
-NS_DEFINE_NAMED_CID(NS_HTTPINDEX_SERVICE_CID);
+#if !defined(MOZ_MACBROWSER)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserInstance)
 #endif
 
-
-static const mozilla::Module::CIDEntry kXPFECIDs[] = {
-    { &kNS_DIRECTORYVIEWERFACTORY_CID, false, NULL, nsDirectoryViewerFactoryConstructor },
-#ifdef MOZ_RDF
-    { &kNS_HTTPINDEX_SERVICE_CID, false, NULL, nsHTTPIndexConstructor },
+#ifdef MOZ_SUITE
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(RelatedLinksHandlerImpl, Init)
+#ifdef SUITE_USING_XPFE_DM
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDownloadManager, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
 #endif
-    { NULL }
-};
 
-static const mozilla::Module::ContractIDEntry kXPFEContracts[] = {
-    { "@mozilla.org/xpfe/http-index-format-factory-constructor", &kNS_DIRECTORYVIEWERFACTORY_CID },
-#ifdef MOZ_RDF
-    { NS_HTTPINDEX_SERVICE_CONTRACTID, &kNS_HTTPINDEX_SERVICE_CID },
-    { NS_HTTPINDEX_DATASOURCE_CONTRACTID, &kNS_HTTPINDEX_SERVICE_CID },
+#if !defined(MOZ_PLACES)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGlobalHistory, Init)
 #endif
-    { NULL }
+
+#endif // MOZ_SUITE
+
+static NS_METHOD
+RegisterProc(nsIComponentManager *aCompMgr,
+             nsIFile *aPath,
+             const char *registryLocation,
+             const char *componentType,
+             const nsModuleComponentInfo *info)
+{
+    nsresult rv;
+    nsCOMPtr<nsICategoryManager> catman = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
+
+    // add the MIME types layotu can handle to the handlers category.
+    // this allows users of layout's viewers (the docshell for example)
+    // to query the types of viewers layout can create.
+    return catman->AddCategoryEntry("Gecko-Content-Viewers", "application/http-index-format",
+                                    "@mozilla.org/xpfe/http-index-format-factory-constructor",
+                                    PR_TRUE, PR_TRUE, nsnull);
+}
+
+static NS_METHOD
+UnregisterProc(nsIComponentManager *aCompMgr,
+               nsIFile *aPath,
+               const char *registryLocation,
+               const nsModuleComponentInfo *info)
+{
+    nsresult rv;
+    nsCOMPtr<nsICategoryManager> catman = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
+
+    return catman->DeleteCategoryEntry("Gecko-Content-Viewers",
+                                       "application/http-index-format", PR_TRUE);
+}
+
+static const nsModuleComponentInfo components[] = {
+   { "Directory Viewer", NS_DIRECTORYVIEWERFACTORY_CID,
+      "@mozilla.org/xpfe/http-index-format-factory-constructor",
+      nsDirectoryViewerFactoryConstructor, RegisterProc, UnregisterProc  },
+#ifdef MOZ_RDF
+    { "Directory Viewer", NS_HTTPINDEX_SERVICE_CID, NS_HTTPINDEX_SERVICE_CONTRACTID,
+      nsHTTPIndexConstructor },
+    { "Directory Viewer", NS_HTTPINDEX_SERVICE_CID, NS_HTTPINDEX_DATASOURCE_CONTRACTID,
+      nsHTTPIndexConstructor },
+#endif
+
+#ifdef MOZ_SUITE
+#ifdef SUITE_USING_XPFE_DM
+    { "Download Manager", NS_DOWNLOADMANAGER_CID, NS_DOWNLOADMANAGER_CONTRACTID,
+      nsDownloadManagerConstructor },
+    { "Download", NS_DOWNLOAD_CID, NS_TRANSFER_CONTRACTID,
+      nsDownloadProxyConstructor },
+#endif
+    { "Related Links Handler", NS_RELATEDLINKSHANDLER_CID, NS_RELATEDLINKSHANDLER_CONTRACTID,
+       RelatedLinksHandlerImplConstructor},
+
+#if !defined(MOZ_PLACES)
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY2_CONTRACTID,
+      nsGlobalHistoryConstructor },
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY_DATASOURCE_CONTRACTID,
+      nsGlobalHistoryConstructor },
+    { "Global History", NS_GLOBALHISTORY_CID, NS_GLOBALHISTORY_AUTOCOMPLETE_CONTRACTID,
+      nsGlobalHistoryConstructor },
+#endif
+
+#endif // MOZ_SUITE
+
+#if !defined(MOZ_MACBROWSER)
+    { NS_BROWSERSTATUSFILTER_CLASSNAME,
+      NS_BROWSERSTATUSFILTER_CID,
+      NS_BROWSERSTATUSFILTER_CONTRACTID,
+      nsBrowserStatusFilterConstructor
+    },
+    { "nsBrowserInstance",
+      NS_BROWSERINSTANCE_CID,
+      NS_BROWSERINSTANCE_CONTRACTID,
+      nsBrowserInstanceConstructor
+    },
+#endif
+
 };
 
-static const mozilla::Module::CategoryEntry kXPFECategories[] = {
-    { "Gecko-Content-Viewers", "application/http-index-format", "@mozilla.org/xpfe/http-index-format-factory-constructor" },
-    { NULL }
-};
-
-static const mozilla::Module kXPFEModule = {
-    mozilla::Module::kVersion,
-    kXPFECIDs,
-    kXPFEContracts,
-    kXPFECategories
-};
-
-NSMODULE_DEFN(application) = &kXPFEModule;
+NS_IMPL_NSGETMODULE(application, components)

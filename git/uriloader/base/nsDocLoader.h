@@ -202,7 +202,7 @@ protected:
     // handler.
     void ChildDoneWithOnload(nsIDocumentLoader* aChild) {
         mChildrenInOnload.RemoveObject(aChild);
-        DocLoaderIsEmpty(PR_TRUE);
+        DocLoaderIsEmpty();
     }        
 
 protected:
@@ -217,6 +217,12 @@ protected:
     nsDocLoader*               mParent;                // [WEAK]
 
     nsVoidArray                mListenerInfoList;
+    /*
+     * This flag indicates that the loader is loading a document.  It is set
+     * from the call to LoadDocument(...) until the OnConnectionsComplete(...)
+     * notification is fired...
+     */
+    PRBool mIsLoadingDocument;
 
     nsCOMPtr<nsILoadGroup>        mLoadGroup;
     // We hold weak refs to all our kids
@@ -233,27 +239,9 @@ protected:
     nsInt64 mMaxTotalProgress;
 
     PLDHashTable mRequestInfoHash;
-    nsInt64 mCompletedTotalProgress;
-
-    /*
-     * This flag indicates that the loader is loading a document.  It is set
-     * from the call to LoadDocument(...) until the OnConnectionsComplete(...)
-     * notification is fired...
-     */
-    PRPackedBool mIsLoadingDocument;
 
     /* Flag to indicate that we're in the process of restoring a document. */
-    PRPackedBool mIsRestoringDocument;
-
-    /* Flag to indicate that we're in the process of flushing layout
-       under DocLoaderIsEmpty() and should not do another flush. */
-    PRPackedBool mDontFlushLayout;
-
-    /* Flag to indicate whether we should consider ourselves as currently
-       flushing layout for the purposes of IsBusy. For example, if Stop has
-       been called then IsBusy should return false even if we are still
-       flushing. */
-    PRPackedBool mIsFlushingLayout;
+    PRBool mIsRestoringDocument;
 
 private:
     // A list of kids that are in the middle of their onload calls and will let
@@ -264,17 +252,14 @@ private:
     
     // DocLoaderIsEmpty should be called whenever the docloader may be empty.
     // This method is idempotent and does nothing if the docloader is not in
-    // fact empty.  This method _does_ make sure that layout is flushed if our
-    // loadgroup has no active requests before checking for "real" emptiness if
-    // aFlushLayout is true.
-    void DocLoaderIsEmpty(PRBool aFlushLayout);
+    // fact empty.
+    void DocLoaderIsEmpty();
 
     nsListenerInfo *GetListenerInfo(nsIWebProgressListener* aListener);
 
     PRInt64 GetMaxTotalProgress();
 
     nsresult AddRequestInfo(nsIRequest* aRequest);
-    void RemoveRequestInfo(nsIRequest* aRequest);
     nsRequestInfo *GetRequestInfo(nsIRequest* aRequest);
     void ClearRequestInfoHash();
     PRInt64 CalculateMaxProgress();

@@ -334,7 +334,7 @@ NS_IMETHODIMP nsTestVariant::GetEnumerator(nsISupports *aObj, nsISimpleEnumerato
 /***************************************************************************/
 
 // static
-nsresult
+NS_IMETHODIMP
 xpctest::ConstructXPCTestVariant(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsresult rv;

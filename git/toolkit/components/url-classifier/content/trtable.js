@@ -53,13 +53,13 @@ function UrlClassifierTable() {
 UrlClassifierTable.prototype.QueryInterface = function(iid) {
   if (iid.equals(Components.interfaces.nsISupports) ||
       iid.equals(Components.interfaces.nsIUrlClassifierTable))
-    return this;
-
-  throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;                                              
+  Components.returnCode = Components.results.NS_ERROR_NO_INTERFACE;
+  return null;
 }
 
 /**
- * Subclasses need to implement this method.
+ * Subclasses need to implment this method.
  */
 UrlClassifierTable.prototype.exists = function(url, callback) {
   throw Components.results.NS_ERROR_NOT_IMPLEMENTED;

@@ -46,11 +46,9 @@
 #define nsImageLoadingContent_h__
 
 #include "nsIImageLoadingContent.h"
-#include "nsINode.h"
 #include "imgIRequest.h"
 #include "prtypes.h"
 #include "nsCOMPtr.h"
-#include "nsContentUtils.h"
 #include "nsString.h"
 
 class nsIURI;
@@ -96,7 +94,7 @@ protected:
    * be an image (eg an HTML <input> of type other than "image") should just
    * not call this method when computing their intrinsic state.
    */
-  nsEventStates ImageState() const;
+  PRInt32 ImageState() const;
 
   /**
    * LoadImage is called by subclasses when the appropriate
@@ -151,14 +149,6 @@ protected:
    */
   void DestroyImageLoadingContent();
 
-  void ClearBrokenState() { mBroken = PR_FALSE; }
-
-  PRBool LoadingEnabled() { return mLoadingEnabled; }
-
-  // Sets blocking state only if the desired state is different from the
-  // current one. See the comment for mBlockingOnload for more information.
-  void SetBlockingOnload(PRBool aBlocking);
-
 private:
   /**
    * Struct used to manage the image observers.
@@ -173,7 +163,7 @@ private:
     ~ImageObserver()
     {
       MOZ_COUNT_DTOR(ImageObserver);
-      NS_CONTENT_DELETE_LIST_MEMBER(ImageObserver, this, mNext);
+      delete mNext;
     }
 
     nsCOMPtr<imgIDecoderObserver> mObserver;
@@ -189,11 +179,13 @@ private:
       mImageContent(aImageContent),
       mNotify(aNotify)
     {
-      mImageContent->mStateChangerDepth++;
+      NS_ASSERTION(!mImageContent->mStartingLoad,
+                   "Nested AutoStateChangers somehow?");
+      mImageContent->mStartingLoad = PR_TRUE;
     }
     ~AutoStateChanger()
     {
-      mImageContent->mStateChangerDepth--;
+      mImageContent->mStartingLoad = PR_FALSE;
       mImageContent->UpdateImageState(mNotify);
     }
 
@@ -226,13 +218,6 @@ private:
                            PRInt16 aNewImageStatus);
 
   /**
-   * Method to fire an event once we know what's going on with the image load.
-   *
-   * @param aEventType "load" or "error" depending on how things went
-   */
-  nsresult FireEvent(const nsAString& aEventType);
-protected:
-  /**
    * Method to create an nsIURI object from the given string (will
    * handle getting the right charset, base, etc).  You MUST pass in a
    * non-null document to this function.
@@ -244,60 +229,19 @@ protected:
   nsresult StringToURI(const nsAString& aSpec, nsIDocument* aDocument,
                        nsIURI** aURI);
 
-  void CreateStaticImageClone(nsImageLoadingContent* aDest) const;
-
   /**
-   * Prepare and returns a reference to the "next request". If there's already
-   * a _usable_ current request (one with SIZE_AVAILABLE), this request is
-   * "pending" until it becomes usable. Otherwise, this becomes the current
-   * request.
-   */
-   nsCOMPtr<imgIRequest>& PrepareNextRequest();
-
-  /**
-   * Called when we would normally call PrepareNextRequest(), but the request was
-   * blocked.
-   */
-  void SetBlockedRequest(nsIURI* aURI, PRInt16 aContentDecision);
-
-  /**
-   * Returns a COMPtr reference to the current/pending image requests, cleaning
-   * up and canceling anything that was there before. Note that if you just want
-   * to get rid of one of the requests, you should call
-   * Clear*Request(NS_BINDING_ABORTED) instead, since it passes a more appropriate
-   * aReason than Prepare*Request() does (NS_ERROR_IMAGE_SRC_CHANGED).
-   */
-  nsCOMPtr<imgIRequest>& PrepareCurrentRequest();
-  nsCOMPtr<imgIRequest>& PreparePendingRequest();
-
-  /**
-   * Cancels and nulls-out the "current" and "pending" requests if they exist.
-   */
-  void ClearCurrentRequest(nsresult aReason);
-  void ClearPendingRequest(nsresult aReason);
-
-  /**
-   * Static helper method to tell us if we have the size of a request. The
-   * image may be null.
-   */
-  static bool HaveSize(imgIRequest *aImage);
-
-  /**
-   * Adds/Removes a given imgIRequest from our document's tracker.
+   * Method to fire an event once we know what's going on with the image load.
    *
-   * No-op if aImage is null.
+   * @param aEventType "load" or "error" depending on how things went
    */
-  nsresult TrackImage(imgIRequest* aImage);
-  nsresult UntrackImage(imgIRequest* aImage);
+  nsresult FireEvent(const nsAString& aEventType);
+  class Event;
+  friend class Event;
 
   /* MEMBERS */
+protected:
   nsCOMPtr<imgIRequest> mCurrentRequest;
   nsCOMPtr<imgIRequest> mPendingRequest;
-
-  // If the image was blocked or if there was an error loading, it's nice to
-  // still keep track of what the URI was despite not having an imgIRequest.
-  // We only maintain this in those situations (in the common case, this is
-  // always null).
   nsCOMPtr<nsIURI>      mCurrentURI;
 
 private:
@@ -311,19 +255,9 @@ private:
    */
   ImageObserver mObserverList;
 
-  /**
-   * When mIsImageStateForced is true, this holds the ImageState that we'll
-   * return in ImageState().
-   */
-  nsEventStates mForcedImageState;
-
   PRInt16 mImageBlockingStatus;
   PRPackedBool mLoadingEnabled : 1;
-
-  /**
-   * When true, we return mForcedImageState from ImageState().
-   */
-  PRPackedBool mIsImageStateForced : 1;
+  PRPackedBool mStartingLoad : 1;
 
   /**
    * The state we had the last time we checked whether we needed to notify the
@@ -333,29 +267,6 @@ private:
   PRPackedBool mBroken : 1;
   PRPackedBool mUserDisabled : 1;
   PRPackedBool mSuppressed : 1;
-
-  /**
-   * Whether we're currently blocking document load.
-   */
-  PRPackedBool mBlockingOnload : 1;
-
-protected:
-  /**
-   * A hack to get animations to reset, see bug 594771. On requests
-   * that originate from setting .src, we mark them for needing their animation
-   * reset when they are ready. mNewRequestsWillNeedAnimationReset is set to
-   * true while preparing such requests (as a hack around needing to change an
-   * interface), and the other two booleans store which of the current
-   * and pending requests are of the sort that need their animation restarted.
-   */
-  PRPackedBool mNewRequestsWillNeedAnimationReset : 1;
-
-private:
-  PRPackedBool mPendingRequestNeedsResetAnimation : 1;
-  PRPackedBool mCurrentRequestNeedsResetAnimation : 1;
-
-  /* The number of nested AutoStateChangers currently tracking our state. */
-  PRUint8 mStateChangerDepth;
 };
 
 #endif // nsImageLoadingContent_h__

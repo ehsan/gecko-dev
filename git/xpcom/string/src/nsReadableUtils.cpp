@@ -209,15 +209,40 @@ AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest )
         if(!SetLengthForWritingC(aDest, old_dest_length + count))
             return;
 
-        // All ready? Time to convert
+        nsACString::iterator dest;
+        aDest.BeginWriting(dest);
 
-        ConvertUTF16toUTF8 converter(aDest.BeginWriting() + old_dest_length);
-        copy_string(aSource.BeginReading(source_start),
-                    aSource.EndReading(source_end), converter);
+        dest.advance(old_dest_length);
 
-        NS_ASSERTION(converter.Size() == count,
-                     "Unexpected disparity between CalculateUTF8Size and "
-                     "ConvertUTF16toUTF8");
+        if (count <= (PRUint32)dest.size_forward())
+          {
+            // aDest has enough room in the fragment just past the end
+            // of its old data that it can hold what we're about to
+            // append. Append using copy_string().
+
+            // All ready? Time to convert
+
+            ConvertUTF16toUTF8 converter(dest.get());
+            copy_string(aSource.BeginReading(source_start),
+                        aSource.EndReading(source_end), converter);
+
+            if (converter.Size() != count)
+              {
+                NS_ERROR("Input invalid or incorrect length was calculated");
+
+                aDest.SetLength(old_dest_length);
+              }
+          }
+        else
+          {
+            // This isn't the fastest way to do this, but it gets
+            // complicated to convert UTF16 into a fragmented UTF8
+            // string, so we'll take the easy way out here in this
+            // rare situation.
+
+            aDest.Replace(old_dest_length, count,
+                          NS_ConvertUTF16toUTF8(aSource));
+          }
       }
   }
 
@@ -232,29 +257,46 @@ AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest )
 
     PRUint32 count = calculator.Length();
 
-    // Avoid making the string mutable if we're appending an empty string
     if (count)
       {
         PRUint32 old_dest_length = aDest.Length();
 
         // Grow the buffer if we need to.
         if(!SetLengthForWriting(aDest, old_dest_length + count))
-          return;
+            return;
 
-        // All ready? Time to convert
+        nsAString::iterator dest;
+        aDest.BeginWriting(dest);
 
-        ConvertUTF8toUTF16 converter(aDest.BeginWriting() + old_dest_length);
-        copy_string(aSource.BeginReading(source_start),
-                    aSource.EndReading(source_end), converter);
+        dest.advance(old_dest_length);
 
-        NS_ASSERTION(converter.ErrorEncountered() ||
-                     converter.Length() == count,
-                     "CalculateUTF8Length produced the wrong length");
-
-        if (converter.ErrorEncountered())
+        if (count <= (PRUint32)dest.size_forward())
           {
-            NS_ERROR("Input wasn't UTF8 or incorrect length was calculated");
-            aDest.SetLength(old_dest_length);
+            // aDest has enough room in the fragment just past the end
+            // of its old data that it can hold what we're about to
+            // append. Append using copy_string().
+
+            // All ready? Time to convert
+
+            ConvertUTF8toUTF16 converter(dest.get());
+            copy_string(aSource.BeginReading(source_start),
+                        aSource.EndReading(source_end), converter);
+
+            if (converter.Length() != count)
+              {
+                NS_ERROR("Input wasn't UTF8 or incorrect length was calculated");
+                aDest.SetLength(old_dest_length);
+              }
+          }
+        else
+          {
+            // This isn't the fastest way to do this, but it gets
+            // complicated to convert parts of a UTF8 string into a
+            // UTF16 string, so we'll take the easy way out here in
+            // this rare situation.
+
+            aDest.Replace(old_dest_length, count,
+                          NS_ConvertUTF8toUTF16(aSource));
           }
       }
   }
@@ -749,41 +791,6 @@ ToLowerCase( const nsACString& aSource, nsACString& aDest )
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
   }
 
-NS_COM
-PRBool
-ParseString(const nsACString& aSource, char aDelimiter, 
-            nsTArray<nsCString>& aArray)
-  {
-    nsACString::const_iterator start, end;
-    aSource.BeginReading(start);
-    aSource.EndReading(end);
-
-    PRUint32 oldLength = aArray.Length();
-
-    for (;;)
-      {
-        nsACString::const_iterator delimiter = start;
-        FindCharInReadable(aDelimiter, delimiter, end);
-
-        if (delimiter != start)
-          {
-            if (!aArray.AppendElement(Substring(start, delimiter)))
-              {
-                aArray.RemoveElementsAt(oldLength, aArray.Length() - oldLength);
-                return PR_FALSE;
-              }
-          }
-
-        if (delimiter == end)
-          break;
-        start = ++delimiter;
-        if (start == end)
-          break;
-      }
-
-    return PR_TRUE;
-  }
-
 template <class StringT, class IteratorT, class Comparator>
 PRBool
 FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT& aSearchEnd, const Comparator& compare )
@@ -802,7 +809,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
           {
               // fast inner loop (that's what it's called, not what it is) looks for a potential match
             while ( aSearchStart != aSearchEnd &&
-                    compare(aPatternStart.get(), aSearchStart.get(), 1, 1) )
+                    compare(*aPatternStart, *aSearchStart) )
               ++aSearchStart;
 
               // if we broke out of the `fast' loop because we're out of string ... we're done: no match
@@ -839,7 +846,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
 
                   // else if we mismatched ... it's time to advance to the next search position
                   //  and get back into the `fast' loop
-                if ( compare(testPattern.get(), testSearch.get(), 1, 1) )
+                if ( compare(*testPattern, *testSearch) )
                   {
                     ++aSearchStart;
                     break;
@@ -871,7 +878,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
         --searchEnd;
     
           // Check last character, if a match, explore further from here
-        if ( compare(patternEnd.get(), searchEnd.get(), 1, 1) == 0 )
+        if ( compare(*patternEnd, *searchEnd) == 0 )
           {  
               // We're at a potential match, let's see if we really hit one
             IteratorT testPattern(patternEnd);
@@ -900,7 +907,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
                 --testPattern;
                 --testSearch;
               }
-            while ( compare(testPattern.get(), testSearch.get(), 1, 1) == 0 );
+            while ( compare(*testPattern, *testSearch) == 0 );
           }
       }
 

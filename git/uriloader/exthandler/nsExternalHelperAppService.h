@@ -24,7 +24,6 @@
  *   Christian Biesinger <cbiesinger@web.de>
  *   Dan Mosedale <dmose@mozilla.org>
  *   Myk Melez <myk@mozilla.org>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -57,6 +56,7 @@
 #include "nsIHelperAppLauncherDialog.h"
 
 #include "nsIMIMEInfo.h"
+#include "nsMIMEInfoImpl.h"
 #include "nsIMIMEService.h"
 #include "nsIStreamListener.h"
 #include "nsIFile.h"
@@ -149,12 +149,6 @@ public:
   virtual NS_HIDDEN_(nsresult) OSProtocolHandlerExists(const char *aScheme,
                                                        PRBool *aExists) = 0;
 
-  /**
-   * Simple accessor to let nsExternalAppHandler know if we are currently
-   * inside the private browsing mode.
-   */
-  PRBool InPrivateBrowsing() const { return mInPrivateBrowsing; }
-
 protected:
   /**
    * Searches the "extra" array of MIMEInfo objects for an object
@@ -207,34 +201,22 @@ protected:
   friend class nsExternalLoadRequest;
 
   /**
-   * Helper function for ExpungeTemporaryFiles and ExpungeTemporaryPrivateFiles
-   */
-  static void ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList);
-  /**
    * Functions related to the tempory file cleanup service provided by
    * nsExternalHelperAppService
    */
-  void ExpungeTemporaryFiles();
-  /**
-   * Functions related to the tempory file cleanup service provided by
-   * nsExternalHelperAppService (for the temporary files added during
-   * the private browsing mode)
-   */
-  void ExpungeTemporaryPrivateFiles();
+  NS_HIDDEN_(nsresult) ExpungeTemporaryFiles();
   /**
    * Array for the files that should be deleted
    */
   nsCOMArray<nsILocalFile> mTemporaryFilesList;
-  /**
-   * Array for the files that should be deleted (for the temporary files
-   * added during the private browsing mode)
-   */
-  nsCOMArray<nsILocalFile> mTemporaryPrivateFilesList;
-  /**
-   * Whether we are in private browsing mode
-   */
-  PRBool mInPrivateBrowsing;
 };
+
+/**
+ * We need to read the data out of the incoming stream into a buffer which we
+ * can then use to write the data into the output stream representing the
+ * temp file.
+ */
+#define DATA_BUFFER_SIZE (4096*2) 
 
 /**
  * An external app handler is just a small little class that presents itself as
@@ -351,8 +333,7 @@ protected:
    */
   nsCOMPtr<nsIFile> mFinalFileDestination;
 
-  PRUint32 mBufferSize;
-  char    *mDataBuffer;
+  char mDataBuffer[DATA_BUFFER_SIZE];
 
   /**
    * Creates the temporary file for the download and an output stream for it.

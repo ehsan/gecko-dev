@@ -36,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-# This script contains a number of variables, functions, etc which
+# This script contains a number of variables, functions, etc which 
 # are reused across a number of scripts. It should be included in each
 # script prior to any other commands as follows:
 #
@@ -47,10 +47,10 @@ if [[ -n "$DEBUG" ]]; then
 fi
 
 # export variables
-set -a
+set -a 
 
-# in the event of an untrapped script error tail the test log,
-# if it exists, to stderr then echo a FATAL ERROR message to the
+# in the event of an untrapped script error tail the test log, 
+# if it exists, to stderr then echo a FATAL ERROR message to the 
 # test log and stderr.
 
 function _err()
@@ -94,50 +94,17 @@ error()
     local lineno=$2
 
     debug "error: $0:$LINENO"
-
+    
     echo -e "FATAL ERROR in script $0:$lineno $message\n" 1>&2
     if [[ "$0" == "-bash" || "$0" == "bash" ]]; then
         return 0
     fi
     exit 2
-}
+} 
 
 
 if [[ -z "$LIBRARYSH" ]]; then
     # skip remainder of script if it has already included
-
-    checkProductBranch()
-    {
-        local product=$1
-        local branch=$2
-
-        case $product in
-            js|firefox)
-                ;;
-            *)
-                error "product \"$product\" must be one of js or firefox" $LINENO
-        esac
-
-        case $branch in
-            1.8.0|1.8.1|1.9.0|1.9.1|1.9.2|1.9.3)
-                ;;
-            *)
-                error "branch \"$branch\" must be one of 1.8.0 1.8.1 1.9.0 1.9.1 1.9.2 1.9.3" $LINENO
-        esac
-
-     }
-
-    # Darwin 8.11.1's |which| does not return a non-zero exit code if the
-    # program can not be found. Therefore, kludge around it.
-    findprogram()
-    {
-        local program=$1
-        local location=`which $program 2>&1`
-        if [[ ! -x $location ]]; then
-            return 1
-        fi
-        return 0
-    }
 
     debug()
     {
@@ -156,14 +123,14 @@ if [[ -z "$LIBRARYSH" ]]; then
     }
 
     # loaddata
-    #
+    # 
     # load data files into environment
     loaddata()
     {
         local datafiles="$@"
         local datafile
         if [[ -n "$datafiles" ]]; then
-            for datafile in $datafiles; do
+            for datafile in $datafiles; do 
                 if [[ ! -e "$datafile" ]]; then
                     error "datafile $datafile does not exist"
                 fi
@@ -206,14 +173,14 @@ if [[ -z "$LIBRARYSH" ]]; then
         if [[ -e /proc/meminfo ]]; then
             cat /proc/meminfo | sed 's|^|meminfo:|'
         fi
-        if findprogram system_profiler; then
+        if which system_profiler 2> /dev/null; then
             system_profiler | sed 's|^|system_profiler:|'
         fi
     }
 
     # dumpvars varname1, ...
     #
-    # dumps name=value pairs to stdout for each variable named
+    # dumps name=value pairs to stdout for each variable named 
     # in argument list
 
     dumpvars()
@@ -253,6 +220,9 @@ if [[ -z "$LIBRARYSH" ]]; then
                 case "$OSID" in
                     darwin)
                         get_executable_filter="Contents/MacOS/$get_executable_product"
+                        if [[ "$get_executable_product" == "thunderbird" ]]; then
+                            get_executable_name="$get_executable_product-bin"
+                        fi
                         ;;
                     *)
                         get_executable_filter="$get_executable_product"
@@ -269,7 +239,7 @@ if [[ -z "$LIBRARYSH" ]]; then
                 error "get_executable $product $branch $executablepath returned empty path" $LINENO
             fi
 
-            if [[ ! -x "$executable" ]]; then
+            if [[ ! -x "$executable" ]]; then 
                 error "executable \"$executable\" is not executable" $LINENO
             fi
 
@@ -288,19 +258,6 @@ if [[ -z "$LIBRARYSH" ]]; then
             script=`basename $0`
         fi
         echo $script
-    }
-
-    xbasename()
-    {
-        local path=$1
-        local suffix=$2
-        local result
-
-        if ! result=`basename -s $suffix $path 2>&1`; then
-            result=`basename $path $suffix`
-        fi
-
-        echo $result
     }
 
     LIBRARYSH=1
@@ -351,6 +308,7 @@ if [[ -z "$LIBRARYSH" ]]; then
     #leak gauge
     #NSPR_LOG_MODULES=DOMLeak:5,DocumentLeak:5,nsDocShellLeak:5
 
+    TEST_CPUSPEED="`mips.pl`"
     TEST_MEMORY="`memory.pl`"
 
     # debug msg
@@ -380,7 +338,7 @@ if [[ -z "$LIBRARYSH" ]]; then
     if [[ $kernel_name == 'Linux' ]]; then
         OSID=linux
         EXE_EXT=
-        TEST_KERNEL=`uname -r | sed 's|\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\).*|\1.\2.\3|'`
+        TEST_KERNEL=`uname -r | sed 's|\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\)[-.0-9]*\.\([a-zA-Z0-9]*\)|\1.\2.\3|'`
         TEST_PROCESSORTYPE=`cat /proc/cpuinfo | grep vendor | uniq | sed 's|vendor.* : \(.*\)|\1|'`
         TIMECOMMAND='/usr/bin/time -f "Elapsed time %e seconds, User %U seconds, System %S seconds, CPU %P, Memory: %M"'
 

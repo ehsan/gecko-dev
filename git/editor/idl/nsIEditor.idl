@@ -53,15 +53,15 @@ interface nsITransaction;
 interface nsIEditorObserver;
 interface nsIEditActionListener;
 interface nsIInlineSpellChecker;
-interface nsITransferable;
 
 %{C++
 class nsIPresShell;
+typedef short EDirection;
 %}
 
 [ptr] native nsIPresShellPtr(nsIPresShell);
 
-[scriptable, uuid(972e54e1-dec3-4e3f-87ec-408a7dbcfd92)]
+[scriptable, uuid(2f76d0bb-d90d-4454-905e-9b0cc39a701c)]
 
 interface nsIEditor  : nsISupports
 {
@@ -115,11 +115,8 @@ interface nsIEditor  : nsISupports
   /**
    * preDestroy is called before the editor goes away, and gives the editor a
    * chance to tell its documentStateObservers that the document is going away.
-   * @param aDestroyingFrames set to true when the frames being edited
-   * are being destroyed (so there is no need to modify any nsISelections,
-   * nor is it safe to do so)
    */
-  void preDestroy(in boolean aDestroyingFrames);
+  void preDestroy();
 
   /** edit flags for this editor.  May be set at any time. */
   attribute unsigned long flags;
@@ -339,22 +336,10 @@ interface nsIEditor  : nsISupports
     */
   void paste(in long aSelectionType);
 
-  /** Paste the text in |aTransferable| at the cursor position, replacing the
-    * selected text (if any).
-    */
-  void pasteTransferable(in nsITransferable aTransferable);
-
   /** Can we paste? True if the doc is modifiable, and we have
     * pasteable data in the clipboard.
     */
   boolean canPaste(in long aSelectionType);
-
-  /** Can we paste |aTransferable| or, if |aTransferable| is null, will a call
-    * to pasteTransferable later possibly succeed if given an instance of
-    * nsITransferable then? True if the doc is modifiable, and, if
-    * |aTransfeable| is non-null, we have pasteable data in |aTransfeable|.
-    */
-  boolean canPasteTransferable([optional] in nsITransferable aTransferable);
 
   /* ------------ Selection methods -------------- */
 
@@ -582,15 +567,4 @@ interface nsIEditor  : nsISupports
 
   /* checks if a node is read-only or not */
   [notxpcom] boolean isModifiableNode(in nsIDOMNode aNode);
-};
-
-[uuid(54c0bc08-6c0e-4967-bb0d-ec991d78a8b3)]
-interface nsIEditor_MOZILLA_2_0_BRANCH : nsISupports
-{
-  /**
-   * Will be set to true if the last keypress event that the editor has handled
-   * has been trusted.  The value will only be valid when the edit action listeners
-   * are being called, and will throw upon access at all other times.
-   */
-  readonly attribute boolean lastKeypressEventTrusted;
 };

@@ -58,7 +58,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsILoginManager.h"
-#include "nsIMutationObserver.h"
 
 class nsFormHistory;
 
@@ -70,8 +69,7 @@ class nsFormFillController : public nsIFormFillController,
                              public nsIDOMCompositionListener,
                              public nsIDOMFormListener,
                              public nsIDOMMouseListener,
-                             public nsIDOMContextMenuListener,
-                             public nsIMutationObserver
+                             public nsIDOMContextMenuListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -79,7 +77,6 @@ public:
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETEINPUT
   NS_DECL_NSIDOMEVENTLISTENER
-  NS_DECL_NSIMUTATIONOBSERVER
 
   // nsIDOMFocusListener
   NS_IMETHOD Focus(nsIDOMEvent* aEvent);
@@ -93,6 +90,7 @@ public:
   // nsIDOMCompositionListener
   NS_IMETHOD HandleStartComposition(nsIDOMEvent* aCompositionEvent);
   NS_IMETHOD HandleEndComposition(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryComposition(nsIDOMEvent* aCompositionEvent);
 
   // nsIDOMFormListener
   NS_IMETHOD Submit(nsIDOMEvent* aEvent);
@@ -125,18 +123,15 @@ protected:
   void StartControllingInput(nsIDOMHTMLInputElement *aInput);
   void StopControllingInput();
   
-  void RevalidateDataList();
   PRBool RowMatch(nsFormHistory *aHistory, PRUint32 aIndex, const nsAString &aInputName, const nsAString &aInputValue);
   
   inline nsIDocShell *GetDocShellForInput(nsIDOMHTMLInputElement *aInput);
   inline nsIDOMWindow *GetWindowForDocShell(nsIDocShell *aDocShell);
   inline PRInt32 GetIndexOfDocShell(nsIDocShell *aDocShell);
 
-  static PLDHashOperator RemoveForDOMDocumentEnumerator(nsISupports* aKey,
-                                                        PRInt32& aEntry,
-                                                        void* aUserData);
-  PRBool IsEventTrusted(nsIDOMEvent *aEvent);
-  PRBool IsInputAutoCompleteOff();
+  static PLDHashOperator PR_CALLBACK RemoveForDOMDocumentEnumerator(nsISupports* aKey,
+                                                                    PRInt32& aEntry,
+                                                                    void* aUserData);
   // members //////////////////////////////////////////
 
   nsCOMPtr<nsIAutoCompleteController> mController;
@@ -146,11 +141,6 @@ protected:
 
   nsCOMPtr<nsISupportsArray> mDocShells;
   nsCOMPtr<nsISupportsArray> mPopups;
-
-  //these are used to dynamically update the autocomplete
-  nsCOMPtr<nsIAutoCompleteResult> mLastSearchResult;
-  nsCOMPtr<nsIAutoCompleteObserver> mLastListener;
-  nsString mLastSearchString;
 
   nsDataHashtable<nsISupportsHashKey,PRInt32> mPwmgrInputs;
 

@@ -1,5 +1,3 @@
-require({ after_gcc_pass: "cfg" });
-
 include("gcc_util.js");
 include("unstable/lazy_types.js");
 
@@ -25,13 +23,12 @@ function BlameChain(loc, message, prev)
   this.message = message;
   this.prev = prev;
 }
-
 BlameChain.prototype.toString = function()
 {
   let loc = this.loc;
   if (loc === undefined)
     loc = "<unknown location>";
-
+  
   let str = '%s:   %s'.format(loc.toString(), this.message);
   if (this.prev)
     str += "\n%s".format(this.prev);
@@ -57,7 +54,7 @@ function isStack(c)
 
       if (hasAttribute(member, 'NS_okonheap'))
         continue;
-
+      
       let type = member.type;
       while (true) {
         if (type === undefined)
@@ -97,59 +94,105 @@ function isStack(c)
     return null;
   }
 
+  if (c.isIncomplete)
+    throw Error("Can't get stack property for incomplete type.");
+
   if (!c.hasOwnProperty('isStack'))
     c.isStack = calculate();
 
   return c.isStack;
 }
 
-function process_tree(fn)
+function isVoidPtr(t)
 {
-  if (hasAttribute(dehydra_convert(fn), 'NS_suppress_stackcheck'))
-    return;
+  return t.isPointer && t.type.name == 'void';
+}
 
-  let cfg = function_decl_cfg(fn);
+function xrange(start, end, skip)
+{
+  for (;
+       (skip > 0) ? (start < end) : (start > end);
+       start += skip)
+    yield start;
+}
 
-  for (let bb in cfg_bb_iterator(cfg)) {
-    let it = bb_isn_iterator(bb);
-    for (let isn in it) {
-      if (isn.tree_code() != GIMPLE_CALL)
-        continue;
+function process_cp_pre_genericize(fndecl)
+{
+  function findconstructors(t, stack)
+  {
+    function getLocation() {
+      let loc = location_of(t);
+      if (loc !== undefined)
+        return loc;
 
-      let name = gimple_call_function_name(isn);
-      if (name != "operator new" && name != "operator new []")
-        continue;
-
-      // ignore placement new
-      // TODO? ensure 2nd arg is local stack variable
-      if (gimple_call_num_args(isn) == 2 &&
-          TREE_TYPE(gimple_call_arg(isn, 1)).tree_code() == POINTER_TYPE)
-        continue;
-
-      let newLhs = gimple_call_lhs(isn);
-      if (!newLhs)
-        error("Non assigning call to operator new", location_of(isn));
-
-      // if isn is the last of its block there are other problems...
-      assign = it.next();
-
-      // Calls to |new| are always followed by an assignment, casting the void ptr to which
-      // |new| was assigned, to a ptr variable of the same type as the allocated object.
-      // Exception: explicit calls to |::operator new (size_t)|, which can be ignored.
-      if (assign.tree_code() != GIMPLE_ASSIGN)
-        continue;
-
-      let assignRhs = gimple_op(assign, 1);
-      if (newLhs != assignRhs)
-        continue;
-
-      let assignLhs = gimple_op(assign, 0);
-      let type = TREE_TYPE(TREE_TYPE(assignLhs));
-      let dehydraType = dehydra_convert(type);
-
-      let r = isStack(dehydraType);
-      if (r)
-        warning("constructed object of type '%s' not on the stack: %s".format(dehydraType.name, r), location_of(isn));
+      for (let i = stack.length - 1; i >= 0; --i) {
+        loc = location_of(stack[i]);
+        if (loc !== undefined)
+          return loc;
+      }
+      return location_of(DECL_SAVED_TREE(fndecl));
     }
+    
+    try {
+      t.tree_check(CALL_EXPR);
+      let fncall =
+        callable_arg_function_decl(CALL_EXPR_FN(t));
+      if (fncall == null)
+        return;
+
+      let nameid = DECL_NAME(fncall);
+      if (IDENTIFIER_OPNAME_P(nameid)) {
+        let name = IDENTIFIER_POINTER(nameid);
+        
+        if (name == "operator new" || name == "operator new []") {
+          let fncallobj = dehydra_convert(TREE_TYPE(fncall));
+          if (fncallobj.parameters.length == 2 &&
+              isVoidPtr(fncallobj.parameters[1]))
+            return;
+
+          let i;
+          for (i in xrange(stack.length - 1, -1, -1)) {
+            if (TREE_CODE(stack[i]) != NOP_EXPR)
+              break;
+          }
+          let assign = stack[i];
+          switch (TREE_CODE(assign)) {
+          case VAR_DECL:
+            break;
+            
+          case INIT_EXPR:
+          case MODIFY_EXPR:
+          case TARGET_EXPR:
+            assign = assign.operands()[1];
+            break;
+
+          case CALL_EXPR:
+            assign = stack[i + 1];
+            break;
+            
+          default:
+            error("Unrecognized assignment from operator new: " + TREE_CODE(assign), getLocation());
+            return;
+          }
+          
+          let destType = dehydra_convert(TREE_TYPE(assign));
+          if (!destType.isPointer && !destType.isReference) {
+            error("operator new not assigned to pointer/ref?", getLocation());
+            return;
+          }
+          destType = destType.type;
+
+          let r = isStack(destType);
+          if (r)
+            error("constructed object of type '%s' not on the stack: %s".format(destType.name, r), getLocation());
+        }
+      }
+    }
+    catch (e if e.TreeCheckError) { }
   }
+
+  if (hasAttribute(dehydra_convert(fndecl), 'NS_suppress_stackcheck'))
+    return;
+  
+  walk_tree(DECL_SAVED_TREE(fndecl), findconstructors);
 }

@@ -69,7 +69,6 @@ class HTTPUpload {
                           const map<wstring, wstring> &parameters,
                           const wstring &upload_file,
                           const wstring &file_part_name,
-                          int *timeout,
                           wstring *response_body,
                           int *response_code);
 
@@ -98,7 +97,7 @@ class HTTPUpload {
                                   string *request_body);
 
   // Fills the supplied vector with the contents of filename.
-  static bool GetFileContents(const wstring &filename, vector<char> *contents);
+  static void GetFileContents(const wstring &filename, vector<char> *contents);
 
   // Converts a UTF8 string to UTF16.
   static wstring UTF8ToWide(const string &utf8);

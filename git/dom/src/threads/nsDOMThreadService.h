@@ -44,14 +44,13 @@
 #include "nsIEventTarget.h"
 #include "nsIObserver.h"
 #include "nsIThreadPool.h"
+#include "nsIDOMThreads.h"
 
 // Other includes
 #include "jsapi.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
-#include "nsStringGlue.h"
 #include "nsTPtrArray.h"
 #include "prmon.h"
 
@@ -60,9 +59,9 @@
 extern PRLogModuleInfo* gDOMThreadsLog;
 #endif
 
-class nsDOMWorker;
 class nsDOMWorkerPool;
 class nsDOMWorkerRunnable;
+class nsDOMWorkerThread;
 class nsDOMWorkerTimeout;
 class nsIJSRuntimeService;
 class nsIScriptGlobalObject;
@@ -70,19 +69,11 @@ class nsIThreadJSContextStack;
 class nsIXPConnect;
 class nsIXPCSecurityManager;
 
-enum ThreadsafeStatus
-{
-  Threadsafe,
-  NotThreadsafe,
-  Unknown
-};
-
 class nsDOMThreadService : public nsIEventTarget,
                            public nsIObserver,
-                           public nsIThreadPoolListener
+                           public nsIThreadPoolListener,
+                           public nsIDOMThreadService
 {
-  friend class nsDOMWorker;
-  friend class nsDOMWorkerNavigator;
   friend class nsDOMWorkerPool;
   friend class nsDOMWorkerRunnable;
   friend class nsDOMWorkerThread;
@@ -90,26 +81,20 @@ class nsDOMThreadService : public nsIEventTarget,
   friend class nsDOMWorkerXHR;
   friend class nsDOMWorkerXHRProxy;
   friend class nsLayoutStatics;
-  friend class nsReportErrorRunnable;
-
-  friend void DOMWorkerErrorReporter(JSContext* aCx,
-                                     const char* aMessage,
-                                     JSErrorReport* aReport);
 
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIEVENTTARGET
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITHREADPOOLLISTENER
+  NS_DECL_NSIDOMTHREADSERVICE
 
   // Any DOM consumers that need access to this service should use this method.
-  static already_AddRefed<nsDOMThreadService> GetOrInitService();
+  static already_AddRefed<nsIDOMThreadService> GetOrInitService();
 
   // Simple getter for this service. This does not create the service if it
   // hasn't been created already, and it never AddRef's!
   static nsDOMThreadService* get();
-
-  static JSContext* GetCurrentContext();
 
   // Easy access to the services we care about.
   static nsIJSRuntimeService* JSRuntimeService();
@@ -122,11 +107,6 @@ public:
 
   nsresult ChangeThreadPoolMaxThreads(PRInt16 aDelta);
 
-  void NoteThreadsafeContractId(const nsACString& aContractId,
-                                PRBool aIsThreadsafe);
-
-  ThreadsafeStatus GetContractIdThreadsafeStatus(const nsACString& aContractId);
-
 private:
   nsDOMThreadService();
   ~nsDOMThreadService();
@@ -136,52 +116,24 @@ private:
 
   static void Shutdown();
 
-  nsresult Dispatch(nsDOMWorker* aWorker,
-                    nsIRunnable* aRunnable,
-                    PRIntervalTime aTimeoutInterval = 0,
-                    PRBool aClearQueue = PR_FALSE);
-
-  void SetWorkerTimeout(nsDOMWorker* aWorker,
-                        PRIntervalTime aTimeoutInterval);
+  nsresult Dispatch(nsDOMWorkerThread* aWorker,
+                    nsIRunnable* aRunnable);
 
   void WorkerComplete(nsDOMWorkerRunnable* aRunnable);
 
+  void WaitForCanceledWorker(nsDOMWorkerThread* aWorker);
+
   static JSContext* CreateJSContext();
 
-  already_AddRefed<nsDOMWorkerPool>
-    GetPoolForGlobal(nsIScriptGlobalObject* aGlobalObject,
-                     PRBool aRemove);
-
-  void TriggerOperationCallbackForPool(nsDOMWorkerPool* aPool);
-  void RescheduleSuspendedWorkerForPool(nsDOMWorkerPool* aPool);
-
-  void NoteEmptyPool(nsDOMWorkerPool* aPool);
+  void NoteDyingPool(nsDOMWorkerPool* aPool);
 
   void TimeoutReady(nsDOMWorkerTimeout* aTimeout);
-
-  nsresult RegisterWorker(nsDOMWorker* aWorker,
-                          nsIScriptGlobalObject* aGlobalObject);
-
-  void GetAppName(nsAString& aAppName);
-  void GetAppVersion(nsAString& aAppVersion);
-  void GetPlatform(nsAString& aPlatform);
-  void GetUserAgent(nsAString& aUserAgent);
-
-  void RegisterPrefCallbacks();
-  void UnregisterPrefCallbacks();
-
-  static int PrefCallback(const char* aPrefName,
-                          void* aClosure);
-
-  static PRUint32 GetWorkerCloseHandlerTimeoutMS();
-
-  PRBool QueueSuspendedWorker(nsDOMWorkerRunnable* aRunnable);
 
   // Our internal thread pool.
   nsCOMPtr<nsIThreadPool> mThreadPool;
 
-  // Maps nsIScriptGlobalObject* to nsDOMWorkerPool.
-  nsRefPtrHashtable<nsVoidPtrHashKey, nsDOMWorkerPool> mPools;
+  // Weak references, only ever touched on the main thread!
+  nsTPtrArray<nsDOMWorkerPool> mPools;
 
   // mMonitor protects all access to mWorkersInProgress and
   // mCreationsInProgress.
@@ -189,24 +141,6 @@ private:
 
   // A map from nsDOMWorkerThread to nsDOMWorkerRunnable.
   nsRefPtrHashtable<nsVoidPtrHashKey, nsDOMWorkerRunnable> mWorkersInProgress;
-
-  // A list of active JSContexts that we've created. Always protected with
-  // mMonitor.
-  nsTArray<JSContext*> mJSContexts;
-
-  // A list of worker runnables that were never started because the worker was
-  // suspended. Always protected with mMonitor.
-  nsTArray<nsDOMWorkerRunnable*> mSuspendedWorkers;
-
-  // Always protected with mMonitor.
-  nsDataHashtable<nsCStringHashKey, PRBool> mThreadsafeContractIDs;
-
-  nsString mAppName;
-  nsString mAppVersion;
-  nsString mPlatform;
-  nsString mUserAgent;
-
-  PRBool mNavigatorStringsLoaded;
 };
 
 #endif /* __NSDOMTHREADSERVICE_H__ */

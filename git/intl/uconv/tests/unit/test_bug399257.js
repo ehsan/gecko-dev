@@ -1,14 +1,16 @@
 // Tests encoding of characters below U+0020
-load('CharsetConversionTests.js');
-
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 const inString = "Hello\u000aWorld";
 const expectedString = "Hello\nWorld";
+
 
 function run_test() {
     var failures = false;
     var ccManager = Cc["@mozilla.org/charset-converter-manager;1"]
         .getService(Ci.nsICharsetConverterManager);
-    var encodingConverter = CreateScriptableConverter();
+    var encodingConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+        .createInstance(Ci.nsIScriptableUnicodeConverter);
 
     var charsetList = ccManager.getDecoderList();
     var counter = 0;

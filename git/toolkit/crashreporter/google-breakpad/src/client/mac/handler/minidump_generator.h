@@ -37,30 +37,14 @@
 #include <string>
 
 #include "client/minidump_file_writer.h"
-#include "common/memory.h"
-#include "common/mac/macho_utilities.h"
 #include "google_breakpad/common/minidump_format.h"
+#include "common/mac/macho_utilities.h"
 
 #include "dynamic_images.h"
 
 namespace google_breakpad {
 
 using std::string;
-
-const u_int64_t TOP_OF_THREAD0_STACK_64BIT = 0x00007fff5fbff000LL;
-const u_int32_t TOP_OF_THREAD0_STACK_32BIT = 0xbffff000;
-
-// Use the REGISTER_FROM_THREADSTATE to access a register name from the
-// breakpad_thread_state_t structure.
-#if __DARWIN_UNIX03 || TARGET_CPU_X86_64 || TARGET_CPU_PPC64
-// In The 10.5 SDK Headers Apple prepended __ to the variable names in the
-// i386_thread_state_t structure.  There's no good way to tell what version of
-// the SDK we're compiling against so we just toggle on the same preprocessor
-// symbol Apple's headers use.
-#define REGISTER_FROM_THREADSTATE(a, b) ((a)->__ ## b)
-#else
-#define REGISTER_FROM_THREADSTATE(a, b) (a->b)
-#endif
 
 // Creates a minidump file of the current process.  If there is exception data,
 // use SetExceptionInformation() to add this to the minidump.  The minidump
@@ -86,11 +70,9 @@ class MinidumpGenerator {
   bool Write(const char *path);
 
   // Specify some exception information, if applicable
-  void SetExceptionInformation(int type, int code, int subcode,
-                               mach_port_t thread_name) {
+  void SetExceptionInformation(int type, int code, mach_port_t thread_name) {
     exception_type_ = type;
     exception_code_ = code;
-    exception_subcode_ = subcode;
     exception_thread_ = thread_name;
   }
 
@@ -103,7 +85,6 @@ class MinidumpGenerator {
 
   // Stream writers
   bool WriteThreadListStream(MDRawDirectory *thread_list_stream);
-  bool WriteMemoryListStream(MDRawDirectory *memory_list_stream);
   bool WriteExceptionStream(MDRawDirectory *exception_stream);
   bool WriteSystemInfoStream(MDRawDirectory *system_info_stream);
   bool WriteModuleListStream(MDRawDirectory *module_list_stream);
@@ -112,9 +93,7 @@ class MinidumpGenerator {
 
   // Helpers
   u_int64_t CurrentPCForStack(breakpad_thread_state_data_t state);
-  bool GetThreadState(thread_act_t target_thread, thread_state_t state,
-                      mach_msg_type_number_t *count);
-  bool WriteStackFromStartAddress(mach_vm_address_t start_addr,
+  bool WriteStackFromStartAddress(vm_address_t start_addr,
                                   MDMemoryDescriptor *stack_location);
   bool WriteStack(breakpad_thread_state_data_t state,
                   MDMemoryDescriptor *stack_location);
@@ -124,30 +103,8 @@ class MinidumpGenerator {
   bool WriteCVRecord(MDRawModule *module, int cpu_type, 
                      const char *module_path);
   bool WriteModuleStream(unsigned int index, MDRawModule *module);
-  size_t CalculateStackSize(mach_vm_address_t start_addr);
+  size_t CalculateStackSize(vm_address_t start_addr);
   int  FindExecutableModule();
-
-  // Per-CPU implementations of these methods
-  bool WriteStackPPC(breakpad_thread_state_data_t state,
-                     MDMemoryDescriptor *stack_location);
-  bool WriteContextPPC(breakpad_thread_state_data_t state,
-                       MDLocationDescriptor *register_location);
-  u_int64_t CurrentPCForStackPPC(breakpad_thread_state_data_t state);
-  bool WriteStackPPC64(breakpad_thread_state_data_t state,
-                       MDMemoryDescriptor *stack_location);
-  bool WriteContextPPC64(breakpad_thread_state_data_t state,
-                       MDLocationDescriptor *register_location);
-  u_int64_t CurrentPCForStackPPC64(breakpad_thread_state_data_t state);
-  bool WriteStackX86(breakpad_thread_state_data_t state,
-                       MDMemoryDescriptor *stack_location);
-  bool WriteContextX86(breakpad_thread_state_data_t state,
-                       MDLocationDescriptor *register_location);
-  u_int64_t CurrentPCForStackX86(breakpad_thread_state_data_t state);
-  bool WriteStackX86_64(breakpad_thread_state_data_t state,
-                        MDMemoryDescriptor *stack_location);
-  bool WriteContextX86_64(breakpad_thread_state_data_t state,
-                          MDLocationDescriptor *register_location);
-  u_int64_t CurrentPCForStackX86_64(breakpad_thread_state_data_t state);
 
   // disallow copy ctor and operator=
   explicit MinidumpGenerator(const MinidumpGenerator &);
@@ -159,13 +116,9 @@ class MinidumpGenerator {
   // Exception information
   int exception_type_;
   int exception_code_;
-  int exception_subcode_;
   mach_port_t exception_thread_;
   mach_port_t crashing_task_;
   mach_port_t handler_thread_;
-
-  // CPU type of the task being dumped.
-  cpu_type_t cpu_type_;
   
   // System information
   static char build_string_[16];
@@ -175,15 +128,6 @@ class MinidumpGenerator {
   
   // Information about dynamically loaded code
   DynamicImages *dynamic_images_;
-
-  // PageAllocator makes it possible to allocate memory
-  // directly from the system, even while handling an exception.
-  mutable PageAllocator allocator_;
-
-  // Blocks of memory written to the dump. These are all currently
-  // written while writing the thread list stream, but saved here
-  // so a memory list stream can be written afterwards.
-  wasteful_vector<MDMemoryDescriptor> memory_blocks_;
 };
 
 }  // namespace google_breakpad

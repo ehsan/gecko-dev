@@ -45,9 +45,6 @@
 #
 
 # Define an include-at-most-once flag
-#ifdef INCLUDED_CONFIG_MK
-#$(error Don't include config.mk twice!)
-#endif
 INCLUDED_CONFIG_MK = 1
 
 EXIT_ON_ERROR = set -e; # Shell loops continue past errors without this.
@@ -58,6 +55,11 @@ endif
 
 ifndef INCLUDED_AUTOCONF_MK
 include $(DEPTH)/config/autoconf.mk
+endif
+ifndef INCLUDED_INSURE_MK
+ifdef MOZ_INSURIFYING
+include $(topsrcdir)/config/insure.mk
+endif
 endif
 
 COMMA = ,
@@ -71,8 +73,6 @@ CHECK_VARS := \
  SHORT_LIBNAME \
  XPI_PKGNAME \
  INSTALL_EXTENSION_ID \
- SHARED_LIBRARY_NAME \
- STATIC_LIBRARY_NAME \
  $(NULL)
 
 # checks for internal spaces or trailing spaces in the variable
@@ -81,23 +81,12 @@ check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
 
-core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
-
-nullstr :=
-space :=$(nullstr) # EOL
-
-core_winabspath = $(firstword $(subst /, ,$(call core_abspath,$(1)))):$(subst $(space),,$(patsubst %,\\%,$(wordlist 2,$(words $(subst /, ,$(call core_abspath,$(1)))), $(strip $(subst /, ,$(call core_abspath,$(1)))))))
-
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
 #
 # It will usually be the well-loved $(DIST)/bin, today, but can also be an
 # XPI-contents staging directory for ambitious and right-thinking extensions.
 FINAL_TARGET = $(if $(XPI_NAME),$(DIST)/xpi-stage/$(XPI_NAME),$(DIST)/bin)
-
-ifdef XPI_NAME
-DEFINES += -DXPI_NAME=$(XPI_NAME)
-endif
 
 # MAKE_JARS_TARGET is a staging area for make-jars.pl.  When packaging in
 # the jar format, make-jars leaves behind a directory structure that's not
@@ -109,7 +98,12 @@ else
 MAKE_JARS_TARGET = $(FINAL_TARGET)
 endif
 
+#
 # The VERSION_NUMBER is suffixed onto the end of the DLLs we ship.
+# Since the longest of these is 5 characters without the suffix,
+# be sure to not set VERSION_NUMBER to anything longer than 3 
+# characters for Win16's sake.
+#
 VERSION_NUMBER		= 50
 
 ifeq ($(HOST_OS_ARCH),WINNT)
@@ -160,43 +154,94 @@ MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFI
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
 ifdef MOZ_MEMORY
-ifneq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
-JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_MOZLIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
-# If we are linking jemalloc into a program, we want the jemalloc symbols
-# to be exported
-ifneq (,$(SIMPLE_PROGRAMS)$(PROGRAM))
-JEMALLOC_LIBS += $(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
+ifneq ($(OS_ARCH),WINNT)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
-endif
-
-CC := $(CC_WRAPPER) $(CC)
-CXX := $(CXX_WRAPPER) $(CXX)
 
 # determine debug-related options
 _DEBUG_CFLAGS :=
 _DEBUG_LDFLAGS :=
 
+ifndef MOZ_DEBUG
+  # global debugging is disabled 
+  # check if it was explicitly enabled for this module
+  ifneq (, $(findstring $(MODULE), $(MOZ_DEBUG_MODULES)))
+    MOZ_DEBUG:=1
+  endif
+else
+  # global debugging is enabled
+  # check if it was explicitly disabled for this module
+  ifneq (, $(findstring ^$(MODULE), $(MOZ_DEBUG_MODULES)))
+    MOZ_DEBUG:=
+  endif
+endif
+
 ifdef MOZ_DEBUG
-  _DEBUG_CFLAGS += $(MOZ_DEBUG_ENABLE_DEFS) $(MOZ_DEBUG_FLAGS)
-  _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
+  _DEBUG_CFLAGS += $(MOZ_DEBUG_ENABLE_DEFS)
   XULPPFLAGS += $(MOZ_DEBUG_ENABLE_DEFS)
 else
   _DEBUG_CFLAGS += $(MOZ_DEBUG_DISABLE_DEFS)
   XULPPFLAGS += $(MOZ_DEBUG_DISABLE_DEFS)
-  ifdef MOZ_DEBUG_SYMBOLS
-    _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
-    _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
+endif
+
+# determine if -g should be passed to the compiler, based on
+# the current module, and the value of MOZ_DBGRINFO_MODULES
+
+ifdef MOZ_DEBUG
+  MOZ_DBGRINFO_MODULES += ALL_MODULES
+  pattern := ALL_MODULES ^ALL_MODULES
+else
+  MOZ_DBGRINFO_MODULES += ^ALL_MODULES
+  pattern := ALL_MODULES ^ALL_MODULES
+endif
+
+ifdef MODULE
+  # our current Makefile specifies a module name - add it to our pattern
+  pattern += $(MODULE) ^$(MODULE)
+endif
+
+# start by finding the first relevant module name 
+# (remember that the order of the module names in MOZ_DBGRINFO_MODULES 
+# is reversed from the order the user specified to configure - 
+# this allows the user to put general names at the beginning
+# of the list, and to override them with explicit module names later 
+# in the list)
+
+first_match:=$(firstword $(filter $(pattern), $(MOZ_DBGRINFO_MODULES)))
+
+ifeq ($(first_match), $(MODULE))
+  # the user specified explicitly that 
+  # this module should be compiled with -g
+  _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
+  _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
+else
+  ifeq ($(first_match), ^$(MODULE))
+    # the user specified explicitly that this module 
+    # should not be compiled with -g (nothing to do)
+  else
+    ifeq ($(first_match), ALL_MODULES)
+      # the user didn't mention this module explicitly, 
+      # but wanted all modules to be compiled with -g
+      _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
+      _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)      
+    else
+      ifeq ($(first_match), ^ALL_MODULES)
+        # the user didn't mention this module explicitly, 
+        # but wanted all modules to be compiled without -g (nothing to do)
+      endif
+    endif
   endif
 endif
 
-MOZALLOC_LIB = $(call EXPAND_LIBNAME_PATH,mozalloc,$(DIST)/lib)
 
+# append debug flags 
+# (these might have been above when processing MOZ_DBGRINFO_MODULES)
 OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)
 OS_LDFLAGS += $(_DEBUG_LDFLAGS)
 
-# XXX: What does this? Bug 482434 filed for better explanation.
+# MOZ_PROFILE equivs for win32
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 ifdef MOZ_DEBUG
 ifneq (,$(MOZ_BROWSE_INFO)$(MOZ_BSCFILE))
@@ -205,21 +250,13 @@ OS_CXXFLAGS += -FR
 endif
 else # ! MOZ_DEBUG
 
-# We don't build a static CRT when building a custom CRT,
-# it appears to be broken. So don't link to jemalloc if
-# the Makefile wants static CRT linking.
-ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_)
-# Disable default CRT libs and add the right lib path for the linker
-OS_LDFLAGS += $(MOZ_MEMORY_LDFLAGS)
-endif
-
 # MOZ_DEBUG_SYMBOLS generates debug symbols in separate PDB files.
 # Used for generating an optimized build with debugging symbols.
 # Used in the Windows nightlies to generate symbols for crash reporting.
 ifdef MOZ_DEBUG_SYMBOLS
 OS_CXXFLAGS += -Zi -UDEBUG -DNDEBUG
 OS_CFLAGS += -Zi -UDEBUG -DNDEBUG
-OS_LDFLAGS += -DEBUG -OPT:REF
+OS_LDFLAGS += -DEBUG -OPT:REF -OPT:nowin98
 endif
 
 ifdef MOZ_QUANTIFY
@@ -239,7 +276,7 @@ endif
 #
 ifdef NS_TRACE_MALLOC
 MOZ_OPTIMIZE_FLAGS=-Zi -Od -UDEBUG -DNDEBUG
-OS_LDFLAGS = -DEBUG -PDB:NONE -OPT:REF
+OS_LDFLAGS = -DEBUG -PDB:NONE -OPT:REF -OPT:nowin98
 endif # NS_TRACE_MALLOC
 
 endif # MOZ_DEBUG
@@ -322,56 +359,34 @@ DSO_PIC_CFLAGS=
 endif
 endif
 
-ifndef SHARED_LIBRARY_NAME
-ifdef LIBRARY_NAME
-SHARED_LIBRARY_NAME=$(LIBRARY_NAME)
-endif
-endif
-
-ifndef STATIC_LIBRARY_NAME
-ifdef LIBRARY_NAME
-STATIC_LIBRARY_NAME=$(LIBRARY_NAME)
-endif
-endif
-
-ifeq (WINNT,$(OS_ARCH))
-MOZ_FAKELIBS = 1
-endif
-
 # This comes from configure
 ifdef MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE
-NO_PROFILE_GUIDED_OPTIMIZE = 1
-endif
-
-# No sense in profiling tools
-ifdef INTERNAL_TOOLS
-NO_PROFILE_GUIDED_OPTIMIZE = 1
-endif
-
-# Don't build SIMPLE_PROGRAMS with PGO, since they don't need it anyway,
-# and we don't have the same build logic to re-link them in the second pass.
-ifdef SIMPLE_PROGRAMS
 NO_PROFILE_GUIDED_OPTIMIZE = 1
 endif
 
 # Enable profile-based feedback
 ifndef NO_PROFILE_GUIDED_OPTIMIZE
 ifdef MOZ_PROFILE_GENERATE
+# No sense in profiling tools
+ifndef INTERNAL_TOOLS
 OS_CFLAGS += $(PROFILE_GEN_CFLAGS)
 OS_CXXFLAGS += $(PROFILE_GEN_CFLAGS)
 OS_LDFLAGS += $(PROFILE_GEN_LDFLAGS)
 ifeq (WINNT,$(OS_ARCH))
 AR_FLAGS += -LTCG
 endif
+endif # INTERNAL_TOOLS
 endif # MOZ_PROFILE_GENERATE
 
 ifdef MOZ_PROFILE_USE
+ifndef INTERNAL_TOOLS
 OS_CFLAGS += $(PROFILE_USE_CFLAGS)
 OS_CXXFLAGS += $(PROFILE_USE_CFLAGS)
 OS_LDFLAGS += $(PROFILE_USE_LDFLAGS)
 ifeq (WINNT,$(OS_ARCH))
 AR_FLAGS += -LTCG
 endif
+endif # INTERNAL_TOOLS
 endif # MOZ_PROFILE_USE
 endif # NO_PROFILE_GUIDED_OPTIMIZE
 
@@ -389,6 +404,7 @@ DEFINES += \
 		-D_IMPL_NS_COM \
 		-DEXPORT_XPT_API \
 		-DEXPORT_XPTC_API \
+		-D_IMPL_NS_COM_OBSOLETE \
 		-D_IMPL_NS_GFX \
 		-D_IMPL_NS_WIDGET \
 		-DIMPL_XREAPI \
@@ -396,8 +412,8 @@ DEFINES += \
 		-DIMPL_THEBES \
 		$(NULL)
 
-ifndef JS_SHARED_LIBRARY
-DEFINES += -DSTATIC_EXPORTABLE_JS_API
+ifndef MOZ_NATIVE_ZLIB
+DEFINES += -DZLIB_INTERNAL
 endif
 endif
 endif
@@ -424,10 +440,6 @@ MAKE_JARS_FLAGS = \
 
 ifdef USE_EXTENSION_MANIFEST
 MAKE_JARS_FLAGS += -e
-endif
-
-ifdef BOTH_MANIFESTS
-MAKE_JARS_FLAGS += --both-manifests
 endif
 
 TAR_CREATE_FLAGS = -cvhf
@@ -466,16 +478,44 @@ JAVA_GEN_DIR  = _javagen
 JAVA_DIST_DIR = $(DEPTH)/$(JAVA_GEN_DIR)
 JAVA_IFACES_PKG_NAME = org/mozilla/interfaces
 
-INCLUDES = \
-  $(LOCAL_INCLUDES) \
-  -I$(srcdir) \
-  -I. \
-  -I$(DIST)/include -I$(DIST)/include/nsprpub \
-  $(if $(LIBXUL_SDK),-I$(LIBXUL_SDK)/include -I$(LIBXUL_SDK)/include/nsprpub) \
-  $(OS_INCLUDES) \
-  $(NULL) 
+REQ_INCLUDES	= -I$(srcdir) -I. $(foreach d,$(REQUIRES),-I$(DIST)/include/$d) -I$(DIST)/include 
+ifdef LIBXUL_SDK
+REQ_INCLUDES_SDK = $(foreach d,$(REQUIRES),-I$(LIBXUL_SDK)/include/$d) -I$(LIBXUL_SDK)/include
+endif
 
-include $(topsrcdir)/config/static-checking-config.mk
+INCLUDES	= $(LOCAL_INCLUDES) $(REQ_INCLUDES) $(REQ_INCLUDES_SDK) -I$(PUBLIC) $(OS_INCLUDES)
+
+ifndef MOZILLA_INTERNAL_API
+INCLUDES	+= -I$(LIBXUL_DIST)/sdk/include
+endif
+
+# The entire tree should be subject to static analysis using the XPCOM
+# script. Additional scripts may be added by specific subdirectories.
+
+DEHYDRA_SCRIPT = $(topsrcdir)/xpcom/analysis/static-checking.js
+
+DEHYDRA_MODULES = \
+  $(topsrcdir)/xpcom/analysis/final.js \
+  $(NULL)
+
+TREEHYDRA_MODULES = \
+  $(topsrcdir)/xpcom/analysis/outparams.js \
+  $(topsrcdir)/xpcom/analysis/stack.js \
+  $(topsrcdir)/xpcom/analysis/flow.js \
+  $(NULL)
+
+DEHYDRA_ARGS = \
+  --topsrcdir=$(topsrcdir) \
+  --objdir=$(DEPTH) \
+  --dehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(DEHYDRA_MODULES))) \
+  --treehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(TREEHYDRA_MODULES))) \
+  $(NULL)
+
+DEHYDRA_FLAGS = -fplugin=$(DEHYDRA_PATH) -fplugin-arg="$(DEHYDRA_SCRIPT) $(DEHYDRA_ARGS)"
+
+ifdef DEHYDRA_PATH
+OS_CXXFLAGS += $(DEHYDRA_FLAGS)
+endif
 
 CFLAGS		= $(OS_CFLAGS)
 CXXFLAGS	= $(OS_CXXFLAGS)
@@ -516,36 +556,14 @@ endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
 
-# Check for FAIL_ON_WARNINGS & FAIL_ON_WARNINGS_DEBUG (Shorthand for Makefiles
-# to request that we use the 'warnings as errors' compile flags)
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+ifdef USE_STATIC_LIBS
+RTL_FLAGS += -Gd-
+else # !USE_STATIC_LIBS
+RTL_FLAGS += -Gd+
+endif
+endif
 
-# NOTE: First, we clear FAIL_ON_WARNINGS[_DEBUG] if we're doing a Windows PGO
-# build, since WARNINGS_AS_ERRORS has been suspected of causing isuses in that
-# situation. (See bug 437002.)
-ifeq (WINNT_1,$(OS_ARCH)_$(MOZ_PROFILE_GENERATE)$(MOZ_PROFILE_USE))
-FAIL_ON_WARNINGS_DEBUG=
-FAIL_ON_WARNINGS=
-endif # WINNT && (MOS_PROFILE_GENERATE ^ MOZ_PROFILE_USE)
-
-# Also clear FAIL_ON_WARNINGS[_DEBUG] for Android builds, since
-# they have some platform-specific warnings we haven't fixed yet.
-ifeq ($(OS_TARGET),Android)
-FAIL_ON_WARNINGS_DEBUG=
-FAIL_ON_WARNINGS=
-endif # Android
-
-# Now, check for debug version of flag; it turns on normal flag in debug builds.
-ifdef FAIL_ON_WARNINGS_DEBUG
-ifdef MOZ_DEBUG
-FAIL_ON_WARNINGS = 1
-endif # MOZ_DEBUG
-endif # FAIL_ON_WARNINGS_DEBUG
-
-# Check for normal version of flag, and add WARNINGS_AS_ERRORS if it's set to 1.
-ifdef FAIL_ON_WARNINGS
-CXXFLAGS += $(WARNINGS_AS_ERRORS)
-CFLAGS   += $(WARNINGS_AS_ERRORS)
-endif # FAIL_ON_WARNINGS
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 #// Currently, unless USE_STATIC_LIBS is defined, the multithreaded
@@ -579,8 +597,8 @@ OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
 endif
 
-COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
-COMPILE_CXXFLAGS = $(STL_FLAGS) $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
+COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
+COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS)  $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS)
 
@@ -597,6 +615,7 @@ endif
 # put on the link line for binaries, and should
 # we link statically or dynamic?  Assuming dynamic for now.
 
+ifneq ($(MOZ_OS2_TOOLS),VACPP)
 ifneq (WINNT_,$(OS_ARCH)_$(GNU_CC))
 ifneq (,$(filter-out WINCE,$(OS_ARCH)))
 LIBS_DIR	= -L$(DIST)/bin -L$(DIST)/lib
@@ -605,21 +624,33 @@ LIBS_DIR	+= -L$(LIBXUL_SDK)/bin -L$(LIBXUL_SDK)/lib
 endif
 endif
 endif
+endif
 
 # Default location of include files
 IDL_DIR		= $(DIST)/idl
+ifdef MODULE
+PUBLIC		= $(DIST)/include/$(MODULE)
+else
+PUBLIC		= $(DIST)/include
+endif
 
 XPIDL_FLAGS = -I$(srcdir) -I$(IDL_DIR)
 ifdef LIBXUL_SDK
 XPIDL_FLAGS += -I$(LIBXUL_SDK)/idl
 endif
 
+SDK_PUBLIC  = $(DIST)/sdk/include
+SDK_IDL_DIR = $(DIST)/sdk/idl
 SDK_LIB_DIR = $(DIST)/sdk/lib
 SDK_BIN_DIR = $(DIST)/sdk/bin
 
 DEPENDENCIES	= .md
 
 MOZ_COMPONENT_LIBS=$(XPCOM_LIBS) $(MOZ_COMPONENT_NSPR_LIBS)
+
+ifdef GC_LEAK_DETECTOR
+XPCOM_LIBS += -lboehm
+endif
 
 ifeq (xpconnect, $(findstring xpconnect, $(BUILD_MODULES)))
 DEFINES +=  -DXPCONNECT_STANDALONE
@@ -631,10 +662,6 @@ else
 ELF_DYNSTR_GC	= :
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-OS_LIBS += $(MOZ_QT_LIBS)
-endif
-
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 ifdef MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS
@@ -644,6 +671,10 @@ endif
 endif
 
 ifeq ($(OS_ARCH),Darwin)
+ifdef USE_PREBINDING
+export LD_PREBIND=1
+export LD_SEG_ADDR_TABLE=$(shell cd $(topsrcdir); pwd)/config/prebind-address-table
+endif # USE_PREBINDING
 ifdef NEXT_ROOT
 export NEXT_ROOT
 PBBUILD = NEXT_ROOT= $(PBBUILD_BIN)
@@ -685,7 +716,7 @@ endif
 # Set link flags according to whether we want a console.
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:VIO
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -696,7 +727,10 @@ WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
 endif
 else # MOZ_WINCONSOLE
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+LDFLAGS += -PM:PM
+endif
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:PM
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -705,6 +739,18 @@ WIN32_EXE_LDFLAGS	+= -mwindows
 else
 WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:WINDOWS
 endif
+endif
+endif
+endif
+
+# Flags needed to link against the component library
+ifdef MOZ_COMPONENTLIB
+MOZ_COMPONENTLIB_EXTRA_DSO_LIBS = mozcomps xpcom_compat
+
+# Tell the linker where NSS is, if we're building crypto
+ifeq ($(OS_ARCH),Darwin)
+ifeq (,$(findstring crypto,$(MOZ_META_COMPONENTS)))
+MOZ_COMPONENTLIB_EXTRA_LIBS = $(foreach library, $(patsubst -l%, $(LIB_PREFIX)%$(DLL_SUFFIX), $(filter -l%, $(NSS_LIBS))), -dylib_file @executable_path/$(library):$(DIST)/bin/$(library))
 endif
 endif
 endif
@@ -731,25 +777,41 @@ endif
 DEFINES		+= -DOSTYPE=\"$(OS_CONFIG)\"
 DEFINES		+= -DOSARCH=$(OS_ARCH)
 
+# For profiling
+ifdef ENABLE_EAZEL_PROFILER
+ifndef INTERNAL_TOOLS
+ifneq ($(LIBRARY_NAME), xpt)
+ifneq (, $(findstring $(shell $(topsrcdir)/build/unix/print-depth-path.sh | awk -F/ '{ print $$2; }'), $(MOZ_PROFILE_MODULES)))
+PROFILER_CFLAGS	= $(EAZEL_PROFILER_CFLAGS) -DENABLE_EAZEL_PROFILER
+PROFILER_LIBS	= $(EAZEL_PROFILER_LIBS)
+endif
+endif
+endif
+endif
+
 ######################################################################
 
-GARBAGE		+= $(DEPENDENCIES) $(MKDEPENDENCIES) $(MKDEPENDENCIES).bak core $(wildcard core.[0-9]*) $(wildcard *.err) $(wildcard *.pure) $(wildcard *_pure_*.o) Templates.DB $(FAKE_LIBRARY)
+GARBAGE		+= $(DEPENDENCIES) $(MKDEPENDENCIES) $(MKDEPENDENCIES).bak core $(wildcard core.[0-9]*) $(wildcard *.err) $(wildcard *.pure) $(wildcard *_pure_*.o) Templates.DB
 
 ifeq ($(OS_ARCH),Darwin)
 ifndef NSDISTMODE
 NSDISTMODE=absolute_symlink
 endif
-PWD := $(CURDIR)
+PWD := $(shell pwd)
 endif
 
 ifdef NSINSTALL_BIN
 NSINSTALL	= $(CYGWIN_WRAPPER) $(NSINSTALL_BIN)
 else
+ifeq (WINNT,$(CROSS_COMPILE)$(OS_ARCH))
+NSINSTALL	= $(CYGWIN_WRAPPER) $(MOZ_TOOLS_DIR)/bin/nsinstall
+else
 ifeq (OS2,$(CROSS_COMPILE)$(OS_ARCH))
 NSINSTALL	= $(MOZ_TOOLS_DIR)/nsinstall
 else
-NSINSTALL	= $(CONFIG_TOOLS)/nsinstall$(HOST_BIN_SUFFIX)
+NSINSTALL	= $(CONFIG_TOOLS)/nsinstall
 endif # OS2
+endif # WINNT
 endif # NSINSTALL_BIN
 
 
@@ -773,6 +835,11 @@ INSTALL		= $(NSINSTALL) -R
 endif # absolute_symlink
 endif # copy
 endif # WINNT/OS2
+
+ifeq (,$(filter-out WINCE,$(OS_ARCH)))
+NSINSTALL	= $(CYGWIN_WRAPPER) nsinstall
+INSTALL     = $(CYGWIN_WRAPPER) nsinstall 
+endif
 
 # Use nsinstall in copy mode to install files on the system
 SYSINSTALL	= $(NSINSTALL) -t
@@ -803,28 +870,12 @@ LOCALE_SRCDIR = $(call EXPAND_LOCALE_SRCDIR,$(relativesrcdir))
 endif
 
 ifdef LOCALE_SRCDIR
-# if LOCALE_MERGEDIR is set, use mergedir first, then the localization,
-# and finally en-US
-ifdef LOCALE_MERGEDIR
-MAKE_JARS_FLAGS += -c $(LOCALE_MERGEDIR)/$(subst /locales,,$(relativesrcdir))
-endif
 MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
-ifdef LOCALE_MERGEDIR
-MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
-endif
 endif
 
-ifdef WINCE
-RUN_TEST_PROGRAM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-run-test.py
-else
-ifeq (OS2,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
-else
-ifneq (WINNT,$(OS_ARCH))
+ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
-endif # ! WINNT
-endif # ! OS2
-endif # ! WINCE
+endif
 
 #
 # Java macros
@@ -836,10 +887,3 @@ JAVAC_FLAGS += -source 1.4
 ifdef MOZ_DEBUG
 JAVAC_FLAGS += -g
 endif
-
-ifdef TIERS
-DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
-STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
-endif
-
-OPTIMIZE_JARS_CMD = $(PYTHON) $(call core_abspath,$(topsrcdir)/config/optimizejars.py)

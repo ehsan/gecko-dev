@@ -40,14 +40,14 @@
 //#define USEWEAKREFS // (haven't quite figured that out yet)
 
 #include "nsWindowWatcher.h"
-#include "nsAutoWindowStateHelper.h"
 
 #include "nsAutoLock.h"
 #include "nsCRT.h"
 #include "nsNetUtil.h"
+#include "nsPrompt.h"
+#include "nsPromptService.h"
 #include "nsWWJSUtils.h"
 #include "plstr.h"
-#include "nsIContentUtils.h"
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
@@ -60,12 +60,11 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsIDOMModalContentWindow.h"
-#include "nsIPrompt.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
 #include "nsIScriptContext.h"
+#include "nsIGenericFactory.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserverService.h"
 #include "nsIScriptGlobalObject.h"
@@ -86,16 +85,11 @@
 #include "nsIMutableArray.h"
 #include "nsISupportsArray.h"
 #include "nsIDeviceContext.h"
-#include "nsIDOMStorageObsolete.h"
-#include "nsIDOMStorage.h"
-#include "nsPIDOMStorage.h"
-#include "nsIWidget.h"
-#include "nsFocusManager.h"
-#include "nsIPresShell.h"
-#include "nsPresContext.h"
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
+
+#include "jsinterp.h" // for js_AllocStack() and js_FreeStack()
 
 #ifdef USEWEAKREFS
 #include "nsIWeakReference.h"
@@ -330,14 +324,16 @@ nsresult JSContextAutoPopper::Push(JSContext *cx)
 
 NS_IMPL_ADDREF(nsWindowWatcher)
 NS_IMPL_RELEASE(nsWindowWatcher)
-NS_IMPL_QUERY_INTERFACE3(nsWindowWatcher,
+NS_IMPL_QUERY_INTERFACE4(nsWindowWatcher,
                          nsIWindowWatcher,
                          nsIPromptFactory,
+                         nsIAuthPromptAdapterFactory,
                          nsPIWindowWatcher)
 
 nsWindowWatcher::nsWindowWatcher() :
         mEnumeratorList(),
         mOldestWindow(0),
+        mActiveWindow(0),
         mListLock(0)
 {
 }
@@ -518,12 +514,6 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = 0;
 
-  nsCOMPtr<nsIContentUtils> utils =
-    do_GetService("@mozilla.org/content/contentutils;1");
-  if (utils && !utils->IsSafeToRunScript()) {
-    return NS_ERROR_FAILURE;
-  }
-
   GetWindowTreeOwner(aParent, getter_AddRefs(parentTreeOwner));
 
   if (aUrl) {
@@ -560,7 +550,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   // Make sure we call CalculateChromeFlags() *before* we push the
   // callee context onto the context stack so that
-  // CalculateChromeFlags() sees the actual caller when doing its
+  // CalculateChromeFlags() sees the actual caller when doing it's
   // security checks.
   chromeFlags = CalculateChromeFlags(features.get(), featuresSpecified,
                                      aDialog, uriToLoadIsChrome,
@@ -579,23 +569,11 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
 
+  PRBool isCallerChrome = PR_FALSE;
   nsCOMPtr<nsIScriptSecurityManager>
     sm(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
-
-  NS_ENSURE_TRUE(sm, NS_ERROR_FAILURE);
-
-  // Remember who's calling us. This code used to assume a null
-  // subject principal if it failed to get the principal, but that's
-  // just not safe, so bail on errors here.
-  nsCOMPtr<nsIPrincipal> callerPrincipal;
-  rv = sm->GetSubjectPrincipal(getter_AddRefs(callerPrincipal));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool isCallerChrome = PR_TRUE;
-  if (callerPrincipal) {
-    rv = sm->IsSystemPrincipal(callerPrincipal, &isCallerChrome);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  if (sm)
+    sm->SubjectPrincipalIsSystem(&isCallerChrome);
 
   JSContext *cx = GetJSContextFromWindow(aParent);
 
@@ -627,7 +605,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
         NS_ASSERTION(aParent, "We've _got_ to have a parent here!");
 
         nsCOMPtr<nsIDOMWindow> newWindow;
-        rv = provider->ProvideWindow(aParent, chromeFlags, aCalledFromJS,
+        rv = provider->ProvideWindow(aParent, chromeFlags,
                                      sizeSpec.PositionSpecified(),
                                      sizeSpec.SizeSpecified(),
                                      uriToLoad, name, features, &windowIsNew,
@@ -648,8 +626,6 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
     }
   }
   
-  PRBool newWindowShouldBeModal = PR_FALSE;
-  PRBool parentIsModal = PR_FALSE;
   if (!newDocShellItem) {
     windowIsNew = PR_TRUE;
     isNewToplevelWindow = PR_TRUE;
@@ -658,34 +634,14 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
     // is the parent (if any) modal? if so, we must be, too.
     PRBool weAreModal = (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL) != 0;
-    newWindowShouldBeModal = weAreModal;
-    if (!weAreModal && parentChrome) {
+    if (!weAreModal && parentChrome)
       parentChrome->IsWindowModal(&weAreModal);
-      parentIsModal = weAreModal;
-    }
 
     if (weAreModal) {
       windowIsModal = PR_TRUE;
       // in case we added this because weAreModal
       chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL |
         nsIWebBrowserChrome::CHROME_DEPENDENT;
-    }
-
-    // Make sure to not create modal windows if our parent is invisible and
-    // isn't a chrome window.  Otherwise we can end up in a bizarre situation
-    // where we can't shut down because an invisible window is open.  If
-    // someone tries to do this, throw.
-    if (!chromeParent && (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL)) {
-      PRBool parentVisible = PR_TRUE;
-      nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(parentTreeOwner));
-      nsCOMPtr<nsIWidget> parentWidget;
-      if (parentWindow)
-        parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
-      if (parentWidget)
-        parentWidget->IsVisible(parentVisible);
-      if (!parentVisible) {
-        return NS_ERROR_NOT_AVAILABLE;
-      }
     }
 
     NS_ASSERTION(mWindowCreator,
@@ -719,11 +675,21 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
         if (popupConditions)
           contextFlags |= nsIWindowCreator2::PARENT_IS_LOADING_OR_RUNNING_TIMEOUT;
 
+        PRBool parentVisible = PR_TRUE;
+        if (parentChrome)
+        {
+          nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(parentTreeOwner));
+          nsCOMPtr<nsIWidget> parentWidget;
+          if (parentWindow)
+            parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
+          if (parentWidget)
+            parentWidget->IsVisible(parentVisible);            
+        }
         PRBool cancel = PR_FALSE;
-        rv = windowCreator2->CreateChromeWindow2(parentChrome, chromeFlags,
-                                                 contextFlags, uriToLoad,
-                                                 &cancel,
-                                                 getter_AddRefs(newChrome));
+        rv = windowCreator2->CreateChromeWindow2(
+               parentVisible ? parentChrome.get() : nsnull,
+               chromeFlags, contextFlags, uriToLoad, &cancel,
+               getter_AddRefs(newChrome));
         if (NS_SUCCEEDED(rv) && cancel) {
           newChrome = 0; // just in case
           rv = NS_ERROR_ABORT;
@@ -779,10 +745,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   if ((aDialog || windowIsModalContentDialog) && argv) {
     // Set the args on the new window.
-    nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(*_retval));
-    NS_ENSURE_TRUE(piwin, NS_ERROR_UNEXPECTED);
-
-    rv = piwin->SetArguments(argv, callerPrincipal);
+    nsCOMPtr<nsIScriptGlobalObject> scriptGlobal(do_QueryInterface(*_retval));
+    NS_ENSURE_TRUE(scriptGlobal, NS_ERROR_UNEXPECTED);
+    rv = scriptGlobal->SetNewArguments(argv);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -846,9 +811,10 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
     // Notify observers that the window is open and ready.
     // The window has not yet started to load a document.
     nsCOMPtr<nsIObserverService> obsSvc =
-      mozilla::services::GetObserverService();
-    if (obsSvc)
+      do_GetService("@mozilla.org/observer-service;1");
+    if (obsSvc) {
       obsSvc->NotifyObservers(*_retval, "toplevel-window-ready", nsnull);
+    }
   }
 
   // Now we have to set the right opener principal on the new window.  Note
@@ -953,31 +919,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
                     nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
-  // Copy the current session storage for the current domain.
-  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aParent);
-  nsIDocShell* parentDocShell = nsnull;
-  if (piWindow)
-    parentDocShell = piWindow->GetDocShell();
-
-  if (subjectPrincipal && parentDocShell) {
-    nsCOMPtr<nsIDOMStorage> storage;
-    parentDocShell->GetSessionStorageForPrincipal(subjectPrincipal,
-                                                  EmptyString(), PR_FALSE,
-                                                  getter_AddRefs(storage));
-    nsCOMPtr<nsPIDOMStorage> piStorage =
-      do_QueryInterface(storage);
-    if (piStorage){
-      storage = piStorage->Clone();
-      newDocShell->AddSessionStorage(
-        piStorage->Principal(),
-        storage);
-    }
-  }
-
   if (isNewToplevelWindow)
     SizeOpenedDocShellItem(newDocShellItem, aParent, sizeSpec);
 
-  // XXXbz isn't windowIsModal always true when windowIsModalContentDialog?
   if (windowIsModal || windowIsModalContentDialog) {
     nsCOMPtr<nsIDocShellTreeOwner> newTreeOwner;
     newDocShellItem->GetTreeOwner(getter_AddRefs(newTreeOwner));
@@ -1007,24 +951,12 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
       return NS_OK;
     }
 
-        
-    if (!newWindowShouldBeModal && parentIsModal) {
-      nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(newTreeOwner));
-      if (parentWindow) {
-        nsCOMPtr<nsIWidget> parentWidget;
-        parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
-        if (parentWidget) {
-          parentWidget->SetModal(PR_TRUE);
-        }
-      }
-    } else { 
-      // Reset popup state while opening a modal dialog, and firing
-      // events about the dialog, to prevent the current state from
-      // being active the whole time a modal dialog is open.
-      nsAutoPopupStatePusher popupStatePusher(modalContentWindow, openAbused);
-  
-      newChrome->ShowAsModal();
-    }
+    // Reset popup state while opening a modal dialog, and firing
+    // events about the dialog, to prevent the current state from
+    // being active the whole time a modal dialog is open.
+    nsAutoPopupStatePusher popupStatePusher(modalContentWindow, openAbused);
+
+    newChrome->ShowAsModal();
   }
 
   return NS_OK;
@@ -1034,18 +966,17 @@ NS_IMETHODIMP
 nsWindowWatcher::RegisterNotification(nsIObserver *aObserver)
 {
   // just a convenience method; it delegates to nsIObserverService
+  nsresult rv;
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
   
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os)
-    return NS_ERROR_FAILURE;
-
-  nsresult rv = os->AddObserver(aObserver, "domwindowopened", PR_FALSE);
-  if (NS_SUCCEEDED(rv))
-    rv = os->AddObserver(aObserver, "domwindowclosed", PR_FALSE);
-
+  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
+  if (os) {
+    rv = os->AddObserver(aObserver, "domwindowopened", PR_FALSE);
+    if (NS_SUCCEEDED(rv))
+      rv = os->AddObserver(aObserver, "domwindowclosed", PR_FALSE);
+  }
   return rv;
 }
 
@@ -1053,18 +984,17 @@ NS_IMETHODIMP
 nsWindowWatcher::UnregisterNotification(nsIObserver *aObserver)
 {
   // just a convenience method; it delegates to nsIObserverService
+  nsresult rv;
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
   
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os)
-    return NS_ERROR_FAILURE;
-
-  os->RemoveObserver(aObserver, "domwindowopened");
-  os->RemoveObserver(aObserver, "domwindowclosed");
-
-  return NS_OK;
+  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
+  if (os) {
+    os->RemoveObserver(aObserver, "domwindowopened");
+    os->RemoveObserver(aObserver, "domwindowclosed");
+  }
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1084,46 +1014,54 @@ nsWindowWatcher::GetWindowEnumerator(nsISimpleEnumerator** _retval)
 NS_IMETHODIMP
 nsWindowWatcher::GetNewPrompter(nsIDOMWindow *aParent, nsIPrompt **_retval)
 {
-  // This is for backwards compat only. Callers should just use the prompt service directly.
-  nsresult rv;
-  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return factory->GetPrompt(aParent, NS_GET_IID(nsIPrompt), reinterpret_cast<void**>(_retval));
+  return NS_NewPrompter(_retval, aParent);
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::GetNewAuthPrompter(nsIDOMWindow *aParent, nsIAuthPrompt **_retval)
 {
-  // This is for backwards compat only. Callers should just use the prompt service directly.
-  nsresult rv;
-  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return factory->GetPrompt(aParent, NS_GET_IID(nsIAuthPrompt), reinterpret_cast<void**>(_retval));
+  return NS_NewAuthPrompter(_retval, aParent);
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::GetPrompt(nsIDOMWindow *aParent, const nsIID& aIID,
                            void **_retval)
 {
-  // This is for backwards compat only. Callers should just use the prompt service directly.
-  nsresult rv;
-  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = factory->GetPrompt(aParent, aIID, _retval);
+  if (aIID.Equals(NS_GET_IID(nsIPrompt)))
+    return NS_NewPrompter(reinterpret_cast<nsIPrompt**>(_retval), aParent);
+  if (aIID.Equals(NS_GET_IID(nsIAuthPrompt)))
+    return NS_NewAuthPrompter(reinterpret_cast<nsIAuthPrompt**>(_retval),
+                              aParent);
+  if (aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
+    nsresult rv = NS_NewAuthPrompter2(reinterpret_cast<nsIAuthPrompt2**>
+                                                      (_retval),
+                                      aParent);
+    if (rv == NS_NOINTERFACE) {
+      // Return an wrapped nsIAuthPrompt (if we can)
+      nsCOMPtr<nsIAuthPrompt> prompt;
+      rv = NS_NewAuthPrompter(getter_AddRefs(prompt), aParent);
+      if (NS_SUCCEEDED(rv)) {
+        NS_WrapAuthPrompt(prompt,
+                          reinterpret_cast<nsIAuthPrompt2**>(_retval));
+        if (!*_retval)
+          rv = NS_ERROR_NOT_AVAILABLE;
+      }
+    }
 
-  // Allow for an embedding implementation to not support nsIAuthPrompt2.
-  if (rv == NS_NOINTERFACE && aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
-    nsCOMPtr<nsIAuthPrompt> oldPrompt;
-    rv = factory->GetPrompt(aParent,
-                            NS_GET_IID(nsIAuthPrompt),
-                            getter_AddRefs(oldPrompt));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_WrapAuthPrompt(oldPrompt, reinterpret_cast<nsIAuthPrompt2**>(_retval));
-    if (!*_retval)
-      rv = NS_ERROR_NOT_AVAILABLE;
+    return rv;
   }
-  return rv;
+
+  return NS_NOINTERFACE;
+}
+
+NS_IMETHODIMP
+nsWindowWatcher::CreateAdapter(nsIAuthPrompt* aPrompt, nsIAuthPrompt2** _retval)
+{
+  *_retval = new AuthPromptWrapper(aPrompt);
+  if (!*_retval)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(*_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1136,25 +1074,39 @@ nsWindowWatcher::SetWindowCreator(nsIWindowCreator *creator)
 NS_IMETHODIMP
 nsWindowWatcher::GetActiveWindow(nsIDOMWindow **aActiveWindow)
 {
-  *aActiveWindow = nsnull;
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm)
-    return fm->GetActiveWindow(aActiveWindow);
+  if (!aActiveWindow)
+    return NS_ERROR_INVALID_ARG;
+
+  *aActiveWindow = mActiveWindow;
+  NS_IF_ADDREF(mActiveWindow);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::SetActiveWindow(nsIDOMWindow *aActiveWindow)
 {
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm)
-    return fm->SetActiveWindow(aActiveWindow);
-  return NS_OK;
+#ifdef DEBUG
+  {
+    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aActiveWindow));
+
+    NS_ASSERTION(!win || win->IsOuterWindow(),
+                 "Uh, the active window must be an outer window!");
+  }
+#endif
+
+  if (FindWindowEntry(aActiveWindow)) {
+    mActiveWindow = aActiveWindow;
+    return NS_OK;
+  }
+  NS_ERROR("invalid active window");
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::AddWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *aChrome)
 {
+  nsresult rv;
+
   if (!aWindow)
     return NS_ERROR_INVALID_ARG;
 
@@ -1198,12 +1150,13 @@ nsWindowWatcher::AddWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *aChrome)
 
   // a window being added to us signifies a newly opened window.
   // send notifications.
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os)
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
+  if (os) {
+    nsCOMPtr<nsISupports> domwin(do_QueryInterface(aWindow));
+    rv = os->NotifyObservers(domwin, "domwindowopened", 0);
+  }
 
-  nsCOMPtr<nsISupports> domwin(do_QueryInterface(aWindow));
-  return os->NotifyObservers(domwin, "domwindowopened", 0);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1264,33 +1217,38 @@ nsWindowWatcher::FindWindowEntry(nsIDOMWindow *aWindow)
 
 nsresult nsWindowWatcher::RemoveWindow(nsWatcherWindowEntry *inInfo)
 {
-  PRUint32  ctr,
-            count = mEnumeratorList.Length();
+  PRInt32  ctr,
+           count = mEnumeratorList.Count();
+  nsresult rv;
 
   {
     // notify the enumerators
     nsAutoLock lock(mListLock);
     for (ctr = 0; ctr < count; ++ctr) 
-      mEnumeratorList[ctr]->WindowRemoved(inInfo);
+      ((nsWatcherWindowEnumerator*)mEnumeratorList[ctr])->WindowRemoved(inInfo);
 
     // remove the element from the list
     if (inInfo == mOldestWindow)
       mOldestWindow = inInfo->mYounger == mOldestWindow ? 0 : inInfo->mYounger;
     inInfo->Unlink();
+
+    // clear the active window, if they're the same
+    if (mActiveWindow == inInfo->mWindow)
+      mActiveWindow = 0;
   }
 
   // a window being removed from us signifies a newly closed window.
   // send notifications.
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
   if (os) {
 #ifdef USEWEAKREFS
     nsCOMPtr<nsISupports> domwin(do_QueryReferent(inInfo->mWindow));
     if (domwin)
-      os->NotifyObservers(domwin, "domwindowclosed", 0);
+      rv = os->NotifyObservers(domwin, "domwindowclosed", 0);
     // else bummer. since the window is gone, there's nothing to notify with.
 #else
     nsCOMPtr<nsISupports> domwin(do_QueryInterface(inInfo->mWindow));
-    os->NotifyObservers(domwin, "domwindowclosed", 0);
+    rv = os->NotifyObservers(domwin, "domwindowclosed", 0);
 #endif
   }
 
@@ -1354,7 +1312,7 @@ PRBool
 nsWindowWatcher::AddEnumerator(nsWatcherWindowEnumerator* inEnumerator)
 {
   // (requires a lock; assumes it's called by someone holding the lock)
-  return mEnumeratorList.AppendElement(inEnumerator) != nsnull;
+  return mEnumeratorList.AppendElement(inEnumerator);
 }
 
 PRBool
@@ -1398,7 +1356,7 @@ nsWindowWatcher::URIfromURL(const char *aURL,
       nsCOMPtr<nsIDocument> doc;
       doc = do_QueryInterface(domDoc);
       if (doc) {
-        baseURI = doc->GetDocBaseURI();
+        baseURI = doc->GetBaseURI();
       }
     }
   }
@@ -1509,6 +1467,8 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
                                nsIWebBrowserChrome::CHROME_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("location",
                                nsIWebBrowserChrome::CHROME_LOCATIONBAR);
+  NS_CALCULATE_CHROME_FLAG_FOR("directories",
+                               nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("personalbar",
                                nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("status",
@@ -1533,12 +1493,10 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
      to mean "OS' choice." */
 
   // default titlebar and closebox to "on," if not mentioned at all
-  if (!(chromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_POPUP)) {
-    if (!PL_strcasestr(aFeatures, "titlebar"))
-      chromeFlags |= nsIWebBrowserChrome::CHROME_TITLEBAR;
-    if (!PL_strcasestr(aFeatures, "close"))
-      chromeFlags |= nsIWebBrowserChrome::CHROME_WINDOW_CLOSE;
-  }
+  if (!PL_strcasestr(aFeatures, "titlebar"))
+    chromeFlags |= nsIWebBrowserChrome::CHROME_TITLEBAR;
+  if (!PL_strcasestr(aFeatures, "close"))
+    chromeFlags |= nsIWebBrowserChrome::CHROME_WINDOW_CLOSE;
 
   if (aDialog && !presenceFlag)
     chromeFlags = nsIWebBrowserChrome::CHROME_DEFAULT;
@@ -1924,19 +1882,18 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem *aDocShellItem,
     return;
     
   float devPixelsPerCSSPixel = 1.0;
-  if (aParent) {
-    nsCOMPtr<nsIDOMDocument> openerDoc;
-    aParent->GetDocument(getter_AddRefs(openerDoc));
-    if (openerDoc) {
-      nsCOMPtr<nsIDocument> doc = do_QueryInterface(openerDoc);
-      nsIPresShell* shell = doc->GetShell();
-      if (shell) {
-        nsPresContext* presContext = shell->GetPresContext();
-        if (presContext) {
-          devPixelsPerCSSPixel = presContext->CSSPixelsToDevPixels(1.0f);
-        }
-      }
-    }
+  nsCOMPtr<nsIWidget> mainWidget;
+  treeOwnerAsWin->GetMainWidget(getter_AddRefs(mainWidget));
+  if (!mainWidget) {
+    // Some embedding clients don't support nsIDocShellTreeOwner's
+    // GetMainWidget, so try going through nsIBaseWindow's GetParentWidget
+    nsCOMPtr<nsIBaseWindow> shellWindow(do_QueryInterface(aDocShellItem));
+    if (shellWindow)
+      shellWindow->GetParentWidget(getter_AddRefs(mainWidget));
+  }
+  if (mainWidget) {
+    nsCOMPtr<nsIDeviceContext> ctx = mainWidget->GetDeviceContext();
+    devPixelsPerCSSPixel = float(ctx->AppUnitsPerCSSPixel()) / ctx->AppUnitsPerDevPixel();
   }
 
   /* The current position and size will be unchanged if not specified

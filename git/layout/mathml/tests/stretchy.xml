@@ -48,7 +48,6 @@
 </head>
 <body>
 
-<div>
 Testing stretchy symbols -- view the source...
 
 <math xmlns="http://www.w3.org/1998/Math/MathML">
@@ -395,8 +394,6 @@ and elsewhere,
 </mrow>
      
 </math>
-
-</div>
 
 </body>
 </html>

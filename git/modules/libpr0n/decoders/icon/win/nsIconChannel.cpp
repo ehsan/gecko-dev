@@ -24,7 +24,6 @@
  *   Scott MacGregor <mscott@netscape.com>
  *   Neil Rashbrook <neil@parkwaycc.co.uk>
  *   Ben Goodger <ben@mozilla.org>
- *   Siddharth Agarwal <sid.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -60,17 +59,6 @@
 #include "nsCExternalHandlerService.h"
 #include "nsDirectoryServiceDefs.h"
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0600
-#endif
-
-#ifdef WINCE
-#define SHGetFileInfoW SHGetFileInfo
-#endif
-
 // we need windows.h to read out registry information...
 #include <windows.h>
 #include <shellapi.h>
@@ -94,20 +82,6 @@ struct ICONENTRY {
   PRUint32 ieFileOffset;
 };
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-typedef HRESULT (WINAPI*SHGetStockIconInfoPtr) (SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO *psii);
-
-// Match stock icons with names
-static SHSTOCKICONID GetStockIconIDForName(const nsACString &aStockName)
-{
-  // UAC shield icon
-  if (aStockName == NS_LITERAL_CSTRING("uac-shield"))
-    return SIID_SHIELD;
-
-  return SIID_INVALID;
-}
-#endif
-
 // nsIconChannel methods
 nsIconChannel::nsIconChannel()
 {
@@ -126,7 +100,7 @@ nsresult nsIconChannel::Init(nsIURI* uri)
 {
   NS_ASSERTION(uri, "no uri");
   mUrl = uri;
-  mOriginalURI = uri;
+
   nsresult rv;
   mPump = do_CreateInstance(NS_INPUTSTREAMPUMP_CONTRACTID, &rv);
   return rv;
@@ -192,14 +166,13 @@ NS_IMETHODIMP nsIconChannel::SetLoadFlags(PRUint32 aLoadAttributes)
 
 NS_IMETHODIMP nsIconChannel::GetOriginalURI(nsIURI* *aURI)
 {
-  *aURI = mOriginalURI;
+  *aURI = mOriginalURI ? mOriginalURI : mUrl;
   NS_ADDREF(*aURI);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsIconChannel::SetOriginalURI(nsIURI* aURI)
 {
-  NS_ENSURE_ARG_POINTER(aURI);
   mOriginalURI = aURI;
   return NS_OK;
 }
@@ -227,11 +200,11 @@ nsresult nsIconChannel::ExtractIconInfoFromUrl(nsIFile ** aLocalFile, PRUint32 *
   iconURI->GetContentType(aContentType);
   iconURI->GetFileExtension(aFileExtension);
 
-  nsCOMPtr<nsIURL> url;
-  rv = iconURI->GetIconURL(getter_AddRefs(url));
-  if (NS_FAILED(rv) || !url) return NS_OK;
+  nsCOMPtr<nsIURI> fileURI;
+  rv = iconURI->GetIconFile(getter_AddRefs(fileURI));
+  if (NS_FAILED(rv) || !fileURI) return NS_OK;
 
-  nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(url, &rv);
+  nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(fileURI, &rv);
   if (NS_FAILED(rv) || !fileURL) return NS_OK;
 
   nsCOMPtr<nsIFile> file;
@@ -264,7 +237,6 @@ NS_IMETHODIMP nsIconChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports
   return rv;
 }
 
-#ifndef WINCE
 static DWORD GetSpecialFolderIcon(nsIFile* aFile, int aFolder, SHFILEINFOW* aSFI, UINT aInfoFlags)
 {
   DWORD shellResult = 0;
@@ -298,29 +270,9 @@ static DWORD GetSpecialFolderIcon(nsIFile* aFile, int aFolder, SHFILEINFOW* aSFI
   }
   return shellResult;
 }
-#endif
 
-static UINT GetSizeInfoFlag(PRUint32 aDesiredImageSize)
+nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBlocking)
 {
-  UINT infoFlag;
-  if (aDesiredImageSize > 16)
-#ifndef WINCE
-    infoFlag = SHGFI_SHELLICONSIZE;
-#else
-    infoFlag = SHGFI_LARGEICON;
-#endif
-  else
-    infoFlag = SHGFI_SMALLICON;
-
-  return infoFlag;
-}
-
-nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
-{
-#ifdef WINCE_WINDOWS_MOBILE
-    // GetDIBits does not exist on windows mobile.
-  return NS_ERROR_NOT_AVAILABLE;
-#else
   nsXPIDLCString contentType;
   nsCString fileExt;
   nsCOMPtr<nsIFile> localFile; // file we want an icon for
@@ -334,37 +286,34 @@ nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
   
   PRBool fileExists = PR_FALSE;
  
-  nsAutoString filePath;
-  CopyASCIItoUTF16(fileExt, filePath);
+  nsCAutoString filePath(fileExt);
   if (localFile)
   {
     rv = localFile->Normalize();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    localFile->GetPath(filePath);
-#ifndef WINCE
+    localFile->GetNativePath(filePath);
     if (filePath.Length() < 2 || filePath[1] != ':')
       return NS_ERROR_MALFORMED_URI; // UNC
-#else
-    // WinCE paths don't have drive letters
-    if (filePath.Length() < 2 ||
-        filePath[0] != '\\' || filePath[1] == '\\')
-      return NS_ERROR_MALFORMED_URI; // UNC
-#endif
 
     if (filePath.Last() == ':')
       filePath.Append('\\');
     else {
       localFile->Exists(&fileExists);
       if (!fileExists)
-       localFile->GetLeafName(filePath);
+       localFile->GetNativeLeafName(filePath);
     }
   }
 
   if (!fileExists)
    infoFlags |= SHGFI_USEFILEATTRIBUTES;
 
-  infoFlags |= GetSizeInfoFlag(desiredImageSize);
+#ifndef WINCE
+  if (desiredImageSize > 16)
+    infoFlags |= SHGFI_SHELLICONSIZE;
+  else
+#endif
+    infoFlags |= SHGFI_SMALLICON;
 
   // if we have a content type... then use it! but for existing files, we want
   // to show their real icon.
@@ -378,24 +327,17 @@ nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
     // If the mime service does not know about this mime type, we show
     // the generic icon.
     // In any case, we need to insert a '.' before the extension.
-    filePath = NS_LITERAL_STRING(".") + NS_ConvertUTF8toUTF16(defFileExt);
+    filePath = NS_LITERAL_CSTRING(".") + defFileExt;
   }
 
-#ifndef WINCE
+  rv = NS_ERROR_NOT_AVAILABLE;
+
   // Is this the "Desktop" folder?
   DWORD shellResult = GetSpecialFolderIcon(localFile, CSIDL_DESKTOP, &sfi, infoFlags);
   if (!shellResult) {
     // Is this the "My Documents" folder?
     shellResult = GetSpecialFolderIcon(localFile, CSIDL_PERSONAL, &sfi, infoFlags);
   }
-#else
-  DWORD shellResult = 0;
-  // Fantastic. On WinCE, ::SHGetFileInfo (with a localFile) fails
-  // unless I also set another flag like this. We don't actually need
-  // the display name.
-  if (localFile)
-    infoFlags |= SHGFI_DISPLAYNAME;
-#endif
 
   // There are other "Special Folders" and Namespace entities that we are not 
   // fetching icons for, see: 
@@ -404,300 +346,55 @@ nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
 
   // Not a special folder, or something else failed above.
   if (!shellResult)
-    shellResult = ::SHGetFileInfoW(filePath.get(),
+    shellResult = ::SHGetFileInfoW(NS_ConvertUTF8toUTF16(filePath).get(),
                                    FILE_ATTRIBUTE_ARCHIVE, &sfi, sizeof(sfi), infoFlags);
 
   if (shellResult && sfi.hIcon)
-    *hIcon = sfi.hIcon;
-  else
-    rv = NS_ERROR_NOT_AVAILABLE;
-
-  return rv;
-#endif
-}
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
-{
-  nsresult rv = NS_OK;
-
-  // We can only do this on Vista or above
-  HMODULE hShellDLL = ::LoadLibraryW(L"shell32.dll");
-  SHGetStockIconInfoPtr pSHGetStockIconInfo =
-    (SHGetStockIconInfoPtr) ::GetProcAddress(hShellDLL, "SHGetStockIconInfo");
-
-  if (pSHGetStockIconInfo)
-  {
-    PRUint32 desiredImageSize;
-    aIconURI->GetImageSize(&desiredImageSize);
-    nsCAutoString stockIcon;
-    aIconURI->GetStockIcon(stockIcon);
-
-    SHSTOCKICONID stockIconID = GetStockIconIDForName(stockIcon);
-    if (stockIconID == SIID_INVALID)
-      return NS_ERROR_NOT_AVAILABLE;
-
-    UINT infoFlags = SHGSI_ICON;
-    infoFlags |= GetSizeInfoFlag(desiredImageSize);
-
-    SHSTOCKICONINFO sii = {0};
-    sii.cbSize = sizeof(sii);
-    HRESULT hr = pSHGetStockIconInfo(stockIconID, infoFlags, &sii);
-
-    if (SUCCEEDED(hr))
-      *hIcon = sii.hIcon;
-    else
-      rv = NS_ERROR_FAILURE;
-  }
-  else
-  {
-    rv = NS_ERROR_NOT_AVAILABLE;
-  }
-
-  if (hShellDLL)
-    ::FreeLibrary(hShellDLL);
-
-  return rv;
-}
-#endif
-
-#ifdef WINCE
-int GetDIBits(HDC hdc,
-              HBITMAP hbmp,
-              UINT uStartScan,
-              UINT cScanLines,
-              LPVOID lpvBits,
-              LPBITMAPINFO lpbi,
-              UINT uUsage)
-{
-  // Enforce some assumptions this simplified implementation makes
-  if (!hdc || !hbmp || uStartScan != 0 ||
-      !lpbi || uUsage != DIB_RGB_COLORS ||
-      lpvBits == NULL && lpbi->bmiHeader.biSize != sizeof(BITMAPINFOHEADER))
-    return 0;
-
-  BITMAP bmpInfo;
-  if (!::GetObject(hbmp, sizeof(BITMAP), &bmpInfo))
-    return 0;
-
-  lpbi->bmiHeader.biWidth         = bmpInfo.bmWidth;
-  lpbi->bmiHeader.biHeight        = bmpInfo.bmHeight;
-  lpbi->bmiHeader.biPlanes        = bmpInfo.bmPlanes;
-  lpbi->bmiHeader.biBitCount      = bmpInfo.bmBitsPixel;
-  lpbi->bmiHeader.biCompression   = BI_RGB; // 0
-  lpbi->bmiHeader.biSizeImage     = bmpInfo.bmWidthBytes * bmpInfo.bmHeight;
-  lpbi->bmiHeader.biXPelsPerMeter = 0;
-  lpbi->bmiHeader.biYPelsPerMeter = 0;
-  lpbi->bmiHeader.biClrUsed       = 0;
-  lpbi->bmiHeader.biClrImportant  = 0;
-
-  if (lpbi->bmiHeader.biBitCount == 1) {
-    // Need to set this or else the mask is inverted.
-    lpbi->bmiHeader.biClrUsed       = 2;
-    lpbi->bmiHeader.biClrImportant  = 2;
-    lpbi->bmiColors[0].rgbRed = lpbi->bmiColors[0].rgbGreen =
-      lpbi->bmiColors[0].rgbBlue = lpbi->bmiColors[0].rgbReserved = 0;
-    lpbi->bmiColors[1].rgbRed = lpbi->bmiColors[1].rgbGreen =
-      lpbi->bmiColors[1].rgbBlue = lpbi->bmiColors[1].rgbReserved = 255;
-  }
-
-  if (lpvBits == NULL)
-    return bmpInfo.bmHeight;
-
-  // We just want to pull out the image bits, but Windows CE makes
-  // this stupidly difficult to do...
-  HBITMAP hTargetBitmap;
-  void *pBuffer; 
-  HDC someDC = ::GetDC(NULL);
-  hTargetBitmap = ::CreateDIBSection(someDC, lpbi, DIB_RGB_COLORS,
-                                     (void**)&pBuffer, NULL, 0);
-  ::ReleaseDC(NULL, someDC);
-
-  HDC memDc    = ::CreateCompatibleDC(NULL);
-  HDC targetDc = ::CreateCompatibleDC(NULL);
-  if (!memDc || !targetDc)
-    return 0;
-
-  HBITMAP hOldMemBitmap = (HBITMAP)::SelectObject(memDc, hbmp);
-  HBITMAP hOldTgtBitmap = (HBITMAP)::SelectObject(targetDc, hTargetBitmap);
-
-  // BitBlt into the target bitmap, then copy the bits into our buffer.
-  ::BitBlt(targetDc, 0, 0, bmpInfo.bmWidth, bmpInfo.bmHeight, memDc, 0, 0, SRCCOPY);
-  memcpy(lpvBits, pBuffer, lpbi->bmiHeader.biSizeImage);
-
-  // Cleanup
-  ::SelectObject(memDc, hOldMemBitmap);
-  ::SelectObject(targetDc, hOldTgtBitmap);
-  ::DeleteDC(memDc);
-  ::DeleteDC(targetDc); 
-  ::DeleteObject(hTargetBitmap); 
-
-  return bmpInfo.bmHeight;
-}
-#endif
-
-// Given a BITMAPINFOHEADER, returns the size of the color table.
-static int GetColorTableSize(BITMAPINFOHEADER* aHeader)
-{
-  int colorTableSize = -1;
-
-  // http://msdn.microsoft.com/en-us/library/dd183376%28v=VS.85%29.aspx
-  switch (aHeader->biBitCount) {
-  case 0:
-    colorTableSize = 0;
-    break;
-  case 1:
-    colorTableSize = 2 * sizeof(RGBQUAD);
-    break;
-  case 4:
-  case 8:
-  {
-    // The maximum possible size for the color table is 2**bpp, so check for
-    // that and fail if we're not in those bounds
-    unsigned int maxEntries = 1 << (aHeader->biBitCount);
-    if (aHeader->biClrUsed > 0 && aHeader->biClrUsed <= maxEntries)
-      colorTableSize = aHeader->biClrUsed * sizeof(RGBQUAD);
-    else if (aHeader->biClrUsed == 0)
-      colorTableSize = maxEntries * sizeof(RGBQUAD);
-    break;
-  }
-  case 16:
-  case 32:
-    if (aHeader->biCompression == BI_RGB)
-      colorTableSize = 0;
-    else if (aHeader->biCompression == BI_BITFIELDS)
-      colorTableSize = 3 * sizeof(DWORD);
-    break;
-  case 24:
-    colorTableSize = 0;
-    break;
-  }
-
-  if (colorTableSize < 0)
-    NS_WARNING("Unable to figure out the color table size for this bitmap");
-
-  return colorTableSize;
-}
-
-// Given a header and a size, creates a freshly allocated BITMAPINFO structure.
-// It is the caller's responsibility to null-check and delete the structure.
-static BITMAPINFO* CreateBitmapInfo(BITMAPINFOHEADER* aHeader,
-                                    size_t aColorTableSize)
-{
-  BITMAPINFO* bmi = (BITMAPINFO*) ::operator new(sizeof(BITMAPINFOHEADER) +
-                                                 aColorTableSize,
-                                                 mozilla::fallible_t());
-  if (bmi) {
-    memcpy(bmi, aHeader, sizeof(BITMAPINFOHEADER));
-    memset(bmi->bmiColors, 0, aColorTableSize);
-  }
-  return bmi;
-}
-
-nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBlocking)
-{
-  // Check whether the icon requested's a file icon or a stock icon
-  nsresult rv = NS_ERROR_NOT_AVAILABLE;
-
-  // GetDIBits does not exist on windows mobile.
-#ifndef WINCE_WINDOWS_MOBILE
-  HICON hIcon = NULL;
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  nsCOMPtr<nsIMozIconURI> iconURI(do_QueryInterface(mUrl, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCAutoString stockIcon;
-  iconURI->GetStockIcon(stockIcon);
-  if (!stockIcon.IsEmpty())
-    rv = GetStockHIcon(iconURI, &hIcon);
-  else
-#endif
-    rv = GetHIconFromFile(&hIcon);
-
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (hIcon)
   {
     // we got a handle to an icon. Now we want to get a bitmap for the icon using GetIconInfo....
     ICONINFO iconInfo;
-    if (GetIconInfo(hIcon, &iconInfo))
+    if (GetIconInfo(sfi.hIcon, &iconInfo))
     {
       // we got the bitmaps, first find out their size
       HDC hDC = CreateCompatibleDC(NULL); // get a device context for the screen.
-      BITMAPINFOHEADER maskHeader  = {sizeof(BITMAPINFOHEADER)};
-      BITMAPINFOHEADER colorHeader = {sizeof(BITMAPINFOHEADER)};
-      int colorTableSize, maskTableSize;
-      if (GetDIBits(hDC, iconInfo.hbmMask,  0, 0, NULL, (BITMAPINFO*)&maskHeader,  DIB_RGB_COLORS) &&
-          GetDIBits(hDC, iconInfo.hbmColor, 0, 0, NULL, (BITMAPINFO*)&colorHeader, DIB_RGB_COLORS) &&
-          maskHeader.biHeight == colorHeader.biHeight &&
-          maskHeader.biWidth  == colorHeader.biWidth  &&
-          colorHeader.biBitCount > 8 &&
-          colorHeader.biSizeImage > 0 &&
-          maskHeader.biSizeImage > 0  &&
-          (colorTableSize = GetColorTableSize(&colorHeader)) >= 0 &&
-          (maskTableSize  = GetColorTableSize(&maskHeader))  >= 0) {
-        PRUint32 iconSize = sizeof(ICONFILEHEADER) +
-                            sizeof(ICONENTRY) +
-                            sizeof(BITMAPINFOHEADER) +
-                            colorHeader.biSizeImage +
-                            maskHeader.biSizeImage;
-
+      BITMAPINFO maskInfo = {{sizeof(BITMAPINFOHEADER)}};
+      if (GetDIBits(hDC, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS) &&
+          maskInfo.bmiHeader.biSizeImage > 0) {
+        PRUint32 colorSize = maskInfo.bmiHeader.biWidth * maskInfo.bmiHeader.biHeight * 4;
+        PRUint32 iconSize = sizeof(ICONFILEHEADER) + sizeof(ICONENTRY) + sizeof(BITMAPINFOHEADER) + colorSize + maskInfo.bmiHeader.biSizeImage;
         char *buffer = new char[iconSize];
         if (!buffer)
           rv = NS_ERROR_OUT_OF_MEMORY;
         else {
-          char *whereTo = buffer;
-          int howMuch;
-
           // the data starts with an icon file header
-          ICONFILEHEADER iconHeader;
-          iconHeader.ifhReserved = 0;
-          iconHeader.ifhType = 1;
-          iconHeader.ifhCount = 1;
-          howMuch = sizeof(ICONFILEHEADER);
-          memcpy(whereTo, &iconHeader, howMuch);
-          whereTo += howMuch;
-
+          ICONFILEHEADER *iconHeader = (ICONFILEHEADER *)buffer;
+          iconHeader->ifhReserved = 0;
+          iconHeader->ifhType = 1;
+          iconHeader->ifhCount = 1;
           // followed by the single icon entry
-          ICONENTRY iconEntry;
-          iconEntry.ieWidth = colorHeader.biWidth;
-          iconEntry.ieHeight = colorHeader.biHeight;
-          iconEntry.ieColors = 0;
-          iconEntry.ieReserved = 0;
-          iconEntry.iePlanes = 1;
-          iconEntry.ieBitCount = colorHeader.biBitCount;
-          iconEntry.ieSizeImage = sizeof(BITMAPINFOHEADER) +
-                                  colorHeader.biSizeImage +
-                                  maskHeader.biSizeImage;
-          iconEntry.ieFileOffset = sizeof(ICONFILEHEADER) + sizeof(ICONENTRY);
-          howMuch = sizeof(ICONENTRY);
-          memcpy(whereTo, &iconEntry, howMuch);
-          whereTo += howMuch;
+          ICONENTRY *iconEntry = (ICONENTRY *)(buffer + sizeof(ICONFILEHEADER));
+          iconEntry->ieWidth = maskInfo.bmiHeader.biWidth;
+          iconEntry->ieHeight = maskInfo.bmiHeader.biHeight;
+          iconEntry->ieColors = 0;
+          iconEntry->ieReserved = 0;
+          iconEntry->iePlanes = 1;
+          iconEntry->ieBitCount = 32;
+          iconEntry->ieSizeImage = sizeof(BITMAPINFOHEADER) + colorSize + maskInfo.bmiHeader.biSizeImage;
+          iconEntry->ieFileOffset = sizeof(ICONFILEHEADER) + sizeof(ICONENTRY);
+          // followed by the bitmap info header and the bits
+          LPBITMAPINFO lpBitmapInfo = (LPBITMAPINFO)(buffer + sizeof(ICONFILEHEADER) + sizeof(ICONENTRY));
+          memcpy(lpBitmapInfo, &maskInfo.bmiHeader, sizeof(BITMAPINFOHEADER));
+          if (GetDIBits(hDC, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, buffer + sizeof(ICONFILEHEADER) + sizeof(ICONENTRY) + sizeof(BITMAPINFOHEADER) + colorSize, lpBitmapInfo, DIB_RGB_COLORS)) {
+            PRUint32 maskSize = lpBitmapInfo->bmiHeader.biSizeImage;
+            lpBitmapInfo->bmiHeader.biBitCount = 32;
+            lpBitmapInfo->bmiHeader.biSizeImage = colorSize;
+            lpBitmapInfo->bmiHeader.biClrUsed = 0;
+            lpBitmapInfo->bmiHeader.biClrImportant = 0;
+            if (GetDIBits(hDC, iconInfo.hbmColor, 0, maskInfo.bmiHeader.biHeight, buffer + sizeof(ICONFILEHEADER) + sizeof(ICONENTRY) + sizeof(BITMAPINFOHEADER), lpBitmapInfo, DIB_RGB_COLORS)) {
+              // doubling the height because icons have two bitmaps
+              lpBitmapInfo->bmiHeader.biHeight *= 2;
+              lpBitmapInfo->bmiHeader.biSizeImage += maskSize;
 
-          // followed by the bitmap info header
-          // (doubling the height because icons have two bitmaps)
-          colorHeader.biHeight *= 2;
-          colorHeader.biSizeImage += maskHeader.biSizeImage;
-          howMuch = sizeof(BITMAPINFOHEADER);
-          memcpy(whereTo, &colorHeader, howMuch);
-          whereTo += howMuch;
-          colorHeader.biHeight /= 2;
-          colorHeader.biSizeImage -= maskHeader.biSizeImage;
-
-          // followed by the XOR bitmap data (colorHeader)
-          // (you'd expect the color table to come here, but it apparently doesn't)
-          BITMAPINFO* colorInfo = CreateBitmapInfo(&colorHeader, colorTableSize);
-          if (colorInfo && GetDIBits(hDC, iconInfo.hbmColor, 0,
-                                     colorHeader.biHeight, whereTo, colorInfo,
-                                     DIB_RGB_COLORS)) {
-            whereTo += colorHeader.biSizeImage;
-
-            // and finally the AND bitmap data (maskHeader)
-            BITMAPINFO* maskInfo = CreateBitmapInfo(&maskHeader, maskTableSize);
-            if (maskInfo && GetDIBits(hDC, iconInfo.hbmMask, 0,
-                                      maskHeader.biHeight, whereTo, maskInfo,
-                                      DIB_RGB_COLORS)) {
               // Now, create a pipe and stuff our data into it
               nsCOMPtr<nsIInputStream> inStream;
               nsCOMPtr<nsIOutputStream> outStream;
@@ -712,9 +409,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBloc
               }
 
             } // if we got bitmap bits
-            delete maskInfo;
           } // if we got mask bits
-          delete colorInfo;
           delete [] buffer;
         } // if we allocated the buffer
       } // if we got mask size
@@ -723,13 +418,9 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBloc
       DeleteObject(iconInfo.hbmColor);
       DeleteObject(iconInfo.hbmMask);
     } // if we got icon info
-    DestroyIcon(hIcon);
-  } // if we got an hIcon
+    DestroyIcon(sfi.hIcon);
+  } // if we got sfi
 
-  // If we didn't make a stream, then fail.
-  if (!*_retval && NS_SUCCEEDED(rv))
-    rv = NS_ERROR_NOT_AVAILABLE;
-#endif
   return rv;
 }
 

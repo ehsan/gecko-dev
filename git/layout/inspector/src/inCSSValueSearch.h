@@ -44,8 +44,8 @@
 #include "nsString.h"
 #include "nsIDOMDocument.h"
 #include "inISearchObserver.h"
-#include "nsTArray.h"
-#include "nsCSSProps.h"
+#include "nsVoidArray.h"
+#include "nsIInspectorCSSUtils.h"
 
 class nsIDOMCSSStyleSheet;
 class nsIDOMCSSRuleList;
@@ -64,8 +64,9 @@ public:
 
 protected:
   nsCOMPtr<inISearchObserver> mObserver;
+  nsCOMPtr<nsIInspectorCSSUtils> mCSSUtils;
   nsCOMPtr<nsIDOMDocument> mDocument;
-  nsTArray<nsAutoString *>* mResults;
+  nsVoidArray* mResults;
   nsCSSProperty* mProperties;
   nsString mLastResult;
   nsString mBaseURL;

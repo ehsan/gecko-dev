@@ -94,8 +94,8 @@ protected:
   nsresult GetUrlAndTitle(nsISupports* aGenericData, char** aTargetName);
   nsresult GetUniTextTitle(nsISupports* aGenericData, char** aTargetName);
 
-  HWND          mDragWnd;
-  const char*   mMimeType;
+  HWND     mDragWnd;
+  char*    mMimeType;
   nsCOMPtr<nsISupportsArray> mSourceDataItems;
   nsCOMPtr<nsISupports>      mSourceData;
 

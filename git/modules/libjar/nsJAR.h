@@ -60,7 +60,9 @@
 #include "nsHashtable.h"
 #include "nsAutoLock.h"
 #include "nsIZipReader.h"
+#include "nsIJAR.h"
 #include "nsZipArchive.h"
+#include "zipfile.h"
 #include "nsIPrincipal.h"
 #include "nsISignatureVerifier.h"
 #include "nsIObserverService.h"
@@ -84,17 +86,17 @@ typedef enum
   JAR_NOT_SIGNED          = 7
 } JARManifestStatusType;
 
+PRTime GetModTime(PRUint16 aDate, PRUint16 aTime);
+
 /*-------------------------------------------------------------------------
  * Class nsJAR declaration. 
  * nsJAR serves as an XPCOM wrapper for nsZipArchive with the addition of 
  * JAR manifest file parsing. 
  *------------------------------------------------------------------------*/
-class nsJAR : public nsIZipReader
+class nsJAR : public nsIZipReader, public nsIJAR
 {
   // Allows nsJARInputStream to call the verification functions
   friend class nsJARInputStream;
-  // Allows nsZipReaderCache to access mOuterZipEntry
-  friend class nsZipReaderCache;
 
   public:
 
@@ -106,6 +108,8 @@ class nsJAR : public nsIZipReader
     NS_DECL_ISUPPORTS
 
     NS_DECL_NSIZIPREADER
+
+    NS_DECL_NSIJAR
 
     nsresult GetJarPath(nsACString& aResult);
 
@@ -129,11 +133,14 @@ class nsJAR : public nsIZipReader
       mCache = cache;
     }
 
+    PRInt64 GetMtime() {
+      return mMtime;
+    }
+
   protected:
     //-- Private data members
     nsCOMPtr<nsIFile>        mZipFile;        // The zip/jar file on disk
-    nsCString                mOuterZipEntry;  // The entry in the zip this zip is reading from
-    nsAutoPtr<nsZipArchive>  mZip;            // The underlying zip archive
+    nsZipArchive             mZip;            // The underlying zip archive
     nsObjectHashtable        mManifestData;   // Stores metadata for each entry
     PRBool                   mParsedManifest; // True if manifest has been parsed
     nsCOMPtr<nsIPrincipal>   mPrincipal;      // The entity which signed this file
@@ -144,7 +151,10 @@ class nsJAR : public nsIZipReader
     PRInt64                  mMtime;
     PRInt32                  mTotalItemsInManifest;
     
-    nsresult ParseManifest();
+    //-- Private functions
+    PRFileDesc* OpenFile();
+
+    nsresult ParseManifest(nsISignatureVerifier* verifier);
     void     ReportError(const char* aFilename, PRInt16 errorCode);
     nsresult LoadEntry(const char* aFilename, char** aBuf, 
                        PRUint32* aBufLen = nsnull);
@@ -154,7 +164,7 @@ class nsJAR : public nsIZipReader
                          PRUint32 aLen);
 
     nsresult CalculateDigest(const char* aInBuf, PRUint32 aInBufLen,
-                             nsCString& digest);
+                             char** digest);
 
     //-- Debugging
     void DumpMetadata(const char* aMessage);
@@ -179,8 +189,9 @@ private:
     PRUint32     mSize;             /* size in original file */
     PRUint32     mRealsize;         /* inflated size */
     PRUint32     mCrc32;
-    PRTime       mLastModTime;
-    PRUint16     mCompression;
+    PRUint16     mDate;
+    PRUint16     mTime;
+    PRUint8      mCompression;
     PRPackedBool mIsDirectory; 
     PRPackedBool mIsSynthetic;
 };
@@ -197,14 +208,13 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIUTF8STRINGENUMERATOR
 
-    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mName(nsnull) { 
+    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mCurr(nsnull) { 
       NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
     }
 
 private:
     nsZipFind    *mFind;
-    const char*   mName;    // pointer to an name owned by mArchive -- DON'T delete
-    PRUint16      mNameLen;
+    const char*   mCurr;    // pointer to an name owned by mArchive -- DON'T delete
 
     ~nsJAREnumerator() { delete mFind; }
 };

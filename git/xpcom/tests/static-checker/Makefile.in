@@ -41,16 +41,15 @@ topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
-# We will do compilations that create dependency files.
-NEED_MDDEPDIR = 1
+# MAKE_DIRS: List of directories to build while looping over directories.
+MAKE_DIRS               += $(MDDEPDIR)
+GARBAGE_DIRS            += $(MDDEPDIR)
 
 include $(DEPTH)/config/autoconf.mk
 
 FINAL_FAILURE_TESTCASES = \
   TestFinal.cpp \
   TestFinalTemplate.cpp \
-  TestFinalFunction.cpp \
-  TestFinalGrandparentFunction.cpp \
   $(NULL)
 
 STACK_FAILURE_TESTCASES = \
@@ -59,19 +58,17 @@ STACK_FAILURE_TESTCASES = \
   StackNoConstructor.cpp \
   StackVector.cpp \
   StackConditional.cpp \
-  StackAggrInit.cpp \
-  StackCondBad.cpp \
-  StackFalsePositive.cpp \
   $(NULL)
 
 STACK_PASS_TESTCASES = \
   StackPlacementNewOK.cpp \
-  StackCond.cpp \
   $(NULL)
 
 OUTPARAMS_WARNING_TESTCASES = \
   e1.cpp \
+  e2.cpp \
   e4.cpp \
+  e5.cpp \
   e6.cpp \
   e7.cpp \
   e8.cpp \
@@ -80,11 +77,6 @@ OUTPARAMS_WARNING_TESTCASES = \
   e11.cpp \
   e12.cpp \
   e13.cpp \
-  $(NULL)
-
-OUTPARAMS_NS_FAILED_TESTCASES = \
-  e2.cpp \
-  e5.cpp \
   $(NULL)
 
 OUTPARAMS_PASS_TESTCASES = \
@@ -106,7 +98,6 @@ OUTPARAMS_PASS_TESTCASES = \
   o16.cpp \
   onull.cpp \
   onull2.cpp \
-  opmember.cpp \
   $(NULL)
 
 FLOW_PASS_TESTCASES = \
@@ -115,65 +106,21 @@ FLOW_PASS_TESTCASES = \
 FLOW_FAILURE_TESTCASES = \
  flow_through_fail.cpp
 
-MUST_OVERRIDE_PASS_TESTCASES = \
-  OverrideOK1.cpp \
-  OverrideOK2.cpp \
-  OverrideOK3-NamespaceTypedef.cpp \
-  $(NULL)
-
-MUST_OVERRIDE_FAILURE_TESTCASES = \
-  OverrideFail1.cpp \
-  OverrideFail2.cpp \
-  OverrideFail3.cpp \
-  OverrideFail4.cpp \
-  $(NULL)
-
-OVERRIDE_PASS_TESTCASES = \
-  override-pass.cpp \
-  override-namespace-typedef.cpp \
-  $(NULL)
-
-OVERRIDE_FAILURE_TESTCASES = \
-  override-global.cpp \
-  override-signature.cpp \
-  override-static.cpp \
-  override-virtual.cpp \
-  $(NULL)
-
-STATIC_INIT_PASS_TESTCASES = \
-  TestStaticInitStructOK.cpp \
-  $(NULL)
-
-STATIC_INIT_WARNING_TESTCASES = \
-  TestStaticInitAttr.cpp \
-  TestStaticInitConstructor.cpp \
-  TestStaticInitGlobal.cpp \
-  TestStaticInitGlobalConst.cpp \
-  $(NULL)
-
 STATIC_FAILURE_TESTCASES = \
   $(FINAL_FAILURE_TESTCASES) \
-  $(FLOW_FAILURE_TESTCASES) \
-  $(MUST_OVERRIDE_FAILURE_TESTCASES) \
-  $(OVERRIDE_FAILURE_TESTCASES) \
+  $(STACK_FAILURE_TESTCASES) \
+  $(FLOW_FAILURE_TESTCASES)
   $(NULL)
 
 STATIC_WARNING_TESTCASES = \
   $(OUTPARAMS_WARNING_TESTCASES) \
-  $(STACK_FAILURE_TESTCASES) \
-  $(STATIC_INIT_WARNING_TESTCASES) \
   $(NULL)
 
 STATIC_PASS_TESTCASES = \
-  $(OUTPARAMS_NS_FAILED_TESTCASES) \
   $(OUTPARAMS_PASS_TESTCASES) \
   $(STACK_PASS_TESTCASES) \
   $(FLOW_PASS_TESTCASES) \
-  $(MUST_OVERRIDE_PASS_TESTCASES) \
-  $(OVERRIDE_PASS_TESTCASES) \
-  $(STATIC_INIT_PASS_TESTCASES) \
   $(NULL)
-
 
 include $(topsrcdir)/config/rules.mk
 
@@ -184,7 +131,7 @@ check:: \
   $(STATIC_WARNING_TESTCASES:.cpp=.s-warn) \
   $(STATIC_PASS_TESTCASES:.cpp=.s-pass)
 
-%.s-fail: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
+%.s-fail: %.cpp Makefile Makefile.in $(DEHYDRA_SCRIPTS)
 	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
 	@if $(CCC) $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
 	  printf "fail:\nerror: compilation of $(<F) succeeded. It shouldn't have!\n"; \
@@ -193,20 +140,20 @@ check:: \
 	  printf "ok.\n"; \
 	fi
 
-%.s-warn: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
+%.s-warn: %.cpp Makefile Makefile.in $(DEHYDRA_SCRIPTS)
 	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
 	@if $(CCC) -Werror $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
-	  printf "fail:\nerror: compilation of $(<F) succeeded with -Werror. It shouldn't have!\n"; \
+	  printf "fail:\nerror: compilation of $(<F) succeeded with -Werror. It shouldn't have!\n" \
 	  exit 1; \
 	fi
 	@if $(CCC) $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).werrlog 2>&1; then \
 	  printf "ok.\n"; \
 	else \
-	  printf "fail:\nerror: compilation of $(<F) without -Werror failed. A warning should have been issued.\n"; \
+	  printf "fail:\nerror: compilation of $(<F) without -Werror failed. A warning should have been issued.\n" \
 	  exit 1; \
 	fi
 
-%.s-pass: %.cpp $(GLOBAL_DEPS) $(DEHYDRA_SCRIPTS)
+%.s-pass: %.cpp Makefile Makefile.in $(DEHYDRA_SCRIPTS)
 	@printf "Compiling $(<F) to check that the static-analysis script is checking properly..."
 	@if $(CCC) -Werror $(OUTOPTION)/dev/null -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) >$(*F).errlog 2>&1; then \
 	  printf "ok.\n"; \

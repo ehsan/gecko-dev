@@ -1,4 +1,3 @@
-
 // returns a list of [string, object] pairs to test encoding
 function getTestPairs() {
   var testPairs = [
@@ -19,10 +18,7 @@ function getTestPairs() {
     ['{"x":{"a":"b","c":{"y":"z"},"f":"g"}}',
      {"x":{"a":"b","c":{"y":"z"},"f":"g"}}],
     ['{"x":[1,{"y":"z"},3]}', {"x":[1,{"y":"z"},3]}],
-    ['["hmm"]', [new String("hmm")]],
-    ['[true]', [new Boolean(true)]],
-    ['[42]', [new Number(42)]],
-    ['["1978-09-13T12:24:34.023Z"]', [new Date(Date.UTC(1978, 8, 13, 12, 24, 34, 23))]],
+    //['{"0":"h","1":"m","2":"m"}', new String("hmm")],
     ['[1,null,3]',[1,,3]],
     [null, function test(){}],
     [null, dump],
@@ -83,16 +79,26 @@ function getTestPairs() {
   //testPairs.push(['[1]', x]);
 
   // prototype
-  var X = function() { this.foo = "b" }
+  var X = function() { this.a = "b" }
   X.prototype = {c:"d"}
   var y = new X();
-  testPairs.push(['{"foo":"b"}', y]);
+  testPairs.push(['{"a":"b","c":"d"}', y]);
 
   // useless roots will be dropped
   testPairs.push([null, null]);
   testPairs.push([null, ""]);
   testPairs.push([null, undefined]);
   testPairs.push([null, 5]);
+
+  // custom iterator: JS 1.7+
+  var x = {
+   "a": "foo",
+   b: "not included",
+   c: "bar",
+   "4": "qux",
+   __iterator__: function() { return (function() { yield "a"; yield "c"; yield 4; })() }
+  }
+  do_check_eq('{"a":"foo","c":"bar","4":"qux"}', nativeJSON.encode(x));
 
   return testPairs;
 }
@@ -173,9 +179,60 @@ function throwingToJSON() {
   } catch (ex) {}
 }
 
+function throwingIterator() {
+  var a = {
+    "b": 1,
+    "c": 2,
+    __iterator__: function() { yield "b"; throw("uh oh"); }
+  }
+  try {
+    var y = nativeJSON.encode(a);
+  } catch (ex) {}
+}
+
+function deletingIter(x) {
+  return function() {
+    yield "dd";
+    print("after first yield");
+    delete x["a"]["c"];
+    gc();
+    print("about to yield second");
+    yield "ddddd";
+  }
+}
+
+function deleteDuringEncode() {
+  var x = {};
+  x.a = {
+    b: 1,
+    bb: 2,
+    bbb: 3,
+    c: {
+      cc: 2,
+      ccc: 3,
+      d: {
+        dd: 2,
+        ddd: 3,
+        __iterator__: deletingIter(x),
+        dddd: 4,
+        ddddd: 5
+      },
+      cccc: 4,
+      ccccc: 5
+    },
+    bbbb: 4,
+    bbbbb: 5,
+    bbbbbb: 6
+  };
+  var z = nativeJSON.encode(x);
+  print(z);
+}
+
 function run_test() {
   testStringEncode();
   throwingToJSON();
+  throwingIterator();
+  deleteDuringEncode();
   
   // failing on windows -- bug 410005
   // testOutputStreams();

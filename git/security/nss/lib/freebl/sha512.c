@@ -36,19 +36,13 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sha512.c,v 1.14.6.1 2010/11/18 18:32:52 kaie%kuix.de Exp $ */
-
-#ifdef FREEBL_NO_DEPEND
-#include "stubs.h"
-#endif
-
+/* $Id: sha512.c,v 1.11 2008/02/16 02:24:48 wtc%google.com Exp $ */
 #include "prcpucfg.h"
-#if defined(NSS_X86) || defined(SHA_NO_LONG_LONG)
+#if defined(_X86_) || defined(SHA_NO_LONG_LONG)
 #define NOUNROLL512 1
 #undef HAVE_LONG_LONG
 #endif
 #include "prtypes.h"	/* for PRUintXX */
-#include "prlong.h"
 #include "secport.h"	/* for PORT_XXX */
 #include "blapi.h"
 #include "sha256.h"	/* for struct SHA256ContextStr */
@@ -104,7 +98,7 @@ static const PRUint32 H256[8] = {
 #pragma intrinsic(_byteswap_ulong)
 #define SHA_HTONL(x) _byteswap_ulong(x)
 #define BYTESWAP4(x)  x = SHA_HTONL(x)
-#elif defined(_MSC_VER) && defined(NSS_X86_OR_X64)
+#elif defined(_MSC_VER) && defined(_X86_)
 #ifndef FORCEINLINE
 #if (_MSC_VER >= 1200)
 #define FORCEINLINE __forceinline
@@ -126,13 +120,13 @@ swap4b(PRUint32 dwd)
 #define SHA_HTONL(x) swap4b(x)
 #define BYTESWAP4(x)  x = SHA_HTONL(x)
 
-#elif defined(__GNUC__) && defined(NSS_X86_OR_X64)
-static __inline__ PRUint32 swap4b(PRUint32 value)
-{
-    __asm__("bswap %0" : "+r" (value));
-    return (value);
-}
-#define SHA_HTONL(x) swap4b(x)
+#elif defined(LINUX) && defined(_X86_)
+#undef  __OPTIMIZE__
+#define __OPTIMIZE__ 1
+#undef  __pentium__
+#define __pentium__ 1
+#include <byteswap.h>
+#define SHA_HTONL(x) bswap_32(x)
 #define BYTESWAP4(x)  x = SHA_HTONL(x)
 
 #else /* neither windows nor Linux PC */
@@ -142,7 +136,7 @@ static __inline__ PRUint32 swap4b(PRUint32 value)
 #define BYTESWAP4(x)  x = SHA_HTONL(x)
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_X86_)
 #pragma intrinsic (_lrotr, _lrotl) 
 #define ROTR32(x,n) _lrotr(x,n)
 #define ROTL32(x,n) _lrotl(x,n)
@@ -528,14 +522,8 @@ void SHA256_Clone(SHA256Context *dest, SHA256Context *src)
 
 /* common #defines for SHA512 and SHA384 */
 #if defined(HAVE_LONG_LONG)
-#if defined(_MSC_VER)
-#pragma intrinsic(_rotr64,_rotl64)
-#define ROTR64(x,n) _rotr64(x,n)
-#define ROTL64(x,n) _rotl64(x,n)
-#else
 #define ROTR64(x,n) ((x >> n) | (x << (64 - n)))
 #define ROTL64(x,n) ((x << n) | (x >> (64 - n)))
-#endif
 
 #define S0(x) (ROTR64(x,28) ^ ROTR64(x,34) ^ ROTR64(x,39))
 #define S1(x) (ROTR64(x,14) ^ ROTR64(x,18) ^ ROTR64(x,41))
@@ -550,26 +538,12 @@ void SHA256_Clone(SHA256Context *dest, SHA256Context *src)
 #define ULLC(hi,lo) 0x ## hi ## lo ## ULL
 #endif
 
-#if defined(_MSC_VER)
-#pragma intrinsic(_byteswap_uint64)
-#define SHA_HTONLL(x) _byteswap_uint64(x)
-
-#elif defined(__GNUC__) && (defined(__x86_64__) || defined(__x86_64))
-static __inline__ PRUint64 swap8b(PRUint64 value)
-{
-    __asm__("bswapq %0" : "+r" (value));
-    return (value);
-}
-#define SHA_HTONLL(x) swap8b(x)
-
-#else
 #define SHA_MASK16 ULLC(0000FFFF,0000FFFF)
 #define SHA_MASK8  ULLC(00FF00FF,00FF00FF)
 #define SHA_HTONLL(x) (t1 = x, \
   t1 = ((t1 & SHA_MASK8 ) <<  8) | ((t1 >>  8) & SHA_MASK8 ), \
   t1 = ((t1 & SHA_MASK16) << 16) | ((t1 >> 16) & SHA_MASK16), \
   (t1 >> 32) | (t1 << 32))
-#endif
 #define BYTESWAP8(x)  x = SHA_HTONLL(x)
 
 #else /* no long long */
@@ -1107,14 +1081,16 @@ SHA512_End(SHA512Context *ctx, unsigned char *digest,
 {
 #if defined(HAVE_LONG_LONG)
     unsigned int inBuf  = (unsigned int)ctx->sizeLo & 0x7f;
-    PRUint64 t1;
+    unsigned int padLen = (inBuf < 112) ? (112 - inBuf) : (112 + 128 - inBuf);
+    PRUint64 lo, t1;
+    lo = (ctx->sizeLo << 3);
 #else
     unsigned int inBuf  = (unsigned int)ctx->sizeLo.lo & 0x7f;
-    PRUint32 t1;
-#endif
     unsigned int padLen = (inBuf < 112) ? (112 - inBuf) : (112 + 128 - inBuf);
-    PRUint64 lo;
-    LL_SHL(lo, ctx->sizeLo, 3);
+    PRUint64 lo = ctx->sizeLo;
+    PRUint32 t1;
+    lo.lo <<= 3;
+#endif
 
     SHA512_Update(ctx, pad, padLen);
 

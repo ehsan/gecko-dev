@@ -45,7 +45,7 @@
 // Mozilla Frozen APIs
 #include "nsXULAppAPI.h"
 
-XRE_InitEmbedding2Type XRE_InitEmbedding2;
+XRE_InitEmbeddingType XRE_InitEmbedding;
 XRE_TermEmbeddingType XRE_TermEmbedding;
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -79,7 +79,7 @@ const TCHAR *szWindowClass = _T("WINEMBED");
 // Foward declarations of functions included in this code module:
 static ATOM             MyRegisterClass(HINSTANCE hInstance);
 static LRESULT CALLBACK BrowserWndProc(HWND, UINT, WPARAM, LPARAM);
-static INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static BOOL    CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 static nsresult InitializeWindowCreator();
 static nsresult OpenWebPage(const char * url);
@@ -202,9 +202,9 @@ int main(int argc, char *argv[])
     char temp[_MAX_PATH];
     GetModuleFileName(xulModule, temp, sizeof(temp));
 
-    XRE_InitEmbedding2 =
-        (XRE_InitEmbedding2Type) GetProcAddress(xulModule, "XRE_InitEmbedding2");
-    if (!XRE_InitEmbedding2) {
+    XRE_InitEmbedding =
+        (XRE_InitEmbeddingType) GetProcAddress(xulModule, "XRE_InitEmbedding");
+    if (!XRE_InitEmbedding) {
         fprintf(stderr, "Error: %i\n", GetLastError());
         return 5;
     }
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
         if (NS_FAILED(rv))
             return 8;
 
-        rv = XRE_InitEmbedding2(xuldir, appdir, nsnull);
+        rv = XRE_InitEmbedding(xuldir, appdir, nsnull, nsnull, 0);
         if (NS_FAILED(rv))
             return 9;
 
@@ -491,14 +491,14 @@ void UpdateUI(nsIWebBrowserChrome *aChrome)
 //
 //    The code for handling buttons and menu actions is here.
 //
-INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     // Get the browser and other pointers since they are used a lot below
     HWND hwndBrowser = GetDlgItem(hwndDlg, IDC_BROWSER);
     nsIWebBrowserChrome *chrome = nsnull ;
     if (hwndBrowser)
     {
-        chrome = (nsIWebBrowserChrome *) GetWindowLongPtr(hwndBrowser, GWLP_USERDATA);
+        chrome = (nsIWebBrowserChrome *) GetWindowLong(hwndBrowser, GWL_USERDATA);
     }
     nsCOMPtr<nsIWebBrowser> webBrowser;
     nsCOMPtr<nsIWebNavigation> webNavigation;
@@ -740,7 +740,7 @@ INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
 //
 LRESULT CALLBACK BrowserWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    nsIWebBrowserChrome *chrome = (nsIWebBrowserChrome *) GetWindowLongPtr(hWnd, GWLP_USERDATA);
+    nsIWebBrowserChrome *chrome = (nsIWebBrowserChrome *) GetWindowLong(hWnd, GWL_USERDATA);
     switch (message) 
     {
     case WM_SIZE:
@@ -836,8 +836,8 @@ HWND WebBrowserChromeUI::CreateNativeWindow(nsIWebBrowserChrome* chrome)
 
   // Fetch the browser window handle
   HWND hwndBrowser = GetDlgItem(hwndDialog, IDC_BROWSER);
-  SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, (LONG_PTR)chrome);  // save the browser LONG_PTR.
-  SetWindowLongPtr(hwndBrowser, GWL_STYLE, GetWindowLongPtr(hwndBrowser, GWL_STYLE) | WS_CLIPCHILDREN);
+  SetWindowLong(hwndBrowser, GWL_USERDATA, (LONG)chrome);  // save the browser LONG_PTR.
+  SetWindowLong(hwndBrowser, GWL_STYLE, GetWindowLong(hwndBrowser, GWL_STYLE) | WS_CLIPCHILDREN);
 
   // Activate the window
   PostMessage(hwndDialog, WM_ACTIVATE, WA_ACTIVE, 0);

@@ -51,11 +51,7 @@
 #endif
 
 #ifndef cairo_public
-# if defined (_MSC_VER) && ! defined (CAIRO_WIN32_STATIC_BUILD)
-#  define cairo_public __declspec(dllimport)
-# else
-#  define cairo_public
-# endif
+# define cairo_public
 #endif
 
 CAIRO_BEGIN_DECLS
@@ -131,15 +127,6 @@ typedef struct _cairo cairo_t;
  * different drawing backends; for example, cairo_image_surface_create()
  * creates a bitmap image in memory.
  * The type of a surface can be queried with cairo_surface_get_type().
- *
- * The initial contents of a surface after creation depend upon the manner
- * of its creation. If cairo creates the surface and backing storage for
- * the user, it will be initially cleared; for example,
- * cairo_image_surface_create() and cairo_surface_create_similar().
- * Alternatively, if the user passes in a reference to some backing storage
- * and asks cairo to wrap that in a #cairo_surface_t, then the contents are
- * not modified; for example, cairo_image_surface_create_for_data() and
- * cairo_xlib_surface_create().
  *
  * Memory management of #cairo_surface_t is done with
  * cairo_surface_reference() and cairo_surface_destroy().
@@ -219,7 +206,7 @@ typedef struct _cairo_user_data_key {
  * @CAIRO_STATUS_SUCCESS: no error has occurred
  * @CAIRO_STATUS_NO_MEMORY: out of memory
  * @CAIRO_STATUS_INVALID_RESTORE: cairo_restore() called without matching cairo_save()
- * @CAIRO_STATUS_INVALID_POP_GROUP: no saved group to pop, i.e. cairo_pop_group() without matching cairo_push_group()
+ * @CAIRO_STATUS_INVALID_POP_GROUP: no saved group to pop
  * @CAIRO_STATUS_NO_CURRENT_POINT: no current point defined
  * @CAIRO_STATUS_INVALID_MATRIX: invalid matrix (not invertible)
  * @CAIRO_STATUS_INVALID_STATUS: invalid value for an input #cairo_status_t
@@ -248,12 +235,6 @@ typedef struct _cairo_user_data_key {
  * @CAIRO_STATUS_INVALID_CLUSTERS: input clusters do not represent the accompanying text and glyph array (Since 1.8)
  * @CAIRO_STATUS_INVALID_SLANT: invalid value for an input #cairo_font_slant_t (Since 1.8)
  * @CAIRO_STATUS_INVALID_WEIGHT: invalid value for an input #cairo_font_weight_t (Since 1.8)
- * @CAIRO_STATUS_INVALID_SIZE: invalid value (typically too big) for the size of the input (surface, pattern, etc.) (Since 1.10)
- * @CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED: user-font method not implemented (Since 1.10)
- * @CAIRO_STATUS_LAST_STATUS: this is a special value indicating the number of
- *   status values defined in this enumeration.  When using this value, note
- *   that the version of cairo at run-time may have additional status values
- *   defined than the value of this symbol at compile-time. (Since 1.10)
  *
  * #cairo_status_t is used to indicate errors that can occur when
  * using Cairo. In some cases it is returned directly by functions.
@@ -265,7 +246,6 @@ typedef struct _cairo_user_data_key {
  **/
 typedef enum _cairo_status {
     CAIRO_STATUS_SUCCESS = 0,
-
     CAIRO_STATUS_NO_MEMORY,
     CAIRO_STATUS_INVALID_RESTORE,
     CAIRO_STATUS_INVALID_POP_GROUP,
@@ -296,12 +276,8 @@ typedef enum _cairo_status {
     CAIRO_STATUS_NEGATIVE_COUNT,
     CAIRO_STATUS_INVALID_CLUSTERS,
     CAIRO_STATUS_INVALID_SLANT,
-    CAIRO_STATUS_INVALID_WEIGHT,
-    CAIRO_STATUS_INVALID_SIZE,
-    CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED,
-    CAIRO_STATUS_NO_DEVICE,
-
-    CAIRO_STATUS_LAST_STATUS
+    CAIRO_STATUS_INVALID_WEIGHT
+    /* after adding a new error: update CAIRO_STATUS_LAST_STATUS in cairoint.h */
 } cairo_status_t;
 
 /**
@@ -432,41 +408,6 @@ cairo_pop_group_to_source (cairo_t *cr);
  * @CAIRO_OPERATOR_ADD: source and destination layers are accumulated
  * @CAIRO_OPERATOR_SATURATE: like over, but assuming source and dest are
  * disjoint geometries
- * @CAIRO_OPERATOR_MULTIPLY: source and destination layers are multiplied.
- * This causes the result to be at least as dark as the darker inputs.
- * @CAIRO_OPERATOR_SCREEN: source and destination are complemented and
- * multiplied. This causes the result to be at least as light as the lighter
- * inputs.
- * @CAIRO_OPERATOR_OVERLAY: multiplies or screens, depending on the
- * lightness of the destination color.
- * @CAIRO_OPERATOR_DARKEN: replaces the destination with the source if it
- * is darker, otherwise keeps the source.
- * @CAIRO_OPERATOR_LIGHTEN: replaces the destination with the source if it
- * is lighter, otherwise keeps the source.
- * @CAIRO_OPERATOR_COLOR_DODGE: brightens the destination color to reflect
- * the source color.
- * @CAIRO_OPERATOR_COLOR_BURN: darkens the destination color to reflect
- * the source color.
- * @CAIRO_OPERATOR_HARD_LIGHT: Multiplies or screens, dependant on source
- * color.
- * @CAIRO_OPERATOR_SOFT_LIGHT: Darkens or lightens, dependant on source
- * color.
- * @CAIRO_OPERATOR_DIFFERENCE: Takes the difference of the source and
- * destination color.
- * @CAIRO_OPERATOR_EXCLUSION: Produces an effect similar to difference, but
- * with lower contrast.
- * @CAIRO_OPERATOR_HSL_HUE: Creates a color with the hue of the source
- * and the saturation and luminosity of the target.
- * @CAIRO_OPERATOR_HSL_SATURATION: Creates a color with the saturation
- * of the source and the hue and luminosity of the target. Painting with
- * this mode onto a gray area prduces no change.
- * @CAIRO_OPERATOR_HSL_COLOR: Creates a color with the hue and saturation
- * of the source and the luminosity of the target. This preserves the gray
- * levels of the target and is useful for coloring monochrome images or
- * tinting color images.
- * @CAIRO_OPERATOR_HSL_LUMINOSITY: Creates a color with the luminosity of
- * the source and the hue and saturation of the target. This produces an
- * inverse effect to @CAIRO_OPERATOR_HSL_COLOR.
  *
  * #cairo_operator_t is used to set the compositing operator for all cairo
  * drawing operations.
@@ -503,23 +444,7 @@ typedef enum _cairo_operator {
 
     CAIRO_OPERATOR_XOR,
     CAIRO_OPERATOR_ADD,
-    CAIRO_OPERATOR_SATURATE,
-
-    CAIRO_OPERATOR_MULTIPLY,
-    CAIRO_OPERATOR_SCREEN,
-    CAIRO_OPERATOR_OVERLAY,
-    CAIRO_OPERATOR_DARKEN,
-    CAIRO_OPERATOR_LIGHTEN,
-    CAIRO_OPERATOR_COLOR_DODGE,
-    CAIRO_OPERATOR_COLOR_BURN,
-    CAIRO_OPERATOR_HARD_LIGHT,
-    CAIRO_OPERATOR_SOFT_LIGHT,
-    CAIRO_OPERATOR_DIFFERENCE,
-    CAIRO_OPERATOR_EXCLUSION,
-    CAIRO_OPERATOR_HSL_HUE,
-    CAIRO_OPERATOR_HSL_SATURATION,
-    CAIRO_OPERATOR_HSL_COLOR,
-    CAIRO_OPERATOR_HSL_LUMINOSITY
+    CAIRO_OPERATOR_SATURATE
 } cairo_operator_t;
 
 cairo_public void
@@ -798,9 +723,6 @@ cairo_in_stroke (cairo_t *cr, double x, double y);
 cairo_public cairo_bool_t
 cairo_in_fill (cairo_t *cr, double x, double y);
 
-cairo_public cairo_bool_t
-cairo_in_clip (cairo_t *cr, double x, double y);
-
 /* Rectangular extents */
 cairo_public void
 cairo_stroke_extents (cairo_t *cr,
@@ -971,19 +893,6 @@ cairo_public void
 cairo_text_cluster_free (cairo_text_cluster_t *clusters);
 
 /**
- * cairo_text_cluster_flags_t:
- * @CAIRO_TEXT_CLUSTER_FLAG_BACKWARD: The clusters in the cluster array
- * map to glyphs in the glyph array from end to start.
- *
- * Specifies properties of a text cluster mapping.
- *
- * Since: 1.8
- **/
-typedef enum _cairo_text_cluster_flags {
-    CAIRO_TEXT_CLUSTER_FLAG_BACKWARD = 0x00000001
-} cairo_text_cluster_flags_t;
-
-/**
  * cairo_text_extents_t:
  * @x_bearing: the horizontal distance from the origin to the
  *   leftmost part of the glyphs as drawn. Positive if the
@@ -1120,6 +1029,28 @@ typedef enum _cairo_subpixel_order {
 } cairo_subpixel_order_t;
 
 /**
+ * cairo_lcd_filter_t:
+ * @CAIRO_LCD_FILTER_DEFAULT: Use the default LCD filter for
+ *   font backend and target device
+ * @CAIRO_LCD_FILTER_NONE: Do not perform LCD filtering
+ * @CAIRO_LCD_FILTER_INTRA_PIXEL: Intra-pixel filter
+ * @CAIRO_LCD_FILTER_FIR3: FIR filter with a 3x3 kernel
+ * @CAIRO_LCD_FILTER_FIR5: FIR filter with a 5x5 kernel
+ *
+ * The LCD filter specifies the low-pass filter applied to LCD-optimized
+ * bitmaps generated with an antialiasing mode of %CAIRO_ANTIALIAS_SUBPIXEL.
+ *
+ * Since: 1.8
+ **/
+typedef enum _cairo_lcd_filter {
+    CAIRO_LCD_FILTER_DEFAULT,
+    CAIRO_LCD_FILTER_NONE,
+    CAIRO_LCD_FILTER_INTRA_PIXEL,
+    CAIRO_LCD_FILTER_FIR3,
+    CAIRO_LCD_FILTER_FIR5
+} cairo_lcd_filter_t;
+
+/**
  * cairo_hint_style_t:
  * @CAIRO_HINT_STYLE_DEFAULT: Use the default hint style for
  *   font backend and target device
@@ -1225,6 +1156,12 @@ cairo_public cairo_subpixel_order_t
 cairo_font_options_get_subpixel_order (const cairo_font_options_t *options);
 
 cairo_public void
+cairo_font_options_set_lcd_filter (cairo_font_options_t   *options,
+				   cairo_lcd_filter_t  lcd_filter);
+cairo_public cairo_lcd_filter_t
+cairo_font_options_get_lcd_filter (const cairo_font_options_t *options);
+
+cairo_public void
 cairo_font_options_set_hint_style (cairo_font_options_t *options,
 				   cairo_hint_style_t     hint_style);
 cairo_public cairo_hint_style_t
@@ -1283,6 +1220,9 @@ cairo_show_text (cairo_t *cr, const char *utf8);
 cairo_public void
 cairo_show_glyphs (cairo_t *cr, const cairo_glyph_t *glyphs, int num_glyphs);
 
+cairo_public cairo_bool_t
+cairo_has_show_text_glyphs (cairo_t *cr);
+
 cairo_public void
 cairo_show_text_glyphs (cairo_t			   *cr,
 			const char		   *utf8,
@@ -1291,7 +1231,7 @@ cairo_show_text_glyphs (cairo_t			   *cr,
 			int			    num_glyphs,
 			const cairo_text_cluster_t *clusters,
 			int			    num_clusters,
-			cairo_text_cluster_flags_t  cluster_flags);
+			cairo_bool_t		    backward);
 
 cairo_public void
 cairo_text_path  (cairo_t *cr, const char *utf8);
@@ -1371,8 +1311,7 @@ typedef enum _cairo_font_type {
     CAIRO_FONT_TYPE_FT,
     CAIRO_FONT_TYPE_WIN32,
     CAIRO_FONT_TYPE_QUARTZ,
-    CAIRO_FONT_TYPE_USER,
-    CAIRO_FONT_TYPE_DWRITE
+    CAIRO_FONT_TYPE_USER
 } cairo_font_type_t;
 
 cairo_public cairo_font_type_t
@@ -1437,16 +1376,16 @@ cairo_scaled_font_glyph_extents (cairo_scaled_font_t   *scaled_font,
 				 cairo_text_extents_t  *extents);
 
 cairo_public cairo_status_t
-cairo_scaled_font_text_to_glyphs (cairo_scaled_font_t        *scaled_font,
-				  double		      x,
-				  double		      y,
-				  const char	             *utf8,
-				  int		              utf8_len,
-				  cairo_glyph_t	            **glyphs,
-				  int		             *num_glyphs,
-				  cairo_text_cluster_t      **clusters,
-				  int		             *num_clusters,
-				  cairo_text_cluster_flags_t *cluster_flags);
+cairo_scaled_font_text_to_glyphs (cairo_scaled_font_t   *scaled_font,
+				  double		 x,
+				  double		 y,
+				  const char	        *utf8,
+				  int		         utf8_len,
+				  cairo_glyph_t	       **glyphs,
+				  int		        *num_glyphs,
+				  cairo_text_cluster_t **clusters,
+				  int		        *num_clusters,
+				  cairo_bool_t	        *backward);
 
 cairo_public cairo_font_face_t *
 cairo_scaled_font_get_font_face (cairo_scaled_font_t *scaled_font);
@@ -1520,7 +1459,8 @@ cairo_user_font_face_create (void);
  * point and trying to use it for text operations in the callback will result
  * in deadlock.
  *
- * Returns: %CAIRO_STATUS_SUCCESS upon success, or an error status on error.
+ * Returns: %CAIRO_STATUS_SUCCESS upon success, or
+ * %CAIRO_STATUS_USER_FONT_ERROR or any other error status on error.
  *
  * Since: 1.8
  **/
@@ -1585,8 +1525,7 @@ typedef cairo_status_t (*cairo_user_scaled_font_render_glyph_func_t) (cairo_scal
  * @num_glyphs: pointer to number of glyphs
  * @clusters: pointer to array of cluster mapping information to fill, or %NULL
  * @num_clusters: pointer to number of clusters
- * @cluster_flags: pointer to location to store cluster flags corresponding to the
- *                 output @clusters
+ * @backward: pointer to whether the text to glyphs mapping goes backward
  *
  * #cairo_user_scaled_font_text_to_glyphs_func_t is the type of function which
  * is called to convert input text to an array of glyphs.  This is used by the
@@ -1597,32 +1536,36 @@ typedef cairo_status_t (*cairo_user_scaled_font_render_glyph_func_t) (cairo_scal
  * as well as complex <firstterm>shaping</firstterm> required for scripts like
  * Arabic and Indic.
  *
- * The @num_glyphs argument is preset to the number of glyph entries available
- * in the @glyphs buffer. If the @glyphs buffer is %NULL, the value of
- * @num_glyphs will be zero.  If the provided glyph array is too short for
+ * The @num_glyphs argument is preset to -1.  The callback should allocate an
+ * array for the resulting glyphs (using malloc()), and populate the glyph indices and
+ * positions (in font space) assuming that the text is to be shown at the
+ * origin.  Cairo will free the glyph array when done with it, no matter what
+ * the return value of the callback is.
+ *
+ * If @glyphs initially points to a non-%NULL value, that array can be used
+ * as a glyph buffer, and @num_glyphs points to the number of glyph
+ * entries available there.  If the provided glyph array is too short for
  * the conversion (or for convenience), a new glyph array may be allocated
  * using cairo_glyph_allocate() and placed in @glyphs.  Upon return,
- * @num_glyphs should contain the number of generated glyphs.  If the value
- * @glyphs points at has changed after the call, the caller will free the
- * allocated glyph array using cairo_glyph_free().
- * The callback should populate the glyph indices and positions (in font space)
- * assuming that the text is to be shown at the origin.
+ * @num_glyphs should contain the number of generated glyphs.
+ * If the value @glyphs points at has changed after the call, cairo will
+ * free the allocated glyph array using cairo_glyph_free().
  *
- * If @clusters is not %NULL, @num_clusters and @cluster_flags are also
- * non-%NULL, and cluster mapping should be computed. The semantics of how
- * cluster array allocation works is similar to the glyph array.  That is,
+ * If @clusters is not %NULL, @num_clusters and @backward are also non-%NULL,
+ * and cluster mapping should be computed.
+ * The semantics of how cluster array allocation works is similar to the glyph
+ * array.  That is,
  * if @clusters initially points to a non-%NULL value, that array may be used
  * as a cluster buffer, and @num_clusters points to the number of cluster
  * entries available there.  If the provided cluster array is too short for
  * the conversion (or for convenience), a new cluster array may be allocated
  * using cairo_text_cluster_allocate() and placed in @clusters.  Upon return,
  * @num_clusters should contain the number of generated clusters.
- * If the value @clusters points at has changed after the call, the caller
- * will free the allocated cluster array using cairo_text_cluster_free().
+ * If the value @clusters points at has changed after the call, cairo will
+ * free the allocated cluster array using cairo_text_cluster_free().
  *
- * The callback is optional.  If @num_glyphs is negative upon
- * the callback returning or if the return value
- * is %CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED, the unicode_to_glyph callback
+ * The callback is optional.  If not set, or if @num_glyphs is negative upon
+ * the callback returning, the unicode_to_glyph callback
  * is tried.  See #cairo_user_scaled_font_unicode_to_glyph_func_t.
  *
  * Note: While cairo does not impose any limitation on glyph indices,
@@ -1633,20 +1576,19 @@ typedef cairo_status_t (*cairo_user_scaled_font_render_glyph_func_t) (cairo_scal
  * are advised to use glyph 0 for such purposes and do not use that
  * glyph value for other purposes.
  *
- * Returns: %CAIRO_STATUS_SUCCESS upon success,
- * %CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED if fallback options should be tried,
- * or %CAIRO_STATUS_USER_FONT_ERROR or any other error status on error.
+ * Returns: %CAIRO_STATUS_SUCCESS upon success, or
+ * %CAIRO_STATUS_USER_FONT_ERROR or any other error status on error.
  *
  * Since: 1.8
  **/
-typedef cairo_status_t (*cairo_user_scaled_font_text_to_glyphs_func_t) (cairo_scaled_font_t        *scaled_font,
-									const char	           *utf8,
-									int		            utf8_len,
-									cairo_glyph_t	          **glyphs,
-									int		           *num_glyphs,
-									cairo_text_cluster_t      **clusters,
-									int		           *num_clusters,
-									cairo_text_cluster_flags_t *cluster_flags);
+typedef cairo_status_t (*cairo_user_scaled_font_text_to_glyphs_func_t) (cairo_scaled_font_t   *scaled_font,
+									const char	      *utf8,
+									int		       utf8_len,
+									cairo_glyph_t	     **glyphs,
+									int		      *num_glyphs,
+									cairo_text_cluster_t **clusters,
+									int		      *num_clusters,
+									cairo_bool_t	      *backward);
 
 /**
  * cairo_user_scaled_font_unicode_to_glyph_func_t:
@@ -1668,9 +1610,8 @@ typedef cairo_status_t (*cairo_user_scaled_font_text_to_glyphs_func_t) (cairo_sc
  * complex scripts can be implemented using this callback.
  *
  * The callback is optional, and only used if text_to_glyphs callback is not
- * set or fails to return glyphs.  If this callback is not set or if it returns
- * %CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED, an identity mapping from Unicode
- * code-points to glyph indices is assumed.
+ * set or fails to return glyphs.  If this callback is not set, an identity
+ * mapping from Unicode code-points to glyph indices is assumed.
  *
  * Note: While cairo does not impose any limitation on glyph indices,
  * some applications may assume that a glyph index fits in a 16-bit
@@ -1680,9 +1621,8 @@ typedef cairo_status_t (*cairo_user_scaled_font_text_to_glyphs_func_t) (cairo_sc
  * are advised to use glyph 0 for such purposes and do not use that
  * glyph value for other purposes.
  *
- * Returns: %CAIRO_STATUS_SUCCESS upon success,
- * %CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED if fallback options should be tried,
- * or %CAIRO_STATUS_USER_FONT_ERROR or any other error status on error.
+ * Returns: %CAIRO_STATUS_SUCCESS upon success, or
+ * %CAIRO_STATUS_USER_FONT_ERROR or any other error status on error.
  *
  * Since: 1.8
  **/
@@ -1953,15 +1893,6 @@ cairo_surface_status (cairo_surface_t *surface);
  * @CAIRO_SURFACE_TYPE_OS2: The surface is of type os2
  * @CAIRO_SURFACE_TYPE_WIN32_PRINTING: The surface is a win32 printing surface
  * @CAIRO_SURFACE_TYPE_QUARTZ_IMAGE: The surface is of type quartz_image
- * @CAIRO_SURFACE_TYPE_SCRIPT: The surface is of type script, since 1.10
- * @CAIRO_SURFACE_TYPE_QT: The surface is of type Qt, since 1.10
- * @CAIRO_SURFACE_TYPE_RECORDING: The surface is of type recording, since 1.10
- * @CAIRO_SURFACE_TYPE_VG: The surface is a OpenVG surface, since 1.10
- * @CAIRO_SURFACE_TYPE_GL: The surface is of type OpenGL, since 1.10
- * @CAIRO_SURFACE_TYPE_DRM: The surface is of type Direct Render Manager, since 1.10
- * @CAIRO_SURFACE_TYPE_TEE: The surface is of type 'tee' (a multiplexing surface), since 1.10
- * @CAIRO_SURFACE_TYPE_XML: The surface is of type XML (for debugging), since 1.10
- * @CAIRO_SURFACE_TYPE_SKIA: The surface is of type Skia, since 1.10
  *
  * #cairo_surface_type_t is used to describe the type of a given
  * surface. The surface types are also known as "backends" or "surface
@@ -2001,16 +1932,7 @@ typedef enum _cairo_surface_type {
     CAIRO_SURFACE_TYPE_OS2,
     CAIRO_SURFACE_TYPE_WIN32_PRINTING,
     CAIRO_SURFACE_TYPE_QUARTZ_IMAGE,
-    CAIRO_SURFACE_TYPE_SCRIPT,
-    CAIRO_SURFACE_TYPE_QT,
-    CAIRO_SURFACE_TYPE_RECORDING,
-    CAIRO_SURFACE_TYPE_VG,
-    CAIRO_SURFACE_TYPE_GL,
-    CAIRO_SURFACE_TYPE_DRM,
-    CAIRO_SURFACE_TYPE_TEE,
-    CAIRO_SURFACE_TYPE_XML,
-    CAIRO_SURFACE_TYPE_SKIA,
-    CAIRO_SURFACE_TYPE_D2D
+    CAIRO_SURFACE_TYPE_QPAINTER
 } cairo_surface_type_t;
 
 cairo_public cairo_surface_type_t
@@ -2041,24 +1963,6 @@ cairo_surface_set_user_data (cairo_surface_t		 *surface,
 			     const cairo_user_data_key_t *key,
 			     void			 *user_data,
 			     cairo_destroy_func_t	 destroy);
-
-#define CAIRO_MIME_TYPE_JPEG "image/jpeg"
-#define CAIRO_MIME_TYPE_PNG "image/png"
-#define CAIRO_MIME_TYPE_JP2 "image/jp2"
-
-cairo_public void
-cairo_surface_get_mime_data (cairo_surface_t		*surface,
-                             const char			*mime_type,
-                             const unsigned char       **data,
-                             unsigned int		*length);
-
-cairo_public cairo_status_t
-cairo_surface_set_mime_data (cairo_surface_t		*surface,
-                             const char			*mime_type,
-                             const unsigned char	*data,
-                             unsigned int		 length,
-			     cairo_destroy_func_t	 destroy,
-			     void			*closure);
 
 cairo_public void
 cairo_surface_get_font_options (cairo_surface_t      *surface,
@@ -2106,25 +2010,6 @@ cairo_surface_show_page (cairo_surface_t *surface);
 cairo_public cairo_bool_t
 cairo_surface_has_show_text_glyphs (cairo_surface_t *surface);
 
-/**
- * _cairo_subpixel_antialiasing_t:
- * @CAIRO_SUBPIXEL_ANTIALIASING_ENABLED: subpixel antialiasing is enabled
- * for this surface.
- * @CAIRO_SUBPIXEL_ANTIALIASING_DISABLED: subpixel antialiasing is disabled
- * for this surface.
- */
-typedef enum _cairo_subpixel_antialiasing_t {
-    CAIRO_SUBPIXEL_ANTIALIASING_ENABLED,
-    CAIRO_SUBPIXEL_ANTIALIASING_DISABLED
-} cairo_subpixel_antialiasing_t;
-
-cairo_public void
-cairo_surface_set_subpixel_antialiasing (cairo_surface_t *surface,
-                                         cairo_subpixel_antialiasing_t enabled);
-
-cairo_public cairo_subpixel_antialiasing_t
-cairo_surface_get_subpixel_antialiasing (cairo_surface_t *surface);
-
 /* Image-surface functions */
 
 /**
@@ -2158,8 +2043,11 @@ typedef enum _cairo_format {
     CAIRO_FORMAT_ARGB32,
     CAIRO_FORMAT_RGB24,
     CAIRO_FORMAT_A8,
-    CAIRO_FORMAT_A1,
-    CAIRO_FORMAT_RGB16_565
+    CAIRO_FORMAT_A1
+    /* The value of 4 is reserved by a deprecated enum value.
+     * The next format added must have an explicit value of 5.
+    CAIRO_FORMAT_RGB16_565 = 4,
+    */
 } cairo_format_t;
 
 cairo_public cairo_surface_t *
@@ -2203,36 +2091,6 @@ cairo_image_surface_create_from_png_stream (cairo_read_func_t	read_func,
 					    void		*closure);
 
 #endif
-
-/* Recording-surface functions */
-
-cairo_public cairo_surface_t *
-cairo_recording_surface_create (cairo_content_t		 content,
-                                const cairo_rectangle_t *extents);
-
-cairo_public void
-cairo_recording_surface_ink_extents (cairo_surface_t *surface,
-                                     double *x0,
-                                     double *y0,
-                                     double *width,
-                                     double *height);
-
-/* Tee-surface functions */
-
-cairo_public cairo_surface_t *
-cairo_tee_surface_create (cairo_surface_t *master);
-
-cairo_public void
-cairo_tee_surface_add (cairo_surface_t *surface,
-		       cairo_surface_t *target);
-
-cairo_public void
-cairo_tee_surface_remove (cairo_surface_t *surface,
-			  cairo_surface_t *target);
-
-cairo_public cairo_surface_t *
-cairo_tee_surface_index (cairo_surface_t *surface,
-			 int index);
 
 /* Pattern creation functions */
 
@@ -2480,97 +2338,9 @@ cairo_public void
 cairo_matrix_transform_point (const cairo_matrix_t *matrix,
 			      double *x, double *y);
 
-/* Region functions */
-
-typedef struct _cairo_region cairo_region_t;
-
-typedef struct _cairo_rectangle_int {
-    int x, y;
-    int width, height;
-} cairo_rectangle_int_t;
-
-typedef enum _cairo_region_overlap {
-    CAIRO_REGION_OVERLAP_IN,		/* completely inside region */
-    CAIRO_REGION_OVERLAP_OUT,		/* completely outside region */
-    CAIRO_REGION_OVERLAP_PART		/* partly inside region */
-} cairo_region_overlap_t;
-
-cairo_public cairo_region_t *
-cairo_region_create (void);
-
-cairo_public cairo_region_t *
-cairo_region_create_rectangle (const cairo_rectangle_int_t *rectangle);
-
-cairo_public cairo_region_t *
-cairo_region_create_rectangles (const cairo_rectangle_int_t *rects,
-				int count);
-
-cairo_public cairo_region_t *
-cairo_region_copy (const cairo_region_t *original);
-
-cairo_public cairo_region_t *
-cairo_region_reference (cairo_region_t *);
-
-cairo_public void
-cairo_region_destroy (cairo_region_t *region);
-
-cairo_public cairo_bool_t
-cairo_region_equal (const cairo_region_t *a, const cairo_region_t *b);
-
-cairo_public cairo_status_t
-cairo_region_status (const cairo_region_t *region);
-
-cairo_public void
-cairo_region_get_extents (const cairo_region_t        *region,
-			  cairo_rectangle_int_t *extents);
-
-cairo_public int
-cairo_region_num_rectangles (const cairo_region_t *region);
-
-cairo_public void
-cairo_region_get_rectangle (const cairo_region_t        *region,
-			    int                    nth_rectangle,
-			    cairo_rectangle_int_t *rectangle);
-
-cairo_public cairo_bool_t
-cairo_region_is_empty (const cairo_region_t *region);
-
-cairo_public cairo_region_overlap_t
-cairo_region_contains_rectangle (const cairo_region_t *region,
-				 const cairo_rectangle_int_t *rectangle);
-
-cairo_public cairo_bool_t
-cairo_region_contains_point (const cairo_region_t *region, int x, int y);
-
-cairo_public void
-cairo_region_translate (cairo_region_t *region, int dx, int dy);
-
-cairo_public cairo_status_t
-cairo_region_subtract (cairo_region_t *dst, const cairo_region_t *other);
-
-cairo_public cairo_status_t
-cairo_region_subtract_rectangle (cairo_region_t *dst,
-				 const cairo_rectangle_int_t *rectangle);
-
-cairo_public cairo_status_t
-cairo_region_intersect (cairo_region_t *dst, cairo_region_t *other);
-
-cairo_public cairo_status_t
-cairo_region_intersect_rectangle (cairo_region_t *dst,
-				  const cairo_rectangle_int_t *rectangle);
-
-cairo_public cairo_status_t
-cairo_region_union (cairo_region_t *dst, cairo_region_t *other);
-
-cairo_public cairo_status_t
-cairo_region_union_rectangle (cairo_region_t *dst,
-			      const cairo_rectangle_int_t *rectangle);
-
-
 /* Functions to be used while debugging (not intended for use in production code) */
 cairo_public void
 cairo_debug_reset_static_data (void);
-
 
 CAIRO_END_DECLS
 

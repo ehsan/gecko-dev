@@ -54,27 +54,30 @@
 #include <kernel/OS.h>
 #endif
 
-#ifdef WIN32
-/*
- * Allow use of functions and symbols first defined in Win2k.
- */
-#if !defined(WINVER) || (WINVER < 0x0500)
-#undef WINVER
-#define WINVER 0x0500
-#endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500
-#endif
-#endif /* WIN32 */
+#ifdef WINNT
+/* Need to force service-pack 3 extensions to be defined by
+** setting _WIN32_WINNT to NT 4.0 for winsock.h, winbase.h, winnt.h.
+*/
+#ifndef  _WIN32_WINNT
+    #define _WIN32_WINNT 0x0400
+#elif   (_WIN32_WINNT < 0x0400)
+    #undef  _WIN32_WINNT
+    #define _WIN32_WINNT 0x0400
+#endif /* _WIN32_WINNT */
+#endif /* WINNT */
 
 #include "nspr.h"
 #include "prpriv.h"
 
 typedef struct PRSegment PRSegment;
 
+#ifdef XP_MAC
+#include "prosdep.h"
+#include "probslet.h"
+#else
 #include "md/prosdep.h"
 #include "obsolete/probslet.h"
+#endif  /* XP_MAC */
 
 #ifdef _PR_HAVE_POSIX_SEMAPHORES
 #include <semaphore.h>
@@ -192,7 +195,12 @@ struct _PT_Notified
 #define _PT_THREAD_UNBLOCK_INTERRUPT(thr)			\
 		(thr->interrupt_blocked = 0)
 
+#ifdef GC_LEAK_DETECTOR
+/* All threads are GCable. */
+#define _PT_IS_GCABLE_THREAD(thr) 1
+#else
 #define _PT_IS_GCABLE_THREAD(thr) ((thr)->state & PT_THREAD_GCABLE)
+#endif /* GC_LEAK_DETECTOR */
 
 /* 
 ** Possible values for thread's suspend field
@@ -318,8 +326,10 @@ NSPR_API(PRInt32)                      _pr_intsOff;
 #define _MD_LAST_THREAD()               (_pr_lastThread)
 #define _MD_SET_LAST_THREAD(t)          (_pr_lastThread = t)
 
+#ifndef XP_MAC
 #define _MD_GET_INTSOFF()               (_pr_intsOff)
 #define _MD_SET_INTSOFF(_val)           (_pr_intsOff = _val)
+#endif
 
 
 /* The unbalanced curly braces in these two macros are intentional */
@@ -364,11 +374,19 @@ extern PRInt32                  _native_threads_only;
 
 #else
 
+#ifdef XP_MAC
+
+#define _PR_INTSOFF(_is)        _MD_INTSOFF(_is)
+
+#else /* XP_MAC */
+
 #define _PR_INTSOFF(_is) \
     PR_BEGIN_MACRO \
         (_is) = _PR_MD_GET_INTSOFF(); \
         _PR_MD_SET_INTSOFF(1); \
     PR_END_MACRO
+
+#endif /* XP_MAC */
 
 #define _PR_FAST_INTSON(_is) \
     PR_BEGIN_MACRO \
@@ -628,7 +646,12 @@ NSPR_API(void) _PR_Notify(PRMonitor *mon, PRBool all, PRBool sticky);
 #define        _PR_ADJUST_STACKSIZE(stackSize)
 #endif
 
+#ifdef GC_LEAK_DETECTOR
+/* All threads are GCable. */
+#define _PR_IS_GCABLE_THREAD(thr) 1
+#else
 #define _PR_IS_GCABLE_THREAD(thr) ((thr)->flags & _PR_GCABLE_THREAD)
+#endif /* GC_LEAK_DETECTOR */
 
 #define _PR_PENDING_INTERRUPT(thr)					\
 		(!((thr)->flags & _PR_INTERRUPT_BLOCKED) && ((thr)->flags & _PR_INTERRUPT))
@@ -1066,6 +1089,11 @@ extern PRStatus _PR_MD_DELETE_SEMAPHORE(const char *osname);
 extern void _PR_MD_INIT_FILEDESC(PRFileDesc *fd);
 #define    _PR_MD_INIT_FILEDESC _MD_INIT_FILEDESC
 
+#ifdef XP_MAC
+extern void _PR_MD_FREE_FILEDESC(PRFileDesc *fd);
+#define    _PR_MD_FREE_FILEDESC _MD_FREE_FILEDESC
+#endif
+
 extern void _PR_MD_MAKE_NONBLOCK(PRFileDesc *fd);
 #define    _PR_MD_MAKE_NONBLOCK _MD_MAKE_NONBLOCK
 
@@ -1187,13 +1215,6 @@ extern PRInt32 _PR_MD_FAST_ACCEPT_READ(PRFileDesc *sd, PROsfd *newSock,
 
 extern void _PR_MD_UPDATE_ACCEPT_CONTEXT(PROsfd s, PROsfd ls);
 #define _PR_MD_UPDATE_ACCEPT_CONTEXT _MD_UPDATE_ACCEPT_CONTEXT
-/*
- * The NSPR epoch (00:00:00 1 Jan 1970 UTC) in FILETIME.
- * We store the value in a PRTime variable for convenience.
- * This constant is used by _PR_FileTimeToPRTime().
- * This is defined in ntmisc.c
- */
-extern const PRTime _pr_filetime_offset;
 #endif /* WIN32 */
 
 extern PRInt32 _PR_MD_SENDFILE(
@@ -1793,6 +1814,9 @@ extern void _PR_CleanupTPD(void);
 extern void _PR_Cleanup(void);
 extern void _PR_LogCleanup(void);
 extern void _PR_InitLayerCache(void);
+#ifdef GC_LEAK_DETECTOR
+extern void _PR_InitGarbageCollector(void);
+#endif
 
 extern PRBool _pr_initialized;
 extern void _PR_ImplicitInitialization(void);
@@ -1873,9 +1897,6 @@ extern void _PR_MD_INTERVAL_INIT(void);
 
 NSPR_API(void) _PR_MD_FINAL_INIT(void);
 #define    _PR_MD_FINAL_INIT _MD_FINAL_INIT
-
-extern void _PR_MD_EARLY_CLEANUP(void);
-#define    _PR_MD_EARLY_CLEANUP _MD_EARLY_CLEANUP
 
 /* Process control */
 

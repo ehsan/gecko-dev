@@ -37,8 +37,6 @@
 #ifndef CAIRO_WIDEINT_TYPE_H
 #define CAIRO_WIDEINT_TYPE_H
 
-#include "cairo.h"
-
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -121,12 +119,6 @@ typedef struct _cairo_quorem64 {
     cairo_int64_t	rem;
 } cairo_quorem64_t;
 
-/* gcc has a non-standard name. */
-#if HAVE___UINT128_T && !HAVE_UINT128_T
-typedef __uint128_t uint128_t;
-typedef __int128_t int128_t;
-#define HAVE_UINT128_T 1
-#endif
 
 #if !HAVE_UINT128_T
 

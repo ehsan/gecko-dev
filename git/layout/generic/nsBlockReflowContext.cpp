@@ -41,7 +41,7 @@
 
 #include "nsBlockReflowContext.h"
 #include "nsLineLayout.h"
-#include "nsFloatManager.h"
+#include "nsSpaceManager.h"
 #include "nsIFontMetrics.h"
 #include "nsPresContext.h"
 #include "nsFrameManager.h"
@@ -270,7 +270,7 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
 
   nscoord tx = 0, ty = 0;
   // The values of x and y do not matter for floats, so don't bother calculating
-  // them. Floats are guaranteed to have their own float manager, so tx and ty
+  // them. Floats are guaranteed to have their own space manager, so tx and ty
   // don't matter.  mX and mY don't matter becacuse they are only used in
   // PlaceBlock, which is not used for floats.
   if (aLine) {
@@ -278,11 +278,24 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
     // from 10.3.3 to determine what to apply. At this point in the
     // reflow auto left/right margins will have a zero value.
 
-    mX = tx = mSpace.x + aFrameRS.mComputedMargin.left;
-    mY = ty = mSpace.y + mTopMargin.get() + aClearance;
+    nscoord x = mSpace.x + aFrameRS.mComputedMargin.left;
+    nscoord y = mSpace.y + mTopMargin.get() + aClearance;
 
-    if ((mFrame->GetStateBits() & NS_BLOCK_FLOAT_MGR) == 0)
-      aFrameRS.mBlockDelta = mOuterReflowState.mBlockDelta + ty - aLine->mBounds.y;
+    if ((mFrame->GetStateBits() & NS_BLOCK_SPACE_MGR) == 0)
+      aFrameRS.mBlockDelta = mOuterReflowState.mBlockDelta + y - aLine->mBounds.y;
+
+    mX = x;
+    mY = y;
+
+    // Compute the translation to be used for adjusting the spacemanagager
+    // coordinate system for the frame.  The spacemanager coordinates are
+    // <b>inside</b> the callers border+padding, but the x/y coordinates
+    // are not (recall that frame coordinates are relative to the parents
+    // origin and that the parents border/padding is <b>inside</b> the
+    // parent frame. Therefore we have to subtract out the parents
+    // border+padding before translating.
+    tx = x - mOuterReflowState.mComputedBorderPadding.left;
+    ty = y - mOuterReflowState.mComputedBorderPadding.top;
   }
 
   // Let frame know that we are reflowing it
@@ -293,9 +306,9 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   mMetrics.height = nscoord(0xdeadbeef);
 #endif
 
-  mOuterReflowState.mFloatManager->Translate(tx, ty);
+  mOuterReflowState.mSpaceManager->Translate(tx, ty);
   rv = mFrame->Reflow(mPresContext, mMetrics, aFrameRS, aFrameReflowStatus);
-  mOuterReflowState.mFloatManager->Translate(-tx, -ty);
+  mOuterReflowState.mSpaceManager->Translate(-tx, -ty);
 
 #ifdef DEBUG
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus)) {
@@ -313,8 +326,12 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   }
 #endif
 
-  if (!mFrame->HasOverflowAreas()) {
-    mMetrics.SetOverflowAreasToDesiredBounds();
+  if (!(NS_FRAME_OUTSIDE_CHILDREN & mFrame->GetStateBits())) {
+    // Provide overflow area for child that doesn't have any
+    mMetrics.mOverflowArea.x = 0;
+    mMetrics.mOverflowArea.y = 0;
+    mMetrics.mOverflowArea.width = mMetrics.width;
+    mMetrics.mOverflowArea.height = mMetrics.height;
   }
 
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus) ||
@@ -332,9 +349,9 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // Floats will eventually be removed via nsBlockFrame::RemoveFloat
         // which detaches the placeholder from the float.
 /* XXX promote DeleteChildsNextInFlow to nsIFrame to elminate this cast */
-        aState.mOverflowTracker->Finish(mFrame);
+        aState.mOverflowTracker.Finish(mFrame);
         static_cast<nsHTMLContainerFrame*>(kidNextInFlow->GetParent())
-          ->DeleteNextInFlowChild(mPresContext, kidNextInFlow, PR_TRUE);
+          ->DeleteNextInFlowChild(mPresContext, kidNextInFlow);
       }
     }
   }
@@ -353,7 +370,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
                                  nsLineBox*               aLine,
                                  nsCollapsingMargin&      aBottomMarginResult,
                                  nsRect&                  aInFlowBounds,
-                                 nsOverflowAreas&         aOverflowAreas,
+                                 nsRect&                  aCombinedRect,
                                  nsReflowStatus           aReflowStatus)
 {
   // Compute collapsed bottom margin value.
@@ -437,8 +454,8 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
   
   // Now place the frame and complete the reflow process
   nsContainerFrame::FinishReflowChild(mFrame, mPresContext, &aReflowState, mMetrics, x, y, 0);
-
-  aOverflowAreas = mMetrics.mOverflowAreas + nsPoint(x, y);
+  
+  aCombinedRect = mMetrics.mOverflowArea + nsPoint(x, y);
 
   return PR_TRUE;
 }

@@ -184,7 +184,7 @@ buildASN1ObjectFromDER(unsigned char *data,
           type = nsIASN1Object::ASN1_PRIVATE;
           break;
         default:
-          NS_ERROR("Bad DER");
+          NS_ASSERTION(0,"Bad DER");
           return NS_ERROR_FAILURE;
         }
         sequence->SetTag(tagnum);

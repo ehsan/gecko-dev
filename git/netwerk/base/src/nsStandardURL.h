@@ -43,7 +43,6 @@
 #include "nsDependentString.h"
 #include "nsDependentSubstring.h"
 #include "nsISerializable.h"
-#include "nsIIPCSerializable.h"
 #include "nsIFileURL.h"
 #include "nsIStandardURL.h"
 #include "nsIFile.h"
@@ -54,11 +53,6 @@
 #include "nsCOMPtr.h"
 #include "nsURLHelper.h"
 #include "nsIClassInfo.h"
-#include "prclist.h"
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-#define DEBUG_DUMP_URLS_AT_SHUTDOWN
-#endif
 
 class nsIBinaryInputStream;
 class nsIBinaryOutputStream;
@@ -73,7 +67,6 @@ class nsIPrefBranch;
 class nsStandardURL : public nsIFileURL
                     , public nsIStandardURL
                     , public nsISerializable
-                    , public nsIIPCSerializable
                     , public nsIClassInfo
 {
 public:
@@ -83,7 +76,6 @@ public:
     NS_DECL_NSIFILEURL
     NS_DECL_NSISTANDARDURL
     NS_DECL_NSISERIALIZABLE
-    NS_DECL_NSIIPCSERIALIZABLE
     NS_DECL_NSICLASSINFO
     NS_DECL_NSIMUTABLE
 
@@ -158,7 +150,6 @@ protected:
     // Helper for subclass implementation of GetFile().  Subclasses that map
     // URIs to files in a special way should implement this method.  It should
     // ensure that our mFile is initialized, if it's possible.
-    // returns NS_ERROR_NO_INTERFACE if the url does not map to a file
     virtual nsresult EnsureFile();
 
 private:
@@ -228,12 +219,6 @@ private:
     nsresult ReadSegment(nsIBinaryInputStream *, URLSegment &);
     nsresult WriteSegment(nsIBinaryOutputStream *, const URLSegment &);
 
-#ifdef MOZ_IPC
-    // ipc helper functions
-    bool ReadSegment(const IPC::Message *, void **, URLSegment &);
-    void WriteSegment(IPC::Message *, const URLSegment &);
-#endif
-
     static void PrefsChanged(nsIPrefBranch *prefs, const char *pref);
 
     // mSpec contains the normalized version of the URL spec (UTF-8 encoded).
@@ -286,12 +271,6 @@ private:
     static PRBool                       gEscapeUTF8;
     static PRBool                       gAlwaysEncodeInUTF8;
     static PRBool                       gEncodeQueryInUTF8;
-
-public:
-#ifdef DEBUG_DUMP_URLS_AT_SHUTDOWN
-    PRCList mDebugCList;
-    void PrintSpec() const { printf("  %s\n", mSpec.get()); }
-#endif
 };
 
 #define NS_THIS_STANDARDURL_IMPL_CID                 \

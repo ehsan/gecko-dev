@@ -46,10 +46,6 @@
 # include "nsServiceManagerUtils.h"
 #endif
 
-#ifdef XP_WIN
-#include <windows.h>
-#endif
-
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsRunnable, nsIRunnable)
@@ -120,36 +116,20 @@ NS_GetMainThread(nsIThread **result)
 #endif
 }
 
-#ifndef MOZILLA_INTERNAL_API
-bool NS_IsMainThread()
-{
-  PRBool result = PR_FALSE;
-  nsCOMPtr<nsIThreadManager> mgr =
-    do_GetService(NS_THREADMANAGER_CONTRACTID);
-  if (mgr)
-    mgr->GetIsMainThread(&result);
-  return bool(result);
-}
-#elif defined(XP_WIN)
-extern DWORD gTLSThreadIDIndex;
-bool
+NS_METHOD_(PRBool)
 NS_IsMainThread()
 {
-  return TlsGetValue(gTLSThreadIDIndex) == (void*) mozilla::threads::Main;
-}
-#elif !defined(NS_TLS)
-bool NS_IsMainThread()
-{
   PRBool result = PR_FALSE;
+#ifdef MOZILLA_INTERNAL_API
   nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
-  return bool(result);
-}
-#elif !defined(MOZ_ENABLE_LIBXUL)
-bool NS_IsMainThread()
-{
-  return gTLSThreadID == mozilla::threads::Main;
-}
+#else
+  nsCOMPtr<nsIThreadManager> mgr =
+      do_GetService(NS_THREADMANAGER_CONTRACTID);
+  if (mgr)
+    mgr->GetIsMainThread(&result);
 #endif
+  return result;
+}
 
 NS_METHOD
 NS_DispatchToCurrentThread(nsIRunnable *event)
@@ -207,27 +187,24 @@ NS_ProcessPendingEvents(nsIThread *thread, PRIntervalTime timeout)
 }
 #endif // XPCOM_GLUE_AVOID_NSPR
 
-inline PRBool
-hasPendingEvents(nsIThread *thread)
-{
-  PRBool val;
-  return NS_SUCCEEDED(thread->HasPendingEvents(&val)) && val;
-}
-
 PRBool
 NS_HasPendingEvents(nsIThread *thread)
 {
+#ifdef MOZILLA_INTERNAL_API
   if (!thread) {
-#ifndef MOZILLA_INTERNAL_API
-    nsCOMPtr<nsIThread> current;
-    NS_GetCurrentThread(getter_AddRefs(current));
-    return hasPendingEvents(current);
-#else
     thread = NS_GetCurrentThread();
     NS_ENSURE_TRUE(thread, PR_FALSE);
-#endif
   }
-  return hasPendingEvents(thread);
+#else
+  nsCOMPtr<nsIThread> current;
+  if (!thread) {
+    NS_GetCurrentThread(getter_AddRefs(current));
+    NS_ENSURE_TRUE(current, PR_FALSE);
+    thread = current.get();
+  }
+#endif
+  PRBool val;
+  return NS_SUCCEEDED(thread->HasPendingEvents(&val)) && val;
 }
 
 PRBool

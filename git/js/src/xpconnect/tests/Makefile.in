@@ -40,15 +40,20 @@ DEPTH		= ../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = js/src/xpconnect/tests
 
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= TestXPC
 SIMPLE_PROGRAMS = TestXPC$(BIN_SUFFIX)
 
+REQUIRES	= xpconnect \
+		  xpcom \
+		  string \
+		  js \
+		  xpconnect_tests \
+		  $(NULL)
 
-DIRS		= idl mochitest chrome
+DIRS		= idl mochitest
 
 ifndef MOZ_ENABLE_LIBXUL
 DIRS += components

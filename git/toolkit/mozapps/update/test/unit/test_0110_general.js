@@ -11,15 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is the Application Update Service.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Robert Strong <robert.bugzilla@gmail.com>.
+ *
  * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
+ * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
  *
  * Contributor(s):
- *   Robert Strong <robert.bugzilla@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,121 +36,261 @@
  * ***** END LICENSE BLOCK *****
  */
 
-/* General Complete MAR File Patch Apply Test */
+/* General MAR File Tests */
 
-const TEST_ID = "0110";
-// All we care about is that the last modified time has changed so that Mac OS
-// X Launch Services invalidates its cache so the test allows up to one minute
-// difference in the last modified time.
-const MAX_TIME_DIFFERENCE = 60000;
+const DIR_DATA = "data"
+const URL_PREFIX = "http://localhost:4444/" + DIR_DATA + "/";
 
-// The files are in the same order as they are applied from the mar
-const TEST_FILES = [
-{
-  fileName         : "1_1_image1.png",
-  destinationDir   : TEST_ID + APPLY_TO_DIR_SUFFIX + "/mar_test/1/1_1/",
-  originalContents : null,
-  compareContents  : null,
-  originalFile     : null,
-  compareFile      : "data/complete.png",
-  originalPerms    : 0776,
-  comparePerms     : 0644
-}, {
-  fileName         : "1_1_text1",
-  destinationDir   : TEST_ID + APPLY_TO_DIR_SUFFIX + "/mar_test/1/1_1/",
-  originalContents : "ToBeReplacedWithToBeModified\n",
-  compareContents  : "ToBeModified\n",
-  originalFile     : null,
-  compareFile      : null,
-  originalPerms    : 0775,
-  comparePerms     : 0644
-}, {
-  fileName         : "1_1_text2",
-  destinationDir   : TEST_ID + APPLY_TO_DIR_SUFFIX + "/mar_test/1/1_1/",
-  originalContents : "ToBeReplacedWithToBeDeleted\n",
-  compareContents  : "ToBeDeleted\n",
-  originalFile     : null,
-  compareFile      : null,
-  originalPerms    : 0677,
-  comparePerms     : 0644
-}, {
-  fileName         : "1_exe1.exe",
-  destinationDir   : TEST_ID + APPLY_TO_DIR_SUFFIX + "/mar_test/1/",
-  originalContents : null,
-  compareContents  : null,
-  originalFile     : "data/partial.png",
-  compareFile      : "data/complete.png",
-  originalPerms    : 0777,
-  comparePerms     : 0755
-}, {
-  fileName         : "2_1_text1",
-  destinationDir   : TEST_ID + APPLY_TO_DIR_SUFFIX + "/mar_test/2/2_1/",
-  originalContents : "ToBeReplacedWithToBeDeleted\n",
-  compareContents  : "ToBeDeleted\n",
-  originalFile     : null,
-  compareFile      : null,
-  originalPerms    : 0767,
-  comparePerms     : 0644
-}];
+const PREF_APP_UPDATE_URL_OVERRIDE = "app.update.url.override";
+
+var gUpdates;
+var gUpdateCount;
+var gStatus;
+var gExpectedStatus;
+var gCheckFunc;
+var gNextRunFunc;
+
+var gTestDir;
+var gUpdater;
+var gUpdatesDir;
+var gUpdatesDirPath;
 
 function run_test() {
-  if (IS_ANDROID) {
-    logTestInfo("this test is not applicable to Android... returning early");
-    return;
+  do_test_pending();
+
+  var fileLocator = AUS_Cc["@mozilla.org/file/directory_service;1"]
+                      .getService(AUS_Ci.nsIProperties);
+
+  // The directory the updates will be applied to is the current working
+  // directory (e.g. obj-dir/toolkit/mozapps/update/test) and not dist/bin
+  gTestDir = fileLocator.get("CurWorkD", AUS_Ci.nsIFile);
+  // The mar files were created with all files in a subdirectory named
+  // mar_test... clear it out of the way if it exists and recreate it.
+  gTestDir.append("mar_test");
+  if (gTestDir.exists())
+    gTestDir.remove(true);
+  gTestDir.create(AUS_Ci.nsIFile.DIRECTORY_TYPE, 0755);
+
+  // Create an empty test file to test the complete mar's ability to replace an
+  // existing file.
+  var testFile = gTestDir.clone();
+  testFile.append("text1");
+  testFile.create(AUS_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
+
+  var binDir = fileLocator.get("XCurProcD", AUS_Ci.nsIFile);
+
+  // The updater binary file
+  gUpdater = binDir.clone();
+  gUpdater.append("updater.app");
+  if (!gUpdater.exists()) {
+    gUpdater = binDir.clone();
+    gUpdater.append("updater.exe");
+    if (!gUpdater.exists()) {
+      gUpdater = binDir.clone();
+      gUpdater.append("updater");
+      if (!gUpdater.exists()) {
+        do_throw("Unable to find updater binary!");
+      }
+    }
   }
 
-  do_test_pending();
-  do_register_cleanup(end_test);
+  // The dir where the mar file is located
+  gUpdatesDir = binDir.clone();
+  gUpdatesDir.append("updates");
+  gUpdatesDir.append("0");
 
-  setupUpdaterTest(TEST_ID, MAR_COMPLETE_FILE, TEST_FILES);
+  // Quoted path to the dir where the mar file is located
+  gUpdatesDirPath = gUpdatesDir.path;
+  if (/ /.test(gUpdatesDirPath))
+    gUpdatesDirPath = '"' + gUpdatesDirPath + '"';
 
-  // The testUpdate function is used for consistency with the tests that require
-  // a timeout before continuing the test.
-  testUpdate();
+  startAUS();
+  start_httpserver(DIR_DATA);
+  do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
-  cleanupUpdaterTest(TEST_ID);
+  stop_httpserver();
+  if (gTestDir.exists())
+    gTestDir.remove(true);
+  do_test_finished();
 }
 
-function testUpdate() {
-  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX);
-  let applyToDir = do_get_file(TEST_ID + APPLY_TO_DIR_SUFFIX);
+// Helper functions for testing mar downloads that have the correct size
+// specified in the update xml.
+function run_test_helper(aUpdateXML, aMsg, aResult, aNextRunFunc) {
+  gUpdates = null;
+  gUpdateCount = null;
+  gStatus = null;
+  gCheckFunc = check_test_helper_pt1;
+  gNextRunFunc = aNextRunFunc;
+  gExpectedStatus = aResult;
+  var url = URL_PREFIX + aUpdateXML;
+  dump("Testing: " + aMsg + " - " + url + "\n");
+  gPrefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, url);
+  gUpdateChecker.checkForUpdates(updateCheckListener, true);
+}
 
-  // For Mac OS X set the last modified time for the root directory to a date in
-  // the past to test that the last modified time is updated on a successful
-  // update (bug 600098).
-  if (IS_MACOSX) {
-    let now = Date.now();
-    let yesterday = now - (1000 * 60 * 60 * 24);
-    applyToDir.lastModifiedTime = yesterday;
+function check_test_helper_pt1() {
+  do_check_eq(gUpdateCount, 1);
+  gCheckFunc = check_test_helper_pt2;
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var state = gAUS.downloadUpdate(bestUpdate, false);
+  if (state == "null" || state == "failed")
+    do_throw("nsIApplicationUpdateService:downloadUpdate returned " + state);
+  gAUS.addDownloadListener(downloadListener);
+}
+
+function check_test_helper_pt2() {
+  do_check_eq(gStatus, gExpectedStatus);
+  gAUS.removeDownloadListener(downloadListener);
+  gNextRunFunc();
+}
+
+// Launches the updater binary to apply a mar file
+function runUpdate() {
+  // Copy the updater binary to the update directory so the updater.ini is not
+  // in the same directory as it is. This prevents ui from displaying and the
+  // PostUpdate executable which is defined in the updater.ini from launching.
+  gUpdater.copyTo(gUpdatesDir, gUpdater.leafName);
+  var updateBin = gUpdatesDir.clone();
+  updateBin.append(gUpdater.leafName);
+  if (updateBin.leafName == "updater.app") {
+    updateBin.append("Contents");
+    updateBin.append("MacOS");
+    updateBin.append("updater");
+    if (!updateBin.exists())
+      do_throw("Unable to find the updater executable!");
   }
 
-  // apply the complete mar
-  let exitValue = runUpdate(TEST_ID);
-  logTestInfo("testing updater binary process exitValue for success when " +
-              "applying a complete mar");
+  var process = AUS_Cc["@mozilla.org/process/util;1"]
+                  .createInstance(AUS_Ci.nsIProcess);
+  process.init(updateBin);
+  var args = [gUpdatesDirPath];
+  process.run(true, args, args.length);
+  return process.exitValue;
+}
+
+// Gets a file in the directory (the current working directory) where the mar
+// will be applied.
+function getTestFile(leafName) {
+  var file = gTestDir.clone();
+  file.append(leafName);
+  if (!(file instanceof AUS_Ci.nsILocalFile))
+    do_throw("File must be a nsILocalFile for this test! File: " + leafName);
+
+  return file;
+}
+
+// Returns the binary contents of a file
+function getFileBytes(file) {
+  var fis = AUS_Cc["@mozilla.org/network/file-input-stream;1"]
+              .createInstance(AUS_Ci.nsIFileInputStream);
+  fis.init(file, -1, -1, false);
+  var bis = AUS_Cc["@mozilla.org/binaryinputstream;1"]
+              .createInstance(AUS_Ci.nsIBinaryInputStream);
+  bis.setInputStream(fis);
+  var data = bis.readBytes(bis.available());
+  bis.close();
+  fis.close();
+  return data;
+}
+
+// applying a complete mar and replacing an existing file
+function run_test_pt1() {
+  run_test_helper("aus-0110_general-1.xml", "applying a complete mar",
+                  AUS_Cr.NS_OK, run_test_pt2);
+}
+
+// apply the complete mar and check the innards of the files
+function run_test_pt2() {
+  var exitValue = runUpdate();
   do_check_eq(exitValue, 0);
 
-  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
-  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+  dump("Testing: contents of files added\n");
+  do_check_eq(getFileBytes(getTestFile("text1")), "ToBeModified\n");
+  do_check_eq(getFileBytes(getTestFile("text2")), "ToBeDeleted\n");
 
-  // For Mac OS X check that the last modified time for a directory has been
-  // updated after a successful update (bug 600098).
-  if (IS_MACOSX) {
-    logTestInfo("testing last modified time on the apply to directory has " +
-                "changed after a successful update (bug 600098)");
-    let now = Date.now();
-    let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
-    do_check_true(timeDiff < MAX_TIME_DIFFERENCE);
-  }
+  var refImage = do_get_file("toolkit/mozapps/update/test/unit/data/aus-0110_general_ref_image1.png");
+  var srcImage = getTestFile("image1.png");
+  do_check_eq(getFileBytes(srcImage), getFileBytes(refImage));
 
-  checkFilesAfterUpdateSuccess(TEST_ID, TEST_FILES);
-
-  logTestInfo("testing tobedeleted directory doesn't exist");
-  let toBeDeletedDir = applyToDir.clone();
-  toBeDeletedDir.append("tobedeleted");
-  do_check_false(toBeDeletedDir.exists());
-
-  checkCallbackAppLog(TEST_ID);
+  remove_dirs_and_files();
+  run_test_pt3();
 }
+
+// applying a partial mar and remove an existing file
+function run_test_pt3() {
+  run_test_helper("aus-0110_general-2.xml", "applying a partial mar",
+                  AUS_Cr.NS_OK, run_test_pt4);
+}
+
+// apply the partial mar and check the innards of the files
+function run_test_pt4() {
+  var exitValue = runUpdate();
+  do_check_eq(exitValue, 0);
+
+  dump("Testing: removal of a file and contents of added / modified files\n");
+  do_check_eq(getFileBytes(getTestFile("text1")), "Modified\n");
+  do_check_false(getTestFile("text2").exists()); // file removed
+  do_check_eq(getFileBytes(getTestFile("text3")), "Added\n");
+
+  var refImage = do_get_file("toolkit/mozapps/update/test/unit/data/aus-0110_general_ref_image2.png");
+  var srcImage = getTestFile("image1.png");
+  do_check_eq(getFileBytes(srcImage), getFileBytes(refImage));
+
+  end_test();
+}
+
+// Update check listener
+const updateCheckListener = {
+  onProgress: function(request, position, totalSize) {
+  },
+
+  onCheckComplete: function(request, updates, updateCount) {
+    gUpdateCount = updateCount;
+    gUpdates = updates;
+    dump("onCheckComplete url = " + request.channel.originalURI.spec + "\n\n");
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc()");
+  },
+
+  onError: function(request, update) {
+    dump("onError url = " + request.channel.originalURI.spec + "\n\n");
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc()");
+  },
+
+  QueryInterface: function(aIID) {
+    if (!aIID.equals(AUS_Ci.nsIUpdateCheckListener) &&
+        !aIID.equals(AUS_Ci.nsISupports))
+      throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
+};
+
+/* Update download listener - nsIRequestObserver */
+const downloadListener = {
+  onStartRequest: function(request, context) {
+  },
+
+  onProgress: function(request, context, progress, maxProgress) {
+  },
+
+  onStatus: function(request, context, status, statusText) {
+  },
+
+  onStopRequest: function(request, context, status) {
+    gStatus = status;
+    // Use a timeout to allow the request to complete
+    do_timeout(0, "gCheckFunc()");
+  },
+
+  QueryInterface: function(iid) {
+    if (!iid.equals(AUS_Ci.nsIRequestObserver) &&
+        !iid.equals(AUS_Ci.nsIProgressEventSink) &&
+        !iid.equals(AUS_Ci.nsISupports))
+      throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
+};

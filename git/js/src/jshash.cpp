@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,13 +40,13 @@
 /*
  * PR hash table package.
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsbit.h"
-#include "jsutil.h"
-#include "jshash.h"
+#include "jsutil.h" /* Added by JSIFY */
+#include "jshash.h" /* Added by JSIFY */
 
 /* Compute the number of buckets in ht */
 #define NBUCKETS(ht)    JS_BIT(JS_HASH_BITS - (ht)->shift)
@@ -67,26 +67,26 @@
 static void *
 DefaultAllocTable(void *pool, size_t size)
 {
-    return js_malloc(size);
+    return malloc(size);
 }
 
 static void
-DefaultFreeTable(void *pool, void *item, size_t size)
+DefaultFreeTable(void *pool, void *item)
 {
-    js_free(item);
+    free(item);
 }
 
 static JSHashEntry *
 DefaultAllocEntry(void *pool, const void *key)
 {
-    return (JSHashEntry*) js_malloc(sizeof(JSHashEntry));
+    return (JSHashEntry*) malloc(sizeof(JSHashEntry));
 }
 
 static void
 DefaultFreeEntry(void *pool, JSHashEntry *he, uintN flag)
 {
     if (flag == HT_FREE_ENTRY)
-        js_free(he);
+        free(he);
 }
 
 static JSHashAllocOps defaultHashAllocOps = {
@@ -121,7 +121,7 @@ JS_NewHashTable(uint32 n, JSHashFunction keyHash,
     nb = n * sizeof(JSHashEntry *);
     ht->buckets = (JSHashEntry**) allocOps->allocTable(allocPriv, nb);
     if (!ht->buckets) {
-        allocOps->freeTable(allocPriv, ht, nb);
+        allocOps->freeTable(allocPriv, ht);
         return NULL;
     }
     memset(ht->buckets, 0, nb);
@@ -153,11 +153,11 @@ JS_HashTableDestroy(JSHashTable *ht)
 #ifdef DEBUG
     memset(ht->buckets, 0xDB, n * sizeof ht->buckets[0]);
 #endif
-    allocOps->freeTable(allocPriv, ht->buckets, n * sizeof ht->buckets[0]);
+    allocOps->freeTable(allocPriv, ht->buckets);
 #ifdef DEBUG
     memset(ht, 0xDB, sizeof *ht);
 #endif
-    allocOps->freeTable(allocPriv, ht, sizeof *ht);
+    allocOps->freeTable(allocPriv, ht);
 }
 
 /*
@@ -198,7 +198,9 @@ Resize(JSHashTable *ht, uint32 newshift)
 {
     size_t nb, nentries, i;
     JSHashEntry **oldbuckets, *he, *next, **hep;
+#ifdef DEBUG
     size_t nold = NBUCKETS(ht);
+#endif
 
     JS_ASSERT(newshift < JS_HASH_BITS);
 
@@ -228,25 +230,22 @@ Resize(JSHashTable *ht, uint32 newshift)
             hep = BUCKET_HEAD(ht, he->keyHash);
 
             /*
-             * We do not require unique entries, instead appending he to the
-             * chain starting at hep.
+             * Since he comes from the old table, it must be unique and we
+             * simply add it to the head of bucket chain without chain lookup.
              */
-            while (*hep)
-                hep = &(*hep)->next;
-            he->next = NULL;
+            he->next = *hep;
             *hep = he;
         }
     }
 #ifdef DEBUG
     memset(oldbuckets, 0xDB, nold * sizeof oldbuckets[0]);
 #endif
-    ht->allocOps->freeTable(ht->allocPriv, oldbuckets,
-                            nold * sizeof oldbuckets[0]);
+    ht->allocOps->freeTable(ht->allocPriv, oldbuckets);
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSHashEntry *)
-JS_HashTableRawAdd(JSHashTable *ht, JSHashEntry **&hep,
+JS_HashTableRawAdd(JSHashTable *ht, JSHashEntry **hep,
                    JSHashNumber keyHash, const void *key, void *value)
 {
     uint32 n;

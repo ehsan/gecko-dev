@@ -40,7 +40,6 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = modules/libjar/test
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -48,6 +47,6 @@ MODULE		= test_libjar
 
 XPCSHELL_TESTS = unit
 
-DIRS		= mochitest chrome
+DIRS		= mochitest
 
 include $(topsrcdir)/config/rules.mk

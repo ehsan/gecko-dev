@@ -37,7 +37,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #include "nsFilePicker.h"
 
 #include "nsILocalFile.h"
@@ -47,14 +46,9 @@
 #include "nsEnumeratorUtils.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
-#include "nsIWidget.h"
-#include "mozqwidget.h"
-#include "nsWindow.h"
-#include "prlog.h"
 
-#ifdef PR_LOGGING
-static PRLogModuleInfo* sFilePickerLog = nsnull;
-#endif
+#include <qfile.h>
+#include <qstringlist.h>
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
@@ -63,20 +57,19 @@ nsFilePicker::nsFilePicker()
     : mDialog(0),
       mMode(nsIFilePicker::modeOpen)
 {
-#ifdef PR_LOGGING
-    if (!sFilePickerLog)
-        sFilePickerLog = PR_NewLogModule("nsQtFilePicker");
-#endif
+    qDebug("nsFilePicker constructor");
 }
 
 nsFilePicker::~nsFilePicker()
 {
+    qDebug("nsFilePicker destructor");
     delete mDialog;
 }
 
 NS_IMETHODIMP
 nsFilePicker::Init(nsIDOMWindow *parent, const nsAString & title, PRInt16 mode)
 {
+    qDebug("nsFilePicker::Init()");
     return nsBaseFilePicker::Init(parent, title, mode);
 }
 
@@ -100,8 +93,8 @@ nsFilePicker::AppendFilter(const nsAString & aTitle, const nsAString & aFilter)
     CopyUTF16toUTF8(aFilter, filter);
     CopyUTF16toUTF8(aTitle, name);
 
-    mFilters.AppendElement(filter);
-    mFilterNames.AppendElement(name);
+    mFilters.AppendCString(filter);
+    mFilterNames.AppendCString(name);
 
     return NS_OK;
 }
@@ -110,15 +103,14 @@ nsFilePicker::AppendFilter(const nsAString & aTitle, const nsAString & aFilter)
 NS_IMETHODIMP
 nsFilePicker::GetDefaultString(nsAString & aDefaultString)
 {
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
-{
     mDefault = aDefaultString;
 
     return NS_OK;
+}
+NS_IMETHODIMP
+nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
+{
+    return NS_ERROR_FAILURE;
 }
 
 /* attribute AString defaultExtension; */
@@ -205,6 +197,7 @@ nsFilePicker::GetFiles(nsISimpleEnumerator * *aFiles)
 NS_IMETHODIMP
 nsFilePicker::Show(PRInt16 *aReturn)
 {
+    qDebug("nsFilePicker::Show()");
     nsCAutoString directory;
     if (mDisplayDirectory) {
         mDisplayDirectory->GetNativePath(directory);
@@ -218,7 +211,6 @@ nsFilePicker::Show(PRInt16 *aReturn)
         break;
     case nsIFilePicker::modeSave:
         mDialog->setFileMode(QFileDialog::AnyFile);
-        mDialog->setAcceptMode(QFileDialog::AcceptSave);
         break;
     case nsIFilePicker::modeGetFolder:
         mDialog->setFileMode(QFileDialog::DirectoryOnly);
@@ -232,9 +224,9 @@ nsFilePicker::Show(PRInt16 *aReturn)
     mDialog->setDirectory(directory.get());
 
     QStringList filters;
-    PRUint32 count = mFilters.Length();
-    for (PRUint32 i = 0; i < count; ++i) {
-        filters.append( mFilters[i].get() );
+    PRInt32 count = mFilters.Count();
+    for (PRInt32 i = 0; i < count; ++i) {
+        filters.append( mFilters[i]->get() );
     }
     mDialog->setFilters(filters);
 
@@ -248,7 +240,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
         }
 
         QString path = QFile::encodeName(selected);
-        PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("path is '%s'", path.toAscii().data()));
+        qDebug("path is '%s'", path.data());
         mFile.Assign(path.toUtf8().data());
         *aReturn = nsIFilePicker::returnOK;
         if (mMode == modeSave) {
@@ -279,18 +271,10 @@ nsFilePicker::Show(PRInt16 *aReturn)
 
 void nsFilePicker::InitNative(nsIWidget *parent, const nsAString &title, PRInt16 mode)
 {
-    PR_LOG(sFilePickerLog, PR_LOG_DEBUG, ("nsFilePicker::InitNative"));
-
-    MozQWidget *parentMozWidget = (parent) ?
-        static_cast<MozQWidget*>(parent->GetNativeData(NS_NATIVE_WIDGET)) : nsnull;
-    QWidget *parentWidget = (parentMozWidget) ?
-        parentMozWidget->getReceiver()->GetViewWidget() : nsnull;
-    if (!parentWidget) {
-        NS_WARNING("Can't find parent for QFileDialog");
-    }
+    qDebug("nsFilePicker::InitNative()");
+    QWidget *parentWidget = (parent)? (QWidget*)parent->GetNativeData(NS_NATIVE_WIDGET):0;
 
     nsAutoString str(title);
     mDialog = new QFileDialog(parentWidget, QString::fromUtf16(str.get()));
-
     mMode = mode;
 }

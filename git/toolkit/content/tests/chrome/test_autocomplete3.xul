@@ -31,7 +31,7 @@ function nsAutoCompleteSimpleResult(aString)
   if (returnResult) {
     this.searchResult = ACR.RESULT_SUCCESS;
     this.matchCount = 1;
-    this._param = "Result";
+    this._param = "result";
   }
 }
 
@@ -46,7 +46,6 @@ nsAutoCompleteSimpleResult.prototype = {
  getCommentAt: function() { return null; },
  getStyleAt: function() { return null; },
  getImageAt: function() { return null; },
- getLabelAt: function() { return null; },
  removeValueAt: function() {}
 };
 
@@ -81,7 +80,7 @@ componentManager.registerFactory(autoCompleteSimpleID, "Test Simple Autocomplete
                                  autoCompleteSimpleName, autoCompleteSimple);
 
 
-// Test Bug 325842 - completeDefaultIndex
+// Test Bug 325842 - autoFill and autoFillAfterMatch
 
 SimpleTest.waitForExplicitFinish();
 setTimeout(startTest, 0);
@@ -94,7 +93,7 @@ const tests = [
     start: 1, end: 1 },
   { completeDefaultIndex: "true", key: "e", result: "result",
     start: 2, end: 6 },
-  { completeDefaultIndex: "true", key: "t", result: "ret >> Result",
+  { completeDefaultIndex: "true", key: "t", result: "ret >> result",
     start: 3, end: 13 }
 ];
 
@@ -152,20 +151,6 @@ function checkResult() {
   if (currentTest < tests.length)
     setTimeout(checkNext, 0);
   else {
-    // TODO (bug 494809): Autocomplete-in-the-middle should take in count RTL
-    // and complete on VK_RIGHT or VK_LEFT based on that.  It should also revert
-    // what user has typed to far if he moves in the opposite direction.
-    if (autocomplete.value.indexOf(">>") == -1) {
-      // Test result if user accepts autocomplete suggestion.
-      synthesizeKey("VK_RIGHT", {});
-      is(autocomplete.value, "Result",
-         "Test complete: autocomplete.value should equal 'Result'");
-      is(autocomplete.selectionStart, 6,
-         "Test complete: autocomplete selection should start at 6");
-      is(autocomplete.selectionEnd, 6,
-         "Test complete: autocomplete selection should end at 6");
-    }
-
     setTimeout(function() {
       // Unregister the factory so that we don't get in the way of other tests
       componentManager.unregisterFactory(autoCompleteSimpleID, autoCompleteSimple);

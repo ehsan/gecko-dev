@@ -68,8 +68,6 @@
 
       <preference id="general.autoScroll"              name="general.autoScroll"              type="bool"/>
       <preference id="general.smoothScroll"            name="general.smoothScroll"            type="bool"/>
-      <preference id="layers.acceleration.disabled"    name="layers.acceleration.disabled"    type="bool"   inverted="true"
-                  onchange="gAdvancedPane.updateHardwareAcceleration()"/>
       <preference id="layout.spellcheckDefault"        name="layout.spellcheckDefault"        type="int"/>
 
 #ifdef HAVE_SHELL_SERVICE
@@ -85,18 +83,16 @@
       <!-- Network tab -->
       <preference id="browser.cache.disk.capacity"     name="browser.cache.disk.capacity"     type="int"/>
       <preference id="browser.offline-apps.notify"     name="browser.offline-apps.notify"     type="bool"/>
- 
-      <preference id="browser.cache.disk.smart_size.enabled"
-                  name="browser.cache.disk.smart_size.enabled"
-                  inverted="true"
-                  type="bool"/>
- 
-     <!-- Update tab -->
-#ifdef MOZ_UPDATER
+
+      <!-- Update tab -->
       <preference id="app.update.enabled"              name="app.update.enabled"              type="bool"
                   onchange="gAdvancedPane.updateAppUpdateItems();
                             gAdvancedPane.updateAutoItems();
                             gAdvancedPane.updateModeItems();"/>
+      <preference id="extensions.update.enabled"       name="extensions.update.enabled"       type="bool"
+                  onchange="gAdvancedPane.updateAddonUpdateUI();"/>
+      <preference id="browser.search.update"           name="browser.search.update"           type="bool"/>
+
       <preference id="app.update.auto"                 name="app.update.auto"                 type="bool"
                   onchange="gAdvancedPane.updateAutoItems();
                             gAdvancedPane.updateModeItems();"/>
@@ -106,11 +102,7 @@
       <preference id="app.update.disable_button.showUpdateHistory"
                   name="app.update.disable_button.showUpdateHistory"
                   type="bool"/>
-#endif
 
-      <preference id="extensions.update.enabled"       name="extensions.update.enabled"       type="bool"
-                  onchange="gAdvancedPane.updateAddonUpdateUI();"/>
-      <preference id="browser.search.update"           name="browser.search.update"           type="bool"/>
 
       <!-- Encryption tab -->
       <preference id="security.enable_ssl3"            name="security.enable_ssl3"            type="bool"/>
@@ -127,9 +119,6 @@
       <preference id="security.disable_button.openDeviceManager"
                   name="security.disable_button.openDeviceManager"
                   type="bool"/>
-      <preference id="privacy.donottrackheader.enabled"
-                  name="privacy.donottrackheader.enabled"
-                  type="bool"/>
     </preferences>
     
 #ifdef HAVE_SHELL_SERVICE
@@ -137,7 +126,7 @@
     <stringbundle id="bundleBrand" src="chrome://branding/locale/brand.properties"/>
 #endif
 
-    <script type="application/javascript" src="chrome://browser/content/preferences/advanced.js"/>
+    <script type="application/x-javascript" src="chrome://browser/content/preferences/advanced.js"/>
 
     <tabbox id="advancedPrefs" flex="1"
             onselect="gAdvancedPane.tabSelectionChanged();">
@@ -184,25 +173,17 @@
                       label="&useSmoothScrolling.label;"
                       accesskey="&useSmoothScrolling.accesskey;"
                       preference="general.smoothScroll"/>
-            <checkbox id="allowHWAccel"
-                      label="&allowHWAccel.label;"
-                      accesskey="&allowHWAccel.accesskey;"
-                      preference="layers.acceleration.disabled"/>
             <checkbox id="checkSpelling"
                       label="&checkSpelling.label;"
                       accesskey="&checkSpelling.accesskey;"
                       onsyncfrompreference="return gAdvancedPane.readCheckSpelling();"
                       onsynctopreference="return gAdvancedPane.writeCheckSpelling();"
                       preference="layout.spellcheckDefault"/>
-            <checkbox id="privacyDoNotTrackPrefs"
-                      label="&doNotTrack.label;"
-                      accesskey="&doNotTrack.accesskey;"
-                      preference="privacy.donottrackheader.enabled"/>
           </groupbox>
 
 #ifdef HAVE_SHELL_SERVICE
           <!-- System Defaults -->
-          <groupbox id="systemDefaultsGroup" orient="vertical">
+          <groupbox id="systemDefaultsGroup" orient="horizontal">
             <caption label="&systemDefaults.label;"/>
 
             <hbox id="checkDefaultBox" align="center" flex="1">      
@@ -214,11 +195,6 @@
                       oncommand="gAdvancedPane.checkNow()"
                       preference="pref.general.disable_button.default_browser"/>
             </hbox>
-#ifdef MOZ_CRASHREPORTER
-            <checkbox id="submitCrashesBox" flex="1"
-                      oncommand="gAdvancedPane.updateSubmitCrashes();"
-                      label="&submitCrashes.label;" accesskey="&submitCrashes.accesskey;"/>
-#endif
           </groupbox>
 #endif
         </tabpanel>
@@ -226,88 +202,78 @@
         <!-- Network -->
         <tabpanel id="networkPanel" orient="vertical">
 
-          <!-- Connection -->
-          <groupbox id="connectionGroup">
-            <caption label="&connection.label;"/>
+           <!-- Connection -->
+           <groupbox id="connectionGroup">
+             <caption label="&connection.label;"/>
 
-            <hbox align="center">
-              <description flex="1" control="connectionSettings">&connectionDesc.label;</description>
-              <button id="connectionSettings" icon="network" label="&connectionSettings.label;"
-                      accesskey="&connectionSettings.accesskey;"
-                      oncommand="gAdvancedPane.showConnections();"/>
-            </hbox>
-          </groupbox>
+             <hbox align="center">
+               <description flex="1" control="connectionSettings">&connectionDesc.label;</description>
+               <button id="connectionSettings" icon="network" label="&connectionSettings.label;"
+                       accesskey="&connectionSettings.accesskey;"
+                       oncommand="gAdvancedPane.showConnections();"/>
+             </hbox>
+           </groupbox>
 
-          <!-- Cache/Offline apps -->
-          <groupbox id="offlineGroup">
-            <caption label="&offlineStorage.label;"/>
- 
-            <hbox align="center">
-              <label id="actualCacheSize" flex="1"/>
-              <button id="clearCacheButton" icon="clear"
-                      label="&clearCacheNow.label;" accesskey="&clearCacheNow.accesskey;"
-                      oncommand="gAdvancedPane.clearCache();"/>
-            </hbox>
-            <checkbox preference="browser.cache.disk.smart_size.enabled"
-                      id="allowSmartSize" flex="1"
-                      onsyncfrompreference="return gAdvancedPane.readSmartSizeEnabled();"
-                      label="&overrideSmartCacheSize.label;" 
-                      accesskey="&overrideSmartCacheSize.accesskey;"/>
-            <hbox align="center" class="indent">
-              <label id="useCacheBefore" control="cacheSize"
-                     accesskey="&limitCacheSizeBefore.accesskey;" 
-                     value="&limitCacheSizeBefore.label;"/>
-              <textbox id="cacheSize" type="number" size="4" max="1024"
-                       preference="browser.cache.disk.capacity"
-                       onsyncfrompreference="return gAdvancedPane.readCacheSize();"
-                       onsynctopreference="return gAdvancedPane.writeCacheSize();"
-                       aria-labelledby="useCacheBefore cacheSize useCacheAfter"/>
-              <label id="useCacheAfter" flex="1">&limitCacheSizeAfter.label;</label>
-            </hbox>
-            <hbox align="center">
-              <checkbox id="offlineNotify" flex="1"
-                        label="&offlineNotify.label;" accesskey="&offlineNotify.accesskey;"
-                        preference="browser.offline-apps.notify"
-                        onsyncfrompreference="return gAdvancedPane.readOfflineNotify();"/>
-              <button id="offlineNotifyExceptions"
-                      label="&offlineNotifyExceptions.label;"
-                      accesskey="&offlineNotifyExceptions.accesskey;"
-                      oncommand="gAdvancedPane.showOfflineExceptions();"/>
-            </hbox>
-            <hbox>
-              <vbox flex="1">
-                <label id="offlineAppsListLabel">&offlineAppsList.label;</label>
-                <listbox id="offlineAppsList"
-                         style="height: &offlineAppsList.height;;"
-                         flex="1"
-                         aria-labelledby="offlineAppsListLabel"
-                         onselect="gAdvancedPane.offlineAppSelected(event);">
-                </listbox>
-              </vbox>
-              <vbox pack="end">
-                <button id="offlineAppsListRemove"
-                        disabled="true"
-                        label="&offlineAppsListRemove.label;"
-                        accesskey="&offlineAppsListRemove.accesskey;" 
-                        oncommand="gAdvancedPane.removeOfflineApp();"/>
-              </vbox>
-            </hbox>
-          </groupbox>
+           <!-- Cache/Offline apps -->
+           <groupbox id="offlineGroup">
+             <caption label="&offlineStorage.label;"/>
+
+             <hbox align="center">
+               <label id="useCacheBefore" control="cacheSize"
+                      accesskey="&useCacheBefore.accesskey;" value="&useCacheBefore.label;"/>
+               <textbox id="cacheSize" type="number" size="2"
+                        preference="browser.cache.disk.capacity"
+                        onsyncfrompreference="return gAdvancedPane.readCacheSize();"
+                        onsynctopreference="return gAdvancedPane.writeCacheSize();"
+                        aria-labelledby="useCacheBefore cacheSize useCacheAfter"/>
+               <label id="useCacheAfter" flex="1">&useCacheAfter.label;</label>
+               <button id="clearCacheButton" icon="clear"
+                       label="&clearCacheNow.label;" accesskey="&clearCacheNow.accesskey;"
+                       oncommand="gAdvancedPane.clearCache();"/>
+             </hbox>
+	     <hbox align="center">
+	       <checkbox id="offlineNotify" flex="1"
+			 label="&offlineNotify.label;" accesskey="&offlineNotify.accesskey;"
+			 preference="browser.offline-apps.notify"
+			 onsyncfrompreference="return gAdvancedPane.readOfflineNotify();"/>
+	       <button id="offlineNotifyExceptions"
+		       label="&offlineNotifyExceptions.label;"
+		       accesskey="&offlineNotifyExceptions.accesskey;"
+		       oncommand="gAdvancedPane.showOfflineExceptions();"/>
+	     </hbox>
+	     <hbox>
+	       <vbox flex="1">
+
+		 <label id="offlineAppsListLabel">&offlineAppsList.label;</label>
+		 <listbox id="offlineAppsList"
+			  style="height: &offlineAppsList.height;;"
+			  flex="1"
+			  aria-labelledby="offlineAppsListLabel"
+			  onselect="gAdvancedPane.offlineAppSelected(event);">
+		 </listbox>
+	       </vbox>
+	       <vbox pack="end">
+		 <button id="offlineAppsListRemove"
+			 disabled="true"
+			 label="&offlineAppsListRemove.label;"
+			 accesskey="&offlineAppsListRemove.accesskey;" 
+			 oncommand="gAdvancedPane.removeOfflineApp();"/>
+	       </vbox>
+	     </hbox>
+	   </groupbox>
         </tabpanel>
 
         <!-- Update -->
         <tabpanel id="updatePanel" orient="vertical" align="start">
           <label control="autoUpdateGroup">&autoCheck.label;</label>
           <vbox class="indent" id="autoUpdateGroup" role="group">
-#ifdef MOZ_UPDATER
             <checkbox id="enableAppUpdate"
                       label="&enableAppUpdate.label;"
                       accesskey="&enableAppUpdate.accesskey;"
                       preference="app.update.enabled"/>
-#endif
             <checkbox id="enableAddonUpdate"
-                      label="&enableAddonsUpdate2.label;"
-                      accesskey="&enableAddonsUpdate2.accesskey;"
+                      label="&enableAddonsUpdate.label;"
+                      accesskey="&enableAddonsUpdate.accesskey;"
                       preference="extensions.update.enabled"/>
             <checkbox id="enableSearchUpdate"
                       label="&enableSearchUpdate.label;"
@@ -315,7 +281,6 @@
                       preference="browser.search.update"/>
           </vbox>
 
-#ifdef MOZ_UPDATER
           <separator id="updateSeparator1"/>
 
           <label id="updateModeLabel" control="updateMode">&whenUpdatesFound.label;</label>
@@ -344,7 +309,6 @@
                     preference="app.update.disable_button.showUpdateHistory"
                     oncommand="gAdvancedPane.showUpdates();"/>
           </hbox>
-#endif
         </tabpanel>
 
         <!-- Encryption -->

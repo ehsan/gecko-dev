@@ -46,7 +46,7 @@
 #include "pkcs11t.h"
 
 #include "sftkdbt.h"
-#include "hasht.h"
+
 
 /* 
  * Configuration Defines 
@@ -584,7 +584,6 @@ SEC_BEGIN_PROTOS
 extern PRBool nsf_init;
 extern CK_RV nsc_CommonInitialize(CK_VOID_PTR pReserved, PRBool isFIPS);
 extern CK_RV nsc_CommonFinalize(CK_VOID_PTR pReserved, PRBool isFIPS);
-extern PRBool sftk_ForkReset(CK_VOID_PTR pReserved, CK_RV* crv);
 extern CK_RV nsc_CommonGetSlotList(CK_BBOOL tokPresent, 
 	CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount, int moduleIndex);
 
@@ -596,7 +595,7 @@ extern CK_RV SFTK_SlotReInit(SFTKSlot *slot, char *configdir,
 			sftk_token_parameters *params, int moduleIndex);
 extern CK_RV SFTK_DestroySlotData(SFTKSlot *slot);
 extern CK_RV SFTK_ShutdownSlot(SFTKSlot *slot);
-extern CK_RV sftk_CloseAllSessions(SFTKSlot *slot, PRBool logout);
+extern CK_RV sftk_CloseAllSessions(SFTKSlot *slot);
 
 
 /* internal utility functions used by pkcs11.c */
@@ -701,21 +700,6 @@ PRBool sftk_poisonHandle(SFTKSlot *slot, SECItem *dbkey,
 SFTKObject * sftk_NewTokenObject(SFTKSlot *slot, SECItem *dbKey, 
 						CK_OBJECT_HANDLE handle);
 SFTKTokenObject *sftk_convertSessionToToken(SFTKObject *so);
-
-
-/* J-PAKE (jpakesftk.c) */
-extern
-CK_RV jpake_Round1(HASH_HashType hashType,
-                   CK_NSS_JPAKERound1Params * params,
-                   SFTKObject * key);
-extern
-CK_RV jpake_Round2(HASH_HashType hashType,
-                   CK_NSS_JPAKERound2Params * params,
-                   SFTKObject * sourceKey, SFTKObject * key);
-extern
-CK_RV jpake_Final(HASH_HashType hashType,
-                  const CK_NSS_JPAKEFinalParams * params,
-                  SFTKObject * sourceKey, SFTKObject * key);
 
 /****************************************
  * implement TLS Pseudo Random Function (PRF)

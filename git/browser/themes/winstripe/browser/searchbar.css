@@ -1,10 +1,16 @@
 .searchbar-textbox {
+  min-height: 22px;
   width: 6em;
   min-width: 6em;
 }
 
-.autocomplete-textbox-container {
-  -moz-box-align: stretch;
+.searchbar-textbox:-moz-system-metric(windows-default-theme) {
+  -moz-appearance: none;
+  border-width: 1px;
+  -moz-border-top-colors: ThreeDShadow;
+  -moz-border-bottom-colors: ThreeDShadow;
+  -moz-border-right-colors: ThreeDShadow;
+  -moz-border-left-colors: ThreeDShadow;
 }
 
 .textbox-input-box {
@@ -18,35 +24,53 @@
   width: 16px;
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
-  -moz-margin-start: 2px;
+  -moz-margin-start: 3px;
 }
 
 .searchbar-engine-button {
   -moz-appearance: none;
   min-width: 0;
   margin: 0;
+  -moz-margin-end: 3px;
   padding: 0;
-  -moz-padding-end: 2px;
+  height: 1.23em;
+  min-height: 20px;
   -moz-box-align: center;
-  background: none;
-  border: none;
+  background: -moz-dialog url(navbar-textbox-buttons.png) repeat-x;
+  border: 0 solid;
+  border-right-width: 1px;
+  -moz-border-right-colors: ThreeDShadow;
+}
+
+.searchbar-engine-button:hover {
+  background-position: 0 -60px;
+}
+
+.searchbar-engine-button[chromedir="rtl"] {
+  border-right-width: 0;
+  border-left-width: 1px;
+  -moz-border-left-colors: ThreeDShadow;
 }
 
 .searchbar-engine-button > .button-box {
   -moz-appearance: none;
   padding: 0;
+  -moz-padding-end: 3px;
   border: 0;
 }
 
+.searchbar-engine-button[addengines="true"] > .button-box {
+  background: transparent url(chrome://browser/skin/Search-addengines.png) no-repeat right center;
+}
+
+.searchbar-engine-button[addengines="true"][chromedir="rtl"] > .button-box {
+  background-position: left center;
+}
+
 .searchbar-dropmarker-image {
-  list-style-image: url(mainwindow-dropdown-arrow.png);
-  -moz-image-region: rect(0, 13px, 11px, 0);
+  list-style-image: url("chrome://global/skin/arrow/arrow-dn.gif");
+  -moz-margin-start: 3px;
 }
-
-.searchbar-engine-button[open="true"] > .searchbar-dropmarker-image {
-  -moz-image-region: rect(0, 26px, 11px, 13px);
-}
-
 
 /* ::::: search-go-button ::::: */
 
@@ -55,18 +79,13 @@
 }
 
 .search-go-button {
-  padding: 1px;
-  list-style-image: url("chrome://global/skin/icons/Search-glass.png");
+  padding: 2px;
+  list-style-image: url("chrome://browser/skin/Search-glass.png");
   -moz-image-region: rect(0px 16px 16px 0px);
 }
 
-.search-go-button:-moz-system-metric(touch-enabled) {
-  -moz-padding-start: 5px;
-  -moz-padding-end: 3px;
-}
-
-.search-go-button:-moz-locale-dir(rtl) {
-  -moz-transform: scaleX(-1);
+.search-go-button[chromedir="rtl"] {
+  list-style-image: url("chrome://browser/skin/Search-glass-rtl.png");
 }
 
 .search-go-button:hover {

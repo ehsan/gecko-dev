@@ -36,172 +36,158 @@
  * ***** END LICENSE BLOCK *****
  */
 
-/* General nsIUpdateCheckListener onload and onerror error code and statusText
-   Tests */
+/* General nsIUpdateCheckListener onerror error code and statusText Tests */
 
 // Errors tested:
-// 200, 403, 404, 500, 2152398849, 2152398862, 2152398864, 2152398867,
-// 2152398868, 2152398878, 2152398890, 2152398919, 2152398920, 2153390069,
-// 2152398918, 2152398861
+// 200, 403, 404, 500, 2152398861, 2152398918, default (200)
 
-var gNextRunFunc;
-var gExpectedStatusCode;
+const DIR_DATA = "data"
+const URL_PREFIX = "http://localhost:4444/" + DIR_DATA + "/";
+
+const PREF_APP_UPDATE_URL_OVERRIDE = "app.update.url.override";
+
+const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.properties";
+const gUpdateBundle = AUS_Cc["@mozilla.org/intl/stringbundle;1"]
+                       .getService(AUS_Ci.nsIStringBundleService)
+                       .createBundle(URI_UPDATES_PROPERTIES);
+
+var gStatus;
+var gStatusText;
 var gExpectedStatusText;
+var gCheckFunc;
+var gNextRunFunc;
 
 function run_test() {
   do_test_pending();
-  do_register_cleanup(end_test);
-  removeUpdateDirsAndFiles();
-  setUpdateURLOverride();
-  standardInit();
-  // The mock XMLHttpRequest is MUCH faster
-  overrideXHR(callHandleEvent);
-  do_execute_soon(run_test_pt1);
+  startAUS();
+  do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
-  cleanUp();
+  stop_httpserver();
+  do_test_finished();
 }
 
-// Callback function used by the custom XMLHttpRequest implementation to
-// call the nsIDOMEventListener's handleEvent method for onload.
-function callHandleEvent() {
-  gXHR.status = gExpectedStatusCode;
-  var e = { target: gXHR };
-  gXHR.onload.handleEvent(e);
+// Returns human readable status text from the updates.properties bundle
+function getStatusText(aErrCode) {
+  try {
+    return gUpdateBundle.GetStringFromName("checker_error-" + aErrCode);
+  }
+  catch (e) {
+  }
+  return null;
 }
 
-// Helper functions for testing nsIUpdateCheckListener statusText
-function run_test_helper(aNextRunFunc, aExpectedStatusCode, aMsg) {
-  gStatusCode = null;
+// Custom error httpd handler used to return error codes we can't simulate
+function httpdErrorHandler(metadata, response) {
+  response.setStatusLine(metadata.httpVersion, gExpectedStatus, "Error");
+}
+
+// Helper functions for testing nsIUpdateCheckListener onerror error statusText
+function run_test_helper(aUpdateXML, aMsg, aExpectedStatus,
+                         aExpectedStatusText, aNextRunFunc) {
+  gStatus = null;
   gStatusText = null;
   gCheckFunc = check_test_helper;
   gNextRunFunc = aNextRunFunc;
-  gExpectedStatusCode = aExpectedStatusCode;
-  logTestInfo(aMsg, Components.stack.caller);
+  gExpectedStatus = aExpectedStatus;
+  gExpectedStatusText = aExpectedStatusText;
+  var url = URL_PREFIX + aUpdateXML;
+  dump("Testing: " + aMsg + " - " + url + "\n");
+  gPrefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, url);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
 function check_test_helper() {
-  do_check_eq(gStatusCode, gExpectedStatusCode);
-  var expectedStatusText = getStatusText(gExpectedStatusCode);
-  do_check_eq(gStatusText, expectedStatusText);
+  do_check_eq(gStatus, gExpectedStatus);
+  do_check_eq(gStatusText, gExpectedStatusText);
   gNextRunFunc();
 }
 
 /**
- * The following tests use a custom XMLHttpRequest to return the status codes
+ * The following tests do not use the http server
  */
 
-// default onerror error message (error code 399 is not defined)
+// network is offline
 function run_test_pt1() {
-  gStatusCode = null;
-  gStatusText = null;
-  gCheckFunc = check_test_pt1;
-  gExpectedStatusCode = 399;
-  logTestInfo("testing default onerror error message");
-  gUpdateChecker.checkForUpdates(updateCheckListener, true);
+  toggleOffline(true);
+  run_test_helper("aus-0050_general-1.xml", "network is offline",
+                  0, getStatusText("2152398918"), run_test_pt2);
 }
 
-function check_test_pt1() {
-  do_check_eq(gStatusCode, gExpectedStatusCode);
-  var expectedStatusText = getStatusText(404);
-  do_check_eq(gStatusText, expectedStatusText);
-  run_test_pt2();
-}
-
-// file malformed - 200
+// connection refused
 function run_test_pt2() {
-  run_test_helper(run_test_pt3, 200,
-                  "testing file malformed");
+  toggleOffline(false);
+  run_test_helper("aus-0050_general-2.xml", "connection refused",
+                  0, getStatusText("2152398861"), run_test_pt3);
 }
 
-// access denied - 403
+/**
+ * The following tests use the codes returned by the http server
+ */
+
+// file malformed
 function run_test_pt3() {
-  run_test_helper(run_test_pt4, 403,
-                  "testing access denied");
+  start_httpserver(DIR_DATA);
+  run_test_helper("aus-0050_general-3.xml", "file malformed",
+                  200, getStatusText("200"), run_test_pt4);
 }
 
-// file not found - 404
+// file not found
 function run_test_pt4() {
-  run_test_helper(run_test_pt5, 404,
-                  "testing file not found");
+  run_test_helper("aus-0050_general-4.xml", "file not found",
+                  404, getStatusText("404"), run_test_pt5);
 }
 
-// internal server error - 500
+// internal server error
 function run_test_pt5() {
-  run_test_helper(run_test_pt6, 500,
-                  "testing internal server error");
+  gTestserver.registerContentType("sjs", "sjs");
+  run_test_helper("aus-0050_general-5.sjs", "internal server error",
+                  500, getStatusText("500"), run_test_pt6);
 }
 
-// failed (unknown reason) - NS_BINDING_FAILED (2152398849)
+/**
+ * The following tests use a custom error handler to return codes from the http
+ * server
+ */
+
+// access denied
 function run_test_pt6() {
-  run_test_helper(run_test_pt7, AUS_Cr.NS_BINDING_FAILED,
-                  "testing failed (unknown reason)");
+  gTestserver.registerErrorHandler(404, httpdErrorHandler);
+  run_test_helper("aus-0050_general-6.xml", "access denied",
+                  403, getStatusText("403"), run_test_pt7);
 }
 
-// connection timed out - NS_ERROR_NET_TIMEOUT (2152398862)
+// default onerror error message (error code 399 is not defined)
 function run_test_pt7() {
-  run_test_helper(run_test_pt8, AUS_Cr.NS_ERROR_NET_TIMEOUT,
-                  "testing connection timed out");
+  run_test_helper("aus-0050_general-7.xml", "default onerror error message",
+                  399, getStatusText("404"), end_test);
 }
 
-// network offline - NS_ERROR_OFFLINE (2152398864)
-function run_test_pt8() {
-  run_test_helper(run_test_pt9, AUS_Cr.NS_ERROR_OFFLINE,
-                  "testing network offline");
-}
 
-// port not allowed - NS_ERROR_PORT_ACCESS_NOT_ALLOWED (2152398867)
-function run_test_pt9() {
-  run_test_helper(run_test_pt10, AUS_Cr.NS_ERROR_PORT_ACCESS_NOT_ALLOWED,
-                  "testing port not allowed");
-}
+// Update check listener
+const updateCheckListener = {
+  onProgress: function(request, position, totalSize) {
+  },
 
-// no data was received - NS_ERROR_NET_RESET (2152398868)
-function run_test_pt10() {
-  run_test_helper(run_test_pt11, AUS_Cr.NS_ERROR_NET_RESET,
-                  "testing no data was received");
-}
+  onCheckComplete: function(request, updates, updateCount) {
+    dump("onCheckComplete request.status = " + request.status + "\n\n");
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc()");
+  },
 
-// update server not found - NS_ERROR_UNKNOWN_HOST (2152398878)
-function run_test_pt11() {
-  run_test_helper(run_test_pt12, AUS_Cr.NS_ERROR_UNKNOWN_HOST,
-                  "testing update server not found");
-}
+  onError: function(request, update) {
+    gStatus = request.status;
+    gStatusText = update.statusText;
+    dump("onError: request.status = " + gStatus + ", update.statusText = " + gStatusText + "\n\n");
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc()");
+  },
 
-// proxy server not found - NS_ERROR_UNKNOWN_PROXY_HOST (2152398890)
-function run_test_pt12() {
-  run_test_helper(run_test_pt13, AUS_Cr.NS_ERROR_UNKNOWN_PROXY_HOST,
-                  "testing proxy server not found");
-}
-
-// data transfer interrupted - NS_ERROR_NET_INTERRUPT (2152398919)
-function run_test_pt13() {
-  run_test_helper(run_test_pt14, AUS_Cr.NS_ERROR_NET_INTERRUPT,
-                  "testing data transfer interrupted");
-}
-
-// proxy server connection refused - NS_ERROR_PROXY_CONNECTION_REFUSED (2152398920)
-function run_test_pt14() {
-  run_test_helper(run_test_pt15, AUS_Cr.NS_ERROR_PROXY_CONNECTION_REFUSED,
-                  "testing proxy server connection refused");
-}
-
-// server certificate expired - 2153390069
-function run_test_pt15() {
-  run_test_helper(run_test_pt16, 2153390069,
-                  "testing server certificate expired");
-}
-
-// network is offline - NS_ERROR_DOCUMENT_NOT_CACHED (2152398918)
-function run_test_pt16() {
-  run_test_helper(run_test_pt17, AUS_Cr.NS_ERROR_DOCUMENT_NOT_CACHED,
-                  "testing network is offline");
-}
-
-// connection refused - NS_ERROR_CONNECTION_REFUSED (2152398861)
-function run_test_pt17() {
-  run_test_helper(do_test_finished, AUS_Cr.NS_ERROR_CONNECTION_REFUSED,
-                  "testing connection refused");
-}
+  QueryInterface: function(aIID) {
+    if (!aIID.equals(AUS_Ci.nsIUpdateCheckListener) &&
+        !aIID.equals(AUS_Ci.nsISupports))
+      throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
+};

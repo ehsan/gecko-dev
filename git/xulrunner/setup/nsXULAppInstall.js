@@ -39,8 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 #endif
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 const nsIFile             = Components.interfaces.nsIFile;
 const nsIINIParser        = Components.interfaces.nsIINIParser;
 const nsIINIParserFactory = Components.interfaces.nsIINIParserFactory;
@@ -207,14 +205,16 @@ function createExtractor(aFile) {
   return new zipExtractor(aFile);
 }
 
-function AppInstall() {
-}
-
-AppInstall.prototype = {
-  classID: Components.ID("{00790a19-27e2-4d9a-bef0-244080feabfd}"),
+const AppInstall = {
 
   /* nsISupports */
-  QueryInterface : XPCOMUtils.generateQI([nsIXULAppInstall]),
+  QueryInterface : function ai_QI(iid) {
+    if (iid.equals(nsIXULAppInstall) ||
+        iid.equals(nsISupports))
+      return this;
+
+    throw Components.result.NS_ERROR_NO_INTERFACE;
+  },
 
   /* nsIXULAppInstall */
   installApplication : function ai_IA(aAppFile, aDirectory, aLeafName) {
@@ -243,7 +243,7 @@ AppInstall.prototype = {
 #else
       aDirectory = Components.classes["@mozilla.org/file/local;1"].
         createInstance(nsILocalFile);
-      aDirectory.initWithPath("/usr/local/lib");
+      aDirectory.initWithPath("/usr/lib");
       if (vendor)
         aDirectory.append(vendor.toLowerCase());
 #endif
@@ -330,7 +330,7 @@ AppInstall.prototype = {
     var contentsDir = aDirectory.clone();
     contentsDir.append("MacOS");
 
-    var xulrunnerBinary = getDirectoryKey("GreD");
+    var xulrunnerBinary = getDirectoryKey("XCurProcD");
     xulrunnerBinary.append("xulrunner");
 
     xulrunnerBinary.copyTo(contentsDir, "xulrunner");
@@ -340,7 +340,7 @@ AppInstall.prototype = {
 #else
     extractor.copyTo(aDirectory);
 
-    var xulrunnerBinary = getDirectoryKey("GreD");
+    var xulrunnerBinary = getDirectoryKey("XCurProcD");
     xulrunnerBinary.append("xulrunner-stub@BIN_SUFFIX@");
 
     xulrunnerBinary.copyTo(aDirectory, appName.toLowerCase() + "@BIN_SUFFIX@");
@@ -348,4 +348,70 @@ AppInstall.prototype = {
   }
 };
 
-const NSGetFactory = XPCOMUtils.generateNSGetFactory([AppInstall]);
+const AppInstallFactory = {
+  /* nsISupports */
+  QueryInterface : function aif_QI(iid) {
+    if (iid.equals(Components.interfaces.nsIFactory) ||
+        iid.equals(nsISupports))
+      return this;
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+
+  /* nsIFactory */
+  createInstance : function aif_CI(aOuter, aIID) {
+    if (aOuter)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+
+    return AppInstall.QueryInterface(aIID);
+  },
+
+  lockFactory : function aif_lock(aLock) { }
+};
+
+const AppInstallContractID = "@mozilla.org/xulrunner/app-install-service;1";
+const AppInstallCID = Components.ID("{00790a19-27e2-4d9a-bef0-244080feabfd}");
+
+const AppInstallModule = {
+  /* nsISupports */
+  QueryInterface : function mod_QI(iid) {
+    if (iid.equals(Components.interfaces.nsIModule) ||
+        iid.equals(nsISupports))
+      return this;
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+  },
+
+  /* nsIModule */
+  getClassObject : function mod_gco(aCompMgr, aClass, aIID) {
+    if (aClass.equals(AppInstallCID))
+      return AppInstallFactory.QueryInterface(aIID);
+
+    return Components.results.NS_ERROR_FACTORY_NOT_REGISTERED;
+  },
+
+  registerSelf : function mod_regself(aCompMgr, aLocation,
+                                      aLoaderStr, aType) {
+    var reg = aCompMgr.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+    reg.registerFactoryLocation(AppInstallCID,
+                                "nsXULAppInstall",
+                                AppInstallContractID,
+                                aLocation,
+                                aLoaderStr,
+                                aType);
+  },
+
+  unregisterSelf : function mod_unreg(aCompMgr, aLocation, aLoaderStr) {
+    var reg = aCompMgr.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+    reg.unregisterFactoryLocation(AppInstallCID,
+                                  aLocation);
+  },
+
+  canUnload : function mod_unload(aCompMgr) {
+    return true;
+  }
+};
+
+function NSGetModule(compMgr, fileSpec) {
+  return AppInstallModule;
+}

@@ -40,10 +40,6 @@
 
 #include "nsDebugImpl.h"
 #include "nsDebug.h"
-#ifdef MOZ_CRASHREPORTER
-# include "nsExceptionHandler.h"
-#endif
-#include "nsStringGlue.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "prinit.h"
@@ -52,11 +48,6 @@
 #include "prerror.h"
 #include "prerr.h"
 #include "prenv.h"
-#include "pratom.h"
-
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 
 #if defined(XP_BEOS)
 /* For DEBUGGER macros */
@@ -75,18 +66,8 @@
 #include <signal.h>
 #endif
 
-#if defined(XP_WIN)
-#include <tchar.h>
-#include "nsString.h"
-#endif
-
-#include "mozilla/mozalloc_abort.h"
-
 static void
 Abort(const char *aMsg);
-
-static void
-RealBreak();
 
 static void
 Break(const char *aMsg);
@@ -105,9 +86,39 @@ Break(const char *aMsg);
 #include <stdlib.h>
 #endif
 
-static PRInt32 gAssertionCount = 0;
+/*
+ * Determine if debugger is present in windows.
+ */
+#if defined (_WIN32)
 
-NS_IMPL_QUERY_INTERFACE2(nsDebugImpl, nsIDebug, nsIDebug2)
+typedef WINBASEAPI BOOL (WINAPI* LPFNISDEBUGGERPRESENT)();
+PRBool InDebugger()
+{
+#ifndef WINCE
+   PRBool fReturn = PR_FALSE;
+   LPFNISDEBUGGERPRESENT lpfnIsDebuggerPresent = NULL;
+   HINSTANCE hKernel = LoadLibrary("Kernel32.dll");
+
+   if(hKernel)
+      {
+      lpfnIsDebuggerPresent = 
+         (LPFNISDEBUGGERPRESENT)GetProcAddress(hKernel, "IsDebuggerPresent");
+      if(lpfnIsDebuggerPresent)
+         {
+         fReturn = (*lpfnIsDebuggerPresent)();
+         }
+      FreeLibrary(hKernel);
+      }
+
+   return fReturn;
+#else
+   return PR_FALSE;
+#endif
+}
+
+#endif /* WIN32*/
+
+NS_IMPL_QUERY_INTERFACE1(nsDebugImpl, nsIDebug)
 
 NS_IMETHODIMP_(nsrefcnt)
 nsDebugImpl::AddRef()
@@ -147,24 +158,6 @@ NS_IMETHODIMP
 nsDebugImpl::Abort(const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_ABORT, nsnull, nsnull, aFile, aLine);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDebugImpl::GetIsDebugBuild(PRBool* aResult)
-{
-#ifdef DEBUG
-  *aResult = PR_TRUE;
-#else
-  *aResult = PR_FALSE;
-#endif
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDebugImpl::GetAssertionCount(PRInt32* aResult)
-{
-  *aResult = gAssertionCount;
   return NS_OK;
 }
 
@@ -317,10 +310,6 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      fprintf(stderr, "\07");
 #endif
 
-#ifdef ANDROID
-   __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
-#endif
-
    // Write the message to stderr
    fprintf(stderr, "%s\n", buf.buffer);
    fflush(stderr);
@@ -333,25 +322,13 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      Break(buf.buffer);
      return;
 
-   case NS_DEBUG_ABORT: {
-#ifdef MOZ_CRASHREPORTER
-     nsCString note("xpcom_runtime_abort(");
-     note += buf.buffer;
-     note += ")";
-     CrashReporter::AppendAppNotesToCrashReport(note);
-#endif  // MOZ_CRASHREPORTER
-
-#if defined(DEBUG) && defined(_WIN32)
-     RealBreak();
-#endif
+   case NS_DEBUG_ABORT:
      nsTraceRefcntImpl::WalkTheStack(stderr);
      Abort(buf.buffer);
      return;
    }
-   }
 
    // Now we deal with assertions
-   PR_AtomicIncrement(&gAssertionCount);
 
    switch (GetAssertBehavior()) {
    case NS_ASSERT_WARN:
@@ -379,42 +356,29 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_ASSERT_TRAP:
-   case NS_ASSERT_UNINITIALIZED: // Default to "trap" behavior
      Break(buf.buffer);
-     return;
    }   
 }
 
 static void
 Abort(const char *aMsg)
 {
-  mozalloc_abort(aMsg);
-}
-
-static void
-RealBreak()
-{
 #if defined(_WIN32)
-#ifndef WINCE
-  ::DebugBreak();
-#endif
-#elif defined(XP_OS2)
-   asm("int $3");
+  //This should exit us
+  raise(SIGABRT);
+  //If we are ignored exit this way..
+  _exit(3);
+#elif defined(XP_UNIX)
+  PR_Abort();
 #elif defined(XP_BEOS)
-#elif defined(XP_MACOSX)
-   raise(SIGTRAP);
-#elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
-   asm("int $3");
-#elif defined(__arm__)
-   asm("BKPT #0");
-#elif defined(SOLARIS)
-#if defined(__i386__) || defined(__i386) || defined(__x86_64__)
-   asm("int $3");
-#else
-   raise(SIGTRAP);
+  {
+#ifndef DEBUG_cls
+	DEBUGGER(aMsg);
 #endif
+  }
 #else
-#warning do not know how to break on this platform
+  // Don't know how to abort on this platform! call Break() instead
+  Break(aMsg);
 #endif
 }
 
@@ -429,7 +393,7 @@ Break(const char *aMsg)
     const char *shouldIgnoreDebugger = getenv("XPCOM_DEBUG_DLG");
     ignoreDebugger = 1 + (shouldIgnoreDebugger && !strcmp(shouldIgnoreDebugger, "1"));
   }
-  if ((ignoreDebugger == 2) || !::IsDebuggerPresent()) {
+  if((ignoreDebugger == 2) || !InDebugger()) {
     DWORD code = IDRETRY;
 
     /* Create the debug dialog out of process to avoid the crashes caused by 
@@ -438,9 +402,9 @@ Break(const char *aMsg)
      * See http://bugzilla.mozilla.org/show_bug.cgi?id=54792
      */
     PROCESS_INFORMATION pi;
-    STARTUPINFOW si;
-    PRUnichar executable[MAX_PATH];
-    PRUnichar* pName;
+    STARTUPINFO si;
+    char executable[MAX_PATH];
+    char* pName;
 
     memset(&pi, 0, sizeof(pi));
 
@@ -449,15 +413,13 @@ Break(const char *aMsg)
     si.wShowWindow = SW_SHOW;
 
     // 2nd arg of CreateProcess is in/out
-    PRUnichar *msgCopy = (PRUnichar*) _alloca((strlen(aMsg) + 1)*sizeof(PRUnichar));
-    wcscpy(msgCopy  , (PRUnichar*)NS_ConvertUTF8toUTF16(aMsg).get());
+    char *msgCopy = (char*) _alloca(strlen(aMsg) + 1); 
+    strcpy(msgCopy, aMsg);
 
-    if(GetModuleFileNameW(GetModuleHandleW(L"xpcom.dll"), (LPWCH)executable, MAX_PATH) &&
-       NULL != (pName = wcsrchr(executable, '\\')) &&
-       NULL != 
-       wcscpy((WCHAR*)
-       pName+1, L"windbgdlg.exe") &&
-       CreateProcessW((LPCWSTR)executable, (LPWSTR)msgCopy, NULL, NULL, PR_FALSE,
+    if(GetModuleFileName(GetModuleHandle("xpcom.dll"), executable, MAX_PATH) &&
+       NULL != (pName = strrchr(executable, '\\')) &&
+       NULL != strcpy(pName+1, "windbgdlg.exe") &&
+       CreateProcess(executable, msgCopy, NULL, NULL, PR_FALSE,
                      DETACHED_PROCESS | NORMAL_PRIORITY_CLASS,
                      NULL, NULL, &si, &pi)) {
       WaitForSingleObject(pi.hProcess, INFINITE);
@@ -478,7 +440,8 @@ Break(const char *aMsg)
     }
   }
 
-  RealBreak();
+  ::DebugBreak();
+
 #endif // WINCE
 #elif defined(XP_OS2)
    char msg[1200];
@@ -501,30 +464,25 @@ Break(const char *aMsg)
    if (( code == MBID_ENTER ) || (code == MBID_ERROR))
      return;
 
-   RealBreak();
+   asm("int $3");
 #elif defined(XP_BEOS)
    DEBUGGER(aMsg);
-   RealBreak();
 #elif defined(XP_MACOSX)
    /* Note that we put this Mac OS X test above the GNUC/x86 test because the
     * GNUC/x86 test is also true on Intel Mac OS X and we want the PPC/x86
     * impls to be the same.
     */
-   RealBreak();
+   raise(SIGTRAP);
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
-   RealBreak();
-#elif defined(__arm__)
-   RealBreak();
-#elif defined(SOLARIS)
-   RealBreak();
+   asm("int $3");
 #else
-#warning do not know how to break on this platform
+   // don't know how to break on this platform
 #endif
 }
 
 static const nsDebugImpl kImpl;
 
-nsresult
+NS_METHOD
 nsDebugImpl::Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr)
 {
   NS_ENSURE_NO_AGGREGATION(outer);
@@ -560,12 +518,3 @@ NS_ErrorAccordingToNSPR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef XP_WIN
-NS_COM PRBool sXPCOMHasLoadedNewDLLs = PR_FALSE;
-
-NS_EXPORT void
-NS_SetHasLoadedNewDLLs()
-{
-  sXPCOMHasLoadedNewDLLs = PR_TRUE;
-}
-#endif

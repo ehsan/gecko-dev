@@ -67,9 +67,10 @@ try {
 function add_visit(aURI, aVisitDate, aVisitType) {
   var isRedirect = aVisitType == histsvc.TRANSITION_REDIRECT_PERMANENT ||
                    aVisitType == histsvc.TRANSITION_REDIRECT_TEMPORARY;
-  var visitId = histsvc.addVisit(aURI, aVisitDate, null,
+  var placeID = histsvc.addVisit(aURI, aVisitDate, null,
                                  aVisitType, isRedirect, 0);
-  return visitId;
+  do_check_true(placeID > 0);
+  return placeID;
 }
 
 var bucketPrefs = [
@@ -82,7 +83,6 @@ var bucketPrefs = [
 
 var bonusPrefs = {
   embedVisitBonus: Ci.nsINavHistoryService.TRANSITION_EMBED,
-  framedLinkVisitBonus: Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK,
   linkVisitBonus: Ci.nsINavHistoryService.TRANSITION_LINK,
   typedVisitBonus: Ci.nsINavHistoryService.TRANSITION_TYPED,
   bookmarkVisitBonus: Ci.nsINavHistoryService.TRANSITION_BOOKMARK,
@@ -145,15 +145,10 @@ bucketPrefs.every(function(bucket) {
     }
     else {
       // visited
-      // visited bookmarks get the visited bookmark bonus twice
-      if (visitType == Ci.nsINavHistoryService.TRANSITION_BOOKMARK)
-        bonusValue = bonusValue * 2;
-
       var points = Math.ceil(1 * ((bonusValue / parseFloat(100.000000)).toFixed(6) * weight) / 1);
       if (!points) {
         if (!visitType ||
             visitType == Ci.nsINavHistoryService.TRANSITION_EMBED ||
-            visitType == Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK ||
             visitType == Ci.nsINavHistoryService.TRANSITION_DOWNLOAD ||
             bonusName == "defaultVisitBonus")
           frecency = 0;
@@ -174,10 +169,8 @@ bucketPrefs.every(function(bucket) {
       add_visit(calculatedURI, dateInPeriod, visitType);
     }
 
-    if (calculatedURI && frecency) {
+    if (calculatedURI && frecency)
       results.push([calculatedURI, frecency, matchTitle]);
-      setPageTitle(calculatedURI, matchTitle);
-    }
   }
   return true;
 });
@@ -243,23 +236,17 @@ AutoCompleteInput.prototype = {
 }
 
 function run_test() {
-  do_test_pending();
-  waitForAsyncUpdates(continue_test);
-}
-
-function continue_test() {
   var controller = Components.classes["@mozilla.org/autocomplete/controller;1"].
-                   getService(Components.interfaces.nsIAutoCompleteController);
-
+                   getService(Components.interfaces.nsIAutoCompleteController);  
+  
   // Make an AutoCompleteInput that uses our searches
   // and confirms results on search complete
   var input = new AutoCompleteInput(["history"]);
 
   controller.input = input;
 
-  // always search in history + bookmarks, no matter what the default is
-  prefs.setIntPref("browser.urlbar.search.sources", 3);
-  prefs.setIntPref("browser.urlbar.default.behavior", 0);
+  // Search is asynchronous, so don't let the test finish immediately
+  do_test_pending();
 
   var numSearchesStarted = 0;
   input.onSearchBegin = function() {
@@ -269,7 +256,7 @@ function continue_test() {
 
   input.onSearchComplete = function() {
     do_check_eq(numSearchesStarted, 1);
-    do_check_eq(controller.searchStatus,
+    do_check_eq(controller.searchStatus, 
                 Ci.nsIAutoCompleteController.STATUS_COMPLETE_MATCH);
 
     // test that all records with non-zero frecency were matched
@@ -288,8 +275,6 @@ function continue_test() {
         // undefined), so check if frecency matches. This is okay because we
         // can still ensure the correct number of expected frecencies.
         let getFrecency = function(aURL) aURL.match(/frecency:(-?\d+)$/)[1];
-        print("### checking for same frecency between '" + searchURL +
-              "' and '" + expectURL + "'");
         do_check_eq(getFrecency(searchURL), getFrecency(expectURL));
       }
     }

@@ -48,9 +48,20 @@ int main()
 #include "prpriv.h"
 #include "prinrval.h"
 
+#if defined(XP_MAC)
+#include "gcint.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef XP_MAC
+#include "gcint.h"
+#include "prlog.h"
+#define printf PR_LogPrint
+extern void SetupMacPrintfLog(char *logFile);
+#endif
 
 PRMonitor *mon;
 PRInt32 count;
@@ -108,9 +119,8 @@ static PRStatus PR_CALLBACK print_thread(PRThread *thread, int i, void *arg)
         (PR_GLOBAL_THREAD == PR_GetThreadScope(thread)) ?
         "PR_GLOBAL_THREAD" : "PR_LOCAL_THREAD", i);
     registers = PR_GetGCRegisters(thread, 0, (int *)&words);
-    if (registers)
-        printf("Registers R0 = 0x%x R1 = 0x%x R2 = 0x%x R3 = 0x%x\n",
-            registers[0],registers[1],registers[2],registers[3]);
+    printf("Regsters R0 = 0x%x R1 = 0x%x R2 = 0x%x R3 = 0x%x\n",
+        registers[0],registers[1],registers[2],registers[3]);
     printf("Stack Pointer = 0x%lx\n", PR_GetSP(thread));
     return PR_SUCCESS;
 }
@@ -150,9 +160,8 @@ static void Level_0_Thread(PRThreadScope scope1, PRThreadScope scope2)
     PR_SuspendAll();
     PR_EnumerateThreads(print_thread, NULL);
     registers = PR_GetGCRegisters(me, 1, (int *)&words);
-    if (registers)
-        printf("My Registers: R0 = 0x%x R1 = 0x%x R2 = 0x%x R3 = 0x%x\n",
-            registers[0],registers[1],registers[2],registers[3]);
+    printf("My Registers: R0 = 0x%x R1 = 0x%x R2 = 0x%x R3 = 0x%x\n",
+        registers[0],registers[1],registers[2],registers[3]);
     printf("My Stack Pointer = 0x%lx\n", PR_GetSP(me));
     PR_ResumeAll();
 
@@ -187,10 +196,15 @@ static void CreateThreadsKK(void)
 }
 
 
-int main(int argc, char **argv)
+void
+main(int argc, char **argv)
 {
     PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     PR_STDIO_INIT();
+
+#ifdef XP_MAC
+    SetupMacPrintfLog("suspend.log");
+#endif
 
     if (argc > 1) {
         count = atoi(argv[1]);

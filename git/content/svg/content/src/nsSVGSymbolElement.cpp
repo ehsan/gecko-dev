@@ -36,12 +36,15 @@
 
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsSVGStylableElement.h"
-#include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGPreserveAspectRatio.h"
+#include "nsIDOMSVGRect.h"
+#include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGFitToViewBox.h"
+#include "nsSVGRect.h"
+#include "nsSVGAnimatedRect.h"
 #include "nsGkAtoms.h"
 
-using namespace mozilla;
 typedef nsSVGStylableElement nsSVGSymbolElementBase;
 
 class nsSVGSymbolElement : public nsSVGSymbolElementBase,
@@ -50,8 +53,9 @@ class nsSVGSymbolElement : public nsSVGSymbolElementBase,
 {
 protected:
   friend nsresult NS_NewSVGSymbolElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGSymbolElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGSymbolElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
   // interfaces:
@@ -66,17 +70,14 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
 
-  nsSVGViewBox mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+  nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Symbol)
@@ -87,23 +88,58 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Symbol)
 NS_IMPL_ADDREF_INHERITED(nsSVGSymbolElement,nsSVGSymbolElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSymbolElement,nsSVGSymbolElementBase)
 
-DOMCI_NODE_DATA(SVGSymbolElement, nsSVGSymbolElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGSymbolElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGSymbolElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
-                           nsIDOMSVGSymbolElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSymbolElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGSymbolElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGSymbolElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSymbolElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSymbolElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSymbolElement::nsSVGSymbolElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGSymbolElement::nsSVGSymbolElement(nsINodeInfo *aNodeInfo)
   : nsSVGSymbolElementBase(aNodeInfo)
 {
 }
 
+
+nsresult
+nsSVGSymbolElement::Init()
+{
+  nsresult rv = nsSVGSymbolElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+
+  // DOM property: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // DOM property: preserveAspectRatio
+  {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
+    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedPreserveAspectRatio(
+                                          getter_AddRefs(mPreserveAspectRatio),
+                                          preserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
+                           mPreserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return NS_OK;
+}
 
 //----------------------------------------------------------------------
 // nsIDOMNode methods
@@ -116,15 +152,18 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSymbolElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
 NS_IMETHODIMP nsSVGSymbolElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGSymbolElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
-                                           **aPreserveAspectRatio)
+nsSVGSymbolElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+  *aPreserveAspectRatio = mPreserveAspectRatio;
+  NS_ADDREF(*aPreserveAspectRatio);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -149,19 +188,4 @@ nsSVGSymbolElement::IsAttributeMapped(const nsIAtom* name) const
 
   return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGSymbolElementBase::IsAttributeMapped(name);
-}
-
-//----------------------------------------------------------------------
-// nsSVGElement methods
-
-nsSVGViewBox *
-nsSVGSymbolElement::GetViewBox()
-{
-  return &mViewBox;
-}
-
-SVGAnimatedPreserveAspectRatio *
-nsSVGSymbolElement::GetPreserveAspectRatio()
-{
-  return &mPreserveAspectRatio;
 }

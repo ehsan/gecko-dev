@@ -37,7 +37,7 @@
 /*
  * Interface to the OCSP implementation.
  *
- * $Id: ocsp.h,v 1.17.2.1 2010/09/27 21:22:20 wtc%google.com Exp $
+ * $Id: ocsp.h,v 1.13 2008/06/14 14:19:53 wtc%google.com Exp $
  */
 
 #ifndef _OCSP_H_
@@ -457,29 +457,10 @@ extern char *
 CERT_GetOCSPAuthorityInfoAccessLocation(CERTCertificate *cert);
 
 /*
- * FUNCTION: CERT_RegisterAlternateOCSPAIAInfoCallBack
- *   This function serves two purposes.  
- *   1) It registers the address of a callback function that will be 
- *   called for certs that have no OCSP AIA extension, to see if the 
- *   callback wishes to supply an alternative URL for such an OCSP inquiry.
- *   2) It outputs the previously registered function's address to the 
- *   address supplied by the caller, unless that is NULL.
- *   The registered callback function returns NULL, or an allocated string 
- *   that may be subsequently freed by calling PORT_Free().
- * RETURN:
- *   SECSuccess or SECFailure (if the library is not yet intialized)
- */
-extern SECStatus
-CERT_RegisterAlternateOCSPAIAInfoCallBack(
-			CERT_StringFromCertFcn   newCallback,
-			CERT_StringFromCertFcn * oldCallback);
-
-/*
  * FUNCTION: CERT_ParseURL
- *   Parse a URI into hostname, port, and path.  The scheme in the URI must
- *   be "http".
+ *   Parse the URI of a OCSP responder into hostname, port, and path.
  * INPUTS:
- *   const char *url
+ *   const char *location
  *     The URI to be parsed
  * OUTPUTS:
  *   char *pHostname
@@ -491,8 +472,9 @@ CERT_RegisterAlternateOCSPAIAInfoCallBack(
  *     Pointer to store the path obtained from the URI.
  *     This result should be freed (via PORT_Free) when no longer in use.
  * RETURN:
- *   Returns SECSuccess when parsing was successful. Returns SECFailure when
+ *   Returns SECSuccess when parsing was successful. Anything else means
  *   problems were encountered.
+ *     
  */
 extern SECStatus
 CERT_ParseURL(const char *url, char **pHostname, PRUint16 *pPort, char **pPath);
@@ -550,42 +532,6 @@ CERT_ParseURL(const char *url, char **pHostname, PRUint16 *pPort, char **pPath);
 extern SECStatus 
 CERT_CheckOCSPStatus(CERTCertDBHandle *handle, CERTCertificate *cert,
 		     PRTime time, void *pwArg);
-
-/*
- * FUNCTION: CERT_CacheOCSPResponseFromSideChannel
- *   First, this function checks the OCSP cache to see if a good response
- *   for the given certificate already exists. If it does, then the function
- *   returns successfully.
- *
- *   If not, then it validates that the given OCSP response is a valid,
- *   good response for the given certificate and inserts it into the
- *   cache.
- *
- *   This function is intended for use when OCSP responses are provided via a
- *   side-channel, i.e. TLS OCSP stapling (a.k.a. the status_request extension).
- *
- * INPUTS:
- *   CERTCertDBHandle *handle
- *     certificate DB of the cert that is being checked
- *   CERTCertificate *cert
- *     the certificate being checked
- *   PRTime time
- *     time for which status is to be determined
- *   SECItem *encodedResponse
- *     the DER encoded bytes of the OCSP response
- *   void *pwArg
- *     argument for password prompting, if needed
- * RETURN:
- *   SECSuccess if the cert was found in the cache, or if the OCSP response was
- *   found to be valid and inserted into the cache. SECFailure otherwise.
- */
-extern SECStatus
-CERT_CacheOCSPResponseFromSideChannel(CERTCertDBHandle *handle,
-				      CERTCertificate *cert,
-				      PRTime time,
-				      SECItem *encodedResponse,
-				      void *pwArg);
-
 /*
  * FUNCTION: CERT_GetOCSPStatusForCertID
  *  Returns the OCSP status contained in the passed in paramter response

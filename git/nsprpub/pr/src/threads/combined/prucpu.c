@@ -54,7 +54,7 @@ static _MDLock _pr_md_idle_cpus_lock;
 #endif
 PRUintn _pr_numCPU;
 PRInt32 _pr_cpus_exit;
-PRUint32 _pr_cpu_affinity_mask = 0;
+PRInt32 _pr_cpu_affinity_mask = 0;
 
 #if !defined (_PR_GLOBAL_THREADS_ONLY)
 
@@ -392,6 +392,9 @@ static void PR_CALLBACK _PR_CPU_Idle(void *_cpu)
 PR_IMPLEMENT(void) PR_SetConcurrency(PRUintn numCPUs)
 {
 #if defined(_PR_GLOBAL_THREADS_ONLY) || defined(_PR_LOCAL_THREADS_ONLY)
+#ifdef XP_MAC 
+#pragma unused(numCPUs) 
+#endif
 
     /* do nothing */
 

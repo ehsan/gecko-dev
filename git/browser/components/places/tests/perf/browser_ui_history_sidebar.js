@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,6 +53,7 @@ const Cr = Components.results;
 var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
          getService(Ci.nsIWindowMediator);
 var win = wm.getMostRecentWindow("navigator:browser");
+
 var ios = Cc["@mozilla.org/network/io-service;1"].
           getService(Ci.nsIIOService);
 var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -61,16 +61,14 @@ var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
 var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
          getService(Ci.nsINavBookmarksService);
 
-var sidebar = document.getElementById("sidebar");
-
 function add_visit(aURI, aDate) {
-  var visitId = hs.addVisit(aURI,
+  var placeID = hs.addVisit(aURI,
                             aDate,
                             null, // no referrer
                             hs.TRANSITION_TYPED, // user typed in URL bar
                             false, // not redirect
                             0);
-  return visitId;
+  return placeID;
 }
 
 function add_bookmark(aURI) {
@@ -88,7 +86,7 @@ var ptests = [];
 
 /*********************** end header **********************/
 
-const TEST_REPEAT_COUNT = 6;
+const TEST_REPEAT_COUNT = 10;
 
 // test duration of history sidebar opening
 // default: bydayandsite
@@ -98,23 +96,22 @@ ptests.push({
   run: function() {
     var self = this;
     var start = Date.now();
-    sidebar.addEventListener("load", function(aEvent) {
-      sidebar.removeEventListener("load", arguments.callee, true);
-      executeSoon(function() {
-        var duration = Date.now() - start;
-        toggleSidebar("viewHistorySidebar", false);
-        self.times.push(duration);
-        if (self.times.length == TEST_REPEAT_COUNT)
-          self.finish();
-        else
-          self.run();
-      });
+    var sb = document.getElementById("sidebar");
+    sb.addEventListener("load", function(aEvent) {
+      sb.removeEventListener("load", arguments.callee, true);
+      var duration = Date.now() - start;
+      toggleSidebar("viewHistorySidebar", false);
+      self.times.push(duration);
+      if (self.times.length == TEST_REPEAT_COUNT)
+        self.finish();
+      else
+        self.run();
     }, true);
     toggleSidebar("viewHistorySidebar", true);
   },
   finish: function() {
     processTestResult(this);
-    setTimeout(runNextTest, 0);
+    runNextTest();
   }
 });
 
@@ -125,24 +122,23 @@ ptests.push({
   run: function() {
     var self = this;
     var start = Date.now();
-    sidebar.addEventListener("load", function() {
-      sidebar.removeEventListener("load", arguments.callee, true);
-      executeSoon(function() {
-        var duration = Date.now() - start;
-        sidebar.contentDocument.getElementById("bysite").doCommand();
-        toggleSidebar("viewHistorySidebar", false);
-        self.times.push(duration);
-        if (self.times.length == TEST_REPEAT_COUNT)
-          self.finish();
-        else
-          self.run();
-      });
+    var sb = document.getElementById("sidebar");
+    sb.addEventListener("load", function() {
+      var duration = Date.now() - start;
+      sb.removeEventListener("load", arguments.callee, true);
+      sb.contentDocument.getElementById("bysite").doCommand();
+      toggleSidebar("viewHistorySidebar", false);
+      self.times.push(duration);
+      if (self.times.length == TEST_REPEAT_COUNT)
+        self.finish();
+      else
+        self.run();
     }, true);
     toggleSidebar("viewHistorySidebar", true);
   },
   finish: function() {
     processTestResult(this);
-    setTimeout(runNextTest, 0);
+    runNextTest();
   }
 });
 
@@ -153,24 +149,77 @@ ptests.push({
   run: function() {
     var self = this;
     var start = Date.now();
-    sidebar.addEventListener("load", function() {
-      sidebar.removeEventListener("load", arguments.callee, true);
-      executeSoon(function() {
-        var duration = Date.now() - start;
-        sidebar.contentDocument.getElementById("byday").doCommand();
-        toggleSidebar("viewHistorySidebar", false);
-        self.times.push(duration);
-        if (self.times.length == TEST_REPEAT_COUNT)
-          self.finish();
-        else
-          self.run();
-      });
+    var sb = document.getElementById("sidebar");
+    sb.addEventListener("load", function() {
+      var duration = Date.now() - start;
+      sb.removeEventListener("load", arguments.callee, true);
+      sb.contentDocument.getElementById("byday").doCommand();
+      toggleSidebar("viewHistorySidebar", false);
+      self.times.push(duration);
+      if (self.times.length == TEST_REPEAT_COUNT)
+        self.finish();
+      else
+        self.run();
     }, true);
     toggleSidebar("viewHistorySidebar", true);
   },
   finish: function() {
     processTestResult(this);
-    setTimeout(runNextTest, 0);
+    runNextTest();
+  }
+});
+
+// byvisited
+ptests.push({
+  name: "history_sidebar_byvisited",
+  times: [],
+  run: function() {
+    var self = this;
+    var start = Date.now();
+    var sb = document.getElementById("sidebar");
+    sb.addEventListener("load", function() {
+      var duration = Date.now() - start;
+      sb.removeEventListener("load", arguments.callee, true);
+      sb.contentDocument.getElementById("byvisited").doCommand();
+      toggleSidebar("viewHistorySidebar", false);
+      self.times.push(duration);
+      if (self.times.length == TEST_REPEAT_COUNT)
+        self.finish();
+      else
+        self.run();
+    }, true);
+    toggleSidebar("viewHistorySidebar", true);
+  },
+  finish: function() {
+    processTestResult(this);
+    runNextTest();
+  }
+});
+
+// bylastvisited
+ptests.push({
+  name: "history_sidebar_bylastvisited",
+  times: [],
+  run: function() {
+    var self = this;
+    var start = Date.now();
+    var sb = document.getElementById("sidebar");
+    sb.addEventListener("load", function() {
+      var duration = Date.now() - start;
+      sb.removeEventListener("load", arguments.callee, true);
+      sb.contentDocument.getElementById("bylastvisited").doCommand();
+      toggleSidebar("viewHistorySidebar", false);
+      self.times.push(duration);
+      if (self.times.length == TEST_REPEAT_COUNT)
+        self.finish();
+      else
+        self.run();
+    }, true);
+    toggleSidebar("viewHistorySidebar", true);
+  },
+  finish: function() {
+    processTestResult(this);
+    runNextTest();
   }
 });
 
@@ -186,7 +235,7 @@ function processTestResult(aTest) {
 
 function test() {
   // kick off tests
-  setTimeout(runNextTest, 0);
+  runNextTest();
 }
 
 function runNextTest() {

@@ -41,7 +41,7 @@
 /* 
  * The following constants are used to determine how a widget is drawn using
  * Windows' Theme API. For more information on theme parts and states see
- * http://msdn.microsoft.com/en-us/library/bb773210(VS.85).aspx
+ * http://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/commctls/userex/topics/partsandstates.asp
  */
 #define THEME_COLOR 204
 #define THEME_FONT  210
@@ -69,7 +69,6 @@
 #define BP_BUTTON    1
 #define BP_RADIO     2
 #define BP_CHECKBOX  3
-#define BP_GROUPBOX  4
 
 // Textfield constants
 /* This is the EP_EDITTEXT part */
@@ -227,63 +226,3 @@
 // Toolbar separator dimension which can't be gotten from Windows
 #define TB_SEPARATOR_HEIGHT  2
 
-namespace mozilla {
-namespace widget {
-namespace themeconst {
-
-// Pulled from sdk/include/vsstyle.h
-enum {
-  WP_CAPTION = 1,
-  WP_SMALLCAPTION = 2,
-  WP_MINCAPTION = 3,
-  WP_SMALLMINCAPTION = 4,
-  WP_MAXCAPTION = 5,
-  WP_SMALLMAXCAPTION = 6,
-  WP_FRAMELEFT = 7,
-  WP_FRAMERIGHT = 8,
-  WP_FRAMEBOTTOM = 9,
-  WP_SMALLFRAMELEFT = 10,
-  WP_SMALLFRAMERIGHT = 11,
-  WP_SMALLFRAMEBOTTOM = 12,
-  WP_SYSBUTTON = 13,
-  WP_MDISYSBUTTON = 14,
-  WP_MINBUTTON = 15,
-  WP_MDIMINBUTTON = 16,
-  WP_MAXBUTTON = 17,
-  WP_CLOSEBUTTON = 18,
-  WP_SMALLCLOSEBUTTON = 19,
-  WP_MDICLOSEBUTTON = 20,
-  WP_RESTOREBUTTON = 21,
-  WP_MDIRESTOREBUTTON = 22,
-  WP_HELPBUTTON = 23,
-  WP_MDIHELPBUTTON = 24,
-  WP_HORZSCROLL = 25,
-  WP_HORZTHUMB = 26,
-  WP_VERTSCROLL = 27,
-  WP_VERTTHUMB = 28,
-  WP_DIALOG = 29,
-  WP_CAPTIONSIZINGTEMPLATE = 30,
-  WP_SMALLCAPTIONSIZINGTEMPLATE = 31,
-  WP_FRAMELEFTSIZINGTEMPLATE = 32,
-  WP_SMALLFRAMELEFTSIZINGTEMPLATE = 33,
-  WP_FRAMERIGHTSIZINGTEMPLATE = 34,
-  WP_SMALLFRAMERIGHTSIZINGTEMPLATE = 35,
-  WP_FRAMEBOTTOMSIZINGTEMPLATE = 36,
-  WP_SMALLFRAMEBOTTOMSIZINGTEMPLATE = 37,
-  WP_FRAME = 38
-};
-
-enum FRAMESTATES {
-  FS_ACTIVE = 1,
-  FS_INACTIVE = 2
-};
-
-enum {
-  BS_NORMAL = 1,
-  BS_HOT = 2,
-  BS_PUSHED = 3,
-  BS_DISABLED = 4,
-  BS_INACTIVE = 5 /* undocumented, inactive caption button */
-};
-
-}}} // mozilla::widget::themeconst

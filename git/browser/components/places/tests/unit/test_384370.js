@@ -36,15 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// The following components need to be initialized to perform tests without
-// asserting in debug builds (Bug 448804).
-Cc["@mozilla.org/browser/livemark-service;2"].getService(Ci.nsILivemarkService);
-Cc["@mozilla.org/feed-processor;1"].createInstance(Ci.nsIFeedProcessor);
-
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
 
+Components.utils.import("resource://gre/modules/utils.js");
 do_check_eq(typeof PlacesUtils, "object");
 
 // main
@@ -69,10 +65,10 @@ function run_test() {
   setIntPref("browser.places.smartBookmarksVersion", -1);
 
   // file pointer to legacy bookmarks file
-  //var bookmarksFileOld = do_get_file("bookmarks.large.html");
-  var bookmarksFileOld = do_get_file("bookmarks.preplaces.html");
+  //var bookmarksFileOld = do_get_file("browser/components/places/tests/unit/bookmarks.large.html");
+  var bookmarksFileOld = do_get_file("browser/components/places/tests/unit/bookmarks.preplaces.html");
   // file pointer to a new places-exported json file
-  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  var jsonFile = dirSvc.get("ProfD", Ci.nsILocalFile);
   jsonFile.append("bookmarks.exported.json");
 
   // create bookmarks.exported.json
@@ -98,7 +94,7 @@ function run_test() {
   // 3. import bookmarks.exported.json
   // 4. run the test-suite
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
   LOG("exported json"); 
   try {
@@ -160,10 +156,10 @@ function testCanonicalBookmarks() {
 
   // 6-2: the toolbar contents are imported to the places-toolbar folder,
   // the separator above it is removed.
-  do_check_eq(rootNode.childCount, DEFAULT_BOOKMARKS_ON_MENU + 1);
+  do_check_eq(rootNode.childCount, 4);
 
   // get test folder
-  var testFolder = rootNode.getChild(DEFAULT_BOOKMARKS_ON_MENU);
+  var testFolder = rootNode.getChild(3);
   do_check_eq(testFolder.type, testFolder.RESULT_TYPE_FOLDER);
   do_check_eq(testFolder.title, "test");
 
@@ -306,7 +302,7 @@ function testTags() {
   for each(let {uri: u, tags: t} in tagData) {
     var i = 0;
     dump("test tags for " + u.spec + ": " + t + "\n");
-    var tt = PlacesUtils.tagging.getTagsForURI(u);
+    var tt = PlacesUtils.tagging.getTagsForURI(u, {});
     dump("true tags for " + u.spec + ": " + tt + "\n");
     do_check_true(t.every(function(el) {
       i++;

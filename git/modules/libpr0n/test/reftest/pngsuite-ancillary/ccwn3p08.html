@@ -1,45 +1,4 @@
-<html>
-<head>
-<script src="qcms-asm-check.js" type="application/ecmascript"></script>
-<!-- generated with:
-import png
-import sys
-print """<html>
-<head>
-<script src="qcms-asm-check.js" type="application/ecmascript"></script>
-<!-""" + """- generated with:"""
-print open(__file__).read()
-print "-" + """->
-</head>
-<body>
-<table cellpadding='0' cellspacing='0' width='32' height='32'>"""
-r1 = png.Reader(file=open(sys.argv[1]))
-r2 = png.Reader(file=open(sys.argv[2]))
-(data1, data2) = (r1.asDirect(), r2.asDirect())
-(pixels1, pixels2) = (list(data1[2])[8:32+8], list(data2[2])[8:32+8])
-planes = data1[3]['planes']
-for (line1, line2) in zip(pixels1, pixels2):
-    r1, g1, b1 = (line1[0::planes][8:32+8], line1[1::planes][8:32+8], line1[2::planes][8:32+8])
-    r2, g2, b2 = (line2[0::planes][8:32+8], line2[1::planes][8:32+8], line2[2::planes][8:32+8])
-    print "<tr height='1'>"
-    for (pixel1, pixel2) in zip(zip(r1,g1,b1), zip(r2,g2,b2)):
-        if pixel1[0] == pixel2[0] and pixel1[1] == pixel2[1] and pixel1[2] == pixel2[2]:
-            print "  <td width='1' style='background-color: rgba(%d,%d,%d,1)'></td>" % (pixel1[0], pixel1[1], pixel1[2])
-        else:
-            print """<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(%d,%d,%d,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(%d,%d,%d,1)'></td>");
-}
-</script>""" % (pixel1[0], pixel1[1], pixel1[2], pixel2[0], pixel2[1], pixel2[2])
-    print "</tr>"
-print """</table>
-</body></html>"""
-
--->
-</head>
-<body>
+<html><body>
 <table cellpadding='0' cellspacing='0' width='32' height='32'>
 <tr height='1'>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
@@ -219,33 +178,15 @@ print """</table>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
   <td width='1' style='background-color: rgba(230,255,243,1)'></td>
   <td width='1' style='background-color: rgba(52,255,187,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(77,255,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(77,255,184,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(77,255,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(77,255,184,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(77,255,185,1)'></td>
+  <td width='1' style='background-color: rgba(77,255,185,1)'></td>
   <td width='1' style='background-color: rgba(101,255,166,1)'></td>
   <td width='1' style='background-color: rgba(114,255,164,1)'></td>
   <td width='1' style='background-color: rgba(114,255,164,1)'></td>
   <td width='1' style='background-color: rgba(99,255,130,1)'></td>
   <td width='1' style='background-color: rgba(90,255,120,1)'></td>
   <td width='1' style='background-color: rgba(127,255,95,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(163,255,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(163,255,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(163,255,91,1)'></td>
   <td width='1' style='background-color: rgba(199,255,148,1)'></td>
   <td width='1' style='background-color: rgba(253,255,253,1)'></td>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
@@ -270,20 +211,8 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
   <td width='1' style='background-color: rgba(137,255,206,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(73,255,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(73,255,184,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(77,255,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(77,255,184,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(73,255,185,1)'></td>
+  <td width='1' style='background-color: rgba(77,255,185,1)'></td>
   <td width='1' style='background-color: rgba(116,255,190,1)'></td>
   <td width='1' style='background-color: rgba(116,255,190,1)'></td>
   <td width='1' style='background-color: rgba(138,255,169,1)'></td>
@@ -291,20 +220,8 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(123,255,159,1)'></td>
   <td width='1' style='background-color: rgba(134,255,127,1)'></td>
   <td width='1' style='background-color: rgba(153,255,104,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(163,255,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(163,255,91,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(163,255,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(163,255,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(163,255,91,1)'></td>
+  <td width='1' style='background-color: rgba(163,255,91,1)'></td>
   <td width='1' style='background-color: rgba(205,255,136,1)'></td>
   <td width='1' style='background-color: rgba(253,255,246,1)'></td>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
@@ -336,13 +253,7 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(138,255,169,1)'></td>
   <td width='1' style='background-color: rgba(123,255,159,1)'></td>
   <td width='1' style='background-color: rgba(134,255,127,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(163,255,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(163,255,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(163,255,91,1)'></td>
   <td width='1' style='background-color: rgba(186,255,96,1)'></td>
   <td width='1' style='background-color: rgba(186,255,96,1)'></td>
   <td width='1' style='background-color: rgba(195,255,79,1)'></td>
@@ -589,13 +500,7 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(255,232,117,1)'></td>
   <td width='1' style='background-color: rgba(255,212,119,1)'></td>
   <td width='1' style='background-color: rgba(255,206,93,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,197,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,197,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,197,92,1)'></td>
   <td width='1' style='background-color: rgba(255,179,66,1)'></td>
   <td width='1' style='background-color: rgba(254,236,226,1)'></td>
   <td width='1' style='background-color: rgba(255,255,255,1)'></td>
@@ -628,20 +533,8 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(255,236,151,1)'></td>
   <td width='1' style='background-color: rgba(255,217,125,1)'></td>
   <td width='1' style='background-color: rgba(255,212,119,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,197,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,197,91,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,197,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,197,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,197,92,1)'></td>
+  <td width='1' style='background-color: rgba(255,197,92,1)'></td>
   <td width='1' style='background-color: rgba(255,179,66,1)'></td>
   <td width='1' style='background-color: rgba(255,176,88,1)'></td>
   <td width='1' style='background-color: rgba(254,236,226,1)'></td>
@@ -669,30 +562,12 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(253,254,214,1)'></td>
   <td width='1' style='background-color: rgba(253,254,214,1)'></td>
   <td width='1' style='background-color: rgba(255,242,196,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,229,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,229,184,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,229,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,229,184,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,229,185,1)'></td>
+  <td width='1' style='background-color: rgba(255,229,185,1)'></td>
   <td width='1' style='background-color: rgba(255,220,184,1)'></td>
   <td width='1' style='background-color: rgba(255,199,148,1)'></td>
   <td width='1' style='background-color: rgba(255,199,148,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,197,92,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,197,91,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,197,92,1)'></td>
   <td width='1' style='background-color: rgba(255,176,88,1)'></td>
   <td width='1' style='background-color: rgba(255,176,88,1)'></td>
   <td width='1' style='background-color: rgba(255,151,106,1)'></td>
@@ -721,23 +596,11 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(255,248,223,1)'></td>
   <td width='1' style='background-color: rgba(253,254,214,1)'></td>
   <td width='1' style='background-color: rgba(255,231,206,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,229,185,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,229,184,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,229,185,1)'></td>
   <td width='1' style='background-color: rgba(255,220,184,1)'></td>
   <td width='1' style='background-color: rgba(255,220,184,1)'></td>
   <td width='1' style='background-color: rgba(255,199,148,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,189,148,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,188,148,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,189,148,1)'></td>
   <td width='1' style='background-color: rgba(255,178,148,1)'></td>
   <td width='1' style='background-color: rgba(255,167,140,1)'></td>
   <td width='1' style='background-color: rgba(255,151,106,1)'></td>
@@ -768,28 +631,10 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(254,236,226,1)'></td>
   <td width='1' style='background-color: rgba(255,231,206,1)'></td>
   <td width='1' style='background-color: rgba(255,231,206,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,212,196,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,211,196,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,212,196,1)'></td>
   <td width='1' style='background-color: rgba(255,202,198,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,185,155,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,185,154,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(255,185,155,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(255,185,154,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(255,185,155,1)'></td>
+  <td width='1' style='background-color: rgba(255,185,155,1)'></td>
   <td width='1' style='background-color: rgba(255,167,140,1)'></td>
   <td width='1' style='background-color: rgba(255,167,140,1)'></td>
   <td width='1' style='background-color: rgba(255,108,125,1)'></td>
@@ -1007,20 +852,8 @@ if (qcms_has_assembly) {
 </tr>
 <tr height='1'>
   <td width='1' style='background-color: rgba(205,241,255,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(83,212,255,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(83,211,255,1)'></td>");
-}
-</script>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(83,212,255,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(83,211,255,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(83,212,255,1)'></td>
+  <td width='1' style='background-color: rgba(83,212,255,1)'></td>
   <td width='1' style='background-color: rgba(98,205,255,1)'></td>
   <td width='1' style='background-color: rgba(151,210,255,1)'></td>
   <td width='1' style='background-color: rgba(159,194,255,1)'></td>
@@ -1035,13 +868,7 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(254,85,238,1)'></td>
   <td width='1' style='background-color: rgba(254,53,220,1)'></td>
   <td width='1' style='background-color: rgba(254,53,220,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(247,13,210,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(246,13,210,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(247,13,210,1)'></td>
   <td width='1' style='background-color: rgba(229,13,174,1)'></td>
   <td width='1' style='background-color: rgba(209,0,167,1)'></td>
   <td width='1' style='background-color: rgba(244,148,155,1)'></td>
@@ -1072,13 +899,7 @@ if (qcms_has_assembly) {
   <td width='1' style='background-color: rgba(241,81,254,1)'></td>
   <td width='1' style='background-color: rgba(242,34,244,1)'></td>
   <td width='1' style='background-color: rgba(254,85,238,1)'></td>
-<script type="application/ecmascript">
-if (qcms_has_assembly) {
-  document.write("<td width='1' style='background-color: rgba(247,13,210,1)'></td>");
-} else {
-  document.write("<td width='1' style='background-color: rgba(246,13,210,1)'></td>");
-}
-</script>
+  <td width='1' style='background-color: rgba(247,13,210,1)'></td>
   <td width='1' style='background-color: rgba(229,13,174,1)'></td>
   <td width='1' style='background-color: rgba(209,0,167,1)'></td>
   <td width='1' style='background-color: rgba(209,0,167,1)'></td>

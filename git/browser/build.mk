@@ -45,17 +45,11 @@ ifdef MOZ_EXTENSIONS
 tier_app_dirs += extensions
 endif
 
+ifdef MOZ_BRANDING_DIRECTORY
 tier_app_dirs += $(MOZ_BRANDING_DIRECTORY)
-
-tier_app_dirs += toolkit/components/console/hudservice
-
-ifdef MOZ_SERVICES_SYNC
-tier_app_dirs += services
 endif
 
 tier_app_dirs += browser
-# Never add other tier_app_dirs after browser. They won't get packaged
-# properly on mac.
 
 installer:
 	@$(MAKE) -C browser/installer installer
@@ -63,29 +57,21 @@ installer:
 package:
 	@$(MAKE) -C browser/installer
 
-package-compare:
-	@$(MAKE) -C browser/installer package-compare
-
 install::
 	@$(MAKE) -C browser/installer install
-
-clean::
-	@$(MAKE) -C browser/installer clean
-
-distclean::
-	@$(MAKE) -C browser/installer distclean
-
-source-package::
-	@$(MAKE) -C browser/installer source-package
-
-upload::
-	@$(MAKE) -C browser/installer upload
 
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk
 
+# Browser tests live in a slightly different location, so we correct the path
+ifdef TEST_PATH
+BROWSER_TEST_PATH = --test-path=../browser/$(TEST_PATH)
+else
+BROWSER_TEST_PATH =
+endif
+
 mochitest-browser-chrome:
-	$(RUN_MOCHITEST) --browser-chrome
+	$(RUN_MOCHITEST) --browser-chrome $(BROWSER_TEST_PATH)
 	$(CHECK_TEST_ERROR)
 
 mochitest:: mochitest-browser-chrome

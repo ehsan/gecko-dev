@@ -34,12 +34,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef NS_SVGPOLYELEMENT_H_
-#define NS_SVGPOLYELEMENT_H_
-
 #include "nsSVGPathGeometryElement.h"
+#include "nsCOMPtr.h"
+#include "nsIDOMSVGPoint.h"
+#include "nsSVGPointList.h"
 #include "nsIDOMSVGAnimatedPoints.h"
-#include "SVGAnimatedPointList.h"
+#include "nsSVGUtils.h"
 
 typedef nsSVGPathGeometryElement nsSVGPolyElementBase;
 
@@ -49,7 +49,8 @@ class nsSVGPolyElement : public nsSVGPolyElementBase,
                          public nsIDOMSVGAnimatedPoints
 {
 protected:
-  nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGPolyElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
   //interfaces
@@ -58,23 +59,16 @@ public:
   NS_DECL_NSIDOMSVGANIMATEDPOINTS
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
-
-  virtual SVGAnimatedPointList* GetAnimatedPointList() {
-    return &mPoints;
-  }
-  virtual nsIAtom* GetPointListAttrName() const {
-    return nsGkAtoms::points;
-  }
-
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  
   // nsSVGPathGeometryElement methods:
-  virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual PRBool IsDependentAttribute(nsIAtom *aName);
   virtual PRBool IsMarkable() { return PR_TRUE; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
 
 protected:
-  SVGAnimatedPointList mPoints;
+  nsCOMPtr<nsIDOMSVGPointList> mPoints;
+
 };
 
-#endif //NS_SVGPOLYELEMENT_H_

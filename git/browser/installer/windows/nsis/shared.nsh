@@ -35,8 +35,6 @@
 # ***** END LICENSE BLOCK *****
 
 !macro PostUpdate
-  ${CreateShortcutsLog}
-
   ; Remove registry entries for non-existent apps and for apps that point to our
   ; install location in the Software\Mozilla key and uninstall registry entries
   ; that point to our install location for both HKCU and HKLM.
@@ -46,31 +44,19 @@
   ${UpdateProtocolHandlers}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all    ; Set SHCTX to all users (e.g. HKLM)
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${RegCleanMain} "Software\Mozilla"
     ${RegCleanUninstall}
-    ${UpdateProtocolHandlers}
+    ${SetStartMenuInternet}
     ${FixShellIconHandler}
-    ${SetAppLSPCategories} ${LSP_CATEGORIES}
-
-    ; Only update the Clients\StartMenuInternet registry key values if they
-    ; don't exist or this installation is the same as the one set in those keys.
-    ${StrFilter} "${FileMainEXE}" "+" "" "" $1
-    ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$1\DefaultIcon" ""
-    ${GetPathFromString} "$0" $0
-    ${GetParent} "$0" $0
-    ${If} ${FileExists} "$0"
-      ${GetLongPath} "$0" $0
-    ${EndIf}
-    ${If} "$0" == "$INSTDIR"
-      ${SetStartMenuInternet}
-    ${EndIf}
+    ${SetUninstallKeys}
+    ${UpdateProtocolHandlers}
 
     ReadRegStr $0 HKLM "Software\mozilla.org\Mozilla" "CurrentVersion"
     ${If} "$0" != "${GREVersion}"
@@ -78,26 +64,67 @@
     ${EndIf}
   ${EndIf}
 
-  ; Migrate the application's Start Menu directory to a single shortcut in the
-  ; root of the Start Menu Programs directory.
-  ${MigrateStartMenuShortcut}
-
   ${RemoveDeprecatedKeys}
 
+  ; Add Software\Mozilla\ registry entries
   ${SetAppKeys}
   ${FixClassKeys}
-  ${SetUninstallKeys}
-
-  ; Win7 taskbar and start menu link maintenance
-  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $0
 
   ; Remove files that may be left behind by the application in the
   ; VirtualStore directory.
   ${CleanVirtualStore}
 
-  ${RemoveDeprecatedFiles}
+  ; Remove talkback if it is present (remove after bug 386760 is fixed)
+  ${If} ${FileExists} "$INSTDIR\extensions\talkback@mozilla.org\"
+    RmDir /r "$INSTDIR\extensions\talkback@mozilla.org\"
+  ${EndIf}
 !macroend
 !define PostUpdate "!insertmacro PostUpdate"
+
+!macro SetAsDefaultAppUser
+  ; It is only possible to set this installation of the application as the
+  ; StartMenuInternet handler if it was added to the HKLM StartMenuInternet
+  ; registry keys.
+  ; http://support.microsoft.com/kb/297878
+
+  ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
+  ClearErrors
+  ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$R9\DefaultIcon" ""
+  IfErrors updateclientkeys +1
+  ${GetPathFromString} "$0" $0
+  ${GetParent} "$0" $0
+  IfFileExists "$0" +1 updateclientkeys
+  ${GetLongPath} "$0" $0
+  StrCmp "$0" "$INSTDIR" setdefaultuser +1
+
+  updateclientkeys:
+  ; Calls after ElevateUAC won't be made if the user can elevate. They
+  ; will be made in the new elevated process if the user allows elevation.
+  ${ElevateUAC}
+
+  ${SetStartMenuInternet}
+
+  setdefaultuser:
+  SetShellVarContext all  ; Set SHCTX to all users (e.g. HKLM)
+  ${FixShellIconHandler}
+  WriteRegStr HKCU "Software\Clients\StartMenuInternet" "" "$R9"
+
+  ${If} ${AtLeastWinVista}
+    ClearErrors
+    ReadRegStr $0 HKLM "Software\RegisteredApplications" "${AppRegName}"
+    ; Only register as the handler on Vista if the app registry name exists
+    ; under the RegisteredApplications registry key.
+    ${Unless} ${Errors}
+      AppAssocReg::SetAppAsDefaultAll "${AppRegName}"
+    ${EndUnless}
+  ${EndIf}
+
+  ${RemoveDeprecatedKeys}
+
+  SetShellVarContext current  ; Set SHCTX to the current user (e.g. HKCU)
+  ${SetHandlers}
+!macroend
+!define SetAsDefaultAppUser "!insertmacro SetAsDefaultAppUser"
 
 !macro SetAsDefaultAppGlobal
   ${RemoveDeprecatedKeys}
@@ -112,9 +139,11 @@
 !macroend
 !define SetAsDefaultAppGlobal "!insertmacro SetAsDefaultAppGlobal"
 
-; Removes shortcuts for this installation. This should also remove the
-; application from Open With for the file types the application handles
-; (bug 370480).
+!macro FixReg
+  ${SetAsDefaultAppUser}
+!macroend
+!define FixReg "!insertmacro FixReg"
+
 !macro HideShortcuts
   ${StrFilter} "${FileMainEXE}" "+" "" "" $0
   StrCpy $R1 "Software\Clients\StartMenuInternet\$0\InstallInfo"
@@ -130,28 +159,9 @@
     ${If} "$0" == ""
       ShellLink::GetShortCutTarget "$DESKTOP\${BrandFullName}.lnk"
       Pop $0
-      ${GetLongPath} "$0" $0
+      ; Needs to handle short paths
       ${If} "$0" == "$INSTDIR\${FileMainEXE}"
         Delete "$DESKTOP\${BrandFullName}.lnk"
-      ${EndIf}
-    ${EndIf}
-  ${EndIf}
-
-  SetShellVarContext all  ; Set $SMPROGRAMS to All Users
-  ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    SetShellVarContext current  ; Set $SMPROGRAMS to the current user's Start
-                                ; Menu Programs directory
-  ${EndUnless}
-
-  ${If} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    ShellLink::GetShortCutArgs "$SMPROGRAMS\${BrandFullName}.lnk"
-    Pop $0
-    ${If} "$0" == ""
-      ShellLink::GetShortCutTarget "$SMPROGRAMS\${BrandFullName}.lnk"
-      Pop $0
-      ${GetLongPath} "$0" $0
-      ${If} "$0" == "$INSTDIR\${FileMainEXE}"
-        Delete "$SMPROGRAMS\${BrandFullName}.lnk"
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -162,7 +172,7 @@
     ${If} "$0" == ""
       ShellLink::GetShortCutTarget "$QUICKLAUNCH\${BrandFullName}.lnk"
       Pop $0
-      ${GetLongPath} "$0" $0
+      ; Needs to handle short paths
       ${If} "$0" == "$INSTDIR\${FileMainEXE}"
         Delete "$QUICKLAUNCH\${BrandFullName}.lnk"
       ${EndIf}
@@ -171,63 +181,29 @@
 !macroend
 !define HideShortcuts "!insertmacro HideShortcuts"
 
-; Adds shortcuts for this installation. This should also add the application
-; to Open With for the file types the application handles (bug 370480).
 !macro ShowShortcuts
   ${StrFilter} "${FileMainEXE}" "+" "" "" $0
   StrCpy $R1 "Software\Clients\StartMenuInternet\$0\InstallInfo"
   WriteRegDWORD HKLM "$R1" "IconsVisible" 1
-
   SetShellVarContext all  ; Set $DESKTOP to All Users
   ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
-    CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" \
-                   "" "$INSTDIR\${FileMainEXE}" 0
+    CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
     ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR"
-    ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
     ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
       SetShellVarContext current  ; Set $DESKTOP to the current user's desktop
       ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
-        CreateShortCut "$DESKTOP\${BrandFullName}.lnk" \
-                       "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-        ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" \
-                                               "$INSTDIR"
-        ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
+        CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
+        ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR"
       ${EndUnless}
     ${EndUnless}
   ${EndUnless}
-
-  SetShellVarContext all  ; Set $DESKTOP to All Users
-  ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-    CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" \
-                   "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                           "$INSTDIR"
-    ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
-    ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-      SetShellVarContext current  ; Set $SMPROGRAMS to the current user's Start
-                                  ; Menu Programs directory
-      ${Unless} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-        CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" \
-                       "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-        ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                               "$INSTDIR"
-        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
-      ${EndUnless}
-    ${EndUnless}
-  ${EndUnless}
-
   ${Unless} ${FileExists} "$QUICKLAUNCH\${BrandFullName}.lnk"
-    CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" \
-                   "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ShellLink::SetShortCutWorkingDirectory "$QUICKLAUNCH\${BrandFullName}.lnk" \
-                                           "$INSTDIR"
-    ApplicationID::Set "$QUICKLAUNCH\${BrandFullName}.lnk" "${AppUserModelID}"
+    CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
+    ShellLink::SetShortCutWorkingDirectory "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR"
   ${EndUnless}
 !macroend
 !define ShowShortcuts "!insertmacro ShowShortcuts"
 
-; Adds the protocol and file handler registry entries for making Firefox the
-; default handler (uses SHCTX).
 !macro SetHandlers
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
 
@@ -235,27 +211,27 @@
   StrCpy $2 "$\"$8$\" -requestPending -osint -url $\"%1$\""
 
   ; Associate the file handlers with FirefoxHTML
-  ReadRegStr $6 SHCTX "$0\.htm" ""
+  ReadRegStr $6 HKCR ".htm" ""
   ${If} "$6" != "FirefoxHTML"
     WriteRegStr SHCTX "$0\.htm"   "" "FirefoxHTML"
   ${EndIf}
 
-  ReadRegStr $6 SHCTX "$0\.html" ""
+  ReadRegStr $6 HKCR ".html" ""
   ${If} "$6" != "FirefoxHTML"
     WriteRegStr SHCTX "$0\.html"  "" "FirefoxHTML"
   ${EndIf}
 
-  ReadRegStr $6 SHCTX "$0\.shtml" ""
+  ReadRegStr $6 HKCR ".shtml" ""
   ${If} "$6" != "FirefoxHTML"
     WriteRegStr SHCTX "$0\.shtml" "" "FirefoxHTML"
   ${EndIf}
 
-  ReadRegStr $6 SHCTX "$0\.xht" ""
+  ReadRegStr $6 HKCR ".xht" ""
   ${If} "$6" != "FirefoxHTML"
     WriteRegStr SHCTX "$0\.xht"   "" "FirefoxHTML"
   ${EndIf}
 
-  ReadRegStr $6 SHCTX "$0\.xhtml" ""
+  ReadRegStr $6 HKCR ".xhtml" ""
   ${If} "$6" != "FirefoxHTML"
     WriteRegStr SHCTX "$0\.xhtml" "" "FirefoxHTML"
   ${EndIf}
@@ -282,9 +258,6 @@
 !macroend
 !define SetHandlers "!insertmacro SetHandlers"
 
-; Adds the HKLM\Software\Clients\StartMenuInternet\FIREFOX.EXE registry
-; entries (does not use SHCTX).
-;
 ; The values for StartMenuInternet are only valid under HKLM and there can only
 ; be one installation registerred under StartMenuInternet per application since
 ; the key name is derived from the main application executable.
@@ -313,7 +286,7 @@
 
   ClearErrors
   ReadRegDWORD $1 HKLM "$0\InstallInfo" "IconsVisible"
-  ; If the IconsVisible name value pair doesn't exist add it otherwise the
+  ; If the IconsVisible name vale pair doesn't exist add it otherwise the
   ; application won't be displayed in Set Program Access and Defaults.
   ${If} ${Errors}
     ${If} ${FileExists} "$QUICKLAUNCH\${BrandFullName}.lnk"
@@ -336,7 +309,7 @@
   WriteRegStr HKLM "$0\Capabilities" "ApplicationIcon" "$8,0"
   WriteRegStr HKLM "$0\Capabilities" "ApplicationName" "${BrandShortName}"
 
-  WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".htm"   "FirefoxHTML"
+  WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".htm"   "FirefoxHTML" 
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".html"  "FirefoxHTML"
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".shtml" "FirefoxHTML"
   WriteRegStr HKLM "$0\Capabilities\FileAssociations" ".xht"   "FirefoxHTML"
@@ -353,32 +326,81 @@
 !macroend
 !define SetStartMenuInternet "!insertmacro SetStartMenuInternet"
 
-; The IconHandler reference for FirefoxHTML can end up in an inconsistent state
-; due to changes not being detected by the IconHandler for side by side
-; installs (see bug 268512). The symptoms can be either an incorrect icon or no
-; icon being displayed for files associated with Firefox (does not use SHCTX).
 !macro FixShellIconHandler
+  ; The IconHandler reference for FirefoxHTML can end up in an inconsistent
+  ; state due to changes not being detected by the IconHandler for side by side
+  ; installs. The symptoms can be either an incorrect icon or no icon being
+  ; displayed for files associated with Firefox. By setting it here it will
+  ; always reference the install referenced in the
+  ; HKLM\Software\Classes\FirefoxHTML registry key.
+  ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
   ClearErrors
-  ReadRegStr $1 HKLM "Software\Classes\FirefoxHTML\ShellEx\IconHandler" ""
+  ReadRegStr $2 HKLM "Software\Classes\FirefoxHTML\ShellEx\IconHandler" ""
   ${Unless} ${Errors}
-    ReadRegStr $1 HKLM "Software\Classes\FirefoxHTML\" ""
-    ${GetLongPath} "$INSTDIR\${FileMainEXE}" $2
-    ${If} "$1" != "$2,1"
-      WriteRegStr HKLM "Software\Classes\FirefoxHTML\DefaultIcon" "" "$2,1"
-    ${EndIf}
+    ClearErrors
+    ReadRegStr $3 HKLM "Software\Classes\CLSID\$2\Old Icon\FirefoxHTML\DefaultIcon" ""
+    ${Unless} ${Errors}
+      WriteRegStr HKLM "Software\Classes\CLSID\$2\Old Icon\FirefoxHTML\DefaultIcon" "" "$8,1"
+    ${EndUnless}
   ${EndUnless}
 !macroend
 !define FixShellIconHandler "!insertmacro FixShellIconHandler"
 
-; Add Software\Mozilla\ registry entries (uses SHCTX).
 !macro SetAppKeys
   ${GetLongPath} "$INSTDIR" $8
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})\Main"
   ${WriteRegStr2} $TmpVal "$0" "Install Directory" "$8" 0
   ${WriteRegStr2} $TmpVal "$0" "PathToExe" "$8\${FileMainEXE}" 0
+  ${WriteRegStr2} $TmpVal "$0" "Program Folder Path" "$SMPROGRAMS\$StartMenuDir" 0
+
+  SetShellVarContext all  ; Set $DESKTOP to All Users
+  ${Unless} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
+    SetShellVarContext current  ; Set $DESKTOP to the current user's desktop
+  ${EndUnless}
+
+  ${If} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
+    ShellLink::GetShortCutArgs "$DESKTOP\${BrandFullName}.lnk"
+    Pop $1
+    ${If} "$1" == ""
+      ShellLink::GetShortCutTarget "$DESKTOP\${BrandFullName}.lnk"
+      Pop $1
+      ${GetLongPath} "$1" $1
+      ${If} "$1" == "$8\${FileMainEXE}"
+        ${WriteRegDWORD2} $TmpVal "$0" "Create Desktop Shortcut" 1 0
+      ${Else}
+        ${WriteRegDWORD2} $TmpVal "$0" "Create Desktop Shortcut" 0 0
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+
+  ; XXXrstrong - need a cleaner way to prevent unsetting SHCTX from HKLM when
+  ; trying to find the desktop shortcut.
+  ${If} "$TmpVal" == "HKCU"
+    SetShellVarContext current ; Set SHCTX to the current user (e.g. HKCU)
+  ${Else}
+    SetShellVarContext all     ; Set SHCTX to all users (e.g. HKLM)
+  ${EndIf}
+
+  ${If} ${FileExists} "$QUICKLAUNCH\${BrandFullName}.lnk"
+    ShellLink::GetShortCutArgs "$QUICKLAUNCH\${BrandFullName}.lnk"
+    Pop $1
+    ${If} "$1" == ""
+      ShellLink::GetShortCutTarget "$QUICKLAUNCH\${BrandFullName}.lnk"
+      Pop $1
+      ${GetLongPath} "$1" $1
+      ${If} "$1" == "$8\${FileMainEXE}"
+        ${WriteRegDWORD2} $TmpVal "$0" "Create Quick Launch Shortcut" 1 0
+      ${Else}
+        ${WriteRegDWORD2} $TmpVal "$0" "Create Quick Launch Shortcut" 0 0
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  ; XXXrstrong - "Create Start Menu Shortcut" and "Start Menu Folder" are only
+  ; set in the installer and should also be set here for software update.
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})\Uninstall"
-  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
+  ${WriteRegStr2} $TmpVal "$0" "Uninstall Log Folder" "$8\uninstall" 0
+  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} (${AppVersion})" 0
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})"
   ${WriteRegStr2} $TmpVal  "$0" "" "${AppVersion} (${AB_CD})" 0
@@ -399,49 +421,25 @@
 !macroend
 !define SetAppKeys "!insertmacro SetAppKeys"
 
-; Add uninstall registry entries. This macro tests for write access to determine
-; if the uninstall keys should be added to HKLM or HKCU.
 !macro SetUninstallKeys
-  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})"
-
-  WriteRegStr HKLM "$0" "${BrandShortName}InstallerTest" "Write Test"
-  ${If} ${Errors}
-    StrCpy $1 "HKCU"
-    SetShellVarContext current  ; Set SHCTX to the current user (e.g. HKCU)
-  ${Else}
-    StrCpy $1 "HKLM"
-    SetShellVarContext all     ; Set SHCTX to all users (e.g. HKLM)
-    DeleteRegValue HKLM "$0" "${BrandShortName}InstallerTest"
-  ${EndIf}
-
+  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${AppVersion})"
   ${GetLongPath} "$INSTDIR" $8
 
   ; Write the uninstall registry keys
-  ${WriteRegStr2} $1 "$0" "Comments" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
-  ${WriteRegStr2} $1 "$0" "DisplayIcon" "$8\${FileMainEXE},0" 0
-  ${WriteRegStr2} $1 "$0" "DisplayName" "${BrandFullNameInternal} ${AppVersion} (${ARCH} ${AB_CD})" 0
-  ${WriteRegStr2} $1 "$0" "DisplayVersion" "${AppVersion}" 0
-  ${WriteRegStr2} $1 "$0" "InstallLocation" "$8" 0
-  ${WriteRegStr2} $1 "$0" "Publisher" "Mozilla" 0
-  ${WriteRegStr2} $1 "$0" "UninstallString" "$8\uninstall\helper.exe" 0
-  ${WriteRegStr2} $1 "$0" "URLInfoAbout" "${URLInfoAbout}" 0
-  ${WriteRegStr2} $1 "$0" "URLUpdateInfo" "${URLUpdateInfo}" 0
-  ${WriteRegDWORD2} $1 "$0" "NoModify" 1 0
-  ${WriteRegDWORD2} $1 "$0" "NoRepair" 1 0
-
-  ${GetSize} "$8" "/S=0K" $R2 $R3 $R4
-  ${WriteRegDWORD2} $1 "$0" "EstimatedSize" $R2 0
-
-  ${If} "$TmpVal" == "HKLM"
-    SetShellVarContext all     ; Set SHCTX to all users (e.g. HKLM)
-  ${Else}
-    SetShellVarContext current  ; Set SHCTX to the current user (e.g. HKCU)
-  ${EndIf}
+  ${WriteRegStr2} $TmpVal "$0" "Comments" "${BrandFullNameInternal}" 0
+  ${WriteRegStr2} $TmpVal "$0" "DisplayIcon" "$8\${FileMainEXE},0" 0
+  ${WriteRegStr2} $TmpVal "$0" "DisplayName" "${BrandFullNameInternal} (${AppVersion})" 0
+  ${WriteRegStr2} $TmpVal "$0" "DisplayVersion" "${AppVersion} (${AB_CD})" 0
+  ${WriteRegStr2} $TmpVal "$0" "InstallLocation" "$8" 0
+  ${WriteRegStr2} $TmpVal "$0" "Publisher" "Mozilla" 0
+  ${WriteRegStr2} $TmpVal "$0" "UninstallString" "$8\uninstall\helper.exe" 0
+  ${WriteRegStr2} $TmpVal "$0" "URLInfoAbout" "${URLInfoAbout}" 0
+  ${WriteRegStr2} $TmpVal "$0" "URLUpdateInfo" "${URLUpdateInfo}" 0
+  ${WriteRegDWORD2} $TmpVal "$0" "NoModify" 1 0
+  ${WriteRegDWORD2} $TmpVal "$0" "NoRepair" 1 0
 !macroend
 !define SetUninstallKeys "!insertmacro SetUninstallKeys"
 
-; Add app specific handler registry entries under Software\Classes if they
-; don't exist (does not use SHCTX).
 !macro FixClassKeys
   StrCpy $1 "SOFTWARE\Classes"
 
@@ -470,7 +468,7 @@
 !define FixClassKeys "!insertmacro FixClassKeys"
 
 ; Updates protocol handlers if their registry open command value is for this
-; install location (uses SHCTX).
+; install location
 !macro UpdateProtocolHandlers
   ; Store the command to open the app with an url in a register for easy access.
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
@@ -514,7 +512,6 @@
 !macroend
 !define UpdateProtocolHandlers "!insertmacro UpdateProtocolHandlers"
 
-; Removes various registry entries for reasons noted below (does not use SHCTX).
 !macro RemoveDeprecatedKeys
   StrCpy $0 "SOFTWARE\Classes"
   ; Remove support for launching gopher urls from the shell during install or
@@ -552,230 +549,6 @@
 !macroend
 !define RemoveDeprecatedKeys "!insertmacro RemoveDeprecatedKeys"
 
-; Removes various directories and files for reasons noted below.
-!macro RemoveDeprecatedFiles
-  ; Remove talkback if it is present (remove after bug 386760 is fixed)
-  ${If} ${FileExists} "$INSTDIR\extensions\talkback@mozilla.org\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\talkback@mozilla.org\"
-  ${EndIf}
-
-  ; Remove the Java Console extension (bug 597235)
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}\"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}\"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}\"
-  ${EndIf}
-!macroend
-!define RemoveDeprecatedFiles "!insertmacro RemoveDeprecatedFiles"
-
-; Adds a shortcut to the root of the Start Menu Programs directory if the
-; application's Start Menu Programs directory exists with a shortcut pointing to
-; this installation directory. This will also remove the old shortcuts and the
-; application's Start Menu Programs directory by calling the RemoveStartMenuDir
-; macro.
-!macro MigrateStartMenuShortcut
-  ${GetShortcutsLogPath} $0
-  ${If} ${FileExists} "$0"
-    ClearErrors
-    ReadINIStr $5 "$0" "SMPROGRAMS" "RelativePathToDir"
-    ${Unless} ${Errors}
-      ClearErrors
-      ReadINIStr $1 "$0" "STARTMENU" "Shortcut0"
-      ${If} ${Errors}
-        ; The STARTMENU ini section doesn't exist.
-        ${LogStartMenuShortcut} "${BrandFullName}.lnk"
-        ${GetLongPath} "$SMPROGRAMS" $2
-        ${GetLongPath} "$2\$5" $1
-        ${If} "$1" != ""
-          ClearErrors
-          ReadINIStr $3 "$0" "SMPROGRAMS" "Shortcut0"
-          ${Unless} ${Errors}
-            ${If} ${FileExists} "$1\$3"
-              ShellLink::GetShortCutTarget "$1\$3"
-              Pop $4
-              ${If} "$INSTDIR\${FileMainEXE}" == "$4"
-                CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" \
-                               "$INSTDIR\${FileMainEXE}" "" \
-                               "$INSTDIR\${FileMainEXE}" 0
-                ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                                       "$INSTDIR"
-                ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                   "${AppUserModelID}"
-              ${EndIf}
-            ${EndIf}
-          ${EndUnless}
-        ${EndIf}
-      ${EndIf}
-      ; Remove the application's Start Menu Programs directory, shortcuts, and
-      ; ini section.
-      ${RemoveStartMenuDir}
-    ${EndUnless}
-  ${EndIf}
-!macroend
-!define MigrateStartMenuShortcut "!insertmacro MigrateStartMenuShortcut"
-
-; Removes the application's start menu directory along with its shortcuts if
-; they exist and if they exist creates a start menu shortcut in the root of the
-; start menu directory (bug 598779). If the application's start menu directory
-; is not empty after removing the shortucts the directory will not be removed
-; since these additional items were not created by the installer (uses SHCTX).
-!macro RemoveStartMenuDir
-  ${GetShortcutsLogPath} $0
-  ${If} ${FileExists} "$0"
-    ; Delete Start Menu Programs shortcuts, directory if it is empty, and
-    ; parent directories if they are empty up to but not including the start
-    ; menu directory.
-    ${GetLongPath} "$SMPROGRAMS" $1
-    ClearErrors
-    ReadINIStr $2 "$0" "SMPROGRAMS" "RelativePathToDir"
-    ${Unless} ${Errors}
-      ${GetLongPath} "$1\$2" $2
-      ${If} "$2" != ""
-        ; Delete shortucts in the Start Menu Programs directory.
-        StrCpy $3 0
-        ${Do}
-          ClearErrors
-          ReadINIStr $4 "$0" "SMPROGRAMS" "Shortcut$3"
-          ; Stop if there are no more entries
-          ${If} ${Errors}
-            ${ExitDo}
-          ${EndIf}
-          ${If} ${FileExists} "$2\$4"
-            ShellLink::GetShortCutTarget "$2\$4"
-            Pop $5
-            ${If} "$INSTDIR\${FileMainEXE}" == "$5"
-              Delete "$2\$4"
-            ${EndIf}
-          ${EndIf}
-          IntOp $3 $3 + 1 ; Increment the counter
-        ${Loop}
-        ; Delete Start Menu Programs directory and parent directories
-        ${Do}
-          ; Stop if the current directory is the start menu directory
-          ${If} "$1" == "$2"
-            ${ExitDo}
-          ${EndIf}
-          ClearErrors
-          RmDir "$2"
-          ; Stop if removing the directory failed
-          ${If} ${Errors}
-            ${ExitDo}
-          ${EndIf}
-          ${GetParent} "$2" $2
-        ${Loop}
-      ${EndIf}
-      DeleteINISec "$0" "SMPROGRAMS"
-    ${EndUnless}
-  ${EndIf}
-!macroend
-!define RemoveStartMenuDir "!insertmacro RemoveStartMenuDir"
-
-; Creates the shortcuts log ini file with the appropriate entries if it doesn't
-; already exist.
-!macro CreateShortcutsLog
-  ${GetShortcutsLogPath} $0
-  ${Unless} ${FileExists} "$0"
-    ${LogStartMenuShortcut} "${BrandFullName}.lnk"
-    ${LogQuickLaunchShortcut} "${BrandFullName}.lnk"
-    ${LogDesktopShortcut} "${BrandFullName}.lnk"
-  ${EndUnless}
-!macroend
-!define CreateShortcutsLog "!insertmacro CreateShortcutsLog"
-
 ; The files to check if they are in use during (un)install so the restart is
 ; required message is displayed. All files must be located in the $INSTDIR
 ; directory.
@@ -790,111 +563,11 @@
   Push "nssckbi.dll"
   Push "nspr4.dll"
   Push "nssdbm3.dll"
-  Push "mozsqlite3.dll"
+  Push "sqlite3.dll"
   Push "xpcom.dll"
   Push "crashreporter.exe"
   Push "updater.exe"
+  Push "xpicleanup.exe"
   Push "${FileMainEXE}"
 !macroend
 !define PushFilesToCheck "!insertmacro PushFilesToCheck"
-
-
-; Sets this installation as the default browser by setting the registry keys
-; under HKEY_CURRENT_USER via registry calls and using the AppAssocReg NSIS
-; plugin for Vista and above. This is a function instead of a macro so it is
-; easily called from an elevated instance of the binary. Since this can be
-; called by an elevated instance logging is not performed in this function.
-Function SetAsDefaultAppUserHKCU
-  ; Only set as the user's StartMenuInternet browser if the StartMenuInternet
-  ; registry keys are for this install.
-  ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
-  ClearErrors
-  ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$R9\DefaultIcon" ""
-  ${Unless} ${Errors}
-    ${GetPathFromString} "$0" $0
-    ${GetParent} "$0" $0
-    ${If} ${FileExists} "$0"
-      ${GetLongPath} "$0" $0
-      ${If} "$0" == "$INSTDIR"
-        WriteRegStr HKCU "Software\Clients\StartMenuInternet" "" "$R9"
-      ${EndIf}
-    ${EndIf}
-  ${EndUnless}
-
-  SetShellVarContext current  ; Set SHCTX to the current user (e.g. HKCU)
-  ${SetHandlers}
-
-  ${If} ${AtLeastWinVista}
-    ; Only register as the handler on Vista and above if the app registry name
-    ; exists under the RegisteredApplications registry key. The protocol and
-    ; file handlers set previously at the user level will associate this install
-    ; as the default browser.
-    ClearErrors
-    ReadRegStr $0 HKLM "Software\RegisteredApplications" "${AppRegName}"
-    ${Unless} ${Errors}
-      AppAssocReg::SetAppAsDefaultAll "${AppRegName}"
-    ${EndUnless}
-  ${EndIf}
-  ${RemoveDeprecatedKeys}
-FunctionEnd
-
-; The !ifdef NO_LOG prevents warnings when compiling the installer.nsi due to
-; this function only being used by the uninstaller.nsi.
-!ifdef NO_LOG
-
-Function SetAsDefaultAppUser
-  ; It is only possible to set this installation of the application as the
-  ; StartMenuInternet handler if it was added to the HKLM StartMenuInternet
-  ; registry keys.
-  ; http://support.microsoft.com/kb/297878
-
-  ; Check if this install location registered as the StartMenuInternet client
-  ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
-  ClearErrors
-  ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$R9\DefaultIcon" ""
-  ${Unless} ${Errors}
-    ${GetPathFromString} "$0" $0
-    ${GetParent} "$0" $0
-    ${If} ${FileExists} "$0"
-      ${GetLongPath} "$0" $0
-      ${If} "$0" == "$INSTDIR"
-        ; Check if this is running in an elevated process
-        ClearErrors
-        ${GetParameters} $0
-        ${GetOptions} "$0" "/UAC:" $0
-        ${If} ${Errors} ; Not elevated
-          Call SetAsDefaultAppUserHKCU
-        ${Else} ; Elevated - execute the function in the unelevated process
-          GetFunctionAddress $0 SetAsDefaultAppUserHKCU
-          UAC::ExecCodeSegment $0
-        ${EndIf}
-        Return ; Nothing more needs to be done
-      ${EndIf}
-    ${EndIf}
-  ${EndUnless}
-
-  ; The code after ElevateUAC won't be executed on Vista and above when the
-  ; user:
-  ; a) is a member of the administrators group (e.g. elevation is required)
-  ; b) is not a member of the administrators group and chooses to elevate
-  ${ElevateUAC}
-
-  ${SetStartMenuInternet}
-
-  SetShellVarContext all  ; Set SHCTX to all users (e.g. HKLM)
-  ${FixShellIconHandler}
-  ${RemoveDeprecatedKeys}
-
-  ClearErrors
-  ${GetParameters} $0
-  ${GetOptions} "$0" "/UAC:" $0
-  ${If} ${Errors}
-    Call SetAsDefaultAppUserHKCU
-  ${Else}
-    GetFunctionAddress $0 SetAsDefaultAppUserHKCU
-    UAC::ExecCodeSegment $0
-  ${EndIf}
-FunctionEnd
-!define SetAsDefaultAppUser "Call SetAsDefaultAppUser"
-
-!endif

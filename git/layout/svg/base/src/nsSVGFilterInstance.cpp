@@ -37,11 +37,10 @@
 #include "nsSVGFilterInstance.h"
 #include "nsSVGUtils.h"
 #include "nsIDOMSVGUnitTypes.h"
+#include "nsSVGMatrix.h"
 #include "gfxPlatform.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
-#include "nsLayoutUtils.h"
-#include "gfxUtils.h"
 
 static double Square(double aX)
 {
@@ -71,17 +70,6 @@ nsSVGFilterInstance::GetPrimitiveLength(nsSVGLength2 *aLength) const
   }
 }
 
-void
-nsSVGFilterInstance::ConvertLocation(float aValues[3]) const
-{
-  if (mPrimitiveUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    aValues[0] *= mTargetBBox.Width();
-    aValues[1] *= mTargetBBox.Height();
-    aValues[2] *= nsSVGUtils::ComputeNormalizedHypotenuse(
-                    mTargetBBox.Width(), mTargetBBox.Height());
-  }
-}
-
 already_AddRefed<gfxImageSurface>
 nsSVGFilterInstance::CreateImage()
 {
@@ -108,14 +96,18 @@ nsSVGFilterInstance::UserSpaceToFilterSpace(const gfxRect& aRect) const
   return r;
 }
 
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGFilterInstance::GetUserSpaceToFilterSpaceTransform() const
 {
+  nsCOMPtr<nsIDOMSVGMatrix> filterTransform;
   gfxFloat widthScale = mFilterSpaceSize.width / mFilterRect.Width();
   gfxFloat heightScale = mFilterSpaceSize.height / mFilterRect.Height();
-  return gfxMatrix(widthScale, 0.0f,
-                   0.0f, heightScale,
-                   -mFilterRect.X() * widthScale, -mFilterRect.Y() * heightScale);
+  NS_NewSVGMatrix(getter_AddRefs(filterTransform),
+                  widthScale, 0.0f,
+                  0.0f, heightScale,
+                  -mFilterRect.X() * widthScale,
+                  -mFilterRect.Y() * heightScale);
+  return filterTransform.forget();
 }
 
 void
@@ -163,11 +155,20 @@ nsSVGFilterInstance::BuildSources()
   mSourceAlpha.mImage.mFilterPrimitiveSubregion = filterRegion;
 
   nsIntRect sourceBoundsInt;
-  gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
-  sourceBounds.RoundOut();
-  // Detect possible float->int overflow
-  if (!gfxUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt))
-    return NS_ERROR_FAILURE;
+  if (mTargetBBox) {
+    float x, y, w, h;
+    mTargetBBox->GetX(&x);
+    mTargetBBox->GetY(&y);
+    mTargetBBox->GetWidth(&w);
+    mTargetBBox->GetHeight(&h);
+
+    gfxRect sourceBounds = UserSpaceToFilterSpace(gfxRect(x, y, w, h));
+
+    sourceBounds.RoundOut();
+    // Detect possible float->int overflow
+    if (NS_FAILED(nsSVGUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
+      return NS_ERROR_FAILURE;
+  }
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
   mSourceAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -199,12 +200,11 @@ nsSVGFilterInstance::BuildPrimitives()
   for (i = 0; i < mPrimitives.Length(); ++i) {
     PrimitiveInfo* info = &mPrimitives[i];
     nsSVGFE* filter = info->mFE;
-    nsAutoTArray<nsSVGStringInfo,2> sources;
-    filter->GetSourceImageNames(sources);
+    nsAutoTArray<nsSVGString*,2> sources;
+    filter->GetSourceImageNames(&sources);
  
     for (PRUint32 j=0; j<sources.Length(); ++j) {
-      nsAutoString str;
-      sources[j].mString->GetAnimValue(str, sources[j].mElement);
+      const nsString& str = sources[j]->GetAnimValue();
       PrimitiveInfo* sourceInfo;
 
       if (str.EqualsLiteral("SourceGraphic")) {
@@ -231,10 +231,8 @@ nsSVGFilterInstance::BuildPrimitives()
 
     ComputeFilterPrimitiveSubregion(info);
 
-    nsAutoString str;
-    filter->GetResultImageName().GetAnimValue(str, filter);
-
-    ImageAnalysisEntry* entry = imageTable.PutEntry(str);
+    ImageAnalysisEntry* entry =
+      imageTable.PutEntry(filter->GetResultImageName()->GetAnimValue());
     if (entry) {
       entry->mInfo = info;
     }
@@ -343,43 +341,35 @@ nsSVGFilterInstance::BuildSourceImages()
     nsRefPtr<gfxASurface> offscreen =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(
               gfxIntSize(mSurfaceRect.width, mSurfaceRect.height),
-              gfxASurface::CONTENT_COLOR_ALPHA);
+              gfxASurface::ImageFormatARGB32);
     if (!offscreen || offscreen->CairoStatus())
       return NS_ERROR_OUT_OF_MEMORY;
     offscreen->SetDeviceOffset(gfxPoint(-mSurfaceRect.x, -mSurfaceRect.y));
   
     nsSVGRenderState tmpState(offscreen);
-    gfxMatrix userSpaceToFilterSpace = GetUserSpaceToFilterSpaceTransform();
+    nsCOMPtr<nsIDOMSVGMatrix> userSpaceToFilterSpaceTransform
+      = GetUserSpaceToFilterSpaceTransform();
+    if (!userSpaceToFilterSpaceTransform)
+      return NS_ERROR_OUT_OF_MEMORY;
 
+    gfxMatrix m =
+      nsSVGUtils::ConvertSVGMatrixToThebes(userSpaceToFilterSpaceTransform);
     gfxRect r(neededRect.x, neededRect.y, neededRect.width, neededRect.height);
-    gfxMatrix m = userSpaceToFilterSpace;
     m.Invert();
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    if (!gfxUtils::GfxRectToIntRect(r, &dirty))
-      return NS_ERROR_FAILURE;
-
-    // SVG graphics paint to device space, so we need to set an initial device
-    // space to filter space transform on the gfxContext that SourceGraphic
-    // and SourceAlpha will paint to.
-    //
-    // (In theory it would be better to minimize error by having filtered SVG
-    // graphics temporarily paint to user space when painting the sources and
-    // only set a user space to filter space transform on the gfxContext
-    // (since that would elliminate the transform multiplications from user
-    // space to device space and back again). However, that would make the
-    // code more complex while being hard to get right without introducing
-    // subtle bugs, and in practice it probably makes no real difference.)
-    gfxMatrix deviceToFilterSpace = GetFilterSpaceToDeviceSpaceTransform().Invert();
-    tmpState.GetGfxContext()->Multiply(deviceToFilterSpace);
-    mPaintCallback->Paint(&tmpState, mTargetFrame, &dirty);
+    nsresult rv = nsSVGUtils::GfxRectToIntRect(r, &dirty);
+    if (NS_FAILED(rv))
+      return rv;
+    mPaintCallback->Paint(&tmpState, mTargetFrame, &dirty,
+                          userSpaceToFilterSpaceTransform);
 
     gfxContext copyContext(sourceColorAlpha);
     copyContext.SetSource(offscreen);
     copyContext.Paint();
   }
-
+  
   if (!mSourceColorAlpha.mResultNeededBox.IsEmpty()) {
     NS_ASSERTION(mSourceColorAlpha.mImageUsers > 0, "Some user must have needed this");
     mSourceColorAlpha.mImage.mImage = sourceColorAlpha;
@@ -487,26 +477,21 @@ nsSVGFilterInstance::Render(gfxASurface** aOutput)
       if (!input->mImage.mImage) {
         // This image data is not really going to be used, but we'd better
         // have an image object here so the filter primitive doesn't die.
-        input->mImage.mImage = CreateImage();
+        input->mImage.mImage =
+          new gfxImageSurface(gfxIntSize(1, 1), gfxASurface::ImageFormatARGB32);
         if (!input->mImage.mImage)
           return NS_ERROR_OUT_OF_MEMORY;
       }
       
       ColorModel desiredColorModel =
         primitive->mFE->GetInputColorModel(this, j, &input->mImage);
-      if (j == 0) {
-        // the output colour model is whatever in1 is if there is an in1
-        primitive->mImage.mColorModel = desiredColorModel;
-      }
       EnsureColorModel(input, desiredColorModel);
       NS_ASSERTION(input->mImage.mImage->Stride() == primitive->mImage.mImage->Stride(),
                    "stride mismatch");
       inputs.AppendElement(&input->mImage);
     }
 
-    if (primitive->mInputs.Length() == 0) {
-      primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
-    }
+    primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
 
     rv = primitive->mFE->Filter(this, inputs, &primitive->mImage, dataRect);
     if (NS_FAILED(rv))

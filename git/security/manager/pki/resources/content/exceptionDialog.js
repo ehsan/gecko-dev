@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Johnathan Nightingale <johnath@mozilla.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -95,14 +94,18 @@ function initExceptionDialog() {
       // until the fetch is completed, which could be multiple seconds.
       // Instead, let's use a timer to spawn the actual fetch, but update
       // the dialog to "checking..." state right away, so that the UI
-      // is appropriately responsive.  Bug 453855
+      // is appropriately responsive.  We could include a very short lag
+      // and there would still be time for the window to draw, but bringing
+      // it up to a couple seconds still feels responsive, while also giving
+      // users who are unfamiliar with the dialog a chance to read the preamble
+      // before the dialog fills up with details about the certificate
+      // problems.  Bug 453855
       if (args[0].prefetchCert) {
-
-        document.getElementById("checkCertButton").disabled = true;
+        
         gChecking = true;
         updateCertStatus();
         
-        window.setTimeout(checkCert, 0);
+        window.setTimeout(checkCert, 2000);
       }
     }
     
@@ -283,15 +286,7 @@ function updateCertStatus() {
       
       // In these cases, we do want to enable the "Add Exception" button
       gDialog.getButton("extra1").disabled = false;
-
-      // If the Private Browsing service is available and the mode is active,
-      // don't store permanent exceptions, since they would persist after
-      // private browsing mode was disabled.
-      var inPrivateBrowsing = inPrivateBrowsingMode();
-      var pe = document.getElementById("permanent");
-      pe.disabled = inPrivateBrowsing;
-      pe.checked = !inPrivateBrowsing;
-
+      document.getElementById("permanent").disabled = false;
       setText("headerDescription", gPKIBundle.GetStringFromName("addExceptionInvalidHeader"));
     }
     else {
@@ -300,23 +295,12 @@ function updateCertStatus() {
       gDialog.getButton("extra1").disabled = true;
       document.getElementById("permanent").disabled = true;
     }
-
-    // We're done checking the certificate, so allow the user to check it again.
-    document.getElementById("checkCertButton").disabled = false;
+    
     document.getElementById("viewCertButton").disabled = false;
-
-    // Notify observers about the availability of the certificate
-    Components.classes["@mozilla.org/observer-service;1"]
-              .getService(Components.interfaces.nsIObserverService)
-              .notifyObservers(null, "cert-exception-ui-ready", null);
   }
   else if (gChecking) {
     shortDesc = "addExceptionCheckingShort";
     longDesc  = "addExceptionCheckingLong";
-    // We're checking the certificate, so we disable the Get Certificate
-    // button to make sure that the user can't interrupt the process and
-    // trigger another certificate fetch.
-    document.getElementById("checkCertButton").disabled = true;
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
     document.getElementById("permanent").disabled = true;
@@ -324,8 +308,6 @@ function updateCertStatus() {
   else {
     shortDesc = "addExceptionNoCertShort";
     longDesc  = "addExceptionNoCertLong";
-    // We're done checking the certificate, so allow the user to check it again.
-    document.getElementById("checkCertButton").disabled = false;
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
     document.getElementById("permanent").disabled = true;
@@ -374,39 +356,17 @@ function addException() {
     flags |= overrideService.ERROR_TIME;
   
   var permanentCheckbox = document.getElementById("permanent");
-  var shouldStorePermanently = permanentCheckbox.checked && !inPrivateBrowsingMode();
 
   var uri = getURI();
   overrideService.rememberValidityOverride(
     uri.asciiHost, uri.port,
     gCert,
     flags,
-    !shouldStorePermanently);
+    !permanentCheckbox.checked);
   
   var args = window.arguments;
   if (args && args[0])
     args[0].exceptionAdded = true;
   
   gDialog.acceptDialog();
-}
-
-/**
- * Returns true if the private browsing mode is currently active and
- * we have been instructed to handle it.
- */
-function inPrivateBrowsingMode() {
-  // first, check to see if we should handle the private browsing mode
-  var args = window.arguments;
-  if (args && args[0] && args[0].handlePrivateBrowsing) {
-    // detect if the private browsing mode is active
-    try {
-      var pb = Components.classes["@mozilla.org/privatebrowsing;1"].
-               getService(Components.interfaces.nsIPrivateBrowsingService);
-      return pb.privateBrowsingEnabled;
-    } catch (ex) {
-      Components.utils.reportError("Could not get the Private Browsing service");
-    }
-  }
-
-  return false;
 }

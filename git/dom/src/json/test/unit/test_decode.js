@@ -96,11 +96,11 @@ function test_files() {
     return x;
   }
 
-  var x = read_file("pass3.json");
+  var x = read_file("/dom/src/json/test/pass3.json");
   do_check_eq(x["JSON Test Pattern pass3"]["The outermost value"], "must be an object or array.");
   do_check_eq(x["JSON Test Pattern pass3"]["In this test"], "It is an object.");
 
-  x = read_file("pass1.json");
+  x = read_file("/dom/src/json/test/pass1.json");
   do_check_eq(x[0], "JSON Test Pattern pass1");
   do_check_eq(x[1]["object with 1 member"][0], "array with 1 element");
   do_check_eq(x[2].constructor, Object);
@@ -163,17 +163,29 @@ function test_files() {
   // Section 4 of RFC 4627 allows this tolerance.
   //
   for (var i = 1; i <= 34; ++i) {
-    var path = "fail" + i + ".json";
+    var path = "/dom/src/json/test/fail" + i + ".json";
     try {
       dump(path +"\n");
       x = read_file(path);
-      if (i == 13) {
+      if (i == 4) {
+        // ["extra comma",]
+        do_check_eq(x[0], "extra comma");
+        do_check_eq(x.length, 1);
+      } else if (i == 9) {
+        // {"Extra comma": true,}
+        do_check_eq(x["Extra comma"], true);
+      } else if (i == 13) {
         // {"Numbers cannot have leading zeroes": 013}
         do_check_eq(x["Numbers cannot have leading zeroes"], 13);
       } else if (i == 18) {
         // [[[[[[[[[[[[[[[[[[[["Too deep"]]]]]]]]]]]]]]]]]]]]
         var t = x[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0];
         do_check_eq(t, "Too deep");
+      } else if (i == 25) {
+        // ["	tab	character	in	string	"]
+        do_check_eq(x[0], "\ttab\tcharacter\tin\tstring\t");
+      } else if (i == 27) {
+        do_check_eq(x[0], "line\nbreak");
       } else {
 
         do_throw("UNREACHED");
@@ -182,9 +194,6 @@ function test_files() {
 
     } catch (ex) {
       // expected from parsing invalid JSON
-      if (i == 13 || i == 18) {
-        do_throw("Unexpected pass in " + path);
-      }
     }
   }
   

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://gre/modules/utils.js");
 var tests = [];
 
 // Get database connection
@@ -102,7 +103,7 @@ function run_test() {
   do_check_eq(typeof PlacesUtils, "object");
 
   // make json file
-  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  var jsonFile = dirSvc.get("ProfD", Ci.nsILocalFile);
   jsonFile.append("bookmarks.json");
   if (jsonFile.exists())
     jsonFile.remove(false);
@@ -120,16 +121,12 @@ function run_test() {
     var sql = "UPDATE moz_bookmarks SET fk = 1337 WHERE id = ?1";
     var stmt = mDBConn.createStatement(sql);
     stmt.bindUTF8StringParameter(0, aTest._itemId);
-    try {
-      stmt.execute();
-    } finally {
-      stmt.finalize();
-    }
+    stmt.execute();
   });
 
   // export json to file
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
   // clean

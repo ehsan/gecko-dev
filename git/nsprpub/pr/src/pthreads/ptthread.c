@@ -52,13 +52,6 @@
 #include <string.h>
 #include <signal.h>
 
-#ifdef SYMBIAN
-/* In Open C sched_get_priority_min/max do not work properly, so we undefine
- * _POSIX_THREAD_PRIORITY_SCHEDULING here.
- */
-#undef _POSIX_THREAD_PRIORITY_SCHEDULING
-#endif
-
 /*
  * Record whether or not we have the privilege to set the scheduling
  * policy and priority of threads.  0 means that privilege is available.
@@ -102,6 +95,42 @@ static PRIntn pt_PriorityMap(PRThreadPriority pri)
 }
 #endif
 
+#if defined(GC_LEAK_DETECTOR) && (__GLIBC__ >= 2) && defined(__i386__) 
+
+#include <setjmp.h>
+
+typedef struct stack_frame stack_frame;
+
+struct stack_frame {
+    stack_frame* next;
+    void* pc;
+};
+
+static stack_frame* GetStackFrame()
+{
+    jmp_buf jb;
+    stack_frame* currentFrame;
+    setjmp(jb);
+    currentFrame = (stack_frame*)(jb[0].__jmpbuf[JB_BP]);
+    currentFrame = currentFrame->next;
+    return currentFrame;
+}
+
+static void* GetStackTop()
+{
+    stack_frame* frame;
+    frame = GetStackFrame();
+    while (frame != NULL)
+    {
+        ptrdiff_t pc = (ptrdiff_t)frame->pc;
+        if ((pc < 0x08000000) || (pc > 0x7fffffff) || (frame->next < frame))
+            return frame;
+        frame = frame->next;
+    }
+    return NULL;
+}
+#endif /* GC_LEAK_DETECTOR && (__GLIBC__ >= 2) && __i386__ */
+
 /*
 ** Initialize a stack for a native pthread thread
 */
@@ -118,8 +147,13 @@ static void _PR_InitializeStack(PRThreadStack *ts)
         ts->stackBottom = ts->allocBase + ts->stackSize;
         ts->stackTop = ts->allocBase;
 #else
+#ifdef GC_LEAK_DETECTOR
+        ts->stackTop    = GetStackTop();
+        ts->stackBottom = ts->stackTop - ts->stackSize;
+#else
         ts->stackTop    = ts->allocBase;
         ts->stackBottom = ts->allocBase - ts->stackSize;
+#endif
 #endif
     }
 }
@@ -711,10 +745,10 @@ PR_IMPLEMENT(PRStatus) PR_Interrupt(PRThread *thred)
     if ((NULL != cv) && !thred->interrupt_blocked)
     {
         PRIntn rv;
-        (void)PR_ATOMIC_INCREMENT(&cv->notify_pending);
+        (void)PR_AtomicIncrement(&cv->notify_pending);
         rv = pthread_cond_broadcast(&cv->cv);
         PR_ASSERT(0 == rv);
-        if (0 > PR_ATOMIC_DECREMENT(&cv->notify_pending))
+        if (0 > PR_AtomicDecrement(&cv->notify_pending))
             PR_DestroyCondVar(cv);
     }
     return PR_SUCCESS;
@@ -780,28 +814,8 @@ PR_IMPLEMENT(PRStatus) PR_Sleep(PRIntervalTime ticks)
 
 static void _pt_thread_death(void *arg)
 {
-    void *thred;
-    int rv;
-
-    _PT_PTHREAD_GETSPECIFIC(pt_book.key, thred);
-    if (NULL == thred)
-    {
-        /*
-         * Have PR_GetCurrentThread return the expected value to the
-         * destructors.
-         */
-        rv = pthread_setspecific(pt_book.key, arg);
-        PR_ASSERT(0 == rv);
-    }
-
     /* PR_TRUE for: call destructors */ 
     _pt_thread_death_internal(arg, PR_TRUE);
-
-    if (NULL == thred)
-    {
-        rv = pthread_setspecific(pt_book.key, NULL);
-        PR_ASSERT(0 == rv);
-    }
 }
 
 static void _pt_thread_death_internal(void *arg, PRBool callDestructors)
@@ -1019,13 +1033,7 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup(void)
         PR_Lock(pt_book.ml);
         while (pt_book.user > pt_book.this_many)
             PR_WaitCondVar(pt_book.cv, PR_INTERVAL_NO_TIMEOUT);
-        if (me->state & PT_THREAD_SYSTEM)
-            pt_book.system -= 1;
-        else
-            pt_book.user -= 1;
         PR_Unlock(pt_book.ml);
-
-        _PR_MD_EARLY_CLEANUP();
 
         _PR_CleanupMW();
         _PR_CleanupTime();
@@ -1144,7 +1152,6 @@ static void null_signal_handler(PRIntn sig);
  */
 static void init_pthread_gc_support(void)
 {
-#ifndef SYMBIAN
     PRIntn rv;
 
 #if defined(_PR_DCETHREADS)
@@ -1181,7 +1188,6 @@ static void init_pthread_gc_support(void)
     }
 #endif  /* defined(PT_NO_SIGTIMEDWAIT) */
 #endif /* defined(_PR_DCETHREADS) */
-#endif /* SYMBIAN */
 }
 
 PR_IMPLEMENT(void) PR_SetThreadGCAble(void)
@@ -1332,9 +1338,8 @@ static void suspend_signal_handler(PRIntn sig)
 	while (me->suspend & PT_THREAD_SUSPENDED)
 	{
 #if !defined(FREEBSD) && !defined(NETBSD) && !defined(OPENBSD) \
-    && !defined(BSDI) && !defined(UNIXWARE) \
-    && !defined(DARWIN) && !defined(RISCOS) \
-    && !defined(SYMBIAN) /*XXX*/
+    && !defined(BSDI) && !defined(VMS) && !defined(UNIXWARE) \
+    && !defined(DARWIN) && !defined(RISCOS) /*XXX*/
         PRIntn rv;
 	    sigwait(&sigwait_set, &rv);
 #endif
@@ -1378,9 +1383,8 @@ static void pt_SuspendSet(PRThread *thred)
     PR_LOG(_pr_gc_lm, PR_LOG_ALWAYS, 
 	   ("doing pthread_kill in pt_SuspendSet thred %p tid = %X\n",
 	   thred, thred->id));
-#if defined(SYMBIAN)
-    /* All signal group functions are not implemented in Symbian OS */
-    rv = 0;
+#if defined(VMS)
+    rv = thread_suspend(thred);
 #else
     rv = pthread_kill (thred->id, SIGUSR2);
 #endif
@@ -1435,8 +1439,8 @@ static void pt_ResumeSet(PRThread *thred)
     thred->suspend &= ~PT_THREAD_SUSPENDED;
 
 #if defined(PT_NO_SIGTIMEDWAIT)
-#if defined(SYMBIAN) 
-	/* All signal group functions are not implemented in Symbian OS */
+#if defined(VMS)
+	thread_resume(thred);
 #else
 	pthread_kill(thred->id, SIGUSR1);
 #endif

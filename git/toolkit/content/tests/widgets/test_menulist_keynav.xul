@@ -3,15 +3,17 @@
 <?xml-stylesheet href="/tests/SimpleTest/test.css" type="text/css"?>
 
 <window title="Menulist Key Navigation Tests"
-        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  onload="setTimeout(runTests, 0);"
+  xmlns:html="http://www.w3.org/1999/xhtml"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <title>Menulist Key Navigation Tests</title>
   <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>      
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>      
 
-<button id="button1" label="One"/>
 <menulist id="list">
-  <menupopup id="popup" onpopupshowing="return gShowPopup;">
+  <menupopup>
     <menuitem id="i1" label="One"/>
     <menuitem id="i2" label="Two"/>
     <menuitem id="i2b" disabled="true" label="Two and a Half"/>
@@ -19,14 +21,11 @@
     <menuitem id="i4" label="Four"/>
   </menupopup>
 </menulist>
-<button id="button2" label="Two"/>
 
 <script class="testbody" type="application/javascript">
 <![CDATA[
 
 SimpleTest.waitForExplicitFinish();
-
-var gShowPopup = false;
 
 var iswin = (navigator.platform.indexOf("Win") == 0);
 
@@ -44,12 +43,6 @@ function runTests()
     keyCheck(list, "VK_UP", 4, "cursor up wrap");
     keyCheck(list, "VK_DOWN", 1, "cursor down wrap");
   }
-
-  // check that attempting to open the menulist does not change the selection
-  synthesizeKey("VK_DOWN", { altKey: navigator.platform.indexOf("Mac") == -1 });
-  is(list.selectedItem, $("i1"), "open menulist down selectedItem");
-  synthesizeKey("VK_UP", { altKey: navigator.platform.indexOf("Mac") == -1 });
-  is(list.selectedItem, $("i1"), "open menulist up selectedItem");
 
   synthesizeKey("G", { });
   is(list.selectedItem, $("i1"), "letter pressed not found selectedItem");
@@ -69,49 +62,7 @@ function pressedAgain()
 
 function differentPressed()
 {
-  var list = $("list");
-  keyCheck(list, "O", 1, "different letter pressed");
-
-  if (navigator.platform.indexOf("Mac") == -1) {
-    $("button1").focus();
-    synthesizeKeyExpectEvent("VK_TAB", { }, list, "focus", "focus to menulist");
-    synthesizeKeyExpectEvent("VK_TAB", { }, $("button2"), "focus", "focus to button");
-    is(document.activeElement, $("button2"), "tab from menulist focused button");
-  }
-
-  // now make sure that using a key scrolls the menu correctly
-  gShowPopup = true;
-
-  for (let i = 0; i < 65; i++) {
-    list.appendItem("Item" + i, "item" + i);
-  }
-  list.open = true;
-  is(list.getBoundingClientRect().width, list.firstChild.getBoundingClientRect().width,
-     "menu and popup width match");
-  ok(list.getBoundingClientRect().width > list.getItemAtIndex(0).getBoundingClientRect().width + 2,
-     "menuitem width accounts for scrollbar");
-  list.open = false;
-
-  list.menupopup.maxHeight = 100;
-  list.open = true;
-
-  var rowdiff = list.getItemAtIndex(1).getBoundingClientRect().top -
-                list.getItemAtIndex(0).getBoundingClientRect().top;
-
-  var item = list.getItemAtIndex(10);
-  var originalPosition = item.getBoundingClientRect().top;
-
-  list.menuBoxObject.activeChild = item;
-  ok(item.getBoundingClientRect().top < originalPosition,
-    "position of item 1: " + item.getBoundingClientRect().top + " -> " + originalPosition);
-
-  originalPosition = item.getBoundingClientRect().top;
-
-  synthesizeKey("VK_DOWN", { });
-  is(item.getBoundingClientRect().top, originalPosition - rowdiff, "position of item 10");
-
-  list.open = false;
-
+  keyCheck($("list"), "O", 1, "different letter pressed");
   SimpleTest.finish();
 }
 
@@ -121,8 +72,6 @@ function keyCheck(list, key, index, testname)
   synthesizeKeyExpectEvent(key, { }, item, "command", testname);
   is(list.selectedItem, item, testname + " selectedItem");
 }
-
-SimpleTest.waitForFocus(runTests);
 
 ]]>
 </script>

@@ -49,6 +49,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsSeamonkeyProfileMigrator.h"
+#include "nsVoidArray.h"
 #include "nsIProfileMigrator.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -349,6 +350,7 @@ nsSeamonkeyProfileMigrator::FillProfileDataFromSeamonkeyRegistry()
 static 
 nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("signon.SignonFileName",                    String),
+  MAKESAMETYPEPREFTRANSFORM("browser.history_expire_days",              Int),
   MAKESAMETYPEPREFTRANSFORM("browser.tabs.autoHide",                    Bool),
   MAKESAMETYPEPREFTRANSFORM("browser.tabs.loadInBackground",            Bool),
   MAKESAMETYPEPREFTRANSFORM("browser.enable_automatic_image_resizing",  Bool),
@@ -369,6 +371,7 @@ nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.enabled",                    Int),
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.signingCA",                  String),
   MAKESAMETYPEPREFTRANSFORM("security.OSCP.URL",                        String),
+  MAKESAMETYPEPREFTRANSFORM("security.enable_java",                     Bool),
   MAKESAMETYPEPREFTRANSFORM("javascript.enabled",                       Bool),
   MAKESAMETYPEPREFTRANSFORM("dom.disable_window_move_resize",           Bool),
   MAKESAMETYPEPREFTRANSFORM("dom.disable_window_flip",                  Bool),
@@ -386,6 +389,8 @@ nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("network.proxy.ssl_port",                   Int),
   MAKESAMETYPEPREFTRANSFORM("network.proxy.socks",                      String),
   MAKESAMETYPEPREFTRANSFORM("network.proxy.socks_port",                 Int),
+  MAKESAMETYPEPREFTRANSFORM("network.proxy.gopher",                     String),
+  MAKESAMETYPEPREFTRANSFORM("network.proxy.gopher_port",                Int),
   MAKESAMETYPEPREFTRANSFORM("network.proxy.no_proxies_on",              String),
   MAKESAMETYPEPREFTRANSFORM("network.proxy.autoconfig_url",             String),
   MAKESAMETYPEPREFTRANSFORM("browser.display.foreground_color",         String),
@@ -474,8 +479,10 @@ nsSeamonkeyProfileMigrator::TransformPreferences(const nsAString& aSourcePrefFil
   for (transform = gTransforms; transform < end; ++transform)
     transform->prefGetterFunc(transform, branch);
 
-  nsTArray<FontPref> fontPrefs;
-  ReadFontsBranch(psvc, &fontPrefs);
+  nsVoidArray* fontPrefs = new nsVoidArray();
+  if (!fontPrefs)
+    return NS_ERROR_OUT_OF_MEMORY;
+  ReadFontsBranch(psvc, fontPrefs);
 
   // Now that we have all the pref data in memory, load the target pref file,
   // and write it back out
@@ -483,7 +490,9 @@ nsSeamonkeyProfileMigrator::TransformPreferences(const nsAString& aSourcePrefFil
   for (transform = gTransforms; transform < end; ++transform)
     transform->prefSetterFunc(transform, branch);
 
-  WriteFontsBranch(psvc, &fontPrefs);
+  WriteFontsBranch(psvc, fontPrefs);
+  delete fontPrefs;
+  fontPrefs = nsnull;
 
   nsCOMPtr<nsIFile> targetPrefsFile;
   mTargetProfile->Clone(getter_AddRefs(targetPrefsFile));
@@ -496,9 +505,20 @@ nsSeamonkeyProfileMigrator::TransformPreferences(const nsAString& aSourcePrefFil
   return NS_OK;
 }
 
+struct FontPref {
+  char*         prefName;
+  PRInt32       type;
+  union {
+    char*       stringValue;
+    PRInt32     intValue;
+    PRBool      boolValue;
+    PRUnichar*  wstringValue;
+  };
+};
+
 void
 nsSeamonkeyProfileMigrator::ReadFontsBranch(nsIPrefService* aPrefService, 
-                                            nsTArray<FontPref>* aPrefs)
+                                            nsVoidArray* aPrefs)
 {
   // Enumerate the branch
   nsCOMPtr<nsIPrefBranch> branch;
@@ -514,7 +534,7 @@ nsSeamonkeyProfileMigrator::ReadFontsBranch(nsIPrefService* aPrefService,
     char* currPref = prefs[i];
     PRInt32 type;
     branch->GetPrefType(currPref, &type);
-    FontPref* pref = aPrefs->AppendElement();
+    FontPref* pref = new FontPref;
     pref->prefName = currPref;
     pref->type = type;
     switch (type) {
@@ -539,14 +559,14 @@ nsSeamonkeyProfileMigrator::ReadFontsBranch(nsIPrefService* aPrefService,
       break;
     }
 
-    if (NS_FAILED(rv))
-      aPrefs->RemoveElementAt(aPrefs->Length()-1);
+    if (NS_SUCCEEDED(rv))
+      aPrefs->AppendElement((void*)pref);
   }
 }
 
 void
 nsSeamonkeyProfileMigrator::WriteFontsBranch(nsIPrefService* aPrefService,
-                                             nsTArray<FontPref>* aPrefs)
+                                             nsVoidArray* aPrefs)
 {
   nsresult rv;
 
@@ -554,32 +574,35 @@ nsSeamonkeyProfileMigrator::WriteFontsBranch(nsIPrefService* aPrefService,
   nsCOMPtr<nsIPrefBranch> branch;
   aPrefService->GetBranch("font.", getter_AddRefs(branch));
 
-  PRUint32 count = aPrefs->Length();
+  PRUint32 count = aPrefs->Count();
   for (PRUint32 i = 0; i < count; ++i) {
-    FontPref &pref = aPrefs->ElementAt(i);
-    switch (pref.type) {
+    FontPref* pref = (FontPref*)aPrefs->ElementAt(i);
+    switch (pref->type) {
     case nsIPrefBranch::PREF_STRING:
-      rv = branch->SetCharPref(pref.prefName, pref.stringValue);
-      NS_Free(pref.stringValue);
-      pref.stringValue = nsnull;
+      rv = branch->SetCharPref(pref->prefName, pref->stringValue);
+      NS_Free(pref->stringValue);
+      pref->stringValue = nsnull;
       break;
     case nsIPrefBranch::PREF_BOOL:
-      rv = branch->SetBoolPref(pref.prefName, pref.boolValue);
+      rv = branch->SetBoolPref(pref->prefName, pref->boolValue);
       break;
     case nsIPrefBranch::PREF_INT:
-      rv = branch->SetIntPref(pref.prefName, pref.intValue);
+      rv = branch->SetIntPref(pref->prefName, pref->intValue);
       break;
     case nsIPrefBranch::PREF_INVALID:
       nsCOMPtr<nsIPrefLocalizedString> pls(do_CreateInstance("@mozilla.org/pref-localizedstring;1"));
-      pls->SetData(pref.wstringValue);
-      rv = branch->SetComplexValue(pref.prefName, 
+      pls->SetData(pref->wstringValue);
+      rv = branch->SetComplexValue(pref->prefName, 
                                    NS_GET_IID(nsIPrefLocalizedString),
                                    pls);
-      NS_Free(pref.wstringValue);
-      pref.wstringValue = nsnull;
+      NS_Free(pref->wstringValue);
+      pref->wstringValue = nsnull;
       break;
     }
-    NS_Free(pref.prefName);
+    NS_Free(pref->prefName);
+    pref->prefName = nsnull;
+    delete pref;
+    pref = nsnull;
   }
   aPrefs->Clear();
 }
@@ -679,9 +702,8 @@ nsSeamonkeyProfileMigrator::CopyPasswords(PRBool aReplace)
     nsCOMPtr<nsILoginManagerStorage> importer(
         do_CreateInstance("@mozilla.org/login-manager/storage/legacy;1"));
 
-    nsCOMPtr<nsIFile> signonsFile;
-    mSourceProfile->Clone(getter_AddRefs(signonsFile));
-    signonsFile->Append(fileName);
+    nsCOMPtr<nsIFile> signonsFile(do_QueryInterface(mSourceProfile));
+    signonsFile->SetLeafName(fileName);
 
     importer->InitWithFile(signonsFile, nsnull);
 
@@ -710,10 +732,9 @@ nsSeamonkeyProfileMigrator::CopyPasswords(PRBool aReplace)
 nsresult
 nsSeamonkeyProfileMigrator::CopyBookmarks(PRBool aReplace)
 {
-  nsresult rv;
   if (aReplace) {
     // Initialize the default bookmarks
-    rv = InitializeBookmarks(mTargetProfile);
+    nsresult rv = InitializeBookmarks(mTargetProfile);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Merge in the bookmarks from the source profile
@@ -722,13 +743,17 @@ nsSeamonkeyProfileMigrator::CopyBookmarks(PRBool aReplace)
     sourceFile->Append(FILE_NAME_BOOKMARKS);
     rv = ImportBookmarksHTML(sourceFile, PR_TRUE, PR_FALSE, EmptyString().get());
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    rv = ImportNetscapeBookmarks(FILE_NAME_BOOKMARKS, 
-                                 NS_LITERAL_STRING("sourceNameSeamonkey").get());
+
+    // we need to set this pref so that on startup
+    // we don't blow away what we just imported
+    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    return pref->SetBoolPref("browser.places.importBookmarksHTML", PR_FALSE);
   }
-  return NS_OK;
+
+  return ImportNetscapeBookmarks(FILE_NAME_BOOKMARKS, 
+                                 NS_LITERAL_STRING("sourceNameSeamonkey").get());
 }
 
 nsresult

@@ -98,14 +98,12 @@
 #else
 #define _PT_PTHREAD_MUTEX_IS_LOCKED(m)    (EBUSY == pthread_mutex_trylock(&(m)))
 #endif
-#if defined(ANDROID)
-/* Conditional attribute init and destroy aren't implemented in bionic. */
+#if defined(DARWIN)
 #define _PT_PTHREAD_CONDATTR_INIT(x)      0
-#define _PT_PTHREAD_CONDATTR_DESTROY(x)   /* */
 #else
 #define _PT_PTHREAD_CONDATTR_INIT         pthread_condattr_init
-#define _PT_PTHREAD_CONDATTR_DESTROY      pthread_condattr_destroy
 #endif
+#define _PT_PTHREAD_CONDATTR_DESTROY      pthread_condattr_destroy
 #define _PT_PTHREAD_COND_INIT(m, a)       pthread_cond_init(&(m), &(a))
 #endif
 
@@ -148,7 +146,7 @@
 	|| defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
 	|| defined(HPUX) || defined(FREEBSD) \
 	|| defined(NETBSD) || defined(OPENBSD) || defined(BSDI) \
-	|| defined(NTO) || defined(DARWIN) \
+	|| defined(VMS) || defined(NTO) || defined(DARWIN) \
 	|| defined(UNIXWARE) || defined(RISCOS)	|| defined(SYMBIAN)
 #ifdef __GNU__
 /* Hurd pthreads don't have an invalid value for pthread_t. -- rmh */
@@ -205,12 +203,12 @@
 #if (defined(AIX) && !defined(AIX4_3_PLUS)) \
 	|| defined(LINUX) || defined(__GNU__)|| defined(__GLIBC__) \
 	|| defined(FREEBSD) || defined(NETBSD) || defined(OPENBSD) \
-	|| defined(BSDI) || defined(UNIXWARE) \
+	|| defined(BSDI) || defined(VMS) || defined(UNIXWARE) \
 	|| defined(DARWIN) || defined(SYMBIAN)
 #define PT_NO_SIGTIMEDWAIT
 #endif
 
-#if defined(OSF1)
+#if defined(OSF1) || defined(VMS)
 #define PT_PRIO_MIN            PRI_OTHER_MIN
 #define PT_PRIO_MAX            PRI_OTHER_MAX
 #elif defined(IRIX)
@@ -276,7 +274,7 @@
  */
 #if defined(_PR_DCETHREADS)
 #define _PT_PTHREAD_YIELD()            	pthread_yield()
-#elif defined(OSF1)
+#elif defined(OSF1) || defined(VMS)
 /*
  * sched_yield can't be called from a signal handler.  Must use
  * the _np version.

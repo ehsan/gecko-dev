@@ -53,4 +53,5 @@ public:
   virtual ~nsBidiKeyboard();
 };
 
+
 #endif // nsBidiKeyboard_h_

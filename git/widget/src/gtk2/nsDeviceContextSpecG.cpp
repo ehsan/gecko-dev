@@ -62,14 +62,15 @@
 #include "nsStringEnumerator.h"
 #include "nsIServiceManager.h" 
 
+#ifdef USE_POSTSCRIPT
 #include "nsPSPrinters.h"
 #include "nsPaperPS.h"  /* Paper size list */
+#endif /* USE_POSTSCRIPT */
 
 #include "nsPrintSettingsGTK.h"
 
 #include "nsIFileStreams.h"
 #include "nsILocalFile.h"
-#include "nsTArray.h"
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -99,16 +100,16 @@ public:
   nsresult  InitializeGlobalPrinters();
 
   PRBool    PrintersAreAllocated()       { return mGlobalPrinterList != nsnull; }
-  PRUint32  GetNumPrinters()
-    { return mGlobalPrinterList ? mGlobalPrinterList->Length() : 0; }
-  nsString* GetStringAt(PRInt32 aInx)    { return &mGlobalPrinterList->ElementAt(aInx); }
+  PRInt32   GetNumPrinters()
+    { return mGlobalPrinterList ? mGlobalPrinterList->Count() : 0; }
+  nsString* GetStringAt(PRInt32 aInx)    { return mGlobalPrinterList->StringAt(aInx); }
   void      GetDefaultPrinterName(PRUnichar **aDefaultPrinterName);
 
 protected:
   GlobalPrinters() {}
 
   static GlobalPrinters mGlobalPrinters;
-  static nsTArray<nsString>* mGlobalPrinterList;
+  static nsStringArray* mGlobalPrinterList;
 };
 
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
@@ -379,16 +380,14 @@ void nsPrinterFeatures::SetMultipleConcurrentDeviceContextsSupported( PRBool aCa
 //---------------
 // static members
 GlobalPrinters GlobalPrinters::mGlobalPrinters;
-nsTArray<nsString>* GlobalPrinters::mGlobalPrinterList = nsnull;
+nsStringArray* GlobalPrinters::mGlobalPrinterList = nsnull;
 //---------------
 
 nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()
-  : mPrintJob(NULL)
-  , mGtkPrinter(NULL)
-  , mGtkPrintSettings(NULL)
-  , mGtkPageSetup(NULL)
 {
   DO_PR_DEBUG_LOG(("nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()\n"));
+  mGtkPageSetup = nsnull;
+  mGtkPrintSettings = nsnull;
 }
 
 nsDeviceContextSpecGTK::~nsDeviceContextSpecGTK()
@@ -476,13 +475,12 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
       const gchar* fmtGTK = gtk_print_settings_get(mGtkPrintSettings, GTK_PRINT_SETTINGS_OUTPUT_FILE_FORMAT);
       if (!fmtGTK && GTK_IS_PRINTER(mGtkPrinter)) {
         // Likely not print-to-file, check printer's capabilities
-        format = (gtk_printer_accepts_ps(mGtkPrinter))
-          ? static_cast<PRInt16>(nsIPrintSettings::kOutputFormatPS)
-          : static_cast<PRInt16>(nsIPrintSettings::kOutputFormatPDF);
+        format = (gtk_printer_accepts_ps(mGtkPrinter)) ? nsIPrintSettings::kOutputFormatPS
+                                                       : nsIPrintSettings::kOutputFormatPDF;
       } else if (nsDependentCString(fmtGTK).EqualsIgnoreCase("pdf")) {
-        format = nsIPrintSettings::kOutputFormatPDF;
+          format = nsIPrintSettings::kOutputFormatPDF;
       } else {
-        format = nsIPrintSettings::kOutputFormatPS;
+          format = nsIPrintSettings::kOutputFormatPS;
       }
     }
   }
@@ -555,9 +553,117 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::Init(nsIWidget *aWidget,
   return NS_OK;
 }
 
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetToPrinter(PRBool &aToPrinter)
+{
+  aToPrinter = mToPrinter;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetIsPrintPreview(PRBool &aIsPPreview)
+{
+  aIsPPreview = mIsPPreview;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetPrinterName ( const char **aPrinter )
+{
+   *aPrinter = mPrinter;
+   return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetCopies ( int &aCopies )
+{
+   aCopies = mCopies;
+   return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetFirstPageFirst(PRBool &aFpf)      
+{
+  aFpf = mFpf;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetGrayscale(PRBool &aGrayscale)      
+{
+  aGrayscale = mGrayscale;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetLandscape(PRBool &aLandscape)
+{
+  aLandscape = (mOrientation == NS_LANDSCAPE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetTopMargin(float &aValue)      
+{
+  aValue = mTop;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetBottomMargin(float &aValue)      
+{
+  aValue = mBottom;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetRightMargin(float &aValue)      
+{
+  aValue = mRight;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetLeftMargin(float &aValue)      
+{
+  aValue = mLeft;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetCommand(const char **aCommand)      
+{
+  *aCommand = mCommand;
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsDeviceContextSpecGTK::GetPath(const char **aPath)      
 {
   *aPath = mPath;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetUserCancelled(PRBool &aCancel)     
+{
+  aCancel = mCancel;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetPaperName( const char **aPaperName )
+{
+  *aPaperName = mPaperName;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetPlexName( const char **aPlexName )
+{
+  *aPlexName = mPlexName;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetResolutionName( const char **aResolutionName )
+{
+  *aResolutionName = mResolutionName;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetColorspace( const char **aColorspace )
+{
+  *aColorspace = mColorspace;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::GetDownloadFonts(PRBool &aDownloadFonts)      
+{
+  aDownloadFonts = mDownloadFonts;
   return NS_OK;
 }
 
@@ -565,10 +671,20 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetPrintMethod(PrintMethod &aMethod)
 {
   return GetPrintMethod(mPrinter, aMethod);
 }
+
 /* static !! */
 nsresult nsDeviceContextSpecGTK::GetPrintMethod(const char *aPrinter, PrintMethod &aMethod)
 {
+#if defined(USE_POSTSCRIPT)
   aMethod = pmPostScript;
+  return NS_OK;
+#else
+  return NS_ERROR_UNEXPECTED;
+#endif
+}
+
+NS_IMETHODIMP nsDeviceContextSpecGTK::ClosePrintManager()
+{
   return NS_OK;
 }
 
@@ -601,9 +717,6 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::BeginDocument(PRUnichar * aTitle, PRUnicha
 NS_IMETHODIMP nsDeviceContextSpecGTK::EndDocument()
 {
   if (mToPrinter) {
-    if (!mPrintJob)
-      return NS_OK; // The operation was aborted.
-
     if (!gtk_print_job_set_source_file(mPrintJob, mSpoolName.get(), nsnull))
       return NS_ERROR_GFX_PRINTER_COULD_NOT_OPEN_FILE;
 
@@ -717,17 +830,17 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::GetPrinterNameList(nsIStringEnumerator **a
     return rv;
   }
 
-  PRUint32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
-  nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
+  PRInt32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
+  nsStringArray *printers = new nsStringArray(numPrinters);
   if (!printers) {
     GlobalPrinters::GetInstance()->FreeGlobalPrinters();
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
-  PRUint32 count = 0;
+  int count = 0;
   while( count < numPrinters )
   {
-    printers->AppendElement(*GlobalPrinters::GetInstance()->GetStringAt(count++));
+    printers->AppendString(*GlobalPrinters::GetInstance()->GetStringAt(count++));
   }
   GlobalPrinters::GetInstance()->FreeGlobalPrinters();
 
@@ -773,6 +886,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
   if (NS_FAILED(rv))
     return rv;
 
+#ifdef USE_POSTSCRIPT
   /* "Demangle" postscript printer name */
   if (type == pmPostScript) {
     /* Strip the printing method name from the printer,
@@ -781,6 +895,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
     if (kNotFound != slash)
       printerName.Cut(0, slash + 1);
   }
+#endif /* USE_POSTSCRIPT */
 
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
   /* Defaults to FALSE */
@@ -806,6 +921,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 
   aPrintSettings->SetIsInitializedFromPrinter(PR_TRUE);
 
+#ifdef USE_POSTSCRIPT
   if (type == pmPostScript) {
     DO_PR_DEBUG_LOG(("InitPrintSettingsFromPrinter() for PostScript printer\n"));
 
@@ -942,6 +1058,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 
     return NS_OK;    
   }
+#endif /* USE_POSTSCRIPT */
 
   return NS_ERROR_UNEXPECTED;
 }
@@ -951,6 +1068,18 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::DisplayPropertiesDlg(const PRUnichar *aPri
   return NS_OK;
 }
 
+
+//----------------------------------------------------------------------
+//String array enumeration callback to append a printer to the global
+//printer list.
+static PRBool
+GlobalPrinterEnumFunc(nsCString& aName, void *aData)
+{
+  nsStringArray *a = (nsStringArray *)aData;
+  a->AppendString(NS_ConvertUTF8toUTF16(aName));
+  return PR_TRUE;
+}
+
 //----------------------------------------------------------------------
 nsresult GlobalPrinters::InitializeGlobalPrinters ()
 {
@@ -958,7 +1087,7 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
     return NS_OK;
   }
 
-  mGlobalPrinterList = new nsTArray<nsString>();
+  mGlobalPrinterList = new nsStringArray();
   if (!mGlobalPrinterList) 
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -967,22 +1096,18 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
   if (NS_FAILED(rv))
     return rv;
       
+#ifdef USE_POSTSCRIPT
   nsPSPrinterList psMgr;
   if (NS_SUCCEEDED(psMgr.Init()) && psMgr.Enabled()) {
     /* Get the list of PostScript-module printers */
-    // XXX: this function is the only user of GetPrinterList
-    // So it may be interesting to convert the nsCStrings
-    // in this function, we would save one loop here
-    nsTArray<nsCString> printerList;
+    nsCStringArray printerList;
     psMgr.GetPrinterList(printerList);
-    for (PRUint32 i = 0; i < printerList.Length(); i++)
-    {
-      mGlobalPrinterList->AppendElement(NS_ConvertUTF8toUTF16(printerList[i]));
-    }
+    printerList.EnumerateForwards(GlobalPrinterEnumFunc, mGlobalPrinterList);
   }
-
+#endif /* USE_POSTSCRIPT */  
+      
   /* If there are no printers available after all checks, return an error */
-  if (!mGlobalPrinterList->Length())
+  if (!mGlobalPrinterList->Count())
   {
     /* Make sure we do not cache an empty printer list */
     FreeGlobalPrinters();
@@ -1007,7 +1132,7 @@ GlobalPrinters::GetDefaultPrinterName(PRUnichar **aDefaultPrinterName)
 {
   *aDefaultPrinterName = nsnull;
   
-  PRBool allocate = !GlobalPrinters::GetInstance()->PrintersAreAllocated();
+  PRBool allocate = (GlobalPrinters::GetInstance()->PrintersAreAllocated() == PR_FALSE);
   
   if (allocate) {
     nsresult rv = GlobalPrinters::GetInstance()->InitializeGlobalPrinters();

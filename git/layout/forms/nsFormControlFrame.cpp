@@ -55,18 +55,26 @@ nsFormControlFrame::~nsFormControlFrame()
 }
 
 void
-nsFormControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsFormControlFrame::Destroy()
 {
   // Unregister the access key registered in reflow
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsLeafFrame::DestroyFrom(aDestructRoot);
+  nsLeafFrame::Destroy();
 }
 
-NS_QUERYFRAME_HEAD(nsFormControlFrame)
-  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+nsFormControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
 
-NS_IMPL_FRAMEARENA_HELPERS(nsFormControlFrame)
+  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
+    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    return NS_OK;
+  }
+
+  return nsLeafFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 nscoord
 nsFormControlFrame::GetIntrinsicWidth()
@@ -179,9 +187,9 @@ nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   return NS_OK;
 }
 
-// static
-nsRect
-nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
+nsresult 
+nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
+                                    nscoord& aHeight)
 {
   nsRect screen;
 
@@ -191,9 +199,10 @@ nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar,
                          dropdownCanOverlapOSBar);
   if ( dropdownCanOverlapOSBar )
-    context->GetRect(screen);
+    context->GetRect ( screen );
   else
     context->GetClientRect(screen);
 
-  return screen;
+  aHeight = aPresContext->AppUnitsToDevPixels(screen.height);
+  return NS_OK;
 }

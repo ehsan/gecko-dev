@@ -60,7 +60,6 @@
 #include "prtime.h"
 #include "prlog.h"
 #include "plstr.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #if defined(PR_LOGGING)
 //
@@ -158,28 +157,28 @@ nsPrefetchQueueEnumerator::GetNext(nsISupports **aItem)
 void
 nsPrefetchQueueEnumerator::Increment()
 {
-  if (!mStarted) {
-    // If the service is currently serving a request, it won't be in
-    // the pending queue, so we return it first.  If it isn't, we'll
-    // just start with the pending queue.
-    mStarted = PR_TRUE;
-    mCurrent = mService->GetCurrentNode();
-    if (!mCurrent)
-      mCurrent = mService->GetQueueHead();
-    return;
-  }
-
-  if (mCurrent) {
-    if (mCurrent == mService->GetCurrentNode()) {
-      // If we just returned the node being processed by the service,
-      // start with the pending queue
-      mCurrent = mService->GetQueueHead();
-    }
-    else {
-      // Otherwise just advance to the next item in the queue
-      mCurrent = mCurrent->mNext;
-    }
-  }
+    do {
+        if (!mStarted) {
+            // If the service is currently serving a request, it won't be
+            // in the pending queue, so we return it first.  If it isn't,
+            // we'll just start with the pending queue.
+            mStarted = PR_TRUE;
+            mCurrent = mService->GetCurrentNode();
+            if (!mCurrent)
+                mCurrent = mService->GetQueueHead();
+        }
+        else if (mCurrent) {
+            if (mCurrent == mService->GetCurrentNode()) {
+                // If we just returned the node being processed by the service,
+                // start with the pending queue
+                mCurrent = mService->GetQueueHead();
+            }
+            else {
+                // Otherwise just advance to the next item in the queue
+                mCurrent = mCurrent->mNext;
+            }
+        }
+    } while (mCurrent);
 }
 
 //-----------------------------------------------------------------------------
@@ -364,10 +363,9 @@ nsPrefetchNode::GetInterface(const nsIID &aIID, void **aResult)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                       nsIChannel *aNewChannel,
-                                       PRUint32 aFlags,
-                                       nsIAsyncVerifyRedirectCallback *callback)
+nsPrefetchNode::OnChannelRedirect(nsIChannel *aOldChannel,
+                                  nsIChannel *aNewChannel,
+                                  PRUint32 aFlags)
 {
     nsCOMPtr<nsIURI> newURI;
     nsresult rv = aNewChannel->GetURI(getter_AddRefs(newURI));
@@ -397,7 +395,6 @@ nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 
     mChannel = aNewChannel;
 
-    callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 
@@ -444,13 +441,12 @@ nsPrefetchService::Init()
     }
 
     // Observe xpcom-shutdown event
-    nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIObserverService> observerServ(
+            do_GetService("@mozilla.org/observer-service;1", &rv));
+    if (NS_FAILED(rv)) return rv;
 
-    rv = observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = observerServ->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
+    if (NS_FAILED(rv)) return rv;
 
     if (!mDisabled)
         AddProgressListener();
@@ -490,10 +486,11 @@ nsPrefetchService::ProcessNextURI()
 void
 nsPrefetchService::NotifyLoadRequested(nsPrefetchNode *node)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_FAILED(rv)) return;
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
                                      "prefetch-load-requested", nsnull);
@@ -502,10 +499,11 @@ nsPrefetchService::NotifyLoadRequested(nsPrefetchNode *node)
 void
 nsPrefetchService::NotifyLoadCompleted(nsPrefetchNode *node)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_FAILED(rv)) return;
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
                                      "prefetch-load-completed", nsnull);
@@ -588,10 +586,19 @@ nsPrefetchService::DequeueNode(nsPrefetchNode **node)
 void
 nsPrefetchService::EmptyQueue()
 {
-    do {
-        nsRefPtr<nsPrefetchNode> node;
-        DequeueNode(getter_AddRefs(node));
-    } while (mQueueHead);
+    nsPrefetchNode *prev = 0;
+    nsPrefetchNode *node = mQueueHead;
+
+    while (node) {
+        nsPrefetchNode *next = node->mNext;
+        if (prev)
+            prev->mNext = next;
+        else
+            mQueueHead = next;
+        NS_RELEASE(node);
+
+        node = next;
+    }
 }
 
 void
@@ -944,7 +951,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
 
     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
         StopPrefetching();
-        EmptyQueue();
         mDisabled = PR_TRUE;
     }
     else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
@@ -962,7 +968,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
             if (!mDisabled) {
                 LOG(("disabling prefetching\n"));
                 StopPrefetching();
-                EmptyQueue();
                 mDisabled = PR_TRUE;
                 RemoveProgressListener();
             }

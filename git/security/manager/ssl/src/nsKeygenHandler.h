@@ -41,8 +41,6 @@
 #define _NSKEYGENHANDLER_H_
 // Form Processor 
 #include "nsIFormProcessor.h" 
-#include "nsVoidArray.h" 
-#include "nsTArray.h" 
 
 nsresult GetSlotWithMechanism(PRUint32 mechanism,
                               nsIInterfaceRequestor *ctx,
@@ -51,7 +49,7 @@ nsresult GetSlotWithMechanism(PRUint32 mechanism,
 #define DEFAULT_RSA_KEYGEN_PE 65537L
 #define DEFAULT_RSA_KEYGEN_ALG SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION
 
-SECKEYECParams *decode_ec_params(const char *curve);
+SECKEYECParams *decode_ec_params(char *curve);
 
 class nsKeygenFormProcessor : public nsIFormProcessor { 
 public: 
@@ -64,11 +62,11 @@ public:
                           nsAString& aValue); 
 
   NS_IMETHOD ProvideContent(const nsAString& aFormType, 
-                            nsTArray<nsString>& aContent, 
+                            nsStringArray& aContent, 
                             nsAString& aAttribute); 
   NS_DECL_ISUPPORTS 
 
-  static nsresult Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
+  static NS_METHOD Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
 
 protected:
   nsresult GetPublicKey(nsAString& aValue, nsAString& aChallenge, 

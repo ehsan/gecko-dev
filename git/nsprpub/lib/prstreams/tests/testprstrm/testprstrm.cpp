@@ -35,51 +35,47 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "prstrms.h"
-
 #include "prinit.h"
+#include "prstrms.h"
 #include "prio.h"
-#include "prthread.h"
-
-#include <cstring>
-#include <iostream>
-
-#ifdef XP_UNIX
+#include <string.h>
+#include <stdio.h>
+#if defined(XP_UNIX) || defined(XP_OS2)
+#include <sys/types.h>
 #include <sys/stat.h>
 #endif
 
-using std::cout;
-using std::endl;
-using std::ios;
-
 const unsigned int MaxCnt = 1;
 
-typedef struct threadarg {
-    const char *mytag;
-} threadarg;
+void threadwork(void *mytag);
 
-void threadwork(threadarg *arg);
+
+typedef struct threadarg {
+    void *mytag;
+} threadarg;
 
 void 
 threadmain(void *mytag)
 {
     threadarg arg;
 
-    arg.mytag = static_cast<const char *>(mytag);
+    arg.mytag = mytag;
 
     threadwork(&arg);
 }
 
+
 void
-threadwork(threadarg *arg)
+threadwork(void *_arg)
 {
+	threadarg *arg = (threadarg *)_arg;
 	unsigned int i;
 
 	char fname1[256];
 	char fname2[256];
 
-	strcpy(fname1, arg->mytag);
-	strcpy(fname2, arg->mytag);
+	strcpy(fname1, (char *)arg->mytag);
+	strcpy(fname2, (char *)arg->mytag);
 	strcat(fname2, "2");
 	PR_Delete(fname1);
 	PR_Delete(fname2);
@@ -89,7 +85,7 @@ threadwork(threadarg *arg)
 	PRofstream *ofs[MaxCnt];
 	int mode = 0;
 #ifdef XP_UNIX
-	mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH;
+	mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IRGRP|S_IWOTH|S_IROTH;
 #endif
 
 	//
@@ -171,27 +167,28 @@ threadwork(threadarg *arg)
 
 #define STACKSIZE 1024*1024
 int
-main()
+main(int argc, char **argv)
 {
 	PR_Init(PR_SYSTEM_THREAD, PR_PRIORITY_NORMAL, 256);
-	threadmain(const_cast<char *>("TestFile"));
+	threadmain("TestFile");
 	PRThread *thr1 = PR_CreateThread(PR_SYSTEM_THREAD, 
 					 threadmain, 
-					 const_cast<char *>("TestFile1"),
+					 (void *)"TestFile1",
 					 PR_PRIORITY_NORMAL,
 					 PR_GLOBAL_THREAD,
 					 PR_JOINABLE_THREAD,
 					 STACKSIZE);
 	PRThread *thr2 = PR_CreateThread(PR_SYSTEM_THREAD, 
 					 threadmain, 
-					 const_cast<char *>("TestFile2"),
+					 (void *)"TestFile2",
 					 PR_PRIORITY_NORMAL,
 					 PR_GLOBAL_THREAD,
 					 PR_JOINABLE_THREAD,
 					 STACKSIZE);
+
 	PRThread *thr3 = PR_CreateThread(PR_SYSTEM_THREAD, 
 					 threadmain, 
-					 const_cast<char *>("TestFile3"),
+					 (void *)"TestFile3",
 					 PR_PRIORITY_NORMAL,
 					 PR_GLOBAL_THREAD,
 					 PR_JOINABLE_THREAD,
@@ -201,3 +198,4 @@ main()
 	PR_JoinThread(thr3);
 	return 0;
 }
+

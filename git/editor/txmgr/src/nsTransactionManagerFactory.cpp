@@ -35,7 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
+
 #include "nsTransactionManagerCID.h"
 #include "nsTransactionStack.h"
 #include "nsTransactionManager.h"
@@ -46,21 +47,18 @@
 // NOTE: This creates an instance of objects by using the default constructor
 //
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransactionManager)
-NS_DEFINE_NAMED_CID(NS_TRANSACTIONMANAGER_CID);
 
-static const mozilla::Module::CIDEntry kTxMgrCIDs[] = {
-    { &kNS_TRANSACTIONMANAGER_CID, false, NULL, nsTransactionManagerConstructor },
-    { NULL }
+////////////////////////////////////////////////////////////////////////
+// Define a table of CIDs implemented by this module along with other
+// information like the function to create an instance, contractid, and
+// class name.
+//
+static const nsModuleComponentInfo components[] = {
+  { "nsTransactionManager", NS_TRANSACTIONMANAGER_CID, NS_TRANSACTIONMANAGER_CONTRACTID, nsTransactionManagerConstructor },
 };
 
-static const mozilla::Module::ContractIDEntry kTxMgrContracts[] = {
-    { NS_TRANSACTIONMANAGER_CONTRACTID, &kNS_TRANSACTIONMANAGER_CID },
-    { NULL }
-};
-
-static const mozilla::Module kTxMgrModule = {
-    mozilla::Module::kVersion,
-    kTxMgrCIDs,
-    kTxMgrContracts
-};
-NSMODULE_DEFN(nsTransactionManagerModule) = &kTxMgrModule;
+////////////////////////////////////////////////////////////////////////
+// Implement the NSGetModule() exported function for your module
+// and the entire implementation of the module object.
+//
+NS_IMPL_NSGETMODULE(nsTransactionManagerModule, components)

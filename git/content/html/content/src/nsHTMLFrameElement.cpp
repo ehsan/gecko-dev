@@ -37,18 +37,17 @@
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
+#include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsDOMError.h"
 
-using namespace mozilla::dom;
 
 class nsHTMLFrameElement : public nsGenericHTMLFrameElement,
                            public nsIDOMHTMLFrameElement
 {
 public:
-  nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+  nsHTMLFrameElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFrameElement();
 
   // nsISupports
@@ -74,16 +73,14 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Frame)
+NS_IMPL_NS_NEW_HTML_ELEMENT(Frame)
 
 
-nsHTMLFrameElement::nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
-  : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
+nsHTMLFrameElement::nsHTMLFrameElement(nsINodeInfo *aNodeInfo)
+  : nsGenericHTMLFrameElement(aNodeInfo)
 {
 }
 
@@ -96,13 +93,10 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFrameElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFrameElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLFrameElement, nsHTMLFrameElement)
-
 // QueryInterface implementation for nsHTMLFrameElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLFrameElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFrameElement, nsIDOMHTMLFrameElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFrameElement,
-                                               nsGenericHTMLFrameElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLFrameElement,
+                                     nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLFrameElement, nsIDOMHTMLFrameElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFrameElement)
 
 
@@ -133,7 +127,7 @@ nsHTMLFrameElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::bordercolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::frameborder) {
       return ParseFrameborderValue(aValue, aResult);

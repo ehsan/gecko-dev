@@ -37,7 +37,7 @@
 /*
  * cert.h - public data structures and prototypes for the certificate library
  *
- * $Id: cert.h,v 1.80.2.1 2010/09/24 13:31:57 kaie%kuix.de Exp $
+ * $Id: cert.h,v 1.74 2008/08/04 22:31:54 nelson%bolyard.com Exp $
  */
 
 #ifndef _CERT_H_
@@ -173,17 +173,6 @@ extern char *CERT_FormatName (CERTName *name);
 ** Perhaps this should be a SEC function but it's only used for certs.
 */
 extern char *CERT_Hexify (SECItem *i, int do_colon);
-
-/*
-** Converts DER string (with explicit length) into zString, if destination 
-** buffer is big enough to receive it.  Does quoting and/or escaping as 
-** specified in RFC 1485.  Input string must be single or multi-byte DER
-** character set, (ASCII, UTF8, or ISO 8851-x) not a wide character set.
-** Returns SECSuccess or SECFailure with error code set. If output buffer
-** is too small, sets error code SEC_ERROR_OUTPUT_LEN.
-*/
-extern SECStatus
-CERT_RFC1485_EscapeAndQuote(char *dst, int dstlen, char *src, int srclen);
 
 /******************************************************************************
  *
@@ -605,16 +594,6 @@ CERT_FindCertByEmailAddr(CERTCertDBHandle *handle, char *emailAddr);
 */
 CERTCertificate *
 CERT_FindCertByNicknameOrEmailAddr(CERTCertDBHandle *handle, const char *name);
-
-/*
-** Find a certificate in the database by a email address or nickname
-** and require it to have the given usage.
-**      "name" is the email address or nickname to look up
-*/
-CERTCertificate *
-CERT_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
-                                           const char *name, 
-                                           SECCertUsage lookingForUsage);
 
 /*
 ** Find a certificate in the database by a digest of a subject public key
@@ -1087,19 +1066,11 @@ extern CERTDistNames *CERT_GetSSLCACerts(CERTCertDBHandle *handle);
 
 extern void CERT_FreeDistNames(CERTDistNames *names);
 
-/* Duplicate distinguished name array */
-extern CERTDistNames *CERT_DupDistNames(CERTDistNames *orig);
-
 /*
 ** Generate an array of Distinguished names from an array of nicknames
 */
 extern CERTDistNames *CERT_DistNamesFromNicknames
    (CERTCertDBHandle *handle, char **nicknames, int nnames);
-
-/*
-** Generate an array of Distinguished names from a list of certs.
-*/
-extern CERTDistNames *CERT_DistNamesFromCertList(CERTCertList *list);
 
 /*
 ** Generate a certificate chain from a certificate.
@@ -1137,7 +1108,7 @@ char *CERT_FixupEmailAddr(const char *emailAddr);
 
 /* decode string representation of trust flags into trust struct */
 SECStatus
-CERT_DecodeTrustString(CERTCertTrust *trust, const char *trusts);
+CERT_DecodeTrustString(CERTCertTrust *trust, char *trusts);
 
 /* encode trust struct into string representation of trust flags */
 char *
@@ -1301,10 +1272,6 @@ CERT_CheckForEvilCert(CERTCertificate *cert);
 
 CERTGeneralName *
 CERT_GetCertificateNames(CERTCertificate *cert, PLArenaPool *arena);
-
-CERTGeneralName *
-CERT_GetConstrainedCertificateNames(CERTCertificate *cert, PLArenaPool *arena,
-                                    PRBool includeSubjectCommonName);
 
 char *
 CERT_GetNickName(CERTCertificate   *cert, CERTCertDBHandle *handle, PLArenaPool *nicknameArena);
@@ -1547,7 +1514,7 @@ CERT_GetSPKIDigest(PLArenaPool *arena, const CERTCertificate *cert,
 
 
 SECStatus CERT_CheckCRL(CERTCertificate* cert, CERTCertificate* issuer,
-                        const SECItem* dp, PRTime t, void* wincx);
+                        SECItem* dp, PRTime t, void* wincx);
 
 
 /*
@@ -1632,25 +1599,25 @@ CERT_EncodeNoticeReference(PLArenaPool *arena,
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetPKIXVerifyNistRevocationPolicy(void);
+CERT_GetPKIXVerifyNistRevocationPolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPEnabledSoftFailurePolicy(void);
+CERT_GetClassicOCSPEnabledSoftFailurePolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPEnabledHardFailurePolicy(void);
+CERT_GetClassicOCSPEnabledHardFailurePolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPDisabledPolicy(void);
+CERT_GetClassicOCSPDisabledPolicy();
 
 /*
  * Verify a Cert with libpkix
@@ -1684,7 +1651,7 @@ SECStatus CERT_SetUsePKIXForValidation(PRBool enable);
 
 /* The function return PR_TRUE if cert validation should use
  * libpkix cert validation engine. */
-PRBool CERT_GetUsePKIXForValidation(void);
+PRBool CERT_GetUsePKIXForValidation();
 
 SEC_END_PROTOS
 

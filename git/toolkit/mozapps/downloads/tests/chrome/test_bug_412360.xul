@@ -53,19 +53,18 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
-  <script type="application/javascript"
-          src="utils.js"/>
 
   <script type="application/javascript">
   <![CDATA[
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let didFail = false;
 var file;
-
-let prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                 getService(Ci.nsIPrefBranch);
 
 let factory = {
   createInstance: function(aOuter, aIid) {
@@ -81,7 +80,13 @@ let promptService = {
     ok(didFail, "javascript: uri failed and showed a message");
     file.remove(false);
 
-    cleanUpFactory();
+    // Unregister the factory so we do not leak
+    Components.manager.QueryInterface(Ci.nsIComponentRegistrar).
+    unregisterFactory(
+      Components.ID("{6cc9c9fe-bc0b-432b-a410-253ef8bcc699}"),
+      factory
+    );
+
     SimpleTest.finish();
   }
 };
@@ -92,24 +97,8 @@ registerFactory(Components.ID("{6cc9c9fe-bc0b-432b-a410-253ef8bcc699}"),
   factory
 );
 
-function cleanUpFactory() {
-    // Unregister the factory so we do not leak
-    Components.manager.QueryInterface(Ci.nsIComponentRegistrar).
-    unregisterFactory(
-      Components.ID("{6cc9c9fe-bc0b-432b-a410-253ef8bcc699}"),
-      factory
-    );
-}
-
 function test()
 {
-  var dmui = getDMUI();
-  if (!dmui) {
-    cleanUpFactory();
-    todo(false, "skip test for toolkit download manager UI");
-    return;
-  }
-
   let dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
   let db = dm.DBConnection;
@@ -178,21 +167,19 @@ function test()
       if (aTopic != DLMGR_UI_DONE)
         return;
 
-      SimpleTest.waitForFocus(function () { sendEnter(aSubject) }, aSubject);
+      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      // Send the enter key to Download Manager to retry the download
+      synthesizeKey("VK_ENTER", {}, win);
+      os.removeObserver(testObs, DLMGR_UI_DONE);
     }
-  };
-
-  function sendEnter(win) {
-    // Send the enter key to Download Manager to retry the download
-    synthesizeKey("VK_ENTER", {}, win);
-    os.removeObserver(testObs, DLMGR_UI_DONE);
   };
 
   // Register with the observer service
   os.addObserver(testObs, DLMGR_UI_DONE, false);
 
   // Show the Download Manager UI
-  dmui.show();
+  Cc["@mozilla.org/download-manager-ui;1"].
+  getService(Ci.nsIDownloadManagerUI).show();
 
   SimpleTest.waitForExplicitFinish();
 }

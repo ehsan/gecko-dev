@@ -49,7 +49,11 @@
 #include "plstr.h"
 #include <windows.h>
 
+#ifdef WINCE
+#include <Winnls.h>
+#else
 #undef CompareString
+#endif
 
 NS_IMPL_ISUPPORTS1(nsCollationWin, nsICollation)
 

@@ -45,9 +45,8 @@
 #include "prinrval.h"
 #include "nsCRT.h"
 #include "nsIPipe.h"    // new implementation
+#include "nsAutoLock.h"
 
-#include "mozilla/Monitor.h"
-using namespace mozilla;
 
 /** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
 nsresult TP_NewPipe2(nsIAsyncInputStream** input,
@@ -264,17 +263,16 @@ public:
     }
 
     nsShortReader(nsIInputStream* in) : mIn(in), mReceived(0) {
-        mMon = new Monitor("nsShortReader");
     }
 
     void Received(PRUint32 count) {
-        MonitorAutoEnter mon(*mMon);
+        nsAutoCMonitor mon(this);
         mReceived += count;
         mon.Notify();
     }
 
     PRUint32 WaitForReceipt(const PRUint32 aWriteCount) {
-        MonitorAutoEnter mon(*mMon);
+        nsAutoCMonitor mon(this);
         PRUint32 result = mReceived;
 
         while (result < aWriteCount) {
@@ -290,8 +288,7 @@ public:
 
 protected:
     nsCOMPtr<nsIInputStream> mIn;
-    PRUint32                 mReceived;
-    Monitor*                 mMon;
+    PRUint32            mReceived;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsShortReader, nsIRunnable)
@@ -327,11 +324,7 @@ TestShortWrites(nsIInputStream* in, nsIOutputStream* out)
         //printf("calling Flush\n");
         out->Flush();
         //printf("calling WaitForReceipt\n");
-
-#ifdef DEBUG
-        const PRUint32 received =
-#endif
-          receiver->WaitForReceipt(writeCount);
+        const PRUint32 received = receiver->WaitForReceipt(writeCount);
         NS_ASSERTION(received == writeCount, "received wrong amount");
     }
     rv = out->Close();
@@ -470,8 +463,56 @@ RunTests(PRUint32 segSize, PRUint32 segCount)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#if 0
+void
+TestSearch(const char* delim, PRUint32 segSize)
+{
+    nsresult rv;
+    // need at least 2 segments to test boundary conditions:
+    PRUint32 bufDataSize = segSize * 2;
+    PRUint32 bufSize = segSize * 2;
+    nsCOMPtr<nsIInputStream> in;
+    nsCOMPtr<nsIOutputStream> out;
+    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), segSize, bufSize);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "TP_NewPipe failed");
+    out->SetNonBlocking(PR_TRUE);
 
-#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
+    PRUint32 i, j, amt;
+    PRUint32 delimLen = nsCRT::strlen(delim);
+    for (i = 0; i < bufDataSize; i++) {
+        // first fill the buffer
+        for (j = 0; j < i; j++) {
+            rv = out->Write("-", 1, &amt);
+            NS_ASSERTION(NS_SUCCEEDED(rv) && amt == 1, "Write failed");
+        }
+        rv = out->Write(delim, delimLen, &amt);
+        NS_ASSERTION(NS_SUCCEEDED(rv), "Write failed");
+        if (i + amt < bufDataSize) {
+            for (j = i + amt; j < bufDataSize; j++) {
+                rv = out->Write("+", 1, &amt);
+                NS_ASSERTION(NS_SUCCEEDED(rv) && amt == 1, "Write failed");
+            }
+        }
+
+        // now search for the delimiter
+        PRBool found;
+        PRUint32 offset;
+        rv = in->Search(delim, PR_FALSE, &found, &offset);
+        NS_ASSERTION(NS_SUCCEEDED(rv), "Search failed");
+
+        // print the results
+        char* bufferContents = new char[bufDataSize + 1];
+        rv = in->Read(bufferContents, bufDataSize, &amt);
+        NS_ASSERTION(NS_SUCCEEDED(rv) && amt == bufDataSize, "Read failed");
+        bufferContents[bufDataSize] = '\0';
+        printf("Buffer: %s\nDelim: %s %s offset: %d\n", bufferContents,
+               delim, (found ? "found" : "not found"), offset);
+    }
+}
+#endif
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef DEBUG
 extern NS_COM void
 TestSegmentedBuffer();
 #endif
@@ -488,9 +529,30 @@ main(int argc, char* argv[])
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
         gTrace = PR_TRUE;
 
-#if !defined(MOZ_ENABLE_LIBXUL) && defined(DEBUG)
+#ifdef DEBUG
     printf("Testing segmented buffer...\n");
     TestSegmentedBuffer();
+#endif
+
+#if 0   // obsolete old implementation
+    nsCOMPtr<nsIInputStream> in;
+    nsCOMPtr<nsIOutputStream> out;
+    rv = TP_NewPipe(getter_AddRefs(in), getter_AddRefs(out), 4096 * 4);
+    if (NS_FAILED(rv)) {
+        printf("TP_NewPipe failed\n");
+        return -1;
+    }
+
+    rv = TestPipe(in, out);
+    if (NS_FAILED(rv)) {
+        printf("TestPipe failed\n");
+        return -1;
+    }
+#endif
+#if 0
+    TestSearch("foo", 8);
+    TestSearch("bar", 6);
+    TestSearch("baz", 2);
 #endif
 
     rv = TestChainedPipes();

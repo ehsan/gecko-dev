@@ -139,7 +139,7 @@ _scriptObFromJSDScriptPtr( ExecEnv* ee, JSDScript* jsdscript )
 
 /***************************************************************************/
 
-void
+void PR_CALLBACK
 _scriptHook( JSDContext* jsdc, 
              JSDScript*  jsdscript,
              JSBool      creating,
@@ -154,7 +154,7 @@ _scriptHook( JSDContext* jsdc,
     if( creating )
     {
         char* url      = (char*)JSD_GetScriptFilename       (jsdc, jsdscript);
-        JSString* function =    JSD_GetScriptFunctionId     (jsdc, jsdscript);
+        char* function = (char*)JSD_GetScriptFunctionName   (jsdc, jsdscript);
         int base       =        JSD_GetScriptBaseLineNumber (jsdc, jsdscript);
         int extent     =        JSD_GetScriptLineExtent     (jsdc, jsdscript);
 
@@ -221,7 +221,7 @@ _scriptHook( JSDContext* jsdc,
 }
 
 /***************************************************************************/
-PRUintn
+PRUintn PR_CALLBACK
 _executionHook( JSDContext*     jsdc, 
                 JSDThreadState* jsdstate,
                 PRUintn         type,
@@ -340,7 +340,7 @@ _executionHook( JSDContext*     jsdc,
     return JSD_HOOK_RETURN_CONTINUE;
 }
 
-PRUintn
+PRUintn PR_CALLBACK
 _errorReporter( JSDContext*     jsdc, 
                 JSContext*      cx,
                 const char*     message, 

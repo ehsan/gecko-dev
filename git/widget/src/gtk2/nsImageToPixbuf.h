@@ -47,16 +47,14 @@ class gfxImageSurface;
 class nsImageToPixbuf : public nsIImageToPixbuf {
     public:
         NS_DECL_ISUPPORTS
-        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(imgIContainer* aImage);
+        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(nsIImage* aImage);
 
         // Friendlier version of ConvertImageToPixbuf for callers inside of
         // widget
-        /**
-         * The return value of all these, if not null, should be
-         * released as needed by the caller using g_object_unref.
-         */
-        static GdkPixbuf* ImageToPixbuf(imgIContainer * aImage);
+        static GdkPixbuf* ImageToPixbuf(nsIImage* aImage);
         static GdkPixbuf* SurfaceToPixbuf(gfxASurface* aSurface,
+                                          PRInt32 aWidth, PRInt32 aHeight);
+        static GdkPixbuf* PatternToPixbuf(gfxPattern* aPattern,
                                           PRInt32 aWidth, PRInt32 aHeight);
     private:
         static GdkPixbuf* ImgSurfaceToPixbuf(gfxImageSurface* aImgSurface,

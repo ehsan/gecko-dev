@@ -45,7 +45,8 @@
 
 /* ::::: textbox ::::: */
 
-textbox {
+textbox 
+{
   -moz-appearance: textfield;
   cursor: text;
   margin: 2px 4px;
@@ -54,10 +55,13 @@ textbox {
   -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
-  padding: 2px 2px 3px;
-  -moz-padding-start: 4px;
+  padding: 2px 2px 3px 4px;
   background-color: -moz-Field;
   color: -moz-FieldText;
+}
+
+textbox[empty="true"] {
+  color: GrayText;
 }
 
 html|*.textbox-input, 
@@ -70,12 +74,7 @@ html|*.textbox-textarea {
   font: inherit;
 }
 
-html|*.textbox-input:-moz-placeholder,
-html|*.textbox-textarea:-moz-placeholder {
-  color: GrayText;
-}
-
-.textbox-contextmenu {
+.textbox-input-box menupopup {
   cursor: default;
 }
 
@@ -98,7 +97,6 @@ textbox[disabled="true"] {
 
 textbox.plain {
   -moz-appearance: none !important;
-  background-color: transparent;
   padding: 0px !important;
   margin: 0px !important;
   border: none !important;
@@ -111,8 +109,8 @@ textbox.plain {
   -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
-.textbox-search-icon:-moz-locale-dir(rtl) {
-  -moz-transform: scaleX(-1);
+.textbox-search-icon[chromedir="rtl"] {
+  list-style-image: url(chrome://global/skin/icons/Search-glass-rtl.png);
 }
 
 .textbox-search-icon[searchbutton]:not([disabled]) {
@@ -126,6 +124,10 @@ textbox.plain {
 
 .textbox-search-clear:not([disabled]) {
   cursor: default;
+}
+
+.textbox-search-clear[chromedir="rtl"] {
+  list-style-image: url(chrome://global/skin/icons/Search-close-rtl.png);
 }
 
 .textbox-search-clear:not([disabled]):hover ,

@@ -85,12 +85,10 @@ class MaiHyperlink;
 class nsAccessibleWrap: public nsAccessible
 {
 public:
-    nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
     virtual ~nsAccessibleWrap();
     void ShutdownAtkObject();
-
-    // nsAccessNode
-    virtual void Shutdown();
+    NS_IMETHOD Shutdown();
 
 #ifdef MAI_LOGGING
     virtual void DumpnsAccessibleWrapInfo(int aDepth) {}
@@ -100,7 +98,7 @@ public:
 
     // return the atk object for this nsAccessibleWrap
     NS_IMETHOD GetNativeInterface(void **aOutAccessible);
-    virtual nsresult HandleAccEvent(AccEvent* aEvent);
+    NS_IMETHOD FireAccessibleEvent(nsIAccessibleEvent *aEvent);
 
     AtkObject * GetAtkObject(void);
     static AtkObject * GetAtkObject(nsIAccessible * acc);
@@ -118,12 +116,16 @@ public:
     }
 
 protected:
-    virtual nsresult FirePlatformEvent(AccEvent* aEvent);
+    virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent);
 
-    nsresult FireAtkStateChangeEvent(AccEvent* aEvent, AtkObject *aObject);
-    nsresult FireAtkTextChangedEvent(AccEvent* aEvent, AtkObject *aObject);
-    nsresult FireAtkShowHideEvent(AccEvent* aEvent, AtkObject *aObject,
-                                  PRBool aIsAdded);
+    nsresult FireAtkStateChangeEvent(nsIAccessibleEvent *aEvent,
+                                     AtkObject *aObject);
+    nsresult FireAtkTextChangedEvent(nsIAccessibleEvent *aEvent,
+                                     AtkObject *aObject);
+    nsresult FireAtkPropChangedEvent(nsIAccessibleEvent *aEvent,
+                                     AtkObject *aObject);
+    nsresult FireAtkShowHideEvent(nsIAccessibleEvent *aEvent,
+                                  AtkObject *aObject, PRBool aIsAdded);
 
     AtkObject *mAtkObject;
 

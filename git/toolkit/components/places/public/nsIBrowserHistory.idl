@@ -42,7 +42,7 @@
 #include "nsISupports.idl"
 #include "nsIGlobalHistory2.idl"
 
-[scriptable, uuid(540aca25-1e01-467f-b24c-df89cbe40f8d)]
+[scriptable, uuid(96602bf3-de2a-42ed-812f-a83b130e6299)]
 interface nsIBrowserHistory : nsIGlobalHistory2
 {
     /**
@@ -88,16 +88,11 @@ interface nsIBrowserHistory : nsIGlobalHistory2
     /**
      * removePagesFromHost
      *
-     * Removes all history information about pages from a given host. If
-     * aEntireDomain is set, we will also delete pages from sub hosts (so if
-     * we are passed in "microsoft.com" we delete "www.microsoft.com",
-     * "msdn.microsoft.com", etc.). An empty host name means local files and
-     * anything else with no host name. You can also pass in the localized
-     * "(local files)" title given to you from a history query to remove all
-     * history information from local files.
-     *
-     * Note that this does not call observers for single deleted uris,
-     * but will send Begin/EndUpdateBatch.
+     * Remove all pages from the given host.
+     * If aEntireDomain is true, will assume aHost is a domain,
+     * and remove all pages from the entire domain.
+     * Notice that this does not call observers for single deleted uris,
+     * instead it will send Begin/EndUpdateBatch
      */
     void removePagesFromHost(in AUTF8String aHost, in boolean aEntireDomain);
 
@@ -110,19 +105,6 @@ interface nsIBrowserHistory : nsIGlobalHistory2
      * instead it will send Begin/EndUpdateBatch
      */
     void removePagesByTimeframe(in long long aBeginTime, in long long aEndTime);
-
-    /**
-     * removeVisitsByTimeframe
-     *
-     * Removes all visits in a given timeframe.  Limits are included:
-     * aBeginTime <= timeframe <= aEndTime.  Any place that becomes unvisited
-     * as a result will also be deleted.
-     *
-     * Note that removal is performed in batch, so observers will not be
-     * notified of individual places that are deleted.  Instead they will be
-     * notified onBeginUpdateBatch and onEndUpdateBatch.
-     */
-    void removeVisitsByTimeframe(in long long aBeginTime, in long long aEndTime);
 
     /**
      * removeAllPages
@@ -148,40 +130,4 @@ interface nsIBrowserHistory : nsIGlobalHistory2
      * the user, so it's okay to be an autocomplete result.
      */
     void markPageAsTyped(in nsIURI aURI);
-
-    /**
-     * markPageAsFollowedLink
-     *
-     * Designate the url as coming from a link explicitly followed by
-     * the user (for example by clicking on it).
-     */
-    void markPageAsFollowedLink(in nsIURI aURI);
-
-    /**
-     * Mark a page as being currently open.
-     *
-     * @note Pages will not be automatically unregistered when Private Browsing
-     *       mode is entered or exited.  Therefore, consumers MUST unregister or
-     *       register themselves.
-     *
-     * @note This is just an alias for mozIPlacesAutoComplete::registerOpenPage.
-     *
-     * @status DEPRECATED
-     */
-    [deprecated] void registerOpenPage(in nsIURI aURI);
-
-    /**
-     * Mark a page as no longer being open (either by closing the window or tab,
-     * or by navigating away from that page).
-     *
-     * @note Pages will not be automatically unregistered when Private Browsing
-     *       mode is entered or exited.  Therefore, consumers MUST unregister or
-     *       register themselves.
-     *
-     * @note This is just an alias for
-     *       mozIPlacesAutoComplete::unregisterOpenPage.
-     *
-     * @status DEPRECATED
-     */
-    [deprecated] void unregisterOpenPage(in nsIURI aURI);
 };

@@ -38,31 +38,46 @@
 #define NSSVGTEXTPATHFRAME_H
 
 #include "nsSVGTSpanFrame.h"
-#include "SVGLengthList.h"
+#include "nsIDOMSVGAnimatedString.h"
+#include "nsSVGLengthList.h"
+#include "nsIDOMSVGLength.h"
+#include "gfxPath.h"
+#include "nsStubMutationObserver.h"
 
-namespace mozilla {
-class SVGNumberList;
-}
+class nsSVGTextPathFrame;
+
+class nsSVGPathListener : public nsStubMutationObserver {
+public:
+  nsSVGPathListener(nsIContent *aPathElement,
+                    nsSVGTextPathFrame *aTextPathFrame);
+  ~nsSVGPathListener();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS
+
+  // nsIMutationObserver
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+
+private:
+  nsWeakPtr mObservedPath;
+  nsSVGTextPathFrame *mTextPathFrame;
+};
 
 typedef nsSVGTSpanFrame nsSVGTextPathFrameBase;
 
 class nsSVGTextPathFrame : public nsSVGTextPathFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                         nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGTextPathFrame(nsStyleContext* aContext) : nsSVGTextPathFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame:
-#ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-#endif
-
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
@@ -88,12 +103,18 @@ public:
   gfxFloat GetPathScale();
 protected:
 
-  virtual void GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY);
-  virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy);
-  virtual const SVGNumberList *GetRotate();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDx();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
 
 private:
   already_AddRefed<gfxFlattenedPath> GetFlattenedPath(nsIFrame *path);
+
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
+  nsRefPtr<nsSVGPathListener> mPathListener;
+
+  friend class nsSVGPathListener;
 };
 
 #endif

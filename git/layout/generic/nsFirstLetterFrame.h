@@ -46,15 +46,13 @@
 
 class nsFirstLetterFrame : public nsFirstLetterFrameSuper {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsFirstLetterFrame(nsStyleContext* aContext) : nsHTMLContainerFrame(aContext) {}
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -84,7 +82,8 @@ public:
                     nsReflowStatus&          aStatus);
 
   virtual PRBool CanContinueTextRun() const;
-  virtual nscoord GetBaseline() const;
+
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
 
 //override of nsFrame method
   NS_IMETHOD GetChildFrameContainingOffset(PRInt32 inContentOffset,
@@ -93,15 +92,6 @@ public:
                                            nsIFrame **outChildFrame);
 
   nscoord GetFirstLetterBaseline() const { return mBaseline; }
-
-  // For floating first letter frames, create a continuation for aChild and
-  // place it in the correct place. aContinuation is an outparam for the
-  // continuation that is created. aIsFluid determines if the continuation is
-  // fluid or not.
-  nsresult CreateContinuationForFloatingParent(nsPresContext* aPresContext,
-                                               nsIFrame* aChild,
-                                               nsIFrame** aContinuation,
-                                               PRBool aIsFluid);
 
 protected:
   nscoord mBaseline;

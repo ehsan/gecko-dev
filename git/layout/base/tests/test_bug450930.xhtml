@@ -1,10 +1,9 @@
-<?xml version="1.0"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg">
 <!--
 https://bugzilla.mozilla.org/show_bug.cgi?id=450930
 -->
 <head>
-  <title>Test for Bug 450930 (MozAfterPaint)</title>
+  <title>Test for Bug 450930</title>
   <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -14,15 +13,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=450930
 <div id="display">
   <div id="d" style="width:400px; height:200px;"></div>
   <iframe id="iframe" style="width:400px; height:200px;"
-   src="data:text/html,&lt;div id='d'&gt;&lt;span style='margin-left:3px;'&gt;Hello&lt;/span&gt;
-        &lt;/div&gt;&lt;div style='margin-top:500px' id='d2'&gt;
-        &lt;span style='margin-left:3px;'&gt;Goodbye&lt;/span&gt;&lt;/div>"></iframe>
+   src="data:text/html,&lt;div id='d'&gt;Hello&lt;/div&gt;&lt;div style='margin-top:500px' id='d2'&gt;Hello&lt;/div>"></iframe>
   <svg:svg style="width:410px; height:210px;" id="svg">
     <svg:foreignObject width="100%" height="100%">
       <iframe id="iframe2" style="width:400px; height:200px;"
-       src="data:text/html,&lt;div id='d'&gt;&lt;span style='margin-left:3px;'&gt;Hello&lt;/span&gt;
-            &lt;/div&gt;&lt;div style='margin-top:500px' id='d2'&gt;
-            &lt;span style='margin-left:3px;'&gt;Goodbye&lt;/span&gt;&lt;/div>"></iframe>
+       src="data:text/html,&lt;div id='d'&gt;Hello&lt;/div&gt;&lt;div style='margin-top:500px' id='d2'&gt;Hello&lt;/div>"></iframe>
     </svg:foreignObject>
   </svg:svg>
 </div>
@@ -38,9 +33,6 @@ SimpleTest.waitForExplicitFinish();
 function flash(doc, name) {
   var d = doc.getElementById(name);
   d.style.backgroundColor = d.style.backgroundColor == "blue" ? "yellow" : "blue";
-  // Now flush out style changes in that document, since our event listeners
-  // seem to assume that things will work that way.
-  d.getBoundingClientRect();
 }
 
 function le(v1, v2, s) {
@@ -126,25 +118,24 @@ function runTest1() {
 
 function runTest2(frameID, containerID) {
   // test reporting of painting in subdocuments
-  var fired = 0;
+  var fired = false;
   var gotSubdocPrivileged = false;
   var gotSubdocNonprivileged = false;
   var iframe = document.getElementById(frameID);
   var container = document.getElementById(containerID);
 
   function listener(event) {
+    fired = true;
     if (checkGotSubdoc(event.clientRects, container))
       gotSubdocNonprivileged = true;
 
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     if (checkGotSubdoc(event.clientRects, container))
       gotSubdocPrivileged = true;
-    if (++fired == 1)
-      setTimeout(check, 100);
   }
 
   function check() {
-    is(fired, 1, "Wrong event count (" + frameID + ")");
+    ok(fired, "Event fired (" + frameID + ")");
     ok(gotSubdocPrivileged, "Didn't get subdoc invalidation while we were privileged (" + frameID + ")");
     ok(!gotSubdocNonprivileged, "Got subdoc invalidation while we were not privileged (" + frameID + ")");
     window.removeEventListener("MozAfterPaint", listener, false);
@@ -153,6 +144,7 @@ function runTest2(frameID, containerID) {
 
   function triggerPaint() {
     window.addEventListener("MozAfterPaint", listener, false);
+    setTimeout(check, 100);
     document.body.offsetTop;
     flash(iframe.contentDocument, 'd');
     // make sure an event fires; since we're not using a chrome event handler, even though we
@@ -174,24 +166,24 @@ function runTest3() {
       gotScrolledOutInMainDoc = true;
   }
 
+  function IFRAMEListener(event) {
+    if (doesRectContainListElement(
+          iframe.contentDocument.getElementById("d2").getBoundingClientRect(), event.clientRects))
+      gotScrolledOutInSubdoc = true;
+  }
+
   function check() {
     ok(!gotScrolledOutInMainDoc, "scrolled-out invalidation should not propagate to main doc");
+    ok(gotScrolledOutInSubdoc, "scrolled-out invalidation should notify in subdoc");
     window.removeEventListener("MozAfterPaint", listener, false);
     iframe.contentWindow.removeEventListener("MozAfterPaint", IFRAMEListener, false);
     runNext();
   }
 
-  function IFRAMEListener(event) {
-    if (doesRectContainListElement(
-          iframe.contentDocument.getElementById("d2").getBoundingClientRect(), event.clientRects)) {
-      ok(true, "scrolled-out invalidation should notify in subdoc");
-      setTimeout(check, 0);
-    }
-  }
-
   function triggerPaint() {
     window.addEventListener("MozAfterPaint", listener, false);
     iframe.contentWindow.addEventListener("MozAfterPaint", IFRAMEListener, false);
+    setTimeout(check, 100);
     flash(iframe.contentDocument, 'd2');
   }
   triggerPaint();

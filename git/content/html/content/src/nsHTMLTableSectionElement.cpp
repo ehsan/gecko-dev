@@ -41,6 +41,7 @@
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsContentList.h"
 #include "nsRuleData.h"
 #include "nsDOMError.h"
@@ -52,7 +53,7 @@ class nsHTMLTableSectionElement : public nsGenericHTMLElement,
                                   public nsIDOMHTMLTableSectionElement
 {
 public:
-  nsHTMLTableSectionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableSectionElement(nsINodeInfo *aNodeInfo);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -81,7 +82,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLTableSectionElement,
                                                      nsGenericHTMLElement)
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsRefPtr<nsContentList> mRows;
 };
@@ -90,7 +90,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableSection)
 
 
-nsHTMLTableSectionElement::nsHTMLTableSectionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableSectionElement::nsHTMLTableSectionElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -106,14 +106,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableSectionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableSectionElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableSectionElement, nsHTMLTableSectionElement)
-
 // QueryInterface implementation for nsHTMLTableSectionElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableSectionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableSectionElement,
-                                   nsIDOMHTMLTableSectionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableSectionElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableSectionElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableSectionElement,
+                                nsIDOMHTMLTableSectionElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableSectionElement)
 
 
@@ -133,9 +130,8 @@ nsHTMLTableSectionElement::GetRows(nsIDOMHTMLCollection** aValue)
 
   if (!mRows) {
     mRows = new nsContentList(this,
+                              nsGkAtoms::tr,
                               mNodeInfo->NamespaceID(),
-                              nsGkAtoms::tr,
-                              nsGkAtoms::tr,
                               PR_FALSE);
 
     NS_ENSURE_TRUE(mRows, NS_ERROR_OUT_OF_MEMORY);
@@ -173,8 +169,8 @@ nsHTMLTableSectionElement::InsertRow(PRInt32 aIndex,
   nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tr,
                               getter_AddRefs(nodeInfo));
 
-  nsCOMPtr<nsIContent> rowContent = NS_NewHTMLTableRowElement(nodeInfo.forget());
-  if (!rowContent) {
+  nsCOMPtr<nsIContent> rowContent = NS_NewHTMLTableRowElement(nodeInfo);
+  if (!nodeInfo) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -258,7 +254,7 @@ nsHTMLTableSectionElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);

@@ -90,7 +90,7 @@ private:
     nsresult                         mCondition;
     nsCOMPtr<nsIInputStreamCallback> mCallback;
     PRUint32                         mCallbackFlags;
-    PRUint64                         mByteCount;
+    nsUint64                         mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -124,7 +124,7 @@ private:
     nsresult                          mCondition;
     nsCOMPtr<nsIOutputStreamCallback> mCallback;
     PRUint32                          mCallbackFlags;
-    PRUint64                          mByteCount;
+    nsUint64                          mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -202,8 +202,7 @@ private:
     PRUint16     mProxyPort;
     PRPackedBool mProxyTransparent;
     PRPackedBool mProxyTransparentResolvesHost;
-    PRUint32     mConnectionFlags;
-    
+
     PRUint16         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
     const nsCString &SocketHost() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyHost : mHost; }
 
@@ -271,9 +270,6 @@ private:
 
     // socket timeouts are not protected by any lock.
     PRUint16 mTimeouts[2];
-
-    // QoS setting for socket
-    PRUint8 mQoSBits;
 
     //
     // mFD access methods: called with mLock held.

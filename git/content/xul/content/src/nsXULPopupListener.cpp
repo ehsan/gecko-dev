@@ -55,7 +55,7 @@
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
 #include "nsXULPopupManager.h"
-#include "nsEventStateManager.h"
+
 #include "nsIScriptContext.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
@@ -69,13 +69,12 @@
 #include "nsLayoutUtils.h"
 #include "nsFrameManager.h"
 #include "nsHTMLReflowState.h"
-#include "nsIObjectLoadingContent.h"
 
 // for event firing in context menus
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
@@ -164,7 +163,7 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
 
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
     if (doc)
-      targetNode = do_QueryInterface(doc->GetRootElement());
+      targetNode = do_QueryInterface(doc->GetRootContent());
     if (!targetNode) {
       return NS_ERROR_FAILURE;
     }
@@ -178,15 +177,6 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
     PRBool eventEnabled =
       nsContentUtils::GetBoolPref("dom.event.contextmenu.enabled", PR_TRUE);
     if (!eventEnabled) {
-      // If the target node is for plug-in, we should not open XUL context
-      // menu on windowless plug-ins.
-      nsCOMPtr<nsIObjectLoadingContent> olc = do_QueryInterface(targetNode);
-      PRUint32 type;
-      if (olc && NS_SUCCEEDED(olc->GetDisplayedType(&type)) &&
-          type == nsIObjectLoadingContent::TYPE_PLUGIN) {
-        return NS_OK;
-      }
-
       // The user wants his contextmenus.  Let's make sure that this is a website
       // and not chrome since there could be places in chrome which don't want
       // contextmenus.
@@ -220,6 +210,18 @@ nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
     if (tag == nsGkAtoms::menu || tag == nsGkAtoms::menuitem)
       return NS_OK;
   }
+
+  // Get the document with the popup.
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mElement);
+
+  // Turn the document into a XUL document so we can use SetPopupNode.
+  nsCOMPtr<nsIDOMXULDocument> xulDocument = do_QueryInterface(content->GetDocument());
+  if (!xulDocument) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // Store clicked-on node in xul document for context menus and menu popups.
+  xulDocument->SetPopupNode(targetNode);
 
   nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(aMouseEvent));
 
@@ -257,20 +259,20 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
 
     // Get nsIDOMElement for targetNode
-    nsIPresShell *shell = doc->GetShell();
+    nsIPresShell *shell = doc->GetPrimaryShell();
     if (!shell)
       return NS_ERROR_FAILURE;
 
     // strong reference to keep this from going away between events
-    // XXXbz between what events?  We don't use this local at all!
-    nsRefPtr<nsPresContext> context = shell->GetPresContext();
+    nsCOMPtr<nsPresContext> context = shell->GetPresContext();
  
     nsCOMPtr<nsIContent> content = do_QueryInterface(aTargetNode);
-    nsIFrame* targetFrame = content->GetPrimaryFrame();
+    nsIFrame* targetFrame = shell->GetPrimaryFrameFor(content);
     if (!targetFrame) return NS_ERROR_FAILURE;
-
+      
+    PRBool suppressBlur = PR_FALSE;
     const nsStyleUserInterface* ui = targetFrame->GetStyleUserInterface();
-    PRBool suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
+    suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
 
     nsCOMPtr<nsIDOMElement> element;
     nsCOMPtr<nsIContent> newFocus = do_QueryInterface(content);
@@ -289,20 +291,21 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
         }
         currFrame = currFrame->GetParent();
     } 
-
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      if (element) {
-        fm->SetFocus(element, nsIFocusManager::FLAG_BYMOUSE |
-                              nsIFocusManager::FLAG_NOSCROLL);
-      } else if (!suppressBlur) {
-        nsPIDOMWindow *window = doc->GetWindow();
-        fm->ClearFocus(window);
-      }
-    }
-
-    nsIEventStateManager *esm = context->EventStateManager();
     nsCOMPtr<nsIContent> focusableContent = do_QueryInterface(element);
+    nsIEventStateManager *esm = context->EventStateManager();
+
+    if (focusableContent) {
+      // Lock to scroll by SetFocus. See bug 309075.
+      nsFocusScrollSuppressor scrollSuppressor;
+      nsPIDOMWindow *ourWindow = doc->GetWindow();
+      if (ourWindow) {
+        scrollSuppressor.Init(ourWindow->GetRootFocusController());
+      }
+
+      focusableContent->SetFocus(context);
+    } else if (!suppressBlur)
+      esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+
     esm->SetContentState(focusableContent, NS_EVENT_STATE_ACTIVE);
   }
   return rv;
@@ -440,7 +443,9 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
   nsCOMPtr<nsIContent> popup = do_QueryInterface(popupElement);
   nsIContent* parent = popup->GetParent();
   if (parent) {
-    nsIFrame* frame = parent->GetPrimaryFrame();
+    nsIDocument* doc = parent->GetCurrentDoc();
+    nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
+    nsIFrame* frame = presShell ? presShell->GetPrimaryFrameFor(parent) : nsnull;
     if (frame && frame->GetType() == nsGkAtoms::menuFrame)
       return NS_OK;
   }

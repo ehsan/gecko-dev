@@ -42,7 +42,6 @@
 #include "nsIStreamListener.h"
 #include "nsHashtable.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 #include "nsIAtom.h"
 
 class nsStreamConverterService : public nsIStreamConverterService {
@@ -66,7 +65,7 @@ public:
 
 private:
     // Responsible for finding a converter for the given MIME-type.
-    nsresult FindConverter(const char *aContractID, nsTArray<nsCString> **aEdgeList);
+    nsresult FindConverter(const char *aContractID, nsCStringArray **aEdgeList);
     nsresult BuildGraph(void);
     nsresult AddAdjacency(const char *aContractID);
     nsresult ParseFromTo(const char *aContractID, nsCString &aFromRes, nsCString &aToRes);

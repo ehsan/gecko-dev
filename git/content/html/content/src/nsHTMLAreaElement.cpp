@@ -36,27 +36,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMNSHTMLAreaElement2.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIEventStateManager.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsIDocument.h"
 
-#include "Link.h"
-using namespace mozilla::dom;
-
 class nsHTMLAreaElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLAreaElement,
-                          public nsILink,
-                          public Link
+                          public nsIDOMNSHTMLAreaElement2,
+                          public nsILink
 {
 public:
-  nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLAreaElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLAreaElement();
 
   // nsISupports
@@ -74,7 +74,16 @@ public:
   // nsIDOMHTMLAreaElement
   NS_DECL_NSIDOMHTMLAREAELEMENT
 
+  // nsIDOMNSHTMLAreaElement
+  NS_DECL_NSIDOMNSHTMLAREAELEMENT
+
+  // nsIDOMNSHTMLAreaElement2
+  NS_DECL_NSIDOMNSHTMLAREAELEMENT2
+
   // nsILink
+  NS_IMETHOD GetLinkState(nsLinkState &aState);
+  NS_IMETHOD SetLinkState(nsLinkState aState);
+  NS_IMETHOD GetHrefURI(nsIURI** aURI);
   NS_IMETHOD LinkAdded() { return NS_OK; }
   NS_IMETHOD LinkRemoved() { return NS_OK; }
 
@@ -82,8 +91,8 @@ public:
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
-  virtual nsLinkState GetLinkState() const;
-  virtual already_AddRefed<nsIURI> GetHrefURI() const;
+
+  virtual void SetFocus(nsPresContext* aPresContext);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -103,17 +112,18 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsEventStates IntrinsicState() const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
+protected:
+  // The cached visited state
+  nsLinkState mLinkState;
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
 
-nsHTMLAreaElement::nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+nsHTMLAreaElement::nsHTMLAreaElement(nsINodeInfo *aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -124,16 +134,14 @@ nsHTMLAreaElement::~nsHTMLAreaElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLAreaElement, nsHTMLAreaElement)
 
 // QueryInterface implementation for nsHTMLAreaElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLAreaElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAreaElement,
-                                   nsIDOMHTMLAreaElement,
-                                   nsILink,
-                                   Link)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAreaElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLAreaElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsHTMLAreaElement,
+                                nsIDOMHTMLAreaElement,
+                                nsIDOMNSHTMLAreaElement,
+                                nsIDOMNSHTMLAreaElement2,
+                                nsILink)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAreaElement)
 
 
@@ -146,7 +154,7 @@ NS_IMPL_STRING_ATTR(nsHTMLAreaElement, Coords, coords)
 NS_IMPL_URI_ATTR(nsHTMLAreaElement, Href, href)
 NS_IMPL_BOOL_ATTR(nsHTMLAreaElement, NoHref, nohref)
 NS_IMPL_STRING_ATTR(nsHTMLAreaElement, Shape, shape)
-NS_IMPL_INT_ATTR(nsHTMLAreaElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLAreaElement, TabIndex, tabindex, 0)
 
 NS_IMETHODIMP
 nsHTMLAreaElement::GetTarget(nsAString& aValue)
@@ -190,20 +198,33 @@ nsHTMLAreaElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
+void
+nsHTMLAreaElement::SetFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext ||
+      !aPresContext->EventStateManager()->SetContentState(this, 
+                                                          NS_EVENT_STATE_FOCUS)) {
+    return;
+  }
+  nsCOMPtr<nsIPresShell> presShell = aPresContext->GetPresShell();
+  if (presShell) {
+    presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                     NS_PRESSHELL_SCROLL_ANYWHERE);
+  }
+}
+
 nsresult
 nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false);
-
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -212,12 +233,12 @@ nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsHTMLAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
-
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
+    GetCurrentDoc()->ForgetLink(this);
+    // If this link is ever reinserted into a document, it might
+    // be under a different xml:base, so forget the cached state now
+    mLinkState = eLinkState_Unknown;
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -229,25 +250,26 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            PRBool aNotify)
 {
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
+  }
+
+  if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_None) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+      // The change to 'href' will cause style reresolution which will
+      // eventually recompute the link state and re-add this element
+      // to the link map if necessary.
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
   nsresult rv =
     nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue, aNotify);
 
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_None) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -257,49 +279,220 @@ nsresult
 nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
+  }
+
   if (aAttribute == nsGkAtoms::accesskey &&
       aNameSpaceID == kNameSpaceID_None) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
-                                                aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
+  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
-#define IMPL_URI_PART(_part)                                 \
-  NS_IMETHODIMP                                              \
-  nsHTMLAreaElement::Get##_part(nsAString& a##_part)         \
-  {                                                          \
-    return Link::Get##_part(a##_part);                       \
-  }                                                          \
-  NS_IMETHODIMP                                              \
-  nsHTMLAreaElement::Set##_part(const nsAString& a##_part)   \
-  {                                                          \
-    return Link::Set##_part(a##_part);                       \
-  }
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetProtocol(nsAString& aProtocol)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
 
-IMPL_URI_PART(Protocol)
-IMPL_URI_PART(Host)
-IMPL_URI_PART(Hostname)
-IMPL_URI_PART(Pathname)
-IMPL_URI_PART(Search)
-IMPL_URI_PART(Port)
-IMPL_URI_PART(Hash)
+  // XXX this should really use GetHrefURI and not do so much string stuff
+  return GetProtocolFromHrefString(href, aProtocol, GetOwnerDoc());
+}
 
-#undef IMPL_URI_PART
+NS_IMETHODIMP
+nsHTMLAreaElement::SetProtocol(const nsAString& aProtocol)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+  
+  rv = SetProtocolInHrefString(href, aProtocol, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHost(nsAString& aHost)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHostFromHrefString(href, aHost);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHost(const nsAString& aHost)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHostInHrefString(href, aHost, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHostname(nsAString& aHostname)
+{
+  nsAutoString href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHostnameFromHrefString(href, aHostname);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHostname(const nsAString& aHostname)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHostnameInHrefString(href, aHostname, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+  
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetPathname(nsAString& aPathname)
+{
+  nsAutoString href;
+ 
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetPathnameFromHrefString(href, aPathname);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetPathname(const nsAString& aPathname)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetPathnameInHrefString(href, aPathname, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetSearch(nsAString& aSearch)
+{
+  nsAutoString href;
+
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetSearchFromHrefString(href, aSearch);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetSearch(const nsAString& aSearch)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetSearchInHrefString(href, aSearch, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::GetPort(nsAString& aPort)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetPortFromHrefString(href, aPort);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetPort(const nsAString& aPort)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetPortInHrefString(href, aPort, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+  
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHash(nsAString& aHash)
+{
+  nsAutoString href;
+
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHashFromHrefString(href, aHash);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHash(const nsAString& aHash)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHashInHrefString(href, aHash, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
 
 NS_IMETHODIMP
 nsHTMLAreaElement::ToString(nsAString& aSource)
@@ -319,20 +512,22 @@ nsHTMLAreaElement::SetPing(const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, PR_TRUE);
 }
 
-nsLinkState
-nsHTMLAreaElement::GetLinkState() const
+NS_IMETHODIMP
+nsHTMLAreaElement::GetLinkState(nsLinkState &aState)
 {
-  return Link::GetLinkState();
+  aState = mLinkState;
+  return NS_OK;
 }
 
-already_AddRefed<nsIURI>
-nsHTMLAreaElement::GetHrefURI() const
+NS_IMETHODIMP
+nsHTMLAreaElement::SetLinkState(nsLinkState aState)
 {
-  return GetHrefURIForAnchors();
+  mLinkState = aState;
+  return NS_OK;
 }
 
-nsEventStates
-nsHTMLAreaElement::IntrinsicState() const
+NS_IMETHODIMP
+nsHTMLAreaElement::GetHrefURI(nsIURI** aURI)
 {
-  return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
+  return GetHrefURIForAnchors(aURI);
 }

@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+  %globalDTD;
   <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd" >
   %textcontextDTD;
 ]>
@@ -13,7 +15,6 @@
 
   <binding id="textbox" extends="xul:box">
     <resources>
-      <stylesheet src="chrome://global/content/textbox.css"/>
       <stylesheet src="chrome://global/skin/textbox.css"/>
     </resources>
 
@@ -21,7 +22,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,noinitialfocus,mozactionhint"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
       </xul:hbox>
     </content>
 
@@ -52,18 +53,30 @@
         ]]></getter>
       </property>
 
-      <property name="value"      onset="this.inputField.value = val; return val;"
-                                  onget="return this.inputField.value;"/>
+      <property name="value"
+                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
+        <setter><![CDATA[
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
+          return val;
+        ]]></setter>
+      </property>
       <property name="defaultValue" onset="this.inputField.defaultValue = val; return val;"
                                   onget="return this.inputField.defaultValue;"/>
       <property name="label"      onset="this.setAttribute('label', val); return val;"
                                   onget="return this.getAttribute('label') ||
                                                 (this.labelElement ? this.labelElement.value :
-                                                 this.placeholder);"/>
-      <property name="placeholder" onset="this.inputField.placeholder = val; return val;"
-                                  onget="return this.inputField.placeholder;"/>
-      <property name="emptyText"  onset="this.placeholder = val; return val;"
-                                  onget="return this.placeholder;"/>
+                                                 this.emptyText);"/>
+      <property name="emptyText"  onget="return this.getAttribute('emptytext') || '';"
+                                  onset="this.setAttribute('emptytext', val);
+                                         this._updateVisibleText(); return val;" />
       <property name="type"       onset="if (val) this.setAttribute('type', val);
                                          else this.removeAttribute('type'); return val;"
                                   onget="return this.getAttribute('type');"/>
@@ -115,7 +128,8 @@
 
       <property name="controllers"    readonly="true" onget="return this.inputField.controllers"/>
       <property name="textLength"     readonly="true"
-                                      onget="return this.inputField.textLength;"/>
+                                      onget="return this.hasAttribute('empty') ?
+                                                    0 : this.inputField.textLength;"/>
       <property name="selectionStart" onset="this.inputField.selectionStart = val; return val;"
                                       onget="return this.inputField.selectionStart;"/>
       <property name="selectionEnd"   onset="this.inputField.selectionEnd = val; return val;"
@@ -132,7 +146,7 @@
       <method name="_setNewlineHandling">
         <body><![CDATA[
           var str = this.getAttribute("newlines");
-          if (str && this.editor) {
+          if (str) {
             const nsIPlaintextEditor = Components.interfaces.nsIPlaintextEditor;
             for (var x in nsIPlaintextEditor) {
               if (/^eNewlines/.test(x)) {
@@ -147,6 +161,41 @@
         ]]></body>
       </method>
 
+      <method name="_updateVisibleText">
+        <body><![CDATA[
+          if (!this.hasAttribute("focused") &&
+              !this.value &&
+              this.emptyText) {
+            // This section is a wee bit hacky; without the timeout, the CSS
+            // style corresponding to the "empty" attribute doesn't kick in
+            // until the text has changed, leading to an unpleasant moment
+            // where the emptyText flashes black before turning gray.
+            this.setAttribute("empty", true);
+
+            setTimeout(function (textbox) {
+              if (textbox.hasAttribute("empty")) {
+                try {
+                  textbox.editor.transactionManager.beginBatch();
+                } catch (e) {}
+                textbox.inputField.value = textbox.emptyText;
+              }
+            }, 0, this);
+          }
+        ]]></body>
+      </method>
+
+      <method name="_clearEmptyText">
+        <body><![CDATA[
+          if (this.hasAttribute("empty")) {
+            this.inputField.value = "";
+            try {
+              this.editor.transactionManager.endBatch();
+            } catch (e) {}
+            this.removeAttribute("empty");
+          }
+        ]]></body>
+      </method>
+
       <constructor><![CDATA[
         var str = this.boxObject.getProperty("value");
         if (str) {
@@ -154,10 +203,13 @@
           this.boxObject.removeProperty("value");
         }
 
-        this._setNewlineHandling();
-
-        if (this.hasAttribute("emptytext"))
-          this.placeholder = this.getAttribute("emptytext");
+        // this.editor may not be initialized yet in
+        // bindings that inherit from xul:textbox, so
+        // do this after construction
+        setTimeout(function (a) {
+          a._updateVisibleText();
+          a._setNewlineHandling();
+        }, 0, this);
       ]]></constructor>
 
       <destructor>
@@ -173,45 +225,43 @@
     <handlers>
       <handler event="focus" phase="capturing">
         <![CDATA[
-          if (this.hasAttribute("focused"))
-            return;
+          this._clearEmptyText();
 
-          switch (event.originalTarget) {
-            case this:
-              // Forward focus to actual HTML input
-              this.inputField.focus();
-              break;
-            case this.inputField:
-              if (this.mIgnoreFocus) {
-                this.mIgnoreFocus = false;
-              } else if (this.clickSelectsAll) {
-                try {
-                  const nsIEditorIMESupport =
-                          Components.interfaces.nsIEditorIMESupport;
-                  let imeEditor = this.editor.QueryInterface(nsIEditorIMESupport);
-                  if (!imeEditor || !imeEditor.composing)
-                    this.editor.selectAll();
-                } catch (e) {}
-              }
-              break;
-            default:
-              // Allow other children (e.g. URL bar buttons) to get focus
-              return;
+          if (!this.hasAttribute("focused")) {
+            if (event.originalTarget == this)
+              this.inputField.focus(); // Forward focus to actual HTML input
+            else if (event.originalTarget != this.inputField)
+              return; // Allow other children (e.g. URL bar buttons) to get focus
+            else if (this.mIgnoreFocus)
+              this.mIgnoreFocus = false;
+            else if (this.clickSelectsAll) {
+              try {
+                const nsIEditorIMESupport =
+                        Components.interfaces.nsIEditorIMESupport;
+                var imeEditor = this.editor.QueryInterface(nsIEditorIMESupport);
+                if (!imeEditor || !imeEditor.composing)
+                  this.editor.selectAll();
+              } catch (e) {}
+            }
+
+            this.setAttribute("focused", "true");
           }
-          this.setAttribute("focused", "true");
         ]]>
       </handler>
 
       <handler event="blur" phase="capturing">
         <![CDATA[
           this.removeAttribute('focused');
-
-          // don't trigger clickSelectsAll when switching application windows
-          if (window == window.top &&
-              window.constructor == ChromeWindow &&
-              document.activeElement == this.inputField)
-            this.mIgnoreFocus = true;
+          this._updateVisibleText();
         ]]>
+      </handler>
+
+      <handler event="dragover" phase="capturing">
+        this._clearEmptyText();
+      </handler>
+
+      <handler event="dragexit" phase="capturing">
+        this._updateVisibleText();
       </handler>
 
       <handler event="mousedown">
@@ -231,17 +281,8 @@
       <handler event="click">
         <![CDATA[
           if (!this.mIgnoreClick && this.clickSelectsAll &&
-              document.activeElement == this.inputField &&
-              this.inputField.selectionStart == this.inputField.selectionEnd) {
+              this.inputField.selectionStart == this.inputField.selectionEnd)
             this.editor.selectAll();
-#ifndef XP_WIN
-            // see bug 576135 comment 4
-            let box = this.inputField.parentNode;
-            let menu = document.getAnonymousElementByAttribute(box, "anonid", "input-box-contextmenu");
-            if ((menu.state == "open" || menu.state == "showing") && box._doPopupItemEnabling)
-              box._doPopupItemEnabling(menu);
-#endif
-          }
         ]]>
       </handler>
     </handlers>
@@ -266,9 +307,17 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 0;"/>
       <property name="value"
-                onget="return this.inputField.value;">
+                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
         <setter><![CDATA[
-          this.inputField.value = val;
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
           if (this._timer)
             clearTimeout(this._timer);
           return val;
@@ -307,15 +356,17 @@
     <content>
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck" align="center">
-        <html:input class="textbox-input" flex="1" anonid="input" mozactionhint="search"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint"/>
+        <html:input class="textbox-input" flex="1" anonid="input"
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
         <xul:deck class="textbox-search-icons" anonid="search-icons">
           <xul:image class="textbox-search-icon"
                      onclick="document.getBindingParent(this)._iconClick();"
-                     xbl:inherits="src=image,searchbutton,disabled"/>
+                     xbl:inherits="src=image,searchbutton,disabled"
+                     chromedir="&locale.dir;"/>
           <xul:image class="textbox-search-clear"
                      onclick="document.getBindingParent(this)._clearSearch();"
-                     xbl:inherits="disabled"/>
+                     xbl:inherits="disabled"
+                     chromedir="&locale.dir;"/>
         </xul:deck>
       </xul:hbox>
     </content>
@@ -328,40 +379,28 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 500;"/>
       <property name="searchButton"
-                onget="return this.getAttribute('searchbutton') == 'true';">
+                onget="return this.hasAttribute('searchbutton');"
+                onset="if (val) this.setAttribute('searchbutton', 'true');
+                       else this.removeAttribute('searchbutton'); return val;"/>
+      <property name="value"
+                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           if (val) {
-            this.setAttribute("searchbutton", "true");
-            this.removeAttribute("aria-autocomplete");
-          } else {
-            this.removeAttribute("searchbutton");
-            this.setAttribute("aria-autocomplete", "list");
-          }
-          return val;
-        ]]></setter>
-      </property>
-      <property name="value"
-                onget="return this.inputField.value;">
-        <setter><![CDATA[
-          this.inputField.value = val;
-
-          if (val)
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
             this._searchIcons.selectedIndex = this.searchButton ? 0 : 1;
-          else
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
             this._searchIcons.selectedIndex = 0;
-
+          }
           if (this._timer)
             clearTimeout(this._timer);
-
           return val;
         ]]></setter>
       </property>
-      <constructor><![CDATA[
-        if (this.searchButton)
-          this.removeAttribute("aria-autocomplete");
-        else
-          this.setAttribute("aria-autocomplete", "list");
-      ]]></constructor>
       <method name="_fireCommand">
         <parameter name="me"/>
         <body><![CDATA[
@@ -435,7 +474,7 @@
     <content>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:textarea class="textbox-textarea" flex="1" anonid="input"
-                       xbl:inherits="onfocus,onblur,xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap,placeholder,mozactionhint"><children/></html:textarea>
+                       xbl:inherits="onfocus,onblur,xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap"><children/></html:textarea>
       </xul:hbox>
     </content>
   </binding>
@@ -444,7 +483,6 @@
     <content context="_child">
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
-                     class="textbox-contextmenu"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnabling(this);"
@@ -506,7 +544,6 @@
     <content context="_child">
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
-                     class="textbox-contextmenu"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnablingSpell(this);"
@@ -561,8 +598,11 @@
               return null;
 
             try {
-              Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm", this);
-              this.InlineSpellCheckerUI = new this.InlineSpellChecker(textbox.editor);
+              var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
+                             getService(CI.mozIJSSubScriptLoader);
+              loader.loadSubScript("chrome://global/content/inlineSpellCheckUI.js", this);
+              if ("InlineSpellCheckerUI" in this)
+                this.InlineSpellCheckerUI.init(textbox.editor);
             } catch(ex) { }
           }
 

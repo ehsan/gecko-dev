@@ -46,48 +46,43 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
-EXPORTS = \
-	CustomQS_Canvas2D.h \
-	CustomQS_WebGL.h \
-	$(NULL)
+REQUIRES	= \
+		xpcom \
+		string \
+		gfx \
+		layout \
+		widget \
+		dom \
+		js \
+		locale \
+		unicharutil \
+		webshell \
+		necko \
+		pref \
+		docshell \
+		xpconnect \
+		caps \
+		imglib2 \
+		thebes \
+		view \
+		$(NULL)
 
-CPPSRCS	= \
-	CanvasUtils.cpp \
-	nsCanvasRenderingContext2D.cpp \
-	$(NULL)
+# XXX some platforms can't handle building
+# an empty .a/lib.  Remove this dummy.cpp
+# whenever w have a rendering context
+# that doesn't depend on any non-default
+# libraries.
+CPPSRCS		= dummy.cpp \
+		$(NULL)
 
-ifdef MOZ_IPC
-CPPSRCS += \
-	DocumentRendererParent.cpp \
-	DocumentRendererChild.cpp \
-	$(NULL)
-endif
-
-# Canvas 3D Pieces
-
-ifdef MOZ_WEBGL
-
-CPPSRCS += \
-	WebGLContext.cpp \
-	WebGLContextGL.cpp \
-	WebGLContextUtils.cpp \
-	WebGLContextValidate.cpp \
-	$(NULL)
-
-DEFINES += -DUSE_ANGLE
-USE_ANGLE=1
-
-else
-
-CPPSRCS += WebGLContextNotSupported.cpp
-
+ifdef MOZ_ENABLE_CANVAS
+CPPSRCS		+= nsCanvasRenderingContext2D.cpp
 endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 CXXFLAGS	+= $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 

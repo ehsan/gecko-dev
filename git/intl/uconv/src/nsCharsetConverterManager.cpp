@@ -46,16 +46,14 @@
 #include "nsICharsetConverterManager.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsIStringBundle.h"
+#include "nsILocaleService.h"
 #include "nsUConvDll.h"
 #include "prmem.h"
 #include "nsCRT.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsStringEnumerator.h"
-#include "nsThreadUtils.h"
-#include "mozilla/Services.h"
 
 #include "nsXPCOM.h"
-#include "nsComponentManagerUtils.h"
 #include "nsISupportsPrimitives.h"
 
 // just for CONTRACTIDs
@@ -65,14 +63,17 @@
 #include "nsNativeUConvService.h"
 #endif
 
+// Pattern of cached, commonly used, single byte decoder
+#define NS_1BYTE_CODER_PATTERN "ISO-8859"
+#define NS_1BYTE_CODER_PATTERN_LEN 8
+
 // Class nsCharsetConverterManager [implementation]
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCharsetConverterManager,
                               nsICharsetConverterManager)
 
 nsCharsetConverterManager::nsCharsetConverterManager() 
-  : mDataBundle(NULL)
-  , mTitleBundle(NULL)
+  :mDataBundle(NULL), mTitleBundle(NULL)
 {
 #ifdef MOZ_USE_NATIVE_UCONV
   mNativeUC = do_GetService(NS_NATIVE_UCONV_SERVICE_CONTRACT_ID);
@@ -85,14 +86,47 @@ nsCharsetConverterManager::~nsCharsetConverterManager()
   NS_IF_RELEASE(mTitleBundle);
 }
 
+nsresult nsCharsetConverterManager::Init()
+{
+  if (!mDecoderHash.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
+  return NS_OK;
+}
+
+nsresult nsCharsetConverterManager::RegisterConverterManagerData()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catman = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  RegisterConverterCategory(catman, NS_TITLE_BUNDLE_CATEGORY,
+                            "chrome://global/locale/charsetTitles.properties");
+  RegisterConverterCategory(catman, NS_DATA_BUNDLE_CATEGORY,
+                            "resource://gre/res/charsetData.properties");
+
+  return NS_OK;
+}
+
+nsresult
+nsCharsetConverterManager::RegisterConverterCategory(nsICategoryManager* catman,
+                                                     const char* aCategory,
+                                                     const char* aURL)
+{
+  return catman->AddCategoryEntry(aCategory, aURL, "",
+                                  PR_TRUE, PR_TRUE, nsnull);
+}
+
 nsresult nsCharsetConverterManager::LoadExtensibleBundle(
                                     const char* aCategory, 
                                     nsIStringBundle ** aResult)
 {
-  nsCOMPtr<nsIStringBundleService> sbServ =
-    mozilla::services::GetStringBundleService();
-  if (!sbServ)
-    return NS_ERROR_FAILURE;
+  nsresult rv = NS_OK;
+
+  nsCOMPtr<nsIStringBundleService> sbServ = 
+           do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   return sbServ->CreateExtensibleBundle(aCategory, aResult);
 }
@@ -189,20 +223,6 @@ nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest,
 }
 
 NS_IMETHODIMP
-nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
-                                                nsIUnicodeDecoder ** aResult)
-{
-  nsresult rv;
-
-  nsAutoString str;
-  rv = GetCharsetData(aSrc, NS_LITERAL_STRING(".isXSSVulnerable").get(), str);
-  if (NS_SUCCEEDED(rv))
-    return NS_ERROR_UCONV_NOCONV;
-
-  return GetUnicodeDecoderRawInternal(aSrc, aResult);
-}
-
-NS_IMETHODIMP
 nsCharsetConverterManager::GetUnicodeDecoder(const char * aSrc, 
                                              nsIUnicodeDecoder ** aResult)
 {
@@ -217,22 +237,8 @@ nsCharsetConverterManager::GetUnicodeDecoder(const char * aSrc,
 }
 
 NS_IMETHODIMP
-nsCharsetConverterManager::GetUnicodeDecoderInternal(const char * aSrc, 
-                                                     nsIUnicodeDecoder ** aResult)
-{
-  // resolve the charset first
-  nsCAutoString charset;
-  
-  // fully qualify to possibly avoid vtable call
-  nsCharsetConverterManager::GetCharsetAlias(aSrc, charset);
-
-  return nsCharsetConverterManager::GetUnicodeDecoderRawInternal(charset.get(),
-                                                                 aResult);
-}
-
-NS_IMETHODIMP
-nsCharsetConverterManager::GetUnicodeDecoderRawInternal(const char * aSrc, 
-                                                        nsIUnicodeDecoder ** aResult)
+nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc, 
+                                                nsIUnicodeDecoder ** aResult)
 {
   *aResult= nsnull;
   nsCOMPtr<nsIUnicodeDecoder> decoder;
@@ -257,8 +263,22 @@ nsCharsetConverterManager::GetUnicodeDecoderRawInternal(const char * aSrc,
   NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);
   nsDependentCString src(aSrc);
   
-  decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+  if (!strncmp(aSrc, NS_1BYTE_CODER_PATTERN, NS_1BYTE_CODER_PATTERN_LEN))
+  {
+    // Single byte decoders don't hold state. Optimize by using a service, and
+    // cache it in our hash to avoid repeated trips through the service manager.
+    if (!mDecoderHash.Get(aSrc, getter_AddRefs(decoder))) {
+      decoder = do_GetService(PromiseFlatCString(contractbase + src).get(),
                               &rv);
+      if (NS_SUCCEEDED(rv))
+        mDecoderHash.Put(aSrc, decoder);
+    }
+  }
+  else
+  {
+    decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+                                &rv);
+  }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_UCONV_NOCONV);
 
   decoder.forget(aResult);
@@ -281,7 +301,7 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
   if (NS_FAILED(rv))
     return rv;
 
-  nsTArray<nsCString>* array = new nsTArray<nsCString>;
+  nsCStringArray* array = new nsCStringArray;
   if (!array)
     return NS_ERROR_OUT_OF_MEMORY;
   
@@ -310,7 +330,7 @@ nsCharsetConverterManager::GetList(const nsACString& aCategory,
     if (NS_FAILED(rv)) 
       continue;
 
-    rv = array->AppendElement(alias) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    rv = array->AppendCString(alias);
   }
     
   return NS_NewAdoptingUTF8StringEnumerator(aResult, array);
@@ -437,10 +457,8 @@ nsCharsetConverterManager::GetCharsetLangGroupRaw(const char * aCharset,
   nsAutoString langGroup;
   rv = GetBundleValue(mDataBundle, aCharset, NS_LITERAL_STRING(".LangGroup"), langGroup);
 
-  if (NS_SUCCEEDED(rv)) {
-    ToLowerCase(langGroup); // use lowercase for all language atoms
+  if (NS_SUCCEEDED(rv))
     *aResult = NS_NewAtom(langGroup);
-  }
 
   return rv;
 }

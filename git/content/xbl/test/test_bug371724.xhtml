@@ -24,35 +24,17 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=371724
     <script class="testbody" type="text/javascript">  
       /** Test for Bug 371724 **/
       SimpleTest.waitForExplicitFinish();
-      function checkReadOnly() {
-        var elt = document.getElementById('a');
-        var oldValue = elt.hallo;
-        var actual;
+      function doe() {
+        var isException = false;
         try {
-          elt.hallo = false;
-          actual = elt.hallo;
+          document.getElementById('a').hallo = false;
         } catch (ex) {
-          actual = "" + ex;
+         isException = ex.name;
         }
-        is(actual, true,
-           "Setting a readonly xbl property should do nothing if !strict");
-        checkReadOnlyStrict();
-      }
-      function checkReadOnlyStrict() {
-        "use strict";
-        var elt = document.getElementById('a');
-        var actual;
-        try {
-          elt.hallo = false;
-          actual = "should have thrown";
-        } catch (ex) {
-          actual = ex instanceof TypeError;
-        }
-        is(actual, true,
-           "Setting a readonly xbl property should throw a TypeError exception if strict");
+        ok(isException == "TypeError", "Setting a readonly xbl property should throw a TypeError exception");
         SimpleTest.finish();
       }
-      addLoadEvent(checkReadOnly);
+      setTimeout(doe, 600);
     </script>
   </pre>
 </body>

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageRow_h
-#define mozStorageRow_h
+#ifndef __mozStorageRow_h__
+#define __mozStorageRow_h__
 
 #include "mozIStorageRow.h"
 #include "nsCOMArray.h"
@@ -46,10 +46,7 @@
 class nsIVariant;
 struct sqlite3_stmt;
 
-namespace mozilla {
-namespace storage {
-
-class Row : public mozIStorageRow
+class mozStorageRow : public mozIStorageRow
 {
 public:
   NS_DECL_ISUPPORTS
@@ -82,7 +79,4 @@ private:
   nsDataHashtable<nsCStringHashKey, PRUint32> mNameHashtable;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif // mozStorageRow_h
+#endif // __mozStorageRow_h__

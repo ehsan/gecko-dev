@@ -35,7 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsSVGAElement.h"
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGURIReference.h"
@@ -44,11 +43,63 @@
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 
+typedef nsSVGGraphicElement nsSVGAElementBase;
+
+class nsSVGAElement : public nsSVGAElementBase,
+                      public nsIDOMSVGAElement,
+                      public nsIDOMSVGURIReference,
+                      public nsILink
+{
+protected:
+  friend nsresult NS_NewSVGAElement(nsIContent **aResult,
+                                    nsINodeInfo *aNodeInfo);
+  nsSVGAElement(nsINodeInfo *aNodeInfo);
+
+public:
+  // interfaces:
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGAELEMENT
+  NS_DECL_NSIDOMSVGURIREFERENCE
+
+  // XXX: I wish we could use virtual inheritance
+  NS_FORWARD_NSIDOMNODE(nsSVGAElementBase::)
+  NS_FORWARD_NSIDOMELEMENT(nsSVGAElementBase::)
+  NS_FORWARD_NSIDOMSVGELEMENT(nsSVGAElementBase::)
+
+  // nsINode interface methods
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  // nsILink
+  NS_IMETHOD GetLinkState(nsLinkState &aState);
+  NS_IMETHOD SetLinkState(nsLinkState aState);
+  NS_IMETHOD GetHrefURI(nsIURI** aURI);
+  NS_IMETHOD LinkAdded() { return NS_OK; }
+  NS_IMETHOD LinkRemoved() { return NS_OK; }
+
+  // nsIContent
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsLink(nsIURI** aURI) const;
+  virtual void GetLinkTarget(nsAString& aTarget);
+
+protected:
+
+  virtual StringAttributesInfo GetStringInfo();
+
+  enum { HREF, TARGET };
+  nsSVGString mStringAttributes[2];
+  static StringInfo sStringInfo[2];
+
+  // The cached visited state (for the implementation of nsILink)
+  nsLinkState mLinkState;
+};
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE },
-  { &nsGkAtoms::target, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink },
+  { &nsGkAtoms::target, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(A)
@@ -60,26 +111,22 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(A)
 NS_IMPL_ADDREF_INHERITED(nsSVGAElement, nsSVGAElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 
-DOMCI_NODE_DATA(SVGAElement, nsSVGAElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
-  NS_NODE_INTERFACE_TABLE7(nsSVGAElement,
-                           nsIDOMNode,
-                           nsIDOMElement,
-                           nsIDOMSVGElement,
-                           nsIDOMSVGAElement,
-                           nsIDOMSVGURIReference,
-                           nsILink,
-                           Link)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGAElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAElement)
+  NS_INTERFACE_MAP_ENTRY(nsILink)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAElement::nsSVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsSVGAElementBase(aNodeInfo)
+nsSVGAElement::nsSVGAElement(nsINodeInfo *aNodeInfo)
+  : nsSVGAElementBase(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -127,67 +174,35 @@ nsSVGAElement::GetTarget(nsIDOMSVGAnimatedString * *aTarget)
 
 
 //----------------------------------------------------------------------
-// nsIContent methods
+// nsILink methods
 
-nsresult
-nsSVGAElement::BindToTree(nsIDocument *aDocument, nsIContent *aParent,
-                          nsIContent *aBindingParent,
-                          PRBool aCompileEventHandlers)
+NS_IMETHODIMP
+nsSVGAElement::GetLinkState(nsLinkState &aState)
 {
-  Link::ResetLinkState(false);
-
-  nsresult rv = nsSVGAElementBase::BindToTree(aDocument, aParent,
-                                              aBindingParent,
-                                              aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  aState = mLinkState;
   return NS_OK;
 }
 
-void
-nsSVGAElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
+NS_IMETHODIMP
+nsSVGAElement::SetLinkState(nsLinkState aState)
 {
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
-
-  nsSVGAElementBase::UnbindFromTree(aDeep, aNullParent);
+  mLinkState = aState;
+  return NS_OK;
 }
 
-nsLinkState
-nsSVGAElement::GetLinkState() const
+NS_IMETHODIMP
+nsSVGAElement::GetHrefURI(nsIURI** aURI)
 {
-  return Link::GetLinkState();
-}
-
-already_AddRefed<nsIURI>
-nsSVGAElement::GetHrefURI() const
-{
-  nsCOMPtr<nsIURI> hrefURI;
-  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nsnull;
+  *aURI = nsnull;
+  return NS_OK; // XXX GetHrefURIForAnchors(aURI);
 }
 
 
-NS_IMETHODIMP_(PRBool)
-nsSVGAElement::IsAttributeMapped(const nsIAtom* name) const
-{
-  static const MappedAttributeEntry* const map[] = {
-    sFEFloodMap,
-    sFiltersMap,
-    sFontSpecificationMap,
-    sGradientStopMap,
-    sLightingEffectsMap,
-    sMarkersMap,
-    sTextContentElementsMap,
-    sViewportsMap
-  };
-
-  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
-    nsSVGAElementBase::IsAttributeMapped(name);
-}
+//----------------------------------------------------------------------
+// nsIContent methods
 
 PRBool
-nsSVGAElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
+nsSVGAElement::IsFocusable(PRInt32 *aTabIndex)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {
@@ -241,9 +256,8 @@ nsSVGAElement::IsLink(nsIURI** aURI) const
                       nsIContent::ATTR_VALUE_NO_MATCH) {
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
     // Get absolute URI
-    nsAutoString str;
-    mStringAttributes[HREF].GetAnimValue(str, this);
-    nsContentUtils::NewURIWithDocumentCharset(aURI, str,
+    nsContentUtils::NewURIWithDocumentCharset(aURI,
+                                              mStringAttributes[HREF].GetAnimValue(),
                                               GetOwnerDoc(), baseURI);
     // must promise out param is non-null if we return true
     return !!*aURI;
@@ -256,7 +270,7 @@ nsSVGAElement::IsLink(nsIURI** aURI) const
 void
 nsSVGAElement::GetLinkTarget(nsAString& aTarget)
 {
-  mStringAttributes[TARGET].GetAnimValue(aTarget, this);
+  aTarget = mStringAttributes[TARGET].GetAnimValue();
   if (aTarget.IsEmpty()) {
 
     static nsIContent::AttrValuesArray sShowVals[] =
@@ -277,50 +291,6 @@ nsSVGAElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
-nsEventStates
-nsSVGAElement::IntrinsicState() const
-{
-  return Link::LinkState() | nsSVGAElementBase::IntrinsicState();
-}
-
-nsresult
-nsSVGAElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                       nsIAtom* aPrefix, const nsAString& aValue,
-                       PRBool aNotify)
-{
-  nsresult rv = nsSVGAElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
-                                           aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_XLink) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
-}
-
-nsresult
-nsSVGAElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
-                         PRBool aNotify)
-{
-  nsresult rv = nsSVGAElementBase::UnsetAttr(aNameSpaceID, aAttr, aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttr == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_XLink) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
-}
-
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
@@ -330,3 +300,4 @@ nsSVGAElement::GetStringInfo()
   return StringAttributesInfo(mStringAttributes, sStringInfo,
                               NS_ARRAY_LENGTH(sStringInfo));
 }
+

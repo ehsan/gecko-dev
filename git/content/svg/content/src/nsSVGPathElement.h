@@ -43,10 +43,26 @@
 #include "nsIDOMSVGPathElement.h"
 #include "nsIDOMSVGAnimatedPathData.h"
 #include "nsSVGNumber2.h"
-#include "SVGAnimatedPathSegList.h"
 #include "gfxPath.h"
 
 class gfxContext;
+
+class nsSVGPathList
+{
+friend class nsSVGPathDataParserToInternal;
+
+public:
+  enum { MOVETO, LINETO, CURVETO, CLOSEPATH };
+  nsSVGPathList() : mArguments(nsnull), mNumCommands(0), mNumArguments(0) {}
+  ~nsSVGPathList() { Clear(); }
+  void Playback(gfxContext *aCtx);
+  void Clear();
+
+protected:
+  float   *mArguments;
+  PRUint32 mNumCommands;
+  PRUint32 mNumArguments;
+};
 
 typedef nsSVGPathGeometryElement nsSVGPathElementBase;
 
@@ -59,11 +75,11 @@ friend class nsSVGTextPathFrame;
 
 protected:
   friend nsresult NS_NewSVGPathElement(nsIContent **aResult,
-                                       already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                       nsINodeInfo *aNodeInfo);
+  nsSVGPathElement(nsINodeInfo *aNodeInfo);
+  virtual ~nsSVGPathElement();
 
 public:
-  typedef mozilla::SVGAnimatedPathSegList SVGAnimatedPathSegList;
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -76,37 +92,37 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGPathElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+
+  // nsISVGValueObserver
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
 
   // nsSVGPathGeometryElement methods:
-  virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual PRBool IsDependentAttribute(nsIAtom *aName);
   virtual PRBool IsMarkable();
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
 
-  virtual already_AddRefed<gfxFlattenedPath> GetFlattenedPath(const gfxMatrix &aMatrix);
+  virtual already_AddRefed<gfxFlattenedPath> GetFlattenedPath(nsIDOMSVGMatrix *aMatrix);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual SVGAnimatedPathSegList* GetAnimPathSegList() {
-    return &mD;
-  }
-
-  virtual nsIAtom* GetPathDataAttrName() const {
-    return nsGkAtoms::d;
-  }
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
 
 protected:
 
   // nsSVGElement method
   virtual NumberAttributesInfo GetNumberInfo();
 
-  SVGAnimatedPathSegList mD;
+  // Helper for lazily creating pathseg list
+  nsresult CreatePathSegList();
+
+  nsCOMPtr<nsIDOMSVGPathSegList> mSegments;
   nsSVGNumber2 mPathLength;
   static NumberInfo sNumberInfo;
+  nsSVGPathList mPathData;
 };
 
 #endif

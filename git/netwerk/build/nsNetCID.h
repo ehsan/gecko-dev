@@ -61,19 +61,6 @@
 #define NS_NETUTIL_CONTRACTID \
     "@mozilla.org/network/util;1"
 
-// serialization scriptable helper
-#define NS_SERIALIZATION_HELPER_CLASSNAME \
-  "nsSerializationHelper"
-#define NS_SERIALIZATION_HELPER_CONTRACTID \
-  "@mozilla.org/network/serialization-helper;1"
-#define NS_SERIALIZATION_HELPER_CID                  \
-{ /* D6EF593D-A429-4b14-A887-D9E2F765D9ED */         \
-  0xd6ef593d,                                        \
-  0xa429,                                            \
-  0x4b14,                                           \
-  { 0xa8, 0x87, 0xd9, 0xe2, 0xf7, 0x65, 0xd9, 0xed } \
-}
-
 // service implementing nsIProtocolProxyService and nsPIProtocolProxyService.
 #define NS_PROTOCOLPROXYSERVICE_CLASSNAME \
     "nsProtocolProxyService"
@@ -134,16 +121,6 @@
      0x287b,                                             \
      0x4240,                                             \
      { 0xa7, 0x85, 0x85, 0xc3, 0x94, 0x01, 0x25, 0x03 }  \
-}
-
-// component inheriting from the nested simple URI component and also
-// carrying along its base URI
-#define NS_NESTEDABOUTURI_CID                            \
-{ /* 2f277c00-0eaf-4ddb-b936-41326ba48aae */             \
-     0x2f277c00,                                         \
-     0x0eaf,                                             \
-     0x4ddb,                                             \
-     { 0xb9, 0x36, 0x41, 0x32, 0x6b, 0xa4, 0x8a, 0xae }  \
 }
 
 // component implementing nsIStandardURL, nsIURI, nsIURL, nsISerializable,
@@ -416,18 +393,6 @@
     {0x8c, 0xda, 0x00, 0x60, 0xb0, 0xfc, 0x14, 0xa3} \
 }
 
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CLASSNAME \
-    "nsPartialFileInputStream"
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID \
-    "@mozilla.org/network/partial-file-input-stream;1"
-#define NS_PARTIALLOCALFILEINPUTSTREAM_CID           \
-{ /* 8738afd6-162a-418d-a99b-75b3a6b10a56 */         \
-    0x8738afd6,                                      \
-    0x162a,                                          \
-    0x418d,                                          \
-    {0xa9, 0x9b, 0x75, 0xb3, 0xa6, 0xb1, 0x0a, 0x56} \
-}
-
 #define NS_BUFFEREDINPUTSTREAM_CLASSNAME \
     "nsBufferedInputStream"
 #define NS_BUFFEREDINPUTSTREAM_CONTRACTID \
@@ -465,34 +430,23 @@
     {0x94, 0xdb, 0xd4, 0xf8, 0x59, 0x05, 0x82, 0x15} \
 }
 
-// component implementing nsIPrivateBrowsingService
-#define NS_PRIVATE_BROWSING_SERVICE_CONTRACTID \
-    "@mozilla.org/privatebrowsing-wrapper;1"
-#define NS_PRIVATE_BROWSING_SERVICE_CID              \
-{ /* c31f4883-839b-45f6-82ad-a6a9bc5ad599 */         \
-    0xc31f4883,                                      \
-    0x839b,                                          \
-    0x45f6,                                          \
-    {0x82, 0xad, 0xa6, 0xa9, 0xbc, 0x5a, 0xd5, 0x99} \
-}
+// component implementing nsIPrompt
+//
+// NOTE: this implementation does not have any way to correctly parent itself,
+//       it is almost always wrong to get a prompt via this interface.
+//       use nsIWindowWatcher instead whenever possible.
+//
+#define NS_DEFAULTPROMPT_CONTRACTID \
+    "@mozilla.org/network/default-prompt;1"
 
-/**
- * Contract ID for a service implementing nsIURIClassifier that identifies
- * phishing and malware sites.
- */
-#define NS_URICLASSIFIERSERVICE_CONTRACTID \
-    "@mozilla.org/uriclassifierservice"
-
-// Redirect channel registrar used for redirect to various protocols
-#define NS_REDIRECTCHANNELREGISTRAR_CONTRACTID \
-    "@mozilla.org/redirectchannelregistrar;1"
-#define NS_REDIRECTCHANNELREGISTRAR_CID \
-{ /* {b69043a6-8929-4d60-8d17-a27e44a8393e} */ \
-    0xb69043a6, \
-    0x8929, \
-    0x4d60, \
-    { 0x8d, 0x17, 0xa2, 0x7e, 0x44, 0xa8, 0x39, 0x3e } \
-}
+// component implementing nsIAuthPrompt
+//
+// NOTE: this implementation does not have any way to correctly parent itself,
+//       it is almost always wrong to get an auth prompt via this interface.
+//       use nsIWindowWatcher instead whenever possible.
+//
+#define NS_DEFAULTAUTHPROMPT_CONTRACTID \
+    "@mozilla.org/network/default-auth-prompt;1"
 
 /******************************************************************************
  * netwerk/cache/ classes
@@ -534,19 +488,6 @@
     0x04e2,                                          \
     0x4f74,                                          \
    {0x8e, 0x1c, 0xd1, 0xaf, 0x79, 0xdf, 0xd1, 0x2f}  \
-}
-
-#define NS_APPLICATIONCACHE_CLASSNAME \
-    "nsApplicationCache"
-#define NS_APPLICATIONCACHE_CONTRACTID \
-    "@mozilla.org/network/application-cache;1"
-
-#define NS_APPLICATIONCACHE_CID             \
-{ /* 463440c5-baad-4f3c-9e50-0b107abe7183 */ \
-    0x463440c5, \
-    0xbaad, \
-    0x4f3c, \
-   {0x9e, 0x50, 0xb, 0x10, 0x7a, 0xbe, 0x71, 0x83 } \
 }
 
 /******************************************************************************
@@ -603,30 +544,6 @@
     0xe0fa,                                          \
     0x4c49,                                          \
     {0x9f, 0xd4, 0xe0, 0x65, 0xe8, 0x55, 0x68, 0xf4} \
-}
-
-#define NS_HTTPCHANNELAUTHPROVIDER_CLASSNAME \
-    "nsHttpChannelAuthProvider"
-#define NS_HTTPCHANNELAUTHPROVIDER_CONTRACTID \
-    "@mozilla.org/network/http-channel-auth-provider;1"
-#define NS_HTTPCHANNELAUTHPROVIDER_CID \
-{ /* 02f5a8d8-4ef3-48b1-b527-8a643056abbd */         \
-    0x02f5a8d8,                                      \
-    0x4ef3,                                          \
-    0x48b1,                                          \
-    {0xb5, 0x27, 0x8a, 0x64, 0x30, 0x56, 0xab, 0xbd} \
-}
-
-#define NS_HTTPACTIVITYDISTRIBUTOR_CLASSNAME \
-    "nsHttpActivityDistributor"
-#define NS_HTTPACTIVITYDISTRIBUTOR_CONTRACTID \
-    "@mozilla.org/network/http-activity-distributor;1"
-#define NS_HTTPACTIVITYDISTRIBUTOR_CID \
-{ /* 15629ada-a41c-4a09-961f-6553cd60b1a2 */         \
-    0x15629ada,                                      \
-    0xa41c,                                          \
-    0x4a09,                                          \
-    {0x96, 0x1f, 0x65, 0x53, 0xcd, 0x60, 0xb1, 0xa2} \
 }
 
 /******************************************************************************
@@ -697,19 +614,6 @@
 }
 
 /******************************************************************************
- * netwerk/protocol/device classes
- */
-#define NS_DEVICEPROTOCOLHANDLER_CLASSNAME \
-    "nsDeviceProtocolHandler"
-#define NS_DEVICEPROTOCOLHANDLER_CID                 \
-{ /* 6b0ffe9e-d114-486b-aeb7-da62e7273ed5 */         \
-    0x60ffe9e,                                       \
-    0xd114,                                          \
-    0x486b,                                          \
-    {0xae, 0xb7, 0xda, 0x62, 0xe7, 0x27, 0x3e, 0xd5} \
-}
-
-/******************************************************************************
  * netwerk/protocol/viewsource/ classes
  */
 
@@ -720,18 +624,6 @@
     0x23f9,                                          \
     0x11d5,                                          \
     {0xae, 0xa8, 0x8f, 0xcc, 0x07, 0x93, 0xe9, 0x7f} \
-}
-
-/******************************************************************************
- * netwerk/protocol/wyciwyg/ classes
- */
-
-#define NS_WYCIWYGPROTOCOLHANDLER_CID                \
-{ /* {0xe7509b46-2eB2-410a-9d7c-c3ce73284d01} */     \
-  0xe7509b46,                                        \
-  0x2eb2,                                            \
-  0x410a,                                            \
-  {0x9d, 0x7c, 0xc3, 0xce, 0x73, 0x28, 0x4d, 0x01}   \
 }
 
 /******************************************************************************
@@ -896,21 +788,6 @@
     0x11d6,                                            \
     { 0xa6, 0x18, 0x00, 0x10, 0xa4, 0x01, 0xeb, 0x10 } \
 }
-
-/******************************************************************************
- * netwerk/wifi classes
- */
-#ifdef NECKO_WIFI
-#define NS_WIFI_MONITOR_CLASSNAME  "WIFI_MONITOR"
-#define NS_WIFI_MONITOR_CONTRACTID "@mozilla.org/wifi/monitor;1"
-
-#define NS_WIFI_MONITOR_COMPONENT_CID                  \
-{  0x3FF8FB9F,                                         \
-   0xEE63,                                             \
-   0x48DF,                                             \
-   { 0x89, 0xF0, 0xDA, 0xCE, 0x02, 0x42, 0xFD, 0x82 }  \
-}
-#endif
 
 /******************************************************************************
  * netwerk/streamconv classes

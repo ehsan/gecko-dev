@@ -1,18 +1,19 @@
 <!DOCTYPE HTML>
 <html>
 <!--
-https://bugzilla.mozilla.org/show_bug.cgi?id=478911
+https://bugzilla.mozilla.org/show_bug.cgi?id=
 -->
 <head>
   <title>Test for getCurrentPosition </title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="prompt_common.js"></script>
   <script type="text/javascript" src="geolocation_common.js"></script>
 
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
-<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=478911">Mozilla Bug 478911</a>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=">Mozilla Bug </a>
 <p id="display"></p>
 <div id="content" style="display: none">
   
@@ -20,23 +21,40 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=478911
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
+var numCallbacks = 5;
+var callbackCounter = new Array(numCallbacks);
+
+// define success callbacks
+for(var i = 0; i < numCallbacks; i++) {
+  eval("function successCallback" + i + "(position) {" +
+          "callbackCounter[" + i + "]++;" +
+          "success_callback(position);" +
+       "}"
+  );
+}
+
+function testDeclined() {
+  removePrompt();
+  SimpleTest.finish();
+}
+
+/** Test for Bug  **/
+
 SimpleTest.waitForExplicitFinish();
-resume_geolocationProvider();
-force_prompt(false);
 
-function failureCallback(error) {
-  ok(error.code == error.PERMISSION_DENIED, "Ensure that the error was PERMISSION_DENIED");
-  reset_prompt();
-  SimpleTest.finish();
+attachPrompt();
+
+ok(navigator.geolocation, "Ensure that the geolocation object is present");
+
+promptOption = DECLINE;
+
+// one-shot position requests
+for(var i = 0; i < numCallbacks; i++) {
+  eval("navigator.geolocation.getCurrentPosition(successCallback" + i + ", null, null);");
 }
 
-function successCallback(position){
-  ok(0, "Success was called when it shouldn't have been.  major problem");
-  reset_prompt();
-  SimpleTest.finish();
-}
-
-navigator.geolocation.getCurrentPosition(successCallback, failureCallback, null);
+// wait for position change
+setTimeout(testDeclined, timeout);
 
 </script>
 </pre>

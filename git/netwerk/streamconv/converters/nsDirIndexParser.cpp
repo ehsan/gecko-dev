@@ -184,16 +184,12 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
   // Lets find out how many elements we have.
   // easier to do this then realloc
   const char* pos = aFormatStr;
-  unsigned int num = 0;
+  int num = 0;
   do {
     while (*pos && nsCRT::IsAsciiSpace(PRUnichar(*pos)))
       ++pos;
     
     ++num;
-    // There are a maximum of six allowed header fields (doubled plus
-    // terminator, just in case) -- Bug 443299
-    if (num > (2 * NS_ARRAY_LENGTH(gFieldTable)))
-      return NS_ERROR_UNEXPECTED;
 
     if (! *pos)
       break;
@@ -204,9 +200,6 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
   } while (*pos);
 
   mFormat = new int[num+1];
-  // Prevent NULL Deref - Bug 443299 
-  if (mFormat == nsnull)
-    return NS_ERROR_OUT_OF_MEMORY;
   mFormat[num] = -1;
   
   int formatNum=0;
@@ -315,7 +308,7 @@ nsDirIndexParser::ParseData(nsIDirIndex *aIdx, char* aDataStr) {
         }
       }
       
-      if (!success) {
+      if (success == PR_FALSE) {
         // if unsuccessfully at charset conversion, then
         // just fallback to unescape'ing in-place
         // XXX - this shouldn't be using UTF8, should it?

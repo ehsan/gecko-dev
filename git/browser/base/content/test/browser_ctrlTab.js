@@ -1,6 +1,4 @@
 function test() {
-  gPrefService.setBoolPref("browser.ctrlTab.previews", true);
-
   gBrowser.addTab();
   gBrowser.addTab();
   gBrowser.addTab();
@@ -9,7 +7,7 @@ function test() {
 
   ctrlTabTest([2]      , 1, 0);
   ctrlTabTest([2, 3, 1], 2, 2);
-  ctrlTabTest([]       , 5, 2);
+  ctrlTabTest([]       , 4, 2);
 
   {
     let selectedIndex = gBrowser.tabContainer.selectedIndex;
@@ -21,24 +19,21 @@ function test() {
   }
 
   { // test for bug 445369
-    let tabs = gBrowser.tabs.length;
+    let tabs = gBrowser.mTabs.length;
     pressCtrlTab();
     EventUtils.synthesizeKey("w", { ctrlKey: true });
-    is(gBrowser.tabs.length, tabs - 1, "Ctrl+Tab -> Ctrl+W removes one tab");
+    is(gBrowser.mTabs.length, tabs - 1, "Ctrl+Tab -> Ctrl+W removes one tab");
     releaseCtrl();
   }
-
   assertTabs(3);
-  ctrlTabTest([2, 1, 0], 9, 1);
 
-  gBrowser.addTab();
-  assertTabs(4);
+  ctrlTabTest([2, 1, 0], 7, 1);
 
   { // test for bug 445369
     selectTabs([1, 2, 0]);
 
     let selectedTab = gBrowser.selectedTab;
-    let tabToRemove = gBrowser.tabs[1];
+    let tabToRemove = gBrowser.mTabs[1];
 
     pressCtrlTab();
     pressCtrlTab();
@@ -52,12 +47,12 @@ function test() {
     ok(gBrowser.selectedTab == selectedTab,
        "Ctrl+Tab*2 -> Ctrl+W -> Ctrl+Shift+Tab*2 keeps the selected tab");
   }
-  gBrowser.removeTab(gBrowser.tabContainer.lastChild);
   assertTabs(2);
 
-  ctrlTabTest([1], 1, 0);
+  //ctrlTabTest([1], 1, 0);
 
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
+
   assertTabs(1);
 
   { // test for bug 445768
@@ -70,13 +65,9 @@ function test() {
     pressCtrlTab();
     document.removeEventListener("keypress", detectKeyEvent, false);
     ok(eventConsumed, "Ctrl+Tab consumed by the tabbed browser if one tab is open");
-    is(focusedWindow, document.commandDispatcher.focusedWindow,
+    is(focusedWindow.location, document.commandDispatcher.focusedWindow.location,
        "Ctrl+Tab doesn't change focus if one tab is open");
   }
-
-  // cleanup
-  if (gPrefService.prefHasUserValue("browser.ctrlTab.previews"))
-    gPrefService.clearUserPref("browser.ctrlTab.previews");
 
   /* private utility functions */
 
@@ -86,13 +77,10 @@ function test() {
   function releaseCtrl()
     EventUtils.synthesizeKey("VK_CONTROL", { type: "keyup" });
 
-  function isOpen()
-    ctrlTab.isOpen;
-
   function assertTabs(aTabs) {
-    var tabs = gBrowser.tabs.length;
+    var tabs = gBrowser.mTabs.length;
     if (tabs != aTabs) {
-      while (gBrowser.tabs.length > 1)
+      while (gBrowser.mTabs.length > 1)
         gBrowser.removeCurrentTab();
       throw "expected " + aTabs + " open tabs, got " + tabs;
     }
@@ -100,7 +88,7 @@ function test() {
 
   function selectTabs(tabs) {
     tabs.forEach(function (index) {
-      gBrowser.selectedTab = gBrowser.tabs[index];
+      gBrowser.selectedTab = gBrowser.mTabs[index];
     });
   }
 
@@ -108,7 +96,7 @@ function test() {
     selectTabs(tabsToSelect);
 
     var indexStart = gBrowser.tabContainer.selectedIndex;
-    var tabCount = gBrowser.tabs.length;
+    var tabCount = gBrowser.mTabs.length;
     var normalized = tabTimes % tabCount;
     var where = normalized == 1 ? "back to the previously selected tab" :
                 normalized + " tabs back in most-recently-selected order";
@@ -122,15 +110,18 @@ function test() {
     }
 
     if (tabCount > 2) {
-      ok(isOpen(),
+      ok(ctrlTab.panel.state == "showing" || ctrlTab.panel.state == "open",
          "With " + tabCount + " tabs open, Ctrl+Tab opens the preview panel");
+
+      is(ctrlTab.label.value, gBrowser.mTabs[expectedIndex].label,
+         "Preview panel displays label of expected tab");
 
       releaseCtrl();
 
-      ok(!isOpen(),
+      ok(ctrlTab.panel.state == "hiding" || ctrlTab.panel.state == "closed",
          "Releasing Ctrl closes the preview panel");
     } else {
-      ok(!isOpen(),
+      ok(ctrlTab.panel.state == "hiding" || ctrlTab.panel.state == "closed",
          "With " + tabCount + " tabs open, Ctrl+Tab doesn't open the preview panel");
     }
 

@@ -61,7 +61,8 @@ txApplyDefaultElementTemplate::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mode, &aEs, nsnull, &frame);
 
-    aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
+    nsresult rv = aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -96,7 +97,8 @@ txApplyImportsStart::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mode, &aEs, rule->mFrame, &frame);
 
-    aEs.pushTemplateRule(frame, mode, rule->mParams);
+    rv = aEs.pushTemplateRule(frame, mode, rule->mParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -114,7 +116,8 @@ txApplyTemplates::execute(txExecutionState& aEs)
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
                                       mMode, &aEs, nsnull, &frame);
 
-    aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
+    nsresult rv = aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aEs.runTemplate(templ);
 }
@@ -639,6 +642,11 @@ txPushNewContext::txPushNewContext(nsAutoPtr<Expr> aSelect)
 
 txPushNewContext::~txPushNewContext()
 {
+    PRInt32 i;
+    for (i = 0; i < mSortKeys.Count(); ++i)
+    {
+        delete static_cast<SortKey*>(mSortKeys[i]);
+    }
 }
 
 nsresult
@@ -665,12 +673,12 @@ txPushNewContext::execute(txExecutionState& aEs)
     }
 
     txNodeSorter sorter;
-    PRUint32 i, count = mSortKeys.Length();
+    PRInt32 i, count = mSortKeys.Count();
     for (i = 0; i < count; ++i) {
-        SortKey& sort = mSortKeys[i];
-        rv = sorter.addSortElement(sort.mSelectExpr, sort.mLangExpr,
-                                   sort.mDataTypeExpr, sort.mOrderExpr,
-                                   sort.mCaseOrderExpr,
+        SortKey* sort = static_cast<SortKey*>(mSortKeys[i]);
+        rv = sorter.addSortElement(sort->mSelectExpr, sort->mLangExpr,
+                                   sort->mDataTypeExpr, sort->mOrderExpr,
+                                   sort->mCaseOrderExpr,
                                    aEs.getEvalContext());
         NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -699,23 +707,33 @@ txPushNewContext::addSort(nsAutoPtr<Expr> aSelectExpr,
                           nsAutoPtr<Expr> aOrderExpr,
                           nsAutoPtr<Expr> aCaseOrderExpr)
 {
-    if (SortKey *key = mSortKeys.AppendElement()) {
-        // workaround for not triggering the Copy Constructor
-        key->mSelectExpr = aSelectExpr;
-        key->mLangExpr = aLangExpr;
-        key->mDataTypeExpr = aDataTypeExpr;
-        key->mOrderExpr = aOrderExpr;
-        key->mCaseOrderExpr = aCaseOrderExpr;
-        return NS_OK;
+    SortKey* sort = new SortKey(aSelectExpr, aLangExpr, aDataTypeExpr,
+                                aOrderExpr, aCaseOrderExpr);
+    NS_ENSURE_TRUE(sort, NS_ERROR_OUT_OF_MEMORY);
+
+    if (!mSortKeys.AppendElement(sort)) {
+        delete sort;
+        return NS_ERROR_OUT_OF_MEMORY;
     }
-    return NS_ERROR_OUT_OF_MEMORY;
+   
+    return NS_OK;
+}
+
+txPushNewContext::SortKey::SortKey(nsAutoPtr<Expr> aSelectExpr,
+                                   nsAutoPtr<Expr> aLangExpr,
+                                   nsAutoPtr<Expr> aDataTypeExpr,
+                                   nsAutoPtr<Expr> aOrderExpr,
+                                   nsAutoPtr<Expr> aCaseOrderExpr)
+    : mSelectExpr(aSelectExpr), mLangExpr(aLangExpr),
+      mDataTypeExpr(aDataTypeExpr), mOrderExpr(aOrderExpr),
+      mCaseOrderExpr(aCaseOrderExpr)
+{
 }
 
 nsresult
 txPushNullTemplateRule::execute(txExecutionState& aEs)
 {
-    aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
-    return NS_OK;
+    return aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
 }
 
 nsresult

@@ -41,22 +41,16 @@
 #ifndef CAIRO_MUTEX_IMPL_PRIVATE_H
 #define CAIRO_MUTEX_IMPL_PRIVATE_H
 
-#include "cairo.h"
-
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#if HAVE_LOCKDEP
-#include <lockdep.h>
-#endif
 
 /* A fully qualified no-operation statement */
 #define CAIRO_MUTEX_IMPL_NOOP	do {/*no-op*/} while (0)
-/* And one that evaluates its argument once */
-#define CAIRO_MUTEX_IMPL_NOOP1(expr)        do { (void)(expr); } while (0)
-/* Note: 'if (expr) {}' is an alternative to '(void)(expr);' that will 'use' the
- * result of __attribute__((warn_used_result)) functions. */
+/* And one that evaluates it's argument once */
+#define CAIRO_MUTEX_IMPL_NOOP1(expr)        do { if (expr) ; } while (0)
+
 
 /* Cairo mutex implementation:
  *
@@ -77,9 +71,6 @@
  *   <programlisting>
  *	cairo_mutex_impl_t _cairo_some_mutex;
  *   </programlisting>
- *
- * - #define %CAIRO_MUTEX_IMPL_<NAME> 1 with suitable name for your platform.  You
- *   can later use this symbol in cairo-system.c.
  *
  * - #define CAIRO_MUTEX_IMPL_LOCK(mutex) and CAIRO_MUTEX_IMPL_UNLOCK(mutex) to
  *   proper statement to lock/unlock the mutex object passed in.
@@ -156,34 +147,39 @@
  *   poke around cairo-mutex-private.h for possible solutions.
  */
 
+#ifndef CAIRO_MUTEX_TYPE_PRIVATE_H
+#error "Do not include cairo-mutex-impl-private.h directly.  Include cairo-mutex-type-private.h instead."
+#endif
+
 #if CAIRO_NO_MUTEX
 
 /* No mutexes */
 
   typedef int cairo_mutex_impl_t;
 
-# define CAIRO_MUTEX_IMPL_NO 1
 # define CAIRO_MUTEX_IMPL_INITIALIZE() CAIRO_MUTEX_IMPL_NOOP
 # define CAIRO_MUTEX_IMPL_LOCK(mutex) CAIRO_MUTEX_IMPL_NOOP1(mutex)
 # define CAIRO_MUTEX_IMPL_UNLOCK(mutex) CAIRO_MUTEX_IMPL_NOOP1(mutex)
 # define CAIRO_MUTEX_IMPL_NIL_INITIALIZER 0
 
-#elif defined(_WIN32) /******************************************************/
+#elif HAVE_PTHREAD_H /*******************************************************/
 
-#define WIN32_LEAN_AND_MEAN
-/* We require Windows 2000 features such as ETO_PDY */
-#if !defined(WINVER) || (WINVER < 0x0500)
-# define WINVER 0x0500
-#endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-# define _WIN32_WINNT 0x0500
-#endif
+# include <pthread.h>
+
+  typedef pthread_mutex_t cairo_mutex_impl_t;
+
+# define CAIRO_MUTEX_IMPL_LOCK(mutex) pthread_mutex_lock (&(mutex))
+# define CAIRO_MUTEX_IMPL_UNLOCK(mutex) pthread_mutex_unlock (&(mutex))
+# define CAIRO_MUTEX_IMPL_FINI(mutex) pthread_mutex_destroy (&(mutex))
+# define CAIRO_MUTEX_IMPL_FINALIZE() CAIRO_MUTEX_IMPL_NOOP
+# define CAIRO_MUTEX_IMPL_NIL_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+
+#elif HAVE_WINDOWS_H /*******************************************************/
 
 # include <windows.h>
 
   typedef CRITICAL_SECTION cairo_mutex_impl_t;
 
-# define CAIRO_MUTEX_IMPL_WIN32 1
 # define CAIRO_MUTEX_IMPL_LOCK(mutex) EnterCriticalSection (&(mutex))
 # define CAIRO_MUTEX_IMPL_UNLOCK(mutex) LeaveCriticalSection (&(mutex))
 # define CAIRO_MUTEX_IMPL_INIT(mutex) InitializeCriticalSection (&(mutex))
@@ -198,7 +194,6 @@
 
   typedef HMTX cairo_mutex_impl_t;
 
-# define CAIRO_MUTEX_IMPL_OS2 1
 # define CAIRO_MUTEX_IMPL_LOCK(mutex) DosRequestMutexSem(mutex, SEM_INDEFINITE_WAIT)
 # define CAIRO_MUTEX_IMPL_UNLOCK(mutex) DosReleaseMutexSem(mutex)
 # define CAIRO_MUTEX_IMPL_INIT(mutex) DosCreateMutexSem (NULL, &(mutex), 0L, FALSE)
@@ -209,36 +204,11 @@
 
   typedef BLocker* cairo_mutex_impl_t;
 
-# define CAIRO_MUTEX_IMPL_BEOS 1
 # define CAIRO_MUTEX_IMPL_LOCK(mutex) (mutex)->Lock()
 # define CAIRO_MUTEX_IMPL_UNLOCK(mutex) (mutex)->Unlock()
 # define CAIRO_MUTEX_IMPL_INIT(mutex) (mutex) = new BLocker()
 # define CAIRO_MUTEX_IMPL_FINI(mutex) delete (mutex)
 # define CAIRO_MUTEX_IMPL_NIL_INITIALIZER NULL
-
-#elif CAIRO_HAS_PTHREAD /* and finally if there are no native mutexes ********/
-
-# include <pthread.h>
-
-  typedef pthread_mutex_t cairo_mutex_impl_t;
-
-# define CAIRO_MUTEX_IMPL_PTHREAD 1
-#if HAVE_LOCKDEP
-/* expose all mutexes to the validator */
-# define CAIRO_MUTEX_IMPL_INIT(mutex) pthread_mutex_init (&(mutex), NULL)
-#endif
-# define CAIRO_MUTEX_IMPL_LOCK(mutex) pthread_mutex_lock (&(mutex))
-# define CAIRO_MUTEX_IMPL_UNLOCK(mutex) pthread_mutex_unlock (&(mutex))
-#if HAVE_LOCKDEP
-# define CAIRO_MUTEX_IS_LOCKED(mutex) LOCKDEP_IS_LOCKED (&(mutex))
-# define CAIRO_MUTEX_IS_UNLOCKED(mutex) LOCKDEP_IS_UNLOCKED (&(mutex))
-#endif
-# define CAIRO_MUTEX_IMPL_FINI(mutex) pthread_mutex_destroy (&(mutex))
-#if ! HAVE_LOCKDEP
-# define CAIRO_MUTEX_IMPL_FINALIZE() CAIRO_MUTEX_IMPL_NOOP
-#endif
-# define CAIRO_MUTEX_IMPL_NIL_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-
 
 #else /**********************************************************************/
 

@@ -43,7 +43,8 @@
 #include "nsIDOMClientRectList.h"
 #include "nsCOMArray.h"
 #include "nsRect.h"
-#include "nsCOMPtr.h"
+
+class nsPresContext;
 
 class nsClientRect : public nsIDOMClientRect
 {
@@ -58,7 +59,7 @@ public:
   
   NS_DECL_NSIDOMCLIENTRECT
 
-  void SetLayoutRect(const nsRect& aLayoutRect);
+  void SetLayoutRect(const nsRect& aLayoutRect, nsPresContext* aPresContext);
 
 protected:
   float mX, mY, mWidth, mHeight;
@@ -74,28 +75,6 @@ public:
   NS_DECL_NSIDOMCLIENTRECTLIST
   
   void Append(nsIDOMClientRect* aElement) { mArray.AppendObject(aElement); }
-
-  nsIDOMClientRect* GetItemAt(PRUint32 aIndex)
-  {
-    return mArray.SafeObjectAt(aIndex);
-  }
-
-  static nsClientRectList* FromSupports(nsISupports* aSupports)
-  {
-#ifdef DEBUG
-    {
-      nsCOMPtr<nsIDOMClientRectList> list_qi = do_QueryInterface(aSupports);
-
-      // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsIDOMClientRectList pointer as the nsISupports
-      // pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(list_qi == static_cast<nsIDOMClientRectList*>(aSupports),
-                   "Uh, fix QI!");
-    }
-#endif
-
-    return static_cast<nsClientRectList*>(aSupports);
-  }
 
 protected:
   virtual ~nsClientRectList() {}

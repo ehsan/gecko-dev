@@ -50,10 +50,8 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
 #include "nsIDOMWindowInternal.h"
-#include "nsIFocusManager.h"
-#include "nsIDOMEventTarget.h"
+#include "nsIFocusController.h"
 
 #include "nsCOMArray.h"
 
@@ -72,7 +70,7 @@ nsCommandManager::~nsCommandManager()
 }
 
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 TraverseCommandObservers(const char* aKey, nsCOMArray<nsIObserver>* aObservers,
                          void* aClosure)
 {
@@ -337,12 +335,27 @@ nsCommandManager::GetControllerForCommand(const char *aCommand,
     return controllers->GetControllerForCommand(aCommand, outController);
   }
 
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mWindow));
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-  nsCOMPtr<nsPIWindowRoot> root = window->GetTopWindowRoot();
-  NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
+
+  // else we're not targeted to a particular window so use focus
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mWindow);
+  if (!window)
+    return NS_ERROR_FAILURE;
+
+  nsIFocusController *focusController = window->GetRootFocusController();
+  if (!focusController)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIDOMWindowInternal> focusWindowInternal;
+  rv = focusController->GetFocusedWindow(getter_AddRefs(focusWindowInternal));
+  if (NS_FAILED(rv))
+    return rv;
+
+  // get the destination window so we can check if it's in content or chrome
+  nsCOMPtr<nsIDOMWindow> destWindow = do_QueryInterface(focusWindowInternal);
+  if (!destWindow)
+    return NS_ERROR_FAILURE;
 
   // no target window; send command to focus controller
-  return root->GetControllerForCommand(aCommand, outController);
+  return focusController->GetControllerForCommand(aCommand, outController);
 }
 

@@ -46,10 +46,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" 
         title="&window.title;"
         windowtype="Preferences:ConfigManager"
-        role="application"
         width="750"
         height="500"
-        disablefastfind="true"
         onunload="onConfigUnload();"
         onload="onConfigLoad();">
 
@@ -57,7 +55,7 @@
 
 <stringbundle id="configBundle" src="chrome://global/locale/config.properties"/>
 
-<menupopup id="configContext" onpopupshowing="if (event.target == this) updateContextMenu();">
+<popup id="configContext" onpopupshowing="if (event.target == this) updateContextMenu();">
   <menuitem id="toggleSelected" default="true"
             label="&toggle.label;" accesskey="&toggle.accesskey;"
             oncommand="ModifySelected();"/>
@@ -76,15 +74,14 @@
     </menupopup>
   </menu>
   <menuitem id="resetSelected" label="&reset.label;" accesskey="&reset.accesskey;" oncommand="ResetSelected();"/>
-</menupopup>
+</popup>
 
-<keyset id="configTreeKeyset" disabled="true">
+<keyset>
   <key keycode="VK_ENTER" oncommand="ModifySelected();"/>
   <key keycode="VK_RETURN" oncommand="ModifySelected();"/>
-  <key key="&focusFilter.key;" modifiers="accel" oncommand="document.getElementById('textbox').focus();"/>
 </keyset>
 <deck id="configDeck" flex="1">
-  <vbox id="warningScreen" flex="1" align="center" style="overflow: auto;">
+  <vbox id="warningScreen" flex="1" align="center">
     <spacer flex="1"/>
     <hbox id="warningBox" align="top">
       <image id="exclam"/>
@@ -102,29 +99,31 @@
   <vbox flex="1">
     <hbox id="filterRow" align="center">
       <label value="&filterPrefs.label;" accesskey="&filterPrefs.accesskey;" control="textbox"/>
-      <textbox id="textbox" flex="1" type="search" class="compact"
-               aria-controls="configTree"
-               oncommand="FilterPrefs();"/>
+      <textbox id="textbox" flex="1" type="search" oncommand="FilterPrefs();"/>
     </hbox>
   
-    <tree id="configTree" flex="1" seltype="single"
+    <tree id="configTree" flex="1" class="plain focusring" seltype="single"
           onselect="updateCommands('select');"
           enableColumnDrag="true" context="configContext">
       <treecols>
         <treecol id="prefCol" label="&prefColumn.label;" flex="7"
+            class="sortDirectionIndicator"
             ignoreincolumnpicker="true"
             persist="hidden width ordinal sortDirection"/>
         <splitter class="tree-splitter" />
         <treecol id="lockCol" label="&lockColumn.label;" flex="1"
+            class="sortDirectionIndicator"
             persist="hidden width ordinal sortDirection"/>
         <splitter class="tree-splitter" />
         <treecol id="typeCol" label="&typeColumn.label;" flex="1"
+            class="sortDirectionIndicator"
             persist="hidden width ordinal sortDirection"/>
         <splitter class="tree-splitter" />
         <treecol id="valueCol" label="&valueColumn.label;" flex="10"
+            class="sortDirectionIndicator"
             persist="hidden width ordinal sortDirection"/>
       </treecols>
-
+  
       <treechildren id="configTreeBody" ondblclick="if (event.button == 0) ModifySelected();"/>
     </tree>
   </vbox>

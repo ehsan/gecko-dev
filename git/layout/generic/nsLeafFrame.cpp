@@ -41,13 +41,12 @@
 #include "nsLeafFrame.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsHTMLParts.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 
 nsLeafFrame::~nsLeafFrame()
 {
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsLeafFrame)
 
 /* virtual */ nscoord
 nsLeafFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
@@ -120,8 +119,9 @@ nsLeafFrame::DoReflow(nsPresContext* aPresContext,
                   aMetrics.width, aMetrics.height));
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
 
-  aMetrics.SetOverflowAreasToDesiredBounds();
-
+  aMetrics.mOverflowArea =
+    nsRect(0, 0, aMetrics.width, aMetrics.height);
+  
   return NS_OK;
 }
 
@@ -148,6 +148,7 @@ nsLeafFrame::SizeToAvailSize(const nsHTMLReflowState& aReflowState,
 {
   aDesiredSize.width  = aReflowState.availableWidth; // FRAME
   aDesiredSize.height = aReflowState.availableHeight;
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea =
+    nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   FinishAndStoreOverflow(&aDesiredSize);  
 }

@@ -185,7 +185,7 @@ ProcessCommandFile()
 	return - 1;
     }
 
-    while (pr_fgets(buf, CMD_FILE_BUFSIZE, fd)) {
+    while (pr_fgets(buf, CMD_FILE_BUFSIZE, fd), buf && *buf != '\0') {
 	char	*eol;
 	linenum++;
 
@@ -733,8 +733,8 @@ ProcessOneOpt(OPT_TYPE type, char *arg)
 	    PR_fprintf(errorFD, errStrings[DUPLICATE_OPTION_ERR],
 	         				"generate (-G)");
 	    warningCount++;
-	    PR_Free(genkey); 
-	    genkey = NULL;
+	    PR_Free(zipfile); 
+	    zipfile = NULL;
 	}
 	if (!arg) {
 	    PR_fprintf(errorFD, errStrings[OPTION_NEEDS_ARG_ERR],

@@ -52,35 +52,34 @@ ChildIterator::Init(nsIContent*    aContent,
 {
   // Initialize out parameters to be equal, in case of failure.
   aFirst->mContent = aLast->mContent = nsnull;
-  aFirst->mChild   = aLast->mChild   = nsnull;
+  aFirst->mIndex   = aLast->mIndex   = 0;
   
   NS_PRECONDITION(aContent != nsnull, "no content");
   if (! aContent)
     return NS_ERROR_NULL_POINTER;
 
-  nsIDocument* doc = aContent->GetOwnerDoc();
+  nsCOMPtr<nsIDocument> doc = aContent->GetDocument();
   NS_ASSERTION(doc, "element not in the document");
   if (! doc)
     return NS_ERROR_FAILURE;
 
   // If this node has XBL children, then use them. Otherwise, just use
   // the vanilla content APIs.
-  nsINodeList* nodes = doc->BindingManager()->GetXBLChildNodesFor(aContent);
+  nsCOMPtr<nsIDOMNodeList> nodes;
+  doc->BindingManager()->GetXBLChildNodesFor(aContent, getter_AddRefs(nodes));
+
+  PRUint32 length;
+  if (nodes)
+    nodes->GetLength(&length);
+  else
+    length = aContent->GetChildCount();
 
   aFirst->mContent = aContent;
   aLast->mContent  = aContent;
+  aFirst->mIndex   = 0;
+  aLast->mIndex    = length;
   aFirst->mNodes   = nodes;
   aLast->mNodes    = nodes;
-
-  if (nodes) {
-    PRUint32 length;
-    nodes->GetLength(&length);
-    aFirst->mIndex = 0;
-    aLast->mIndex = length;
-  } else {
-    aFirst->mChild = aContent->GetFirstChild();
-    aLast->mChild = nsnull;
-  }
 
   return NS_OK;
 }

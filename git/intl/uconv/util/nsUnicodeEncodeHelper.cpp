@@ -62,7 +62,7 @@ nsresult nsUnicodeEncodeHelper::ConvertByTable(
 
   while (src < srcEnd) {
     if (!uMapCode((uTable*) aMappingTable, static_cast<PRUnichar>(*(src++)), reinterpret_cast<PRUint16*>(&med))) {
-      if (aScanClass == u1ByteCharset && *(src - 1) < 0x20) {
+      if (*(src - 1) < 0x20) {
         // some tables are missing the 0x00 - 0x20 part
         med = *(src - 1);
       } else {
@@ -151,4 +151,17 @@ nsresult nsUnicodeEncodeHelper::ConvertByMultiTable(
   *aSrcLength = src - aSrc;
   *aDestLength  = dest - aDest;
   return res;
+}
+
+nsresult nsUnicodeEncodeHelper::FillInfo(PRUint32 *aInfo, uMappingTable  * aMappingTable)
+{
+   uFillInfo((uTable*) aMappingTable, aInfo);
+   return NS_OK;
+}
+
+nsresult nsUnicodeEncodeHelper::FillInfo(PRUint32 *aInfo, PRInt32 aTableCount, uMappingTable  ** aMappingTable)
+{
+   for (PRInt32 i=0; i<aTableCount; i++) 
+      uFillInfo((uTable*) aMappingTable[i], aInfo);
+   return NS_OK;
 }

@@ -58,7 +58,6 @@ class nsRefPtrHashtable :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef RefPtr* UserDataType;
-  typedef nsBaseHashtable< KeyClass, nsRefPtr<RefPtr> , RefPtr* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -89,7 +88,6 @@ class nsRefPtrHashtableMT :
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef RefPtr* UserDataType;
-  typedef nsBaseHashtableMT< KeyClass, nsRefPtr<RefPtr> , RefPtr* > base_type;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -113,7 +111,8 @@ PRBool
 nsRefPtrHashtable<KeyClass,RefPtr>::Get
   (KeyType aKey, UserDataType* pRefPtr) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass, nsRefPtr<RefPtr>, RefPtr*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -140,7 +139,8 @@ RefPtr*
 nsRefPtrHashtable<KeyClass,RefPtr>::GetWeak
   (KeyType aKey, PRBool* aFound) const
 {
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtable<KeyClass, nsRefPtr<RefPtr>, RefPtr*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {
@@ -167,7 +167,8 @@ nsRefPtrHashtableMT<KeyClass,RefPtr>::Get
 {
   PR_Lock(this->mLock);
 
-  typename base_type::EntryType* ent = this->GetEntry(aKey);
+  typename nsBaseHashtableMT<KeyClass, nsRefPtr<RefPtr>, RefPtr*>::EntryType* ent =
+    GetEntry(aKey);
 
   if (ent)
   {

@@ -108,6 +108,6 @@ private:
     GtkWidget   *mUserField;
     GtkWidget   *mPassField;
     GtkWidget   *mTextField;
-    GtkWidget   *mComboBox;
+    GtkWidget   *mOptionMenu;
     GtkWidget   *mCheckBox;
 };

@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -37,89 +36,60 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageStatement_h
-#define mozStorageStatement_h
+#ifndef _MOZSTORAGESTATEMENT_H_
+#define _MOZSTORAGESTATEMENT_H_
 
 #include "nsAutoPtr.h"
 #include "nsString.h"
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
-#include "mozStorageBindingParamsArray.h"
-#include "mozStorageStatementData.h"
 #include "mozIStorageStatement.h"
-#include "mozIStorageValueArray.h"
-#include "StorageBaseStatementInternal.h"
 
+#include <sqlite3.h>
+
+class mozStorageConnection;
 class nsIXPConnectJSObjectHolder;
-struct sqlite3_stmt;
+class mozStorageStatementJSHelper;
 
-namespace mozilla {
-namespace storage {
-class StatementJSHelper;
-class Connection;
-
-class Statement : public mozIStorageStatement
-                , public mozIStorageValueArray
-                , public StorageBaseStatementInternal
+class mozStorageStatement : public mozIStorageStatement
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESTATEMENT
-  NS_DECL_MOZISTORAGEBASESTATEMENT
-  NS_DECL_MOZISTORAGEBINDINGPARAMS
-  // NS_DECL_MOZISTORAGEVALUEARRAY (methods in mozIStorageStatement)
-  NS_DECL_STORAGEBASESTATEMENTINTERNAL
+    mozStorageStatement();
 
-  Statement();
+    // interfaces
+    NS_DECL_ISUPPORTS
+    NS_DECL_MOZISTORAGESTATEMENT
+    NS_DECL_MOZISTORAGEVALUEARRAY
 
-  /**
-   * Initializes the object on aDBConnection by preparing the SQL statement
-   * given by aSQLStatement.
-   *
-   * @param aDBConnection
-   *        The Connection object this statement is associated with.
-   * @param aSQLStatement
-   *        The SQL statement to prepare that this object will represent.
-   */
-  nsresult initialize(Connection *aDBConnection,
-                      const nsACString &aSQLStatement);
+    /**
+     * Initializes the object on aDBConnection by preparing the SQL statement
+     * given by aSQLStatement.
+     *
+     * @param aDBConnection
+     *        The mozStorageConnection object this statement is associated with.
+     * @param aSQLStatement
+     *        The SQL statement to prepare that this object will represent.
+     */
+    nsresult Initialize(mozStorageConnection *aDBConnection,
+                        const nsACString &aSQLStatement);
 
 
-  /**
-   * Obtains the native statement pointer.
-   */
-  inline sqlite3_stmt *nativeStatement() { return mDBStatement; }
-
-  /**
-   * Obtains and transfers ownership of the array of parameters that are bound
-   * to this statment.  This can be null.
-   */
-  inline already_AddRefed<BindingParamsArray> bindingParamsArray()
-  {
-    return mParamsArray.forget();
-  }
+    /**
+     * Obtains the native statement pointer.
+     */
+    inline sqlite3_stmt *NativeStatement() { return mDBStatement; }
 
 private:
-    ~Statement();
+    ~mozStorageStatement();
 
+protected:
+    nsRefPtr<mozStorageConnection> mDBConnection;
     sqlite3_stmt *mDBStatement;
     PRUint32 mParamCount;
     PRUint32 mResultColumnCount;
-    nsTArray<nsCString> mColumnNames;
-    bool mExecuting;
-
-    /**
-     * @return a pointer to the BindingParams object to use with our Bind*
-     *         method.
-     */
-    mozIStorageBindingParams *getParams();
-
-    /**
-     * Holds the array of parameters to bind to this statement when we execute
-     * it asynchronously.
-     */
-    nsRefPtr<BindingParamsArray> mParamsArray;
+    nsCStringArray mColumnNames;
+    PRBool mExecuting;
 
     /**
      * The following two members are only used with the JS helper.  They cache
@@ -128,20 +98,7 @@ private:
     nsCOMPtr<nsIXPConnectJSObjectHolder> mStatementParamsHolder;
     nsCOMPtr<nsIXPConnectJSObjectHolder> mStatementRowHolder;
 
-  /**
-   * Internal version of finalize that allows us to tell it if it is being
-   * called from the destructor so it can know not to dispatch events that
-   * require a reference to us.
-   *
-   * @param aDestructing
-   *        Is the destructor calling?
-   */
-  nsresult internalFinalize(bool aDestructing);
-
-    friend class StatementJSHelper;
+    friend class mozStorageStatementJSHelper;
 };
 
-} // storage
-} // mozilla
-
-#endif // mozStorageStatement_h
+#endif /* _MOZSTORAGESTATEMENT_H_ */

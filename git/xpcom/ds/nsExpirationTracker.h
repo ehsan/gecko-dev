@@ -259,20 +259,12 @@ template <class T, PRUint32 K> class nsExpirationTracker {
     
     friend class Iterator;
 
-    PRBool IsEmpty() {
-      for (PRUint32 i = 0; i < K; ++i) {
-        if (!mGenerations[i].IsEmpty())
-          return PR_FALSE;
-      }
-      return PR_TRUE;
-    }
-
   protected:
     /**
      * This must be overridden to catch notifications. It is called whenever
      * we detect that an object has not been used for at least (K-1)*mTimerPeriod
-     * milliseconds. If timer events are not delayed, it will be called within
-     * roughly K*mTimerPeriod milliseconds after the last use. (Unless AgeOneGeneration
+     * seconds. If timer events are not delayed, it will be called within
+     * roughly K*mTimerPeriod seconds after the last use. (Unless AgeOneGeneration
      * or AgeAllGenerations have been called to accelerate the aging process.)
      * 
      * NOTE: These bounds ignore delays in timer firings due to actual work being
@@ -306,10 +298,13 @@ template <class T, PRUint32 K> class nsExpirationTracker {
       nsExpirationTracker* tracker = static_cast<nsExpirationTracker*>(aThis);
       tracker->AgeOneGeneration();
       // Cancel the timer if we have no objects to track
-      if (tracker->IsEmpty()) {
-        tracker->mTimer->Cancel();
-        tracker->mTimer = nsnull;
+      PRUint32 i;
+      for (i = 0; i < K; ++i) {
+        if (!tracker->mGenerations[i].IsEmpty())
+          return;
       }
+      tracker->mTimer->Cancel();
+      tracker->mTimer = nsnull;
     }
 
     nsresult CheckStartTimer() {

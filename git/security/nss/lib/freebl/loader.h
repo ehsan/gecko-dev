@@ -37,14 +37,14 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: loader.h,v 1.26.22.2 2010/12/04 18:59:01 rrelyea%redhat.com Exp $ */
+/* $Id: loader.h,v 1.21 2007/11/13 03:12:48 wtc%google.com Exp $ */
 
 #ifndef _LOADER_H_
 #define _LOADER_H_ 1
 
 #include "blapi.h"
 
-#define FREEBL_VERSION 0x030C
+#define FREEBL_VERSION 0x030A
 
 struct FREEBLVectorStr {
 
@@ -491,86 +491,6 @@ struct FREEBLVectorStr {
  void (* p_PQG_DestroyVerify)(PQGVerify *vfy);
 
   /* Version 3.010 came to here */
-
- SECStatus (* p_SEED_InitContext)(SEEDContext *cx,
-                                 const unsigned char *key,
-                                 unsigned int keylen,
-                                 const unsigned char *iv,
-                                 int mode,
-                                 unsigned int encrypt,
-                                 unsigned int );
-
- SEEDContext *(*p_SEED_AllocateContext)(void);
-
- SEEDContext *(* p_SEED_CreateContext)(const unsigned char *key,
-                                     const unsigned char *iv,
-                                     int mode, PRBool encrypt);
-
- void (* p_SEED_DestroyContext)(SEEDContext *cx, PRBool freeit);
-
- SECStatus (* p_SEED_Encrypt)(SEEDContext *cx, unsigned char *output,
-                            unsigned int *outputLen, unsigned int maxOutputLen,
-                            const unsigned char *input, unsigned int inputLen);
-
- SECStatus (* p_SEED_Decrypt)(SEEDContext *cx, unsigned char *output,
-                            unsigned int *outputLen, unsigned int maxOutputLen,
-                            const unsigned char *input, unsigned int inputLen);
-
-
-
- SECStatus (* p_BL_Init)(void);
- void ( * p_BL_SetForkState)(PRBool);
-
- SECStatus (* p_PRNGTEST_Instantiate)(const PRUint8 *entropy, 
-				      unsigned int entropy_len, 
-				      const PRUint8 *nonce, 
-				      unsigned int nonce_len,
-				      const PRUint8 *personal_string, 
-				      unsigned int ps_len);
-
- SECStatus (* p_PRNGTEST_Reseed)(const PRUint8 *entropy, 
-				 unsigned int entropy_len, 
-				 const PRUint8 *additional, 
-				 unsigned int additional_len);
-
- SECStatus (* p_PRNGTEST_Generate)(PRUint8 *bytes, 
-				   unsigned int bytes_len, 
-				   const PRUint8 *additional, 
-				   unsigned int additional_len);
-
- SECStatus (* p_PRNGTEST_Uninstantiate)(void);
-   /* Version 3.011 came to here */
-
-
- SECStatus (*p_RSA_PopulatePrivateKey)(RSAPrivateKey *key);
-
- SECStatus (*p_DSA_NewRandom)(PLArenaPool * arena, const SECItem * q,
-                              SECItem * seed);
-
- SECStatus (*p_JPAKE_Sign)(PLArenaPool * arena, const PQGParams * pqg,
-                           HASH_HashType hashType, const SECItem * signerID,
-                           const SECItem * x, const SECItem * testRandom,
-                           const SECItem * gxIn, SECItem * gxOut,
-                           SECItem * gv, SECItem * r);
-
- SECStatus (*p_JPAKE_Verify)(PLArenaPool * arena, const PQGParams * pqg,
-                             HASH_HashType hashType, const SECItem * signerID,
-                             const SECItem * peerID, const SECItem * gx,
-                             const SECItem * gv, const SECItem * r);
-
- SECStatus (*p_JPAKE_Round2)(PLArenaPool * arena, const SECItem * p,
-                             const SECItem  *q, const SECItem * gx1,
-                             const SECItem * gx3, const SECItem * gx4,
-                             SECItem * base, const SECItem * x2,
-                             const SECItem * s, SECItem * x2s);
-
- SECStatus (*p_JPAKE_Final)(PLArenaPool * arena, const SECItem * p,
-                            const SECItem  *q, const SECItem * x2,
-                            const SECItem * gx4, const SECItem * x2s,
-                            const SECItem * B, SECItem * K);
- 
-   /* Version 3.012 came to here */
-
 };
 
 typedef struct FREEBLVectorStr FREEBLVector;

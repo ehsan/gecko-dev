@@ -65,7 +65,7 @@ struct _cairo_paginated_surface_backend {
      * before the mode is changed to RENDER.
      */
     cairo_warn cairo_int_status_t
-    (*set_bounding_box)	(void		*surface,
+    (*set_bounding_box)	(void	   	*surface,
 			 cairo_box_t	*bbox);
 
     /* Optional. Indicates whether the page requires fallback images.
@@ -73,11 +73,8 @@ struct _cairo_paginated_surface_backend {
      * mode is changed to RENDER.
      */
     cairo_warn cairo_int_status_t
-    (*set_fallback_images_required) (void	    *surface,
-				     cairo_bool_t    fallbacks_required);
-
-    cairo_bool_t
-    (*supports_fine_grained_fallbacks) (void		    *surface);
+    (*set_fallback_images_required)(void   	  *surface,
+				    cairo_bool_t   fallbacks_required);
 };
 
 /* A #cairo_paginated_surface_t provides a very convenient wrapper that
@@ -98,7 +95,7 @@ struct _cairo_paginated_surface_backend {
  * to follow.
  *
  * What the paginated surface does is first save all drawing
- * operations for a page into a recording-surface. Then when the user calls
+ * operations for a page into a meta-surface. Then when the user calls
  * cairo_show_page(), the paginated surface performs the following
  * sequence of operations (using the backend functions passed to
  * cairo_paginated_surface_create()):
@@ -109,7 +106,7 @@ struct _cairo_paginated_surface_backend {
  *
  * 2. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_ANALYZE
  *
- * 3. Replays the recording-surface to the target surface, (with an
+ * 3. Replays the meta-surface to the target surface, (with an
  *    analysis surface inserted between which watches the return value
  *    from each operation). This analysis stage is used to decide which
  *    operations will require fallbacks.
@@ -119,7 +116,7 @@ struct _cairo_paginated_surface_backend {
  *
  * 5. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_RENDER
  *
- * 6. Replays a subset of the recording-surface operations to the target surface
+ * 6. Replays a subset of the meta-surface operations to the target surface
  *
  * 7. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_FALLBACK
  *
@@ -149,6 +146,8 @@ struct _cairo_paginated_surface_backend {
 cairo_private cairo_surface_t *
 _cairo_paginated_surface_create (cairo_surface_t				*target,
 				 cairo_content_t				 content,
+				 int						 width,
+				 int						 height,
 				 const cairo_paginated_surface_backend_t	*backend);
 
 cairo_private cairo_surface_t *

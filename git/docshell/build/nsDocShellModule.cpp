@@ -37,10 +37,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIModule.h"
+#include "nsIGenericFactory.h"
+
 #include "nsDocShellCID.h"
 
-#include "nsDocShell.h"
+#include "nsWebShell.h"
 #include "nsDefaultURIFixup.h"
 #include "nsWebNavigationInfo.h"
 
@@ -57,17 +59,15 @@
 #ifdef MOZ_ENABLE_DBUS
 #include "nsDBusHandlerApp.h"
 #endif 
-#if defined(ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
-#include "nsExternalSharingAppService.h"
-#endif
-#if defined(ANDROID)
-#include "nsExternalURLHandlerService.h"
-#endif
 
 // session history
 #include "nsSHEntry.h"
 #include "nsSHistory.h"
 #include "nsSHTransaction.h"
+
+// global history
+#include "nsGlobalHistoryAdapter.h"
+#include "nsGlobalHistory2Adapter.h"
 
 // download history
 #include "nsDownloadHistory.h"
@@ -75,8 +75,9 @@
 static PRBool gInitialized = PR_FALSE;
 
 // The one time initialization for this module
-static nsresult
-Initialize()
+// static
+PR_STATIC_CALLBACK(nsresult)
+Initialize(nsIModule* aSelf)
 {
   NS_PRECONDITION(!gInitialized, "docshell module already initialized");
   if (gInitialized) {
@@ -91,17 +92,18 @@ Initialize()
   return rv;
 }
 
-static void
-Shutdown()
+PR_STATIC_CALLBACK(void)
+Shutdown(nsIModule* aSelf)
 {
   nsSHEntry::Shutdown();
   gInitialized = PR_FALSE;
 }
 
 // docshell
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDocShell, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWebShell, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDefaultURIFixup)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWebNavigationInfo, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsClassifierCallback)
 
 // uriloader
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsURILoader)
@@ -116,11 +118,10 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(PlatformLocalHandlerApp_t)
 #ifdef MOZ_ENABLE_DBUS
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDBusHandlerApp)
 #endif 
-#if defined(ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsExternalSharingAppService)
-#endif
-#if defined(ANDROID)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsExternalURLHandlerService)
+
+#if defined(XP_MAC) || defined(XP_MACOSX)
+#include "nsInternetConfigService.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsInternetConfigService)
 #endif
 
 // session history
@@ -131,122 +132,152 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSHistory)
 // download history
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadHistory)
 
-NS_DEFINE_NAMED_CID(NS_DOCSHELL_CID);
-NS_DEFINE_NAMED_CID(NS_DEFAULTURIFIXUP_CID);
-NS_DEFINE_NAMED_CID(NS_WEBNAVIGATION_INFO_CID);
-NS_DEFINE_NAMED_CID(NS_ABOUT_REDIRECTOR_MODULE_CID);
-NS_DEFINE_NAMED_CID(NS_URI_LOADER_CID);
-NS_DEFINE_NAMED_CID(NS_DOCUMENTLOADER_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_EXTERNALHELPERAPPSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_EXTERNALPROTOCOLHANDLER_CID);
-NS_DEFINE_NAMED_CID(NS_PREFETCHSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_OFFLINECACHEUPDATESERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_OFFLINECACHEUPDATE_CID);
-NS_DEFINE_NAMED_CID(NS_LOCALHANDLERAPP_CID);
-#ifdef MOZ_ENABLE_DBUS
-NS_DEFINE_NAMED_CID(NS_DBUSHANDLERAPP_CID);
-#endif
-#if defined(ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
-NS_DEFINE_NAMED_CID(NS_EXTERNALSHARINGAPPSERVICE_CID);
-#endif
-#if defined(ANDROID)
-NS_DEFINE_NAMED_CID(NS_EXTERNALURLHANDLERSERVICE_CID);
-#endif
-NS_DEFINE_NAMED_CID(NS_SHENTRY_CID);
-NS_DEFINE_NAMED_CID(NS_HISTORYENTRY_CID);
-NS_DEFINE_NAMED_CID(NS_SHTRANSACTION_CID);
-NS_DEFINE_NAMED_CID(NS_SHISTORY_CID);
-NS_DEFINE_NAMED_CID(NS_SHISTORY_INTERNAL_CID);
-NS_DEFINE_NAMED_CID(NS_DOWNLOADHISTORY_CID);
+// Currently no-one is instantiating docshell's directly because
+// nsWebShell is still our main "shell" class. nsWebShell is a subclass
+// of nsDocShell. Once migration is complete, docshells will be the main
+// "shell" class and this module will need to register the docshell as
+// a component
+//NS_GENERIC_FACTORY_CONSTRUCTOR(nsDocShell)
 
+static const nsModuleComponentInfo gDocShellModuleInfo[] = {
+  // docshell
+    { "WebShell", 
+      NS_WEB_SHELL_CID,
+      "@mozilla.org/webshell;1",
+      nsWebShellConstructor
+    },
+    { "Default keyword fixup", 
+      NS_DEFAULTURIFIXUP_CID,
+      NS_URIFIXUP_CONTRACTID,
+      nsDefaultURIFixupConstructor
+    },
+    { "Webnavigation info service",
+      NS_WEBNAVIGATION_INFO_CID,
+      NS_WEBNAVIGATION_INFO_CONTRACTID,
+      nsWebNavigationInfoConstructor
+    },
+    {
+      "Channel classifier",
+      NS_CHANNELCLASSIFIER_CID,
+      NS_CHANNELCLASSIFIER_CONTRACTID,
+      nsClassifierCallbackConstructor
+    },
 
-const mozilla::Module::CIDEntry kDocShellCIDs[] = {
-  { &kNS_DOCSHELL_CID, false, NULL, nsDocShellConstructor },
-  { &kNS_DEFAULTURIFIXUP_CID, false, NULL, nsDefaultURIFixupConstructor },
-  { &kNS_WEBNAVIGATION_INFO_CID, false, NULL, nsWebNavigationInfoConstructor },
-  { &kNS_ABOUT_REDIRECTOR_MODULE_CID, false, NULL, nsAboutRedirector::Create },
-  { &kNS_URI_LOADER_CID, false, NULL, nsURILoaderConstructor },
-  { &kNS_DOCUMENTLOADER_SERVICE_CID, false, NULL, nsDocLoaderConstructor },
-  { &kNS_EXTERNALHELPERAPPSERVICE_CID, false, NULL, nsOSHelperAppServiceConstructor },
-  { &kNS_EXTERNALPROTOCOLHANDLER_CID, false, NULL, nsExternalProtocolHandlerConstructor },
-  { &kNS_PREFETCHSERVICE_CID, false, NULL, nsPrefetchServiceConstructor },
-  { &kNS_OFFLINECACHEUPDATESERVICE_CID, false, NULL, nsOfflineCacheUpdateServiceConstructor },
-  { &kNS_OFFLINECACHEUPDATE_CID, false, NULL, nsOfflineCacheUpdateConstructor },
-  { &kNS_LOCALHANDLERAPP_CID, false, NULL, PlatformLocalHandlerApp_tConstructor },
-#ifdef MOZ_ENABLE_DBUS
-  { &kNS_DBUSHANDLERAPP_CID, false, NULL, nsDBusHandlerAppConstructor },
-#endif
-#if defined(ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
-  { &kNS_EXTERNALSHARINGAPPSERVICE_CID, false, NULL, nsExternalSharingAppServiceConstructor },
-#endif
-#if defined(ANDROID)
-  { &kNS_EXTERNALURLHANDLERSERVICE_CID, false, NULL, nsExternalURLHandlerServiceConstructor },
-#endif
-  { &kNS_SHENTRY_CID, false, NULL, nsSHEntryConstructor },
-  { &kNS_HISTORYENTRY_CID, false, NULL, nsSHEntryConstructor },
-  { &kNS_SHTRANSACTION_CID, false, NULL, nsSHTransactionConstructor },
-  { &kNS_SHISTORY_CID, false, NULL, nsSHistoryConstructor },
-  { &kNS_SHISTORY_INTERNAL_CID, false, NULL, nsSHistoryConstructor },
-  { &kNS_DOWNLOADHISTORY_CID, false, NULL, nsDownloadHistoryConstructor },
-  { NULL }
-};
-
-const mozilla::Module::ContractIDEntry kDocShellContracts[] = {
-  { "@mozilla.org/docshell;1", &kNS_DOCSHELL_CID },
-  { NS_URIFIXUP_CONTRACTID, &kNS_DEFAULTURIFIXUP_CID },
-  { NS_WEBNAVIGATION_INFO_CONTRACTID, &kNS_WEBNAVIGATION_INFO_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "about", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "config", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
+    // about redirector
+    { "about:config",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "config",
+      nsAboutRedirector::Create
+    },
 #ifdef MOZ_CRASHREPORTER
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "crashes", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
+    { "about:crashes",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "crashes",
+      nsAboutRedirector::Create
+    },
 #endif
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "credits", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "plugins", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "mozilla", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "logo", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "buildconfig", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "license", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "neterror", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "memory", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "addons", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX "support", &kNS_ABOUT_REDIRECTOR_MODULE_CID },
-  { NS_URI_LOADER_CONTRACTID, &kNS_URI_LOADER_CID },
-  { NS_DOCUMENTLOADER_SERVICE_CONTRACTID, &kNS_DOCUMENTLOADER_SERVICE_CID },
-  { NS_EXTERNALHELPERAPPSERVICE_CONTRACTID, &kNS_EXTERNALHELPERAPPSERVICE_CID },
-  { NS_EXTERNALPROTOCOLSERVICE_CONTRACTID, &kNS_EXTERNALHELPERAPPSERVICE_CID },
-  { NS_MIMESERVICE_CONTRACTID, &kNS_EXTERNALHELPERAPPSERVICE_CID },
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"default", &kNS_EXTERNALPROTOCOLHANDLER_CID },
-  { NS_PREFETCHSERVICE_CONTRACTID, &kNS_PREFETCHSERVICE_CID },
-  { NS_OFFLINECACHEUPDATESERVICE_CONTRACTID, &kNS_OFFLINECACHEUPDATESERVICE_CID },
-  { NS_OFFLINECACHEUPDATE_CONTRACTID, &kNS_OFFLINECACHEUPDATE_CID },
-  { NS_LOCALHANDLERAPP_CONTRACTID, &kNS_LOCALHANDLERAPP_CID },
+    { "about:credits",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "credits",
+      nsAboutRedirector::Create
+    },
+    { "about:plugins",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "plugins",
+      nsAboutRedirector::Create
+    },
+    { "about:mozilla",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "mozilla",
+      nsAboutRedirector::Create
+    },
+    { "about:logo",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "logo",
+      nsAboutRedirector::Create
+    },
+    { "about:buildconfig",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "buildconfig",
+      nsAboutRedirector::Create
+    },
+    { "about:license",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "license",
+      nsAboutRedirector::Create
+    },
+    { "about:licence",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "licence",
+      nsAboutRedirector::Create
+    },
+    { "about:about",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "about",
+      nsAboutRedirector::Create
+    },
+    { "about:neterror",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "neterror",
+      nsAboutRedirector::Create
+    },
+
+    // uriloader
+  { "Netscape URI Loader Service", NS_URI_LOADER_CID, NS_URI_LOADER_CONTRACTID, nsURILoaderConstructor, },
+  { "Netscape Doc Loader Service", NS_DOCUMENTLOADER_SERVICE_CID, NS_DOCUMENTLOADER_SERVICE_CONTRACTID, 
+     nsDocLoaderConstructor, },
+  { "Netscape External Helper App Service", NS_EXTERNALHELPERAPPSERVICE_CID, NS_EXTERNALHELPERAPPSERVICE_CONTRACTID, 
+     nsOSHelperAppServiceConstructor, },
+  { "Netscape External Helper App Service", NS_EXTERNALHELPERAPPSERVICE_CID, NS_EXTERNALPROTOCOLSERVICE_CONTRACTID, 
+     nsOSHelperAppServiceConstructor, },
+  { "Netscape Mime Mapping Service", NS_EXTERNALHELPERAPPSERVICE_CID, NS_MIMESERVICE_CONTRACTID, 
+     nsOSHelperAppServiceConstructor, },
+  { "Netscape Default Protocol Handler", NS_EXTERNALPROTOCOLHANDLER_CID, NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"default", 
+     nsExternalProtocolHandlerConstructor, },
+  {  NS_PREFETCHSERVICE_CLASSNAME, NS_PREFETCHSERVICE_CID, NS_PREFETCHSERVICE_CONTRACTID,
+     nsPrefetchServiceConstructor, },
+  { NS_OFFLINECACHEUPDATESERVICE_CLASSNAME, NS_OFFLINECACHEUPDATESERVICE_CID, NS_OFFLINECACHEUPDATESERVICE_CONTRACTID,
+    nsOfflineCacheUpdateServiceConstructor, },
+  { NS_OFFLINECACHEUPDATE_CLASSNAME, NS_OFFLINECACHEUPDATE_CID, NS_OFFLINECACHEUPDATE_CONTRACTID,
+    nsOfflineCacheUpdateConstructor, },
+  { "Local Application Handler App", NS_LOCALHANDLERAPP_CID, 
+    NS_LOCALHANDLERAPP_CONTRACTID, PlatformLocalHandlerApp_tConstructor, },
 #ifdef MOZ_ENABLE_DBUS
-  { NS_DBUSHANDLERAPP_CONTRACTID, &kNS_DBUSHANDLERAPP_CID },
+  { "DBus Handler App", NS_DBUSHANDLERAPP_CID,
+      NS_DBUSHANDLERAPP_CONTRACTID, nsDBusHandlerAppConstructor},
 #endif
-#if defined(ANDROID) || defined(MOZ_ENABLE_MEEGOTOUCHSHARE)
-  { NS_EXTERNALSHARINGAPPSERVICE_CONTRACTID, &kNS_EXTERNALSHARINGAPPSERVICE_CID },
+#if defined(XP_MAC) || defined(XP_MACOSX)
+  { "Internet Config Service", NS_INTERNETCONFIGSERVICE_CID, NS_INTERNETCONFIGSERVICE_CONTRACTID,
+    nsInternetConfigServiceConstructor, },
 #endif
-#if defined(ANDROID)
-  { NS_EXTERNALURLHANDLERSERVICE_CONTRACTID, &kNS_EXTERNALURLHANDLERSERVICE_CID },
-#endif
-  { NS_SHENTRY_CONTRACTID, &kNS_SHENTRY_CID },
-  { NS_HISTORYENTRY_CONTRACTID, &kNS_HISTORYENTRY_CID },
-  { NS_SHTRANSACTION_CONTRACTID, &kNS_SHTRANSACTION_CID },
-  { NS_SHISTORY_CONTRACTID, &kNS_SHISTORY_CID },
-  { NS_SHISTORY_INTERNAL_CONTRACTID, &kNS_SHISTORY_INTERNAL_CID },
-  { NS_DOWNLOADHISTORY_CONTRACTID, &kNS_DOWNLOADHISTORY_CID },
-  { NULL }
+        
+    // session history
+   { "nsSHEntry", NS_SHENTRY_CID,
+      NS_SHENTRY_CONTRACTID, nsSHEntryConstructor },
+   { "nsSHEntry", NS_HISTORYENTRY_CID,
+      NS_HISTORYENTRY_CONTRACTID, nsSHEntryConstructor },
+   { "nsSHTransaction", NS_SHTRANSACTION_CID,
+      NS_SHTRANSACTION_CONTRACTID, nsSHTransactionConstructor },
+   { "nsSHistory", NS_SHISTORY_CID,
+      NS_SHISTORY_CONTRACTID, nsSHistoryConstructor },
+   { "nsSHistory", NS_SHISTORY_INTERNAL_CID,
+      NS_SHISTORY_INTERNAL_CONTRACTID, nsSHistoryConstructor },
+
+    // global history adapters
+    { "nsGlobalHistoryAdapter", NS_GLOBALHISTORYADAPTER_CID,
+      nsnull, nsGlobalHistoryAdapter::Create,
+      nsGlobalHistoryAdapter::RegisterSelf },
+    { "nsGlobalHistory2Adapter", NS_GLOBALHISTORY2ADAPTER_CID,
+      nsnull, nsGlobalHistory2Adapter::Create,
+      nsGlobalHistory2Adapter::RegisterSelf },
+    
+    // download history
+    { "nsDownloadHistory", NS_DOWNLOADHISTORY_CID,
+      nsnull, nsDownloadHistoryConstructor,
+      nsDownloadHistory::RegisterSelf }
 };
 
-static const mozilla::Module kDocShellModule = {
-  mozilla::Module::kVersion,
-  kDocShellCIDs,
-  kDocShellContracts,
-  NULL,
-  NULL,
-  Initialize,
-  Shutdown
-};
-
-NSMODULE_DEFN(docshell_provider) = &kDocShellModule;
+// "docshell provider" to illustrate that this thing really *should*
+// be dispensing docshells rather than webshells.
+NS_IMPL_NSGETMODULE_WITH_CTOR_DTOR(docshell_provider, gDocShellModuleInfo,
+                                   Initialize, Shutdown)

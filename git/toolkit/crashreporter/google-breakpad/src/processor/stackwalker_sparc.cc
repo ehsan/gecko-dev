@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2007, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -72,7 +72,9 @@ StackFrame* StackwalkerSPARC::GetContextFrame() {
 }
 
 
-StackFrame* StackwalkerSPARC::GetCallerFrame(const CallStack *stack) {
+StackFrame* StackwalkerSPARC::GetCallerFrame(
+    const CallStack *stack,
+    const vector< linked_ptr<StackFrameInfo> > &stack_frame_info) {
   if (!memory_ || !stack) {
     BPLOG(ERROR) << "Can't get caller frame without memory or stack";
     return NULL;
@@ -93,7 +95,7 @@ StackFrame* StackwalkerSPARC::GetCallerFrame(const CallStack *stack) {
   // A caller frame must reside higher in memory than its callee frames.
   // Anything else is an error, or an indication that we've reached the
   // end of the stack.
-  u_int64_t stack_pointer = last_frame->context.g_r[30];
+  u_int32_t stack_pointer = last_frame->context.g_r[30];
   if (stack_pointer <= last_frame->context.g_r[14]) {
     return NULL;
   }

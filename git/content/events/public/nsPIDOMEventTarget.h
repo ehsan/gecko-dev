@@ -49,12 +49,11 @@ class nsIEventListenerManager;
 class nsIDOMEventListener;
 class nsIDOMEventGroup;
 class nsIScriptContext;
-struct JSContext;
 
-// 89292f3a-535d-4ba0-882a-10cff9e21bcc
+// 25982813-af2e-4ab6-b512-e6c6ada6d0ec
 #define NS_PIDOMEVENTTARGET_IID \
-  { 0x89292f3a, 0x535d, 0x4ba0, \
-    { 0x88, 0x2a, 0x10, 0xcf, 0xf9, 0xe2, 0x1b, 0xcc } }
+  { 0x25982813, 0xaf2e, 0x4ab6, \
+    { 0xb5, 0x12, 0xe6, 0xc6, 0xad, 0xa6, 0xd0, 0xec } }
 
 class nsPIDOMEventTarget : public nsISupports
 {
@@ -95,8 +94,7 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) = 0;
 
   /**
-   * If nsEventChainPreVisitor.mWantsWillHandleEvent is set PR_TRUE,
-   * called just before possible event handlers on this object will be called.
+   * Called just before possible event handlers on this object will be called.
    */
   virtual nsresult WillHandleEvent(nsEventChainPostVisitor& aVisitor)
   {
@@ -138,10 +136,12 @@ public:
   /**
    * Get the event listener manager, the guy you talk to to register for events
    * on this node.
-   * @param aMayCreate If PR_FALSE, returns a listener manager only if
-   *                   one already exists.
+   * @param aCreateIfNotFound If PR_FALSE, returns a listener manager only if
+   *                          one already exists. [IN]
+   * @param aResult           The event listener manager [OUT]
    */
-  virtual nsIEventListenerManager* GetListenerManager(PRBool aMayCreate) = 0;
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult) = 0;
 
   /**
    * Add an event listener for nsIID.
@@ -162,15 +162,8 @@ public:
   /**
    * Get the script context in which the event handlers should be run.
    * May return null.
-   * @note Caller *must* check the value of aRv.
    */
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv) = 0;
-
-  /**
-   * If the method above returns null, but a success code, this method
-   * is called.
-   */
-   virtual JSContext* GetJSContextForEventHandlers() { return nsnull; }
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsPIDOMEventTarget, NS_PIDOMEVENTTARGET_IID)

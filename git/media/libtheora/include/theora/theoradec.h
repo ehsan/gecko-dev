@@ -5,7 +5,7 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2009                *
+ * THE Theora SOURCE CODE IS COPYRIGHT (C) 2002-2007                *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
@@ -20,7 +20,6 @@
 
 #if !defined(_O_THEORA_THEORADEC_H_)
 # define _O_THEORA_THEORADEC_H_ (1)
-# include <stddef.h>
 # include <ogg/ogg.h>
 # include "codec.h"
 
@@ -38,10 +37,6 @@ extern "C" {
  * Keep any experimental or vendor-specific values above \c 0x8000.*/
 /*@{*/
 /**Gets the maximum post-processing level.
- * The decoder supports a post-processing filter that can improve
- * the appearance of the decoded images. This returns the highest
- * level setting for this post-processor, corresponding to maximum
- * improvement and computational expense.
  *
  * \param[out] _buf int: The maximum post-processing level.
  * \retval TH_EFAULT  \a _dec_ctx or \a _buf is <tt>NULL</tt>.
@@ -50,10 +45,6 @@ extern "C" {
 #define TH_DECCTL_GET_PPLEVEL_MAX (1)
 /**Sets the post-processing level.
  * By default, post-processing is disabled.
- *
- * Sets the level of post-processing to use when decoding the
- * compressed stream. This must be a value between zero (off)
- * and the maximum returned by TH_DECCTL_GET_PPLEVEL_MAX.
  *
  * \param[in] _buf int: The new post-processing level.
  *                      0 to disable; larger values use more CPU.
@@ -91,15 +82,6 @@ extern "C" {
  * \retval TH_EINVAL  \a _buf_sz is not
  *                     <tt>sizeof(th_stripe_callback)</tt>.*/
 #define TH_DECCTL_SET_STRIPE_CB (7)
-
-/**Enables telemetry and sets the macroblock display mode */
-#define TH_DECCTL_SET_TELEMETRY_MBMODE (9)
-/**Enables telemetry and sets the motion vector display mode */
-#define TH_DECCTL_SET_TELEMETRY_MV (11)
-/**Enables telemetry and sets the adaptive quantization display mode */
-#define TH_DECCTL_SET_TELEMETRY_QI (13)
-/**Enables telemetry and sets the bitstream breakdown visualization mode */
-#define TH_DECCTL_SET_TELEMETRY_BITS (15)
 /*@}*/
 
 
@@ -231,22 +213,6 @@ typedef struct th_setup_info th_setup_info;
 extern int th_decode_headerin(th_info *_info,th_comment *_tc,
  th_setup_info **_setup,ogg_packet *_op);
 /**Allocates a decoder instance.
- *
- * <b>Security Warning:</b> The Theora format supports very large frame sizes,
- *  potentially even larger than the address space of a 32-bit machine, and
- *  creating a decoder context allocates the space for several frames of data.
- * If the allocation fails here, your program will crash, possibly at some
- *  future point because the OS kernel returned a valid memory range and will
- *  only fail when it tries to map the pages in it the first time they are
- *  used.
- * Even if it succeeds, you may experience a denial of service if the frame
- *  size is large enough to cause excessive paging.
- * If you are integrating libtheora in a larger application where such things
- *  are undesirable, it is highly recommended that you check the frame size in
- *  \a _info before calling this function and refuse to decode streams where it
- *  is larger than some reasonable maximum.
- * libtheora will not check this for you, because there may be machines that
- *  can handle such streams and applications that wish to.
  * \param _info  A #th_info struct filled via th_decode_headerin().
  * \param _setup A #th_setup_info handle returned via
  *                th_decode_headerin().
@@ -283,12 +249,11 @@ extern int th_decode_ctl(th_dec_ctx *_dec,int _req,void *_buf,
  * \retval 0             Success.
  *                       A new decoded frame can be retrieved by calling
  *                        th_decode_ycbcr_out().
- * \retval TH_DUPFRAME   The packet represented a dropped frame (either a
- *                        0-byte frame or an INTER frame with no coded blocks).
+ * \retval TH_DUPFRAME   The packet represented a dropped (0-byte) frame.
  *                       The player can skip the call to th_decode_ycbcr_out(),
  *                        as the contents of the decoded frame buffer have not
  *                        changed.
- * \retval TH_EFAULT     \a _dec or \a _op was <tt>NULL</tt>.
+ * \retval TH_EFAULT     \a _dec or _op was <tt>NULL</tt>.
  * \retval TH_EBADPACKET \a _op does not contain encoded video data.
  * \retval TH_EIMPL      The video data uses bitstream features which this
  *                        library does not support.*/
@@ -307,7 +272,6 @@ extern int th_decode_packetin(th_dec_ctx *_dec,const ogg_packet *_op,
  *               It may be freed or overwritten without notification when
  *                subsequent frames are decoded.
  * \retval 0 Success
- * \retval TH_EFAULT     \a _dec or \a _ycbcr was <tt>NULL</tt>.
  */
 extern int th_decode_ycbcr_out(th_dec_ctx *_dec,
  th_ycbcr_buffer _ycbcr);

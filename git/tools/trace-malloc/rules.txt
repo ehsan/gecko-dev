@@ -95,6 +95,9 @@ JS_Init
 NS_NewPermanentAtom
 
 <images>
+gfxImageFrame::Init
+
+<images>
 gif_write
 
 <images>
@@ -205,6 +208,9 @@ nsGlobalHistory::OpenDB
 
 <font>
 nsFontCache::
+
+<font>
+nsFontMetricsGTK::
 
 <font>
 nsFont::nsFont

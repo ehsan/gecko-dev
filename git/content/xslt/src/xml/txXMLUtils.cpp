@@ -121,7 +121,8 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         nameStart = (uriEnd + 1);
         if (nameEnd)  {
             const PRUnichar *prefixStart = nameEnd + 1;
-            *aPrefix = NS_NewAtom(Substring(prefixStart, pos));
+            *aPrefix = NS_NewAtom(NS_ConvertUTF16toUTF8(prefixStart,
+                                                        pos - prefixStart));
             if (!*aPrefix) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
@@ -138,7 +139,8 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         *aPrefix = nsnull;
     }
 
-    *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
+    *aLocalName = NS_NewAtom(NS_ConvertUTF16toUTF8(nameStart,
+                                                   nameEnd - nameStart));
 
     return *aLocalName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }

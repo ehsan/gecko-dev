@@ -38,7 +38,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
 
-static void
+PR_STATIC_CALLBACK(void)
 NoteChild(PRUint32 aLangID, void *aScriptThing, void *aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -96,8 +96,8 @@ nsXPCOMCycleCollectionParticipant::Trace(void *p, TraceCallback cb,
 PRBool
 nsXPCOMCycleCollectionParticipant::CheckForRightISupports(nsISupports *s)
 {
-    nsISupports* foo;
+    nsCOMPtr<nsISupports> foo;
     s->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                      reinterpret_cast<void**>(&foo));
+                      getter_AddRefs(foo));
     return s == foo;
 }

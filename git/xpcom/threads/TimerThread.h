@@ -47,19 +47,16 @@
 
 #include "nsTimerImpl.h"
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 #include "prcvar.h"
-#include "mozilla/TimeStamp.h"
+#include "prinrval.h"
 #include "prlock.h"
 
 class TimerThread : public nsIRunnable,
                     public nsIObserver
 {
 public:
-  typedef mozilla::TimeStamp TimeStamp;
-  typedef mozilla::TimeDuration TimeDuration;
-
   TimerThread();
   NS_HIDDEN_(nsresult) InitLocks();
 
@@ -77,8 +74,8 @@ public:
 #define FILTER_DURATION         1e3     /* one second */
 #define FILTER_FEEDBACK_MAX     100     /* 1/10th of a second */
 
-  void UpdateFilter(PRUint32 aDelay, TimeStamp aTimeout,
-                    TimeStamp aNow);
+  void UpdateFilter(PRUint32 aDelay, PRIntervalTime aTimeout,
+                    PRIntervalTime aNow);
 
   void DoBeforeSleep();
   void DoAfterSleep();
@@ -104,16 +101,16 @@ private:
   PRPackedBool mWaiting;
   PRPackedBool mSleeping;
   
-  nsTArray<nsTimerImpl*> mTimers;
+  nsVoidArray mTimers;
 
 #define DELAY_LINE_LENGTH_LOG2  5
 #define DELAY_LINE_LENGTH_MASK  PR_BITMASK(DELAY_LINE_LENGTH_LOG2)
 #define DELAY_LINE_LENGTH       PR_BIT(DELAY_LINE_LENGTH_LOG2)
 
-  PRInt32  mDelayLine[DELAY_LINE_LENGTH]; // milliseconds
+  PRInt32  mDelayLine[DELAY_LINE_LENGTH];
   PRUint32 mDelayLineCounter;
   PRUint32 mMinTimerPeriod;     // milliseconds
-  TimeDuration mTimeoutAdjustment;
+  PRInt32  mTimeoutAdjustment;
 };
 
 #endif /* TimerThread_h___ */

@@ -34,7 +34,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: keydb.c,v 1.11.22.1 2010/08/07 05:49:16 wtc%google.com Exp $ */
+/* $Id: keydb.c,v 1.10 2008/06/06 01:16:25 wtc%google.com Exp $ */
 
 #include "lowkeyi.h"
 #include "secasn1.h"
@@ -1051,7 +1051,7 @@ nsslowkey_CloseKeyDB(NSSLOWKEYDBHandle *handle)
 	    SECITEM_FreeItem(handle->global_salt,PR_TRUE);
 	}
 	if (handle->lock != NULL) {
-	    SKIP_AFTER_FORK(PZ_DestroyLock(handle->lock));
+	    PZ_DestroyLock(handle->lock);
 	}
 	    
 	PORT_Free(handle);
@@ -1245,6 +1245,10 @@ const SEC_ASN1Template lg_EncryptedDataInfoTemplate[] = {
         offsetof(LGEncryptedDataInfo,encryptedData) },
     { 0 }
 };
+static const unsigned char def_iter_data[] = { SEC_ASN1_INTEGER, 0x01, 0x01 };
+static const SECItem def_iter = { siBuffer , 
+				(unsigned char *)def_iter_data, 
+				sizeof(def_iter_data) };
 
 static SECItem *
 nsslowkey_EncodePW(SECOidTag alg, const SECItem *salt, SECItem *data)
@@ -1258,7 +1262,6 @@ nsslowkey_EncodePW(SECOidTag alg, const SECItem *salt, SECItem *data)
     SECStatus rv;
 
     param.salt = *salt;
-    param.iter.type = siBuffer;  /* encode as signed integer */
     param.iter.data = &one;
     param.iter.len = 1;
     edi.encryptedData = *data;
@@ -1294,7 +1297,6 @@ nsslowkey_DecodePW(const SECItem *derData, SECOidTag *alg, SECItem *salt)
     SECStatus rv;
 
     salt->data = NULL;
-    param.iter.type = siBuffer;  /* decode as signed integer */
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (arena == NULL) {
@@ -1310,6 +1312,9 @@ nsslowkey_DecodePW(const SECItem *derData, SECOidTag *alg, SECItem *salt)
     rv = SEC_QuickDERDecodeItem(arena, &param, NSSLOWPasswordParamTemplate,
 						&edi.algorithm.parameters);
     if (rv != SECSuccess) {
+	goto loser;
+    }
+    if (SECITEM_ItemsAreEqual(&param.iter, &def_iter) ) {
 	goto loser;
     }
     rv = SECITEM_CopyItem(NULL, salt, &param.salt);
@@ -2189,11 +2194,11 @@ keydb_Close(NSSLOWKEYDBHandle *kdb)
     DB *db = kdb->db;
 
     PORT_Assert(kdbLock != NULL);
-    SKIP_AFTER_FORK(PZ_Lock(kdbLock));
+    PZ_Lock(kdbLock);
 
     (* db->close)(db);
     
-    SKIP_AFTER_FORK(prstat = PZ_Unlock(kdbLock));
+    prstat = PZ_Unlock(kdbLock);
 
     return;
 }

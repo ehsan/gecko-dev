@@ -1,4 +1,4 @@
-#
+# 
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -50,12 +50,38 @@ MODULE_NAME	= nsWidgetGtk2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = widget_gtk2.pkg
+
 NATIVE_THEME_SUPPORT = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  gfx \
+		  pref \
+		  dom \
+		  docshell \
+		  necko \
+		  uconv \
+		  intl \
+		  imglib2 \
+		  view \
+		  content \
+		  layout \
+		  util \
+		  locale \
+		  thebes \
+		  cairo \
+		  $(NULL)
 
+ifdef MOZ_X11
+REQUIRES += gtkxtbin
+endif
 
 CSRCS		= \
 		mozcontainer.c \
+		mozdrawingarea.c \
+		keysym2ucs.c \
+		nsPrintdGTK.c \
 		$(NULL)
 
 ifdef ACCESSIBILITY
@@ -68,6 +94,7 @@ CPPSRCS		= \
 		nsWidgetFactory.cpp \
 		nsToolkit.cpp \
 		nsBidiKeyboard.cpp \
+		nsCommonWidget.cpp \
 		nsLookAndFeel.cpp \
 		nsGtkKeyUtils.cpp \
 		nsFilePicker.cpp \
@@ -77,11 +104,14 @@ CPPSRCS		= \
 		nsScreenManagerGtk.cpp \
 		nsImageToPixbuf.cpp \
 		nsAccessibilityHelper.cpp \
-		nsGtkIMModule.cpp \
 		$(NULL)
 
+ifdef NS_OSSO
+CPPSRCS         += nsIdleServiceOSSO.cpp
+else
 ifdef MOZ_X11
 CPPSRCS         += nsIdleServiceGTK.cpp
+endif
 endif
 
 ifdef NS_PRINTING
@@ -90,9 +120,6 @@ CPPSRCS		+= \
 		nsPrintOptionsGTK.cpp \
 		nsPrintDialogGTK.cpp \
 		nsPrintSettingsGTK.cpp \
-		nsCUPSShim.cpp \
-		nsPaperPS.cpp \
-		nsPSPrinters.cpp \
 		$(NULL)
 endif
 
@@ -103,28 +130,22 @@ CPPSRCS += 	nsClipboard.cpp \
 endif
 
 # build our subdirs, too
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
 
 EXTRA_DSO_LDOPTS += \
 		$(MOZ_COMPONENT_LIBS) \
 		-lgkgfx \
-		-lthebes \
-		$(MOZ_CAIRO_LIBS) \
                 $(MOZ_STARTUP_NOTIFICATION_LIBS) \
 		$(XLDFLAGS) \
 		$(XLIBS) \
-		$(XEXT_LIBS) \
-		$(XCOMPOSITE_LIBS) \
 		$(MOZ_GTK2_LIBS) \
-		$(QCMS_LIBS) \
+		-lthebes \
+		$(LCMS_LIBS) \
 		$(NULL)
-
-ifdef MOZ_PLATFORM_MAEMO
-ifdef MOZ_ENABLE_GCONF
-EXTRA_DSO_LDOPTS += $(MOZ_GCONF_LIBS)
-endif
-endif
 
 ifdef MOZ_X11
 EXTRA_DSO_LDOPTS += -lgtkxtbin -lXrender
@@ -133,6 +154,7 @@ endif
 EXPORTS		= \
                 nsGTKToolkit.h \
 		nsIImageToPixbuf.h \
+		mozdrawingarea.h \
 		mozcontainer.h \
 		$(NULL)
 
@@ -142,26 +164,28 @@ CPPSRCS		+= nsNativeThemeGTK.cpp
 DEFINES		+= -DNATIVE_THEME_SUPPORT
 endif
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 CFLAGS          += $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
-CXXFLAGS        += $(MOZ_CAIRO_CFLAGS) $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
+CXXFLAGS        += $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
 
-ifdef MOZ_PLATFORM_MAEMO
-ifdef MOZ_ENABLE_GCONF
-CXXFLAGS += $(MOZ_GCONF_CFLAGS)
-endif
-endif
-
+DEFINES         += -DUSE_XIM
 DEFINES		+= -DCAIRO_GFX
 
+ifdef MOZ_ENABLE_POSTSCRIPT
+DEFINES         += -DUSE_POSTSCRIPT
+EXTRA_DSO_LDOPTS += -lgfxpsshar
+endif
+
+
+DEFINES		+= 
 INCLUDES	+= \
 		-I$(srcdir)/../xpwidgets \
-		-I$(srcdir)/../shared \
 		-I$(topsrcdir)/other-licenses/atk-1.0 \
 		$(NULL)
-ifdef MOZ_X11
-INCLUDES   	+= -I$(srcdir)/../shared/x11
-endif
+
+test_container: mozdrawingarea.o mozcontainer.o test_container.c
+	$(CC) $(MOZ_GTK2_CFLAGS) -o test_container test_container.c \
+		mozdrawingarea.o mozcontainer.o \
+		$(MOZ_GTK2_LIBS)
+

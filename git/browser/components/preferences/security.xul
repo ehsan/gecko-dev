@@ -76,7 +76,7 @@
 
     </preferences>
     
-    <script type="application/javascript" src="chrome://browser/content/preferences/security.js"/>
+    <script type="application/x-javascript" src="chrome://browser/content/preferences/security.js"/>
     
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
@@ -96,13 +96,13 @@
       </hbox>
 
       <separator class="thin"/>
-      <checkbox id="blockAttackSites"
-                label="&blockAttackSites.label;"
-                accesskey="&blockAttackSites.accesskey;"
+      <checkbox id="tellMaybeAttackSite"
+                label="&tellMaybeAttackSite2.label;"
+                accesskey="&tellMaybeAttackSite.accesskey;"
                 preference="browser.safebrowsing.malware.enabled" />
-      <checkbox id="blockWebForgeries"
-                label="&blockWebForgeries.label;"
-                accesskey="&blockWebForgeries.accesskey;"
+      <checkbox id="tellMaybeForgery"
+                label="&tellMaybeForgery2.label;"
+                accesskey="&tellMaybeForgery.accesskey;"
                 preference="browser.safebrowsing.enabled" />
     </groupbox>
 
@@ -140,6 +140,20 @@
                 preference="pref.privacy.disable_button.view_passwords"/>
       </hbox>
     </groupbox>
+
+    <!-- Warning Messages -->
+    <hbox class="bottomBox">
+      <groupbox id="warningMessagesGroup" orient="horizontal" flex="1"
+                align="center">
+        <caption label="&warnings.label;"/>
+
+        <description control="warningSettings" flex="1">&chooseWarnings.label;</description>
+        <button id="warningSettings"
+                label="&warningSettings.label;"
+                accesskey="&warningSettings.accesskey;"
+                oncommand="gSecurityPane.showWarningMessageSettings();"/>
+      </groupbox>
+    </hbox>
 
   </prefpane>
 

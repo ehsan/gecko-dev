@@ -123,13 +123,11 @@ nsNSSCertificateDB::FindCertByNickname(nsISupports *aToken,
   }
   if (cert) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("got it\n"));
-    nsCOMPtr<nsIX509Cert> pCert = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> pCert = new nsNSSCertificate(cert);
     CERT_DestroyCertificate(cert);
-    if (pCert) {
-      *_rvCert = pCert;
-      NS_ADDREF(*_rvCert);
-      return NS_OK;
-    }
+    *_rvCert = pCert;
+    NS_ADDREF(*_rvCert);
+    return NS_OK;
   }
   *_rvCert = nsnull;
   return NS_ERROR_FAILURE;
@@ -176,7 +174,7 @@ nsNSSCertificateDB::FindCertByDBKey(const char *aDBkey, nsISupports *aToken,
   cert = CERT_FindCertByIssuerAndSN(CERT_GetDefaultCertDB(), &issuerSN);
   PR_FREEIF(keyItem.data);
   if (cert) {
-    nsNSSCertificate *nssCert = nsNSSCertificate::Create(cert);
+    nsNSSCertificate *nssCert = new nsNSSCertificate(cert);
     CERT_DestroyCertificate(cert);
     if (nssCert == nsnull)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -376,7 +374,7 @@ nsNSSCertificateDB::handleCACertDownload(nsIArray *x509Certs,
   der.len = 0;
   
   if (!tmpCert) {
-    NS_ERROR("Couldn't create cert from DER blob");
+    NS_ERROR("Couldn't create cert from DER blob\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -449,7 +447,7 @@ nsNSSCertificateDB::handleCACertDownload(nsIArray *x509Certs,
     der.len = 0;
 
     if (!tmpCert2) {
-      NS_ERROR("Couldn't create temp cert from DER blob");
+      NS_ASSERTION(0, "Couldn't create temp cert from DER blob\n");
       continue;  // Let's try to import the rest of 'em
     }
     
@@ -617,7 +615,7 @@ nsNSSCertificateDB::ImportEmailCertificate(PRUint8 * data, PRUint32 length,
     }
 
     if (alert_and_skip) {    
-      nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
+      nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
@@ -808,7 +806,7 @@ nsNSSCertificateDB::ImportValidCACertsInList(CERTCertList *certList, nsIInterfac
     }
 
     if (alert_and_skip) {    
-      nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(node->cert);
+      nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(node->cert);
       DisplayCertificateAlert(ctx, "NotImportingUnverifiedCert", certToShow);
       continue;
     }
@@ -914,7 +912,7 @@ nsNSSCertificateDB::ImportUserCertificate(PRUint8 *data, PRUint32 length, nsIInt
 
   slot = PK11_KeyForCertExists(cert, NULL, ctx);
   if ( slot == NULL ) {
-    nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(cert);
     DisplayCertificateAlert(ctx, "UserCertIgnoredNoPrivateKey", certToShow);
     goto loser;
   }
@@ -942,7 +940,7 @@ nsNSSCertificateDB::ImportUserCertificate(PRUint8 *data, PRUint32 length, nsIInt
   PK11_FreeSlot(slot);
 
   {
-    nsCOMPtr<nsIX509Cert> certToShow = nsNSSCertificate::Create(cert);
+    nsCOMPtr<nsIX509Cert> certToShow = new nsNSSCertificate(cert);
     DisplayCertificateAlert(ctx, "UserCertImported", certToShow);
   }
   rv = NS_OK;
@@ -1343,7 +1341,8 @@ nsNSSCertificateDB::getCertNames(CERTCertList *certList,
           if (sc) *sc = DELIM;
         }
       }
-      nsAutoString certname = NS_ConvertASCIItoUTF16(namestr ? namestr : "");
+      if (!namestr) namestr = "";
+      nsAutoString certname = NS_ConvertASCIItoUTF16(namestr);
       certstr.Append(PRUnichar(DELIM));
       certstr += certname;
       certstr.Append(PRUnichar(DELIM));
@@ -1397,7 +1396,7 @@ nsNSSCertificateDB::FindEmailEncryptionCert(const nsAString &aNickname, nsIX509C
 
   if (!cert) { goto loser; }  
 
-  nssCert = nsNSSCertificate::Create(cert);
+  nssCert = new nsNSSCertificate(cert);
   if (nssCert == nsnull) {
     rv = NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1437,7 +1436,7 @@ nsNSSCertificateDB::FindEmailSigningCert(const nsAString &aNickname, nsIX509Cert
 
   if (!cert) { goto loser; }  
 
-  nssCert = nsNSSCertificate::Create(cert);
+  nssCert = new nsNSSCertificate(cert);
   if (nssCert == nsnull) {
     rv = NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1474,7 +1473,7 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
   if (CERT_LIST_END(CERT_LIST_HEAD(certlist), certlist))
     return NS_ERROR_FAILURE;
   
-  nsNSSCertificate *nssCert = nsNSSCertificate::Create(CERT_LIST_HEAD(certlist)->cert);
+  nsNSSCertificate *nssCert = new nsNSSCertificate(CERT_LIST_HEAD(certlist)->cert);
   if (!nssCert)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1523,7 +1522,7 @@ nsNSSCertificateDB::ConstructX509FromBase64(const char * base64, nsIX509Cert **_
       rv = NS_ERROR_FAILURE;
     }
     else {
-      nsNSSCertificate *nsNSS = nsNSSCertificate::Create(cert);
+      nsNSSCertificate *nsNSS = new nsNSSCertificate(cert);
       if (!nsNSS) {
         rv = NS_ERROR_OUT_OF_MEMORY;
       }
@@ -1695,7 +1694,7 @@ NS_IMETHODIMP nsNSSCertificateDB::AddCertFromBase64(const char *aBase64, const c
   der.len = 0;
 
   if (!tmpCert) {
-    NS_ERROR("Couldn't create cert from DER blob");
+    NS_ASSERTION(0,"Couldn't create cert from DER blob\n");
     return NS_ERROR_FAILURE;
   }
 

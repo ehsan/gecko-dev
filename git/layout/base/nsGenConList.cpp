@@ -105,7 +105,7 @@ nsGenConList::DestroyNodesFor(nsIFrame* aFrame)
  */
 inline PRInt32 PseudoCompareType(nsIFrame* aFrame, nsIContent** aContent)
 {
-  nsIAtom *pseudo = aFrame->GetStyleContext()->GetPseudo();
+  nsIAtom *pseudo = aFrame->GetStyleContext()->GetPseudoType();
   if (pseudo == nsCSSPseudoElements::before) {
     *aContent = aFrame->GetContent()->GetParent();
     return -1;

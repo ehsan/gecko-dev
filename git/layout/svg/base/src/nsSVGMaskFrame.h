@@ -39,7 +39,6 @@
 
 #include "nsSVGContainerFrame.h"
 #include "gfxPattern.h"
-#include "gfxMatrix.h"
 
 class gfxContext;
 
@@ -48,7 +47,7 @@ typedef nsSVGContainerFrame nsSVGMaskFrameBase;
 class nsSVGMaskFrame : public nsSVGMaskFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGMaskFrame(nsStyleContext* aContext) :
     nsSVGMaskFrameBase(aContext),
@@ -56,19 +55,11 @@ protected:
     mInUse(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsSVGMaskFrame method:
   already_AddRefed<gfxPattern> ComputeMaskAlpha(nsSVGRenderState *aContext,
                                                 nsIFrame* aParent,
-                                                const gfxMatrix &aMatrix,
+                                                nsIDOMSVGMatrix* aMatrix,
                                                 float aOpacity = 1.0f);
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -94,7 +85,7 @@ private:
   public:
     AutoMaskReferencer(nsSVGMaskFrame *aFrame)
        : mFrame(aFrame) {
-      NS_ASSERTION(!mFrame->mInUse, "reference loop!");
+      NS_ASSERTION(mFrame->mInUse == PR_FALSE, "reference loop!");
       mFrame->mInUse = PR_TRUE;
     }
     ~AutoMaskReferencer() {
@@ -110,7 +101,7 @@ private:
   PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif

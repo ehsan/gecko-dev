@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsContentList.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
@@ -49,7 +50,7 @@ class nsHTMLMapElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLMapElement
 {
 public:
-  nsHTMLMapElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLMapElement(nsINodeInfo *aNodeInfo);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -66,12 +67,16 @@ public:
   // nsIDOMHTMLMapElement
   NS_DECL_NSIDOMHTMLMAPELEMENT
 
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLMapElement,
                                                      nsGenericHTMLElement)
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsRefPtr<nsContentList> mAreas;
 };
@@ -80,7 +85,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Map)
 
 
-nsHTMLMapElement::nsHTMLMapElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLMapElement::nsHTMLMapElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -96,14 +101,43 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLMapElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLMapElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLMapElement, nsHTMLMapElement)
-
 // QueryInterface implementation for nsHTMLMapElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLMapElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLMapElement, nsIDOMHTMLMapElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLMapElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLMapElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLMapElement, nsIDOMHTMLMapElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLMapElement)
+
+
+nsresult
+nsHTMLMapElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                             nsIContent* aBindingParent,
+                             PRBool aCompileEventHandlers)
+{
+  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
+                                                 aBindingParent,
+                                                 aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aDocument);
+
+  if (htmlDoc) {
+    htmlDoc->AddImageMap(this);
+  }
+
+  return rv;
+}
+
+void
+nsHTMLMapElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
+{
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(GetCurrentDoc());
+
+  if (htmlDoc) {
+    htmlDoc->RemoveImageMap(this);
+  }
+
+  nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+}
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLMapElement)
 
@@ -116,10 +150,13 @@ nsHTMLMapElement::GetAreas(nsIDOMHTMLCollection** aAreas)
   if (!mAreas) {
     // Not using NS_GetContentList because this should not be cached
     mAreas = new nsContentList(this,
+                               nsGkAtoms::area,
                                mNodeInfo->NamespaceID(),
-                               nsGkAtoms::area,
-                               nsGkAtoms::area,
                                PR_FALSE);
+
+    if (!mAreas) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   NS_ADDREF(*aAreas = mAreas);

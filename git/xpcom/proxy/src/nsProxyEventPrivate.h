@@ -277,7 +277,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPROXYOBJECTMANAGER
         
-    static nsresult Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
+    static NS_METHOD Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
     
     nsProxyObjectManager();
     
@@ -299,7 +299,7 @@ public:
 private:
     ~nsProxyObjectManager();
 
-    static nsProxyObjectManager* gInstance;
+    static nsProxyObjectManager* mInstance;
     nsHashtable  mProxyObjectMap;
     nsClassHashtable<nsIDHashKey, nsProxyEventClass> mProxyClassMap;
     PRLock *mProxyCreationLock;

@@ -1,91 +1,127 @@
+// defines for prompt - button position
+const ACCEPT = 0;
+const ACCEPT_FUZZ = 1;
+const DECLINE = 2;
 
-function sleep(delay)
-{
-    var start = Date.now();
-    while (Date.now() < start + delay);
-}
+/* Set if testLocationProvider is registered as geolocation provider.
+ * To register, copy testLocationProvider.js to components directory 
+ * and remove from directory when done. 
+ */
+var TEST_PROVIDER = 0; 
 
-function force_prompt(allow) {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setBoolPref("geo.prompt.testing", true);
-  prefs.setBoolPref("geo.prompt.testing.allow", allow);
-}
+// set if there should be a delay before prompt is accepted
+var DELAYED_PROMPT = 0;
 
-function reset_prompt() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setBoolPref("geo.prompt.testing", false);
-  prefs.setBoolPref("geo.prompt.testing.allow", false);
-}
+var prompt_delay = timeout * 2;
 
+// the prompt that was registered at runtime
+var old_prompt;
 
-function start_sending_garbage()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=respond-garbage");
+// whether the prompt was accepted
+var prompted = 0;
 
-  // we need to be sure that all location data has been purged/set.
-  sleep(1000);
-}
+// which prompt option to select when prompt is fired
+var promptOption;
 
-function stop_sending_garbage()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+// number of position changes for testLocationProvider to make
+var num_pos_changes = 3;
 
-  // we need to be sure that all location data has been purged/set.
-  sleep(1000);
-}
+ // based on testLocationProvider's interval
+var timer_interval = 500;
+var slack = 500;
 
-function stop_geolocationProvider()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=stop-responding");
-
-  // we need to be sure that all location data has been purged/set.
-  sleep(1000);
-}
-
-function worse_geolocationProvider()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=worse-accuracy");
-}
-
-function resume_geolocationProvider()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
-}
+// time needed for provider to make position changes
+var timeout = num_pos_changes * timer_interval + slack;
 
 function check_geolocation(location) {
 
   ok(location, "Check to see if this location is non-null");
 
+  ok("latitude" in location, "Check to see if there is a latitude");
+  ok("longitude" in location, "Check to see if there is a longitude");
+  ok("altitude" in location, "Check to see if there is a altitude");
+  ok("accuracy" in location, "Check to see if there is a accuracy");
+  ok("altitudeAccuracy" in location, "Check to see if there is a alt accuracy");
+  ok("heading" in location, "Check to see if there is a heading");
+  ok("velocity" in location, "Check to see if there is a velocity");
   ok("timestamp" in location, "Check to see if there is a timestamp");
 
-  // eventually, coords may be optional (eg, when civic addresses are supported)
-  ok("coords" in location, "Check to see if this location has a coords");
+}
 
-  var coords = location.coords;
+//TODO: test for fuzzed location when this is implemented
+function check_fuzzed_geolocation(location) {
+  check_geolocation(location);
+}
 
-  ok("latitude" in coords, "Check to see if there is a latitude");
-  ok("longitude" in coords, "Check to see if there is a longitude");
-  ok("altitude" in coords, "Check to see if there is a altitude");
-  ok("accuracy" in coords, "Check to see if there is a accuracy");
-  ok("altitudeAccuracy" in coords, "Check to see if there is a alt accuracy");
+function check_no_geolocation(location) {
+   ok(!location, "Check to see if this location is null");
+}
 
-  // optional ok("heading" in coords, "Check to see if there is a heading");
-  // optional ok("speed" in coords, "Check to see if there is a speed");
+function checkFlags(flags, value, isExact) {
+  for(var i = 0; i < flags.length; i++)
+    ok(isExact ? flags[i] == value : flags[i] >= value, "ensure callbacks called " + value + " times");
+}
 
-  ok (location.coords.latitude  == 37.41857, "lat matches known value");
-  ok (location.coords.longitude == -122.08769, "lon matches known value");
-  ok(location.coords.altitude == 42, "alt matches known value");
-  ok(location.coords.altitudeAccuracy == 42, "alt acc matches known value");
+function success_callback(position) {
+  if(prompted == 0)
+    ok(0, "Should not call success callback before prompt accepted");
+  if(position == null)
+    ok(1, "No geolocation available");
+  else {
+    switch(promptOption) {
+      case ACCEPT:
+        check_geolocation(position);
+        break;
+      case ACCEPT_FUZZ:
+        check_fuzzed_geolocation(position);
+        break;
+      case DECLINE:
+        check_no_geolocation(position);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+function geolocation_prompt(request) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+	prompted = 1;
+  switch(promptOption) {
+    case ACCEPT:
+      request.allow();
+      break;
+    case ACCEPT_FUZZ:
+      request.allowButFuzz();
+      break;
+    case DECLINE:
+      request.cancel();
+      break;
+    default:
+      break;
+  }
+  return 1;
+}
+
+function delayed_prompt(request) {
+  setTimeout(geolocation_prompt, prompt_delay, request);
+}
+
+function attachPrompt() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  var geolocationService = Components.classes["@mozilla.org/geolocation/service;1"]
+                           .getService(Components.interfaces.nsIGeolocationService);
+  old_prompt = geolocationService.prompt;
+
+	if(DELAYED_PROMPT)
+    geolocationService.prompt = delayed_prompt;
+  else
+    geolocationService.prompt = geolocation_prompt;
+}
+
+function removePrompt() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  var geolocationService = Components.classes["@mozilla.org/geolocation/service;1"]
+                           .getService(Components.interfaces.nsIGeolocationService);
+  geolocationService.prompt = old_prompt;
 }

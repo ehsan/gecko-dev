@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,47 +41,26 @@
 /*
  * PR assertion checker.
  */
+#include "jsstddef.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h"
 
 #ifdef WIN32
-#    include "jswin.h"
-#else
-#    include <signal.h>
+#    include <windows.h>
 #endif
-
-using namespace js;
-
-/*
- * Checks the assumption that JS_FUNC_TO_DATA_PTR and JS_DATA_TO_FUNC_PTR
- * macros uses to implement casts between function and data pointers.
- */
-JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 
 JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
 #if defined(WIN32)
-    /*
-     * We used to call DebugBreak() on Windows, but amazingly, it causes
-     * the MSVS 2010 debugger not to be able to recover a call stack.
-     */
-    *((int *) NULL) = 0;
+    DebugBreak();
     exit(3);
-#elif defined(__APPLE__)
-    /*
-     * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
-     * trapped.
-     */
-    *((int *) NULL) = 0;  /* To continue from here in GDB: "return" then "continue". */
-    raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
-#else
-    raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
+#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
+    asm("int $3");
 #endif
+    abort();
 }
 
 #ifdef JS_BASIC_STATS
@@ -148,7 +127,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32 val)
             if (newscale != oldscale) {
                 uint32 newhist[11], newbin;
 
-                PodArrayZero(newhist);
+                memset(newhist, 0, sizeof newhist);
                 for (bin = 0; bin <= 10; bin++) {
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];
@@ -199,7 +178,7 @@ void
 JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 {
     uintN bin;
-    uint32 cnt, max;
+    uint32 cnt, max, prev, val, i;
     double sum, mean;
 
     for (bin = 0, max = 0, sum = 0; bin <= 10; bin++) {
@@ -209,23 +188,20 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
         sum += cnt;
     }
     mean = sum / cnt;
-    for (bin = 0; bin <= 10; bin++) {
-        uintN val = BinToVal(bs->logscale, bin);
-        uintN end = (bin == 10) ? 0 : BinToVal(bs->logscale, bin + 1);
+    for (bin = 0, prev = 0; bin <= 10; bin++, prev = val) {
+        val = BinToVal(bs->logscale, bin);
         cnt = bs->hist[bin];
-        if (val + 1 == end)
+        if (prev + 1 >= val)
             fprintf(fp, "        [%6u]", val);
-        else if (end != 0)
-            fprintf(fp, "[%6u, %6u]", val, end - 1);
         else
-            fprintf(fp, "[%6u,   +inf]", val);
-        fprintf(fp, ": %8u ", cnt);
+            fprintf(fp, "[%6u, %6u]", prev + 1, val);
+        fprintf(fp, "%s %8u ", (bin == 10) ? "+" : ":", cnt);
         if (cnt != 0) {
             if (max > 1e6 && mean > 1e3)
                 cnt = (uint32) ceil(log10((double) cnt));
             else if (max > 16 && mean > 8)
                 cnt = JS_CeilingLog2(cnt);
-            for (uintN i = 0; i < cnt; i++)
+            for (i = 0; i < cnt; i++)
                 putc('*', fp);
         }
         putc('\n', fp);
@@ -234,7 +210,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 
 #endif /* JS_BASIC_STATS */
 
-#if defined(DEBUG_notme) && defined(XP_UNIX)
+#if defined DEBUG_notme && defined XP_UNIX
 
 #define __USE_GNU 1
 #include <dlfcn.h>
@@ -315,7 +291,7 @@ CallTree(void **bp)
             return NULL;
 
         /* Create a new callsite record. */
-        site = (JSCallsite *) js_malloc(sizeof(JSCallsite));
+        site = (JSCallsite *) malloc(sizeof(JSCallsite));
         if (!site)
             return NULL;
 
@@ -338,7 +314,7 @@ CallTree(void **bp)
     return site;
 }
 
-JS_FRIEND_API(JSCallsite *)
+JSCallsite *
 JS_Backtrace(int skip)
 {
     void **bp, **bpdown;
@@ -366,14 +342,4 @@ JS_Backtrace(int skip)
     return CallTree(bp);
 }
 
-JS_FRIEND_API(void)
-JS_DumpBacktrace(JSCallsite *trace)
-{
-    while (trace) {
-        fprintf(stdout, "%s [%s +0x%X]\n", trace->name, trace->library,
-                trace->offset);
-        trace = trace->parent;
-    }
-}
-
-#endif /* defined(DEBUG_notme) && defined(XP_UNIX) */
+#endif /* DEBUG_notme && XP_UNIX */

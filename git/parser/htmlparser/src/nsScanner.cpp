@@ -108,8 +108,6 @@ nsScanner::nsScanner(const nsAString& anHTMLString, const nsACString& aCharset,
   mIncremental = PR_FALSE;
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
-  mHasInvalidCharacter = PR_FALSE;
-  mReplacementCharacter = PRUnichar(0x0);
 }
 
 /**
@@ -145,8 +143,6 @@ nsScanner::nsScanner(nsString& aFilename,PRBool aCreateStream,
 
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
-  mHasInvalidCharacter = PR_FALSE;
-  mReplacementCharacter = PRUnichar(0x0);
   SetDocumentCharset(aCharset, aSource);
 }
 
@@ -188,16 +184,8 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSou
   NS_ASSERTION(nsParser::GetCharsetConverterManager(),
                "Must have the charset converter manager!");
 
-  res = nsParser::GetCharsetConverterManager()->
+  return nsParser::GetCharsetConverterManager()->
     GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
-  if (NS_SUCCEEDED(res) && mUnicodeDecoder)
-  {
-     // We need to detect conversion error of character to support XML
-     // encoding error.
-     mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Signal);
-  }
-
-  return res;
 }
 
 
@@ -315,8 +303,6 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
 
     PRInt32 totalChars = 0;
     PRInt32 unicharLength = unicharBufLen;
-    PRInt32 errorPos = -1;
-
     do {
       PRInt32 srcLength = aLen;
       res = mUnicodeDecoder->Convert(aBuffer, &srcLength, unichars, &unicharLength);
@@ -324,8 +310,8 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
       totalChars += unicharLength;
       // Continuation of failure case
       if(NS_FAILED(res)) {
-        // if we failed, we consume one byte, replace it with the replacement
-        // character and try the conversion again.
+        // if we failed, we consume one byte, replace it with U+FFFD
+        // and try the conversion again.
 
         // This is only needed because some decoders don't follow the
         // nsIUnicodeDecoder contract: they return a failure when *aDestLength
@@ -335,13 +321,7 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
           break;
         }
 
-        if (mReplacementCharacter == 0x0 && errorPos == -1) {
-          errorPos = totalChars;
-        }
-        unichars[unicharLength++] = mReplacementCharacter == 0x0 ?
-                                    mUnicodeDecoder->GetCharacterForUnMapped() :
-                                    mReplacementCharacter;
-
+        unichars[unicharLength++] = (PRUnichar)0xFFFD;
         unichars = unichars + unicharLength;
         unicharLength = unicharBufLen - (++totalChars);
 
@@ -364,7 +344,7 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
     // since it doesn't reflect on our success or failure
     // - Ref. bug 87110
     res = NS_OK; 
-    if (!AppendToBuffer(buffer, aRequest, errorPos))
+    if (!AppendToBuffer(buffer, aRequest))
       res = NS_ERROR_OUT_OF_MEMORY;
   }
   else {
@@ -1024,7 +1004,6 @@ nsresult nsScanner::ReadUntil(nsScannerIterator& aStart,
   }
   
   while (current != mEndPosition) {
-    theChar = *current;
     if (theChar == '\0') {
       ReplaceCharacter(current, sInvalid);
       theChar = sInvalid;
@@ -1048,8 +1027,9 @@ nsresult nsScanner::ReadUntil(nsScannerIterator& aStart,
         ++setcurrent;
       }
     }
-
+    
     ++current;
+    theChar = *current;
   }
 
   // If we are here, we didn't find any terminator in the string and
@@ -1088,7 +1068,6 @@ nsresult nsScanner::ReadUntil(nsAString& aString,
   }
 
   while (current != mEndPosition) {
-    theChar = *current;
     if (theChar == '\0') {
       ReplaceCharacter(current, sInvalid);
       theChar = sInvalid;
@@ -1102,6 +1081,7 @@ nsresult nsScanner::ReadUntil(nsAString& aString,
       return NS_OK;
     }
     ++current;
+    theChar = *current;
   }
 
   // If we are here, we didn't find any terminator in the string and
@@ -1163,8 +1143,7 @@ void nsScanner::ReplaceCharacter(nsScannerIterator& aPosition,
 }
 
 PRBool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
-                                 nsIRequest *aRequest,
-                                 PRInt32 aErrorPos)
+                                 nsIRequest *aRequest)
 {
   if (nsParser::sParserDataListeners && mParser &&
       NS_FAILED(mParser->DataAdded(Substring(aBuf->DataStart(),
@@ -1174,7 +1153,6 @@ PRBool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
     return mSlidingBuffer != nsnull;
   }
 
-  PRUint32 countRemaining = mCountRemaining;
   if (!mSlidingBuffer) {
     mSlidingBuffer = new nsScannerString(aBuf);
     if (!mSlidingBuffer)
@@ -1191,12 +1169,6 @@ PRBool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
     }
     mSlidingBuffer->EndReading(mEndPosition);
     mCountRemaining += aBuf->DataLength();
-  }
-
-  if (aErrorPos != -1 && !mHasInvalidCharacter) {
-    mHasInvalidCharacter = PR_TRUE;
-    mFirstInvalidPosition = mCurrentPosition;
-    mFirstInvalidPosition.advance(countRemaining + aErrorPos);
   }
 
   if (mFirstNonWhitespacePosition == -1) {
@@ -1263,12 +1235,5 @@ void nsScanner::SelfTest(void) {
 #endif
 }
 
-void nsScanner::OverrideReplacementCharacter(PRUnichar aReplacementCharacter)
-{
-  mReplacementCharacter = aReplacementCharacter;
 
-  if (mHasInvalidCharacter) {
-    ReplaceCharacter(mFirstInvalidPosition, mReplacementCharacter);
-  }
-}
 

@@ -56,7 +56,7 @@ class nsIDOMNode;
 class nsIFrame;
 class nsPresContext;
 class nsIImageLoadingContent;
-class nsICanvasElementExternal;
+class nsICanvasElement;
 
 /**
  * XP DragService wrapper base class
@@ -76,10 +76,6 @@ public:
   //nsIDragSession and nsIDragService
   NS_DECL_NSIDRAGSERVICE
   NS_DECL_NSIDRAGSESSION
-
-  void SetDragEndPoint(nsIntPoint aEndDragPoint) { mEndDragPoint = aEndDragPoint; }
-
-  PRUint16 GetInputSource() { return mInputSource; }
 
 protected:
 
@@ -107,7 +103,7 @@ protected:
   nsresult DrawDrag(nsIDOMNode* aDOMNode,
                     nsIScriptableRegion* aRegion,
                     PRInt32 aScreenX, PRInt32 aScreenY,
-                    nsIntRect* aScreenDragRect,
+                    nsRect* aScreenDragRect,
                     gfxASurface** aSurface,
                     nsPresContext **aPresContext);
 
@@ -117,9 +113,9 @@ protected:
    */
   nsresult DrawDragForImage(nsPresContext* aPresContext,
                             nsIImageLoadingContent* aImageLoader,
-                            nsICanvasElementExternal* aCanvas,
+                            nsICanvasElement* aCanvas,
                             PRInt32 aScreenX, PRInt32 aScreenY,
-                            nsIntRect* aScreenDragRect,
+                            nsRect* aScreenDragRect,
                             gfxASurface** aSurface);
 
   /**
@@ -130,12 +126,9 @@ protected:
                              PRInt32* aScreenX, PRInt32* aScreenY);
 
   PRPackedBool mCanDrop;
-  PRPackedBool mOnlyChromeDrop;
   PRPackedBool mDoingDrag;
   // true if mImage should be used to set a drag image
   PRPackedBool mHasImage;
-  // true if the user cancelled the drag operation
-  PRPackedBool mUserCancelled;
 
   PRUint32 mDragAction;
   nsSize mTargetSize;
@@ -153,19 +146,13 @@ protected:
   // set if a selection is being dragged
   nsCOMPtr<nsISelection> mSelection;
 
-  // the screen position where drag gesture occurred, used for positioning the
+  // the screen position where drag gesture occured, used for positioning the
   // drag image when no image is specified. If a value is -1, no event was
   // supplied so the screen position is not known
   PRInt32 mScreenX;
   PRInt32 mScreenY;
 
-  // the screen position where the drag ended
-  nsIntPoint mEndDragPoint;
-
   PRUint32 mSuppressLevel;
-
-  // The input source of the drag event. Possible values are from nsIDOMNSMouseEvent.
-  PRUint16 mInputSource;
 };
 
 #endif // nsBaseDragService_h__

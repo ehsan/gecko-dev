@@ -41,18 +41,14 @@
 
 #include "nsIDOMNotifyPaintEvent.h"
 #include "nsDOMEvent.h"
-#include "nsPresContext.h"
 
-class nsPaintRequestList;
-
-class nsDOMNotifyPaintEvent : public nsDOMEvent,
-                              public nsIDOMNotifyPaintEvent
+class nsDOMNotifyPaintEvent : public nsIDOMNotifyPaintEvent,
+                              public nsDOMEvent
 {
 public:
-  nsDOMNotifyPaintEvent(nsPresContext*           aPresContext,
-                        nsEvent*                 aEvent,
-                        PRUint32                 aEventType,
-                        nsInvalidateRequestList* aInvalidateRequests);
+  nsDOMNotifyPaintEvent(nsPresContext* aPresContext,
+                        nsNotifyPaintEvent* aEvent);
+  virtual ~nsDOMNotifyPaintEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -61,14 +57,8 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
 
-#ifdef MOZ_IPC
-  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
-  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
-#endif
 private:
   nsRegion GetRegion();
-
-  nsTArray<nsInvalidateRequestList::Request> mInvalidateRequests;
 };
 
 #endif // nsDOMNotifyPaintEvent_h_

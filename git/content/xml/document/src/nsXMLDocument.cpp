@@ -41,6 +41,7 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
@@ -48,6 +49,8 @@
 #include "nsIDocShell.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
+#include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 #include "nsIComponentManager.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMElement.h"
@@ -84,15 +87,12 @@
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIJSContextStack.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsContentPolicyUtils.h"
-#include "nsContentErrors.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "nsGenericElement.h"
 
 // ==================================================================
 // =
@@ -121,13 +121,9 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   PRBool isHTML = PR_FALSE;
   PRBool isXHTML = PR_FALSE;
   if (aDoctype) {
-    nsAutoString publicId, name;
+    nsAutoString publicId;
     aDoctype->GetPublicId(publicId);
-    if (publicId.IsEmpty()) {
-      aDoctype->GetName(name);
-    }
-    if (name.EqualsLiteral("html") ||
-        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
+    if (publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Frameset//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Transitional//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.0//EN") ||
@@ -237,15 +233,14 @@ nsXMLDocument::~nsXMLDocument()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
-DOMCI_NODE_DATA(XMLDocument, nsXMLDocument)
-
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)
-  NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsXMLDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsXMLDocument, nsIDOMXMLDocument)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLDocument)
+  NS_INTERFACE_TABLE_INHERITED3(nsXMLDocument,
+                                nsIInterfaceRequestor,
+                                nsIChannelEventSink,
+                                nsIDOMXMLDocument)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
 
@@ -279,6 +274,35 @@ nsXMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 
   nsDocument::ResetToURI(aURI, aLoadGroup, aPrincipal);
+}
+
+/////////////////////////////////////////////////////
+// nsIInterfaceRequestor methods:
+//
+NS_IMETHODIMP
+nsXMLDocument::GetInterface(const nsIID& aIID, void** aSink)
+{
+  return QueryInterface(aIID, aSink);
+}
+
+// nsIChannelEventSink
+NS_IMETHODIMP
+nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
+                                 nsIChannel *aNewChannel,
+                                 PRUint32 aFlags)
+{
+  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
+
+  nsCOMPtr<nsIURI> oldURI;
+  nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIURI> newURI;
+  rv = aNewChannel->GetURI(getter_AddRefs(newURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return nsContentUtils::GetSecurityManager()->
+    CheckSameOriginURI(oldURI, newURI, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -319,23 +343,9 @@ nsXMLDocument::SetAsync(PRBool aAsync)
   return NS_OK;
 }
 
-static void
-ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
-{
-  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning,
-                                  nsnull, 0,
-                                  nsnull,
-                                  EmptyString(), 0, 0,
-                                  nsIScriptError::warningFlag,
-                                  "DOM3 Load", aDoc);
-}
-
 NS_IMETHODIMP
 nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
 {
-  ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
-
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = PR_FALSE;
 
@@ -346,7 +356,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   nsCAutoString charset;
 
   if (callingDoc) {
-    baseURI = callingDoc->GetDocBaseURI();
+    baseURI = callingDoc->GetBaseURI();
     charset = callingDoc->GetDocumentCharacterSet();
   }
 
@@ -357,6 +367,10 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     return rv;
   }
 
+  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
+  nsCOMPtr<nsIURI> codebase;
+  principal->GetURI(getter_AddRefs(codebase));
+
   // Check to see whether the current document is allowed to load this URI.
   // It's important to use the current document's principal for this check so
   // that we don't end up in a case where code with elevated privileges is
@@ -365,26 +379,9 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   // Enforce same-origin even for chrome loaders to avoid someone accidentally
   // using a document that content has a reference to and turn that into a
   // chrome document.
-  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
-  if (!nsContentUtils::IsSystemPrincipal(principal)) {
+  if (codebase) {
     rv = principal->CheckMayLoad(uri, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XMLHTTPREQUEST,
-                                   uri,
-                                   principal,
-                                   callingDoc ? callingDoc.get() :
-                                     static_cast<nsIDocument*>(this),
-                                   NS_LITERAL_CSTRING("application/xml"),
-                                   nsnull,
-                                   &shouldLoad,
-                                   nsContentUtils::GetContentPolicy(),
-                                   nsContentUtils::GetSecurityManager());
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (NS_CP_REJECTED(shouldLoad)) {
-      return NS_ERROR_CONTENT_BLOCKED;
-    }
   } else {
     // We're called from chrome, check to make sure the URI we're
     // about to load is also chrome.
@@ -398,24 +395,18 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
       nsAutoString error;
       error.AssignLiteral("Cross site loading using document.load is no "
                           "longer supported. Use XMLHttpRequest instead.");
-      nsCOMPtr<nsIScriptError2> errorObject =
+      nsCOMPtr<nsIScriptError> errorObject =
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = errorObject->InitWithWindowID(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
-                                         nsnull, 0, 0, nsIScriptError::warningFlag,
-                                         "DOM",
-                                         callingDoc ?
-                                           callingDoc->OuterWindowID() :
-                                           this->OuterWindowID());
-
+      rv = errorObject->Init(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
+                             nsnull, 0, 0, nsIScriptError::warningFlag,
+                             "DOM");
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIConsoleService> consoleService =
         do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
-      if (consoleService && logError) {
-        consoleService->LogMessage(logError);
+      if (consoleService) {
+        consoleService->LogMessage(errorObject);
       }
 
       return NS_ERROR_DOM_SECURITY_ERR;
@@ -446,13 +437,11 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   mListenerManager = elm;
 
   // Create a channel
-  nsCOMPtr<nsIInterfaceRequestor> req = nsContentUtils::GetSameOriginChecker();
-  NS_ENSURE_TRUE(req, NS_ERROR_OUT_OF_MEMORY);  
 
   nsCOMPtr<nsIChannel> channel;
   // nsIRequest::LOAD_BACKGROUND prevents throbber from becoming active,
   // which in turn keeps STOP button from becoming active  
-  rv = NS_NewChannel(getter_AddRefs(channel), uri, nsnull, loadGroup, req, 
+  rv = NS_NewChannel(getter_AddRefs(channel), uri, nsnull, loadGroup, this, 
                      nsIRequest::LOAD_BACKGROUND);
   if (NS_FAILED(rv)) {
     return rv;
@@ -488,7 +477,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     }
 
     // We set return to true unless there was a parsing error
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootElement());
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootContent());
     if (node) {
       nsAutoString name, ns;      
       if (NS_SUCCEEDED(node->GetLocalName(name)) &&
@@ -583,7 +572,6 @@ nsXMLDocument::EndLoad()
   nsDocument::EndLoad();
   if (mSynchronousDOMContentLoaded) {
     mSynchronousDOMContentLoaded = PR_FALSE;
-    nsDocument::SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.

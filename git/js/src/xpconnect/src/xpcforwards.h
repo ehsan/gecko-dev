@@ -74,6 +74,7 @@ class XPCJSObjectHolder;
 class JSObject2WrappedJSMap;
 class Native2WrappedNativeMap;
 class IID2WrappedJSClassMap;
+class JSContext2XPCContextMap;
 class IID2NativeInterfaceMap;
 class ClassInfo2NativeSetMap;
 class ClassInfo2WrappedNativeProtoMap;
@@ -83,7 +84,6 @@ class XPCNativeScriptableSharedMap;
 class XPCWrappedNativeProtoMap;
 class XPCNativeWrapperMap;
 class WrappedNative2WrapperMap;
-class JSObject2JSObjectMap;
 
 class nsXPCComponents;
 class nsXPCComponents_Interfaces;
@@ -100,6 +100,7 @@ class nsXPCConstructor;
 class AutoMarkingPtr;
 
 class xpcProperty;
+class xpcPropertyBagEnumerator;
 
 #ifdef XPC_IDISPATCH_SUPPORT
 class XPCDispInterface;

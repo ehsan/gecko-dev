@@ -27,7 +27,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *      Vladimir Vukicevic <vladimir@mozilla.com>
@@ -50,19 +50,6 @@ cairo_quartz_surface_create (cairo_format_t format,
                              unsigned int height);
 
 cairo_public cairo_surface_t *
-cairo_quartz_surface_create_for_data (unsigned char *data,
-				      cairo_format_t format,
-				      unsigned int width,
-				      unsigned int height,
-				      unsigned int stride);
-
-cairo_public cairo_surface_t *
-cairo_quartz_surface_create_cg_layer (cairo_surface_t *surface,
-                                      cairo_content_t content,
-                                      unsigned int width,
-                                      unsigned int height);
-
-cairo_public cairo_surface_t *
 cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
                                             unsigned int width,
                                             unsigned int height);
@@ -70,28 +57,17 @@ cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
 cairo_public CGContextRef
 cairo_quartz_surface_get_cg_context (cairo_surface_t *surface);
 
-cairo_public CGContextRef
-cairo_quartz_get_cg_context_with_clip (cairo_t *cr);
-
-cairo_public void
-cairo_quartz_finish_cg_context_with_clip (cairo_t *cr);
-
-cairo_public cairo_surface_t *
-cairo_quartz_surface_get_image (cairo_surface_t *surface);
-
-#if CAIRO_HAS_QUARTZ_FONT
-
 /*
  * Quartz font support
  */
 
+#ifdef CAIRO_HAS_QUARTZ_FONT
+
 cairo_public cairo_font_face_t *
 cairo_quartz_font_face_create_for_cgfont (CGFontRef font);
 
-#ifndef __LP64__
 cairo_public cairo_font_face_t *
 cairo_quartz_font_face_create_for_atsu_font_id (ATSUFontID font_id);
-#endif
 
 #endif /* CAIRO_HAS_QUARTZ_FONT */
 

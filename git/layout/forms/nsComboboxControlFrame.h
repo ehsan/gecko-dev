@@ -55,7 +55,7 @@
 //Mark used to indicate when onchange has been fired for current combobox item
 #define NS_SKIP_NOTIFY_INDEX -2
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
@@ -63,14 +63,15 @@
 #include "nsIRollupListener.h"
 #include "nsPresState.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsIScrollableViewProvider.h"
 #include "nsIStatefulFrame.h"
-#include "nsIScrollableFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsThreadUtils.h"
 
 class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
+class nsIScrollableView;
 class nsComboboxDisplayFrame;
 
 /**
@@ -79,12 +80,13 @@ class nsComboboxDisplayFrame;
  */
 #define NS_COMBO_LIST_COUNT   (NS_BLOCK_LIST_COUNT + 1)
 
-class nsComboboxControlFrame : public nsBlockFrame,
+class nsComboboxControlFrame : public nsAreaFrame,
                                public nsIFormControlFrame,
                                public nsIComboboxControlFrame,
                                public nsIAnonymousContentCreator,
                                public nsISelectControlFrame,
                                public nsIRollupListener,
+                               public nsIScrollableViewProvider,
                                public nsIStatefulFrame
 {
 public:
@@ -94,17 +96,15 @@ public:
   nsComboboxControlFrame(nsStyleContext* aContext);
   ~nsComboboxControlFrame();
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  // nsISupports
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
@@ -133,21 +133,17 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags &
+    return nsAreaFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
-  }
-
-  virtual nsIScrollableFrame* GetScrollTargetFrame() {
-    return do_QueryFrame(mDropdownFrame);
   }
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual void Destroy();
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   virtual nsIFrame* GetContentInsertionFrame();
@@ -179,18 +175,18 @@ public:
   virtual void RollupFromList();
   virtual void AbsolutelyPositionDropDown();
   virtual PRInt32 GetIndexOfDisplayArea();
-  /**
-   * @note This method might destroy |this|.
-   */
   NS_IMETHOD RedisplaySelectedText();
   virtual PRInt32 UpdateRecentIndex(PRInt32 aIndex);
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(PRInt32 index);
-  NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD AddOption(nsPresContext* aPresContext, PRInt32 index);
+  NS_IMETHOD RemoveOption(nsPresContext* aPresContext, PRInt32 index);
+  NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
-  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
+  NS_IMETHOD OnOptionSelected(nsPresContext* aPresContext,
+                              PRInt32 aIndex,
+                              PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   //nsIRollupListener
@@ -198,7 +194,7 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent** aLastRolledUp);
+  NS_IMETHOD Rollup(nsIContent** aLastRolledUp);
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
@@ -212,6 +208,9 @@ public:
    */
   NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
     { *aShouldRollup = PR_FALSE; return NS_OK;}
+
+  // nsIScrollableViewProvider
+  virtual nsIScrollableView* GetScrollableView();
 
   //nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
@@ -253,7 +252,7 @@ protected:
    * @note This method might destroy |this|.
    * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  PRBool ShowList(PRBool aShowList);
+  PRBool ShowList(nsPresContext* aPresContext, PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
   nsresult RedisplayText(PRInt32 aIndex);
@@ -266,6 +265,7 @@ protected:
   nsIFrame*                mDisplayFrame;            // frame to display selection
   nsIFrame*                mButtonFrame;             // button frame
   nsIFrame*                mDropdownFrame;           // dropdown list frame
+  nsIFrame*                mTextFrame;               // display area frame
   nsIListControlFrame *    mListControlFrame;        // ListControl Interface for the dropdown frame
 
   // The width of our display area.  Used by that frame's reflow to
@@ -292,6 +292,10 @@ protected:
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;
 #endif
+
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif

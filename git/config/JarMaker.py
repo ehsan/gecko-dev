@@ -44,7 +44,6 @@ See the documentation for jar.mn on MDC for further details on the format.
 import sys
 import os
 import os.path
-import errno
 import re
 import logging
 from time import localtime
@@ -53,9 +52,8 @@ from MozZipFile import ZipFile
 from cStringIO import StringIO
 from datetime import datetime
 
-from utils import pushback_iter, lockFile
+from utils import pushback_iter
 from Preprocessor import Preprocessor
-from buildlist import addEntriesToListFile
 
 __all__ = ['JarMaker']
 
@@ -123,9 +121,6 @@ class JarMaker(object):
                  help="verbose output")
     p.add_option('-e', action="store_true",
                  help="create chrome.manifest instead of jarfile.manifest")
-    p.add_option('--both-manifests', action="store_true",
-                 dest="bothManifests",
-                 help="create chrome.manifest and jarfile.manifest")
     p.add_option('-s', type="string", action="append", default=[],
                  help="source directory")
     p.add_option('-t', type="string",
@@ -166,7 +161,7 @@ class JarMaker(object):
     pass
 
   def finalizeJar(self, jarPath, chromebasepath, register,
-                  doZip=True):
+                   doZip=True):
     '''Helper method to write out the chrome registration entries to
     jarfile.manifest or chrome.manifest, or both.
 
@@ -175,42 +170,35 @@ class JarMaker(object):
     # rewrite the manifest, if entries given
     if not register:
       return
-
-    chromeManifest = os.path.join(os.path.dirname(jarPath),
-                                  '..', 'chrome.manifest')
-
     if self.useJarfileManifest:
       self.updateManifest(jarPath + '.manifest', chromebasepath % '',
                           register)
-      addEntriesToListFile(chromeManifest, ['manifest chrome/%s.manifest' % (os.path.basename(jarPath),)])
     if self.useChromeManifest:
-      self.updateManifest(chromeManifest, chromebasepath % 'chrome/',
+      manifestPath = os.path.join(os.path.dirname(jarPath),
+                                  '..', 'chrome.manifest')
+      self.updateManifest(manifestPath, chromebasepath % 'chrome/',
                           register)
 
   def updateManifest(self, manifestPath, chromebasepath, register):
     '''updateManifest replaces the % in the chrome registration entries
     with the given chrome base path, and updates the given manifest file.
     '''
-    lock = lockFile(manifestPath + '.lck')
-    try:
-      myregister = dict.fromkeys(map(lambda s: s.replace('%', chromebasepath),
-                                     register.iterkeys()))
-      manifestExists = os.path.isfile(manifestPath)
-      mode = (manifestExists and 'r+b') or 'wb'
-      mf = open(manifestPath, mode)
-      if manifestExists:
-        # import previous content into hash, ignoring empty ones and comments
-        imf = re.compile('(#.*)?$')
-        for l in re.split('[\r\n]+', mf.read()):
-          if imf.match(l):
-            continue
-          myregister[l] = None
-        mf.seek(0)
-      for k in myregister.iterkeys():
-        mf.write(k + os.linesep)
-      mf.close()
-    finally:
-      lock = None
+    myregister = dict.fromkeys(map(lambda s: s.replace('%', chromebasepath),
+                                   register.iterkeys()))
+    manifestExists = os.path.isfile(manifestPath)
+    mode = (manifestExists and 'r+b') or 'wb'
+    mf = open(manifestPath, mode)
+    if manifestExists:
+      # import previous content into hash, ignoring empty ones and comments
+      imf = re.compile('(#.*)?$')
+      for l in re.split('[\r\n]+', mf.read()):
+        if imf.match(l):
+          continue
+        myregister[l] = None
+      mf.seek(0)
+    for k in myregister.iterkeys():
+      mf.write(k + os.linesep)
+    mf.close()
   
   def makeJar(self, infile=None,
                jardir='',
@@ -243,58 +231,6 @@ class JarMaker(object):
       pass
     return
 
-  def makeJars(self, infiles, l10nbases,
-               jardir='',
-               sourcedirs=[], topsourcedir='', localedirs=None):
-    '''makeJars is the second main entry point to JarMaker.
-
-    It takes an iterable sequence of input file names, the l10nbases,
-    the output directory, the source dirs and the
-    top source dir as argument, and optionally the l10n dirs.
-
-    It iterates over all inputs, guesses srcdir and l10ndir from the
-    path and topsourcedir and calls into makeJar.
-
-    The l10ndirs are created by guessing the relativesrcdir, and resolving
-    that against the l10nbases. l10nbases can either be path strings, or 
-    callables. In the latter case, that will be called with the 
-    relativesrcdir as argument, and is expected to return a path string.
-    This logic is disabled if the jar.mn path is not inside the topsrcdir.
-    '''
-    topsourcedir = os.path.normpath(os.path.abspath(topsourcedir))
-    def resolveL10nBase(relpath):
-      def _resolve(base):
-        if isinstance(base, basestring):
-          return os.path.join(base, relpath)
-        if callable(base):
-          return base(relpath)
-        return base
-      return _resolve
-    for infile in infiles:
-      srcdir = os.path.normpath(os.path.abspath(os.path.dirname(infile)))
-      l10ndir = srcdir
-      if os.path.basename(srcdir) == 'locales':
-        l10ndir = os.path.dirname(l10ndir)
-
-      l10ndirs = None
-      # srcdir may not be a child of topsourcedir, in which case
-      # we assume that the caller passed in suitable sourcedirs,
-      # and just skip passing in localedirs
-      if srcdir.startswith(topsourcedir):
-        rell10ndir = l10ndir[len(topsourcedir):].lstrip(os.sep)
-
-        l10ndirs = map(resolveL10nBase(rell10ndir), l10nbases)
-        if localedirs is not None:
-          l10ndirs += [os.path.normpath(os.path.abspath(s))
-                       for s in localedirs]
-      srcdirs = [os.path.normpath(os.path.abspath(s))
-                 for s in sourcedirs] + [srcdir]
-      self.makeJar(infile=infile,
-                   sourcedirs=srcdirs, topsourcedir=topsourcedir,
-                   localedirs=l10ndirs,
-                   jardir=jardir)
-
-
   def processJarSection(self, jarfile, lines,
                         jardir, sourcedirs, topsourcedir, localedirs):
     '''Internal method called by makeJar to actually process a section
@@ -318,11 +254,13 @@ class JarMaker(object):
     if self.outputFormat == 'jar':
       #jar
       jarfilepath = jarfile + '.jar'
-      try:
-        os.makedirs(os.path.dirname(jarfilepath))
-      except OSError:
-        pass
-      jf = ZipFile(jarfilepath, 'a', lock = True)
+      if os.path.isfile(jarfilepath) and \
+            os.path.getsize(jarfilepath) > 0:
+        jf = ZipFile(jarfilepath, 'a', lock = True)
+      else:
+        if not os.path.isdir(os.path.dirname(jarfilepath)):
+          os.makedirs(os.path.dirname(jarfilepath))
+        jf = ZipFile(jarfilepath, 'w', lock = True)
       outHelper = self.OutputHelper_jar(jf)
     else:
       outHelper = getattr(self, 'OutputHelper_' + self.outputFormat)(jarfile)
@@ -390,7 +328,7 @@ class JarMaker(object):
       if realsrc is None:
         if jf is not None:
           jf.close()
-        raise RuntimeError('File "%s" not found in %s' % (src, ', '.join(src_base)))
+        raise RuntimeError("file not found: " + src)
       if m.group('optPreprocess'):
         outf = outHelper.getOutput(out)
         inf = open(realsrc)
@@ -446,7 +384,7 @@ class JarMaker(object):
       try:
         os.remove(out)
       except OSError, e:
-        if e.errno != errno.ENOENT:
+        if e.errno != 2:
           raise
       return open(out, 'wb')
     def ensureDirFor(self, name):
@@ -466,7 +404,7 @@ class JarMaker(object):
       try:
         os.remove(out)
       except OSError, e:
-        if e.errno != errno.ENOENT:
+        if e.errno != 2:
           raise
       os.symlink(src, out)
 
@@ -479,9 +417,6 @@ def main():
   if options.e:
     jm.useChromeManifest = True
     jm.useJarfileManifest = False
-  if options.bothManifests:
-    jm.useChromeManifest = True
-    jm.useJarfileManifest = True
   noise = logging.INFO
   if options.verbose is not None:
     noise = (options.verbose and logging.DEBUG) or logging.WARN
@@ -490,18 +425,33 @@ def main():
   else:
     logging.basicConfig()
   logging.getLogger().setLevel(noise)
-  topsrc = options.t
-  topsrc = os.path.normpath(os.path.abspath(topsrc))
   if not args:
     jm.makeJar(infile=sys.stdin,
-               sourcedirs=options.s, topsourcedir=topsrc,
+               sourcedirs=options.s, topsourcedir=options.t,
                localedirs=options.l10n_src,
                jardir=options.j)
-  else:
-    jm.makeJars(args, options.l10n_base,
-                jardir=options.j,
-                sourcedirs=options.s, topsourcedir=topsrc,
-                localedirs=options.l10n_src)
+    return
+  topsrc = options.t
+  topsrc = os.path.normpath(os.path.abspath(topsrc))
+  for infile in args:
+    # guess srcdir and l10n dirs from jar.mn path and topsrcdir
+    # srcdir is the dir of the jar.mn and
+    # the l10n dirs are the relative path of topsrcdir to srcdir
+    # resolved against all l10n base dirs.
+    srcdir = os.path.normpath(os.path.abspath(os.path.dirname(infile)))
+    l10ndir = srcdir
+    if os.path.basename(srcdir) == 'locales':
+      l10ndir = os.path.dirname(l10ndir)
+    assert srcdir.startswith(topsrc), "src dir %s not in topsrcdir %s" % (srcdir, topsrc)
+    rell10ndir = l10ndir[len(topsrc):].lstrip(os.sep)
+    l10ndirs = map(lambda d: os.path.join(d, rell10ndir), options.l10n_base)
+    if options.l10n_src is not None:
+      l10ndirs += options.l10n_src
+    srcdirs = options.s + [srcdir]
+    jm.makeJar(infile=infile,
+               sourcedirs=srcdirs, topsourcedir=options.t,
+               localedirs=l10ndirs,
+               jardir=options.j)
 
 if __name__ == "__main__":
   main()

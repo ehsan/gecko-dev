@@ -18,7 +18,6 @@
  * Contributor(s): Kevin Hendricks (kevin.hendricks@sympatico.ca)
  *                 David Einstein (deinst@world.std.com)
  *                 László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  *                 Davide Prina
  *                 Giuseppe Modugno
  *                 Gianluca Turconi
@@ -75,8 +74,6 @@
 #define NGRAM_ANY_MISMATCH  (1 << 1)
 #define NGRAM_LOWERING      (1 << 2)
 
-#include "hunvisapi.h"
-
 #include "atypes.hxx"
 #include "affixmgr.hxx"
 #include "hashmgr.hxx"
@@ -85,7 +82,7 @@
 
 enum { LCS_UP, LCS_LEFT, LCS_UPLEFT };
 
-class LIBHUNSPELL_DLL_EXPORTED SuggestMgr
+class SuggestMgr
 {
   char *          ckey;
   int             ckeyl;
@@ -110,13 +107,12 @@ public:
   ~SuggestMgr();
 
   int suggest(char*** slst, const char * word, int nsug, int * onlycmpdsug);
-  int ngsuggest(char ** wlst, char * word, int ns, HashMgr** pHMgr, int md);
+  int ngsuggest(char ** wlst, char * word, int ns, HashMgr* pHMgr);
   int suggest_auto(char*** slst, const char * word, int nsug);
   int suggest_stems(char*** slst, const char * word, int nsug);
   int suggest_pos_stems(char*** slst, const char * word, int nsug);
 
   char * suggest_morph(const char * word);
-  char * suggest_gen(char ** pl, int pln, char * pattern);
   char * suggest_morph_for_spelling_error(const char * word);
 
 private:
@@ -149,7 +145,8 @@ private:
    int movechar_utf(char **, const w_char *, int, int, int);
 
    int mapchars(char**, const char *, int, int);
-   int map_related(const char *, char *, int, int, char ** wlst, int, int, const mapentry*, int, int *, clock_t *);
+   int map_related(const char *, int, char ** wlst, int, int, const mapentry*, int, int *, clock_t *);
+   int map_related_utf(w_char *, int, int, int, char ** wlst, int, const mapentry*, int, int *, clock_t *);
    int ngram(int n, char * s1, const char * s2, int opt);
    int mystrlen(const char * word);
    int leftcommonsubstring(char * s1, const char * s2);
@@ -157,9 +154,7 @@ private:
    void bubblesort( char ** rwd, char ** rwd2, int * rsc, int n);
    void lcs(const char * s, const char * s2, int * l1, int * l2, char ** result);
    int lcslen(const char * s, const char* s2);
-   char * suggest_hentry_gen(hentry * rv, char * pattern);
 
 };
 
 #endif
-

@@ -43,8 +43,6 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGAngle.h"
-#include "nsSVGViewBox.h"
-#include "SVGAnimatedPreserveAspectRatio.h"
 
 class nsSVGOrientType
 {
@@ -56,13 +54,8 @@ public:
   nsresult SetBaseValue(PRUint16 aValue,
                         nsSVGElement *aSVGElement);
 
-  // XXX FIXME like https://bugzilla.mozilla.org/show_bug.cgi?id=545550 but
-  // without adding an mIsAnimated member...?
   void SetBaseValue(PRUint16 aValue)
     { mAnimVal = mBaseVal = PRUint8(aValue); }
-  // no need to notify, since nsSVGAngle does that
-  void SetAnimValue(PRUint16 aValue)
-    { mAnimVal = PRUint8(aValue); }
 
   PRUint16 GetBaseValue() const
     { return mBaseVal; }
@@ -78,8 +71,7 @@ private:
 
   struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedEnum(nsSVGOrientType* aVal,
                     nsSVGElement *aSVGElement)
@@ -107,12 +99,11 @@ class nsSVGMarkerElement : public nsSVGMarkerElementBase,
 
 protected:
   friend nsresult NS_NewSVGMarkerElement(nsIContent **aResult,
-                                         already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGMarkerElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGMarkerElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -124,8 +115,12 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGElement::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
+  // nsISVGValueObserver
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
+
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                          nsAString& aResult) const;
@@ -134,19 +129,15 @@ public:
 
   // nsSVGElement specializations:
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeViewBox(PRBool aDoSetAttr);
-  virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 
   // public helpers
-  gfxMatrix GetMarkerTransform(float aStrokeWidth,
-                               float aX, float aY, float aAutoAngle);
-  gfxMatrix GetViewBoxTransform();
+  nsresult GetMarkerTransform(float aStrokeWidth,
+                              float aX, float aY, float aAngle,
+                              nsIDOMSVGMatrix **_retval);
+  nsresult GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsSVGOrientType* GetOrientType() { return &mOrientType; }
-
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -158,8 +149,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual AngleAttributesInfo GetAngleInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
 
   enum { REFX, REFY, MARKERWIDTH, MARKERHEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -174,13 +163,12 @@ protected:
   nsSVGAngle mAngleAttributes[1];
   static AngleInfo sAngleInfo[1];
 
-  nsSVGViewBox             mViewBox;
-  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
-
   // derived properties (from 'orient') handled separately
   nsSVGOrientType                        mOrientType;
 
   nsSVGSVGElement                       *mCoordCtx;
+  nsCOMPtr<nsIDOMSVGAnimatedRect>        mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
   nsCOMPtr<nsIDOMSVGMatrix>         mViewBoxToViewportTransform;
 };
 

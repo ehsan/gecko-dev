@@ -241,21 +241,19 @@ ImportBookmarksHTML(nsIFile* aBookmarksFile,
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString sourceName;
-  rv = bundle->GetStringFromName(aImportSourceNameKey,
-                                 getter_Copies(sourceName));
-  NS_ENSURE_SUCCESS(rv, rv);
+  bundle->GetStringFromName(aImportSourceNameKey, getter_Copies(sourceName));
 
   const PRUnichar* sourceNameStrings[] = { sourceName.get() };
   nsString importedBookmarksTitle;
-  rv = bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
-                                    sourceNameStrings, 1, 
-                                    getter_Copies(importedBookmarksTitle));
-  NS_ENSURE_SUCCESS(rv, rv);
+  bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
+                               sourceNameStrings, 1, 
+                               getter_Copies(importedBookmarksTitle));
 
   // Get the bookmarks service.
   nsCOMPtr<nsINavBookmarksService> bms =
@@ -269,7 +267,7 @@ ImportBookmarksHTML(nsIFile* aBookmarksFile,
 
   PRInt64 folder;
   rv = bms->CreateFolder(root, NS_ConvertUTF16toUTF8(importedBookmarksTitle),
-                         nsINavBookmarksService::DEFAULT_INDEX, &folder);
+                         -1, &folder);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Import the bookmarks into the folder.

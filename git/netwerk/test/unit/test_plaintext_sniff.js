@@ -1,6 +1,6 @@
 // Test the plaintext-or-binary sniffer
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 // List of Content-Type headers to test.  For each header we have an array.
 // The first element in the array is the Content-Type header string.  The
@@ -131,8 +131,7 @@ function makeListener(headerIdx, bodyIdx) {
       }
 
       if (bodyIdx == bodyList.length) {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
       } else {
         doTest(headerIdx, bodyIdx);
       }

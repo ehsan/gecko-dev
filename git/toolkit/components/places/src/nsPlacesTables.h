@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+/* vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -40,9 +39,8 @@
 #ifndef __nsPlacesTables_h__
 #define __nsPlacesTables_h__
 
-
 #define CREATE_MOZ_PLACES NS_LITERAL_CSTRING( \
-    "CREATE TABLE moz_places ( " \
+  "CREATE TABLE moz_places ( " \
     "  id INTEGER PRIMARY KEY" \
     ", url LONGVARCHAR" \
     ", title LONGVARCHAR" \
@@ -52,13 +50,8 @@
     ", typed INTEGER DEFAULT 0 NOT NULL" \
     ", favicon_id INTEGER" \
     ", frecency INTEGER DEFAULT -1 NOT NULL" \
-    ", last_visit_date INTEGER " \
-    ", guid TEXT" \
   ")" \
 )
-#define MOZ_PLACES_COLUMNS \
-  "id, url, title, rev_host, visit_count, hidden, typed, favicon_id, " \
-  "frecency, last_visit_date"
 
 #define CREATE_MOZ_HISTORYVISITS NS_LITERAL_CSTRING( \
   "CREATE TABLE moz_historyvisits (" \
@@ -70,9 +63,6 @@
     ", session INTEGER" \
   ")" \
 )
-#define MOZ_HISTORYVISITS_COLUMNS \
-  "id, from_visit, place_id, visit_date, visit_type, session"
-
 
 #define CREATE_MOZ_INPUTHISTORY NS_LITERAL_CSTRING( \
   "CREATE TABLE moz_inputhistory (" \
@@ -142,7 +132,6 @@
     ", folder_type TEXT" \
     ", dateAdded INTEGER" \
     ", lastModified INTEGER" \
-    ", guid TEXT" \
   ")" \
 )
 
@@ -157,15 +146,6 @@
   "CREATE TABLE moz_keywords (" \
     "  id INTEGER PRIMARY KEY AUTOINCREMENT" \
     ", keyword TEXT UNIQUE" \
-  ")" \
-)
-
-// Note: this should be kept up-to-date with the definition in
-//       nsPlacesAutoComplete.js.
-#define CREATE_MOZ_OPENPAGES_TEMP NS_LITERAL_CSTRING( \
-  "CREATE TEMP TABLE moz_openpages_temp (" \
-    "  url TEXT PRIMARY KEY" \
-    ", open_count INTEGER" \
   ")" \
 )
 

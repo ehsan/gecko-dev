@@ -46,11 +46,9 @@ class nsIAtom;
 class nsPresContext;
 class nsCSSValue;
 
-struct nsMediaFeature;
 typedef nsresult
-(* nsMediaFeatureValueGetter)(nsPresContext* aPresContext,
-                              const nsMediaFeature* aFeature,
-                              nsCSSValue& aResult);
+(* PR_CALLBACK nsMediaFeatureValueGetter)(nsPresContext* aPresContext,
+                                          nsCSSValue& aResult);
 
 struct nsMediaFeature {
     nsIAtom **mName; // extra indirection to point to nsGkAtoms members
@@ -63,13 +61,12 @@ struct nsMediaFeature {
         // was given (in addition to the types listed below).
         eLength,     // values are such that nsCSSValue::IsLengthUnit() is true
         eInteger,    // values are eCSSUnit_Integer
-        eFloat,      // values are eCSSUnit_Number
         eBoolInteger,// values are eCSSUnit_Integer (0, -0, or 1 only)
         eIntRatio,   // values are eCSSUnit_Array of two eCSSUnit_Integer
         eResolution, // values are in eCSSUnit_Inch (for dpi) or
                      //   eCSSUnit_Centimeter (for dpcm)
-        eEnumerated, // values are eCSSUnit_Enumerated (uses keyword table)
-        eIdent       // values are eCSSUnit_Ident
+        eEnumerated  // values are eCSSUnit_Enumerated (uses keyword table)
+
         // Note that a number of pieces of code (both for parsing and
         // for matching of valueless expressions) assume that all numeric
         // value types cannot be negative.  The parsing code also does
@@ -77,18 +74,8 @@ struct nsMediaFeature {
     };
     ValueType mValueType;
 
-    union {
-      // In static arrays, it's the first member that's initialized.  We
-      // need that to be void* so we can initialize both other types.
-      // This member should never be accessed by name.
-      const void* mInitializer_;
-      // If mValueType == eEnumerated:  const PRInt32*: keyword table in
-      //   the same format as the keyword tables in nsCSSProps.
-      const PRInt32* mKeywordTable;
-      // If mGetter == GetSystemMetric (which implies mValueType ==
-      //   eBoolInteger): nsIAtom * const *, for the system metric.
-      nsIAtom * const * mMetric;
-    } mData;
+    // The same format as the keyword tables in nsCSSProps.
+    const PRInt32* mKeywordTable;
 
     // A function that returns the current value for this feature for a
     // given presentation.  If it returns eCSSUnit_Null, the feature is

@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: certificate.c,v $ $Revision: 1.67 $ $Date: 2010/04/03 18:27:32 $";
+static const char CVS_ID[] = "@(#) $RCSfile: certificate.c,v $ $Revision: 1.65 $ $Date: 2008/06/14 04:38:32 $";
 #endif /* DEBUG */
 
 #ifndef NSSPKI_H
@@ -143,7 +143,7 @@ nssCertificate_Destroy (
 	} else {
 	    nssTrustDomain_LockCertCache(td);
 	}
-	if (PR_ATOMIC_DECREMENT(&c->object.refCount) == 0) {
+	if (PR_AtomicDecrement(&c->object.refCount) == 0) {
 	    /* --- remove cert and UNLOCK storage --- */
 	    if (cc) {
 		nssCertificateStore_RemoveCertLOCKED(cc->certStore, c);
@@ -317,9 +317,6 @@ nssCertificate_GetDecoding (
 )
 {
     nssDecodedCert* deco = NULL;
-    if (c->type == NSSCertificateType_PKIX) {
-        (void)STAN_GetCERTCertificate(c);
-    }
     nssPKIObject_Lock(&c->object);
     if (!c->decoding) {
 	deco = nssDecodedCert_Create(NULL, &c->encoding, c->type);

@@ -41,8 +41,6 @@
 #include "nsString.h"
 #include "nsCRT.h"
 #include "prlog.h"
-#include "nsMathUtils.h"
-#include "nsStyleContext.h"
 
 nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
   : mUnit(aUnit)
@@ -52,6 +50,12 @@ nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
     mUnit = eStyleUnit_Null;
   }
   mValue.mInt = 0;
+}
+
+nsStyleCoord::nsStyleCoord(nscoord aValue)
+  : mUnit(eStyleUnit_Coord)
+{
+  mValue.mInt = aValue;
 }
 
 nsStyleCoord::nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit)
@@ -74,25 +78,23 @@ nsStyleCoord::nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit)
 nsStyleCoord::nsStyleCoord(float aValue, nsStyleUnit aUnit)
   : mUnit(aUnit)
 {
-  if (aUnit < eStyleUnit_Percent || aUnit >= eStyleUnit_Coord) {
-    NS_NOTREACHED("not a float value");
-    Reset();
-  } else {
+  NS_ASSERTION((aUnit == eStyleUnit_Percent) ||
+               (aUnit == eStyleUnit_Factor), "not a float value");
+  if ((aUnit == eStyleUnit_Percent) ||
+      (aUnit == eStyleUnit_Factor)) {
     mValue.mFloat = aValue;
+  }
+  else {
+    mUnit = eStyleUnit_Null;
+    mValue.mInt = 0;
   }
 }
 
-// FIXME: In C++0x we can rely on the default copy constructor since
-// default copy construction is defined properly for unions.  But when
-// can we actually use that?  (It seems to work in gcc 4.4.)
 nsStyleCoord& nsStyleCoord::operator=(const nsStyleCoord& aCopy)
 {
   mUnit = aCopy.mUnit;
   if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
     mValue.mFloat = aCopy.mValue.mFloat;
-  }
-  else if (IsPointerValue()) {
-    mValue.mPointer = aCopy.mValue.mPointer;
   }
   else {
     mValue.mInt = aCopy.mValue.mInt;
@@ -102,33 +104,18 @@ nsStyleCoord& nsStyleCoord::operator=(const nsStyleCoord& aCopy)
 
 PRBool nsStyleCoord::operator==(const nsStyleCoord& aOther) const
 {
-  if (mUnit != aOther.mUnit) {
-    return PR_FALSE;
+  if (mUnit == aOther.mUnit) {
+    if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
+      return PRBool(mValue.mFloat == aOther.mValue.mFloat);
+    }
+    else {
+      return PRBool(mValue.mInt == aOther.mValue.mInt);
+    }
   }
-  switch (mUnit) {
-    case eStyleUnit_Null:
-    case eStyleUnit_Normal:
-    case eStyleUnit_Auto:
-    case eStyleUnit_None:
-      return PR_TRUE;
-    case eStyleUnit_Percent:
-    case eStyleUnit_Factor:
-    case eStyleUnit_Degree:
-    case eStyleUnit_Grad:
-    case eStyleUnit_Radian:
-      return mValue.mFloat == aOther.mValue.mFloat;
-    case eStyleUnit_Coord:
-    case eStyleUnit_Integer:
-    case eStyleUnit_Enumerated:
-      return mValue.mInt == aOther.mValue.mInt;
-    case eStyleUnit_Calc:
-      return *this->GetCalcValue() == *aOther.GetCalcValue();
-  }
-  NS_ABORT_IF_FALSE(PR_FALSE, "unexpected unit");
   return PR_FALSE;
 }
 
-void nsStyleCoord::Reset()
+void nsStyleCoord::Reset(void)
 {
   mUnit = eStyleUnit_Null;
   mValue.mInt = 0;
@@ -166,60 +153,59 @@ void nsStyleCoord::SetFactorValue(float aValue)
   mValue.mFloat = aValue;
 }
 
-void nsStyleCoord::SetAngleValue(float aValue, nsStyleUnit aUnit)
-{
-  if (aUnit == eStyleUnit_Degree ||
-      aUnit == eStyleUnit_Grad ||
-      aUnit == eStyleUnit_Radian) {
-    mUnit = aUnit;
-    mValue.mFloat = aValue;
-  } else {
-    NS_NOTREACHED("not an angle value");
-    Reset();
-  }
-}
-
-void nsStyleCoord::SetCalcValue(Calc* aValue)
-{
-  mUnit = eStyleUnit_Calc;
-  mValue.mPointer = aValue;
-}
-
-void nsStyleCoord::SetNormalValue()
+void nsStyleCoord::SetNormalValue(void)
 {
   mUnit = eStyleUnit_Normal;
   mValue.mInt = 0;
 }
 
-void nsStyleCoord::SetAutoValue()
+void nsStyleCoord::SetAutoValue(void)
 {
   mUnit = eStyleUnit_Auto;
   mValue.mInt = 0;
 }
 
-void nsStyleCoord::SetNoneValue()
+void nsStyleCoord::SetNoneValue(void)
 {
   mUnit = eStyleUnit_None;
   mValue.mInt = 0;
 }
 
-// accessors that are not inlined
-
-double
-nsStyleCoord::GetAngleValueInRadians() const
+#ifdef DEBUG
+void nsStyleCoord::AppendToString(nsString& aBuffer) const
 {
-  double angle = mValue.mFloat;
-
-  switch (GetUnit()) {
-  case eStyleUnit_Radian: return angle;
-  case eStyleUnit_Degree: return angle * M_PI / 180.0;
-  case eStyleUnit_Grad:   return angle * M_PI / 200.0;
-
-  default:
-    NS_NOTREACHED("unrecognized angular unit");
-    return 0.0;
+  if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
+    aBuffer.AppendFloat(mValue.mFloat);
   }
+  else if ((eStyleUnit_Coord == mUnit) || 
+           (eStyleUnit_Enumerated == mUnit) ||
+           (eStyleUnit_Integer == mUnit)) {
+    aBuffer.AppendInt(mValue.mInt, 10);
+    aBuffer.AppendLiteral("[0x");
+    aBuffer.AppendInt(mValue.mInt, 16);
+    aBuffer.Append(PRUnichar(']'));
+  }
+
+  switch (mUnit) {
+    case eStyleUnit_Null:         aBuffer.AppendLiteral("Null");     break;
+    case eStyleUnit_Coord:        aBuffer.AppendLiteral("tw");       break;
+    case eStyleUnit_Percent:      aBuffer.AppendLiteral("%");        break;
+    case eStyleUnit_Factor:       aBuffer.AppendLiteral("f");        break;
+    case eStyleUnit_Normal:       aBuffer.AppendLiteral("Normal");   break;
+    case eStyleUnit_Auto:         aBuffer.AppendLiteral("Auto");     break;
+    case eStyleUnit_None:         aBuffer.AppendLiteral("None");     break;
+    case eStyleUnit_Enumerated:   aBuffer.AppendLiteral("enum");     break;
+    case eStyleUnit_Integer:      aBuffer.AppendLiteral("int");      break;
+  }
+  aBuffer.Append(PRUnichar(' '));
 }
+
+void nsStyleCoord::ToString(nsString& aBuffer) const
+{
+  aBuffer.Truncate();
+  AppendToString(aBuffer);
+}
+#endif
 
 // used by nsStyleSides and nsStyleCorners
 #define COMPARE_INDEXED_COORD(i)                                              \
@@ -238,7 +224,7 @@ nsStyleCoord::GetAngleValueInRadians() const
   PR_END_MACRO
 
 
-nsStyleSides::nsStyleSides()
+nsStyleSides::nsStyleSides(void)
 {
   memset(this, 0x00, sizeof(nsStyleSides));
 }
@@ -251,10 +237,33 @@ PRBool nsStyleSides::operator==(const nsStyleSides& aOther) const
   return PR_TRUE;
 }
 
-void nsStyleSides::Reset()
+void nsStyleSides::Reset(void)
 {
   memset(this, 0x00, sizeof(nsStyleSides));
 }
+
+#ifdef DEBUG
+void nsStyleSides::AppendToString(nsString& aBuffer) const
+{
+  aBuffer.AppendLiteral("left: ");
+  GetLeft().AppendToString(aBuffer);
+
+  aBuffer.AppendLiteral("top: ");
+  GetTop().AppendToString(aBuffer);
+
+  aBuffer.AppendLiteral("right: ");
+  GetRight().AppendToString(aBuffer);
+
+  aBuffer.AppendLiteral("bottom: ");
+  GetBottom().AppendToString(aBuffer);
+}
+
+void nsStyleSides::ToString(nsString& aBuffer) const
+{
+  aBuffer.Truncate();
+  AppendToString(aBuffer);
+}
+#endif
 
 nsStyleCorners::nsStyleCorners()
 {
@@ -270,10 +279,37 @@ nsStyleCorners::operator==(const nsStyleCorners& aOther) const
   return PR_TRUE;
 }
 
-void nsStyleCorners::Reset()
+void nsStyleCorners::Reset(void)
 {
   memset(this, 0x00, sizeof(nsStyleCorners));
 }
+
+#ifdef DEBUG
+void nsStyleCorners::AppendToString(nsString& aBuffer) const
+{
+  aBuffer.AppendLiteral("top-left: ");
+  Get(NS_CORNER_TOP_LEFT_X).AppendToString(aBuffer);
+  Get(NS_CORNER_TOP_LEFT_Y).AppendToString(aBuffer);
+  
+  aBuffer.AppendLiteral("top-right: ");
+  Get(NS_CORNER_TOP_RIGHT_X).AppendToString(aBuffer);
+  Get(NS_CORNER_TOP_RIGHT_Y).AppendToString(aBuffer);
+
+  aBuffer.AppendLiteral("bottom-right: ");
+  Get(NS_CORNER_BOTTOM_RIGHT_X).AppendToString(aBuffer);
+  Get(NS_CORNER_BOTTOM_RIGHT_Y).AppendToString(aBuffer);
+
+  aBuffer.AppendLiteral("bottom-left: ");
+  Get(NS_CORNER_BOTTOM_LEFT_X).AppendToString(aBuffer);
+  Get(NS_CORNER_BOTTOM_LEFT_Y).AppendToString(aBuffer);
+}
+
+void nsStyleCorners::ToString(nsString& aBuffer) const
+{
+  aBuffer.Truncate();
+  AppendToString(aBuffer);
+}
+#endif
 
 // Validation of NS_SIDE_IS_VERTICAL and NS_HALF_CORNER_IS_X.
 #define CASE(side, result)                                                    \

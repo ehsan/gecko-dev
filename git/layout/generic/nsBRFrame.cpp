@@ -50,7 +50,8 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessible.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 //FOR SELECTION
@@ -58,19 +59,14 @@
 #include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
 
-#define BR_USING_CENTERED_FONT_BASELINE NS_FRAME_STATE_BIT(63)
-
 class BRFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
 
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState* aState);
 
@@ -85,7 +81,6 @@ public:
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual nsIAtom* GetType() const;
-  virtual nscoord GetBaseline() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -93,8 +88,8 @@ public:
                                              nsIFrame::eLineParticipant));
   }
 
-#ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+#ifdef ACCESSIBILITY  
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 protected:
@@ -107,8 +102,6 @@ NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) BRFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(BRFrame)
 
 BRFrame::~BRFrame()
 {
@@ -127,7 +120,6 @@ BRFrame::Reflow(nsPresContext* aPresContext,
                        // However, it's not always 0.  See below.
   aMetrics.width = 0;
   aMetrics.ascent = 0;
-  RemoveStateBits(BR_USING_CENTERED_FONT_BASELINE);
 
   // Only when the BR is operating in a line-layout situation will it
   // behave like a BR.
@@ -150,16 +142,18 @@ BRFrame::Reflow(nsPresContext* aPresContext,
 
       // We also do this in strict mode because BR should act like a
       // normal inline frame.  That line-height is used is important
-      // here for cases where the line-height is less than 1.
+      // here for cases where the line-height is less that 1.
       nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
       nsCOMPtr<nsIFontMetrics> fm;
       aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
       if (fm) {
-        nscoord logicalHeight = aReflowState.CalcLineHeight();
+        nscoord ascent, descent;
+        fm->GetMaxAscent(ascent);
+        fm->GetMaxDescent(descent);
+        nscoord logicalHeight = aReflowState.CalcLineHeight(this);
+        nscoord leading = logicalHeight - ascent - descent;
         aMetrics.height = logicalHeight;
-        aMetrics.ascent =
-          nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-        AddStateBits(BR_USING_CENTERED_FONT_BASELINE);
+        aMetrics.ascent = ascent + (leading/2);
       }
       else {
         aMetrics.ascent = aMetrics.height = 0;
@@ -187,8 +181,8 @@ BRFrame::Reflow(nsPresContext* aPresContext,
   else {
     aStatus = NS_FRAME_COMPLETE;
   }
-
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  
+  aMetrics.mOverflowArea = nsRect(0, 0, aMetrics.width, aMetrics.height);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
@@ -230,24 +224,6 @@ BRFrame::GetType() const
   return nsGkAtoms::brFrame;
 }
 
-nscoord
-BRFrame::GetBaseline() const
-{
-  nscoord ascent = 0;
-  nsCOMPtr<nsIFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  if (fm) {
-    nscoord logicalHeight = GetRect().height;
-    if (GetStateBits() & BR_USING_CENTERED_FONT_BASELINE) {
-      ascent = nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
-    } else {
-      fm->GetMaxAscent(ascent);
-      ascent += GetUsedBorderAndPadding().top;
-    }
-  }
-  return ascent;
-}
-
 nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoint)
 {
   ContentOffsets offsets;
@@ -275,8 +251,7 @@ BRFrame::PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset)
 }
 
 PRBool
-BRFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                             PRBool aRespectClusters)
+BRFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
@@ -293,23 +268,20 @@ BRFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-BRFrame::CreateAccessible()
+NS_IMETHODIMP BRFrame::GetAccessible(nsIAccessible** aAccessible)
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (!accService) {
-    return nsnull;
-  }
+  NS_ENSURE_TRUE(mContent, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
   nsIContent *parent = mContent->GetParent();
   if (parent &&
       parent->IsRootOfNativeAnonymousSubtree() &&
       parent->GetChildCount() == 1) {
     // This <br> is the only node in a text control, therefore it is the hacky
     // "bogus node" used when there is no text in the control
-    return nsnull;
+    return NS_ERROR_FAILURE;
   }
-  return accService->CreateHTMLBRAccessible(mContent,
-                                            PresContext()->PresShell());
+  return accService->CreateHTMLBRAccessible(static_cast<nsIFrame*>(this), aAccessible);
 }
 #endif
 

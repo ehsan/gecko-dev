@@ -35,9 +35,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include "prdtoa.h"
 
-#ifdef XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
 nsTSubstring_CharT::nsTSubstring_CharT( char_type *data, size_type length,
                                         PRUint32 flags)
   : mData(data),
@@ -51,7 +49,27 @@ nsTSubstring_CharT::nsTSubstring_CharT( char_type *data, size_type length,
 #endif
     }
   }
-#endif /* XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE */
+
+nsTSubstring_CharT::nsTSubstring_CharT(const substring_tuple_type& tuple)
+    : mData(nsnull),
+      mLength(0),
+      mFlags(F_NONE)
+{
+  Assign(tuple);
+}
+
+nsTSubstring_CharT::nsTSubstring_CharT()
+: mData(const_cast<char_type*>(char_traits::sEmptyBuffer)),
+  mLength(0),
+  mFlags(F_TERMINATED) {}
+
+nsTSubstring_CharT::nsTSubstring_CharT( PRUint32 flags )
+        : mFlags(flags) {}
+
+nsTSubstring_CharT::nsTSubstring_CharT( const self_type& str )
+  : mData(str.mData),
+    mLength(str.mLength),
+    mFlags(str.mFlags & (F_TERMINATED | F_VOIDED)) {}
 
   /**
    * helper function for down-casting a nsTSubstring to a nsTFixedString.
@@ -79,37 +97,36 @@ nsTSubstring_CharT::MutatePrep( size_type capacity, char_type** oldData, PRUint3
 
     size_type curCapacity = Capacity();
 
-    // If |capacity > kMaxCapacity|, then our doubling algorithm may not be
+    // If |capacity > size_type(-1)/2|, then our doubling algorithm may not be
     // able to allocate it.  Just bail out in cases like that.  We don't want
     // to be allocating 2GB+ strings anyway.
-    PR_STATIC_ASSERT((sizeof(nsStringBuffer) & 0x1) == 0);
-    const size_type kMaxCapacity =
-      (size_type(-1)/2 - sizeof(nsStringBuffer)) / sizeof(char_type) - 2;
-    if (capacity > kMaxCapacity) {
-      // Also assert for |capacity| equal to |size_type(-1)|, since we used to
-      // use that value to flag immutability.
+    if (capacity > size_type(-1)/2) {
+      // Also assert for |capacity| equal to |size_type(-1)|, since we use that value to
+      // flag immutability.
       NS_ASSERTION(capacity != size_type(-1), "Bogus capacity");
       return PR_FALSE;
     }
 
-    // |curCapacity == 0| means that the buffer is immutable or 0-sized, so we
-    // need to allocate a new buffer. We cannot use the existing buffer even
+    // |curCapacity == size_type(-1)| means that the buffer is immutable, so we
+    // need to allocate a new buffer.  we cannot use the existing buffer even
     // though it might be large enough.
 
-    if (curCapacity != 0)
+    if (curCapacity != size_type(-1))
       {
         if (capacity <= curCapacity) {
           mFlags &= ~F_VOIDED;  // mutation clears voided flag
           return PR_TRUE;
         }
 
-        // Use doubling algorithm when forced to increase available capacity.
-        size_type temp = curCapacity;
-        while (temp < capacity)
-          temp <<= 1;
-        NS_ASSERTION(NS_MIN(temp, kMaxCapacity) >= capacity,
-                     "should have hit the early return at the top");
-        capacity = NS_MIN(temp, kMaxCapacity);
+        if (curCapacity > 0)
+          {
+            // use doubling algorithm when forced to increase available
+            // capacity.
+            PRUint32 temp = curCapacity;
+            while (temp < capacity)
+              temp <<= 1;
+            capacity = temp;
+          }
       }
 
     //
@@ -189,10 +206,19 @@ nsTSubstring_CharT::Finalize()
     // mData, mLength, and mFlags are purposefully left dangling
   }
 
-PRBool
-nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
-                                        size_type fragLen, size_type newLen)
+nsTSubstring_CharT::~nsTSubstring_CharT()
   {
+    Finalize();
+  }
+
+PRBool
+nsTSubstring_CharT::ReplacePrep( index_type cutStart, size_type cutLen, size_type fragLen )
+  {
+    // bound cut length
+    cutLen = NS_MIN(cutLen, mLength - cutStart);
+
+    PRUint32 newLen = mLength - cutLen + fragLen;
+
     char_type* oldData;
     PRUint32 oldFlags;
     if (!MutatePrep(newLen, &oldData, &oldFlags))
@@ -246,7 +272,7 @@ nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
 nsTSubstring_CharT::size_type
 nsTSubstring_CharT::Capacity() const
   {
-    // return 0 to indicate an immutable or 0-sized buffer
+    // return size_type(-1) to indicate an immutable buffer
 
     size_type capacity;
     if (mFlags & F_SHARED)
@@ -254,10 +280,9 @@ nsTSubstring_CharT::Capacity() const
         // if the string is readonly, then we pretend that it has no capacity.
         nsStringBuffer* hdr = nsStringBuffer::FromData(mData);
         if (hdr->IsReadonly())
-          capacity = 0;
-        else {
+          capacity = size_type(-1);
+        else
           capacity = (hdr->StorageSize() / sizeof(char_type)) - 1;
-        }
       }
     else if (mFlags & F_FIXED)
       {
@@ -273,7 +298,7 @@ nsTSubstring_CharT::Capacity() const
       }
     else
       {
-        capacity = 0;
+        capacity = size_type(-1);
       }
 
     return capacity;
@@ -291,7 +316,7 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
 
         // promote to a shared string buffer
         char_type* prevData = mData;
-        Assign(mData, mLength);
+        Assign(string_type(mData, mLength));
         return mData != prevData;
       }
     else
@@ -369,12 +394,7 @@ nsTSubstring_CharT::Assign( const self_type& str )
     if (&str == this)
       return;
 
-    if (!str.mLength)
-      {
-        Truncate();
-        mFlags |= str.mFlags & F_VOIDED;
-      }
-    else if (str.mFlags & F_SHARED)
+    if (str.mFlags & F_SHARED)
       {
         // nice! we can avoid a string copy :-)
 
@@ -389,6 +409,11 @@ nsTSubstring_CharT::Assign( const self_type& str )
 
         // get an owning reference to the mData
         nsStringBuffer::FromData(mData)->AddRef();
+      }
+    else if (str.mFlags & F_VOIDED)
+      {
+        // inherit the F_VOIDED attribute
+        SetIsVoid(PR_TRUE);
       }
     else
       {
@@ -409,17 +434,8 @@ nsTSubstring_CharT::Assign( const substring_tuple_type& tuple )
 
     size_type length = tuple.Length();
 
-    // don't use ReplacePrep here because it changes the length
-    char_type* oldData;
-    PRUint32 oldFlags;
-    if (MutatePrep(length, &oldData, &oldFlags)) {
-      if (oldData)
-        ::ReleaseData(oldData, oldFlags);
-
+    if (ReplacePrep(0, mLength, length) && length)
       tuple.WriteTo(mData, length);
-      mData[length] = 0;
-      mLength = length;
-    }
   }
 
 void
@@ -529,7 +545,7 @@ nsTSubstring_CharT::Replace( index_type cutStart, size_type cutLength, const sub
       tuple.WriteTo(mData + cutStart, length);
   }
 
-PRBool
+void
 nsTSubstring_CharT::SetCapacity( size_type capacity )
   {
     // capacity does not include room for the terminating null char
@@ -538,7 +554,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
     if (capacity == 0)
       {
         ::ReleaseData(mData, mFlags);
-        mData = char_traits::sEmptyBuffer;
+        mData = const_cast<char_type*>(char_traits::sEmptyBuffer);
         mLength = 0;
         SetDataFlags(F_TERMINATED);
       }
@@ -547,7 +563,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         char_type* oldData;
         PRUint32 oldFlags;
         if (!MutatePrep(capacity, &oldData, &oldFlags))
-          return PR_FALSE; // out-of-memory
+          return; // out-of-memory
 
         // compute new string length
         size_type newLen = NS_MIN(mLength, capacity);
@@ -569,14 +585,23 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
         // for backwards compat with the old string implementation.
         mData[capacity] = char_type(0);
       }
-
-    return PR_TRUE;
   }
 
 void
 nsTSubstring_CharT::SetLength( size_type length )
   {
-    if (SetCapacity(length))
+    if (mLength == length) {
+      mFlags &= ~F_VOIDED;  // mutation clears voided flag
+      return;
+    }
+
+    SetCapacity(length);
+
+    // XXX(darin): SetCapacity may fail, but it doesn't give us a way to find
+    // out.  We should improve that.  For now we just verify that the capacity
+    // changed as expected as a means of error checking.
+ 
+    if (Capacity() >= length)
       mLength = length;
   }
 
@@ -603,7 +628,7 @@ nsTSubstring_CharT::Equals( const self_type& str ) const
 PRBool
 nsTSubstring_CharT::Equals( const self_type& str, const comparator_type& comp ) const
   {
-    return mLength == str.mLength && comp(mData, str.mData, mLength, str.mLength) == 0;
+    return mLength == str.mLength && comp(mData, str.mData, mLength) == 0;
   }
 
 PRBool
@@ -633,7 +658,7 @@ nsTSubstring_CharT::Equals( const char_type* data, const comparator_type& comp )
 
     // XXX avoid length calculation?
     size_type length = char_traits::length(data);
-    return mLength == length && comp(mData, data, mLength, length) == 0;
+    return mLength == length && comp(mData, data, mLength) == 0;
   }
 
 PRBool
@@ -704,151 +729,3 @@ nsTSubstring_CharT::StripChar( char_type aChar, PRInt32 aOffset )
     *to = char_type(0); // add the null
     mLength = to - mData;
   }
-
-void
-nsTSubstring_CharT::StripChars( const char_type* aChars, PRUint32 aOffset )
-  {
-    if (aOffset >= PRUint32(mLength))
-      return;
-
-    EnsureMutable(); // XXX do this lazily?
-
-    // XXX(darin): this code should defer writing until necessary.
-
-    char_type* to   = mData + aOffset;
-    char_type* from = mData + aOffset;
-    char_type* end  = mData + mLength;
-
-    while (from < end)
-      {
-        char_type theChar = *from++;
-        const char_type* test = aChars;
-
-        for (; *test && *test != theChar; ++test);
-
-        if (!*test) {
-          // Not stripped, copy this char.
-          *to++ = theChar;
-        }
-      }
-    *to = char_type(0); // add the null
-    mLength = to - mData;
-  }
-
-void nsTSubstring_CharT::AppendPrintf( const char* format, ...)
-  {
-    char buf[32];
-    va_list ap;
-    va_start(ap, format);
-    PRUint32 len = PR_vsnprintf(buf, sizeof(buf), format, ap);
-    AppendASCII(buf, len);
-    va_end(ap);
-  }
-
-
-/* hack to make sure we define Modified_cnvtf only once */
-#ifdef CharT_is_PRUnichar
-/**
- * This is a copy of |PR_cnvtf| with a bug fixed.  (The second argument
- * of PR_dtoa is 2 rather than 1.)
- *
- * XXX(darin): if this is the right thing, then why wasn't it fixed in NSPR?!?
- */
-static void 
-Modified_cnvtf(char *buf, int bufsz, int prcsn, double fval)
-{
-  PRIntn decpt, sign, numdigits;
-  char *num, *nump;
-  char *bufp = buf;
-  char *endnum;
-
-  /* If anything fails, we store an empty string in 'buf' */
-  num = (char*)malloc(bufsz);
-  if (num == NULL) {
-    buf[0] = '\0';
-    return;
-  }
-  if (PR_dtoa(fval, 2, prcsn, &decpt, &sign, &endnum, num, bufsz)
-      == PR_FAILURE) {
-    buf[0] = '\0';
-    goto done;
-  }
-  numdigits = endnum - num;
-  nump = num;
-
-  /*
-   * The NSPR code had a fancy way of checking that we weren't dealing
-   * with -0.0 or -NaN, but I'll just use < instead.
-   * XXX Should we check !isnan(fval) as well?  Is it portable?  We
-   * probably don't need to bother since NAN isn't portable.
-   */
-  if (sign && fval < 0.0f) {
-    *bufp++ = '-';
-  }
-
-  if (decpt == 9999) {
-    while ((*bufp++ = *nump++) != 0) {} /* nothing to execute */
-    goto done;
-  }
-
-  if (decpt > (prcsn+1) || decpt < -(prcsn-1) || decpt < -5) {
-    *bufp++ = *nump++;
-    if (numdigits != 1) {
-      *bufp++ = '.';
-    }
-
-    while (*nump != '\0') {
-      *bufp++ = *nump++;
-    }
-    *bufp++ = 'e';
-    PR_snprintf(bufp, bufsz - (bufp - buf), "%+d", decpt-1);
-  }
-  else if (decpt >= 0) {
-    if (decpt == 0) {
-      *bufp++ = '0';
-    }
-    else {
-      while (decpt--) {
-        if (*nump != '\0') {
-          *bufp++ = *nump++;
-        }
-        else {
-          *bufp++ = '0';
-        }
-      }
-    }
-    if (*nump != '\0') {
-      *bufp++ = '.';
-      while (*nump != '\0') {
-        *bufp++ = *nump++;
-      }
-    }
-    *bufp++ = '\0';
-  }
-  else if (decpt < 0) {
-    *bufp++ = '0';
-    *bufp++ = '.';
-    while (decpt++) {
-      *bufp++ = '0';
-    }
-
-    while (*nump != '\0') {
-      *bufp++ = *nump++;
-    }
-    *bufp++ = '\0';
-  }
-done:
-  free(num);
-}
-#endif /* CharT_is_PRUnichar */
-
-void
-nsTSubstring_CharT::DoAppendFloat( double aFloat, int digits )
-{
-  char buf[40];
-  // Use Modified_cnvtf, which is locale-insensitive, instead of the
-  // locale-sensitive PR_snprintf or sprintf(3)
-  Modified_cnvtf(buf, sizeof(buf), digits, aFloat);
-  AppendASCII(buf);
-}
-

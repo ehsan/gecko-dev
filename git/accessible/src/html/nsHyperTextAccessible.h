@@ -40,13 +40,12 @@
 #ifndef _nsHyperTextAccessible_H_
 #define _nsHyperTextAccessible_H_
 
+#include "nsAccessibleWrap.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleHyperText.h"
 #include "nsIAccessibleEditableText.h"
-
-#include "AccCollector.h"
-#include "nsAccessibleWrap.h"
-#include "nsTextAttrs.h"
+#include "nsAccessibleEventData.h"
+#include "nsTextUtils.h"
 
 #include "nsFrameSelection.h"
 #include "nsISelectionController.h"
@@ -76,23 +75,20 @@ class nsHyperTextAccessible : public nsAccessibleWrap,
                               public nsIAccessibleEditableText
 {
 public:
-  nsHyperTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHyperTextAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLETEXT
   NS_DECL_NSIACCESSIBLEHYPERTEXT
   NS_DECL_NSIACCESSIBLEEDITABLETEXT
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_HYPERTEXTACCESSIBLE_IMPL_CID)
 
+  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+
   // nsAccessible
-  virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRBool RemoveChild(nsAccessible *aAccessible);
-
-  virtual void InvalidateChildren();
-
-  // nsHyperTextAccessible (static helper method)
+  void CacheChildren();
 
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
@@ -101,45 +97,6 @@ public:
   // Convert rendered text offset to content offset
   static nsresult RenderedToContentOffset(nsIFrame *aFrame, PRUint32 aRenderedOffset,
                                           PRInt32 *aContentOffset);
-
-  //////////////////////////////////////////////////////////////////////////////
-  // HyperLinkAccessible
-
-  /**
-   * Return link count within this hypertext accessible.
-   */
-  inline PRUint32 GetLinkCount()
-  {
-    return GetEmbeddedChildCount();
-  }
-
-  /**
-   * Return link accessible at the given index.
-   */
-  inline nsAccessible* GetLinkAt(PRUint32 aIndex)
-  {
-    return GetEmbeddedChildAt(aIndex);
-  }
-
-  /**
-   * Return index for the given link accessible.
-   */
-  inline PRInt32 GetLinkIndex(nsAccessible* aLink)
-  {
-    return GetIndexOfEmbeddedChild(aLink);
-  }
-
-  /**
-   * Return link accessible at the given text offset.
-   */
-  inline PRInt32 GetLinkIndexAtOffset(PRUint32 aOffset)
-  {
-    nsAccessible* child = GetChildAtOffset(aOffset);
-    return child ? GetLinkIndex(child) : -1;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // nsHyperTextAccessible: DOM point to text offset conversions.
 
   /**
     * Turn a DOM Node and offset into a character offset into this hypertext.
@@ -154,6 +111,10 @@ public:
     *                      if >=0 and aNode is not text, this represents a child node offset
     * @param aResultOffset - the character offset into the current
     *                        nsHyperTextAccessible
+    * @param aFinalAccessible [optional] - returns the accessible child which
+    *                                      contained the offset, if it is within
+    *                                      the current nsHyperTextAccessible,
+    *                                      otherwise it is set to nsnull.
     * @param aIsEndOffset - if PR_TRUE, then then this offset is not inclusive. The character
     *                       indicated by the offset returned is at [offset - 1]. This means
     *                       if the passed-in offset is really in a descendant, then the offset returned
@@ -161,15 +122,11 @@ public:
     *                       If PR_FALSE, then the offset is inclusive. The character indicated
     *                       by the offset returned is at [offset]. If the passed-in offset in inside a
     *                       descendant, then the returned offset will be on the relevant embedded object char.
-    *
-    * @return               the accessible child which contained the offset, if
-    *                       it is within the current nsHyperTextAccessible,
-    *                       otherwise nsnull
     */
-  nsAccessible *DOMPointToHypertextOffset(nsINode *aNode,
-                                          PRInt32 aNodeOffset,
-                                          PRInt32 *aHypertextOffset,
-                                          PRBool aIsEndOffset = PR_FALSE);
+  nsresult DOMPointToHypertextOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset,
+                                     PRInt32 *aHypertextOffset,
+                                     nsIAccessible **aFinalAccessible = nsnull,
+                                     PRBool aIsEndOffset = PR_FALSE);
 
   /**
    * Turn a hypertext offsets into DOM point.
@@ -199,58 +156,7 @@ public:
                                       nsIDOMNode **aEndNode,
                                       PRInt32 *aEndOffset);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // TextAccessible
-
-  /**
-   * Return character count within the hypertext accessible.
-   */
-  inline PRUint32 CharacterCount()
-  {
-    return GetChildOffset(GetChildCount());
-  }
-
-  /**
-   * Return text offset of the given child accessible within hypertext
-   * accessible.
-   *
-   * @param  aChild           [in] accessible child to get text offset for
-   * @param  aInvalidateAfter [in, optional] indicates whether invalidate
-   *                           cached offsets for next siblings of the child
-   */
-  PRInt32 GetChildOffset(nsAccessible* aChild,
-                         PRBool aInvalidateAfter = PR_FALSE)
-  {
-    PRInt32 index = GetIndexOf(aChild);
-    return index == -1 ? -1 : GetChildOffset(index, aInvalidateAfter);
-  }
-
-  /**
-   * Return text offset for the child accessible index.
-   */
-  PRInt32 GetChildOffset(PRUint32 aChildIndex,
-                         PRBool aInvalidateAfter = PR_FALSE);
-
-  /**
-   * Return child accessible at the given text offset.
-   *
-   * @param  aOffset  [in] the given text offset
-   */
-  PRInt32 GetChildIndexAtOffset(PRUint32 aOffset);
-
-  /**
-   * Return child accessible at the given text offset.
-   *
-   * @param  aOffset  [in] the given text offset
-   */
-  nsAccessible* GetChildAtOffset(PRUint32 aOffset)
-  {
-    return GetChildAt(GetChildIndexAtOffset(aOffset));
-  }
-
 protected:
-  // nsHyperTextAccessible
-
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
    * @param aType, eGetBefore, eGetAt, eGetAfter
@@ -280,7 +186,7 @@ protected:
     * @return                  the resulting offset into this hypertext
     */
   PRInt32 GetRelativeOffset(nsIPresShell *aPresShell, nsIFrame *aFromFrame,
-                            PRInt32 aFromOffset, nsAccessible *aFromAccessible,
+                            PRInt32 aFromOffset, nsIAccessible *aFromAccessible,
                             nsSelectionAmount aAmount, nsDirection aDirection,
                             PRBool aNeedsStart);
 
@@ -313,8 +219,8 @@ protected:
                           nsAString *aText = nsnull,
                           nsIFrame **aEndFrame = nsnull,
                           nsIntRect *aBoundsRect = nsnull,
-                          nsAccessible **aStartAcc = nsnull,
-                          nsAccessible **aEndAcc = nsnull);
+                          nsIAccessible **aStartAcc = nsnull,
+                          nsIAccessible **aEndAcc = nsnull);
 
   nsIntRect GetBoundsForString(nsIFrame *aFrame, PRUint32 aStartRenderedOffset, PRUint32 aEndRenderedOffset);
 
@@ -388,26 +294,91 @@ protected:
                                  PRInt32 *aEndOffset,
                                  nsIPersistentProperties *aAttributes);
 
-private:
   /**
-   * End text offsets array.
+   * Set 'lang' text attribute and return range offsets where attibute is
+   * stretched. The method is used by GetTextAttributes() method.
+   *
+   * @param aIncludeDefAttrs  [in] points whether text attributes having default
+   *                          values of attributes should be included
+   * @param aSourceNode       [in] the node we start to traverse from
+   * @param aStartOffset      [in, out] the start offset
+   * @param aEndOffset        [in, out] the end offset
+   * @param aAttributes       [out, optional] result attributes
    */
-  nsTArray<PRUint32> mOffsets;
+  nsresult GetLangTextAttributes(PRBool aIncludeDefAttrs,
+                                 nsIDOMNode *aSourceNode,
+                                 PRInt32 *aStartOffset,
+                                 PRInt32 *aEndOffset,
+                                 nsIPersistentProperties *aAttributes);
+
+  /**
+   * Set CSS based text attribute and return range offsets where attibutes are
+   * stretched. The method is used by GetTextAttributes() method.
+   *
+   * @param aIncludeDefAttrs  [in] points whether text attributes having default
+   *                          values of attributes should be included
+   * @param aSourceNode       [in] the node we start to traverse from
+   * @param aStartOffset      [in, out] the start offset
+   * @param aEndOffset        [in, out] the end offset
+   * @param aAttributes       [out, optional] result attributes
+   */
+  nsresult GetCSSTextAttributes(PRBool aIncludeDefAttrs,
+                                nsIDOMNode *aSourceNode,
+                                PRInt32 *aStartOffset,
+                                PRInt32 *aEndOffset,
+                                nsIPersistentProperties *aAttributes);
+
+  /**
+   * Calculates range (start and end offsets) of text where the text attribute
+   * (pointed by nsTextAttr object) is stretched. New offsets may be smaller if
+   * the given text attribute changes its value before or after the given
+   * offsets.
+   *
+   * @param aNode          [in] the node we start to traverse from
+   * @param aComparer      [in] object used to describe the text attribute
+   * @param aStartHTOffset [in, out] the start offset
+   * @param aEndHTOffset   [in, out] the end offset
+   */
+  nsresult GetRangeForTextAttr(nsIDOMNode *aNode,
+                               nsTextAttr *aComparer,
+                               PRInt32 *aStartHTOffset,
+                               PRInt32 *aEndHTOffset);
+
+  /**
+   * Find new end offset for text attributes navigating through the tree. New
+   * end offset may be smaller if the given text attribute (pointed by
+   * nsTextAttr object) changes its value before the given end offset.
+   *
+   * @param  aCurrNode  [in] the first node of the tree
+   * @param  aComparer  [in] object used to describe the text attribute
+   * @param  aHTOffset  [in, out] the end offset
+   * @return            true if the end offset has been changed
+   */
+  PRBool FindEndOffsetInSubtree(nsIDOMNode *aCurrNode,
+                                nsTextAttr *aComparer,
+                                PRInt32 *aHTOffset);
+
+  /**
+   * Find the start offset for text attributes navigating through the tree. New
+   * start offset may be bigger if the given text attribute (pointed by
+   * nsTextAttr object) changes its value after the given start offset.
+   *
+   * @param  aCurrNode  [in] the node navigating through thee thee is started
+   *                    from
+   * @param  aPrevNode  [in] the previous node placed before the start node
+   * @param  aComparer  [in] object used to describe the text attribute
+   * @param  aHTOffset  [in, out] the start offset
+   * @return            true if the start offset has been changed
+   */
+  PRBool FindStartOffsetInSubtree(nsIDOMNode *aCurrNode,
+                                  nsIDOMNode *aPrevNode,
+                                  nsTextAttr *aComparer,
+                                  PRInt32 *aHTOffset);
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,
                               NS_HYPERTEXTACCESSIBLE_IMPL_CID)
-
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible downcasting method
-
-inline nsHyperTextAccessible*
-nsAccessible::AsHyperText()
-{
-  return mFlags & eHyperTextAccessible ?
-    static_cast<nsHyperTextAccessible*>(this) : nsnull;
-}
 
 #endif  // _nsHyperTextAccessible_H_
 

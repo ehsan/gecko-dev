@@ -34,11 +34,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: shvfy.c,v 1.13 2010/04/29 00:17:52 rrelyea%redhat.com Exp $ */
-
-#ifdef FREEBL_NO_DEPEND
-#include "stubs.h"
-#endif
+/* $Id: shvfy.c,v 1.10 2004/04/27 23:04:36 gerv%gerv.net Exp $ */
 
 #include "shsign.h"
 #include "prlink.h"
@@ -47,7 +43,6 @@
 #include "seccomon.h"
 #include "stdio.h"
 #include "prmem.h"
-
 
 /* #define DEBUG_SHVERIFY 1 */
 

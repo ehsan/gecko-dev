@@ -42,7 +42,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIPrefBranch.h"
 #include "nsIProtocolProxyService2.h"
 #include "nsIProtocolProxyFilter.h"
@@ -220,8 +220,6 @@ protected:
      *        The URI to test.
      * @param info
      *        Information about the URI's protocol.
-     * @param flags
-     *        The flags passed to either the resolve or the asyncResolve method.
      * @param usePAC
      *        If this flag is set upon return, then PAC should be queried to
      *        resolve the proxy info.
@@ -230,7 +228,6 @@ protected:
      */
     NS_HIDDEN_(nsresult) Resolve_Internal(nsIURI *uri,
                                           const nsProtocolInfo &info,
-                                          PRUint32 flags,
                                           PRBool *usePAC, 
                                           nsIProxyInfo **result);
 
@@ -293,6 +290,8 @@ protected:
      */
     NS_HIDDEN_(PRBool) CanUseProxy(nsIURI *uri, PRInt32 defaultPort);
 
+    static PRBool PR_CALLBACK CleanupFilterArray(void *aElement, void *aData);
+
 public:
     // The Sun Forte compiler and others implement older versions of the
     // C++ standard's rules on access and nested classes.  These structs
@@ -310,6 +309,16 @@ public:
     };
 
 protected:
+
+    enum ProxyConfig {
+        eProxyConfig_Direct,
+        eProxyConfig_Manual,
+        eProxyConfig_PAC,
+        eProxyConfig_Direct4x,
+        eProxyConfig_WPAD,
+        eProxyConfig_System, // use system proxy settings if available, otherwise DIRECT
+        eProxyConfig_Last
+    };
 
     // simplified array of filters defined by this struct
     struct HostInfo {
@@ -343,19 +352,22 @@ protected:
     };
 
     // Holds an array of HostInfo objects
-    nsTArray<nsAutoPtr<HostInfo> > mHostFiltersArray;
+    nsVoidArray                  mHostFiltersArray;
 
     // Points to the start of a sorted by position, singly linked list
     // of FilterLink objects.
     FilterLink                  *mFilters;
 
-    PRUint32                     mProxyConfig;
+    ProxyConfig                  mProxyConfig;
 
     nsCString                    mHTTPProxyHost;
     PRInt32                      mHTTPProxyPort;
 
     nsCString                    mFTPProxyHost;
     PRInt32                      mFTPProxyPort;
+
+    nsCString                    mGopherProxyHost;
+    PRInt32                      mGopherProxyPort;
 
     nsCString                    mHTTPSProxyHost;
     PRInt32                      mHTTPSProxyPort;

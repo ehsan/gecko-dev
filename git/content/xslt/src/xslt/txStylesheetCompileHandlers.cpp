@@ -67,14 +67,14 @@ txHandlerTable* gTxImportHandler = 0;
 txHandlerTable* gTxAttributeSetHandler = 0;
 txHandlerTable* gTxFallbackHandler = 0;
 
-static nsresult
+nsresult
 txFnStartLRE(PRInt32 aNamespaceID,
              nsIAtom* aLocalName,
              nsIAtom* aPrefix,
              txStylesheetAttr* aAttributes,
              PRInt32 aAttrCount,
              txStylesheetCompilerState& aState);
-static nsresult
+nsresult
 txFnEndLRE(txStylesheetCompilerState& aState);
 
 
@@ -87,7 +87,7 @@ txFnEndLRE(txStylesheetCompilerState& aState);
     } while(0)
 
 
-static nsresult
+nsresult
 getStyleAttr(txStylesheetAttr* aAttributes,
              PRInt32 aAttrCount,
              PRInt32 aNamespace,
@@ -116,7 +116,7 @@ getStyleAttr(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 parseUseAttrSets(txStylesheetAttr* aAttributes,
                  PRInt32 aAttrCount,
                  PRBool aInXSLTNS,
@@ -148,7 +148,7 @@ parseUseAttrSets(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 parseExcludeResultPrefixes(txStylesheetAttr* aAttributes,
                            PRInt32 aAttrCount,
                            PRInt32 aNamespaceID)
@@ -166,7 +166,7 @@ parseExcludeResultPrefixes(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 getQNameAttr(txStylesheetAttr* aAttributes,
              PRInt32 aAttrCount,
              nsIAtom* aName,
@@ -192,7 +192,7 @@ getQNameAttr(txStylesheetAttr* aAttributes,
     return rv;
 }
 
-static nsresult
+nsresult
 getExprAttr(txStylesheetAttr* aAttributes,
             PRInt32 aAttrCount,
             nsIAtom* aName,
@@ -229,7 +229,7 @@ getExprAttr(txStylesheetAttr* aAttributes,
     return rv;
 }
 
-static nsresult
+nsresult
 getAVTAttr(txStylesheetAttr* aAttributes,
            PRInt32 aAttrCount,
            nsIAtom* aName,
@@ -266,7 +266,7 @@ getAVTAttr(txStylesheetAttr* aAttributes,
     return rv;
 }
 
-static nsresult
+nsresult
 getPatternAttr(txStylesheetAttr* aAttributes,
                PRInt32 aAttrCount,
                nsIAtom* aName,
@@ -291,7 +291,7 @@ getPatternAttr(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 getNumberAttr(txStylesheetAttr* aAttributes,
               PRInt32 aAttrCount,
               nsIAtom* aName,
@@ -316,7 +316,7 @@ getNumberAttr(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 getAtomAttr(txStylesheetAttr* aAttributes,
             PRInt32 aAttrCount,
             nsIAtom* aName,
@@ -338,7 +338,7 @@ getAtomAttr(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 getYesNoAttr(txStylesheetAttr* aAttributes,
              PRInt32 aAttrCount,
              nsIAtom* aName,
@@ -368,7 +368,7 @@ getYesNoAttr(txStylesheetAttr* aAttributes,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 getCharAttr(txStylesheetAttr* aAttributes,
             PRInt32 aAttrCount,
             nsIAtom* aName,
@@ -399,13 +399,13 @@ getCharAttr(txStylesheetAttr* aAttributes,
 /**
  * Ignore and error handlers
  */
-static nsresult
+nsresult
 txFnTextIgnore(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnTextError(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     TX_RETURN_IF_WHITESPACE(aStr, aState);
@@ -423,7 +423,7 @@ clearAttributes(txStylesheetAttr* aAttributes,
     }
 }
 
-static nsresult
+nsresult
 txFnStartElementIgnore(PRInt32 aNamespaceID,
                        nsIAtom* aLocalName,
                        nsIAtom* aPrefix,
@@ -438,13 +438,13 @@ txFnStartElementIgnore(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndElementIgnore(txStylesheetCompilerState& aState)
 {
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementSetIgnore(PRInt32 aNamespaceID,
                           nsIAtom* aLocalName,
                           nsIAtom* aPrefix,
@@ -459,14 +459,14 @@ txFnStartElementSetIgnore(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndElementSetIgnore(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementError(PRInt32 aNamespaceID,
                       nsIAtom* aLocalName,
                       nsIAtom* aPrefix,
@@ -477,7 +477,7 @@ txFnStartElementError(PRInt32 aNamespaceID,
     return NS_ERROR_XSLT_PARSE_FAILURE;
 }
 
-static nsresult
+nsresult
 txFnEndElementError(txStylesheetCompilerState& aState)
 {
     NS_ERROR("txFnEndElementError shouldn't be called"); 
@@ -488,7 +488,7 @@ txFnEndElementError(txStylesheetCompilerState& aState)
 /**
  * Root handlers
  */
-static nsresult
+nsresult
 txFnStartStylesheet(PRInt32 aNamespaceID,
                     nsIAtom* aLocalName,
                     nsIAtom* aPrefix,
@@ -514,14 +514,14 @@ txFnStartStylesheet(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxImportHandler);
 }
 
-static nsresult
+nsresult
 txFnEndStylesheet(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementContinueTopLevel(PRInt32 aNamespaceID,
                                 nsIAtom* aLocalName,
                                 nsIAtom* aPrefix,
@@ -534,7 +534,7 @@ txFnStartElementContinueTopLevel(PRInt32 aNamespaceID,
     return NS_XSLT_GET_NEW_HANDLER;
 }
 
-static nsresult
+nsresult
 txFnStartLREStylesheet(PRInt32 aNamespaceID,
                        nsIAtom* aLocalName,
                        nsIAtom* aPrefix,
@@ -570,7 +570,7 @@ txFnStartLREStylesheet(PRInt32 aNamespaceID,
                         aAttrCount, aState);
 }
 
-static nsresult
+nsresult
 txFnEndLREStylesheet(txStylesheetCompilerState& aState)
 {
     nsresult rv = txFnEndLRE(aState);
@@ -589,7 +589,7 @@ txFnEndLREStylesheet(txStylesheetCompilerState& aState)
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartEmbed(PRInt32 aNamespaceID,
                nsIAtom* aLocalName,
                nsIAtom* aPrefix,
@@ -609,7 +609,7 @@ txFnStartEmbed(PRInt32 aNamespaceID,
                                aAttributes, aAttrCount, aState);
 }
 
-static nsresult
+nsresult
 txFnEndEmbed(txStylesheetCompilerState& aState)
 {
     if (!aState.handleEmbeddedSheet()) {
@@ -624,7 +624,7 @@ txFnEndEmbed(txStylesheetCompilerState& aState)
 /**
  * Top handlers
  */
-static nsresult
+nsresult
 txFnStartOtherTop(PRInt32 aNamespaceID,
                   nsIAtom* aLocalName,
                   nsIAtom* aPrefix,
@@ -640,7 +640,7 @@ txFnStartOtherTop(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndOtherTop(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -649,7 +649,7 @@ txFnEndOtherTop(txStylesheetCompilerState& aState)
 
 
 // xsl:attribute-set
-static nsresult
+nsresult
 txFnStartAttributeSet(PRInt32 aNamespaceID,
                       nsIAtom* aLocalName,
                       nsIAtom* aPrefix,
@@ -679,7 +679,7 @@ txFnStartAttributeSet(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxAttributeSetHandler);
 }
 
-static nsresult
+nsresult
 txFnEndAttributeSet(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -697,7 +697,7 @@ txFnEndAttributeSet(txStylesheetCompilerState& aState)
 
 
 // xsl:decimal-format
-static nsresult
+nsresult
 txFnStartDecimalFormat(PRInt32 aNamespaceID,
                        nsIAtom* aLocalName,
                        nsIAtom* aPrefix,
@@ -769,7 +769,7 @@ txFnStartDecimalFormat(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndDecimalFormat(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -778,7 +778,7 @@ txFnEndDecimalFormat(txStylesheetCompilerState& aState)
 }
 
 // xsl:import
-static nsresult
+nsresult
 txFnStartImport(PRInt32 aNamespaceID,
                 nsIAtom* aLocalName,
                 nsIAtom* aPrefix,
@@ -811,7 +811,7 @@ txFnStartImport(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndImport(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -820,7 +820,7 @@ txFnEndImport(txStylesheetCompilerState& aState)
 }
 
 // xsl:include
-static nsresult
+nsresult
 txFnStartInclude(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -842,7 +842,7 @@ txFnStartInclude(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndInclude(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -851,7 +851,7 @@ txFnEndInclude(txStylesheetCompilerState& aState)
 }
 
 // xsl:key
-static nsresult
+nsresult
 txFnStartKey(PRInt32 aNamespaceID,
              nsIAtom* aLocalName,
              nsIAtom* aPrefix,
@@ -881,7 +881,7 @@ txFnStartKey(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndKey(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -890,7 +890,7 @@ txFnEndKey(txStylesheetCompilerState& aState)
 }
 
 // xsl:namespace-alias
-static nsresult
+nsresult
 txFnStartNamespaceAlias(PRInt32 aNamespaceID,
              nsIAtom* aLocalName,
              nsIAtom* aPrefix,
@@ -912,7 +912,7 @@ txFnStartNamespaceAlias(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndNamespaceAlias(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -921,7 +921,7 @@ txFnEndNamespaceAlias(txStylesheetCompilerState& aState)
 }
 
 // xsl:output
-static nsresult
+nsresult
 txFnStartOutput(PRInt32 aNamespaceID,
                 nsIAtom* aLocalName,
                 nsIAtom* aPrefix,
@@ -998,7 +998,7 @@ txFnStartOutput(PRInt32 aNamespaceID,
     if (attr) {
         nsWhitespaceTokenizer tokens(attr->mValue);
         while (tokens.hasMoreTokens()) {
-            nsAutoPtr<txExpandedName> qname(new txExpandedName());
+            txExpandedName* qname = new txExpandedName();
             NS_ENSURE_TRUE(qname, NS_ERROR_OUT_OF_MEMORY);
 
             rv = qname->init(tokens.nextToken(),
@@ -1007,7 +1007,6 @@ txFnStartOutput(PRInt32 aNamespaceID,
 
             rv = item->mFormat.mCDATASectionElements.add(qname);
             NS_ENSURE_SUCCESS(rv, rv);
-            qname.forget();
         }
     }
 
@@ -1030,7 +1029,7 @@ txFnStartOutput(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndOutput(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1039,7 +1038,7 @@ txFnEndOutput(txStylesheetCompilerState& aState)
 }
 
 // xsl:strip-space/xsl:preserve-space
-static nsresult
+nsresult
 txFnStartStripSpace(PRInt32 aNamespaceID,
                     nsIAtom* aLocalName,
                     nsIAtom* aPrefix,
@@ -1113,7 +1112,7 @@ txFnStartStripSpace(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndStripSpace(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1122,7 +1121,7 @@ txFnEndStripSpace(txStylesheetCompilerState& aState)
 }
 
 // xsl:template
-static nsresult
+nsresult
 txFnStartTemplate(PRInt32 aNamespaceID,
                   nsIAtom* aLocalName,
                   nsIAtom* aPrefix,
@@ -1163,7 +1162,7 @@ txFnStartTemplate(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxParamHandler);
 }
 
-static nsresult
+nsresult
 txFnEndTemplate(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1180,7 +1179,7 @@ txFnEndTemplate(txStylesheetCompilerState& aState)
 }
 
 // xsl:variable, xsl:param
-static nsresult
+nsresult
 txFnStartTopVariable(PRInt32 aNamespaceID,
                      nsIAtom* aLocalName,
                      nsIAtom* aPrefix,
@@ -1225,7 +1224,7 @@ txFnStartTopVariable(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndTopVariable(txStylesheetCompilerState& aState)
 {
     txHandlerTable* prev = aState.mHandlerTable;
@@ -1253,7 +1252,7 @@ txFnEndTopVariable(txStylesheetCompilerState& aState)
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementStartTopVar(PRInt32 aNamespaceID,
                             nsIAtom* aLocalName,
                             nsIAtom* aPrefix,
@@ -1266,7 +1265,7 @@ txFnStartElementStartTopVar(PRInt32 aNamespaceID,
     return NS_XSLT_GET_NEW_HANDLER;
 }
 
-static nsresult
+nsresult
 txFnTextStartTopVar(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     TX_RETURN_IF_WHITESPACE(aStr, aState);
@@ -1289,7 +1288,7 @@ txFnTextStartTopVar(const nsAString& aStr, txStylesheetCompilerState& aState)
   [children]
   txEndElement
 */
-static nsresult
+nsresult
 txFnStartLRE(PRInt32 aNamespaceID,
              nsIAtom* aLocalName,
              nsIAtom* aPrefix,
@@ -1318,10 +1317,6 @@ txFnStartLRE(PRInt32 aNamespaceID,
         attr = aAttributes + i;
         
         if (attr->mNamespaceID == kNameSpaceID_XSLT) {
-            if (attr->mLocalName == txXSLTAtoms::version) {
-                attr->mLocalName = nsnull;
-            }
-
             continue;
         }
 
@@ -1341,7 +1336,7 @@ txFnStartLRE(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndLRE(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(new txEndElement);
@@ -1358,7 +1353,7 @@ txFnEndLRE(txStylesheetCompilerState& aState)
 
   txText
 */
-static nsresult
+nsresult
 txFnText(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     TX_RETURN_IF_WHITESPACE(aStr, aState);
@@ -1378,7 +1373,7 @@ txFnText(const nsAString& aStr, txStylesheetCompilerState& aState)
   txApplyImportsStart
   txApplyImportsEnd
 */
-static nsresult
+nsresult
 txFnStartApplyImports(PRInt32 aNamespaceID,
                       nsIAtom* aLocalName,
                       nsIAtom* aPrefix,
@@ -1403,7 +1398,7 @@ txFnStartApplyImports(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndApplyImports(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1421,7 +1416,7 @@ txFnEndApplyImports(txStylesheetCompilerState& aState)
   txLoopNodeSet    -+  |
   txPopParams        <-+
 */
-static nsresult
+nsresult
 txFnStartApplyTemplates(PRInt32 aNamespaceID,
                         nsIAtom* aLocalName,
                         nsIAtom* aPrefix,
@@ -1480,7 +1475,7 @@ txFnStartApplyTemplates(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxApplyTemplatesHandler);
 }
 
-static nsresult
+nsresult
 txFnEndApplyTemplates(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1521,7 +1516,7 @@ txFnEndApplyTemplates(txStylesheetCompilerState& aState)
   [children]
   txAttribute
 */
-static nsresult
+nsresult
 txFnStartAttribute(PRInt32 aNamespaceID,
                    nsIAtom* aLocalName,
                    nsIAtom* aPrefix,
@@ -1560,7 +1555,7 @@ txFnStartAttribute(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxTemplateHandler);
 }
 
-static nsresult
+nsresult
 txFnEndAttribute(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1580,7 +1575,7 @@ txFnEndAttribute(txStylesheetCompilerState& aState)
   txCallTemplate
   txPopParams
 */
-static nsresult
+nsresult
 txFnStartCallTemplate(PRInt32 aNamespaceID,
                       nsIAtom* aLocalName,
                       nsIAtom* aPrefix,
@@ -1612,7 +1607,7 @@ txFnStartCallTemplate(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxCallTemplateHandler);
 }
 
-static nsresult
+nsresult
 txFnEndCallTemplate(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1645,7 +1640,7 @@ txFnEndCallTemplate(txStylesheetCompilerState& aState)
   [children]         |        <-+      for the xsl:otherwise, if there is one
                    <-+
 */
-static nsresult
+nsresult
 txFnStartChoose(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -1659,7 +1654,7 @@ txFnStartChoose(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxChooseHandler);
 }
 
-static nsresult
+nsresult
 txFnEndChoose(txStylesheetCompilerState& aState)
 {
     nsresult rv = NS_OK;
@@ -1683,7 +1678,7 @@ txFnEndChoose(txStylesheetCompilerState& aState)
   [children]
   txComment
 */
-static nsresult
+nsresult
 txFnStartComment(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -1700,7 +1695,7 @@ txFnStartComment(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndComment(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(new txComment);
@@ -1721,7 +1716,7 @@ txFnEndComment(txStylesheetCompilerState& aState)
   txEndElement     |
                  <-+
 */
-static nsresult
+nsresult
 txFnStartCopy(PRInt32 aNamespaceID,
               nsIAtom* aLocalName,
               nsIAtom* aPrefix,
@@ -1745,7 +1740,7 @@ txFnStartCopy(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndCopy(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(new txEndElement);
@@ -1766,7 +1761,7 @@ txFnEndCopy(txStylesheetCompilerState& aState)
 
   txCopyOf
 */
-static nsresult
+nsresult
 txFnStartCopyOf(PRInt32 aNamespaceID,
                 nsIAtom* aLocalName,
                 nsIAtom* aPrefix,
@@ -1790,7 +1785,7 @@ txFnStartCopyOf(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndCopyOf(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1805,7 +1800,7 @@ txFnEndCopyOf(txStylesheetCompilerState& aState)
   [children]
   txEndElement
 */
-static nsresult
+nsresult
 txFnStartElement(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -1838,7 +1833,7 @@ txFnStartElement(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndElement(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(new txEndElement);
@@ -1855,7 +1850,7 @@ txFnEndElement(txStylesheetCompilerState& aState)
 
     [children]
 */
-static nsresult
+nsresult
 txFnStartFallback(PRInt32 aNamespaceID,
                   nsIAtom* aLocalName,
                   nsIAtom* aPrefix,
@@ -1868,7 +1863,7 @@ txFnStartFallback(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxTemplateHandler);
 }
 
-static nsresult
+nsresult
 txFnEndFallback(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1887,7 +1882,7 @@ txFnEndFallback(txStylesheetCompilerState& aState)
   txLoopNodeSet            -+  |
                              <-+
 */
-static nsresult
+nsresult
 txFnStartForEach(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -1927,7 +1922,7 @@ txFnStartForEach(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxForEachHandler);
 }
 
-static nsresult
+nsresult
 txFnEndForEach(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -1948,7 +1943,7 @@ txFnEndForEach(txStylesheetCompilerState& aState)
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementContinueTemplate(PRInt32 aNamespaceID,
                                 nsIAtom* aLocalName,
                                 nsIAtom* aPrefix,
@@ -1961,7 +1956,7 @@ txFnStartElementContinueTemplate(PRInt32 aNamespaceID,
     return NS_XSLT_GET_NEW_HANDLER;
 }
 
-static nsresult
+nsresult
 txFnTextContinueTemplate(const nsAString& aStr,
                         txStylesheetCompilerState& aState)
 {
@@ -1979,7 +1974,7 @@ txFnTextContinueTemplate(const nsAString& aStr,
   [children]          |
                     <-+
 */
-static nsresult
+nsresult
 txFnStartIf(PRInt32 aNamespaceID,
             nsIAtom* aLocalName,
             nsIAtom* aPrefix,
@@ -2007,7 +2002,7 @@ txFnStartIf(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndIf(txStylesheetCompilerState& aState)
 {
     txConditionalGoto* condGoto =
@@ -2022,7 +2017,7 @@ txFnEndIf(txStylesheetCompilerState& aState)
   [children]
   txMessage
 */
-static nsresult
+nsresult
 txFnStartMessage(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -2052,7 +2047,7 @@ txFnStartMessage(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndMessage(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(static_cast<txInstruction*>(aState.popObject()));
@@ -2067,7 +2062,7 @@ txFnEndMessage(txStylesheetCompilerState& aState)
 
   txNumber
 */
-static nsresult
+nsresult
 txFnStartNumber(PRInt32 aNamespaceID,
                 nsIAtom* aLocalName,
                 nsIAtom* aPrefix,
@@ -2144,7 +2139,7 @@ txFnStartNumber(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndNumber(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -2157,7 +2152,7 @@ txFnEndNumber(txStylesheetCompilerState& aState)
     
     (see xsl:choose)
 */
-static nsresult
+nsresult
 txFnStartOtherwise(PRInt32 aNamespaceID,
                    nsIAtom* aLocalName,
                    nsIAtom* aPrefix,
@@ -2168,7 +2163,7 @@ txFnStartOtherwise(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxTemplateHandler);
 }
 
-static nsresult
+nsresult
 txFnEndOtherwise(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -2186,7 +2181,7 @@ txFnEndOtherwise(txStylesheetCompilerState& aState)
     txSetVariable     |
                     <-+
 */
-static nsresult
+nsresult
 txFnStartParam(PRInt32 aNamespaceID,
                nsIAtom* aLocalName,
                nsIAtom* aPrefix,
@@ -2237,7 +2232,7 @@ txFnStartParam(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndParam(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txSetVariable> var(static_cast<txSetVariable*>
@@ -2273,7 +2268,7 @@ txFnEndParam(txStylesheetCompilerState& aState)
   [children]
   txProcessingInstruction
 */
-static nsresult
+nsresult
 txFnStartPI(PRInt32 aNamespaceID,
             nsIAtom* aLocalName,
             nsIAtom* aPrefix,
@@ -2303,7 +2298,7 @@ txFnStartPI(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndPI(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(static_cast<txInstruction*>
@@ -2319,7 +2314,7 @@ txFnEndPI(txStylesheetCompilerState& aState)
     
     (no instructions)
 */
-static nsresult
+nsresult
 txFnStartSort(PRInt32 aNamespaceID,
               nsIAtom* aLocalName,
               nsIAtom* aPrefix,
@@ -2371,7 +2366,7 @@ txFnStartSort(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndSort(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -2384,7 +2379,7 @@ txFnEndSort(txStylesheetCompilerState& aState)
 
   [children]     (only txText)
 */
-static nsresult
+nsresult
 txFnStartText(PRInt32 aNamespaceID,
               nsIAtom* aLocalName,
               nsIAtom* aPrefix,
@@ -2406,7 +2401,7 @@ txFnStartText(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxTextHandler);
 }
 
-static nsresult
+nsresult
 txFnEndText(txStylesheetCompilerState& aState)
 {
     aState.mDOE = MB_FALSE;
@@ -2414,7 +2409,7 @@ txFnEndText(txStylesheetCompilerState& aState)
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnTextText(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txInstruction> instr(new txText(aStr, aState.mDOE));
@@ -2431,7 +2426,7 @@ txFnTextText(const nsAString& aStr, txStylesheetCompilerState& aState)
 
   txValueOf
 */
-static nsresult
+nsresult
 txFnStartValueOf(PRInt32 aNamespaceID,
                  nsIAtom* aLocalName,
                  nsIAtom* aPrefix,
@@ -2461,7 +2456,7 @@ txFnStartValueOf(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxIgnoreHandler);
 }
 
-static nsresult
+nsresult
 txFnEndValueOf(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -2475,7 +2470,7 @@ txFnEndValueOf(txStylesheetCompilerState& aState)
     [children]           /
     txSetVariable      
 */
-static nsresult
+nsresult
 txFnStartVariable(PRInt32 aNamespaceID,
                   nsIAtom* aLocalName,
                   nsIAtom* aPrefix,
@@ -2516,7 +2511,7 @@ txFnStartVariable(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndVariable(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txSetVariable> var(static_cast<txSetVariable*>
@@ -2543,7 +2538,7 @@ txFnEndVariable(txStylesheetCompilerState& aState)
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnStartElementStartRTF(PRInt32 aNamespaceID,
                          nsIAtom* aLocalName,
                          nsIAtom* aPrefix,
@@ -2562,7 +2557,7 @@ txFnStartElementStartRTF(PRInt32 aNamespaceID,
     return NS_XSLT_GET_NEW_HANDLER;
 }
 
-static nsresult
+nsresult
 txFnTextStartRTF(const nsAString& aStr, txStylesheetCompilerState& aState)
 {
     TX_RETURN_IF_WHITESPACE(aStr, aState);
@@ -2583,7 +2578,7 @@ txFnTextStartRTF(const nsAString& aStr, txStylesheetCompilerState& aState)
     
     (see xsl:choose)
 */
-static nsresult
+nsresult
 txFnStartWhen(PRInt32 aNamespaceID,
               nsIAtom* aLocalName,
               nsIAtom* aPrefix,
@@ -2611,7 +2606,7 @@ txFnStartWhen(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxTemplateHandler);
 }
 
-static nsresult
+nsresult
 txFnEndWhen(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();
@@ -2640,7 +2635,7 @@ txFnEndWhen(txStylesheetCompilerState& aState)
     [children]         /
     txSetParam
 */
-static nsresult
+nsresult
 txFnStartWithParam(PRInt32 aNamespaceID,
                    nsIAtom* aLocalName,
                    nsIAtom* aPrefix,
@@ -2681,7 +2676,7 @@ txFnStartWithParam(PRInt32 aNamespaceID,
     return NS_OK;
 }
 
-static nsresult
+nsresult
 txFnEndWithParam(txStylesheetCompilerState& aState)
 {
     nsAutoPtr<txSetParam> var(static_cast<txSetParam*>(aState.popObject()));
@@ -2710,7 +2705,7 @@ txFnEndWithParam(txStylesheetCompilerState& aState)
     or
     txErrorInstruction    otherwise
 */
-static nsresult
+nsresult
 txFnStartUnknownInstruction(PRInt32 aNamespaceID,
                             nsIAtom* aLocalName,
                             nsIAtom* aPrefix,
@@ -2730,7 +2725,7 @@ txFnStartUnknownInstruction(PRInt32 aNamespaceID,
     return aState.pushHandlerTable(gTxFallbackHandler);
 }
 
-static nsresult
+nsresult
 txFnEndUnknownInstruction(txStylesheetCompilerState& aState)
 {
     aState.popHandlerTable();

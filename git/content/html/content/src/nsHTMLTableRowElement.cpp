@@ -45,6 +45,7 @@
 #include "nsContentList.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsHTMLParts.h"
 #include "nsRuleData.h"
 
@@ -52,7 +53,7 @@ class nsHTMLTableRowElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLTableRowElement
 {
 public:
-  nsHTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableRowElement(nsINodeInfo *aNodeInfo);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -78,8 +79,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLTableRowElement,
                                                      nsGenericHTMLElement)
 
@@ -93,7 +92,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableRow)
 
 
-nsHTMLTableRowElement::nsHTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableRowElement::nsHTMLTableRowElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -109,14 +108,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableRowElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableRowElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableRowElement, nsHTMLTableRowElement)
-
 // QueryInterface implementation for nsHTMLTableRowElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableRowElement,
-                                   nsIDOMHTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableRowElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableRowElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableRowElement,
+                                nsIDOMHTMLTableRowElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableRowElement)
 
 
@@ -233,14 +229,14 @@ nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 IsCell(nsIContent *aContent, PRInt32 aNamespaceID,
        nsIAtom* aAtom, void *aData)
 {
   nsIAtom* tag = aContent->Tag();
 
   return ((tag == nsGkAtoms::td || tag == nsGkAtoms::th) &&
-          aContent->IsHTML());
+          aContent->IsNodeOfType(nsINode::eHTML));
 }
 
 NS_IMETHODIMP
@@ -253,7 +249,7 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                nsnull, // closure data
                                PR_FALSE,
                                nsnull,
-                               kNameSpaceID_XHTML,
+                               kNameSpaceID_None,
                                PR_FALSE);
 
     NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);
@@ -271,38 +267,25 @@ nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   if (aIndex < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
-
-  // Make sure mCells is initialized.
+  
   nsCOMPtr<nsIDOMHTMLCollection> cells;
-  nsresult rv = GetCells(getter_AddRefs(cells));
-  if (NS_FAILED(rv)) {
-    return rv;
+  GetCells(getter_AddRefs(cells));
+
+  PRUint32 cellCount;
+  cells->GetLength(&cellCount);
+
+  if (aIndex > PRInt32(cellCount)) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  NS_ASSERTION(mCells, "How did that happen?");
-
-  nsCOMPtr<nsIDOMNode> nextSibling;
-  // -1 means append, so should use null nextSibling
-  if (aIndex != -1) {
-    cells->Item(aIndex, getter_AddRefs(nextSibling));
-    // Check whether we're inserting past end of list.  We want to avoid doing
-    // this unless we really have to, since this has to walk all our kids.  If
-    // we have a nextSibling, we're clearly not past end of list.
-    if (!nextSibling) {
-      PRUint32 cellCount;
-      cells->GetLength(&cellCount);
-      if (aIndex > PRInt32(cellCount)) {
-        return NS_ERROR_DOM_INDEX_SIZE_ERR;
-      }
-    }
-  }
+  PRBool doInsert = (aIndex < PRInt32(cellCount)) && (aIndex != -1);
 
   // create the cell
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::td,
                               getter_AddRefs(nodeInfo));
 
-  nsCOMPtr<nsIContent> cellContent = NS_NewHTMLTableCellElement(nodeInfo.forget());
+  nsCOMPtr<nsIContent> cellContent = NS_NewHTMLTableCellElement(nodeInfo);
   if (!cellContent) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -311,7 +294,16 @@ nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   NS_ASSERTION(cellNode, "Should implement nsIDOMNode!");
 
   nsCOMPtr<nsIDOMNode> retChild;
-  InsertBefore(cellNode, nextSibling, getter_AddRefs(retChild));
+
+  nsresult rv;
+  if (doInsert) {
+    nsCOMPtr<nsIDOMNode> refCell;
+    cells->Item(aIndex, getter_AddRefs(refCell));
+
+    rv = InsertBefore(cellNode, refCell, getter_AddRefs(retChild));
+  } else {
+    rv = AppendChild(cellNode, getter_AddRefs(retChild));
+  }
 
   if (retChild) {
     CallQueryInterface(retChild, aValue);
@@ -392,7 +384,7 @@ nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);
@@ -461,4 +453,3 @@ nsHTMLTableRowElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
 }
-

@@ -44,18 +44,55 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = appcomps
 
+EXPORTS = nsXPFEComponentsCID.h
+
 include $(topsrcdir)/config/config.mk
+
+MOZ_HAVE_BROWSER=1
+ifdef MOZ_THUNDERBIRD
+MOZ_HAVE_BROWSER=
+endif
+ifdef MOZ_STANDALONE_COMPOSER
+MOZ_HAVE_BROWSER=
+endif
+ifdef MOZ_SUNBIRD
+MOZ_HAVE_BROWSER=
+endif
+
+DIRS = \
+        find \
+        $(NULL)
 
 ifdef MOZ_RDF
 DIRS += \
+        intl \
         windowds \
         $(NULL)
 endif
 
-# build should be last
+ifneq (,$(MOZ_THUNDERBIRD)$(MOZ_SUITE)$(MOZ_SUNBIRD))
+DIRS += autocomplete
+endif
+
+ifdef MOZ_SUITE
+DIRS += related
+
+ifdef SUITE_USING_XPFE_DM
+DIRS += download-manager
+endif
+
+ifndef MOZ_PLACES
+DIRS += history
+endif
+endif # MOZ_SUITE
+
+ifdef MOZ_HAVE_BROWSER
 DIRS += \
         directory \
-        build \
         $(NULL)
+
+# build should be last
+DIRS += build
+endif
 
 include $(topsrcdir)/config/rules.mk

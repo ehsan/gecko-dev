@@ -51,7 +51,7 @@ class nsHTMLTableCellElement : public nsGenericHTMLElement,
                                public nsIDOMHTMLTableCellElement
 {
 public:
-  nsHTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLTableCellElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLTableCellElement();
 
   // nsISupports
@@ -79,7 +79,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // This does not return a nsresult since all we care about is if we
   // found the row element that this cell is in or not.
@@ -91,7 +90,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(TableCell)
 
 
-nsHTMLTableCellElement::nsHTMLTableCellElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLTableCellElement::nsHTMLTableCellElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -105,14 +104,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCellElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCellElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLTableCellElement, nsHTMLTableCellElement)
-
 // QueryInterface implementation for nsHTMLTableCellElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLTableCellElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCellElement,
-                                   nsIDOMHTMLTableCellElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableCellElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLTableCellElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableCellElement,
+                                nsIDOMHTMLTableCellElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableCellElement)
 
 
@@ -143,7 +139,7 @@ nsHTMLTableCellElement::GetTable()
   if (parent) {  // GetParent() should be a row
     nsIContent* section = parent->GetParent();
     if (section) {
-      if (section->IsHTML() &&
+      if (section->IsNodeOfType(eHTML) &&
           section->NodeInfo()->Equals(nsGkAtoms::table)) {
         // XHTML, without a row group
         result = section;
@@ -314,10 +310,10 @@ nsHTMLTableCellElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::scope) {
-      return aResult.ParseEnumValue(aValue, kCellScopeTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kCellScopeTable);
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);
@@ -374,15 +370,11 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     if (aData->mTextData->mWhiteSpace.GetUnit() == eCSSUnit_Null) {
       // nowrap: enum
       if (aAttributes->GetAttr(nsGkAtoms::nowrap)) {
-        // See if our width is not a nonzero integer width.
+        // See if our width is not a integer width.
         const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
         nsCompatibility mode = aData->mPresContext->CompatibilityMode();
-        if (!value || value->Type() != nsAttrValue::eInteger ||
-            value->GetIntegerValue() == 0 ||
-            eCompatibility_NavQuirks != mode) {
+        if (!value || value->Type() != nsAttrValue::eInteger || eCompatibility_NavQuirks != mode)
           aData->mTextData->mWhiteSpace.SetIntValue(NS_STYLE_WHITESPACE_NOWRAP, eCSSUnit_Enumerated);
-        }
-        
       }
     }
   }

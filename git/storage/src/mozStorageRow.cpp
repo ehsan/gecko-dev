@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -40,53 +40,59 @@
 #include "nsString.h"
 
 #include "sqlite3.h"
-#include "mozStoragePrivateHelpers.h"
-#include "Variant.h"
+#include "mozStorageVariant.h"
 #include "mozStorageRow.h"
 
-namespace mozilla {
-namespace storage {
-
 ////////////////////////////////////////////////////////////////////////////////
-//// Row
+//// mozStorageRow
+
+/**
+ * Note:  This object is only ever accessed on one thread at a time.  It it not
+ *        threadsafe, but it does need threadsafe AddRef and Release.
+ */
+NS_IMPL_THREADSAFE_ISUPPORTS2(
+  mozStorageRow,
+  mozIStorageRow,
+  mozIStorageValueArray
+)
 
 nsresult
-Row::initialize(sqlite3_stmt *aStatement)
+mozStorageRow::initialize(sqlite3_stmt *aStatement)
 {
   // Initialize the hash table
   NS_ENSURE_TRUE(mNameHashtable.Init(), NS_ERROR_OUT_OF_MEMORY);
 
   // Get the number of results
-  mNumCols = ::sqlite3_column_count(aStatement);
+  mNumCols = sqlite3_column_count(aStatement);
 
   // Start copying over values
   for (PRUint32 i = 0; i < mNumCols; i++) {
     // Store the value
     nsIVariant *variant = nsnull;
-    int type = ::sqlite3_column_type(aStatement, i);
+    int type = sqlite3_column_type(aStatement, i);
     switch (type) {
       case SQLITE_INTEGER:
-        variant = new IntegerVariant(::sqlite3_column_int64(aStatement, i));
+        variant = new mozStorageInteger(sqlite3_column_int64(aStatement, i));
         break;
       case SQLITE_FLOAT:
-        variant = new FloatVariant(::sqlite3_column_double(aStatement, i));
+        variant = new mozStorageFloat(sqlite3_column_double(aStatement, i));
         break;
       case SQLITE_TEXT:
       {
-        nsDependentString str(
-          static_cast<const PRUnichar *>(::sqlite3_column_text16(aStatement, i))
+        nsAutoString str(
+          static_cast<const PRUnichar *>(sqlite3_column_text16(aStatement, i))
         );
-        variant = new TextVariant(str);
+        variant = new mozStorageText(str);
         break;
       }
       case SQLITE_NULL:
-        variant = new NullVariant();
+        variant = new mozStorageNull();
         break;
       case SQLITE_BLOB:
       {
-        int size = ::sqlite3_column_bytes(aStatement, i);
-        const void *data = ::sqlite3_column_blob(aStatement, i);
-        variant = new BlobVariant(std::pair<const void *, int>(data, size));
+        int size = sqlite3_column_bytes(aStatement, i);
+        const void *data = sqlite3_column_blob(aStatement, i);
+        variant = new mozStorageBlob(std::pair<const void *, int>(data, size));
         break;
       }
       default:
@@ -98,7 +104,7 @@ Row::initialize(sqlite3_stmt *aStatement)
     NS_ENSURE_TRUE(mData.InsertObjectAt(variant, i), NS_ERROR_OUT_OF_MEMORY);
 
     // Associate the name (if any) with the index
-    const char *name = ::sqlite3_column_name(aStatement, i);
+    const char *name = sqlite3_column_name(aStatement, i);
     if (!name) break;
     nsCAutoString colName(name);
     mNameHashtable.Put(colName, i);
@@ -107,31 +113,21 @@ Row::initialize(sqlite3_stmt *aStatement)
   return NS_OK;
 }
 
-/**
- * Note:  This object is only ever accessed on one thread at a time.  It it not
- *        threadsafe, but it does need threadsafe AddRef and Release.
- */
-NS_IMPL_THREADSAFE_ISUPPORTS2(
-  Row,
-  mozIStorageRow,
-  mozIStorageValueArray
-)
-
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageRow
 
 NS_IMETHODIMP
-Row::GetResultByIndex(PRUint32 aIndex,
-                      nsIVariant **_result)
+mozStorageRow::GetResultByIndex(PRUint32 aIndex, nsIVariant **_result)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   NS_ADDREF(*_result = mData.ObjectAt(aIndex));
   return NS_OK;
 }
 
 NS_IMETHODIMP
-Row::GetResultByName(const nsACString &aName,
-                     nsIVariant **_result)
+mozStorageRow::GetResultByName(const nsACString &aName, nsIVariant **_result)
 {
   PRUint32 index;
   NS_ENSURE_TRUE(mNameHashtable.Get(aName, &index), NS_ERROR_NOT_AVAILABLE);
@@ -142,17 +138,17 @@ Row::GetResultByName(const nsACString &aName,
 //// mozIStorageValueArray
 
 NS_IMETHODIMP
-Row::GetNumEntries(PRUint32 *_entries)
+mozStorageRow::GetNumEntries(PRUint32 *_entries)
 {
   *_entries = mNumCols;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-Row::GetTypeOfIndex(PRUint32 aIndex,
-                    PRInt32 *_type)
+mozStorageRow::GetTypeOfIndex(PRUint32 aIndex, PRInt32 *_type)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
 
   PRUint16 type;
   (void)mData.ObjectAt(aIndex)->GetDataType(&type);
@@ -178,51 +174,55 @@ Row::GetTypeOfIndex(PRUint32 aIndex,
 }
 
 NS_IMETHODIMP
-Row::GetInt32(PRUint32 aIndex,
-              PRInt32 *_value)
+mozStorageRow::GetInt32(PRUint32 aIndex, PRInt32 *_value)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   return mData.ObjectAt(aIndex)->GetAsInt32(_value);
 }
 
 NS_IMETHODIMP
-Row::GetInt64(PRUint32 aIndex,
-              PRInt64 *_value)
+mozStorageRow::GetInt64(PRUint32 aIndex, PRInt64 *_value)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   return mData.ObjectAt(aIndex)->GetAsInt64(_value);
 }
 
 NS_IMETHODIMP
-Row::GetDouble(PRUint32 aIndex,
-               double *_value)
+mozStorageRow::GetDouble(PRUint32 aIndex, double *_value)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   return mData.ObjectAt(aIndex)->GetAsDouble(_value);
 }
 
 NS_IMETHODIMP
-Row::GetUTF8String(PRUint32 aIndex,
-                   nsACString &_value)
+mozStorageRow::GetUTF8String(PRUint32 aIndex, nsACString &_value)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   return mData.ObjectAt(aIndex)->GetAsAUTF8String(_value);
 }
 
 NS_IMETHODIMP
-Row::GetString(PRUint32 aIndex,
-               nsAString &_value)
+mozStorageRow::GetString(PRUint32 aIndex, nsAString &_value)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
+
   return mData.ObjectAt(aIndex)->GetAsAString(_value);
 }
 
 NS_IMETHODIMP
-Row::GetBlob(PRUint32 aIndex,
-             PRUint32 *_size,
-             PRUint8 **_blob)
+mozStorageRow::GetBlob(PRUint32 aIndex, PRUint32 *_size, PRUint8 **_blob)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
 
   PRUint16 type;
   nsIID interfaceIID;
@@ -231,41 +231,31 @@ Row::GetBlob(PRUint32 aIndex,
 }
 
 NS_IMETHODIMP
-Row::GetIsNull(PRUint32 aIndex,
-               PRBool *_isNull)
+mozStorageRow::GetIsNull(PRUint32 aIndex, PRBool *_isNull)
 {
-  ENSURE_INDEX_VALUE(aIndex, mNumCols);
-  NS_ENSURE_ARG_POINTER(_isNull);
+  if (aIndex >= mNumCols)
+    return NS_ERROR_ILLEGAL_VALUE;
 
   PRUint16 type;
   (void)mData.ObjectAt(aIndex)->GetDataType(&type);
-  *_isNull = type == nsIDataType::VTYPE_EMPTY;
+  *_isNull = type == nsIDataType::VTYPE_VOID;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-Row::GetSharedUTF8String(PRUint32,
-                         PRUint32 *,
-                         char const **)
+mozStorageRow::GetSharedUTF8String(PRUint32, PRUint32 *, char const **)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-Row::GetSharedString(PRUint32,
-                     PRUint32 *,
-                     const PRUnichar **)
+mozStorageRow::GetSharedString(PRUint32, PRUint32 *, const PRUnichar **)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-Row::GetSharedBlob(PRUint32,
-                   PRUint32 *,
-                   const PRUint8 **)
+mozStorageRow::GetSharedBlob(PRUint32, PRUint32 *, const PRUint8 **)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-
-} // namespace storage
-} // namespace mozilla

@@ -12,7 +12,7 @@ include('unstable/esp.js');
 let Zero_NonZero = {};
 include('unstable/zero_nonzero.js', Zero_NonZero);
 
-include('xpcom/analysis/mayreturn.js');
+include('mayreturn.js');
 
 function safe_location_of(t) {
   if (t === undefined)
@@ -34,8 +34,7 @@ let TRACE_PERF = 0;
 // Log analysis results in a special format
 let LOG_RESULTS = false;
 
-const WARN_ON_SET_NULL = false;
-const WARN_ON_SET_FAILURE = false;
+let WARN_ON_SET_NULL = false;
 
 // Filter functions to process per CLI
 let func_filter;
@@ -49,7 +48,7 @@ function process_tree(func_decl) {
   if (!func_filter(func_decl)) return;
 
   // Determine outparams and return if function not relevant
-  if (DECL_CONSTRUCTOR_P(func_decl)) return;
+  if (is_constructor(func_decl)) return;
   let psem = OutparamCheck.prototype.func_param_semantics(func_decl);
   if (!psem.some(function(x) x.check)) return;
   let decl = rectify_function_decl(func_decl);
@@ -110,6 +109,11 @@ function process_tree(func_decl) {
   }
   
   if (TRACE_PERF) timer_stop(fstring);
+}
+
+function is_constructor(function_decl)
+{
+  return function_decl.decl_common.lang_specific.decl_flags.constructor_attr;
 }
 
 // Outparam check analysis
@@ -248,14 +252,14 @@ OutparamCheck.prototype.updateEdgeState = function(e) {
 
 OutparamCheck.prototype.flowState = function(isn, state) {
   switch (TREE_CODE(isn)) {
-  case GIMPLE_ASSIGN:
+  case GIMPLE_MODIFY_STMT:
     this.processAssign(isn, state);
     break;
-  case GIMPLE_CALL:
-    this.processCall(isn, isn, state);
+  case CALL_EXPR:
+    this.processCall(undefined, isn, isn, state);
     break;
-  case GIMPLE_SWITCH:
-  case GIMPLE_COND:
+  case SWITCH_EXPR:
+  case COND_EXPR:
     // This gets handled by flowStateCond instead, has no exec effect
     break;
   default:
@@ -270,8 +274,8 @@ OutparamCheck.prototype.flowStateCond = function(isn, truth, state) {
 // For any outparams-specific semantics, we handle it here and then
 // return. Otherwise we delegate to the zero-nonzero analysis.
 OutparamCheck.prototype.processAssign = function(isn, state) {
-  let lhs = gimple_op(isn, 0);
-  let rhs = gimple_op(isn, 1);
+  let lhs = isn.operands()[0];
+  let rhs = isn.operands()[1];
 
   if (DECL_P(lhs)) {
     // Unwrap NOP_EXPR, which is semantically a copy.
@@ -311,8 +315,17 @@ OutparamCheck.prototype.processAssign = function(isn, state) {
     }
       break;
     case CALL_EXPR:
-      /* Embedded CALL_EXPRs are a 4.3 issue */
-      this.processCall(rhs, isn, state, lhs);
+      let fname = call_function_name(rhs);
+      if (fname == 'NS_FAILED') {
+        this.processTest(lhs, rhs, av.NONZERO, isn, state);
+      } else if (fname == 'NS_SUCCEEDED') {
+        this.processTest(lhs, rhs, av.ZERO, isn, state);
+      } else if (fname == '__builtin_expect') {
+        // Same as an assign from arg 0 to lhs
+        state.assign(lhs, call_args(rhs)[0], isn);
+      } else {
+        this.processCall(lhs, rhs, isn, state);
+      }
       return;
 
     case INDIRECT_REF:
@@ -372,7 +385,7 @@ OutparamCheck.prototype.processAssign = function(isn, state) {
 
 // Handle an assignment x := test(foo) where test is a simple predicate
 OutparamCheck.prototype.processTest = function(lhs, call, val, blame, state) {
-  let arg = gimple_call_arg(call, 0);
+  let arg = call_arg(call, 0);
   if (DECL_P(arg)) {
     this.zeroNonzero.predicate(state, lhs, val, arg, blame);
   } else {
@@ -381,26 +394,10 @@ OutparamCheck.prototype.processTest = function(lhs, call, val, blame, state) {
 };
 
 // The big one: outparam semantics of function calls.
-OutparamCheck.prototype.processCall = function(call, blame, state, dest) {
-  if (!dest)
-    dest = gimple_call_lhs(call);
-
-  let args = gimple_call_args(call);
-  let callable = callable_arg_function_decl(gimple_call_fn(call));
+OutparamCheck.prototype.processCall = function(dest, expr, blame, state) {
+  let args = call_args(expr);
+  let callable = callable_arg_function_decl(CALL_EXPR_FN(expr));
   let psem = this.func_param_semantics(callable);
-
-  let name = function_decl_name(callable);
-  if (name == 'NS_FAILED') {
-    this.processTest(dest, call, av.NONZERO, call, state);
-    return;
-  } else if (name == 'NS_SUCCEEDED') {
-    this.processTest(dest, call, av.ZERO, call, state);
-    return;
-  } else if (name == '__builtin_expect') {
-    // Same as an assign from arg 0 to lhs
-    state.assign(dest, args[0], call);
-    return;
-  }
 
   if (TRACE_CALL_SEM) {
     print("param semantics:" + psem);
@@ -410,6 +407,7 @@ OutparamCheck.prototype.processCall = function(call, blame, state, dest) {
     let ct = TREE_TYPE(callable);
     if (TREE_CODE(ct) == POINTER_TYPE) ct = TREE_TYPE(ct);
     if (args.length < psem.length || !stdarg_p(ct)) {
+      let name = function_decl_name(callable);
       // TODO Can __builtin_memcpy write to an outparam? Probably not.
       if (name != 'operator new' && name != 'operator delete' &&
           name != 'operator new []' && name != 'operator delete []' &&
@@ -569,7 +567,7 @@ OutparamCheck.prototype.findReturnStmt = function(ss) {
   
   for (let bb in cfg_bb_iterator(this.cfg)) {
     for (let isn in bb_isn_iterator(bb)) {
-      if (isn.tree_code() == GIMPLE_RETURN) {
+      if (TREE_CODE(isn) == RETURN_EXPR) {
         return this.cfg._cached_return = isn;
       }
     }
@@ -594,8 +592,9 @@ OutparamCheck.prototype.checkSubstateSuccess = function(ss) {
       let callMsg;
       let callName = "";
       try {
-        let call = TREE_CHECK(blameStmt, GIMPLE_CALL, GIMPLE_MODIFY_STMT);
-        let callDecl = callable_arg_function_decl(gimple_call_fn(call));
+        let callExpr = blameStmt.tree_check(GIMPLE_MODIFY_STMT).
+          operands()[1].tree_check(CALL_EXPR);
+        let callDecl = callable_arg_function_decl(CALL_EXPR_FN(callExpr));
         
         callMsg = [callDecl, "declared here"];
         callName = " '" + decl_name(callDecl) + "'";
@@ -618,11 +617,9 @@ OutparamCheck.prototype.checkSubstateFailure = function(ss) {
     let val = ss.get(v);
     if (val == av.WRITTEN) {
       this.logResult('fail', 'written', 'error');
-      if (WARN_ON_SET_FAILURE) {
-        this.warn([this.findReturnStmt(ss), "outparam '" + expr_display(v) + "' written on NS_FAILED(return value)"],
-                  [v, "outparam declared here"],
-                  [ss.getBlame(v), "written here"]);
-      }
+      this.warn([this.findReturnStmt(ss), "outparam '" + expr_display(v) + "' written on NS_FAILED(return value)"],
+                [v, "outparam declared here"],
+                [ss.getBlame(v), "written here"]);
     } else if (val == av.WROTE_NULL) {
       this.logResult('fail', 'wrote_null', 'warning');
       if (WARN_ON_SET_NULL) {
@@ -798,7 +795,6 @@ function pointer_type_is_outparam(pt) {
   case ENUMERAL_TYPE:
   case REAL_TYPE:
   case UNION_TYPE:
-  case BOOLEAN_TYPE:
     return true;
   case RECORD_TYPE:
     // TODO: should we consider field writes?

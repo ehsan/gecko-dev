@@ -45,7 +45,6 @@
 #include "nsXPIDLString.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/Services.h"
 
 //
 // implementation methods
@@ -65,14 +64,14 @@ NS_IMETHODIMP
 nsEntityConverter::LoadVersionPropertyFile()
 {
     NS_NAMED_LITERAL_CSTRING(url, "resource://gre/res/entityTables/htmlEntityVersions.properties");
-
+	nsresult rv;
     nsCOMPtr<nsIStringBundleService> bundleService =
-        mozilla::services::GetStringBundleService();
-    if (!bundleService)
-        return NS_ERROR_FAILURE;
+        do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+
+    if (NS_FAILED(rv)) return rv;
     
     nsCOMPtr<nsIStringBundle> entities;
-    nsresult rv = bundleService->CreateBundle(url.get(), getter_AddRefs(entities));
+    rv = bundleService->CreateBundle(url.get(), getter_AddRefs(entities));
     if (NS_FAILED(rv)) return rv;
     
     PRInt32	result;
@@ -276,4 +275,16 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, PRUint32 entityV
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
+}
+
+
+
+nsresult NS_NewEntityConverter(nsISupports** oResult)
+{
+   if(!oResult)
+      return NS_ERROR_NULL_POINTER;
+   *oResult = new nsEntityConverter();
+   if(*oResult)
+      NS_ADDREF(*oResult);
+   return (*oResult) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }

@@ -133,7 +133,7 @@ myLL_L2II(PRInt64 result, PRInt32 *hi, PRInt32 *lo )
 }
 
 // Locates the first occurrence of charToSearchFor in the stringToSearch
-static unsigned char*
+static unsigned char* PR_CALLBACK
 _mbschr(const unsigned char* stringToSearch, int charToSearchFor)
 {
     const unsigned char* p = stringToSearch;
@@ -149,7 +149,7 @@ _mbschr(const unsigned char* stringToSearch, int charToSearchFor)
 }
 
 // Locates the first occurrence of subString in the stringToSearch
-static unsigned char*
+static unsigned char* PR_CALLBACK
 _mbsstr(const unsigned char* stringToSearch, const unsigned char* subString)
 {
     const unsigned char* pStr = stringToSearch;
@@ -198,7 +198,7 @@ _mbsrchr(const unsigned char* stringToSearch, int charToSearchFor)
 }
 
 // Implement equivalent of Win32 CreateDirectoryA
-static nsresult
+static nsresult PR_CALLBACK
 CreateDirectoryA(PSZ path, PEAOP2 ppEABuf)
 {
     APIRET rc;
@@ -591,7 +591,7 @@ nsLocalFile::nsLocalFile()
 {
 }
 
-nsresult
+NS_METHOD
 nsLocalFile::nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr)
 {
     NS_ENSURE_ARG_POINTER(aInstancePtr);
@@ -705,18 +705,30 @@ nsLocalFile::InitWithNativePath(const nsACString &filePath)
 
     // just do a sanity check.  if it has any forward slashes, it is not
     // a Native path.  Also, it must have a colon at after the first char.
-    if (FindCharInReadable('/', begin, end))
+
+    char *path = nsnull;
+    PRInt32 pathLen = 0;
+
+    if ( ( (secondChar == ':') && !FindCharInReadable('/', begin, end) ) ||  // normal path
+         ( (firstChar == '\\') && (secondChar == '\\') ) )  // network path
+    {
+        // This is a native path
+        path = ToNewCString(filePath);
+        pathLen = filePath.Length();
+    }
+
+    if (path == nsnull)
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
-    if (secondChar != ':' && (secondChar != '\\' || firstChar != '\\'))
-        return NS_ERROR_FILE_UNRECOGNIZED_PATH;
-
-    mWorkingPath = filePath;
     // kill any trailing '\' provided it isn't the second char of DBCS
-    PRInt32 len = mWorkingPath.Length() - 1;
-    if (mWorkingPath[len] == '\\' && !::isleadbyte(mWorkingPath[len - 1]))
-        mWorkingPath.Truncate(len);
+    PRInt32 len = pathLen - 1;
+    if (path[len] == '\\' && !::isleadbyte(path[len-1]))
+    {
+        path[len] = '\0';
+        pathLen = len;
+    }
 
+    mWorkingPath.Adopt(path, pathLen);
     return NS_OK;
 }
 
@@ -730,10 +742,6 @@ nsLocalFile::OpenNSPRFileDesc(PRInt32 flags, PRInt32 mode, PRFileDesc **_retval)
     *_retval = PR_Open(mWorkingPath.get(), flags, mode);
     if (*_retval)
         return NS_OK;
-
-    if (flags & DELETE_ON_CLOSE) {
-        PR_Delete(mWorkingPath.get());
-    }
 
     return NS_ErrorAccordingToNSPR();
 }
@@ -752,6 +760,8 @@ nsLocalFile::OpenANSIFileDesc(const char *mode, FILE * *_retval)
 
     return NS_ERROR_FAILURE;
 }
+
+
 
 NS_IMETHODIMP
 nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
@@ -1487,7 +1497,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, PRBool mov
     {
         PRBool isDir;
         newParentDir->IsDirectory(&isDir);
-        if (!isDir)
+        if (isDir == PR_FALSE)
         {
             return NS_ERROR_FILE_DESTINATION_NOT_DIR;
         }

@@ -52,24 +52,49 @@ GRE_MODULE	= 1
 LIBRARY_NAME	= gkbase_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  xuldoc \
+		  gfx \
+		  widget \
+		  view \
+		  necko \
+		  docshell \
+		  webshell \
+		  webbrwsr \
+		  uriloader \
+		  js \
+		  xpconnect \
+		  plugin \
+		  locale \
+		  pref \
+		  imglib2 \
+		  unicharutil \
+		  htmlparser \
+		  util \
+		  windowwatcher \
+		  shistory \
+		  caps \
+		  thebes \
+		  $(NULL)
 
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 XPIDLSRCS	= \
 		nsIStyleSheetService.idl	\
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
 EXPORTS		= \
-		FrameLayerBuilder.h \
-		FramePropertyTable.h \
 		nsBidi.h \
 		nsBidiPresUtils.h \
 		nsCaret.h \
 		nsCSSFrameConstructor.h \
 		nsChangeHint.h \
 		nsCompatibility.h \
-		nsDisplayItemTypes.h \
 		nsDisplayList.h \
 		nsFrameManager.h \
 		nsFrameManagerBase.h \
@@ -84,21 +109,14 @@ EXPORTS		= \
 		nsIReflowCallback.h \
 		nsLayoutErrors.h \
 		nsLayoutUtils.h \
+		nsIFocusEventSuppressor.h \
 		nsPresContext.h \
 		nsPresState.h \
-		nsRefreshDriver.h \
 		nsStyleChangeList.h \
 		nsStyleConsts.h \
 		$(NULL)
 
-EXPORTS_mozilla = \
-  PaintTracker.h \
-  $(NULL)
-
 CPPSRCS		= \
-		FrameLayerBuilder.cpp \
-		FramePropertyTable.cpp \
-		RestyleTracker.cpp \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \
@@ -115,14 +133,13 @@ CPPSRCS		= \
 		nsLayoutDebugger.cpp \
 		nsLayoutHistoryState.cpp \
 		nsLayoutUtils.cpp \
-		nsPresArena.cpp \
 		nsPresContext.cpp \
 		nsPresShell.cpp \
+		nsPresState.cpp \
 		nsQuoteList.cpp \
-		nsRefreshDriver.cpp \
 		nsStyleChangeList.cpp \
 		nsStyleSheetService.cpp \
-		PaintTracker.cpp \
+		nsFocusEventSuppressor.cpp \
 		$(NULL)
 
 ifndef MOZ_XUL
@@ -148,31 +165,25 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-ifdef MOZ_IPC
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
-endif
-
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
-		-I$(srcdir)/../style \
 		-I$(srcdir)/../generic \
 		-I$(srcdir)/../forms \
 		-I$(srcdir)/../tables \
 		-I$(srcdir)/../printing \
 		-I$(srcdir)/../xul/base/src \
-		-I$(srcdir)/../xul/base/src/tree/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/events/src \
 		-I$(srcdir)/../../content/xbl/src \
 		-I$(srcdir)/../../view/src \
-		-I$(srcdir)/../../dom/base \
-		-I$(srcdir)/../../content/html/content/src \
+		-I$(srcdir)/../../dom/src/base \
 		-I$(srcdir)/../../content/svg/content/src \
 		$(NULL)
 
 ifdef MOZ_MATHML
 LOCAL_INCLUDES += \
-        -I$(srcdir)/../mathml
+        -I$(srcdir)/../mathml/content/src \
+        -I$(srcdir)/../mathml/base/src
 endif
 
 ifdef MOZ_SVG

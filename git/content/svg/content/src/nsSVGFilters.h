@@ -48,15 +48,6 @@ class nsSVGFilterResource;
 class nsSVGString;
 class nsSVGFilterInstance;
 
-struct nsSVGStringInfo {
-  nsSVGStringInfo(const nsSVGString* aString,
-                  nsSVGElement *aElement) :
-    mString(aString), mElement(aElement) {}
-
-  const nsSVGString* mString;
-  nsSVGElement* mElement;
-};
-
 typedef nsSVGStylableElement nsSVGFEBase;
 
 #define NS_SVG_FE_CID \
@@ -99,7 +90,7 @@ public:
   };
 
 protected:
-  nsSVGFE(already_AddRefed<nsINodeInfo> aNodeInfo) : nsSVGFEBase(aNodeInfo) {}
+  nsSVGFE(nsINodeInfo *aNodeInfo) : nsSVGFEBase(aNodeInfo) {}
 
   struct ScaleInfo {
     nsRefPtr<gfxImageSurface> mRealTarget;
@@ -119,21 +110,21 @@ protected:
 
 public:
   ColorModel
-  GetInputColorModel(nsSVGFilterInstance* aInstance, PRInt32 aInputIndex,
+  GetInputColorModel(nsSVGFilterInstance* aInstance, PRUint32 aInputIndex,
                      Image* aImage) {
     return ColorModel(
           (OperatesOnSRGB(aInstance, aInputIndex, aImage) ?
              ColorModel::SRGB : ColorModel::LINEAR_RGB),
-          (OperatesOnPremultipledAlpha(aInputIndex) ?
+          (OperatesOnPremultipledAlpha() ?
              ColorModel::PREMULTIPLIED : ColorModel::UNPREMULTIPLIED));
   }
 
   ColorModel
   GetOutputColorModel(nsSVGFilterInstance* aInstance) {
     return ColorModel(
-          (OperatesOnSRGB(aInstance, -1, nsnull) ?
+          (OperatesOnSRGB(aInstance, 0, nsnull) ?
              ColorModel::SRGB : ColorModel::LINEAR_RGB),
-          (OperatesOnPremultipledAlpha(-1) ?
+          (OperatesOnPremultipledAlpha() ?
              ColorModel::PREMULTIPLIED : ColorModel::UNPREMULTIPLIED));
   }
 
@@ -146,10 +137,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGFILTERPRIMITIVESTANDARDATTRIBUTES
 
-  virtual nsSVGString& GetResultImageName() = 0;
+  virtual nsSVGString* GetResultImageName() = 0;
   // Return a list of all image names used as sources. Default is to
   // return no sources.
-  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources);
+  virtual void GetSourceImageNames(nsTArray<nsSVGString*>* aSources);
   // Compute the bounding box of the filter output. The default is just the
   // union of the source bounding boxes. The caller is
   // responsible for clipping this to the filter primitive subregion, so
@@ -199,13 +190,13 @@ public:
   operator nsISupports*() { return static_cast<nsIContent*>(this); }
   
 protected:
-  virtual PRBool OperatesOnPremultipledAlpha(PRInt32) { return PR_TRUE; }
+  virtual PRBool OperatesOnPremultipledAlpha() { return PR_TRUE; }
 
-  // Called either with aInputIndex >=0 in which case this is
+  // Called either with aImage non-null, in which case this is
   // testing whether the input 'aInputIndex' should be SRGB, or
-  // if aInputIndex is -1 returns true if the output will be SRGB
+  // if aImage is null returns true if the output will be SRGB
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance* aInstance,
-                                PRInt32 aInputIndex, Image* aImage) {
+                                PRUint32 aInputIndex, Image* aImage) {
     nsIFrame* frame = GetPrimaryFrame();
     if (!frame) return PR_FALSE;
 
@@ -216,14 +207,6 @@ protected:
 
   // nsSVGElement specializations:
   virtual LengthAttributesInfo GetLengthInfo();
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumberList(PRUint8 aAttrEnum);
-  virtual void DidAnimateInteger(PRUint8 aAttrEnum);
-  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
-  virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
-  virtual void DidAnimatePreserveAspectRatio();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   // nsIDOMSVGFitlerPrimitiveStandardAttributes values
   enum { X, Y, WIDTH, HEIGHT };

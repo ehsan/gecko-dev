@@ -39,6 +39,7 @@
 #define ____nsindexedtohtml___h___
 
 #include "nsCOMPtr.h"
+#include "nsVoidArray.h"
 #include "nsIFactory.h"
 #include "nsString.h"
 #include "nsIStreamConverter.h"
@@ -69,7 +70,7 @@ public:
 
     nsresult Init(nsIStreamListener *aListener);
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:

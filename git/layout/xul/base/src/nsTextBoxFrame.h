@@ -47,7 +47,6 @@ typedef nsLeafBoxFrame nsTextBoxFrameSuper;
 class nsTextBoxFrame : public nsTextBoxFrameSuper
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -64,7 +63,7 @@ public:
                    nsIFrame*        aParent,
                    nsIFrame*        asPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -88,10 +87,6 @@ public:
                   const nsRect&        aDirtyRect,
                   nsPoint              aPt);
 
-  nsRect GetComponentAlphaBounds();
-
-  virtual PRBool ComputesOwnOverflowArea();
-
 protected:
   friend class nsAsyncAccesskeyUpdate;
   // Should be called only by nsAsyncAccesskeyUpdate.
@@ -109,13 +104,13 @@ protected:
 
   void CalcTextSize(nsBoxLayoutState& aBoxLayoutState);
 
-  void CalcDrawRect(nsIRenderingContext &aRenderingContext);
+  nsRect CalcTextRect(nsIRenderingContext &aRenderingContext, const nsPoint &aTextOrigin);
 
   nsTextBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  nscoord CalculateTitleForWidth(nsPresContext*      aPresContext,
-                                 nsIRenderingContext& aRenderingContext,
-                                 nscoord              aWidth);
+  void CalculateTitleForWidth(nsPresContext*      aPresContext,
+                              nsIRenderingContext& aRenderingContext,
+                              nscoord              aWidth);
 
   void GetTextSize(nsPresContext*      aPresContext,
                    nsIRenderingContext& aRenderingContext,
@@ -137,20 +132,19 @@ private:
   void PaintOneShadow(gfxContext *     aCtx,
                       const nsRect&    aTextRect,
                       nsCSSShadowItem* aShadowDetails,
-                      const nscolor&   aForegroundColor,
-                      const nsRect&    aDirtyRect);
+                      const nscolor&   aForegroundColor);
 
+
+  CroppingStyle mCropType;
   nsString mTitle;
   nsString mCroppedTitle;
   nsString mAccessKey;
-  nsSize mTextSize;
-  nsRect mTextDrawRect;
+  nscoord mTitleWidth;
   nsAccessKeyInfo* mAccessKeyInfo;
-
-  CroppingStyle mCropType;
-  nscoord mAscent;
   PRPackedBool mNeedsRecalc;
   PRPackedBool mNeedsReflowCallback;
+  nsSize mTextSize;
+  nscoord mAscent;
 
   static PRBool gAlwaysAppendAccessKey;
   static PRBool gAccessKeyPrefInitialized;

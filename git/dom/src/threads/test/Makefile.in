@@ -41,106 +41,25 @@ topsrcdir        = @top_srcdir@
 srcdir           = @srcdir@
 VPATH            = @srcdir@
 
-relativesrcdir   = dom/src/threads/test
+relativesrcdir   = dom/src/threads/tests
 
 include $(DEPTH)/config/autoconf.mk
-
-EXTRA_JS_MODULES = \
-  WorkerTest.jsm \
-  WorkerTest_worker.js \
-  WorkerTest_subworker.js \
-  $(NULL)
-
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \
-  test_404.html \
-  test_atob.html \
-  atob_worker.js \
-  test_close.html \
-  close_worker.js \
-  test_closeOnGC.html \
-  closeOnGC_worker.js \
-  closeOnGC_server.sjs \
-  test_errorPropagation.html \
-  errorPropagation_worker1.js \
-  errorPropagation_worker2.js \
-  test_functionHandlers.html \
-  functionHandlers_worker.js \
-  test_importScripts.html \
   importScripts_worker.js \
   importScripts_worker_imported1.js \
   importScripts_worker_imported2.js \
   importScripts_worker_imported3.js \
   importScripts_worker_imported4.js \
-  test_json.html \
-  json_worker.js \
-  test_location.html \
-  location_worker.js \
-  test_longThread.html \
-  longThread_worker.js \
-  test_navigator.html \
-  navigator_worker.js \
-  test_recursion.html \
-  recursion_worker.js \
-  test_regExpStatics.html \
-  regExpStatics_worker.js \
-  test_relativeLoad.html \
-  relativeLoad_worker.js \
-  relativeLoad_worker2.js \
-  relativeLoad_import.js \
-  test_scopeOnerror.html \
-  scopeOnerror_worker.js \
-  test_suspend.html \
-  suspend_iframe.html \
-  suspend_worker.js \
+  test_importScripts.html \
   test_simpleThread.html \
-  simpleThread_worker.js \
-  test_terminate.html \
-  terminate_worker.js \
   test_threadErrors.html \
-  threadErrors_worker1.js \
-  threadErrors_worker2.js \
-  threadErrors_worker3.js \
-  threadErrors_worker4.js \
   test_threadTimeouts.html \
-  threadTimeouts_worker.js \
-  test_throwingOnerror.html \
-  throwingOnerror_worker.js \
+  test_longThread.html \
   test_xhr.html \
-  xhr_worker.js \
-  test_xhrAbort.html \
-  xhrAbort_worker.js \
   testXHR.txt \
-  test_fibonacci.html \
-  fibonacci_worker.js \
-  test_newError.html \
-  newError_worker.js \
-  test_chromeWorker.html \
-  WorkerTest_badworker.js \
-  test_xpcom.html \
-  xpcom_worker.js \
-  $(NULL)
-
-_SUBDIR_TEST_FILES = \
-  relativeLoad_sub_worker.js \
-  relativeLoad_sub_worker2.js \
-  relativeLoad_sub_import.js \
-  $(NULL)
-
-_CHROME_TEST_FILES = \
-  test_chromeWorker.xul \
-  test_chromeWorkerComponent.xul \
-  test_chromeWorkerJSM.xul \
-  chromeWorker_worker.js \
-  chromeWorker_subworker.js \
   $(NULL)
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_SUBDIR_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)/subdir
-
-libs:: $(_CHROME_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

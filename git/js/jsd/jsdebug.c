@@ -49,7 +49,7 @@ JSD_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
                       void*              user)
 {
-    return jsd_DebuggerOnForUser(jsrt, callbacks, user, NULL);
+    return jsd_DebuggerOnForUser(jsrt, callbacks, user);
 }
 
 JSD_PUBLIC_API(JSDContext*)
@@ -65,19 +65,6 @@ JSD_DebuggerOff(JSDContext* jsdc)
     jsd_DebuggerOff(jsdc);
 }
 
-JSD_PUBLIC_API(void)
-JSD_DebuggerPause(JSDContext* jsdc)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    jsd_DebuggerPause(jsdc, JS_FALSE);
-}
-
-JSD_PUBLIC_API(void)
-JSD_DebuggerUnpause(JSDContext* jsdc)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    jsd_DebuggerUnpause(jsdc);
-}
 
 JSD_PUBLIC_API(uintN)
 JSD_GetMajorVersion(void)
@@ -135,14 +122,8 @@ JSD_ClearAllProfileData(JSDContext *jsdc)
 JSD_PUBLIC_API(void)
 JSD_SetContextFlags(JSDContext *jsdc, uint32 flags)
 {
-    uint32 oldFlags = jsdc->flags;
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     jsdc->flags = flags;
-    if (flags & JSD_COLLECT_PROFILE_DATA) {
-        /* Need to reenable our call hooks now */
-        JS_SetExecuteHook(jsdc->jsrt, jsd_TopLevelCallHook, jsdc);
-        JS_SetCallHook(jsdc->jsrt, jsd_FunctionCallHook, jsdc);
-    }
 }
 
 JSD_PUBLIC_API(uint32)
@@ -302,12 +283,12 @@ JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript)
     return jsd_GetScriptFilename(jsdc, jsdscript);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript)
+JSD_PUBLIC_API(const char*)
+JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_GetScriptFunctionId(jsdc, jsdscript);
+    return jsd_GetScriptFunctionName(jsdc, jsdscript);
 }
 
 JSD_PUBLIC_API(uintN)
@@ -577,14 +558,6 @@ JSD_SetInterruptHook(JSDContext*           jsdc,
 }
 
 JSD_PUBLIC_API(JSBool)
-JSD_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript* jsdscript, JSBool enable)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_SCRIPT(jsdscript);
-    return jsd_EnableSingleStepInterrupts(jsdc, jsdscript, enable);
-}
-
-JSD_PUBLIC_API(JSBool)
 JSD_ClearInterruptHook(JSDContext* jsdc)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
@@ -749,13 +722,22 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
     return jsd_GetThisForStackFrame(jsdc, jsdthreadstate, jsdframe);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetIdForStackFrame(JSDContext* jsdc,
+JSD_PUBLIC_API(const char*)
+JSD_GetNameForStackFrame(JSDContext* jsdc,
+                         JSDThreadState* jsdthreadstate,
+                         JSDStackFrameInfo* jsdframe)
+{
+    JSD_ASSERT_VALID_CONTEXT(jsdc);
+    return jsd_GetNameForStackFrame(jsdc, jsdthreadstate, jsdframe);
+}
+
+JSD_PUBLIC_API(JSBool)
+JSD_IsStackFrameNative(JSDContext* jsdc,
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
-    return jsd_GetIdForStackFrame(jsdc, jsdthreadstate, jsdframe);
+    return jsd_IsStackFrameNative(jsdc, jsdthreadstate, jsdframe);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -1100,7 +1082,7 @@ JSD_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueInt(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(jsdouble)
+JSD_PUBLIC_API(jsdouble*)
 JSD_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
@@ -1116,20 +1098,12 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueString(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(JSString *)
-JSD_GetValueFunctionId(JSDContext* jsdc, JSDValue* jsdval)
+JSD_PUBLIC_API(const char*)
+JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_VALUE(jsdval);
-    return jsd_GetValueFunctionId(jsdc, jsdval);
-}
-
-JSD_PUBLIC_API(JSFunction*)
-JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    JSD_ASSERT_VALID_VALUE(jsdval);
-    return jsd_GetValueFunction(jsdc, jsdval);
+    return jsd_GetValueFunctionName(jsdc, jsdval);
 }
 
 /**************************************************/
@@ -1192,12 +1166,6 @@ JSD_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueClassName(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(JSDScript*)
-JSD_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    return jsd_GetScriptForValue(jsdc, jsdval);
-}
 /**************************************************/
 
 JSD_PUBLIC_API(void)

@@ -45,8 +45,6 @@ class nsSharedPageData;
 class nsPageContentFrame : public ViewportFrame {
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   friend class nsPageFrame;
 
@@ -57,11 +55,6 @@ public:
                      nsReflowStatus&      aStatus);
 
   virtual PRBool IsContainingBlock() const;
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
-  {
-    return ViewportFrame::IsFrameOfType(aFlags &
-             ~(nsIFrame::eCanContainOverflowContainers));
-  }
 
   virtual void SetSharedPageData(nsSharedPageData* aPD) { mPD = aPD; }
 

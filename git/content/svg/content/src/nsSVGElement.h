@@ -54,11 +54,6 @@
 #include "nsWeakReference.h"
 #include "nsICSSStyleRule.h"
 
-#ifdef MOZ_SMIL
-#include "nsISMILAttr.h"
-#include "nsSMILAnimationController.h"
-#endif
-
 class nsSVGSVGElement;
 class nsSVGLength2;
 class nsSVGNumber2;
@@ -67,18 +62,7 @@ class nsSVGAngle;
 class nsSVGBoolean;
 class nsSVGEnum;
 struct nsSVGEnumMapping;
-class nsSVGViewBox;
 class nsSVGString;
-struct gfxMatrix;
-namespace mozilla {
-class SVGAnimatedNumberList;
-class SVGNumberList;
-class SVGAnimatedLengthList;
-class SVGUserUnitList;
-class SVGAnimatedPointList;
-class SVGAnimatedPathSegList;
-class SVGAnimatedPreserveAspectRatio;
-}
 
 typedef nsStyledElement nsSVGElementBase;
 
@@ -86,19 +70,11 @@ class nsSVGElement : public nsSVGElementBase,    // nsIContent
                      public nsISVGValueObserver  // :nsISupportsWeakReference
 {
 protected:
-  nsSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGElement(nsINodeInfo *aNodeInfo);
   nsresult Init();
   virtual ~nsSVGElement();
 
 public:
-  typedef mozilla::SVGNumberList SVGNumberList;
-  typedef mozilla::SVGAnimatedNumberList SVGAnimatedNumberList;
-  typedef mozilla::SVGUserUnitList SVGUserUnitList;
-  typedef mozilla::SVGAnimatedLengthList SVGAnimatedLengthList;
-  typedef mozilla::SVGAnimatedPointList SVGAnimatedPointList;
-  typedef mozilla::SVGAnimatedPathSegList SVGAnimatedPathSegList;
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -156,109 +132,32 @@ public:
   // nsnull for outer <svg> or SVG without an <svg> parent (invalid SVG).
   nsSVGSVGElement* GetCtx();
 
-  /**
-   * Returns aMatrix post-multiplied by the transform from the userspace
-   * established by this element to the userspace established by its parent.
-   */
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
-
-  // Setter for to set the current <animateMotion> transformation
-  // Only visible for nsSVGGraphicElement, so it's a no-op here, and that
-  // subclass has the useful implementation.
-  virtual void SetAnimateMotionTransform(const gfxMatrix* aMatrix) {/*no-op*/}
-
-  PRBool IsStringAnimatable(PRUint8 aAttrEnum) {
-    return GetStringInfo().mStringInfo[aAttrEnum].mIsAnimatable;
-  }
-  PRBool NumberAttrAllowsPercentage(PRUint8 aAttrEnum) {
-    return GetNumberInfo().mNumberInfo[aAttrEnum].mPercentagesAllowed;
-  }
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeViewBox(PRBool aDoSetAttr);
-  virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
-  virtual void DidChangeNumberList(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeLengthList(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangePointList(PRBool aDoSetAttr);
-  virtual void DidChangePathSegList(PRBool aDoSetAttr);
-  virtual void DidChangeString(PRUint8 aAttrEnum) {}
-
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateInteger(PRUint8 aAttrEnum);
-  virtual void DidAnimateAngle(PRUint8 aAttrEnum);
-  virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
-  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
-  virtual void DidAnimateViewBox();
-  virtual void DidAnimatePreserveAspectRatio();
-  virtual void DidAnimateNumberList(PRUint8 aAttrEnum);
-  virtual void DidAnimateLengthList(PRUint8 aAttrEnum);
-  virtual void DidAnimatePointList();
-  virtual void DidAnimatePathSegList();
-  virtual void DidAnimateTransform();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
-  SVGAnimatedNumberList* GetAnimatedNumberList(PRUint8 aAttrEnum);
-  SVGAnimatedNumberList* GetAnimatedNumberList(nsIAtom *aAttrName);
-  void GetAnimatedLengthListValues(SVGUserUnitList *aFirst, ...);
-  SVGAnimatedLengthList* GetAnimatedLengthList(PRUint8 aAttrEnum);
-  virtual SVGAnimatedPointList* GetAnimatedPointList() {
-    return nsnull;
-  }
-  virtual SVGAnimatedPathSegList* GetAnimPathSegList() {
-    // DOM interface 'SVGAnimatedPathData' (*inherited* by nsSVGPathElement)
-    // has a member called 'animatedPathSegList' member, so we have a shorter
-    // name so we don't get hidden by the GetAnimatedPathSegList declared by
-    // NS_DECL_NSIDOMSVGANIMATEDPATHDATA.
-    return nsnull;
-  }
-
-#ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName);
-  void AnimationNeedsResample();
-  void FlushAnimations();
-#else
-  void AnimationNeedsResample() { /* do nothing */ }
-  void FlushAnimations() { /* do nothing */ }
-#endif
 
   virtual void RecompileScriptEventListeners();
 
-  void GetStringBaseValue(PRUint8 aAttrEnum, nsAString& aResult) const;
-  void SetStringBaseValue(PRUint8 aAttrEnum, const nsAString& aValue);
-
-  virtual nsIAtom* GetPointListAttrName() const {
-    return nsnull;
-  }
-  virtual nsIAtom* GetPathDataAttrName() const {
-    return nsnull;
-  }
-
 protected:
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
-  static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
-                                              nsIAtom* aAttribute,
-                                              const nsAString& aValue);
 
   // Hooks for subclasses
   virtual PRBool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
-#ifdef MOZ_SMIL
-  void UpdateAnimatedContentStyleRule();
-  nsICSSStyleRule* GetAnimatedContentStyleRule();
-#endif // MOZ_SMIL
-
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
   nsresult AddMappedSVGValue(nsIAtom* aName, nsISupports* aValue,
                              PRInt32 aNamespaceID = kNameSpaceID_None);
@@ -289,7 +188,6 @@ protected:
   struct NumberInfo {
     nsIAtom** mName;
     float     mDefaultValue;
-    PRPackedBool mPercentagesAllowed;
   };
 
   struct NumberAttributesInfo {
@@ -386,60 +284,9 @@ protected:
     void Reset(PRUint8 aAttrEnum);
   };
 
-  struct NumberListInfo {
-    nsIAtom** mName;
-  };
-
-  struct NumberListAttributesInfo {
-    SVGAnimatedNumberList* mNumberLists;
-    NumberListInfo*        mNumberListInfo;
-    PRUint32               mNumberListCount;
-
-    NumberListAttributesInfo(SVGAnimatedNumberList *aNumberLists,
-                             NumberListInfo *aNumberListInfo,
-                             PRUint32 aNumberListCount)
-      : mNumberLists(aNumberLists)
-      , mNumberListInfo(aNumberListInfo)
-      , mNumberListCount(aNumberListCount)
-    {}
-
-    void Reset(PRUint8 aAttrEnum);
-  };
-
-  struct LengthListInfo {
-    nsIAtom** mName;
-    PRUint8   mAxis;
-    /**
-     * Flag to indicate whether appending zeros to the end of the list would
-     * change the rendering of the SVG for the attribute in question. For x and
-     * y on the <text> element this is true, but for dx and dy on <text> this
-     * is false. This flag is fed down to SVGLengthListSMILType so it can
-     * determine if it can sensibly animate from-to lists of different lengths,
-     * which is desirable in the case of dx and dy.
-     */
-    PRPackedBool mCouldZeroPadList;
-  };
-
-  struct LengthListAttributesInfo {
-    SVGAnimatedLengthList* mLengthLists;
-    LengthListInfo*        mLengthListInfo;
-    PRUint32               mLengthListCount;
-
-    LengthListAttributesInfo(SVGAnimatedLengthList *aLengthLists,
-                             LengthListInfo *aLengthListInfo,
-                             PRUint32 aLengthListCount)
-      : mLengthLists(aLengthLists)
-      , mLengthListInfo(aLengthListInfo)
-      , mLengthListCount(aLengthListCount)
-    {}
-
-    void Reset(PRUint8 aAttrEnum);
-  };
-
   struct StringInfo {
     nsIAtom**    mName;
     PRInt32      mNamespaceID;
-    PRPackedBool mIsAnimatable;
   };
 
   struct StringAttributesInfo {
@@ -462,12 +309,6 @@ protected:
   virtual AngleAttributesInfo GetAngleInfo();
   virtual BooleanAttributesInfo GetBooleanInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  // We assume all viewboxes and preserveAspectRatios are alike
-  // so we don't need to wrap the class
-  virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
-  virtual NumberListAttributesInfo GetNumberListInfo();
-  virtual LengthListAttributesInfo GetLengthListInfo();
   virtual StringAttributesInfo GetStringInfo();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
@@ -483,21 +324,11 @@ private:
   ParseIntegerOptionalInteger(const nsAString& aValue,
                               PRUint32 aIndex1, PRUint32 aIndex2);
 
-  void ResetOldStyleBaseType(nsISVGValue *svg_value);
+  static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
+                                              nsIAtom* aAttribute,
+                                              const nsAString& aValue);
 
-  struct ObservableModificationData {
-    // Only to be used if |name| is non-null.  Otherwise, modType will
-    // be 0 to indicate NS_OK should be returned and 1 to indicate
-    // NS_ERROR_UNEXPECTED should be returned.
-    ObservableModificationData(const nsAttrName* aName, PRUint32 aModType):
-      name(aName), modType(aModType)
-    {}
-    const nsAttrName* name;
-    PRUint8 modType;
-  };
-  ObservableModificationData
-    GetModificationDataForObservable(nsISVGValue* aObservable,
-                                     nsISVGValue::modificationType aModType);
+  void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;
@@ -511,54 +342,25 @@ private:
 #define NS_IMPL_NS_NEW_SVG_ELEMENT(_elementName)                             \
 nsresult                                                                     \
 NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
-                                 already_AddRefed<nsINodeInfo> aNodeInfo)    \
+                                 nsINodeInfo *aNodeInfo)                     \
 {                                                                            \
-  nsRefPtr<nsSVG##_elementName##Element> it =                                \
+  nsSVG##_elementName##Element *it =                                         \
     new nsSVG##_elementName##Element(aNodeInfo);                             \
   if (!it)                                                                   \
     return NS_ERROR_OUT_OF_MEMORY;                                           \
                                                                              \
-  nsresult rv = it->Init();                                                  \
-                                                                             \
-  if (NS_FAILED(rv)) {                                                       \
-    return rv;                                                               \
-  }                                                                          \
-                                                                             \
-  *aResult = it.forget().get();                                              \
-                                                                             \
-  return rv;                                                                 \
-}
-
-#define NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(_elementName)                \
-nsresult                                                                     \
-NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
-                                 already_AddRefed<nsINodeInfo> aNodeInfo,    \
-                                 FromParser aFromParser)                     \
-{                                                                            \
-  nsRefPtr<nsSVG##_elementName##Element> it =                                \
-    new nsSVG##_elementName##Element(aNodeInfo, aFromParser);                \
-  if (!it)                                                                   \
-    return NS_ERROR_OUT_OF_MEMORY;                                           \
+  NS_ADDREF(it);                                                             \
                                                                              \
   nsresult rv = it->Init();                                                  \
                                                                              \
   if (NS_FAILED(rv)) {                                                       \
+    NS_RELEASE(it);                                                          \
     return rv;                                                               \
   }                                                                          \
                                                                              \
-  *aResult = it.forget().get();                                              \
+  *aResult = it;                                                             \
                                                                              \
   return rv;                                                                 \
 }
-
- // No unlinking, we'd need to null out the value pointer (the object it
-// points to is held by the element) and null-check it everywhere.
-#define NS_SVG_VAL_IMPL_CYCLE_COLLECTION(_val, _element)                     \
-NS_IMPL_CYCLE_COLLECTION_CLASS(_val)                                         \
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(_val)                                \
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(_element, nsIContent) \
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END                                        \
-NS_IMPL_CYCLE_COLLECTION_UNLINK_0(_val)
-
 
 #endif // __NS_SVGELEMENT_H__

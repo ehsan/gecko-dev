@@ -42,79 +42,53 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = accessible
 
-DIRS	= \
-  actions \
-  attributes \
-  editabletext \
-  events \
-  hyperlink \
-  hypertext \
-  name \
-  relations \
-  selectable \
-  states \
-  table \
-  text \
-  tree \
-  treeupdate \
-  $(null)
-
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES =\
-		formimage.png \
-		letters.gif \
 		moz.png \
-		$(topsrcdir)/content/media/test/bug461281.ogg \
 		longdesc_src.html \
-		actions.js \
-		attributes.js \
 		common.js \
-		events.js \
-		grid.js \
-		layout.js \
-		name.js \
-		nsIAccessible_selects.js \
-		relations.js \
-		role.js \
-		selectable.js \
-		states.js \
-		table.js \
-		value.js \
+		nsIAccessible_actions.js \
+		nsIAccessible_name.css \
+		nsIAccessible_name.js \
+		nsIAccessible_name.xbl \
+ 		nsIAccessible_selects.js \
+		nsIAccessibleEditableText.js \
 		test_aria_activedescendant.html \
 		test_aria_role_article.html \
-		test_aria_role_equation.html \
-		test_aria_roles.html \
-		test_aria_roles.xul \
-		test_aria_token_attrs.html \
+		test_bug368835.xul \
 		test_bug420863.html \
-	$(warning   test_childAtPoint.html temporarily disabled) \
-	$(warning	test_childAtPoint.xul temporarily disabled) \
-		test_descr.html \
-		test_elm_landmarks.html \
-		test_elm_listbox.xul \
-	$(warning   test_elm_media.html temporarily disabled) \
-		test_elm_nsApplicationAcc.html \
-		test_elm_plugin.html \
-		test_keys.html \
-	$(warning test_nsIAccessible_comboboxes.xul temporarily disabled) \
+		test_cssattrs.html \
+		test_events_caretmove.html \
+		test_groupattrs.xul \
+	$(warning test_table_indexes.html temporarily disabled) \
+		test_nsIAccessible_actions.html \
+		test_nsIAccessible_actions.xul \
+		test_nsIAccessible_name.html \
+		test_nsIAccessible_name.xul \
  		test_nsIAccessible_selects.html \
 		test_nsIAccessible_focus.html \
 		test_nsIAccessibleDocument.html \
+		test_nsIAccessibleEditableText.html \
+		test_nsIAccessibleHyperLink.html \
+		test_nsIAccessibleHyperLink.xul \
+		test_nsIAccessibleHyperText.html \
 		test_nsIAccessibleImage.html \
+		test_nsIAccessibleTable_1.html \
+		test_nsIAccessibleTable_2.html \
+		test_nsIAccessibleTable_3.html \
+		test_nsIAccessibleTable_4.html \
+		test_nsIAccessibleTable_listboxes.xul \
 		test_nsIAccessNode_utils.html \
 		test_nsOuterDocAccessible.html \
-		test_role_nsHyperTextAcc.html \
-		test_text_caret.html \
+		test_textattrs.html \
 		test_textboxes.html \
 		test_textboxes.xul \
-		test_value.html \
-		test_value.xul \
 		testTextboxes.js \
-		text.js \
-		treeview.css \
-		treeview.js \
+		test_bug428479.html \
+		test_bug429285.html \
+		test_bug434464.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

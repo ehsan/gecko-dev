@@ -48,30 +48,17 @@
 
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
-#if defined(MOZ_WIDGET_QT)
-#include <QtGui/QApplication>
-#include <QtCore/QScopedPointer>
-#include <QtGui/QApplication>
-#include <QtGui/QInputContextFactory>
-#include <QtGui/QInputContext>
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-#include <MApplication>
-#include "MozMeegoAppService.h"
-#endif // MOZ_ENABLE_MEEGOTOUCH
-#endif // MOZ_WIDGET_QT
-
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentParent.h"
-using mozilla::dom::ContentParent;
-#endif
-
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
+
+#if defined(MOZ_WIDGET_QT)
+#include <qwidget.h>
+#include <qapplication.h>
+#endif
 
 #ifdef XP_MACOSX
 #include "MacLaunchHelper.h"
 #include "MacApplicationDelegate.h"
-#include "MacAutoreleasePool.h"
 #endif
 
 #ifdef XP_OS2
@@ -95,8 +82,9 @@ using mozilla::dom::ContentParent;
 #include "nsIContentHandler.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIDOMWindow.h"
+#include "nsIExtensionManager.h"
 #include "nsIFastLoadService.h" // for PLATFORM_FASL_SUFFIX
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIIOService2.h"
 #include "nsIObserverService.h"
 #include "nsINativeAppSupport.h"
@@ -122,16 +110,8 @@ using mozilla::dom::ContentParent;
 #include "nsIDocShell.h"
 #include "nsAppShellCID.h"
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
-#include <windows.h>
-#include "cairo/cairo-features.h"
-
-#ifndef PROCESS_DEP_ENABLE
-#define PROCESS_DEP_ENABLE 0x1
-#endif
 #endif
 
 #include "nsCRT.h"
@@ -143,8 +123,8 @@ using mozilla::dom::ContentParent;
 #include "nsReadableUtils.h"
 #include "nsStaticComponents.h"
 #include "nsXPCOM.h"
-#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
+#include "nsXPFEComponentsCID.h"
 #include "nsVersionComparator.h"
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -153,18 +133,12 @@ using mozilla::dom::ContentParent;
 #include "nsToolkitCompsCID.h"
 
 #include "nsINIParser.h"
-#include "mozilla/Omnijar.h"
 
 #include <stdlib.h>
-
-#if defined(MOZ_SPLASHSCREEN)
-#include "nsSplashScreen.h"
-#endif
 
 #ifdef XP_UNIX
 #include <sys/stat.h>
 #include <unistd.h>
-#include <pwd.h>
 #endif
 
 #ifdef XP_BEOS
@@ -175,10 +149,8 @@ using mozilla::dom::ContentParent;
 #endif //XP_BEOS
 
 #ifdef XP_WIN
-#ifndef WINCE
 #include <process.h>
 #include <shlobj.h>
-#endif
 #include "nsThreadUtils.h"
 #endif
 
@@ -189,7 +161,11 @@ using mozilla::dom::ContentParent;
 
 // for X remote support
 #ifdef MOZ_ENABLE_XREMOTE
+#ifdef MOZ_WIDGET_PHOTON
+#include "PhRemoteClient.h"
+#else
 #include "XRemoteClient.h"
+#endif
 #include "nsIRemoteService.h"
 #endif
 
@@ -202,8 +178,11 @@ using mozilla::dom::ContentParent;
 #endif
 
 #if defined (XP_MACOSX)
-#include <Carbon/Carbon.h>
+#include <Processes.h>
+#include <Events.h>
 #endif
+
+extern "C" void ShowOSAlert(const char* aMessage);
 
 #ifdef DEBUG
 #include "prlog.h"
@@ -217,65 +196,81 @@ using mozilla::dom::ContentParent;
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#include "nsIPrefService.h"
 #endif
 
-#ifdef MOZ_IPC
-#include "base/command_line.h"
+// on x86 linux, the current builds of some popular plugins (notably
+// flashplayer and real) expect a few builtin symbols from libgcc
+// which were available in some older versions of gcc.  However,
+// they're _NOT_ available in newer versions of gcc (eg 3.1), so if
+// we want those plugin to work with a gcc-3.1 built binary, we need
+// to provide these symbols.  MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS defaults
+// to true on x86 linux, and false everywhere else.
+//
+// The fact that the new and free operators are mismatched 
+// mirrors the way the original functions in egcs 1.1.2 worked.
+
+#ifdef MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS
+
+extern "C" {
+
+# ifndef HAVE___BUILTIN_VEC_NEW
+  void *__builtin_vec_new(size_t aSize, const std::nothrow_t &aNoThrow) throw()
+  {
+    return ::operator new(aSize, aNoThrow);
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_VEC_DELETE
+  void __builtin_vec_delete(void *aPtr, const std::nothrow_t &) throw ()
+  {
+    if (aPtr) {
+      free(aPtr);
+    }
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_NEW
+	void *__builtin_new(int aSize)
+  {
+    return malloc(aSize);
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_DELETE
+	void __builtin_delete(void *aPtr)
+  {
+    free(aPtr);
+  }
+# endif
+
+# ifndef HAVE___PURE_VIRTUAL
+  void __pure_virtual(void) {
+#ifdef WRAP_SYSTEM_INCLUDES
+#pragma GCC visibility push(default)
+#endif
+    extern void __cxa_pure_virtual(void);
+#ifdef WRAP_SYSTEM_INCLUDES
+#pragma GCC visibility pop
 #endif
 
-#include "mozilla/FunctionTimer.h"
-
-#ifdef ANDROID
-#include "AndroidBridge.h"
+    __cxa_pure_virtual();
+  }
+# endif
+}
 #endif
 
-#ifdef WINCE
-class WindowsMutex {
-public:
-  WindowsMutex(const wchar_t *name) {
-    mHandle = CreateMutexW(0, FALSE, name);
-  }
-
-  ~WindowsMutex() {
-    Unlock();
-    CloseHandle(mHandle);
-  }
-
-  PRBool Lock(DWORD timeout = INFINITE) {
-    DWORD state = WaitForSingleObject(mHandle, timeout);
-    return state == WAIT_OBJECT_0;
-  }
-  
-  void Unlock() {
-    if (mHandle)
-      ReleaseMutex(mHandle);
-  }
-
-protected:
-  HANDLE mHandle;
-};
+#if defined(XP_UNIX) || defined(XP_BEOS)
+  extern void InstallUnixSignalHandlers(const char *ProgramName);
 #endif
-
-extern void InstallSignalHandlers(const char *ProgramName);
-#include "nsX11ErrorHandler.h"
-
-#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
-#define FILE_INVALIDATE_CACHES NS_LITERAL_CSTRING(".purgecaches")
 
 int    gArgc;
 char **gArgv;
 
-static const char gToolkitVersion[] = NS_STRINGIFY(GRE_MILESTONE);
-static const char gToolkitBuildID[] = NS_STRINGIFY(GRE_BUILDID);
+static char gToolkitVersion[20];
+static char gToolkitBuildID[40];
 
 static int    gRestartArgc;
 static char **gRestartArgv;
-
-#ifdef MOZ_WIDGET_QT
-static int    gQtOnlyArgc;
-static char **gQtOnlyArgv;
-#endif
 
 #if defined(MOZ_WIDGET_GTK2)
 #if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) \
@@ -290,16 +285,6 @@ static char **gQtOnlyArgv;
 #endif /* MOZ_X11 */
 #include "nsGTKToolkit.h"
 #endif
-
-// Save literal putenv string to environment variable.
-static void
-SaveToEnv(const char *putenv)
-{
-  char *expr = strdup(putenv);
-  if (expr)
-    PR_SetEnv(expr);
-  // We intentionally leak |expr| here since it is required by PR_SetEnv.
-}
 
 // Save the given word to the specified environment variable.
 static void
@@ -469,10 +454,8 @@ static void RemoveArg(char **argv)
  *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
-CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
+CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull)
 {
-  NS_ABORT_IF_FALSE(gArgv, "gArgv must be initialized before CheckArg()");
-
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
 
@@ -489,8 +472,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
         ++arg;
 
       if (strimatch(aArg, arg)) {
-        if (aRemArg)
-          RemoveArg(curarg);
+        RemoveArg(curarg);
         if (!aParam) {
           ar = ARG_FOUND;
           break;
@@ -505,8 +487,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
             return ARG_BAD;
 
           *aParam = *curarg;
-          if (aRemArg)
-            RemoveArg(curarg);
+          RemoveArg(curarg);
           ar = ARG_FOUND;
           break;
         }
@@ -614,7 +595,7 @@ class nsXULAppInfo : public nsIXULAppInfo,
                      public nsICrashReporter,
 #endif
                      public nsIXULRuntime
-
+                     
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -625,6 +606,8 @@ public:
 #endif
 #ifdef XP_WIN
   NS_DECL_NSIWINAPPHELPER
+private:
+  nsresult LaunchAppHelperWithArgs(int aArgc, char **aArgv);
 #endif
 };
 
@@ -747,96 +730,75 @@ nsXULAppInfo::GetXPCOMABI(nsACString& aResult)
 #endif
 }
 
-NS_IMETHODIMP
-nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
-{
-  aResult.AssignLiteral(MOZ_WIDGET_TOOLKIT);
-  return NS_OK;
-}
-
-// Ensure that the GeckoProcessType enum, defined in xpcom/build/nsXULAppAPI.h,
-// is synchronized with the const unsigned longs defined in
-// xpcom/system/nsIXULRuntime.idl.
-#define SYNC_ENUMS(a,b) \
-  PR_STATIC_ASSERT(nsIXULRuntime::PROCESS_TYPE_ ## a == \
-                   static_cast<int>(GeckoProcessType_ ## b));
-
-SYNC_ENUMS(DEFAULT, Default)
-SYNC_ENUMS(PLUGIN, Plugin)
-SYNC_ENUMS(CONTENT, Content)
-SYNC_ENUMS(JETPACK, Jetpack)
-SYNC_ENUMS(IPDLUNITTEST, IPDLUnitTest)
-
-// .. and ensure that that is all of them:
-PR_STATIC_ASSERT(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End);
-
-NS_IMETHODIMP
-nsXULAppInfo::GetProcessType(PRUint32* aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = XRE_GetProcessType();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::EnsureContentProcess()
-{
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  ContentParent* c = ContentParent::GetSingleton();
-  if (!c)
-    return NS_ERROR_NOT_AVAILABLE;
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::InvalidateCachesOnRestart()
-{
-  nsCOMPtr<nsIFile> file;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_PROFILE_DIR_STARTUP, 
-                                       getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return rv;
-  if (!file)
-    return NS_ERROR_NOT_AVAILABLE;
-  
-  file->AppendNative(FILE_COMPATIBILITY_INFO);
-
-  nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(file));
-  nsINIParser parser;
-  rv = parser.Init(localFile);
-  if (NS_FAILED(rv)) {
-    // This fails if compatibility.ini is not there, so we'll
-    // flush the caches on the next restart anyways.
-    return NS_OK;
-  }
-  
-  nsCAutoString buf;
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  
-  if (NS_FAILED(rv)) {
-    PRFileDesc *fd = nsnull;
-    localFile->OpenNSPRFileDesc(PR_RDWR | PR_APPEND, 0600, &fd);
-    if (!fd) {
-      NS_ERROR("could not create output stream");
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-    static const char kInvalidationHeader[] = NS_LINEBREAK "InvalidateCaches=1" NS_LINEBREAK;
-    rv = PR_Write(fd, kInvalidationHeader, sizeof(kInvalidationHeader) - 1);
-    PR_Close(fd);
-    
-    if (NS_FAILED(rv))
-      return rv;
-  }
-  return NS_OK;
-}
-
 #ifdef XP_WIN
+nsresult 
+nsXULAppInfo::LaunchAppHelperWithArgs(int aArgc, char **aArgv)
+{
+  nsresult rv;
+  nsCOMPtr<nsIProperties> directoryService = 
+    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsILocalFile> appHelper;
+  rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(appHelper));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("uninstall"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString appHelperPath;
+  rv = appHelper->GetPath(appHelperPath);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!WinLaunchChild(appHelperPath.get(), aArgc, aArgv, 1))
+    return NS_ERROR_FAILURE;
+  else
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULAppInfo::PostUpdate(nsILocalFile *aLogFile)
+{
+  nsresult rv;
+  int upgradeArgc = aLogFile ? 3 : 2;
+  char **upgradeArgv = (char**) malloc(sizeof(char*) * (upgradeArgc + 1));
+
+  if (!upgradeArgv)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  upgradeArgv[0] = "argv0ignoredbywinlaunchchild";
+  upgradeArgv[1] = "/postupdate";
+
+  char *pathArg = nsnull;
+
+  if (aLogFile) {
+    nsCAutoString logFilePath;
+    rv = aLogFile->GetNativePath(logFilePath);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    pathArg = PR_smprintf("/uninstalllog=%s", logFilePath.get());
+    if (!pathArg)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    upgradeArgv[2] = pathArg;
+    upgradeArgv[3] = nsnull;
+  }
+  else {
+    upgradeArgv[2] = nsnull;
+  }
+
+  rv = LaunchAppHelperWithArgs(upgradeArgc, upgradeArgv);
+  
+  if (pathArg)
+    PR_smprintf_free(pathArg);
+
+  free(upgradeArgv);
+  return rv;
+}
+
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.
 typedef enum 
@@ -890,114 +852,6 @@ nsXULAppInfo::GetUserCanElevate(PRBool *aUserCanElevate)
 
 #ifdef MOZ_CRASHREPORTER
 NS_IMETHODIMP
-nsXULAppInfo::GetEnabled(PRBool *aEnabled)
-{
-  *aEnabled = CrashReporter::GetEnabled();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::SetEnabled(PRBool aEnabled)
-{
-  if (aEnabled) {
-    if (CrashReporter::GetEnabled())
-      // no point in erroring for double-enabling
-      return NS_OK;
-
-    nsCOMPtr<nsILocalFile> xreDirectory;
-    if (gAppData) {
-      xreDirectory = gAppData->xreDirectory;
-    }
-    else {
-      // We didn't get started through XRE_Main, probably
-      nsCOMPtr<nsIFile> greDir;
-      NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(greDir));
-      if (!greDir)
-        return NS_ERROR_FAILURE;
-
-      xreDirectory = do_QueryInterface(greDir);
-      if (!xreDirectory)
-        return NS_ERROR_FAILURE;
-    }
-    return CrashReporter::SetExceptionHandler(xreDirectory, true);
-  }
-  else {
-    if (!CrashReporter::GetEnabled())
-      // no point in erroring for double-disabling
-      return NS_OK;
-
-    return CrashReporter::UnsetExceptionHandler();
-  }
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::GetServerURL(nsIURL** aServerURL)
-{
-  if (!CrashReporter::GetEnabled())
-    return NS_ERROR_NOT_INITIALIZED;
-
-  nsCAutoString data;
-  if (!CrashReporter::GetServerURL(data)) {
-    return NS_ERROR_FAILURE;
-  }
-  nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), data);
-  if (!uri)
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIURL> url;
-  url = do_QueryInterface(uri);
-  NS_ADDREF(*aServerURL = url);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::SetServerURL(nsIURL* aServerURL)
-{
-  PRBool schemeOk;
-  // only allow https or http URLs
-  nsresult rv = aServerURL->SchemeIs("https", &schemeOk);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!schemeOk) {
-    rv = aServerURL->SchemeIs("http", &schemeOk);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!schemeOk)
-      return NS_ERROR_INVALID_ARG;
-  }
-  nsCAutoString spec;
-  rv = aServerURL->GetSpec(spec);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  return CrashReporter::SetServerURL(spec);
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::GetMinidumpPath(nsILocalFile** aMinidumpPath)
-{
-  if (!CrashReporter::GetEnabled())
-    return NS_ERROR_NOT_INITIALIZED;
-
-  nsAutoString path;
-  if (!CrashReporter::GetMinidumpPath(path))
-    return NS_ERROR_FAILURE;
-
-  nsresult rv = NS_NewLocalFile(path, PR_FALSE, aMinidumpPath);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::SetMinidumpPath(nsILocalFile* aMinidumpPath)
-{
-  nsAutoString path;
-  nsresult rv = aMinidumpPath->GetPath(path);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CrashReporter::SetMinidumpPath(path);
-}
-
-NS_IMETHODIMP
 nsXULAppInfo::AnnotateCrashReport(const nsACString& key,
                                   const nsACString& data)
 {
@@ -1029,24 +883,11 @@ nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
-
-NS_IMETHODIMP
-nsXULAppInfo::GetSubmitReports(PRBool* aEnabled)
-{
-  return CrashReporter::GetSubmitReports(aEnabled);
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::SetSubmitReports(PRBool aEnabled)
-{
-  return CrashReporter::SetSubmitReports(aEnabled);
-}
-
 #endif
 
 static const nsXULAppInfo kAppInfo;
-static nsresult AppInfoConstructor(nsISupports* aOuter,
-                                   REFNSIID aIID, void **aResult)
+static NS_METHOD AppInfoConstructor(nsISupports* aOuter,
+                                    REFNSIID aIID, void **aResult)
 {
   NS_ENSURE_NO_AGGREGATION(aOuter);
 
@@ -1087,26 +928,17 @@ public:
   ~ScopedXPCOMStartup();
 
   nsresult Initialize();
+  nsresult DoAutoreg();
+  nsresult RegisterProfileService();
   nsresult SetWindowCreator(nsINativeAppSupport* native);
-
-  static nsresult CreateAppSupport(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 private:
   nsIServiceManager* mServiceManager;
-  static nsINativeAppSupport* gNativeAppSupport;
 };
 
 ScopedXPCOMStartup::~ScopedXPCOMStartup()
 {
-  NS_IF_RELEASE(gNativeAppSupport);
-
   if (mServiceManager) {
-#ifdef XP_MACOSX
-    // On OS X, we need a pool to catch cocoa objects that are autoreleased
-    // during teardown.
-    mozilla::MacAutoreleasePool pool;
-#endif
-
     nsCOMPtr<nsIAppStartup> appStartup (do_GetService(NS_APPSTARTUP_CONTRACTID));
     if (appStartup)
       appStartup->DestroyHiddenWindow();
@@ -1124,49 +956,39 @@ ScopedXPCOMStartup::~ScopedXPCOMStartup()
 #define APPINFO_CID \
   { 0x95d89e3e, 0xa169, 0x41a3, { 0x8e, 0x56, 0x71, 0x99, 0x78, 0xe1, 0x5b, 0x12 } }
 
-// {0C4A446C-EE82-41f2-8D04-D366D2C7A7D4}
-static const nsCID kNativeAppSupportCID =
-  { 0xc4a446c, 0xee82, 0x41f2, { 0x8d, 0x4, 0xd3, 0x66, 0xd2, 0xc7, 0xa7, 0xd4 } };
-
-// {5F5E59CE-27BC-47eb-9D1F-B09CA9049836}
-static const nsCID kProfileServiceCID =
-  { 0x5f5e59ce, 0x27bc, 0x47eb, { 0x9d, 0x1f, 0xb0, 0x9c, 0xa9, 0x4, 0x98, 0x36 } };
-
-static already_AddRefed<nsIFactory>
-ProfileServiceFactoryConstructor(const mozilla::Module& module, const mozilla::Module::CIDEntry& entry)
+static nsModuleComponentInfo kComponents[] =
 {
-  nsCOMPtr<nsIFactory> factory;
-  NS_NewToolkitProfileFactory(getter_AddRefs(factory));
-  return factory.forget();
-}
-
-NS_DEFINE_NAMED_CID(APPINFO_CID);
-
-static const mozilla::Module::CIDEntry kXRECIDs[] = {
-  { &kAPPINFO_CID, false, NULL, AppInfoConstructor },
-  { &kProfileServiceCID, false, ProfileServiceFactoryConstructor, NULL },
-  { &kNativeAppSupportCID, false, NULL, ScopedXPCOMStartup::CreateAppSupport },
-  { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kXREContracts[] = {
-  { XULAPPINFO_SERVICE_CONTRACTID, &kAPPINFO_CID },
-  { XULRUNTIME_SERVICE_CONTRACTID, &kAPPINFO_CID },
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    XULAPPINFO_SERVICE_CONTRACTID,
+    AppInfoConstructor
+  }
 #ifdef MOZ_CRASHREPORTER
-  { NS_CRASHREPORTER_CONTRACTID, &kAPPINFO_CID },
+,
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    NS_CRASHREPORTER_CONTRACTID,
+    AppInfoConstructor
+  }
 #endif
-  { NS_PROFILESERVICE_CONTRACTID, &kProfileServiceCID },
-  { NS_NATIVEAPPSUPPORT_CONTRACTID, &kNativeAppSupportCID },
-  { NULL }
 };
 
-static const mozilla::Module kXREModule = {
-  mozilla::Module::kVersion,
-  kXRECIDs,
-  kXREContracts
+NS_IMPL_NSGETMODULE(Apprunner, kComponents)
+
+#if !defined(_BUILD_STATIC_BIN) && !defined(MOZ_ENABLE_LIBXUL)
+static nsStaticModuleInfo const kXREStaticModules[] =
+{
+  {
+    "Apprunner",
+    Apprunner_NSGetModule
+  }
 };
 
-NSMODULE_DEFN(Apprunner) = &kXREModule;
+nsStaticModuleInfo const *const kPStaticModules = kXREStaticModules;
+PRUint32 const kStaticModuleCount = NS_ARRAY_LENGTH(kXREStaticModules);
+#endif
 
 nsresult
 ScopedXPCOMStartup::Initialize()
@@ -1174,19 +996,9 @@ ScopedXPCOMStartup::Initialize()
   NS_ASSERTION(gDirServiceProvider, "Should not get here!");
 
   nsresult rv;
-
-#ifndef MOZ_ENABLE_LIBXUL
-#ifndef _BUILD_STATIC_BIN
-  XRE_AddStaticComponent(&kXREModule);
-#else
-  for (const mozilla::Module *const *const *staticModules = kPStaticModules;
-       *staticModules; ++staticModules)
-      XRE_AddStaticComponent(**staticModules);
-#endif
-#endif
-
-  rv = NS_InitXPCOM2(&mServiceManager, gDirServiceProvider->GetAppDir(),
-                     gDirServiceProvider);
+  rv = NS_InitXPCOM3(&mServiceManager, gDirServiceProvider->GetAppDir(),
+                     gDirServiceProvider,
+                     kPStaticModules, kStaticModuleCount);
   if (NS_FAILED(rv)) {
     NS_ERROR("Couldn't start xpcom!");
     mServiceManager = nsnull;
@@ -1198,6 +1010,49 @@ ScopedXPCOMStartup::Initialize()
   }
 
   return rv;
+}
+
+// {0C4A446C-EE82-41f2-8D04-D366D2C7A7D4}
+static const nsCID kNativeAppSupportCID =
+  { 0xc4a446c, 0xee82, 0x41f2, { 0x8d, 0x4, 0xd3, 0x66, 0xd2, 0xc7, 0xa7, 0xd4 } };
+
+// {5F5E59CE-27BC-47eb-9D1F-B09CA9049836}
+static const nsCID kProfileServiceCID =
+  { 0x5f5e59ce, 0x27bc, 0x47eb, { 0x9d, 0x1f, 0xb0, 0x9c, 0xa9, 0x4, 0x98, 0x36 } };
+
+nsresult
+ScopedXPCOMStartup::RegisterProfileService()
+{
+  NS_ASSERTION(mServiceManager, "Not initialized!");
+
+  nsCOMPtr<nsIFactory> factory;
+  NS_NewToolkitProfileFactory(getter_AddRefs(factory));
+  if (!factory) return NS_ERROR_OUT_OF_MEMORY;
+
+  nsCOMPtr<nsIComponentRegistrar> reg (do_QueryInterface(mServiceManager));
+  if (!reg) return NS_ERROR_NO_INTERFACE;
+
+  return reg->RegisterFactory(kProfileServiceCID,
+                              "Toolkit Profile Service",
+                              NS_PROFILESERVICE_CONTRACTID,
+                              factory);
+}
+
+nsresult
+ScopedXPCOMStartup::DoAutoreg()
+{
+#ifdef DEBUG
+  // _Always_ autoreg if we're in a debug build, under the assumption
+  // that people are busily modifying components and will be angry if
+  // their changes aren't noticed.
+  nsCOMPtr<nsIComponentRegistrar> registrar
+    (do_QueryInterface(mServiceManager));
+  NS_ASSERTION(registrar, "Where's the component registrar?");
+
+  registrar->AutoRegister(nsnull);
+#endif
+
+  return NS_OK;
 }
 
 /**
@@ -1247,48 +1102,35 @@ nsSingletonFactory::LockFactory(PRBool)
 nsresult
 ScopedXPCOMStartup::SetWindowCreator(nsINativeAppSupport* native)
 {
-  NS_TIME_FUNCTION;
   nsresult rv;
 
-  NS_IF_ADDREF(gNativeAppSupport = native);
+  nsCOMPtr<nsIComponentRegistrar> registrar
+    (do_QueryInterface(mServiceManager));
+  NS_ASSERTION(registrar, "Where's the component registrar?");
+
+  nsCOMPtr<nsIFactory> nativeFactory = new nsSingletonFactory(native);
+  NS_ENSURE_TRUE(nativeFactory, NS_ERROR_OUT_OF_MEMORY);
+
+  rv = registrar->RegisterFactory(kNativeAppSupportCID,
+                                  "Native App Support",
+                                  NS_NATIVEAPPSUPPORT_CONTRACTID,
+                                  nativeFactory);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Inform the chrome registry about OS accessibility
-  nsCOMPtr<nsIToolkitChromeRegistry> cr =
-    mozilla::services::GetToolkitChromeRegistryService();
-  NS_TIME_FUNCTION_MARK("Got ToolkitChromeRegistry service");
-
+  nsCOMPtr<nsIToolkitChromeRegistry> cr (do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
   if (cr)
     cr->CheckForOSAccessibility();
-
-  NS_TIME_FUNCTION_MARK("OS Accessibility check");
 
   nsCOMPtr<nsIWindowCreator> creator (do_GetService(NS_APPSTARTUP_CONTRACTID));
   if (!creator) return NS_ERROR_UNEXPECTED;
 
-  NS_TIME_FUNCTION_MARK("Got AppStartup service");
-
   nsCOMPtr<nsIWindowWatcher> wwatch
     (do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
-  
-  NS_TIME_FUNCTION_MARK("Got WindowWatcher service");
 
   return wwatch->SetWindowCreator(creator);
 }
-
-/* static */ nsresult
-ScopedXPCOMStartup::CreateAppSupport(nsISupports* aOuter, REFNSIID aIID, void** aResult)
-{
-  if (aOuter)
-    return NS_ERROR_NO_AGGREGATION;
-
-  if (!gNativeAppSupport)
-    return NS_ERROR_NOT_INITIALIZED;
-
-  return gNativeAppSupport->QueryInterface(aIID, aResult);
-}
-
-nsINativeAppSupport* ScopedXPCOMStartup::gNativeAppSupport;
 
 /**
  * A helper class which calls NS_LogInit/NS_LogTerm in its scope.
@@ -1307,8 +1149,12 @@ static void DumpArbitraryHelp()
   ScopedLogging log;
 
   {
+    nsXREDirProvider dirProvider;
+    dirProvider.Initialize(nsnull, gAppData->xreDirectory);
+
     ScopedXPCOMStartup xpcom;
     xpcom.Initialize();
+    xpcom.DoAutoreg();
 
     nsCOMPtr<nsICommandLineRunner> cmdline
       (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
@@ -1333,28 +1179,28 @@ DumpHelp()
 
 #ifdef MOZ_X11
   printf("X11 options\n"
-         "  --display=DISPLAY  X display to use\n"
-         "  --sync             Make X calls synchronous\n"
-         "  --no-xshm          Don't use X shared memory extension\n"
-         "  --xim-preedit=STYLE\n"
-         "  --xim-status=STYLE\n");
+         "\t--display=DISPLAY\t\tX display to use\n"
+         "\t--sync\t\tMake X calls synchronous\n"
+         "\t--no-xshm\t\tDon't use X shared memory extension\n"
+         "\t--xim-preedit=STYLE\n"
+         "\t--xim-status=STYLE\n");
 #endif
 #ifdef XP_UNIX
-  printf("  --g-fatal-warnings Make all warnings fatal\n"
+  printf("\t--g-fatal-warnings\t\tMake all warnings fatal\n"
          "\n%s options\n", gAppData->name);
 #endif
 
-  printf("  -h or -help        Print this message.\n"
-         "  -v or -version     Print %s version.\n"
-         "  -P <profile>       Start with <profile>.\n"
-         "  -migration         Start with migration wizard.\n"
-         "  -ProfileManager    Start with ProfileManager.\n"
-         "  -no-remote         Open new instance, not a new window in running instance.\n"
-         "  -UILocale <locale> Start with <locale> resources as UI Locale.\n"
-         "  -safe-mode         Disables extensions and themes for this session.\n", gAppData->name);
+  printf("\t-h or -help\t\tPrint this message.\n"
+         "\t-v or -version\t\tPrint %s version.\n"
+         "\t-P <profile>\t\tStart with <profile>.\n"
+         "\t-migration\t\tStart with migration wizard.\n"
+         "\t-ProfileManager\t\tStart with ProfileManager.\n"
+         "\t-no-remote\t\tOpen new instance, not a new window in running instance.\n"
+         "\t-UILocale <locale>\tStart with <locale> resources as UI Locale.\n"
+         "\t-safe-mode\t\tDisables extensions and themes for this session.\n", gAppData->name);
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  printf("  -console           Start %s with a debugging console.\n", gAppData->name);
+  printf("\t-console\t\tStart %s with a debugging console.\n", gAppData->name);
 #endif
 
   // this works, but only after the components have registered.  so if you drop in a new command line handler, -help
@@ -1529,16 +1375,21 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   if (!appBundle)
     return NS_ERROR_FAILURE;
 
-  CFURLRef executableURL = CFBundleCopyExecutableURL(appBundle);
-  if (!executableURL)
+  CFURLRef bundleURL = CFBundleCopyExecutableURL(appBundle);
+  if (!bundleURL)
     return NS_ERROR_FAILURE;
-  rv = lfm->InitWithCFURL(executableURL);
-  CFRelease(executableURL);
+
+  FSRef fileRef;
+  if (!CFURLGetFSRef(bundleURL, &fileRef)) {
+    CFRelease(bundleURL);
+    return NS_ERROR_FAILURE;
+  }
+
+  rv = lfm->InitWithFSRef(&fileRef);
+  CFRelease(bundleURL);
+
   if (NS_FAILED(rv))
     return rv;
-
-  // Callers expect a normalized path.
-  lfm->Normalize();
 
 #elif defined(XP_UNIX)
   struct stat fileStat;
@@ -1559,16 +1410,12 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   // 4) give up
 
 // #ifdef __linux__
-// Commented out because it used to not work because it used to not deal
-// with readlink not null-terminating the buffer.
 #if 0
   int r = readlink("/proc/self/exe", exePath, MAXPATHLEN);
 
-  if (r > 0 && r < MAXPATHLEN) {
-    exePath[r] = '\0';
-    if (stat(exePath, &fileStat) == 0) {
-      rv = NS_OK;
-    }
+  // apparently, /proc/self/exe can sometimes return weird data... check it
+  if (r > 0 && r < MAXPATHLEN && stat(exePath, &fileStat) == 0) {
+    rv = NS_OK;
   }
 
 #endif
@@ -1630,7 +1477,7 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   if (NS_FAILED(rv))
     return rv;
 
-#else
+#elif
 #error Oops, you need platform-specific code here
 #endif
 
@@ -1642,12 +1489,9 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
-#include <shellapi.h>
-
-typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 #endif
 
-#if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6) // broken kLibc
+#if defined(XP_OS2) && (__GNUC__ == 3 && __GNUC_MINOR__ == 3) // broken OS/2 GCC
 // Copy the environment maintained by the C library into an ASCIIZ array
 // that can be used to pass it on to the OS/2 Dos* APIs (which otherwise
 // don't know anything about the stuff set by PR_SetEnv() or setenv()).
@@ -1745,23 +1589,13 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   // if supported by the platform.  Otherwise, use NSPR.
  
   if (aBlankCommandLine) {
-#if defined(MOZ_WIDGET_QT)
-    // Remove only arguments not given to Qt
-    gRestartArgc = gQtOnlyArgc;
-    gRestartArgv = gQtOnlyArgv;
-#else
     gRestartArgc = 1;
     gRestartArgv[gRestartArgc] = nsnull;
-#endif
   }
 
-  SaveToEnv("MOZ_LAUNCHED_CHILD=1");
+  PR_SetEnv("MOZ_LAUNCHED_CHILD=1");
 
-#if defined(ANDROID)
-  mozilla::AndroidBridge::Bridge()->ScheduleRestart();
-#else
 #if defined(XP_MACOSX)
-  CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
   LaunchChildMac(gRestartArgc, gRestartArgv);
 #else
   nsCOMPtr<nsILocalFile> lf;
@@ -1775,7 +1609,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
-  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv))
+  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, 0))
     return NS_ERROR_FAILURE;
 
 #else
@@ -1784,8 +1618,8 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
-#if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6)
-  // implementation of _execv() is broken with kLibc 0.6.x and later
+#if defined(XP_OS2) && (__GNUC__ == 3 && __GNUC_MINOR__ == 3)
+  // implementation of _execv() is broken with GCC 3.3.x on OS/2
   if (OS2LaunchChild(exePath.get(), gRestartArgc, gRestartArgv) == -1)
     return NS_ERROR_FAILURE;
 #elif defined(XP_OS2)
@@ -1812,7 +1646,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #endif // XP_OS2 series
 #endif // WP_WIN
 #endif // WP_MACOSX
-#endif // ANDROID
 
   return NS_ERROR_LAUNCHED_CHILD_PROCESS;
 }
@@ -1831,12 +1664,13 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
   rv = xpcom.Initialize();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = xpcom.SetWindowCreator(aNative);
+  rv = xpcom.DoAutoreg();
+  rv |= xpcom.SetWindowCreator(aNative);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   { //extra scoping is needed so we release these components before xpcom shutdown
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
+    nsCOMPtr<nsIStringBundleService> sbs
+      (do_GetService(NS_STRINGBUNDLE_CONTRACTID));
     NS_ENSURE_TRUE(sbs, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIStringBundle> sb;
@@ -1879,9 +1713,8 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
     }
 
     PRInt32 button;
-    PRBool checkState;
     rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
-                       killTitle, nsnull, nsnull, nsnull, &checkState, &button);
+                       killTitle, nsnull, nsnull, nsnull, nsnull, &button);
     NS_ENSURE_SUCCESS_LOG(rv, rv);
 
     if (button == 1 && aUnlocker) {
@@ -1889,52 +1722,6 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
       if (NS_FAILED(rv)) return rv;
 
       return NS_LockProfilePath(aProfileDir, aProfileLocalDir, nsnull, aResult);
-    }
-
-    return NS_ERROR_ABORT;
-  }
-}
-
-static nsresult
-ProfileMissingDialog(nsINativeAppSupport* aNative)
-{
-  nsresult rv;
-
-  ScopedXPCOMStartup xpcom;
-  rv = xpcom.Initialize();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = xpcom.SetWindowCreator(aNative);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-
-  { //extra scoping is needed so we release these components before xpcom shutdown
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
-    NS_ENSURE_TRUE(sbs, NS_ERROR_FAILURE);
-  
-    nsCOMPtr<nsIStringBundle> sb;
-    sbs->CreateBundle(kProfileProperties, getter_AddRefs(sb));
-    NS_ENSURE_TRUE_LOG(sbs, NS_ERROR_FAILURE);
-  
-    NS_ConvertUTF8toUTF16 appName(gAppData->name);
-    const PRUnichar* params[] = {appName.get(), appName.get()};
-  
-    nsXPIDLString missingMessage;
-  
-    // profileMissing  
-    static const PRUnichar kMissing[] = {'p','r','o','f','i','l','e','M','i','s','s','i','n','g','\0'};
-    sb->FormatStringFromName(kMissing, params, 2, getter_Copies(missingMessage));
-  
-    nsXPIDLString missingTitle;
-    sb->FormatStringFromName(NS_LITERAL_STRING("profileMissingTitle").get(),
-                             params, 1, getter_Copies(missingTitle));
-  
-    if (missingMessage && missingTitle) {
-      nsCOMPtr<nsIPromptService> ps
-        (do_GetService(NS_PROMPTSERVICE_CONTRACTID));
-      NS_ENSURE_TRUE(ps, NS_ERROR_FAILURE);
-  
-      ps->Alert(nsnull, missingTitle, missingMessage);
     }
 
     return NS_ERROR_ABORT;
@@ -1959,11 +1746,13 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
     rv = xpcom.Initialize();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = xpcom.SetWindowCreator(aNative);
+    rv = xpcom.DoAutoreg();
+    rv |= xpcom.RegisterProfileService();
+    rv |= xpcom.SetWindowCreator(aNative);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
 #ifdef XP_MACOSX
-    CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+    SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
 #ifdef XP_WIN
@@ -2030,7 +1819,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
   PRBool offline = PR_FALSE;
   aProfileSvc->GetStartOffline(&offline);
   if (offline) {
-    SaveToEnv("XRE_START_OFFLINE=1");
+    PR_SetEnv("XRE_START_OFFLINE=1");
   }
 
   return LaunchChild(aNative);
@@ -2042,15 +1831,18 @@ ImportProfiles(nsIToolkitProfileService* aPService,
 {
   nsresult rv;
 
-  SaveToEnv("XRE_IMPORT_PROFILES=1");
+  PR_SetEnv("XRE_IMPORT_PROFILES=1");
 
   // try to import old-style profiles
   { // scope XPCOM
     ScopedXPCOMStartup xpcom;
     rv = xpcom.Initialize();
     if (NS_SUCCEEDED(rv)) {
+      xpcom.DoAutoreg();
+      xpcom.RegisterProfileService();
+
 #ifdef XP_MACOSX
-      CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+      SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
       nsCOMPtr<nsIProfileMigrator> migrator
@@ -2138,14 +1930,6 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
 
     nsCOMPtr<nsIProfileUnlocker> unlocker;
 
-    // Check if the profile path exists and it's a directory.
-    PRBool exists;
-    lf->Exists(&exists);
-    if (!exists) {
-        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0700);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     // If a profile path is specified directory on the command line, then
     // assume that the temp directory is the same as the given directory.
     rv = NS_LockProfilePath(lf, lf, getter_AddRefs(unlocker), aResult);
@@ -2157,9 +1941,6 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
 
   nsCOMPtr<nsIToolkitProfileService> profileSvc;
   rv = NS_NewToolkitProfileService(getter_AddRefs(profileSvc));
-  if (rv == NS_ERROR_FILE_ACCESS_DENIED)
-    PR_fprintf(PR_STDERR, "Error: Access was denied while trying to open files in " \
-                "your profile directory.\n"); 
   NS_ENSURE_SUCCESS(rv, rv);
 
   ar = CheckArg("createprofile", PR_TRUE, &arg);
@@ -2331,20 +2112,13 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
   return ShowProfileManager(profileSvc, aNative);
 }
 
-/** 
- * Checks the compatibility.ini file to see if we have updated our application
- * or otherwise invalidated our caches. If the application has been updated, 
- * we return PR_FALSE; otherwise, we return PR_TRUE. We also write the status 
- * of the caches (valid/invalid) into the return param aCachesOK. The aCachesOK
- * is always invalid if the application has been updated. 
- */
+#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
+
 static PRBool
 CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
                    const nsCString& aOSABI, nsIFile* aXULRunnerDir,
-                   nsIFile* aAppDir, nsILocalFile* aFlagFile, 
-                   PRBool* aCachesOK)
+                   nsIFile* aAppDir)
 {
-  *aCachesOK = PR_FALSE;
   nsCOMPtr<nsIFile> file;
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
@@ -2396,16 +2170,6 @@ CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
       return PR_FALSE;
   }
 
-  // If we see this flag, caches are invalid.
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
-  
-  PRBool purgeCaches = PR_FALSE;
-  if (aFlagFile) {
-    aFlagFile->Exists(&purgeCaches);
-  }
-
-  *aCachesOK = !purgeCaches && *aCachesOK;
   return PR_TRUE;
 }
 
@@ -2472,6 +2236,19 @@ WriteVersion(nsIFile* aProfileDir, const nsCString& aVersion,
   PR_Close(fd);
 }
 
+static PRBool ComponentsListChanged(nsIFile* aProfileDir)
+{
+  nsCOMPtr<nsIFile> file;
+  aProfileDir->Clone(getter_AddRefs(file));
+  if (!file)
+    return PR_TRUE;
+  file->AppendNative(NS_LITERAL_CSTRING(".autoreg"));
+
+  PRBool exists = PR_FALSE;
+  file->Exists(&exists);
+  return exists;
+}
+
 static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfileDir,
                                       PRBool aRemoveEMFiles)
 {
@@ -2479,6 +2256,15 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
     return;
+
+  file->AppendNative(NS_LITERAL_CSTRING("compreg.dat"));
+  file->Remove(PR_FALSE);
+
+  file->SetNativeLeafName(NS_LITERAL_CSTRING("xpti.dat"));
+  file->Remove(PR_FALSE);
+
+  file->SetNativeLeafName(NS_LITERAL_CSTRING(".autoreg"));
+  file->Remove(PR_FALSE);
 
   if (aRemoveEMFiles) {
     file->SetNativeLeafName(NS_LITERAL_CSTRING("extensions.ini"));
@@ -2491,12 +2277,6 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
 
   file->AppendNative(NS_LITERAL_CSTRING("XUL" PLATFORM_FASL_SUFFIX));
   file->Remove(PR_FALSE);
-  
-  file->SetNativeLeafName(NS_LITERAL_CSTRING("XPC" PLATFORM_FASL_SUFFIX));
-  file->Remove(PR_FALSE);
-
-  file->SetNativeLeafName(NS_LITERAL_CSTRING("startupCache"));
-  file->Remove(PR_TRUE);
 }
 
 // To support application initiated restart via nsIAppStartup.quit, we
@@ -2657,16 +2437,8 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     PangoContext *pangoContext = gdk_pango_context_get();
 #endif
 
-    PRBool buggyCairoShutdown = cairo_version() < CAIRO_VERSION_ENCODE(1, 4, 0);
-
-    if (!buggyCairoShutdown) {
-      // We should shut down GDK before we shut down libraries it depends on
-      // like Pango and cairo. But if cairo shutdown is buggy, we should
-      // shut down cairo first otherwise it may crash because of dangling
-      // references to Display objects (see bug 469831).
-      if (!theme_is_qt)
-        gdk_display_close(display);
-    }
+    if (!theme_is_qt)
+      gdk_display_close(display);
 
 #if CLEANUP_MEMORY
     // This doesn't take a reference.
@@ -2694,11 +2466,6 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     cairo_debug_reset_static_data();
 #endif // 2.8.0
 #endif // CLEANUP_MEMORY
-
-    if (buggyCairoShutdown) {
-      if (!theme_is_qt)
-        gdk_display_close(display);
-    }
   }
 }
 #endif // MOZ_WIDGET_GTK2
@@ -2715,84 +2482,11 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
  * By defining the symbol here, we can avoid the wasted lookup and hopefully
  * improve startup performance.
  */
-NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
-
-#ifdef MOZ_SPLASHSCREEN
-#define MOZ_SPLASHSCREEN_UPDATE(_i)  do { if (splashScreen) splashScreen->Update(_i); } while(0)
-#else
-#define MOZ_SPLASHSCREEN_UPDATE(_i)  do { } while(0)
-#endif
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-
-#include <dwrite.h>
-
-typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  __in   DWRITE_FACTORY_TYPE factoryType,
-  __in   REFIID iid,
-  __out  IUnknown **factory
-);
-
-#ifdef DEBUG_DWRITE_STARTUP
-
-#define LOGREGISTRY(msg) LogRegistryEvent(msg)
-
-// for use when monitoring process
-static void LogRegistryEvent(const wchar_t *msg)
-{
-  HKEY dummyKey;
-  HRESULT hr;
-  wchar_t buf[512];
-
-  wsprintf(buf, L" log %s", msg);
-  hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, buf, 0, KEY_READ, &dummyKey);
-  if (SUCCEEDED(hr)) {
-    RegCloseKey(dummyKey);
-  }
-}
-#else
-
-#define LOGREGISTRY(msg)
-
-#endif
-
-static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
-{
-  SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
-  LOGREGISTRY(L"loading dwrite.dll");
-  HMODULE dwdll = LoadLibraryW(L"dwrite.dll");
-  DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
-    GetProcAddress(dwdll, "DWriteCreateFactory");
-  if (createDWriteFactory) {
-    LOGREGISTRY(L"creating dwrite factory");
-    IDWriteFactory *factory;
-    HRESULT hr = createDWriteFactory(
-      DWRITE_FACTORY_TYPE_SHARED,
-      __uuidof(IDWriteFactory),
-      reinterpret_cast<IUnknown**>(&factory));
-    
-    LOGREGISTRY(L"dwrite factory done");
-    factory->Release();
-    LOGREGISTRY(L"freed factory");
-  }
-  SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
-  return 0;
-}
-#endif
-
-PRTime gXRE_mainTimestamp = 0;
+PRBool nspr_use_zone_allocator = PR_FALSE;
 
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  NS_TIME_FUNCTION;
-
-  gXRE_mainTimestamp = PR_Now();
-
-#ifdef MOZ_SPLASHSCREEN
-  nsSplashScreen *splashScreen = nsnull;
-#endif
-
   nsresult rv;
   ArgResult ar;
   NS_TIMELINE_MARK("enter main");
@@ -2802,38 +2496,32 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     NS_BREAK();
 #endif
 
-  SetupErrorHandling(argv[0]);
+#if defined (XP_WIN32) && !defined (WINCE)
+  // Suppress the "DLL Foo could not be found" dialog, such that if dependent
+  // libraries (such as GDI+) are not preset, we gracefully fail to load those
+  // XPCOM components, instead of being ungraceful.
+  UINT realMode = SetErrorMode(0);
+  realMode |= SEM_FAILCRITICALERRORS;
+  // If XRE_NO_WINDOWS_CRASH_DIALOG is set, suppress displaying the "This
+  // application has crashed" dialog box.  This is mainly useful for
+  // automated testing environments, e.g. tinderbox, where there's no need
+  // for a dozen of the dialog boxes to litter the console
+  if (getenv("XRE_NO_WINDOWS_CRASH_DIALOG"))
+    realMode |= SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX;
 
-#ifdef CAIRO_HAS_DWRITE_FONT
+  SetErrorMode(realMode);
 
-  // Bug 602792 - when DWriteCreateFactory is called the dwrite client dll
-  // starts the FntCache service if it isn't already running (it's set
-  // to manual startup by default in Windows 7 RTM).  Subsequent DirectWrite
-  // calls cause the IDWriteFactory object to communicate with the FntCache
-  // service with a timeout; if there's no response after the timeout, the
-  // DirectWrite client library will assume the service isn't around and do
-  // manual font file I/O on _all_ system fonts.  To avoid this, load the
-  // dwrite library and create a factory as early as possible so that the
-  // FntCache service is ready by the time it's needed.
-      
-  OSVERSIONINFO vinfo;
-  vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-  if (GetVersionEx(&vinfo) && vinfo.dwMajorVersion >= 6) {
-    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&InitDwriteBG, NULL, 0, NULL);
-  }
-
+#ifdef DEBUG
+  // Disable small heap allocator to get heapwalk() giving us
+  // accurate heap numbers. Win2k non-debug does not use small heap allocator.
+  // Win2k debug seems to be still using it.
+  // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/vclib/html/_crt__set_sbh_threshold.asp
+  _set_sbh_threshold(0);
+#endif
 #endif
 
-#ifdef XP_UNIX
-  const char *home = PR_GetEnv("HOME");
-  if (!home || !*home) {
-    struct passwd *pw = getpwuid(geteuid());
-    if (!pw || !pw->pw_dir) {
-      Output(PR_TRUE, "Could not determine HOME directory");
-      return 1;
-    }
-    SaveWordToEnv("HOME", nsDependentCString(pw->pw_dir));
-  }
+#if defined(XP_UNIX) || defined(XP_BEOS)
+  InstallUnixSignalHandlers(argv[0]);
 #endif
 
 #ifdef MOZ_ACCESSIBILITY_ATK
@@ -2848,9 +2536,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       PR_SetEnv(expr);
     // We intentionally leak |expr| here since it is required by PR_SetEnv.
   }
+#endif
 
-  // Suppress atk-bridge init at startup, it works after GNOME 2.24.2
-  PR_SetEnv("NO_AT_BRIDGE=1");
+  // Unbuffer stdout, needed for tinderbox tests.
+  setbuf(stdout, 0);
+
+#if defined(FREEBSD)
+  // Disable all SIGFPE's on FreeBSD, as it has non-IEEE-conformant fp
+  // trap behavior that trips up on floating-point tests performed by
+  // the JS engine.  See bugzilla bug 9967 details.
+  fpsetmask(0);
 #endif
 
   gArgc = argc;
@@ -2905,65 +2600,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     return 1;
   }
 
-#ifdef MOZ_SPLASHSCREEN
-  // check to see if we need to do a splash screen
-  PRBool wantsSplash = PR_TRUE;
-  PRBool isNoSplash = (CheckArg("nosplash", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
-  isNoSplash |= (PR_GetEnv("NO_SPLASH") != 0);
-  PRBool isNoRemote = (CheckArg("no-remote", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
-
-#ifdef WINCE
-  // synchronize startup; if it looks like we're going to have to
-  // wait, then open up a splash screen
-  WindowsMutex winStartupMutex(L"FirefoxStartupMutex");
-
-  // try to lock the mutex, but only wait 100ms to do so
-  PRBool needsMutexLock = ! winStartupMutex.Lock(100);
-
-  // If we failed to lock the mutex quickly, then we'll want
-  // a splash screen for sure.
-  //
-  // If we did manage to lock it, then we'll only want one
-  // a splash screen if there is no existing message window;
-  // that is, if we are the first instance of the app.
-  if (!needsMutexLock && !isNoRemote) {
-    // check to see if there's a remote firefox up
-    static PRUnichar classNameBuffer[128];
-    _snwprintf(classNameBuffer, sizeof(classNameBuffer) / sizeof(PRUnichar),
-               L"%S%s",
-               gAppData->name, L"MessageWindow");
-    HANDLE h = FindWindowW(classNameBuffer, 0);
-    if (h) {
-      // Someone else has the window, and we were able to grab the mutex,
-      // meaning the other instance ahs presumably already finished starting
-      // up by now.  So no need for a splash screen.
-      wantsSplash = PR_FALSE;
-      CloseHandle(h);
-    } else {
-      // We couldn't find another window, and we were able to lock the mutex;
-      // we're likely the first instance starting up, so make sure a splash
-      // screen gets thrown up.
-      wantsSplash = PR_TRUE;
-    }
-  }
-#endif //WINCE
-
-  if (wantsSplash && !isNoSplash)
-    splashScreen = nsSplashScreen::GetOrCreate();
-
-  if (splashScreen)
-    splashScreen->Open();
-
-#ifdef WINCE
-  // Now that the splash screen is open, wait indefinitely
-  // for the startup mutex on this thread if we need to.
-  if (needsMutexLock)
-    winStartupMutex.Lock();
-#endif //WINCE
-
-#endif //MOZ_SPLASHSCREEN
-
-
   ScopedLogging log;
 
   if (!appData.xreDirectory) {
@@ -2980,6 +2616,32 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = CallQueryInterface(greDir, &appData.xreDirectory);
     if (NS_FAILED(rv))
       return 2;
+  }
+
+  nsCOMPtr<nsIFile> iniFile;
+  rv = appData.xreDirectory->Clone(getter_AddRefs(iniFile));
+  if (NS_FAILED(rv))
+    return 2;
+
+  iniFile->AppendNative(NS_LITERAL_CSTRING("platform.ini"));
+
+  nsCOMPtr<nsILocalFile> localIniFile = do_QueryInterface(iniFile);
+  if (!localIniFile)
+    return 2;
+
+  nsINIParser parser;
+  rv = parser.Init(localIniFile);
+  if (NS_SUCCEEDED(rv)) {
+    rv = parser.GetString("Build", "Milestone",
+                          gToolkitVersion, sizeof(gToolkitVersion));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to get toolkit version");
+
+    rv = parser.GetString("Build", "BuildID",
+                          gToolkitBuildID, sizeof(gToolkitBuildID));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to get toolkit buildid");
+  }
+  else {
+    NS_ERROR("Couldn't parse platform.ini!");
   }
 
   if (appData.size > offsetof(nsXREAppData, minVersion)) {
@@ -3004,11 +2666,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     }
   }
 
-  nsXREDirProvider dirProvider;
-  rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
-  if (NS_FAILED(rv))
-    return 1;
-
 #ifdef MOZ_CRASHREPORTER
   const char* crashreporterEnv = PR_GetEnv("MOZ_CRASHREPORTER");
   if (crashreporterEnv && *crashreporterEnv) {
@@ -3017,10 +2674,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   if ((appData.flags & NS_XRE_ENABLE_CRASH_REPORTER) &&
       NS_SUCCEEDED(
-         CrashReporter::SetExceptionHandler(appData.xreDirectory))) {
-    if (appData.crashReporterURL)
-      CrashReporter::SetServerURL(nsDependentCString(appData.crashReporterURL));
-
+         CrashReporter::SetExceptionHandler(appData.xreDirectory,
+                                            appData.crashReporterURL))) {
     // pass some basic info from the app data
     if (appData.vendor)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Vendor"),
@@ -3037,8 +2692,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     CrashReporter::SetRestartArgs(argc, argv);
 
     // annotate other data (user id etc)
+    nsXREDirProvider dirProvider;
     nsCOMPtr<nsILocalFile> userAppDataDir;
-    if (NS_SUCCEEDED(dirProvider.GetUserAppDataDirectory(
+    rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
+    if (NS_SUCCEEDED(rv) &&
+        NS_SUCCEEDED(dirProvider.GetUserAppDataDirectory(
                                                          getter_AddRefs(userAppDataDir)))) {
       CrashReporter::SetupExtraData(userAppDataDir,
                                     nsDependentCString(appData.buildID));
@@ -3097,7 +2755,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   }
 #endif
 
-  SaveToEnv("MOZ_LAUNCHED_CHILD=");
+  PR_SetEnv("MOZ_LAUNCHED_CHILD=");
 
   gRestartArgc = gArgc;
   gRestartArgv = (char**) malloc(sizeof(char*) * (gArgc + 1 + (override ? 2 : 0)));
@@ -3124,12 +2782,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   ScopedFPHandler handler;
 #endif /* XP_OS2 */
 
-  if (PR_GetEnv("MOZ_SAFE_MODE_RESTART")) {
-    gSafeMode = PR_TRUE;
-    // unset the env variable
-    PR_SetEnv("MOZ_SAFE_MODE_RESTART=");
-  }
-
   ar = CheckArg("safe-mode", PR_TRUE);
   if (ar == ARG_BAD) {
     PR_fprintf(PR_STDERR, "Error: argument -safe-mode is invalid when argument -osint is specified\n");
@@ -3137,18 +2789,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   } else if (ar == ARG_FOUND) {
     gSafeMode = PR_TRUE;
   }
-
-#ifdef XP_WIN
-  // If the shift key is pressed and the ctrl and / or alt keys are not pressed
-  // during startup start in safe mode. GetKeyState returns a short and the high
-  // order bit will be 1 if the key is pressed. By masking the returned short
-  // with 0x8000 the result will be 0 if the key is not pressed and non-zero
-  // otherwise.
-  if (GetKeyState(VK_SHIFT) & 0x8000 &&
-      !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)) {
-    gSafeMode = PR_TRUE;
-  }
-#endif
 
 #ifdef XP_MACOSX
   if (GetCurrentEventKeyModifiers() & optionKey)
@@ -3162,7 +2802,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     PR_fprintf(PR_STDERR, "Error: argument -a requires an application name\n");
     return 1;
   } else if (ar == ARG_FOUND) {
-    SaveToEnv("MOZ_NO_REMOTE=1");
+    PR_SetEnv("MOZ_NO_REMOTE=1");
   }
 
   // Handle -help and -version command line arguments.
@@ -3181,12 +2821,12 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   gArgc = argc = NS_TraceMallocStartupArgs(gArgc, gArgv);
 #endif
 
-  MOZ_SPLASHSCREEN_UPDATE(20);
-
-  rv = XRE_InitCommandLine(gArgc, gArgv);
-  NS_ENSURE_SUCCESS(rv, 1);
-
   {
+    nsXREDirProvider dirProvider;
+    rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
+    if (NS_FAILED(rv))
+      return 1;
+
     // Check for -register, which registers chrome and then exits immediately.
     ar = CheckArg("register", PR_TRUE);
     if (ar == ARG_BAD) {
@@ -3198,8 +2838,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       NS_ENSURE_SUCCESS(rv, 1);
 
       {
-        nsCOMPtr<nsIChromeRegistry> chromeReg =
-          mozilla::services::GetChromeRegistryService();
+        nsCOMPtr<nsIChromeRegistry> chromeReg
+          (do_GetService("@mozilla.org/chrome/chrome-registry;1"));
         NS_ENSURE_TRUE(chromeReg, 1);
 
         chromeReg->CheckForNewChrome();
@@ -3218,50 +2858,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
 #if defined(MOZ_WIDGET_QT)
-    const char* qgraphicssystemARG = NULL;
-    ar = CheckArg("graphicssystem", PR_TRUE, &qgraphicssystemARG, PR_FALSE);
-    if (ar == ARG_FOUND)
-      PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
-
-#ifdef MOZ_ENABLE_MEEGOTOUCH
-    QScopedPointer<QApplication> app;
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      MozMeegoAppService *appService = new MozMeegoAppService;
-      app.reset(new MApplication(gArgc, gArgv, appService));
-    } else {
-      app.reset(new QApplication(gArgc, gArgv));
-    }
-#else
-    QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
-#endif
-
-#if MOZ_PLATFORM_MAEMO > 5
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      // try to get the MInputContext if possible to support the MeeGo VKB
-      QInputContext* inputContext = app->inputContext();
-      if (inputContext && inputContext->identifierName() != "MInputContext") {
-          QInputContext* context = QInputContextFactory::create("MInputContext",
-                                                                app.data());
-          if (context)
-              app->setInputContext(context);
-      }
-    }
-#endif
-    QStringList nonQtArguments = app->arguments();
-    gQtOnlyArgc = 1;
-    gQtOnlyArgv = (char**) malloc(sizeof(char*) 
-                  * (gRestartArgc - nonQtArguments.size() + 2));
-
-    // copy binary path
-    gQtOnlyArgv[0] = gRestartArgv[0];
-
-    for (int i = 1; i < gRestartArgc; ++i) {
-      if (!nonQtArguments.contains(gRestartArgv[i])) {
-        // copy arguments used by Qt for later
-        gQtOnlyArgv[gQtOnlyArgc++] = gRestartArgv[i];
-      }
-    }
-    gQtOnlyArgv[gQtOnlyArgc] = nsnull;
+    QApplication app(gArgc, gArgv);
 #endif
 #if defined(MOZ_WIDGET_GTK2)
 #ifdef MOZ_MEMORY
@@ -3346,12 +2943,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       _gtk_window_set_auto_startup_notification(PR_FALSE);
     }
 
-    gtk_widget_set_default_colormap(gdk_rgb_get_colormap());
+    gtk_widget_set_default_visual(gdk_rgb_get_visual());
+    gtk_widget_set_default_colormap(gdk_rgb_get_cmap());
 #endif /* MOZ_WIDGET_GTK2 */
-#ifdef MOZ_X11
-    // Do this after initializing GDK, or GDK will install its own handler.
-    InstallX11ErrorHandler();
-#endif
 
     // Call the code to install our handler
 #ifdef MOZ_JPROF
@@ -3370,34 +2964,21 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return 1;
     }
 
-#if defined(MOZ_UPDATER) && !defined(ANDROID)
-    // Check for and process any available updates
-    nsCOMPtr<nsIFile> updRoot;
-    PRBool persistent;
-    rv = dirProvider.GetFile(XRE_UPDATE_ROOT_DIR, &persistent,
-                             getter_AddRefs(updRoot));
-    // XRE_UPDATE_ROOT_DIR may fail. Fallback to appDir if failed
-    if (NS_FAILED(rv))
-      updRoot = dirProvider.GetAppDir();
+#if defined(MOZ_UPDATER)
+  // Check for and process any available updates
+  nsCOMPtr<nsIFile> updRoot;
+  PRBool persistent;
+  rv = dirProvider.GetFile(XRE_UPDATE_ROOT_DIR, &persistent,
+                           getter_AddRefs(updRoot));
+  // XRE_UPDATE_ROOT_DIR may fail. Fallback to appDir if failed
+  if (NS_FAILED(rv))
+    updRoot = dirProvider.GetAppDir();
 
-    // Support for processing an update and exiting. The MOZ_PROCESS_UPDATES
-    // environment variable will be part of the updater's environment and the
-    // application that is relaunched by the updater. When the application is
-    // relaunched by the updater it will be removed below and the application
-    // will exit.
-    if (CheckArg("process-updates")) {
-      SaveToEnv("MOZ_PROCESS_UPDATES=1");
-    }
-    ProcessUpdates(dirProvider.GetGREDir(),
-                   dirProvider.GetAppDir(),
-                   updRoot,
-                   gRestartArgc,
-                   gRestartArgv,
-                   appData.version);
-    if (PR_GetEnv("MOZ_PROCESS_UPDATES")) {
-      PR_SetEnv("MOZ_PROCESS_UPDATES=");
-      return 0;
-    }
+  ProcessUpdates(dirProvider.GetGREDir(),
+                 dirProvider.GetAppDir(),
+                 updRoot,
+                 gRestartArgc,
+                 gRestartArgv);
 #endif
 
     nsCOMPtr<nsIProfileLock> profileLock;
@@ -3408,12 +2989,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                        &profileName);
     if (rv == NS_ERROR_LAUNCHED_CHILD_PROCESS ||
         rv == NS_ERROR_ABORT) return 0;
-
-    if (NS_FAILED(rv)) {
-      // We failed to choose or create profile - notify user and quit
-      ProfileMissingDialog(nativeApp);
-      return 1;
-    }
+    if (NS_FAILED(rv)) return 1;
 
     nsCOMPtr<nsILocalFile> profD;
     rv = profileLock->GetDirectory(getter_AddRefs(profD));
@@ -3426,17 +3002,14 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = dirProvider.SetProfile(profD, profLD);
     NS_ENSURE_SUCCESS(rv, 1);
 
-#if defined(WINCE) && defined(MOZ_SPLASHSCREEN)
-    // give up the mutex, let other app startups happen
-    winStartupMutex.Unlock();
-#endif
-
     //////////////////////// NOW WE HAVE A PROFILE ////////////////////////
 
 #ifdef MOZ_CRASHREPORTER
     if (appData.flags & NS_XRE_ENABLE_CRASH_REPORTER)
         MakeOrSetMinidumpPath(profD);
 #endif
+
+    PRBool upgraded = PR_FALSE;
 
     nsCAutoString version;
     BuildVersion(version);
@@ -3451,39 +3024,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // Check for version compatibility with the last version of the app this 
     // profile was started with.  The format of the version stamp is defined
     // by the BuildVersion function.
-    // Also check to see if something has happened to invalidate our
-    // fastload caches, like an extension upgrade or installation.
- 
-    // If we see .purgecaches, that means someone did a make. 
-    // Re-register components to catch potential changes.
-    // We only offer this in debug builds, though.
-    nsCOMPtr<nsILocalFile> flagFile;
-
-    rv = NS_ERROR_FILE_NOT_FOUND;
-    nsCOMPtr<nsIFile> fFlagFile;
-    if (gAppData->directory) {
-      rv = gAppData->directory->Clone(getter_AddRefs(fFlagFile));
-    }
-    flagFile = do_QueryInterface(fFlagFile);
-    if (flagFile) {
-      flagFile->AppendNative(FILE_INVALIDATE_CACHES);
-    }
-
-    PRBool cachesOK;
-    PRBool versionOK = CheckCompatibility(profD, version, osABI, 
+    PRBool versionOK = CheckCompatibility(profD, version, osABI,
                                           dirProvider.GetGREDir(),
-                                          gAppData->directory, flagFile,
-                                          &cachesOK);
-    if (CheckArg("purgecaches")) {
-      cachesOK = PR_FALSE;
-    }
-    if (PR_GetEnv("MOZ_PURGE_CACHES")) {
-      cachesOK = PR_FALSE;
-    }
- 
+                                          gAppData->directory);
+
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
-    // the fastload caches.  On subsequent launches if the version matches, 
+    // the compreg.dat.  On subsequent launches if the version matches, 
     // there is no need for re-registration.  If the user loads the same
     // profile in different builds the component registry must be
     // re-generated to prevent mysterious component loading failures.
@@ -3494,40 +3041,32 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    dirProvider.GetGREDir(), gAppData->directory);
     }
     else if (versionOK) {
-      if (!cachesOK) {
-        // Remove caches, forcing component re-registration.
+      if (ComponentsListChanged(profD)) {
+        // Remove compreg.dat and xpti.dat, forcing component re-registration.
         // The new list of additional components directories is derived from
         // information in "extensions.ini".
         RemoveComponentRegistries(profD, profLD, PR_FALSE);
-        
-        // Rewrite compatibility.ini to remove the flag
-        WriteVersion(profD, version, osABI,
-                     dirProvider.GetGREDir(), gAppData->directory);
       }
       // Nothing need be done for the normal startup case.
     }
     else {
-      // Remove caches, forcing component re-registration
+      // Remove compreg.dat and xpti.dat, forcing component re-registration
       // with the default set of components (this disables any potentially
       // troublesome incompatible XPCOM components). 
       RemoveComponentRegistries(profD, profLD, PR_TRUE);
+
+      // Tell the Extension Manager it should check for incompatible 
+      // Extensions and re-write the "extensions.ini" file with a list of 
+      // directories for compatible extensions
+      upgraded = PR_TRUE;
 
       // Write out version
       WriteVersion(profD, version, osABI,
                    dirProvider.GetGREDir(), gAppData->directory);
     }
 
-    if (flagFile) {
-      flagFile->Remove(PR_TRUE);
-    }
-
+    PRBool needsRestart = PR_FALSE;
     PRBool appInitiatedRestart = PR_FALSE;
-
-    MOZ_SPLASHSCREEN_UPDATE(30);
-
-    NS_TIME_FUNCTION_MARK("Next: ScopedXPCOMStartup");
-
-    NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup");
 
     // Allows the user to forcefully bypass the restart process at their
     // own risk. Useful for debugging or for tinderboxes where child 
@@ -3536,61 +3075,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       // Start the real application
       ScopedXPCOMStartup xpcom;
       rv = xpcom.Initialize();
-      NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: Initialize");
       NS_ENSURE_SUCCESS(rv, 1); 
-
-
-#ifdef NS_FUNCTION_TIMER
-      // initialize some common services, so we don't pay the cost for these at odd times later on;
-      // SetWindowCreator -> ChromeRegistry -> IOService -> SocketTransportService -> (nspr wspm init), Prefs
-      {
-        nsCOMPtr<nsISupports> comp;
-
-        comp = do_GetService("@mozilla.org/preferences-service;1");
-        NS_TIME_FUNCTION_MARK("Pref Service");
-
-        comp = do_GetService("@mozilla.org/network/socket-transport-service;1");
-        NS_TIME_FUNCTION_MARK("Socket Transport Service");
-
-        comp = do_GetService("@mozilla.org/network/dns-service;1");
-        NS_TIME_FUNCTION_MARK("DNS Service");
-
-        comp = do_GetService("@mozilla.org/network/io-service;1");
-        NS_TIME_FUNCTION_MARK("IO Service");
-
-        comp = do_GetService("@mozilla.org/chrome/chrome-registry;1");
-        NS_TIME_FUNCTION_MARK("Chrome Registry Service");
-
-        comp = do_GetService("@mozilla.org/focus-event-suppressor-service;1");
-        NS_TIME_FUNCTION_MARK("Focus Event Suppressor Service");
-      }
-#endif
-
-      rv = xpcom.SetWindowCreator(nativeApp);
-      NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: SetWindowCreator");
+      rv = xpcom.DoAutoreg();
+      rv |= xpcom.RegisterProfileService();
+      rv |= xpcom.SetWindowCreator(nativeApp);
       NS_ENSURE_SUCCESS(rv, 1);
-
-      NS_TIME_FUNCTION_MARK("ScopedXPCOMStartup: Done");
-
-#ifdef MOZ_CRASHREPORTER
-      // tell the crash reporter to also send the release channel
-      nsCOMPtr<nsIPrefService> prefs = do_GetService("@mozilla.org/preferences-service;1", &rv);
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIPrefBranch> defaultPrefBranch;
-        rv = prefs->GetDefaultBranch(nsnull, getter_AddRefs(defaultPrefBranch));
-
-        if (NS_SUCCEEDED(rv)) {
-          nsXPIDLCString sval;
-          rv = defaultPrefBranch->GetCharPref("app.update.channel", getter_Copies(sval));
-          if (NS_SUCCEEDED(rv)) {
-            CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ReleaseChannel"),
-                                               sval);
-          }
-        }
-      }
-#endif
-
-      NS_TIME_FUNCTION_MARK("Next: AppStartup");
 
       {
         if (startOffline) {
@@ -3610,13 +3099,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           NS_TIMELINE_LEAVE("startupNotifier");
         }
 
-        NS_TIME_FUNCTION_MARK("Finished startupNotifier");
-
-        nsCOMPtr<nsIAppStartup2> appStartup
+        nsCOMPtr<nsIAppStartup> appStartup
           (do_GetService(NS_APPSTARTUP_CONTRACTID));
         NS_ENSURE_TRUE(appStartup, 1);
-
-        NS_TIME_FUNCTION_MARK("Created AppStartup");
 
         if (gDoMigration) {
           nsCOMPtr<nsIFile> file;
@@ -3644,133 +3129,138 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           if (pm)
             pm->Migrate(&dirProvider);
         }
-
-        NS_TIME_FUNCTION_MARK("Profile migration");
-
         dirProvider.DoStartup();
 
-        NS_TIME_FUNCTION_MARK("dirProvider.DoStartup() (profile-after-change)");
-
-        PRBool shuttingDown = PR_FALSE;
-        appStartup->GetShuttingDown(&shuttingDown);
-
-        nsCOMPtr<nsICommandLineRunner> cmdLine;
+        nsCOMPtr<nsICommandLineRunner> cmdLine
+          (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
+        NS_ENSURE_TRUE(cmdLine, 1);
 
         nsCOMPtr<nsIFile> workingDir;
         rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
         NS_ENSURE_SUCCESS(rv, 1);
 
-        if (!shuttingDown) {
-          cmdLine = do_CreateInstance("@mozilla.org/toolkit/command-line;1");
-          NS_ENSURE_TRUE(cmdLine, 1);
+        rv = cmdLine->Init(gArgc, gArgv,
+                           workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
+        NS_ENSURE_SUCCESS(rv, 1);
 
-          rv = cmdLine->Init(gArgc, gArgv,
-                             workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
-          NS_ENSURE_SUCCESS(rv, 1);
-
-          /* Special-case services that need early access to the command
-             line. */
-          nsCOMPtr<nsIObserverService> obsService =
-            mozilla::services::GetObserverService();
-          if (obsService) {
-            obsService->NotifyObservers(cmdLine, "command-line-startup", nsnull);
-          }
-
-          NS_TIME_FUNCTION_MARK("Early command line init");
-
-          NS_TIME_FUNCTION_MARK("Next: prepare for Run");
+        /* Special-case services that need early access to the command
+           line. */
+        nsCOMPtr<nsIObserver> chromeObserver
+          (do_GetService("@mozilla.org/chrome/chrome-registry;1"));
+        if (chromeObserver) {
+          chromeObserver->Observe(cmdLine, "command-line-startup", nsnull);
         }
 
-        SaveStateForAppInitiatedRestart();
-
-        // clear out any environment variables which may have been set 
-        // during the relaunch process now that we know we won't be relaunching.
-        SaveToEnv("XRE_PROFILE_PATH=");
-        SaveToEnv("XRE_PROFILE_LOCAL_PATH=");
-        SaveToEnv("XRE_PROFILE_NAME=");
-        SaveToEnv("XRE_START_OFFLINE=");
-        SaveToEnv("XRE_IMPORT_PROFILES=");
-        SaveToEnv("NO_EM_RESTART=");
-        SaveToEnv("XUL_APP_FILE=");
-        SaveToEnv("XRE_BINARY_PATH=");
-
-        NS_TIME_FUNCTION_MARK("env munging");
-
-        if (!shuttingDown) {
-          NS_TIME_FUNCTION_MARK("Next: CreateHiddenWindow");
-
-          NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
-          rv = appStartup->CreateHiddenWindow();
-          NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
-          NS_ENSURE_SUCCESS(rv, 1);
-
-          MOZ_SPLASHSCREEN_UPDATE(50);
+        NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
+        rv = appStartup->CreateHiddenWindow();
+        NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
+        NS_ENSURE_SUCCESS(rv, 1);
 
 #if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-          nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
-          if (toolkit && !desktopStartupID.IsEmpty()) {
-            toolkit->SetDesktopStartupID(desktopStartupID);
-          }
+        nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
+        if (toolkit && !desktopStartupID.IsEmpty()) {
+          toolkit->SetDesktopStartupID(desktopStartupID);
+        }
 #endif
 
-#ifdef XP_MACOSX
-          // Set up ability to respond to system (Apple) events. This must be
-          // done before setting up the command line service.
-          SetupMacApplicationDelegate();
+        // Extension Compatibility Checking and Startup
+        if (gAppData->flags & NS_XRE_ENABLE_EXTENSION_MANAGER) {
+          nsCOMPtr<nsIExtensionManager> em(do_GetService("@mozilla.org/extensions/manager;1"));
+          NS_ENSURE_TRUE(em, 1);
 
+          ar = CheckArg("install-global-extension", PR_TRUE);
+          if (ar == ARG_BAD) {
+            PR_fprintf(PR_STDERR, "Error: argument -install-global-extension is invalid when argument -osint is specified\n");
+            return 1;
+          } else if (ar == ARG_FOUND) {
+            // Do the required processing and then shut down.
+            em->HandleCommandLineArgs(cmdLine);
+            return 0;
+          }
+
+          ar = CheckArg("install-global-theme", PR_TRUE);
+          if (ar == ARG_BAD) {
+            PR_fprintf(PR_STDERR, "Error: argument -install-global-theme is invalid when argument -osint is specified\n");
+            return 1;
+          } else if (ar == ARG_FOUND) {
+            // Do the required processing and then shut down.
+            em->HandleCommandLineArgs(cmdLine);
+            return 0;
+          }
+
+          if (upgraded) {
+            rv = em->CheckForMismatches(&needsRestart);
+            if (NS_FAILED(rv)) {
+              needsRestart = PR_FALSE;
+              upgraded = PR_FALSE;
+            }
+          }
+
+          if (!upgraded || !needsRestart)
+            em->Start(cmdLine, &needsRestart);
+        }
+
+        // We want to restart no more than 2 times. The first restart,
+        // NO_EM_RESTART == "0" , and the second time, "1".
+        char* noEMRestart = PR_GetEnv("NO_EM_RESTART");
+        if (noEMRestart && *noEMRestart && *noEMRestart == '1') {
+          if (upgraded || needsRestart) {
+            NS_WARNING("EM tried to force us to restart twice! Forcefully preventing that.");
+          }
+          needsRestart = upgraded = PR_FALSE;
+        }
+
+        if (!upgraded && !needsRestart) {
+          SaveStateForAppInitiatedRestart();
+
+          // clear out any environment variables which may have been set 
+          // during the relaunch process now that we know we won't be relaunching.
+          PR_SetEnv("XRE_PROFILE_PATH=");
+          PR_SetEnv("XRE_PROFILE_LOCAL_PATH=");
+          PR_SetEnv("XRE_PROFILE_NAME=");
+          PR_SetEnv("XRE_START_OFFLINE=");
+          PR_SetEnv("XRE_IMPORT_PROFILES=");
+          PR_SetEnv("NO_EM_RESTART=");
+          PR_SetEnv("XUL_APP_FILE=");
+          PR_SetEnv("XRE_BINARY_PATH=");
+
+#ifdef XP_MACOSX
           // we re-initialize the command-line service and do appleevents munging
           // after we are sure that we're not restarting
           cmdLine = do_CreateInstance("@mozilla.org/toolkit/command-line;1");
           NS_ENSURE_TRUE(cmdLine, 1);
 
-          CommandLineServiceMac::SetupMacCommandLine(gArgc, gArgv, PR_FALSE);
+          SetupMacCommandLine(gArgc, gArgv);
 
           rv = cmdLine->Init(gArgc, gArgv,
                              workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
           NS_ENSURE_SUCCESS(rv, 1);
 #endif
-
-          MOZ_SPLASHSCREEN_UPDATE(70);
-
-          nsCOMPtr<nsIObserverService> obsService =
-            mozilla::services::GetObserverService();
+#ifdef MOZ_WIDGET_COCOA
+          // Prepare Cocoa's form of Apple Event handling.
+          SetupMacApplicationDelegate();
+#endif
+          nsCOMPtr<nsIObserverService> obsService
+            (do_GetService("@mozilla.org/observer-service;1"));
           if (obsService)
             obsService->NotifyObservers(nsnull, "final-ui-startup", nsnull);
 
-          NS_TIME_FUNCTION_MARK("final-ui-startup done");
-
-          appStartup->GetShuttingDown(&shuttingDown);
-        }
-
-        if (!shuttingDown) {
           rv = cmdLine->Run();
           NS_ENSURE_SUCCESS_LOG(rv, 1);
 
-          appStartup->GetShuttingDown(&shuttingDown);
-        }
-
-#ifdef MOZ_ENABLE_XREMOTE
-        nsCOMPtr<nsIRemoteService> remoteService;
-#endif /* MOZ_ENABLE_XREMOTE */
-        if (!shuttingDown) {
 #ifdef MOZ_ENABLE_XREMOTE
           // if we have X remote support, start listening for requests on the
           // proxy window.
+          nsCOMPtr<nsIRemoteService> remoteService;
           remoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
           if (remoteService)
             remoteService->Startup(gAppData->name,
                                    PromiseFlatCString(profileName).get());
 #endif /* MOZ_ENABLE_XREMOTE */
 
+          // enable win32 DDE responses and Mac appleevents responses
           nativeApp->Enable();
-        }
 
-        NS_TIME_FUNCTION_MARK("Next: Run");
-
-        NS_TIME_FUNCTION_MARK("appStartup->Run");
-
-        MOZ_SPLASHSCREEN_UPDATE(90);
-        {
           NS_TIMELINE_ENTER("appStartup->Run");
           rv = appStartup->Run();
           NS_TIMELINE_LEAVE("appStartup->Run");
@@ -3778,30 +3268,41 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             NS_ERROR("failed to run appstartup");
             gLogConsoleErrors = PR_TRUE;
           }
-        }
 
-        NS_TIME_FUNCTION_MARK("Next: Finish");
+          // Check for an application initiated restart.  This is one that
+          // corresponds to nsIAppStartup.quit(eRestart)
+          if (rv == NS_SUCCESS_RESTART_APP) {
+            needsRestart = PR_TRUE;
+            appInitiatedRestart = PR_TRUE;
+          }
 
-        NS_TIME_FUNCTION_MARK("appStartup->Run done");
-
-        // Check for an application initiated restart.  This is one that
-        // corresponds to nsIAppStartup.quit(eRestart)
-        if (rv == NS_SUCCESS_RESTART_APP)
-          appInitiatedRestart = PR_TRUE;
-
-        if (!shuttingDown) {
 #ifdef MOZ_ENABLE_XREMOTE
           // shut down the x remote proxy window
           if (remoteService)
             remoteService->Shutdown();
 #endif /* MOZ_ENABLE_XREMOTE */
-        }
 
 #ifdef MOZ_TIMELINE
-        // Make sure we print this out even if timeline is runtime disabled
-        if (NS_FAILED(NS_TIMELINE_LEAVE("main1")))
-          NS_TimelineForceMark("...main1");
+          // Make sure we print this out even if timeline is runtime disabled
+          if (NS_FAILED(NS_TIMELINE_LEAVE("main1")))
+            NS_TimelineForceMark("...main1");
 #endif
+        }
+        else {
+          // Upgrade condition (build id changes), but the restart hint was 
+          // not set by the Extension Manager. This is because the compatibility
+          // resolution for Extensions is different than for the component 
+          // registry - major milestone vs. build id. 
+          needsRestart = PR_TRUE;
+
+#ifdef XP_WIN
+          ProcessDDE(nativeApp, PR_TRUE);
+#endif
+
+#ifdef XP_MACOSX
+          SetupMacCommandLine(gRestartArgc, gRestartArgv);
+#endif
+        }
       }
     }
 
@@ -3810,10 +3311,19 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     profileLock->Unlock();
 
     // Restart the app after XPCOM has been shut down cleanly. 
-    if (appInitiatedRestart) {
-      MOZ_SPLASHSCREEN_UPDATE(90);
-
-      RestoreStateForAppInitiatedRestart();
+    if (needsRestart) {
+      if (appInitiatedRestart) {
+        RestoreStateForAppInitiatedRestart();
+      }
+      else {
+        char* noEMRestart = PR_GetEnv("NO_EM_RESTART");
+        if (noEMRestart && *noEMRestart) {
+          PR_SetEnv("NO_EM_RESTART=1");
+        }
+        else {
+          PR_SetEnv("NO_EM_RESTART=0");
+        }
+      }
 
       // Ensure that these environment variables are set:
       SaveFileToEnvIfUnset("XRE_PROFILE_PATH", profD);
@@ -3828,13 +3338,20 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       }
 #endif
 
-#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-      if (!desktopStartupID.IsEmpty()) {
-        nsCAutoString desktopStartupEnv;
-        desktopStartupEnv.AssignLiteral("DESKTOP_STARTUP_ID=");
-        desktopStartupEnv.Append(desktopStartupID);
-        // Leak it with extreme prejudice!
-        PR_SetEnv(ToNewCString(desktopStartupEnv));
+// XXXkt s/MOZ_TOOLKIT_GTK2/MOZ_WIDGET_GTK2/?
+// but the hidden window has been destroyed so toolkit is NULL anyway.
+#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_TOOLKIT_GTK2)
+      nsGTKToolkit* toolkit = GetGTKToolkit();
+      if (toolkit) {
+        nsCAutoString currentDesktopStartupID;
+        toolkit->GetDesktopStartupID(&currentDesktopStartupID);
+        if (!currentDesktopStartupID.IsEmpty()) {
+          nsCAutoString desktopStartupEnv;
+          desktopStartupEnv.AssignLiteral("DESKTOP_STARTUP_ID=");
+          desktopStartupEnv.Append(currentDesktopStartupID);
+          // Leak it with extreme prejudice!
+          PR_SetEnv(ToNewCString(desktopStartupEnv));
+        }
       }
 #endif
 
@@ -3842,7 +3359,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       MOZ_gdk_display_close(display);
 #endif
 
-      rv = LaunchChild(nativeApp, PR_TRUE);
+      rv = LaunchChild(nativeApp, appInitiatedRestart);
 
 #ifdef MOZ_CRASHREPORTER
       if (appData.flags & NS_XRE_ENABLE_CRASH_REPORTER)
@@ -3864,143 +3381,5 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       CrashReporter::UnsetExceptionHandler();
 #endif
 
-  XRE_DeinitCommandLine();
-
   return NS_FAILED(rv) ? 1 : 0;
-}
-
-nsresult
-XRE_InitCommandLine(int aArgc, char* aArgv[])
-{
-  nsresult rv = NS_OK;
-
-#if defined(MOZ_IPC)
-
-#if defined(OS_WIN)
-  CommandLine::Init(aArgc, aArgv);
-#else
-
-  // these leak on error, but that's OK: we'll just exit()
-  char** canonArgs = new char*[aArgc];
-
-  // get the canonical version of the binary's path
-  nsCOMPtr<nsILocalFile> binFile;
-  rv = XRE_GetBinaryPath(aArgv[0], getter_AddRefs(binFile));
-  if (NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-
-  nsCAutoString canonBinPath;
-  rv = binFile->GetNativePath(canonBinPath);
-  if (NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-
-  canonArgs[0] = strdup(canonBinPath.get());
-
-  for (int i = 1; i < aArgc; ++i) {
-    if (aArgv[i]) {
-      canonArgs[i] = strdup(aArgv[i]);
-    }
-  }
- 
-  NS_ASSERTION(!CommandLine::IsInitialized(), "Bad news!");
-  CommandLine::Init(aArgc, canonArgs);
-
-  for (int i = 0; i < aArgc; ++i)
-      free(canonArgs[i]);
-  delete[] canonArgs;
-#endif
-#endif
-
-#ifdef MOZ_OMNIJAR
-  const char *omnijarPath = nsnull;
-  ArgResult ar = CheckArg("omnijar", PR_FALSE, &omnijarPath);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -omnijar requires an omnijar path\n");
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!omnijarPath)
-    return rv;
-
-  nsCOMPtr<nsILocalFile> omnijar;
-  rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE,
-                             getter_AddRefs(omnijar));
-  if (NS_SUCCEEDED(rv))
-    mozilla::SetOmnijar(omnijar);
-#endif
-
-  return rv;
-}
-
-nsresult
-XRE_DeinitCommandLine()
-{
-  nsresult rv = NS_OK;
-
-#if defined(MOZ_IPC)
-  CommandLine::Terminate();
-#endif
-
-  return rv;
-}
-
-GeckoProcessType
-XRE_GetProcessType()
-{
-#ifdef MOZ_IPC
-  return mozilla::startup::sChildProcessType;
-#else
-  return GeckoProcessType_Default;
-#endif
-}
-
-void
-SetupErrorHandling(const char* progname)
-{
-#ifdef XP_WIN
-  /* On Windows XPSP3 and Windows Vista if DEP is configured off-by-default
-     we still want DEP protection: enable it explicitly and programmatically.
-     
-     This function is not available on WinXPSP2 so we dynamically load it.
-  */
-
-  HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-  SetProcessDEPPolicyFunc _SetProcessDEPPolicy =
-    (SetProcessDEPPolicyFunc) GetProcAddress(kernel32, "SetProcessDEPPolicy");
-  if (_SetProcessDEPPolicy)
-    _SetProcessDEPPolicy(PROCESS_DEP_ENABLE);
-#endif
-
-#if defined (XP_WIN32) && !defined (WINCE)
-  // Suppress the "DLL Foo could not be found" dialog, such that if dependent
-  // libraries (such as GDI+) are not preset, we gracefully fail to load those
-  // XPCOM components, instead of being ungraceful.
-  UINT realMode = SetErrorMode(0);
-  realMode |= SEM_FAILCRITICALERRORS;
-  // If XRE_NO_WINDOWS_CRASH_DIALOG is set, suppress displaying the "This
-  // application has crashed" dialog box.  This is mainly useful for
-  // automated testing environments, e.g. tinderbox, where there's no need
-  // for a dozen of the dialog boxes to litter the console
-  if (getenv("XRE_NO_WINDOWS_CRASH_DIALOG"))
-    realMode |= SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX;
-
-  SetErrorMode(realMode);
-
-#endif
-
-#ifndef XP_OS2
-  InstallSignalHandlers(progname);
-#endif
-
-#ifndef WINCE
-  // Unbuffer stdout, needed for tinderbox tests.
-  setbuf(stdout, 0);
-#endif
-
-#if defined(FREEBSD)
-  // Disable all SIGFPE's on FreeBSD, as it has non-IEEE-conformant fp
-  // trap behavior that trips up on floating-point tests performed by
-  // the JS engine.  See bugzilla bug 9967 details.
-  fpsetmask(0);
-#endif
 }

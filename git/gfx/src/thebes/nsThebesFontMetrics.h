@@ -56,7 +56,7 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLanguage,
+    NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLangGroup,
                      nsIDeviceContext *aContext, 
                      gfxUserFontSet *aUserFontSet = nsnull);
     NS_IMETHOD  Destroy();
@@ -75,7 +75,7 @@ public:
     NS_IMETHOD  GetMaxAscent(nscoord &aAscent);
     NS_IMETHOD  GetMaxDescent(nscoord &aDescent);
     NS_IMETHOD  GetMaxAdvance(nscoord &aAdvance);
-    NS_IMETHOD  GetLanguage(nsIAtom** aLanguage);
+    NS_IMETHOD  GetLangGroup(nsIAtom** aLangGroup);
     NS_IMETHOD  GetFontHandle(nsFontHandle &aHandle);
     NS_IMETHOD  GetAveCharWidth(nscoord& aAveCharWidth);
     NS_IMETHOD  GetSpaceWidth(nscoord& aSpaceCharWidth);
@@ -121,15 +121,7 @@ public:
                                 nscoord aX, nscoord aY,
                                 PRInt32 aFontID,
                                 const nscoord* aSpacing,
-                                nsThebesRenderingContext *aContext)
-    {
-      NS_ASSERTION(!aSpacing, "Spacing not supported here");
-      return DrawString(aString, aLength, aX, aY, aContext, aContext);
-    }
-    virtual nsresult DrawString(const PRUnichar* aString, PRUint32 aLength,
-                                nscoord aX, nscoord aY,
-                                nsIRenderingContext *aContext,
-                                nsIRenderingContext *aTextRunConstructionContext);
+                                nsThebesRenderingContext *aContext);
 
 #ifdef MOZ_MATHML
     // These two functions get the bounding metrics for this handle,
@@ -149,8 +141,6 @@ public:
     virtual void SetTextRunRTL(PRBool aIsRTL) { mTextRunRTL = aIsRTL; }
 
     virtual gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
-
-    virtual gfxUserFontSet* GetUserFontSet();
     
     PRBool GetRightToLeftTextRunMode() {
         return mTextRunRTL;
@@ -199,7 +189,7 @@ protected:
 
 private:
     nsThebesDeviceContext *mDeviceContext;
-    nsCOMPtr<nsIAtom> mLanguage;
+    nsCOMPtr<nsIAtom> mLangGroup;
     PRInt32 mP2A;
     PRPackedBool mIsRightToLeft;
     PRPackedBool mTextRunRTL;

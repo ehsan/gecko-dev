@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Robert Relyea (rrelyea@redhat.com)
- *   Meena Vyas (meena.vyas@oracle.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,11 +61,6 @@
 #include "secport.h"
 #include "prmon.h"
 #include "prenv.h"
-#include "prsystem.h" /* for PR_GetDirectorySeparator() */
-#include "sys/stat.h"
-#if defined (_WIN32)
-#include <io.h>
-#endif
 
 #ifdef SQLITE_UNSAFE_THREADS
 #include "prlock.h"
@@ -252,7 +246,6 @@ sdb_getTempDirCallback(void *arg, int columnCount, char **cval, char **cname)
     int found = 0;
     char *file = NULL;
     char *end, *dir;
-    char dirsep;
 
     /* we've already found the temp directory, don't look at any more records*/
     if (*(char **)arg) {
@@ -281,8 +274,7 @@ sdb_getTempDirCallback(void *arg, int columnCount, char **cval, char **cname)
     }
 
     /* drop of the database file name and just return the directory */
-    dirsep = PR_GetDirectorySeparator();
-    end = PORT_Strrchr(file, dirsep);
+    end = PORT_Strrchr(file, '/');
     if (!end) {
 	return SQLITE_OK;
     }
@@ -325,7 +317,7 @@ sdb_getTempDir(sqlite3 *sqlDB)
 /*
  * Map SQL_LITE errors to PKCS #11 errors as best we can.
  */
-static CK_RV
+static int 
 sdb_mapSQLError(sdbDataType type, int sqlerr)
 {
     switch (sqlerr) {
@@ -371,40 +363,38 @@ static char *sdb_BuildFileName(const char * directory,
 
 /*
  * find out how expensive the access system call is for non-existant files
- * in the given directory.  Return the number of operations done in 33 ms.
+ * in the given directory.
  */
-static PRUint32
+PRIntervalTime
 sdb_measureAccess(const char *directory)
 {
-    PRUint32 i;
+    char *temp;
     PRIntervalTime time;
     PRIntervalTime delta;
-    PRIntervalTime duration = PR_MillisecondsToInterval(33);
+    PRIntervalTime next;
+    int i;
 
     /* no directory, just return one */
     if (directory == NULL) {
 	return 1;
     }
 
-    /* measure number of Access operations that can be done in 33 milliseconds
-     * (1/30'th of a second), or 10000 operations, which ever comes first.
-     */
+    /* measure 200 iterations so we have some resolution in the timer
+     * to work with. This code tries to open 200 unique files so that
+     * any caching code is defeated and we can get a reasonable idea about
+     * how well the underlying file system works */
     time =  PR_IntervalNow();
-    for (i=0; i < 10000u; i++) { 
-	char *temp;
-	PRIntervalTime next;
-
+    for (i=0; i < 200; i++) { 
         temp  = sdb_BuildFileName(directory,"","._dOeSnotExist_", time+i, 0);
 	PR_Access(temp,PR_ACCESS_EXISTS);
         sqlite3_free(temp);
-	next = PR_IntervalNow();
-	delta = next - time;
-	if (delta >= duration)
-	    break;
-    }
+    } 
+    next = PR_IntervalNow();
+    delta = next - time;
 
     /* always return 1 or greater */
-    return i ? i : 1u;
+    if (delta == 0) delta = 1;
+    return delta;
 }
 
 /*
@@ -732,7 +722,6 @@ sdb_FindObjectsInit(SDB *sdb, const CK_ATTRIBUTE *template, CK_ULONG count,
 
 loser: 
     if (findstmt) {
-	sqlite3_reset(findstmt);
 	sqlite3_finalize(findstmt);
     }
     if (sqlDB) {
@@ -828,49 +817,51 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
 	goto loser;
     }
 
-    for (i=0; i < count; i++) {
-	getStr = sqlite3_mprintf("a%x", template[i].type);
-
-	if (getStr == NULL) {
-	    error = CKR_HOST_MEMORY;
-	    goto loser;
+    getStr = sqlite3_mprintf("");
+    for (i=0; getStr && i < count; i++) {
+	if (i==0) {
+	    newStr = sqlite3_mprintf("a%x", template[i].type);
+	} else {
+	    newStr = sqlite3_mprintf("%s, a%x", getStr, template[i].type);
 	}
-
-	newStr = sqlite3_mprintf(GET_ATTRIBUTE_CMD, getStr, table);
 	sqlite3_free(getStr);
-	getStr = NULL;
-	if (newStr == NULL) {
-	    error = CKR_HOST_MEMORY;
-	    goto loser;
+	getStr = newStr;
+    }
+
+    if (getStr == NULL) {
+	error = CKR_HOST_MEMORY;
+	goto loser;
+    }
+
+    newStr = sqlite3_mprintf(GET_ATTRIBUTE_CMD, getStr, table);
+    sqlite3_free(getStr);
+    getStr = NULL;
+    if (newStr == NULL) {
+	error = CKR_HOST_MEMORY;
+	goto loser;
+    }
+
+    sqlerr = sqlite3_prepare_v2(sqlDB, newStr, -1, &stmt, NULL);
+    if (sqlerr != SQLITE_OK) { goto loser; }
+    sqlerr = sqlite3_bind_int(stmt, 1, object_id);
+    if (sqlerr != SQLITE_OK) { goto loser; }
+    do {
+	sqlerr = sqlite3_step(stmt);
+	if (sqlerr == SQLITE_BUSY) {
+	    PR_Sleep(SDB_BUSY_RETRY_TIME);
 	}
-
-	sqlerr = sqlite3_prepare_v2(sqlDB, newStr, -1, &stmt, NULL);
-	sqlite3_free(newStr);
-	newStr = NULL;
-	if (sqlerr == SQLITE_ERROR) {
-	    template[i].ulValueLen = -1;
-	    error = CKR_ATTRIBUTE_TYPE_INVALID;
-	    continue;
-	} else if (sqlerr != SQLITE_OK) { goto loser; }
-
-	sqlerr = sqlite3_bind_int(stmt, 1, object_id);
-	if (sqlerr != SQLITE_OK) { goto loser; }
-
-	do {
-	    sqlerr = sqlite3_step(stmt);
-	    if (sqlerr == SQLITE_BUSY) {
-		PR_Sleep(SDB_BUSY_RETRY_TIME);
-	    }
-	    if (sqlerr == SQLITE_ROW) {
+	if (sqlerr == SQLITE_ROW) {
+	    for (i=0; i < count; i++) {
+		int column = i;
 	    	int blobSize;
 	    	const char *blobData;
 
-	    	blobSize = sqlite3_column_bytes(stmt, 0);
-		blobData = sqlite3_column_blob(stmt, 0);
+	    	blobSize = sqlite3_column_bytes(stmt, column);
+		blobData = sqlite3_column_blob(stmt, column);
 		if (blobData == NULL) {
 		    template[i].ulValueLen = -1;
 		    error = CKR_ATTRIBUTE_TYPE_INVALID; 
-		    break;
+		    continue;
 		}
 		/* If the blob equals our explicit NULL value, then the 
 		 * attribute is a NULL. */
@@ -883,18 +874,15 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
 		    if (template[i].ulValueLen < blobSize) {
 			template[i].ulValueLen = -1;
 		    	error = CKR_BUFFER_TOO_SMALL;
-			break;
+			continue;
 		    }
 	    	    PORT_Memcpy(template[i].pValue, blobData, blobSize);
 		}
 		template[i].ulValueLen = blobSize;
-		found = 1;
 	    }
-	} while (!sdb_done(sqlerr,&retry));
-	sqlite3_reset(stmt);
-	sqlite3_finalize(stmt);
-	stmt = NULL;
-    }
+	    found = 1;
+	}
+    } while (!sdb_done(sqlerr,&retry));
 
 loser:
     /* fix up the error if necessary */
@@ -903,6 +891,9 @@ loser:
 	if (!found && error == CKR_OK) {
 	    error = CKR_OBJECT_HANDLE_INVALID;
 	}
+    }
+    if (newStr) {
+	sqlite3_free(newStr);
     }
 
     if (stmt) {
@@ -1513,10 +1504,6 @@ sdb_PutMetaData(SDB *sdb, const char *id, const SECItem *item1,
     int retry = 0;
     const char *cmd = PW_CREATE_CMD;
 
-    if ((sdb->sdb_flags & SDB_RDONLY) != 0) {
-	return CKR_TOKEN_WRITE_PROTECTED;
-    }
-
     LOCK_SQLITE()  
     error = sdb_openDBLocal(sdb_p, &sqlDB, NULL);
     if (error != CKR_OK) {
@@ -1661,14 +1648,6 @@ static int tableExists(sqlite3 *sqlDB, const char *tableName)
     return (sqlerr == SQLITE_OK) ? 1 : 0;
 }
 
-void sdb_SetForkState(PRBool forked)
-{
-    /* XXXright now this is a no-op. The global fork state in the softokn3
-     * shared library is already taken care of at the PKCS#11 level.
-     * If and when we add fork state to the sqlite shared library and extern
-     * interface, we will need to set it and reset it from here */
-}
-
 /*
  * initialize a single database
  */
@@ -1679,7 +1658,7 @@ static const char ALTER_CMD[] =
 
 CK_RV 
 sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
-	 int *newInit, int flags, PRUint32 accessOps, SDB **pSdb)
+	 int *newInit, int flags, PRIntervalTime accessTime, SDB **pSdb)
 {
     int i;
     char *initStr = NULL;
@@ -1692,9 +1671,10 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
     CK_RV error = CKR_OK;
     char *cacheTable = NULL;
     PRIntervalTime now = 0;
+    PRIntervalTime tempAccess = 0;
+    char *tempDir = NULL;
     char *env;
     PRBool enableCache = PR_FALSE;
-    PRBool create;
 
     *pSdb = NULL;
     *inUpdate = 0;
@@ -1704,8 +1684,7 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
      * sqlite3 will always create it.
      */
     LOCK_SQLITE();
-    create = (PR_Access(dbname, PR_ACCESS_EXISTS) != PR_SUCCESS);
-    if ((flags == SDB_RDONLY) && create) {
+    if ((flags == SDB_RDONLY) && PR_Access(dbname, PR_ACCESS_EXISTS)) {
 	error = sdb_mapSQLError(type, SQLITE_CANTOPEN);
 	goto loser;
     }
@@ -1713,14 +1692,6 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
     if (sqlerr != SQLITE_OK) {
 	error = sdb_mapSQLError(type, sqlerr); 
 	goto loser;
-    }
-    /* sql created the file, but it doesn't set appropriate modes for
-     * a database */
-    if (create) {
-	/* NO NSPR call for this? :( */
-#ifndef WINCE
-	chmod (dbname, 0600);
-#endif
     }
 
     if (flags != SDB_RDONLY) {
@@ -1856,22 +1827,20 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
      } else if (env && PORT_Strcasecmp(env,"yes") == 0) {
 	enableCache = PR_TRUE;
      } else {
-	char *tempDir = NULL;
-	PRUint32 tempOps = 0;
 	/*
 	 *  Use PR_Access to determine how expensive it
 	 * is to check for the existance of a local file compared to the same
 	 * check in the temp directory. If the temp directory is faster, cache
 	 * the database there. */
 	tempDir = sdb_getTempDir(sqlDB);
-	if (tempDir) {
-	    tempOps = sdb_measureAccess(tempDir);
-	    PORT_Free(tempDir);
+	tempAccess = sdb_measureAccess(tempDir);
+	PORT_Free(tempDir);
+	tempDir = NULL;
 
-	    /* There is a cost to continually copying the database. 
-	     * Account for that cost  with the arbitrary factor of 10 */
-	    enableCache = (PRBool)(tempOps > accessOps * 10);
-	}
+	/* there is a cost to continually copying the database, account for
+	 * that cost in the temp access time with the arbitrary factor of 4 */
+	tempAccess = tempAccess*4;
+	enableCache = (tempAccess < accessTime) ? PR_TRUE : PR_FALSE;
     }
 
     if (enableCache) {
@@ -1911,10 +1880,8 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
     sdb_p->sqlXactDB = NULL;
     sdb_p->sqlXactThread = NULL;
     sdb->private = sdb_p;
-    sdb->version = 0;
     sdb->sdb_type = SDB_SQL;
     sdb->sdb_flags = flags | SDB_HAS_META;
-    sdb->app_private = NULL;
     sdb->sdb_FindObjectsInit = sdb_FindObjectsInit;
     sdb->sdb_FindObjects = sdb_FindObjects;
     sdb->sdb_FindObjectsFinal = sdb_FindObjectsFinal;
@@ -1927,9 +1894,7 @@ sdb_init(char *dbname, char *table, sdbDataType type, int *inUpdate,
     sdb->sdb_Begin = sdb_Begin;
     sdb->sdb_Commit = sdb_Commit;
     sdb->sdb_Abort = sdb_Abort;
-    sdb->sdb_Reset = sdb_Reset;
     sdb->sdb_Close = sdb_Close;
-    sdb->sdb_SetForkState = sdb_SetForkState;
 
     if (inTransaction) {
 	sqlerr = sqlite3_exec(sqlDB, COMMIT_CMD, NULL, 0, NULL);
@@ -1978,12 +1943,10 @@ s_open(const char *directory, const char *certPrefix, const char *keyPrefix,
 				   "key", key_version, flags);
     CK_RV error = CKR_OK;
     int inUpdate;
-    PRUint32 accessOps;
+    PRIntervalTime accessTime;
 
-    if (certdb) 
-	*certdb = NULL;
-    if (keydb) 
-	*keydb = NULL;
+    *certdb = NULL;
+    *keydb = NULL;
     *newInit = 0;
 
 #ifdef SQLITE_UNSAFE_THREADS
@@ -1998,7 +1961,7 @@ s_open(const char *directory, const char *certPrefix, const char *keyPrefix,
 
     /* how long does it take to test for a non-existant file in our working
      * directory? Allows us to test if we may be on a network file system */
-    accessOps = sdb_measureAccess(directory);
+    accessTime = sdb_measureAccess(directory);
 
     /*
      * open the cert data base
@@ -2006,7 +1969,7 @@ s_open(const char *directory, const char *certPrefix, const char *keyPrefix,
     if (certdb) {
 	/* initialize Certificate database */
 	error = sdb_init(cert, "nssPublic", SDB_CERT, &inUpdate,
-			 newInit, flags, accessOps, certdb);
+			 newInit, flags, accessTime, certdb);
 	if (error != CKR_OK) {
 	    goto loser;
 	}
@@ -2023,7 +1986,7 @@ s_open(const char *directory, const char *certPrefix, const char *keyPrefix,
     if (keydb) {
 	/* initialize the Key database */
 	error = sdb_init(key, "nssPrivate", SDB_KEY, &inUpdate, 
-			newInit, flags, accessOps, keydb);
+			newInit, flags, accessTime, keydb);
 	if (error != CKR_OK) {
 	    goto loser;
 	} 

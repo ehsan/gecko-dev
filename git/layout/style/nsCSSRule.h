@@ -41,53 +41,42 @@
 #define nsCSSRule_h___
 
 #include "nsISupports.h"
-#include "nsCOMPtr.h"
-#include "nsCSSStyleSheet.h"
 
+class nsIStyleSheet;
+class nsICSSStyleSheet;
+class nsPresContext;
+struct nsRuleData;
 class nsICSSGroupRule;
 
 class nsCSSRule {
 public:
-  nsCSSRule(void)
-    : mSheet(nsnull),
-      mParentRule(nsnull)
-  {
-  }
+  nsCSSRule(void);
+  nsCSSRule(const nsCSSRule& aCopy);
+  virtual ~nsCSSRule(void);
 
-  nsCSSRule(const nsCSSRule& aCopy)
-    : mSheet(aCopy.mSheet),
-      mParentRule(aCopy.mParentRule)
-  {
-  }
+  // for implementing nsISupports
+  NS_IMETHOD_(nsrefcnt) AddRef();
+  NS_IMETHOD_(nsrefcnt) Release();
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+public:
 
-  already_AddRefed<nsIStyleSheet>
-  GetStyleSheet() const
-  {
-    NS_IF_ADDREF(mSheet);
-    return mSheet;
-  }
+  NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const;
+  NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet);
 
-  void
-  SetStyleSheet(nsCSSStyleSheet* aSheet)
-  {
-    // We don't reference count this up reference. The style sheet
-    // will tell us when it's going away or when we're detached from
-    // it.
-    mSheet = aSheet;
-  }
+  NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule);
 
-  void
-  SetParentRule(nsICSSGroupRule* aRule)
-  {
-    // We don't reference count this up reference. The group rule
-    // will tell us when it's going away or when we're detached from
-    // it.
-    mParentRule = aRule;
-  }
+  // nsIStyleRule methods
+  // The new mapping function.
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 
 protected:
-  nsCSSStyleSheet*    mSheet;
+  nsICSSStyleSheet*   mSheet;                         
   nsICSSGroupRule*    mParentRule;
+#ifdef DEBUG_REFS
+  PRInt32 mInstance;
+#endif
 };
 
 #endif /* nsCSSRule_h___ */

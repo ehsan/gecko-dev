@@ -68,7 +68,7 @@ typedef struct nsPkgInt {
   nsSftMsk  sftmsk;
   nsBitSft  bitsft;
   nsUnitMsk unitmsk;
-  const PRUint32* const data;
+  PRUint32  *data;
 } nsPkgInt;
 
 

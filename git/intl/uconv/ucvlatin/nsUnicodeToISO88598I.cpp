@@ -42,7 +42,7 @@
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
 
-nsresult
+NS_METHOD
 nsUnicodeToISO88598IConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

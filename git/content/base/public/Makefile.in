@@ -53,11 +53,9 @@ nsIContentIterator.h \
 nsContentErrors.h \
 nsContentPolicyUtils.h \
 nsContentUtils.h \
-nsIContentUtils.h \
 nsIDocument.h \
 nsIDocumentObserver.h \
 nsIMutationObserver.h \
-nsIMutationObserver2.h \
 nsINameSpaceManager.h \
 nsINode.h \
 nsINodeInfo.h \
@@ -66,6 +64,7 @@ nsIRange.h \
 nsIRangeUtils.h \
 nsIScriptElement.h \
 nsIStyleSheetLinkingElement.h \
+nsIPrivateDOMImplementation.h \
 nsIContentSerializer.h \
 nsIHTMLToTextSink.h \
 nsIXPathEvaluatorInternal.h \
@@ -76,17 +75,10 @@ nsCopySupport.h \
 nsContentCreatorFunctions.h \
 nsDOMFile.h \
 nsLineBreaker.h \
+nsPresShellIterator.h \
 nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
-nsDOMEventTargetWrapperCache.h \
 $(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-		Element.h \
-		FromParser.h \
-		$(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS
 EXPORTS += nsIXFormsUtilityService.h
@@ -97,34 +89,28 @@ SDK_XPIDLSRCS   = \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsIChromeRegistry.idl       \
 		nsIContentPolicy.idl        \
 		nsIDocumentEncoder.idl      \
 		nsIDOMFile.idl \
-		nsIDOMFileReader.idl \
 		nsIDOMFileList.idl \
 		nsIDOMFileException.idl \
-		nsIDOMFileError.idl \
-		nsIDOMFormData.idl \
 		nsIDOMParser.idl \
 		nsIDOMSerializer.idl \
 		nsISelection2.idl \
-		nsISelection3.idl \
 		nsISelectionController.idl  \
 		nsISelectionDisplay.idl  \
 		nsISelectionListener.idl  \
 		nsISelectionPrivate.idl  \
 		nsIScriptLoaderObserver.idl  \
 		nsISyncLoadDOMService.idl  \
-		nsIDroppedLinkHandler.idl \
+		nsIDragDropHandler.idl \
 		nsIScriptEventHandler.idl \
 		nsIScriptEventManager.idl \
 		nsIImageLoadingContent.idl \
 		nsIObjectLoadingContent.idl \
 		nsIFrameLoader.idl \
 		nsIXMLHttpRequest.idl \
-		nsIContentSecurityPolicy.idl \
-		nsIFrameMessageManager.idl \
-		nsIWebSocket.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -5,10 +5,6 @@
   background-color: -moz-field;
 }
 
-.autocomplete-textbox-container {
-  -moz-box-align: stretch;
-}
-
 .textbox-input-box {
   margin: 0;
 }
@@ -21,7 +17,8 @@
 .searchbar-engine-image {
   height: 16px;
   width: 16px;
-  list-style-image: url("moz-icon://stock/gtk-file?size=menu");
+  list-style-image: url("chrome://global/skin/icons/folder-item.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
   -moz-margin-start: 2px;
 }
 
@@ -29,9 +26,13 @@
   -moz-appearance: none;
   min-width: 0;
   margin: 0;
+  -moz-margin-end: 2px;
   border: 0;
   -moz-box-align: center;
-  background-color: transparent;
+  background-color: -moz-dialog;
+  -moz-border-end: 1px solid;
+  -moz-border-right-colors: ThreeDShadow;
+  -moz-border-left-colors: ThreeDShadow;
 }
 
 .searchbar-engine-button > .button-box {
@@ -41,10 +42,19 @@
   border: 0;
 }
 
+.searchbar-engine-button[addengines="true"] {
+  background-color: Highlight;
+}
+
+.searchbar-engine-button[addengines="true"] > .button-box {
+  background-color: rgba(230, 230, 230, 0.3);
+}
+
 .searchbar-dropmarker-image {
   -moz-appearance: toolbarbutton-dropdown !important;
   width: 12px;
   height: 12px;
+  -moz-margin-start: 1px;
 }
 
 /* Search go button */
@@ -54,8 +64,12 @@
 
 .search-go-button {
   padding: 1px;
-  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
+  list-style-image: url("chrome://browser/skin/Search-glass.png");
   cursor: pointer;
+}
+
+.search-go-button[chromedir="rtl"] {
+  list-style-image: url("chrome://browser/skin/Search-glass-rtl.png");
 }
 
 menuitem[cmd="cmd_clearhistory"] {

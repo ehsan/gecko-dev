@@ -53,24 +53,16 @@ public:
   // because the native plugin accessible doesn't know where it exists in the
   // Mozilla tree, and returns null for previous and next sibling. This would
   // have the effect of cutting off all content after the plugin.
-  nsHTMLWin32ObjectOwnerAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell, void *aHwnd);
+  nsHTMLWin32ObjectOwnerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell, void* aHwnd);
   virtual ~nsHTMLWin32ObjectOwnerAccessible() {}
-
-  // nsAccessNode
-  virtual void Shutdown();
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  NS_IMETHOD Shutdown();
+  NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
+  NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
+  NS_IMETHOD GetChildCount(PRInt32 *aChildCount);  // Zero or one child
 
 protected:
-
-  // nsAccessible
-  virtual void CacheChildren();
-
   void* mHwnd;
-  nsRefPtr<nsAccessible> mNativeAccessible;
+  nsCOMPtr<nsIAccessible> mNativeAccessible;
 };
 
 /**
@@ -87,7 +79,7 @@ class nsHTMLWin32ObjectAccessible : public nsLeafAccessible,
 {
 public:
 
-  nsHTMLWin32ObjectAccessible(void *aHwnd);
+  nsHTMLWin32ObjectAccessible(void* aHwnd);
   virtual ~nsHTMLWin32ObjectAccessible() {}
 
   NS_DECL_ISUPPORTS_INHERITED

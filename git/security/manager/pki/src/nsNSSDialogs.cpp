@@ -56,6 +56,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIX509Cert.h"
 #include "nsIX509CertDB.h"
+#include "nsILocaleService.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsPromiseFlatString.h"
@@ -188,8 +189,7 @@ nsNSSDialogs::CrlImportStatusDialog(nsIInterfaceRequestor *ctx, nsICRLInfo *crl)
 
   rv = nsNSSDialogHelper::openDialog(nsnull,
                              "chrome://pippki/content/crlImportDialog.xul",
-                             block,
-                             PR_FALSE);
+                             block);
   return NS_OK;
 }
 
@@ -311,17 +311,9 @@ nsNSSDialogs::ChooseCertificate(nsIInterfaceRequestor *ctx, const PRUnichar *cn,
   if (NS_FAILED(rv)) return rv;
 
   PRInt32 status;
+
   rv = block->GetInt(0, &status);
   if (NS_FAILED(rv)) return rv;
-
-  nsCOMPtr<nsIClientAuthUserDecision> extraResult = do_QueryInterface(ctx);
-  if (extraResult) {
-    PRInt32 rememberSelection;
-    rv = block->GetInt(2, &rememberSelection);
-    if (NS_SUCCEEDED(rv)) {
-      extraResult->SetRememberClientAuthCertificate(rememberSelection!=0);
-    }
-  }
 
   *canceled = (status == 0)?PR_TRUE:PR_FALSE;
   if (!*canceled) {
@@ -477,8 +469,7 @@ nsNSSDialogs::ViewCert(nsIInterfaceRequestor *ctx,
 
   rv = nsNSSDialogHelper::openDialog(parent,
                                      "chrome://pippki/content/certViewer.xul",
-                                     block,
-                                     PR_FALSE);
+                                     block);
   return rv;
 }
 

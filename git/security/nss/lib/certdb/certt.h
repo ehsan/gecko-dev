@@ -36,7 +36,7 @@
 /*
  * certt.h - public data structures for the certificate library
  *
- * $Id: certt.h,v 1.54 2010/06/18 00:34:22 wtc%google.com Exp $
+ * $Id: certt.h,v 1.47 2008/06/20 16:57:03 nelson%bolyard.com Exp $
  */
 #ifndef _CERTT_H_
 #define _CERTT_H_
@@ -253,7 +253,7 @@ struct CERTCertificateStr {
     unsigned int rawKeyUsage;	/* value of the key usage extension */
     PRBool keyUsagePresent;	/* was the key usage extension present */
     PRUint32 nsCertType;	/* value of the ns cert type extension */
-				/* must be 32-bit for PR_ATOMIC_SET */
+				/* must be 32-bit for PR_AtomicSet */
 
     /* these values can be set by the application to bypass certain checks
      * or to keep the cert in memory for an entire session.
@@ -911,8 +911,7 @@ typedef enum {
    cert_pi_policyOID       = 4, /* validate certificate for policy OID.
 				 * Specified in value.array.oids. Cert must
 				 * be good for at least one OID in order
-				 * to validate. Default is that the user is not
-				 * concerned about certificate policy. */
+				 * to validate. Default is no policyOID */
    cert_pi_policyFlags     = 5, /* flags for each policy specified in policyOID.
 				 * Specified in value.scalar.ul. Policy flags
 				 * apply to all specified oids. 
@@ -941,17 +940,12 @@ typedef enum {
    cert_pi_certStores      = 10,/* Bitmask of Cert Store flags (see below)
 				 * Set in value.scalar.ui */
    cert_pi_trustAnchors    = 11,/* Specify the list of trusted roots to 
-				 * validate against. 
-				 * The default set of trusted roots, these are
-				 * root CA certs from libnssckbi.so or CA
-				 * certs trusted by user, are used in any of
-				 * the following cases:
-				 *      * when the parameter is not set.
-				 *      * when the list of trust anchors is empty.
+				 * validate against. If the list in NULL all
+				 * default trusted roots are used.
 				 * Specified in value.pointer.chain */
    cert_pi_useAIACertFetch = 12, /* Enables cert fetching using AIA extension.
-				 * In NSS 3.12.1 or later. Default is off.
-				 * Value is in value.scalar.b */
+				 * Default is off.
+                                     * Value is in value.scalar.b */
    cert_pi_max                  /* SPECIAL: signifies maximum allowed value,
 				 *  can increase in future releases */
 } CERTValParamInType;
@@ -1065,7 +1059,7 @@ typedef enum {
 /*
  * Defines the behavior if we are unable to obtain fresh information.
  * INGORE means:
- *      Return "cert status unknown"
+ *        Return "test succeded, not revoked"
  * FAIL means:
  *      Return "cert revoked".
  */
@@ -1117,8 +1111,6 @@ typedef enum {
  *     After the individual tests have been executed, we must have
  *     been able to find fresh information using at least one method.
  *     If we were unable to find fresh info, it's a failure.
- *     This setting overrides the CERT_REV_M_FAIL_ON_MISSING_FRESH_INFO
- *     flag on all methods.
  */
 #define CERT_REV_MI_NO_OVERALL_INFO_REQUIREMENT       0L
 #define CERT_REV_MI_REQUIRE_SOME_FRESH_INFO_AVAILABLE 2L
@@ -1260,12 +1252,6 @@ typedef enum CertStrictnessLevels {
  */
 #define CERT_ENABLE_LDAP_FETCH          1
 #define CERT_ENABLE_HTTP_FETCH          2
-
-/* This functin pointer type may be used for any function that takes
- * a CERTCertificate * and returns an allocated string, which must be
- * freed by a call to PORT_Free.
- */
-typedef char * (*CERT_StringFromCertFcn)(CERTCertificate *cert);
 
 /* XXX Lisa thinks the template declarations belong in cert.h, not here? */
 

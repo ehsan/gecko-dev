@@ -41,7 +41,16 @@
 interface nsIURI;
 interface nsIChannel;
 
-[scriptable, uuid(50eda256-4dd2-4c7c-baed-96983910af9f)]
+/**
+ * WARNING!! The JEP needs to call GetSubjectPrincipal()
+ * to support JavaScript-to-Java LiveConnect.  So every change to the
+ * nsIScriptSecurityManager interface (big enough to change its IID) also
+ * breaks JavaScript-to-Java LiveConnect on mac.
+ *
+ * If you REALLY have to change this interface, please mark your bug as
+ * blocking bug 293973.
+ */
+[scriptable, uuid(3fffd8e8-3fea-442e-a0ed-2ba81ae197d5)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -51,8 +60,16 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     [noscript] void checkPropertyAccess(in JSContextPtr aJSContext,
                                         in JSObjectPtr aJSObject,
                                         in string aClassName,
-                                        in jsid aProperty,
+                                        in JSVal aProperty,
                                         in PRUint32 aAction);
+
+    /**
+     * Checks whether the running script is allowed to connect to aTargetURI
+     */
+    [noscript] void checkConnect(in JSContextPtr aJSContext,
+                                 in nsIURI aTargetURI,
+                                 in string aClassName,
+                                 in string aProperty);
 
     /**
      * Check that the script currently running in context "cx" can load "uri".
@@ -184,7 +201,7 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     /**
      * Return the all-powerful system principal.
      */
-    nsIPrincipal getSystemPrincipal();
+    [noscript] nsIPrincipal getSystemPrincipal();
 
     /**
      * Return a principal with the specified certificate fingerprint, subject
@@ -309,31 +326,6 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
      * principal.
      */
     [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipal(in JSContextPtr cx);
-    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipalAndFrame(in JSContextPtr cx,
-                                                                   out JSStackFramePtr fp);
-
-    /**
-     * If no scripted code is running "above" (or called from) fp, then
-     * instead of looking at cx->globalObject, we will return |principal|.
-     * This function only affects |cx|. If someone pushes another context onto
-     * the context stack, then it supersedes this call.
-     * NOTE: If |fp| is non-null popContextPrincipal must be called before fp
-     * has finished executing.
-     *
-     * @param cx The context to clamp.
-     * @param fp The frame pointer to clamp at. May be 'null'.
-     * @param principal The principal to clamp to.
-     */
-    [noscript] void pushContextPrincipal(in JSContextPtr cx,
-                                         in JSStackFramePtr fp,
-                                         in nsIPrincipal principal);
-
-    /**
-     * Removes a clamp set by pushContextPrincipal from cx. This must be
-     * called in a stack-like fashion (e.g., given two contexts |a| and |b|,
-     * it is not legal to do: push(a) push(b) pop(a)).
-     */
-    [noscript] void popContextPrincipal(in JSContextPtr cx);
 };
 
 %{C++

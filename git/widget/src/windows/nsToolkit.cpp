@@ -46,17 +46,22 @@
 #include "nsIServiceManager.h"
 #include "nsComponentManagerUtils.h"
 #include "nsWidgetAtoms.h"
+#include "nsWindowAPI.h"
+#include "nsUXThemeData.h"
 #include <objbase.h>
 #include <initguid.h>
-
-#ifndef WINCE
-#include "nsUXThemeData.h"
-#endif
 
 // unknwn.h is needed to build with WIN32_LEAN_AND_MEAN
 #include <unknwn.h>
 
 NS_IMPL_ISUPPORTS1(nsToolkit, nsIToolkit)
+
+// If PR_TRUE the user is currently moving a top level window.
+static PRBool gIsMovingWindow = PR_FALSE;
+
+// Message filter used to determine if the user is currently 
+// moving a top-level window.
+static HHOOK   nsMsgFilterHook = NULL;
 
 //
 // Static thread local storage index of the Toolkit 
@@ -68,14 +73,6 @@ static PRUintn gToolkitTLSIndex = 0;
 HINSTANCE nsToolkit::mDllInstance = 0;
 PRBool    nsToolkit::mIsWinXP     = PR_FALSE;
 static PRBool dummy = nsToolkit::InitVersionInfo();
-
-static const unsigned long kD3DUsageDelay = 5000;
-
-static void
-StartAllowingD3D9(nsITimer *aTimer, void *aClosure)
-{
-  nsWindow::StartAllowingD3D9(true);
-}
 
 #if !defined(MOZ_STATIC_COMPONENT_LIBS) && !defined(MOZ_ENABLE_LIBXUL)
 //
@@ -130,6 +127,39 @@ struct ThreadInitInfo {
     PRMonitor *monitor;
     nsToolkit *toolkit;
 };
+
+/* Detect when the user is moving a top-level window */
+
+#ifndef WINCE
+LRESULT CALLBACK DetectWindowMove(int code, WPARAM wParam, LPARAM lParam)
+{
+    static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
+
+    /* This msg filter is required to determine when the user has
+     * clicked in the window title bar and is moving the window. 
+     */
+
+    CWPSTRUCT* sysMsg = (CWPSTRUCT*)lParam;
+    if (sysMsg) {
+      nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+      NS_ASSERTION(appShell, "no appshell");
+      if (sysMsg->message == WM_ENTERSIZEMOVE) {
+        gIsMovingWindow = PR_TRUE; 
+        // Notify appshell that it should favor interactivity
+        // over performance because the user is moving a 
+        // window
+        appShell->FavorPerformanceHint(PR_FALSE, 0);
+      } else if (sysMsg->message == WM_EXITSIZEMOVE) {
+        gIsMovingWindow = PR_FALSE;
+        // Notify appshell that it should go back to its 
+        // previous performance setting which may favor
+        // performance over interactivity
+        appShell->FavorPerformanceHint(PR_TRUE, 0);
+      }
+    }
+    return CallNextHookEx(nsMsgFilterHook, code, wParam, lParam);
+}
+#endif //#ifndef WINCE
 
 MouseTrailer*       nsToolkit::gMouseTrailer;
 
@@ -196,6 +226,15 @@ nsToolkit::~nsToolkit()
       gMouseTrailer = nsnull;
     }
 
+    // Unhook the filter used to determine when
+    // the user is moving a top-level window.
+#ifndef WINCE
+    if (nsMsgFilterHook != NULL) {
+      UnhookWindowsHookEx(nsMsgFilterHook);
+      nsMsgFilterHook = NULL;
+    }
+#endif
+
 #if defined (MOZ_STATIC_COMPONENT_LIBS) || defined(WINCE)
     nsToolkit::Shutdown();
 #endif
@@ -220,8 +259,7 @@ nsToolkit::Startup(HMODULE hModule)
     wc.hbrBackground    = NULL;
     wc.lpszMenuName     = NULL;
     wc.lpszClassName    = L"nsToolkitClass";
-    VERIFY(::RegisterClassW(&wc) || 
-           GetLastError() == ERROR_CLASS_ALREADY_EXISTS);
+    VERIFY(::RegisterClassW(&wc));
 
     // Vista API.  Mozilla is DPI Aware.
     typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
@@ -232,9 +270,7 @@ nsToolkit::Startup(HMODULE hModule)
     if (setDPIAware)
       setDPIAware();
 
-#ifndef WINCE
     nsUXThemeData::Initialize();
-#endif
 }
 
 
@@ -247,14 +283,6 @@ nsToolkit::Shutdown()
     ::UnregisterClassW(L"nsToolkitClass", nsToolkit::mDllInstance);
 }
 
-void
-nsToolkit::StartAllowingD3D9()
-{
-  nsIToolkit *toolkit;
-  NS_GetCurrentToolkit(&toolkit);
-  static_cast<nsToolkit*>(toolkit)->mD3D9Timer->Cancel();
-  nsWindow::StartAllowingD3D9(false);
-}
 
 //-------------------------------------------------------------------------
 //
@@ -310,7 +338,7 @@ void nsToolkit::CreateUIThread()
                                     0);
 
     // wait for the gui thread to start
-    while(!gThreadState) {
+    while(gThreadState == PR_FALSE) {
         ::PR_Wait(monitor, PR_INTERVAL_NO_TIMEOUT);
     }
 
@@ -335,15 +363,23 @@ NS_METHOD nsToolkit::Init(PRThread *aThread)
         CreateUIThread();
     }
 
-    mD3D9Timer = do_CreateInstance("@mozilla.org/timer;1");
-    mD3D9Timer->InitWithFuncCallback(::StartAllowingD3D9,
-                                     NULL,
-                                     kD3DUsageDelay,
-                                     nsITimer::TYPE_ONE_SHOT);
-
     nsWidgetAtoms::RegisterAtoms();
 
+#ifndef WINCE
+    // Hook window move messages so the toolkit can report when
+    // the user is moving a top-level window.
+    if (nsMsgFilterHook == NULL) {
+      nsMsgFilterHook = SetWindowsHookEx(WH_CALLWNDPROC, DetectWindowMove, 
+                                         NULL, GetCurrentThreadId());
+    }
+#endif
+
     return NS_OK;
+}
+
+PRBool nsToolkit::UserIsMovingWindow(void)
+{
+    return gIsMovingWindow;
 }
 
 //-------------------------------------------------------------------------
@@ -355,7 +391,12 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
                                        LPARAM lParam)
 {
     switch (msg) {
-#ifndef WINCE
+        case WM_CALLMETHOD:
+        {
+            MethodInfo *info = (MethodInfo *)lParam;
+            return info->Invoke();
+        }
+
         case WM_SYSCOLORCHANGE:
         {
           // WM_SYSCOLORCHANGE messages are only dispatched to top
@@ -369,7 +410,7 @@ LRESULT CALLBACK nsToolkit::WindowProc(HWND hWnd, UINT msg, WPARAM wParam,
           // the current system colors.
           nsWindow::GlobalMsgWindowProc(hWnd, msg, wParam, lParam);
         }
-#endif
+
     }
 
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);
@@ -560,7 +601,7 @@ void MouseTrailer::TimerProc(nsITimer* aTimer, void* aClosure)
     if (mtrailer->mMouseTrailerWindow != mouseWnd) {
 #ifndef WINCE
       // Notify someone that a mouse exit happened.
-      PostMessage(mtrailer->mMouseTrailerWindow, WM_MOUSELEAVE, 0, 0);
+      PostMessage(mtrailer->mMouseTrailerWindow, WM_MOUSELEAVE, NULL, NULL);
 #endif
 
       // we are out of this window, destroy timer

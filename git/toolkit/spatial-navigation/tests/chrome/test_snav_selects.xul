@@ -8,7 +8,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=436084
 
 <window title="Mozilla Bug 288254"
   xmlns:html="http://www.w3.org/1999/xhtml"
-  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  onload="onLoad();">
 
   <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
@@ -38,7 +39,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=436084
 
 <script class="testbody" type="application/javascript">
 <![CDATA[
-Components.utils.import("resource://gre/modules/SpatialNavigation.js");
 
 var moveTable = [
 ["DOWN", "select_element"],
@@ -51,17 +51,10 @@ var moveTable = [
 ["DONE", "DONE"],
 ];
 
-var prefs = [
-["enabled",           "bool", true],
-["xulContentEnabled", "bool", true],
-["keyCode.modifier",  "char", "none"],
-];
+Components.utils.import("resource://gre/modules/SpatialNavigation.js");
 
-function runtest()
+function onLoad()
 {
-    prepareTest(prefs);
-
-    // starting the test itself.
     var x = document.getElementById("some-content");
     SpatialNavigation.init(x);
     
@@ -74,8 +67,6 @@ function runtest()
 
     SpatialNavigation.uninit();
 }
-
-SimpleTest.waitForFocus(runtest);
 
 ]]></script>
 </window>

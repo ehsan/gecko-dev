@@ -56,12 +56,8 @@ void ToUpperCase(nsAString&);
 void ToLowerCase(const nsAString& aSource, nsAString& aDest);
 void ToUpperCase(const nsAString& aSource, nsAString& aDest);
 
-PRUnichar ToLowerCase(PRUnichar);
 PRUnichar ToUpperCase(PRUnichar);
-PRUnichar ToTitleCase(PRUnichar);
-
-void ToLowerCase(const PRUnichar*, PRUnichar*, PRUint32);
-void ToUpperCase(const PRUnichar*, PRUnichar*, PRUint32);
+PRUnichar ToLowerCase(PRUnichar);
 
 inline PRBool IsUpperCase(PRUnichar c) {
   return ToLowerCase(c) != c;
@@ -76,19 +72,11 @@ inline PRBool IsLowerCase(PRUnichar c) {
 class nsCaseInsensitiveStringComparator : public nsStringComparator
 {
 public:
-  virtual PRInt32 operator() (const PRUnichar*,
-                              const PRUnichar*,
-                              PRUint32,
-                              PRUint32) const;
-};
-
-class nsCaseInsensitiveUTF8StringComparator : public nsCStringComparator
-{
-public:
-  virtual PRInt32 operator() (const char*,
-                              const char*,
-                              PRUint32,
-                              PRUint32) const;
+  virtual int operator() (const PRUnichar*,
+                          const PRUnichar*,
+                          PRUint32 aLength) const;
+  virtual int operator() (PRUnichar,
+                          PRUnichar) const;
 };
 
 class nsCaseInsensitiveStringArrayComparator
@@ -98,15 +86,6 @@ public:
   PRBool Equals(const A& a, const B& b) const {
     return a.Equals(b, nsCaseInsensitiveStringComparator());
   }
-};
-
-class nsASCIICaseInsensitiveStringComparator : public nsStringComparator
-{
-public:
-  virtual int operator() (const PRUnichar*,
-                          const PRUnichar*,
-                          PRUint32,
-                          PRUint32) const;
 };
 
 inline PRBool
@@ -128,38 +107,11 @@ CaseInsensitiveFindInReadable(const nsAString& aPattern,
                         nsCaseInsensitiveStringComparator());
 }
 
-#endif // MOZILLA_INTERNAL_API
+#else // MOZILLA_INTERNAL_API
 
-PRInt32
+NS_HIDDEN_(PRInt32)
 CaseInsensitiveCompare(const PRUnichar *a, const PRUnichar *b, PRUint32 len);
 
-PRInt32
-CaseInsensitiveCompare(const char* aLeft, const char* aRight,
-                       PRUint32 aLeftBytes, PRUint32 aRightBytes);
-
-/**
- * This function determines whether the UTF-8 sequence pointed to by aLeft is
- * case-insensitively-equal to the UTF-8 sequence pointed to by aRight.
- *
- * aLeftEnd marks the first memory location past aLeft that is not part of
- * aLeft; aRightEnd similarly marks the end of aRight.
- *
- * The function assumes that aLeft < aLeftEnd and aRight < aRightEnd.
- *
- * The function stores the addresses of the next characters in the sequence
- * into aLeftNext and aRightNext.  It's up to the caller to make sure that the
- * returned pointers are valid -- i.e. the function may return aLeftNext >=
- * aLeftEnd or aRightNext >= aRightEnd.
- *
- * If the function encounters invalid text, it sets aErr to true and returns
- * false, possibly leaving aLeftNext and aRightNext uninitialized.  If the
- * function returns true, aErr is guaranteed to be false and both aLeftNext and
- * aRightNext are guaranteed to be initialized.
- */
-PRBool
-CaseInsensitiveUTF8CharsEqual(const char* aLeft, const char* aRight,
-                              const char* aLeftEnd, const char* aRightEnd,
-                              const char** aLeftNext, const char** aRightNext,
-                              PRBool* aErr);
+#endif // MOZILLA_INTERNAL_API
 
 #endif  /* nsUnicharUtils_h__ */

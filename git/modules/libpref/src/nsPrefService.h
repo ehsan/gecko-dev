@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Brian Nesse <bnesse@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,15 +49,15 @@
 class nsIFile;
 
 class nsPrefService : public nsIPrefService,
-                      public nsIPrefServiceInternal,
                       public nsIObserver,
                       public nsIPrefBranchInternal,
                       public nsSupportsWeakReference
 {
+  friend class nsSharedPrefHandler; 
+  
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
-  NS_DECL_NSIPREFSERVICEINTERNAL
   NS_FORWARD_NSIPREFBRANCH(mRootBranch->)
   NS_FORWARD_NSIPREFBRANCH2(mRootBranch->)
   NS_DECL_NSIOBSERVER
@@ -80,7 +79,12 @@ protected:
 
 private:
   nsCOMPtr<nsIPrefBranch2> mRootBranch;
-  nsCOMPtr<nsIFile>        mCurrentFile;
+  nsCOMPtr<nsIFile>       mCurrentFile;
+  PRPackedBool            mDontWriteUserPrefs;
+#if MOZ_PROFILESHARING
+  nsCOMPtr<nsIFile>       mCurrentSharedFile;
+  PRPackedBool            mDontWriteSharedUserPrefs;
+#endif
 };
 
 #endif // nsPrefService_h__

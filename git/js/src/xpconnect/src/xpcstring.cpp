@@ -60,9 +60,7 @@ static int sDOMStringFinalizerIndex = -1;
 static void
 DOMStringFinalizer(JSContext *cx, JSString *str)
 {
-    jschar *chars = const_cast<jschar *>(JS_GetStringCharsZ(cx, str));
-    NS_ASSERTION(chars, "How could this OOM if we allocated the memory?");
-    nsStringBuffer::FromData(chars)->Release();
+    nsStringBuffer::FromData(JS_GetStringChars(str))->Release();
 }
 
 void
@@ -77,21 +75,13 @@ XPCStringConvert::ShutdownDOMStringFinalizer()
 
 // convert a readable to a JSString, copying string data
 // static
-jsval
-XPCStringConvert::ReadableToJSVal(JSContext *cx,
-                                  const nsAString &readable,
-                                  nsStringBuffer** sharedBuffer)
+JSString *
+XPCStringConvert::ReadableToJSString(JSContext *cx,
+                                     const nsAString &readable)
 {
     JSString *str;
-    *sharedBuffer = nsnull;
 
     PRUint32 length = readable.Length();
-
-    JSAtom *atom;
-    if (length == 0 && (atom = cx->runtime->atomState.emptyAtom))
-    {
-        return ATOM_TO_JSVAL(atom);
-    }
 
     nsStringBuffer *buf = nsStringBuffer::FromString(readable);
     if (buf)
@@ -103,7 +93,7 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
             sDOMStringFinalizerIndex =
                     JS_AddExternalStringFinalizer(DOMStringFinalizer);
             if (sDOMStringFinalizerIndex == -1)
-                return JSVAL_NULL;
+                return NULL;
         }
 
         str = JS_NewExternalString(cx, 
@@ -111,9 +101,7 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
                                    length, sDOMStringFinalizerIndex);
 
         if (str)
-        {
-            *sharedBuffer = buf;
-        }
+            buf->AddRef();
     }
     else
     {
@@ -123,14 +111,14 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
                                         (JS_malloc(cx, (length + 1) *
                                                       sizeof(jschar)));
         if (!chars)
-            return JSVAL_NULL;
+            return NULL;
 
         if (length && !CopyUnicodeTo(readable, 0,
                                      reinterpret_cast<PRUnichar *>(chars),
                                      length))
         {
             JS_free(cx, chars);
-            return JSVAL_NULL;
+            return NULL;
         }
 
         chars[length] = 0;
@@ -139,5 +127,13 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
         if (!str)
             JS_free(cx, chars);
     }
-    return STRING_TO_JSVAL(str);
+    return str;
+}
+
+// static
+XPCReadableJSStringWrapper *
+XPCStringConvert::JSStringToReadable(XPCCallContext& ccx, JSString *str)
+{
+    return ccx.NewStringWrapper(reinterpret_cast<PRUnichar *>(JS_GetStringChars(str)),
+                                JS_GetStringLength(str));
 }

@@ -1,4 +1,4 @@
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var httpserver = null;
 
@@ -52,9 +52,9 @@ function Canceler() {
 
 Canceler.prototype = {
   QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIStreamListener) ||
-        iid.equals(Ci.nsIRequestObserver) ||
-        iid.equals(Ci.nsISupports))
+    if (iid.Equals(Ci.nsIStreamListener) ||
+        iid.Equals(Ci.nsIRequestObserver) ||
+        iid.Equals(Ci.nsISupports))
       return this;
     throw Components.results.NS_ERROR_NO_INTERFACE;
   },
@@ -79,8 +79,7 @@ function continue_test() {
 }
 
 function finish_test(request, data, ctx) {
-  do_test_pending();
-  httpserver.stop(do_test_finished);
+  httpserver.stop();
   do_check_eq(request.status, 0);
   do_check_eq(data.length, responseBody.length);
   for (var i = 0; i < data.length; ++i) {

@@ -43,6 +43,7 @@
 #include "nsILineIterator.h"
 #include "nsTablePainter.h"
 #include "nsTArray.h"
+#include "nsCSSAnonBoxes.h"
 
 class nsTableFrame;
 class nsTableRowFrame;
@@ -71,14 +72,18 @@ struct nsRowGroupReflowState {
   ~nsRowGroupReflowState() {}
 };
 
+#define NS_ITABLEROWGROUPFRAME_IID    \
+{ 0xe940e7bc, 0xb534, 0x11d2,  \
+  { 0x95, 0xa2, 0x0, 0x60, 0xb0, 0xc3, 0x44, 0x14 } }
+
 // use the following bits from nsFrame's frame state 
 
 // thead or tfoot should be repeated on every printed page
-#define NS_ROWGROUP_REPEATABLE           NS_FRAME_STATE_BIT(31)
-#define NS_ROWGROUP_HAS_STYLE_HEIGHT     NS_FRAME_STATE_BIT(30)
+#define NS_ROWGROUP_REPEATABLE           0x80000000
+#define NS_ROWGROUP_HAS_STYLE_HEIGHT     0x40000000
 // the next is also used on rows (see nsTableRowGroupFrame::InitRepeatedFrame)
-#define NS_REPEATED_ROW_OR_ROWGROUP      NS_FRAME_STATE_BIT(28)
-#define NS_ROWGROUP_HAS_ROW_CURSOR       NS_FRAME_STATE_BIT(27)
+#define NS_REPEATED_ROW_OR_ROWGROUP      0x10000000
+#define NS_ROWGROUP_HAS_ROW_CURSOR       0x08000000
 
 #define MIN_ROWS_NEEDING_CURSOR 20
 
@@ -91,14 +96,11 @@ struct nsRowGroupReflowState {
  * @see nsTableFrame
  * @see nsTableRowFrame
  */
-class nsTableRowGroupFrame
-  : public nsHTMLContainerFrame
-  , public nsILineIterator
+class nsTableRowGroupFrame : public nsHTMLContainerFrame, public nsILineIteratorNavigator
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableRowGroupFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -107,15 +109,13 @@ public:
     */
   friend nsIFrame* NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   virtual ~nsTableRowGroupFrame();
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-  
+
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
@@ -141,6 +141,12 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
+
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
+      ~nsIFrame::eExcludesIgnorableWhitespace);
+  }
 
   /**
    * Get the "type" of the frame
@@ -219,8 +225,6 @@ public:
 
 // nsILineIterator methods
 public:
-  virtual void DisposeLineIterator() { }
-
   // The table row is the equivalent to a line in block layout. 
   // The nsILineIterator assumes that a line resides in a block, this role is
   // fullfilled by the row group. Rows in table are counted relative to the
@@ -229,14 +233,14 @@ public:
   // row index of the first row in the row group.
    
   /** Get the number of rows in a row group
-    * @return the number of lines in a row group
+    * @param aResult - pointer that holds the number of lines in a row group
     */
-  virtual PRInt32 GetNumLines();
+  NS_IMETHOD GetNumLines(PRInt32* aResult);
 
   /** @see nsILineIterator.h GetDirection
-    * @return true if the table is rtl
+    * @param aIsRightToLeft - true if the table is rtl
     */
-  virtual PRBool GetDirection();
+  NS_IMETHOD GetDirection(PRBool* aIsRightToLeft);
   
   /** Return structural information about a line. 
     * @param aLineNumber       - the index of the row relative to the row group
@@ -258,10 +262,16 @@ public:
   
   /** Given a frame that's a child of the rowgroup, find which line its on.
     * @param aFrame       - frame, should be a row
-    * @return               row index relative to the row group if this a row
-    *                       frame. -1 if the frame cannot be found.
+    * @param aIndexResult - row index relative to the row group if this a row
+    *                       frame. aIndexResult will be set to -1 if the frame
+    *                       cannot be found.
     */
-  virtual PRInt32 FindLineContaining(nsIFrame* aFrame);
+  NS_IMETHOD FindLineContaining(nsIFrame* aFrame, PRInt32* aLineNumberResult);
+  
+  /** not implemented
+    * the function is also not called in our tree
+    */
+  NS_IMETHOD FindLineAt(nscoord aY, PRInt32* aLineNumberResult);
 
   /** Find the orginating cell frame on a row that is the nearest to the
     * coordinate X.
@@ -353,8 +363,13 @@ public:
    * decided not to use a cursor or we already have one set up.
    */
   FrameCursorData* SetupRowCursor();
-
-  virtual nsILineIterator* GetLineIterator() { return this; }
+  
+  PRBool IsScrolled() {
+    // Note that if mOverflowY is CLIP, so is mOverflowX, and we need to clip the background
+    // as if the rowgroup is scrollable.
+    return GetStyleContext()->GetPseudoType() == nsCSSAnonBoxes::scrolledContent ||
+           GetStyleDisplay()->mOverflowY == NS_STYLE_OVERFLOW_CLIP;
+  }
 
 protected:
   nsTableRowGroupFrame(nsStyleContext* aContext);
@@ -371,7 +386,7 @@ protected:
                   nsIFrame*              aKidFrame,
                   nsHTMLReflowMetrics&   aDesiredSize,
                   const nsRect&          aOriginalKidRect,
-                  const nsRect&          aOriginalKidVisualOverflow);
+                  const nsRect&          aOriginalKidOverflowRect);
 
   void CalculateRowHeights(nsPresContext*           aPresContext, 
                            nsHTMLReflowMetrics&     aDesiredSize,
@@ -390,11 +405,11 @@ protected:
    * @return  true if we successfully reflowed all the mapped children and false
    *            otherwise, e.g. we pushed children to the next in flow
    */
-  nsresult ReflowChildren(nsPresContext*         aPresContext,
-                          nsHTMLReflowMetrics&   aDesiredSize,
-                          nsRowGroupReflowState& aReflowState,
-                          nsReflowStatus&        aStatus,
-                          PRBool*                aPageBreakBeforeEnd = nsnull);
+  NS_METHOD ReflowChildren(nsPresContext*         aPresContext,
+                           nsHTMLReflowMetrics&   aDesiredSize,
+                           nsRowGroupReflowState& aReflowState,
+                           nsReflowStatus&        aStatus,
+                           PRBool*                aPageBreakBeforeEnd = nsnull);
 
   nsresult SplitRowGroup(nsPresContext*           aPresContext,
                          nsHTMLReflowMetrics&     aDesiredSize,
@@ -432,12 +447,14 @@ private:
   BCPixelSize mLeftContBorderWidth;
 
 public:
+  virtual nsIFrame* GetFirstFrame() { return mFrames.FirstChild(); }
+  virtual nsIFrame* GetLastFrame() { return mFrames.LastChild(); }
+  virtual void GetNextFrame(nsIFrame*  aFrame, 
+                            nsIFrame** aResult) { *aResult = aFrame->GetNextSibling(); }
   PRBool IsRepeatable() const;
   void   SetRepeatable(PRBool aRepeatable);
   PRBool HasStyleHeight() const;
   void   SetHasStyleHeight(PRBool aValue);
-  PRBool HasInternalBreakBefore() const;
-  PRBool HasInternalBreakAfter() const;
 };
 
 

@@ -60,7 +60,7 @@ Attr::Attr(nsIAtom *aPrefix, nsIAtom *aLocalName, PRInt32 aNamespaceID,
 //
 Node* Attr::appendChild(Node* newChild)
 {
-  NS_ERROR("not implemented");
+  NS_ASSERTION(0, "not implemented");
   return nsnull;
 }
 

@@ -15,7 +15,7 @@
  * The Original Code is Mozilla Code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -37,7 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsScriptElement.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsContentUtils.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -46,9 +46,6 @@
 #include "nsIParser.h"
 #include "nsAutoPtr.h"
 #include "nsGkAtoms.h"
-#include "nsContentSink.h"
-
-using namespace mozilla::dom;
 
 NS_IMETHODIMP
 nsScriptElement::ScriptAvailable(nsresult aResult,
@@ -61,7 +58,7 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -94,7 +91,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
     nsCOMPtr<nsIContent> cont =
       do_QueryInterface((nsIScriptElement*) this);
 
-    nsRefPtr<nsPresContext> presContext =
+    nsCOMPtr<nsPresContext> presContext =
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -121,10 +118,11 @@ nsScriptElement::CharacterDataChanged(nsIDocument *aDocument,
 
 void
 nsScriptElement::AttributeChanged(nsIDocument* aDocument,
-                                  Element* aElement,
+                                  nsIContent* aContent,
                                   PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  PRInt32 aModType)
+                                  PRInt32 aModType,
+                                  PRUint32 aStateMask)
 {
   MaybeProcessScript();
 }
@@ -132,7 +130,6 @@ nsScriptElement::AttributeChanged(nsIDocument* aDocument,
 void
 nsScriptElement::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
-                                 nsIContent* aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   MaybeProcessScript();
@@ -147,6 +144,29 @@ nsScriptElement::ContentInserted(nsIDocument *aDocument,
   MaybeProcessScript();
 }
 
+static PRBool
+InNonScriptingContainer(nsINode* aNode)
+{
+  aNode = aNode->GetNodeParent();
+  while (aNode) {
+    // XXX noframes and noembed are currently unconditionally not
+    // displayed and processed. This might change if we support either
+    // prefs or per-document container settings for not allowing
+    // frames or plugins.
+    if (aNode->IsNodeOfType(nsINode::eHTML)) {
+      nsIAtom *localName = static_cast<nsIContent*>(aNode)->Tag();
+      if (localName == nsGkAtoms::iframe ||
+          localName == nsGkAtoms::noframes ||
+          localName == nsGkAtoms::noembed) {
+        return PR_TRUE;
+      }
+    }
+    aNode = aNode->GetNodeParent();
+  }
+
+  return PR_FALSE;
+}
+
 nsresult
 nsScriptElement::MaybeProcessScript()
 {
@@ -156,28 +176,16 @@ nsScriptElement::MaybeProcessScript()
   NS_ASSERTION(cont->DebugGetSlots()->mMutationObservers.Contains(this),
                "You forgot to add self as observer");
 
-  if (mAlreadyStarted || !mDoneAddingChildren || !cont->IsInDoc() ||
-      mMalformed || !HasScriptContent()) {
+  if (mIsEvaluated || !mDoneAddingChildren || !cont->IsInDoc() ||
+      mMalformed || InNonScriptingContainer(cont) ||
+      !HasScriptContent()) {
     return NS_OK;
   }
 
-  FreezeUriAsyncDefer();
-
-  mAlreadyStarted = PR_TRUE;
-
-  nsIDocument* ownerDoc = cont->GetOwnerDoc();
-  nsCOMPtr<nsIParser> parser = ((nsIScriptElement*)this)->GetCreatorParser();
-  if (parser) {
-    nsCOMPtr<nsIDocument> parserDoc =
-        do_QueryInterface(parser->GetContentSink()->GetTarget());
-    if (ownerDoc != parserDoc) {
-      // Willful violation of HTML5 as of 2010-12-01
-      return NS_OK;
-    }
-  }
-
-  nsRefPtr<nsScriptLoader> loader = ownerDoc->ScriptLoader();
-  nsresult scriptresult = loader->ProcessScriptElement(this);
+  nsresult scriptresult = NS_OK;
+  nsRefPtr<nsScriptLoader> loader = cont->GetOwnerDoc()->ScriptLoader();
+  mIsEvaluated = PR_TRUE;
+  scriptresult = loader->ProcessScriptElement(this);
 
   // The only error we don't ignore is NS_ERROR_HTMLPARSER_BLOCK
   // However we don't want to override other success values

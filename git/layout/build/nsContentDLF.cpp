@@ -46,28 +46,28 @@
 #include "nsIDocument.h"
 #include "nsIDocumentViewer.h"
 #include "nsIURL.h"
+#include "nsICSSStyleSheet.h"
 #include "nsNodeInfo.h"
 #include "nsNodeInfoManager.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsContentCID.h"
 #include "prprf.h"
 #include "nsNetUtil.h"
+#include "nsICSSLoader.h"
 #include "nsCRT.h"
 #include "nsIViewSourceChannel.h"
-#ifdef MOZ_MEDIA
-#include "nsHTMLMediaElement.h"
-#endif
 
 #include "imgILoader.h"
 #include "nsIParser.h"
-#include "nsMimeTypes.h"
-
-#include "mozilla/FunctionTimer.h"
 
 // plugins
+#include "nsIPluginManager.h"
 #include "nsIPluginHost.h"
+static NS_DEFINE_CID(kPluginManagerCID, NS_PLUGINMANAGER_CID);
 static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
+
+// URL for the "user agent" style sheet
+#define UA_CSS_URL "resource://gre/res/ua.css"
 
 // Factory code for creating variations on html documents
 
@@ -75,9 +75,8 @@ static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
 
 static NS_DEFINE_IID(kHTMLDocumentCID, NS_HTMLDOCUMENT_CID);
 static NS_DEFINE_IID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
+#ifdef MOZ_SVG
 static NS_DEFINE_IID(kSVGDocumentCID, NS_SVGDOCUMENT_CID);
-#ifdef MOZ_MEDIA
-static NS_DEFINE_IID(kVideoDocumentCID, NS_VIDEODOCUMENT_CID);
 #endif
 static NS_DEFINE_IID(kImageDocumentCID, NS_IMAGEDOCUMENT_CID);
 static NS_DEFINE_IID(kXULDocumentCID, NS_XULDOCUMENT_CID);
@@ -88,42 +87,45 @@ NS_NewDocumentViewer(nsIDocumentViewer** aResult);
 // XXXbz if you change the MIME types here, be sure to update
 // nsIParser.h and DetermineParseMode in nsParser.cpp accordingly.
 static const char* const gHTMLTypes[] = {
-  TEXT_HTML,
-  TEXT_PLAIN,
-  TEXT_CSS,
-  TEXT_JAVASCRIPT,
-  TEXT_ECMASCRIPT,
-  APPLICATION_JAVASCRIPT,
-  APPLICATION_ECMASCRIPT,
-  APPLICATION_XJAVASCRIPT,
+  "text/html",
+  "text/plain",
+  "text/css",
+  "text/javascript",
+  "text/ecmascript",
+  "application/javascript",
+  "application/ecmascript",
+  "application/x-javascript",
 #ifdef MOZ_VIEW_SOURCE
-  VIEWSOURCE_CONTENT_TYPE,
+  "application/x-view-source", //XXX I wish I could just use nsMimeTypes.h here
 #endif
-  APPLICATION_XHTML_XML,
+  "application/xhtml+xml",
   0
 };
   
 static const char* const gXMLTypes[] = {
-  TEXT_XML,
-  APPLICATION_XML,
-#ifdef MOZ_MATHML
-  APPLICATION_MATHML_XML,
-#endif
-  APPLICATION_RDF_XML,
-  TEXT_RDF,
+  "text/xml",
+  "application/xml",
+  "application/rdf+xml",
+  "text/rdf",
   0
 };
 
+#ifdef MOZ_SVG
 static const char* const gSVGTypes[] = {
-  IMAGE_SVG_XML,
+  "image/svg+xml",
   0
 };
+
+PRBool NS_SVGEnabled();
+#endif
 
 static const char* const gXULTypes[] = {
-  TEXT_XUL,
-  APPLICATION_CACHED_XUL,
+  "application/vnd.mozilla.xul+xml",
+  "mozilla.application/cached-xul",
   0
 };
+
+nsICSSStyleSheet* nsContentDLF::gUAStyleSheet;
 
 nsresult
 NS_NewContentDocumentLoaderFactory(nsIDocumentLoaderFactory** aResult)
@@ -151,22 +153,6 @@ nsContentDLF::~nsContentDLF()
 NS_IMPL_ISUPPORTS1(nsContentDLF,
                    nsIDocumentLoaderFactory)
 
-PRBool
-MayUseXULXBL(nsIChannel* aChannel)
-{
-  nsIScriptSecurityManager *securityManager =
-    nsContentUtils::GetSecurityManager();
-  if (!securityManager) {
-    return PR_FALSE;
-  }
-
-  nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetChannelPrincipal(aChannel, getter_AddRefs(principal));
-  NS_ENSURE_TRUE(principal, PR_FALSE);
-
-  return nsContentUtils::AllowXULXBLForPrincipal(principal);
-}
-
 NS_IMETHODIMP
 nsContentDLF::CreateInstance(const char* aCommand,
                              nsIChannel* aChannel,
@@ -177,20 +163,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
-#ifdef NS_FUNCTION_TIMER
-  nsCAutoString channelURL__("N/A");
-  nsCOMPtr<nsIURI> url__;
-  if (aChannel && NS_SUCCEEDED(aChannel->GetURI(getter_AddRefs(url__)))) {
-    url__->GetSpec(channelURL__);
-  }
-  NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
-                       __LINE__, channelURL__.get());
-#endif
-
-  // Declare "type" here.  This is because although the variable itself only
-  // needs limited scope, we need to use the raw string memory -- as returned
-  // by "type.get()" farther down in the function.
-  nsCAutoString type;
+  EnsureUAStyleSheet();
 
   // Are we viewing source?
 #ifdef MOZ_VIEW_SOURCE
@@ -203,12 +176,13 @@ nsContentDLF::CreateInstance(const char* aCommand,
     // view-source channel normally returns.  Get the actual content
     // type of the data.  If it's known, use it; otherwise use
     // text/plain.
+    nsCAutoString type;
     viewSourceChannel->GetOriginalContentType(type);
     PRBool knownType = PR_FALSE;
     PRInt32 typeIndex;
     for (typeIndex = 0; gHTMLTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gHTMLTypes[typeIndex]) &&
-          !type.EqualsLiteral(VIEWSOURCE_CONTENT_TYPE)) {
+          !type.EqualsLiteral("application/x-view-source")) {
         knownType = PR_TRUE;
       }
     }
@@ -219,11 +193,15 @@ nsContentDLF::CreateInstance(const char* aCommand,
       }
     }
 
-    for (typeIndex = 0; gSVGTypes[typeIndex] && !knownType; ++typeIndex) {
-      if (type.Equals(gSVGTypes[typeIndex])) {
-        knownType = PR_TRUE;
+#ifdef MOZ_SVG
+    if (NS_SVGEnabled()) {
+      for (typeIndex = 0; gSVGTypes[typeIndex] && !knownType; ++typeIndex) {
+        if (type.Equals(gSVGTypes[typeIndex])) {
+          knownType = PR_TRUE;
+        }
       }
     }
+#endif // MOZ_SVG
 
     for (typeIndex = 0; gXULTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gXULTypes[typeIndex])) {
@@ -233,16 +211,12 @@ nsContentDLF::CreateInstance(const char* aCommand,
 
     if (knownType) {
       viewSourceChannel->SetContentType(type);
-    } else if (IsImageContentType(type.get())) {
-      // If it's an image, we want to display it the same way we normally would.
-      // Also note the lifetime of "type" allows us to safely use "get()" here.
-      aContentType = type.get();
     } else {
-      viewSourceChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
+      viewSourceChannel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
     }
-  } else if (0 == PL_strcmp(VIEWSOURCE_CONTENT_TYPE, aContentType)) {
-    aChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
-    aContentType = TEXT_PLAIN;
+  } else if (0 == PL_strcmp("application/x-view-source", aContentType)) {
+    aChannel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
+    aContentType = "text/plain";
   }
 #endif
   // Try html
@@ -267,56 +241,51 @@ nsContentDLF::CreateInstance(const char* aCommand,
     }
   }
 
-  // Try SVG
-  typeIndex = 0;
-  while(gSVGTypes[typeIndex]) {
-    if (!PL_strcmp(gSVGTypes[typeIndex++], aContentType)) {
-      return CreateDocument(aCommand,
-                            aChannel, aLoadGroup,
-                            aContainer, kSVGDocumentCID,
-                            aDocListener, aDocViewer);
+#ifdef MOZ_SVG
+  if (NS_SVGEnabled()) {
+    // Try SVG
+    typeIndex = 0;
+    while(gSVGTypes[typeIndex]) {
+      if (!PL_strcmp(gSVGTypes[typeIndex++], aContentType)) {
+        return CreateDocument(aCommand,
+                              aChannel, aLoadGroup,
+                              aContainer, kSVGDocumentCID,
+                              aDocListener, aDocViewer);
+      }
     }
   }
+#endif
 
   // Try XUL
   typeIndex = 0;
   while (gXULTypes[typeIndex]) {
     if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType)) {
-      if (!MayUseXULXBL(aChannel)) {
-        return NS_ERROR_REMOTE_XUL;
-      }
-
-      return CreateXULDocument(aCommand,
+      return CreateXULDocument(aCommand, 
                                aChannel, aLoadGroup,
                                aContentType, aContainer,
                                aExtraInfo, aDocListener, aDocViewer);
     }
   }
 
-#ifdef MOZ_MEDIA
-  if (nsHTMLMediaElement::ShouldHandleMediaType(aContentType)) {
-    return CreateDocument(aCommand, 
-                          aChannel, aLoadGroup,
-                          aContainer, kVideoDocumentCID,
-                          aDocListener, aDocViewer);
-  }  
-#endif
-
   // Try image types
-  if (IsImageContentType(aContentType)) {
+  nsCOMPtr<imgILoader> loader(do_GetService("@mozilla.org/image/loader;1"));
+  PRBool isReg = PR_FALSE;
+  loader->SupportImageWithMimeType(aContentType, &isReg);
+  if (isReg) {
     return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kImageDocumentCID,
                           aDocListener, aDocViewer);
   }
 
-  nsCOMPtr<nsIPluginHost> ph (do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsCOMPtr<nsIPluginHost> ph (do_GetService(kPluginManagerCID));
   if(ph && NS_SUCCEEDED(ph->IsPluginEnabledForType(aContentType))) {
     return CreateDocument(aCommand,
                           aChannel, aLoadGroup,
                           aContainer, kPluginDocumentCID,
                           aDocListener, aDocViewer);
   }
+
 
   // If we get here, then we weren't able to create anything. Sorry!
   return NS_ERROR_FAILURE;
@@ -329,15 +298,17 @@ nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
                                         const char *aCommand,
                                         nsIContentViewer** aDocViewerResult)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = NS_ERROR_FAILURE;  
+
+  EnsureUAStyleSheet();
 
   do {
     nsCOMPtr<nsIDocumentViewer> docv;
     rv = NS_NewDocumentViewer(getter_AddRefs(docv));
     if (NS_FAILED(rv))
       break;
+
+    docv->SetUAStyleSheet(static_cast<nsIStyleSheet*>(gUAStyleSheet));
 
     // Bind the document to the Content Viewer
     nsIContentViewer* cv = static_cast<nsIContentViewer*>(docv.get());
@@ -353,8 +324,6 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
                                   nsIPrincipal* aPrincipal,
                                   nsIDocument **aDocument)
 {
-  NS_TIME_FUNCTION;
-
   *aDocument = nsnull;
 
   nsresult rv = NS_ERROR_FAILURE;
@@ -381,19 +350,16 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
     nsCOMPtr<nsINodeInfo> htmlNodeInfo;
 
     // generate an html html element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> htmlElement =
-      NS_NewHTMLHtmlElement(htmlNodeInfo.forget());
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_None);
+    nsCOMPtr<nsIContent> htmlElement = NS_NewHTMLHtmlElement(htmlNodeInfo);
 
     // generate an html head element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> headElement =
-      NS_NewHTMLHeadElement(htmlNodeInfo.forget());
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_None);
+    nsCOMPtr<nsIContent> headElement = NS_NewHTMLHeadElement(htmlNodeInfo);
 
-    // generate an html body elemment
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> bodyElement =
-      NS_NewHTMLBodyElement(htmlNodeInfo.forget());
+    // generate an html body element
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_None);
+    nsCOMPtr<nsIContent> bodyElement = NS_NewHTMLBodyElement(htmlNodeInfo);
 
     // blat in the structure
     if (htmlElement && headElement && bodyElement) {
@@ -432,8 +398,6 @@ nsContentDLF::CreateDocument(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIURI> aURL;
@@ -461,6 +425,7 @@ nsContentDLF::CreateDocument(const char* aCommand,
     rv = NS_NewDocumentViewer(getter_AddRefs(docv));
     if (NS_FAILED(rv))
       break;
+    docv->SetUAStyleSheet(gUAStyleSheet);
 
     doc->SetContainer(aContainer);
 
@@ -490,8 +455,6 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
                                 nsIStreamListener** aDocListener,
                                 nsIContentViewer** aDocViewer)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv;
   nsCOMPtr<nsIDocument> doc = do_CreateInstance(kXULDocumentCID, &rv);
   if (NS_FAILED(rv)) return rv;
@@ -499,6 +462,9 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
   nsCOMPtr<nsIDocumentViewer> docv;
   rv = NS_NewDocumentViewer(getter_AddRefs(docv));
   if (NS_FAILED(rv)) return rv;
+
+  // Load the UA style sheet if we haven't already done that
+  docv->SetUAStyleSheet(gUAStyleSheet);
 
   nsCOMPtr<nsIURI> aURL;
   rv = aChannel->GetURI(getter_AddRefs(aURL));
@@ -526,9 +492,142 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
   return rv;
 }
 
-PRBool nsContentDLF::IsImageContentType(const char* aContentType) {
-  nsCOMPtr<imgILoader> loader(do_GetService("@mozilla.org/image/loader;1"));
-  PRBool isDecoderAvailable = PR_FALSE;
-  loader->SupportImageWithMimeType(aContentType, &isDecoderAvailable);
-  return isDecoderAvailable;
+static nsresult
+RegisterTypes(nsICategoryManager* aCatMgr,
+              const char* const* aTypes,
+              PRBool aPersist = PR_TRUE)
+{
+  nsresult rv = NS_OK;
+  while (*aTypes) {
+    const char* contentType = *aTypes++;
+#ifdef NOISY_REGISTRY
+    printf("Register %s => %s\n", contractid, aPath);
+#endif
+    // add the MIME types layout can handle to the handlers category.
+    // this allows users of layout's viewers (the docshell for example)
+    // to query the types of viewers layout can create.
+    rv = aCatMgr->AddCategoryEntry("Gecko-Content-Viewers", contentType,
+                                   "@mozilla.org/content/document-loader-factory;1",
+                                   aPersist, PR_TRUE, nsnull);
+    if (NS_FAILED(rv)) break;
+  }
+  return rv;
+}
+
+static nsresult UnregisterTypes(nsICategoryManager* aCatMgr,
+                                const char* const* aTypes)
+{
+  nsresult rv = NS_OK;
+  while (*aTypes) {
+    const char* contentType = *aTypes++;
+    rv = aCatMgr->DeleteCategoryEntry("Gecko-Content-Viewers", contentType, PR_TRUE);
+    if (NS_FAILED(rv)) break;
+  }
+  return rv;
+
+}
+
+#ifdef MOZ_SVG
+NS_IMETHODIMP
+nsContentDLF::RegisterSVG()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  return RegisterTypes(catmgr, gSVGTypes, PR_FALSE);
+}
+
+NS_IMETHODIMP
+nsContentDLF::UnregisterSVG()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  return UnregisterTypes(catmgr, gSVGTypes);
+}
+#endif
+
+NS_IMETHODIMP
+nsContentDLF::RegisterDocumentFactories(nsIComponentManager* aCompMgr,
+                                        nsIFile* aPath,
+                                        const char *aLocation,
+                                        const char *aType,
+                                        const nsModuleComponentInfo* aInfo)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  do {
+    rv = RegisterTypes(catmgr, gHTMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = RegisterTypes(catmgr, gXMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = RegisterTypes(catmgr, gXULTypes);
+    if (NS_FAILED(rv))
+      break;
+  } while (PR_FALSE);
+  return rv;
+}
+
+NS_IMETHODIMP
+nsContentDLF::UnregisterDocumentFactories(nsIComponentManager* aCompMgr,
+                                          nsIFile* aPath,
+                                          const char* aRegistryLocation,
+                                          const nsModuleComponentInfo* aInfo)
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  do {
+    rv = UnregisterTypes(catmgr, gHTMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = UnregisterTypes(catmgr, gXMLTypes);
+    if (NS_FAILED(rv))
+      break;
+#ifdef MOZ_SVG
+    rv = UnregisterTypes(catmgr, gSVGTypes);
+    if (NS_FAILED(rv))
+      break;
+#endif
+    rv = UnregisterTypes(catmgr, gXULTypes);
+    if (NS_FAILED(rv))
+      break;
+  } while (PR_FALSE);
+
+  return rv;
+}
+
+/* static */ nsresult
+nsContentDLF::EnsureUAStyleSheet()
+{
+  if (gUAStyleSheet)
+    return NS_OK;
+
+  // Load the UA style sheet
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING(UA_CSS_URL));
+  if (NS_FAILED(rv)) {
+#ifdef DEBUG
+    printf("*** open of %s failed: error=%x\n", UA_CSS_URL, rv);
+#endif
+    return rv;
+  }
+  nsCOMPtr<nsICSSLoader> cssLoader;
+  NS_NewCSSLoader(getter_AddRefs(cssLoader));
+  if (!cssLoader)
+    return NS_ERROR_OUT_OF_MEMORY;
+  rv = cssLoader->LoadSheetSync(uri, PR_TRUE, &gUAStyleSheet);
+#ifdef DEBUG
+  if (NS_FAILED(rv))
+    printf("*** open of %s failed: error=%x\n", UA_CSS_URL, rv);
+#endif
+  return rv;
 }

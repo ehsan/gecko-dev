@@ -1,6 +1,6 @@
 // This file tests nsIContentSniffer, introduced in bug 324985
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const unknownType = "application/x-unknown-content-type";
 const sniffedType = "application/x-sniffed";
@@ -106,8 +106,7 @@ function run_test_iteration(index) {
         sniffing_enabled = false;
         index = listener._iteration = 1;
     } else {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
         return; // we're done
     }
   }

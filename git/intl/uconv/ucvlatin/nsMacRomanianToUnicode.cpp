@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "macro.ut"
 };
 
-nsresult
+NS_METHOD
 nsMacRomanianToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult) 
 {

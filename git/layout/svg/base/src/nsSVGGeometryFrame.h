@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -39,16 +38,11 @@
 #define __NS_SVGGEOMETRYFRAME_H__
 
 #include "nsFrame.h"
-#include "gfxMatrix.h"
 
 class nsSVGPaintServerFrame;
 class gfxContext;
 
 typedef nsFrame nsSVGGeometryFrameBase;
-
-#define HITTEST_MASK_FILL        0x01
-#define HITTEST_MASK_STROKE      0x02
-#define HITTEST_MASK_CHECK_MRECT 0x04
 
 /* nsSVGGeometryFrame is a base class for SVG objects that directly
  * have geometry (circle, ellipse, line, polyline, polygon, path, and
@@ -59,8 +53,6 @@ typedef nsFrame nsSVGGeometryFrameBase;
 class nsSVGGeometryFrame : public nsSVGGeometryFrameBase
 {
 protected:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsSVGGeometryFrame(nsStyleContext *aContext) : nsSVGGeometryFrameBase(aContext) {}
 
 public:
@@ -71,12 +63,13 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsSVGGeometryFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGGeometry));
+    return nsSVGGeometryFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
   // nsSVGGeometryFrame methods:
-  virtual gfxMatrix GetCanvasTM() = 0;
+  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCanvasTM) = 0;
   PRUint16 GetClipRule();
+  PRBool IsClipChild(); 
 
   float GetStrokeWidth();
 
@@ -86,17 +79,15 @@ public:
    */
   PRBool SetupCairoFill(gfxContext *aContext);
   /*
+   * Set up a cairo context for measuring a stroked path
    * @return PR_FALSE if there is no stroke
    */
-  PRBool HasStroke();
-  /*
-   * Set up a cairo context for measuring a stroked path
-   */
-  void SetupCairoStrokeGeometry(gfxContext *aContext);
+  PRBool SetupCairoStrokeGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for hit testing a stroked path
+   * @return PR_FALSE if there is no stroke
    */
-  void SetupCairoStrokeHitGeometry(gfxContext *aContext);
+  PRBool SetupCairoStrokeHitGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for stroking a path
    * @return PR_FALSE to skip rendering
@@ -105,21 +96,19 @@ public:
 
 protected:
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint,
-                                        const FramePropertyDescriptor *aProperty);
-  virtual PRUint16 GetHittestMask();
+                                        nsIAtom *aType);
 
 private:
   nsresult GetStrokeDashArray(double **arr, PRUint32 *count);
   float GetStrokeDashoffset();
 
-  /**
-   * Returns the given 'fill-opacity' or 'stroke-opacity' value multiplied by
-   * the value of the 'opacity' property if it's possible to avoid the expense
-   * of creating and compositing an offscreen surface for 'opacity' by
-   * combining 'opacity' with the 'fill-opacity'/'stroke-opacity'. If not, the
-   * given 'fill-opacity'/'stroke-opacity' is returned unmodified.
-   */
-  float MaybeOptimizeOpacity(float aFillOrStrokeOpacity);
+  // Returns opacity that should be used in rendering this primitive.
+  // In the general case the return value is just the passed opacity.
+  // If we can avoid the expense of a specified group opacity, we
+  // multiply the passed opacity by the value of the 'opacity'
+  // property, and elsewhere pretend the 'opacity' property has a
+  // value of 1.
+  float MaybeOptimizeOpacity(float aOpacity);
 };
 
 #endif // __NS_SVGGEOMETRYFRAME_H__

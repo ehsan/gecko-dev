@@ -47,12 +47,26 @@
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
+#include "nsIPresShell.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsIFrame.h"
 #include "nsBoxLayout.h"
 
 nsBoxLayout::nsBoxLayout()
 {
+}
+
+void
+nsBoxLayout::GetParentLayout(nsIBox* aBox, nsIBoxLayout** aParent)
+{
+  nsIBox* parent = aBox->GetParentBox();
+  if (parent)
+  {
+    parent->GetLayoutManager(aParent);
+    return;
+  }
+
+  *aParent = nsnull;
 }
 
 void
@@ -132,15 +146,12 @@ nsBoxLayout::AddSmallestSize(nsSize& aSize, const nsSize& aSize2)
 }
 
 void
-nsBoxLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
-                              nsIBox* aPrevBox,
-                              const nsFrameList::Slice& aNewChildren)
+nsBoxLayout::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aPrevBox, nsIBox* aChildList)
 {
 }
 
 void
-nsBoxLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
-                              const nsFrameList::Slice& aNewChildren)
+nsBoxLayout::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)
 {
 }
 

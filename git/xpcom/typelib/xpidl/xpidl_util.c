@@ -373,8 +373,7 @@ verify_attribute_declaration(IDL_tree attr_tree)
             IDL_tree_property_get(attr_type, "domstring") == NULL &&
             IDL_tree_property_get(attr_type, "utf8string") == NULL &&
             IDL_tree_property_get(attr_type, "cstring") == NULL &&
-            IDL_tree_property_get(attr_type, "astring") == NULL &&
-            IDL_tree_property_get(attr_type, "jsval") == NULL)
+            IDL_tree_property_get(attr_type, "astring") == NULL)
         {
             IDL_tree_error(attr_tree,
                            "attributes in [scriptable] interfaces that are "
@@ -624,8 +623,7 @@ verify_method_declaration(IDL_tree method_tree)
             IDL_tree_property_get(param_type, "domstring") == NULL &&
             IDL_tree_property_get(param_type, "utf8string") == NULL &&
             IDL_tree_property_get(param_type, "cstring") == NULL &&
-            IDL_tree_property_get(param_type, "astring") == NULL &&
-            IDL_tree_property_get(param_type, "jsval") == NULL)
+            IDL_tree_property_get(param_type, "astring") == NULL)
         {
             IDL_tree_error(method_tree,
                            "methods in [scriptable] interfaces that are "
@@ -702,8 +700,7 @@ verify_method_declaration(IDL_tree method_tree)
                    !IDL_tree_property_get(real_type, "domstring")  &&
                    !IDL_tree_property_get(real_type, "utf8string") &&
                    !IDL_tree_property_get(real_type, "cstring")    &&
-                   !IDL_tree_property_get(real_type, "astring")    &&
-                   !IDL_tree_property_get(real_type, "jsval"))))
+                   !IDL_tree_property_get(real_type, "astring"))))
             {
                 IDL_tree_error(method_tree,
                                "[shared] parameter \"%s\" must be of type "
@@ -714,15 +711,15 @@ verify_method_declaration(IDL_tree method_tree)
 
         /*
          * confirm that once an optional argument is used, all remaining
-         * arguments are marked as optional or retval.
+         * arguments are marked as optional
          */
         if (IDL_tree_property_get(simple_decl, "optional") != NULL) {
             hasoptional = PR_TRUE;
         }
-        else if (hasoptional && IDL_tree_property_get(simple_decl, "retval") == NULL) {
+        else if (hasoptional) {
             IDL_tree_error(method_tree,
-                           "non-optional non-retval parameter used after one marked [optional]");
-            return FALSE;
+                           "non-optional parameter used after one marked [optional]");
+                return FALSE;
         }
 
         /*
@@ -771,14 +768,6 @@ verify_method_declaration(IDL_tree method_tree)
             return FALSE;
         
     }
-
-    if (IDL_tree_property_get(op->ident, "optional_argc") != NULL &&
-        !hasoptional) {
-        IDL_tree_error(method_tree,
-                       "[optional_argc] method must contain [optional] "
-                       "arguments");
-        return FALSE;
-    }
     
     /* XXX q: can return type be nsid? */
     /* Native return type? */
@@ -788,8 +777,7 @@ verify_method_declaration(IDL_tree method_tree)
         IDL_tree_property_get(op->op_type_spec, "domstring") == NULL &&
         IDL_tree_property_get(op->op_type_spec, "utf8string") == NULL &&
         IDL_tree_property_get(op->op_type_spec, "cstring") == NULL &&
-        IDL_tree_property_get(op->op_type_spec, "astring") == NULL &&
-        IDL_tree_property_get(op->op_type_spec, "jsval") == NULL)
+        IDL_tree_property_get(op->op_type_spec, "astring") == NULL)
     {
         IDL_tree_error(method_tree,
                        "methods in [scriptable] interfaces that are "

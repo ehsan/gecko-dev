@@ -10,7 +10,6 @@ const Cm = Components.manager;
 const BASE_CONTRACTID = "@mozilla.org/network/protocol;1?name=";
 const LDAPPH_CID = Components.ID("{08eebb58-8d1a-4ab5-9fca-e35372697828}");
 const MAILBOXPH_CID = Components.ID("{edb1dea3-b226-405a-b93d-2a678a68a198}");
-const NEWSBOXPH_CID = Components.ID("{939fe896-8961-49d0-b0e0-4ae779bdef36}");
 
 const STORAGE_TYPE = "legacy";
 
@@ -68,12 +67,6 @@ function generateFactory(protocol, defaultPort)
 }
 
 function run_test() {
-// News is set up as an external protocol in Firefox's prefs, for this test
-// to work, we need it to be internal.
-var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                 getService(Ci.nsIPrefBranch);
-prefBranch.setBoolPref("network.protocol-handler.external.news", false);
-
 Cm.nsIComponentRegistrar.registerFactory(LDAPPH_CID, "LDAPProtocolFactory",
                                          BASE_CONTRACTID + "ldap",
                                          generateFactory("ldap", 389));
@@ -81,15 +74,11 @@ Cm.nsIComponentRegistrar.registerFactory(MAILBOXPH_CID,
                                          "MailboxProtocolFactory",
                                          BASE_CONTRACTID + "mailbox",
                                          generateFactory("mailbox", 0));
-Cm.nsIComponentRegistrar.registerFactory(NEWSBOXPH_CID,
-                                         "NewsProtocolFactory",
-                                         BASE_CONTRACTID + "news",
-                                         generateFactory("news", 119));
 
 try {
 /* ========== 0 ========== */
 var testnum = 0;
-var testdesc = "Initial connection to storage module";
+var testdesc = "Initial connection to storage module"
 
 var storage = Cc["@mozilla.org/login-manager/storage/legacy;1"].
               createInstance(Ci.nsILoginManagerStorage);
@@ -104,12 +93,6 @@ var dummyuser2 = Cc["@mozilla.org/login-manager/loginInfo;1"].
                  createInstance(Ci.nsILoginInfo);
 var dummyuser3 = Cc["@mozilla.org/login-manager/loginInfo;1"].
                  createInstance(Ci.nsILoginInfo);
-var dummyuser4 = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                 createInstance(Ci.nsILoginInfo);
-var dummyuser5 = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                 createInstance(Ci.nsILoginInfo);
-var dummyuser6 = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                 createInstance(Ci.nsILoginInfo);
 
 
 dummyuser1.init("mailbox://localhost", null, "mailbox://localhost",
@@ -119,17 +102,8 @@ dummyuser2.init("ldap://localhost1", null,
     "ldap://localhost1/dc=test",
     "", "testpass2", "", "");
 
-dummyuser3.init("mailbox://localhost", null, "mailbox://localhost",
-    "test+pop3", "pop3test", "", "");
-
-dummyuser4.init("http://dummyhost.mozilla.org", "", null,
+dummyuser3.init("http://dummyhost.mozilla.org", "", null,
     "testuser1", "testpass1", "put_user_here", "put_pw_here");
-
-dummyuser5.init("news://localhost", null, "news://localhost/#password",
-    "", "newstest", "", "");
-
-dummyuser6.init("news://localhost", null, "news://localhost/#username",
-    "", "testnews", "", "");
 
 /*
  * ---------------------- Bug 403790 ----------------------
@@ -142,21 +116,14 @@ testnum++;
 testdesc = "checking reading of mailnews-like old logins";
 storage = LoginTest.initStorage(INDIR, "signons-403790.txt",
                                OUTDIR, "output-403790.txt");
-// signons-403790.txt has one extra login that is invalid, and hence isn't
-// shown here.
-LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3,
-                                         dummyuser5, dummyuser6]);
+LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2]);
 
-storage.addLogin(dummyuser4); // trigger a write
-LoginTest.checkStorageData(storage, [],
-                           [dummyuser1, dummyuser2, dummyuser3, dummyuser4,
-                            dummyuser5, dummyuser6]);
+storage.addLogin(dummyuser3); // trigger a write
+LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 testdesc = "[flush and reload for verification]";
 storage = LoginTest.reloadStorage(OUTDIR, "output-403790.txt");
-LoginTest.checkStorageData(storage, [],
-                           [dummyuser1, dummyuser2, dummyuser3, dummyuser4,
-                            dummyuser5, dummyuser6]);
+LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 /* ========== end ========== */
 } catch (e) {

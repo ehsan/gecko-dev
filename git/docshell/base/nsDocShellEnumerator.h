@@ -42,8 +42,7 @@
 #include "nsIEnumerator.h"
 
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
-#include "nsIWeakReferenceUtils.h"
+#include "nsVoidArray.h"
 
 class nsIDocShellTreeItem;
 
@@ -99,18 +98,17 @@ protected:
   nsresult                    EnsureDocShellArray();
   nsresult                    ClearState();
   
-  nsresult                    BuildDocShellArray(nsTArray<nsWeakPtr>& inItemArray);
-  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsTArray<nsWeakPtr>& inItemArray) = 0;
+  nsresult                    BuildDocShellArray(nsVoidArray& inItemArray);
+  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsVoidArray& inItemArray) = 0;
     
 protected:
 
-  nsWeakPtr                   mRootItem;      // weak ref!
+  nsIDocShellTreeItem*        mRootItem;      // weak ref!
   
-  nsTArray<nsWeakPtr>         mItemArray;     // flattened list of items with matching type
-  PRUint32                    mCurIndex;
+  nsVoidArray*                mItemArray;     // flattened list of items with matching type
+  PRInt32                     mCurIndex;
   
   PRInt32                     mDocShellType;  // only want shells of this type
-  PRPackedBool                mArrayValid;    // is mItemArray up to date?
 
   const PRInt8                mEnumerationDirection;
 };
@@ -127,7 +125,7 @@ public:
 
 protected:
 
-  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsTArray<nsWeakPtr>& inItemArray);
+  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsVoidArray& inItemArray);
 
 };
 
@@ -141,6 +139,6 @@ public:
                               }
 protected:
 
-  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsTArray<nsWeakPtr>& inItemArray);
+  virtual nsresult            BuildArrayRecursive(nsIDocShellTreeItem* inItem, nsVoidArray& inItemArray);
 
 };

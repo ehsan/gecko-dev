@@ -1,13 +1,13 @@
 // This file tests bug 250375
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 function check_request_header(chan, name, value) {
   var chanValue;
   try {
     chanValue = chan.getRequestHeader(name);
   } catch (e) {
-    do_throw("Expected to find header '" + name + "' but didn't find it, got exception: " + e);
+    do_throw("Expected to find header '" + name + "' but didn't find it");
   }
   dump("Value for header '" + name + "' is '" + chanValue + "'\n");
   do_check_eq(chanValue, value);
@@ -18,7 +18,7 @@ var cookieVal = "C1=V1";
 var listener = {
   onStartRequest: function test_onStartR(request, ctx) {
     try {
-      var chan = request.QueryInterface(Components.interfaces.nsIHttpChannel);
+      var chan = request.QueryInterface(Components.interfaces.nsIChannel);
       check_request_header(chan, "Cookie", cookieVal);
     } catch (e) {
       do_throw("Unexpected exception: " + e);
@@ -32,12 +32,10 @@ var listener = {
   },
 
   onStopRequest: function test_onStopR(request, ctx, status) {
-    if (this._iteration == 1) {
+    if (this._iteration == 1)
       run_test_continued();
-    } else {
-      do_test_pending();
-      httpserv.stop(do_test_finished);
-    }
+    else
+      httpserv.stop();
     do_test_finished();
   },
 

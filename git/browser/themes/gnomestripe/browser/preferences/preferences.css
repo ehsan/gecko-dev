@@ -73,11 +73,14 @@ radio[pane=paneAdvanced] {
   -moz-image-region: rect(0px, 224px, 32px, 192px)
 }
 
-%ifdef MOZ_SERVICES_SYNC
-radio[pane=paneSync] {
-  list-style-image: url("chrome://browser/skin/preferences/Options-sync.png") !important;
+/* General Pane */
+#browserHomePage {
+  padding-top: 2px;
+  padding-bottom: 3px;
+  -moz-padding-start: 4px;
+  -moz-padding-end: 2px;
+  background-color: -moz-Dialog;
 }
-%endif
 
 /* Applications Pane */
 #BrowserPreferences[animated="true"] #handlersView {
@@ -88,16 +91,41 @@ radio[pane=paneSync] {
   -moz-box-flex: 1;
 }
 
-/* Privacy Pane */
-
-/* styles for the link elements copied from .text-link in global.css */
-.inline-link {
-  color: -moz-nativehyperlinktext;
-  text-decoration: underline;
+/* File Field Widget */
+filefield {
+  margin: 2px 4px;
+  -moz-appearance: textfield;
 }
-  
-.inline-link:not(:focus) {
-  outline: 1px dotted transparent;
+
+.fileFieldContentBox {
+  background-color: -moz-Dialog;
+  color: -moz-DialogText;
+  margin: 1px;
+}
+
+.fileFieldContentBox[disabled="true"] {
+  opacity: 0.5;
+}
+
+.fileFieldIcon[disabled="true"] {
+  opacity: 0.2;
+}
+
+.fileFieldIcon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  -moz-margin-start: 2px;
+  -moz-margin-end: 4px;
+}
+
+.fileFieldLabel {
+  -moz-appearance: none;
+  background-color: transparent;
+  border: none;
+  padding: 1px 0px 0px 0px;
+  margin: 0px;
 }
 
 /* Modeless Window Dialogs */
@@ -147,7 +175,7 @@ radio[pane=paneSync] {
 
 #cookieInfoBox {
   border: 1px solid ThreeDShadow;
-  border-radius: 0px;
+  -moz-border-radius: 0px;
   margin: 4px;
   padding: 0px;
 }
@@ -157,32 +185,3 @@ radio[pane=paneSync] {
 .bottomBox {
   padding-bottom: 4px;
 }
-
-/**
- * Clear Private Data
- */
-#SanitizeDialogPane > groupbox {
-  margin-top: 0;
-}
-
-%ifdef MOZ_SERVICES_SYNC
-/* Sync Pane */
-
-#syncDesc {
-  padding: 0 12em;
-}
-
-#accountCaptionImage {
-  list-style-image: url("chrome://mozapps/skin/profile/profileicon.png");
-}
-
-#syncAddDeviceLabel {
-  margin-top: 1em;
-  margin-bottom: 1em;
-}
-
-#syncEnginesList {
-  height: 10em;
-}
-
-%endif

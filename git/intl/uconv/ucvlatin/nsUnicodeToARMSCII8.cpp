@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "armscii.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToARMSCII8Constructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult) 
 {

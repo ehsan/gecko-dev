@@ -40,11 +40,10 @@
 
 #include "nsWeakReference.h"
 #include "nsITransactionList.h"
-#include "nsTransactionItem.h"
-#include "nsAutoPtr.h"
 
 class nsITransaction;
 class nsITransactionManager;
+class nsTransactionItem;
 class nsTransactionStack;
 class nsTransactionRedoStack;
 
@@ -55,9 +54,9 @@ class nsTransactionList : public nsITransactionList
 {
 private:
 
-  nsWeakPtr                   mTxnMgr;
-  nsTransactionStack         *mTxnStack;
-  nsRefPtr<nsTransactionItem> mTxnItem;
+  nsWeakPtr           mTxnMgr;
+  nsTransactionStack *mTxnStack;
+  nsTransactionItem  *mTxnItem;
 
 public:
 

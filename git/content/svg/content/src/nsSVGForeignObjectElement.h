@@ -52,8 +52,8 @@ class nsSVGForeignObjectElement : public nsSVGForeignObjectElementBase,
 
 protected:
   friend nsresult NS_NewSVGForeignObjectElement(nsIContent **aResult,
-                                                already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGForeignObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                                nsINodeInfo *aNodeInfo);
+  nsSVGForeignObjectElement(nsINodeInfo *aNodeInfo);
 
 public:
   // interfaces:
@@ -66,15 +66,11 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGForeignObjectElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGForeignObjectElementBase::)
 
-  // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
-
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();

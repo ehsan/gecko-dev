@@ -43,7 +43,6 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsXBLProtoImplField.h"
 #include "nsIScriptContext.h"
 #include "nsContentUtils.h"
@@ -60,7 +59,7 @@ nsXBLProtoImplField::nsXBLProtoImplField(const PRUnichar* aName, const PRUnichar
   
   mJSAttributes = JSPROP_ENUMERATE;
   if (aReadOnly) {
-    nsAutoString readOnly; readOnly.Assign(aReadOnly);
+    nsAutoString readOnly; readOnly.Assign(*aReadOnly);
     if (readOnly.LowerCaseEqualsLiteral("true"))
       mJSAttributes |= JSPROP_READONLY;
   }
@@ -72,7 +71,7 @@ nsXBLProtoImplField::~nsXBLProtoImplField()
   if (mFieldText)
     nsMemory::Free(mFieldText);
   NS_Free(mName);
-  NS_CONTENT_DELETE_LIST_MEMBER(nsXBLProtoImplField, this, mNext);
+  delete mNext;
 }
 
 void 
@@ -95,11 +94,9 @@ nsXBLProtoImplField::AppendFieldText(const nsAString& aText)
 nsresult
 nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   JSObject* aBoundNode,
-                                  nsIPrincipal* aPrincipal,
                                   nsIURI* aBindingDocURI,
                                   PRBool* aDidInstall) const
 {
-  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(aBoundNode,
                   "uh-oh, bound node should NOT be null or bad things will "
                   "happen");
@@ -110,9 +107,14 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
     return NS_OK;
   }
 
+  jsval result = JSVAL_NULL;
+  
   // EvaluateStringWithValue and JS_DefineUCProperty can both trigger GC, so
   // protect |result| here.
   nsresult rv;
+  nsAutoGCRoot root(&result, &rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   nsCAutoString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
@@ -122,19 +124,25 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                "Shouldn't get here when an exception is pending!");
   
   // compile the literal string
+  // XXX Could we produce a better principal here?  Should be able
+  // to, really!
   PRBool undefined;
   nsCOMPtr<nsIScriptContext> context = aContext;
-
-  JSAutoRequest ar(cx);
-  jsval result = JSVAL_NULL;
   rv = context->EvaluateStringWithValue(nsDependentString(mFieldText,
                                                           mFieldTextLength), 
                                         aBoundNode,
-                                        aPrincipal, uriSpec.get(),
+                                        nsnull, uriSpec.get(),
                                         mLineNumber, JSVERSION_LATEST,
                                         (void*) &result, &undefined);
   if (NS_FAILED(rv))
     return rv;
+
+  // If EvaluateStringWithValue() threw an exception, just report it now.
+  // Failure to evaluate a field should stop neither the get of the field value
+  // nor an enumeration attempt.
+  if (::JS_IsExceptionPending(cx)) {
+    ::JS_ReportPendingException(cx);
+  }
 
   if (undefined) {
     result = JSVAL_VOID;
@@ -142,6 +150,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   // Define the evaluated result as a JS property
   nsDependentString name(mName);
+  JSAutoRequest ar(cx);
   if (!::JS_DefineUCProperty(cx, aBoundNode,
                              reinterpret_cast<const jschar*>(mName), 
                              name.Length(), result, nsnull, nsnull,

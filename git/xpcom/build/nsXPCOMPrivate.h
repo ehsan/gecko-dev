@@ -62,6 +62,7 @@ class nsIComponentLoader;
 
 // PUBLIC
 typedef nsresult   (* InitFunc)(nsIServiceManager* *result, nsIFile* binDirectory, nsIDirectoryServiceProvider* appFileLocationProvider);
+typedef nsresult   (* Init3Func)(nsIServiceManager* *result, nsIFile* binDirectory, nsIDirectoryServiceProvider* appFileLocationProvider, nsStaticModuleInfo const *staticComponents, PRUint32 componentCount);
 typedef nsresult   (* ShutdownFunc)(nsIServiceManager* servMgr);
 typedef nsresult   (* GetServiceManagerFunc)(nsIServiceManager* *result);
 typedef nsresult   (* GetComponentManagerFunc)(nsIComponentManager* *result);
@@ -118,9 +119,6 @@ typedef nsresult   (* GetXPTCallStubFunc)(REFNSIID, nsIXPTCProxy*, nsISomeInterf
 typedef void       (* DestroyXPTCallStubFunc)(nsISomeInterface*);
 typedef nsresult   (* InvokeByIndexFunc)(nsISupports*, PRUint32, PRUint32, nsXPTCVariant*);
 typedef PRBool     (* CycleCollectorFunc)(nsISupports*);
-typedef nsPurpleBufferEntry*
-                   (* CycleCollectorSuspect2Func)(nsISupports*);
-typedef PRBool     (* CycleCollectorForget2Func)(nsPurpleBufferEntry*);
 
 // PRIVATE AND DEPRECATED
 typedef NS_CALLBACK(XPCOMExitRoutine)(void);
@@ -174,7 +172,7 @@ typedef struct XPCOMFunctions{
     CStringContainerInit2Func cstringContainerInit2;
     StringGetMutableDataFunc stringGetMutableData;
     CStringGetMutableDataFunc cstringGetMutableData;
-    void* init3; // obsolete
+    Init3Func init3;
 
     // Added for Mozilla 1.9
     DebugBreakFunc debugBreakFunc;
@@ -196,40 +194,11 @@ typedef struct XPCOMFunctions{
     CStringSetIsVoidFunc cstringSetIsVoid;
     CStringGetIsVoidFunc cstringGetIsVoid;
 
-    // Added for Mozilla 1.9.1
-    CycleCollectorSuspect2Func cycleSuspect2Func;
-    CycleCollectorForget2Func cycleForget2Func;
-
 } XPCOMFunctions;
 
-typedef nsresult (*GetFrozenFunctionsFunc)(XPCOMFunctions *entryPoints, const char* libraryPath);
+typedef nsresult (PR_CALLBACK *GetFrozenFunctionsFunc)(XPCOMFunctions *entryPoints, const char* libraryPath);
 XPCOM_API(nsresult)
 NS_GetFrozenFunctions(XPCOMFunctions *entryPoints, const char* libraryPath);
-
-
-namespace mozilla {
-
-/**
- * Shutdown XPCOM. You must call this method after you are finished
- * using xpcom. 
- *
- * @param servMgr           The service manager which was returned by NS_InitXPCOM.
- *                          This will release servMgr.  You may pass null.
- *
- * @return NS_OK for success;
- *         other error codes indicate a failure during shutdown
- *
- */
-nsresult
-ShutdownXPCOM(nsIServiceManager* servMgr);
-
-/**
- * C++ namespaced version of NS_LogTerm.
- */
-void LogTerm();
-
-} // namespace mozilla
-
 
 // think hard before changing this
 #define XPCOM_GLUE_VERSION 1
@@ -248,11 +217,9 @@ void LogTerm();
 
 #define XPCOM_SEARCH_KEY  "PATH"
 #define GRE_CONF_NAME     "gre.config"
-#define GRE_WIN_REG_LOC   L"Software\\mozilla.org\\GRE"
+#define GRE_WIN_REG_LOC   "Software\\mozilla.org\\GRE"
 #define XPCOM_DLL         "xpcom.dll"
-#define LXPCOM_DLL        L"xpcom.dll"
 #define XUL_DLL           "xul.dll"
-#define LXUL_DLL          L"xul.dll"
 
 #elif defined(XP_BEOS)
 
@@ -264,7 +231,6 @@ void LogTerm();
 #define XUL_DLL   "libxul"MOZ_DLL_SUFFIX
 
 #else // Unix
-#include <limits.h> // for PATH_MAX
 
 #define XPCOM_DLL "libxpcom"MOZ_DLL_SUFFIX
 
@@ -309,18 +275,5 @@ void LogTerm();
 #define MAXPATHLEN 1024
 #endif
 #endif
-
-extern PRBool gXPCOMShuttingDown;
-
-namespace mozilla {
-namespace services {
-
-/** 
- * Clears service cache, sets gXPCOMShuttingDown
- */
-void Shutdown();
-
-} // namespace services
-} // namespace mozilla
 
 #endif

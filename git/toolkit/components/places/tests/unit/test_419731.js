@@ -66,6 +66,9 @@ try {
 
 // main
 function run_test() {
+  // TODO bug 442778 - re-enable test once PR_Now() issue is resolved
+  return;
+
   var uri1 = uri("http://foo.bar/");
 
   // create 2 bookmarks
@@ -91,44 +94,27 @@ function run_test() {
   // change bookmark 1 title
   bmsvc.setItemTitle(bookmark1id, "new title 1");
 
-  // Query the tag.
+  // check that tag container contains new title
   options = histsvc.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
-  options.resultType = options.RESULTS_AS_TAG_QUERY;
+  options.resultType = options.RESULTS_AS_TAG_CONTENTS;
 
   query = histsvc.getNewQuery();
+  query.setFolders([tagItemId], 1);
   result = histsvc.executeQuery(query, options);
   var root = result.root;
+
   root.containerOpen = true;
-  do_check_eq(root.childCount, 1);
-
-  var theTag = root.getChild(0)
-                   .QueryInterface(Ci.nsINavHistoryContainerResultNode);
-  // Bug 524219: Check that renaming the tag shows up in the result.
-  do_check_eq(theTag.title, "foo")
-  bmsvc.setItemTitle(tagItemId, "bar");
-
-  // Check that the item has been replaced
-  do_check_neq(theTag, root.getChild(0));
-  var theTag = root.getChild(0)
-                   .QueryInterface(Ci.nsINavHistoryContainerResultNode);
-  do_check_eq(theTag.title, "bar");
-
-  // Check that tag container contains new title
-  theTag.containerOpen = true;
-  do_check_eq(theTag.childCount, 1);
-  var node = theTag.getChild(0);
+  var cc = root.childCount;
+  do_check_eq(cc, 1);
+  var node = root.getChild(0);
   do_check_eq(node.title, "new title 1");
   root.containerOpen = false;
 
-  // Change bookmark 2 title.
+  // change bookmark 2 title
   bmsvc.setItemTitle(bookmark2id, "new title 2");
 
-  // Workaround VM timers issues.
-  var bookmark1LastMod = bmsvc.getItemLastModified(bookmark1id);
-  bmsvc.setItemLastModified(bookmark2id, bookmark1LastMod + 1);
-
-  // Check that tag container contains new title
+  // check that tag container contains new title
   options = histsvc.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   options.resultType = options.RESULTS_AS_TAG_CONTENTS;
@@ -139,7 +125,7 @@ function run_test() {
   root = result.root;
 
   root.containerOpen = true;
-  var cc = root.childCount;
+  cc = root.childCount;
   do_check_eq(cc, 1);
   node = root.getChild(0);
   do_check_eq(node.title, "new title 2");

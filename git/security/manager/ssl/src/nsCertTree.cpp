@@ -157,7 +157,6 @@ nsCertTreeDispInfo::nsCertTreeDispInfo(nsCertTreeDispInfo &other)
   mPort = other.mPort;
   mOverrideBits = other.mOverrideBits;
   mIsTemporary = other.mIsTemporary;
-  mCert = other.mCert;
 }
 
 nsCertTreeDispInfo::~nsCertTreeDispInfo()
@@ -168,12 +167,6 @@ NS_IMETHODIMP
 nsCertTreeDispInfo::GetCert(nsIX509Cert **_cert)
 {
   NS_ENSURE_ARG(_cert);
-  if (mCert) {
-    // we may already have the cert for temporary overrides
-    *_cert = mCert;
-    NS_IF_ADDREF(*_cert);
-    return NS_OK;
-  }
   if (mAddonInfo) {
     *_cert = mAddonInfo->mCert.get();
     NS_IF_ADDREF(*_cert);
@@ -313,12 +306,10 @@ nsCertTree::GetCertAtIndex(PRInt32 index, PRInt32 *outAbsoluteCertOffset)
     return nsnull;
 
   nsIX509Cert *rawPtr = nsnull;
-  if (certdi->mCert) {
-    rawPtr = certdi->mCert;
-  } else if (certdi->mAddonInfo) {
+  if (certdi->mAddonInfo) {
     rawPtr = certdi->mAddonInfo->mCert;
+    NS_IF_ADDREF(rawPtr);
   }
-  NS_IF_ADDREF(rawPtr);
   return rawPtr;
 }
 
@@ -406,7 +397,6 @@ MatchingCertOverridesCallback(const nsCertOverride &aSettings,
     certdi->mPort = aSettings.mPort;
     certdi->mOverrideBits = aSettings.mOverrideBits;
     certdi->mIsTemporary = aSettings.mIsTemporary;
-    certdi->mCert = aSettings.mCert;
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -470,7 +460,6 @@ AddRemaningHostPortOverridesCallback(const nsCertOverride &aSettings,
     certdi->mPort = aSettings.mPort;
     certdi->mOverrideBits = aSettings.mOverrideBits;
     certdi->mIsTemporary = aSettings.mIsTemporary;
-    certdi->mCert = aSettings.mCert;
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -579,7 +568,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
       }
     }
 
-    nsCOMPtr<nsIX509Cert> pipCert = nsNSSCertificate::Create(node->cert);
+    nsCOMPtr<nsIX509Cert> pipCert = new nsNSSCertificate(node->cert);
     if (!pipCert)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -792,7 +781,7 @@ if (count) {
 NS_IMETHODIMP 
 nsCertTree::DeleteEntryObject(PRUint32 index)
 {
-  if (!mTreeArray) {
+  if (!mTreeArray || index < 0) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1143,8 +1132,8 @@ nsCertTree::GetCellText(PRInt32 row, nsITreeColumn* col,
   if (!certdi)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIX509Cert> cert = certdi->mCert;
-  if (!cert && certdi->mAddonInfo) {
+  nsCOMPtr<nsIX509Cert> cert = nsnull;
+  if (certdi->mAddonInfo) {
     cert = certdi->mAddonInfo->mCert;
   }
 
@@ -1441,8 +1430,7 @@ nsCertTree::dumpMap()
 //
 // CanDrop
 //
-NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation,
-                                  nsIDOMDataTransfer* aDataTransfer, PRBool *_retval)
+NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
@@ -1454,7 +1442,7 @@ NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation,
 //
 // Drop
 //
-NS_IMETHODIMP nsCertTree::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* aDataTransfer)
+NS_IMETHODIMP nsCertTree::Drop(PRInt32 row, PRInt32 orient)
 {
   return NS_OK;
 }

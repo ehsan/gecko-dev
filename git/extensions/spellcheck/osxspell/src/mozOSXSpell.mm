@@ -52,16 +52,7 @@
 @end
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(mozOSXSpell)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(mozOSXSpell)
-
-NS_INTERFACE_MAP_BEGIN(mozOSXSpell)
-  NS_INTERFACE_MAP_ENTRY(mozISpellCheckingEngine)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, mozISpellCheckingEngine)
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozOSXSpell)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_1(mozOSXSpell, mPersonalDictionary);
+NS_IMPL_ISUPPORTS1(mozOSXSpell, mozISpellCheckingEngine)
 
 mozOSXSpell::mozOSXSpell()
 {
@@ -124,9 +115,8 @@ NS_IMETHODIMP mozOSXSpell::GetLanguage(PRUnichar **aLanguage)
     }
     mLanguage.Assign(*aLanguage);
   }
-  else {
+  else
     *aLanguage = ToNewUnicode(mLanguage);
-  }
 
   return *aLanguage ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 
@@ -309,8 +299,6 @@ NS_IMETHODIMP mozOSXSpell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggest
 
   PRUint32 length = [self length];
   PRUnichar* retStr = (PRUnichar*)nsMemory::Alloc((length + 1) * sizeof(PRUnichar));
-  if (!retStr)
-    return NULL;
   [self getCharacters:retStr];
   retStr[length] = PRUnichar(0);
   return retStr;

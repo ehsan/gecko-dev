@@ -44,12 +44,6 @@
  * header files that are totally unnecessary.
  */
 
-enum UIStateChangeType {
-  UIStateChangeType_NoChange,
-  UIStateChangeType_Set,
-  UIStateChangeType_Clear
-};
-
 /**
  * Return status for event processors.
  */
@@ -63,16 +57,6 @@ enum nsEventStatus {
   nsEventStatus_eConsumeDoDefault  
 };
 
-/**
- * sizemode is an adjunct to widget size
- */
-enum nsSizeMode {
-  nsSizeMode_Normal = 0,
-  nsSizeMode_Minimized,
-  nsSizeMode_Maximized,
-  nsSizeMode_Fullscreen
-};
-
 class nsEvent;
 
 class nsGUIEvent;
@@ -84,18 +68,15 @@ class nsScrollbarEvent;
 class nsScrollPortEvent;
 class nsInputEvent;
 class nsMouseEvent;
-class nsDragEvent;
-#ifdef ACCESSIBILITY
 class nsAccessibleEvent;
-#endif
 class nsKeyEvent;
 class nsTextEvent;
 class nsCompositionEvent;
 class nsMouseScrollEvent;
 class nsReconversionEvent;
 class nsTooltipEvent;
-class nsSimpleGestureEvent;
-class nsMozTouchEvent;
-class nsContentCommandEvent;
+class nsMenuEvent;
+
+struct nsTextEventReply;
 
 #endif // nsEvent_h__

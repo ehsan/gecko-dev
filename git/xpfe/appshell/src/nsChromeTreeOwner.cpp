@@ -45,6 +45,7 @@
 #include "nsString.h"
 #include "nsIEmbeddingSiteWindow.h"
 #include "nsIEmbeddingSiteWindow2.h"
+#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsIDocShellTreeItem.h"
 

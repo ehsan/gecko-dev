@@ -19,7 +19,6 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#	Serge Gautherie <sgautherie.bz@free.fr>
 #	Ted Mielczarek <ted.mielczarek@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
@@ -36,34 +35,13 @@
 #
 # ***** END LICENSE BLOCK *****
 
+mochitest:: mochitest-plain mochitest-chrome mochitest-a11y
 
-# Shortcut for mochitest* and xpcshell-tests targets,
-# replaces 'EXTRA_TEST_ARGS=--test-path=...'.
-ifdef TEST_PATH
-TEST_PATH_ARG := --test-path=$(TEST_PATH)
-else
-TEST_PATH_ARG :=
-endif
-
-# include automation-build.mk to get the path to the binary
-TARGET_DEPTH = $(DEPTH)
-include $(topsrcdir)/build/binary-location.mk
-
-SYMBOLS_PATH := --symbols-path=$(DIST)/crashreporter-symbols
-
-# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] mochitest*|.
-MOCHITESTS := mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins
-mochitest:: $(MOCHITESTS)
-
-RUN_MOCHITEST = \
-	rm -f ./$@.log && \
-	$(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done \
-	  --console-level=INFO --log-file=./$@.log --file-level=INFO \
-	  $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
+RUN_MOCHITEST = rm -f ./test-output.log && $(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done --console-level=INFO  --log-file=./test-output.log --file-level=INFO
 
 ifndef NO_FAIL_ON_TEST_ERRORS
 define CHECK_TEST_ERROR
-  @errors=`grep "TEST-UNEXPECTED-" $@.log` ;\
+  @errors=`grep "TEST-UNEXPECTED-" test-output.log` ;\
   if test "$$errors" ; then \
 	  echo "$@ failed:"; \
 	  echo "$$errors"; \
@@ -74,149 +52,22 @@ define CHECK_TEST_ERROR
 endef
 endif
 
-mochitest-plain:
-	$(RUN_MOCHITEST)
-	$(CHECK_TEST_ERROR)
+ifdef TEST_PATH
+MOCHITEST_PATH = --test-path=$(TEST_PATH)
+else
+MOCHITEST_PATH =
+endif
 
-# Allow mochitest-1 ... mochitest-5 for developer ease
-mochitest-1 mochitest-2 mochitest-3 mochitest-4 mochitest-5: mochitest-%:
-	echo "mochitest: $* / 5"
-	$(RUN_MOCHITEST) --chunk-by-dir=4 --total-chunks=5 --this-chunk=$*
+mochitest-plain:
+	$(RUN_MOCHITEST) $(MOCHITEST_PATH)
 	$(CHECK_TEST_ERROR)
 
 mochitest-chrome:
-	$(RUN_MOCHITEST) --chrome
+	$(RUN_MOCHITEST) --chrome $(MOCHITEST_PATH)
 	$(CHECK_TEST_ERROR)
 
 mochitest-a11y:
-	$(RUN_MOCHITEST) --a11y
+	$(RUN_MOCHITEST) --a11y $(MOCHITEST_PATH)
 	$(CHECK_TEST_ERROR)
 
-mochitest-ipcplugins:
-ifeq (Darwin,$(OS_ARCH))
-ifeq (i386,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=true --test-path=modules/plugin/test
-endif
-ifeq (x86_64,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=true --test-path=modules/plugin/test
-endif
-ifeq (powerpc,$(TARGET_CPU))
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=true --test-path=modules/plugin/test
-endif
-else
-	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=true --test-path=modules/plugin/test
-endif
-	$(CHECK_TEST_ERROR)
-
-# Usage: |make [EXTRA_TEST_ARGS=...] *test|.
-RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
-  $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
-
-reftest: TEST_PATH?=layout/reftests/reftest.list
-reftest:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
-	$(CHECK_TEST_ERROR)
-
-crashtest: TEST_PATH?=testing/crashtest/crashtests.list
-crashtest:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
-	$(CHECK_TEST_ERROR)
-
-jstestbrowser: TEST_PATH?=js/src/tests/jstests.list
-jstestbrowser:
-	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) --extra-profile-file=$(topsrcdir)/js/src/tests/user.js)
-	$(CHECK_TEST_ERROR)
-
-GARBAGE += $(addsuffix .log,$(MOCHITESTS) reftest crashtest jstestbrowser)
-
-# Execute all xpcshell tests in the directories listed in the manifest.
-# See also config/rules.mk 'xpcshell-tests' target for local execution.
-# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
-xpcshell-tests:
-	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-	  -I$(topsrcdir)/build \
-	  $(topsrcdir)/testing/xpcshell/runxpcshelltests.py \
-	  --manifest=$(DEPTH)/_tests/xpcshell/all-test-dirs.list \
-	  --no-logfiles \
-          $(SYMBOLS_PATH) \
-	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
-	  $(DIST)/bin/xpcshell
-
-# install and run the mozmill tests
-$(DEPTH)/_tests/mozmill:
-	$(MAKE) -C $(DEPTH)/testing/mozmill install-develop PKG_STAGE=../../_tests
-	$(PYTHON) $(topsrcdir)/testing/mozmill/installmozmill.py --develop $(DEPTH)/_tests/mozmill
-
-MOZMILL_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox
-mozmill: TEST_PATH?=$(MOZMILL_TEST_PATH)
-mozmill: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill.sh -t $(TEST_PATH) -b $(browser_path) --show-all
-
-MOZMILL_RESTART_TEST_PATH = $(DEPTH)/_tests/mozmill/tests/firefox/restartTests
-mozmill-restart: TEST_PATH?=$(MOZMILL_RESTART_TEST_PATH)
-mozmill-restart: $(DEPTH)/_tests/mozmill
-	$(SHELL) $(DEPTH)/_tests/mozmill/mozmill-restart.sh -t $(TEST_PATH) -b $(browser_path) --show-all
-
-# in order to have `mozmill-all` ignore TEST_PATH, if it is set, we shell out to call make
-# again, verbosely overriding the TEST_PATH
-# This isn't as neat as having mozmill and mozmill-restart be dependencies, but it 
-# seems to be the make idiom
-mozmill-all: 
-	$(MAKE) mozmill TEST_PATH=$(MOZMILL_TEST_PATH)
-	$(MAKE) mozmill-restart TEST_PATH=$(MOZMILL_RESTART_TEST_PATH)
-
-# Package up the tests and test harnesses
-include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
-
-ifndef UNIVERSAL_BINARY
-PKG_STAGE = $(DIST)/test-package-stage
-package-tests: stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-jetpack
-else
-# This staging area has been built for us by universal/flight.mk
-PKG_STAGE = $(DIST)/universal/test-package-stage
-endif
-
-package-tests:
-	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
-ifndef UNIVERSAL_BINARY
-	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-else
-	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
-	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
-endif
-	cd $(PKG_STAGE) && \
-	  zip -r9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" *
-
-ifeq (Android, $(OS_TARGET))
-package-tests: stage-android
-endif
-
-make-stage-dir:
-	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs && $(NSINSTALL) -D $(PKG_STAGE)/jetpack
-
-stage-mochitest: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
-
-stage-reftest: make-stage-dir
-	$(MAKE) -C $(DEPTH)/layout/tools/reftest stage-package
-
-stage-xpcshell: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/xpcshell stage-package
-
-stage-jstests: make-stage-dir
-	$(MAKE) -C $(DEPTH)/js/src/tests stage-package
-
-stage-mozmill: make-stage-dir
-	$(MAKE) -C $(DEPTH)/testing/mozmill stage-package
-
-stage-android: make-stage-dir
-	$(NSINSTALL) $(DEPTH)/build/mobile/sutagent/android/sutAgentAndroid.apk $(PKG_STAGE)/bin
-
-stage-jetpack: make-stage-dir
-	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
-.PHONY: \
-  mochitest mochitest-plain mochitest-chrome mochitest-a11y mochitest-ipcplugins \
-  reftest crashtest \
-  xpcshell-tests \
-  jstestbrowser \
-  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell stage-jstests stage-mozmill stage-android stage-jetpack
+.PHONY: mochitest mochitest-plain mochitest-chrome mochitest-a11y

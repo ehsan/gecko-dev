@@ -62,7 +62,7 @@ public:
   nsPrintSettings(const nsPrintSettings& aPS);
   virtual ~nsPrintSettings();
 
-  nsPrintSettings& operator=(const nsPrintSettings& rhs);
+  virtual nsPrintSettings& operator=(const nsPrintSettings& rhs);
 
 protected:
   // May be implemented by the platform-specific derived class                       
@@ -82,9 +82,9 @@ protected:
   nsWeakPtr     mSession; // Should never be touched by Clone or Assign
  
   // mMargin, mEdge, and mUnwriteableMargin are stored in twips
-  nsIntMargin   mMargin;
-  nsIntMargin   mEdge;
-  nsIntMargin   mUnwriteableMargin;
+  nsMargin      mMargin;
+  nsMargin      mEdge;
+  nsMargin      mUnwriteableMargin;
 
   PRInt32       mPrintOptions;
 

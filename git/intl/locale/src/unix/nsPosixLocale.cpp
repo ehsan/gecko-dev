@@ -38,6 +38,7 @@
 #include "nsISupports.h"
 #include "nscore.h"
 #include "nsString.h"
+#include "nsILocale.h"
 #include "nsPosixLocale.h"
 #include "nsLocaleCID.h"
 #include "prprf.h"
@@ -114,12 +115,6 @@ nsPosixLocale::GetXPLocale(const char* posixLocale, nsAString& locale)
       // use posix if parse failed
       CopyASCIItoUTF16(nsDependentCString(posixLocale), locale);
       return NS_OK;
-    }
-
-    // Special case: substitute "nb" (Norwegian Bokmal) for macrolanguage
-    // code "no" (Norwegian)
-    if (nsDependentCString(lang_code).LowerCaseEqualsLiteral("no")) {
-      lang_code[1] = 'b';
     }
 
     if (*country_code) {

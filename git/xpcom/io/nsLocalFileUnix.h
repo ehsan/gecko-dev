@@ -53,9 +53,6 @@
 #include "nsReadableUtils.h"
 #include "nsIHashable.h"
 #include "nsIClassInfoImpl.h"
-#ifdef XP_MACOSX
-#include "nsILocalFileMac.h"
-#endif
 
 /** 
  *  we need these for statfs()
@@ -71,18 +68,10 @@
     #include <sys/statfs.h>
 #endif
 
-#if defined(XP_MACOSX) && (defined(HAVE_STATVFS64) || !defined(HAVE_STATVFS))
-#error "Double-check which members of the 'STATFS' struct we're using!"
-#endif
-
-#ifdef HAVE_STATVFS64
-    #define STATFS statvfs64
+#ifdef HAVE_STATVFS
+    #define STATFS statvfs
 #else
-    #ifdef HAVE_STATVFS
-        #define STATFS statvfs
-    #else
-        #define STATFS statfs
-    #endif
+    #define STATFS statfs
 #endif
 
 // so we can statfs on freebsd
@@ -93,27 +82,7 @@
     #include <sys/mount.h>
 #endif
 
-#if defined(HAVE_STAT64) && defined(HAVE_LSTAT64)
-    #if defined (AIX)
-        #if defined STAT
-            #undef STAT
-        #endif
-    #endif
-    #define STAT stat64
-    #define LSTAT lstat64
-    #define HAVE_STATS64 1
-#else
-    #define STAT stat
-    #define LSTAT lstat
-#endif
-
-
-class NS_COM nsLocalFile :
-#ifdef XP_MACOSX
-                           public nsILocalFileMac,
-#else
-                           public nsILocalFile,
-#endif
+class NS_COM nsLocalFile : public nsILocalFile,
                            public nsIHashable
 {
 public:
@@ -121,14 +90,18 @@ public:
     
     nsLocalFile();
 
-    static nsresult nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
+    static NS_METHOD nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
 
+    // nsISupports
     NS_DECL_ISUPPORTS
+
+    // nsIFile
     NS_DECL_NSIFILE
+
+    // nsILocalFile
     NS_DECL_NSILOCALFILE
-#ifdef XP_MACOSX
-    NS_DECL_NSILOCALFILEMAC
-#endif
+
+    // nsIHashable
     NS_DECL_NSIHASHABLE
 
 public:
@@ -140,9 +113,13 @@ private:
     ~nsLocalFile() {}
 
 protected:
-    // This stat cache holds the *last stat* - it does not invalidate.
-    // Call "FillStatCache" whenever you want to stat our file.
-    struct STAT  mCachedStat;
+// This stat cache holds the *last stat* - it does not invalidate.
+// Call "FillStatCache" whenever you want to stat our file.
+#ifdef HAVE_STAT64
+    struct stat64 mCachedStat;
+#else
+    struct stat  mCachedStat;
+#endif
     nsCString    mPath;
 
     void LocateNativeLeafName(nsACString::const_iterator &,

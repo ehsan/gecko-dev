@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "cp866.ut"
 };
 
-nsresult
+NS_METHOD
 nsCP866ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult) 
 {

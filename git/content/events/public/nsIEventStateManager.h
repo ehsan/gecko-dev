@@ -40,10 +40,8 @@
 
 #include "nsEvent.h"
 #include "nsISupports.h"
-#include "nsEventStates.h"
 
 class nsIContent;
-class nsIDocument;
 class nsPresContext;
 class nsIDOMEvent;
 class nsIFrame;
@@ -54,15 +52,24 @@ class imgIContainer;
 /*
  * Event state manager interface.
  */
+// {fb7516ff-2f01-4893-84e8-e4b282813023}
 #define NS_IEVENTSTATEMANAGER_IID \
-{0x69ab5b16, 0x6690, 0x42fc, \
-  { 0xa9, 0xe5, 0xa3, 0xb4, 0xf8, 0x0f, 0xcb, 0xa6 } }
+{ 0x522d12ec, 0xde51, 0x4635, \
+  { 0xb0, 0x10, 0x4, 0x2a, 0x6d, 0x5, 0xa0, 0x3e } }
 
-#define NS_EVENT_NEEDS_FRAME(event) (!NS_IS_ACTIVATION_EVENT(event))
+#define NS_EVENT_NEEDS_FRAME(event) (!NS_IS_FOCUS_EVENT(event))
 
 class nsIEventStateManager : public nsISupports {
 
 public:
+  enum EFocusedWithType {
+    eEventFocusedByUnknown,     // focus gained via unknown method
+    eEventFocusedByMouse,       // focus gained via mouse
+    eEventFocusedByKey,         // focus gained via key press (like tab)
+    eEventFocusedByContextMenu, // focus gained via context menu
+    eEventFocusedByApplication  // focus gained via Application (like script)
+  };
+
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IEVENTSTATEMANAGER_IID)
 
   NS_IMETHOD Init() = 0;
@@ -85,18 +92,7 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame) = 0;
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent) = 0;
 
-  /**
-   * Returns the content state of aContent.
-   * @param aContent      The control whose state is requested.
-   * @param aFollowLabels Whether to reflect a label's content state on its
-   *                      associated control. If aFollowLabels is true and
-   *                      aContent is a control which has a label that has the 
-   *                      hover or active content state set, GetContentState
-   *                      will pretend that those states are also set on aContent.
-   * @return              The content state.
-   */
-  virtual nsEventStates GetContentState(nsIContent *aContent,
-                                        PRBool aFollowLabels = PR_FALSE) = 0;
+  NS_IMETHOD GetContentState(nsIContent *aContent, PRInt32& aState) = 0;
 
   /**
    * Notify that the given NS_EVENT_STATE_* bit has changed for this content.
@@ -110,10 +106,30 @@ public:
    *                  frame reconstructions that may occur, but this does not
    *                  affect the return value.
    */
-  virtual PRBool SetContentState(nsIContent *aContent, nsEventStates aState) = 0;
+  virtual PRBool SetContentState(nsIContent *aContent, PRInt32 aState) = 0;
 
-  NS_IMETHOD ContentRemoved(nsIDocument* aDocument, nsIContent* aContent) = 0;
+  NS_IMETHOD GetFocusedContent(nsIContent **aContent) = 0;
+  NS_IMETHOD SetFocusedContent(nsIContent* aContent) = 0;
+
+  // Get the previously-focused content node for this document
+  NS_IMETHOD GetLastFocusedContent(nsIContent **aContent) = 0;
+
+  NS_IMETHOD GetFocusedFrame(nsIFrame **aFrame) = 0;
+
+  NS_IMETHOD ContentRemoved(nsIContent* aContent) = 0;
   NS_IMETHOD EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK) = 0;
+
+  // Return whether browse with caret is enabled or not
+  virtual PRBool GetBrowseWithCaret() = 0;
+
+  // This is called after find text or when a cursor movement key is pressed
+  // If aCanFocusDoc == PR_TRUE, the current document will be focused if caret is not on a focusable element
+  NS_IMETHOD MoveFocusToCaret(PRBool aCanFocusDoc, PRBool *aIsSelectionWithFocus) = 0;
+  NS_IMETHOD MoveCaretToFocus() = 0;
+
+  // Set focus on any element that can receive focus, or on document via aFocusContent == nsnull
+  // Must supply method that focus is being set with
+  NS_IMETHOD ChangeFocusWith(nsIContent *aFocusContent, EFocusedWithType aFocusedWith) = 0;
 
   // Access Key Registration
 
@@ -147,6 +163,9 @@ public:
                        PRBool aHaveHotspot, float aHotspotX, float aHotspotY,
                        nsIWidget* aWidget, PRBool aLockCursor) = 0;
 
+  // Method for moving the focus forward/back.
+  NS_IMETHOD ShiftFocus(PRBool aDirection, nsIContent* aStart)=0;
+
   NS_IMETHOD NotifyDestroyPresContext(nsPresContext* aPresContext) = 0;
   
   /**
@@ -160,5 +179,50 @@ public:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEventStateManager, NS_IEVENTSTATEMANAGER_IID)
+
+#define NS_EVENT_STATE_ACTIVE        0x00000001 // mouse is down on content
+#define NS_EVENT_STATE_FOCUS         0x00000002 // content has focus
+#define NS_EVENT_STATE_HOVER         0x00000004 // mouse is hovering over content
+#define NS_EVENT_STATE_DRAGOVER      0x00000008 // drag  is hovering over content
+#define NS_EVENT_STATE_URLTARGET     0x00000010 // content is URL's target (ref)
+
+// The following states are used only for ContentStatesChanged
+
+#define NS_EVENT_STATE_CHECKED       0x00000020 // CSS3-Selectors
+#define NS_EVENT_STATE_ENABLED       0x00000040 // CSS3-Selectors
+#define NS_EVENT_STATE_DISABLED      0x00000080 // CSS3-Selectors
+#define NS_EVENT_STATE_REQUIRED      0x00000100 // CSS3-UI
+#define NS_EVENT_STATE_OPTIONAL      0x00000200 // CSS3-UI
+#define NS_EVENT_STATE_VISITED       0x00000400 // CSS2
+#define NS_EVENT_STATE_VALID         0x00000800 // CSS3-UI
+#define NS_EVENT_STATE_INVALID       0x00001000 // CSS3-UI
+#define NS_EVENT_STATE_INRANGE       0x00002000 // CSS3-UI
+#define NS_EVENT_STATE_OUTOFRANGE    0x00004000 // CSS3-UI
+// these two are temporary (see bug 302188)
+#define NS_EVENT_STATE_MOZ_READONLY  0x00008000 // CSS3-UI
+#define NS_EVENT_STATE_MOZ_READWRITE 0x00010000 // CSS3-UI
+#define NS_EVENT_STATE_DEFAULT       0x00020000 // CSS3-UI
+
+// Content could not be rendered (image/object/etc).
+#define NS_EVENT_STATE_BROKEN        0x00040000
+// Content disabled by the user (images turned off, say)
+#define NS_EVENT_STATE_USERDISABLED  0x00080000
+// Content suppressed by the user (ad blocking, etc)
+#define NS_EVENT_STATE_SUPPRESSED    0x00100000
+// Content is still loading such that there is nothing to show the
+// user (eg an image which hasn't started coming in yet)
+#define NS_EVENT_STATE_LOADING       0x00200000
+// Content is of a type that gecko can't handle
+#define NS_EVENT_STATE_TYPE_UNSUPPORTED \
+                                     0x00400000
+#ifdef MOZ_MATHML
+#define NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL 0x00800000
+#endif
+// Handler for the content has been blocked
+#define NS_EVENT_STATE_HANDLER_BLOCKED \
+                                     0x01000000
+// Handler for the content has been disabled
+#define NS_EVENT_STATE_HANDLER_DISABLED \
+                                     0x02000000
 
 #endif // nsIEventStateManager_h__

@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: loader.c,v 1.44.22.2 2010/12/04 18:59:01 rrelyea%redhat.com Exp $ */
+/* $Id: loader.c,v 1.39 2008/01/22 02:24:03 nelson%bolyard.com Exp $ */
 
 #include "loader.h"
 #include "prmem.h"
@@ -198,13 +198,6 @@ freebl_RunLoaderOnce( void )
   return status;
 }
 
-SECStatus 
-BL_Init(void)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_BL_Init)();
-}
 
 RSAPrivateKey * 
 RSA_NewKey(int keySizeInBits, SECItem * publicExponent)
@@ -293,14 +286,6 @@ DSA_SignDigestWithSeed(DSAPrivateKey * key, SECItem * signature,
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
   return (vector->p_DSA_SignDigestWithSeed)( key, signature, digest, seed);
-}
-
-SECStatus
-DSA_NewRandom(PLArenaPool * arena, const SECItem * q, SECItem * seed)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-        return SECFailure;
-    return (vector->p_DSA_NewRandom)(arena, q, seed);
 }
 
 SECStatus 
@@ -499,44 +484,6 @@ DES_Decrypt(DESContext *cx, unsigned char *output, unsigned int *outputLen,
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
   return (vector->p_DES_Decrypt)(cx, output, outputLen, maxOutputLen, input, 
-	                         inputLen);
-}
-SEEDContext *
-SEED_CreateContext(const unsigned char *key, const unsigned char *iv,
-		  int mode, PRBool encrypt)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return NULL;
-  return (vector->p_SEED_CreateContext)(key, iv, mode, encrypt);
-}
-
-void 
-SEED_DestroyContext(SEEDContext *cx, PRBool freeit)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return;
-  (vector->p_SEED_DestroyContext)(cx, freeit);
-}
-
-SECStatus 
-SEED_Encrypt(SEEDContext *cx, unsigned char *output, unsigned int *outputLen, 
-	    unsigned int maxOutputLen, const unsigned char *input, 
-	    unsigned int inputLen)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_SEED_Encrypt)(cx, output, outputLen, maxOutputLen, input, 
-	                         inputLen);
-}
-
-SECStatus 
-SEED_Decrypt(SEEDContext *cx, unsigned char *output, unsigned int *outputLen, 
-	    unsigned int maxOutputLen, const unsigned char *input, 
-	    unsigned int inputLen)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_SEED_Decrypt)(cx, output, outputLen, maxOutputLen, input, 
 	                         inputLen);
 }
 
@@ -1413,16 +1360,6 @@ DES_InitContext(DESContext *cx, const unsigned char *key,
 }
 
 SECStatus 
-SEED_InitContext(SEEDContext *cx, const unsigned char *key, 
-		unsigned int keylen, const unsigned char *iv, int mode,
-		unsigned int encrypt, unsigned int xtra)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_SEED_InitContext)(cx, key, keylen, iv, mode, encrypt, xtra);
-}
-
-SECStatus 
 RC2_InitContext(RC2Context *cx, const unsigned char *key, 
 		unsigned int keylen, const unsigned char *iv, int mode,
 		unsigned int effectiveKeyLen, unsigned int xtra)
@@ -1655,103 +1592,4 @@ Camellia_Decrypt(CamelliaContext *cx, unsigned char *output,
 	return SECFailure;
     return (vector->p_Camellia_Decrypt)(cx, output, outputLen, maxOutputLen, 
 					input, inputLen);
-}
-
-void BL_SetForkState(PRBool forked)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return;
-    (vector->p_BL_SetForkState)(forked);
-}
-
-SECStatus
-PRNGTEST_Instantiate(const PRUint8 *entropy, unsigned int entropy_len, 
-		const PRUint8 *nonce, unsigned int nonce_len,
-		const PRUint8 *personal_string, unsigned int ps_len)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return SECFailure;
-    return (vector->p_PRNGTEST_Instantiate)(entropy, entropy_len, 
-					   nonce,  nonce_len,
-					   personal_string,  ps_len);
-}
-
-SECStatus
-PRNGTEST_Reseed(const PRUint8 *entropy, unsigned int entropy_len, 
-		  const PRUint8 *additional, unsigned int additional_len)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return SECFailure;
-    return (vector->p_PRNGTEST_Reseed)(entropy, entropy_len, 
-				       additional, additional_len);
-}
-
-SECStatus
-PRNGTEST_Generate(PRUint8 *bytes, unsigned int bytes_len, 
-		  const PRUint8 *additional, unsigned int additional_len)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return SECFailure;
-    return (vector->p_PRNGTEST_Generate)(bytes, bytes_len, 
-					 additional, additional_len);
-}
-
-SECStatus
-PRNGTEST_Uninstantiate()
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return SECFailure;
-    return (vector->p_PRNGTEST_Uninstantiate)();
-}
-
-SECStatus
-RSA_PopulatePrivateKey(RSAPrivateKey *key)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-	return SECFailure;
-    return (vector->p_RSA_PopulatePrivateKey)(key);
-}
-
-SECStatus
-JPAKE_Sign(PLArenaPool * arena, const PQGParams * pqg, HASH_HashType hashType,
-           const SECItem * signerID, const SECItem * x,
-           const SECItem * testRandom, const SECItem * gxIn, SECItem * gxOut,
-           SECItem * gv, SECItem * r)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-        return SECFailure;
-    return (vector->p_JPAKE_Sign)(arena, pqg, hashType, signerID, x,
-                                  testRandom, gxIn, gxOut, gv, r);
-}
-
-SECStatus
-JPAKE_Verify(PLArenaPool * arena, const PQGParams * pqg,
-             HASH_HashType hashType, const SECItem * signerID,
-             const SECItem * peerID,  const SECItem * gx,
-             const SECItem * gv, const SECItem * r)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-        return SECFailure;
-    return (vector->p_JPAKE_Verify)(arena, pqg, hashType, signerID, peerID, 
-                                    gx, gv, r);
-}
-
-SECStatus
-JPAKE_Round2(PLArenaPool * arena, const SECItem * p, const SECItem  *q,
-             const SECItem * gx1, const SECItem * gx3, const SECItem * gx4,
-             SECItem * base, const SECItem * x2, const SECItem * s, SECItem * x2s)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-        return SECFailure;
-    return (vector->p_JPAKE_Round2)(arena, p, q, gx1, gx3, gx4, base, x2, s, x2s);
-}
-
-SECStatus
-JPAKE_Final(PLArenaPool * arena, const SECItem * p, const SECItem  *q,
-            const SECItem * x2, const SECItem * gx4, const SECItem * x2s,
-            const SECItem * B, SECItem * K)
-{
-    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-        return SECFailure;
-    return (vector->p_JPAKE_Final)(arena, p, q, x2, gx4, x2s, B, K);
 }

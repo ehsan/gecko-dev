@@ -56,25 +56,10 @@ static NSArray *ModuleDataForSymbolFile(NSString *file) {
   NSString *str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
   NSScanner *scanner = [NSScanner scannerWithString:str];
   NSString *line;
-  NSMutableArray *parts = nil;
-  const int MODULE_ID_INDEX = 3;
-  
-  if ([scanner scanUpToString:@"\n" intoString:&line]) {
-    parts = [[NSMutableArray alloc] init];
-    NSScanner *moduleInfoScanner = [NSScanner scannerWithString:line];
-    NSString *moduleInfo;
-    // Get everything BEFORE the module name.  None of these properties
-    // can have spaces.
-    for (int i = 0; i <= MODULE_ID_INDEX; i++) {
-      [moduleInfoScanner scanUpToString:@" " intoString:&moduleInfo];
-      [parts addObject:moduleInfo];
-    }
+  NSArray *parts = nil;
 
-    // Now get the module name. This can have a space so we scan to
-    // the end of the line.
-    [moduleInfoScanner scanUpToString:@"\n" intoString:&moduleInfo];
-    [parts addObject:moduleInfo];
-  }
+  if ([scanner scanUpToString:@"\n" intoString:&line])
+    parts = [line componentsSeparatedByString:@" "];
 
   [str release];
 
@@ -129,16 +114,15 @@ static void Start(Options *options) {
   NSData *data = [ul send:&error];
   NSString *result = [[NSString alloc] initWithData:data
                                            encoding:NSUTF8StringEncoding];
-  int status = [[ul response] statusCode];
 
   fprintf(stdout, "Send: %s\n", error ? [[error description] UTF8String] :
           "No Error");
-  fprintf(stdout, "Response: %d\n", status);
-  fprintf(stdout, "Result: %lu bytes\n%s\n", [data length], [result UTF8String]);
+  fprintf(stdout, "Response: %d\n", [[ul response] statusCode]);
+  fprintf(stdout, "Result: %d bytes\n%s\n", [data length], [result UTF8String]);
 
   [result release];
   [ul release];
-  options->success = !error && status==200;
+  options->success = !error;
 }
 
 //=============================================================================
@@ -173,8 +157,8 @@ SetupOptions(int argc, const char *argv[], Options *options) {
     exit(1);
   }
 
-  options->symbolsPath = [NSString stringWithUTF8String:argv[optind]];
-  options->uploadURLStr = [NSString stringWithUTF8String:argv[optind + 1]];
+  options->symbolsPath = [NSString stringWithCString:argv[optind]];
+  options->uploadURLStr = [NSString stringWithCString:argv[optind + 1]];
 }
 
 //=============================================================================

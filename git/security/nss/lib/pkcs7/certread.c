@@ -330,29 +330,25 @@ notder:
 
     /* find the beginning marker */
     while ( cl > NS_CERT_HEADER_LEN ) {
-	int found = 0;
 	if ( !PORT_Strncasecmp((char *)cp, NS_CERT_HEADER,
 			        NS_CERT_HEADER_LEN) ) {
-	    cl -= NS_CERT_HEADER_LEN;
-	    cp += NS_CERT_HEADER_LEN;
-	    found = 1;
+	    cl -= NS_CERT_HEADER_LEN + 1; /* skip char after header     */
+	    cp += NS_CERT_HEADER_LEN + 1; /* as all prior versions did. */
+	    certbegin = cp;
+	    break;
 	}
 	
 	/* skip to next eol */
-	while ( cl && ( *cp != '\n' )) {
+	do {
 	    cp++;
 	    cl--;
-	} 
+	} while ( ( *cp != '\n') && cl );
 
 	/* skip all blank lines */
-	while ( cl && ( *cp == '\n' || *cp == '\r' )) {
+	while ( ( *cp == '\n') && cl ) {
 	    cp++;
 	    cl--;
 	}
-	if (cl && found) {
-	    certbegin = cp;
-	    break;
-    	}
     }
 
     if ( certbegin ) {
@@ -360,18 +356,18 @@ notder:
 	while ( cl >= NS_CERT_TRAILER_LEN ) {
 	    if ( !PORT_Strncasecmp((char *)cp, NS_CERT_TRAILER,
 				   NS_CERT_TRAILER_LEN) ) {
-		certend = cp;
+		certend = (unsigned char *)cp;
 		break;
 	    }
 
 	    /* skip to next eol */
-	    while ( cl && ( *cp != '\n' )) {
+	    do {
 		cp++;
 		cl--;
-	    }
+	    } while ( ( *cp != '\n') && cl );
 
 	    /* skip all blank lines */
-	    while ( cl && ( *cp == '\n' || *cp == '\r' )) {
+	    while ( ( *cp == '\n') && cl ) {
 		cp++;
 		cl--;
 	    }
@@ -383,7 +379,7 @@ notder:
 
 	*certend = 0;
 	/* convert to binary */
-	bincert = ATOB_AsciiToData((char *)certbegin, &binLen);
+	bincert = ATOB_AsciiToData(certbegin, &binLen);
 	if (!bincert) {
 	    rv = SECFailure;
 	    goto loser;
@@ -393,7 +389,6 @@ notder:
 	rv = CERT_DecodeCertPackage((char *)bincert, binLen, f, arg);
 	
     } else {
-	PORT_SetError(SEC_ERROR_BAD_DER);
 	rv = SECFailure;
     }
   }

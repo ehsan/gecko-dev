@@ -62,7 +62,7 @@ try {
 }
 
 // get bookmarks root index
-var root = bmsvc.bookmarksMenuFolder;
+var root = bmsvc.bookmarksRoot;
 
 // main
 function run_test() {

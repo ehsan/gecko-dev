@@ -84,29 +84,29 @@ public:
   nsIAtom* GetChildListName() const { return mChildListName; }
 #endif
 
-  const nsFrameList& GetChildList() const { return mAbsoluteFrames; }
+  nsIFrame* GetFirstChild() const { return mAbsoluteFrames.FirstChild(); }
 
   nsresult SetInitialChildList(nsIFrame*       aDelegatingFrame,
                                nsIAtom*        aListName,
-                               nsFrameList&    aChildList);
+                               nsIFrame*       aChildList);
   nsresult AppendFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
-                        nsFrameList&   aFrameList);
+                        nsIFrame*      aFrameList);
   nsresult InsertFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
                         nsIFrame*      aPrevFrame,
-                        nsFrameList&   aFrameList);
-  void RemoveFrame(nsIFrame*      aDelegatingFrame,
-                   nsIAtom*       aListName,
-                   nsIFrame*      aOldFrame);
+                        nsIFrame*      aFrameList);
+  nsresult RemoveFrame(nsIFrame*      aDelegatingFrame,
+                       nsIAtom*       aListName,
+                       nsIFrame*      aOldFrame);
 
   // Called by the delegating frame after it has done its reflow first. This
   // function will reflow any absolutely positioned child frames that need to
   // be reflowed, e.g., because the absolutely positioned child frame has
   // 'auto' for an offset, or a percentage based width or height.
-  // aOverflowAreas, if non-null, is unioned with (in the local
-  // coordinate space) the overflow areas of the absolutely positioned
-  // children.
+  // If aChildBounds is set, it returns (in the local coordinate space) the 
+  // bounding rect of the absolutely positioned child elements taking into 
+  // account their overflow area (if it is visible).
   // @param aForceReflow if this is false, reflow for some absolutely
   //        positioned frames may be skipped based on whether they use
   //        placeholders for positioning and on whether the containing block
@@ -120,20 +120,12 @@ public:
                   PRBool                   aConstrainHeight,
                   PRBool                   aCBWidthChanged,
                   PRBool                   aCBHeightChanged,
-                  nsOverflowAreas*         aOverflowAreas);
+                  nsRect*                  aChildBounds = nsnull);
 
 
-  void DestroyFrames(nsIFrame* aDelegatingFrame,
-                     nsIFrame* aDestructRoot);
+  void DestroyFrames(nsIFrame* aDelegatingFrame);
 
   PRBool  HasAbsoluteFrames() {return mAbsoluteFrames.NotEmpty();}
-
-  // Mark our size-dependent absolute frames with NS_FRAME_HAS_DIRTY_CHILDREN
-  // so that we'll make sure to reflow them.
-  void MarkSizeDependentFramesDirty();
-
-  // Mark all our absolute frames with NS_FRAME_IS_DIRTY
-  void MarkAllFramesDirty();
 
 protected:
   // Returns PR_TRUE if the position of f depends on the position of
@@ -150,12 +142,7 @@ protected:
                                PRBool                   aConstrainHeight,
                                nsIFrame*                aKidFrame,
                                nsReflowStatus&          aStatus,
-                               nsOverflowAreas*         aOverflowAreas);
-
-  // Mark our absolute frames dirty.  If aMarkAllDirty is true, all will be
-  // marked with NS_FRAME_IS_DIRTY.  Otherwise, the size-dependant ones will be
-  // marked with NS_FRAME_HAS_DIRTY_CHILDREN.
-  void DoMarkFramesDirty(PRBool aMarkAllDirty);
+                               nsRect*                  aChildBounds);
 
 protected:
   nsFrameList mAbsoluteFrames;  // additional named child list

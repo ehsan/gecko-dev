@@ -43,7 +43,7 @@
 /*
  * secoidt.h - public data structures for ASN.1 OID functions
  *
- * $Id: secoidt.h,v 1.31 2010/05/28 01:26:07 wtc%google.com Exp $
+ * $Id: secoidt.h,v 1.27 2008/02/28 04:27:30 nelson%bolyard.com Exp $
  */
 
 #include "secitem.h"
@@ -446,16 +446,6 @@ typedef enum {
 
     SEC_OID_ISO_SHA1_WITH_RSA_SIGNATURE     = 301,
 
-    SEC_OID_SEED_CBC			    = 302,
-
-    SEC_OID_X509_ANY_POLICY                 = 303,
-
-    SEC_OID_PKCS1_RSA_OAEP_ENCRYPTION       = 304,
-    SEC_OID_PKCS1_MGF1                      = 305,
-    SEC_OID_PKCS1_PSPECIFIED                = 306,
-    SEC_OID_PKCS1_RSA_PSS_SIGNATURE         = 307,
-    SEC_OID_PKCS1_SHA224_WITH_RSA_ENCRYPTION = 308,
-
     SEC_OID_TOTAL
 } SECOidTag;
 
@@ -482,19 +472,5 @@ struct SECOidDataStr {
 				   that we can print the names of those
 				   extensions that we don't even support */
 };
-
-/* New Opaque extended OID table API.  
- * These are algorithm policy Flags, used with functions
- * NSS_SetAlgorithmPolicy & NSS_GetAlgorithmPolicy.
- */
-#define NSS_USE_ALG_IN_CERT_SIGNATURE  0x00000001  /* CRLs and OCSP, too */
-#define NSS_USE_ALG_IN_CMS_SIGNATURE   0x00000002  /* used in S/MIME */
-#define NSS_USE_ALG_RESERVED           0xfffffffc  /* may be used in future */
-
-/* Code MUST NOT SET or CLEAR reserved bits, and must NOT depend on them
- * being all zeros or having any other known value.  The reserved bits
- * must be ignored.
- */
-
 
 #endif /* _SECOIDT_H_ */

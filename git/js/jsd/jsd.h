@@ -51,7 +51,7 @@
 
 /*
 * These can be controled by the makefile, but this allows a place to set
-* the values always used in the mozilla client, but perhaps done differently
+* the values always used in the mozilla client, but perhaps done differnetly
 * in other embeddings.
 */
 #ifdef MOZILLA_CLIENT
@@ -273,7 +273,7 @@ struct JSDValue
     intN        nref;
     JSCList     props;
     JSString*   string;
-    JSString*   funName;
+    const char* funName;
     const char* className;
     JSDValue*   proto;
     JSDValue*   parent;
@@ -340,20 +340,12 @@ extern void JSD_ASSERT_VALID_OBJECT(JSDObject* jsdobj);
 extern JSDContext*
 jsd_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
-                      void*              user,
-                      JSObject*          scopeobj);
-
+                      void*              user);
 extern JSDContext*
 jsd_DebuggerOn(void);
 
 extern void
 jsd_DebuggerOff(JSDContext* jsdc);
-
-extern void
-jsd_DebuggerPause(JSDContext* jsdc, JSBool forceAllHooksOff);
-
-extern void
-jsd_DebuggerUnpause(JSDContext* jsdc);
 
 extern void
 jsd_SetUserCallbacks(JSRuntime* jsrt, JSD_UserCallbacks* callbacks, void* user);
@@ -396,12 +388,6 @@ jsd_DestroyScriptManager(JSDContext* jsdc);
 extern JSDScript*
 jsd_FindJSDScript(JSDContext*  jsdc,
                   JSScript     *script);
-
-extern JSDScript*
-jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
-                          JSContext     *cx,
-                          JSScript      *script,
-                          JSStackFrame  *fp);
 
 extern JSDProfileData*
 jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script);
@@ -460,8 +446,8 @@ jsd_IsActiveScript(JSDContext* jsdc, JSDScript *jsdscript);
 extern const char*
 jsd_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 
-extern JSString*
-jsd_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript);
+extern const char*
+jsd_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript);
 
 extern uintN
 jsd_GetScriptBaseLineNumber(JSDContext* jsdc, JSDScript *jsdscript);
@@ -710,6 +696,11 @@ jsd_GetScopeChainForStackFrame(JSDContext* jsdc,
                                JSDStackFrameInfo* jsdframe);
 
 extern JSBool
+jsd_IsStackFrameNative(JSDContext* jsdc, 
+                       JSDThreadState* jsdthreadstate,
+                       JSDStackFrameInfo* jsdframe);
+
+extern JSBool
 jsd_IsStackFrameDebugger(JSDContext* jsdc, 
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe);
@@ -724,10 +715,10 @@ jsd_GetThisForStackFrame(JSDContext* jsdc,
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe);
 
-extern JSString*
-jsd_GetIdForStackFrame(JSDContext* jsdc, 
-                       JSDThreadState* jsdthreadstate,
-                       JSDStackFrameInfo* jsdframe);
+extern const char*
+jsd_GetNameForStackFrame(JSDContext* jsdc, 
+                         JSDThreadState* jsdthreadstate,
+                         JSDStackFrameInfo* jsdframe);
 
 extern JSDThreadState*
 jsd_NewThreadState(JSDContext* jsdc, JSContext *cx);
@@ -963,17 +954,14 @@ jsd_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval);
 extern int32
 jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval);
 
-extern jsdouble
+extern jsdouble*
 jsd_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval);
 
 extern JSString*
 jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval);
 
-extern JSString*
-jsd_GetValueFunctionId(JSDContext* jsdc, JSDValue* jsdval);
-
-extern JSFunction*
-jsd_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
+extern const char*
+jsd_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 
@@ -997,9 +985,6 @@ jsd_GetValueConstructor(JSDContext* jsdc, JSDValue* jsdval);
 
 extern const char*
 jsd_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval);
-
-extern JSDScript*
-jsd_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 
@@ -1042,7 +1027,7 @@ extern void
 jsd_DestroyObjectManager(JSDContext* jsdc);
 
 extern void
-jsd_DestroyObjects(JSDContext* jsdc);
+jsd_ObjectHook(JSContext *cx, JSObject *obj, JSBool isNew, void *closure);
 
 extern void
 jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,

@@ -47,7 +47,6 @@
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 
 #define LOG(args) PR_LOG(mLog, PR_LOG_DEBUG, args)

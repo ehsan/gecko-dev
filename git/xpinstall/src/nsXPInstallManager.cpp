@@ -47,6 +47,7 @@
 
 #include "nsIURL.h"
 #include "nsIFileURL.h"
+#include "nsIJAR.h"
 
 #include "nsITransport.h"
 #include "nsIOutputStream.h"
@@ -66,8 +67,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIAuthPrompt.h"
 #include "nsIWindowMediator.h"
-#include "nsIDocument.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsDirectoryService.h"
 #include "nsDirectoryServiceDefs.h"
@@ -83,7 +82,6 @@
 #include "nsISSLStatusProvider.h"
 #include "nsISSLStatus.h"
 #include "nsIX509Cert.h"
-#include "nsIX509Cert3.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -91,7 +89,6 @@
 #include "CertReader.h"
 
 #include "nsEmbedCID.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #define PREF_XPINSTALL_ENABLED                "xpinstall.enabled"
 #define PREF_XPINSTALL_CONFIRM_DLG            "xpinstall.dialog.confirm"
@@ -116,7 +113,6 @@ nsXPInstallManager::nsXPInstallManager()
 
 nsXPInstallManager::~nsXPInstallManager()
 {
-    NS_ASSERT_OWNINGTHREAD(nsXPInstallManager);
     NS_ASSERTION(!mTriggers, "Shutdown not called, triggers still alive");
 }
 
@@ -137,8 +133,8 @@ NS_INTERFACE_MAP_BEGIN(nsXPInstallManager)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISupportsWeakReference)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_THREADSAFE_ADDREF(nsXPInstallManager)
-NS_IMPL_THREADSAFE_RELEASE(nsXPInstallManager)
+NS_IMPL_ADDREF(nsXPInstallManager)
+NS_IMPL_RELEASE(nsXPInstallManager)
 
 NS_IMETHODIMP
 nsXPInstallManager::InitManagerFromChrome(const PRUnichar **aURLs,
@@ -236,17 +232,6 @@ nsXPInstallManager::InitManager(nsIDOMWindowInternal* aParentWindow, nsXPITrigge
 
     mParentWindow = aParentWindow;
 
-    // Attempt to find a load group, continue if we can't find one though
-    if (aParentWindow) {
-        nsCOMPtr<nsIDOMDocument> domdoc;
-        rv = aParentWindow->GetDocument(getter_AddRefs(domdoc));
-        if (NS_SUCCEEDED(rv) && domdoc) {
-            nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
-            if (doc)
-                mLoadGroup = doc->GetDocumentLoadGroup();
-        }
-    }
-
     // Start downloading initial chunks looking for signatures,
     mOutstandingCertLoads = mTriggers->Size();
 
@@ -256,7 +241,7 @@ nsXPInstallManager::InitManager(nsIDOMWindowInternal* aParentWindow, nsXPITrigge
     NS_NewURI(getter_AddRefs(uri), NS_ConvertUTF16toUTF8(item->mURL));
     nsCOMPtr<nsIStreamListener> listener = new CertReader(uri, nsnull, this);
     if (listener)
-        rv = NS_OpenURI(listener, nsnull, uri, nsnull, mLoadGroup);
+        rv = NS_OpenURI(listener, nsnull, uri);
     else
         rv = NS_ERROR_OUT_OF_MEMORY;
 
@@ -528,8 +513,7 @@ nsXPInstallManager::OpenProgressDialog(const PRUnichar **aPackageList, PRUint32 
         nsCOMPtr<nsIDOMWindowInternal> recentWindow;
         wm->GetMostRecentWindow(type.get(), getter_AddRefs(recentWindow));
         if (recentWindow) {
-            nsCOMPtr<nsIObserverService> os =
-              mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
             os->NotifyObservers(params, "xpinstall-download-started", nsnull);
 
             recentWindow->Focus();
@@ -541,7 +525,7 @@ nsXPInstallManager::OpenProgressDialog(const PRUnichar **aPackageList, PRUint32 
     rv = wwatch->OpenWindow(0,
                             statusDialogURL,
                             "_blank",
-                            "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable",
+                            "chrome,centerscreen,titlebar,dialog=no,resizable",
                             params,
                             getter_AddRefs(newWindow));
 
@@ -576,8 +560,7 @@ NS_IMETHODIMP nsXPInstallManager::Observe( nsISupports *aSubject,
             mDialogOpen = PR_TRUE;
             rv = NS_OK;
 
-            nsCOMPtr<nsIObserverService> os =
-              mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
             if (os)
             {
                 os->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_TRUE);
@@ -637,9 +620,13 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
     if (!hasCert)
         return NS_ERROR_FAILURE;
 
+    nsCOMPtr<nsIJAR> jar(do_QueryInterface(hZip));
+    if (!jar)
+        return NS_ERROR_FAILURE;
+
     // See if the archive is signed at all first
     nsCOMPtr<nsIPrincipal> principal;
-    nsresult rv = hZip->GetCertificatePrincipal(nsnull, getter_AddRefs(principal));
+    nsresult rv = jar->GetCertificatePrincipal(nsnull, getter_AddRefs(principal));
     if (NS_FAILED(rv) || !principal)
         return NS_ERROR_FAILURE;
 
@@ -668,7 +655,7 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
         entryCount++;
 
         // Each entry must be signed
-        rv = hZip->GetCertificatePrincipal(name.get(), getter_AddRefs(principal));
+        rv = jar->GetCertificatePrincipal(name.get(), getter_AddRefs(principal));
         if (NS_FAILED(rv) || !principal) return NS_ERROR_FAILURE;
 
         PRBool equal;
@@ -678,7 +665,7 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
 
     // next verify all files in the manifest are in the archive.
     PRUint32 manifestEntryCount;
-    rv = hZip->GetManifestEntriesCount(&manifestEntryCount);
+    rv = jar->GetManifestEntriesCount(&manifestEntryCount);
     if (NS_FAILED(rv))
         return rv;
 
@@ -807,7 +794,7 @@ nsresult nsXPInstallManager::InstallItems()
 
 NS_IMETHODIMP nsXPInstallManager::DownloadNext()
 {
-    nsresult rv = NS_OK;
+    nsresult rv;
     mContentLength = 0;
 
     if (mCancelled)
@@ -893,7 +880,7 @@ NS_IMETHODIMP nsXPInstallManager::DownloadNext()
                 {
                     nsCOMPtr<nsIChannel> channel;
 
-                    rv = NS_NewChannel(getter_AddRefs(channel), pURL, nsnull, mLoadGroup, this);
+                    rv = NS_NewChannel(getter_AddRefs(channel), pURL, nsnull, nsnull, this);
                     if (NS_SUCCEEDED(rv))
                     {
                         rv = channel->AsyncOpen(this, nsnull);
@@ -1001,8 +988,7 @@ void nsXPInstallManager::Shutdown(PRInt32 status)
                 item->mFile->Remove(PR_FALSE);
         }
 
-        nsCOMPtr<nsIObserverService> os =
-          mozilla::services::GetObserverService();
+        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
         if (os)
         {
             os->RemoveObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC);
@@ -1102,16 +1088,11 @@ nsXPInstallManager::CheckCert(nsIChannel* aChannel)
     }
 
     if (issuer) {
-        PRUint32 length;
-        PRUnichar** tokenNames;
-        nsCOMPtr<nsIX509Cert3> issuer2(do_QueryInterface(issuer));
-        NS_ENSURE_TRUE(status, NS_ERROR_FAILURE);
-        rv = issuer2->GetAllTokenNames(&length, &tokenNames);
+        nsAutoString tokenName;
+        rv = issuer->GetTokenName(tokenName);
         NS_ENSURE_SUCCESS(rv ,rv);
-        for (PRUint32 i = 0; i < length; i++) {
-            if (nsDependentString(tokenNames[i]).Equals(NS_LITERAL_STRING("Builtin Object Token")))
-                return NS_OK;
-        }
+        if (tokenName.Equals(NS_LITERAL_STRING("Builtin Object Token")))
+            return NS_OK;
     }
     return NS_ERROR_FAILURE;
 }
@@ -1138,9 +1119,6 @@ nsXPInstallManager::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
         }
     }
 
-    if (mLoadGroup)
-        mLoadGroup->RemoveRequest(request, nsnull, NS_BINDING_RETARGETED);
-
     NS_ASSERTION( mItem && mItem->mFile, "XPIMgr::OnStartRequest bad state");
     if ( mItem && mItem->mFile )
     {
@@ -1165,7 +1143,6 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     {
 
         case NS_BINDING_SUCCEEDED:
-            NS_ASSERTION( mItem->mOutStream, "XPIManager: output stream doesn't exist");
             rv = NS_OK;
             break;
 
@@ -1182,6 +1159,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     }
 
     NS_ASSERTION( mItem, "Bad state in XPIManager");
+    NS_ASSERTION( mItem->mOutStream, "XPIManager: output stream doesn't exist");
     if ( mItem && mItem->mOutStream )
     {
         mItem->mOutStream->Close();
@@ -1192,7 +1170,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     {
         // Download error!
         // -- first clean up partially downloaded file
-        if ( mItem && mItem->mFile )
+        if ( mItem->mFile )
         {
             PRBool flagExists;
             nsresult rv2 ;
@@ -1210,8 +1188,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
             mDlg->OnStateChange( mNextItem-1,
                                  nsIXPIProgressDialog::INSTALL_DONE,
                                  errorcode );
-        if (mItem)
-            mTriggers->SendStatus( mItem->mURL.get(), errorcode );
+        mTriggers->SendStatus( mItem->mURL.get(), errorcode );
     }
     else if (mDlg)
     {
@@ -1280,7 +1257,7 @@ nsXPInstallManager::OnProgress(nsIRequest* request, nsISupports *ctxt, PRUint64 
             if (NS_FAILED(rv)) return rv;
         }
         // XXX once channels support that, use 64-bit contentlength
-        rv = mDlg->OnProgress( mNextItem-1, aProgress, PRUint64(mContentLength) );
+        rv = mDlg->OnProgress( mNextItem-1, aProgress, nsUint64(mContentLength) );
     }
 
     return rv;
@@ -1324,19 +1301,11 @@ nsXPInstallManager::GetInterface(const nsIID & eventSinkIID, void* *_retval)
 
 // nsIChannelEventSink method
 NS_IMETHODIMP
-nsXPInstallManager::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                           nsIChannel *newChannel,
-                                           PRUint32 flags,
-                                           nsIAsyncVerifyRedirectCallback *callback)
+nsXPInstallManager::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PRUint32 flags)
 {
     // Chrome triggered installs need to have their certificates checked
-    if (mFromChrome) {
-        nsresult rv = CheckCert(oldChannel);
-        if (NS_FAILED(rv()))
-            return rv;
-    }
-
-    callback->OnRedirectVerifyCallback(NS_OK);
+    if (mFromChrome)
+        return CheckCert(oldChannel);
     return NS_OK;
 }
 
@@ -1402,7 +1371,7 @@ nsXPInstallManager::OnCertAvailable(nsIURI *aURI,
         return OnCertAvailable(uri, context, NS_ERROR_FAILURE, nsnull);
 
     NS_ADDREF(listener);
-    nsresult rv = NS_OpenURI(listener, nsnull, uri, nsnull, mLoadGroup);
+    nsresult rv = NS_OpenURI(listener, nsnull, uri);
 
     NS_ASSERTION(NS_SUCCEEDED(rv), "OpenURI failed");
     NS_RELEASE(listener);

@@ -49,16 +49,43 @@ DIRS		+= test
 endif
 
 MODULE		= layout
-XPIDL_MODULE	= layout_forms
 LIBRARY_NAME	= gkforms_s
 LIBXUL_LIBRARY	= 1
 
-XPIDLSRCS       = nsICapturePicker.idl
+REQUIRES	= xpcom \
+		  string \
+		  locale \
+		  content \
+		  gfx \
+		  thebes \
+		  widget \
+		  view \
+		  dom \
+		  necko \
+		  webshell \
+		  editor \
+		  uconv \
+		  txmgr \
+		  xuldoc \
+		  imglib2 \
+		  unicharutil \
+		  commandhandler \
+		  xpconnect \
+		  js \
+		  pref \
+		  docshell \
+		  $(NULL)
+
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 EXPORTS		= \
 		nsIListControlFrame.h \
 		nsIComboboxControlFrame.h \
 		nsIFormControlFrame.h \
+		nsIRadioControlFrame.h \
+		nsICheckboxControlFrame.h \
 		nsISelectControlFrame.h \
 		nsITextControlFrame.h \
 		$(NULL)
@@ -92,8 +119,6 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
-		-I$(srcdir)/../../editor/libeditor/base \
-		-I$(srcdir)/../../editor/libeditor/text \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

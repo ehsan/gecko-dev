@@ -85,7 +85,7 @@
 #include "nsISupportsArray.h"
 #include "nsCOMArray.h"
 #include "nsEnumeratorUtils.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"  // XXX introduces dependency on raptorbase
 #include "nsCRT.h"
 #include "nsRDFCID.h"
 #include "nsRDFBaseDataSources.h"
@@ -145,7 +145,7 @@ public:
         aAssertion->~Assertion();
         aAllocator.Free(aAssertion, sizeof(*aAssertion)); }
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DeletePropertyHashEntry(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                            PRUint32 aNumber, void* aArg);
 
@@ -276,7 +276,7 @@ Assertion::~Assertion()
     }
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 Assertion::DeletePropertyHashEntry(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                                            PRUint32 aNumber, void* aArg)
 {
@@ -327,11 +327,11 @@ protected:
     // during mReadCount == 0
     PRUint32 mReadCount;
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DeleteForwardArcsEntry(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                            PRUint32 aNumber, void* aArg);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     ResourceEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                        PRUint32 aNumber, void* aArg);
 
@@ -355,7 +355,7 @@ protected:
     virtual ~InMemoryDataSource();
     nsresult Init();
 
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewRDFInMemoryDataSource(nsISupports* aOuter, const nsIID& aIID, void** aResult);
 
 public:
@@ -378,7 +378,7 @@ public:
     NS_DECL_RDFIDATASOURCE
 
 protected:
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     SweepForwardArcsEntries(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                             PRUint32 aNumber, void* aArg);
 
@@ -636,7 +636,7 @@ InMemoryAssertionEnumeratorImpl::GetNext(nsISupports** aResult)
  * <tt>nsIRDFArcsOutCursor</tt> and <tt>nsIRDFArcsInCursor</tt> interfaces.
  * Because the structure of the in-memory graph is pretty flexible, it's
  * fairly easy to parameterize this class. The only funky thing to watch
- * out for is the multiple inheritance clashes.
+ * out for is the mutliple inheiritance clashes.
  */
 
 class InMemoryArcsEnumeratorImpl : public nsISimpleEnumerator
@@ -650,7 +650,7 @@ private:
     InMemoryDataSource* mDataSource;
     nsIRDFResource*     mSource;
     nsIRDFNode*         mTarget;
-    nsAutoTArray<nsCOMPtr<nsIRDFResource>, 8> mAlreadyReturned;
+    nsAutoVoidArray     mAlreadyReturned;
     nsIRDFResource*     mCurrent;
     Assertion*          mAssertion;
     nsCOMPtr<nsISupportsArray> mHashArcs;
@@ -661,7 +661,7 @@ private:
 
     virtual ~InMemoryArcsEnumeratorImpl();
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     ArcEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                        PRUint32 aNumber, void* aArg);
 
@@ -695,7 +695,7 @@ public:
 };
 
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 InMemoryArcsEnumeratorImpl::ArcEnumerator(PLDHashTable* aTable,
                                        PLDHashEntryHdr* aHdr,
                                        PRUint32 aNumber, void* aArg)
@@ -750,6 +750,11 @@ InMemoryArcsEnumeratorImpl::~InMemoryArcsEnumeratorImpl()
     NS_IF_RELEASE(mSource);
     NS_IF_RELEASE(mTarget);
     NS_IF_RELEASE(mCurrent);
+
+    for (PRInt32 i = mAlreadyReturned.Count() - 1; i >= 0; --i) {
+        nsIRDFResource* resource = (nsIRDFResource*) mAlreadyReturned[i];
+        NS_RELEASE(resource);
+    }
 }
 
 NS_IMPL_ADDREF(InMemoryArcsEnumeratorImpl)
@@ -805,7 +810,7 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(PRBool* aResult)
             while (mAssertion && (next == mAssertion->u.as.mProperty));
 
             PRBool alreadyReturned = PR_FALSE;
-            for (PRInt32 i = mAlreadyReturned.Length() - 1; i >= 0; --i) {
+            for (PRInt32 i = mAlreadyReturned.Count() - 1; i >= 0; --i) {
                 if (mAlreadyReturned[i] == next) {
                     alreadyReturned = PR_TRUE;
                     break;
@@ -839,6 +844,7 @@ InMemoryArcsEnumeratorImpl::GetNext(nsISupports** aResult)
 
     // Add this to the set of things we've already returned so that we
     // can ensure uniqueness
+    NS_ADDREF(mCurrent);
     mAlreadyReturned.AppendElement(mCurrent);
 
     // Don't AddRef: we "transfer" ownership to the caller
@@ -852,7 +858,7 @@ InMemoryArcsEnumeratorImpl::GetNext(nsISupports** aResult)
 ////////////////////////////////////////////////////////////////////////
 // InMemoryDataSource
 
-nsresult
+NS_IMETHODIMP
 NS_NewRDFInMemoryDataSource(nsISupports* aOuter, const nsIID& aIID, void** aResult)
 {
     NS_PRECONDITION(aResult != nsnull, "null ptr");
@@ -958,7 +964,7 @@ InMemoryDataSource::~InMemoryDataSource()
 
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 InMemoryDataSource::DeleteForwardArcsEntry(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                                            PRUint32 aNumber, void* aArg)
 {
@@ -1779,7 +1785,7 @@ InMemoryDataSource::ArcLabelsOut(nsIRDFResource* aSource, nsISimpleEnumerator** 
     return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 InMemoryDataSource::ResourceEnumerator(PLDHashTable* aTable,
                                        PLDHashEntryHdr* aHdr,
                                        PRUint32 aNumber, void* aArg)
@@ -2042,7 +2048,7 @@ InMemoryDataSource::Sweep()
 }
 
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 InMemoryDataSource::SweepForwardArcsEntries(PLDHashTable* aTable,
                                             PLDHashEntryHdr* aHdr,
                                             PRUint32 aNumber, void* aArg)
@@ -2145,7 +2151,7 @@ public:
     nsresult mRv;
 };
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 SubjectEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                   PRUint32 aNumber, void* aArg) {
     Entry* entry = reinterpret_cast<Entry*>(aHdr);
@@ -2187,7 +2193,7 @@ public:
     VisitorClosure* mOuter;
 };
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 TriplesInnerEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                   PRUint32 aNumber, void* aArg) {
     Entry* entry = reinterpret_cast<Entry*>(aHdr);
@@ -2208,7 +2214,7 @@ TriplesInnerEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
     }
     return PL_DHASH_NEXT;
 }
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 TriplesEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
                   PRUint32 aNumber, void* aArg) {
     Entry* entry = reinterpret_cast<Entry*>(aHdr);

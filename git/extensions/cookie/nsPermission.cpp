@@ -43,14 +43,10 @@ NS_IMPL_ISUPPORTS1(nsPermission, nsIPermission)
 
 nsPermission::nsPermission(const nsACString &aHost,
                            const nsACString &aType,
-                           PRUint32         aCapability,
-                           PRUint32         aExpireType,
-                           PRInt64          aExpireTime)
+                           PRUint32         aCapability)
  : mHost(aHost)
  , mType(aType)
  , mCapability(aCapability)
- , mExpireType(aExpireType)
- , mExpireTime(aExpireTime)
 {
 }
 
@@ -76,19 +72,5 @@ NS_IMETHODIMP
 nsPermission::GetCapability(PRUint32 *aCapability)
 {
   *aCapability = mCapability;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPermission::GetExpireType(PRUint32 *aExpireType)
-{
-  *aExpireType = mExpireType;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPermission::GetExpireTime(PRInt64 *aExpireTime)
-{
-  *aExpireTime = mExpireTime;
   return NS_OK;
 }

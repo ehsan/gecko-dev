@@ -60,22 +60,14 @@ var gUpdateHistory = {
         var update = um.getUpdateAt(i);
         if (!update || !update.name)
           continue;
-
-        // Don't display updates that are downloading since they don't have
-        // valid statusText for the UI (bug 485493).
-        if (!update.statusText)
-          continue;
-
+        
         var element = document.createElementNS(NS_XUL, "update");
         this._view.appendChild(element);
         element.name = bundle.getFormattedString("updateFullName", 
           [update.name, update.buildID]);
         element.type = bundle.getString("updateType_" + update.type);
         element.installDate = this._formatDate(update.installDate);
-        if (update.detailsURL)
-          element.detailsURL = update.detailsURL;
-        else
-          element.hideDetailsURL = true;
+        element.detailsURL = update.detailsURL;
         element.status = update.statusText;
       }
     }

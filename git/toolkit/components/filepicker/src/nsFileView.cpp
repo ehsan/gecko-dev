@@ -38,7 +38,7 @@
 
 #include "nsIFileView.h"
 #include "nsITreeView.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsITreeSelection.h"
 #include "nsITreeColumns.h"
 #include "nsITreeBoxObject.h"
@@ -48,6 +48,7 @@
 #include "nsCRT.h"
 #include "prmem.h"
 #include "nsPrintfCString.h"
+#include "nsVoidArray.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsQuickSort.h"
@@ -57,12 +58,9 @@
 #include "nsISimpleEnumerator.h"
 #include "nsAutoPtr.h"
 #include "nsIMutableArray.h"
-#include "nsTArray.h"
 
 #include "nsWildCard.h"
 
-class nsIDOMDataTransfer;
- 
 #define NS_FILECOMPLETE_CID { 0xcb60980e, 0x18a5, 0x4a77, \
                             { 0x91, 0x10, 0x81, 0x46, 0x61, 0x4c, 0xa7, 0xf0 } }
 #define NS_FILECOMPLETE_CONTRACTID "@mozilla.org/autocomplete/search;1?name=file"
@@ -77,7 +75,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIAUTOCOMPLETERESULT
 
-  nsTArray<nsString> mValues;
+  nsStringArray mValues;
   nsAutoString mSearchString;
   PRUint16 mSearchResult;
 };
@@ -117,7 +115,7 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
       nextFile->GetLeafName(fileName);
       if (StringBeginsWith(fileName, prefix)) {
         fileName.Insert(parent, 0);
-        mValues.AppendElement(fileName);
+        mValues.AppendString(fileName);
         if (mSearchResult == RESULT_NOMATCH && fileName.Equals(mSearchString))
           mSearchResult = RESULT_IGNORED;
         else
@@ -157,19 +155,14 @@ NS_IMETHODIMP nsFileResult::GetErrorDescription(nsAString & aErrorDescription)
 NS_IMETHODIMP nsFileResult::GetMatchCount(PRUint32 *aMatchCount)
 {
   NS_ENSURE_ARG_POINTER(aMatchCount);
-  *aMatchCount = mValues.Length();
+  *aMatchCount = mValues.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsFileResult::GetValueAt(PRInt32 index, nsAString & aValue)
 {
-  aValue = mValues[index];
+  mValues.StringAt(index, aValue);
   return NS_OK;
-}
-
-NS_IMETHODIMP nsFileResult::GetLabelAt(PRInt32 index, nsAString & aValue)
-{
-  return GetValueAt(index, aValue);
 }
 
 NS_IMETHODIMP nsFileResult::GetCommentAt(PRInt32 index, nsAString & aComment)
@@ -258,7 +251,7 @@ protected:
   PRInt16 mSortType;
   PRInt32 mTotalRows;
 
-  nsTArray<PRUnichar*> mCurrentFilters;
+  nsVoidArray mCurrentFilters;
 
   PRPackedBool mShowHiddenFiles;
   PRPackedBool mDirectoryFilter;
@@ -268,28 +261,17 @@ protected:
 // Factory constructor
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileComplete)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFileView, Init)
-NS_DEFINE_NAMED_CID(NS_FILECOMPLETE_CID);
-NS_DEFINE_NAMED_CID(NS_FILEVIEW_CID);
 
-static const mozilla::Module::CIDEntry kFileViewCIDs[] = {
-  { &kNS_FILECOMPLETE_CID, false, NULL, nsFileCompleteConstructor },
-  { &kNS_FILEVIEW_CID, false, NULL, nsFileViewConstructor },
-  { NULL }
+static const nsModuleComponentInfo components[] =
+{
+  { "nsFileComplete", NS_FILECOMPLETE_CID,
+    NS_FILECOMPLETE_CONTRACTID, nsFileCompleteConstructor },
+  { "nsFileView", NS_FILEVIEW_CID,
+    NS_FILEVIEW_CONTRACTID, nsFileViewConstructor }
 };
 
-static const mozilla::Module::ContractIDEntry kFileViewContracts[] = {
-  { NS_FILECOMPLETE_CONTRACTID, &kNS_FILECOMPLETE_CID },
-  { NS_FILEVIEW_CONTRACTID, &kNS_FILEVIEW_CID },
-  { NULL }
-};
+NS_IMPL_NSGETMODULE(nsFileViewModule, components)
 
-static const mozilla::Module kFileViewModule = {
-  mozilla::Module::kVersion,
-  kFileViewCIDs,
-  kFileViewContracts
-};
-
-NSMODULE_DEFN(nsFileViewModule) = &kFileViewModule;
 
 nsFileView::nsFileView() :
   mSortType(-1),
@@ -302,8 +284,8 @@ nsFileView::nsFileView() :
 
 nsFileView::~nsFileView()
 {
-  PRUint32 count = mCurrentFilters.Length();
-  for (PRUint32 i = 0; i < count; ++i)
+  PRInt32 count = mCurrentFilters.Count();
+  for (PRInt32 i = 0; i < count; ++i)
     NS_Free(mCurrentFilters[i]);
 }
 
@@ -311,28 +293,11 @@ nsresult
 nsFileView::Init()
 {
   mDirectoryAtom = do_GetAtom("directory");
-  if (!mDirectoryAtom)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   mFileAtom = do_GetAtom("file");
-  if (!mFileAtom)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   NS_NewISupportsArray(getter_AddRefs(mFileList));
-  if (!mFileList)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   NS_NewISupportsArray(getter_AddRefs(mDirList));
-  if (!mDirList)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   NS_NewISupportsArray(getter_AddRefs(mFilteredFiles));
-  if (!mFilteredFiles)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   mDateFormatter = do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID);
-  if (!mDateFormatter)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
 }
@@ -420,12 +385,12 @@ NS_IMETHODIMP
 nsFileView::Sort(PRInt16 aSortType, PRBool aReverseSort)
 {
   if (aSortType == mSortType) {
-    if (aReverseSort == mReverseSort)
+    if (aReverseSort != mReverseSort) {
+      mReverseSort = aReverseSort;
+      ReverseArray(mDirList);
+      ReverseArray(mFilteredFiles);
+    } else
       return NS_OK;
-
-    mReverseSort = aReverseSort;
-    ReverseArray(mDirList);
-    ReverseArray(mFilteredFiles);
   } else {
     mSortType = aSortType;
     mReverseSort = aReverseSort;
@@ -441,8 +406,6 @@ nsFileView::Sort(PRInt16 aSortType, PRBool aReverseSort)
 NS_IMETHODIMP
 nsFileView::SetDirectory(nsIFile* aDirectory)
 {
-  NS_ENSURE_ARG_POINTER(aDirectory);
-
   nsCOMPtr<nsISimpleEnumerator> dirEntries;
   aDirectory->GetDirectoryEntries(getter_AddRefs(dirEntries));
 
@@ -463,20 +426,18 @@ nsFileView::SetDirectory(nsIFile* aDirectory)
     dirEntries->GetNext(getter_AddRefs(nextItem));
     nsCOMPtr<nsIFile> theFile = do_QueryInterface(nextItem);
 
-    PRBool isDirectory = PR_FALSE;
-    if (theFile) {
-      theFile->IsDirectory(&isDirectory);
+    PRBool isDirectory;
+    theFile->IsDirectory(&isDirectory);
 
-      if (isDirectory) {
-        PRBool isHidden;
-        theFile->IsHidden(&isHidden);
-        if (mShowHiddenFiles || !isHidden) {
-          mDirList->AppendElement(theFile);
-        }
+    if (isDirectory) {
+      PRBool isHidden;
+      theFile->IsHidden(&isHidden);
+      if (mShowHiddenFiles || !isHidden) {
+        mDirList->AppendElement(theFile);
       }
-      else {
-        mFileList->AppendElement(theFile);
-      }
+    }
+    else {
+      mFileList->AppendElement(theFile);
     }
   }
 
@@ -499,8 +460,8 @@ nsFileView::SetDirectory(nsIFile* aDirectory)
 NS_IMETHODIMP
 nsFileView::SetFilter(const nsAString& aFilterString)
 {
-  PRUint32 filterCount = mCurrentFilters.Length();
-  for (PRUint32 i = 0; i < filterCount; ++i)
+  PRInt32 filterCount = mCurrentFilters.Count();
+  for (PRInt32 i = 0; i < filterCount; ++i)
     NS_Free(mCurrentFilters[i]);
   mCurrentFilters.Clear();
 
@@ -565,8 +526,6 @@ NS_IMETHODIMP
 nsFileView::GetSelectedFiles(nsIArray** aFiles)
 {
   *aFiles = nsnull;
-  if (!mSelection)
-    return NS_OK;
 
   PRInt32 numRanges;
   mSelection->GetRangeCount(&numRanges);
@@ -691,15 +650,14 @@ nsFileView::IsSorted(PRBool* aIsSorted)
 }
 
 NS_IMETHODIMP
-nsFileView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation,
-                    nsIDOMDataTransfer* dataTransfer, PRBool* aCanDrop)
+nsFileView::CanDrop(PRInt32 aIndex, PRInt32 aOrientation, PRBool* aCanDrop)
 {
   *aCanDrop = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileView::Drop(PRInt32 aRow, PRInt32 aOrientation, nsIDOMDataTransfer* dataTransfer)
+nsFileView::Drop(PRInt32 aRow, PRInt32 aOrientation)
 {
   return NS_OK;
 }
@@ -886,7 +844,7 @@ nsFileView::FilterFiles()
   mTotalRows = count;
   mFileList->Count(&count);
   mFilteredFiles->Clear();
-  PRUint32 filterCount = mCurrentFilters.Length();
+  PRInt32 filterCount = mCurrentFilters.Count();
 
   nsCOMPtr<nsIFile> file;
   for (PRUint32 i = 0; i < count; ++i) {
@@ -902,15 +860,15 @@ nsFileView::FilterFiles()
     }
     
     if (!isHidden) {
-      for (PRUint32 j = 0; j < filterCount; ++j) {
+      for (PRInt32 j = 0; j < filterCount; ++j) {
         PRBool matched = PR_FALSE;
-        if (!nsCRT::strcmp(mCurrentFilters.ElementAt(j),
+        if (!nsCRT::strcmp((const PRUnichar*) mCurrentFilters.ElementAt(j),
                            NS_LITERAL_STRING("..apps").get()))
         {
           file->IsExecutable(&matched);
         } else
           matched = (NS_WildCardMatch(ucsLeafName.get(),
-                                      mCurrentFilters.ElementAt(j),
+                                      (const PRUnichar*) mCurrentFilters.ElementAt(j),
                                       PR_TRUE) == MATCH);
 
         if (matched) {
@@ -936,7 +894,7 @@ nsFileView::ReverseArray(nsISupportsArray* aArray)
   }
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortNameCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);
@@ -949,7 +907,7 @@ SortNameCallback(const void* aElement1, const void* aElement2, void* aContext)
   return Compare(leafName1, leafName2);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortSizeCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);
@@ -965,7 +923,7 @@ SortSizeCallback(const void* aElement1, const void* aElement2, void* aContext)
   return (LL_CMP(size1, <, size2) ? -1 : 1);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortDateCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);

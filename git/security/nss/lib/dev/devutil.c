@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: devutil.c,v $ $Revision: 1.35 $ $Date: 2010/04/11 05:57:47 $";
+static const char CVS_ID[] = "@(#) $RCSfile: devutil.c,v $ $Revision: 1.31 $ $Date: 2008/05/18 01:51:45 $";
 #endif /* DEBUG */
 
 #ifndef DEVM_H
@@ -148,7 +148,9 @@ nssSlotArray_Clone (
     if (count > 0) {
 	rvSlots = nss_ZNEWARRAY(NULL, NSSSlot *, count + 1);
 	if (rvSlots) {
-	    for (sp = slots, count = 0; *sp; sp++) {
+	    sp = slots;
+	    count = 0;
+	    for (sp = slots; *sp; sp++) {
 		rvSlots[count++] = nssSlot_AddRef(*sp);
 	    }
 	}
@@ -264,7 +266,6 @@ nssTokenObjectCache_Create (
     rvCache->token = token; /* cache goes away with token */
     return rvCache;
 loser:
-    nssTokenObjectCache_Destroy(rvCache);
     return (nssTokenObjectCache *)NULL;
 }
 
@@ -310,9 +311,7 @@ nssTokenObjectCache_Destroy (
 {
     if (cache) {
 	clear_cache(cache);
-	if (cache->lock) {
-	    PZ_DestroyLock(cache->lock);
-	}
+	PZ_DestroyLock(cache->lock);
 	nss_ZFreeIf(cache);
     }
 }
@@ -377,7 +376,7 @@ create_object (
 )
 {
     PRUint32 j;
-    NSSArena *arena = NULL;
+    NSSArena *arena;
     NSSSlot *slot = NULL;
     nssSession *session = NULL;
     nssCryptokiObjectAndAttributes *rvCachedObject = NULL;
@@ -388,10 +387,7 @@ create_object (
         goto loser;
     }
     session = nssToken_GetDefaultSession(object->token);
-    if (!session) {
-        nss_SetError(NSS_ERROR_INVALID_POINTER);
-        goto loser;
-    }
+
     arena = nssArena_Create();
     if (!arena) {
 	goto loser;
@@ -739,7 +735,11 @@ find_objects_in_array (
     nssArena_Destroy(arena);
     return objects;
 loser:
-    nssCryptokiObjectArray_Destroy(objects);
+    if (objects) {
+	for (--oi; oi>=0; --oi) {
+	    nssCryptokiObject_Destroy(objects[oi]);
+	}
+    }
     nssArena_Destroy(arena);
     return (nssCryptokiObject **)NULL;
 }

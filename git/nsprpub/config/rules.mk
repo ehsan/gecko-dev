@@ -106,13 +106,13 @@ endif
 #
 
 ifdef LIBRARY_NAME
-ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
+ifeq (,$(filter-out WINNT OS2,$(OS_ARCH)))
 
 #
-# Win95 and OS/2 require library names conforming to the 8.3 rule.
+# Win95, Win16, and OS/2 require library names conforming to the 8.3 rule.
 # other platforms do not.
 #
-ifeq (,$(filter-out WIN95 WINCE WINMO OS2,$(OS_TARGET)))
+ifeq (,$(filter-out WIN95 OS2,$(OS_TARGET)))
 LIBRARY		= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION)_s.$(LIB_SUFFIX)
 SHARED_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(DLL_SUFFIX)
 IMPORT_LIBRARY	= $(OBJDIR)/$(LIBRARY_NAME)$(LIBRARY_VERSION).$(LIB_SUFFIX)
@@ -139,9 +139,9 @@ endif
 endif
 
 ifndef TARGETS
-ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
+ifeq (,$(filter-out WINNT OS2,$(OS_ARCH)))
 TARGETS		= $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
-ifdef MOZ_DEBUG_SYMBOLS
+ifndef BUILD_OPT
 ifdef MSC_VER
 ifneq (,$(filter-out 1100 1200,$(MSC_VER)))
 TARGETS		+= $(SHARED_LIB_PDB)
@@ -168,17 +168,31 @@ ALL_TRASH		= $(TARGETS) $(OBJS) $(RES) $(filter-out . .., $(OBJDIR)) LOGS TAGS $
 			  $(NOSUCHFILE) \
 			  so_locations
 
+ifeq ($(OS_ARCH),OpenVMS)
+ALL_TRASH		+= $(wildcard *.c*_defines)
+ifdef SHARED_LIBRARY
+VMS_SYMVEC_FILE		= $(SHARED_LIBRARY:.$(DLL_SUFFIX)=_symvec.opt)
+VMS_SYMVEC_FILE_MODULE	= $(srcdir)/$(LIBRARY_NAME)_symvec.opt
+ALL_TRASH		+= $(VMS_SYMVEC_FILE)
+endif
+endif
+
 ifndef RELEASE_LIBS_DEST
 RELEASE_LIBS_DEST	= $(RELEASE_LIB_DIR)
 endif
 
-define MAKE_IN_DIR
-	$(MAKE) -C $(dir) $@
-
-endef # do not remove the blank line!
-
 ifdef DIRS
-LOOP_OVER_DIRS = $(foreach dir,$(DIRS),$(MAKE_IN_DIR))
+LOOP_OVER_DIRS		=					\
+	@for d in $(DIRS); do					\
+		if test -d $$d; then				\
+			set -e;					\
+			echo "cd $$d; $(MAKE) $@";		\
+			$(MAKE) -C $$d $@;			\
+			set +e;					\
+		else						\
+			echo "Skipping non-directory $$d...";	\
+		fi;						\
+	done
 endif
 
 ################################################################################
@@ -304,13 +318,6 @@ ifeq ($(OS_TARGET), OS2)
 $(IMPORT_LIBRARY): $(MAPFILE)
 	rm -f $@
 	$(IMPLIB) $@ $(MAPFILE)
-else
-ifeq (,$(filter-out WIN95 WINCE WINMO,$(OS_TARGET)))
-# PDBs and import libraries need to depend on the shared library to
-# order dependencies properly.
-$(IMPORT_LIBRARY): $(SHARED_LIBRARY)
-$(SHARED_LIB_PDB): $(SHARED_LIBRARY)
-endif
 endif
 
 $(SHARED_LIBRARY): $(OBJS) $(RES) $(MAPFILE)
@@ -334,7 +341,15 @@ ifdef MT
 	fi
 endif	# MSVC with manifest tool
 else	# WINNT && !GCC
-	$(MKSHLIB) $(OBJS) $(RES) $(LDFLAGS) $(EXTRA_LIBS)
+ifeq ($(OS_TARGET), OpenVMS)
+	@if test ! -f $(VMS_SYMVEC_FILE); then \
+	  if test -f $(VMS_SYMVEC_FILE_MODULE); then \
+	    echo Creating component options file $(VMS_SYMVEC_FILE); \
+	    cp $(VMS_SYMVEC_FILE_MODULE) $(VMS_SYMVEC_FILE); \
+	  fi; \
+	fi
+endif	# OpenVMS
+	$(MKSHLIB) $(OBJS) $(RES) $(EXTRA_LIBS)
 endif	# WINNT && !GCC
 endif	# AIX 4.1
 ifdef ENABLE_STRIP
@@ -385,23 +400,19 @@ NEED_ABSOLUTE_PATH = 1
 endif
 
 ifdef NEED_ABSOLUTE_PATH
-# The quotes allow absolute paths to contain spaces.
-pr_abspath = "$(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))"
+PWD := $(shell pwd)
+abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(PWD)/$(1)))
 endif
 
 $(OBJDIR)/%.$(OBJ_SUFFIX): %.cpp
 	@$(MAKE_OBJDIR)
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-	$(CCC) -Fo$@ -c $(CCCFLAGS) $(call pr_abspath,$<)
-else
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINCE)
-	$(CCC) -Fo$@ -c $(CCCFLAGS) $<
+	$(CCC) -Fo$@ -c $(CCCFLAGS) $(call abspath,$<)
 else
 ifdef NEED_ABSOLUTE_PATH
-	$(CCC) -o $@ -c $(CCCFLAGS) $(call pr_abspath,$<)
+	$(CCC) -o $@ -c $(CCCFLAGS) $(call abspath,$<)
 else
 	$(CCC) -o $@ -c $(CCCFLAGS) $<
-endif
 endif
 endif
 
@@ -411,16 +422,12 @@ WCCFLAGS3 = $(subst -D,-d,$(WCCFLAGS2))
 $(OBJDIR)/%.$(OBJ_SUFFIX): %.c
 	@$(MAKE_OBJDIR)
 ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINNT)
-	$(CC) -Fo$@ -c $(CFLAGS) $(call pr_abspath,$<)
-else
-ifeq ($(NS_USE_GCC)_$(OS_ARCH),_WINCE)
-	$(CC) -Fo$@ -c $(CFLAGS) $<
+	$(CC) -Fo$@ -c $(CFLAGS) $(call abspath,$<)
 else
 ifdef NEED_ABSOLUTE_PATH
-	$(CC) -o $@ -c $(CFLAGS) $(call pr_abspath,$<)
+	$(CC) -o $@ -c $(CFLAGS) $(call abspath,$<)
 else
 	$(CC) -o $@ -c $(CFLAGS) $<
-endif
 endif
 endif
 
@@ -461,14 +468,6 @@ $(filter $(OBJDIR)/%.$(OBJ_SUFFIX),$(OBJS)): $(OBJDIR)/%.$(OBJ_SUFFIX): $(DUMMY_
 ################################################################################
 # Special gmake rules.
 ################################################################################
-
-#
-# Disallow parallel builds with MSVC < 8 since it can't open the PDB file in
-# parallel.
-#
-ifeq (,$(filter-out 1200 1300 1310,$(MSC_VER)))
-.NOTPARALLEL:
-endif
 
 #
 # Re-define the list of default suffixes, so gmake won't have to churn through

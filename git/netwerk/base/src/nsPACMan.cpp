@@ -42,7 +42,6 @@
 #include "nsIDNSListener.h"
 #include "nsICancelable.h"
 #include "nsIAuthPrompt.h"
-#include "nsIPromptFactory.h"
 #include "nsIHttpChannel.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -51,7 +50,6 @@
 #include "nsAutoPtr.h"
 #include "nsCRT.h"
 #include "prmon.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 //-----------------------------------------------------------------------------
 
@@ -90,7 +88,7 @@ public:
     PR_INIT_CLIST(this);
   }
 
-  nsresult Start(PRUint32 flags);
+  nsresult Start();
   void     Complete(nsresult status, const nsCString &pacString);
 
 private:
@@ -104,7 +102,7 @@ private:
 NS_IMPL_THREADSAFE_ISUPPORTS1(PendingPACQuery, nsIDNSListener)
 
 nsresult
-PendingPACQuery::Start(PRUint32 flags)
+PendingPACQuery::Start()
 {
   if (mDNSRequest)
     return NS_OK;  // already started
@@ -121,7 +119,7 @@ PendingPACQuery::Start(PRUint32 flags)
   if (NS_FAILED(rv))
     return rv;
 
-  rv = dns->AsyncResolve(host, flags, this, NS_GetCurrentThread(),
+  rv = dns->AsyncResolve(host, 0, this, NS_GetCurrentThread(),
                          getter_AddRefs(mDNSRequest));
   if (NS_FAILED(rv))
     NS_WARNING("DNS AsyncResolve failed");
@@ -161,12 +159,11 @@ PendingPACQuery::OnLookupComplete(nsICancelable *request,
 
   // We're no longer pending, so we can remove ourselves.
   PR_REMOVE_LINK(this);
+  NS_RELEASE_THIS();
 
   nsCAutoString pacString;
   status = mPACMan->GetProxyForURI(mURI, pacString);
   Complete(status, pacString);
-
-  NS_RELEASE_THIS();
   return NS_OK;
 }
 
@@ -240,16 +237,11 @@ nsPACMan::AsyncGetProxyForURI(nsIURI *uri, nsPACManCallback *callback)
   // away since we know the result will be DIRECT.  We could shortcut some code
   // in this case by issuing the callback directly from here, but that would
   // require extra code, so we just go through the usual async code path.
-  int isPACURI = IsPACURI(uri);
-
-  if (IsLoading() && !isPACURI)
+  if (IsLoading() && !IsPACURI(uri))
     return NS_OK;
 
-  nsresult rv = query->Start(isPACURI ? 0 : nsIDNSService::RESOLVE_SPECULATE);
-  if (rv == NS_ERROR_DNS_LOOKUP_QUEUE_FULL && !isPACURI) {
-    query->OnLookupComplete(NULL, NULL, NS_OK);
-    rv = NS_OK;
-  } else if (NS_FAILED(rv)) {
+  nsresult rv = query->Start();
+  if (NS_FAILED(rv)) {
     NS_WARNING("failed to start PAC query");
     PR_REMOVE_LINK(query);
     NS_RELEASE(query);
@@ -276,7 +268,7 @@ nsPACMan::LoadPACFromURI(nsIURI *pacURI)
 
   if (!mLoadPending) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsPACMan::StartLoading);
+        NS_NEW_RUNNABLE_METHOD(nsPACMan, this, StartLoading);
     nsresult rv;
     if (NS_FAILED(rv = NS_DispatchToCurrentThread(event)))
       return rv;
@@ -386,12 +378,9 @@ nsPACMan::ProcessPendingQ(nsresult status)
     if (NS_SUCCEEDED(status)) {
       // keep the query in the list (so we can complete it from Shutdown if
       // necessary).
-      status = query->Start(nsIDNSService::RESOLVE_SPECULATE);
+      status = query->Start();
     }
-    if (status == NS_ERROR_DNS_LOOKUP_QUEUE_FULL) {
-      query->OnLookupComplete(NULL, NULL, NS_OK);
-      status = NS_OK;
-    } else if (NS_FAILED(status)) {
+    if (NS_FAILED(status)) {
       // remove the query from the list
       PR_REMOVE_LINK(query);
       query->Complete(status, EmptyCString());
@@ -470,11 +459,9 @@ NS_IMETHODIMP
 nsPACMan::GetInterface(const nsIID &iid, void **result)
 {
   // In case loading the PAC file requires authentication.
-  if (iid.Equals(NS_GET_IID(nsIAuthPrompt))) {
-    nsCOMPtr<nsIPromptFactory> promptFac = do_GetService("@mozilla.org/prompter;1");
-    NS_ENSURE_TRUE(promptFac, NS_ERROR_FAILURE);
-    return promptFac->GetPrompt(nsnull, iid, reinterpret_cast<void**>(result));
-  }
+  if (iid.Equals(NS_GET_IID(nsIAuthPrompt)))
+    return CallCreateInstance(NS_DEFAULTAUTHPROMPT_CONTRACTID,
+                              nsnull, iid, result);
 
   // In case loading the PAC file results in a redirect.
   if (iid.Equals(NS_GET_IID(nsIChannelEventSink))) {
@@ -487,14 +474,8 @@ nsPACMan::GetInterface(const nsIID &iid, void **result)
 }
 
 NS_IMETHODIMP
-nsPACMan::AsyncOnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel,
-                                 PRUint32 flags,
-                                 nsIAsyncVerifyRedirectCallback *callback)
+nsPACMan::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel,
+                            PRUint32 flags)
 {
-  nsresult rv = NS_OK;
-  if (NS_FAILED((rv = newChannel->GetURI(getter_AddRefs(mPACURI)))))
-      return rv;
-
-  callback->OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
+  return newChannel->GetURI(getter_AddRefs(mPACURI));
 }

@@ -35,10 +35,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: devtoken.c,v $ $Revision: 1.54 $ $Date: 2010/04/03 18:27:30 $";
+static const char CVS_ID[] = "@(#) $RCSfile: devtoken.c,v $ $Revision: 1.50 $ $Date: 2008/08/09 01:25:58 $";
 #endif /* DEBUG */
 
-#include "pkcs11.h"
+#ifndef NSSCKEPV_H
+#include "nssckepv.h"
+#endif /* NSSCKEPV_H */
 
 #ifndef DEVM_H
 #include "devm.h"
@@ -65,7 +67,7 @@ nssToken_Destroy (
 )
 {
     if (tok) {
-	if (PR_ATOMIC_DECREMENT(&tok->base.refCount) == 0) {
+	if (PR_AtomicDecrement(&tok->base.refCount) == 0) {
 	    PZ_DestroyLock(tok->base.lock);
 	    nssTokenObjectCache_Destroy(tok->cache);
 	    /* The token holds the first/last reference to the slot.
@@ -99,7 +101,7 @@ nssToken_AddRef (
   NSSToken *tok
 )
 {
-    PR_ATOMIC_INCREMENT(&tok->base.refCount);
+    PR_AtomicIncrement(&tok->base.refCount);
     return tok;
 }
 
@@ -180,8 +182,7 @@ nssToken_DeleteStoredObject (
 	nssTokenObjectCache_RemoveObject(token->cache, instance);
     }
     if (instance->isTokenObject) {
-       if (token->defaultSession && 
-           nssSession_IsReadWrite(token->defaultSession)) {
+       if (nssSession_IsReadWrite(token->defaultSession)) {
 	   session = token->defaultSession;
        } else {
 	   session = nssSlot_CreateSession(token->slot, NULL, PR_TRUE);
@@ -226,10 +227,10 @@ import_object (
 	    if (!nssSession_IsReadWrite(sessionOpt)) {
 		nss_SetError(NSS_ERROR_INVALID_ARGUMENT);
 		return NULL;
+	    } else {
+		session = sessionOpt;
 	    }
-	    session = sessionOpt;
-	} else if (tok->defaultSession && 
-	           nssSession_IsReadWrite(tok->defaultSession)) {
+	} else if (nssSession_IsReadWrite(tok->defaultSession)) {
 	    session = tok->defaultSession;
 	} else {
 	    session = nssSlot_CreateSession(tok->slot, NULL, PR_TRUE);
@@ -306,7 +307,8 @@ find_objects (
     nssSession *session = (sessionOpt) ? sessionOpt : tok->defaultSession;
 
     /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
+    PORT_Assert(session->handle != CK_INVALID_SESSION);
+    if (session->handle == CK_INVALID_SESSION) {
 	ckrv = CKR_SESSION_HANDLE_INVALID;
 	goto loser;                
     }
@@ -429,13 +431,6 @@ find_objects_by_template (
     CK_OBJECT_CLASS objclass = (CK_OBJECT_CLASS)-1;
     nssCryptokiObject **objects = NULL;
     PRUint32 i;
-
-    if (!token) {
-    	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	if (statusOpt) 
-	    *statusOpt = PR_FAILURE;
-	return NULL;
-    }
     for (i=0; i<otsize; i++) {
 	if (obj_template[i].type == CKA_CLASS) {
 	    objclass = *(CK_OBJECT_CLASS *)obj_template[i].pValue;
@@ -496,10 +491,6 @@ nssToken_ImportCertificate (
     nssTokenSearchType searchType;
     nssCryptokiObject *rvObject = NULL;
 
-    if (!tok) {
-    	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return NULL;
-    }
     if (certType == NSSCertificateType_PKIX) {
 	cert_type = CKC_X_509;
     } else {
@@ -851,13 +842,6 @@ nssToken_FindCertificateByIssuerAndSerialNumber (
     nssCryptokiObject **objects;
     nssCryptokiObject *rvObject = NULL;
     NSS_CK_TEMPLATE_START(cert_template, attr, ctsize);
-
-    if (!token) {
-    	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	if (statusOpt) 
-	    *statusOpt = PR_FAILURE;
-	return NULL;
-    }
     /* Set the search to token/session only if provided */
     if (searchType == nssTokenSearchType_SessionOnly) {
 	NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &g_ck_false);
@@ -1163,13 +1147,7 @@ nssToken_FindTrustForCertificate (
     CK_ATTRIBUTE tobj_template[5];
     CK_ULONG tobj_size;
     nssSession *session = sessionOpt ? sessionOpt : token->defaultSession;
-    nssCryptokiObject *object = NULL, **objects;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return object;
-    }
+    nssCryptokiObject *object, **objects;
 
     NSS_CK_TEMPLATE_START(tobj_template, attr, tobj_size);
     if (searchType == nssTokenSearchType_SessionOnly) {
@@ -1181,6 +1159,7 @@ nssToken_FindTrustForCertificate (
     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ISSUER,         certIssuer);
     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SERIAL_NUMBER , certSerial);
     NSS_CK_TEMPLATE_FINISH(tobj_template, attr, tobj_size);
+    object = NULL;
     objects = find_objects_by_template(token, session,
                                        tobj_template, tobj_size,
                                        1, NULL);
@@ -1248,14 +1227,8 @@ nssToken_FindCRLsBySubject (
     CK_ATTRIBUTE_PTR attr;
     CK_ATTRIBUTE crlobj_template[3];
     CK_ULONG crlobj_size;
-    nssCryptokiObject **objects = NULL;
+    nssCryptokiObject **objects;
     nssSession *session = sessionOpt ? sessionOpt : token->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return objects;
-    }
 
     NSS_CK_TEMPLATE_START(crlobj_template, attr, crlobj_size);
     if (searchType == nssTokenSearchType_SessionOnly) {
@@ -1307,14 +1280,8 @@ nssToken_Digest (
     CK_BYTE_PTR digest;
     NSSItem *rvItem = NULL;
     void *epv = nssToken_GetCryptokiEPV(tok);
-    nssSession *session = (sessionOpt) ? sessionOpt : tok->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return rvItem;
-    }
-
+    nssSession *session;
+    session = (sessionOpt) ? sessionOpt : tok->defaultSession;
     nssSession_EnterMonitor(session);
     ckrv = CKAPI(epv)->C_DigestInit(session->handle, &ap->mechanism);
     if (ckrv != CKR_OK) {
@@ -1373,15 +1340,9 @@ nssToken_BeginDigest (
 )
 {
     CK_RV ckrv;
+    nssSession *session;
     void *epv = nssToken_GetCryptokiEPV(tok);
-    nssSession *session = (sessionOpt) ? sessionOpt : tok->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return PR_FAILURE;
-    }
-
+    session = (sessionOpt) ? sessionOpt : tok->defaultSession;
     nssSession_EnterMonitor(session);
     ckrv = CKAPI(epv)->C_DigestInit(session->handle, &ap->mechanism);
     nssSession_ExitMonitor(session);
@@ -1396,15 +1357,9 @@ nssToken_ContinueDigest (
 )
 {
     CK_RV ckrv;
+    nssSession *session;
     void *epv = nssToken_GetCryptokiEPV(tok);
-    nssSession *session = (sessionOpt) ? sessionOpt : tok->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return PR_FAILURE;
-    }
-
+    session = (sessionOpt) ? sessionOpt : tok->defaultSession;
     nssSession_EnterMonitor(session);
     ckrv = CKAPI(epv)->C_DigestUpdate(session->handle, 
                                       (CK_BYTE_PTR)item->data, 
@@ -1426,14 +1381,8 @@ nssToken_FinishDigest (
     CK_BYTE_PTR digest;
     NSSItem *rvItem = NULL;
     void *epv = nssToken_GetCryptokiEPV(tok);
-    nssSession *session = (sessionOpt) ? sessionOpt : tok->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return NULL;
-    }
-
+    nssSession *session;
+    session = (sessionOpt) ? sessionOpt : tok->defaultSession;
     nssSession_EnterMonitor(session);
     ckrv = CKAPI(epv)->C_DigestFinal(session->handle, NULL, &digestLen);
     if (ckrv != CKR_OK || digestLen == 0) {
@@ -1509,12 +1458,6 @@ nssToken_TraverseCertificates (
     nssCryptokiObject **objects;
     void *epv = nssToken_GetCryptokiEPV(token);
     nssSession *session = (sessionOpt) ? sessionOpt : token->defaultSession;
-
-    /* Don't ask the module to use an invalid session handle. */
-    if (!session || session->handle == CK_INVALID_SESSION) {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-	return PR_FAILURE;
-    }
 
     /* template for all certs */
     NSS_CK_TEMPLATE_START(cert_template, attr, ctsize);

@@ -56,7 +56,7 @@
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
-          src="utils.js"/>
+          src="chrome://mochikit/content/chrome/toolkit/mozapps/downloads/tests/chrome/utils.js"/>
 
   <script type="application/javascript">
 
@@ -91,12 +91,6 @@ const ActiveDownloadData = [
 
 function runTest()
 {
-  var dmui = getDMUI();
-  if (!dmui) {
-    todo(false, "skip test for toolkit download manager UI");
-    return;
-  }
-
   setCleanState();
   populateDM(DoneDownloadData);
 
@@ -108,7 +102,6 @@ function runTest()
   let testObs = {
     observe: function(aSubject, aTopic, aData) {
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.focus();
       let doc = win.document;
       let searchbox = doc.getElementById("searchbox");
       let clearButton = doc.getElementById("clearListButton");
@@ -171,6 +164,8 @@ function runTest()
 
   obs.addObserver(testObs, DLMGR_UI_DONE, false);
 
+  let dmui = Cc["@mozilla.org/download-manager-ui;1"].
+             getService(Ci.nsIDownloadManagerUI);
   dmui.show();
 
   SimpleTest.waitForExplicitFinish();

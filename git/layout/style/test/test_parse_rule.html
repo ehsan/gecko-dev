@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang=en>
-<script type="text/javascript" src="/MochiKit/packed.js"></script>
+<script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -245,7 +245,7 @@ var doTests = function() {
     isnot(base, canonical, "Sanity check for rule: " + testset[curTest].base);
   }
   frame.contentDocument.open();
-  frame.contentDocument.write("<html lang=en><style>" + testset[curTest].tests[curSubTest] + "</style><div id=a class='a b c' title='zxcv weeqweqeweasd&#13;&#10;a'></div>");
+  frame.contentDocument.write("<html lang=en><style>" + testset[curTest].tests[curSubTest] + "</style><div id=a class='a b c' title='zxcv weeqweqeweasd&#13;&#10;a&#10;'></div>");
   frame.contentWindow.onload = function(){setTimeout(doTests, 0);};
   frame.contentDocument.close();
 };

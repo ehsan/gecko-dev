@@ -38,27 +38,27 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
+#include "nsIFactory.h"
 #include "nsIPlugin.h"
+#include "nsIPluginInstancePeer.h"
+#include "nsIWindowlessPlugInstPeer.h"
 #include "prlink.h"
-#include "npfunctions.h"
-#include "nsPluginHost.h"
-
-#include "jsapi.h"
-
-#include "mozilla/PluginLibrary.h"
+#include "npupp.h"
+#include "nsPluginHostImpl.h"
 
 /*
  * Use this macro before each exported function
  * (between the return address and the function
  * itself), to ensure that the function has the
- * right calling conventions on OS/2.
+ * right calling conventions on Win16.
  */
+// XXX NP_CALLBACK should be the same as NP_LOADDS in npapi.h which differs
+// for WIN16 and maybe WIN64?
 #ifdef XP_OS2
 #define NP_CALLBACK _System
 #else
 #define NP_CALLBACK
 #endif
-
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
 #elif defined(XP_OS2)
@@ -69,118 +69,53 @@
 
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_GETENTRYPOINTS) (NPPluginFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* pCallbacks);
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks,NPPluginFuncs* fCallbacks);
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
+#ifdef XP_MACOSX
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_MAIN) (NPNetscapeFuncs* nCallbacks, NPPluginFuncs* pCallbacks, NPP_ShutdownUPP* unloadUpp);
+#endif
 
 class nsNPAPIPlugin : public nsIPlugin
 {
-private:
-  typedef mozilla::PluginLibrary PluginLibrary;
-
 public:
-  nsNPAPIPlugin();
-  virtual ~nsNPAPIPlugin();
+  nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
+                NP_PLUGINSHUTDOWN aShutdown);
+  virtual ~nsNPAPIPlugin(void);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
-  // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
-  // will prevent this from calling NP_Initialize.
-  static nsresult CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult);
-
-  PluginLibrary* GetLibrary();
-  // PluginFuncs() can't fail but results are only valid if GetLibrary() succeeds
-  NPPluginFuncs* PluginFuncs();
-
-#if defined(XP_MACOSX) && !defined(__LP64__)
+  // Constructs and initializes an nsNPAPIPlugin object
+  static nsresult CreatePlugin(const char* aFileName,
+                               const char* aFullPath,
+                               PRLibrary* aLibrary,
+                               nsIPlugin** aResult);
+#ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
 #endif
 
-#ifdef MOZ_IPC
-  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin
-  // crashes and is no longer usable. pluginDumpID/browserDumpID are
-  // the IDs of respective minidumps that were written, or empty if no
-  // minidump was written.
-  void PluginCrashed(const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
-  
-  static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
-#endif
-
 protected:
+  // Ensures that the static CALLBACKS is properly initialized
+  static void CheckClassInitialized(void);
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
-  short mPluginRefNum;
+#ifdef XP_MACOSX
+  short fPluginRefNum;
 #endif
 
-  NPPluginFuncs mPluginFuncs;
-  PluginLibrary* mLibrary;
+  // The plugin-side callbacks that the browser calls. One set of
+  // plugin callbacks for each plugin.
+  NPPluginFuncs fCallbacks;
+  PRLibrary*    fLibrary;
+
+  NP_PLUGINSHUTDOWN fShutdownEntry;
+
+  // The browser-side callbacks that a 4.x-style plugin calls.
+  static NPNetscapeFuncs CALLBACKS;
 };
 
-namespace mozilla {
-namespace plugins {
-namespace parent {
 
-JS_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(jsid));
-
-static inline jsid
-NPIdentifierToJSId(NPIdentifier id)
-{
-    jsid tmp;
-    JSID_BITS(tmp) = (size_t)id;
-    return tmp;
-}
-
-static inline NPIdentifier
-JSIdToNPIdentifier(jsid id)
-{
-    return (NPIdentifier)JSID_BITS(id);
-}
-
-static inline bool
-NPIdentifierIsString(NPIdentifier id)
-{
-    return JSID_IS_STRING(NPIdentifierToJSId(id));
-}
-
-static inline JSString *
-NPIdentifierToString(NPIdentifier id)
-{
-    return JSID_TO_STRING(NPIdentifierToJSId(id));
-}
-
-static inline NPIdentifier
-StringToNPIdentifier(JSString *str)
-{
-    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(str));
-}
-
-static inline bool
-NPIdentifierIsInt(NPIdentifier id)
-{
-    return JSID_IS_INT(NPIdentifierToJSId(id));
-}
-
-static inline jsint
-NPIdentifierToInt(NPIdentifier id)
-{
-    return JSID_TO_INT(NPIdentifierToJSId(id));
-}
-
-static inline NPIdentifier
-IntToNPIdentifier(jsint i)
-{
-    return JSIdToNPIdentifier(INT_TO_JSID(i));
-}
-
-static inline bool
-NPIdentifierIsVoid(NPIdentifier id)
-{
-    return JSID_IS_VOID(NPIdentifierToJSId(id));
-}
-
-#define NPIdentifier_VOID (JSIdToNPIdentifier(JSID_VOID))
-
+PR_BEGIN_EXTERN_C
 NPObject* NP_CALLBACK
 _getwindowobject(NPP npp);
 
@@ -257,119 +192,7 @@ _releasevariantvalue(NPVariant *variant);
 void NP_CALLBACK
 _setexception(NPObject* npobj, const NPUTF8 *message);
 
-void NP_CALLBACK
-_pushpopupsenabledstate(NPP npp, NPBool enabled);
-
-void NP_CALLBACK
-_poppopupsenabledstate(NPP npp);
-
-typedef void(*PluginThreadCallback)(void *);
-
-void NP_CALLBACK
-_pluginthreadasynccall(NPP instance, PluginThreadCallback func,
-                       void *userData);
-
-NPError NP_CALLBACK
-_getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
-                char **value, uint32_t *len);
-
-NPError NP_CALLBACK
-_setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
-                const char *value, uint32_t len);
-
-NPError NP_CALLBACK
-_getauthenticationinfo(NPP instance, const char *protocol, const char *host,
-                       int32_t port, const char *scheme, const char *realm,
-                       char **username, uint32_t *ulen, char **password,
-                       uint32_t *plen);
-
-typedef void(*PluginTimerFunc)(NPP npp, uint32_t timerID);
-
-uint32_t NP_CALLBACK
-_scheduletimer(NPP instance, uint32_t interval, NPBool repeat, PluginTimerFunc timerFunc);
-
-void NP_CALLBACK
-_unscheduletimer(NPP instance, uint32_t timerID);
-
-NPError NP_CALLBACK
-_popupcontextmenu(NPP instance, NPMenu* menu);
-
-NPBool NP_CALLBACK
-_convertpoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
-
-NPError NP_CALLBACK
-_requestread(NPStream *pstream, NPByteRange *rangeList);
-
-NPError NP_CALLBACK
-_geturlnotify(NPP npp, const char* relativeURL, const char* target,
-              void* notifyData);
-
-NPError NP_CALLBACK
-_getvalue(NPP npp, NPNVariable variable, void *r_value);
-
-NPError NP_CALLBACK
-_setvalue(NPP npp, NPPVariable variable, void *r_value);
-
-NPError NP_CALLBACK
-_geturl(NPP npp, const char* relativeURL, const char* target);
-
-NPError NP_CALLBACK
-_posturlnotify(NPP npp, const char* relativeURL, const char *target,
-               uint32_t len, const char *buf, NPBool file, void* notifyData);
-
-NPError NP_CALLBACK
-_posturl(NPP npp, const char* relativeURL, const char *target, uint32_t len,
-            const char *buf, NPBool file);
-
-NPError NP_CALLBACK
-_newstream(NPP npp, NPMIMEType type, const char* window, NPStream** pstream);
-
-int32_t NP_CALLBACK
-_write(NPP npp, NPStream *pstream, int32_t len, void *buffer);
-
-NPError NP_CALLBACK
-_destroystream(NPP npp, NPStream *pstream, NPError reason);
-
-void NP_CALLBACK
-_status(NPP npp, const char *message);
-
-void NP_CALLBACK
-_memfree (void *ptr);
-
-uint32_t NP_CALLBACK
-_memflush(uint32_t size);
-
-void NP_CALLBACK
-_reloadplugins(NPBool reloadPages);
-
-void NP_CALLBACK
-_invalidaterect(NPP npp, NPRect *invalidRect);
-
-void NP_CALLBACK
-_invalidateregion(NPP npp, NPRegion invalidRegion);
-
-void NP_CALLBACK
-_forceredraw(NPP npp);
-
-const char* NP_CALLBACK
-_useragent(NPP npp);
-
-void* NP_CALLBACK
-_memalloc (uint32_t size);
-
-// Deprecated entry points for the old Java plugin.
-void* NP_CALLBACK /* OJI type: JRIEnv* */
-_getJavaEnv();
-
-void* NP_CALLBACK /* OJI type: jref */
-_getJavaPeer(NPP npp);
-
-void NP_CALLBACK
-_urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
-
-} /* namespace parent */
-} /* namespace plugins */
-} /* namespace mozilla */
+PR_END_EXTERN_C
 
 const char *
 PeekException();

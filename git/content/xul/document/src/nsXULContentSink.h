@@ -46,9 +46,8 @@
 #include "nsIXMLContentSink.h"
 #include "nsAutoPtr.h"
 #include "nsNodeInfoManager.h"
+#include "nsVoidArray.h"
 #include "nsWeakPtr.h"
-#include "nsXULElement.h"
-#include "nsIDTD.h"
 
 class nsIDocument;
 class nsIScriptSecurityManager;
@@ -69,9 +68,9 @@ public:
     NS_DECL_NSIEXPATSINK
 
     // nsIContentSink
-    NS_IMETHOD WillParse(void) { return NS_OK; }
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-    NS_IMETHOD DidBuildModel(PRBool aTerminated);
+    NS_IMETHOD WillTokenize(void) { return NS_OK; }
+    NS_IMETHOD WillBuildModel(void);
+    NS_IMETHOD DidBuildModel(void);
     NS_IMETHOD WillInterrupt(void);
     NS_IMETHOD WillResume(void);
     NS_IMETHOD SetParser(nsIParser* aParser);
@@ -144,12 +143,11 @@ protected:
     class ContextStack {
     protected:
         struct Entry {
-            nsRefPtr<nsXULPrototypeNode> mNode;
+            nsXULPrototypeNode* mNode;
             // a LOT of nodes have children; preallocate for 8
-            nsPrototypeArray    mChildren;
+            nsAutoVoidArray     mChildren;
             State               mState;
             Entry*              mNext;
-            Entry() : mChildren(8) {}
         };
 
         Entry* mTop;
@@ -164,8 +162,8 @@ protected:
         nsresult Push(nsXULPrototypeNode* aNode, State aState);
         nsresult Pop(State* aState);
 
-        nsresult GetTopNode(nsRefPtr<nsXULPrototypeNode>& aNode);
-        nsresult GetTopChildren(nsPrototypeArray** aChildren);
+        nsresult GetTopNode(nsXULPrototypeNode** aNode);
+        nsresult GetTopChildren(nsVoidArray** aChildren);
         nsresult GetTopNodeScriptType(PRUint32 *aScriptType);
 
         void Clear();

@@ -11,9 +11,7 @@
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
-          src="common.js"></script>
-  <script type="application/javascript"
-          src="events.js"></script>
+          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
 
   <script type="application/javascript">
     ////////////////////////////////////////////////////////////////////////////
@@ -55,7 +53,7 @@
     }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(doTest);
+    addLoadEvent(doTest);
 
     ////////////////////////////////////////////////////////////////////////////
     // Helpers
@@ -77,9 +75,7 @@
           function(aFocusMgr)
           {
             aFocusMgr.checkWasFocusHandled();
-            // Try to work around bug 573085 by using a timeout that's a lot
-            // bigger than our refresh driver period.
-          }, 100, this);
+          }, 0, this);
       },
 
       // Private
@@ -98,10 +94,10 @@
             unregisterA11yEventListener(nsIAccessibleEvent.EVENT_FOCUS, this);
 
             ok(aFocusMgr.mIsFocusHandled,
-               "Focus wasn't received for element with ID " + aFocusMgr.mName + ".");
+               "Focus wasn't recieved for element with ID " + aFocusMgr.mName + ".");
 
             var states = {}, extraStates = {};
-            aFocusMgr.mAcc.getState(states, extraStates);
+            aFocusMgr.mAcc.getFinalState(states, extraStates);
 // XXX see bug 455840. Only fails on aria-link, the other two are OK.
 // When fixing this bug, remove the if statement and else block and "todo" statement.
             if (states.value & nsIAccessibleStates.STATE_FOCUSED)

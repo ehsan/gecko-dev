@@ -43,35 +43,25 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIIOService.h"
-#include "Layers.h"
-#include "ImageLayers.h"
-
-class nsPresContext;
-class nsDisplayItem;
 
 nsIFrame* NS_NewHTMLCanvasFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsHTMLCanvasFrame : public nsSplittableFrame
 {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsHTMLCanvasFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
-
+  void PaintCanvas(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the canvas's image */
-  nsIntSize GetCanvasSize();
+  nsSize GetCanvasSize();
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -87,10 +77,14 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
   
+  NS_IMETHOD GetContentForEvent(nsPresContext* aPresContext,
+                                nsEvent* aEvent,
+                                nsIContent** aContent);
+
   nsRect GetInnerArea() const;
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -102,6 +96,7 @@ public:
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif
 
 protected:

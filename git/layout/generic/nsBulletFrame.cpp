@@ -62,8 +62,6 @@
 #include "nsIComponentManager.h"
 #include "nsContentUtils.h"
 
-#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
-
 class nsBulletListener : public nsStubImageDecoderObserver
 {
 public:
@@ -73,13 +71,13 @@ public:
   NS_DECL_ISUPPORTS
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
-                             const nsIntRect *aRect);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
+                             const nsRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
+                          nsRect * dirtyRect);
 
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
@@ -87,18 +85,17 @@ private:
   nsBulletFrame *mFrame;
 };
 
-NS_IMPL_FRAMEARENA_HELPERS(nsBulletFrame)
 
 nsBulletFrame::~nsBulletFrame()
 {
 }
 
 void
-nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsBulletFrame::Destroy()
 {
   // Stop image loading first
   if (mImageRequest) {
-    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mImageRequest->Cancel(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
 
@@ -106,7 +103,7 @@ nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
     reinterpret_cast<nsBulletListener*>(mListener.get())->SetFrame(nsnull);
 
   // Let base class do the rest
-  nsFrame::DestroyFrom(aDestructRoot);
+  nsFrame::Destroy();
 }
 
 #ifdef NS_DEBUG
@@ -135,17 +132,16 @@ nsBulletFrame::IsSelfEmpty()
   return GetStyleList()->mListStyleType == NS_STYLE_LIST_STYLE_NONE;
 }
 
-/* virtual */ void
-nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsBulletFrame::DidSetStyleContext()
 {
-  nsFrame::DidSetStyleContext(aOldStyleContext);
-
-  imgIRequest *newRequest = GetStyleList()->GetListStyleImage();
+  imgIRequest *newRequest = GetStyleList()->mListStyleImage;
 
   if (newRequest) {
 
     if (!mListener) {
-      nsBulletListener *listener = new nsBulletListener();
+      nsBulletListener *listener;
+      NS_NEWXPCOM(listener, nsBulletListener);
       NS_ADDREF(listener);
       listener->SetFrame(this);
       listener->QueryInterface(NS_GET_IID(imgIDecoderObserver), getter_AddRefs(mListener));
@@ -183,12 +179,13 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
       mImageRequest = nsnull;
     }
   }
+
+  return NS_OK;
 }
 
 class nsDisplayBullet : public nsDisplayItem {
 public:
-  nsDisplayBullet(nsDisplayListBuilder* aBuilder, nsBulletFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
+  nsDisplayBullet(nsBulletFrame* aFrame) : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayBullet);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -197,29 +194,18 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
-  }
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    aOutFrames->AppendElement(mFrame);
-  }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Bullet", TYPE_BULLET)
-
-  virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
-  {
-    return GetBounds(aBuilder);
-  }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  NS_DISPLAY_DECL_NAME("Bullet")
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
-                            nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsBulletFrame*>(mFrame)->
-    PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect);
+    PaintBullet(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
 }
 
 NS_IMETHODIMP
@@ -232,8 +218,7 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsBulletFrame");
   
-  return aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplayBullet(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayBullet(this));
 }
 
 void
@@ -243,7 +228,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   const nsStyleList* myList = GetStyleList();
   PRUint8 listStyleType = myList->mListStyleType;
 
-  if (myList->GetListStyleImage() && mImageRequest) {
+  if (myList->mListStyleImage && mImageRequest) {
     PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_LOAD_COMPLETE &&
@@ -254,16 +239,17 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
         nsRect dest(mPadding.left, mPadding.top,
                     mRect.width - (mPadding.left + mPadding.right),
                     mRect.height - (mPadding.top + mPadding.bottom));
-        nsLayoutUtils::DrawSingleImage(&aRenderingContext,
-             imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
-             dest + aPt, aDirtyRect, imgIContainer::FLAG_NONE);
+        nsLayoutUtils::DrawImage(&aRenderingContext, imageCon,
+                                 dest + aPt, aDirtyRect);
         return;
       }
     }
   }
 
+  const nsStyleColor* myColor = GetStyleColor();
+
   nsCOMPtr<nsIFontMetrics> fm;
-  aRenderingContext.SetColor(GetVisitedDependentColor(eCSSProperty_color));
+  aRenderingContext.SetColor(myColor->mColor);
 
   mTextIsRTL = PR_FALSE;
 
@@ -286,25 +272,9 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
     break;
 
   case NS_STYLE_LIST_STYLE_SQUARE:
-    {
-      nsRect rect(mPadding.TopLeft() + aPt,
-                  nsSize(mRect.width - mPadding.LeftRight(),
-                         mRect.height - mPadding.TopBottom()));
-      // Snap the height and the width of the rectangle to device pixels,
-      // and then center the result within the original rectangle, so that
-      // all square bullets at the same font size have the same visual
-      // size (bug 376690).
-      // FIXME: We should really only do this if we're not transformed
-      // (like gfxContext::UserToDevicePixelSnapped does).
-      nsPresContext *pc = PresContext();
-      nsRect snapRect(rect.x, rect.y, 
-                      pc->RoundAppUnitsToNearestDevPixels(rect.width),
-                      pc->RoundAppUnitsToNearestDevPixels(rect.height));
-      snapRect.MoveBy((rect.width - snapRect.width) / 2,
-                      (rect.height - snapRect.height) / 2);
-      aRenderingContext.FillRect(snapRect.x, snapRect.y,
-                                 snapRect.width, snapRect.height);
-    }
+    aRenderingContext.FillRect(mPadding.left + aPt.x, mPadding.top + aPt.y,
+                               mRect.width - (mPadding.left + mPadding.right),
+                               mRect.height - (mPadding.top + mPadding.bottom));
     break;
 
   case NS_STYLE_LIST_STYLE_DECIMAL:
@@ -474,22 +444,17 @@ static PRBool RomanToText(PRInt32 ordinal, nsString& result, const char* achars,
     romanPos--;
     addOn.SetLength(0);
     switch(*dp) {
-      case '3':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '2':
-        addOn.Append(PRUnichar(achars[romanPos]));
-        // FALLTHROUGH
-      case '1':
-        addOn.Append(PRUnichar(achars[romanPos]));
+      case '3':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '2':  addOn.Append(PRUnichar(achars[romanPos]));
+      case '1':  addOn.Append(PRUnichar(achars[romanPos]));
         break;
       case '4':
         addOn.Append(PRUnichar(achars[romanPos]));
         // FALLTHROUGH
       case '5': case '6':
-      case '7': case '8':
+      case '7': case  '8':
         addOn.Append(PRUnichar(bchars[romanPos]));
-        for(n=0;'5'+n<*dp;n++) {
+        for(n=0;n<(*dp-'5');n++) {
           addOn.Append(PRUnichar(achars[romanPos]));
         }
         break;
@@ -875,6 +840,10 @@ static PRBool HebrewToText(PRInt32 ordinal, nsString& result)
 
 static PRBool ArmenianToText(PRInt32 ordinal, nsString& result)
 {
+  // XXXbz this system goes out to a lot further than 9999... we should fix
+  // that.  This algorithm seems broken in general.  There's this business of
+  // "7000" being special and then there's the combining accent we're supposed
+  // to be using...
   if (ordinal < 1 || ordinal > 9999) { // zero or reach the limit of Armenian numbering system
     DecimalToText(ordinal, result);
     return PR_FALSE;
@@ -1014,7 +983,7 @@ nsBulletFrame::AppendCounterText(PRInt32 aListStyleType,
                                  PRInt32 aOrdinal,
                                  nsString& result)
 {
-  PRBool success = PR_TRUE;
+  PRBool success;
   
   switch (aListStyleType) {
     case NS_STYLE_LIST_STYLE_NONE: // used by counters code only
@@ -1292,9 +1261,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   const nsStyleList* myList = GetStyleList();
   nscoord ascent;
 
-  RemoveStateBits(BULLET_FRAME_IMAGE_LOADING);
-
-  if (myList->GetListStyleImage() && mImageRequest) {
+  if (myList->mListStyleImage && mImageRequest) {
     PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_SIZE_AVAILABLE &&
@@ -1305,8 +1272,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
 
       aMetrics.width = mComputedSize.width;
       aMetrics.ascent = aMetrics.height = mComputedSize.height;
-
-      AddStateBits(BULLET_FRAME_IMAGE_LOADING);
 
       return;
     }
@@ -1335,7 +1300,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_CIRCLE:
     case NS_STYLE_LIST_STYLE_SQUARE:
       fm->GetMaxAscent(ascent);
-      bulletSize = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
+      bulletSize = PR_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
       mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
       aMetrics.width = mPadding.right + bulletSize;
@@ -1427,8 +1392,8 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
   // overflow their font-boxes. It'll do for now; to fix it for real, we really
   // should rewrite all the text-handling code here to use gfxTextRun (bug
   // 397294).
-  aMetrics.SetOverflowAreasToDesiredBounds();
-
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
+  
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
@@ -1488,17 +1453,16 @@ NS_IMETHODIMP nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
 
   // Handle animations
   aImage->SetAnimationMode(presContext->ImageAnimationMode());
-  // Ensure the animation (if any) is started. Note: There is no
-  // corresponding call to Decrement for this. This Increment will be
-  // 'cleaned up' by the Request when it is destroyed, but only then.
-  aRequest->IncrementAnimationConsumers();
+  // Ensure the animation (if any) is started.
+  aImage->StartAnimation();
+
   
   return NS_OK;
 }
 
 NS_IMETHODIMP nsBulletFrame::OnDataAvailable(imgIRequest *aRequest,
-                                             PRBool aCurrentFrame,
-                                             const nsIntRect *aRect)
+                                             gfxIImageFrame *aFrame,
+                                             const nsRect *aRect)
 {
   // The image has changed.
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
@@ -1528,7 +1492,8 @@ NS_IMETHODIMP nsBulletFrame::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIContainer *aContainer,
-                                          const nsIntRect *aDirtyRect)
+                                          gfxIImageFrame *aNewFrame,
+                                          nsRect *aDirtyRect)
 {
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct.
@@ -1555,38 +1520,6 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
     return;
 
   *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
-}
-
-nscoord
-nsBulletFrame::GetBaseline() const
-{
-  nscoord ascent = 0, bottomPadding;
-  if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
-    ascent = GetRect().height;
-  } else {
-    nsCOMPtr<nsIFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-    const nsStyleList* myList = GetStyleList();
-    switch (myList->mListStyleType) {
-      case NS_STYLE_LIST_STYLE_NONE:
-        break;
-
-      case NS_STYLE_LIST_STYLE_DISC:
-      case NS_STYLE_LIST_STYLE_CIRCLE:
-      case NS_STYLE_LIST_STYLE_SQUARE:
-        fm->GetMaxAscent(ascent);
-        bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
-        ascent = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
-                        NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
-        ascent += bottomPadding;
-        break;
-
-      default:
-        fm->GetMaxAscent(ascent);
-        break;
-    }
-  }
-  return ascent + GetUsedBorderAndPadding().top;
 }
 
 
@@ -1617,13 +1550,13 @@ NS_IMETHODIMP nsBulletListener::OnStartContainer(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsBulletListener::OnDataAvailable(imgIRequest *aRequest,
-                                                PRBool aCurrentFrame,
-                                                const nsIntRect *aRect)
+                                                gfxIImageFrame *aFrame,
+                                                const nsRect *aRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->OnDataAvailable(aRequest, aCurrentFrame, aRect);
+  return mFrame->OnDataAvailable(aRequest, aFrame, aRect);
 }
 
 NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
@@ -1637,10 +1570,11 @@ NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsBulletListener::FrameChanged(imgIContainer *aContainer,
-                                             const nsIntRect *aDirtyRect)
+                                             gfxIImageFrame *newframe,
+                                             nsRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aContainer, aDirtyRect);
+  return mFrame->FrameChanged(aContainer, newframe, dirtyRect);
 }

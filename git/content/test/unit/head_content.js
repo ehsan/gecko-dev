@@ -58,9 +58,7 @@ const nsIDOMXULElement     = I.nsIDOMXULElement;
 const nsIDOMProcessingInstruction = I.nsIDOMProcessingInstruction;
 
 function DOMParser() {
-  var parser = C["@mozilla.org/xmlextras/domparser;1"].createInstance(nsIDOMParser);
-  parser.init();
-  return parser;
+  return C["@mozilla.org/xmlextras/domparser;1"].createInstance(nsIDOMParser);
 }
 
 var __testsDirectory = null;
@@ -68,7 +66,7 @@ var __testsDirectory = null;
 function ParseFile(file) {
   if (typeof(file) == "string") {
     if (!__testsDirectory) {
-      __testsDirectory = do_get_cwd();
+      __testsDirectory = do_get_file("content/test/unit/");
     }
     var fileObj = __testsDirectory.clone();
     fileObj.append(file);
@@ -77,8 +75,8 @@ function ParseFile(file) {
 
   do_check_eq(file instanceof nsILocalFile, true);
 
-  var fileStr = C["@mozilla.org/network/file-input-stream;1"]
-                 .createInstance(nsIFileInputStream);
+  fileStr = C["@mozilla.org/network/file-input-stream;1"]
+             .createInstance(nsIFileInputStream);
   // Init for readonly reading
   fileStr.init(file,  0x01, 0400, nsIFileInputStream.CLOSE_ON_EOF);
   return ParseXML(fileStr);

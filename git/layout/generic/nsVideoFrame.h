@@ -44,39 +44,30 @@
 #include "nsContainerFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIIOService.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
-#include "Layers.h"
-#include "ImageLayers.h"
-
-class nsPresContext;
-class nsDisplayItem;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsVideoFrame : public nsContainerFrame, public nsIAnonymousContentCreator
 {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   nsVideoFrame(nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  NS_DECL_ISUPPORTS
+  
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
-                              nsIAtom* aAttribute,
-                              PRInt32 aModType);
-
+  void PaintVideo(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the video's display */
-  nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
+  nsSize GetVideoSize();
   virtual nsSize GetIntrinsicRatio();
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -84,7 +75,7 @@ public:
                              PRBool aShrinkWrap);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual PRBool IsLeaf() const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
@@ -92,8 +83,11 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
+  NS_IMETHOD Freeze();
+  NS_IMETHOD Thaw();
+
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -104,48 +98,16 @@ public:
   }
   
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilters);
-
-  nsIContent* GetPosterImage() { return mPosterImage; }
-
-  // Returns PR_TRUE if we should display the poster. Note that once we show
-  // a video frame, the poster will never be displayed again.
-  PRBool ShouldDisplayPoster();
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
-
 protected:
-
-  // Returns PR_TRUE if we're rendering for a video element. We still create
-  // nsVideoFrame to render controls for an audio element.
-  PRBool HasVideoElement();
-
-  // Returns PR_TRUE if there is video data to render. Can return false
-  // when we're the frame for an audio element, or we've created a video
-  // element for a media which is audio-only.
-  PRBool HasVideoData();
-
-  // Sets the mPosterImage's src attribute to be the video's poster attribute,
-  // if we're the frame for a video element. Only call on frames for video
-  // elements, not for frames for audio elements.
-  nsresult UpdatePosterSource(PRBool aNotify);
-
   virtual ~nsVideoFrame();
 
   nsMargin mBorderPadding;
-  
-  // Anonymous child which is bound via XBL to the video controls.
   nsCOMPtr<nsIContent> mVideoControls;
-  
-  // Anonymous child which is the image element of the poster frame.
-  nsCOMPtr<nsIContent> mPosterImage;
 };
 
 #endif /* nsVideoFrame_h___ */

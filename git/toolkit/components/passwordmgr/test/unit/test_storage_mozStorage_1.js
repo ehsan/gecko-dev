@@ -35,7 +35,7 @@ var testdesc = "Initial connection to storage module"
 
 var storage;
 storage = LoginTest.initStorage(INDIR, "signons-empty.txt", OUTDIR, "signons-empty.sqlite");
-storage.getAllLogins();
+storage.getAllLogins({});
 
 var testdesc = "[ensuring file exists]"
 var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
@@ -56,7 +56,7 @@ file.append(filename);
 if(file.exists())
     file.remove(false);
 
-testdesc = "Initialize with a nonexistent data file";
+testdesc = "Initialize with a non-existant data file";
 
 storage = LoginTest.reloadStorage(OUTDIR, filename);
 
@@ -225,17 +225,6 @@ testdesc = "Initialize with signons-06.txt (1 disabled, 1 login); test modifyLog
 storage = LoginTest.initStorage(INDIR, "signons-06.txt", OUTDIR, "signons-06-3.sqlite");
 LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
 
-// Try modifying a nonexistent login
-var err = null;
-try {
-    storage.modifyLogin(testuser2, testuser1);
-} catch (e) {
-    err = e;
-}
-LoginTest.checkExpectedError(/No matching logins/, err);
-LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
-
-// Really modify the login.
 storage.modifyLogin(testuser1, testuser2);
 LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser2]);
 
@@ -264,34 +253,6 @@ storage = LoginTest.reloadStorage(OUTDIR, "signons-427033-1.sqlite");
 LoginTest.checkStorageData(storage, [], [testuser1]);
 
 LoginTest.deleteFile(OUTDIR, "signons-427033-1.sqlite");
-
-
-/*
- * ---------------------- Bug 500822 ----------------------
- * Importing passwords to mozstorage can fail when signons3.txt is corrupted.
- */
-
-
-/* ========== 13 ========== */
-testnum++;
-
-testdesc = "checking import of partially corrupted signons3.txt"
-
-testuser1.init("http://dummyhost.mozilla.org", "", null,
-               "dummydude", "itsasecret", "put_user_here", "put_pw_here");
-storage = LoginTest.initStorage(INDIR, "signons-500822-1.txt",
-                               OUTDIR, "signons-500822-1.sqlite");
-
-// Using searchLogins to check that we have the correct first entry. Tests for
-// searchLogin are in test_storage_mozStorage_7.js. Other entries may be
-// corrupted, but we need to check for one valid login.
-let matchData = Cc["@mozilla.org/hash-property-bag;1"].createInstance(Ci.nsIWritablePropertyBag2);
-matchData.setPropertyAsAString("hostname", "http://dummyhost.mozilla.org");
-matchData.setPropertyAsAString("usernameField", "put_user_here");
-logins = storage.searchLogins({}, matchData);
-do_check_eq(1, logins.length, "should match 1 login");
-
-LoginTest.deleteFile(OUTDIR, "signons-500822-1.sqlite");
 
 
 } catch (e) {

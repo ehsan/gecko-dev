@@ -123,13 +123,17 @@ nsScreenManagerGtk :: ~nsScreenManagerGtk()
     mRootWindow = nsnull;
   }
 
-  /* XineramaIsActive() registers a callback function close_display()
-   * in X, which is to be called in XCloseDisplay(). This is the case
-   * if Xinerama is active, even if only with one screen.
-   *
-   * We can't unload libXinerama.so.1 here because this will make
-   * the address of close_display() registered in X to be invalid and
-   * it will crash when XCloseDisplay() is called later. */
+/* On Solaris, XineramaIsActive() registers a callback function close_display() 
+ * in X, which is to be called in XCloseDisplay().
+ *
+ * We can't unload libXinerama.so.1 here because this will make
+ * the address of close_display() registered in X to be invalid and
+ * it will crash when XCloseDisplay() is called later. */
+#if defined (MOZ_X11) && !defined (SOLARIS)
+  if (mXineramalib && mXineramalib != SCREEN_MANAGER_LIBRARY_LOAD_FAILED) {
+    PR_UnloadLibrary(mXineramalib);
+  }
+#endif
 }
 
 
@@ -192,7 +196,6 @@ nsScreenManagerGtk :: Init()
       screenInfo = _XnrmQueryScreens(GDK_DISPLAY(), &numScreens);
     }
   }
-
   // screenInfo == NULL if either Xinerama couldn't be loaded or
   // isn't running on the current display
   if (!screenInfo || numScreens == 1) {
@@ -254,7 +257,7 @@ nsScreenManagerGtk :: Init()
 // Returns the screen that contains the rectangle. If the rect overlaps
 // multiple screens, it picks the screen with the greatest area of intersection.
 //
-// The coordinates are in pixels (not app units) and in screen coordinates.
+// The coordinates are in pixels (not twips) and in screen coordinates.
 //
 NS_IMETHODIMP
 nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
@@ -264,7 +267,7 @@ nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
   nsresult rv;
   rv = EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForRect");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForRect\n");
     return rv;
   }
   // which screen ( index from zero ) should we return?
@@ -276,13 +279,13 @@ nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
     // walk the list of screens and find the one that has the most
     // surface area.
     PRUint32 area = 0;
-    nsIntRect windowRect(aX, aY, aWidth, aHeight);
+    nsRect   windowRect(aX, aY, aWidth, aHeight);
     for (PRInt32 i = 0, i_end = mCachedScreenArray.Count(); i < i_end; ++i) {
       PRInt32  x, y, width, height;
       x = y = width = height = 0;
       mCachedScreenArray[i]->GetRect(&x, &y, &width, &height);
       // calculate the surface area
-      nsIntRect screenRect(x, y, width, height);
+      nsRect screenRect(x, y, width, height);
       screenRect.IntersectRect(screenRect, windowRect);
       PRUint32 tempArea = screenRect.width * screenRect.height;
       if (tempArea >= area) {
@@ -310,7 +313,7 @@ nsScreenManagerGtk :: GetPrimaryScreen(nsIScreen * *aPrimaryScreen)
   nsresult rv;
   rv =  EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetPrimaryScreen");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetPrimaryScreen\n");
     return rv;
   }
   *aPrimaryScreen = mCachedScreenArray.SafeObjectAt(0);
@@ -331,7 +334,7 @@ nsScreenManagerGtk :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
   nsresult rv;
   rv = EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetNumberOfScreens");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetNumberOfScreens\n");
     return rv;
   }
   *aNumberOfScreens = mCachedScreenArray.Count();
@@ -342,26 +345,13 @@ nsScreenManagerGtk :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
 NS_IMETHODIMP
 nsScreenManagerGtk :: ScreenForNativeWidget (void *aWidget, nsIScreen **outScreen)
 {
-  nsresult rv;
-  rv = EnsureInit();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForNativeWidget");
-    return rv;
-  }
+  // I don't know how to go from GtkWindow to nsIScreen, especially
+  // given xinerama and stuff, so let's just do this
+  gint x, y, width, height, depth;
+  x = y = width = height = 0;
 
-  if (mCachedScreenArray.Count() > 1) {
-    // I don't know how to go from GtkWindow to nsIScreen, especially
-    // given xinerama and stuff, so let's just do this
-    gint x, y, width, height, depth;
-    x = y = width = height = 0;
-
-    gdk_window_get_geometry(GDK_WINDOW(aWidget), &x, &y, &width, &height,
-                            &depth);
-    gdk_window_get_origin(GDK_WINDOW(aWidget), &x, &y);
-    rv = ScreenForRect(x, y, width, height, outScreen);
-  } else {
-    rv = GetPrimaryScreen(outScreen);
-  }
-
-  return rv;
+  gdk_window_get_geometry(GDK_WINDOW(aWidget), &x, &y, &width, &height,
+                          &depth);
+  gdk_window_get_origin(GDK_WINDOW(aWidget), &x, &y);
+  return ScreenForRect(x, y, width, height, outScreen);
 }

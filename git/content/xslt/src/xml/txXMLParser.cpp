@@ -158,42 +158,42 @@ txParseFromStream(istream& aInputStream, const nsAString& aUri,
     }                                                   \
   PR_END_MACRO
 
-static void
+PR_STATIC_CALLBACK(void)
 startElement(void *aUserData, const XML_Char *aName, const XML_Char **aAtts)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->StartElement(aName, aAtts);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 endElement(void *aUserData, const XML_Char* aName)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->EndElement(aName);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 charData(void* aUserData, const XML_Char* aChars, int aLength)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->CharacterData(aChars, aLength);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 commentHandler(void* aUserData, const XML_Char* aChars)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->Comment(aChars);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 piHandler(void *aUserData, const XML_Char *aTarget, const XML_Char *aData)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->ProcessingInstruction(aTarget, aData);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 externalEntityRefHandler(XML_Parser aParser,
                          const XML_Char *aContext,
                          const XML_Char *aBase,

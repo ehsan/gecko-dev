@@ -46,37 +46,49 @@ MODULE		= widget
 LIBRARY_NAME	= widget_windows
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+			string \
+			dom \
+			accessibility \
+			content \
+			content_xul \
+			gfx \
+			necko \
+			pref \
+			plugin \
+			timer \
+			uconv \
+			intl \
+			locale \
+			webshell \
+			docshell \
+			layout \
+			xuldoc \
+			view \
+			imglib2 \
+			uriloader \
+			webbrowserpersist \
+			unicharutil \
+			thebes \
+			cairo \
+			$(NULL)
 
 CPPSRCS		= \
-	nsWindow.cpp \
-	nsWindowGfx.cpp \
-	nsWindowDbg.cpp \
-	nsAppShell.cpp \
-	nsToolkit.cpp \
-	nsFilePicker.cpp \
+	IEnumFE.cpp  \
+	nsWindow.cpp         \
+	nsAppShell.cpp       \
+	nsLookAndFeel.cpp    \
+	nsToolkit.cpp        \
+	nsKeyboardLayout.cpp \
+	nsDataObj.cpp  \
+	nsDataObjCollection.cpp  \
+	nsClipboard.cpp      \
+	nsNativeThemeWin.cpp \
+	nsUXThemeData.cpp \
+	nsFilePicker.cpp     \
 	nsScreenWin.cpp	\
 	nsScreenManagerWin.cpp \
-	nsLookAndFeel.cpp \
-	nsUXThemeData.cpp \
-	nsNativeThemeWin.cpp \
-	nsWinGesture.cpp \
-	nsIdleServiceWin.cpp \
-	nsSound.cpp \
-	nsIMM32Handler.cpp \
-	WindowHook.cpp \
-	WinTaskbar.cpp \
-	TaskbarPreview.cpp \
-	TaskbarTabPreview.cpp \
-	TaskbarWindowPreview.cpp \
-	TaskbarPreviewButton.cpp \
- 	JumpListBuilder.cpp \
- 	JumpListItem.cpp \
-	GfxInfo.cpp \
 	$(NULL)
-
-ifdef MOZ_CRASHREPORTER
-CPPSRCS += LSPAnnotator.cpp
-endif
 
 ifdef NS_PRINTING
 CPPSRCS		+= \
@@ -86,69 +98,38 @@ CPPSRCS		+= \
 	$(NULL)
 endif
 
-ifeq ($(OS_ARCH), WINCE)
+ifneq ($(OS_ARCH), WINCE)
 CPPSRCS += \
-	nsWindowCE.cpp \
-	nsClipboardCE.cpp \
-	$(NULL)
-else
-CPPSRCS += \
-	KeyboardLayout.cpp \
-	IEnumFE.cpp  \
-	nsDataObj.cpp  \
-	nsDataObjCollection.cpp  \
 	nsNativeDragTarget.cpp  \
 	nsNativeDragSource.cpp  \
 	nsDragService.cpp  \
-	nsClipboard.cpp      \
 	nsImageClipboard.cpp \
 	nsBidiKeyboard.cpp   \
+	nsSound.cpp          \
+	nsIdleServiceWin.cpp    \
 	$(NULL)
-ifdef NS_ENABLE_TSF
-CPPSRCS		+= nsTextStore.cpp
-endif
 endif
 
 
 DEFINES		+= -D_IMPL_NS_WIDGET -DMOZ_UNICODE 
-
-ifdef MOZ_ENABLE_D3D9_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D9_LAYER
-endif
-
-ifdef MOZ_ENABLE_D3D10_LAYER
-DEFINES		+= -DMOZ_ENABLE_D3D10_LAYER
-endif
 
 ifdef BUILD_STATIC_LIBS
 DEFINES		+= -DMOZ_STATIC_COMPONENT_LIBS
 endif # BUILD_STATIC_LIBS
 
 
-EXPORTS		= nsdefs.h WindowHook.h
+EXPORTS		= nsdefs.h
 
 LOCAL_INCLUDES	= \
 		-I. \
 		-I$(srcdir)/../xpwidgets \
 		-I$(srcdir) \
-		-I$(topsrcdir)/toolkit/xre \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
 
-ifdef WINCE
-EXTRA_DSO_LDOPTS += ddraw.lib
-endif
-
-ifdef MOZ_IPC
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
-endif
-
-ifdef ENABLE_TESTS
-TOOL_DIRS  += tests
+ifndef WINCE
+ENABLE_CXX_EXCEPTIONS = 1
 endif
 
 include $(topsrcdir)/config/rules.mk
-
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS)

@@ -59,7 +59,7 @@ class nsNativeThemeQt : private nsNativeTheme,
                         public nsITheme
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // The nsITheme interface.
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
@@ -71,11 +71,11 @@ public:
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext,
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsIntMargin* aResult);
+                             nsMargin* aResult);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntSize* aResult,
+                                  nsSize* aResult,
                                   PRBool* aIsOverridable);
 
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
@@ -92,7 +92,7 @@ public:
   virtual NS_HIDDEN_(PRBool) GetWidgetPadding(nsIDeviceContext* aContext,
                                               nsIFrame* aFrame,
                                               PRUint8 aWidgetType,
-                                              nsIntMargin* aResult);
+                                              nsMargin* aResult);
 
   NS_IMETHOD_(PRBool) ThemeDrawsFocusForWidget(nsPresContext* aPresContext,
                                                nsIFrame* aFrame, PRUint8 aWidgetType);
@@ -103,13 +103,6 @@ public:
   virtual ~nsNativeThemeQt();
 
 private:
-
-  inline nsresult DrawWidgetBackground(QPainter *qPainter,
-                                       nsIRenderingContext* aContext,
-                                       nsIFrame* aFrame,
-                                       PRUint8 aWidgetType,
-                                       const nsRect& aRect,
-                                       const nsRect& aClipRect);
 
   inline PRInt32 GetAppUnitsPerDevPixel(nsIRenderingContext* aContext){
     nsCOMPtr<nsIDeviceContext> dctx = nsnull;

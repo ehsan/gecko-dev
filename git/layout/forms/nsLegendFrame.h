@@ -38,22 +38,32 @@
 #ifndef nsLegendFrame_h___
 #define nsLegendFrame_h___
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
+#include "nsPresContext.h"
+#include "nsCOMPtr.h"
 
-class nsLegendFrame : public nsBlockFrame {
+class  nsIContent;
+class  nsIFrame;
+class  nsPresContext;
+struct nsHTMLReflowMetrics;
+class  nsIRenderingContext;
+struct nsRect;
+
+#define NS_LEGEND_FRAME_CID \
+{ 0x73805d40, 0x5a24, 0x11d2, { 0x80, 0x46, 0x0, 0x60, 0x8, 0x15, 0xa7, 0x91 } }
+
+class nsLegendFrame : public nsAreaFrame {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsLegendFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  nsLegendFrame(nsStyleContext* aContext) : nsAreaFrame(aContext) {}
 
-  nsLegendFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIAtom* GetType() const;
 

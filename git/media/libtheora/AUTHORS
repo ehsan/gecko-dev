@@ -2,30 +2,20 @@ Monty <monty@xiph.org>
 	- Original VP3 port
 
 Ralph Giles
-Timothy B. Terriberry
-Monty
+Timothy B. Terriberry 
 	- Ongoing development
 	
 Dan B. Miller
 	- Pre alpha3 development
 	
-Rudolf Marek
 Wim Tayman
 Dan Lenski
-Nils Pipenbrinck
-Monty
 	- MMX optimized functions
-	
-David Schleef
-	- C64x port
 	
 Aaron Colwell
 Thomas Vander Stichele
 Jan Gerber
 Conrad Parker
-Cristian Adam
-Sebastian Pippin
-Simon Hosie
 	- Bug fixes, enhancements, build systems.
 	
 Mauricio Piacentini
@@ -38,8 +28,8 @@ Silvia Pfeiffer
 Michael Smith
 Andre Pang
 calc
-Chris Cheney
-Brendan Cully
+ccheney
+brendan
 Edward Hervey
 Adam Moss
 Colin Ward
@@ -48,7 +38,5 @@ Arc Riley
 Rodolphe Ortalo
 	- Bug fixes
 
-Robin Watts
-	- ARM code optimisations
 
 and other Xiph.org contributors

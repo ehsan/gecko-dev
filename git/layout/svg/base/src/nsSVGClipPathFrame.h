@@ -38,14 +38,13 @@
 #define __NS_SVGCLIPPATHFRAME_H__
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGContainerFrame nsSVGClipPathFrameBase;
 
 class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGClipPathFrame(nsStyleContext* aContext) :
     nsSVGClipPathFrameBase(aContext),
@@ -53,32 +52,19 @@ protected:
     mInUse(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsSVGClipPathFrame methods:
   nsresult ClipPaint(nsSVGRenderState* aContext,
                      nsIFrame* aParent,
-                     const gfxMatrix &aMatrix);
+                     nsIDOMSVGMatrix *aMatrix);
 
   PRBool ClipHitTest(nsIFrame* aParent,
-                     const gfxMatrix &aMatrix,
+                     nsIDOMSVGMatrix *aMatrix,
                      const nsPoint &aPoint);
 
   // Check if this clipPath is made up of more than one geometry object.
   // If so, the clipping API in cairo isn't enough and we need to use
   // mask based clipping.
   PRBool IsTrivial();
-
-  PRBool IsValid();
-
-  // nsIFrame interface:
-  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
-                              nsIAtom*        aAttribute,
-                              PRInt32         aModType);
-
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
 
   /**
    * Get the "type" of the frame
@@ -104,7 +90,7 @@ public:
   public:
     AutoClipPathReferencer(nsSVGClipPathFrame *aFrame)
        : mFrame(aFrame) {
-      NS_ASSERTION(!mFrame->mInUse, "reference loop!");
+      NS_ASSERTION(mFrame->mInUse == PR_FALSE, "reference loop!");
       mFrame->mInUse = PR_TRUE;
     }
     ~AutoClipPathReferencer() {
@@ -120,7 +106,7 @@ public:
   PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif

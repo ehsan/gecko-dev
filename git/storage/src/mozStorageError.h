@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,29 +37,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageError_h
-#define mozStorageError_h
+#ifndef __mozStorageError_h__
+#define __mozStorageError_h__
 
 #include "mozIStorageError.h"
 #include "nsString.h"
 
-namespace mozilla {
-namespace storage {
-
-class Error : public mozIStorageError
+class mozStorageError : public mozIStorageError
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGEERROR
 
-  Error(int aResult, const char *aMessage);
+  mozStorageError(int aResult, const char *aMessage);
 
 private:
   int mResult;
   nsCString mMessage;
 };
 
-} // namespace stoarge
-} // namespace mozilla
-
-#endif // mozStorageError_h
+#endif // __mozStorageError_h__

@@ -37,7 +37,7 @@
 #ifndef NS_SVGUTILS_H
 #define NS_SVGUTILS_H
 
-// include math.h to pick up definition of M_SQRT1_2 if the platform defines it
+// include math.h to pick up definition of M_PI if the platform defines it
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -46,22 +46,22 @@
 #include "nsRect.h"
 #include "gfxContext.h"
 #include "nsIRenderingContext.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
-#include "nsSVGMatrix.h"
 
 class nsIDocument;
 class nsPresContext;
 class nsIContent;
-class nsStyleContext;
 class nsStyleCoord;
+class nsIDOMSVGRect;
 class nsFrameList;
 class nsIFrame;
 struct nsStyleSVGPaint;
 class nsIDOMSVGElement;
 class nsIDOMSVGLength;
+class nsIDOMSVGMatrix;
 class nsIURI;
 class nsSVGOuterSVGFrame;
+class nsIPresShell;
+class nsIDOMSVGAnimatedPreserveAspectRatio;
 class nsIAtom;
 class nsSVGLength2;
 class nsSVGElement;
@@ -71,38 +71,29 @@ class gfxContext;
 class gfxASurface;
 class gfxPattern;
 class gfxImageSurface;
+struct gfxRect;
+struct gfxMatrix;
 struct gfxSize;
 struct gfxIntSize;
 struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;
-class nsSVGGeometryFrame;
-class nsSVGDisplayContainerFrame;
-
-namespace mozilla {
-class SVGAnimatedPreserveAspectRatio;
-class SVGPreserveAspectRatio;
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG                    NS_FRAME_STATE_BIT(20)
+#define NS_STATE_IS_OUTER_SVG         0x00100000
 
-#define NS_STATE_SVG_DIRTY                       NS_FRAME_STATE_BIT(21)
+#define NS_STATE_SVG_HAS_MARKERS      0x00200000
+
+#define NS_STATE_SVG_DIRTY            0x00400000
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
+#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00800000
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM         NS_FRAME_STATE_BIT(23)
-
-// If this bit is set, we are a <clipPath> element or descendant.
-#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(24)
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x01000000
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -122,33 +113,15 @@ class Element;
 // maximum dimension of an offscreen surface - choose so that
 // the surface size doesn't overflow a 32-bit signed int using
 // 4 bytes per pixel; in line with gfxASurface::CheckSurfaceSize
-// In fact Macs can't even manage that
-#define NS_SVG_OFFSCREEN_MAX_DIMENSION 4096
+#define NS_SVG_OFFSCREEN_MAX_DIMENSION 16384
 
-#define SVG_WSP_DELIM       "\x20\x9\xD\xA"
-#define SVG_COMMA_WSP_DELIM "," SVG_WSP_DELIM
-
-inline PRBool
-IsSVGWhitespace(char aChar)
-{
-  return aChar == '\x20' || aChar == '\x9' ||
-         aChar == '\xD'  || aChar == '\xA';
-}
-
-inline PRBool
-IsSVGWhitespace(PRUnichar aChar)
-{
-  return aChar == PRUnichar('\x20') || aChar == PRUnichar('\x9') ||
-         aChar == PRUnichar('\xD')  || aChar == PRUnichar('\xA');
-}
-
-#ifdef MOZ_SMIL
 /*
- * Checks the smil enabled preference.  Declared as a function to match
- * NS_SVGEnabled().
+ * Checks the svg enable preference and if a renderer could
+ * successfully be created.  Declared as a function instead of a
+ * nsSVGUtil method so that files that can't pull in nsSVGUtils.h (due
+ * to cairo.h usage) can still query this information.
  */
-PRBool NS_SMILEnabled();
-#endif // MOZ_SMIL
+PRBool NS_SVGEnabled();
 
 // GRRR WINDOWS HATE HATE HATE
 #undef CLIP_MASK
@@ -163,10 +136,6 @@ public:
    */
   nsSVGRenderState(nsIRenderingContext *aContext);
   /**
-   * Render SVG to a modern rendering context
-   */
-  nsSVGRenderState(gfxContext *aContext);
-  /**
    * Render SVG to a temporary surface
    */
   nsSVGRenderState(gfxASurface *aSurface);
@@ -177,16 +146,10 @@ public:
   void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
   RenderMode GetRenderMode() { return mRenderMode; }
 
-  void SetPaintingToWindow(PRBool aPaintingToWindow) {
-    mPaintingToWindow = aPaintingToWindow;
-  }
-  PRBool IsPaintingToWindow() { return mPaintingToWindow; }
-
 private:
   RenderMode                    mRenderMode;
   nsCOMPtr<nsIRenderingContext> mRenderingContext;
   nsRefPtr<gfxContext>          mGfxContext;
-  PRPackedBool                  mPaintingToWindow;
 };
 
 class nsAutoSVGRenderMode
@@ -220,34 +183,16 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGFilterProperty, NS_ISVGFILTERPROPERTY_IID)
 class nsSVGUtils
 {
 public:
-  typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
-  typedef mozilla::SVGPreserveAspectRatio SVGPreserveAspectRatio;
-
   /*
-   * Get the parent element of an nsIContent
+   * Get a font-size (em) of an nsIContent
    */
-  static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
-
-  /*
-   * Get the number of CSS px (user units) per em (i.e. the em-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
-   */
-  static float GetFontSize(mozilla::dom::Element *aElement);
+  static float GetFontSize(nsIContent *aContent);
   static float GetFontSize(nsIFrame *aFrame);
-  static float GetFontSize(nsStyleContext *aStyleContext);
   /*
-   * Get the number of CSS px (user units) per ex (i.e. the x-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
+   * Get an x-height of of an nsIContent
    */
-  static float GetFontXHeight(mozilla::dom::Element *aElement);
+  static float GetFontXHeight(nsIContent *aContent);
   static float GetFontXHeight(nsIFrame *aFrame);
-  static float GetFontXHeight(nsStyleContext *aStyleContext);
 
   /*
    * Converts image data from premultipled to unpremultiplied alpha
@@ -290,43 +235,43 @@ public:
   static float CoordToFloat(nsPresContext *aPresContext,
                             nsSVGElement *aContent,
                             const nsStyleCoord &aCoord);
-
-  static gfxMatrix GetCTM(nsSVGElement *aElement, PRBool aScreenCTM);
-
-  /**
-   * Check if this is one of the SVG elements that SVG 1.1 Full says
-   * establishes a viewport: svg, symbol, image or foreignObject.
+  /*
+   * Gets an internal frame for an element referenced by a URI.  Note that this
+   * only works for URIs that reference elements within the same document.
    */
-  static PRBool EstablishesViewport(nsIContent *aContent);
+  static nsresult GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI,
+                                     nsIContent *aContent, nsIPresShell *aPresShell);
 
-  static already_AddRefed<nsIDOMSVGElement>
-  GetNearestViewportElement(nsIContent *aContent);
-
-  static already_AddRefed<nsIDOMSVGElement>
-  GetFarthestViewportElement(nsIContent *aContent);
-
-  /**
-   * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
-   * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
-   * returns nsnull.
+  /*
+   * Return the nearest viewport element
    */
-  static nsSVGDisplayContainerFrame* GetNearestSVGViewport(nsIFrame *aFrame);
-  
+  static nsresult GetNearestViewportElement(nsIContent *aContent,
+                                            nsIDOMSVGElement * *aNearestViewportElement);
+
+  /*
+   * Get the farthest viewport element
+   */
+  static nsresult GetFarthestViewportElement(nsIContent *aContent,
+                                             nsIDOMSVGElement * *aFarthestViewportElement);
+
+  /*
+   * Creates a bounding box by walking the children and doing union.
+   */
+  static nsresult GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval);
+
   /**
    * Figures out the worst case invalidation area for a frame, taking
    * filters into account.
-   * Note that the caller is responsible for making sure that any cached
-   * covered regions in the frame tree rooted at aFrame are up to date.
    * @param aRect the area in app units that needs to be invalidated in aFrame
    * @return the rect in app units that should be invalidated, taking
    * filters into account. Will return aRect when no filters are present.
    */
   static nsRect FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect);
 
-  /**
-   * Invalidates the area covered by the frame
+  /*
+   * Update the filter invalidation region for this frame, if relevant.
    */
-  static void InvalidateCoveredRegion(nsIFrame *aFrame);
+  static void UpdateFilterRegion(nsIFrame *aFrame);
 
   /*
    * Update the area covered by the frame
@@ -350,7 +295,7 @@ public:
      Input: rect - bounding box
             length - length to be converted
   */
-  static float ObjectSpace(const gfxRect &aRect, const nsSVGLength2 *aLength);
+  static float ObjectSpace(nsIDOMSVGRect *aRect, const nsSVGLength2 *aLength);
 
   /* Computes the input length in terms of user space coordinates.
      Input: content - object to be used for determining user space
@@ -363,6 +308,11 @@ public:
             length - length to be converted
   */
   static float UserSpace(nsIFrame *aFrame, const nsSVGLength2 *aLength);
+
+  /* Tranforms point by the matrix.  In/out: x,y */
+  static void
+  TransformPoint(nsIDOMSVGMatrix *matrix,
+                 float *x, float *y);
 
   /* Returns the angle halfway between the two specified angles */
   static float
@@ -381,26 +331,19 @@ public:
   GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect);
 
   /* Generate a viewbox to viewport tranformation matrix */
-
-  static gfxMatrix
-  GetViewBoxTransform(nsSVGElement* aElement,
-                      float aViewportWidth, float aViewportHeight,
+  
+  static already_AddRefed<nsIDOMSVGMatrix>
+  GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
-                      const SVGAnimatedPreserveAspectRatio &aPreserveAspectRatio);
-
-  static gfxMatrix
-  GetViewBoxTransform(nsSVGElement* aElement,
-                      float aViewportWidth, float aViewportHeight,
-                      float aViewboxX, float aViewboxY,
-                      float aViewboxWidth, float aViewboxHeight,
-                      const SVGPreserveAspectRatio &aPreserveAspectRatio);
+                      nsIDOMSVGAnimatedPreserveAspectRatio *aPreserveAspectRatio,
+                      PRBool aIgnoreAlign = PR_FALSE);
 
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
    * redrawn, in device pixel coordinates relative to the outer svg */
   static void
-  PaintFrameWithEffects(nsSVGRenderState *aContext,
-                        const nsIntRect *aDirtyRect,
+  PaintChildWithEffects(nsSVGRenderState *aContext,
+                        nsIntRect *aDirtyRect,
                         nsIFrame *aFrame);
 
   /* Hit testing - check if point hits the clipPath of indicated
@@ -413,12 +356,20 @@ public:
   static nsIFrame *
   HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint);
 
+  /* Add observation of an nsISVGValue to an nsISVGValueObserver */
+  static void
+  AddObserver(nsISupports *aObserver, nsISupports *aTarget);
+
+  /* Remove observation of an nsISVGValue from an nsISVGValueObserver */
+  static void
+  RemoveObserver(nsISupports *aObserver, nsISupports *aTarget);
+
   /*
    * Returns the CanvasTM of the indicated frame, whether it's a
    * child SVG frame, container SVG frame, or a regular frame.
    * For regular frames, we just return an identity matrix.
    */
-  static gfxMatrix GetCanvasTM(nsIFrame* aFrame);
+  static already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM(nsIFrame *aFrame);
 
   /*
    * Tells child frames that something that might affect them has changed
@@ -445,33 +396,19 @@ public:
    * Convert a surface size to an integer for use by thebes
    * possibly making it smaller in the process so the surface does not
    * use excessive memory.
-   *
-   * XXXdholbert Putting impl in header file so that imagelib can call this
-   * method.  Once we switch to a libxul-only world, this can go back into
-   * the .cpp file.
-   *
    * @param aSize the desired surface size
    * @param aResultOverflows true if the desired surface size is too big
    * @return the surface size to use
    */
-  static gfxIntSize ConvertToSurfaceSize(const gfxSize& aSize,
-                                  PRBool *aResultOverflows)
-  {
-    gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
+  static gfxIntSize
+  ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows);
 
-    *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
-      surfaceSize.height != NS_round(aSize.height);
-
-    if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
-      surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                                 surfaceSize.width);
-      surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
-                                  surfaceSize.height);
-      *aResultOverflows = PR_TRUE;
-    }
-
-    return surfaceSize;
-  }
+  /*
+   * Get a pointer to a surface that can be used to create thebes
+   * contexts for various measurement purposes.
+   */
+  static gfxASurface *
+  GetThebesComputationalSurface();
 
   /*
    * Convert a nsIDOMSVGMatrix to a gfxMatrix.
@@ -483,33 +420,29 @@ public:
    * Hit test a given rectangle/matrix.
    */
   static PRBool
-  HitTestRect(const gfxMatrix &aMatrix,
+  HitTestRect(nsIDOMSVGMatrix *aMatrix,
               float aRX, float aRY, float aRWidth, float aRHeight,
               float aX, float aY);
 
 
-  /**
-   * Get the clip rect for the given frame, taking into account the CSS 'clip'
-   * property. See:
-   * http://www.w3.org/TR/SVG11/masking.html#OverflowAndClipProperties
-   * The arguments for aX, aY, aWidth and aHeight should be the dimensions of
-   * the viewport established by aFrame.
-   */
-  static gfxRect
-  GetClipRectForFrame(nsIFrame *aFrame,
-                      float aX, float aY, float aWidth, float aHeight);
-
   static void CompositeSurfaceMatrix(gfxContext *aContext,
                                      gfxASurface *aSurface,
-                                     const gfxMatrix &aCTM, float aOpacity);
+                                     nsIDOMSVGMatrix *aCTM, float aOpacity);
 
   static void CompositePatternMatrix(gfxContext *aContext,
                                      gfxPattern *aPattern,
-                                     const gfxMatrix &aCTM, float aWidth, float aHeight, float aOpacity);
+                                     nsIDOMSVGMatrix *aCTM, float aWidth, float aHeight, float aOpacity);
 
   static void SetClipRect(gfxContext *aContext,
-                          const gfxMatrix &aCTM,
-                          const gfxRect &aRect);
+                          nsIDOMSVGMatrix *aCTM, float aX, float aY,
+                          float aWidth, float aHeight);
+
+  /**
+   * If aIn can be represented exactly using an nsIntRect (i.e. integer-aligned edges and
+   * coordinates in the PRInt32 range) then we set aOut to that rectangle, otherwise
+   * return failure.
+   */
+  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   /**
    * Restricts aRect to pixels that intersect aGfxRect.
@@ -526,18 +459,11 @@ public:
 
   /* Calculate the maximum expansion of a matrix */
   static float
-  MaxExpansion(const gfxMatrix &aMatrix);
+  MaxExpansion(nsIDOMSVGMatrix *aMatrix);
 
-  /**
-   * Take the CTM to userspace for an element, and adjust it to a CTM to its
-   * object bounding box space if aUnits is SVG_UNIT_TYPE_OBJECTBOUNDINGBOX.
-   * (I.e. so that [0,0] is at the top left of its bbox, and [1,1] is at the
-   * bottom right of its bbox).
-   *
-   * If the bbox is empty, this will return a singular matrix.
-   */
-  static gfxMatrix
-  AdjustMatrixForUnits(const gfxMatrix &aMatrix,
+  /* Take a CTM and adjust for object bounding box coordinates, if needed */
+  static already_AddRefed<nsIDOMSVGMatrix>
+  AdjustMatrixForUnits(nsIDOMSVGMatrix *aMatrix,
                        nsSVGEnum *aUnits,
                        nsIFrame *aFrame);
 
@@ -545,7 +471,8 @@ public:
    * Get bounding-box for aFrame. Matrix propagation is disabled so the
    * bounding box is computed in terms of aFrame's own user space.
    */
-  static gfxRect GetBBox(nsIFrame *aFrame);
+  static already_AddRefed<nsIDOMSVGRect>
+  GetBBox(nsIFrame *aFrame);
   /**
    * Compute a rectangle in userSpaceOnUse or objectBoundingBoxUnits.
    * @param aXYWH pointer to 4 consecutive nsSVGLength2 objects containing
@@ -556,61 +483,17 @@ public:
    * may be null if aUnits is SVG_UNIT_TYPE_OBJECTBOUNDINGBOX
    */
   static gfxRect
-  GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH,
-                  const gfxRect &aBBox, nsIFrame *aFrame);
-
-  /**
-   * Find the first frame, starting with aStartFrame and going up its
-   * parent chain, that is not an svgAFrame.
-   */
-  static nsIFrame* GetFirstNonAAncestorFrame(nsIFrame* aStartFrame);
+  GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH, nsIDOMSVGRect *aBBox,
+                  nsIFrame *aFrame);
 
 #ifdef DEBUG
   static void
   WritePPM(const char *fname, gfxImageSurface *aSurface);
 #endif
 
-  /**
-   * Compute the maximum possible device space stroke extents of a path given
-   * the path's device space path extents, its stroke style and its ctm.
-   *
-   * This is a workaround for the lack of suitable cairo API for getting the
-   * tight device space stroke extents of a path. This basically gives us the
-   * tightest extents that we can guarantee fully enclose the inked stroke
-   * without doing the calculations for the actual tight extents. We exploit
-   * the fact that cairo does have an API for getting the tight device space
-   * fill/path extents.
-   *
-   * This should die once bug 478152 is fixed.
-   */
-  static gfxRect PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
-                                               nsSVGGeometryFrame* aFrame);
-
-  /**
-   * Returns true if aContent is an SVG <svg> element that is the child of
-   * another non-foreignObject SVG element.
-   */
-  static PRBool IsInnerSVG(nsIContent* aContent);
-
-  /**
-   * Convert a floating-point value to a 32-bit integer value, clamping to
-   * the range of valid integers.
-   */
-  static PRInt32 ClampToInt(double aVal)
-  {
-    return NS_lround(NS_MAX(double(PR_INT32_MIN),
-                            NS_MIN(double(PR_INT32_MAX), aVal)));
-  }
-
-  /**
-   * Given a nsIContent* that is actually an nsSVGSVGElement*, this method
-   * checks whether it currently has a valid viewBox, and returns true if so.
-   *
-   * No other type of element should be passed to this method.
-   * (In debug builds, anything non-<svg> will trigger an abort; in non-debug
-   * builds, it will trigger a PR_FALSE return-value as a safe fallback.)
-   */
-  static PRBool RootSVGElementHasViewbox(const nsIContent *aRootSVGElem);
+private:
+  /* Computational (nil) surfaces */
+  static gfxASurface *mThebesComputationalSurface;
 };
 
 #endif

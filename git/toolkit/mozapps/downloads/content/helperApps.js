@@ -597,13 +597,7 @@ HandlerOverride.prototype = {
   
   set appDisplayName(aDisplayName)
   {
-    if (aDisplayName)
-      this.changeMIMEStuff(APP_URI(this.mimeType), "prettyName", aDisplayName);
-    else {
-      var currentValue = this.getLiteralForContentType(APP_URI(this.mimeType), "prettyName");
-      this.unassertMIMEStuff(APP_URI(this.mimeType), "prettyName", currentValue);
-    }
-
+    this.changeMIMEStuff(APP_URI(this.mimeType), "prettyName", aDisplayName);
     return aDisplayName;
   },
   
@@ -614,13 +608,7 @@ HandlerOverride.prototype = {
   
   set appPath(aAppPath)
   {
-    if (aAppPath)
-      this.changeMIMEStuff(APP_URI(this.mimeType), "path", aAppPath);
-    else {
-      var currentValue = this.getLiteralForContentType(APP_URI(this.mimeType), "path");
-      this.unassertMIMEStuff(APP_URI(this.mimeType), "path", currentValue);
-    }
-
+    this.changeMIMEStuff(APP_URI(this.mimeType), "path", aAppPath);
     return aAppPath;
   },
 

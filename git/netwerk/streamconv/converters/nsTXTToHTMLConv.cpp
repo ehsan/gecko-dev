@@ -37,7 +37,6 @@
 
 #include "nsTXTToHTMLConv.h"
 #include "nsNetUtil.h"
-#include "nsEscape.h"
 #include "nsStringStream.h"
 #include "nsAutoPtr.h"
 
@@ -228,9 +227,15 @@ nsTXTToHTMLConv::nsTXTToHTMLConv()
     mPreFormatHTML = PR_FALSE;
 }
 
+static PRBool CleanupTokens(void *aElement, void *aData)
+{
+    if (aElement) delete (convToken*)aElement;
+    return PR_TRUE;
+}
+
 nsTXTToHTMLConv::~nsTXTToHTMLConv()
 {
-    mTokens.Clear();
+    mTokens.EnumerateForwards((nsVoidArrayEnumFunc)CleanupTokens, nsnull);
 }
 
 nsresult
@@ -281,8 +286,8 @@ nsTXTToHTMLConv::FindToken(PRInt32 cursor, convToken* *_retval)
 {
     PRInt32 loc = -1, firstToken = mBuffer.Length();
     PRInt8 token = -1;
-    for (PRUint8 i=0; i < mTokens.Length(); i++) {
-        loc = mBuffer.Find(mTokens[i]->token, cursor);
+    for (PRInt8 i=0; i < mTokens.Count(); i++) {
+        loc = mBuffer.Find(((convToken*)mTokens[i])->token, cursor);
         if (loc != -1)
             if (loc < firstToken) {
                 firstToken = loc;
@@ -292,7 +297,7 @@ nsTXTToHTMLConv::FindToken(PRInt32 cursor, convToken* *_retval)
     if (token == -1)
         return -1;
 
-    *_retval = mTokens[token];
+    *_retval = (convToken*)mTokens[token];
     return firstToken;
 }
 
@@ -310,24 +315,11 @@ nsTXTToHTMLConv::CatHTML(PRInt32 front, PRInt32 back)
         nsString linkText;
         // href is implied
         mBuffer.Mid(linkText, front, back-front);
-
         mBuffer.Insert(NS_LITERAL_STRING("<a href=\""), front);
         cursor += front+9;
-        if (modLen) {
+        if (modLen)
             mBuffer.Insert(mToken->modText, cursor);
-            cursor += modLen;
-        }
-
-        NS_ConvertUTF16toUTF8 linkTextUTF8(linkText);
-        nsCString escaped;
-        if (NS_EscapeURL(linkTextUTF8.Data(), linkTextUTF8.Length(), esc_Minimal, escaped)) {
-            mBuffer.Cut(cursor, back - front);
-            CopyUTF8toUTF16(escaped, linkText);
-            mBuffer.Insert(linkText, cursor);
-            back = front + linkText.Length();
-        }
-
-        cursor += back-front;
+        cursor += modLen-front+back;
         mBuffer.Insert(NS_LITERAL_STRING("\">"), cursor);
         cursor += 2;
         mBuffer.Insert(linkText, cursor);

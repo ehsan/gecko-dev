@@ -38,7 +38,6 @@
 
 #include "cairo-win32.h"
 #include "cairoint.h"
-#include "cairo-surface-clipper-private.h"
 
 #ifndef SHADEBLENDCAPS
 #define SHADEBLENDCAPS 120
@@ -82,10 +81,6 @@ typedef struct _cairo_win32_surface {
     cairo_rectangle_int_t clip_rect;
     HRGN initial_clip_rgn;
     cairo_bool_t had_simple_clip;
-    cairo_region_t *clip_region;
-
-    /* For path clipping to the printing-surface */
-    cairo_surface_clipper_t clipper;
 
     /* Surface DC flags */
     uint32_t flags;
@@ -96,8 +91,6 @@ typedef struct _cairo_win32_surface {
     cairo_bool_t path_empty;
     cairo_bool_t has_ctm;
     cairo_matrix_t ctm;
-    cairo_bool_t has_gdi_ctm;
-    cairo_matrix_t gdi_ctm;
     HBRUSH brush, old_brush;
     cairo_scaled_font_subsets_t *font_subsets;
 } cairo_win32_surface_t;
@@ -124,15 +117,6 @@ enum {
 
     /* Whether we can use GradientFill rectangles with this surface */
     CAIRO_WIN32_SURFACE_CAN_RECT_GRADIENT = (1<<6),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_JPEG = (1<<7),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_PNG = (1<<8),
-
-    /* if this DDB surface can be converted to a DIB if necessary */
-    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<9),
 };
 
 cairo_status_t
@@ -147,25 +131,20 @@ _cairo_surface_is_win32_printing (cairo_surface_t *surface);
 cairo_status_t
 _cairo_win32_surface_finish (void *abstract_surface);
 
-cairo_bool_t
+cairo_int_status_t
 _cairo_win32_surface_get_extents (void		          *abstract_surface,
 				  cairo_rectangle_int_t   *rectangle);
 
 uint32_t
 _cairo_win32_flags_for_dc (HDC dc);
 
-cairo_status_t
-_cairo_win32_surface_set_clip_region (void           *abstract_surface,
-				      cairo_region_t *region);
-
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
 				  cairo_scaled_font_t	*scaled_font,
-				  cairo_clip_t		*clip,
 				  int			*remaining_glyphs);
 
 cairo_surface_t *
@@ -177,13 +156,10 @@ _cairo_win32_surface_create_similar (void	    *abstract_src,
 cairo_status_t
 _cairo_win32_surface_clone_similar (void *abstract_surface,
 				    cairo_surface_t *src,
-				    cairo_content_t content,
 				    int src_x,
 				    int src_y,
 				    int width,
 				    int height,
-				    int *clone_offset_x,
-				    int *clone_offset_y,
 				    cairo_surface_t **clone_out);
 
 static inline void
@@ -213,40 +189,4 @@ _cairo_win32_scaled_font_is_type1 (cairo_scaled_font_t *scaled_font);
 cairo_bool_t
 _cairo_win32_scaled_font_is_bitmap (cairo_scaled_font_t *scaled_font);
 
-BYTE
-_cairo_win32_get_system_text_quality (void);
-
-#ifdef WINCE
-
-// These are the required stubs for windows mobile
-#define ETO_GLYPH_INDEX 0
-#define ETO_PDY 0
-#define HALFTONE COLORONCOLOR
-#define GM_ADVANCED 2
-#define MWT_IDENTITY 1
-
-inline int SetGraphicsMode(HDC hdc, int iMode) {return 1;}
-inline int GetGraphicsMode(HDC hdc)            {return 1;} /*GM_COMPATIBLE*/
-inline void GdiFlush()                         {}
-inline BOOL SetWorldTransform(HDC hdc, CONST XFORM *lpXform) { return FALSE; }
-inline BOOL GetWorldTransform(HDC hdc, LPXFORM lpXform )     { return FALSE; }
-inline BOOL ModifyWorldTransform(HDC hdc, CONST XFORM * lpxf, DWORD mode) { return 1; }
-
-#endif
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-CAIRO_BEGIN_DECLS
-
-cairo_int_status_t
-_cairo_dwrite_show_glyphs_on_surface(void			*surface,
-				     cairo_operator_t		 op,
-				     const cairo_pattern_t	*source,
-				     cairo_glyph_t		*glyphs,
-				     int			 num_glyphs,
-				     cairo_scaled_font_t	*scaled_font,
-				     cairo_clip_t               *clip);
-
-
-CAIRO_END_DECLS
-#endif /* CAIRO_HAS_DWRITE_FONT */
 #endif /* CAIRO_WIN32_PRIVATE_H */

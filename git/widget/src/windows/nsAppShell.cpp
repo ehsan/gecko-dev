@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Michael Lowe <michael.lowe@bigfoot.com>
  *   Darin Fisher <darin@meer.net>
- *   Jim Mathies <jmathies@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,51 +40,8 @@
 #include "nsAppShell.h"
 #include "nsToolkit.h"
 #include "nsThreadUtils.h"
-#include "WinTaskbar.h"
-#include "nsString.h"
-#include "nsIMM32Handler.h"
-
-// For skidmark code
-#include <windows.h> 
-#include <tlhelp32.h> 
-
-const PRUnichar* kAppShellEventId = L"nsAppShell:EventID";
-const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
-
-#ifdef WINCE
-BOOL WaitMessage(VOID)
-{
-  BOOL retval = TRUE;
-  
-  HANDLE hThread = GetCurrentThread();
-  DWORD waitRes = MsgWaitForMultipleObjectsEx(1, &hThread, INFINITE, QS_ALLEVENTS, 0);
-  if((DWORD)-1 == waitRes)
-  {
-    retval = FALSE;
-  }
-  
-  return retval;
-}
-#endif
 
 static UINT sMsgId;
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-static UINT sTaskbarButtonCreatedMsg;
-
-/* static */
-UINT nsAppShell::GetTaskbarButtonCreatedMessage() {
-	return sTaskbarButtonCreatedMsg;
-}
-#endif
-
-namespace mozilla {
-namespace crashreporter {
-void LSPAnnotate();
-} // namespace crashreporter
-} // namespace mozilla
-
-using mozilla::crashreporter::LSPAnnotate;
 
 //-------------------------------------------------------------------------
 
@@ -94,7 +50,7 @@ static BOOL PeekKeyAndIMEMessage(LPMSG msg, HWND hwnd)
   MSG msg1, msg2, *lpMsg;
   BOOL b1, b2;
   b1 = ::PeekMessageW(&msg1, NULL, WM_KEYFIRST, WM_IME_KEYLAST, PM_NOREMOVE);
-  b2 = ::PeekMessageW(&msg2, NULL, NS_WM_IMEFIRST, NS_WM_IMELAST, PM_NOREMOVE);
+  b2 = ::PeekMessageW(&msg2, NULL, WM_IME_SETCONTEXT, WM_IME_KEYUP, PM_NOREMOVE);
   if (b1 || b2) {
     if (b1 && b2) {
       if (msg1.time < msg2.time)
@@ -105,9 +61,6 @@ static BOOL PeekKeyAndIMEMessage(LPMSG msg, HWND hwnd)
       lpMsg = &msg1;
     else
       lpMsg = &msg2;
-    if (!nsIMM32Handler::CanOptimizeKeyAndIMEMessages(lpMsg)) {
-      return false;
-    }
     return ::PeekMessageW(msg, hwnd, lpMsg->message, lpMsg->message, PM_REMOVE);
   }
 
@@ -139,21 +92,8 @@ nsAppShell::~nsAppShell()
 nsresult
 nsAppShell::Init()
 {
-#ifdef MOZ_CRASHREPORTER
-  LSPAnnotate();
-#endif
-
   if (!sMsgId)
-    sMsgId = RegisterWindowMessageW(kAppShellEventId);
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  sTaskbarButtonCreatedMsg = ::RegisterWindowMessageW(kTaskbarButtonEventId);
-  NS_ASSERTION(sTaskbarButtonCreatedMsg, "Could not register taskbar button creation message");
-
-  // Global app registration id for Win7 and up. See
-  // WinTaskbar.cpp for details.
-  mozilla::widget::WinTaskbar::RegisterAppUserModelID();
-#endif
+    sMsgId = RegisterWindowMessageW(L"nsAppShell:EventID");
 
   WNDCLASSW wc;
   HINSTANCE module = GetModuleHandle(NULL);
@@ -180,143 +120,17 @@ nsAppShell::Init()
   return nsBaseAppShell::Init();
 }
 
-/**
- * This is some temporary code to keep track of where in memory dlls are
- * loaded. This is useful in case someone calls into a dll that has been
- * unloaded. This code lets us see which dll used to be loaded at the given
- * called address.
- */
-#if defined(_MSC_VER) && defined(_M_IX86)
-
-#define LOADEDMODULEINFO_STRSIZE 23
-#define NUM_LOADEDMODULEINFO 250
-
-struct LoadedModuleInfo {
-  void* mStartAddr;
-  void* mEndAddr;
-  char mName[LOADEDMODULEINFO_STRSIZE + 1];
-};
-
-static LoadedModuleInfo* sLoadedModules = 0;
-
-static void
-CollectNewLoadedModules()
-{
-  HANDLE hModuleSnap = INVALID_HANDLE_VALUE;
-  MODULEENTRY32W module;
-
-  // Take a snapshot of all modules in our process.
-  hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, 0);
-  if (hModuleSnap == INVALID_HANDLE_VALUE)
-    return;
-
-  // Set the size of the structure before using it.
-  module.dwSize = sizeof(MODULEENTRY32W);
-
-  // Now walk the module list of the process,
-  // and display information about each module
-  PRBool done = !Module32FirstW(hModuleSnap, &module);
-  while (!done) {
-    NS_LossyConvertUTF16toASCII moduleName(module.szModule);
-    PRBool found = PR_FALSE;
-    PRUint32 i;
-    for (i = 0; i < NUM_LOADEDMODULEINFO &&
-                sLoadedModules[i].mStartAddr; ++i) {
-      if (sLoadedModules[i].mStartAddr == module.modBaseAddr &&
-          !strcmp(moduleName.get(),
-                  sLoadedModules[i].mName)) {
-        found = PR_TRUE;
-        break;
-      }
-    }
-
-    if (!found && i < NUM_LOADEDMODULEINFO) {
-      sLoadedModules[i].mStartAddr = module.modBaseAddr;
-      sLoadedModules[i].mEndAddr = module.modBaseAddr + module.modBaseSize;
-      strncpy(sLoadedModules[i].mName, moduleName.get(),
-              LOADEDMODULEINFO_STRSIZE);
-      sLoadedModules[i].mName[LOADEDMODULEINFO_STRSIZE] = 0;
-    }
-
-    done = !Module32NextW(hModuleSnap, &module);
-  }
-
-  PRUint32 i;
-  for (i = 0; i < NUM_LOADEDMODULEINFO &&
-              sLoadedModules[i].mStartAddr; ++i) {}
-
-  CloseHandle(hModuleSnap);
-}
-
-NS_IMETHODIMP
-nsAppShell::Run(void)
-{
-  LoadedModuleInfo modules[NUM_LOADEDMODULEINFO];
-  memset(modules, 0, sizeof(modules));
-  sLoadedModules = modules;
-
-  nsresult rv = nsBaseAppShell::Run();
-
-  // Don't forget to null this out!
-  sLoadedModules = nsnull;
-
-  return rv;
-}
-
-#endif
-
-void
-nsAppShell::DoProcessMoreGeckoEvents()
-{
-  // Called by nsBaseAppShell's NativeEventCallback() after it has finished
-  // processing pending gecko events and there are still gecko events pending
-  // for the thread. (This can happen if NS_ProcessPendingEvents reached it's
-  // starvation timeout limit.) The default behavior in nsBaseAppShell is to
-  // call ScheduleNativeEventCallback to post a follow up native event callback
-  // message. This triggers an additional call to NativeEventCallback for more
-  // gecko event processing.
-
-  // There's a deadlock risk here with certain internal Windows modal loops. In
-  // our dispatch code, we prioritize messages so that input is handled first.
-  // However Windows modal dispatch loops often prioritize posted messages. If
-  // we find ourselves in a tight gecko timer loop where NS_ProcessPendingEvents
-  // takes longer than the timer duration, NS_HasPendingEvents(thread) will
-  // always be true. ScheduleNativeEventCallback will be called on every
-  // NativeEventCallback callback, and in a Windows modal dispatch loop, the
-  // callback message will be processed first -> input gets starved, dead lock.
-  
-  // To avoid, don't post native callback messages from NativeEventCallback
-  // when we're in a modal loop. This gets us back into the Windows modal
-  // dispatch loop dispatching input messages. Once we drop out of the modal
-  // loop, we use mNativeCallbackPending to fire off a final NativeEventCallback
-  // if we need it, which insures NS_ProcessPendingEvents gets called and all
-  // gecko events get processed.
-  if (mEventloopNestingLevel < 2) {
-    OnDispatchedEvent(nsnull);
-    mNativeCallbackPending = PR_FALSE;
-  } else {
-    mNativeCallbackPending = PR_TRUE;
-  }
-}
-
 void
 nsAppShell::ScheduleNativeEventCallback()
 {
-  // Post a message to the hidden message window
-  NS_ADDREF_THIS(); // will be released when the event is processed
+  // post a message to the native event queue...
+  NS_ADDREF_THIS();
   ::PostMessage(mEventWnd, sMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
 PRBool
 nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 {
-#if defined(_MSC_VER) && defined(_M_IX86)
-  if (sXPCOMHasLoadedNewDLLs && sLoadedModules) {
-    sXPCOMHasLoadedNewDLLs = PR_FALSE;
-    CollectNewLoadedModules();
-  }
-#endif
-
   PRBool gotMessage = PR_FALSE;
 
   do {
@@ -339,11 +153,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
       ::WaitMessage();
     }
   } while (!gotMessage && mayWait);
-
-  // See DoProcessNextNativeEvent, mEventloopNestingLevel will be
-  // one when a modal loop unwinds.
-  if (mNativeCallbackPending && mEventloopNestingLevel == 1)
-    DoProcessMoreGeckoEvents();
 
   return gotMessage;
 }

@@ -49,7 +49,6 @@
 
 
 #include "nsSVGDataParser.h"
-#include "nsContentUtils.h"
 #include "prdtoa.h"
 #include "nsSVGUtils.h"
 #include <stdlib.h>
@@ -61,6 +60,8 @@
 nsresult
 nsSVGDataParser::Parse(const nsAString &aValue)
 {
+  nsresult rv = NS_OK;
+
   char *str = ToNewUTF8String(aValue);
   if (!str)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -68,7 +69,7 @@ nsSVGDataParser::Parse(const nsAString &aValue)
   mInputPos = str;
 
   GetNextToken();
-  nsresult rv = Match();
+  rv = Match();
   if (mTokenType != END)
     rv = NS_ERROR_FAILURE; // not all tokens were consumed
 
@@ -83,8 +84,8 @@ nsSVGDataParser::Parse(const nsAString &aValue)
 
 void nsSVGDataParser::GetNextToken()
 {
-  mTokenPos = mInputPos;
-  mTokenVal = *mInputPos;
+  mTokenPos  = mInputPos;
+  mTokenVal  = *mInputPos;
   
   switch (mTokenVal) {
     case '0': case '1': case '2': case '3': case '4':
@@ -127,6 +128,12 @@ void nsSVGDataParser::RewindTo(const char* aPos)
   GetNextToken();
 }
 
+
+nsresult nsSVGDataParser::Match()
+{
+   return NS_OK;
+}
+
 //----------------------------------------------------------------------
 
 nsresult nsSVGDataParser::MatchNonNegativeNumber(float* aX)
@@ -144,12 +151,10 @@ nsresult nsSVGDataParser::MatchNonNegativeNumber(float* aX)
   }
 
   char* end;
-  *aX = float(PR_strtod(pos, &end));
-  if (pos != end && NS_FloatIsFinite(*aX)) {
-    return NS_OK;
-  }
+  *aX = (float) PR_strtod(pos, &end);
+  NS_ASSERTION(end == mTokenPos, "number parse error");
   
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 PRBool nsSVGDataParser::IsTokenNonNegativeNumberStarter()
@@ -176,16 +181,10 @@ nsresult nsSVGDataParser::MatchNumber(float* aX)
   }
 
   char* end;
-  /* PR_strtod is not particularily fast. We only need a float and not a double so
-   * we could probably use something faster here if needed. The CSS parser uses
-   * nsCSSScanner::ParseNumber() instead of PR_strtod. See bug 516396 for some
-   * additional info. */
-  *aX = float(PR_strtod(pos, &end));
-  if (pos != end && NS_FloatIsFinite(*aX)) {
-    return NS_OK;
-  }
-  
-  return NS_ERROR_FAILURE;
+  *aX = (float) PR_strtod(pos, &end);
+  NS_ASSERTION(end == mTokenPos, "number parse error");
+               
+  return NS_OK;
 }
 
 PRBool nsSVGDataParser::IsTokenNumberStarter()

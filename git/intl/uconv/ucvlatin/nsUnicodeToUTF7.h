@@ -58,6 +58,8 @@ public:
    */
   nsBasicUTF7Encoder(char aLastChar, char aEscChar);
 
+  NS_IMETHOD FillInfo(PRUint32 *aInfo);
+
 protected:
 
   PRInt32                   mEncoding;      // current encoding

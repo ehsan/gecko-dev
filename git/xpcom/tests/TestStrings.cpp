@@ -36,11 +36,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsReadableUtils.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 
 namespace TestStrings {
 
@@ -553,18 +552,17 @@ PRBool test_concat_2()
     return PR_FALSE;
   }
 
+#if 0
 PRBool test_concat_3()
   {
-    nsCString result;
-    nsCString ab("ab"), c("c");
+    nsCString a("a"), b("b");
 
-    result = ab + result + c;
-    if (strcmp(result.get(), "abc") == 0)
-      return PR_TRUE;
+    // THIS DOES NOT COMPILE
+    const nsACString& r = a + b;
 
-    printf("[result=%s]\n", result.get());
-    return PR_FALSE;
+    return PR_TRUE;
   }
+#endif
 
 PRBool test_xpidl_string()
   {
@@ -588,7 +586,7 @@ PRBool test_xpidl_string()
       return PR_FALSE;
 
     const char text[] = "hello world";
-    *getter_Copies(a) = NS_strdup(text);
+    *getter_Copies(a) = nsCRT::strdup(text);
     if (strcmp(a, text) != 0)
       return PR_FALSE;
 
@@ -658,59 +656,6 @@ PRBool test_substring()
     if (r)
       return PR_FALSE;
 
-    return PR_TRUE;
-  }
-
-#define test_append(str, int, suffix) \
-  str.Truncate(); \
-  str.AppendInt(suffix = int ## suffix); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appends(int, suffix) \
-  test_append(str, int, suffix) \
-  test_append(cstr, int, suffix)
-
-#define test_appendbase(str, prefix, int, suffix, base) \
-  str.Truncate(); \
-  str.AppendInt(suffix = prefix ## int ## suffix, base); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #prefix #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appendbases(prefix, int, suffix, base) \
-  test_appendbase(str, prefix, int, suffix, base) \
-  test_appendbase(cstr, prefix, int, suffix, base)
-
-PRBool test_appendint()
-  {
-    nsString str;
-    nsCString cstr;
-    PRInt32 L;
-    PRUint32 UL;
-    PRInt64 LL;
-    PRUint64 ULL;
-    test_appends(2147483647, L)
-    test_appends(-2147483648, L)
-    test_appends(4294967295, UL)
-    test_appends(9223372036854775807, LL)
-    test_appends(-9223372036854775808, LL)
-    test_appends(18446744073709551615, ULL)
-    test_appendbases(0, 17777777777, L, 8)
-    test_appendbases(0, 20000000000, L, 8)
-    test_appendbases(0, 37777777777, UL, 8)
-    test_appendbases(0, 777777777777777777777, LL, 8)
-    test_appendbases(0, 1000000000000000000000, LL, 8)
-    test_appendbases(0, 1777777777777777777777, ULL, 8)
-    test_appendbases(0x, 7fffffff, L, 16)
-    test_appendbases(0x, 80000000, L, 16)
-    test_appendbases(0x, ffffffff, UL, 16)
-    test_appendbases(0x, 7fffffffffffffff, LL, 16)
-    test_appendbases(0x, 8000000000000000, LL, 16)
-    test_appendbases(0x, ffffffffffffffff, ULL, 16)
     return PR_TRUE;
   }
 
@@ -950,211 +895,6 @@ PRBool test_voided_autostr()
     return PR_TRUE;
   }
 
-PRBool test_voided_assignment()
-  {
-    nsCString a, b;
-    b.SetIsVoid(PR_TRUE);
-    a = b;
-    return a.IsVoid() && a.get() == b.get();
-  }
-
-PRBool test_empty_assignment()
-  {
-    nsCString a, b;
-    a = b;
-    return a.get() == b.get();
-  }
-
-struct ToIntegerTest
-{
-  const char *str;
-  PRUint32 radix;
-  PRInt32 result;
-  nsresult rv;
-};
-
-static const ToIntegerTest kToIntegerTests[] = {
-  { "123", 10, 123, NS_OK },
-  { "7b", 16, 123, NS_OK },
-  { "90194313659", 10, 0, NS_ERROR_ILLEGAL_VALUE },
-  { nsnull, 0, 0, 0 }
-};
-
-PRBool test_string_tointeger()
-{
-  PRInt32 i;
-  nsresult rv;
-  for (const ToIntegerTest* t = kToIntegerTests; t->str; ++t) {
-    PRInt32 result = nsCAutoString(t->str).ToInteger(&rv, t->radix);
-    if (rv != t->rv || result != t->result)
-      return PR_FALSE;
-    result = nsCAutoString(t->str).ToInteger(&i, t->radix);
-    if ((nsresult)i != t->rv || result != t->result)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
-static PRBool test_parse_string_helper(const char* str, char separator, int len,
-                                       const char* s1, const char* s2)
-{
-  nsCString data(str);
-  nsTArray<nsCString> results;
-  if (!ParseString(data, separator, results))
-    return PR_FALSE;
-  if (int(results.Length()) != len)
-    return PR_FALSE;
-  const char* strings[] = { s1, s2 };
-  for (int i = 0; i < len; ++i) {
-    if (!results[i].Equals(strings[i]))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
-static PRBool test_parse_string_helper0(const char* str, char separator)
-{
-  return test_parse_string_helper(str, separator, 0, nsnull, nsnull);
-}
-
-static PRBool test_parse_string_helper1(const char* str, char separator, const char* s1)
-{
-  return test_parse_string_helper(str, separator, 1, s1, nsnull);
-}
-
-static PRBool test_parse_string_helper2(const char* str, char separator, const char* s1, const char* s2)
-{
-  return test_parse_string_helper(str, separator, 2, s1, s2);
-}
-
-static PRBool test_parse_string()
-{
-  return test_parse_string_helper1("foo, bar", '_', "foo, bar") &&
-         test_parse_string_helper2("foo, bar", ',', "foo", " bar") &&
-         test_parse_string_helper2("foo, bar ", ' ', "foo,", "bar") &&
-         test_parse_string_helper2("foo,bar", 'o', "f", ",bar") &&
-         test_parse_string_helper0("", '_') &&
-         test_parse_string_helper0("  ", ' ') &&
-         test_parse_string_helper1(" foo", ' ', "foo") &&
-         test_parse_string_helper1("  foo", ' ', "foo");
-}
-
-static PRBool test_strip_chars_helper(const PRUnichar* str, const PRUnichar* strip, const nsAString& result, PRUint32 offset=0)
-{
-  nsAutoString tmp(str);
-  nsAString& data = tmp;
-  data.StripChars(strip, offset);
-  return data.Equals(result);
-}
-
-static PRBool test_strip_chars()
-{
-  return test_strip_chars_helper(NS_LITERAL_STRING("foo \r \nbar").get(),
-                                 NS_LITERAL_STRING(" \n\r").get(),
-                                 NS_LITERAL_STRING("foobar"));
-         test_strip_chars_helper(NS_LITERAL_STRING("\r\nfoo\r\n").get(),
-                                 NS_LITERAL_STRING(" \n\r").get(),
-                                 NS_LITERAL_STRING("foo")) &&
-         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
-                                 NS_LITERAL_STRING(" \n\r").get(),
-                                 NS_LITERAL_STRING("foo")) &&
-         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
-                                 NS_LITERAL_STRING("fo").get(),
-                                 NS_LITERAL_STRING("")) &&
-         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
-                                 NS_LITERAL_STRING("foo").get(),
-                                 NS_LITERAL_STRING("")) &&
-         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
-                                 NS_LITERAL_STRING(" ").get(),
-                                 NS_LITERAL_STRING(" foo"), 1);
-}
-
-static PRBool test_huge_capacity()
-{
-  nsString a, b, c, d, e, f, g, h, i, j, k, l, m, n;
-  nsCString n1;
-  PRBool fail = PR_FALSE;
-#undef ok
-#define ok(x) { fail |= !(x); }
-
-  ok(a.SetCapacity(1));
-  ok(!a.SetCapacity(nsString::size_type(-1)/2));
-  ok(a.SetCapacity(0));  // free the allocated memory
-
-  ok(b.SetCapacity(1));
-  ok(!b.SetCapacity(nsString::size_type(-1)/2 - 1));
-  ok(b.SetCapacity(0));
-
-  ok(c.SetCapacity(1));
-  ok(!c.SetCapacity(nsString::size_type(-1)/2));
-  ok(c.SetCapacity(0));
-
-  ok(!d.SetCapacity(nsString::size_type(-1)/2 - 1));
-  ok(!d.SetCapacity(nsString::size_type(-1)/2));
-  ok(d.SetCapacity(0));
-
-  ok(!e.SetCapacity(nsString::size_type(-1)/4));
-  ok(!e.SetCapacity(nsString::size_type(-1)/4 + 1));
-  ok(e.SetCapacity(0));
-
-  ok(!f.SetCapacity(nsString::size_type(-1)/2));
-  ok(f.SetCapacity(0));
-
-  ok(!g.SetCapacity(nsString::size_type(-1)/4 + 1000));
-  ok(!g.SetCapacity(nsString::size_type(-1)/4 + 1001));
-  ok(g.SetCapacity(0));
-
-  ok(!h.SetCapacity(nsString::size_type(-1)/4+1));
-  ok(!h.SetCapacity(nsString::size_type(-1)/2));
-  ok(h.SetCapacity(0));
-
-  ok(i.SetCapacity(1));
-  ok(i.SetCapacity(nsString::size_type(-1)/4 - 1000));
-  ok(!i.SetCapacity(nsString::size_type(-1)/4 + 1));
-  ok(i.SetCapacity(0));
-
-  ok(j.SetCapacity(nsString::size_type(-1)/4 - 1000));
-  ok(!j.SetCapacity(nsString::size_type(-1)/4 + 1));
-  ok(j.SetCapacity(0));
-
-  ok(k.SetCapacity(nsString::size_type(-1)/8 - 1000));
-  ok(k.SetCapacity(nsString::size_type(-1)/4 - 1001));
-  ok(k.SetCapacity(nsString::size_type(-1)/4 - 998));
-  ok(!k.SetCapacity(nsString::size_type(-1)/4 + 1));
-  ok(k.SetCapacity(0));
-
-  ok(l.SetCapacity(nsString::size_type(-1)/8));
-  ok(l.SetCapacity(nsString::size_type(-1)/8 + 1));
-  ok(l.SetCapacity(nsString::size_type(-1)/8 + 2));
-  ok(l.SetCapacity(0));
-
-  ok(m.SetCapacity(nsString::size_type(-1)/8 + 1000));
-  ok(m.SetCapacity(nsString::size_type(-1)/8 + 1001));
-  ok(m.SetCapacity(0));
-
-  ok(n.SetCapacity(nsString::size_type(-1)/8+1));
-  ok(!n.SetCapacity(nsString::size_type(-1)/4));
-  ok(n.SetCapacity(0));
-
-  ok(n.SetCapacity(0));
-  ok(n.SetCapacity((nsString::size_type(-1)/2 - sizeof(nsStringBuffer)) / 2 - 2));
-  ok(n.SetCapacity(0));
-  ok(!n.SetCapacity((nsString::size_type(-1)/2 - sizeof(nsStringBuffer)) / 2 - 1));
-  ok(n.SetCapacity(0));
-  ok(n1.SetCapacity(0));
-  ok(n1.SetCapacity((nsCString::size_type(-1)/2 - sizeof(nsStringBuffer)) / 1 - 2));
-  ok(n1.SetCapacity(0));
-  ok(!n1.SetCapacity((nsCString::size_type(-1)/2 - sizeof(nsStringBuffer)) / 1 - 1));
-  ok(n1.SetCapacity(0));
-
-  // Ignore the result if the address space is less than 64-bit because
-  // some of the allocations above will exhaust the address space.  
-  if (sizeof(void*) >= 8) {
-    return !fail;
-  }
-  return PR_TRUE;
-}
-
 //----
 
 typedef PRBool (*TestFunc)();
@@ -1187,12 +927,10 @@ tests[] =
     { "test_fixed_string", test_fixed_string },
     { "test_concat", test_concat },
     { "test_concat_2", test_concat_2 },
-    { "test_concat_3", test_concat_3 },
     { "test_xpidl_string", test_xpidl_string },
     { "test_empty_assign", test_empty_assign },
     { "test_set_length", test_set_length },
     { "test_substring", test_substring },
-    { "test_appendint", test_appendint },
     { "test_appendint64", test_appendint64 },
     { "test_appendfloat", test_appendfloat },
     { "test_findcharinset", test_findcharinset },
@@ -1200,12 +938,6 @@ tests[] =
     { "test_stringbuffer", test_stringbuffer },
     { "test_voided", test_voided },
     { "test_voided_autostr", test_voided_autostr },
-    { "test_voided_assignment", test_voided_assignment },
-    { "test_empty_assignment", test_empty_assignment },
-    { "test_string_tointeger", test_string_tointeger },
-    { "test_parse_string", test_parse_string },
-    { "test_strip_chars", test_strip_chars },
-    { "test_huge_capacity", test_huge_capacity },
     { nsnull, nsnull }
   };
 
@@ -1218,8 +950,6 @@ int main(int argc, char **argv)
     int count = 1;
     if (argc > 1)
       count = atoi(argv[1]);
-
-    NS_LogInit();
 
     while (count--)
       {

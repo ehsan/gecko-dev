@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+%globalDTD;
 <!ENTITY % treeDTD SYSTEM "chrome://global/locale/tree.dtd">
 %treeDTD;
 ]>
@@ -30,7 +32,7 @@
   </binding>
 
   <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <content hidevscroll="true" hidehscroll="true" clickthrough="never">
+    <content hidevscroll="true" hidehscroll="true" chromedir="&locale.dir;">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
         <xul:treerows class="tree-rows" flex="1" xbl:inherits="hidevscroll">
@@ -103,11 +105,6 @@
         true
 #endif
       </field>
-      <property name="keepCurrentInView"
-                onget="return (this.getAttribute('keepcurrentinview') == 'true');"
-                onset="if (val) this.setAttribute('keepcurrentinview', 'true');
-                       else this.removeAttribute('keepcurrentinview'); return val;"/>
-
       <property name="enableColumnDrag"
                 onget="return this.hasAttribute('enableColumnDrag');"
                 onset="if (val) this.setAttribute('enableColumnDrag', 'true');
@@ -207,35 +204,24 @@
         <parameter name="aThresh"/>
         <parameter name="aPos"/>
         <body><![CDATA[
-          var isRTL = document.defaultView.getComputedStyle(this, "")
-                              .direction == "rtl";
+          if (aPos) aPos.value = "before";
 
-          if (aPos)
-            aPos.value = isRTL ? "after" : "before";
-
-          var columns = [];
           var col = this.columns.getFirstColumn();
-          while (col) {
-            columns.push(col);
-            col = col.getNext();
-          }
-          if (isRTL)
-            columns.reverse();
+          var lastCol = null;
           var currentX = this.boxObject.x;
-          var adjustedX = aX + this.treeBoxObject.horizontalPosition;
-          for (var i = 0; i < columns.length; ++i) {
-            col = columns[i];
+          while (col) {
             var cw = col.element.boxObject.width;
             if (cw > 0) {
               currentX += cw;
-              if (currentX - (cw * aThresh) > adjustedX)
+              if (currentX - (cw * aThresh) > aX)
                 return col.element;
             }
+            lastCol = col;
+            col = col.getNext();
           }
 
-          if (aPos)
-            aPos.value = isRTL ? "before" : "after";
-          return columns.pop().element;
+          if (aPos) aPos.value = "after";
+          return lastCol.element;
         ]]></body>
       </method>
 
@@ -340,15 +326,12 @@
         <parameter name="column"/>
         <body>
           <![CDATA[
-            if (!this.editable)
-              return false;
             if (row < 0 || row >= this.view.rowCount || !column)
-              return false;
+              return;
             if (column.type != Components.interfaces.nsITreeColumn.TYPE_TEXT ||
                 column.cycler || !this.view.isEditable(row, column))
-              return false;
+              return;
 
-            // Beyond this point, we are going to edit the cell.
             if (this._editingColumn)
               this.stopEditing();
 
@@ -357,37 +340,23 @@
             var box = this.treeBoxObject;
             box.ensureCellIsVisible(row, column);
 
-            // Get the coordinates of the text inside the cell.
-            var textx = {}, texty = {}, textwidth = {}, textheight = {};
+            var outx = {}, outy = {}, outwidth = {}, outheight = {};
             var coords = box.getCoordsForCellItem(row, column, "text",
-                                                  textx, texty, textwidth, textheight);
+                                                  outx, outy, outwidth, outheight);
 
-            // Get the coordinates of the cell itself.
-            var cellx = {}, cellwidth = {};
-            coords = box.getCoordsForCellItem(row, column, "cell",
-                                              cellx, {}, cellwidth, {});
-
-            // Calculate the top offset of the textbox.
             var style = window.getComputedStyle(input, "");
             var topadj = parseInt(style.borderTopWidth) + parseInt(style.paddingTop);
-            input.top = texty.value - topadj;
+            input.top = outy.value - topadj;
 
-            // The leftside of the textbox is aligned to the left side of the text
-            // in LTR mode, and left side of the cell in RTL mode.
-            var left, widthdiff;
-            if (style.direction == "rtl") {
-              left = cellx.value;
-              widthdiff = cellx.value + cellwidth.value - textx.value - textwidth.value;
-            } else {
-              left = textx.value;
-              widthdiff = textx.value - cellx.value;
-            }
-
+            var left = outx.value;
             input.left = left;
-            input.height = textheight.value + topadj +
+            input.height = outheight.value + topadj +
                            parseInt(style.borderBottomWidth) +
                            parseInt(style.paddingBottom);
-            input.width = cellwidth.value - widthdiff;
+
+            coords = box.getCoordsForCellItem(row, column, "cell",
+                                              outx, outy, outwidth, outheight);
+            input.width = outwidth.value - (left - outx.value);
             input.hidden = false;
 
             input.value = this.view.getCellText(row, column);
@@ -401,7 +370,6 @@
             this._editingColumn = column;
 
             this.setAttribute("editing", "true");
-            return true;
           ]]>
         </body>
       </method>
@@ -414,14 +382,12 @@
               return;
 
             var input = this.inputField;
-            var editingRow = this._editingRow;
-            var editingColumn = this._editingColumn;
-            this._editingRow = -1;
-            this._editingColumn = null;
             if (accept) {
               var value = input.value;
-              this.view.setCellText(editingRow, editingColumn, value);
+              this.view.setCellText(this._editingRow, this._editingColumn, value);
             }
+            this._editingRow = -1;
+            this._editingColumn = null;
 
             input.hidden = true;
             input.value = "";
@@ -660,32 +626,10 @@
           ]]>
         </body>
       </method>
-      <method name="_handleEnter">
-        <parameter name="event"/>
-        <body><![CDATA[
-          if (this._editingColumn) {
-            this.stopEditing(true);
-            this.focus();
-            return true;
-          }
-
-#ifdef XP_MACOSX
-          // See if we can edit the cell.
-          var row = this.currentIndex;
-          if (this._cellSelType) {
-            var column = this.view.selection.currentColumn;
-            var startedEditing = this.startEditing(row, column);
-            if (startedEditing)
-              return true;
-          }
-#endif
-          return this.changeOpenState(this.currentIndex);
-        ]]></body>
-      </method>
     </implementation>
     
     <handlers>
-      <handler event="DOMMouseScroll">
+      <handler event="DOMMouseScroll" phase="capturing">
         <![CDATA[
           if (this._editingColumn)
             return;
@@ -699,22 +643,6 @@
             this.treeBoxObject.scrollByPages(1);
           else
             this.treeBoxObject.scrollByLines(rows);
-        ]]>
-      </handler>
-      <handler event="MozSwipeGesture">
-        <![CDATA[
-          // Figure out which row to show
-          let targetRow = 0;
-
-          // Only handle swipe gestures up and down
-          switch (event.direction) {
-            case event.DIRECTION_DOWN:
-              targetRow = this.view.rowCount - 1;
-              // Fall through for actual action
-            case event.DIRECTION_UP:
-              this.treeBoxObject.ensureRowIsVisible(targetRow);
-              break;
-          }
         ]]>
       </handler>
       <handler event="select" phase="target"
@@ -735,37 +663,35 @@
       <handler event="blur" phase="capturing"
                action="if (event.originalTarget == this.inputField.inputField) this.stopEditing(true);"/>
       <handler event="keypress" keycode="VK_ENTER">
-        if (this._handleEnter(event)) {
-          event.stopPropagation();
-          event.preventDefault();
-        }
-      </handler>
-      <handler event="keypress" keycode="VK_RETURN">
-        if (this._handleEnter(event)) {
-          event.stopPropagation();
-          event.preventDefault();
-        }
-      </handler>
-#ifndef XP_MACOSX
-      <!-- Use F2 key to enter text editing. -->
-      <handler event="keypress" keycode="VK_F2">
         <![CDATA[
-          if (!this._cellSelType)
-            return;
-          var row = this.currentIndex;
-          var column = this.view.selection.currentColumn;
-          this.startEditing(row, column);
+          if (this._editingColumn) {
+            this.stopEditing(true);
+            this.focus();
+            event.stopPropagation();
+          }
+          else {
+            this.changeOpenState(this.currentIndex);
+          }
         ]]>
       </handler>
-#endif // XP_MACOSX
-
+      <handler event="keypress" keycode="VK_RETURN">
+        <![CDATA[
+          if (this._editingColumn) {
+            this.stopEditing(true);
+            this.focus();
+            event.stopPropagation();
+          }
+          else {
+            this.changeOpenState(this.currentIndex);
+          }
+        ]]>
+      </handler>
       <handler event="keypress" keycode="VK_ESCAPE">
         <![CDATA[
           if (this._editingColumn) {
             this.stopEditing(false);
             this.focus();
             event.stopPropagation();
-            event.preventDefault();
           }
         ]]>
       </handler>
@@ -933,14 +859,6 @@
           ]]>
         </getter>
       </property>
-      <constructor><![CDATA[
-        // Set resizeafter="farthest" on the splitters if nothing else has been
-        // specified.
-        Array.forEach(this.getElementsByTagName("splitter"), function (splitter) {
-          if (!splitter.hasAttribute("resizeafter"))
-            splitter.setAttribute("resizeafter", "farthest");
-        });
-      ]]></constructor>
     </implementation>
   </binding>
 
@@ -1153,7 +1071,7 @@
         var obj = {};
         tbo.getCellAt(event.clientX, event.clientY, {}, col, obj);
 
-        if (obj.value != "twisty")
+        if (this.parentNode.editable && obj.value != "twisty")
           this.parentNode.startEditing(row, col.value);
 
         if (this.parentNode._editingColumn || !tbo.view.isContainer(row))
@@ -1365,13 +1283,6 @@
           if (event.target != event.originalTarget)
             return;
 
-#ifdef XP_WIN
-          // On Windows multiple clicking on tree columns only cycles one time
-          // every 2 clicks.
-          if (event.detail % 2 == 0)
-            return;
-#endif
-
           var tree = this.parentNode.parentNode;
           var column = tree.columns.getColumnFor(this);
           tree.view.cycleHeader(column);
@@ -1399,7 +1310,7 @@
       <xul:image class="tree-columnpicker-icon"/>
       <xul:menupopup anonid="popup">
         <xul:menuseparator anonid="menuseparator"/>
-        <xul:menuitem anonid="menuitem" label="&restoreColumnOrder.label;"/>
+        <xul:menuitem anonid="menuitem" label="&restoreNaturalOrder.label;"/>
       </xul:menupopup>
     </content>
     

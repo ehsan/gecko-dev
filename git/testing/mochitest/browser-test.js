@@ -1,6 +1,3 @@
-// Test timeout (seconds)
-const TIMEOUT_SECONDS = 30;
-
 if (Cc === undefined) {
   var Cc = Components.classes;
   var Ci = Components.interfaces;
@@ -23,270 +20,88 @@ function testOnLoad() {
   var sstring = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
   sstring.data = location.search;
-
   ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
-                "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
+                "chrome,centerscreen,dialog,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
 }
 
-function Tester(aTests, aDumper, aCallback) {
-  this.dumper = aDumper;
+function Tester(aTests, aCallback) {
   this.tests = aTests;
   this.callback = aCallback;
-  this._cs = Cc["@mozilla.org/consoleservice;1"].
-             getService(Ci.nsIConsoleService);
-  this._wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
-  this._fm = Cc["@mozilla.org/focus-manager;1"].
-             getService(Ci.nsIFocusManager);
-
-  this._scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                       getService(Ci.mozIJSSubScriptLoader);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", this.EventUtils);
-  // Avoid polluting this scope with packed.js contents.
-  var simpleTestScope = {};
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
-  this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
-  EventUtils: {},
-  SimpleTest: {},
-
   checker: null,
   currentTestIndex: -1,
-  lastStartTime: null,
   get currentTest() {
     return this.tests[this.currentTestIndex];
   },
   get done() {
     return this.currentTestIndex == this.tests.length - 1;
   },
+  step: function Tester_step() {
+    this.currentTestIndex++;
+  },
 
   start: function Tester_start() {
-    this.dumper.dump("*** Start BrowserChrome Test Results ***\n");
-    this._cs.registerListener(this);
-
-    if (this.tests.length)
-      this.nextTest();
-    else
-      this.finish();
+    this.execTest();
   },
 
-  waitForWindowsState: function Tester_waitForWindowsState(aCallback) {
-    let timedOut = this.currentTest && this.currentTest.timedOut;
-    let baseMsg = timedOut ? "Found a {elt} after previous test timed out"
-                           : this.currentTest ? "Found an unexpected {elt} at the end of test run"
-                                              : "Found an unexpected {elt}";
-
-    if (this.currentTest && window.gBrowser && gBrowser.tabs.length > 1) {
-      while (gBrowser.tabs.length > 1) {
-        let lastTab = gBrowser.tabContainer.lastChild;
-        let msg = baseMsg.replace("{elt}", "tab") +
-                  ": " + lastTab.linkedBrowser.currentURI.spec;
-        this.currentTest.addResult(new testResult(false, msg, "", false));
-        gBrowser.removeTab(lastTab);
-      }
-    }
-
-    this.dumper.dump("TEST-INFO | checking window state\n");
-    let windowsEnum = this._wm.getEnumerator("navigator:browser");
-    while (windowsEnum.hasMoreElements()) {
-      let win = windowsEnum.getNext();
-      if (win != window && !win.closed) {
-        let msg = baseMsg.replace("{elt}", "browser window");
-        if (this.currentTest)
-          this.currentTest.addResult(new testResult(false, msg, "", false));
-        else
-          this.dumper.dump("TEST-UNEXPECTED-FAIL | (browser-test.js) | " + msg + "\n");
-
-        win.close();
-      }
-    }
-
-    // Make sure the window is raised before each test.
-    let self = this;
-    this.SimpleTest.waitForFocus(function() {
-      aCallback.apply(self);
-    });
-  },
-
-  finish: function Tester_finish(aSkipSummary) {
-    this._cs.unregisterListener(this);
-
-    this.dumper.dump("\nINFO TEST-START | Shutdown\n");
-    if (this.tests.length) {
-      this.dumper.dump("Browser Chrome Test Summary\n");
-
-      function sum(a,b) a+b;
-      var passCount = this.tests.map(function (f) f.passCount).reduce(sum);
-      var failCount = this.tests.map(function (f) f.failCount).reduce(sum);
-      var todoCount = this.tests.map(function (f) f.todoCount).reduce(sum);
-
-      this.dumper.dump("\tPassed: " + passCount + "\n" +
-                       "\tFailed: " + failCount + "\n" +
-                       "\tTodo: " + todoCount + "\n");
-    } else {
-      this.dumper.dump("TEST-UNEXPECTED-FAIL | (browser-test.js) | " +
-                       "No tests to run. Did you pass an invalid --test-path?");
-    }
-
-    this.dumper.dump("\n*** End BrowserChrome Test Results ***\n");
-
-    this.dumper.done();
-
+  finish: function Tester_finish() {
     // Tests complete, notify the callback and return
     this.callback(this.tests);
     this.callback = null;
     this.tests = null;
   },
 
-  observe: function Tester_observe(aConsoleMessage) {
-    try {
-      var msg = "Console message: " + aConsoleMessage.message;
-      if (this.currentTest)
-        this.currentTest.addResult(new testMessage(msg));
-      else
-        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
-    } catch (ex) {
-      // Swallow exception so we don't lead to another error being reported,
-      // throwing us into an infinite loop
-    }
-  },
-
-  nextTest: function Tester_nextTest() {
-    if (this.currentTest) {
-      // Run cleanup functions for the current test before moving on to the
-      // next one.
-      let testScope = this.currentTest.scope;
-      while (testScope.__cleanupFunctions.length > 0) {
-        let func = testScope.__cleanupFunctions.shift();
-        try {
-          func.apply(testScope);
-        }
-        catch (ex) {
-          this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
-        }
-      };
-
-      // Note the test run time
-      let time = Date.now() - this.lastStartTime;
-      this.dumper.dump("INFO TEST-END | " + this.currentTest.path + " | finished in " + time + "ms\n");
-      this.currentTest.setDuration(time);
-    }
-
-    // Check the window state for the current test before moving to the next one.
-    // This also causes us to check before starting any tests, since nextTest()
-    // is invoked to start the tests.
-    this.waitForWindowsState(this.realNextTest);
-  },
-
-  realNextTest: function Test_realNextTest() {
+  execTest: function Tester_execTest() {
     if (this.done) {
       this.finish();
       return;
     }
 
-    this.currentTestIndex++;
-    this.execTest();
-  },
-
-  execTest: function Tester_execTest() {
-    this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");
+    // Move to the next test (or first test).
+    this.step();
 
     // Load the tests into a testscope
-    this.currentTest.scope = new testScope(this, this.currentTest);
+    this.currentTest.scope = new testScope(this.currentTest.tests);
 
-    // Import utils in the test scope.
-    this.currentTest.scope.EventUtils = this.EventUtils;
-    this.currentTest.scope.SimpleTest = this.SimpleTest;
-    this.currentTest.scope.gTestPath = this.currentTest.path;
-
-    // Override SimpleTest methods with ours.
-    ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot"].forEach(function(m) {
-      this.SimpleTest[m] = this[m];
-    }, this.currentTest.scope);
-
-    //load the tools to work with chrome .jar and remote
+    var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                       getService(Ci.mozIJSSubScriptLoader);
     try {
-      this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", this.currentTest.scope);
-    } catch (ex) { /* no chrome-harness tools */ }
-
-    // Import head.js script if it exists.
-    var currentTestDirPath =
-      this.currentTest.path.substr(0, this.currentTest.path.lastIndexOf("/"));
-    var headPath = currentTestDirPath + "/head.js";
-    try {
-      this._scriptLoader.loadSubScript(headPath, this.currentTest.scope);
-    } catch (ex) { /* no head */ }
-
-    // Import the test script.
-    try {
-      this._scriptLoader.loadSubScript(this.currentTest.path,
-                                       this.currentTest.scope);
+      scriptLoader.loadSubScript(this.currentTest.path, this.currentTest.scope);
 
       // Run the test
-      this.lastStartTime = Date.now();
       this.currentTest.scope.test();
     } catch (ex) {
-      this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
-      this.currentTest.scope.__done = true;
+      this.currentTest.tests.push(new testResult(false, "Exception thrown", ex, false));
+      this.currentTest.scope.done = true;
     }
 
-    // If the test ran synchronously, move to the next test, otherwise the test
-    // will trigger the next test when it is done.
-    if (this.currentTest.scope.__done) {
-      this.nextTest();
-    }
-    else {
+    // If the test ran synchronously, move to the next test,
+    // otherwise start a poller to monitor it's progress.
+    if (this.currentTest.scope.done) {
+      this.execTest();
+    } else {
       var self = this;
-      this.currentTest.scope.__waitTimer = setTimeout(function() {
-        if (--self.currentTest.scope.__timeoutFactor > 0) {
-          // We were asked to wait a bit longer.
-          self.currentTest.scope.info(
-            "Longer timeout required, waiting longer...  Remaining timeouts: " +
-            self.currentTest.scope.__timeoutFactor);
-          self.currentTest.scope.__waitTimer =
-            setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
-          return;
-        }
-        self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
-        self.currentTest.timedOut = true;
-        self.currentTest.scope.__waitTimer = null;
-        self.nextTest();
-      }, TIMEOUT_SECONDS * 1000);
+      this.checker = new resultPoller(this.currentTest, function () { self.execTest(); });
+      this.checker.start();
     }
-  },
-
-  QueryInterface: function(aIID) {
-    if (aIID.equals(Ci.nsIConsoleListener) ||
-        aIID.equals(Ci.nsISupports))
-      return this;
-
-    throw Components.results.NS_ERROR_NO_INTERFACE;
   }
 };
 
 function testResult(aCondition, aName, aDiag, aIsTodo) {
-  this.msg = aName || "";
+  aName = aName || "";
 
-  this.info = false;
   this.pass = !!aCondition;
   this.todo = aIsTodo;
-
+  this.msg = aName;
   if (this.pass) {
     if (aIsTodo)
       this.result = "TEST-KNOWN-FAIL";
     else
       this.result = "TEST-PASS";
   } else {
-    if (aDiag) {
-      if (typeof aDiag == "object" && "fileName" in aDiag) {
-        // we have an exception - print filename and linenumber information
-        this.msg += " at " + aDiag.fileName + ":" + aDiag.lineNumber;
-      }
+    if (aDiag)
       this.msg += " - " + aDiag;
-    }
     if (aIsTodo)
       this.result = "TEST-UNEXPECTED-PASS";
     else
@@ -294,21 +109,16 @@ function testResult(aCondition, aName, aDiag, aIsTodo) {
   }
 }
 
-function testMessage(aName) {
-  this.msg = aName || "";
-  this.info = true;
-  this.result = "TEST-INFO";
-}
+function testScope(aTests) {
+  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                     getService(Ci.mozIJSSubScriptLoader);
+  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", this.EventUtils);
 
-// Need to be careful adding properties to this object, since its properties
-// cannot conflict with global variables used in tests.
-function testScope(aTester, aTest) {
-  this.__tester = aTester;
-  this.__browserTest = aTest;
+  this.tests = aTests;
 
   var self = this;
   this.ok = function test_ok(condition, name, diag) {
-    self.__browserTest.addResult(new testResult(condition, name, diag, false));
+    self.tests.push(new testResult(condition, name, diag, false));
   };
   this.is = function test_is(a, b, name) {
     self.ok(a == b, name, "Got " + a + ", expected " + b);
@@ -317,7 +127,7 @@ function testScope(aTester, aTest) {
     self.ok(a != b, name, "Didn't expect " + a + ", but got it");
   };
   this.todo = function test_todo(condition, name, diag) {
-    self.__browserTest.addResult(new testResult(!condition, name, diag, true));
+    self.tests.push(new testResult(!condition, name, diag, true));
   };
   this.todo_is = function test_todo_is(a, b, name) {
     self.todo(a == b, name, "Got " + a + ", expected " + b);
@@ -325,63 +135,54 @@ function testScope(aTester, aTest) {
   this.todo_isnot = function test_todo_isnot(a, b, name) {
     self.todo(a != b, name, "Didn't expect " + a + ", but got it");
   };
-  this.info = function test_info(name) {
-    self.__browserTest.addResult(new testMessage(name));
+
+  this.waitForExplicitFinish = function test_WFEF() {
+    self.done = false;
   };
-
-  this.executeSoon = function test_executeSoon(func) {
-    let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
-
-    tm.mainThread.dispatch({
-      run: function() {
-        func();
-      }
-    }, Ci.nsIThread.DISPATCH_NORMAL);
-  };
-
-  this.waitForExplicitFinish = function test_waitForExplicitFinish() {
-    self.__done = false;
-  };
-
-  this.waitForFocus = function test_waitForFocus(callback, targetWindow, expectBlankPage) {
-    self.SimpleTest.waitForFocus(callback, targetWindow, expectBlankPage);
-  };
-
-  this.waitForClipboard = function test_waitForClipboard(expected, setup, success, failure) {
-    self.SimpleTest.waitForClipboard(expected, setup, success, failure);
-  };
-
-  this.registerCleanupFunction = function test_registerCleanupFunction(aFunction) {
-    self.__cleanupFunctions.push(aFunction);
-  };
-
-  this.requestLongerTimeout = function test_requestLongerTimeout(aFactor) {
-    self.__timeoutFactor = aFactor;
-  };
-
-  this.copyToProfile = function test_copyToProfile(filename) {
-    self.SimpleTest.copyToProfile(filename);
-  };
-
   this.finish = function test_finish() {
-    self.__done = true;
-    if (self.__waitTimer) {
-      self.executeSoon(function() {
-        if (self.__done && self.__waitTimer) {
-          clearTimeout(self.__waitTimer);
-          self.__waitTimer = null;
-          self.__tester.nextTest();
-        }
-      });
-    }
+    self.done = true;
   };
 }
 testScope.prototype = {
-  __done: true,
-  __waitTimer: null,
-  __cleanupFunctions: [],
-  __timeoutFactor: 1,
+  done: true,
 
-  EventUtils: {},
-  SimpleTest: {}
+  EventUtils: {}
+};
+
+// Check whether the test has completed every 3 seconds
+const CHECK_INTERVAL = 3000;
+// Test timeout (seconds)
+const TIMEOUT_SECONDS = 30;
+
+const MAX_LOOP_COUNT = (TIMEOUT_SECONDS * 1000) / CHECK_INTERVAL;
+
+function resultPoller(aTest, aCallback) {
+  this.test = aTest;
+  this.callback = aCallback;
+}
+resultPoller.prototype = {
+  loopCount: 0,
+  interval: 0,
+
+  start: function resultPoller_start() {
+    var self = this;
+    function checkDone() {
+      self.loopCount++;
+
+      if (self.loopCount > MAX_LOOP_COUNT) {
+        self.test.tests.push(new testResult(false, "Timed out", "", false));
+        self.test.scope.done = true;
+      }
+
+      if (self.test.scope.done) {
+        clearInterval(self.interval);
+
+        // Notify the callback
+        self.callback();
+        self.callback = null;
+        self.test = null;
+      }
+    }
+    this.interval = setInterval(checkDone, CHECK_INTERVAL);
+  }
 };

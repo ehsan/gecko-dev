@@ -55,11 +55,11 @@ class nsTreeUtils
     static nsresult
     TokenizeProperties(const nsAString& aProperties, nsISupportsArray* aPropertiesArray);
 
-    static nsIContent*
-    GetImmediateChild(nsIContent* aContainer, nsIAtom* aTag);
+    static nsresult
+    GetImmediateChild(nsIContent* aContainer, nsIAtom* aTag, nsIContent** aResult);
 
-    static nsIContent*
-    GetDescendantChild(nsIContent* aContainer, nsIAtom* aTag);
+    static nsresult
+    GetDescendantChild(nsIContent* aContainer, nsIAtom* aTag, nsIContent** aResult);
 
     static nsresult
     UpdateSortIndicators(nsIContent* aColumn, const nsAString& aDirection);

@@ -29,7 +29,6 @@
 
 #include "client/windows/crash_generation/crash_generation_client.h"
 #include <cassert>
-#include <utility>
 #include "client/windows/common/ipc_protocol.h"
 
 namespace google_breakpad {
@@ -90,23 +89,17 @@ static bool TransactNamedPipeDebugHelper(HANDLE pipe,
 }
 **/
 
-CrashGenerationClient::CrashGenerationClient(
-    const wchar_t* pipe_name,
-    MINIDUMP_TYPE dump_type,
-    const CustomClientInfo* custom_info)
-        : pipe_name_(pipe_name),
-          dump_type_(dump_type),
-          thread_id_(0),
-          server_process_id_(0),
-          crash_event_(NULL),
-          crash_generated_(NULL),
-          server_alive_(NULL),
-          exception_pointers_(NULL),
-          custom_info_() {
+CrashGenerationClient::CrashGenerationClient(const wchar_t* pipe_name,
+                                             MINIDUMP_TYPE dump_type)
+    : pipe_name_(pipe_name),
+      dump_type_(dump_type),
+      thread_id_(0),
+      server_process_id_(0),
+      crash_event_(NULL),
+      crash_generated_(NULL),
+      server_alive_(NULL),
+      exception_pointers_(NULL) {
   memset(&assert_info_, 0, sizeof(assert_info_));
-  if (custom_info) {
-    custom_info_ = *custom_info;
-  }
 }
 
 CrashGenerationClient::~CrashGenerationClient() {
@@ -191,7 +184,6 @@ bool CrashGenerationClient::RegisterClient(HANDLE pipe) {
                       &thread_id_,
                       &exception_pointers_,
                       &assert_info_,
-                      custom_info_,
                       NULL,
                       NULL,
                       NULL);
@@ -271,8 +263,7 @@ bool CrashGenerationClient::IsRegistered() const {
   return crash_event_ != NULL;
 }
 
-bool CrashGenerationClient::RequestDump(EXCEPTION_POINTERS* ex_info,
-                                        MDRawAssertionInfo* assert_info) {
+bool CrashGenerationClient::RequestDump(EXCEPTION_POINTERS* ex_info) {
   if (!IsRegistered()) {
     return false;
   }
@@ -280,21 +271,31 @@ bool CrashGenerationClient::RequestDump(EXCEPTION_POINTERS* ex_info,
   exception_pointers_ = ex_info;
   thread_id_ = GetCurrentThreadId();
 
+  assert_info_.line = 0;
+  assert_info_.type = 0;
+  assert_info_.expression[0] = 0;
+  assert_info_.file[0] = 0;
+  assert_info_.function[0] = 0;
+
+  return SignalCrashEventAndWait();
+}
+
+bool CrashGenerationClient::RequestDump(MDRawAssertionInfo* assert_info) {
+  if (!IsRegistered()) {
+    return false;
+  }
+
+  exception_pointers_ = NULL;
+
   if (assert_info) {
     memcpy(&assert_info_, assert_info, sizeof(assert_info_));
   } else {
     memset(&assert_info_, 0, sizeof(assert_info_));
   }
 
+  thread_id_ = GetCurrentThreadId();
+
   return SignalCrashEventAndWait();
-}
-
-bool CrashGenerationClient::RequestDump(EXCEPTION_POINTERS* ex_info) {
-  return RequestDump(ex_info, NULL);
-}
-
-bool CrashGenerationClient::RequestDump(MDRawAssertionInfo* assert_info) {
-  return RequestDump(NULL, assert_info);
 }
 
 bool CrashGenerationClient::SignalCrashEventAndWait() {

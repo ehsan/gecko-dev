@@ -73,7 +73,11 @@
 
 static char consoleName[] =  {
 #ifdef XP_UNIX
+#ifdef VMS
+    "TT"
+#else
     "/dev/tty"
+#endif
 #else
 #ifdef XP_OS2
     "\\DEV\\CON"
@@ -1053,7 +1057,7 @@ secu_PrintTime(FILE *out, int64 time, char *m, int level)
     /* Convert to local time */
     PR_ExplodeTime(time, PR_GMTParameters, &printableTime);
 
-    timeString = PORT_Alloc(256);
+    timeString = PORT_Alloc(100);
     if (timeString == NULL)
 	return;
 
@@ -1062,9 +1066,8 @@ secu_PrintTime(FILE *out, int64 time, char *m, int level)
 	fprintf(out, "%s: ", m);
     }
 
-    if (PR_FormatTime(timeString, 256, "%a %b %d %H:%M:%S %Y", &printableTime)) {
-        fputs(timeString, out);
-    }
+    PR_FormatTime(timeString, 100, "%a %b %d %H:%M:%S %Y", &printableTime);
+    fprintf(out, timeString);
 
     if (m != NULL)
 	fprintf(out, "\n");
@@ -2347,7 +2350,7 @@ SECU_PrintRDN(FILE *out, CERTRDN *rdn, char *msg, int level)
 void
 SECU_PrintName(FILE *out, CERTName *name, char *msg, int level)
 {
-    char *nameStr = NULL;
+    char *nameStr;
     char *str;
     SECItem my;
 
@@ -2844,7 +2847,7 @@ SECU_PrintCRLInfo(FILE *out, CERTCrl *crl, char *m, int level)
 	iv = 0;
 	while ((entry = crl->entries[iv++]) != NULL) {
 	    sprintf(om, "Entry (%x):\n", iv); 
-	    SECU_Indent(out, level + 1); fputs(om, out);
+	    SECU_Indent(out, level + 1); fprintf(out, om);
 	    SECU_PrintInteger(out, &(entry->serialNumber), "Serial Number",
 			      level + 2);
 	    SECU_PrintTimeChoice(out, &(entry->revocationDate), 
@@ -3248,7 +3251,7 @@ SECU_PrintTrustFlags(FILE *out, CERTCertTrust *trust, char *m, int level)
     printFlags(out, trust->objectSigningFlags, level+2);
 }
 
-int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m,
+int SECU_PrintSignedData(FILE *out, SECItem *der, char *m,
 			   int level, SECU_PPFunc inner)
 {
     PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -3311,56 +3314,6 @@ SEC_PrintCertificateAndTrust(CERTCertificate *cert,
     return(SECSuccess);
 }
 
-#if defined(DEBUG) || defined(FORCE_PR_ASSERT)
-/* Returns true iff a[i].flag has a duplicate in a[i+1 : count-1]  */
-static PRBool HasShortDuplicate(int i, secuCommandFlag *a, int count)
-{
-	char target = a[i].flag;
-	int j;
-
-	/* duplicate '\0' flags are okay, they are used with long forms */
-	for (j = i+1; j < count; j++) {
-		if (a[j].flag && a[j].flag == target) {
-			return PR_TRUE;
-		}
-	}
-	return PR_FALSE;
-}
-
-/* Returns true iff a[i].longform has a duplicate in a[i+1 : count-1] */
-static PRBool HasLongDuplicate(int i, secuCommandFlag *a, int count)
-{
-	int j;	
-	char *target = a[i].longform;
-
-	if (!target)
-		return PR_FALSE;
-
-	for (j = i+1; j < count; j++) {
-		if (a[j].longform && strcmp(a[j].longform, target) == 0) {
-			return PR_TRUE;
-		}
-	}
-	return PR_FALSE;
-}
-
-/* Returns true iff a has no short or long form duplicates
- */
-PRBool HasNoDuplicates(secuCommandFlag *a, int count)
-{
-    int i;
-
-	for (i = 0; i < count; i++) {
-		if (a[i].flag && HasShortDuplicate(i, a, count)) {
-			return PR_FALSE;
-		}
-		if (a[i].longform && HasLongDuplicate(i, a, count)) {
-			return PR_FALSE;
-		}
-	}
-	return PR_TRUE;
-}
-#endif
 
 SECStatus
 SECU_ParseCommandLine(int argc, char **argv, char *progName,
@@ -3373,9 +3326,6 @@ SECU_ParseCommandLine(int argc, char **argv, char *progName,
     PLLongOpt *longopts = NULL;
     int i, j;
     int lcmd = 0, lopt = 0;
-
-    PR_ASSERT(HasNoDuplicates(cmd->commands, cmd->numCommands));
-    PR_ASSERT(HasNoDuplicates(cmd->options, cmd->numOptions));
 
     optstring = (char *)PORT_Alloc(cmd->numCommands + 2*cmd->numOptions+1);
     if (optstring == NULL)
@@ -4162,40 +4112,4 @@ SECU_SECItemHexStringToBinary(SECItem* srcdest)
     srcdest->len /= 2;
     return SECSuccess;
 }
-
-CERTCertificate*
-SECU_FindCertByNicknameOrFilename(CERTCertDBHandle *handle,
-                                  char *name, PRBool ascii,
-                                  void *pwarg)
-{
-    CERTCertificate *the_cert;
-    the_cert = CERT_FindCertByNicknameOrEmailAddr(handle, name);
-    if (the_cert) {
-        return the_cert;
-    }
-    the_cert = PK11_FindCertFromNickname(name, pwarg);
-    if (!the_cert) {
-        /* Don't have a cert with name "name" in the DB. Try to
-         * open a file with such name and get the cert from there.*/
-        SECStatus rv;
-        SECItem item = {0, NULL, 0};
-        PRFileDesc* fd = PR_Open(name, PR_RDONLY, 0777); 
-        if (!fd) {
-            return NULL;
-        }
-        rv = SECU_ReadDERFromFile(&item, fd, ascii);
-        PR_Close(fd);
-        if (rv != SECSuccess || !item.len) {
-            PORT_Free(item.data);
-            return NULL;
-        }
-        the_cert = CERT_NewTempCertificate(handle, &item, 
-                                           NULL     /* nickname */, 
-                                           PR_FALSE /* isPerm */, 
-                                           PR_TRUE  /* copyDER */);
-        PORT_Free(item.data);
-    }
-    return the_cert;
-}
-
 

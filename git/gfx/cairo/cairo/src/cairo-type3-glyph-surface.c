@@ -40,47 +40,20 @@
 
 #include "cairo-type3-glyph-surface-private.h"
 #include "cairo-output-stream-private.h"
-#include "cairo-recording-surface-private.h"
-#include "cairo-analysis-surface-private.h"
-#include "cairo-surface-clipper-private.h"
+#include "cairo-meta-surface-private.h"
 
 static const cairo_surface_backend_t cairo_type3_glyph_surface_backend;
 
-static cairo_status_t
-_cairo_type3_glyph_surface_clipper_intersect_clip_path (cairo_surface_clipper_t *clipper,
-							cairo_path_fixed_t *path,
-							cairo_fill_rule_t   fill_rule,
-							double		    tolerance,
-							cairo_antialias_t   antialias)
-{
-    cairo_type3_glyph_surface_t *surface = cairo_container_of (clipper,
-							       cairo_type3_glyph_surface_t,
-							       clipper);
-
-    if (path == NULL) {
-	_cairo_output_stream_printf (surface->stream, "Q q\n");
-	return CAIRO_STATUS_SUCCESS;
-    }
-
-    return _cairo_pdf_operators_clip (&surface->pdf_operators,
-				      path,
-				      fill_rule);
-}
-
 cairo_surface_t *
-_cairo_type3_glyph_surface_create (cairo_scaled_font_t			 *scaled_font,
-				   cairo_output_stream_t		 *stream,
-				   cairo_type3_glyph_surface_emit_image_t emit_image,
-				   cairo_scaled_font_subsets_t		 *font_subsets)
+_cairo_type3_glyph_surface_create (cairo_scaled_font_t	 		 *scaled_font,
+				   cairo_output_stream_t 		 *stream,
+				   cairo_type3_glyph_surface_emit_image_t emit_image)
 {
     cairo_type3_glyph_surface_t *surface;
     cairo_matrix_t invert_y_axis;
 
-    if (unlikely (stream != NULL && stream->status))
-	return _cairo_surface_create_in_error (stream->status);
-
     surface = malloc (sizeof (cairo_type3_glyph_surface_t));
-    if (unlikely (surface == NULL))
+    if (surface == NULL)
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
     _cairo_surface_init (&surface->base, &cairo_type3_glyph_surface_backend,
@@ -101,10 +74,7 @@ _cairo_type3_glyph_surface_create (cairo_scaled_font_t			 *scaled_font,
     _cairo_pdf_operators_init (&surface->pdf_operators,
 			       surface->stream,
 			       &surface->cairo_to_pdf,
-			       font_subsets);
-
-    _cairo_surface_clipper_init (&surface->clipper,
-				 _cairo_type3_glyph_surface_clipper_intersect_clip_path);
+			       NULL);
 
     return &surface->base;
 }
@@ -115,12 +85,18 @@ _cairo_type3_glyph_surface_emit_image (cairo_type3_glyph_surface_t *surface,
 				       cairo_matrix_t              *image_matrix)
 {
     cairo_status_t status;
+    cairo_image_surface_t *image_mask;
 
-    /* The only image type supported by Type 3 fonts are 1-bit masks */
-    image = _cairo_image_surface_coerce (image, CAIRO_FORMAT_A1);
-    status = image->base.status;
-    if (unlikely (status))
-	return status;
+    /* The only image type supported by Type 3 fonts are 1-bit image
+     * masks */
+    if (image->format == CAIRO_FORMAT_A1) {
+	image_mask = image;
+    } else {
+	image_mask = _cairo_image_surface_clone (image, CAIRO_FORMAT_A1);
+	status = cairo_surface_status (&image->base);
+	if (status)
+	    return status;
+    }
 
     _cairo_output_stream_printf (surface->stream,
 				 "q %f %f %f %f %f %f cm\n",
@@ -131,11 +107,13 @@ _cairo_type3_glyph_surface_emit_image (cairo_type3_glyph_surface_t *surface,
 				 image_matrix->x0,
 				 image_matrix->y0);
 
-    status = surface->emit_image (image, surface->stream);
-    cairo_surface_destroy (&image->base);
+    status = surface->emit_image (image_mask, surface->stream);
 
     _cairo_output_stream_printf (surface->stream,
 				 "Q\n");
+
+    if (image_mask != image)
+	cairo_surface_destroy (&image_mask->base);
 
     return status;
 }
@@ -143,7 +121,7 @@ _cairo_type3_glyph_surface_emit_image (cairo_type3_glyph_surface_t *surface,
 static cairo_status_t
 _cairo_type3_glyph_surface_emit_image_pattern (cairo_type3_glyph_surface_t *surface,
 					       cairo_image_surface_t       *image,
-					       const cairo_matrix_t              *pattern_matrix)
+					       cairo_matrix_t              *pattern_matrix)
 {
     cairo_matrix_t mat, upside_down;
     cairo_status_t status;
@@ -181,13 +159,31 @@ _cairo_type3_glyph_surface_finish (void *abstract_surface)
 }
 
 static cairo_int_status_t
-_cairo_type3_glyph_surface_paint (void			*abstract_surface,
-				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
-				  cairo_clip_t		*clip)
+_cairo_type3_glyph_surface_intersect_clip_path (void		   *abstract_surface,
+						cairo_path_fixed_t *path,
+						cairo_fill_rule_t   fill_rule,
+						double		    tolerance,
+						cairo_antialias_t   antialias)
 {
     cairo_type3_glyph_surface_t *surface = abstract_surface;
-    const cairo_surface_pattern_t *pattern;
+
+    if (path == NULL) {
+	_cairo_output_stream_printf (surface->stream, "Q q\n");
+	return CAIRO_STATUS_SUCCESS;
+    }
+
+    return _cairo_pdf_operators_clip (&surface->pdf_operators,
+				      path,
+				      fill_rule);
+}
+
+static cairo_int_status_t
+_cairo_type3_glyph_surface_paint (void			*abstract_surface,
+				  cairo_operator_t	 op,
+				  cairo_pattern_t	*source)
+{
+    cairo_type3_glyph_surface_t *surface = abstract_surface;
+    cairo_surface_pattern_t *pattern;
     cairo_image_surface_t *image;
     void *image_extra;
     cairo_status_t status;
@@ -195,14 +191,9 @@ _cairo_type3_glyph_surface_paint (void			*abstract_surface,
     if (source->type != CAIRO_PATTERN_TYPE_SURFACE)
 	return CAIRO_INT_STATUS_IMAGE_FALLBACK;
 
-    status = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    pattern = (const cairo_surface_pattern_t *) source;
-    status = _cairo_surface_acquire_source_image (pattern->surface,
-						  &image, &image_extra);
-    if (unlikely (status))
+    pattern = (cairo_surface_pattern_t *) source;
+    status = _cairo_surface_acquire_source_image (pattern->surface, &image, &image_extra);
+    if (status)
 	goto fail;
 
     status = _cairo_type3_glyph_surface_emit_image_pattern (surface,
@@ -218,33 +209,24 @@ fail:
 static cairo_int_status_t
 _cairo_type3_glyph_surface_mask (void			*abstract_surface,
 				 cairo_operator_t	 op,
-				 const cairo_pattern_t	*source,
-				 const cairo_pattern_t	*mask,
-				 cairo_clip_t		*clip)
+				 cairo_pattern_t	*source,
+				 cairo_pattern_t	*mask)
 {
-    return _cairo_type3_glyph_surface_paint (abstract_surface,
-					     op, mask,
-					     clip);
+    return _cairo_type3_glyph_surface_paint (abstract_surface, op, mask);
 }
 
 static cairo_int_status_t
 _cairo_type3_glyph_surface_stroke (void			*abstract_surface,
 				   cairo_operator_t	 op,
-				   const cairo_pattern_t *source,
+				   cairo_pattern_t	*source,
 				   cairo_path_fixed_t	*path,
 				   cairo_stroke_style_t	*style,
 				   cairo_matrix_t	*ctm,
 				   cairo_matrix_t	*ctm_inverse,
 				   double		 tolerance,
-				   cairo_antialias_t	 antialias,
-				   cairo_clip_t		*clip)
+				   cairo_antialias_t	 antialias)
 {
     cairo_type3_glyph_surface_t *surface = abstract_surface;
-    cairo_int_status_t status;
-
-    status = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (status))
-	return status;
 
     return _cairo_pdf_operators_stroke (&surface->pdf_operators,
 					path,
@@ -256,74 +238,35 @@ _cairo_type3_glyph_surface_stroke (void			*abstract_surface,
 static cairo_int_status_t
 _cairo_type3_glyph_surface_fill (void			*abstract_surface,
 				 cairo_operator_t	 op,
-				 const cairo_pattern_t	*source,
+				 cairo_pattern_t	*source,
 				 cairo_path_fixed_t	*path,
 				 cairo_fill_rule_t	 fill_rule,
 				 double			 tolerance,
-				 cairo_antialias_t	 antialias,
-				 cairo_clip_t		*clip)
+				 cairo_antialias_t	 antialias)
 {
     cairo_type3_glyph_surface_t *surface = abstract_surface;
     cairo_int_status_t status;
 
-    status = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (status))
-	return status;
+    status = _cairo_pdf_operators_fill (&surface->pdf_operators,
+					path,
+					fill_rule);
 
-    return _cairo_pdf_operators_fill (&surface->pdf_operators,
-				      path,
-				      fill_rule);
+    return status;
 }
 
 static cairo_int_status_t
 _cairo_type3_glyph_surface_show_glyphs (void		     *abstract_surface,
 					cairo_operator_t      op,
-					const cairo_pattern_t *source,
+					cairo_pattern_t	     *source,
 					cairo_glyph_t        *glyphs,
 					int		      num_glyphs,
 					cairo_scaled_font_t  *scaled_font,
-					cairo_clip_t	     *clip,
 					int		     *remaining_glyphs)
 {
-    cairo_type3_glyph_surface_t *surface = abstract_surface;
-    cairo_int_status_t status;
-    cairo_scaled_font_t *font;
-    cairo_matrix_t new_ctm, ctm_inverse;
-    int i;
+    /* XXX: Some refactoring is required before we can add font
+     * subsets in the middle of emitting all the subsets. */
 
-    status = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    for (i = 0; i < num_glyphs; i++) {
-	cairo_matrix_transform_point (&surface->cairo_to_pdf,
-				      &glyphs[i].x, &glyphs[i].y);
-    }
-
-    /* We require the matrix to be invertable. */
-    ctm_inverse = scaled_font->ctm;
-    status = cairo_matrix_invert (&ctm_inverse);
-    if (unlikely (status))
-	return CAIRO_INT_STATUS_IMAGE_FALLBACK;
-
-    cairo_matrix_multiply (&new_ctm, &scaled_font->ctm, &ctm_inverse);
-    font = cairo_scaled_font_create (scaled_font->font_face,
-				     &scaled_font->font_matrix,
-				     &new_ctm,
-				     &scaled_font->options);
-    if (unlikely (font->status))
-	return font->status;
-
-    status = _cairo_pdf_operators_show_text_glyphs (&surface->pdf_operators,
-						    NULL, 0,
-						    glyphs, num_glyphs,
-						    NULL, 0,
-						    FALSE,
-						    font);
-
-    cairo_scaled_font_destroy (font);
-
-    return status;
+    return CAIRO_INT_STATUS_IMAGE_FALLBACK;
 }
 
 static const cairo_surface_backend_t cairo_type3_glyph_surface_backend = {
@@ -338,10 +281,10 @@ static const cairo_surface_backend_t cairo_type3_glyph_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* cairo_type3_glyph_surface_copy_page */
     NULL, /* _cairo_type3_glyph_surface_show_page */
+    NULL, /* set_clip_region */
+    _cairo_type3_glyph_surface_intersect_clip_path,
     NULL, /* _cairo_type3_glyph_surface_get_extents */
     NULL, /* old_show_glyphs */
     NULL, /* _cairo_type3_glyph_surface_get_font_options */
@@ -373,14 +316,14 @@ _cairo_type3_glyph_surface_emit_fallback_image (cairo_type3_glyph_surface_t *sur
     cairo_status_t status;
     cairo_image_surface_t *image;
     cairo_matrix_t mat;
-    double x, y;
+    double width, height, x, y;
 
     status = _cairo_scaled_glyph_lookup (surface->scaled_font,
 					 glyph_index,
 					 CAIRO_SCALED_GLYPH_INFO_METRICS |
 					 CAIRO_SCALED_GLYPH_INFO_SURFACE,
 					 &scaled_glyph);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     image = scaled_glyph->surface;
@@ -389,10 +332,14 @@ _cairo_type3_glyph_surface_emit_fallback_image (cairo_type3_glyph_surface_t *sur
 
     x = _cairo_fixed_to_double (scaled_glyph->bbox.p1.x);
     y = _cairo_fixed_to_double (scaled_glyph->bbox.p2.y);
-    mat.xx = image->width;
+    width = _cairo_fixed_to_double (scaled_glyph->bbox.p2.x) -
+	_cairo_fixed_to_double (scaled_glyph->bbox.p1.x);
+    height = _cairo_fixed_to_double (scaled_glyph->bbox.p2.y) -
+	_cairo_fixed_to_double (scaled_glyph->bbox.p1.y);
+    mat.xx = width;
     mat.xy = 0;
     mat.yx = 0;
-    mat.yy = image->height;
+    mat.yy = height;
     mat.x0 = x;
     mat.y0 = y;
     cairo_matrix_multiply (&mat, &mat, &surface->scaled_font->scale_inverse);
@@ -401,74 +348,20 @@ _cairo_type3_glyph_surface_emit_fallback_image (cairo_type3_glyph_surface_t *sur
     return _cairo_type3_glyph_surface_emit_image (surface, image, &mat);
 }
 
-void
-_cairo_type3_glyph_surface_set_font_subsets_callback (void		     		    *abstract_surface,
-						      cairo_pdf_operators_use_font_subset_t  use_font_subset,
-						      void				    *closure)
-{
-    cairo_type3_glyph_surface_t *surface = abstract_surface;
-
-    if (unlikely (surface->base.status))
-	return;
-
-    _cairo_pdf_operators_set_font_subsets_callback (&surface->pdf_operators,
-						    use_font_subset,
-						    closure);
-}
-
 cairo_status_t
-_cairo_type3_glyph_surface_analyze_glyph (void		     *abstract_surface,
-					  unsigned long	      glyph_index)
+_cairo_type3_glyph_surface_emit_notdef_glyph (void		    *abstract_surface,
+					      cairo_output_stream_t *stream,
+					      cairo_box_t           *bbox,
+					      double                *width)
 {
-    cairo_type3_glyph_surface_t *surface = abstract_surface;
-    cairo_scaled_glyph_t *scaled_glyph;
-    cairo_status_t status, status2;
-    cairo_output_stream_t *null_stream;
+    bbox->p1.x = 0;
+    bbox->p1.y = 0;
+    bbox->p2.x = 0;
+    bbox->p2.y = 0;
+    *width = 0.0;
+    _cairo_output_stream_printf (stream, "0 0 0 0 0 0 d1\n");
 
-    if (unlikely (surface->base.status))
-	return surface->base.status;
-
-    null_stream = _cairo_null_stream_create ();
-    if (unlikely (null_stream->status))
-	return null_stream->status;
-
-    _cairo_type3_glyph_surface_set_stream (surface, null_stream);
-
-    _cairo_scaled_font_freeze_cache (surface->scaled_font);
-    status = _cairo_scaled_glyph_lookup (surface->scaled_font,
-					 glyph_index,
-					 CAIRO_SCALED_GLYPH_INFO_METRICS |
-					 CAIRO_SCALED_GLYPH_INFO_RECORDING_SURFACE,
-					 &scaled_glyph);
-
-    if (_cairo_status_is_error (status))
-	goto cleanup;
-
-    if (status == CAIRO_INT_STATUS_UNSUPPORTED) {
-	status = CAIRO_STATUS_SUCCESS;
-	goto cleanup;
-    }
-
-    status = _cairo_recording_surface_replay (scaled_glyph->recording_surface,
-					      &surface->base);
-    if (unlikely (status))
-	goto cleanup;
-
-    status2 = _cairo_pdf_operators_flush (&surface->pdf_operators);
-    if (status == CAIRO_STATUS_SUCCESS)
-	status = status2;
-
-    if (status == CAIRO_INT_STATUS_IMAGE_FALLBACK)
-	status = CAIRO_STATUS_SUCCESS;
-
-cleanup:
-    _cairo_scaled_font_thaw_cache (surface->scaled_font);
-
-    status2 = _cairo_output_stream_destroy (null_stream);
-    if (status == CAIRO_STATUS_SUCCESS)
-	status = status2;
-
-    return status;
+    return CAIRO_STATUS_SUCCESS;
 }
 
 cairo_status_t
@@ -482,30 +375,27 @@ _cairo_type3_glyph_surface_emit_glyph (void		     *abstract_surface,
     cairo_scaled_glyph_t *scaled_glyph;
     cairo_status_t status, status2;
     double x_advance, y_advance;
+    cairo_output_stream_t *mem_stream;
     cairo_matrix_t font_matrix_inverse;
 
-    if (unlikely (surface->base.status))
-	return surface->base.status;
-
     _cairo_type3_glyph_surface_set_stream (surface, stream);
-
-    _cairo_scaled_font_freeze_cache (surface->scaled_font);
     status = _cairo_scaled_glyph_lookup (surface->scaled_font,
 					 glyph_index,
 					 CAIRO_SCALED_GLYPH_INFO_METRICS |
-					 CAIRO_SCALED_GLYPH_INFO_RECORDING_SURFACE,
+					 CAIRO_SCALED_GLYPH_INFO_META_SURFACE,
 					 &scaled_glyph);
+    if (status && status != CAIRO_INT_STATUS_UNSUPPORTED)
+	return status;
+
     if (status == CAIRO_INT_STATUS_UNSUPPORTED) {
 	status = _cairo_scaled_glyph_lookup (surface->scaled_font,
 					     glyph_index,
 					     CAIRO_SCALED_GLYPH_INFO_METRICS,
 					     &scaled_glyph);
-	if (status == CAIRO_STATUS_SUCCESS)
-	    status = CAIRO_INT_STATUS_IMAGE_FALLBACK;
-    }
-    if (_cairo_status_is_error (status)) {
-	_cairo_scaled_font_thaw_cache (surface->scaled_font);
-	return status;
+	if (status)
+	    return status;
+
+	status = CAIRO_INT_STATUS_IMAGE_FALLBACK;
     }
 
     x_advance = scaled_glyph->metrics.x_advance;
@@ -534,23 +424,12 @@ _cairo_type3_glyph_surface_emit_glyph (void		     *abstract_surface,
 				 - _cairo_fixed_to_double (bbox->p1.y));
 
     if (status == CAIRO_STATUS_SUCCESS) {
-	cairo_output_stream_t *mem_stream;
-
 	mem_stream = _cairo_memory_stream_create ();
-	status = mem_stream->status;
-	if (unlikely (status))
-	    goto FAIL;
-
 	_cairo_type3_glyph_surface_set_stream (surface, mem_stream);
 
 	_cairo_output_stream_printf (surface->stream, "q\n");
-	status = _cairo_recording_surface_replay (scaled_glyph->recording_surface,
-						  &surface->base);
-
-	status2 = _cairo_pdf_operators_flush (&surface->pdf_operators);
-	if (status == CAIRO_STATUS_SUCCESS)
-	    status = status2;
-
+	status = _cairo_meta_surface_replay (scaled_glyph->meta_surface,
+					 &surface->base);
 	_cairo_output_stream_printf (surface->stream, "Q\n");
 
 	_cairo_type3_glyph_surface_set_stream (surface, stream);
@@ -558,15 +437,12 @@ _cairo_type3_glyph_surface_emit_glyph (void		     *abstract_surface,
 	    _cairo_memory_stream_copy (mem_stream, stream);
 
 	status2 = _cairo_output_stream_destroy (mem_stream);
-	if (status == CAIRO_STATUS_SUCCESS)
-	    status = status2;
+	if (status2)
+	    return status2;
     }
 
     if (status == CAIRO_INT_STATUS_IMAGE_FALLBACK)
 	status = _cairo_type3_glyph_surface_emit_fallback_image (surface, glyph_index);
-
-  FAIL:
-    _cairo_scaled_font_thaw_cache (surface->scaled_font);
 
     return status;
 }

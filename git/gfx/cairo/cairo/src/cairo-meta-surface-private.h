@@ -67,7 +67,6 @@ typedef enum {
 typedef struct _cairo_command_header {
     cairo_command_type_t	 type;
     cairo_meta_region_type_t     region;
-    cairo_rectangle_int_t        extents;
 } cairo_command_header_t;
 
 typedef struct _cairo_command_paint {
@@ -115,7 +114,7 @@ typedef struct _cairo_command_show_text_glyphs {
     unsigned int		 num_glyphs;
     cairo_text_cluster_t	*clusters;
     int				 num_clusters;
-    cairo_text_cluster_flags_t   cluster_flags;
+    cairo_bool_t		 backward;
     cairo_scaled_font_t		*scaled_font;
 } cairo_command_show_text_glyphs_t;
 
@@ -150,9 +149,8 @@ typedef struct _cairo_meta_surface {
     /* A meta-surface is logically unbounded, but when used as a
      * source we need to render it to an image, so we need a size at
      * which to create that image. */
-    double width_pixels;
-    double height_pixels;
-    cairo_rectangle_int_t extents;
+    int width_pixels;
+    int height_pixels;
 
     cairo_array_t commands;
     cairo_surface_t *commands_owner;
@@ -161,13 +159,18 @@ typedef struct _cairo_meta_surface {
     int replay_start_idx;
 } cairo_meta_surface_t;
 
-slim_hidden_proto (cairo_meta_surface_create);
-slim_hidden_proto (cairo_meta_surface_replay);
+cairo_private cairo_surface_t *
+_cairo_meta_surface_create (cairo_content_t	content,
+			    int			width_pixels,
+			    int			height_pixels);
 
 cairo_private cairo_int_status_t
 _cairo_meta_surface_get_path (cairo_surface_t	 *surface,
 			      cairo_path_fixed_t *path);
 
+cairo_private cairo_status_t
+_cairo_meta_surface_replay (cairo_surface_t *surface,
+			    cairo_surface_t *target);
 
 cairo_private cairo_status_t
 _cairo_meta_surface_replay_analyze_meta_pattern (cairo_surface_t *surface,

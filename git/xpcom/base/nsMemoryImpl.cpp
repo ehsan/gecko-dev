@@ -39,7 +39,6 @@
 #include "nsMemoryImpl.h"
 #include "nsThreadUtils.h"
 
-#include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
 #include "nsISupportsArray.h"
@@ -52,7 +51,109 @@
 #include "nsAutoLock.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "mozilla/Services.h"
+
+#if defined(XP_WIN)
+#include <windows.h>
+#define NS_MEMORY_FLUSHER
+#elif defined (NS_OSSO)
+#include <osso-mem.h>
+#include <fcntl.h>
+#include <unistd.h>
+const char* kHighMark = "/sys/kernel/high_watermark";
+#else
+// Need to implement the nsIMemory::IsLowMemory() predicate
+#undef NS_MEMORY_FLUSHER
+#endif
+
+#ifdef NS_MEMORY_FLUSHER
+#include "nsITimer.h"
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+// Define NS_OUT_OF_MEMORY_TESTER if you want to force memory failures
+
+#ifdef DEBUG_xwarren
+#define NS_OUT_OF_MEMORY_TESTER
+#endif
+
+#ifdef NS_OUT_OF_MEMORY_TESTER
+
+// flush memory one in this number of times:
+#define NS_FLUSH_FREQUENCY        100000
+
+// fail allocation one in this number of flushes:
+#define NS_FAIL_FREQUENCY         10
+
+PRUint32 gFlushFreq = 0;
+PRUint32 gFailFreq = 0;
+
+static void*
+mallocator(PRSize size, PRUint32& counter, PRUint32 max)
+{
+    if (counter++ >= max) {
+        counter = 0;
+        NS_ASSERTION(0, "about to fail allocation... watch out");
+        return nsnull;
+    }
+    return PR_Malloc(size);
+}
+
+static void*
+reallocator(void* ptr, PRSize size, PRUint32& counter, PRUint32 max)
+{
+    if (counter++ >= max) {
+        counter = 0;
+        NS_ASSERTION(0, "about to fail reallocation... watch out");
+        return nsnull;
+    }
+    return PR_Realloc(ptr, size);
+}
+
+#define MALLOC1(s)       mallocator(s, gFlushFreq, NS_FLUSH_FREQUENCY)
+#define REALLOC1(p, s)   reallocator(p, s, gFlushFreq, NS_FLUSH_FREQUENCY)
+
+#else
+
+#define MALLOC1(s)       PR_Malloc(s)
+#define REALLOC1(p, s)   PR_Realloc(p, s)
+
+#endif // NS_OUT_OF_MEMORY_TESTER
+
+#if defined(XDEBUG_waterson)
+#define NS_TEST_MEMORY_FLUSHER
+#endif
+
+#ifdef NS_MEMORY_FLUSHER
+/**
+ * A class that is used to periodically check the status of the system,
+ * determine if too much memory is in use, and if so, trigger a "memory flush".
+ */
+class MemoryFlusher : public nsITimerCallback
+{
+public:
+    // We don't use the generic macros because we are a special static object
+    NS_IMETHOD QueryInterface(REFNSIID aIID, void** aResult);
+    NS_IMETHOD_(nsrefcnt) AddRef(void) { return 2; }
+    NS_IMETHOD_(nsrefcnt) Release(void) { return 1; }
+
+    NS_DECL_NSITIMERCALLBACK
+
+    nsresult Init();
+    void StopAndJoin();
+
+private:
+    static PRIntervalTime sTimeout;
+    static PRLock*        sLock;
+    static PRCondVar*     sCVar;
+    
+    enum {
+        kTimeout = 60000 // milliseconds
+    };
+};
+
+static MemoryFlusher sGlobalMemoryFlusher;
+
+#endif // NS_MEMORY_FLUSHER
 
 static nsMemoryImpl sGlobalMemory;
 
@@ -85,9 +186,39 @@ nsMemoryImpl::HeapMinimize(PRBool aImmediate)
 NS_IMETHODIMP
 nsMemoryImpl::IsLowMemory(PRBool *result)
 {
-    NS_ERROR("IsLowMemory is deprecated.  See bug 592308.");
+#if defined(WINCE)
+    MEMORYSTATUS stat;
+    GlobalMemoryStatus(&stat);
+    *result = ((float)stat.dwAvailPhys / stat.dwTotalPhys) < 0.1;
+#elif defined(XP_WIN)
+    MEMORYSTATUS stat;
+    GlobalMemoryStatus(&stat);
+    *result = ((float)stat.dwAvailPageFile / stat.dwTotalPageFile) < 0.1;
+#elif defined(NS_OSSO)
+    int fd = open (kHighMark, O_RDONLY);
+    if (fd == -1) {
+        *result = PR_FALSE;
+        return NS_OK;
+    }
+    int c = 0;
+    read (fd, &c, 1);
+    close(fd);
+    *result = (c == '1');
+#else
     *result = PR_FALSE;
+#endif
     return NS_OK;
+}
+
+
+/*static*/ nsresult 
+nsMemoryImpl::InitFlusher()
+{
+#ifdef NS_MEMORY_FLUSHER
+    return sGlobalMemoryFlusher.Init();
+#else
+    return NS_OK;
+#endif
 }
 
 /*static*/ nsresult
@@ -100,7 +231,7 @@ nsMemoryImpl::Create(nsISupports* outer, const nsIID& aIID, void **aResult)
 nsresult
 nsMemoryImpl::FlushMemory(const PRUnichar* aReason, PRBool aImmediate)
 {
-    nsresult rv = NS_OK;
+    nsresult rv;
 
     if (aImmediate) {
         // They've asked us to run the flusher *immediately*. We've
@@ -116,65 +247,26 @@ nsMemoryImpl::FlushMemory(const PRUnichar* aReason, PRBool aImmediate)
     if (lastVal)
         return NS_OK;
 
-    PRIntervalTime now = PR_IntervalNow();
-
     // Run the flushers immediately if we can; otherwise, proxy to the
     // UI thread an run 'em asynchronously.
     if (aImmediate) {
         rv = RunFlushers(aReason);
     }
     else {
-        // Don't broadcast more than once every 1000ms to avoid being noisy
-        if (PR_IntervalToMicroseconds(now - sLastFlushTime) > 1000) {
-            sFlushEvent.mReason = aReason;
-            rv = NS_DispatchToMainThread(&sFlushEvent, NS_DISPATCH_NORMAL);
-        }
+        sFlushEvent.mReason = aReason;
+        rv = NS_DispatchToMainThread(&sFlushEvent, NS_DISPATCH_NORMAL);
     }
 
-    sLastFlushTime = now;
     return rv;
 }
 
 nsresult
 nsMemoryImpl::RunFlushers(const PRUnichar* aReason)
 {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
     if (os) {
-
-        // Instead of:
-        //  os->NotifyObservers(this, "memory-pressure", aReason);
-        // we are going to do this manually to see who/what is
-        // deallocating.
-
-        nsCOMPtr<nsISimpleEnumerator> e;
-        os->EnumerateObservers("memory-pressure", getter_AddRefs(e));
-
-        if ( e ) {
-          nsCOMPtr<nsIObserver> observer;
-          PRBool loop = PR_TRUE;
-
-          while (NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop) 
-          {
-              e->GetNext(getter_AddRefs(observer));
-
-              if (!observer)
-                  continue;
-
-              observer->Observe(observer, "memory-pressure", aReason);
-          }
-        }
+        os->NotifyObservers(this, "memory-pressure", aReason);
     }
-
-    // Run built-in system flushers
-#ifdef WINCE_WINDOWS_MOBILE
-
-    // This function tries to free up memory for an application.
-    // If necessary, the shell closes down other applications by
-    // sending WM_CLOSE messages.  We ask for 4MB.
-
-    SHCloseApps(1024 * 1024 * 4);
-
-#endif
 
     sIsFlushing = 0;
     return NS_OK;
@@ -195,19 +287,13 @@ nsMemoryImpl::FlushEvent::Run()
 PRInt32
 nsMemoryImpl::sIsFlushing = 0;
 
-PRIntervalTime
-nsMemoryImpl::sLastFlushTime = 0;
-
 nsMemoryImpl::FlushEvent
 nsMemoryImpl::sFlushEvent;
 
 XPCOM_API(void*)
 NS_Alloc(PRSize size)
 {
-    if (size > PR_INT32_MAX)
-        return nsnull;
-
-    void* result = moz_malloc(size);
+    void* result = MALLOC1(size);
     if (! result) {
         // Request an asynchronous flush
         sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
@@ -218,10 +304,7 @@ NS_Alloc(PRSize size)
 XPCOM_API(void*)
 NS_Realloc(void* ptr, PRSize size)
 {
-    if (size > PR_INT32_MAX)
-        return nsnull;
-
-    void* result = moz_realloc(ptr, size);
+    void* result = REALLOC1(ptr, size);
     if (! result && size != 0) {
         // Request an asynchronous flush
         sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
@@ -232,8 +315,45 @@ NS_Realloc(void* ptr, PRSize size)
 XPCOM_API(void)
 NS_Free(void* ptr)
 {
-    moz_free(ptr);
+    PR_Free(ptr);
 }
+
+#ifdef NS_MEMORY_FLUSHER
+
+NS_IMPL_QUERY_INTERFACE1(MemoryFlusher, nsITimerCallback)
+
+NS_IMETHODIMP
+MemoryFlusher::Notify(nsITimer *timer)
+{
+    PRBool isLowMemory;
+    sGlobalMemory.IsLowMemory(&isLowMemory);
+
+#ifdef NS_TEST_MEMORY_FLUSHER
+    // Fire the flusher *every* time
+    isLowMemory = PR_TRUE;
+#endif
+
+    if (isLowMemory)
+        sGlobalMemory.FlushMemory(NS_LITERAL_STRING("low-memory").get(),
+                                  PR_FALSE);
+    return NS_OK;
+}
+
+nsresult
+MemoryFlusher::Init()
+{
+    nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
+    NS_ENSURE_STATE(timer);
+
+    // There is no need to keep a reference to the timer object because we
+    // don't need to kill the timer.  It will be killed automatically when
+    // XPCOM is shutdown.
+
+    return timer->InitWithCallback(this, kTimeout,
+                                   nsITimer::TYPE_REPEATING_SLACK);
+}
+
+#endif // NS_MEMORY_FLUSHER
 
 nsresult
 NS_GetMemoryManager(nsIMemory* *result)

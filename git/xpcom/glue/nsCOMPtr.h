@@ -192,29 +192,6 @@ struct already_AddRefed
 
     T* get() const { return mRawPtr; }
 
-    /**
-     * This helper is useful in cases like
-     *
-     *  already_AddRefed<BaseClass>
-     *  Foo()
-     *  {
-     *    nsRefPtr<SubClass> x = ...;
-     *    return x.forget();
-     *  }
-     *
-     * The autoconversion allows one to omit the idiom
-     *
-     *    nsRefPtr<BaseClass> y = x.forget();
-     *    return y.forget();
-     */
-    template<class U>
-    operator already_AddRefed<U>()
-    {
-      U* tmp = mRawPtr;
-      mRawPtr = NULL;
-      return tmp;
-    }
-
     T* mRawPtr;
   };
 
@@ -780,7 +757,7 @@ nsCOMPtr
         }
 
       void
-      forget( T** rhs NS_OUTPARAM )
+      forget( T** rhs )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
           // parameters.
@@ -1088,18 +1065,8 @@ class nsCOMPtr<nsISupports>
           mRawPtr = temp;
         }
 
-      already_AddRefed<nsISupports>
-      forget()
-          // return the value of mRawPtr and null out mRawPtr. Useful for
-          // already_AddRefed return values.
-        {
-          nsISupports* temp = 0;
-          swap(temp);
-          return temp;
-        }
-
       void
-      forget( nsISupports** rhs NS_OUTPARAM )
+      forget( nsISupports** rhs )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
           // parameters.
@@ -1435,14 +1402,6 @@ getter_AddRefs( nsCOMPtr<T>& aSmartPtr )
     return nsGetterAddRefs<T>(aSmartPtr);
   }
 
-template <class T, class DestinationType>
-inline
-nsresult
-CallQueryInterface( T* aSource, nsGetterAddRefs<DestinationType> aDestination )
-{
-    return CallQueryInterface(aSource,
-                              static_cast<DestinationType**>(aDestination));
-}
 
 
   // Comparing two |nsCOMPtr|s

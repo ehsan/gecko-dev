@@ -354,7 +354,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
         continue;    // continue inner loop, with outStringCol now at bol
       }
 
-      PRInt32 breakPt = 0;
+      PRInt32 breakPt;
       rv = NS_ERROR_BASE;
       if (lineBreaker)
       {

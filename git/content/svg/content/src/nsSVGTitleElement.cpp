@@ -47,8 +47,8 @@ class nsSVGTitleElement : public nsSVGTitleElementBase,
 {
 protected:
   friend nsresult NS_NewSVGTitleElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGTitleElement(nsINodeInfo *aNodeInfo);
   nsresult Init();
 
 public:
@@ -79,7 +79,6 @@ public:
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   void SendTitleChangeEvent(PRBool aBound);
 };
@@ -93,20 +92,20 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Title)
 NS_IMPL_ADDREF_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGTitleElement, nsSVGTitleElementBase)
 
-DOMCI_NODE_DATA(SVGTitleElement, nsSVGTitleElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGTitleElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGTitleElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGTitleElement,
-                           nsIMutationObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGTitleElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGTitleElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGTitleElement)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGTitleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGTitleElementBase)
 
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGTitleElement::nsSVGTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGTitleElement::nsSVGTitleElement(nsINodeInfo *aNodeInfo)
   : nsSVGTitleElementBase(aNodeInfo)
 {
   AddMutationObserver(this);
@@ -129,7 +128,6 @@ nsSVGTitleElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aContainer,
-                                   nsIContent *aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);
@@ -148,8 +146,7 @@ void
 nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   nsIContent *aContainer,
                                   nsIContent *aChild,
-                                  PRInt32 aIndexInContainer,
-                                  nsIContent *aPreviousSibling)
+                                  PRInt32 aIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);
 }

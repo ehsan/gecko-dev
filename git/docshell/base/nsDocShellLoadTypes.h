@@ -47,26 +47,21 @@
 #include "nsIWebNavigation.h"
 
 /**
- * Load flag for error pages. This uses one of the reserved flag
- * values from nsIWebNavigation.
+ * Load flag for error pages. This should be bigger than all flags on
+ * nsIWebNavigation.
  */
-#define LOAD_FLAGS_ERROR_PAGE 0x0001U
+#define LOAD_FLAGS_ERROR_PAGE 0x8000U
 
 #define MAKE_LOAD_TYPE(type, flags) ((type) | ((flags) << 16))
 #define LOAD_TYPE_HAS_FLAGS(type, flags) ((type) & ((flags) << 16))
 
 /**
- * These are flags that confuse ConvertLoadTypeToDocShellLoadInfo and should
- * not be passed to MAKE_LOAD_TYPE.  In particular this includes all flags
- * above 0xffff (e.g. LOAD_FLAGS_BYPASS_CLASSIFIER), since MAKE_LOAD_TYPE would
- * just shift them out anyway.
+ * These are flags that confuse ConvertLoadTypeToDocShellLoadInfo and should not
+ * be passed to MAKE_LOAD_TYPE.
  */
 #define EXTRA_LOAD_FLAGS (LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP | \
-                          LOAD_FLAGS_FIRST_LOAD              | \
-                          LOAD_FLAGS_ALLOW_POPUPS            | \
-                          0xffff0000)
-
-
+                          LOAD_FLAGS_FIRST_LOAD | \
+                          LOAD_FLAGS_BYPASS_CLASSIFIER)
 
 /* load types are legal combinations of load commands and flags 
  *  
@@ -92,7 +87,6 @@ enum LoadType {
     LOAD_BYPASS_HISTORY = MAKE_LOAD_TYPE(nsIDocShell::LOAD_CMD_NORMAL, nsIWebNavigation::LOAD_FLAGS_BYPASS_HISTORY),
     LOAD_STOP_CONTENT = MAKE_LOAD_TYPE(nsIDocShell::LOAD_CMD_NORMAL, nsIWebNavigation::LOAD_FLAGS_STOP_CONTENT),
     LOAD_STOP_CONTENT_AND_REPLACE = MAKE_LOAD_TYPE(nsIDocShell::LOAD_CMD_NORMAL, nsIWebNavigation::LOAD_FLAGS_STOP_CONTENT | nsIWebNavigation::LOAD_FLAGS_REPLACE_HISTORY),
-    LOAD_PUSHSTATE = MAKE_LOAD_TYPE(nsIDocShell::LOAD_CMD_PUSHSTATE, nsIWebNavigation::LOAD_FLAGS_NONE),
     /**
      * Load type for an error page. These loads are never triggered by users of
      * Docshell. Instead, Docshell triggers the load itself when a
@@ -123,7 +117,6 @@ static inline PRBool IsValidLoadType(PRUint32 aLoadType)
     case LOAD_BYPASS_HISTORY:
     case LOAD_STOP_CONTENT:
     case LOAD_STOP_CONTENT_AND_REPLACE:
-    case LOAD_PUSHSTATE:
     case LOAD_ERROR_PAGE:
         return PR_TRUE;
     }

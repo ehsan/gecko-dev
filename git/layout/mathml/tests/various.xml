@@ -45,7 +45,7 @@
 
 <head>
 <title>Various examples of MathML</title>
-<style type="text/css">
+<style>
 maction {
   background-color: yellow;
 }
@@ -64,7 +64,6 @@ maction[actiontype="restyle#zoom"] {
 </head>
 <body>
 
-<div>
 Click to toggle between expressions, and watch the satus line onmouseover/onmouseout:
 <br />
 
@@ -247,7 +246,7 @@ Click the expression below to see several definitions of pi:
     <mi>i</mi><none/>
 </mmultiscripts>
 
-<mspace linebreak="newline"/>
+<br />
 
 <!-- {3 \atop k} R {1 \atop i} {2 \atop j} -->
 <mmultiscripts>
@@ -527,7 +526,7 @@ Click the expression below to see several definitions of pi:
 
 
 <mtext>This is a text in mtext</mtext>
-<merror><mtext>This is a text in merror</mtext></merror>
+<merror>This is a text in merror</merror>
 
 <mrow>
   <msub>
@@ -593,7 +592,7 @@ Click the expression below to see several definitions of pi:
    </mrow>
 </mrow>
 
-<mspace linebreak="newline"/>
+<br />
 
   <mrow> 
       <msup>
@@ -632,7 +631,9 @@ Click the expression below to see several definitions of pi:
 <mi>t</mi><mo>+=</mo><mi>dt</mi>
 </mrow>
 
-<mspace linebreak="newline"/>
+<br /> 
+
+
 
 <mrow>
       <mi>x</mi>
@@ -1061,8 +1062,6 @@ And this is from the "Thomson scattering theory"
   </mtable>
 </mrow>
 </math>
-
-</div>
 
 </body>
 </html>

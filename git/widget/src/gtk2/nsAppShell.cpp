@@ -40,9 +40,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <gdk/gdk.h>
+#include <gdk/gdkwindow.h>
+#include "nsCommonWidget.h"
 #include "nsAppShell.h"
-#include "nsWindow.h"
 #include "prlog.h"
 #include "prenv.h"
 
@@ -51,7 +51,7 @@
 #ifdef PR_LOGGING
 PRLogModuleInfo *gWidgetLog = nsnull;
 PRLogModuleInfo *gWidgetFocusLog = nsnull;
-PRLogModuleInfo *gWidgetDragLog = nsnull;
+PRLogModuleInfo *gWidgetIMLog = nsnull;
 PRLogModuleInfo *gWidgetDrawLog = nsnull;
 #endif
 
@@ -88,8 +88,8 @@ nsAppShell::Init()
         gWidgetLog = PR_NewLogModule("Widget");
     if (!gWidgetFocusLog)
         gWidgetFocusLog = PR_NewLogModule("WidgetFocus");
-    if (!gWidgetDragLog)
-        gWidgetDragLog = PR_NewLogModule("WidgetDrag");
+    if (!gWidgetIMLog)
+        gWidgetIMLog = PR_NewLogModule("WidgetIM");
     if (!gWidgetDrawLog)
         gWidgetDrawLog = PR_NewLogModule("WidgetDraw");
 #endif

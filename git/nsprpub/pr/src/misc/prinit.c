@@ -205,6 +205,10 @@ static void _PR_InitStuff(void)
     _pr_sleeplock = PR_NewLock();
     PR_ASSERT(NULL != _pr_sleeplock);
 
+#ifdef GC_LEAK_DETECTOR
+    _PR_InitGarbageCollector();
+#endif
+
     _PR_InitThreads(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     
 #ifdef WIN16
@@ -229,11 +233,11 @@ static void _PR_InitStuff(void)
     _PR_InitCMon();
     _PR_InitIO();
     _PR_InitNet();
-    _PR_InitTime();
     _PR_InitLog();
     _PR_InitLinker();
     _PR_InitCallOnce();
     _PR_InitDtoa();
+    _PR_InitTime();
     _PR_InitMW();
     _PR_InitRWLocks();
 
@@ -291,12 +295,20 @@ PR_IMPLEMENT(void) PR_UnblockClockInterrupts(void)
 PR_IMPLEMENT(void) PR_Init(
     PRThreadType type, PRThreadPriority priority, PRUintn maxPTDs)
 {
+#if defined(XP_MAC)
+#pragma unused (type, priority, maxPTDs)
+#endif
+
     _PR_ImplicitInitialization();
 }
 
 PR_IMPLEMENT(PRIntn) PR_Initialize(
     PRPrimordialFn prmain, PRIntn argc, char **argv, PRUintn maxPTDs)
 {
+#if defined(XP_MAC)
+#pragma unused (maxPTDs)
+#endif
+
     PRIntn rv;
     _PR_ImplicitInitialization();
     rv = prmain(argc, argv);
@@ -390,11 +402,6 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
         while (_pr_userActive > _pr_primordialExitCount) {
             PR_WaitCondVar(_pr_primordialExitCVar, PR_INTERVAL_NO_TIMEOUT);
         }
-        if (me->flags & _PR_SYSTEM) {
-            _pr_systemActive--;
-        } else {
-            _pr_userActive--;
-        }
         PR_Unlock(_pr_activeLock);
 
 #ifdef IRIX
@@ -404,8 +411,6 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
 		 */
     	PR_ASSERT((_PR_IS_NATIVE_THREAD(me)) || (me->cpu->id == 0));
 #endif
-
-        _PR_MD_EARLY_CLEANUP();
 
         _PR_CleanupMW();
         _PR_CleanupTime();
@@ -799,7 +804,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnce(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)();
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;
@@ -828,7 +833,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)(arg);
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;
@@ -852,9 +857,13 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
 PRBool _PR_Obsolete(const char *obsolete, const char *preferred)
 {
 #if defined(DEBUG)
+#ifndef XP_MAC
     PR_fprintf(
         PR_STDERR, "'%s' is obsolete. Use '%s' instead.\n",
         obsolete, (NULL == preferred) ? "something else" : preferred);
+#else
+#pragma unused (obsolete, preferred)
+#endif
 #endif
     return PR_FALSE;
 }  /* _PR_Obsolete */

@@ -41,7 +41,6 @@ interface imgIRequest;
 interface nsIChannel;
 interface nsIStreamListener;
 interface nsIURI;
-interface nsIDocument;
 
 /**
  * This interface represents a content node that loads images.  The interface
@@ -65,7 +64,7 @@ interface nsIDocument;
  * sufficient, when combined with the imageBlockingStatus information.)
  */
 
-[scriptable, uuid(95c74255-df9a-4060-b5a0-0d111fcafe08)]
+[scriptable, uuid(7744c6d3-5c60-4b7b-a526-4fe9d5ac7e97)]
 interface nsIImageLoadingContent : imgIDecoderObserver
 {
   /**
@@ -168,16 +167,4 @@ interface nsIImageLoadingContent : imgIDecoderObserver
    * @throws NS_ERROR_NOT_AVAILABLE if there is no current URI to reload
    */
   void forceReload();
-
-  /**
-   * Enables/disables image state forcing. When |aForce| is PR_TRUE, we force
-   * nsImageLoadingContent::ImageState() to return |aState|. Call again with |aForce|
-   * as PR_FALSE to revert ImageState() to its original behaviour.
-   */
-  void forceImageState(in boolean aForce, in unsigned long long aState);
-
-  /**
-    * We need to be notified when our document changes.
-    */
-  [noscript, notxpcom] void NotifyOwnerDocumentChanged(in nsIDocument aOldDoc);
 };

@@ -309,12 +309,6 @@ static bool AddSubmittedReport(const string& serverResponse)
     delete reportFile;
   }
 
-  if (responseItems.find("Discarded") != responseItems.end()) {
-    // server discarded this report... save it so the user can resubmit it
-    // manually
-    return false;
-  }
-
   if (responseItems.find("CrashID") == responseItems.end())
     return false;
 
@@ -363,21 +357,13 @@ void DeleteDump()
   }
 }
 
-void SendCompleted(bool success, const string& serverResponse)
+bool SendCompleted(bool success, const string& serverResponse)
 {
   if (success) {
-    if (AddSubmittedReport(serverResponse)) {
-      DeleteDump();
-    }
-    else {
-      string directory = gDumpFile;
-      int slashpos = directory.find_last_of("/\\");
-      if (slashpos < 2)
-        return;
-      directory.resize(slashpos);
-      UIPruneSavedDumps(directory);
-    }
+    DeleteDump();
+    return AddSubmittedReport(serverResponse);
   }
+  return true;
 }
 
 bool ShouldEnableSending()
@@ -436,11 +422,6 @@ void RewriteStrings(StringTable& queryParameters)
               gStrings[ST_CHECKSUBMIT].c_str(),
               vendor.c_str());
   gStrings[ST_CHECKSUBMIT] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_CHECKEMAIL].c_str(),
-              vendor.c_str());
-  gStrings[ST_CHECKEMAIL] = buf;
 
   UI_SNPRINTF(buf, sizeof(buf),
               gStrings[ST_RESTART].c_str(),
@@ -560,8 +541,6 @@ int main(int argc, char** argv)
     string sendURL = queryParameters["ServerURL"];
     // we don't need to actually send this
     queryParameters.erase("ServerURL");
-
-    queryParameters["Throttleable"] = "1";
 
     // re-set XUL_APP_FILE for xulrunner wrapped apps
     const char *appfile = getenv("MOZ_CRASHREPORTER_RESTART_XUL_APP_FILE");

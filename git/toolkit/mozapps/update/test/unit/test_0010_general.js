@@ -39,31 +39,8 @@
 /* General Update Service Tests */
 
 function run_test() {
-  do_test_pending();
-  do_register_cleanup(end_test);
-
-  // Verify write access to the custom app dir
-  logTestInfo("testing write access to the application directory");
-  removeUpdateDirsAndFiles();
-  var testFile = getCurrentProcessDir();
-  testFile.append("update_write_access_test");
-  testFile.create(AUS_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
-  do_check_true(testFile.exists());
-  testFile.remove(false);
-  do_check_false(testFile.exists());
-
-  standardInit();
-
-  // Check if available updates can be checked for
-  logTestInfo("testing nsIApplicationUpdateService:canCheckForUpdates");
-  do_check_true(gAUS.canCheckForUpdates);
-  // Check if updates can be applied
-  logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates");
-  do_check_true(gAUS.canApplyUpdates);
-
-  do_test_finished();
-}
-
-function end_test() {
-  cleanUp();
+  startAUS();
+  // Check if the update dir can be written to
+  dump("Testing: nsIApplicationUpdateService:canUpdate\n");
+  do_check_true(gAUS.canUpdate);
 }

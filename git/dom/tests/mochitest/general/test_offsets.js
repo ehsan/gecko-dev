@@ -26,22 +26,6 @@ function testElements(baseid, callback)
   callback();
 }
 
-function toNearestAppunit(v)
-{
-  // 60 appunits per CSS pixel; round result to the nearest appunit
-  return Math.round(v*60)/60;
-}
-
-function floorToNearestAppunit(v)
-{
-  return Math.floor(toNearestAppunit(v));
-}
-
-function isEqualAppunits(a, b, msg)
-{
-  is(toNearestAppunit(a), toNearestAppunit(b), msg);
-}
-
 function testElement(element)
 {
   var offsetParent = element.getAttribute("_offsetParent");
@@ -67,11 +51,9 @@ function testElement(element)
   var scrollWidth, scrollHeight, clientWidth, clientHeight;
   if (element.id == "scrollbox") {
     var lastchild = $("lastline");
-    scrollWidth = floorToNearestAppunit(lastchild.getBoundingClientRect().width + paddingLeft + paddingRight);
-    var top = element.firstChild.getBoundingClientRect().top;
-    var bottom = element.lastChild.getBoundingClientRect().bottom;
-    var contentsHeight = bottom - top;
-    scrollHeight = floorToNearestAppunit(contentsHeight + paddingTop + paddingBottom);
+    scrollWidth = Math.round(lastchild.getBoundingClientRect().width) + paddingLeft + paddingRight;
+    scrollHeight = Math.round(element.lastChild.getBoundingClientRect().bottom) -
+                   Math.round(element.firstChild.getBoundingClientRect().top) + paddingTop + paddingBottom;
     clientWidth = paddingLeft + width + paddingRight - scrollbarWidth;
     clientHeight = paddingTop + height + paddingBottom - scrollbarHeight;
   }
@@ -94,13 +76,15 @@ function testElement(element)
     checkClientState(element, borderLeft, borderTop, clientWidth, clientHeight, element.id);
 
   var boundingrect = element.getBoundingClientRect();
-  isEqualAppunits(boundingrect.width, borderLeft + paddingLeft + width + paddingRight + borderRight,
+  is(Math.round(boundingrect.width), borderLeft + paddingLeft + width + paddingRight + borderLeft,
      element.id + " bounding rect width");
-  isEqualAppunits(boundingrect.height, borderTop + paddingTop + height + paddingBottom + borderBottom,
+  is(Math.round(boundingrect.height), borderTop + paddingTop + height + paddingBottom + borderBottom,
      element.id + " bounding rect height");
-  isEqualAppunits(boundingrect.right - boundingrect.left, boundingrect.width,
+  is(Math.round(boundingrect.right - boundingrect.left),
+     borderLeft + paddingLeft + width + paddingRight + borderLeft,
      element.id + " bounding rect right");
-  isEqualAppunits(boundingrect.bottom - boundingrect.top, boundingrect.height,
+  is(Math.round(boundingrect.bottom - boundingrect.top),
+     borderTop + paddingTop + height + paddingBottom + borderBottom,
      element.id + " bounding rect bottom");
 
   var rects = element.getClientRects();
@@ -113,6 +97,12 @@ function testElement(element)
     is(rects[0].right, boundingrect.right, element.id + " getClientRects right");
     is(rects[0].bottom, boundingrect.bottom, element.id + " getClientRects bottom");
   }
+
+  var root = document.documentElement;
+  gPreviousRight = Math.round(boundingrect.right) -
+                   gcs(root, "paddingLeft") - gcs(root, "borderLeftWidth");
+  gPreviousBottom = Math.round(boundingrect.bottom) -
+                   gcs(root, "paddingTop") - gcs(root, "borderTopWidth");
 }
 
 function checkScrolledElement(element, child)
@@ -168,7 +158,7 @@ function checkClientState(element, left, top, width, height, testname)
 function checkCoord(element, type, val, testname)
 {
   if (val != -10000)
-    is(element[type], Math.round(val), testname + " " + type);
+    is(element[type], val, testname + " " + type);
 }
 
 function checkCoords(element, type, left, top, width, height, testname)
@@ -197,6 +187,7 @@ function gcs(element, prop)
   var propVal = (element instanceof SVGElement && (prop == "width" || prop == "height")) ?
                    element.getAttribute(prop) : getComputedStyle(element, "")[prop];
   if (propVal == "auto")
-    return 0;
-  return parseFloat(propVal);
+    propVal = 0;
+  var propValFloat = parseFloat(propVal);
+  return (isNaN(propValFloat) ? propVal : Math.round(propValFloat));
 }

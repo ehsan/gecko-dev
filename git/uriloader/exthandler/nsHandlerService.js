@@ -119,8 +119,11 @@ HandlerService.prototype = {
   //**************************************************************************//
   // XPCOM Plumbing
 
+  classDescription: "Handler Service",
   classID:          Components.ID("{32314cc8-22f7-4f7f-a645-1a45453ba6a6}"),
+  contractID:       "@mozilla.org/uriloader/handler-service;1",
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIHandlerService]),
+
 
   //**************************************************************************//
   // Initialization & Destruction
@@ -232,7 +235,7 @@ HandlerService.prototype = {
                   getService(Ci.nsIPrefService);
 
     let schemesPrefBranch = prefSvc.getBranch("gecko.handlerService.schemes.");
-    let schemePrefList = schemesPrefBranch.getChildList("");
+    let schemePrefList = schemesPrefBranch.getChildList("", {}); 
 
     var schemes = {};
 
@@ -416,7 +419,7 @@ HandlerService.prototype = {
       var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
       found = this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
     } catch (e) {
-      // If the RDF threw (eg, corrupt file), treat as nonexistent.
+      // If the RDF threw (eg, corrupt file), treat as non-existent.
       found = false;
     }
 
@@ -1419,7 +1422,10 @@ HandlerService.prototype = {
 
 };
 
+
 //****************************************************************************//
 // More XPCOM Plumbing
 
-NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule([HandlerService]);
+}

@@ -40,6 +40,7 @@
 
 #include "nsIParserService.h"
 #include "nsDTDUtils.h"
+#include "nsVoidArray.h"
 
 extern "C" int MOZ_XMLIsLetter(const char* ptr);
 extern "C" int MOZ_XMLIsNCNameChar(const char* ptr);

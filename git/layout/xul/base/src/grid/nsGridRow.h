@@ -60,6 +60,7 @@ public:
    ~nsGridRow();
    
    void Init(nsIBox* aBox, PRBool aIsBogus);
+   void MarkDirty(nsBoxLayoutState& aState);
 
 // accessors
    nsIBox* GetBox()   { return mBox;          }

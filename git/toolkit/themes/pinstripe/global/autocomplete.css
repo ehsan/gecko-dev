@@ -37,11 +37,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== autocomplete.css =================================================
+  == Styles used by the autocomplete widget.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
 
-/* .padded is used by autocomplete widgets that don't have an icon. Gross. -dwh */
-textbox:not(.padded) {
+/* ::::: autocomplete ::::: */
+
+textbox {
   cursor: default;
   padding: 0;
 }
@@ -50,11 +55,13 @@ textbox[nomatch="true"][highlightnonmatches="true"] {
   color: red;
 }
 
-textbox:not(.padded) .textbox-input-box {
-  margin: 0 3px;
+/* Used by autocomplete widgets that don't have an icon. Gross. -dwh */
+textbox.padded {
+  padding: 1px 0px 1px 2px;
 }
 
 .textbox-input-box {
+  margin: 0 3px;
   -moz-box-align: center;
 }
 
@@ -123,7 +130,6 @@ treechildren.autocomplete-treebody::-moz-tree-cell-text(selected) {
 /* ::::: richlistbox autocomplete ::::: */
 
 .autocomplete-richlistbox {
-  -moz-appearance: none;
   margin: 0;
 }
 
@@ -134,10 +140,7 @@ treechildren.autocomplete-treebody::-moz-tree-cell-text(selected) {
 
 .autocomplete-richlistitem {
   padding: 1px 2px;
-}
-
-.autocomplete-richlistitem:not(:first-child) {
-  border-top: 1px solid ThreeDLightShadow;
+  border-bottom: 1px solid ThreeDLightShadow;
 }
 
 .ac-site-icon {

@@ -40,16 +40,6 @@
 
 #include "nscore.h"
 
-#ifdef XP_WIN
-/**
- * Compare two version strings.
- *
- * @see nsIVersionComparator
- */
-PRInt32 NS_COM_GLUE
-NS_CompareVersions(const PRUnichar *A, const PRUnichar *B);
-#endif
-
 /**
  * Compare two version strings.
  *

@@ -5,7 +5,7 @@ Tests for document.all
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <title>Tests for document.all</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -107,7 +107,7 @@ is(document.all.length, expectedLength, "grew correctly");
 
 // Check which elements the 'name' attribute works on
 var elementNames =
-  ['applet','abbr','acronym','address','area','a','b','base',
+  ['applet','abbr','acronym','address','area','a','b','base','basefont',
    'bgsound','big','blink','blockquote','br','canvas','center','cite','code',
    'col','colgroup','dd','del','dfn','dir','div','dir','dl','dt','em','embed',
    'fieldset','font','form','frame','frameset','head','i','iframe','img',

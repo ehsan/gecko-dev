@@ -53,20 +53,16 @@
           src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
-  <script type="application/javascript"
-          src="utils.js"/>
 
   <script type="application/javascript">
   <![CDATA[
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 function test()
 {
-  var dmui = getDMUI();
-  if (!dmui) {
-    todo(false, "skip test for toolkit download manager UI");
-    return;
-  }
-
   let dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
   let db = dm.DBConnection;
@@ -118,7 +114,6 @@ function test()
         return;
 
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.focus();
       let $ = function(aId) win.document.getElementById(aId);
       let downloadView = $("downloadView");
       let searchbox = $("searchbox");
@@ -170,7 +165,8 @@ function test()
   obs.addObserver(testObs, DLMGR_UI_DONE, false);
 
   // Show the Download Manager UI
-  dmui.show();
+  Cc["@mozilla.org/download-manager-ui;1"].
+  getService(Ci.nsIDownloadManagerUI).show();
 
   SimpleTest.waitForExplicitFinish();
 }

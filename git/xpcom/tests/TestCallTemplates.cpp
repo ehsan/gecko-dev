@@ -52,7 +52,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
-#include "nsAutoPtr.h"
 
 #define NS_ITESTSERVICE_IID \
   {0x127b5253, 0x37b1, 0x43c7, \
@@ -102,12 +101,6 @@ int main()
         reinterpret_cast<nsTestService*>(mySupportsPtr);
     nsISupportsWeakReference *mySupportsWeakRef;
     CallQueryInterface(myTestService, &mySupportsWeakRef);
-
-    nsCOMPtr<nsISupports> mySupportsCOMPtr = mySupportsPtr;
-    CallQueryInterface(mySupportsCOMPtr, &myITestService);
-
-    nsRefPtr<nsTestService> myTestServiceRefPtr = myTestService;
-    CallQueryInterface(myTestServiceRefPtr, &mySupportsWeakRef);
 
     /* Test CallQueryReferent */
 

@@ -43,18 +43,18 @@
 #include "prenv.h"  
 #include "nsIHTMLContentSink.h"
 #include "nsHTMLTokenizer.h"
-#include "nsMimeTypes.h"
 
-CParserContext::CParserContext(CParserContext* aPrevContext,
-                               nsScanner* aScanner, 
+CParserContext::CParserContext(nsScanner* aScanner, 
                                void *aKey, 
                                eParserCommands aCommand,
                                nsIRequestObserver* aListener, 
+                               nsIDTD *aDTD, 
                                eAutoDetectResult aStatus, 
                                PRBool aCopyUnused)
-  : mListener(aListener),
+  : mDTD(aDTD),
+    mListener(aListener),
     mKey(aKey),
-    mPrevContext(aPrevContext),
+    mPrevContext(nsnull),
     mScanner(aScanner),
     mDTDMode(eDTDMode_unknown),
     mStreamListenerState(eNone),
@@ -81,36 +81,49 @@ CParserContext::SetMimeType(const nsACString& aMimeType)
 
   mDocType = ePlainText;
 
-  if (mMimeType.EqualsLiteral(TEXT_HTML))
+  if (mMimeType.EqualsLiteral(kHTMLTextContentType))
     mDocType = eHTML_Strict;
-  else if (mMimeType.EqualsLiteral(TEXT_XML)              ||
-           mMimeType.EqualsLiteral(APPLICATION_XML)       ||
-           mMimeType.EqualsLiteral(APPLICATION_XHTML_XML) ||
-           mMimeType.EqualsLiteral(TEXT_XUL)              ||
+  else if (mMimeType.EqualsLiteral(kXMLTextContentType)          ||
+           mMimeType.EqualsLiteral(kXMLApplicationContentType)   ||
+           mMimeType.EqualsLiteral(kXHTMLApplicationContentType) ||
+           mMimeType.EqualsLiteral(kXULTextContentType)          ||
 #ifdef MOZ_SVG
-           mMimeType.EqualsLiteral(IMAGE_SVG_XML)         ||
+           mMimeType.EqualsLiteral(kSVGTextContentType)          ||
 #endif
-#ifdef MOZ_MATHML
-           mMimeType.EqualsLiteral(APPLICATION_MATHML_XML) ||
-#endif
-           mMimeType.EqualsLiteral(APPLICATION_RDF_XML)   ||
-           mMimeType.EqualsLiteral(TEXT_RDF))
+           mMimeType.EqualsLiteral(kRDFApplicationContentType)   ||
+           mMimeType.EqualsLiteral(kRDFTextContentType))
     mDocType = eXML;
 }
 
 nsresult
-CParserContext::GetTokenizer(nsIDTD* aDTD,
+CParserContext::GetTokenizer(PRInt32 aType,
                              nsIContentSink* aSink,
                              nsITokenizer*& aTokenizer)
 {
   nsresult result = NS_OK;
-  PRInt32 type = aDTD ? aDTD->GetType() : NS_IPARSER_FLAG_HTML;
-
+  
   if (!mTokenizer) {
-    if (type == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
+    if (aType == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
       nsCOMPtr<nsIHTMLContentSink> theSink = do_QueryInterface(aSink);
-      mTokenizer = new nsHTMLTokenizer(mDTDMode, mDocType, mParserCommand,
-                                       nsHTMLTokenizer::GetFlags(aSink));
+      PRUint16 theFlags = 0;
+
+      if (theSink) {
+        // XXX This code is repeated both here and in CNavDTD. Can the two
+        // callsites be combined?
+        PRBool enabled;
+        theSink->IsEnabled(eHTMLTag_frameset, &enabled);
+        if(enabled) {
+          theFlags |= NS_IPARSER_FLAG_FRAMES_ENABLED;
+        }
+        
+        theSink->IsEnabled(eHTMLTag_script, &enabled);
+        if(enabled) {
+          theFlags |= NS_IPARSER_FLAG_SCRIPT_ENABLED;
+        }
+      }
+
+      mTokenizer = new nsHTMLTokenizer(mDTDMode, mDocType,
+                                       mParserCommand, theFlags);
       if (!mTokenizer) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -121,11 +134,11 @@ CParserContext::GetTokenizer(nsIDTD* aDTD,
         mTokenizer->CopyState(mPrevContext->mTokenizer);
       }
     }
-    else if (type == NS_IPARSER_FLAG_XML) {
-      mTokenizer = do_QueryInterface(aDTD, &result);
+    else if (aType == NS_IPARSER_FLAG_XML) {
+      mTokenizer = do_QueryInterface(mDTD, &result);
     }
   }
-
+  
   aTokenizer = mTokenizer;
 
   return result;

@@ -64,7 +64,7 @@ interface nsICMSSecureMessage : nsISupports
   string sendMessage(in string msg, in string cert);
 
   /**
-   * receiveMessage - receive an encrypted (enveloped) message
+   * receiveMessage - recieve an encrypted (enveloped) message
    */
   string receiveMessage(in string msg);
 };

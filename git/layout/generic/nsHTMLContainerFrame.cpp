@@ -49,6 +49,7 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsIWidget.h"
 #include "nsILinkHandler.h"
 #include "nsGUIEvent.h"
 #include "nsIDocument.h"
@@ -58,6 +59,7 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMEvent.h"
+#include "nsIScrollableView.h"
 #include "nsWidgetsCID.h"
 #include "nsCOMPtr.h"
 #include "nsIDeviceContext.h"
@@ -73,10 +75,9 @@
 
 class nsDisplayTextDecoration : public nsDisplayItem {
 public:
-  nsDisplayTextDecoration(nsDisplayListBuilder* aBuilder,
-                          nsHTMLContainerFrame* aFrame, PRUint8 aDecoration,
+  nsDisplayTextDecoration(nsHTMLContainerFrame* aFrame, PRUint8 aDecoration,
                           nscolor aColor, nsLineBox* aLine)
-    : nsDisplayItem(aBuilder, aFrame), mLine(aLine), mColor(aColor),
+    : nsDisplayItem(aFrame), mLine(aLine), mColor(aColor),
       mDecoration(aDecoration) {
     MOZ_COUNT_CTOR(nsDisplayTextDecoration);
   }
@@ -86,25 +87,20 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("TextDecoration", TYPE_TEXT_DECORATION)
-
-  virtual PRUint32 GetPerFrameKey()
-  {
-    return TYPE_TEXT_DECORATION | (mDecoration << TYPE_BITS);
-  }
-
+  NS_DISPLAY_DECL_NAME("TextDecoration")
 private:
-  nsLineBox* mLine;
-  nscolor    mColor;
-  PRUint8    mDecoration;
+  nsLineBox*            mLine;
+  nscolor               mColor;
+  PRUint8               mDecoration;
 };
 
 void
 nsDisplayTextDecoration::Paint(nsDisplayListBuilder* aBuilder,
-                               nsIRenderingContext* aCtx)
+                               nsIRenderingContext* aCtx,
+                               const nsRect& aDirtyRect)
 {
   nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
@@ -131,7 +127,8 @@ nsDisplayTextDecoration::Paint(nsDisplayListBuilder* aBuilder,
     ascent = metrics.maxAscent;
   }
 
-  nsPoint pt = ToReferenceFrame();
+  nsPoint pt = aBuilder->ToReferenceFrame(mFrame);
+
   nsHTMLContainerFrame* f = static_cast<nsHTMLContainerFrame*>(mFrame);
   if (mDecoration == NS_STYLE_TEXT_DECORATION_UNDERLINE) {
     gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();
@@ -152,36 +149,42 @@ nsDisplayTextDecoration::Paint(nsDisplayListBuilder* aBuilder,
 nsRect
 nsDisplayTextDecoration::GetBounds(nsDisplayListBuilder* aBuilder)
 {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
 }
 
 class nsDisplayTextShadow : public nsDisplayItem {
 public:
-  nsDisplayTextShadow(nsDisplayListBuilder* aBuilder,
-                      nsHTMLContainerFrame* aFrame,
-                      const PRUint8 aDecoration,
-                      nsLineBox* aLine)
-    : nsDisplayItem(aBuilder, aFrame), mLine(aLine),
-      mDecorationFlags(aDecoration) {
+  nsDisplayTextShadow(nsHTMLContainerFrame* aFrame, const PRUint8 aDecoration,
+                      const nscolor& aColor, nsLineBox* aLine,
+                      const nscoord& aBlurRadius, const gfxPoint& aOffset)
+    : nsDisplayItem(aFrame), mLine(aLine), mColor(aColor),
+      mDecorationFlags(aDecoration),
+      mBlurRadius(aBlurRadius), mOffset(aOffset) {
     MOZ_COUNT_CTOR(nsDisplayTextShadow);
   }
   virtual ~nsDisplayTextShadow() {
     MOZ_COUNT_DTOR(nsDisplayTextShadow);
   }
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("TextShadowContainer", TYPE_TEXT_SHADOW)
+  NS_DISPLAY_DECL_NAME("TextShadow")
 private:
   nsLineBox*    mLine;
+  nscolor       mColor;
   PRUint8       mDecorationFlags;
+  nscoord       mBlurRadius; // App units
+  gfxPoint      mOffset;     // App units
 };
 
 void
 nsDisplayTextShadow::Paint(nsDisplayListBuilder* aBuilder,
-                           nsIRenderingContext* aCtx)
+                           nsIRenderingContext* aCtx,
+                           const nsRect& aDirtyRect)
 {
+  mBlurRadius = PR_MAX(mBlurRadius, 0);
+
   nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
   nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm.get());
@@ -189,142 +192,53 @@ nsDisplayTextShadow::Paint(nsDisplayListBuilder* aBuilder,
   gfxFont* firstFont = fontGroup->GetFontAt(0);
   if (!firstFont)
     return; // OOM
-
   const gfxFont::Metrics& metrics = firstFont->GetMetrics();
-  gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();
+  nsPoint pt = aBuilder->ToReferenceFrame(mFrame) + nsPoint(mOffset.x, mOffset.y);
 
   nsHTMLContainerFrame* f = static_cast<nsHTMLContainerFrame*>(mFrame);
-  nsPresContext* presContext = mFrame->PresContext();
+  nsMargin bp = f->GetUsedBorderAndPadding();
+  nscoord innerWidthInAppUnits = (mFrame->GetSize().width - bp.LeftRight());
+
+  gfxRect shadowRect = gfxRect(pt.x, pt.y, innerWidthInAppUnits, mFrame->GetSize().height);
   gfxContext* thebesCtx = aCtx->ThebesContext();
 
-  gfxFloat ascent;
-  gfxFloat lineWidth;
-  nscoord start;
-  if (mLine) {
-    // Block frames give us an nsLineBox, so we must use that
-    nscoord width = mLine->mBounds.width;
-    start = mLine->mBounds.x;
-    f->AdjustForTextIndent(mLine, start, width);
-    if (width <= 0)
-      return;
+  nsContextBoxBlur contextBoxBlur;
+  gfxContext* shadowCtx = contextBoxBlur.Init(shadowRect, mBlurRadius,
+                                              mFrame->PresContext()->AppUnitsPerDevPixel(),
+                                              thebesCtx);
+  if (!shadowCtx)
+    return;
 
-    lineWidth = presContext->AppUnitsToGfxUnits(width);
-    ascent = presContext->AppUnitsToGfxUnits(mLine->GetAscent());
-  } else {
-    // For inline frames, we must use the frame's geometry
-    lineWidth = presContext->AppUnitsToGfxUnits(mFrame->GetContentRect().width);
+  thebesCtx->Save();
+  thebesCtx->NewPath();
+  thebesCtx->SetColor(gfxRGBA(mColor));
 
-    // The ascent of :first-letter frame's text may not be the same as the ascent
-    // of the font metrics, because it may use the tight box of the actual
-    // glyph.
-    if (mFrame->GetType() == nsGkAtoms::letterFrame) {
-      // Note that nsFirstLetterFrame::GetFirstLetterBaseline() returns
-      // |border-top + padding-top + ascent|. But we only need the ascent value,
-      // because those will be added in PaintTextDecorationLine.
-      nsFirstLetterFrame* letterFrame = static_cast<nsFirstLetterFrame*>(mFrame);
-      nscoord tmp = letterFrame->GetFirstLetterBaseline();
-      tmp -= letterFrame->GetUsedBorderAndPadding().top;
-      ascent = presContext->AppUnitsToGfxUnits(tmp);
-    } else {
-      ascent = metrics.maxAscent;
-    }
-  }
-
-  nsCSSShadowArray* shadowList = mFrame->GetStyleText()->mTextShadow;
-  NS_ABORT_IF_FALSE(shadowList,
-                    "Why did we make a display list item if we have no shadows?");
-
-  // Get the rects for each text decoration line, so we know how big we
-  // can make each shadow's surface
-  nsRect underlineRect;
-  nsRect overlineRect;
-  nsRect lineThroughRect;
   if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
-    gfxSize size(lineWidth, metrics.underlineSize);
-    underlineRect = nsCSSRendering::GetTextDecorationRect(presContext, size,
-                       ascent, underlineOffset,
-                       NS_STYLE_TEXT_DECORATION_UNDERLINE,
-                       nsCSSRendering::DECORATION_STYLE_SOLID);
+    gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();
+    f->PaintTextDecorationLine(shadowCtx, pt, mLine, mColor,
+                               underlineOffset, metrics.maxAscent,
+                               metrics.underlineSize, NS_STYLE_TEXT_DECORATION_UNDERLINE);
   }
   if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_OVERLINE) {
-    gfxSize size(lineWidth, metrics.underlineSize);
-    overlineRect = nsCSSRendering::GetTextDecorationRect(presContext, size,
-                       ascent, metrics.maxAscent,
-                       NS_STYLE_TEXT_DECORATION_OVERLINE,
-                       nsCSSRendering::DECORATION_STYLE_SOLID);
+    f->PaintTextDecorationLine(shadowCtx, pt, mLine, mColor,
+                               metrics.maxAscent, metrics.maxAscent,
+                               metrics.underlineSize, NS_STYLE_TEXT_DECORATION_OVERLINE);
   }
   if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
-    gfxSize size(lineWidth, metrics.strikeoutSize);
-    lineThroughRect = nsCSSRendering::GetTextDecorationRect(presContext, size,
-                       ascent, metrics.strikeoutOffset,
-                       NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
-                       nsCSSRendering::DECORATION_STYLE_SOLID);
+    f->PaintTextDecorationLine(shadowCtx, pt, mLine, mColor,
+                               metrics.strikeoutOffset, metrics.maxAscent,
+                               metrics.strikeoutSize, NS_STYLE_TEXT_DECORATION_LINE_THROUGH);
   }
 
-  for (PRUint32 i = shadowList->Length(); i > 0; --i) {
-    nsCSSShadowItem* shadow = shadowList->ShadowAt(i - 1);
-
-    nscolor shadowColor =
-      shadow->mHasColor ? shadow->mColor : mFrame->GetStyleColor()->mColor;
-
-    nsPoint pt = ToReferenceFrame() +
-      nsPoint(shadow->mXOffset, shadow->mYOffset);
-    nsPoint linePt;
-    if (mLine) {
-      linePt = nsPoint(start + pt.x, mLine->mBounds.y + pt.y);
-    } else {
-      linePt = mFrame->GetContentRect().TopLeft() - mFrame->GetPosition() + pt;
-    }
-
-    nsRect shadowRect(0, 0, 0, 0);
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
-      shadowRect.UnionRect(shadowRect, underlineRect + linePt);
-    }
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_OVERLINE) {
-      shadowRect.UnionRect(shadowRect, overlineRect + linePt);
-    }
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
-      shadowRect.UnionRect(shadowRect, lineThroughRect + linePt);
-    }
-
-    gfxContextAutoSaveRestore save(thebesCtx);
-    thebesCtx->NewPath();
-    thebesCtx->SetColor(gfxRGBA(shadowColor));
-
-    // Create our shadow surface, then paint the text decorations onto it
-    nsContextBoxBlur contextBoxBlur;
-    gfxContext* shadowCtx = contextBoxBlur.Init(shadowRect, 0, shadow->mRadius,
-                                                presContext->AppUnitsPerDevPixel(),
-                                                thebesCtx, mVisibleRect, nsnull);
-    if (!shadowCtx) {
-      continue;
-    }
-
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
-      f->PaintTextDecorationLine(shadowCtx, pt, mLine, shadowColor,
-                                 underlineOffset, ascent,
-                                 metrics.underlineSize, NS_STYLE_TEXT_DECORATION_UNDERLINE);
-    }
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_OVERLINE) {
-      f->PaintTextDecorationLine(shadowCtx, pt, mLine, shadowColor,
-                                 metrics.maxAscent, ascent,
-                                 metrics.underlineSize, NS_STYLE_TEXT_DECORATION_OVERLINE);
-    }
-    if (mDecorationFlags & NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
-      f->PaintTextDecorationLine(shadowCtx, pt, mLine, shadowColor,
-                                 metrics.strikeoutOffset, ascent,
-                                 metrics.strikeoutSize, NS_STYLE_TEXT_DECORATION_LINE_THROUGH);
-    }
-
-    contextBoxBlur.DoPaint();
-  }
+  contextBoxBlur.DoPaint();
+  thebesCtx->Restore();
 }
 
 nsRect
 nsDisplayTextShadow::GetBounds(nsDisplayListBuilder* aBuilder)
 {
   // Shadows are always painted in the overflow rect
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
 }
 
 nsresult
@@ -349,31 +263,43 @@ nsHTMLContainerFrame::DisplayTextDecorations(nsDisplayListBuilder* aBuilder,
   if (decorations == NS_STYLE_TEXT_DECORATION_NONE)
     return NS_OK;
 
-  // The text-shadow spec says that any text decorations must also have a
-  // shadow applied to them. So draw the shadows as part of the display
-  // list, underneath the text and all decorations.
-  if (GetStyleText()->mTextShadow) {
-    nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
-      nsDisplayTextShadow(aBuilder, this, decorations, aLine));
-    NS_ENSURE_SUCCESS(rv, rv);
+  // The text-shadow spec says that any text decorations must also have a shadow applied to
+  // it. So draw the shadows as part of the display list.
+  const nsStyleText* textStyle = GetStyleText();
+
+  if (textStyle->mTextShadow) {
+    for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
+      nsCSSShadowItem* shadow = textStyle->mTextShadow->ShadowAt(i - 1);
+      nscoord blurRadius = shadow->mRadius;
+      nscolor shadowColor;
+
+      if (shadow->mHasColor)
+        shadowColor = shadow->mColor;
+      else
+        shadowColor = GetStyleColor()->mColor;
+
+      gfxPoint offset = gfxPoint(shadow->mXOffset, shadow->mYOffset);
+
+      // Add it to the display list so it is painted underneath the text and all decorations
+      nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
+        nsDisplayTextShadow(this, decorations, shadowColor, aLine, blurRadius, offset));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
 
   if (decorations & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
     nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
-      nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_UNDERLINE,
-                              underColor, aLine));
+      nsDisplayTextDecoration(this, NS_STYLE_TEXT_DECORATION_UNDERLINE, underColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   if (decorations & NS_STYLE_TEXT_DECORATION_OVERLINE) {
     nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
-      nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_OVERLINE,
-                              overColor, aLine));
+      nsDisplayTextDecoration(this, NS_STYLE_TEXT_DECORATION_OVERLINE, overColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   if (decorations & NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
     nsresult rv = aAboveTextDecorations->AppendNewToTop(new (aBuilder)
-      nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
-                              strikeColor, aLine));
+      nsDisplayTextDecoration(this, NS_STYLE_TEXT_DECORATION_LINE_THROUGH, strikeColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -434,17 +360,7 @@ nsHTMLContainerFrame::PaintTextDecorationLine(
               PresContext()->AppUnitsToGfxUnits(bp.top + aPt.y));
   gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth), aSize);
   nsCSSRendering::PaintDecorationLine(aCtx, aColor, pt, size, aAscent, aOffset,
-                    aDecoration, nsCSSRendering::DECORATION_STYLE_SOLID);
-}
-
-/*virtual*/ void
-nsHTMLContainerFrame::AdjustForTextIndent(const nsLineBox* aLine,
-                                          nscoord& start,
-                                          nscoord& width)
-{
-  // This function is not for us.
-  // It allows nsBlockFrame to adjust the width/X position of its
-  // shadowed decorations if a text-indent rule is in effect.
+                                      aDecoration, NS_STYLE_BORDER_STYLE_SOLID);
 }
 
 void
@@ -462,31 +378,41 @@ nsHTMLContainerFrame::GetTextDecorations(nsPresContext* aPresContext,
     return; 
   }
 
+  // A mask of all possible decorations.
+  PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_UNDERLINE |
+                      NS_STYLE_TEXT_DECORATION_OVERLINE |
+                      NS_STYLE_TEXT_DECORATION_LINE_THROUGH; 
+
   if (!aIsBlock) {
-    aDecorations = this->GetStyleTextReset()->mTextDecoration &
-                   NS_STYLE_TEXT_DECORATION_LINES_MASK;
+    aDecorations = GetStyleTextReset()->mTextDecoration  & decorMask;
     if (aDecorations) {
-      nscolor color = this->GetVisitedDependentColor(eCSSProperty_color);
-      aUnderColor = color;
-      aOverColor = color;
-      aStrikeColor = color;
+      const nsStyleColor* styleColor = GetStyleColor();
+      aUnderColor = styleColor->mColor;
+      aOverColor = styleColor->mColor;
+      aStrikeColor = styleColor->mColor;
     }
   }
   else {
-    // We want to ignore a text-decoration from an ancestor frame that
-    // is redundant with one from a descendant frame.  This isn't just
-    // an optimization; the descendant frame's color specification
-    // must win.  At any point in the loop below, this variable
-    // indicates which decorations we are still paying attention to;
-    // it starts set to all possible decorations.
-    PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_LINES_MASK;
-
     // walk tree
-    for (nsIFrame* frame = this; frame; frame = frame->GetParent()) {
-      PRUint8 decors = frame->GetStyleTextReset()->mTextDecoration & decorMask;
+    for (nsIFrame *frame = this; frame && decorMask; frame = frame->GetParent()) {
+      // find text-decorations.  "Inherit" from parent *block* frames
+
+      nsStyleContext* styleContext = frame->GetStyleContext();
+      const nsStyleDisplay* styleDisplay = styleContext->GetStyleDisplay();
+      if (!styleDisplay->IsBlockInside() &&
+          styleDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL &&
+          styleDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CAPTION) {
+        // If an inline frame is discovered while walking up the tree,
+        // we should stop according to CSS3 draft. CSS2 is rather vague
+        // about this.
+        break;
+      }
+
+      const nsStyleTextReset* styleText = styleContext->GetStyleTextReset();
+      PRUint8 decors = decorMask & styleText->mTextDecoration;
       if (decors) {
         // A *new* text-decoration is found.
-        nscolor color = frame->GetVisitedDependentColor(eCSSProperty_color);
+        nscolor color = styleContext->GetStyleColor()->mColor;
 
         if (NS_STYLE_TEXT_DECORATION_UNDERLINE & decors) {
           aUnderColor = color;
@@ -503,35 +429,6 @@ nsHTMLContainerFrame::GetTextDecorations(nsPresContext* aPresContext,
           decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
           aDecorations |= NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
         }
-      }
-      // If all possible decorations have now been specified, no
-      // further ancestor frames can affect the rendering.
-      if (!decorMask) {
-        break;
-      }
-
-      // CSS2.1 16.3.1 specifies that this property is not always
-      // inherited from ancestor boxes (frames in our terminology):
-      //
-      //      When specified on an inline element, [the
-      //      text-decoration property] affects all the boxes
-      //      generated by that element; for all other elements, the
-      //      decorations are propagated to an anonymous inline box
-      //      that wraps all the in-flow inline children of the
-      //      element, and to any block-level in-flow descendants. It
-      //      is not, however, further propagated to floating and
-      //      absolutely positioned descendants, nor to the contents
-      //      of 'inline-table' and 'inline-block' descendants.
-      //
-      // So do not look at the ancestor frame if this frame is any of
-      // the above.  This check is at the bottom of the loop because
-      // even if it's true we still want to look at decorations on the
-      // frame itself.
-      const nsStyleDisplay* styleDisplay = frame->GetStyleDisplay();
-      if (styleDisplay->IsFloating() ||
-          styleDisplay->IsAbsolutelyPositioned() ||
-          styleDisplay->IsInlineOutside()) {
-        break;
       }
     }
   }
@@ -575,32 +472,32 @@ HasTextFrameDescendantOrInFlow(nsIFrame* aFrame)
   return PR_FALSE;
 }
 
-/*
+/**
  * Create a next-in-flow for aFrame. Will return the newly created
  * frame in aNextInFlowResult <b>if and only if</b> a new frame is
  * created; otherwise nsnull is returned in aNextInFlowResult.
  */
 nsresult
 nsHTMLContainerFrame::CreateNextInFlow(nsPresContext* aPresContext,
+                                       nsIFrame*       aOuterFrame,
                                        nsIFrame*       aFrame,
                                        nsIFrame*&      aNextInFlowResult)
 {
-  NS_PRECONDITION(GetType() != nsGkAtoms::blockFrame,
-                  "you should have called nsBlockFrame::CreateContinuationFor instead");
-  NS_PRECONDITION(mFrames.ContainsFrame(aFrame), "expected an in-flow child frame");
-
   aNextInFlowResult = nsnull;
 
   nsIFrame* nextInFlow = aFrame->GetNextInFlow();
   if (nsnull == nextInFlow) {
     // Create a continuation frame for the child frame and insert it
-    // into our child list.
+    // into our lines child list.
+    nsIFrame* nextFrame = aFrame->GetNextSibling();
+
     nsresult rv = aPresContext->PresShell()->FrameConstructor()->
-      CreateContinuingFrame(aPresContext, aFrame, this, &nextInFlow);
+      CreateContinuingFrame(aPresContext, aFrame, aOuterFrame, &nextInFlow);
     if (NS_FAILED(rv)) {
       return rv;
     }
-    mFrames.InsertFrame(nsnull, aFrame, nextInFlow);
+    aFrame->SetNextSibling(nextInFlow);
+    nextInFlow->SetNextSibling(nextFrame);
 
     NS_FRAME_LOG(NS_FRAME_TRACE_NEW_FRAMES,
        ("nsHTMLContainerFrame::CreateNextInFlow: frame=%p nextInFlow=%p",
@@ -623,12 +520,6 @@ ReparentFrameViewTo(nsIFrame*       aFrame,
 
   // Does aFrame have a view?
   if (aFrame->HasView()) {
-#ifdef MOZ_XUL
-    if (aFrame->GetType() == nsGkAtoms::menuPopupFrame) {
-      // This view must be parented by the root view, don't reparent it.
-      return NS_OK;
-    }
-#endif
     nsIView* view = aFrame->GetView();
     // Verify that the current parent view is what we think it is
     //nsIView*  parentView;
@@ -719,12 +610,12 @@ nsHTMLContainerFrame::ReparentFrameView(nsPresContext* aPresContext,
 }
 
 nsresult
-nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext*     aPresContext,
-                                            const nsFrameList& aChildFrameList,
-                                            nsIFrame*          aOldParentFrame,
-                                            nsIFrame*          aNewParentFrame)
+nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext* aPresContext,
+                                            nsIFrame*       aChildFrameList,
+                                            nsIFrame*       aOldParentFrame,
+                                            nsIFrame*       aNewParentFrame)
 {
-  NS_PRECONDITION(aChildFrameList.NotEmpty(), "empty child frame list");
+  NS_PRECONDITION(aChildFrameList, "null child frame list");
   NS_PRECONDITION(aOldParentFrame, "null old parent frame pointer");
   NS_PRECONDITION(aNewParentFrame, "null new parent frame pointer");
   NS_PRECONDITION(aOldParentFrame != aNewParentFrame, "same old and new parent frame");
@@ -773,8 +664,9 @@ nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext*     aPresContext,
     nsIViewManager* viewManager = oldParentView->GetViewManager();
 
     // They're not so we need to reparent any child views
-    for (nsFrameList::Enumerator e(aChildFrameList); !e.AtEnd(); e.Next()) {
-      ReparentFrameViewTo(e.get(), viewManager, newParentView, oldParentView);
+    for (nsIFrame* f = aChildFrameList; f; f = f->GetNextSibling()) {
+      ReparentFrameViewTo(f, viewManager, newParentView,
+                          oldParentView);
     }
   }
 
@@ -783,6 +675,7 @@ nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext*     aPresContext,
 
 nsresult
 nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
+                                         nsIFrame* aContentParentFrame,
                                          PRBool aForce)
 {
   if (aFrame->HasView()) {
@@ -790,12 +683,12 @@ nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
   }
 
   // If we don't yet have a view, see if we need a view
-  if (!aForce && !aFrame->NeedsView()) {
+  if (!(aForce || FrameNeedsView(aFrame))) {
     // don't need a view
     return NS_OK;
   }
 
-  nsIView* parentView = aFrame->GetParent()->GetClosestView();
+  nsIView* parentView = aFrame->GetParent()->GetParentViewForChildFrame(aFrame);
   NS_ASSERTION(parentView, "no parent with view");
 
   nsIViewManager* viewManager = parentView->GetViewManager();
@@ -808,11 +701,18 @@ nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
 
   SyncFrameViewProperties(aFrame->PresContext(), aFrame, nsnull, view);
 
-  nsIView* insertBefore = nsLayoutUtils::FindSiblingViewFor(parentView, aFrame);
-  // we insert this view 'above' the insertBefore view, unless insertBefore is null,
-  // in which case we want to call with aAbove == PR_FALSE to insert at the beginning
-  // in document order
-  viewManager->InsertChild(parentView, view, insertBefore, insertBefore != nsnull);
+  // Insert the view into the view hierarchy. If the parent view is a
+  // scrolling view we need to do this differently
+  nsIScrollableView*  scrollingView = parentView->ToScrollableView();
+  if (scrollingView) {
+    scrollingView->SetScrolledView(view);
+  } else {
+    nsIView* insertBefore = nsLayoutUtils::FindSiblingViewFor(parentView, aFrame);
+    // we insert this view 'above' the insertBefore view, unless insertBefore is null,
+    // in which case we want to call with aAbove == PR_FALSE to insert at the beginning
+    // in document order
+    viewManager->InsertChild(parentView, view, insertBefore, insertBefore != nsnull);
+  }
 
   // REVIEW: Don't create a widget for fixed-pos elements anymore.
   // ComputeRepaintRegionForCopy will calculate the right area to repaint
@@ -832,5 +732,3 @@ nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
                 aFrame));
   return NS_OK;
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLContainerFrame)

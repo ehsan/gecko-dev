@@ -75,11 +75,7 @@ GetHighResClock(void *buf, size_t maxbytes)
 {
     PRUint64 t;
 
-#ifdef __GNUC__
-    __asm__ __volatile__("mov %0 = ar.itc" : "=r" (t));
-#else
     t = _Asm_mov_from_ar(_AREG44);
-#endif
     return _pr_CopyLowBits(buf, maxbytes, &t, sizeof(t));
 }
 #else
@@ -116,6 +112,24 @@ GetHighResClock(void *buf, size_t maxbytes)
     return _pr_CopyLowBits(buf, maxbytes, &t, sizeof(t));
 }
 
+#elif defined(VMS)
+
+#include <ints.h>
+
+/*
+ * Use the "get the cycle counter" instruction on the alpha.
+ * The low 32 bits completely turn over in less than a minute.
+ * The high 32 bits are some non-counter gunk that changes sometimes.
+ */
+static size_t
+GetHighResClock(void *buf, size_t maxbytes)
+{
+    uint64 t;
+
+    t = __RPCC();
+    return _pr_CopyLowBits(buf, maxbytes, &t, sizeof(t));
+}
+
 #elif defined(AIX)
 
 static size_t
@@ -131,39 +145,39 @@ GetHighResClock(void *buf, size_t maxbytes)
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static int      fdDevURandom;
-static PRCallOnceType coOpenDevURandom;
+static int      fdDevRandom;
+static PRCallOnceType coOpenDevRandom;
 
-static PRStatus OpenDevURandom( void )
+static PRStatus OpenDevRandom( void )
 {
-    fdDevURandom = open( "/dev/urandom", O_RDONLY );
-    return((-1 == fdDevURandom)? PR_FAILURE : PR_SUCCESS );
-} /* end OpenDevURandom() */
+    fdDevRandom = open( "/dev/random", O_RDONLY );
+    return((-1 == fdDevRandom)? PR_FAILURE : PR_SUCCESS );
+} /* end OpenDevRandom() */
 
-static size_t GetDevURandom( void *buf, size_t size )
+static size_t GetDevRandom( void *buf, size_t size )
 {
     int bytesIn;
     int rc;
 
-    rc = PR_CallOnce( &coOpenDevURandom, OpenDevURandom );
+    rc = PR_CallOnce( &coOpenDevRandom, OpenDevRandom );
     if ( PR_FAILURE == rc ) {
         _PR_MD_MAP_OPEN_ERROR( errno );
         return(0);
     }
 
-    bytesIn = read( fdDevURandom, buf, size );
+    bytesIn = read( fdDevRandom, buf, size );
     if ( -1 == bytesIn ) {
         _PR_MD_MAP_READ_ERROR( errno );
         return(0);
     }
 
     return( bytesIn );
-} /* end GetDevURandom() */
+} /* end GetDevRandom() */
 
 static size_t
 GetHighResClock(void *buf, size_t maxbytes)
 {             
-    return(GetDevURandom( buf, maxbytes ));
+    return(GetDevRandom( buf, maxbytes ));
 }
 
 #elif defined(NCR)

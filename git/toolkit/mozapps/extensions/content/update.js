@@ -38,55 +38,64 @@
 
 // This UI is only opened from the Extension Manager when the app is upgraded.
 
+const nsIExtensionManager = Components.interfaces.nsIExtensionManager;
+const nsIUpdateItem = Components.interfaces.nsIUpdateItem;
+const nsIAUCL = Components.interfaces.nsIAddonUpdateCheckListener;
+
 const PREF_UPDATE_EXTENSIONS_ENABLED            = "extensions.update.enabled";
 const PREF_XPINSTALL_ENABLED                    = "xpinstall.enabled";
-
-Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 var gUpdateWizard = {
   // When synchronizing app compatibility info this contains all installed
   // add-ons. When checking for compatible versions this contains only
   // incompatible add-ons.
-  addons: [],
-  // Contains a list of add-ons that were disabled prior to the application
-  // upgrade.
-  inactiveAddonIDs: [],
-  // The add-ons that we found updates available for
-  addonsToUpdate: [],
+  items: [],
+  // The items that we found updates available for
+  itemsToUpdate: [],
   shouldSuggestAutoChecking: false,
   shouldAutoCheck: false,
-  xpinstallEnabled: true,
+  xpinstallEnabled: false,
   xpinstallLocked: false,
 
   init: function ()
   {
-    this.inactiveAddonIDs = window.arguments[0];
+    var em = Components.classes["@mozilla.org/extensions/manager;1"]
+                        .getService(nsIExtensionManager);
+    // Retrieve all items in order to sync their app compatibility information
+    this.items = em.getItemList(nsIUpdateItem.TYPE_ANY, { });
+    var pref =
+        Components.classes["@mozilla.org/preferences-service;1"].
+        getService(Components.interfaces.nsIPrefBranch);
 
     try {
       this.shouldSuggestAutoChecking =
-        !Services.prefs.getBoolPref(PREF_UPDATE_EXTENSIONS_ENABLED);
+        !pref.getBoolPref(PREF_UPDATE_EXTENSIONS_ENABLED);
     }
     catch (e) {
     }
 
     try {
-      this.xpinstallEnabled = Services.prefs.getBoolPref(PREF_XPINSTALL_ENABLED);
-      this.xpinstallLocked = Services.prefs.prefIsLocked(PREF_XPINSTALL_ENABLED);
+      this.xpinstallEnabled = pref.getBoolPref(PREF_XPINSTALL_ENABLED);
+      this.xpinstallLocked = pref.prefIsLocked(PREF_XPINSTALL_ENABLED);
     }
     catch (e) {
     }
-
-    if (Services.io.offline)
-      document.documentElement.currentPage = document.getElementById("offline");
+    var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Components.interfaces.nsIIOService);
+    if (ioService.offline)
+      document.documentElement.currentPage =
+        document.getElementById("offline");
     else
-      document.documentElement.currentPage = document.getElementById("versioninfo");
+      document.documentElement.currentPage =
+        document.getElementById("versioninfo");
   },
 
   onWizardFinish: function ()
   {
+    var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                         .getService(Components.interfaces.nsIPrefBranch);
     if (this.shouldSuggestAutoChecking)
-      Services.prefs.setBoolPref(PREF_UPDATE_EXTENSIONS_ENABLED, this.shouldAutoCheck);
+      pref.setBoolPref(PREF_UPDATE_EXTENSIONS_ENABLED, this.shouldAutoCheck);
   },
 
   _setUpButton: function (aButtonID, aButtonKey, aDisabled)
@@ -116,6 +125,22 @@ var gUpdateWizard = {
   /////////////////////////////////////////////////////////////////////////////
   // Update Errors
   errorItems: [],
+  showErrors: function (aState, aErrors)
+  {
+    openDialog("chrome://mozapps/content/update/errors.xul", "",
+               "modal", { state: aState, errors: aErrors });
+  },
+
+  // Displays a list of items that had an error during the update check. We
+  // don't display the actual error that occured since
+  // nsIAddonUpdateCheckListener doesn't return the error details.
+  showUpdateCheckErrors: function ()
+  {
+    var errors = [];
+    for (var i = 0; i < this.errorItems.length; ++i)
+      errors.push({ name: this.errorItems[i].name, error: true });
+    this.showErrors("checking", errors);
+  },
 
   checkForErrors: function (aElementIDToShow)
   {
@@ -125,8 +150,10 @@ var gUpdateWizard = {
 
   onWizardClose: function (aEvent)
   {
-    if (gInstallingPage.installing) {
-      gInstallingPage.cancelInstalls();
+    if (gInstallingPage._installing) {
+      var os = Components.classes["@mozilla.org/observer-service;1"]
+                         .getService(Components.interfaces.nsIObserverService);
+      os.notifyObservers(null, "xpinstall-progress", "cancel");
       return false;
     }
     return true;
@@ -136,7 +163,9 @@ var gUpdateWizard = {
 var gOfflinePage = {
   onPageAdvanced: function ()
   {
-    Services.io.offline = false;
+    var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Components.interfaces.nsIIOService);
+    ioService.offline = false;
     return true;
   },
 
@@ -155,31 +184,29 @@ var gVersionInfoPage = {
     gUpdateWizard.setButtonLabels(null, true,
                                   "nextButtonText", true,
                                   "cancelButtonText", false);
-
-    // Retrieve all add-ons in order to sync their app compatibility information
-    AddonManager.getAllAddons(function(aAddons) {
-      gUpdateWizard.addons = aAddons.filter(function(a) {
-        return a.type != "plugin";
-      });
-
-      gVersionInfoPage._totalCount = gUpdateWizard.addons.length;
-
-      gUpdateWizard.addons.forEach(function(aAddon) {
-        aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
-      }, this);
-    });
+    var em = Components.classes["@mozilla.org/extensions/manager;1"]
+                       .getService(nsIExtensionManager);
+    // Synchronize the app compatibility info for all items.
+    em.update([], 0, nsIExtensionManager.UPDATE_SYNC_COMPATIBILITY, this);
   },
 
-  onAllUpdatesFinished: function() {
-    // Filter out any add-ons that were disabled before the application was
-    // upgraded or are already compatible
-    gUpdateWizard.addons = gUpdateWizard.addons.filter(function(a) {
-      return a.appDisabled && gUpdateWizard.inactiveAddonIDs.indexOf(a.id) < 0;
-    });
+  /////////////////////////////////////////////////////////////////////////////
+  // nsIAddonUpdateCheckListener
+  onUpdateStarted: function() {
+    this._totalCount = gUpdateWizard.items.length;
+  },
 
-    if (gUpdateWizard.addons.length > 0) {
+  onUpdateEnded: function() {
+    var em = Components.classes["@mozilla.org/extensions/manager;1"]
+                       .getService(nsIExtensionManager);
+    // Retrieve the remaining incompatible items.
+    gUpdateWizard.items = em.getIncompatibleItemList(null, null, null,
+                                                     nsIUpdateItem.TYPE_ANY,
+                                                     true, { });
+    if (gUpdateWizard.items.length > 0) {
       // There are still incompatible addons, inform the user.
-      document.documentElement.currentPage = document.getElementById("mismatch");
+      document.documentElement.currentPage =
+        document.getElementById("mismatch");
     }
     else {
       // VersionInfo compatibility updates resolved all compatibility problems,
@@ -190,28 +217,44 @@ var gVersionInfoPage = {
     }
   },
 
-  /////////////////////////////////////////////////////////////////////////////
-  // UpdateListener
-  onUpdateFinished: function(aAddon, status) {
-    if (status != AddonManager.UPDATE_STATUS_NO_ERROR)
-      gUpdateWizard.errorItems.push(aAddon);
+  onAddonUpdateStarted: function(addon) {
+  },
+
+  onAddonUpdateEnded: function(addon, status) {
+    if (status == nsIAUCL.STATUS_VERSIONINFO) {
+      for (var i = 0; i < gUpdateWizard.items.length; ++i) {
+        var item = gUpdateWizard.items[i].QueryInterface(nsIUpdateItem);
+        if (addon.id == item.id) {
+          gUpdateWizard.items.splice(i, 1);
+          break;
+        }
+      }
+    }
+    else if (status == nsIAUCL.STATUS_FAILURE)
+      gUpdateWizard.errorItems.push(addon);
 
     ++this._completeCount;
 
     // Update the status text and progress bar
     var updateStrings = document.getElementById("updateStrings");
     var status = document.getElementById("versioninfo.status");
-    var statusString = updateStrings.getFormattedString("statusPrefix", [aAddon.name]);
+    var statusString = updateStrings.getFormattedString("statusPrefix", [addon.name]);
     status.setAttribute("value", statusString);
 
     // Update the status text and progress bar
     var progress = document.getElementById("versioninfo.progress");
     progress.mode = "normal";
     progress.value = Math.ceil((this._completeCount / this._totalCount) * 100);
-
-    if (this._completeCount == this._totalCount)
-      this.onAllUpdatesFinished();
   },
+
+  /////////////////////////////////////////////////////////////////////////////
+  // nsISupports
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIAddonUpdateCheckListener) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 var gMismatchPage = {
@@ -223,11 +266,12 @@ var gMismatchPage = {
     document.documentElement.getButton("next").focus();
 
     var incompatible = document.getElementById("mismatch.incompatible");
-    gUpdateWizard.addons.forEach(function(aAddon) {
+    for (var i = 0; i < gUpdateWizard.items.length; ++i) {
+      var item = gUpdateWizard.items[i].QueryInterface(nsIUpdateItem);
       var listitem = document.createElement("listitem");
-      listitem.setAttribute("label", aAddon.name + " " + aAddon.version);
+      listitem.setAttribute("label", item.name + " " + item.version);
       incompatible.appendChild(listitem);
-    });
+    }
   }
 };
 
@@ -248,43 +292,54 @@ var gUpdatePage = {
 
     gUpdateWizard.errorItems = [];
 
-    this._totalCount = gUpdateWizard.addons.length;
-    gUpdateWizard.addons.forEach(function(aAddon) {
-      aAddon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
-    }, this);
+    this._totalCount = gUpdateWizard.items.length;
+    var em = Components.classes["@mozilla.org/extensions/manager;1"]
+                       .getService(nsIExtensionManager);
+    em.update(gUpdateWizard.items, this._totalCount,
+              nsIExtensionManager.UPDATE_CHECK_NEWVERSION, this);
   },
 
-  onAllUpdatesFinished: function() {
+  /////////////////////////////////////////////////////////////////////////////
+  // nsIAddonUpdateCheckListener
+  onUpdateStarted: function() {
+  },
+
+  onUpdateEnded: function() {
     var nextPage = document.getElementById("noupdates");
-    if (gUpdateWizard.addonsToUpdate.length > 0)
+    if (gUpdateWizard.itemsToUpdate.length > 0)
       nextPage = document.getElementById("found");
     document.documentElement.currentPage = nextPage;
   },
 
-  /////////////////////////////////////////////////////////////////////////////
-  // UpdateListener
-  onUpdateAvailable: function(aAddon, aInstall) {
-    gUpdateWizard.addonsToUpdate.push(aInstall);
+  onAddonUpdateStarted: function(addon) {
   },
 
-  onUpdateFinished: function(aAddon, status) {
-    if (status != AddonManager.UPDATE_STATUS_NO_ERROR)
-      gUpdateWizard.errorItems.push(aAddon);
+  onAddonUpdateEnded: function(addon, status) {
+    if (status == nsIAUCL.STATUS_UPDATE)
+      gUpdateWizard.itemsToUpdate.push(addon);
+    else if (status == nsIAUCL.STATUS_FAILURE)
+      gUpdateWizard.errorItems.push(addon);
 
     ++this._completeCount;
 
     // Update the status text and progress bar
     var updateStrings = document.getElementById("updateStrings");
     var status = document.getElementById("checking.status");
-    var statusString = updateStrings.getFormattedString("statusPrefix", [aAddon.name]);
+    var statusString = updateStrings.getFormattedString("statusPrefix", [addon.name]);
     status.setAttribute("value", statusString);
 
     var progress = document.getElementById("checking.progress");
     progress.value = Math.ceil((this._completeCount / this._totalCount) * 100);
-
-    if (this._completeCount == this._totalCount)
-      this.onAllUpdatesFinished()
   },
+
+  /////////////////////////////////////////////////////////////////////////////
+  // nsISupports
+  QueryInterface: function(iid) {
+    if (!iid.equals(Components.interfaces.nsIAddonUpdateCheckListener) &&
+        !iid.equals(Components.interfaces.nsISupports))
+      throw Components.results.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
 };
 
 var gFoundPage = {
@@ -295,13 +350,16 @@ var gFoundPage = {
                                   null, false);
 
     var foundUpdates = document.getElementById("found.updates");
-    var itemCount = gUpdateWizard.addonsToUpdate.length;
-    gUpdateWizard.addonsToUpdate.forEach(function(aInstall) {
-      var listItem = foundUpdates.appendItem(aInstall.name + " " + aInstall.version);
+    var itemCount = gUpdateWizard.itemsToUpdate.length;
+    for (var i = 0; i < itemCount; ++i) {
+      var item = gUpdateWizard.itemsToUpdate[i];
+      var listItem = foundUpdates.appendItem(item.name + " " + item.version,
+                                             item.xpiURL);
       listItem.setAttribute("type", "checkbox");
       listItem.setAttribute("checked", "true");
-      listItem.install = aInstall;
-    });
+      listItem.setAttribute("URL", item.xpiURL);
+      listItem.setAttribute("hash", item.xpiHash);
+    }
 
     if (!gUpdateWizard.xpinstallEnabled) {
       document.getElementById("xpinstallDisabledAlert").hidden = false;
@@ -333,7 +391,7 @@ var gFoundPage = {
 
     var oneChecked = false;
     var foundUpdates = document.getElementById("found.updates");
-    var updates = foundUpdates.getElementsByTagName("listitem");
+    var updates = foundUpdates.getElementsByTagName("listitem");;
     for (var i = 0; i < updates.length; ++i) {
       if (!updates[i].checked)
         continue;
@@ -350,94 +408,80 @@ var gFoundPage = {
 };
 
 var gInstallingPage = {
-  _installs         : [],
-  _errors           : [],
-  _strings          : null,
-  _currentInstall   : -1,
   _installing       : false,
+  _objs             : [],
+  _errors           : [],
 
   onPageShow: function ()
   {
     gUpdateWizard.setButtonLabels(null, true,
                                   "nextButtonText", true,
                                   null, true);
+
+    // Get XPInstallManager and kick off download/install
+    // process, registering us as an observer.
+    var items = [];
+    var hashes = [];
+    this._objs = [];
     this._errors = [];
 
     var foundUpdates = document.getElementById("found.updates");
-    var updates = foundUpdates.getElementsByTagName("listitem");
+    var updates = foundUpdates.getElementsByTagName("listitem");;
     for (var i = 0; i < updates.length; ++i) {
       if (!updates[i].checked)
         continue;
-      this._installs.push(updates[i].install);
+      items.push(updates[i].value);
+      hashes.push(updates[i].getAttribute("hash") ? updates[i].getAttribute("hash") : null);
+      this._objs.push({ name: updates[i].label });
     }
 
-    this._strings = document.getElementById("updateStrings");
-    this._installing = true;
-    this.startNextInstall();
+    var xpimgr = Components.classes["@mozilla.org/xpinstall/install-manager;1"]
+                           .createInstance(Components.interfaces.nsIXPInstallManager);
+    xpimgr.initManagerWithHashes(items, hashes, items.length, this);
   },
 
-  startNextInstall: function() {
-    if (this._currentInstall >= 0) {
-      this._installs[this._currentInstall].removeListener(this);
-    }
+  /////////////////////////////////////////////////////////////////////////////
+  // nsIXPIProgressDialog
+  onStateChange: function (aIndex, aState, aValue)
+  {
+    var strings = document.getElementById("updateStrings");
 
-    this._currentInstall++;
-
-    if (this._installs.length == this._currentInstall) {
+    const nsIXPIProgressDialog = Components.interfaces.nsIXPIProgressDialog;
+    switch (aState) {
+    case nsIXPIProgressDialog.DOWNLOAD_START:
+      var label = strings.getFormattedString("downloadingPrefix", [this._objs[aIndex].name]);
+      var actionItem = document.getElementById("actionItem");
+      actionItem.value = label;
+      break;
+    case nsIXPIProgressDialog.DOWNLOAD_DONE:
+    case nsIXPIProgressDialog.INSTALL_START:
+      var label = strings.getFormattedString("installingPrefix", [this._objs[aIndex].name]);
+      var actionItem = document.getElementById("actionItem");
+      actionItem.value = label;
+      this._installing = true;
+      break;
+    case nsIXPIProgressDialog.INSTALL_DONE:
+      switch (aValue) {
+      case 999:
+      case 0:
+        break;
+      default:
+        this._errors.push({ name: this._objs[aIndex].name, error: aValue });
+      }
+      break;
+    case nsIXPIProgressDialog.DIALOG_CLOSE:
       this._installing = false;
       var nextPage = this._errors.length > 0 ? "installerrors" : "finished";
       document.getElementById("installing").setAttribute("next", nextPage);
       document.documentElement.advance();
-      return;
+      break;
     }
-
-    this._installs[this._currentInstall].addListener(this);
-    this._installs[this._currentInstall].install();
   },
 
-  cancelInstalls: function() {
-    this._installs[this._currentInstall].removeListener(this);
-    this._installs[this._currentInstall].cancel();
-  },
-
-  /////////////////////////////////////////////////////////////////////////////
-  // InstallListener
-  onDownloadStarted: function(aInstall) {
-    var strings = document.getElementById("updateStrings");
-    var label = strings.getFormattedString("downloadingPrefix", [aInstall.name]);
-    var actionItem = document.getElementById("actionItem");
-    actionItem.value = label;
-  },
-
-  onDownloadProgress: function(aInstall) {
+  onProgress: function (aIndex, aValue, aMaxValue)
+  {
     var downloadProgress = document.getElementById("downloadProgress");
-    downloadProgress.value = Math.ceil(100 * aInstall.progress / aInstall.maxProgress);
-  },
-
-  onDownloadEnded: function(aInstall) {
-  },
-
-  onDownloadFailed: function(aInstall) {
-    this._errors.push(aInstall);
-
-    this.startNextInstall();
-  },
-
-  onInstallStarted: function(aInstall) {
-    var strings = document.getElementById("updateStrings");
-    var label = strings.getFormattedString("installingPrefix", [aInstall.name]);
-    var actionItem = document.getElementById("actionItem");
-    actionItem.value = label;
-  },
-
-  onInstallEnded: function(aInstall) {
-    this.startNextInstall();
-  },
-
-  onInstallFailed: function(aInstall) {
-    this._errors.push(aInstall);
-
-    this.startNextInstall();
+    downloadProgress.value = Math.ceil((aValue/aMaxValue) * 100);
   }
 };
 
@@ -447,6 +491,11 @@ var gInstallErrorsPage = {
     gUpdateWizard.setButtonLabels(null, true, null, true, null, true);
     document.documentElement.getButton("finish").focus();
   },
+
+  onShowErrors: function ()
+  {
+    gUpdateWizard.showErrors("install", gInstallingPage._errors);
+  }
 };
 
 // Displayed when there are incompatible add-ons and the xpinstall.enabled

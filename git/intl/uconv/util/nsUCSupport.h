@@ -41,8 +41,8 @@
 #include "nsCOMPtr.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsICharRepresentable.h"
 #include "uconvutil.h"
-#include "mozilla/Mutex.h"
 
 #define ONE_BYTE_TABLE_SIZE 256
 
@@ -110,12 +110,6 @@ public:
 
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
-
-  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-  virtual PRUnichar GetCharacterForUnMapped();
-
-protected:
-  PRInt32   mErrBehavior;
 };
 
 //----------------------------------------------------------------------
@@ -150,6 +144,7 @@ protected:
       PRUnichar * aDest, PRInt32 * aDestLength) = 0;
 
   void FillBuffer(const char ** aSrc, PRInt32 aSrcLength);
+  void DoubleBuffer();
 
 public:
 
@@ -279,7 +274,6 @@ protected:
   uMappingTable             * mMappingTable;
   PRUnichar                 mFastTable[ONE_BYTE_TABLE_SIZE];
   PRBool                    mFastTableCreated;
-  mozilla::Mutex            mFastTableMutex;
 
   //--------------------------------------------------------------------
   // Subclassing of nsBasicDecoderSupport class [declaration]
@@ -294,7 +288,7 @@ protected:
 //----------------------------------------------------------------------
 // Class nsBasicEncoder [declaration]
 
-class nsBasicEncoder : public nsIUnicodeEncoder
+class nsBasicEncoder : public nsIUnicodeEncoder, public nsICharRepresentable
 #ifdef NS_DEBUG
                        ,public nsIBasicEncoder
 #endif
@@ -396,6 +390,10 @@ public:
   NS_IMETHOD GetMaxLength(const PRUnichar * aSrc, 
                           PRInt32 aSrcLength, 
                           PRInt32 * aDestLength);
+
+  //--------------------------------------------------------------------
+  // Interface nsICharRepresentable [declaration]
+  NS_IMETHOD FillInfo(PRUint32 *aInfo) = 0;
 };
 
 //----------------------------------------------------------------------
@@ -427,6 +425,7 @@ public:
    * Class destructor.
    */
   virtual ~nsTableEncoderSupport();
+  NS_IMETHOD FillInfo( PRUint32 *aInfo);
 
 protected:
 
@@ -467,6 +466,7 @@ public:
    * Class destructor.
    */
   virtual ~nsMultiTableEncoderSupport();
+  NS_IMETHOD FillInfo( PRUint32 *aInfo);
 
 protected:
 

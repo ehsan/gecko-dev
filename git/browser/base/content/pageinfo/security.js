@@ -219,7 +219,7 @@ function securityOnLoad() {
       // way to tell those apart, and no policy way to establish which organization
       // vetting standards are good enough (that's what EV is for) so we default to
       // treating these certs as domain-validated only.
-      owner = pageInfoBundle.getString("securityNoOwner");
+      owner = pageInfoBundle.getString("securityNoIdentity");
       verifier = security.mapIssuerOrganization(info.cAName ||
                                                 info.cert.issuerCommonName ||
                                                 info.cert.issuerName);
@@ -228,7 +228,7 @@ function securityOnLoad() {
   }
   else {
     // We don't have valid identity credentials.
-    owner = pageInfoBundle.getString("securityNoOwner");
+    owner = pageInfoBundle.getString("securityNoIdentity");
     verifier = pageInfoBundle.getString("notset");
     generalPageIdentityString = owner;
   }
@@ -240,6 +240,8 @@ function securityOnLoad() {
   /* Manage the View Cert button*/
   var viewCert = document.getElementById("security-view-cert");
   if (info.cert) {
+    var viewText = pageInfoBundle.getString("securityCertText");
+    setText("security-view-text", viewText);
     security._cert = info.cert;
     viewCert.collapsed = false;
   }
@@ -281,14 +283,14 @@ function securityOnLoad() {
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }
   else if (info.encryptionStrength >= 90) {
-    hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryptionWithBits",
+    hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryption",
                                        [info.encryptionAlgorithm, info.encryptionStrength + ""]);
     msg1 = pkiBundle.getString("pageInfo_Privacy_Strong1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_Strong2");
     security._cert = info.cert;
   }
   else if (info.encryptionStrength > 0) {
-    hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryptionWithBits",
+    hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryption",
                                         [info.encryptionAlgorithm, info.encryptionStrength + ""]);
     msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_Weak1", [info.hostName]);
     msg2 = pkiBundle.getString("pageInfo_Privacy_Weak2");

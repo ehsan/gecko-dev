@@ -17,61 +17,52 @@
           src="chrome://mochikit/content/tests/SimpleTest/quit.js" />
   <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/setup.js" />
-  <script type="application/javascript"
-          src="chrome://mochikit/content/chrome-harness.js" />
   <script type="application/javascript;version=1.7"><![CDATA[
+    function loadTests()
+    {
+      var dir = document.documentElement.getAttribute('directory');
+      // Find our chrome dir
+      var ios = Cc["@mozilla.org/network/io-service;1"].
+                  getService(Ci.nsIIOService);
+      var chromeURI = ios.newURI("chrome://mochikit/content/",
+                                 null, null);
+      var resolvedURI = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                          getService(Ci.nsIChromeRegistry).
+                          convertChromeURL(chromeURI);
+      var fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
+                          getService(Ci.nsIFileProtocolHandler);
+      var chromeDir = fileHandler.getFileFromURLSpec(resolvedURI.spec);
+      chromeDir = chromeDir.parent.QueryInterface(Ci.nsILocalFile);
+      chromeDir.appendRelativePath(dir);
 
-function loadTests()
-{
-  window.removeEventListener("load", loadTests, false);
+      // load server.js in so we can share template functions
+      var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                           getService(Ci.mozIJSSubScriptLoader);
+      var srvScope = {};
+      scriptLoader.loadSubScript("chrome://mochikit/content/server.js",
+                                 srvScope);
 
-  var baseurl = 'chrome://mochitests/content';
-  var testsURI = Components.classes["@mozilla.org/file/directory_service;1"]
-                      .getService(Components.interfaces.nsIProperties)
-                      .get("ProfD", Components.interfaces.nsILocalFile);
-  testsURI.append("tests.manifest");
-  var ioSvc = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-  var manifestFile = ioSvc.newFileURI(testsURI)
-                  .QueryInterface(Components.interfaces.nsIFileURL).file;
+      // generate our test list
+      srvScope.makeTags();
+      var url = "chrome://mochikit/content/" + dir + "/";
+      var [links, count] = srvScope.list(url, chromeDir, true);
+      var listContent = srvScope.linksToListItems(links);
+      var tableContent = srvScope.linksToTableRows(links);
+      function populate() {
+        $("list-holder").setAttribute("rowspan", 1 + count);
+        $("test-list").innerHTML += listContent;
+        $("test-table").innerHTML += tableContent;
+        $("wrapper").innerHTML += " "; // redraw the table
+      }
+      gTestList = eval(srvScope.jsonArrayOfTestFiles(links));
+      populate();
+      hookup();
 
-  Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).
-    autoRegister(manifestFile);
-
-  var dir = document.documentElement.getAttribute('directory');
-
-  // load server.js in so we can share template functions
-  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                       getService(Ci.mozIJSSubScriptLoader);
-  var srvScope = {};
-  scriptLoader.loadSubScript('chrome://mochikit/content/server.js',
-                             srvScope);
-  // generate our test list
-  srvScope.makeTags();
-
-  var singleTestPath;
-  var links;
-
-  if (getResolvedURI(baseurl).JARFile) {
-    [links, singleTestPath] = getMochitestJarListing(baseurl, params.testPath, dir);
-  } else {
-    [links, singleTestPath] = getFileListing(baseurl, params.testPath, dir, srvScope);
-  }
-  
-  var tableContent = srvScope.linksToTableRows(links, 0);
-
-  function populate() {
-    $("test-table").innerHTML += tableContent;
-  }
-  gTestList = eval(srvScope.jsonArrayOfTestFiles(links));
-  populate();
-  hookup();
-
-  if (singleTestPath)
-    window.location.href = singleTestPath;
-}
-
-    window.addEventListener("load", loadTests, false);
+      // if we got passed a test path, just run that single test
+      if ("testPath" in params && params.testPath)
+        window.location.href = url + params.testPath;
+    }
+    window.addEventListener("load", loadTests, false)
   ]]>
   </script>
 
@@ -103,16 +94,15 @@ function loadTests()
           <br />
         </div>
         <div id="wrapper">
-          <table cellpadding="0" cellspacing="0">
-          <!-- tbody needed to avoid bug 494546 causing performance problems -->
-            <tbody id="test-table">
-              <tr>
-                <td>Passed</td>
-                <td>Failed</td>
-                <td>Todo</td>
-                <td>Test Files</td>
-              </tr>
-            </tbody>
+          <table cellpadding="0" cellspacing="0" id="test-table">
+            <tr>
+              <td>Passed</td>
+              <td>Failed</td>
+              <td>Todo</td>
+              <td id="list-holder">
+                <ul class="top" id="test-list"><li><b>Test Files</b></li></ul>
+              </td>
+            </tr>
           </table>
         </div>
       </div>

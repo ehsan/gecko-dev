@@ -27,7 +27,6 @@
 #   Masayuki Nakano (masayuki@d-toybox.com)
 #   Pamela Greene (pamg.bugs@gmail.com)
 #   Edward Lee (edward.lee@engineering.uiuc.edu)
-#   Drew Willcoxon (adw@mozilla.com)
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,11 +41,6 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
-
-<!DOCTYPE bindings [
-<!ENTITY % actionsDTD SYSTEM "chrome://global/locale/actions.dtd">
-%actionsDTD;
-]>
 
 <bindings id="autocompleteBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -70,7 +64,7 @@
           <children/>
           <html:input anonid="input" class="autocomplete-textbox textbox-input"
                       flex="1" allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint"/>
+                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,userAction"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
@@ -80,8 +74,6 @@
                       xbl:inherits="open,enablehistory,parentfocused=focused"/>
 
       <xul:popupset anonid="popupset" class="autocomplete-result-popupset"/>
-
-      <children includes="toolbarbutton"/>
     </content>
 
     <implementation implements="nsIAccessibleProvider, nsIAutoCompleteInput, nsIDOMXULMenuListElement">
@@ -165,7 +157,7 @@
                 onget="return parseInt(this.getAttribute('timeout')) || 50;"/>
 
       <property name="searchParam"
-                onget="return this.getAttribute('autocompletesearchparam') || '';"
+                onget="return this.getAttribute('autocompletesearchparam');"
                 onset="this.setAttribute('autocompletesearchparam', val); return val;"/>
 
       <property name="searchCount" readonly="true"
@@ -261,22 +253,19 @@
 
       <!-- =================== PUBLIC MEMBERS =================== -->
 
-      <property name="value">
-        <getter><![CDATA[
-          if (typeof this.onBeforeValueGet == "function") {
-            var result = this.onBeforeValueGet();
-            if (result)
-              return result.value;
-          }
-          return this.inputField.value;
-        ]]></getter>
+      <property name="value"
+                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           this.mIgnoreInput = true;
-
-          if (typeof this.onBeforeValueSet == "function")
-            val = this.onBeforeValueSet(val);
-
-          this.inputField.value = val;
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
           this.mIgnoreInput = false;
           var event = document.createEvent('Events');
           event.initEvent('ValueChange', true, true);
@@ -526,6 +515,15 @@
         ]]></body>
       </method>
 
+      <method name="ifSetAttribute">
+        <parameter name="aAttr"/>
+        <parameter name="aVal"/>
+        <body><![CDATA[
+          if (!this.hasAttribute(aAttr))
+            this.setAttribute(aAttr, aVal);
+        ]]></body>
+      </method>
+
       <method name="_focus">
         <!-- doesn't reset this.mController -->
         <body><![CDATA[
@@ -535,23 +533,11 @@
         ]]></body>
       </method>
 
-      <method name="resetActionType">
-        <body><![CDATA[
-          if (this.mIgnoreInput)
-            return;
-          this.removeAttribute("actiontype");
-        ]]></body>
-      </method>
-
     </implementation>
 
     <handlers>
-      <handler event="input"><![CDATA[
-        if (!this.mIgnoreInput && this.mController.input == this) {
-          this.mController.handleText(true);
-        }
-        this.resetActionType();
-      ]]></handler>
+      <handler event="input"
+               action="if (!this.mIgnoreInput &amp;&amp; this.mController.input == this) this.mController.handleText(true);"/>
 
       <handler event="keypress" phase="capturing"
                action="return this.onKeyPress(event);"/>
@@ -715,6 +701,8 @@
             this.showCommentColumn = this.mInput.showCommentColumn;
             this.showImageColumn = this.mInput.showImageColumn;
 
+            document.popupNode = null;
+
             var rect = aElement.getBoundingClientRect();
             var nav = aElement.ownerDocument.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                               .getInterface(Components.interfaces.nsIWebNavigation);
@@ -808,6 +796,7 @@
           <![CDATA[
           if (this.mPopupOpen) {
             this.hidePopup();
+            document.popupNode = null;
             this.removeAttribute("width");
           }
         ]]>
@@ -888,6 +877,11 @@
         var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
         controller.stopSearch();
 
+        // when the popup hides, we need to clear the selection
+        // otherwise we will use the value of the selected index when the
+        // user hits enter.
+        // see bug #400671 for details
+        this.selectedIndex = -1;
         this.mPopupOpen = false;
 
         // Reset the maxRows property to the cached "normal" value, and reset
@@ -959,10 +953,10 @@
           <![CDATA[
           if (!this.mPopupOpen) {
             this.mInput = aInput;
-            // clear any previous selection, see bugs 400671 and 488357
-            this.selectedIndex = -1;
+            document.popupNode = null;
 
-            var width = aElement.getBoundingClientRect().width;
+            var rect = aElement.getBoundingClientRect();
+            var width = rect.right - rect.left;
             this.setAttribute("width", width > 100 ? width : 100);
             // invalidate() depends on the width attribute
             this._invalidate();
@@ -1044,11 +1038,11 @@
           // Default the height to 0 if we have no rows to show
           let height = 0;
           if (numRows) {
-            let firstRowRect = rows[0].getBoundingClientRect();
-            let lastRowRect = rows[numRows - 1].getBoundingClientRect();
+            let lastRowShown = rows[numRows - 1];
 
             // Calculate the height to have the first row to last row shown
-            height = lastRowRect.bottom - firstRowRect.top;
+            height = lastRowShown.boxObject.y + lastRowShown.boxObject.height -
+              rows[0].boxObject.y;
           }
 
           // Only update the height if we have a non-zero height and if it
@@ -1063,14 +1057,13 @@
         <body>
           <![CDATA[
           var controller = this.mInput.controller;
-          var matchCount = this._matchCount;
-          var existingItemsCount = this.richlistbox.childNodes.length;
 
           // Process maxRows per chunk to improve performance and user experience
           for (let i = 0; i < this.maxRows; i++) {
-            if (this._currentIndex >= matchCount)
+            if (this._currentIndex >= this._matchCount)
               return;
 
+            var existingItemsCount = this.richlistbox.childNodes.length;
             var item;
 
             // trim the leading/trailing whitespace
@@ -1162,35 +1155,29 @@
 
   <binding id="autocomplete-richlistitem" extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
     <content>
-      <xul:hbox align="center" class="ac-title-box">
+      <xul:hbox align="center">
         <xul:image xbl:inherits="src=image" class="ac-site-icon"/>
         <xul:hbox anonid="title-box" class="ac-title" flex="1"
-                  onunderflow="_doUnderflow('_title');"
-                  onoverflow="_doOverflow('_title');">
+                  onunderflow="_doUnderflow('_title');">
           <xul:description anonid="title" class="ac-normal-text ac-comment" xbl:inherits="selected"/>
+          <xul:hbox anonid="extra-box" class="ac-extra" align="center" hidden="true">
+            <xul:image class="ac-result-type-tag"/>
+            <xul:label class="ac-normal-text ac-comment" xbl:inherits="selected" value=":"/>
+            <xul:description anonid="extra" class="ac-normal-text ac-comment" xbl:inherits="selected"/>
+          </xul:hbox>
         </xul:hbox>
         <xul:label anonid="title-overflow-ellipsis" xbl:inherits="selected"
-                   class="ac-ellipsis-after ac-comment"/>
-        <xul:hbox anonid="extra-box" class="ac-extra" align="center" hidden="true">
-          <xul:image class="ac-result-type-tag"/>
-          <xul:label class="ac-normal-text ac-comment" xbl:inherits="selected" value=":"/>
-          <xul:description anonid="extra" class="ac-normal-text ac-comment" xbl:inherits="selected"/>
-        </xul:hbox>
+                   class="ac-ellipsis-after ac-comment" hidden="true"/>
         <xul:image anonid="type-image" class="ac-type-icon"/>
       </xul:hbox>
       <xul:hbox align="center" class="ac-url-box">
         <xul:spacer class="ac-site-icon"/>
-        <xul:image class="ac-action-icon"/>
         <xul:hbox anonid="url-box" class="ac-url" flex="1"
-                  onunderflow="_doUnderflow('_url');"
-                  onoverflow="_doOverflow('_url');">
-          <xul:description anonid="url" class="ac-normal-text ac-url-text"
-                           xbl:inherits="selected type"/>
-          <xul:description anonid="action" class="ac-normal-text ac-action-text"
-                           xbl:inherits="selected type"/>
+                  onunderflow="_doUnderflow('_url');">
+          <xul:description anonid="url" class="ac-normal-text ac-url-text" xbl:inherits="selected"/>
         </xul:hbox>
         <xul:label anonid="url-overflow-ellipsis" xbl:inherits="selected"
-                   class="ac-ellipsis-after ac-url-text"/>
+                   class="ac-ellipsis-after ac-url-text" hidden="true"/>
         <xul:spacer class="ac-type-icon"/>
       </xul:hbox>
     </content>
@@ -1217,7 +1204,6 @@
 
             this._urlBox = document.getAnonymousElementByAttribute(this, "anonid", "url-box");
             this._url = document.getAnonymousElementByAttribute(this, "anonid", "url");
-            this._action = document.getAnonymousElementByAttribute(this, "anonid", "action");
 
             this._titleBox = document.getAnonymousElementByAttribute(this, "anonid", "title-box");
             this._title = document.getAnonymousElementByAttribute(this, "anonid", "title");
@@ -1359,18 +1345,11 @@
       <method name="_setUpDescription">
         <parameter name="aDescriptionElement"/>
         <parameter name="aText"/>
-        <parameter name="aNoEmphasis"/>
         <body>
           <![CDATA[
           // Get rid of all previous text
           while (aDescriptionElement.hasChildNodes())
             aDescriptionElement.removeChild(aDescriptionElement.firstChild);
-
-          // If aNoEmphasis is specified, don't add any emphasis
-          if (aNoEmphasis) {
-            aDescriptionElement.appendChild(document.createTextNode(aText));
-            return;
-          }
 
           // Get the indices that separate match and non-match text
           let search = this.getAttribute("text");
@@ -1413,38 +1392,14 @@
           var title = this.getAttribute("title");
           var type = this.getAttribute("type");
 
-          this.removeAttribute("actiontype");
-
-          // The ellipses are hidden via their visibility so that they always
-          // take up space and don't pop in on top of text when shown.  For
-          // keyword searches, however, the title ellipsis should not take up
-          // space when hidden.  Setting the hidden property accomplishes that.
-          this._titleOverflowEllipsis.hidden = false;
-
-          // If the type includes an action, set up the item appropriately.
-          var types = type.split(/\s+/);
-          var actionIndex = types.indexOf("action");
-          if (actionIndex >= 0) {
-            let [,action, param] = url.match(/^moz-action:([^,]+),(.*)$/);
-            this.setAttribute("actiontype", action);
-            url = param;
-            let desc = "]]>&action.switchToTab.label;<![CDATA[";
-            this._setUpDescription(this._action, desc, true);
-
-            // Remove the "action" substring so that the correct style, if any,
-            // is applied below.
-            types.splice(actionIndex, 1);
-            type = types.join(" ");
-          }
-
           // If we have a tag match, show the tags and icon
           if (type == "tag") {
             // Configure the extra box for tags display
             this._extraBox.hidden = false;
             this._extraBox.childNodes[0].hidden = false;
             this._extraBox.childNodes[1].hidden = true;
+            this._extraBox.flex = 1;
             this._extraBox.pack = "end";
-            this._titleBox.flex = 1;
 
             // The title is separated from the tags by an endash
             let tags;
@@ -1463,18 +1418,12 @@
             this._extraBox.hidden = false;
             this._extraBox.childNodes[0].hidden = true;
             this._extraBox.childNodes[1].hidden = false;
+            this._extraBox.flex = 0;
             this._extraBox.pack = "start";
-            this._titleBox.flex = 0;
-
-            // Hide the ellipsis so it doesn't take up space.
-            this._titleOverflowEllipsis.hidden = true;
-
+            
             // Put the parameters next to the title if we have any
             let search = this.getAttribute("text");
-            let params = "";
-            let paramsIndex = search.indexOf(' ');
-            if (paramsIndex != -1)
-              params = search.substr(paramsIndex + 1);
+            let params = search.substr(search.indexOf(' ') + 1);
 
             // Emphasize the keyword parameters
             this._setUpDescription(this._extra, params);
@@ -1484,7 +1433,6 @@
           } else {
             // Hide the title's extra box if we don't need extra stuff
             this._extraBox.hidden = true;
-            this._titleBox.flex = 1;
           }
 
           // Give the image the icon style and a special one for the type
@@ -1513,7 +1461,7 @@
         <body>
           <![CDATA[
           // Hide the ellipsis incase there's just enough to not underflow
-          aEllipsis.style.visibility = "hidden";
+          aEllipsis.hidden = true;
 
           // Start with the parent's width and subtract off its children
           let tooltip = [];
@@ -1537,7 +1485,7 @@
           // If the children take up more space than the parent.. overflow!
           if (widthDiff < 0) {
             // Re-show the ellipsis now that we know it's needed
-            aEllipsis.style.visibility = "visible";
+            aEllipsis.hidden = false;
 
             // Separate text components with a ndash --
             aParentBox.tooltipText = tooltip.join(" \u2013 ");
@@ -1553,17 +1501,7 @@
           // Hide the ellipsis right when we know we're underflowing instead of
           // waiting for the timeout to trigger the _setUpOverflow calculations
           this[aName + "Box"].tooltipText = "";
-          this[aName + "OverflowEllipsis"].style.visibility = "hidden";
-          ]]>
-        </body>
-      </method>
-
-      <method name="_doOverflow">
-        <parameter name="aName"/>
-        <body>
-          <![CDATA[
-          this._setUpOverflow(this[aName + "Box"],
-                              this[aName + "OverflowEllipsis"]);
+          this[aName + "OverflowEllipsis"].hidden = true;
           ]]>
         </body>
       </method>

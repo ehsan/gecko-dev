@@ -42,10 +42,13 @@
 #include "nsCaseTreatment.h"
 #include "nsChangeHint.h"
 #include "nsINode.h"
-#include "nsIDocument.h" // for IsInHTMLDocument
+#include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
 
 // Forward declarations
 class nsIAtom;
+class nsIDocument;
+class nsPresContext;
+class nsVoidArray;
 class nsIDOMEvent;
 class nsIContent;
 class nsIEventListenerManager;
@@ -56,23 +59,11 @@ class nsAttrValue;
 class nsAttrName;
 class nsTextFragment;
 class nsIDocShell;
-class nsIFrame;
-#ifdef MOZ_SMIL
-class nsISMILAttr;
-class nsIDOMCSSStyleDeclaration;
-#endif // MOZ_SMIL
-
-enum nsLinkState {
-  eLinkState_Unknown    = 0,
-  eLinkState_Unvisited  = 1,
-  eLinkState_Visited    = 2,
-  eLinkState_NotLink    = 3
-};
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x71afb9e6, 0xe8a7, 0x475d, \
-  { 0x89, 0xc4, 0xe4, 0x62, 0x21, 0xeb, 0xe1, 0xa4 } }
+{ 0x2813b1d9, 0x7fe1, 0x496f, \
+ { 0x85, 0x52, 0xa2, 0xc1, 0xc5, 0x6b, 0x15, 0x40 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -84,11 +75,10 @@ public:
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
 
-  nsIContent(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsINode(aNodeInfo),
-      mPrimaryFrame(nsnull)
+  nsIContent(nsINodeInfo *aNodeInfo)
+    : nsINode(aNodeInfo)
   {
-    NS_ASSERTION(mNodeInfo,
+    NS_ASSERTION(aNodeInfo,
                  "No nsINodeInfo passed to nsIContent, PREPARE TO CRASH!!!");
   }
 #endif // MOZILLA_INTERNAL_API
@@ -151,51 +141,6 @@ public:
     return GetCurrentDoc();
   }
 
-  enum {
-    /**
-     * All XBL flattened tree children of the node, as well as :before and
-     * :after anonymous content and native anonymous children.
-     *
-     * @note the result children order is
-     *   1. :before generated node
-     *   2. XBL flattened tree children of this node
-     *   3. native anonymous nodes
-     *   4. :after generated node
-     */
-    eAllChildren = 0,
-
-    /**
-     * All XBL explicit children of the node (see
-     * http://www.w3.org/TR/xbl/#explicit3 ), as well as :before and :after
-     * anonymous content and native anonymous children.
-     *
-     * @note the result children order is
-     *   1. :before generated node
-     *   2. XBL explicit children of the node
-     *   3. native anonymous nodes
-     *   4. :after generated node
-     */
-    eAllButXBL = 1,
-
-    /**
-     * Skip native anonymous content created for placeholder of HTML input,
-     * used in conjunction with eAllChildren or eAllButXBL.
-     */
-    eSkipPlaceholderContent = 2
-  };
-
-  /**
-   * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the filter, as well as
-   * native anonymous children.
-   *
-   * @note calling this method with eAllButXBL will return children that are
-   *  also in the eAllButXBL and eAllChildren child lists of other descendants
-   *  of this node in the tree, but those other nodes cannot be reached from the
-   *  eAllButXBL child list.
-   */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
-
   /**
    * Get whether this content is C++-generated anonymous content
    * @see nsIAnonymousContentCreator
@@ -203,11 +148,7 @@ public:
    */
   PRBool IsRootOfNativeAnonymousSubtree() const
   {
-    NS_ASSERTION(!HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT) ||
-                 (HasFlag(NODE_IS_ANONYMOUS) &&
-                  HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)),
-                 "Some flags seem to be missing!");
-    return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT);
+    return HasFlag(NODE_IS_ANONYMOUS);
   }
 
   /**
@@ -216,8 +157,7 @@ public:
    */
   void SetNativeAnonymous()
   {
-    SetFlags(NODE_IS_ANONYMOUS | NODE_IS_IN_ANONYMOUS_SUBTREE |
-             NODE_IS_NATIVE_ANONYMOUS_ROOT);
+    SetFlags(NODE_IS_ANONYMOUS);
   }
 
   /**
@@ -225,6 +165,29 @@ public:
    * first non native anonymous ancestor.
    */
   virtual nsIContent* FindFirstNonNativeAnonymous() const;
+
+  /**
+   * Returns PR_TRUE if |this| or any of its ancestors is native anonymous.
+   */
+  PRBool IsInNativeAnonymousSubtree() const
+  {
+#ifdef DEBUG
+    if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
+      return PR_TRUE;
+    }
+    nsIContent* content = GetBindingParent();
+    while (content) {
+      if (content->IsRootOfNativeAnonymousSubtree()) {
+        NS_ERROR("Element not marked to be in native anonymous subtree!");
+        break;
+      }
+      content = content->GetBindingParent();
+    }
+    return PR_FALSE;
+#else
+    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
+#endif
+  }
 
   /**
    * Returns true if and only if this node has a parent, but is not in
@@ -236,43 +199,19 @@ public:
                  (GetParent() && GetBindingParent() == GetParent()),
                  "root of native anonymous subtree must have parent equal "
                  "to binding parent");
-    NS_ASSERTION(!GetParent() ||
-                 ((GetBindingParent() == GetParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS)) ||
-                 // Unfortunately default content for XBL insertion points is
-                 // anonymous content that is bound with the parent of the
-                 // insertion point as the parent but the bound element for the
-                 // binding as the binding parent.  So we have to complicate
-                 // the assert a bit here.
-                 (GetBindingParent() &&
-                  (GetBindingParent() == GetParent()->GetBindingParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS)),
-                 "For nodes with parent, flag and GetBindingParent() check "
-                 "should match");
-    return HasFlag(NODE_IS_ANONYMOUS);
+    nsIContent *bindingParent = GetBindingParent();
+    return bindingParent && bindingParent == GetParent();
   }
 
   /**
-   * Returns true if there is NOT a path through child lists
-   * from the top of this node's parent chain back to this node or
-   * if the node is in native anonymous subtree without a parent.
+   * Returns true if and only if there is NOT a path through child lists
+   * from the top of this node's parent chain back to this node.
    */
   PRBool IsInAnonymousSubtree() const
   {
-    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent() || !GetParent(),
-                 "must have binding parent when in native anonymous subtree with a parent node");
-    return IsInNativeAnonymousSubtree() || GetBindingParent() != nsnull;
-  }
-
-  /**
-   * Return true iff this node is in an HTML document (in the HTML5 sense of
-   * the term, i.e. not in an XHTML/XML document).
-   */
-  inline PRBool IsInHTMLDocument() const
-  {
-    nsIDocument* doc = GetOwnerDoc();
-    return doc && // XXX clean up after bug 335998 lands
-           doc->IsHTML();
+    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent(),
+                 "must have binding parent when in native anonymous subtree");
+    return GetBindingParent() != nsnull;
   }
 
   /**
@@ -300,31 +239,6 @@ public:
   nsINodeInfo *NodeInfo() const
   {
     return mNodeInfo;
-  }
-
-  inline PRBool IsInNamespace(PRInt32 aNamespace) const {
-    return mNodeInfo->NamespaceID() == aNamespace;
-  }
-
-  inline PRBool IsHTML() const {
-    return IsInNamespace(kNameSpaceID_XHTML);
-  }
-
-  inline PRBool IsHTML(nsIAtom* aTag) const {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
-  }
-
-  inline PRBool IsSVG() const {
-    /* Some things in the SVG namespace are not in fact SVG elements */
-    return IsNodeOfType(eSVG);
-  }
-
-  inline PRBool IsXUL() const {
-    return IsInNamespace(kNameSpaceID_XUL);
-  }
-
-  inline PRBool IsMathML() const {
-    return IsInNamespace(kNameSpaceID_MathML);
   }
 
   /**
@@ -490,7 +404,7 @@ public:
    * @returns The name at the given index, or null if the index is
    *          out-of-bounds.
    * @note    The document returned by NodeInfo()->GetDocument() (if one is
-   *          present) is *not* necessarily the owner document of the element.
+   *          present) is *not* neccesarily the owner document of the element.
    * @note    The pointer returned by this function is only valid until the
    *          next call of either GetAttrNameAt or SetAttr on the element.
    */
@@ -555,6 +469,36 @@ public:
   virtual void AppendTextTo(nsAString& aResult) = 0;
 
   /**
+   * Set the focus on this content.  This is generally something for the event
+   * state manager to do, not ordinary people.  Ordinary people should do
+   * something like nsGenericHTMLElement::SetElementFocus().  This method is
+   * the end result, the point where the content finds out it has been focused.
+   * 
+   * All content elements are potentially focusable.
+   *
+   * @param aPresContext the pres context
+   * @see nsGenericHTMLElement::SetElementFocus()
+   */
+  virtual void SetFocus(nsPresContext* aPresContext)
+  {
+  }
+
+  /**
+   * Remove the focus on this content.  This is generally something for the
+   * event state manager to do, not ordinary people.  Ordinary people should do
+   * something like nsGenericHTMLElement::SetElementFocus().  This method is
+   * the end result, the point where the content finds out it has been focused.
+   * 
+   * All content elements are potentially focusable.
+   *
+   * @param aPresContext the pres context
+   * @see nsGenericHTMLElement::SetElementFocus()
+   */
+  virtual void RemoveFocus(nsPresContext* aPresContext)
+  {
+  }
+
+  /**
    * Check if this content is focusable and in the current tab order.
    * Note: most callers should use nsIFrame::IsFocusable() instead as it 
    *       checks visibility and other layout factors as well.
@@ -576,7 +520,7 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
@@ -614,26 +558,34 @@ public:
    *         IME_STATUS_PASSWORD should be returned only from password editor,
    *         this value has a special meaning. It is used as alternative of
    *         IME_STATUS_DISABLED.
-   *         IME_STATUS_PLUGIN should be returned only when plug-in has focus.
-   *         When a plug-in is focused content, we should send native events
-   *         directly. Because we don't process some native events, but they may
-   *         be needed by the plug-in.
    */
   enum {
     IME_STATUS_NONE     = 0x0000,
     IME_STATUS_ENABLE   = 0x0001,
     IME_STATUS_DISABLE  = 0x0002,
     IME_STATUS_PASSWORD = 0x0004,
-    IME_STATUS_PLUGIN   = 0x0008,
-    IME_STATUS_OPEN     = 0x0010,
-    IME_STATUS_CLOSE    = 0x0020
+    IME_STATUS_OPEN     = 0x0008,
+    IME_STATUS_CLOSE    = 0x0010
   };
   enum {
     IME_STATUS_MASK_ENABLED = IME_STATUS_ENABLE | IME_STATUS_DISABLE |
-                              IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
+                              IME_STATUS_PASSWORD,
     IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
   };
-  virtual PRUint32 GetDesiredIMEState();
+  virtual PRUint32 GetDesiredIMEState()
+  {
+    if (!IsEditableInternal())
+      return IME_STATUS_DISABLE;
+    nsIContent *editableAncestor = nsnull;
+    for (nsIContent* parent = GetParent();
+         parent && parent->HasFlag(NODE_IS_EDITABLE);
+         parent = parent->GetParent())
+      editableAncestor = parent;
+    // This is in another editable content, use the result of it.
+    if (editableAncestor)
+      return editableAncestor->GetDesiredIMEState();
+    return IME_STATUS_ENABLE;
+  }
 
   /**
    * Gets content node with the binding (or native code, possibly on the
@@ -648,12 +600,14 @@ public:
   virtual nsIContent *GetBindingParent() const = 0;
 
   /**
-   * Returns the content node that is the parent of this node in the flattened
-   * tree.
+   * Get the base URI for any relative URIs within this piece of
+   * content. Generally, this is the document's base URI, but certain
+   * content carries a local base for backward compatibility, and XML
+   * supports setting a per-node base URI.
    *
-   * @return the flattened tree parent
+   * @return the base URI
    */
-  nsIContent *GetFlattenedTreeParent() const;
+  virtual already_AddRefed<nsIURI> GetBaseURI() const = 0;
 
   /**
    * API to check if this is a link that's traversed in response to user input
@@ -671,26 +625,23 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const = 0;
 
   /**
-   * Get the cached state of the link.  If the state is unknown, 
-   * return eLinkState_Unknown.
+   * Give this element a chance to fire links that should be fired
+   * automatically when loaded. If the element was an autoloading link
+   * and it was successfully handled, we will throw special nsresult values.
    *
-   * @return The cached link state of the link.
+   * @param aShell the current doc shell (to possibly load the link on)
+   * @throws NS_OK if nothing happened
+   * @throws NS_XML_AUTOLINK_EMBED if the caller is loading the link embedded
+   * @throws NS_XML_AUTOLINK_NEW if the caller is loading the link in a new
+   *         window
+   * @throws NS_XML_AUTOLINK_REPLACE if it is loading a link that will replace
+   *         the current window (and thus the caller must stop parsing)
+   * @throws NS_XML_AUTOLINK_UNDEFINED if it is loading in any other way--in
+   *         which case, the caller should stop parsing as well.
    */
-  virtual nsLinkState GetLinkState() const
+  virtual nsresult MaybeTriggerAutoLink(nsIDocShell *aShell)
   {
-    return eLinkState_NotLink;
-  }
-
-  /**
-    * Get a pointer to the full href URI (fully resolved and canonicalized,
-    * since it's an nsIURI object) for link elements.
-    *
-    * @return A pointer to the URI or null if the element is not a link or it
-    *         has no HREF attribute.
-    */
-  virtual already_AddRefed<nsIURI> GetHrefURI() const
-  {
-    return nsnull;
+    return NS_OK;
   }
 
   /**
@@ -709,8 +660,8 @@ public:
    *
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
-   * PRUint32 aFromParser to the NS_NewXXX() constructor for your element and
-   * have the parser pass the appropriate flags. See nsHTMLInputElement.cpp and
+   * boolean aFromParser to the NS_NewXXX() constructor for your element and
+   * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
    * DO NOT USE THIS METHOD to get around the fact that it's hard to deal with
@@ -724,6 +675,25 @@ public:
   {
   }
 
+  /**
+   * Call to let the content node know that it may now have a frame.
+   * The content node may use this to determine what MayHaveFrame
+   * returns.
+   */
+  virtual void SetMayHaveFrame(PRBool aMayHaveFrame)
+  {
+  }
+
+  /**
+   * @returns PR_TRUE if there is a chance that the content node has a
+   *                  frame.
+   * @returns PR_FALSE otherwise.
+   */
+  virtual PRBool MayHaveFrame() const
+  {
+    return PR_TRUE;
+  }
+    
   /**
    * This method is called when the parser begins creating the element's 
    * children, if any are present.
@@ -787,19 +757,29 @@ public:
    * content state, use nsIEventStateManager.  Also see nsIEventStateManager
    * for the possible bits that could be set here.
    */
-  virtual nsEventStates IntrinsicState() const;
+  // XXXbz this is PRInt32 because all the ESM content state APIs use
+  // PRInt32.  We should really use PRUint32 instead.
+  virtual PRInt32 IntrinsicState() const;
+
+  /* The default script type (language) ID for this content.
+     All content must support fetching the default script language.
+   */
+  virtual PRUint32 GetScriptTypeID() const
+  { return nsIProgrammingLanguage::JAVASCRIPT; }
+
+  /* Not all content supports setting a new default language */
+  virtual nsresult SetScriptTypeID(PRUint32 aLang)
+  {
+    NS_NOTREACHED("SetScriptTypeID not implemented");
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   /**
    * Get the ID of this content node (the atom corresponding to the
    * value of the null-namespace attribute whose name is given by
    * GetIDAttributeName().  This may be null if there is no ID.
    */
-  nsIAtom* GetID() const {
-    if (HasFlag(NODE_HAS_ID)) {
-      return DoGetID();
-    }
-    return nsnull;
-  }
+  virtual nsIAtom* GetID() const = 0;
 
   /**
    * Get the class list of this content node (this corresponds to the
@@ -874,99 +854,12 @@ public:
    */
   virtual void SaveSubtreeState() = 0;
 
-  /**
-   * Getter and setter for our primary frame pointer.  This is the frame that
-   * is most closely associated with the content. A frame is more closely
-   * associated with the content than another frame if the one frame contains
-   * directly or indirectly the other frame (e.g., when a frame is scrolled
-   * there is a scroll frame that contains the frame being scrolled). This
-   * frame is always the first continuation.
-   *
-   * In the case of absolutely positioned elements and floated elements, this
-   * frame is the out of flow frame, not the placeholder.
-   */
-  nsIFrame* GetPrimaryFrame() const { return mPrimaryFrame; }
-  void SetPrimaryFrame(nsIFrame* aFrame) {
-    NS_PRECONDITION(!aFrame || !mPrimaryFrame || aFrame == mPrimaryFrame,
-                    "Losing track of existing primary frame");
-    mPrimaryFrame = aFrame;
-  }
-
-#ifdef MOZ_SMIL
-  /*
-   * Returns a new nsISMILAttr that allows the caller to animate the given
-   * attribute on this element.
-   *
-   * The CALLER OWNS the result and is responsible for deleting it.
-   */
-  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
-
-   /**
-    * Get the SMIL override style for this content node.  This is a style
-    * declaration that is applied *after* the inline style, and it can be used
-    * e.g. to store animated style values.
-    *
-    * Note: This method is analogous to the 'GetStyle' method in
-    * nsGenericHTMLElement and nsStyledElement.
-    */
-  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle) = 0;
-
-  /**
-   * Get the SMIL override style rule for this content node.  If the rule
-   * hasn't been created (or if this nsIContent object doesn't support SMIL
-   * override style), this method simply returns null.
-   */
-  virtual nsICSSStyleRule* GetSMILOverrideStyleRule() = 0;
-
-  /**
-   * Set the SMIL override style rule for this node.  If aNotify is true, this
-   * method will notify the document's pres context, so that the style changes
-   * will be noticed.
-   */
-  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
-                                            PRBool aNotify) = 0;
-#endif // MOZ_SMIL
-
-  nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                              nsAString& aNamespaceURI) const;
-
-  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
-
-  PRBool IsEqual(nsIContent *aOther);
-
-  virtual PRBool IsEqualNode(nsINode* aOther);
-
-  /**
-   * If this content has independent selection, e.g., if this is input field
-   * or textarea, this return TRUE.  Otherwise, false.
-   */
-  PRBool HasIndependentSelection();
-
-  /**
-   * If the content is a part of HTML editor, this returns editing
-   * host content.  When the content is in designMode, this returns its body
-   * element.  Also, when the content isn't editable, this returns null.
-   */
-  nsIContent* GetEditingHost();
-
-protected:
-  /**
-   * Hook for implementing GetID.  This is guaranteed to only be
-   * called if the NODE_HAS_ID flag is set.
-   */
-  virtual nsIAtom* DoGetID() const = 0;
-
 private:
   /**
    * Hook for implementing GetClasses.  This is guaranteed to only be
    * called if the NODE_MAY_HAVE_CLASS flag is set.
    */
   virtual const nsAttrValue* DoGetClasses() const = 0;
-
-  /**
-   * Pointer to our primary frame.  Might be null.
-   */
-  nsIFrame* mPrimaryFrame;
 
 public:
 #ifdef DEBUG
@@ -1009,6 +902,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)
     nsContentUtils::TraverseListenerManager(tmp, cb);     \
   }
 
+#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER      \
+  {                                                              \
+    nsISupports *preservedWrapper = nsnull;                      \
+    if (tmp->GetOwnerDoc())                                      \
+      preservedWrapper = tmp->GetOwnerDoc()->GetReference(tmp);  \
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[preserved wrapper]");\
+    cb.NoteXPCOMChild(preservedWrapper);                         \
+  }
+
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA \
   if (tmp->HasProperties()) {                      \
     nsNodeUtils::TraverseUserData(tmp, cb);        \
@@ -1019,6 +921,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)
     nsContentUtils::RemoveListenerManager(tmp);         \
     tmp->UnsetFlags(NODE_HAS_LISTENERMANAGER);          \
   }
+
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
+  if (tmp->GetOwnerDoc())                                 \
+    tmp->GetOwnerDoc()->RemoveReference(tmp);
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA \
   if (tmp->HasProperties()) {                    \

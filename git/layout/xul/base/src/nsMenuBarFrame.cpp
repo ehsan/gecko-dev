@@ -53,6 +53,7 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
+#include "nsIFocusController.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -76,8 +77,6 @@ NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMenuBarFrame (aPresShell, aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsMenuBarFrame)
 
 //
 // nsMenuBarFrame cntr
@@ -118,9 +117,7 @@ nsMenuBarFrame::Init(nsIContent*      aContent,
   target->AddEventListener(NS_LITERAL_STRING("keydown"), (nsIDOMKeyListener*)mMenuBarListener, PR_FALSE);  
   target->AddEventListener(NS_LITERAL_STRING("keyup"), (nsIDOMKeyListener*)mMenuBarListener, PR_FALSE);   
 
-  // mousedown event should be handled in all phase
-  target->AddEventListener(NS_LITERAL_STRING("mousedown"), (nsIDOMMouseListener*)mMenuBarListener, PR_TRUE);
-  target->AddEventListener(NS_LITERAL_STRING("mousedown"), (nsIDOMMouseListener*)mMenuBarListener, PR_FALSE);
+  target->AddEventListener(NS_LITERAL_STRING("mousedown"), (nsIDOMMouseListener*)mMenuBarListener, PR_FALSE);   
   target->AddEventListener(NS_LITERAL_STRING("blur"), (nsIDOMFocusListener*)mMenuBarListener, PR_TRUE);   
 
   return rv;
@@ -151,7 +148,6 @@ nsMenuBarFrame::SetActive(PRBool aActiveFlag)
     InstallKeyboardNavigator();
   }
   else {
-    mActiveByKeyboard = PR_FALSE;
     RemoveKeyboardNavigator();
   }
 
@@ -252,7 +248,7 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
         PRUint32 ch = UTF16CharEnumerator::NextChar(&start, end);
         PRUint32 index = accessKeys.IndexOf(ch);
         if (index != accessKeys.NoIndex &&
-            (foundIndex == accessKeys.NoIndex || index < foundIndex)) {
+            (foundIndex == kNotFound || index < foundIndex)) {
           foundMenu = currFrame;
           foundIndex = index;
         }
@@ -343,8 +339,7 @@ public:
     if (mOldMenu && mNewMenu) {
       menubar = static_cast<nsMenuBarFrame *>
         (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, PR_FALSE));
-      if (menubar)
-        menubar->SetStayActive(PR_TRUE);
+      menubar->SetStayActive(PR_TRUE);
     }
 
     if (mOldMenu) {
@@ -456,7 +451,7 @@ nsMenuBarFrame::RemoveKeyboardNavigator()
 }
 
 void
-nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsMenuBarFrame::Destroy()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
@@ -466,11 +461,10 @@ nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
   mTarget->RemoveEventListener(NS_LITERAL_STRING("keydown"), (nsIDOMKeyListener*)mMenuBarListener, PR_FALSE);  
   mTarget->RemoveEventListener(NS_LITERAL_STRING("keyup"), (nsIDOMKeyListener*)mMenuBarListener, PR_FALSE);
 
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), (nsIDOMMouseListener*)mMenuBarListener, PR_TRUE);
   mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), (nsIDOMMouseListener*)mMenuBarListener, PR_FALSE);
   mTarget->RemoveEventListener(NS_LITERAL_STRING("blur"), (nsIDOMFocusListener*)mMenuBarListener, PR_TRUE);
 
   NS_IF_RELEASE(mMenuBarListener);
 
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }

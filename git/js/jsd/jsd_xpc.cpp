@@ -37,12 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jsdbgapi.h"
-#include "jslock.h"
 #include "jsd_xpc.h"
+#include "jsdbgapi.h"
+#include "jscntxt.h"
+#include "jsfun.h"
 
 #include "nsIXPConnect.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIObserver.h"
@@ -59,9 +60,6 @@
 /* XXX DOM dependency */
 #include "nsIScriptContext.h"
 #include "nsIJSContextStack.h"
-
-/* XXX private JS headers. */
-#include "jscompartment.h"
 
 /*
  * defining CAUTIOUS_SCRIPTHOOK makes jsds disable GC while calling out to the
@@ -153,7 +151,8 @@ static struct FilterRecord {
     PRCList      links;
     jsdIFilter  *filterObject;
     void        *glob;
-    nsCString    urlPattern;
+    char        *urlPattern;    
+    PRUint32     patternLength;
     PatternType  patternType;
     PRUint32     startLine;
     PRUint32     endLine;
@@ -197,7 +196,7 @@ jsds_InvalidateAllEphemerals (LiveEphemeral **listHead)
     LiveEphemeral *lv_record = 
         reinterpret_cast<LiveEphemeral *>
                         (PR_NEXT_LINK(&(*listHead)->links));
-    do
+    while (*listHead)
     {
         LiveEphemeral *next =
             reinterpret_cast<LiveEphemeral *>
@@ -205,7 +204,6 @@ jsds_InvalidateAllEphemerals (LiveEphemeral **listHead)
         lv_record->value->Invalidate();
         lv_record = next;
     }
-    while (*listHead);
 }
 
 void
@@ -248,10 +246,12 @@ jsds_RemoveEphemeral (LiveEphemeral **listHead, LiveEphemeral *item)
  * utility functions for filters
  *******************************************************************************/
 void
-jsds_FreeFilter (FilterRecord *rec)
+jsds_FreeFilter (FilterRecord *filter)
 {
-    NS_IF_RELEASE (rec->filterObject);
-    PR_Free (rec);
+    NS_IF_RELEASE (filter->filterObject);
+    if (filter->urlPattern)
+        nsMemory::Free(filter->urlPattern);
+    PR_Free (filter);
 }
 
 /* copies appropriate |filter| attributes into |rec|.
@@ -284,39 +284,44 @@ jsds_SyncFilter (FilterRecord *rec, jsdIFilter *filter)
     if (NS_FAILED(rv))
         return PR_FALSE;    
 
-    nsCAutoString urlPattern;
-    rv = filter->GetUrlPattern (urlPattern);
+    char *urlPattern;
+    rv = filter->GetUrlPattern (&urlPattern);
     if (NS_FAILED(rv))
         return PR_FALSE;
     
-    PRUint32 len = urlPattern.Length();
-    if (len) {
+    if (urlPattern) {
+        PRUint32 len = PL_strlen(urlPattern);
         if (urlPattern[0] == '*') {
             /* pattern starts with a *, shift all chars once to the left,
              * including the trailing null. */
-            urlPattern = Substring(urlPattern, 1, len);
+            memmove (&urlPattern[0], &urlPattern[1], len);
 
             if (urlPattern[len - 2] == '*') {
                 /* pattern is in the format "*foo*", overwrite the final * with
                  * a null. */
-                urlPattern.Truncate(len - 2);
+                urlPattern[len - 2] = '\0';
                 rec->patternType = ptContains;
+                rec->patternLength = len - 2;
             } else {
                 /* pattern is in the format "*foo", just make a note of the
                  * new length. */
                 rec->patternType = ptEndsWith;
+                rec->patternLength = len - 1;
             }
         } else if (urlPattern[len - 1] == '*') {
             /* pattern is in the format "foo*", overwrite the final * with a 
              * null. */
-            urlPattern.Truncate(len - 1);
+            urlPattern[len - 1] = '\0';
             rec->patternType = ptStartsWith;
+            rec->patternLength = len - 1;
         } else {
             /* pattern is in the format "foo". */
             rec->patternType = ptEquals;
+            rec->patternLength = len;
         }
     } else {
         rec->patternType = ptIgnore;
+        rec->patternLength = 0;
     }
 
     /* we got everything we need without failing, now copy it into rec. */
@@ -332,6 +337,8 @@ jsds_SyncFilter (FilterRecord *rec, jsdIFilter *filter)
     rec->startLine     = startLine;
     rec->endLine       = endLine;
     
+    if (rec->urlPattern)
+        nsMemory::Free (rec->urlPattern);
     rec->urlPattern = urlPattern;
 
     return PR_TRUE;
@@ -379,10 +386,10 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
     if (!script)
         return PR_TRUE;
 
-    jsuword pc = JSD_GetPCForStackFrame (jsdc, state, frame);
+    jsuint pc = JSD_GetPCForStackFrame (jsdc, state, frame);
 
-    nsDependentCString url(JSD_GetScriptFilename (jsdc, script));
-    if (url.IsEmpty()) {
+    const char *url = JSD_GetScriptFilename (jsdc, script);
+    if (!url) {
         NS_WARNING ("Script with no filename");
         return PR_FALSE;
     }
@@ -413,34 +420,31 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
                     return !!(flags & jsdIFilter::FLAG_PASS);
 
                 if (!len)
-                    len = url.Length();
-                nsCString urlPattern = currentFilter->urlPattern;
-                PRUint32 patternLength = urlPattern.Length();
-                if (len >= patternLength) {
+                    len = PL_strlen(url);
+                
+                if (len >= currentFilter->patternLength) {
                     switch (currentFilter->patternType) {
                         case ptEquals:
-                            if (urlPattern.Equals(url))
+                            if (!PL_strcmp(currentFilter->urlPattern, url))
                                 return !!(flags & jsdIFilter::FLAG_PASS);
                             break;
                         case ptStartsWith:
-                            if (urlPattern.Equals(Substring(url, 0, patternLength)))
+                            if (!PL_strncmp(currentFilter->urlPattern, url, 
+                                           currentFilter->patternLength))
                                 return !!(flags & jsdIFilter::FLAG_PASS);
                             break;
                         case ptEndsWith:
-                            if (urlPattern.Equals(Substring(url, len - patternLength)))
+                            if (!PL_strcmp(currentFilter->urlPattern,
+                                           &url[len - 
+                                               currentFilter->patternLength]))
                                 return !!(flags & jsdIFilter::FLAG_PASS);
                             break;
                         case ptContains:
-                            {
-                                nsACString::const_iterator start, end;
-                                url.BeginReading(start);
-                                url.EndReading(end);
-                                if (FindInReadable(currentFilter->urlPattern, start, end))
-                                    return !!(flags & jsdIFilter::FLAG_PASS);
-                            }
+                            if (PL_strstr(url, currentFilter->urlPattern))
+                                return !!(flags & jsdIFilter::FLAG_PASS);
                             break;
                         default:
-                            NS_ERROR("Invalid pattern type");
+                            NS_ASSERTION(0, "Invalid pattern type");
                     }
                 }                
             }
@@ -523,15 +527,8 @@ jsds_GCCallbackProc (JSContext *cx, JSGCStatus status)
     }
 
     gGCStatus = status;
-    if (gLastGCProc && !gLastGCProc (cx, status)) {
-        /*
-         * If gLastGCProc returns false, then the GC will abort without making
-         * another callback with status=JSGC_END, so set the status to JSGC_END
-         * here.
-         */
-        gGCStatus = JSGC_END;
-        return JS_FALSE;
-    }
+    if (gLastGCProc)
+        return gLastGCProc (cx, status);
     
     return JS_TRUE;
 }
@@ -560,14 +557,14 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
         val = getter_AddRefs(jsdValue::FromPtr(jsdc, jsdv));
     }
     
-    nsCAutoString fileName;
+    const char *fileName;
     PRUint32    line;
     PRUint32    pos;
     PRUint32    flags;
     PRUint32    errnum;
     PRBool      rval;
     if (report) {
-        fileName.Assign(report->filename);
+        fileName = report->filename;
         line = report->lineno;
         pos = report->tokenptr - report->linebuf;
         flags = report->flags;
@@ -575,6 +572,7 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
     }
     else
     {
+        fileName = 0;
         line     = 0;
         pos      = 0;
         flags    = 0;
@@ -582,7 +580,7 @@ jsds_ErrorHookProc (JSDContext *jsdc, JSContext *cx, const char *message,
     }
     
     gJsds->Pause(nsnull);
-    hook->OnError (nsDependentCString(message), fileName, line, pos, flags, errnum, val, &rval);
+    hook->OnError (message, fileName, line, pos, flags, errnum, val, &rval);
     gJsds->UnPause(nsnull);
     
     running = PR_FALSE;
@@ -717,10 +715,10 @@ jsds_ScriptHookProc (JSDContext* jsdc, JSDScript* jsdscript, JSBool creating,
     JSRuntime *rt = JS_GetRuntime(cx);
 #endif
 
+    nsCOMPtr<jsdIScriptHook> hook;
+    gJsds->GetScriptHook (getter_AddRefs(hook));
+    
     if (creating) {
-        nsCOMPtr<jsdIScriptHook> hook;
-        gJsds->GetScriptHook(getter_AddRefs(hook));
-
         /* a script is being created */
         if (!hook) {
             /* nobody cares, just exit */
@@ -746,15 +744,12 @@ jsds_ScriptHookProc (JSDContext* jsdc, JSDScript* jsdscript, JSBool creating,
             static_cast<jsdIScript *>(JSD_GetScriptPrivate(jsdscript));
         if (!jsdis)
             return;
-
+        
         jsdis->Invalidate();
-
+        if (!hook)
+            return;
+        
         if (gGCStatus == JSGC_END) {
-            nsCOMPtr<jsdIScriptHook> hook;
-            gJsds->GetScriptHook(getter_AddRefs(hook));
-            if (!hook)
-                return;
-
             /* if GC *isn't* running, we can tell the user about the script
              * delete now. */
 #ifdef CAUTIOUS_SCRIPTHOOK
@@ -824,9 +819,16 @@ jsdObject::GetJSDObject(JSDObject **_rval)
 }
 
 NS_IMETHODIMP
-jsdObject::GetCreatorURL(nsACString &_rval)
+jsdObject::GetCreatorURL(char **_rval)
 {
-    _rval.Assign(JSD_GetObjectNewURL(mCx, mObject));
+    const char *url = JSD_GetObjectNewURL(mCx, mObject);
+    if (url) {
+        *_rval = PL_strdup(url);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+        *_rval = nsnull;
+    }
     return NS_OK;
 }
 
@@ -838,9 +840,16 @@ jsdObject::GetCreatorLine(PRUint32 *_rval)
 }
 
 NS_IMETHODIMP
-jsdObject::GetConstructorURL(nsACString &_rval)
+jsdObject::GetConstructorURL(char **_rval)
 {
-    _rval.Assign(JSD_GetObjectConstructorURL(mCx, mObject));
+    const char *url = JSD_GetObjectConstructorURL(mCx, mObject);
+    if (url) {
+        *_rval = PL_strdup(url);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+        *_rval = nsnull;
+    }
     return NS_OK;
 }
 
@@ -961,23 +970,6 @@ jsdProperty::GetVarArgSlot(PRUint32 *_rval)
 /* Scripts */
 NS_IMPL_THREADSAFE_ISUPPORTS2(jsdScript, jsdIScript, jsdIEphemeral)
 
-static NS_IMETHODIMP
-AssignToJSString(nsACString *x, JSString *str)
-{
-    if (!str) {
-        x->SetLength(0);
-        return NS_OK;
-    }
-    size_t length = JS_GetStringEncodingLength(NULL, str);
-    if (length == size_t(-1))
-        return NS_ERROR_FAILURE;
-    x->SetLength(PRUint32(length));
-    if (x->Length() != PRUint32(length))
-        return NS_ERROR_OUT_OF_MEMORY;
-    JS_EncodeStringToBuffer(str, x->BeginWriting(), length);
-    return NS_OK;
-}
-
 jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
                                                              mTag(0),
                                                              mCx(aCx),
@@ -996,12 +988,8 @@ jsdScript::jsdScript (JSDContext *aCx, JSDScript *aScript) : mValid(PR_FALSE),
          * gets destroyed. */
         JSD_LockScriptSubsystem(mCx);
         mFileName = new nsCString(JSD_GetScriptFilename(mCx, mScript));
-        mFunctionName = new nsCString();
-        if (mFunctionName) {
-            JSString *str = JSD_GetScriptFunctionId(mCx, mScript);
-            if (str)
-                AssignToJSString(mFunctionName, str);
-        }
+        mFunctionName =
+            new nsCString(JSD_GetScriptFunctionName(mCx, mScript));
         mBaseLineNumber = JSD_GetScriptBaseLineNumber(mCx, mScript);
         mLineExtent = JSD_GetScriptLineExtent(mCx, mScript);
         mFirstPC = JSD_GetClosestPC(mCx, mScript, 0);
@@ -1041,103 +1029,71 @@ jsdScript::CreatePPLineMap()
     JSObject   *obj = JS_NewObject(cx, NULL, NULL, NULL);
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
     JSScript   *script;
-    JSString   *jsstr;
     PRUint32    baseLine;
     PRBool      scriptOwner = PR_FALSE;
     
     if (fun) {
-        uintN nargs;
-
-        /* Enter a new block so we can leave before the end of this block */
-        do {
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, JS_GetFunctionObject(fun)))
-                return nsnull;
-
-            nargs = JS_GetFunctionArgumentCount(cx, fun);
-            if (nargs > 12)
-                return nsnull;
-            jsstr = JS_DecompileFunctionBody (cx, fun, 4);
-            if (!jsstr)
-                return nsnull;
-        } while(false);
-
-        size_t length;
-        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
-        if (!chars)
+        if (fun->nargs > 12)
+            return nsnull;
+        JSString *jsstr = JS_DecompileFunctionBody (cx, fun, 4);
+        if (!jsstr)
             return nsnull;
     
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
-        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames, chars,
-                                    length, "x-jsd:ppbuffer?type=function", 3);
+        fun = JS_CompileUCFunction (cx, obj, "ppfun", fun->nargs, argnames,
+                                    JS_GetStringChars(jsstr),
+                                    JS_GetStringLength(jsstr),
+                                    "x-jsd:ppbuffer?type=function", 3);
         if (!fun || !(script = JS_GetFunctionScript(cx, fun)))
             return nsnull;
         baseLine = 3;
     } else {
-        /* Enter a new block so we can leave before the end of this block */
-        do {
-            script = JSD_GetJSScript(mCx, mScript);
-
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, script))
-                return nsnull;
-
-            jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript),
-                                        "ppscript", 4);
-            if (!jsstr)
-                return nsnull;
-        } while(false);
-
-        size_t length;
-        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
-        if (!chars)
+        JSString *jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript),
+                                              "ppscript", 4);
+        if (!jsstr)
             return nsnull;
 
-        script = JS_CompileUCScript (cx, obj, chars, length,
+        script = JS_CompileUCScript (cx, obj,
+                                     JS_GetStringChars(jsstr),
+                                     JS_GetStringLength(jsstr),
                                      "x-jsd:ppbuffer?type=script", 1);
         if (!script)
             return nsnull;
         scriptOwner = PR_TRUE;
         baseLine = 1;
     }
-
+        
     PRUint32 scriptExtent = JS_GetScriptLineExtent (cx, script);
     jsbytecode* firstPC = JS_LineNumberToPC (cx, script, 0);
     /* allocate worst case size of map (number of lines in script + 1
      * for our 0 record), we'll shrink it with a realloc later. */
-    PCMapEntry *lineMap =
+    mPPLineMap = 
         static_cast<PCMapEntry *>
                    (PR_Malloc((scriptExtent + 1) * sizeof (PCMapEntry)));
-    PRUint32 lineMapSize = 0;
-
-    if (lineMap) {
+    if (mPPLineMap) {             
+        mPCMapSize = 0;
         for (PRUint32 line = baseLine; line < scriptExtent + baseLine; ++line) {
             jsbytecode* pc = JS_LineNumberToPC (cx, script, line);
             if (line == JS_PCToLineNumber (cx, script, pc)) {
-                lineMap[lineMapSize].line = line;
-                lineMap[lineMapSize].pc = pc - firstPC;
-                ++lineMapSize;
+                mPPLineMap[mPCMapSize].line = line;
+                mPPLineMap[mPCMapSize].pc = pc - firstPC;
+                ++mPCMapSize;
             }
         }
-        if (scriptExtent != lineMapSize) {
-            lineMap =
+        if (scriptExtent != mPCMapSize) {
+            mPPLineMap =
                 static_cast<PCMapEntry *>
-                           (PR_Realloc(mPPLineMap = lineMap,
-                                       lineMapSize * sizeof(PCMapEntry)));
-            if (!lineMap) {
-                PR_Free(mPPLineMap);
-                lineMapSize = 0;
-            }
+                           (PR_Realloc(mPPLineMap,
+                                          mPCMapSize * sizeof(PCMapEntry)));
         }
     }
 
     if (scriptOwner)
         JS_DestroyScript (cx, script);
 
-    mPCMapSize = lineMapSize;
-    return mPPLineMap = lineMap;
+    return mPPLineMap;
 }
 
 PRUint32
@@ -1263,73 +1219,20 @@ jsdScript::GetFlags(PRUint32 *_rval)
 }
 
 NS_IMETHODIMP
-jsdScript::GetFileName(nsACString &_rval)
+jsdScript::GetFileName(char **_rval)
 {
-    _rval.Assign(*mFileName);
+    *_rval = ToNewCString(*mFileName);
+    if (!*_rval)
+        return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-jsdScript::GetFunctionName(nsACString &_rval)
+jsdScript::GetFunctionName(char **_rval)
 {
-    _rval.Assign(*mFunctionName);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
-{
-    ASSERT_VALID_EPHEMERAL;
-    JSContext *cx = JSD_GetDefaultJSContext (mCx);
-    if (!cx) {
-        NS_WARNING("No default context !?");
-        return NS_ERROR_FAILURE;
-    }
-    JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
-
-    JSAutoRequest ar(cx);
-
-    uintN nargs;
-    if (!fun ||
-        !JS_FunctionHasLocalNames(cx, fun) ||
-        (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
-        *count = 0;
-        *paramNames = nsnull;
-        return NS_OK;
-    }
-
-    PRUnichar **ret =
-        static_cast<PRUnichar**>(NS_Alloc(nargs * sizeof(PRUnichar*)));
-    if (!ret)
+    *_rval = ToNewCString(*mFunctionName);
+    if (!*_rval)
         return NS_ERROR_OUT_OF_MEMORY;
-
-    void *mark;
-    jsuword *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
-    if (!names) {
-        NS_Free(ret);
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    nsresult rv = NS_OK;
-    for (uintN i = 0; i < nargs; ++i) {
-        JSAtom *atom = JS_LocalNameToAtom(names[i]);
-        if (!atom) {
-            ret[i] = 0;
-        } else {
-            JSString *str = JS_AtomKey(atom);
-            ret[i] = NS_strndup(JS_GetInternedStringChars(str), JS_GetStringLength(str));
-            if (!ret[i]) {
-                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
-                rv = NS_ERROR_OUT_OF_MEMORY;
-                break;
-            }
-        }
-    }
-    JS_ReleaseFunctionLocalNameArray(cx, mark);
-    if (NS_FAILED(rv))
-        return rv;
-    *count = nargs;
-    *paramNames = ret;
     return NS_OK;
 }
 
@@ -1375,26 +1278,16 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
     JSAutoRequest ar(cx);
 
     JSString *jsstr;
-    JSAutoEnterCompartment ac;
-    if (fun) {
-        if (!ac.enter(cx, JS_GetFunctionObject(fun)))
-            return NS_ERROR_FAILURE;
+    if (fun)
         jsstr = JS_DecompileFunction (cx, fun, 4);
-    } else {
+    else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);
-        if (!ac.enter(cx, script))
-            return NS_ERROR_FAILURE;
         jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
     }
     if (!jsstr)
         return NS_ERROR_FAILURE;
 
-    size_t length;
-    const jschar *chars = JS_GetStringCharsZAndLength(cx, jsstr, &length);
-    if (!chars)
-        return NS_ERROR_FAILURE;
-
-    aFunctionSource = nsDependentString(chars, length);
+    aFunctionSource = reinterpret_cast<PRUnichar*>(JS_GetStringChars(jsstr));
     return NS_OK;
 }
 
@@ -1516,20 +1409,6 @@ jsdScript::LineToPc(PRUint32 aLine, PRUint32 aPcmap, PRUint32 *_rval)
 }
 
 NS_IMETHODIMP
-jsdScript::EnableSingleStepInterrupts(PRBool enable)
-{
-    ASSERT_VALID_EPHEMERAL;
-
-    /* Must have set interrupt hook before enabling */
-    if (enable && !jsdService::GetService()->CheckInterruptHook())
-        return NS_ERROR_NOT_INITIALIZED;
-
-    JSD_EnableSingleStepInterrupts(mCx, mScript, enable);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 jsdScript::IsLineExecutable(PRUint32 aLine, PRUint32 aPcmap, PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
@@ -1538,7 +1417,7 @@ jsdScript::IsLineExecutable(PRUint32 aLine, PRUint32 aPcmap, PRBool *_rval)
         *_rval = (aLine == JSD_GetClosestLine (mCx, mScript, pc));
     } else if (aPcmap == PCMAP_PRETTYPRINT) {
         if (!mPPLineMap && !CreatePPLineMap())
-            return NS_ERROR_OUT_OF_MEMORY;
+            return NS_ERROR_FAILURE;
         *_rval = PR_FALSE;
         for (PRUint32 i = 0; i < mPCMapSize; ++i) {
             if (mPPLineMap[i].line >= aLine) {
@@ -1558,7 +1437,8 @@ jsdScript::SetBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;
     jsuword pc = mFirstPC + aPC;
-    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc, NULL);
+    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc,
+                          reinterpret_cast<void *>(PRIVATE_TO_JSVAL(NULL)));
     return NS_OK;
 }
 
@@ -1587,9 +1467,12 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(jsdContext, jsdIContext, jsdIEphemeral)
 jsdIContext *
 jsdContext::FromPtr (JSDContext *aJSDCx, JSContext *aJSCx)
 {
-    if (!aJSDCx || !aJSCx)
+    if (!aJSDCx || !aJSCx ||
+        !(JS_GetOptions(aJSCx) & JSOPTION_PRIVATE_IS_NSISUPPORTS))
+    {
         return nsnull;
-
+    }
+    
     nsCOMPtr<jsdIContext> jsdicx;
     nsCOMPtr<jsdIEphemeral> eph = 
         jsds_FindEphemeral (&gLiveContexts, static_cast<void *>(aJSCx));
@@ -1599,15 +1482,17 @@ jsdContext::FromPtr (JSDContext *aJSDCx, JSContext *aJSCx)
     }
     else
     {
-        nsCOMPtr<nsISupports> iscx;
-        if (JS_GetOptions(aJSCx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)
-            iscx = static_cast<nsISupports *>(JS_GetContextPrivate(aJSCx));
+        nsCOMPtr<nsISupports> iscx = 
+            static_cast<nsISupports *>(JS_GetContextPrivate(aJSCx));
+        if (!iscx)
+            return nsnull;
+        
         jsdicx = new jsdContext (aJSDCx, aJSCx, iscx);
     }
 
-    jsdIContext *ctx = nsnull;
-    jsdicx.swap(ctx);
-    return ctx;
+    jsdIContext *rv = jsdicx;
+    NS_IF_ADDREF(rv);
+    return rv;
 }
 
 jsdContext::jsdContext (JSDContext *aJSDCx, JSContext *aJSCx,
@@ -1707,7 +1592,8 @@ NS_IMETHODIMP
 jsdContext::GetWrappedContext(nsISupports **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    NS_IF_ADDREF(*_rval = mISCx);
+    *_rval = mISCx;
+    NS_IF_ADDREF(*_rval);
     return NS_OK;
 }
 
@@ -1757,11 +1643,6 @@ NS_IMETHODIMP
 jsdContext::GetScriptsEnabled (PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    if (!mISCx) {
-        *_rval = PR_TRUE;
-        return NS_OK;
-    }
-
     nsCOMPtr<nsIScriptContext> context = do_QueryInterface(mISCx);
     if (!context)
         return NS_ERROR_NO_INTERFACE;
@@ -1775,12 +1656,6 @@ NS_IMETHODIMP
 jsdContext::SetScriptsEnabled (PRBool _rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    if (!mISCx) {
-        if (_rval)
-            return NS_OK;
-        return NS_ERROR_NO_INTERFACE;
-    }
-
     nsCOMPtr<nsIScriptContext> context = do_QueryInterface(mISCx);
     if (!context)
         return NS_ERROR_NO_INTERFACE;
@@ -1911,14 +1786,28 @@ jsdStackFrame::GetExecutionContext(jsdIContext **_rval)
 }
 
 NS_IMETHODIMP
-jsdStackFrame::GetFunctionName(nsACString &_rval)
+jsdStackFrame::GetFunctionName(char **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    JSString *str = JSD_GetIdForStackFrame(mCx, mThreadState, mStackFrameInfo);
-    if (str)
-        return AssignToJSString(&_rval, str);
-    
-    _rval.Assign("anonymous");
+    const char *name = JSD_GetNameForStackFrame(mCx, mThreadState,
+                                                mStackFrameInfo);
+    if (name) {
+        *_rval = PL_strdup(name);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+        /* top level scripts have no function name */
+        *_rval = nsnull;
+        return NS_OK;
+    }
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdStackFrame::GetIsNative(PRBool *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_IsStackFrameNative (mCx, mThreadState, mStackFrameInfo);
     return NS_OK;
 }
 
@@ -1976,7 +1865,9 @@ jsdStackFrame::GetLine(PRUint32 *_rval)
         jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
         *_rval = JSD_GetClosestLine (mCx, script, pc);
     } else {
-        return NS_ERROR_FAILURE;
+        if (!JSD_IsStackFrameNative(mCx, mThreadState, mStackFrameInfo))
+            return NS_ERROR_FAILURE;
+        *_rval = 1;
     }
     return NS_OK;
 }
@@ -2016,7 +1907,7 @@ jsdStackFrame::GetThisValue(jsdIValue **_rval)
 
 
 NS_IMETHODIMP
-jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
+jsdStackFrame::Eval (const nsAString &bytes, const char *fileName,
                      PRUint32 line, jsdIValue **result, PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
@@ -2039,36 +1930,18 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
     estate = JS_SaveExceptionState (cx);
     JS_ClearPendingException (cx);
 
-    nsresult rv;
-    nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
-    if (NS_SUCCEEDED(rv))
-        rv = stack->Push(cx);
-    if (NS_FAILED(rv)) {
-        JS_RestoreExceptionState (cx, estate);
-        return rv;
-    }
-
     *_rval = JSD_AttemptUCScriptInStackFrame (mCx, mThreadState,
                                               mStackFrameInfo,
                                               char_bytes, bytes.Length(),
-                                              PromiseFlatCString(fileName).get(),
-                                              line, &jv);
+                                              fileName, line, &jv);
     if (!*_rval) {
         if (JS_IsExceptionPending(cx))
             JS_GetPendingException (cx, &jv);
         else
-            jv = JSVAL_NULL;
+            jv = 0;
     }
 
     JS_RestoreExceptionState (cx, estate);
-
-#ifdef DEBUG
-    JSContext* poppedCX;
-    rv = stack->Pop(&poppedCX);
-    NS_ASSERTION(NS_SUCCEEDED(rv) && poppedCX == cx, "bad pop");
-#else
-    (void) stack->Pop(nsnull);
-#endif
 
     JSDValue *jsdv = JSD_NewValue (mCx, jv);
     if (!jsdv)
@@ -2225,10 +2098,17 @@ jsdValue::GetJsParent (jsdIValue **_rval)
 }
 
 NS_IMETHODIMP
-jsdValue::GetJsClassName(nsACString &_rval)
+jsdValue::GetJsClassName(char **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    _rval.Assign(JSD_GetValueClassName(mCx, mValue));
+    const char *name = JSD_GetValueClassName(mCx, mValue);
+    if (name) {
+        *_rval = PL_strdup(name);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+        *_rval = nsnull;
+    }
     
     return NS_OK;
 }
@@ -2243,10 +2123,21 @@ jsdValue::GetJsConstructor (jsdIValue **_rval)
 }
 
 NS_IMETHODIMP
-jsdValue::GetJsFunctionName(nsACString &_rval)
+jsdValue::GetJsFunctionName(char **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    return AssignToJSString(&_rval, JSD_GetValueFunctionId(mCx, mValue));
+    const char *name = JSD_GetValueFunctionName(mCx, mValue);
+    if (name) {
+        *_rval = PL_strdup(name);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
+    } else {
+        /* top level scripts have no function name */
+        *_rval = nsnull;
+        return NS_OK;
+    }
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2261,7 +2152,10 @@ NS_IMETHODIMP
 jsdValue::GetDoubleValue(double *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_GetValueDouble (mCx, mValue);
+    double *dp = JSD_GetValueDouble (mCx, mValue);
+    if (!dp)
+        return NS_ERROR_FAILURE;
+    *_rval = *dp;
     return NS_OK;
 }
 
@@ -2286,24 +2180,17 @@ jsdValue::GetObjectValue(jsdIObject **_rval)
 }
     
 NS_IMETHODIMP
-jsdValue::GetStringValue(nsACString &_rval)
+jsdValue::GetStringValue(char **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    JSContext *cx = JSD_GetDefaultJSContext (mCx);
-    if (!cx) {
-        NS_WARNING("No default context !?");
-        return NS_ERROR_FAILURE;
-    }
     JSString *jstr_val = JSD_GetValueString(mCx, mValue);
     if (jstr_val) {
-        size_t length;
-        const jschar *chars = JS_GetStringCharsZAndLength(cx, jstr_val, &length);
-        if (!chars)
-            return NS_ERROR_FAILURE;
-        nsDependentString depStr(chars, length);
-        CopyUTF16toUTF8(depStr, _rval);
+        char *bytes = JS_GetStringBytes(jstr_val);
+        *_rval = PL_strdup(bytes);
+        if (!*_rval)
+            return NS_ERROR_OUT_OF_MEMORY;
     } else {
-        _rval.Truncate();
+        *_rval = nsnull;
     }
     return NS_OK;
 }
@@ -2357,7 +2244,7 @@ jsdValue::GetProperties (jsdIProperty ***propArray, PRUint32 *length)
 }
 
 NS_IMETHODIMP
-jsdValue::GetProperty (const nsACString &name, jsdIProperty **_rval)
+jsdValue::GetProperty (const char *name, jsdIProperty **_rval)
 {
     ASSERT_VALID_EPHEMERAL;
     JSContext *cx = JSD_GetDefaultJSContext (mCx);
@@ -2365,7 +2252,7 @@ jsdValue::GetProperty (const nsACString &name, jsdIProperty **_rval)
     JSAutoRequest ar(cx);
 
     /* not rooting this */
-    JSString *jstr_name = JS_NewStringCopyZ(cx, PromiseFlatCString(name).get());
+    JSString *jstr_name = JS_NewStringCopyZ (cx, name);
     if (!jstr_name)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -2404,25 +2291,10 @@ jsdValue::GetWrappedValue()
 
     if (result)
     {
-        JSContext *cx;
-        rv = cc->GetJSContext(&cx);
-        if (NS_FAILED(rv))
-            return rv;
         *result = JSD_GetValueWrappedJSVal (mCx, mValue);
-        if (!JS_WrapValue(cx, result))
-            return NS_ERROR_FAILURE;
         cc->SetReturnValueWasSet(PR_TRUE);
     }
 
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-jsdValue::GetScript(jsdIScript **_rval)
-{
-    ASSERT_VALID_EPHEMERAL;
-    JSDScript *script = JSD_GetScriptForValue(mCx, mValue);
-    *_rval = jsdScript::FromPtr(mCx, script);
     return NS_OK;
 }
 
@@ -2435,6 +2307,121 @@ NS_IMETHODIMP
 jsdService::GetJSDContext(JSDContext **_rval)
 {
     *_rval = mCx;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdService::GetInitAtStartup (PRBool *_rval)
+{
+    nsresult rv;
+    nsCOMPtr<nsICategoryManager>
+        categoryManager(do_GetService(NS_CATMAN_CTRID, &rv));
+    
+    if (NS_FAILED(rv))
+    {
+        NS_WARNING("couldn't get category manager");
+        return rv;
+    }
+
+    if (mInitAtStartup == triUnknown) {
+        nsXPIDLCString notused;
+        nsresult autoreg_rv, appstart_rv;
+        
+        autoreg_rv = categoryManager->GetCategoryEntry(AUTOREG_CATEGORY, 
+                                                       JSD_AUTOREG_ENTRY,
+                                                       getter_Copies(notused));
+        appstart_rv = categoryManager->GetCategoryEntry(APPSTART_CATEGORY,
+                                                        JSD_STARTUP_ENTRY,
+                                                        getter_Copies(notused));
+        if (autoreg_rv != appstart_rv) {
+            /* we have an inconsistent state in the registry, attempt to fix.
+             * we need to make mInitAtStartup disagree with the state passed
+             * to SetInitAtStartup to make it actually do something.
+             */
+            mInitAtStartup = triYes;
+            rv = SetInitAtStartup (PR_FALSE);
+            if (NS_FAILED(rv))
+            {
+                NS_WARNING("SetInitAtStartup failed");
+                return rv;
+            }
+        } else if (autoreg_rv == NS_ERROR_NOT_AVAILABLE) {
+            mInitAtStartup = triNo;
+        } else if (NS_SUCCEEDED(autoreg_rv)) {
+            mInitAtStartup = triYes;
+        } else {
+            NS_WARN_IF_FALSE(NS_SUCCEEDED(autoreg_rv),
+                             "couldn't get autoreg category");
+            NS_WARN_IF_FALSE(NS_SUCCEEDED(appstart_rv),
+                             "couldn't get appstart category");
+            return rv;
+        }
+    }
+    
+    if (_rval)
+        *_rval = (mInitAtStartup == triYes);
+
+    return NS_OK;
+}
+
+/*
+ * The initAtStartup property controls whether or not we register the
+ * app start observer (jsdASObserver.)  We register for both 
+ * "xpcom-autoregistration" and "app-startup" notifications if |state| is true.
+ * the autoreg message is sent just before registration occurs (before
+ * "app-startup".)  We care about autoreg because it may load javascript
+ * components.  autoreg does *not* fire if components haven't changed since the
+ * last autoreg, so we watch "app-startup" as a fallback.
+ */
+NS_IMETHODIMP
+jsdService::SetInitAtStartup (PRBool state)
+{ 
+    nsresult rv;
+
+    if (mInitAtStartup == triUnknown) {
+        /* side effect sets mInitAtStartup */
+        rv = GetInitAtStartup(nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+    }
+
+    if (state && mInitAtStartup == triYes ||
+        !state && mInitAtStartup == triNo) {
+        /* already in the requested state */
+        return NS_OK;
+    }
+    
+    nsCOMPtr<nsICategoryManager>
+        categoryManager(do_GetService(NS_CATMAN_CTRID, &rv));
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (state) {
+        rv = categoryManager->AddCategoryEntry(AUTOREG_CATEGORY,
+                                               JSD_AUTOREG_ENTRY,
+                                               jsdARObserverCtrID,
+                                               PR_TRUE, PR_TRUE, nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+        rv = categoryManager->AddCategoryEntry(APPSTART_CATEGORY,
+                                               JSD_STARTUP_ENTRY,
+                                               jsdASObserverCtrID,
+                                               PR_TRUE, PR_TRUE, nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+        mInitAtStartup = triYes;
+    } else {
+        rv = categoryManager->DeleteCategoryEntry(AUTOREG_CATEGORY,
+                                                  JSD_AUTOREG_ENTRY, PR_TRUE);
+        if (NS_FAILED(rv))
+            return rv;
+        rv = categoryManager->DeleteCategoryEntry(APPSTART_CATEGORY,
+                                                  JSD_STARTUP_ENTRY, PR_TRUE);
+        if (NS_FAILED(rv))
+            return rv;
+        mInitAtStartup = triNo;
+    }
+
     return NS_OK;
 }
 
@@ -2455,9 +2442,11 @@ jsdService::SetFlags (PRUint32 flags)
 }
 
 NS_IMETHODIMP
-jsdService::GetImplementationString(nsACString &aImplementationString)
+jsdService::GetImplementationString(char **_rval)
 {
-    aImplementationString.AssignLiteral(implementationString);
+    *_rval = PL_strdup(implementationString);
+    if (!*_rval)
+        return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
 }
 
@@ -2485,12 +2474,6 @@ jsdService::GetIsOn (PRBool *_rval)
 NS_IMETHODIMP
 jsdService::On (void)
 {
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
-{
     nsresult  rv;
 
     /* get JS things from the CallContext */
@@ -2504,38 +2487,18 @@ jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
     JSContext *cx;
     rv = cc->GetJSContext (&cx);
     if (NS_FAILED(rv)) return rv;
-
-    mActivationCallback = activationCallback;
     
-    return xpc->SetDebugModeWhenPossible(PR_TRUE);
+    return OnForRuntime(JS_GetRuntime (cx));
+    
 }
 
 NS_IMETHODIMP
-jsdService::RecompileForDebugMode (JSRuntime *rt, JSBool mode) {
-  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
-
-  JSContext *cx;
-  JSContext *iter = NULL;
-
-  jsword currentThreadId = reinterpret_cast<jsword>(js_CurrentThreadId());
-
-  while ((cx = JS_ContextIterator (rt, &iter))) {
-    if (JS_GetContextThread(cx) == currentThreadId) {
-      JS_SetDebugMode(cx, mode);
-    }
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-jsdService::ActivateDebugger (JSRuntime *rt)
+jsdService::OnForRuntime (JSRuntime *rt)
 {
     if (mOn)
         return (rt == mRuntime) ? NS_OK : NS_ERROR_ALREADY_INITIALIZED;
 
     mRuntime = rt;
-    RecompileForDebugMode(rt, JS_TRUE);
 
     if (gLastGCProc == jsds_GCCallbackProc)
         /* condition indicates that the callback proc has not been set yet */
@@ -2585,10 +2548,6 @@ jsdService::ActivateDebugger (JSRuntime *rt)
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks installed.\n");
 #endif
-
-    if (mActivationCallback)
-        return mActivationCallback->OnDebuggerActivated();
-
     return NS_OK;
 }
 
@@ -2606,8 +2565,7 @@ jsdService::Off (void)
             return NS_ERROR_NOT_AVAILABLE;
 
         JSContext *cx = JSD_GetDefaultJSContext(mCx);
-        while (gDeadScripts)
-            jsds_NotifyPendingDeadScripts (cx);
+        jsds_NotifyPendingDeadScripts(cx);
     }
 
     /*
@@ -2640,13 +2598,6 @@ jsdService::Off (void)
     printf ("+++ JavaScript debugging hooks removed.\n");
 #endif
 
-    nsresult rv;
-    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
-    if (NS_FAILED(rv))
-        return rv;
-
-    xpc->SetDebugModeWhenPossible(PR_FALSE);
-
     return NS_OK;
 }
 
@@ -2672,7 +2623,6 @@ jsdService::Pause(PRUint32 *_rval)
         JSD_ClearDebugBreakHook (mCx);
         JSD_ClearTopLevelHook (mCx);
         JSD_ClearFunctionHook (mCx);
-        JSD_DebuggerPause (mCx);
     }
 
     if (_rval)
@@ -2694,7 +2644,6 @@ jsdService::UnPause(PRUint32 *_rval)
      * was turned off while we were paused.
      */
     if (--mPauseLevel == 0 && mOn) {
-        JSD_DebuggerUnpause (mCx);
         if (mErrorHook)
             JSD_SetErrorReporter (mCx, jsds_ErrorHookProc, NULL);
         if (mThrowHook)
@@ -2778,14 +2727,14 @@ jsdService::GC (void)
 }
     
 NS_IMETHODIMP
-jsdService::DumpHeap(const nsACString &fileName)
+jsdService::DumpHeap(const char* fileName)
 {
     ASSERT_VALID_CONTEXT;
 #ifndef DEBUG
     return NS_ERROR_NOT_IMPLEMENTED;
 #else
     nsresult rv = NS_OK;
-    FILE *file = !fileName.IsEmpty() ? fopen(PromiseFlatCString(fileName).get(), "w") : stdout;
+    FILE *file = fileName ? fopen(fileName, "w") : stdout;
     if (!file) {
         rv = NS_ERROR_FAILURE;
     } else {
@@ -3017,13 +2966,7 @@ jsdService::WrapValue(jsdIValue **_rval)
     if (NS_FAILED(rv))
         return rv;
 
-    return WrapJSValue(argv[0], _rval);
-}
-
-NS_IMETHODIMP
-jsdService::WrapJSValue(const jsval &value, jsdIValue** _rval)
-{
-    JSDValue *jsdv = JSD_NewValue(mCx, value);
+    JSDValue *jsdv = JSD_NewValue (mCx, argv[0]);
     if (!jsdv)
         return NS_ERROR_FAILURE;
     
@@ -3095,7 +3038,7 @@ jsdService::SetErrorHook (jsdIErrorHook *aHook)
     mErrorHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3139,7 +3082,7 @@ jsdService::SetDebugHook (jsdIExecutionHook *aHook)
     mDebugHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3167,7 +3110,7 @@ jsdService::SetDebuggerHook (jsdIExecutionHook *aHook)
     mDebuggerHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3195,7 +3138,7 @@ jsdService::SetInterruptHook (jsdIExecutionHook *aHook)
     mInterruptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3223,7 +3166,7 @@ jsdService::SetScriptHook (jsdIScriptHook *aHook)
     mScriptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3251,7 +3194,7 @@ jsdService::SetThrowHook (jsdIExecutionHook *aHook)
     mThrowHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3279,7 +3222,7 @@ jsdService::SetTopLevelHook (jsdICallHook *aHook)
     mTopLevelHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3307,7 +3250,7 @@ jsdService::SetFunctionHook (jsdICallHook *aHook)
     mFunctionHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * ActivateDebugger() method will do the rest when the coast is clear.
+     * OnForRuntime() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3400,36 +3343,21 @@ jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
     if (NS_FAILED(rv))
         return rv;
 
-    rv = jsds->ActivateDebugger(rt);
+    rv = jsds->OnForRuntime(rt);
     if (NS_FAILED(rv))
         return rv;
     
-    return NS_OK;
+    return jsds->SetFlags(JSD_DISABLE_OBJECT_TRACE);
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(jsdASObserver)
-NS_DEFINE_NAMED_CID(JSDSERVICE_CID);
-NS_DEFINE_NAMED_CID(JSDASO_CID);
 
-static const mozilla::Module::CIDEntry kJSDCIDs[] = {
-    { &kJSDSERVICE_CID, false, NULL, jsdServiceConstructor },
-    { &kJSDASO_CID, false, NULL, jsdASObserverConstructor },
-    { NULL }
+static const nsModuleComponentInfo components[] = {
+    {"JSDService", JSDSERVICE_CID,    jsdServiceCtrID, jsdServiceConstructor},
+    {"JSDASObserver",  JSDASO_CID, jsdARObserverCtrID, jsdASObserverConstructor}
 };
 
-static const mozilla::Module::ContractIDEntry kJSDContracts[] = {
-    { jsdServiceCtrID, &kJSDSERVICE_CID },
-    { jsdARObserverCtrID, &kJSDASO_CID },
-    { NULL }
-};
-
-static const mozilla::Module kJSDModule = {
-    mozilla::Module::kVersion,
-    kJSDCIDs,
-    kJSDContracts
-};
-
-NSMODULE_DEFN(JavaScript_Debugger) = &kJSDModule;
+NS_IMPL_NSGETMODULE(JavaScript_Debugger, components)
 
 /********************************************************************************
  ********************************************************************************

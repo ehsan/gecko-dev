@@ -5,7 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=397571
 -->
 <head>
   <title>Test for Bug 397571</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -115,17 +115,6 @@ ok(success, "shouldn't throw");
 var success = true;
 try {
   utils.focus(null);
-}
-catch(e) {
-  success = false;
-}
-ok(success, "shouldn't throw");
-
-// TEMPORARY workaround for leak bug 524037: send a mouseup event as
-// well so that we don't leak.
-var success = true;
-try {
-   utils.sendMouseEvent("mouseup", 0, 0, 0, 1, 0);
 }
 catch(e) {
   success = false;

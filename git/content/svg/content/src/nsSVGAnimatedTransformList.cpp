@@ -38,15 +38,62 @@
 
 #include "nsSVGAnimatedTransformList.h"
 #include "nsSVGTransformList.h"
+#include "nsSVGValue.h"
+#include "nsWeakReference.h"
 #include "nsContentUtils.h"
+
+////////////////////////////////////////////////////////////////////////
+// nsSVGAnimatedTransformList
+
+class nsSVGAnimatedTransformList : public nsIDOMSVGAnimatedTransformList,
+                                   public nsSVGValue,
+                                   public nsISVGValueObserver
+{  
+protected:
+  friend nsresult
+  NS_NewSVGAnimatedTransformList(nsIDOMSVGAnimatedTransformList** result,
+                                 nsIDOMSVGTransformList* baseVal);
+
+  nsSVGAnimatedTransformList();
+  ~nsSVGAnimatedTransformList();
+  void Init(nsIDOMSVGTransformList* baseVal);
+  
+public:
+  // nsISupports interface:
+  NS_DECL_ISUPPORTS
+
+  // nsIDOMSVGAnimatedTransformList interface:
+  NS_DECL_NSIDOMSVGANIMATEDTRANSFORMLIST
+
+  // remainder of nsISVGValue interface:
+  NS_IMETHOD SetValueString(const nsAString& aValue);
+  NS_IMETHOD GetValueString(nsAString& aValue);
+
+  // nsISVGValueObserver
+  NS_IMETHOD WillModifySVGObservable(nsISVGValue* observable,
+                                     modificationType aModType);
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     modificationType aModType);
+  
+  // nsISupportsWeakReference
+  // implementation inherited from nsSupportsWeakReference
+  
+protected:
+  nsCOMPtr<nsIDOMSVGTransformList> mBaseVal;
+};
+
 
 //----------------------------------------------------------------------
 // Implementation
 
+nsSVGAnimatedTransformList::nsSVGAnimatedTransformList()
+{
+}
+
 nsSVGAnimatedTransformList::~nsSVGAnimatedTransformList()
 {
   if (!mBaseVal) return;
-  nsCOMPtr<nsISVGValue> val = do_QueryInterface(mBaseVal);
+    nsCOMPtr<nsISVGValue> val = do_QueryInterface(mBaseVal);
   if (!val) return;
   val->RemoveObserver(this);
 }
@@ -67,14 +114,12 @@ nsSVGAnimatedTransformList::Init(nsIDOMSVGTransformList* baseVal)
 NS_IMPL_ADDREF(nsSVGAnimatedTransformList)
 NS_IMPL_RELEASE(nsSVGAnimatedTransformList)
 
-DOMCI_DATA(SVGAnimatedTransformList, nsSVGAnimatedTransformList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedTransformList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -101,7 +146,7 @@ nsSVGAnimatedTransformList::GetValueString(nsAString& aValue)
 
 /* readonly attribute nsIDOMSVGTransformList baseVal; */
 NS_IMETHODIMP
-nsSVGAnimatedTransformList::GetBaseVal(nsIDOMSVGTransformList** aBaseVal)
+nsSVGAnimatedTransformList::GetBaseVal(nsIDOMSVGTransformList * *aBaseVal)
 {
   *aBaseVal = mBaseVal;
   NS_ADDREF(*aBaseVal);
@@ -110,9 +155,9 @@ nsSVGAnimatedTransformList::GetBaseVal(nsIDOMSVGTransformList** aBaseVal)
 
 /* readonly attribute nsIDOMSVGTransformList animVal; */
 NS_IMETHODIMP
-nsSVGAnimatedTransformList::GetAnimVal(nsIDOMSVGTransformList** aAnimVal)
+nsSVGAnimatedTransformList::GetAnimVal(nsIDOMSVGTransformList * *aAnimVal)
 {
-  *aAnimVal = mAnimVal ? mAnimVal : mBaseVal;
+  *aAnimVal = mBaseVal;
   NS_ADDREF(*aAnimVal);
   return NS_OK;
 }
@@ -136,38 +181,13 @@ nsSVGAnimatedTransformList::DidModifySVGObservable (nsISVGValue* observable,
   return NS_OK;
 }
 
-//----------------------------------------------------------------------
-// Misc nsSVGAnimatedTransformList methods
-
-PRBool
-nsSVGAnimatedTransformList::IsExplicitlySet() const
-{
-  // XXX Dummy implementation until bug 602759 is fixed.
-  // Like other methods of this name, we need to know when a transform value has
-  // been explicitly set (either by markup, a DOM call, or animation).
-  // Given our current implementation, we can say that's the case so long as
-  // mBaseVal has something in it or mAnimVal exists.
-  // It's not quite right because, for example, if we have transform="" we
-  // should probably behave as if the value is set, but for now it will do until
-  // bug 602759 is fixed.
-  if (mAnimVal)
-    return PR_TRUE;
-
-  if (!mBaseVal)
-    return PR_FALSE;
-
-  PRUint32 numItems = 0;
-  nsIDOMSVGTransformList *list = mBaseVal.get();
-  list->GetNumberOfItems(&numItems);
-  return numItems > 0;
-}
 
 ////////////////////////////////////////////////////////////////////////
 // Exported creation functions:
 
 nsresult
 NS_NewSVGAnimatedTransformList(nsIDOMSVGAnimatedTransformList** result,
-                               nsIDOMSVGTransformList* baseVal)
+                      nsIDOMSVGTransformList* baseVal)
 {
   *result = nsnull;
   

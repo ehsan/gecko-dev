@@ -51,8 +51,8 @@ class nsHyperTextAccessibleWrap : public nsHyperTextAccessible,
                                   public CAccessibleEditableText
 {
 public:
-  nsHyperTextAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-    nsHyperTextAccessible(aContent, aShell) {}
+  nsHyperTextAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+    nsHyperTextAccessible(aNode, aShell){}
 
   // IUnknown
   DECL_IUNKNOWN_INHERITED
@@ -60,9 +60,8 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsAccessible
-  virtual nsresult HandleAccEvent(AccEvent* aEvent);
-
+  // nsIAccessible
+  NS_IMETHOD FireAccessibleEvent(nsIAccessibleEvent *aEvent);
 protected:
   virtual nsresult GetModifiedText(PRBool aGetInsertedText, nsAString& aText,
                                    PRUint32 *aStartOffset,

@@ -13,7 +13,7 @@
 #
 # The Original Code is mozilla.org build system.
 #
-# The Initial Developer of the Original Code is Mozilla Foundation
+# The Initial Developer of the Original Code is Mozilla Corporation
 # Portions created by the Initial Developer are Copyright (C) 2008
 # the Initial Developer. All Rights Reserved.
 #
@@ -48,8 +48,6 @@ MOCHI_TESTS = chrome/test_snav.xul \
               chrome/test_snav_tightlinks.xul \
               chrome/test_snav_disabledElement.xul \
               chrome/test_snav_selects.xul \
-              chrome/test_snav_prefDisabled.xul \
-              chrome/test_snav_prefKeyCode.xul \
               chrome/SpatialNavUtils.js \
               $(NULL)
 

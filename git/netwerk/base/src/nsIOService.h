@@ -42,7 +42,7 @@
 
 #include "nsString.h"
 #include "nsIIOService2.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsPISocketTransportService.h" 
 #include "nsPIDNSService.h" 
 #include "nsIProtocolProxyService2.h"
@@ -50,6 +50,7 @@
 #include "nsURLHelper.h"
 #include "nsWeakPtr.h"
 #include "nsIURLParser.h"
+#include "nsSupportsArray.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsINetUtil.h"
@@ -57,14 +58,15 @@
 #include "nsIContentSniffer.h"
 #include "nsCategoryCache.h"
 #include "nsINetworkLinkService.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 #define NS_N(x) (sizeof(x)/sizeof(*x))
 
-// We don't want to expose this observer topic.
-// Intended internal use only for remoting offline/inline events.
-// See Bug 552829
-#define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
+#ifdef NECKO_SMALL_BUFFERS
+#define NS_NECKO_BUFFER_CACHE_COUNT (10)  // Max holdings: 10 * 2k = 20k
+#else
+#define NS_NECKO_BUFFER_CACHE_COUNT (24)  // Max holdings: 24 * 4k = 96k
+#endif
+#define NS_NECKO_15_MINS (15 * 60)
 
 static const char gScheme[][sizeof("resource")] =
     {"chrome", "file", "http", "jar", "resource"};
@@ -75,6 +77,7 @@ class nsIPrefBranch2;
 class nsIOService : public nsIIOService2
                   , public nsIObserver
                   , public nsINetUtil
+                  , public nsINetUtil_MOZILLA_1_9_1
                   , public nsSupportsWeakReference
 {
 public:
@@ -83,6 +86,7 @@ public:
     NS_DECL_NSIIOSERVICE2
     NS_DECL_NSIOBSERVER
     NS_DECL_NSINETUTIL
+    NS_DECL_NSINETUTIL_MOZILLA_1_9_1
 
     // Gets the singleton instance of the IO Service, creating it as needed
     // Returns nsnull on out of memory or failure to initialize.
@@ -96,9 +100,8 @@ public:
 
     // Called by channels before a redirect happens. This notifies the global
     // redirect observers.
-    nsresult AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                                    PRUint32 flags,
-                                    nsAsyncRedirectVerifyHelper *helper);
+    nsresult OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+                               PRUint32 flags);
 
     // Gets the array of registered content sniffers
     const nsCOMArray<nsIContentSniffer>& GetContentSniffers() {
@@ -106,11 +109,6 @@ public:
     }
 
     PRBool IsOffline() { return mOffline; }
-    PRBool IsLinkUp();
-
-    PRBool IsComingOnline() const {
-      return mOffline && mSettingOffline && !mSetOfflineValue;
-    }
 
 private:
     // These shouldn't be called directly:
@@ -133,20 +131,10 @@ private:
     NS_HIDDEN_(void) GetPrefBranch(nsIPrefBranch2 **);
     NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, PRBool remove);
 
-    nsresult InitializeSocketTransportService();
-
 private:
     PRPackedBool                         mOffline;
     PRPackedBool                         mOfflineForProfileChange;
     PRPackedBool                         mManageOfflineStatus;
-
-    // Used to handle SetOffline() reentrancy.  See the comment in
-    // SetOffline() for more details.
-    PRPackedBool                         mSettingOffline;
-    PRPackedBool                         mSetOfflineValue;
-
-    PRPackedBool                         mShutdown;
-
     nsCOMPtr<nsPISocketTransportService> mSocketTransportService;
     nsCOMPtr<nsPIDNSService>             mDNSService;
     nsCOMPtr<nsIProtocolProxyService2>   mProxyService;
@@ -159,14 +147,12 @@ private:
     nsCategoryCache<nsIChannelEventSink> mChannelEventSinks;
     nsCategoryCache<nsIContentSniffer>   mContentSniffers;
 
-    nsTArray<PRInt32>                    mRestrictedPortList;
+    nsVoidArray                          mRestrictedPortList;
 
 public:
     // Necko buffer cache. Used for all default buffer sizes that necko
     // allocates.
     static nsIMemory *gBufferCache;
-    static PRUint32   gDefaultSegmentSize;
-    static PRUint32   gDefaultSegmentCount;
 };
 
 /**

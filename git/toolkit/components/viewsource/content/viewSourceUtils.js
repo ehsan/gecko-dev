@@ -110,7 +110,7 @@ var gViewSourceUtils = {
       if (uri.scheme == "file") {    
         // it's a local file; we can open it directly
         path = uri.QueryInterface(Components.interfaces.nsIFileURL).file.path;
-        editor.runw(false, [path], 1);
+        editor.run(false, [path], 1);
         this.handleCallBack(aCallBack, true, data);
       } else {
         // set up the progress listener with what we know so far
@@ -135,13 +135,9 @@ var gViewSourceUtils = {
                     .getService(Components.interfaces.nsPIExternalAppLauncher)
                     .deleteTemporaryFileOnExit(file);
         } else {
-          // we'll use nsIWebPageDescriptor to get the source because it may
-          // not have to refetch the file from the server
-          // XXXbz this is so broken...  This code doesn't set up this docshell
-          // at all correctly; if somehow the view-source stuff managed to
-          // execute script we'd be in big trouble here, I suspect.
-          var webShell = Components.classes["@mozilla.org/docshell;1"].createInstance();
-          webShell.QueryInterface(Components.interfaces.nsIBaseWindow).create();
+          // we'll use nsIWebPageDescriptor to get the source because it may not have to refetch
+          // the file from the server
+          var webShell = Components.classes["@mozilla.org/webshell;1"].createInstance();
           this.viewSourceProgressListener.webShell = webShell;
           var progress = webShell.QueryInterface(this.mnsIWebProgress);
           progress.addProgressListener(this.viewSourceProgressListener,
@@ -215,12 +211,11 @@ var gViewSourceUtils = {
     },
 
     destroy: function() {
-      this.webShell.QueryInterface(Components.interfaces.nsIBaseWindow).destroy();
-      this.webShell = null;
-      this.editor = null;
-      this.callBack = null;
-      this.data = null;
-      this.file = null;
+        this.webShell = null;
+        this.editor = null;
+        this.callBack = null;
+        this.data = null;
+        this.file = null;
     },
 
     onStateChange: function(aProgress, aRequest, aFlag, aStatus) {
@@ -272,7 +267,7 @@ var gViewSourceUtils = {
               editorArgs.push(RegExp.$1 || RegExp.$2);
           }
           editorArgs.push(this.file.path);
-          this.editor.runw(false, editorArgs, editorArgs.length);
+          this.editor.run(false, editorArgs, editorArgs.length);
 
           gViewSourceUtils.handleCallBack(this.callBack, true, this.data);
         } catch (ex) {
@@ -290,6 +285,7 @@ var gViewSourceUtils = {
     onProgressChange: function() {return 0;},
     onStatusChange: function() {return 0;},
     onSecurityChange: function() {return 0;},
+    onLinkIconAvailable: function() {return 0;},
 
     webShell: null,
     editor: null,

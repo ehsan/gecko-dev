@@ -63,6 +63,30 @@ MODULE_NAME	= nsSoftwareUpdate
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = base.pkg
+
+REQUIRES	= xpcom \
+		  string \
+		  jar \
+		  caps \
+		  content \
+		  necko \
+		  js \
+		  pref \
+		  widget \
+		  uriloader \
+		  xpconnect \
+		  dom \
+		  windowwatcher \
+		  appshell \
+		  docshell \
+		  layout \
+		  chrome \
+		  extensions \
+		  pipnss \
+		  pipboot \
+		  $(ZLIB_REQUIRES) \
+		  $(NULL)
 
 # XXX shouldn't need to export this
 EXPORTS		= nsXPITriggerInfo.h

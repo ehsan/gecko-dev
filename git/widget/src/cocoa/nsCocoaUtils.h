@@ -44,10 +44,30 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsRect.h"
+#include "nsIWidget.h"
 #include "nsObjCExceptions.h"
-#include "imgIContainer.h"
 
-class nsIWidget;
+// "Borrowed" in part from the QTKit framework's QTKitDefines.h.  This is
+// needed when building on OS X Tiger (10.4.X) or with a 10.4 SDK.  It won't
+// be used when building on Leopard (10.5.X) or higher (or with a 10.5 or
+// higher SDK).
+//
+// These definitions for NSInteger and NSUInteger are the 32-bit ones -- since
+// we assume we'll always be building 32-bit binaries when building on Tiger
+// (or with a 10.4 SDK).
+#ifndef NSINTEGER_DEFINED
+
+typedef int NSInteger;
+typedef unsigned int NSUInteger;
+
+#define NSIntegerMax    LONG_MAX
+#define NSIntegerMin    LONG_MIN
+#define NSUIntegerMax   ULONG_MAX
+
+#define NSINTEGER_DEFINED 1
+
+#endif  /* NSINTEGER_DEFINED */
+
 
 // Used to retain a Cocoa object for the remainder of a method's execution.
 class nsAutoRetainCocoaObject {
@@ -64,20 +84,6 @@ private:
   id mObject;  // [STRONG]
 };
 
-// Provide a local autorelease pool for the remainder of a method's execution.
-class nsAutoreleasePool {
-public:
-  nsAutoreleasePool()
-  {
-    mLocalPool = [[NSAutoreleasePool alloc] init];
-  }
-  ~nsAutoreleasePool()
-  {
-    [mLocalPool release];
-  }
-private:
-  NSAutoreleasePool *mLocalPool;
-};
 
 @interface NSApplication (Undocumented)
 
@@ -89,17 +95,7 @@ private:
 // cache" in order to deactivate it.  The "window cache" is an undocumented
 // subsystem, all of whose methods are included in the NSWindowCache category
 // of the NSApplication class (in header files generated using class-dump).
-// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
 - (void)_removeWindowFromCache:(NSWindow *)aWindow;
-
-// Send an event to the current Cocoa app-modal session.  Present in all
-// versions of OS X from (at least) 10.2.8 through 10.5.
-- (void)_modalSession:(NSModalSession)aSession sendEvent:(NSEvent *)theEvent;
-
-// Present (and documented) on OS X 10.6 and above.  Not present before 10.6.
-// This declaration needed to avoid compiler warnings when compiling on 10.5
-// and below (or using the 10.5 SDK and below).
-- (void)setHelpMenu:(NSMenu *)helpMenu;
 
 @end
 
@@ -119,63 +115,38 @@ class nsCocoaUtils
   // (NSRect) contain an origin (x,y) in a coordinate system with (0,0)
   // in the bottom-left of the primary screen. Both nsRect and NSRect
   // contain width/height info, with no difference in their use.
-  static NSRect GeckoRectToCocoaRect(const nsIntRect &geckoRect);
+  static NSRect GeckoRectToCocoaRect(const nsRect &geckoRect);
   
   // See explanation for geckoRectToCocoaRect, guess what this does...
-  static nsIntRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
+  static nsRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
   
   // Gives the location for the event in screen coordinates. Do not call this
   // unless the window the event was originally targeted at is still alive!
-  // anEvent may be nil -- in that case the current mouse location is returned.
   static NSPoint ScreenLocationForEvent(NSEvent* anEvent);
   
   // Determines if an event happened over a window, whether or not the event
   // is for the window. Does not take window z-order into account.
   static BOOL IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow);
-
+  
   // Events are set up so that their coordinates refer to the window to which they
   // were originally sent. If we reroute the event somewhere else, we'll have
   // to get the window coordinates this way. Do not call this unless the window
   // the event was originally targeted at is still alive!
   static NSPoint EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow);
-
-  // Hides the Menu bar and the Dock. Multiple hide/show requests can be nested.
-  static void HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen);
+  
+  // Finds the foremost window that is under the mouse for the current application.
+  static NSWindow* FindWindowUnderPoint(NSPoint aPoint);
 
   static nsIWidget* GetHiddenWindowWidget();
 
   static void PrepareForNativeAppModalDialog();
   static void CleanUpAfterNativeAppModalDialog();
 
-  // 3 utility functions to go from a frame of imgIContainer to CGImage and then to NSImage
-  // Convert imgIContainer -> CGImageRef, caller owns result
-  
-  /** Creates a <code>CGImageRef</code> from a frame contained in an <code>imgIContainer</code>.
-      Copies the pixel data from the indicated frame of the <code>imgIContainer</code> into a new <code>CGImageRef</code>.
-      The caller owns the <code>CGImageRef</code>. 
-      @param aFrame the frame to convert
-      @param aResult the resulting CGImageRef
-      @return NS_OK if the conversion worked, NS_ERROR_FAILURE otherwise
-   */
-  static nsresult CreateCGImageFromSurface(gfxImageSurface *aFrame, CGImageRef *aResult);
-  
-  /** Creates a Cocoa <code>NSImage</code> from a <code>CGImageRef</code>.
-      Copies the pixel data from the <code>CGImageRef</code> into a new <code>NSImage</code>.
-      The caller owns the <code>NSImage</code>. 
-      @param aInputImage the image to convert
-      @param aResult the resulting NSImage
-      @return NS_OK if the conversion worked, NS_ERROR_FAILURE otherwise
-   */
-  static nsresult CreateNSImageFromCGImage(CGImageRef aInputImage, NSImage **aResult);
-
-  /** Creates a Cocoa <code>NSImage</code> from a frame of an <code>imgIContainer</code>.
-      Combines the two methods above. The caller owns the <code>NSImage</code>.
-      @param aImage the image to extract a frame from
-      @param aWhichFrame the frame to extract (see imgIContainer FRAME_*)
-      @param aResult the resulting NSImage
-      @return NS_OK if the conversion worked, NS_ERROR_FAILURE otherwise
-   */  
-  static nsresult CreateNSImageFromImageContainer(imgIContainer *aImage, PRUint32 aWhichFrame, NSImage **aResult);
+  // Wrap calls to [theEvent keyCode] and [theEvent modifierFlags].  Needed to
+  // work around an Apple bug (on OS X 10.4.X) that causes ctrl-ESC key events
+  // sent via performKeyEquivalent: to return 0 on these calls.
+  static unsigned short GetCocoaEventKeyCode(NSEvent *theEvent);
+  static NSUInteger GetCocoaEventModifierFlags(NSEvent *theEvent);
 };
 
 #endif // nsCocoaUtils_h_

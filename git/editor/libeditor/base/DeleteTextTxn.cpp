@@ -54,19 +54,6 @@ DeleteTextTxn::DeleteTextTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(DeleteTextTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DeleteTextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DeleteTextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DeleteTextTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP DeleteTextTxn::Init(nsIEditor *aEditor,
                                   nsIDOMCharacterData *aElement,
                                   PRUint32 aOffset,
@@ -107,7 +94,7 @@ NS_IMETHODIMP DeleteTextTxn::DoTransaction(void)
   nsresult result = mElement->SubstringData(mOffset, mNumCharsToDelete, mDeletedText);
   NS_ASSERTION(NS_SUCCEEDED(result), "could not get text to delete.");
   result = mElement->DeleteData(mOffset, mNumCharsToDelete);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   if (mRangeUpdater) 
     mRangeUpdater->SelAdjDeleteText(mElement, mOffset, mNumCharsToDelete);
@@ -119,8 +106,8 @@ NS_IMETHODIMP DeleteTextTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!selection) return NS_ERROR_NULL_POINTER;
     result = selection->Collapse(mElement, mOffset);
     NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after undo of deletetext.");
   }

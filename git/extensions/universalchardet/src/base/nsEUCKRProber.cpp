@@ -41,7 +41,7 @@ void  nsEUCKRProber::Reset(void)
 {
   mCodingSM->Reset(); 
   mState = eDetecting;
-  mDistributionAnalyser.Reset(mIsPreferredLanguage);
+  mDistributionAnalyser.Reset();
   //mContextAnalyser.Reset();
 }
 

@@ -47,11 +47,6 @@
 #include "nsIDOMElement.h"
 #include "nsCycleCollectionParticipant.h"
 
-#include "nsAutoPtr.h"
-#include "nsIFile.h"
-#include "nsILocalFile.h"
-#include "nsDOMFile.h"
-
 class nsITransferable;
 
 /**
@@ -79,7 +74,6 @@ public:
 
   friend class nsDOMDragEvent;
   friend class nsEventStateManager;
-  friend class nsContentUtils;
 
 protected:
 
@@ -93,15 +87,13 @@ protected:
   // that was started without using a data transfer, either an external drag,
   // that is, a drag where the source is another application, or a drag
   // started by calling the drag service directly.
-  nsDOMDataTransfer(PRUint32 aEventType);
+  nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction);
 
   // this constructor is used only by the Clone method to copy the fields as
   // needed to a new data transfer.
   nsDOMDataTransfer(PRUint32 aEventType,
                     const PRUint32 aEffectAllowed,
-                    PRBool aCursorState,
                     PRBool aIsExternal,
-                    PRBool aUserCancelled,
                     nsTArray<nsTArray<TransferItem> >& aItems,
                     nsIDOMElement* aDragImage,
                     PRUint32 aDragImageX,
@@ -174,9 +166,6 @@ protected:
   PRUint32 mDropEffect;
   PRUint32 mEffectAllowed;
 
-  // Indicates the behavior of the cursor during drag operations
-  PRPackedBool mCursorState;
-
   // readonly data transfers may not be modified except the drop effect and
   // effect allowed.
   PRPackedBool mReadOnly;
@@ -185,14 +174,8 @@ protected:
   // another application.
   PRPackedBool mIsExternal;
 
-  // true if the user cancelled the drag. Used only for the dragend event.
-  PRPackedBool mUserCancelled;
-
   // array of items, each containing an array of format->data pairs
   nsTArray<nsTArray<TransferItem> > mItems;
-
-  // array of files, containing only the files present in the dataTransfer
-  nsRefPtr<nsDOMFileList> mFiles;
 
   // the target of the drag. The drag and dragend events will fire at this.
   nsCOMPtr<nsIDOMElement> mDragTarget;

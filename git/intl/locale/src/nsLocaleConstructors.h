@@ -41,14 +41,14 @@
 
 #include "nsCollationCID.h"
 #include "nsDateTimeFormatCID.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsILocaleService.h"
 #include "nsIScriptableDateFormat.h"
 #include "nsIServiceManager.h"
 #include "nsLanguageAtomService.h"
 #include "nsLocaleCID.h"
 
-#if defined(XP_MACOSX)
+#if defined(XP_MAC) || defined(XP_MACOSX)
 #define USE_MAC_LOCALE
 #endif
 
@@ -69,7 +69,11 @@
 #endif
 
 #ifdef USE_MAC_LOCALE
+#ifdef USE_UCCOLLATIONKEY
 #include "nsCollationMacUC.h"
+#else
+#include "nsCollationMac.h"
+#endif
 #include "nsDateTimeFormatMac.h"
 #include "nsMacLocale.h"
 #endif
@@ -81,7 +85,7 @@
 #endif
 
 #define NSLOCALE_MAKE_CTOR(ctor_, iface_, func_)          \
-static nsresult                                           \
+static NS_IMETHODIMP                                      \
 ctor_(nsISupports* aOuter, REFNSIID aIID, void** aResult) \
 {                                                         \
   *aResult = nsnull;                                      \
@@ -117,7 +121,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDateTimeFormatUnix)
 
 #ifdef USE_MAC_LOCALE
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacLocale)
+#ifdef USE_UCCOLLATIONKEY 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCollationMacUC)
+#else
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsCollationMac)
+#endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDateTimeFormatMac)
 #endif  
 

@@ -3,7 +3,9 @@
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css" type="text/css"?>
 
 <window title="Panel Focus Tests"
-        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  onload="setTimeout(showPanel, 0)"
+  xmlns:html="http://www.w3.org/1999/xhtml"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <script type="application/javascript"
           src="chrome://mochikit/content/MochiKit/packed.js"/>
@@ -118,8 +120,6 @@ function noautofocusPanelHidden()
   window.close();
   window.opener.wrappedJSObject.SimpleTest.finish();
 }
-
-window.opener.wrappedJSObject.SimpleTest.waitForFocus(showPanel, window);
 
 ]]>
 </script>

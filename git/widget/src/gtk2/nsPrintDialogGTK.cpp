@@ -57,13 +57,46 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
-#include "WidgetUtils.h"
-
-using namespace mozilla::widget;
 
 static const char header_footer_tags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 
 #define CUSTOM_VALUE_INDEX NS_ARRAY_LENGTH(header_footer_tags)
+
+// XXXdholbert Duplicated from widget/src/xpwidgets/nsBaseFilePicker.cpp
+// Needs to be unified in some generic utility class.
+static nsIWidget *
+DOMWindowToWidget(nsIDOMWindow *dw)
+{
+  nsCOMPtr<nsIWidget> widget;
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(dw);
+  if (window) {
+    nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(window->GetDocShell()));
+
+    while (!widget && baseWin) {
+      baseWin->GetParentWidget(getter_AddRefs(widget));
+      if (!widget) {
+        nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(baseWin));
+        if (!docShellAsItem)
+          return nsnull;
+
+        nsCOMPtr<nsIDocShellTreeItem> parent;
+        docShellAsItem->GetSameTypeParent(getter_AddRefs(parent));
+
+        window = do_GetInterface(parent);
+        if (!window)
+          return nsnull;
+
+        baseWin = do_QueryInterface(window->GetDocShell());
+      }
+    }
+  }
+
+  // This will return a pointer that we're about to release, but
+  // that's ok since the docshell (nsIBaseWindow) holds the widget
+  // alive.
+  return widget.get();
+}
 
 // XXXdholbert Duplicated from widget/src/gtk2/nsFilePicker.cpp
 // Needs to be unified in some generic utility class.
@@ -98,25 +131,20 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
     return;
   }
 
-  GtkWindow* printDialog = GTK_WINDOW(user_data);
   nsCOMPtr<nsIStringBundleService> bundleSvc =
        do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
   nsCOMPtr<nsIStringBundle> printBundle;
-  bundleSvc->CreateBundle("chrome://global/locale/printdialog.properties", getter_AddRefs(printBundle));
+  bundleSvc->CreateBundle("chrome://global/locale/gnomeprintdialog.properties", getter_AddRefs(printBundle));
   nsXPIDLString intlString;
 
   printBundle->GetStringFromName(NS_LITERAL_STRING("headerFooterCustom").get(), getter_Copies(intlString));
-  GtkWidget* prompt_dialog = gtk_dialog_new_with_buttons(NS_ConvertUTF16toUTF8(intlString).get(), printDialog,
-                                                         (GtkDialogFlags)(GTK_DIALOG_MODAL | GTK_DIALOG_NO_SEPARATOR),
+  GtkWidget* prompt_dialog = gtk_dialog_new_with_buttons(NS_ConvertUTF16toUTF8(intlString).get(), NULL,
+                                                         GTK_DIALOG_MODAL,
                                                          GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
                                                          GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
                                                          NULL);
   gtk_dialog_set_default_response(GTK_DIALOG(prompt_dialog), GTK_RESPONSE_ACCEPT);
-  gtk_dialog_set_alternative_button_order(GTK_DIALOG(prompt_dialog),
-                                          GTK_RESPONSE_ACCEPT,
-                                          GTK_RESPONSE_REJECT,
-                                          -1);
 
   printBundle->GetStringFromName(NS_LITERAL_STRING("customHeaderFooterPrompt").get(), getter_Copies(intlString));
   GtkWidget* custom_label = gtk_label_new(NS_ConvertUTF16toUTF8(intlString).get());
@@ -130,7 +158,6 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
     gtk_entry_set_text(GTK_ENTRY(custom_entry), current_text);
     gtk_editable_select_region(GTK_EDITABLE(custom_entry), 0, -1);
   }
-  gtk_entry_set_activates_default(GTK_ENTRY(custom_entry), TRUE);
 
   GtkWidget* custom_vbox = gtk_vbox_new(TRUE, 2);
   gtk_box_pack_start(GTK_BOX(custom_vbox), custom_label, FALSE, FALSE, 0);
@@ -142,7 +169,7 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
   gtk_widget_show_all(custom_hbox);
 
   gtk_box_pack_start(GTK_BOX(GTK_DIALOG(prompt_dialog)->vbox), custom_hbox, FALSE, FALSE, 0);
-  gint diag_response = RunDialog(GTK_DIALOG(prompt_dialog));
+  gint diag_response = gtk_dialog_run(GTK_DIALOG(prompt_dialog));
 
   if (diag_response == GTK_RESPONSE_ACCEPT) {
     const gchar* response_text = gtk_entry_get_text(GTK_ENTRY(custom_entry));
@@ -181,8 +208,6 @@ class nsPrintDialogWidgetGTK {
 
     nsCOMPtr<nsIStringBundle> printBundle;
 
-    PRPackedBool useNativeSelection;
-
     GtkWidget* ConstructHeaderFooterDropdown(const PRUnichar *currentString);
     const char* OptionWidgetToString(GtkWidget *dropdown);
 
@@ -197,15 +222,13 @@ class nsPrintDialogWidgetGTK {
 
 nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
 {
-  nsCOMPtr<nsIWidget> widget = WidgetUtils::DOMWindowToWidget(aParent);
-  NS_ASSERTION(widget, "Need a widget for dialog to be modal.");
-  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(widget);
+  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(DOMWindowToWidget(aParent));
   NS_ASSERTION(gtkParent, "Need a GTK window for dialog to be modal.");
 
   nsCOMPtr<nsIStringBundleService> bundleSvc = do_GetService(NS_STRINGBUNDLE_CONTRACTID);
-  bundleSvc->CreateBundle("chrome://global/locale/printdialog.properties", getter_AddRefs(printBundle));
+  bundleSvc->CreateBundle("chrome://global/locale/gnomeprintdialog.properties", getter_AddRefs(printBundle));
 
-  dialog = gtk_print_unix_dialog_new(GetUTF8FromBundle("printTitleGTK").get(), gtkParent);
+  dialog = gtk_print_unix_dialog_new(GetUTF8FromBundle("printTitle").get(), gtkParent);
 
   gtk_print_unix_dialog_set_manual_capabilities(GTK_PRINT_UNIX_DIALOG(dialog),
                     GtkPrintCapabilities(
@@ -214,8 +237,6 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
                       | GTK_PRINT_CAPABILITY_COLLATE
                       | GTK_PRINT_CAPABILITY_REVERSE
                       | GTK_PRINT_CAPABILITY_SCALE
-                      | GTK_PRINT_CAPABILITY_GENERATE_PDF
-                      | GTK_PRINT_CAPABILITY_GENERATE_PS
                     )
                   );
 
@@ -223,7 +244,7 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
   // the set_border_width below, 12px matches that of just about every other window.
   GtkWidget* custom_options_tab = gtk_vbox_new(FALSE, 0);
   gtk_container_set_border_width(GTK_CONTAINER(custom_options_tab), 12);
-  GtkWidget* tab_label = gtk_label_new(GetUTF8FromBundle("optionsTabLabelGTK").get());
+  GtkWidget* tab_label = gtk_label_new(GetUTF8FromBundle("optionsTabLabel").get());
 
   PRInt16 frameUIFlag;
   aSettings->GetHowToEnableFrameUI(&frameUIFlag);
@@ -244,7 +265,7 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
 
   // "Print Frames" options label, bold and center-aligned
   GtkWidget* print_frames_label = gtk_label_new(NULL);
-  char* pangoMarkup = g_markup_printf_escaped("<b>%s</b>", GetUTF8FromBundle("printFramesTitleGTK").get());
+  char* pangoMarkup = g_markup_printf_escaped("<b>%s</b>", GetUTF8FromBundle("printFramesTitle").get());
   gtk_label_set_markup(GTK_LABEL(print_frames_label), pangoMarkup);
   g_free(pangoMarkup);
   gtk_misc_set_alignment(GTK_MISC(print_frames_label), 0, 0);
@@ -263,26 +284,14 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
   // Check buttons for shrink-to-fit and print selection
   GtkWidget* check_buttons_container = gtk_vbox_new(TRUE, 2);
   shrink_to_fit_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("shrinkToFit").get());
-  gtk_box_pack_start(GTK_BOX(check_buttons_container), shrink_to_fit_toggle, FALSE, FALSE, 0);
-
-  // GTK+2.18 and above allow us to add a "Selection" option to the main settings screen,
-  // rather than adding an option on a custom tab like we must do on older versions.
+  selection_only_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("selectionOnly").get());
   PRBool canSelectText;
   aSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB, &canSelectText);
-  if (gtk_major_version > 2 ||
-      (gtk_major_version == 2 && gtk_minor_version >= 18)) {
-    useNativeSelection = PR_TRUE;
-    g_object_set(G_OBJECT(dialog),
-                 "support-selection", TRUE,
-                 "has-selection", canSelectText,
-                 "embed-page-setup", TRUE,
-                 NULL);
-  } else {
-    useNativeSelection = PR_FALSE;
-    selection_only_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("selectionOnly").get());
-    gtk_widget_set_sensitive(selection_only_toggle, canSelectText);
-    gtk_box_pack_start(GTK_BOX(check_buttons_container), selection_only_toggle, FALSE, FALSE, 0);
-  }
+  if (!canSelectText)
+    gtk_widget_set_sensitive(selection_only_toggle, FALSE);
+
+  gtk_box_pack_start(GTK_BOX(check_buttons_container), shrink_to_fit_toggle, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(check_buttons_container), selection_only_toggle, FALSE, FALSE, 0);
 
   // Check buttons for printing background
   GtkWidget* appearance_buttons_container = gtk_vbox_new(TRUE, 2);
@@ -493,14 +502,7 @@ nsPrintDialogWidgetGTK::ExportSettings(nsIPrintSettings *aNSSettings)
       aNSSettingsGTK->SetGtkPrintSettings(settings);
       aNSSettingsGTK->SetGtkPageSetup(setup);
       aNSSettingsGTK->SetGtkPrinter(printer);
-      PRBool printSelectionOnly;
-      if (useNativeSelection) {
-        _GtkPrintPages pageSetting = (_GtkPrintPages)gtk_print_settings_get_print_pages(settings);
-        printSelectionOnly = (pageSetting == _GTK_PRINT_PAGES_SELECTION);
-      } else {
-        printSelectionOnly = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(selection_only_toggle));
-      }
-      aNSSettingsGTK->SetForcePrintSelectionOnly(printSelectionOnly);
+      aNSSettingsGTK->SetForcePrintSelectionOnly(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(selection_only_toggle)));
     }
   }
 
@@ -541,7 +543,7 @@ nsPrintDialogWidgetGTK::ConstructHeaderFooterDropdown(const PRUnichar *currentSt
     g_object_set_data_full(G_OBJECT(dropdown), "custom-text", custom_string, (GDestroyNotify) free);
   }
 
-  g_signal_connect(dropdown, "changed", (GCallback) ShowCustomDialog, dialog);
+  g_signal_connect(dropdown, "changed", (GCallback) ShowCustomDialog, NULL);
   return dropdown;
 }
 
@@ -562,8 +564,7 @@ nsPrintDialogServiceGTK::Init()
 }
 
 NS_IMETHODIMP
-nsPrintDialogServiceGTK::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
-                              nsIWebBrowserPrint *aWebBrowserPrint)
+nsPrintDialogServiceGTK::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
 {
   NS_PRECONDITION(aParent, "aParent must not be null");
   NS_PRECONDITION(aSettings, "aSettings must not be null");
@@ -604,9 +605,7 @@ nsPrintDialogServiceGTK::ShowPageSetup(nsIDOMWindow *aParent,
   NS_PRECONDITION(aNSSettings, "aSettings must not be null");
   NS_ENSURE_TRUE(aNSSettings, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIWidget> widget = WidgetUtils::DOMWindowToWidget(aParent);
-  NS_ASSERTION(widget, "Need a widget for dialog to be modal.");
-  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(widget);
+  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(DOMWindowToWidget(aParent));
   NS_ASSERTION(gtkParent, "Need a GTK window for dialog to be modal.");
 
   nsCOMPtr<nsPrintSettingsGTK> aNSSettingsGTK(do_QueryInterface(aNSSettings));

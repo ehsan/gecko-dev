@@ -46,79 +46,46 @@ class nsSVGString
 
 public:
   void Init(PRUint8 aAttrEnum) {
-    mAnimVal = nsnull;
+    mAnimVal.Truncate();
+    mBaseVal.Truncate();
     mAttrEnum = aAttrEnum;
   }
 
   void SetBaseValue(const nsAString& aValue,
                     nsSVGElement *aSVGElement,
                     PRBool aDoSetAttr);
-  void GetBaseValue(nsAString& aValue, nsSVGElement *aSVGElement) const
-    { aSVGElement->GetStringBaseValue(mAttrEnum, aValue); }
-
-  void SetAnimValue(const nsAString& aValue, nsSVGElement *aSVGElement);
-  void GetAnimValue(nsAString& aValue, const nsSVGElement *aSVGElement) const;
+  const nsString &GetBaseValue() const
+    { return mBaseVal; }
+  const nsString &GetAnimValue() const
+    { return mAnimVal; }
 
   nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
-                               nsSVGElement *aSVGElement);
-#ifdef MOZ_SMIL
-  // Returns a new nsISMILAttr object that the caller must delete
-  nsISMILAttr* ToSMILAttr(nsSVGElement *aSVGElement);
-#endif // MOZ_SMIL
+                               nsSVGElement* aSVGElement);
 
 private:
 
-  nsAutoPtr<nsString> mAnimVal;
+  nsString mAnimVal;
+  nsString mBaseVal;
   PRUint8 mAttrEnum; // element specified tracking for attribute
 
-public:
   struct DOMAnimatedString : public nsIDOMSVGAnimatedString
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedString)
+    NS_DECL_ISUPPORTS
 
-    DOMAnimatedString(nsSVGString *aVal, nsSVGElement *aSVGElement)
+    DOMAnimatedString(nsSVGString* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
 
     nsSVGString* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
 
     NS_IMETHOD GetBaseVal(nsAString & aResult)
-      { mVal->GetBaseValue(aResult, mSVGElement); return NS_OK; }
+      { aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(const nsAString & aValue)
       { mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE); return NS_OK; }
 
     NS_IMETHOD GetAnimVal(nsAString & aResult)
-    { 
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      mVal->GetAnimValue(aResult, mSVGElement); return NS_OK;
-    }
+      { aResult = mVal->GetAnimValue(); return NS_OK; }
 
   };
-#ifdef MOZ_SMIL
-  struct SMILString : public nsISMILAttr
-  {
-  public:
-    SMILString(nsSVGString *aVal, nsSVGElement *aSVGElement)
-      : mVal(aVal), mSVGElement(aSVGElement) {}
-
-    // These will stay alive because a nsISMILAttr only lives as long
-    // as the Compositing step, and DOM elements don't get a chance to
-    // die during that.
-    nsSVGString* mVal;
-    nsSVGElement* mSVGElement;
-
-    // nsISMILAttr methods
-    virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const nsISMILAnimationElement *aSrcElement,
-                                     nsSMILValue& aValue,
-                                     PRBool& aPreventCachingOfSandwich) const;
-    virtual nsSMILValue GetBaseValue() const;
-    virtual void ClearAnimValue();
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
-  };
-#endif // MOZ_SMIL
 };
 #endif //__NS_SVGSTRING_H__

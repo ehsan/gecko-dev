@@ -134,10 +134,9 @@ protected:
   // delimiters.
   static inline nsresult AppendProfileString(nsIFile* aFile, const char* aPath);
 
-  // Calculate and register extension and theme bundle directories.
-  void LoadExtensionBundleDirectories();
-
-  // Calculate and register app-bundled extension directories.
+  // Calculate all bundle directories, including distribution bundles,
+  // extensions, and themes
+  void LoadBundleDirectories();
   void LoadAppBundleDirs();
 
   void Append(nsIFile* aDirectory);
@@ -148,6 +147,7 @@ protected:
   nsCOMPtr<nsIFile>      mProfileDir;
   nsCOMPtr<nsIFile>      mProfileLocalDir;
   PRPackedBool           mProfileNotified;
+  PRPackedBool           mExtensionsLoaded;
   nsCOMArray<nsIFile>    mAppBundleDirectories;
   nsCOMArray<nsIFile>    mExtensionDirectories;
   nsCOMArray<nsIFile>    mThemeDirectories;

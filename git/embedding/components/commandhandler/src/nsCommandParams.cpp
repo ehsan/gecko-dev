@@ -167,7 +167,7 @@ NS_IMETHODIMP nsCommandParams::GetCStringValue(const char * name, char **_retval
   if (foundEntry && foundEntry->mEntryType == eStringType)
   {
     NS_ASSERTION(foundEntry->mData.mCString, "Null string");
-    *_retval = ToNewCString(*foundEntry->mData.mCString);
+    *_retval= nsCRT::strdup((*foundEntry->mData.mCString).get());
     return NS_OK;
   }
   
@@ -421,7 +421,7 @@ nsCommandParams::GetNext(char **_retval)
   if (!thisEntry)
     return NS_ERROR_FAILURE;
   
-  *_retval = ToNewCString(thisEntry->mEntryName);
+  *_retval = nsCRT::strdup(thisEntry->mEntryName.get());
   mCurEntry++;
   return NS_OK;
 }

@@ -50,8 +50,8 @@ class nsSVGRectElement : public nsSVGRectElementBase,
 {
 protected:
   friend nsresult NS_NewSVGRectElement(nsIContent **aResult,
-                                       already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGRectElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                       nsINodeInfo *aNodeInfo);
+  nsSVGRectElement(nsINodeInfo* aNodeInfo);
 
 public:
   // interfaces:
@@ -68,7 +68,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual LengthAttributesInfo GetLengthInfo();
@@ -96,18 +95,18 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Rect)
 NS_IMPL_ADDREF_INHERITED(nsSVGRectElement,nsSVGRectElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGRectElement,nsSVGRectElementBase)
 
-DOMCI_NODE_DATA(SVGRectElement, nsSVGRectElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGRectElement)
-  NS_NODE_INTERFACE_TABLE4(nsSVGRectElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGRectElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRectElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGRectElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRectElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRectElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGRectElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGRectElement::nsSVGRectElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGRectElement::nsSVGRectElement(nsINodeInfo *aNodeInfo)
   : nsSVGRectElementBase(aNodeInfo)
 {
 }
@@ -178,26 +177,14 @@ nsSVGRectElement::ConstructPath(gfxContext *aCtx)
 
   /* In a perfect world, this would be handled by the DOM, and
      return a DOM exception. */
-  if (width <= 0 || height <= 0)
+  if (width <= 0 || height <= 0 || ry < 0 || rx < 0)
     return;
-
-  rx = NS_MAX(rx, 0.0f);
-  ry = NS_MAX(ry, 0.0f);
 
   /* optimize the no rounded corners case */
   if (rx == 0 && ry == 0) {
     aCtx->Rectangle(gfxRect(x, y, width, height));
     return;
   }
-
-  /* If either the 'rx' or the 'ry' attribute isn't set, then we
-     have to set it to the value of the other. */
-  PRBool hasRx = mLengthAttributes[RX].IsExplicitlySet();
-  PRBool hasRy = mLengthAttributes[RY].IsExplicitlySet();
-  if (hasRx && !hasRy)
-    ry = rx;
-  else if (hasRy && !hasRx)
-    rx = ry;
 
   /* Clamp rx and ry to half the rect's width and height respectively. */
   float halfWidth  = width/2;
@@ -207,7 +194,55 @@ nsSVGRectElement::ConstructPath(gfxContext *aCtx)
   if (ry > halfHeight)
     ry = halfHeight;
 
-  gfxSize corner(rx, ry);
-  aCtx->RoundedRectangle(gfxRect(x, y, width, height),
-                         gfxCornerSizes(corner, corner, corner, corner));
+  /* If either the 'rx' or the 'ry' attribute isn't set in the markup, then we
+     have to set it to the value of the other. We do this after clamping rx and
+     ry since omitting one of the attributes implicitly means they should both
+     be the same. */
+  PRBool hasRx = HasAttr(kNameSpaceID_None, nsGkAtoms::rx);
+  PRBool hasRy = HasAttr(kNameSpaceID_None, nsGkAtoms::ry);
+  if (hasRx && !hasRy)
+    ry = rx;
+  else if (hasRy && !hasRx)
+    rx = ry;
+
+  /* However, we may now have made rx > width/2 or else ry > height/2. (If this
+     is the case, we know we must be giving rx and ry the same value.) */
+  if (rx > halfWidth)
+    rx = ry = halfWidth;
+  else if (ry > halfHeight)
+    rx = ry = halfHeight;
+
+  // Conversion factor used for ellipse to bezier conversion.
+  // Gives radial error of 0.0273% in circular case.
+  // See comp.graphics.algorithms FAQ 4.04
+  const float magic = 4*(sqrt(2.)-1)/3;
+  const float magic_x = magic*rx;
+  const float magic_y = magic*ry;
+
+  aCtx->MoveTo(gfxPoint(x + rx, y));
+  aCtx->LineTo(gfxPoint(x + width - rx, y));
+
+  aCtx->CurveTo(gfxPoint(x + width - rx + magic_x, y),
+                gfxPoint(x + width, y + ry - magic_y),
+                gfxPoint(x + width, y + ry));
+
+  aCtx->LineTo(gfxPoint(x + width, y + height - ry));
+
+  aCtx->CurveTo(gfxPoint(x + width, y + height - ry + magic_y),
+                gfxPoint(x + width - rx + magic_x, y+height),
+                gfxPoint(x + width - rx, y + height));
+
+  aCtx->LineTo(gfxPoint(x + rx, y + height));
+
+  aCtx->CurveTo(gfxPoint(x + rx - magic_x, y + height),
+                gfxPoint(x, y + height - ry + magic_y),
+                gfxPoint(x, y + height - ry));
+
+  aCtx->LineTo(gfxPoint(x, y + ry));
+
+  aCtx->CurveTo(gfxPoint(x, y + ry - magic_y),
+                gfxPoint(x + rx - magic_x, y),
+                gfxPoint(x + rx, y));
+
+  aCtx->ClosePath();
 }

@@ -50,8 +50,6 @@ menulist {
   -moz-appearance: menulist;
   margin: 2px 4px;
   color: -moz-DialogText;
-  font: menu;
-  text-shadow: none;
 }
 
 .menulist-label-box {
@@ -125,7 +123,6 @@ html|*.menulist-editable-input {
   -moz-box-align: center;
   -moz-box-pack: center;
   margin: 0;
-  border: 2px solid;
   -moz-border-top-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-right-colors: ThreeDDarkShadow ThreeDShadow;
   -moz-border-bottom-colors: ThreeDDarkShadow ThreeDShadow;
@@ -141,7 +138,7 @@ html|*.menulist-editable-input {
 
 .menulist-compact > .menulist-label-box > .menulist-label {
   margin: 0 3px !important;
-  text-align: end;
+  text-align: right;
 }  
 
 .menulist-compact > .menulist-label-box > .menulist-icon {

@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIFrame.h"
+
 #include <QApplication>
 #include <QStyle>
 #include <QPalette>
@@ -48,8 +50,6 @@
 #include <QStyleOptionButton>
 #include <QFlags>
 #include <QStyleOptionComboBox>
-
-#include "nsIFrame.h"
 
 #include "nsCoord.h"
 #include "nsNativeThemeQt.h"
@@ -69,11 +69,7 @@
 
 #include "gfxASurface.h"
 #include "gfxContext.h"
-#include "gfxQtPlatform.h"
 #include "gfxQPainterSurface.h"
-#ifdef MOZ_X11
-#include "gfxXlibSurface.h"
-#endif
 #include "nsIRenderingContext.h"
 
 nsNativeThemeQt::nsNativeThemeQt()
@@ -86,7 +82,7 @@ nsNativeThemeQt::~nsNativeThemeQt()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsNativeThemeQt, nsNativeTheme, nsITheme)
+NS_IMPL_ISUPPORTS1(nsNativeThemeQt, nsITheme)
 
 static inline QRect qRectInPixels(const nsRect &aRect,
                                   const PRInt32 p2a)
@@ -95,31 +91,6 @@ static inline QRect qRectInPixels(const nsRect &aRect,
                  NSAppUnitsToIntPixels(aRect.y, p2a),
                  NSAppUnitsToIntPixels(aRect.width, p2a),
                  NSAppUnitsToIntPixels(aRect.height, p2a));
-}
-
-static inline QImage::Format
-_qimage_from_gfximage_format (gfxASurface::gfxImageFormat aFormat)
-{
-    switch (aFormat) {
-    case gfxASurface::ImageFormatARGB32:
-        return QImage::Format_ARGB32_Premultiplied;
-    case gfxASurface::ImageFormatRGB24:
-        return QImage::Format_RGB32;
-    case gfxASurface::ImageFormatRGB16_565:
-        return QImage::Format_RGB16;
-    case gfxASurface::ImageFormatA8:
-        return QImage::Format_Indexed8;
-    case gfxASurface::ImageFormatA1:
-#ifdef WORDS_BIGENDIAN
-        return QImage::Format_Mono;
-#else
-        return QImage::Format_MonoLSB;
-#endif
-    default:
-        return QImage::Format_Invalid;
-    }
-
-    return QImage::Format_Mono;
 }
 
 NS_IMETHODIMP
@@ -132,57 +103,18 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
     gfxContext* context = aContext->ThebesContext();
     nsRefPtr<gfxASurface> surface = context->CurrentSurface();
 
-#ifdef CAIRO_HAS_QT_SURFACE
-    if (surface->GetType() == gfxASurface::SurfaceTypeQPainter) {
-        gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
-        QPainter *painter = qSurface->GetQPainter();
-        NS_ASSERTION(painter, "Where'd my QPainter go?");
-        if (!painter)
-            return NS_ERROR_FAILURE;
-        return DrawWidgetBackground(painter, aContext,
-                                    aFrame, aWidgetType,
-                                    aRect, aClipRect);
-    } else
-#endif
-    if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
-        gfxImageSurface* qSurface = (gfxImageSurface*) (surface.get());
-        QImage tempQImage(qSurface->Data(),
-                          qSurface->Width(),
-                          qSurface->Height(),
-                          qSurface->Stride(),
-                          _qimage_from_gfximage_format(qSurface->Format()));
-        QPainter painter(&tempQImage);
-        return DrawWidgetBackground(&painter, aContext,
-                                    aFrame, aWidgetType,
-                                    aRect, aClipRect);
-    }
-#ifdef MOZ_X11
-    else if (surface->GetType() == gfxASurface::SurfaceTypeXlib) {
-        gfxXlibSurface* qSurface = (gfxXlibSurface*) (surface.get());
-        QPixmap pixmap(QPixmap::fromX11Pixmap(qSurface->XDrawable()));
-        QPainter painter(&pixmap);
-        return DrawWidgetBackground(&painter, aContext,
-                                    aFrame, aWidgetType,
-                                    aRect, aClipRect);
-    }
-#endif
-
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-nsresult
-nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
-                                      nsIRenderingContext* aContext,
-                                      nsIFrame* aFrame,
-                                      PRUint8 aWidgetType,
-                                      const nsRect& aRect,
-                                      const nsRect& aClipRect)
-
-{
-    gfxContext* context = aContext->ThebesContext();
-    nsRefPtr<gfxASurface> surface = context->CurrentSurface();
-
     context->UpdateSurfaceClip();
+
+    if (surface->GetType() != gfxASurface::SurfaceTypeQPainter)
+        return NS_ERROR_NOT_IMPLEMENTED;
+
+    gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
+    QPainter* qPainter = qSurface->GetQPainter();
+
+    NS_ASSERTION(qPainter, "Where'd my QPainter go?");
+
+    if (qPainter == nsnull)
+        return NS_OK;
 
     QStyle* style = qApp->style();
 
@@ -197,7 +129,7 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         ctm.y0 = NSToCoordRound(ctm.y0);
     }
 
-    QMatrix qctm(ctm.xx, ctm.yx, ctm.xy, ctm.yy, ctm.x0, ctm.y0);
+    QMatrix qctm(ctm.xx, ctm.xy, ctm.yx, ctm.yy, ctm.x0, ctm.y0);
     qPainter->setWorldMatrix(qctm, true);
 
     PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
@@ -209,11 +141,14 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
-    case NS_THEME_CHECKBOX: {
+    case NS_THEME_RADIO_SMALL: 
+    case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL: {
         QStyleOptionButton opt;
         InitButtonStyle (aWidgetType, aFrame, r, opt);
 
-        if (aWidgetType == NS_THEME_CHECKBOX)
+        if (aWidgetType == NS_THEME_CHECKBOX ||
+            aWidgetType == NS_THEME_CHECKBOX_SMALL)
         {
             style->drawPrimitive (QStyle::PE_IndicatorCheckBox, &opt, qPainter);
         } else {
@@ -314,9 +249,8 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX: {
         QStyleOptionFrameV2 frameOpt;
-        nsEventStates eventState = GetContentState(aFrame, aWidgetType);
-
-        if (!IsDisabled(aFrame, eventState))
+        
+        if (!IsDisabled(aFrame))
             frameOpt.state |= QStyle::State_Enabled;
 
         frameOpt.rect = r;
@@ -350,7 +284,7 @@ NS_IMETHODIMP
 nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
                                  nsIFrame* aFrame,
                                  PRUint8 aWidgetType,
-                                 nsIntMargin* aResult)
+                                 nsMargin* aResult)
 {
     (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
 
@@ -372,7 +306,7 @@ nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
 PRBool
 nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
                                   nsIFrame*, PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
     // XXX: Where to get padding values, framewidth?
     if (aWidgetType == NS_THEME_TEXTFIELD ||
@@ -388,7 +322,7 @@ nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
 NS_IMETHODIMP
 nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
-                                      nsIntSize* aResult, PRBool* aIsOverridable)
+                                      nsSize* aResult, PRBool* aIsOverridable)
 {
     (*aResult).width = (*aResult).height = 0;
     *aIsOverridable = PR_TRUE;
@@ -398,7 +332,9 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
     PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
 
     switch (aWidgetType) {
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_CHECKBOX: {
         nsRect frameRect = aFrame->GetRect();
 
@@ -409,7 +345,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
         InitButtonStyle(aWidgetType, aFrame, qRect, option);
 
         QRect rect = s->subElementRect(
-            (aWidgetType == NS_THEME_CHECKBOX) ?
+            (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_CHECKBOX_SMALL ) ?
                 QStyle::SE_CheckBoxIndicator :
                 QStyle::SE_RadioButtonIndicator,
             &option,
@@ -584,7 +520,9 @@ nsNativeThemeQt::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_BUTTON_BEVEL:
     case NS_THEME_BUTTON:
     case NS_THEME_DROPDOWN:
@@ -638,26 +576,28 @@ nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
                                  QRect rect,
                                  QStyleOptionButton &opt)
 {
-    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
+    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
 
     opt.rect = rect;
     opt.palette = mNoBackgroundPalette;
 
-    PRBool isDisabled = IsDisabled(aFrame, eventState);
+    PRBool disabled = IsDisabled(aFrame);
 
-    if (!isDisabled)
+    if (!disabled)
         opt.state |= QStyle::State_Enabled;
-    if (eventState.HasState(NS_EVENT_STATE_HOVER))
+    if (eventState & NS_EVENT_STATE_HOVER)
         opt.state |= QStyle::State_MouseOver;
-    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
+    if (eventState & NS_EVENT_STATE_FOCUS)
         opt.state |= QStyle::State_HasFocus;
-    if (!isDisabled && eventState.HasState(NS_EVENT_STATE_ACTIVE))
+    if (!disabled && eventState & NS_EVENT_STATE_ACTIVE)
         // Don't allow sunken when disabled
         opt.state |= QStyle::State_Sunken;
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
         if (IsChecked(aFrame))
             opt.state |= QStyle::State_On;
         else
@@ -665,7 +605,7 @@ nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
 
         break;
     default:
-        if (!eventState.HasState(NS_EVENT_STATE_ACTIVE))
+        if (!(eventState & NS_EVENT_STATE_ACTIVE))
             opt.state |= QStyle::State_Raised;
         break;
     }
@@ -678,15 +618,15 @@ nsNativeThemeQt::InitPlainStyle(PRUint8 aWidgetType,
                                 QStyleOption &opt,
                                 QStyle::State extraFlags)
 {
-    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
+    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
 
     opt.rect = rect;
 
-    if (!IsDisabled(aFrame, eventState))
+    if (!IsDisabled(aFrame))
         opt.state |= QStyle::State_Enabled;
-    if (eventState.HasState(NS_EVENT_STATE_HOVER))
+    if (eventState & NS_EVENT_STATE_HOVER)
         opt.state |= QStyle::State_MouseOver;
-    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
+    if (eventState & NS_EVENT_STATE_FOCUS)
         opt.state |= QStyle::State_HasFocus;
 
     opt.state |= extraFlags;
@@ -698,18 +638,19 @@ nsNativeThemeQt::InitComboStyle(PRUint8 aWidgetType,
                                 QRect rect,
                                 QStyleOptionComboBox &opt)
 {
-    nsEventStates eventState = GetContentState(aFrame, aWidgetType);
-    PRBool isDisabled = IsDisabled(aFrame, eventState);
+    PRInt32 eventState = GetContentState(aFrame, aWidgetType);
 
-    if (!isDisabled)
+    PRBool disabled = IsDisabled(aFrame);
+
+    if (!disabled)
         opt.state |= QStyle::State_Enabled;
-    if (eventState.HasState(NS_EVENT_STATE_HOVER))
+    if (eventState & NS_EVENT_STATE_HOVER)
         opt.state |= QStyle::State_MouseOver;
-    if (eventState.HasState(NS_EVENT_STATE_FOCUS))
+    if (eventState & NS_EVENT_STATE_FOCUS)
         opt.state |= QStyle::State_HasFocus;
-    if (!eventState.HasState(NS_EVENT_STATE_ACTIVE))
+    if (!(eventState & NS_EVENT_STATE_ACTIVE))
         opt.state |= QStyle::State_Raised;
-    if (!isDisabled && eventState.HasState(NS_EVENT_STATE_ACTIVE))
+    if (!disabled && eventState & NS_EVENT_STATE_ACTIVE)
         // Don't allow sunken when disabled
         opt.state |= QStyle::State_Sunken;
 

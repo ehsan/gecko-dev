@@ -44,8 +44,6 @@
 #define _nsDocAccessibleWrap_H_
 
 #include "ISimpleDOMDocument.h"
-
-#include "nsAccUtils.h"
 #include "nsDocAccessible.h"
 #include "nsIDocShellTreeItem.h"
 
@@ -53,14 +51,15 @@ class nsDocAccessibleWrap: public nsDocAccessible,
                            public ISimpleDOMDocument
 {
 public:
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell);
-  virtual ~nsDocAccessibleWrap();
+    nsDocAccessibleWrap(nsIDOMNode *aNode, nsIWeakReference *aShell);
+    virtual ~nsDocAccessibleWrap();
 
     // IUnknown
     STDMETHODIMP_(ULONG) AddRef();
     STDMETHODIMP_(ULONG) Release();
     STDMETHODIMP      QueryInterface(REFIID, void**);
+
+    void GetXPAccessibleFor(const VARIANT& varChild, nsIAccessible **aXPAccessible);
 
     // ISimpleDOMDocument
     virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_URL( 
@@ -83,24 +82,17 @@ public:
         /* [in] */ BSTR __RPC_FAR *commaSeparatedMediaTypes);
 
     // IAccessible
+    // Override get_accChild so that it can get any child via the unique ID
+    virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_accChild( 
+        /* [in] */ VARIANT varChild,
+        /* [retval][out] */ IDispatch __RPC_FAR *__RPC_FAR *ppdispChild);
 
     // Override get_accValue to provide URL when no other value is available
     virtual /* [id][propget] */ HRESULT STDMETHODCALLTYPE get_accValue( 
         /* [optional][in] */ VARIANT varChild,
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
-  // nsAccessNode
-  virtual PRBool Init();
-  virtual void Shutdown();
-
-  // nsAccessibleWrap
-  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& varChild);
-
-  // nsDocAccessible
-  virtual void* GetNativeWindow() const;
-
-protected:
-  void* mHWND;
+    NS_IMETHOD FireAnchorJumpEvent();
 };
 
 #endif

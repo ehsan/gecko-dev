@@ -55,14 +55,12 @@ nsDOMCSSValueList::~nsDOMCSSValueList()
 NS_IMPL_ADDREF(nsDOMCSSValueList)
 NS_IMPL_RELEASE(nsDOMCSSValueList)
 
-DOMCI_DATA(CSSValueList, nsDOMCSSValueList)
-
 // QueryInterface implementation for nsDOMCSSValueList
 NS_INTERFACE_MAP_BEGIN(nsDOMCSSValueList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValueList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSValue)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSValueList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSValueList)
 NS_INTERFACE_MAP_END
 
 PRBool
@@ -86,7 +84,8 @@ nsDOMCSSValueList::Item(PRUint32 aIndex, nsIDOMCSSValue **aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
 
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex));
+  *aReturn = mCSSValues[aIndex];
+  NS_IF_ADDREF(*aReturn);
 
   return NS_OK;
 }

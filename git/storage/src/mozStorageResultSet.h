@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,48 +37,36 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageResultSet_h
-#define mozStorageResultSet_h
+#ifndef __mozStorageResultSet_h__
+#define __mozStorageResultSet_h__
 
 #include "mozIStorageResultSet.h"
 #include "nsCOMArray.h"
 class mozIStorageRow;
 
-namespace mozilla {
-namespace storage {
-
-class ResultSet : public mozIStorageResultSet
+class mozStorageResultSet : public mozIStorageResultSet
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGERESULTSET
 
-  ResultSet();
-  ~ResultSet();
+  mozStorageResultSet();
+  ~mozStorageResultSet();
 
   /**
    * Adds a tuple to this result set.
    */
   nsresult add(mozIStorageRow *aTuple);
 
-  /**
-   * @returns the number of rows this result set holds.
-   */
-  PRInt32 rows() const { return mData.Count(); }
-
 private:
   /**
    * Stores the current index of the active result set.
    */
   PRInt32 mCurrentIndex;
-
   /**
    * Stores the tuples.
    */
   nsCOMArray<mozIStorageRow> mData;
 };
 
-} // namespace storage
-} // namespace mozilla
-
-#endif // mozStorageResultSet_h
+#endif // __mozStorageResultSet_h__

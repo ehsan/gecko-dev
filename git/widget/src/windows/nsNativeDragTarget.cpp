@@ -48,6 +48,15 @@
 #include "nsWindow.h"
 #include "nsClipboard.h"
 
+#if (_MSC_VER == 1100)
+#define INITGUID
+#include "objbase.h"
+DEFINE_OLEGUID(IID_IDropTarget, 0x00000122L, 0, 0);
+DEFINE_OLEGUID(IID_IUnknown, 0x00000000L, 0, 0);
+#endif
+
+#define DRAG_DEBUG 0
+
 /* Define Class IDs */
 static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 
@@ -57,12 +66,18 @@ static NS_DEFINE_IID(kIDragServiceIID, NS_IDRAGSERVICE_IID);
 // This is cached for Leave notification
 static POINTL gDragLastPoint;
 
+
+
+
 /*
  * class nsNativeDragTarget
  */
+//-----------------------------------------------------
+// construction
+//-----------------------------------------------------
 nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWnd)
-  : m_cRef(0), mCanMove(PR_TRUE), mTookOwnRef(PR_FALSE), mWindow(aWnd),
-  mDropTargetHelper(nsnull)
+  : m_cRef(0), mWindow(aWnd), mCanMove(PR_TRUE),
+  mDropTargetHelper(nsnull), mDragCancelled(PR_FALSE)
 {
   mHWnd = (HWND)mWindow->GetNativeData(NS_NATIVE_WINDOW);
 
@@ -76,17 +91,22 @@ nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWnd)
                    IID_IDropTargetHelper, (LPVOID*)&mDropTargetHelper);
 }
 
+
+//-----------------------------------------------------
+// destruction
+//-----------------------------------------------------
 nsNativeDragTarget::~nsNativeDragTarget()
 {
   NS_RELEASE(mDragService);
-
   if (mDropTargetHelper) {
     mDropTargetHelper->Release();
     mDropTargetHelper = nsnull;
   }
 }
 
+//-----------------------------------------------------
 // IUnknown methods - see iunknown.h for documentation
+//-----------------------------------------------------
 STDMETHODIMP
 nsNativeDragTarget::QueryInterface(REFIID riid, void** ppv)
 {
@@ -97,12 +117,14 @@ nsNativeDragTarget::QueryInterface(REFIID riid, void** ppv)
 
   if (NULL!=*ppv) {
     ((LPUNKNOWN)*ppv)->AddRef();
-    return S_OK;
+    return NOERROR;
   }
 
-  return E_NOINTERFACE;
+  return ResultFromScode(E_NOINTERFACE);
 }
 
+
+//-----------------------------------------------------
 STDMETHODIMP_(ULONG)
 nsNativeDragTarget::AddRef(void)
 {
@@ -111,6 +133,7 @@ nsNativeDragTarget::AddRef(void)
   return m_cRef;
 }
 
+//-----------------------------------------------------
 STDMETHODIMP_(ULONG) nsNativeDragTarget::Release(void)
 {
   --m_cRef;
@@ -122,6 +145,8 @@ STDMETHODIMP_(ULONG) nsNativeDragTarget::Release(void)
   return 0;
 }
 
+
+//-----------------------------------------------------
 void
 nsNativeDragTarget::GetGeckoDragAction(LPDATAOBJECT pData, DWORD grfKeyState,
                                        LPDWORD pdwEffect,
@@ -157,6 +182,7 @@ nsNativeDragTarget::GetGeckoDragAction(LPDATAOBJECT pData, DWORD grfKeyState,
   }
 }
 
+
 inline
 PRBool
 IsKeyDown(char key)
@@ -164,6 +190,8 @@ IsKeyDown(char key)
   return GetKeyState(key) < 0;
 }
 
+
+//-----------------------------------------------------
 void
 nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
 {
@@ -190,11 +218,11 @@ nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
   event.isControl = IsKeyDown(NS_VK_CONTROL);
   event.isMeta    = PR_FALSE;
   event.isAlt     = IsKeyDown(NS_VK_ALT);
-  event.inputSource = static_cast<nsBaseDragService*>(mDragService)->GetInputSource();
 
   mWindow->DispatchEvent(&event, status);
 }
 
+//-----------------------------------------------------
 void
 nsNativeDragTarget::ProcessDrag(LPDATAOBJECT pData,
                                 PRUint32     aEventType,
@@ -230,15 +258,22 @@ nsNativeDragTarget::ProcessDrag(LPDATAOBJECT pData,
   currSession->SetCanDrop(PR_FALSE);
 }
 
+
+//-----------------------------------------------------
 // IDropTarget methods
+//-----------------------------------------------------
+
+
 STDMETHODIMP
 nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
                               DWORD        grfKeyState,
                               POINTL       ptl,
                               DWORD*       pdwEffect)
 {
-  if (!mDragService) {
-    return E_FAIL;
+  if (DRAG_DEBUG) printf("DragEnter hwnd:%x\n", mHWnd);
+
+	if (!mDragService) {
+		return ResultFromScode(E_FAIL);
   }
 
   // Drag and drop image helper
@@ -246,11 +281,6 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
     POINT pt = { ptl.x, ptl.y };
     mDropTargetHelper->DragEnter(mHWnd, pIDataSource, &pt, *pdwEffect);
   }
-
-  // save a ref to this, in case the window is destroyed underneath us
-  NS_ASSERTION(!mTookOwnRef, "own ref already taken!");
-  this->AddRef();
-  mTookOwnRef = PR_TRUE;
 
   // tell the drag service about this drag (it may have come from an
   // outside app).
@@ -262,7 +292,7 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
   void* tempOutData = nsnull;
   PRUint32 tempDataLen = 0;
   nsresult loadResult = nsClipboard::GetNativeDataOffClipboard(
-      pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), nsnull, &tempOutData, &tempDataLen);
+      pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), &tempOutData, &tempDataLen);
   if (NS_SUCCEEDED(loadResult) && tempOutData) {
     NS_ASSERTION(tempDataLen == 2, "Expected word size");
     WORD preferredEffect = *((WORD*)tempOutData);
@@ -288,19 +318,16 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
   return S_OK;
 }
 
+
+//-----------------------------------------------------
 STDMETHODIMP
 nsNativeDragTarget::DragOver(DWORD   grfKeyState,
                              POINTL  ptl,
                              LPDWORD pdwEffect)
 {
-  if (!mDragService) {
-    return E_FAIL;
-  }
-
-  nsCOMPtr<nsIDragSession> currentDragSession;
-  mDragService->GetCurrentSession(getter_AddRefs(currentDragSession));
-  if (!currentDragSession) {
-    return S_OK;  // Drag was canceled.
+  if (DRAG_DEBUG) printf("DragOver %d x %d\n", ptl.x, ptl.y);
+	if (!mDragService) {
+		return ResultFromScode(E_FAIL);
   }
 
   // without the AddRef() |this| can get destroyed in an event handler
@@ -313,19 +340,25 @@ nsNativeDragTarget::DragOver(DWORD   grfKeyState,
   }
 
   mDragService->FireDragEventAtSource(NS_DRAGDROP_DRAG);
-  // Now process the native drag state and then dispatch the event
-  ProcessDrag(nsnull, NS_DRAGDROP_OVER, grfKeyState, ptl, pdwEffect);
+  if (!mDragCancelled) {
+    // Now process the native drag state and then dispatch the event
+    ProcessDrag(nsnull, NS_DRAGDROP_OVER, grfKeyState, ptl, pdwEffect);
+  }
 
   this->Release();
 
   return S_OK;
 }
 
+
+//-----------------------------------------------------
 STDMETHODIMP
 nsNativeDragTarget::DragLeave()
 {
-  if (!mDragService) {
-    return E_FAIL;
+  if (DRAG_DEBUG) printf("DragLeave\n");
+
+	if (!mDragService) {
+		return ResultFromScode(E_FAIL);
   }
 
   // Drag and drop image helper
@@ -352,40 +385,19 @@ nsNativeDragTarget::DragLeave()
     }
   }
 
-  // release the ref that was taken in DragEnter
-  NS_ASSERTION(mTookOwnRef, "want to release own ref, but not taken!");
-  if (mTookOwnRef) {
-    this->Release();
-    mTookOwnRef = PR_FALSE;
-  }
-
   return S_OK;
 }
 
-void
-nsNativeDragTarget::DragCancel()
-{
-  // Cancel the drag session if we did DragEnter.
-  if (mTookOwnRef) {
-    if (mDropTargetHelper) {
-      mDropTargetHelper->DragLeave();
-    }
-    if (mDragService) {
-      mDragService->EndDragSession(PR_FALSE);
-    }
-    this->Release(); // matching the AddRef in DragEnter
-    mTookOwnRef = PR_FALSE;
-  }
-}
 
+//-----------------------------------------------------
 STDMETHODIMP
 nsNativeDragTarget::Drop(LPDATAOBJECT pData,
                          DWORD        grfKeyState,
                          POINTL       aPT,
                          LPDWORD      pdwEffect)
 {
-  if (!mDragService) {
-    return E_FAIL;
+	if (!mDragService) {
+		return ResultFromScode(E_FAIL);
   }
 
   // Drag and drop image helper
@@ -399,22 +411,15 @@ nsNativeDragTarget::Drop(LPDATAOBJECT pData,
   // This cast is ok because in the constructor we created a
   // the actual implementation we wanted, so we know this is
   // a nsDragService (but it should still be a private interface)
-  nsDragService* winDragService = static_cast<nsDragService*>(mDragService);
+  nsDragService * winDragService =
+    static_cast<nsDragService *>(mDragService);
   winDragService->SetIDataObject(pData);
 
-  // NOTE: ProcessDrag spins the event loop which may destroy arbitrary objects.
-  // We use strong refs to prevent it from destroying these:
-  nsRefPtr<nsNativeDragTarget> kungFuDeathGrip = this;
+  // Note: Calling ProcessDrag can destroy us; don't touch members after that.
   nsCOMPtr<nsIDragService> serv = mDragService;
 
   // Now process the native drag state and then dispatch the event
   ProcessDrag(pData, NS_DRAGDROP_DROP, grfKeyState, aPT, pdwEffect);
-
-  nsCOMPtr<nsIDragSession> currentDragSession;
-  serv->GetCurrentSession(getter_AddRefs(currentDragSession));
-  if (!currentDragSession) {
-    return S_OK;  // DragCancel() was called.
-  }
 
   // Let the win drag service know whether this session experienced 
   // a drop event within the application. Drop will not oocur if the
@@ -422,21 +427,6 @@ nsNativeDragTarget::Drop(LPDATAOBJECT pData,
   winDragService->SetDroppedLocal();
 
   // tell the drag service we're done with the session
-  // Use GetMessagePos to get the position of the mouse at the last message
-  // seen by the event loop. (Bug 489729)
-  DWORD pos = ::GetMessagePos();
-  POINT cpos;
-  cpos.x = GET_X_LPARAM(pos);
-  cpos.y = GET_Y_LPARAM(pos);
-  winDragService->SetDragEndPoint(nsIntPoint(cpos.x, cpos.y));
   serv->EndDragSession(PR_TRUE);
-
-  // release the ref that was taken in DragEnter
-  NS_ASSERTION(mTookOwnRef, "want to release own ref, but not taken!");
-  if (mTookOwnRef) {
-    this->Release();
-    mTookOwnRef = PR_FALSE;
-  }
-
   return S_OK;
 }

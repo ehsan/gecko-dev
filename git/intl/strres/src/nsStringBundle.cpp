@@ -54,10 +54,12 @@
 #include "nsNetUtil.h"
 #include "nsIURL.h"
 #include "nsIComponentManager.h"
+#include "nsIGenericFactory.h"
 #include "nsIMemory.h"
 #include "nsIObserverService.h"
 #include "pratom.h"
 #include "prmem.h"
+#include "nsIModule.h"
 #include "nsCOMArray.h"
 #include "nsAutoLock.h"
 #include "nsTextFormatter.h"
@@ -80,15 +82,12 @@ static NS_DEFINE_CID(kPersistentPropertiesCID, NS_IPERSISTENTPROPERTIES_CID);
 
 nsStringBundle::~nsStringBundle()
 {
-  if (mMonitor)
-    PR_DestroyMonitor(mMonitor);
 }
 
 nsStringBundle::nsStringBundle(const char* aURLSpec,
                                nsIStringBundleOverride* aOverrideStrings) :
   mPropertiesURL(aURLSpec),
   mOverrideStrings(aOverrideStrings),
-  mMonitor(0),
   mAttemptedLoad(PR_FALSE),
   mLoaded(PR_FALSE)
 {
@@ -111,10 +110,6 @@ nsStringBundle::LoadProperties()
   mAttemptedLoad = PR_TRUE;
 
   nsresult rv;
-
-  mMonitor = nsAutoMonitor::NewMonitor("StringBundle monitor");
-  if (!mMonitor)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   // do it synchronously
   nsCOMPtr<nsIURI> uri;
@@ -153,7 +148,7 @@ nsStringBundle::LoadProperties()
 nsresult
 nsStringBundle::GetStringFromID(PRInt32 aID, nsAString& aResult)
 {  
-  nsAutoMonitor automon(mMonitor);
+  nsAutoCMonitor(this);
   nsCAutoString name;
   name.AppendInt(aID, 10);
 
@@ -274,7 +269,7 @@ nsStringBundle::GetStringFromName(const PRUnichar *aName, PRUnichar **aResult)
   rv = LoadProperties();
   if (NS_FAILED(rv)) return rv;
 
-  nsAutoMonitor automon(mMonitor);
+  nsAutoCMonitor(this);
   *aResult = nsnull;
   nsAutoString tmpstr;
   rv = GetStringFromName(nsDependentString(aName), tmpstr);
@@ -522,10 +517,7 @@ nsExtensibleStringBundle::FormatStringFromName(const PRUnichar *aName,
                                                PRUnichar ** aResult)
 {
   nsXPIDLString formatStr;
-  nsresult rv;
-  rv = GetStringFromName(aName, getter_Copies(formatStr));
-  if (NS_FAILED(rv))
-    return rv;
+  GetStringFromName(aName, getter_Copies(formatStr));
 
   return nsStringBundle::FormatString(formatStr, aParams, aLength, aResult);
 }
@@ -580,7 +572,7 @@ nsStringBundleService::~nsStringBundleService()
 nsresult
 nsStringBundleService::Init()
 {
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
   if (os) {
     os->AddObserver(this, "memory-pressure", PR_TRUE);
     os->AddObserver(this, "profile-do-change", PR_TRUE);

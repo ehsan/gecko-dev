@@ -40,6 +40,7 @@
 #include "nsDOMKeyboardEvent.h"
 #include "nsContentUtils.h"
 
+
 nsDOMKeyboardEvent::nsDOMKeyboardEvent(nsPresContext* aPresContext,
                                        nsKeyEvent* aEvent)
   : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
@@ -67,11 +68,9 @@ nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 
-DOMCI_DATA(KeyboardEvent, nsDOMKeyboardEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMKeyboardEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(KeyboardEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(KeyboardEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
@@ -114,6 +113,7 @@ nsDOMKeyboardEvent::GetCharCode(PRUint32* aCharCode)
   switch (mEvent->message) {
   case NS_KEY_UP:
   case NS_KEY_DOWN:
+    NS_WARNING("GetCharCode used for wrong key event; should use onkeypress.");
     *aCharCode = 0;
     break;
   case NS_KEY_PRESS:
@@ -162,7 +162,7 @@ nsDOMKeyboardEvent::GetWhich(PRUint32* aWhich)
           *aWhich = keyCode;
           return NS_OK;
         }
-        return GetCharCode(aWhich);
+	return GetCharCode(aWhich);
       }
       break;
     default:

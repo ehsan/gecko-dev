@@ -58,34 +58,17 @@ fi
 add_makefiles "
 Makefile
 build/Makefile
-build/pgo/Makefile
-build/pgo/blueprint/Makefile
-build/pgo/js-input/Makefile
 build/unix/Makefile
-build/win32/Makefile
-build/win32/crashinjectdll/Makefile
 config/Makefile
 config/autoconf.mk
 config/mkdepend/Makefile
-config/nspr/Makefile
 config/doxygen.cfg
 config/tests/src-simple/Makefile
 probes/Makefile
 extensions/Makefile
 "
 
-if [ "$WINCE" ]; then
-  add_makefiles "
-    build/wince/tools/Makefile
-    build/wince/shunt/Makefile
-    build/wince/shunt/include/windows.h
-    build/wince/shunt/include/ymath.h
-    build/wince/shunt/include/stdlib.h
-    build/wince/shunt/include/sys/Makefile
-  "
-fi
-
-if [ "$MOZ_MEMORY" -a "$LIBXUL_SDK" = "" ]; then
+if [ "$MOZ_MEMORY" ]; then
   add_makefiles "
     memory/jemalloc/Makefile
   "
@@ -113,6 +96,3 @@ done
 if test -z "$LIBXUL_SDK"; then
   . "${srcdir}/toolkit/toolkit-makefiles.sh"
 fi
-
-# Services makefiles
-. "${srcdir}/services/makefiles.sh"

@@ -46,8 +46,6 @@
 #include "nsIStreamBufferAccess.h"
 #include "nsCOMPtr.h"
 #include "nsInt64.h"
-#include "nsIIPCSerializable.h"
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class nsBufferedStream : public nsISeekableStream
@@ -91,20 +89,18 @@ protected:
 
 class nsBufferedInputStream : public nsBufferedStream,
                               public nsIBufferedInputStream,
-                              public nsIStreamBufferAccess,
-                              public nsIIPCSerializable
+                              public nsIStreamBufferAccess
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSIBUFFEREDINPUTSTREAM
     NS_DECL_NSISTREAMBUFFERACCESS
-    NS_DECL_NSIIPCSERIALIZABLE
 
     nsBufferedInputStream() : nsBufferedStream() {}
     virtual ~nsBufferedInputStream() {}
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
     nsIInputStream* Source() { 
@@ -133,7 +129,7 @@ public:
     nsBufferedOutputStream() : nsBufferedStream() {}
     virtual ~nsBufferedOutputStream() { nsBufferedOutputStream::Close(); }
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
     nsIOutputStream* Sink() { 

@@ -37,64 +37,47 @@
 
 /* internal interface for all rule types in a CSS style sheet */
 
-#ifndef nsICSSRule_h
-#define nsICSSRule_h
+#ifndef nsICSSRule_h___
+#define nsICSSRule_h___
 
 #include "nsIStyleRule.h"
-#include "nsIDOMCSSRule.h"
 
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
 class nsICSSGroupRule;
+class nsIDOMCSSRule;
 class nsAString;
-template<class T> struct already_AddRefed;
 
-// IID for the nsICSSRule interface
-#define NS_ICSS_RULE_IID \
-{ 0x1f560b20, 0xa829, 0x4b99, \
-  { 0x87, 0xbd, 0x8c, 0x87, 0x95, 0x2b, 0x3b, 0xb6 } }
-
+// IID for the nsICSSRule interface {b9791e20-1a04-11d3-805a-006008159b5a}
+#define NS_ICSS_RULE_IID     \
+{0xb9791e20, 0x1a04, 0x11d3, {0x80, 0x5a, 0x00, 0x60, 0x08, 0x15, 0x9b, 0x5a}}
 
 // inheriting from nsIStyleRule is only for style rules, not other rule types
 class nsICSSRule : public nsIStyleRule {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICSS_RULE_IID)
-  // The constants in this list must maintain the following invariants:
-  //   If a rule of type N must appear before a rule of type M in stylesheets
-  //   then N < M
-  // Note that nsCSSStyleSheet::RebuildChildList assumes that no other kinds of
-  // rules can come between two rules of type IMPORT_RULE.
   enum {
     UNKNOWN_RULE = 0,
-    CHARSET_RULE,
-    IMPORT_RULE,
-    NAMESPACE_RULE,
-    STYLE_RULE,
-    MEDIA_RULE,
-    FONT_FACE_RULE,
-    PAGE_RULE,
-    DOCUMENT_RULE
+    STYLE_RULE = 1,
+    IMPORT_RULE = 2,
+    MEDIA_RULE = 3,
+    FONT_FACE_RULE = 4,
+    PAGE_RULE = 5,
+    CHARSET_RULE = 6,
+    NAMESPACE_RULE = 7,
+    DOCUMENT_RULE = 8
   };
 
-  virtual PRInt32 GetType() const = 0;
+  NS_IMETHOD GetType(PRInt32& aType) const = 0;
 
-  virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const = 0;
-  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet) = 0;
-  virtual void SetParentRule(nsICSSGroupRule* aRule) = 0;
+  NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const = 0;
+  NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet) = 0;
+  NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule) = 0;
 
-  /**
-   * Clones |this|. Never returns NULL.
-   */
-  virtual already_AddRefed<nsICSSRule> Clone() const = 0;
+  NS_IMETHOD Clone(nsICSSRule*& aClone) const = 0;
 
   // Note that this returns null for inline style rules since they aren't
   // supposed to have a DOM rule representation (and our code wouldn't work).
-  nsresult GetDOMRule(nsIDOMCSSRule** aDOMRule)
-  {
-    nsresult rv;
-    NS_IF_ADDREF(*aDOMRule = GetDOMRuleWeak(&rv));
-    return rv;
-  }
-  virtual nsIDOMCSSRule* GetDOMRuleWeak(nsresult* aResult) = 0;
+  NS_IMETHOD GetDOMRule(nsIDOMCSSRule** aDOMRule) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSRule, NS_ICSS_RULE_IID)
@@ -105,4 +88,4 @@ nsresult
 NS_NewCSSCharsetRule(nsICSSRule** aInstancePtrResult,
                      const nsAString& aEncoding);
 
-#endif /* nsICSSRule_h */
+#endif /* nsICSSRule_h___ */

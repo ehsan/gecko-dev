@@ -38,17 +38,14 @@
 #include "nsNativeDragSource.h"
 #include <stdio.h>
 #include "nsISupportsImpl.h"
-#include "nsString.h"
+
 
 /*
  * class nsNativeDragSource
  */
-nsNativeDragSource::nsNativeDragSource(nsIDOMDataTransfer* aDataTransfer) :
-  m_cRef(0),
-  m_hCursor(nsnull),
-  mUserCancelled(PR_FALSE)
+nsNativeDragSource::nsNativeDragSource()
+  : m_cRef(0)
 {
-  mDataTransfer = do_QueryInterface(aDataTransfer);
 }
 
 nsNativeDragSource::~nsNativeDragSource()
@@ -65,11 +62,12 @@ nsNativeDragSource::QueryInterface(REFIID riid, void** ppv)
 
   if (NULL!=*ppv) {
     ((LPUNKNOWN)*ppv)->AddRef();
-    return S_OK;
+    return NOERROR;
   }
 
-  return E_NOINTERFACE;
+  return ResultFromScode(E_NOINTERFACE);
 }
+
 
 STDMETHODIMP_(ULONG)
 nsNativeDragSource::AddRef(void)
@@ -94,36 +92,34 @@ nsNativeDragSource::Release(void)
 STDMETHODIMP
 nsNativeDragSource::QueryContinueDrag(BOOL fEsc, DWORD grfKeyState)
 {
+#ifdef DEBUG
+  //printf("QueryContinueDrag: ");
+#endif
   if (fEsc) {
-    mUserCancelled = PR_TRUE;
-    return DRAGDROP_S_CANCEL;
+#ifdef DEBUG
+    //printf("fEsc\n");
+#endif
+    return ResultFromScode(DRAGDROP_S_CANCEL);
   }
 
-  if (!(grfKeyState & MK_LBUTTON) || (grfKeyState & MK_RBUTTON))
-    return DRAGDROP_S_DROP;
+  if (!(grfKeyState & MK_LBUTTON) || (grfKeyState & MK_RBUTTON)) {
+#ifdef DEBUG
+    //printf("grfKeyState & MK_LBUTTON\n");
+#endif
+    return ResultFromScode(DRAGDROP_S_DROP);
+  }
 
-  return S_OK;
+#ifdef DEBUG
+  //printf("NOERROR\n");
+#endif
+	return NOERROR;
 }
 
 STDMETHODIMP
 nsNativeDragSource::GiveFeedback(DWORD dwEffect)
 {
-  // For drags involving tabs, we do some custom work with cursors. 
-  if (mDataTransfer) {
-    nsAutoString cursor;
-    mDataTransfer->GetMozCursor(cursor);
-    if (cursor.EqualsLiteral("default")) {
-      m_hCursor = ::LoadCursor(0, IDC_ARROW);
-    } else {
-      m_hCursor =  nsnull;
-    }
-  }
-
-  if (m_hCursor) {
-    ::SetCursor(m_hCursor);
-    return S_OK;
-  }
-  
-  // Let the system choose which cursor to apply.
-  return DRAGDROP_S_USEDEFAULTCURSORS;
+#ifdef DEBUG
+  //printf("GiveFeedback\n");
+#endif
+	return ResultFromScode(DRAGDROP_S_USEDEFAULTCURSORS);
 }

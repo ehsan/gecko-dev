@@ -15,7 +15,7 @@
  *
  * The Original Code is the Mozilla browser.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -121,7 +121,7 @@ public:
   NS_IMETHOD GetPaperName(PRUnichar * *aPaperName);
   NS_IMETHOD SetPaperName(const PRUnichar * aPaperName);
 
-  NS_IMETHOD SetUnwriteableMarginInTwips(nsIntMargin& aUnwriteableMargin);
+  NS_IMETHOD SetUnwriteableMarginInTwips(nsMargin& aUnwriteableMargin);
   NS_IMETHOD SetUnwriteableMarginTop(double aUnwriteableMarginTop);
   NS_IMETHOD SetUnwriteableMarginLeft(double aUnwriteableMarginLeft);
   NS_IMETHOD SetUnwriteableMarginBottom(double aUnwriteableMarginBottom);

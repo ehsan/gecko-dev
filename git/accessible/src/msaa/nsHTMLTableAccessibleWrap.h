@@ -42,20 +42,14 @@
 #define _NSHTMLTABLEACCESSIBLEWRAP_H
 
 #include "nsHTMLTableAccessible.h"
-
 #include "CAccessibleTable.h"
-#include "CAccessibleTableCell.h"
 
-/**
- * IA2 wrapper class for nsHTMLTableAccessible implementing IAccessibleTable
- * and IAccessibleTable2 interfaces.
- */
 class nsHTMLTableAccessibleWrap : public nsHTMLTableAccessible,
                                   public CAccessibleTable
 {
 public:
-  nsHTMLTableAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-    nsHTMLTableAccessible(aContent, aShell) {}
+  nsHTMLTableAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+    nsHTMLTableAccessible(aNode, aShell){}
 
   // IUnknown
   DECL_IUNKNOWN_INHERITED
@@ -64,37 +58,12 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 };
 
-
-/**
- * IA2 wrapper class for nsHTMLTableCellAccessible implementing
- * IAccessibleTableCell interface.
- */
-class nsHTMLTableCellAccessibleWrap : public nsHTMLTableCellAccessible,
-                                      public CAccessibleTableCell
+class nsHTMLTableHeadAccessibleWrap : public nsHTMLTableHeadAccessible,
+                                      public CAccessibleTable
 {
 public:
-  nsHTMLTableCellAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-    nsHTMLTableCellAccessible(aContent, aShell) {}
-
-  // IUnknown
-  DECL_IUNKNOWN_INHERITED
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-};
-
-
-/**
- * IA2 wrapper class for nsHTMLTableHeaderCellAccessible implementing
- * IAccessibleTableCell interface.
- */
-class nsHTMLTableHeaderCellAccessibleWrap : public nsHTMLTableHeaderCellAccessible,
-                                            public CAccessibleTableCell
-{
-public:
-  nsHTMLTableHeaderCellAccessibleWrap(nsIContent *aContent,
-                                      nsIWeakReference *aShell) :
-    nsHTMLTableHeaderCellAccessible(aContent, aShell) {}
+  nsHTMLTableHeadAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+    nsHTMLTableHeadAccessible(aNode, aShell){}
 
   // IUnknown
   DECL_IUNKNOWN_INHERITED

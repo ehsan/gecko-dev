@@ -52,7 +52,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIProgressEventSink.h"
 #include "nsITransport.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsThreadUtils.h"
 
 //-----------------------------------------------------------------------------
@@ -71,7 +70,6 @@ class nsBaseChannel : public nsHashPropertyBag
                     , public nsIChannel
                     , public nsIInterfaceRequestor
                     , public nsITransportEventSink
-                    , public nsIAsyncVerifyRedirectCallback
                     , private nsIStreamListener
 {
 public:
@@ -80,7 +78,6 @@ public:
   NS_DECL_NSICHANNEL
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSITRANSPORTEVENTSINK
-  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
   nsBaseChannel(); 
 
@@ -158,12 +155,10 @@ public:
   void SetURI(nsIURI *uri) {
     NS_ASSERTION(uri, "must specify a non-null URI");
     NS_ASSERTION(!mURI, "must not modify URI");
-    NS_ASSERTION(!mOriginalURI, "how did that get set so early?");
     mURI = uri;
-    mOriginalURI = uri;
   }
   nsIURI *OriginalURI() {
-    return mOriginalURI;
+    return mOriginalURI ? mOriginalURI : mURI;
   }
 
   // The security info is a property of the transport-layer, which should be
@@ -182,7 +177,7 @@ public:
 
   // This is a short-cut to calling nsIRequest::IsPending()
   PRBool IsPending() const {
-    return mPump || mWaitingOnAsyncRedirect;
+    return (mPump != nsnull);
   }
 
   // Set the content length that should be reported for this channel.  Pass -1
@@ -249,11 +244,6 @@ private:
   // Handle an async redirect callback.  This will only be called if we
   // returned success from AsyncOpen while posting a redirect runnable.
   void HandleAsyncRedirect(nsIChannel* newChannel);
-  void ContinueHandleAsyncRedirect(nsresult result);
-  nsresult ContinueRedirect();
-
-  // start URI classifier if requested
-  void ClassifyURI();
 
   class RedirectRunnable : public nsRunnable
   {
@@ -281,24 +271,18 @@ private:
   nsCOMPtr<nsIProgressEventSink>      mProgressSink;
   nsCOMPtr<nsIURI>                    mOriginalURI;
   nsCOMPtr<nsIURI>                    mURI;
+  nsCOMPtr<nsILoadGroup>              mLoadGroup;
   nsCOMPtr<nsISupports>               mOwner;
   nsCOMPtr<nsISupports>               mSecurityInfo;
-  nsCOMPtr<nsIChannel>                mRedirectChannel;
+  nsCOMPtr<nsIStreamListener>         mListener;
+  nsCOMPtr<nsISupports>               mListenerContext;
   nsCString                           mContentType;
   nsCString                           mContentCharset;
   PRUint32                            mLoadFlags;
+  nsresult                            mStatus;
   PRPackedBool                        mQueriedProgressSink;
   PRPackedBool                        mSynthProgressEvents;
   PRPackedBool                        mWasOpened;
-  PRPackedBool                        mWaitingOnAsyncRedirect;
-  PRPackedBool                        mOpenRedirectChannel;
-  PRUint32                            mRedirectFlags;
-
-protected:
-  nsCOMPtr<nsILoadGroup>              mLoadGroup;
-  nsCOMPtr<nsIStreamListener>         mListener;
-  nsCOMPtr<nsISupports>               mListenerContext;
-  nsresult                            mStatus;
 };
 
 #endif // !nsBaseChannel_h__

@@ -67,10 +67,8 @@
 #include "nsICryptoHMAC.h"
 #include "hasht.h"
 #include "nsNSSCallbacks.h"
-#include "nsNSSShutDown.h"
 
 #include "nsNSSHelper.h"
-#include "nsClientAuthRemember.h"
 
 #define NS_NSSCOMPONENT_CID \
 {0xa277189c, 0x1dd1, 0x11b2, {0xa8, 0xc9, 0xe4, 0xe8, 0xbf, 0xb1, 0x33, 0x8e}}
@@ -81,10 +79,10 @@
 //Define an interface that we can use to look up from the
 //callbacks passed to NSS.
 
-#define NS_INSSCOMPONENT_IID_STR "6ffbb526-205b-49c5-ae3f-5959c084075e"
+#define NS_INSSCOMPONENT_IID_STR "d4b49dd6-1dd1-11b2-b6fe-b14cfaf69cbd"
 #define NS_INSSCOMPONENT_IID \
-  { 0x6ffbb526, 0x205b, 0x49c5, \
-    { 0xae, 0x3f, 0x59, 0x59, 0xc0, 0x84, 0x7, 0x5e } }
+  {0xd4b49dd6, 0x1dd1, 0x11b2, \
+    { 0xb6, 0xfe, 0xb1, 0x4c, 0xfa, 0xf6, 0x9c, 0xbd }}
 
 #define NS_PSMCONTENTLISTEN_CID {0xc94f4a30, 0x64d7, 0x11d4, {0x99, 0x60, 0x00, 0xb0, 0xd0, 0x23, 0x54, 0xa0}}
 #define NS_PSMCONTENTLISTEN_CONTRACTID "@mozilla.org/security/psmdownload;1"
@@ -94,18 +92,6 @@
 
 #define NS_CRYPTO_HMAC_CLASSNAME "Mozilla Crypto HMAC Function Component"
 #define NS_CRYPTO_HMAC_CID {0xa496d0a2, 0xdff7, 0x4e23, {0xbd, 0x65, 0x1c, 0xa7, 0x42, 0xfa, 0x17, 0x8a}}
-
-enum EnsureNSSOperator
-{
-  nssLoadingComponent = 0,
-  nssInitSucceeded = 1,
-  nssInitFailed = 2,
-  nssShutdown = 3,
-  nssEnsure = 100,
-  nssEnsureOnChromeOnly = 101
-};
-
-extern PRBool EnsureNSSInitialized(EnsureNSSOperator op);
 
 //--------------------------------------------
 // Now we need a content listener to register 
@@ -185,16 +171,12 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
 
   NS_IMETHOD DispatchEvent(const nsAString &eventType, const nsAString &token) = 0;
   
-  NS_IMETHOD GetClientAuthRememberService(nsClientAuthRememberService **cars) = 0;
-
   NS_IMETHOD EnsureIdentityInfoLoaded() = 0;
-
-  NS_IMETHOD IsNSSInitialized(PRBool *initialized) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINSSComponent, NS_INSSCOMPONENT_IID)
 
-class nsCryptoHash : public nsICryptoHash, public nsNSSShutDownObject
+class nsCryptoHash : public nsICryptoHash
 {
 public:
   NS_DECL_ISUPPORTS
@@ -204,15 +186,10 @@ public:
 
 private:
   ~nsCryptoHash();
-
   HASHContext* mHashContext;
-  PRBool mInitialized;
-
-  virtual void virtualDestroyNSSReference();
-  void destructorSafeDestroyNSSReference();
 };
 
-class nsCryptoHMAC : public nsICryptoHMAC, public nsNSSShutDownObject
+class nsCryptoHMAC : public nsICryptoHMAC
 {
 public:
   NS_DECL_ISUPPORTS
@@ -222,10 +199,8 @@ public:
 
 private:
   ~nsCryptoHMAC();
-  PK11Context* mHMACContext;
 
-  virtual void virtualDestroyNSSReference();
-  void destructorSafeDestroyNSSReference();
+  PK11Context* mHMACContext;
 };
 
 struct PRLock;
@@ -239,7 +214,8 @@ class nsNSSComponent : public nsISignatureVerifier,
                        public nsINSSComponent,
                        public nsIObserver,
                        public nsSupportsWeakReference,
-                       public nsITimerCallback
+                       public nsITimerCallback,
+                       public nsINSSErrorsService
 {
 public:
   NS_DEFINE_STATIC_CID_ACCESSOR( NS_NSSCOMPONENT_CID )
@@ -252,6 +228,7 @@ public:
   NS_DECL_NSIENTROPYCOLLECTOR
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
+  NS_DECL_NSINSSERRORSSERVICE
 
   NS_METHOD Init();
 
@@ -282,9 +259,7 @@ public:
   NS_IMETHOD ShutdownSmartCardThread(SECMODModule *module);
   NS_IMETHOD PostEvent(const nsAString &eventType, const nsAString &token);
   NS_IMETHOD DispatchEvent(const nsAString &eventType, const nsAString &token);
-  NS_IMETHOD GetClientAuthRememberService(nsClientAuthRememberService **cars);
   NS_IMETHOD EnsureIdentityInfoLoaded();
-  NS_IMETHOD IsNSSInitialized(PRBool *initialized);
 
 private:
 
@@ -312,7 +287,6 @@ private:
   nsresult ConfigureInternalPKCS11Token();
   nsresult RegisterPSMContentListener();
   nsresult RegisterObservers();
-  nsresult DeregisterObservers();
   nsresult DownloadCrlSilently();
   nsresult PostCRLImportEvent(const nsCSubstring &urlString, nsIStreamListener *psmDownloader);
   nsresult getParamsForNextCrlToDownload(nsAutoString *url, PRTime *time, nsAutoString *key);
@@ -350,7 +324,6 @@ private:
   nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
   nsNSSHttpInterface mHttpForNSS;
-  nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
 
   static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;
@@ -378,15 +351,6 @@ public:
   static nsresult getErrorMessageFromCode(PRInt32 err,
                                           nsINSSComponent *component,
                                           nsString &returnedMessage);
-};
-
-class nsPSMInitPanic
-{
-private:
-  static PRBool isPanic;
-public:
-  static void SetPanic() {isPanic = PR_TRUE;}
-  static PRBool GetPanic() {return isPanic;}
 };
 
 #endif // _nsNSSComponent_h_

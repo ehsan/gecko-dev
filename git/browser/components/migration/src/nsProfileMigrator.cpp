@@ -63,16 +63,12 @@
 #include <windows.h>
 #include "nsIWindowsRegKey.h"
 #include "nsILocalFileWin.h"
-#else
-#include <limits.h>
 #endif
 
 #include "nsAutoPtr.h"
 
 #ifndef MAXPATHLEN
-#ifdef PATH_MAX
-#define MAXPATHLEN PATH_MAX
-#elif defined(_MAX_PATH)
+#ifdef _MAX_PATH
 #define MAXPATHLEN _MAX_PATH
 #elif defined(CCHMAXPATH)
 #define MAXPATHLEN CCHMAXPATH

@@ -152,7 +152,8 @@ NS_IMETHODIMP nsZipDataStream::OnStopRequest(nsIRequest *aRequest,
 
 inline nsresult nsZipDataStream::CompleteEntry()
 {
-    nsresult rv;
+    nsresult rv = mStream->Flush();
+    NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mStream, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
     PRInt64 pos;
@@ -160,7 +161,17 @@ inline nsresult nsZipDataStream::CompleteEntry()
     NS_ENSURE_SUCCESS(rv, rv);
 
     mHeader->mCSize = pos - mHeader->mOffset - mHeader->GetFileHeaderLength();
-    mHeader->mWriteOnClose = PR_TRUE;
+
+    // Go back and rewrite the file header
+    rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, mHeader->mOffset);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mHeader->WriteFileHeader(mStream);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mStream->Flush();
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, pos);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     return NS_OK;
 }
 

@@ -35,49 +35,85 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGTextPathFrame.h"
+#include "nsSVGTextFrame.h"
 #include "nsIDOMSVGTextPathElement.h"
-#include "nsSVGLength2.h"
+#include "nsIDOMSVGAnimatedLength.h"
+#include "nsSVGLength.h"
 #include "nsIDOMSVGURIReference.h"
-#include "nsSVGEffects.h"
+#include "nsSVGUtils.h"
 #include "nsContentUtils.h"
+#include "nsIDOMSVGAnimatedPathData.h"
 #include "nsSVGPathElement.h"
 #include "nsSVGTextPathElement.h"
 
-using namespace mozilla;
+
+NS_IMPL_ISUPPORTS1(nsSVGPathListener, nsIMutationObserver)
+
+nsSVGPathListener::nsSVGPathListener(nsIContent *aPathElement,
+                                     nsSVGTextPathFrame *aTextPathFrame) :
+  mTextPathFrame(aTextPathFrame)
+{
+  mObservedPath = do_GetWeakReference(aPathElement);
+  aPathElement->AddMutationObserver(this);
+}
+
+nsSVGPathListener::~nsSVGPathListener()
+{
+  nsCOMPtr<nsIContent> path = do_QueryReferent(mObservedPath);
+  if (path)
+    path->RemoveMutationObserver(this);
+}
+
+void
+nsSVGPathListener::AttributeChanged(nsIDocument *aDocument,
+                                    nsIContent *aContent,
+                                    PRInt32 aNameSpaceID,
+                                    nsIAtom *aAttribute,
+                                    PRInt32 aModType,
+                                    PRUint32 aStateMask)
+{
+  mTextPathFrame->NotifyGlyphMetricsChange();
+}
 
 //----------------------------------------------------------------------
 // Implementation
 
 nsIFrame*
-NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                       nsIFrame* parentFrame, nsStyleContext* aContext)
 {
+  NS_ASSERTION(parentFrame, "null parent");
+  if (parentFrame->GetType() != nsGkAtoms::svgTextFrame) {
+    NS_ERROR("trying to construct an SVGTextPathFrame for an invalid container");
+    return nsnull;
+  }
+  
+  nsCOMPtr<nsIDOMSVGTextPathElement> textPath = do_QueryInterface(aContent);
+  if (!textPath) {
+    NS_ERROR("Can't create frame! Content is not an SVG textPath");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGTextPathFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGTextPathFrame)
-
-#ifdef DEBUG
 NS_IMETHODIMP
-nsSVGTextPathFrame::Init(nsIContent* aContent,
-                         nsIFrame* aParent,
-                         nsIFrame* aPrevInFlow)
+nsSVGTextPathFrame::Init(nsIContent*      aContent,
+                         nsIFrame*        aParent,
+                         nsIFrame*        aPrevInFlow)
 {
-  NS_ASSERTION(aParent, "null parent");
+  nsSVGTextPathFrameBase::Init(aContent, aParent, aPrevInFlow);
 
-  nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
-  NS_ASSERTION(ancestorFrame, "Must have ancestor");
+  {
+    nsCOMPtr<nsIDOMSVGURIReference> aRef = do_QueryInterface(mContent);
+    if (aRef)
+      aRef->GetHref(getter_AddRefs(mHref));
+    if (!mHref)
+      return NS_ERROR_FAILURE;
+  }
 
-  NS_ASSERTION(ancestorFrame->GetType() == nsGkAtoms::svgTextFrame,
-               "trying to construct an SVGTextPathFrame for an invalid "
-               "container");
-  
-  nsCOMPtr<nsIDOMSVGTextPathElement> textPath = do_QueryInterface(aContent);
-  NS_ASSERTION(textPath, "Content is not an SVG textPath");
-
-
-  return nsSVGTextPathFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return NS_OK;
 }
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGTextPathFrame::GetType() const
@@ -85,24 +121,27 @@ nsSVGTextPathFrame::GetType() const
   return nsGkAtoms::svgTextPathFrame;
 }
 
-void
-nsSVGTextPathFrame::GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY)
+
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
+nsSVGTextPathFrame::GetX()
 {
-  // 'x' and 'y' don't apply to 'textPath'
-  aX->Clear();
-  aY->Clear();
+  return nsnull;
 }
 
-void
-nsSVGTextPathFrame::GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy)
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
+nsSVGTextPathFrame::GetY()
 {
-  // 'dx' and 'dy' don't apply to 'textPath'
-  aDx->Clear();
-  aDy->Clear();
+  return nsnull;
 }
 
-const SVGNumberList*
-nsSVGTextPathFrame::GetRotate()
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
+nsSVGTextPathFrame::GetDx()
+{
+  return nsnull;
+}
+
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
+nsSVGTextPathFrame::GetDy()
 {
   return nsnull;
 }
@@ -113,29 +152,21 @@ nsSVGTextPathFrame::GetRotate()
 nsIFrame *
 nsSVGTextPathFrame::GetPathFrame()
 {
-  nsSVGTextPathProperty *property = static_cast<nsSVGTextPathProperty*>
-    (Properties().Get(nsSVGEffects::HrefProperty()));
+  nsIFrame *path = nsnull;
 
-  if (!property) {
-    nsSVGTextPathElement *tp = static_cast<nsSVGTextPathElement*>(mContent);
-    nsAutoString href;
-    tp->mStringAttributes[nsSVGTextPathElement::HREF].GetAnimValue(href, tp);
-    if (href.IsEmpty()) {
-      return nsnull; // no URL
-    }
+  nsAutoString str;
+  mHref->GetAnimVal(str);
 
-    nsCOMPtr<nsIURI> targetURI;
-    nsCOMPtr<nsIURI> base = mContent->GetBaseURI();
-    nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
-                                              mContent->GetCurrentDoc(), base);
+  nsCOMPtr<nsIURI> targetURI;
+  nsCOMPtr<nsIURI> base = mContent->GetBaseURI();
+  nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), str,
+                                            mContent->GetCurrentDoc(), base);
 
-    property =
-      nsSVGEffects::GetTextPathProperty(targetURI, this, nsSVGEffects::HrefProperty());
-    if (!property)
-      return nsnull;
-  }
-
-  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nsnull);
+  nsSVGUtils::GetReferencedFrame(&path, targetURI, mContent,
+                                 PresContext()->PresShell());
+  if (!path || (path->GetType() != nsGkAtoms::svgPathGeometryFrame))
+    return nsnull;
+  return path;
 }
 
 already_AddRefed<gfxFlattenedPath>
@@ -149,11 +180,16 @@ already_AddRefed<gfxFlattenedPath>
 nsSVGTextPathFrame::GetFlattenedPath(nsIFrame *path)
 {
   NS_PRECONDITION(path, "Unexpected null path");
+  nsSVGPathGeometryElement *element = static_cast<nsSVGPathGeometryElement*>
+                                                 (path->GetContent());
 
-  nsSVGPathGeometryElement *element =
-    static_cast<nsSVGPathGeometryElement*>(path->GetContent());
+  if (!mPathListener) {
+    mPathListener = new nsSVGPathListener(path->GetContent(), this);
+  }
 
-  return element->GetFlattenedPath(element->PrependLocalTransformTo(gfxMatrix()));
+  nsCOMPtr<nsIDOMSVGMatrix> localTM = element->GetLocalTransformMatrix();
+
+  return element->GetFlattenedPath(localTM);
 }
 
 gfxFloat
@@ -204,8 +240,7 @@ nsSVGTextPathFrame::AttributeChanged(PRInt32         aNameSpaceID,
     NotifyGlyphMetricsChange();
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
-    // Blow away our reference, if any
-    Properties().Delete(nsSVGEffects::HrefProperty());
+    mPathListener = nsnull;
     NotifyGlyphMetricsChange();
   }
 

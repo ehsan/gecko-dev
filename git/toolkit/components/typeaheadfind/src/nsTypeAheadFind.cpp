@@ -42,7 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsMemory.h"
 #include "nsIServiceManager.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsCURILoader.h"
 #include "nsNetUtil.h"
@@ -70,6 +70,9 @@
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIEventStateManager.h"
+#include "nsIFocusController.h"
+#include "nsIViewManager.h"
+#include "nsIScrollableView.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
 #include "nsISelectElement.h"
@@ -90,7 +93,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIWindowWatcher.h"
 #include "nsIObserverService.h"
-#include "nsFocusManager.h"
 
 #include "nsTypeAheadFind.h"
 
@@ -110,9 +112,8 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #define NS_FIND_CONTRACTID "@mozilla.org/embedcomp/rangefind;1"
 
 nsTypeAheadFind::nsTypeAheadFind():
-  mStartLinksOnlyPref(PR_FALSE),
-  mCaretBrowsingOn(PR_FALSE),
-  mLastFindLength(0),
+  mLinksOnlyPref(PR_FALSE), mStartLinksOnlyPref(PR_FALSE),
+  mLinksOnly(PR_FALSE), mCaretBrowsingOn(PR_FALSE), mLastFindLength(0),
   mIsSoundInitialized(PR_FALSE)
 {
 }
@@ -140,7 +141,7 @@ nsTypeAheadFind::Init(nsIDocShell* aDocShell)
   SetDocShell(aDocShell);
 
   // ----------- Listen to prefs ------------------
-  nsresult rv = prefInternal->AddObserver("accessibility.browsewithcaret", this, PR_TRUE);
+  nsresult rv = prefInternal->AddObserver("accessibility.browsewithcaret", this, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ----------- Get initial preferences ----------
@@ -158,6 +159,9 @@ nsTypeAheadFind::PrefsReset()
 {
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(prefBranch, NS_ERROR_FAILURE);
+
+  prefBranch->GetBoolPref("accessibility.typeaheadfind.linksonly",
+                          &mLinksOnlyPref);
 
   prefBranch->GetBoolPref("accessibility.typeaheadfind.startlinksonly",
                           &mStartLinksOnlyPref);
@@ -460,15 +464,15 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
       if (!window)
         return NS_ERROR_UNEXPECTED;
 
-      nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
       if (usesIndependentSelection) {
         /* If a search result is found inside an editable element, we'll focus
          * the element only if focus is in our content window, i.e.
          * |if (focusedWindow.top == ourWindow.top)| */
         PRBool shouldFocusEditableElement = false;
-        if (fm) {
-          nsCOMPtr<nsIDOMWindow> focusedWindow;
-          nsresult rv = fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+        nsIFocusController* focusController = window->GetRootFocusController();
+        if (focusController) {
+          nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+          nsresult rv = focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
           if (NS_SUCCEEDED(rv)) {
             nsCOMPtr<nsPIDOMWindow> fwPI(do_QueryInterface(focusedWindow, &rv));
             if (NS_SUCCEEDED(rv)) {
@@ -513,8 +517,11 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
               break;
 
             // Otherwise move focus/caret to editable element
-            if (fm)
-              fm->SetFocus(mFoundEditable, 0);
+            nsCOMPtr<nsIContent> content = do_QueryInterface(mFoundEditable);
+            if (content) {
+              content->SetFocus(presContext);
+              presContext->EventStateManager()->MoveCaretToFocus();
+            }
             break;
           }
           nsIDOMNode* tmp = node;
@@ -545,16 +552,26 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
         selection->AddRange(returnRange);
       }
 
-      if (!mFoundEditable && fm) {
-        nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(window);
-        fm->MoveFocus(win, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
-                      nsIFocusManager::FLAG_NOSCROLL | nsIFocusManager::FLAG_NOSWITCHFRAME,
-                      getter_AddRefs(mFoundLink));
+      if (!mFoundEditable) {
+        currentDocShell->SetHasFocus(PR_TRUE);  // What does this do?
+
+        // Keep track of whether we've found a link, so we can focus it, jump
+        // to its target, etc.
+        nsIEventStateManager *esm = presContext->EventStateManager();
+        PRBool isSelectionWithFocus;
+        esm->MoveFocusToCaret(PR_TRUE, &isSelectionWithFocus);
+        if (isSelectionWithFocus) {
+          nsCOMPtr<nsIContent> lastFocusedContent;
+          esm->GetLastFocusedContent(getter_AddRefs(lastFocusedContent));
+          nsCOMPtr<nsIDOMElement>
+            lastFocusedElement(do_QueryInterface(lastFocusedContent));
+          mFoundLink = lastFocusedElement;
+        }
       }
 
       // Change selection color to ATTENTION and scroll to it.  Careful: we
       // must wait until after we goof with focus above before changing to
-      // ATTENTION, or when we MoveFocus() and the selection is not on a
+      // ATTENTION, or when we MoveFocusToCaret() and the selection is not on a
       // link, we'll blur, which will lose the ATTENTION.
       if (selectionController) {
         // Beware! This may flush notifications via synchronous
@@ -562,8 +579,7 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
         SetSelectionModeAndRepaint(nsISelectionController::SELECTION_ATTENTION);
         selectionController->ScrollSelectionIntoView(
           nsISelectionController::SELECTION_NORMAL, 
-          nsISelectionController::SELECTION_WHOLE_SELECTION,
-          nsISelectionController::SCROLL_SYNCHRONOUS);
+          nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
       }
 
       mCurrentWindow = window;
@@ -712,7 +728,7 @@ nsTypeAheadFind::GetSearchContainers(nsISupports *aContainer,
   }
 
   if (!rootContent)
-    rootContent = doc->GetRootElement();
+    rootContent = doc->GetRootContent();
  
   nsCOMPtr<nsIDOMNode> rootNode(do_QueryInterface(rootContent));
 
@@ -798,7 +814,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
   }
   origContent = startContent;
 
-  if (startContent->IsElement()) {
+  if (startContent->IsNodeOfType(nsINode::eELEMENT)) {
     nsIContent *childContent = startContent->GetChildAt(startOffset);
     if (childContent) {
       startContent = childContent;
@@ -830,7 +846,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
     // Keep testing while startContent is equal to something,
     // eventually we'll run out of ancestors
 
-    if (startContent->IsHTML()) {
+    if (startContent->IsNodeOfType(nsINode::eHTML)) {
       nsCOMPtr<nsILink> link(do_QueryInterface(startContent));
       if (link) {
         // Check to see if inside HTML link
@@ -884,10 +900,11 @@ nsTypeAheadFind::FindAgain(PRBool aFindBackwards, PRBool aLinksOnly,
 {
   *aResult = FIND_NOTFOUND;
 
+  mLinksOnly = aLinksOnly;
   if (!mTypeAheadBuffer.IsEmpty())
     // Beware! This may flush notifications via synchronous
     // ScrollSelectionIntoView.
-    FindItNow(nsnull, aLinksOnly, PR_FALSE, aFindBackwards, aResult);
+    FindItNow(nsnull, mLinksOnly, PR_FALSE, aFindBackwards, aResult);
 
   return NS_OK;
 }
@@ -960,6 +977,8 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
     }
   }
 
+  mLinksOnly = aLinksOnly;  
+
 #ifdef XP_WIN
   // After each keystroke, ensure sound object is destroyed, to free up memory 
   // allocated for error sound, otherwise Windows' nsISound impl 
@@ -975,6 +994,11 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
 
   // --------- Initialize find if 1st char ----------
   if (bufferLength == 0) {
+    // Reset links only to default, if not manually set
+    // by the user via ' or / keypress at beginning
+    if (!mLinksOnly)
+      mLinksOnly = mLinksOnlyPref;
+ 
     // If you can see the selection (not collapsed or thru caret browsing),
     // or if already focused on a page element, start there.
     // Otherwise we're going to start at the first visible element
@@ -986,32 +1010,18 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
     // If false, we will scan from start of selection
     isFirstVisiblePreferred = !atEnd && !mCaretBrowsingOn && isSelectionCollapsed;
     if (isFirstVisiblePreferred) {
-      // Get the focused content. If there is a focused node, ensure the
-      // selection is at that point. Otherwise, we will just want to start
-      // from the caret position or the beginning of the document.
+      // Get focused content from esm. If it's null, the document is focused.
+      // If not, make sure the selection is in sync with the focus, so we can 
+      // start our search from there.
+      nsCOMPtr<nsIContent> focusedContent;
       nsPresContext* presContext = presShell->GetPresContext();
       NS_ENSURE_TRUE(presContext, NS_OK);
 
-      nsCOMPtr<nsIDocument> document =
-        do_QueryInterface(presShell->GetDocument());
-      if (!document)
-        return NS_ERROR_UNEXPECTED;
-
-      nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(document->GetWindow());
-
-      nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-      if (fm) {
-        nsCOMPtr<nsIDOMElement> focusedElement;
-        nsCOMPtr<nsIDOMWindow> focusedWindow;
-        fm->GetFocusedElementForWindow(window, PR_FALSE, getter_AddRefs(focusedWindow),
-                                       getter_AddRefs(focusedElement));
-        // If the root element is focused, then it's actually the document
-        // that has the focus, so ignore this.
-        if (focusedElement &&
-            !SameCOMIdentity(focusedElement, document->GetRootElement())) {
-          fm->MoveCaretToFocus(window);
-          isFirstVisiblePreferred = PR_FALSE;
-        }
+      nsIEventStateManager *esm = presContext->EventStateManager();
+      esm->GetFocusedContent(getter_AddRefs(focusedContent));
+      if (focusedContent) {
+        esm->MoveCaretToFocus();
+        isFirstVisiblePreferred = PR_FALSE;
       }
     }
   }
@@ -1019,7 +1029,7 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
   // ----------- Find the text! ---------------------
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  nsresult rv = FindItNow(nsnull, aLinksOnly, isFirstVisiblePreferred,
+  nsresult rv = FindItNow(nsnull, mLinksOnly, isFirstVisiblePreferred,
                           PR_FALSE, aResult);
 
   // ---------Handle success or failure ---------------
@@ -1095,7 +1105,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   if (!content)
     return PR_FALSE;
 
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = aPresShell->GetPrimaryFrameFor(content);
   if (!frame)    
     return PR_FALSE;  // No frame! Not visible then.
 
@@ -1130,21 +1140,34 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
 
   // Set up the variables we need, return true if we can't get at them all
   const PRUint16 kMinPixels  = 12;
-  nscoord minDistance = nsPresContext::CSSPixelsToAppUnits(kMinPixels);
+  PRUint16 minPixels = nsPresContext::CSSPixelsToAppUnits(kMinPixels);
+
+  nsIViewManager* viewManager = aPresShell->GetViewManager();
+  if (!viewManager)
+    return PR_TRUE;
 
   // Get the bounds of the current frame, relative to the current view.
   // We don't use the more accurate AccGetBounds, because that is
   // more expensive and the STATE_OFFSCREEN flag that this is used
   // for only needs to be a rough indicator
+  nsIView *containingView = nsnull;
+  nsPoint frameOffset;
   nsRectVisibility rectVisibility = nsRectVisibility_kAboveViewport;
 
-  if (!aGetTopVisibleLeaf && !frame->GetRect().IsEmpty()) {
-    rectVisibility =
-      aPresShell->GetRectVisibility(frame,
-                                    nsRect(nsPoint(0,0), frame->GetSize()),
-                                    minDistance);
+  if (!aGetTopVisibleLeaf) {
+    nsRect relFrameRect = frame->GetRect();
+    frame->GetOffsetFromView(frameOffset, &containingView);
+    if (!containingView)      
+      return PR_FALSE;  // no view -- not visible    
 
-    if (rectVisibility != nsRectVisibility_kAboveViewport) {
+    relFrameRect.x = frameOffset.x;
+    relFrameRect.y = frameOffset.y;
+
+    viewManager->GetRectVisibility(containingView, relFrameRect,
+                                   minPixels, &rectVisibility);
+
+    if (rectVisibility != nsRectVisibility_kAboveViewport &&
+        rectVisibility != nsRectVisibility_kZeroAreaRect) {
       return PR_TRUE;
     }
   }
@@ -1152,7 +1175,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   // We know that the target range isn't usable because it's not in the
   // view port. Move range forward to first visible point,
   // this speeds us up a lot in long documents
-  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
+  nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
   nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID));
   if (trav)
     trav->NewFrameTraversal(getter_AddRefs(frameTraversal),
@@ -1166,17 +1189,21 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   if (!frameTraversal)
     return PR_FALSE;
 
-  while (rectVisibility == nsRectVisibility_kAboveViewport) {
+  while (rectVisibility == nsRectVisibility_kAboveViewport || rectVisibility == nsRectVisibility_kZeroAreaRect) {
     frameTraversal->Next();
-    frame = frameTraversal->CurrentItem();
+    nsISupports* currentItem;
+    frameTraversal->CurrentItem(&currentItem);
+    frame = static_cast<nsIFrame*>(currentItem);
     if (!frame)
       return PR_FALSE;
 
-    if (!frame->GetRect().IsEmpty()) {
-      rectVisibility =
-        aPresShell->GetRectVisibility(frame,
-                                      nsRect(nsPoint(0,0), frame->GetSize()),
-                                      minDistance);
+    nsRect relFrameRect = frame->GetRect();
+    frame->GetOffsetFromView(frameOffset, &containingView);
+    if (containingView) {
+      relFrameRect.x = frameOffset.x;
+      relFrameRect.y = frameOffset.y;
+      viewManager->GetRectVisibility(containingView, relFrameRect,
+                                     minPixels, &rectVisibility);
     }
   }
 

@@ -14,7 +14,7 @@
  * The Original Code is Mozilla code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Messaging
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -40,36 +40,23 @@ const kTestURI = "http://\u65e5\u672c\u8a93.jp/";
 const kExpectedURI = "http://xn--wgv71a309e.jp/";
 const kOutputFile = "result.txt";
 
-// Try several times in case the box we're running on is slow.
-const kMaxCheckExistAttempts = 30; // seconds
-var gCheckExistsAttempts = 0;
-
 function checkFile() {
   // This is where we expect the output
-  var tempFile = do_get_cwd();
+  var tempFile = Components.classes["@mozilla.org/file/local;1"].
+    createInstance(Components.interfaces.nsILocalFile);
+  tempFile = HandlerServiceTest._dirSvc.get("CurProcD", Components.interfaces.nsIFile);
   tempFile.append(kOutputFile);
 
-  if (!tempFile.exists()) {
-    if (gCheckExistsAttempts >= kMaxCheckExistAttempts) {
-      do_throw("Expected File " + tempFile.path + " does not exist after " +
-                 kMaxCheckExistAttempts + " seconds");
-    }
-    else {
-      ++gCheckExistsAttempts;
-      // Wait a bit longer then try again
-      do_timeout(1000, checkFile);
-    }
-  }
+  if (!tempFile.exists())
+    do_throw("Expected File " + tempFile.path + " does not exist");
 
   // Now read it
-  var fstream =
-    Components.classes["@mozilla.org/network/file-input-stream;1"]
-              .createInstance(Components.interfaces.nsIFileInputStream);
-  var sstream =
-    Components.classes["@mozilla.org/scriptableinputstream;1"]
-              .createInstance(Components.interfaces.nsIScriptableInputStream);
+  var fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
+    createInstance(Components.interfaces.nsIFileInputStream);
+  var sstream = Components.classes["@mozilla.org/scriptableinputstream;1"].
+    createInstance(Components.interfaces.nsIScriptableInputStream);
   fstream.init(tempFile, -1, 0, 0);
-  sstream.init(fstream);
+  sstream.init(fstream); 
 
   // Read the first line only as that's the one we expect WriteArguments
   // to be writing the argument to.
@@ -93,25 +80,29 @@ function checkFile() {
 }
 
 function run_test() {
-  var isOSX = ("nsILocalFileMac" in Components.interfaces);
-  if (isOSX) {
-    dump("INFO | test_punycodeURIs.js | Skipping test on mac, bug 599475")
+  // don't run the test on Mac OS 10.4 - see bug 447999
+  const httpHandler =
+    Components.classes["@mozilla.org/network/protocol;1?name=http"]
+              .getService(Components.interfaces.nsIHttpProtocolHandler);
+  const oscpu = httpHandler.oscpu;
+  if (oscpu.match(/Mac OS X 10.4/)) {
+    dump("This test is not run on Mac OS 10.4 because it fails for unknown " +
+         "reasons. See bug 447999.\n");
     return;
   }
 
   // set up the uri to test with
-  var ioService =
-    Components.classes["@mozilla.org/network/io-service;1"]
-              .getService(Components.interfaces.nsIIOService);
+  var ioService = Components.classes["@mozilla.org/network/io-service;1"].
+    getService(Components.interfaces.nsIIOService);
 
   // set up the local handler object
-  var localHandler =
-    Components.classes["@mozilla.org/uriloader/local-handler-app;1"]
-              .createInstance(Components.interfaces.nsILocalHandlerApp);
+  var localHandler = 
+    Components.classes["@mozilla.org/uriloader/local-handler-app;1"].
+    createInstance(Components.interfaces.nsILocalHandlerApp);
   localHandler.name = "Test Local Handler App";
 
   // WriteArgument will just dump its arguments to a file for us.
-  var processDir = do_get_cwd();
+  var processDir = HandlerServiceTest._dirSvc.get("CurProcD", Components.interfaces.nsIFile);
   var exe = processDir.clone();
   exe.append("WriteArgument");
 
@@ -126,19 +117,15 @@ function run_test() {
   outFile.append(kOutputFile);
 
   // Set an environment variable for WriteArgument to pick up
-  var envSvc =
-    Components.classes["@mozilla.org/process/environment;1"]
-              .getService(Components.interfaces.nsIEnvironment);
+  var envSvc = Components.classes["@mozilla.org/process/environment;1"].
+    getService(Components.interfaces.nsIEnvironment);
 
   // The Write Argument file needs to know where its libraries are, so
   // just force the path variable
   // For mac
-  var greDir = HandlerServiceTest._dirSvc.get("GreD", Components.interfaces.nsIFile);
-
-  envSvc.set("DYLD_LIBRARY_PATH", greDir.path);
-  // For Linux
-  envSvc.set("LD_LIBRARY_PATH", greDir.path);
-  //XXX: handle windows
+  envSvc.set("DYLD_LIBRARY_PATH", processDir.path);
+  // For Linux/Windows
+  envSvc.set("LD_LIBRARY_PATH", processDir.path);
 
   // Now tell it where we want the file.
   envSvc.set("WRITE_ARGUMENT_FILE", outFile.path);
@@ -153,5 +140,5 @@ function run_test() {
   localHandler.launchWithURI(uri);
 
   do_test_pending();
-  do_timeout(1000, checkFile);
+  do_timeout(1000, "checkFile()");
 }

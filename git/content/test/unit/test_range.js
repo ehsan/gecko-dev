@@ -257,12 +257,12 @@ function getParsedDocument(aPath) {
  * Run the extraction tests.
  */
 function run_extract_test() {
-  var filePath = "test_delete_range.xml";
+  var filePath = "/content/test/unit/test_delete_range.xml";
   var doc = getParsedDocument(filePath);
   var tests = doc.getElementsByTagName("test");
 
   // Run our deletion, extraction tests.
-  for (var i = 0; i < tests.length; i++) {
+  for (i = 0; i < tests.length; i++) {
     dump("Configuring for test " + i + "\n");
     var currentTest = tests.item(i);
 
@@ -315,10 +315,10 @@ function run_extract_test() {
     do_check_true(baseFrag.isEqualNode(resultFrag));
 
     dump("Ensure the original nodes weren't extracted - test " + i + "\n\n");
-    var walker = doc.createTreeWalker(baseFrag,
-				      C_i.nsIDOMNodeFilter.SHOW_ALL,
-				      null,
-				      false);
+    walker = doc.createTreeWalker(baseFrag,
+                                  C_i.nsIDOMNodeFilter.SHOW_ALL,
+                                  null,
+                                  false);
     var foundStart = false;
     var foundEnd = false;
     do {
@@ -409,19 +409,19 @@ function run_extract_test() {
  * Miscellaneous tests not covered above.
  */
 function run_miscellaneous_tests() {
-  var filePath = "test_delete_range.xml";
+  var filePath = "/content/test/unit/test_delete_range.xml";
   var doc = getParsedDocument(filePath);
   var tests = doc.getElementsByTagName("test");
 
   // Let's try some invalid inputs to our DOM range and see what happens.
   var currentTest = tests.item(0);
-  var baseSource = currentTest.firstChild;
-  var baseResult = baseSource.nextSibling;
-  var baseExtract = baseResult.nextSibling;
+  baseSource = currentTest.firstChild;
+  baseResult = baseSource.nextSibling;
+  baseExtract = baseResult.nextSibling;
 
-  var baseFrag = getFragment(baseSource);
+  baseFrag = getFragment(baseSource);
 
-  var baseRange = getRange(baseSource, baseFrag);
+  baseRange = getRange(baseSource, baseFrag);
   var startContainer = baseRange.startContainer;
   var endContainer = baseRange.endContainer;
   var startOffset = baseRange.startOffset;

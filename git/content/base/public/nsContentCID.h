@@ -69,6 +69,11 @@
  0x5d0fcdd0, 0x4daa, 0x11d2,                      \
  {0xb3, 0x28, 0x00, 0x80, 0x5f, 0x8a, 0x38, 0x59}}
 
+#define NS_WYCIWYGPROTOCOLHANDLER_CID             \
+{ /* e7509b46-2eB2-410a-9d7c-c3ce73284d01 */      \
+  0xe7509b46, 0x2eb2, 0x410a,                     \
+  {0x9d, 0x7c, 0xc3, 0xce, 0x73, 0x28, 0x4d, 0x01}}
+
 #define NS_XMLDOCUMENT_CID                        \
 { /* a6cf9063-15b3-11d2-932e-00805f8add32 */      \
  0xa6cf9063, 0x15b3, 0x11d2,                      \
@@ -122,6 +127,14 @@
 // {2E363D60-872E-11d2-B531-000000000000}
 #define NS_CSSPARSER_CID \
 { 0x2e363d60, 0x872e, 0x11d2, { 0xb5, 0x31, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } }
+
+// {95F46161-D177-11d2-BF86-00105A1B0627}
+#define NS_HTML_CSS_STYLESHEET_CID \
+{ 0x95f46161, 0xd177, 0x11d2, { 0xbf, 0x86, 0x0, 0x10, 0x5a, 0x1b, 0x6, 0x27 } }
+
+// {A1FDE867-E802-11d4-9885-00C04FA0CF4B}
+#define NS_CSS_STYLESHEET_CID \
+{ 0xa1fde867, 0xe802, 0x11d4, { 0x98, 0x85, 0x0, 0xc0, 0x4f, 0xa0, 0xcf, 0x4b } }
 
 // {eaca2576-0d4a-11d3-9d7e-0060088f9ff7}
 #define NS_CSS_LOADER_CID \
@@ -182,10 +195,6 @@
 #define NS_XMLCONTENTSERIALIZER_CID \
 { 0x4aef38b7, 0x6364, 0x4e23, { 0xa5, 0xe7, 0x12, 0xf8, 0x37, 0xfb, 0xbd, 0x9c } }
 
-// {e7c2aaf5-c11a-4954-9dbf-e28edec1fd91}
-#define NS_XHTMLCONTENTSERIALIZER_CID \
-{ 0xe7c2aaf5, 0xc11a, 0x4954, { 0x9d, 0xbf, 0xe2, 0x8e, 0xde, 0xc1, 0xfd, 0x91 } }
-
 // {9d3f70da-86e9-11d4-95ec-00b0d03e37b7}
 #define NS_HTMLCONTENTSERIALIZER_CID \
 { 0x9d3f70da, 0x86e9, 0x11d4, { 0x95, 0xec, 0x00, 0xb0, 0xd0, 0x3e, 0x37, 0xb7 } }
@@ -210,10 +219,6 @@
 #define NS_HTMLPARANOIDFRAGMENTSINK_CID \
 { 0xa47e9526, 0x6e48, 0x4574, { 0x9d, 0x6c, 0x31, 0x64, 0xe2, 0x71, 0xf7, 0x4e } }
 
-// {35aab9d8-db42-4c82-8aba-fad2b1d8f465}
-#define NS_HTMLPARANOIDFRAGMENTSINK2_CID \
-{ 0x35aab9d8, 0xdb42, 0x4c82, { 0x8a, 0xba, 0xfa, 0xd2, 0xb1, 0xd8, 0xf4, 0x65 } }
-
 // {4B664E54-72A2-4bbf-A5C2-66D4DC3066A0}
 #define NS_XMLFRAGMENTSINK_CID \
 { 0x4b664e54, 0x72a2, 0x4bbf, { 0xa5, 0xc2, 0x66, 0xd4, 0xdc, 0x30, 0x66, 0xa0 } }
@@ -225,10 +230,6 @@
 // {2D78BBF0-E26C-482B-92B3-78A7B2AFC8F7}
 #define NS_XHTMLPARANOIDFRAGMENTSINK_CID  \
 { 0x2d78bbf0, 0xe26c, 0x482b, { 0x92, 0xb3, 0x78, 0xa7, 0xb2, 0xaf, 0xc8, 0xf7} }
-
-// {921dac9c-ffd4-4b5c-9901-4015b03862e6}
-#define NS_XHTMLPARANOIDFRAGMENTSINK2_CID  \
-{ 0x921dac9c, 0xffd4, 0x4b5c, { 0x99, 0x01, 0x40, 0x15, 0xb0, 0x38, 0x62, 0xe6} }
 
 // {3986B301-097C-11d3-BF87-00105A1B0627}
 #define NS_XULPOPUPLISTENER_CID \
@@ -280,15 +281,6 @@
 
 #endif // MOZ_SVG
 
-#ifdef MOZ_MEDIA
-
-// {d899a152-9412-46b2-b651-2e71c5c2f05f}
-#define NS_VIDEODOCUMENT_CID   \
-{ 0xd899a152, 0x9412, 0x46b2,  \
-  { 0xb6, 0x51, 0x2e, 0x71, 0xc5, 0xc2, 0xf0, 0x5f } }
-
-#endif
-
 #define NS_SYNCLOADDOMSERVICE_CID                   \
  { /* 0e4e7d00-f71a-439f-9178-1a71ff11b55f */       \
   0x0e4e7d00, 0xf71a, 0x439f,                       \
@@ -296,40 +288,8 @@
 #define NS_SYNCLOADDOMSERVICE_CONTRACTID            \
 "@mozilla.org/content/syncload-dom-service;1"
 
-#define NS_EVENTLISTENERSERVICE_CID                 \
- { /* baa34652-f1f1-4185-b224-244ee82a413a */       \
-   0xbaa34652, 0xf1f1, 0x4185,                      \
-  {0xb2, 0x24, 0x24, 0x4e, 0xe8, 0x2a, 0x41, 0x3a } }
-#define NS_EVENTLISTENERSERVICE_CONTRACTID \
-  "@mozilla.org/eventlistenerservice;1"
-
-#define NS_GLOBALMESSAGEMANAGER_CID                   \
- { /* 130b016f-fad7-4526-bc7f-827dabf79265 */         \
-    0x130b016f, 0xfad7, 0x4526,                       \
-  { 0xbc, 0x7f, 0x82, 0x7d, 0xab, 0xf7, 0x92, 0x65 } }
-#define NS_GLOBALMESSAGEMANAGER_CONTRACTID \
-  "@mozilla.org/globalmessagemanager;1"
-
-#define NS_PARENTPROCESSMESSAGEMANAGER_CID             \
- { /* 2a058404-fb85-44ec-8cfd-e8cbdc988dc1 */          \
-    0x2a058404, 0xfb85, 0x44ec,                        \
-  { 0x8c, 0xfd, 0xe8, 0xcb, 0xdc, 0x98, 0x8d, 0xc1 } }
-#define NS_PARENTPROCESSMESSAGEMANAGER_CONTRACTID \
-  "@mozilla.org/parentprocessmessagemanager;1"
-
-  #define NS_CHILDPROCESSMESSAGEMANAGER_CID           \
- { /* fe0ff7c3-8e97-448b-9a8a-86afdb9fbbb6 */         \
-    0xfe0ff7c3, 0x8e97, 0x448b,                       \
-  { 0x9a, 0x8a, 0x86, 0xaf, 0xdb, 0x9f, 0xbb, 0xb6 } }
-#define NS_CHILDPROCESSMESSAGEMANAGER_CONTRACTID \
-  "@mozilla.org/childprocessmessagemanager;1"
-  
 // {f96f5ec9-755b-447e-b1f3-717d1a84bb41}
 #define NS_PLUGINDOCUMENT_CID \
 { 0xf96f5ec9, 0x755b, 0x447e, { 0xb1, 0xf3, 0x71, 0x7d, 0x1a, 0x84, 0xbb, 0x41 } }
-
-// {08c6cc8b-cfb0-421d-b1f7-683ff2989681}
-#define THIRDPARTYUTIL_CID \
- {0x08c6cc8b, 0xcfb0, 0x421d, {0xb1, 0xf7, 0x68, 0x3f, 0xf2, 0x98, 0x96, 0x81}}
 
 #endif /* nsContentCID_h__ */

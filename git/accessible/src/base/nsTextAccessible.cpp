@@ -38,34 +38,65 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// NOTE: alphabetically ordered
 #include "nsTextAccessible.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsTextAccessible
-////////////////////////////////////////////////////////////////////////////////
+// ------------
+// Text Accessibles
+// ------------
 
-nsTextAccessible::
-  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLinkableAccessible(aContent, aShell)
-{
-  mFlags |= eTextLeafAccessible;
+nsTextAccessible::nsTextAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
+nsLinkableAccessible(aDOMNode, aShell)
+{ 
 }
 
-PRUint32
-nsTextAccessible::NativeRole()
+// Make sure we don't support text or other irrelevant interfaces.
+// We have nsLinkableAccessible in our inheritance chain as a convenience in order to
+// get link actions and states on the text accessibles. Windows screen readers expect that.
+NS_IMPL_ISUPPORTS_INHERITED2(nsTextAccessible, nsAccessNode, nsIAccessible, nsPIAccessible)
+
+/**
+  * We are text
+  */
+NS_IMETHODIMP nsTextAccessible::GetRole(PRUint32 *_retval)
 {
-  return nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *_retval = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  return NS_OK;
 }
 
-void
-nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
-                               PRUint32 aLength)
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetFirstChild(nsIAccessible **_retval)
 {
-  aText.Append(Substring(mText, aStartOffset, aLength));
+  *_retval = nsnull;
+  return NS_OK;
 }
 
-void
-nsTextAccessible::CacheChildren()
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetLastChild(nsIAccessible **_retval)
 {
-  // No children for text accessible.
+  *_retval = nsnull;
+  return NS_OK;
 }
+
+/**
+  * No Children
+  */
+NS_IMETHODIMP nsTextAccessible::GetChildCount(PRInt32 *_retval)
+{
+  *_retval = 0;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength)
+{
+  nsIFrame *frame = GetFrame();
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
+
+  return frame->GetRenderedText(&aText, nsnull, nsnull, aStartOffset, aLength);
+}
+

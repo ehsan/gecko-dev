@@ -282,41 +282,6 @@ _cairo_scaled_font_subsets_foreach_unscaled (cairo_scaled_font_subsets_t        
 				             void				      *closure);
 
 /**
- * _cairo_scaled_font_subsets_foreach_user:
- * @font_subsets: a #cairo_scaled_font_subsets_t
- * @font_subset_callback: a function to be called for each font subset
- * @closure: closure data for the callback function
- *
- * Iterate over each unique scaled font subset as created by calls to
- * _cairo_scaled_font_subsets_map_glyph(). A subset is determined by
- * unique pairs of (font_id, subset_id) as returned by
- * _cairo_scaled_font_subsets_map_glyph().
- *
- * For each subset, @font_subset_callback will be called and will be
- * provided with both a #cairo_scaled_font_subset_t object containing
- * all the glyphs in the subset as well as the value of @closure.
- *
- * The #cairo_scaled_font_subset_t object contains the scaled_font,
- * the font_id, and the subset_id corresponding to all glyphs
- * belonging to the subset. In addition, it contains an array providing
- * a mapping between subset glyph indices and the original scaled font
- * glyph indices.
- *
- * The index of the array corresponds to subset_glyph_index values
- * returned by _cairo_scaled_font_subsets_map_glyph() while the
- * values of the array correspond to the scaled_font_glyph_index
- * values passed as input to the same function.
- *
- * Return value: %CAIRO_STATUS_SUCCESS if successful, or a non-zero
- * value indicating an error. Possible errors include
- * %CAIRO_STATUS_NO_MEMORY.
- **/
-cairo_private cairo_status_t
-_cairo_scaled_font_subsets_foreach_user (cairo_scaled_font_subsets_t		  *font_subsets,
-					 cairo_scaled_font_subset_callback_func_t  font_subset_callback,
-					 void					  *closure);
-
-/**
  * _cairo_scaled_font_subset_create_glyph_names:
  * @font_subsets: a #cairo_scaled_font_subsets_t
  *
@@ -332,8 +297,7 @@ cairo_private cairo_int_status_t
 _cairo_scaled_font_subset_create_glyph_names (cairo_scaled_font_subset_t *subset);
 
 typedef struct _cairo_cff_subset {
-    char *font_name;
-    char *ps_name;
+    char *base_font;
     int *widths;
     long x_min, y_min, x_max, y_max;
     long ascent, descent;
@@ -405,8 +369,7 @@ cairo_private void
 _cairo_cff_fallback_fini (cairo_cff_subset_t *cff_subset);
 
 typedef struct _cairo_truetype_subset {
-    char *font_name;
-    char *ps_name;
+    char *base_font;
     double *widths;
     double x_min, y_min, x_max, y_max;
     double ascent, descent;
@@ -636,32 +599,6 @@ cairo_private cairo_int_status_t
 _cairo_truetype_index_to_ucs4 (cairo_scaled_font_t *scaled_font,
                                unsigned long        index,
                                uint32_t            *ucs4);
-
-/**
- * _cairo_truetype_read_font_name:
- * @scaled_font: the #cairo_scaled_font_t
- * @ps_name: returns the PostScript name of the font
- *           or %NULL if the name could not be found.
- * @font_name: returns the font name or %NULL if the name could not be found.
- *
- * If possible (depending on the format of the underlying
- * #cairo_scaled_font_t and the font backend in use) read the
- * PostScript and Font names from a TrueType/OpenType font.
- *
- * The font name is the full name of the font eg "DejaVu Sans Bold".
- * The PostScript name is a shortened name with spaces removed
- * suitable for use as the font name in a PS or PDF file eg
- * "DejaVuSans-Bold".
- *
- * Return value: %CAIRO_STATUS_SUCCESS if successful,
- * %CAIRO_INT_STATUS_UNSUPPORTED if the font is not TrueType/OpenType
- * or the name table is not present.  Possible errors include
- * %CAIRO_STATUS_NO_MEMORY.
- **/
-cairo_private cairo_int_status_t
-_cairo_truetype_read_font_name (cairo_scaled_font_t   *scaled_font,
-				char		     **ps_name,
-				char		     **font_name);
 
 #endif /* CAIRO_HAS_FONT_SUBSET */
 

@@ -54,7 +54,7 @@
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
-          src="utils.js"/>
+          src="chrome://mochikit/content/chrome/toolkit/mozapps/downloads/tests/chrome/utils.js"/>
 
   <script type="application/javascript">
   <![CDATA[
@@ -99,24 +99,12 @@ bug413093obs.prototype = {
       ww.unregisterNotification(this);
 
       // Let the UI finish doing whatever it needs to do
-      SimpleTest.executeSoon(function() {
+      executeSoon(function() {
         setPref(false);
 
         let dmui = Cc["@mozilla.org/download-manager-ui;1"].
                    getService(Ci.nsIDownloadManagerUI);
         ok(!dmui.visible, "Download Manager UI is not showing");
-
-        // reset the changed config values to default value
-        let prefs = Cc["@mozilla.org/preferences-service;1"].
-                    getService(Ci.nsIPrefService);
-        try {
-          prefs.clearUserPref("browser.download.manager.retention");
-        }
-        catch (err) { }
-        try {
-          prefs.clearUserPref("browser.download.manager.closeWhenDone");
-        }
-        catch (err) { }
 
         SimpleTest.finish();
       });

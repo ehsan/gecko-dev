@@ -45,50 +45,71 @@
 #include "nsPresContext.h"
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
-#include "nsMathUtils.h"
-#include "CSSCalc.h"
-#include "nsCSSStruct.h"
+#include <math.h>
 
-namespace css = mozilla::css;
+/* Arguably, this loses precision, but it doesn't hurt! */
+const float kPi      = 3.1415926535897932384626433832795f;
+const float kTwoPi   = 6.283185307179586476925286766559f;
+const float kEpsilon = 0.0001f;
 
-/* Note on floating point precision: The transform matrix is an array
- * of single precision 'float's, and so are most of the input values
- * we get from the style system, but intermediate calculations
- * involving angles need to be done in 'double'.
+/* Computes tan(theta).  For values of theta such that
+ * tan(theta) is undefined or arbitrarily large, SafeTangent
+ * returns a managably large or small value of the correct sign.
  */
-
-/* Force small values to zero.  We do this to avoid having sin(360deg)
- * evaluate to a tiny but nonzero value.
- */
-static double FlushToZero(double aVal)
+static float SafeTangent(float aTheta)
 {
-  if (-FLT_EPSILON < aVal && aVal < FLT_EPSILON)
-    return 0.0f;
-  else
-    return aVal;
-}
-
-/* Computes tan(aTheta).  For values of aTheta such that tan(aTheta) is
- * undefined or very large, SafeTangent returns a manageably large value
- * of the correct sign.
- */
-static double SafeTangent(double aTheta)
-{
-  const double kEpsilon = 0.0001;
-
-  /* tan(theta) = sin(theta)/cos(theta); problems arise when
-   * cos(theta) is too close to zero.  Limit cos(theta) to the
-   * range [-1, -epsilon] U [epsilon, 1].
+  /* We'll do this by computing sin and cos theta.  If cos(theta) is
+   * is too close to zero, we'll set it to some arbitrary epsilon value
+   * that avoid float overflow or undefined result.
    */
-  double sinTheta = sin(aTheta);
-  double cosTheta = cos(aTheta);
-
+  float sinTheta = sin(aTheta);
+  float cosTheta = cos(aTheta);
+  
+  /* Bound cos(theta) to be in the range [-1, -epsilon) U (epsilon, 1] */
   if (cosTheta >= 0 && cosTheta < kEpsilon)
     cosTheta = kEpsilon;
   else if (cosTheta < 0 && cosTheta >= -kEpsilon)
     cosTheta = -kEpsilon;
+  
+  return sinTheta / cosTheta;
+}
 
-  return FlushToZero(sinTheta / cosTheta);
+/* Helper function to constrain an angle to a value in the range [-pi, pi),
+ * which reduces accumulated floating point errors from trigonometric functions
+ * by keeping the error terms small.
+ */
+static inline float ConstrainFloatValue(float aValue)
+{
+  /* Get in range [0, 2pi) */
+  aValue = fmod(aValue, kTwoPi);
+  return aValue >= kPi ? aValue - kTwoPi : aValue;
+}
+
+/* Converts an nsCSSValue containing an angle into an equivalent measure
+ * of radians.  The value is guaranteed to be in the range (-pi, pi) to
+ * minimize error.
+ */
+static float CSSToRadians(const nsCSSValue &aValue)
+{
+  NS_PRECONDITION(aValue.IsAngularUnit(),
+                  "Expected an angle, but didn't find one!");
+  
+  switch (aValue.GetUnit()) {
+  case eCSSUnit_Degree:
+    /* 360deg = 2pi rad, so deg = pi / 180 rad */
+    return
+      ConstrainFloatValue(aValue.GetFloatValue() * kPi / 180.0f);
+  case eCSSUnit_Grad:
+    /* 400grad = 2pi rad, so grad = pi / 200 rad */
+    return
+      ConstrainFloatValue(aValue.GetFloatValue() * kPi / 200.0f);
+  case eCSSUnit_Radian:
+    /* Yay identity transforms! */
+    return ConstrainFloatValue(aValue.GetFloatValue());
+  default:
+    NS_NOTREACHED("Unexpected angular unit!");
+    return 0.0f;
+  }
 }
 
 /* Constructor sets the data to the identity matrix. */
@@ -212,50 +233,22 @@ nsStyleTransformMatrix::operator *(const nsStyleTransformMatrix &aOther) const
 }
 
 /* Helper function to fill in an nscoord with the specified nsCSSValue. */
-static nscoord CalcLength(const nsCSSValue &aValue,
-                          nsStyleContext* aContext,
-                          nsPresContext* aPresContext,
-                          PRBool &aCanStoreInRuleTree)
+static void SetCoordToValue(const nsCSSValue &aValue,
+			    nsStyleContext* aContext,
+			    nsPresContext* aPresContext, nscoord &aOut)
 {
-  if (aValue.GetUnit() == eCSSUnit_Pixel) {
-    // Handle this here (even though nsRuleNode::CalcLength handles it
-    // fine) so that callers are allowed to pass a null style context
-    // and pres context to SetToTransformFunction if they know (as
-    // nsStyleAnimation does) that all lengths within the transform
-    // function have already been computed to pixels and percents.
-    return nsPresContext::CSSPixelsToAppUnits(aValue.GetFloatValue());
-  }
-  return nsRuleNode::CalcLength(aValue, aContext, aPresContext,
-                                aCanStoreInRuleTree);
-}
+  PRBool unused = PR_FALSE;
+  aOut = nsRuleNode::CalcLength(aValue, aContext, aPresContext, unused);
 
-static void ProcessTranslatePart(nscoord& aOffset, float& aPercent,
-                                 const nsCSSValue& aValue,
-                                 nsStyleContext* aContext,
-                                 nsPresContext* aPresContext,
-                                 PRBool& aCanStoreInRuleTree)
-{
-  if (aValue.GetUnit() == eCSSUnit_Percent) {
-    aPercent = aValue.GetPercentValue();
-  } else if (aValue.IsCalcUnit()) {
-    nsRuleNode::ComputedCalc result =
-      nsRuleNode::SpecifiedCalcToComputedCalc(aValue, aContext, aPresContext,
-                                              aCanStoreInRuleTree);
-    aPercent = result.mPercent;
-    aOffset = result.mLength;
-  } else {
-    aOffset = CalcLength(aValue, aContext, aPresContext,
-                         aCanStoreInRuleTree);
-  }
+  NS_POSTCONDITION(!unused, "How did we inherit a value?");
 }
 
 /* Helper function to process a matrix entry. */
 static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
-                          float aX[2], float aY[2],
-                          const nsCSSValue::Array* aData,
-                          nsStyleContext* aContext,
-                          nsPresContext* aPresContext,
-                          PRBool& aCanStoreInRuleTree)
+			  float aX[2], float aY[2],
+			  const nsCSSValue::Array* aData,
+			  nsStyleContext* aContext,
+			  nsPresContext* aPresContext)
 {
   NS_PRECONDITION(aData->Count() == 7, "Invalid array!");
 
@@ -265,21 +258,28 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
   for (PRUint16 index = 1; index <= 4; ++index)
     aMain[index - 1] = aData->Item(index).GetFloatValue();
 
-  /* The last two elements have their length parts stored in aDelta
-   * and their percent parts stored in aX[0] and aY[1].
+  /* For the fifth element, if it's a percentage, store it in aX[0].
+   * Otherwise, it's a length that needs to go in aDelta[0]
    */
-  ProcessTranslatePart(aDelta[0], aX[0], aData->Item(5),
-                       aContext, aPresContext, aCanStoreInRuleTree);
-  ProcessTranslatePart(aDelta[1], aY[1], aData->Item(6),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  if (aData->Item(5).GetUnit() == eCSSUnit_Percent)
+    aX[0] = aData->Item(5).GetPercentValue();
+  else
+    SetCoordToValue(aData->Item(5), aContext, aPresContext, aDelta[0]);
+
+  /* For the final element, if it's a percentage, store it in aY[1].
+   * Otherwise, it's a length that needs to go in aDelta[1].
+   */
+  if (aData->Item(6).GetUnit() == eCSSUnit_Percent)
+    aY[1] = aData->Item(6).GetPercentValue();
+  else
+    SetCoordToValue(aData->Item(6), aContext, aPresContext, aDelta[1]);
 }
 
 /* Helper function to process a translatex function. */
 static void ProcessTranslateX(nscoord aDelta[2], float aX[2],
-                              const nsCSSValue::Array* aData,
-                              nsStyleContext* aContext,
-                              nsPresContext* aPresContext,
-                              PRBool& aCanStoreInRuleTree)
+			      const nsCSSValue::Array* aData,
+			      nsStyleContext* aContext,
+			      nsPresContext* aPresContext)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
@@ -294,16 +294,17 @@ static void ProcessTranslateX(nscoord aDelta[2], float aX[2],
    * Otherwise, we might have a percentage, so we want to set the dX component
    * to the percent.
    */
-  ProcessTranslatePart(aDelta[0], aX[0], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aDelta[0]);
+  else
+    aX[0] = aData->Item(1).GetPercentValue();
 }
 
 /* Helper function to process a translatey function. */
 static void ProcessTranslateY(nscoord aDelta[2], float aY[2],
-                              const nsCSSValue::Array* aData,
-                              nsStyleContext* aContext,
-                              nsPresContext* aPresContext,
-                              PRBool& aCanStoreInRuleTree)
+			      const nsCSSValue::Array* aData,
+			      nsStyleContext* aContext,
+			      nsPresContext* aPresContext)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
 
@@ -318,16 +319,17 @@ static void ProcessTranslateY(nscoord aDelta[2], float aY[2],
    * Otherwise, we might have a percentage, so we want to set the dY component
    * to the percent.
    */
-  ProcessTranslatePart(aDelta[1], aY[1], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aDelta[1]);
+  else
+    aY[1] = aData->Item(1).GetPercentValue();
 }
 
 /* Helper function to process a translate function. */
 static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
-                             const nsCSSValue::Array* aData,
-                             nsStyleContext* aContext,
-                             nsPresContext* aPresContext,
-                             PRBool& aCanStoreInRuleTree)
+			     const nsCSSValue::Array* aData,
+			     nsStyleContext* aContext,
+			     nsPresContext* aPresContext)
 {
   NS_PRECONDITION(aData->Count() == 2 || aData->Count() == 3, "Invalid array!");
 
@@ -339,13 +341,19 @@ static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
    * the main matrix.
    */
 
-  ProcessTranslatePart(aDelta[0], aX[0], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  const nsCSSValue &dx = aData->Item(1);
+  if (dx.GetUnit() == eCSSUnit_Percent)
+    aX[0] = dx.GetPercentValue();
+  else
+    SetCoordToValue(dx, aContext, aPresContext, aDelta[0]);
 
   /* If we read in a Y component, set it appropriately */
   if (aData->Count() == 3) {
-    ProcessTranslatePart(aDelta[1], aY[1], aData->Item(2),
-                         aContext, aPresContext, aCanStoreInRuleTree);
+    const nsCSSValue &dy = aData->Item(2);
+    if (dy.GetUnit() == eCSSUnit_Percent)
+      aY[1] = dy.GetPercentValue();
+    else
+      SetCoordToValue(dy, aContext, aPresContext, aDelta[1]); 
   }
 }
 
@@ -385,22 +393,22 @@ static void ProcessScale(float aMain[4], const nsCSSValue::Array* aData)
    */
   const nsCSSValue& scaleX = aData->Item(1);
   const nsCSSValue& scaleY = (aData->Count() == 2 ? scaleX :
-                              aData->Item(2));
+			      aData->Item(2));
 
   ProcessScaleHelper(scaleX.GetFloatValue(),
-                     scaleY.GetFloatValue(), aMain);
+		     scaleY.GetFloatValue(), aMain);
 }
 
 /* Helper function that, given a set of angles, constructs the appropriate
  * skew matrix.
  */
-static void ProcessSkewHelper(double aXAngle, double aYAngle, float aMain[4])
+static void ProcessSkewHelper(float aXAngle, float aYAngle, float aMain[4])
 {
   /* We want our matrix to look like this:
    * |  1           tan(ThetaX)  0|
    * |  tan(ThetaY) 1            0|
    * |  0           0            1|
-   * However, to avoid infinite values, we'll use the SafeTangent function
+   * However, to avoid infinte values, we'll use the SafeTangent function
    * instead of the C standard tan function.
    */
   aMain[2] = SafeTangent(aXAngle);
@@ -411,24 +419,23 @@ static void ProcessSkewHelper(double aXAngle, double aYAngle, float aMain[4])
 static void ProcessSkewX(float aMain[4], const nsCSSValue::Array* aData)
 {
   NS_ASSERTION(aData->Count() == 2, "Bad array!");
-  ProcessSkewHelper(aData->Item(1).GetAngleValueInRadians(), 0.0, aMain);
+  ProcessSkewHelper(CSSToRadians(aData->Item(1)), 0.0f, aMain);
 }
 
 /* Function that converts a skewy transform into a matrix. */
 static void ProcessSkewY(float aMain[4], const nsCSSValue::Array* aData)
 {
   NS_ASSERTION(aData->Count() == 2, "Bad array!");
-  ProcessSkewHelper(0.0, aData->Item(1).GetAngleValueInRadians(), aMain);
+  ProcessSkewHelper(0.0f, CSSToRadians(aData->Item(1)), aMain);
 }
 
 /* Function that converts a skew transform into a matrix. */
 static void ProcessSkew(float aMain[4], const nsCSSValue::Array* aData)
 {
   NS_ASSERTION(aData->Count() == 2 || aData->Count() == 3, "Bad array!");
-
-  double xSkew = aData->Item(1).GetAngleValueInRadians();
-  double ySkew = (aData->Count() == 2
-                  ? 0.0 : aData->Item(2).GetAngleValueInRadians());
+  
+  float xSkew = CSSToRadians(aData->Item(1));
+  float ySkew = (aData->Count() == 2 ? 0.0f : CSSToRadians(aData->Item(2)));
 
   ProcessSkewHelper(xSkew, ySkew, aMain);
 }
@@ -444,26 +451,14 @@ static void ProcessRotate(float aMain[4], const nsCSSValue::Array* aData)
    * |           0            0  1|
    * (see http://www.w3.org/TR/SVG/coords.html#RotationDefined)
    */
-  double theta = aData->Item(1).GetAngleValueInRadians();
-  float cosTheta = FlushToZero(cos(theta));
-  float sinTheta = FlushToZero(sin(theta));
+  float theta = CSSToRadians(aData->Item(1));
+  float cosTheta = cos(theta);
+  float sinTheta = sin(theta);
 
   aMain[0] = cosTheta;
   aMain[1] = sinTheta;
   aMain[2] = -sinTheta;
   aMain[3] = cosTheta;
-}
-
-/**
- * Return the transform function, as an nsCSSKeyword, for the given
- * nsCSSValue::Array from a transform list.
- */
-/* static */ nsCSSKeyword
-nsStyleTransformMatrix::TransformFunctionOf(const nsCSSValue::Array* aData)
-{
-  nsAutoString keyword;
-  aData->Item(0).GetStringValue(keyword);
-  return nsCSSKeywords::LookupKeyword(keyword);
 }
 
 /**
@@ -473,32 +468,29 @@ nsStyleTransformMatrix::TransformFunctionOf(const nsCSSValue::Array* aData)
 void
 nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
                                                nsStyleContext* aContext,
-                                               nsPresContext* aPresContext,
-                                               PRBool& aCanStoreInRuleTree)
+                                               nsPresContext* aPresContext)
 {
   NS_PRECONDITION(aData, "Why did you want to get data from a null array?");
-  // It's OK if aContext and aPresContext are null if the caller already
-  // knows that all length units have been converted to pixels (as
-  // nsStyleAnimation does).
-
+  NS_PRECONDITION(aContext, "Need a context for unit conversion!");
+  NS_PRECONDITION(aPresContext, "Need a context for unit conversion!");
+  
   /* Reset the matrix to the identity so that each subfunction can just
    * worry about its own components.
    */
   SetToIdentity();
 
   /* Get the keyword for the transform. */
-  switch (TransformFunctionOf(aData)) {
+  nsAutoString keyword;
+  aData->Item(0).GetStringValue(keyword);
+  switch (nsCSSKeywords::LookupKeyword(keyword)) {
   case eCSSKeyword_translatex:
-    ProcessTranslateX(mDelta, mX, aData, aContext, aPresContext,
-                      aCanStoreInRuleTree);
+    ProcessTranslateX(mDelta, mX, aData, aContext, aPresContext);
     break;
   case eCSSKeyword_translatey:
-    ProcessTranslateY(mDelta, mY, aData, aContext, aPresContext,
-                      aCanStoreInRuleTree);
+    ProcessTranslateY(mDelta, mY, aData, aContext, aPresContext);
     break;
   case eCSSKeyword_translate:
-    ProcessTranslate(mDelta, mX, mY, aData, aContext, aPresContext,
-                     aCanStoreInRuleTree);
+    ProcessTranslate(mDelta, mX, mY, aData, aContext, aPresContext);
     break;
   case eCSSKeyword_scalex:
     ProcessScaleX(mMain, aData);
@@ -522,45 +514,11 @@ nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
     ProcessRotate(mMain, aData);
     break;
   case eCSSKeyword_matrix:
-    ProcessMatrix(mMain, mDelta, mX, mY, aData, aContext, aPresContext,
-                  aCanStoreInRuleTree);
+    ProcessMatrix(mMain, mDelta, mX, mY, aData, aContext, aPresContext);
     break;
   default:
     NS_NOTREACHED("Unknown transform function!");
   }
-}
-
-/* Given a -moz-transform token stream, accumulates them into an
- * nsStyleTransformMatrix
- *
- * @param aList The nsCSSValueList of arrays to read into transform functions.
- * @param aContext The style context to use for unit conversion.
- * @param aPresContext The presentation context to use for unit conversion
- * @param aCanStoreInRuleTree This is set to PR_FALSE if the value cannot be stored in the rule tree.
- * @return An nsStyleTransformMatrix corresponding to the net transform.
- */
-/* static */ nsStyleTransformMatrix
-nsStyleTransformMatrix::ReadTransforms(const nsCSSValueList* aList,
-                                       nsStyleContext* aContext,
-                                       nsPresContext* aPresContext,
-                                       PRBool &aCanStoreInRuleTree)
-{
-  nsStyleTransformMatrix result;
-
-  for (const nsCSSValueList* curr = aList; curr != nsnull; curr = curr->mNext) {
-    const nsCSSValue &currElem = curr->mValue;
-    NS_ASSERTION(currElem.GetUnit() == eCSSUnit_Function,
-                 "Stream should consist solely of functions!");
-    NS_ASSERTION(currElem.GetArrayValue()->Count() >= 1,
-                 "Incoming function is too short!");
-
-    /* Read in a single transform matrix, then accumulate it with the total. */
-    nsStyleTransformMatrix currMatrix;
-    currMatrix.SetToTransformFunction(currElem.GetArrayValue(), aContext,
-                                      aPresContext, aCanStoreInRuleTree);
-    result *= currMatrix;
-  }
-  return result;
 }
 
 /* Does an element-by-element comparison and returns whether or not the
@@ -575,8 +533,8 @@ nsStyleTransformMatrix::operator ==(const nsStyleTransformMatrix &aOther) const
 
   for (PRInt32 index = 0; index < 2; ++index)
     if (mDelta[index] != aOther.mDelta[index] ||
-        mX[index] != aOther.mX[index] ||
-        mY[index] != aOther.mY[index])
+	mX[index] != aOther.mX[index] ||
+	mY[index] != aOther.mY[index])
       return PR_FALSE;
 
   return PR_TRUE;

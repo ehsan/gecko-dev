@@ -35,10 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "IPC/IPCMessageUtils.h"
-#endif
-
 #if defined(XP_UNIX) || defined(XP_BEOS)
 #include <unistd.h>
 #elif defined(XP_WIN)
@@ -63,7 +59,7 @@
 #include "nsMimeTypes.h"
 #include "nsReadLine.h"
 #include "nsNetUtil.h"
-#include "nsIClassInfoImpl.h"
+//#include "nsFileTransportService.h"
 
 #define NS_NO_INPUT_BUFFERING 1 // see http://bugzilla.mozilla.org/show_bug.cgi?id=41067
 
@@ -177,29 +173,13 @@ nsFileStream::SetEOF()
 ////////////////////////////////////////////////////////////////////////////////
 // nsFileInputStream
 
-NS_IMPL_ADDREF_INHERITED(nsFileInputStream, nsFileStream)
-NS_IMPL_RELEASE_INHERITED(nsFileInputStream, nsFileStream)
-
-NS_IMPL_CLASSINFO(nsFileInputStream, NULL, nsIClassInfo::THREADSAFE,
-                  NS_LOCALFILEINPUTSTREAM_CID)
-
-NS_INTERFACE_MAP_BEGIN(nsFileInputStream)
-    NS_INTERFACE_MAP_ENTRY(nsFileStream)
-    NS_INTERFACE_MAP_ENTRY(nsIInputStream)
-    NS_INTERFACE_MAP_ENTRY(nsIFileInputStream)
-    NS_INTERFACE_MAP_ENTRY(nsILineInputStream)
-    NS_INTERFACE_MAP_ENTRY(nsIIPCSerializable)
-    NS_IMPL_QUERY_CLASSINFO(nsFileInputStream)
-NS_INTERFACE_MAP_END_INHERITING(nsFileStream)
-
-NS_IMPL_CI_INTERFACE_GETTER5(nsFileInputStream,
+NS_IMPL_ISUPPORTS_INHERITED3(nsFileInputStream, 
+                             nsFileStream,
                              nsIInputStream,
                              nsIFileInputStream,
-                             nsISeekableStream,
-                             nsILineInputStream,
-                             nsIIPCSerializable)
+                             nsILineInputStream)
 
-nsresult
+NS_METHOD
 nsFileInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     NS_ENSURE_NO_AGGREGATION(aOuter);
@@ -245,9 +225,9 @@ nsFileInputStream::Open(nsIFile* aFile, PRInt32 aIOFlags, PRInt32 aPerm)
         // fails, then we'll just remember the nsIFile and remove it after we
         // close the file descriptor.
         rv = aFile->Remove(PR_FALSE);
-        if (NS_SUCCEEDED(rv)) {
-          // No need to remove it later. Clear the flag.
-          mBehaviorFlags &= ~DELETE_ON_CLOSE;
+        if (NS_FAILED(rv) && !(mBehaviorFlags & REOPEN_ON_REWIND)) {
+            // If REOPEN_ON_REWIND is not happenin', we haven't saved the file yet
+            mFile = aFile;
         }
     }
 
@@ -263,9 +243,12 @@ nsFileInputStream::Init(nsIFile* aFile, PRInt32 aIOFlags, PRInt32 aPerm,
 
     mBehaviorFlags = aBehaviorFlags;
 
-    mFile = aFile;
-    mIOFlags = aIOFlags;
-    mPerm = aPerm;
+    // If the file will be reopened on rewind, save the info to open the file
+    if (mBehaviorFlags & REOPEN_ON_REWIND) {
+        mFile = aFile;
+        mIOFlags = aIOFlags;
+        mPerm = aPerm;
+    }
 
     return Open(aFile, aIOFlags, aPerm);
 }
@@ -295,15 +278,11 @@ nsFileInputStream::Available(PRUint32* aResult)
         return NS_BASE_STREAM_CLOSED;
     }
 
-    // PR_Available with files over 4GB returns an error, so we have to
-    // use the 64-bit version of PR_Available.
-    PRInt64 avail = PR_Available64(mFD);
+    PRInt32 avail = PR_Available(mFD);
     if (avail == -1) {
         return NS_ErrorAccordingToNSPR();
     }
-
-    // If available is greater than 4GB, return 4GB
-    *aResult = avail > PR_UINT32_MAX ? PR_UINT32_MAX : (PRUint32)avail;
+    *aResult = avail;
     return NS_OK;
 }
 
@@ -348,10 +327,6 @@ nsFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
     // the writer does not consume all data.  If you want to call ReadSegments,
     // wrap a BufferedInputStream around the file stream.  That will call
     // Read().
-
-    // If this is ever implemented you might need to modify
-    // nsPartialFileInputStream::ReadSegments
-
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -380,163 +355,6 @@ nsFileInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
     return nsFileStream::Seek(aWhence, aOffset);
 }
 
-PRBool
-nsFileInputStream::Read(const IPC::Message *aMsg, void **aIter)
-{
-#ifdef MOZ_IPC
-    using IPC::ReadParam;
-
-    nsCString path;
-    PRBool followLinks;
-    PRInt32 flags;
-    if (!ReadParam(aMsg, aIter, &path) ||
-        !ReadParam(aMsg, aIter, &followLinks) ||
-        !ReadParam(aMsg, aIter, &flags))
-        return PR_FALSE;
-
-    nsCOMPtr<nsILocalFile> file;
-    nsresult rv = NS_NewNativeLocalFile(path, followLinks, getter_AddRefs(file));
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    // IO flags = -1 means readonly, and
-    // permissions are unimportant since we're reading
-    rv = Init(file, -1, -1, flags);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    return PR_TRUE;
-#else
-    return PR_FALSE;
-#endif
-}
-
-void
-nsFileInputStream::Write(IPC::Message *aMsg)
-{
-#ifdef MOZ_IPC
-    using IPC::WriteParam;
-
-    nsCString path;
-    mFile->GetNativePath(path);
-    WriteParam(aMsg, path);
-    nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(mFile);
-    PRBool followLinks;
-    localFile->GetFollowLinks(&followLinks);
-    WriteParam(aMsg, followLinks);
-    WriteParam(aMsg, mBehaviorFlags);
-#endif
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsPartialFileInputStream
-
-// Don't forward to nsFileInputStream as we don't want to QI to
-// nsIFileInputStream
-NS_IMPL_ISUPPORTS_INHERITED3(nsPartialFileInputStream,
-                             nsFileStream,
-                             nsIInputStream,
-                             nsIPartialFileInputStream,
-                             nsILineInputStream)
-
-nsresult
-nsPartialFileInputStream::Create(nsISupports *aOuter, REFNSIID aIID,
-                                 void **aResult)
-{
-    NS_ENSURE_NO_AGGREGATION(aOuter);
-
-    nsPartialFileInputStream* stream = new nsPartialFileInputStream();
-
-    NS_ADDREF(stream);
-    nsresult rv = stream->QueryInterface(aIID, aResult);
-    NS_RELEASE(stream);
-    return rv;
-}
-
-NS_IMETHODIMP
-nsPartialFileInputStream::Init(nsIFile* aFile, PRUint64 aStart,
-                               PRUint64 aLength, PRInt32 aIOFlags,
-                               PRInt32 aPerm, PRInt32 aBehaviorFlags)
-{
-    mStart = aStart;
-    mLength = aLength;
-    mPosition = 0;
-
-    nsresult rv = nsFileInputStream::Init(aFile, aIOFlags, aPerm,
-                                          aBehaviorFlags);
-    NS_ENSURE_SUCCESS(rv, rv);
-    
-    return nsFileInputStream::Seek(NS_SEEK_SET, mStart);
-}
-
-NS_IMETHODIMP
-nsPartialFileInputStream::Tell(PRInt64 *aResult)
-{
-    PRInt64 tell;
-    nsresult rv = nsFileInputStream::Tell(&tell);
-    if (NS_SUCCEEDED(rv)) {
-        *aResult = tell - mStart;
-    }
-    return rv;
-}
-
-NS_IMETHODIMP
-nsPartialFileInputStream::Available(PRUint32* aResult)
-{
-    PRUint32 available;
-    nsresult rv = nsFileInputStream::Available(&available);
-    if (NS_SUCCEEDED(rv)) {
-        *aResult = TruncateSize(available);
-    }
-    return rv;
-}
-
-NS_IMETHODIMP
-nsPartialFileInputStream::Read(char* aBuf, PRUint32 aCount, PRUint32* aResult)
-{
-    PRUint32 readsize = TruncateSize(aCount);
-    if (readsize == 0 && mBehaviorFlags & CLOSE_ON_EOF) {
-        Close();
-        *aResult = 0;
-        return NS_OK;
-    }
-
-    nsresult rv = nsFileInputStream::Read(aBuf, readsize, aResult);
-    if (NS_SUCCEEDED(rv)) {
-        mPosition += readsize;
-    }
-    return rv;
-}
-
-NS_IMETHODIMP
-nsPartialFileInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
-{
-    PRInt64 offset;
-    switch (aWhence) {
-        case NS_SEEK_SET:
-            offset = mStart + aOffset;
-            break;
-        case NS_SEEK_CUR:
-            offset = mStart + mPosition + aOffset;
-            break;
-        case NS_SEEK_END:
-            offset = mStart + mLength + aOffset;
-            break;
-        default:
-            return NS_ERROR_ILLEGAL_VALUE;
-    }
-
-    if (offset < (PRInt64)mStart || offset > (PRInt64)(mStart + mLength)) {
-        return NS_ERROR_INVALID_ARG;
-    }
-
-    nsresult rv = nsFileInputStream::Seek(NS_SEEK_SET, offset);
-    if (NS_SUCCEEDED(rv)) {
-        mPosition = offset - mStart;
-    }
-    return rv;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsFileOutputStream
 
@@ -545,7 +363,7 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsFileOutputStream,
                              nsIOutputStream,
                              nsIFileOutputStream)
  
-nsresult
+NS_METHOD
 nsFileOutputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     NS_ENSURE_NO_AGGREGATION(aOuter);
@@ -627,6 +445,7 @@ nsFileOutputStream::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_
 NS_IMETHODIMP
 nsFileOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
+    NS_NOTREACHED("WriteSegments (see source comment)");
     return NS_ERROR_NOT_IMPLEMENTED;
     // File streams intentionally do not support this method.
     // If you need something like this, then you should wrap
@@ -712,7 +531,6 @@ nsSafeFileOutputStream::Close()
 NS_IMETHODIMP
 nsSafeFileOutputStream::Finish()
 {
-    Flush();
     nsresult rv = nsFileOutputStream::Close();
 
     // if there is no temp file, don't try to move it over the original target.

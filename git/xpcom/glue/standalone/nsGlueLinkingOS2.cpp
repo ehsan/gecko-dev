@@ -100,8 +100,8 @@ ns_strrpbrk(char *string, const char *strCharSet)
     return found;
 }
 
-nsresult
-XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
+GetFrozenFunctionsFunc
+XPCOMGlueLoad(const char *xpcomFile)
 {
     CHAR pszError[_MAX_PATH];
     ULONG ulrc = NO_ERROR;
@@ -137,14 +137,10 @@ XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
 
     ulrc = DosQueryProcAddr(h, 0, "_NS_GetFrozenFunctions", (PFN*)&sym);
 
-    if (ulrc != NO_ERROR) {
+    if (ulrc != NO_ERROR)
         XPCOMGlueUnload();
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
-    *func = sym;
-
-    return NS_OK;
+    return sym;
 }
 
 void

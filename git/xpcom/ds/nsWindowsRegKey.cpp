@@ -43,6 +43,12 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 
+// The Platform SDK included with VC6 does not define REG_QWORD.  VC 7's
+// WinNT.h defines REG_QWORD as follows:
+#ifndef REG_QWORD
+# define REG_QWORD 11
+#endif
+
 //-----------------------------------------------------------------------------
 
 // According to MSDN, the following limits apply (in characters excluding room
@@ -139,7 +145,7 @@ nsWindowsRegKey::OpenChild(const nsAString &path, PRUint32 mode,
   if (!child)
     return NS_ERROR_OUT_OF_MEMORY;
   
-  nsresult rv = child->Open((uintptr_t) mKey, path, mode);
+  nsresult rv = child->Open((PRUint32) mKey, path, mode);
   if (NS_FAILED(rv))
     return rv;
 
@@ -157,7 +163,7 @@ nsWindowsRegKey::CreateChild(const nsAString &path, PRUint32 mode,
   if (!child)
     return NS_ERROR_OUT_OF_MEMORY;
   
-  nsresult rv = child->Create((uintptr_t) mKey, path, mode);
+  nsresult rv = child->Create((PRUint32) mKey, path, mode);
   if (NS_FAILED(rv))
     return rv;
 
@@ -204,7 +210,7 @@ nsWindowsRegKey::HasChild(const nsAString &name, PRBool *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
-  // Check for the existence of a child key by opening the key with minimal
+  // Check for the existance of a child key by opening the key with minimal
   // rights.  Perhaps there is a more efficient way to do this?
 
   HKEY key;
@@ -512,7 +518,7 @@ NS_NewWindowsRegKey(nsIWindowsRegKey **result)
 
 //-----------------------------------------------------------------------------
 
-nsresult
+NS_METHOD
 nsWindowsRegKeyConstructor(nsISupports *delegate, const nsIID &iid,
                            void **result)
 {

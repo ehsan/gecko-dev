@@ -47,7 +47,6 @@
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 
 class nsHashtable;
@@ -163,6 +162,8 @@ private:
                                                           nsAString& aHandler,
                                                           nsAString& aDescription,
                                                           nsAString& aMozillaFlags);
+
+  nsresult GetHandlerAppFromPrefs(const char* aScheme, nsIFile** aApp);
 };
 
 #endif // nsOSHelperAppService_h__

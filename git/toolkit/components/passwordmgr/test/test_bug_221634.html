@@ -26,7 +26,6 @@ Login Manager test: 221634
 <script class="testbody" type="text/javascript">
 
 /** Test for Login Manager: 221634 (password manager needs to fill in forms before the page finishes loading) **/
-commonInit();
 
 var dclHappened      = false;
 var testHappened     = false;
@@ -51,7 +50,7 @@ function contentLoaded() {
   // Set a 0-second timeout, which should execute before the pageload event.
   // setTimeout(reallyDoTest, 0);
   // ha-ha... That doesn't work. The pageload event comes first, although
-  // it can be hacked into working by adding <img src="404_non_existent_file.gif">
+  // it can be hacked into working by adding <img src="404_non_existant_file.gif">
 
   dclHappened = true;
 }

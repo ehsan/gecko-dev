@@ -54,7 +54,8 @@
 #include "nsITransactionManager.h"
 
 nsComposerCommandsUpdater::nsComposerCommandsUpdater()
-:  mDirtyState(eStateUninitialized)
+:  mDOMWindow(nsnull)
+,  mDirtyState(eStateUninitialized)
 ,  mSelectionCollapsed(eStateUninitialized)
 ,  mFirstDoOfFirstUndo(PR_TRUE)
 {
@@ -62,11 +63,6 @@ nsComposerCommandsUpdater::nsComposerCommandsUpdater()
 
 nsComposerCommandsUpdater::~nsComposerCommandsUpdater()
 {
-  // cancel any outstanding update timer
-  if (mUpdateTimer)
-  {
-    mUpdateTimer->Cancel();
-  }
 }
 
 NS_IMPL_ISUPPORTS4(nsComposerCommandsUpdater, nsISelectionListener,
@@ -245,7 +241,7 @@ nsresult
 nsComposerCommandsUpdater::Init(nsIDOMWindow* aDOMWindow)
 {
   NS_ENSURE_ARG(aDOMWindow);
-  mDOMWindow = do_GetWeakReference(aDOMWindow);
+  mDOMWindow = aDOMWindow;
 
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aDOMWindow));
   if (window)
@@ -262,7 +258,7 @@ nsComposerCommandsUpdater::PrimeUpdateTimer()
   {
     nsresult rv = NS_OK;
     mUpdateTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
   }
 
   const PRUint32 kUpdateTimerDelay = 150;
@@ -304,7 +300,7 @@ nsresult
 nsComposerCommandsUpdater::UpdateCommandGroup(const nsAString& aCommandGroup)
 {
   nsCOMPtr<nsPICommandUpdater> commandUpdater = GetCommandUpdater();
-  NS_ENSURE_TRUE(commandUpdater, NS_ERROR_FAILURE);
+  if (!commandUpdater) return NS_ERROR_FAILURE;
 
   
   // This hardcoded list of commands is temporary.
@@ -358,7 +354,7 @@ nsresult
 nsComposerCommandsUpdater::UpdateOneCommand(const char *aCommand)
 {
   nsCOMPtr<nsPICommandUpdater> commandUpdater = GetCommandUpdater();
-  NS_ENSURE_TRUE(commandUpdater, NS_ERROR_FAILURE);
+  if (!commandUpdater) return NS_ERROR_FAILURE;
 
   commandUpdater->CommandStatusChanged(aCommand);
 
@@ -368,11 +364,10 @@ nsComposerCommandsUpdater::UpdateOneCommand(const char *aCommand)
 PRBool
 nsComposerCommandsUpdater::SelectionIsCollapsed()
 {
-  nsCOMPtr<nsIDOMWindow> domWindow = do_QueryReferent(mDOMWindow);
-  NS_ENSURE_TRUE(domWindow, PR_TRUE);
+  if (!mDOMWindow) return PR_TRUE;
 
   nsCOMPtr<nsISelection> domSelection;
-  if (NS_SUCCEEDED(domWindow->GetSelection(getter_AddRefs(domSelection))) && domSelection)
+  if (NS_SUCCEEDED(mDOMWindow->GetSelection(getter_AddRefs(domSelection))) && domSelection)
   {
     PRBool selectionCollapsed = PR_FALSE;
     domSelection->GetIsCollapsed(&selectionCollapsed);
@@ -417,7 +412,8 @@ nsresult
 NS_NewComposerCommandsUpdater(nsISelectionListener** aInstancePtrResult)
 {
   nsComposerCommandsUpdater* newThang = new nsComposerCommandsUpdater;
-  NS_ENSURE_TRUE(newThang, NS_ERROR_OUT_OF_MEMORY);
+  if (!newThang)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   return newThang->QueryInterface(NS_GET_IID(nsISelectionListener),
                                   (void **)aInstancePtrResult);

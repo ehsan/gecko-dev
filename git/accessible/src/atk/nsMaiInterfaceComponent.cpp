@@ -39,11 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMaiInterfaceComponent.h"
-
 #include "nsAccessibleWrap.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
-
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMAbstractView.h"
@@ -73,13 +69,14 @@ refAccessibleAtPointCB(AtkComponent *aComponent,
                        AtkCoordType aCoordType)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aComponent));
-    if (!accWrap || nsAccUtils::MustPrune(accWrap))
+    if (!accWrap || nsAccessibleWrap::MustPrune(accWrap))
         return nsnull;
 
     // nsIAccessible getChildAtPoint (x,y) is in screen pixels.
     if (aCoordType == ATK_XY_WINDOW) {
-        nsIntPoint winCoords =
-          nsCoreUtils::GetScreenCoordsForWindow(accWrap->GetNode());
+        nsCOMPtr<nsIDOMNode> domNode;
+        accWrap->GetDOMNode(getter_AddRefs(domNode));
+        nsIntPoint winCoords = nsAccUtils::GetScreenCoordsForWindow(domNode);
         aAccX += winCoords.x;
         aAccY += winCoords.y;
     }
@@ -118,8 +115,9 @@ getExtentsCB(AtkComponent *aComponent,
     if (NS_FAILED(rv))
         return;
     if (aCoordType == ATK_XY_WINDOW) {
-        nsIntPoint winCoords =
-          nsCoreUtils::GetScreenCoordsForWindow(accWrap->GetNode());
+        nsCOMPtr<nsIDOMNode> domNode;
+        accWrap->GetDOMNode(getter_AddRefs(domNode));
+        nsIntPoint winCoords = nsAccUtils::GetScreenCoordsForWindow(domNode);
         nsAccX -= winCoords.x;
         nsAccY -= winCoords.y;
     }

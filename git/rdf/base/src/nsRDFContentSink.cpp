@@ -84,7 +84,7 @@
 #include "nsIURL.h"
 #include "nsIXMLContentSink.h"
 #include "nsRDFCID.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "prlog.h"
 #include "prmem.h"
@@ -96,7 +96,6 @@
 #include "nsIAtom.h"
 #include "nsStaticAtom.h"
 #include "nsIScriptError.h"
-#include "nsIDTD.h"
 
 ////////////////////////////////////////////////////////////////////////
 // XPCOM IIDs
@@ -160,9 +159,9 @@ public:
     NS_DECL_NSIEXPATSINK
 
     // nsIContentSink
-    NS_IMETHOD WillParse(void);
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-    NS_IMETHOD DidBuildModel(PRBool aTerminated);
+    NS_IMETHOD WillTokenize(void);
+    NS_IMETHOD WillBuildModel(void);
+    NS_IMETHOD DidBuildModel(void);
     NS_IMETHOD WillInterrupt(void);
     NS_IMETHOD WillResume(void);
     NS_IMETHOD SetParser(nsIParser* aParser);  
@@ -186,9 +185,20 @@ public:
     static nsIRDFResource* kRDF_Seq;
     static nsIRDFResource* kRDF_nextVal;
 
-#define RDF_ATOM(name_, value_) static nsIAtom* name_;
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
+    static nsIAtom* kAboutAtom;
+    static nsIAtom* kIdAtom;
+    static nsIAtom* kNodeIdAtom;
+    static nsIAtom* kAboutEachAtom;
+    static nsIAtom* kResourceAtom;
+    static nsIAtom* kRDFAtom;
+    static nsIAtom* kDescriptionAtom;
+    static nsIAtom* kBagAtom;
+    static nsIAtom* kSeqAtom;
+    static nsIAtom* kAltAtom;
+    static nsIAtom* kLiAtom;
+    static nsIAtom* kXMLNSAtom;
+    static nsIAtom* kParseTypeAtom;
+
 
     typedef struct ContainerInfo {
         nsIRDFResource**  mType;
@@ -264,14 +274,7 @@ protected:
 
     nsIRDFResource* GetContextElement(PRInt32 ancestor = 0);
 
-
-    struct RDFContextStackElement {
-        nsCOMPtr<nsIRDFResource> mResource;
-        RDFContentSinkState      mState;
-        RDFContentSinkParseMode  mParseMode;
-    };
-
-    nsAutoTArray<RDFContextStackElement, 8>* mContextStack;
+    nsAutoVoidArray* mContextStack;
 
     nsIURI*      mDocumentURL;
 };
@@ -286,20 +289,35 @@ nsIRDFResource* RDFContentSinkImpl::kRDF_Bag;
 nsIRDFResource* RDFContentSinkImpl::kRDF_Seq;
 nsIRDFResource* RDFContentSinkImpl::kRDF_nextVal;
 
+nsIAtom* RDFContentSinkImpl::kAboutAtom;
+nsIAtom* RDFContentSinkImpl::kIdAtom;
+nsIAtom* RDFContentSinkImpl::kNodeIdAtom;
+nsIAtom* RDFContentSinkImpl::kAboutEachAtom;
+nsIAtom* RDFContentSinkImpl::kResourceAtom;
+nsIAtom* RDFContentSinkImpl::kRDFAtom;
+nsIAtom* RDFContentSinkImpl::kDescriptionAtom;
+nsIAtom* RDFContentSinkImpl::kBagAtom;
+nsIAtom* RDFContentSinkImpl::kSeqAtom;
+nsIAtom* RDFContentSinkImpl::kAltAtom;
+nsIAtom* RDFContentSinkImpl::kLiAtom;
+nsIAtom* RDFContentSinkImpl::kXMLNSAtom;
+nsIAtom* RDFContentSinkImpl::kParseTypeAtom;
+
 ////////////////////////////////////////////////////////////////////////
-
-#define RDF_ATOM(name_, value_) nsIAtom* RDFContentSinkImpl::name_;
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
-
-#define RDF_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
-
 static const nsStaticAtom rdf_atoms[] = {
-#define RDF_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &RDFContentSinkImpl::name_),
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
+    { "about", &RDFContentSinkImpl::kAboutAtom },
+    { "ID", &RDFContentSinkImpl::kIdAtom },
+    { "nodeID", &RDFContentSinkImpl::kNodeIdAtom },
+    { "aboutEach", &RDFContentSinkImpl::kAboutEachAtom },
+    { "resource", &RDFContentSinkImpl::kResourceAtom },
+    { "RDF", &RDFContentSinkImpl::kRDFAtom },
+    { "Description", &RDFContentSinkImpl::kDescriptionAtom },
+    { "Bag", &RDFContentSinkImpl::kBagAtom },
+    { "Seq", &RDFContentSinkImpl::kSeqAtom },
+    { "Alt", &RDFContentSinkImpl::kAltAtom },
+    { "li", &RDFContentSinkImpl::kLiAtom },
+    { "xmlns", &RDFContentSinkImpl::kXMLNSAtom },
+    { "parseType", &RDFContentSinkImpl::kParseTypeAtom },
 };
 
 RDFContentSinkImpl::RDFContentSinkImpl()
@@ -361,9 +379,9 @@ RDFContentSinkImpl::~RDFContentSinkImpl()
         // XXX we should never need to do this, but, we'll write the
         // code all the same. If someone left the content stack dirty,
         // pop all the elements off the stack and release them.
-        PRInt32 i = mContextStack->Length();
+        PRInt32 i = mContextStack->Count();
         while (0 < i--) {
-            nsIRDFResource* resource = nsnull;
+            nsIRDFResource* resource;
             RDFContentSinkState state;
             RDFContentSinkParseMode parseMode;
             PopContext(resource, state, parseMode);
@@ -519,7 +537,8 @@ RDFContentSinkImpl::HandleEndElement(const PRUnichar *aName)
       break;
   }
   
-  if (mContextStack->IsEmpty())
+  PRInt32 nestLevel = mContextStack->Count();
+  if (nestLevel == 0)
       mState = eRDFContentSinkState_InEpilog;
 
   NS_IF_RELEASE(resource);
@@ -588,14 +607,14 @@ RDFContentSinkImpl::ReportError(const PRUnichar* aErrorText,
 // nsIContentSink interface
 
 NS_IMETHODIMP 
-RDFContentSinkImpl::WillParse(void)
+RDFContentSinkImpl::WillTokenize(void)
 {
     return NS_OK;
 }
 
 
 NS_IMETHODIMP 
-RDFContentSinkImpl::WillBuildModel(nsDTDMode)
+RDFContentSinkImpl::WillBuildModel(void)
 {
     if (mDataSource) {
         nsCOMPtr<nsIRDFXMLSink> sink = do_QueryInterface(mDataSource);
@@ -606,7 +625,7 @@ RDFContentSinkImpl::WillBuildModel(nsDTDMode)
 }
 
 NS_IMETHODIMP 
-RDFContentSinkImpl::DidBuildModel(PRBool aTerminated)
+RDFContentSinkImpl::DidBuildModel(void)
 {
     if (mDataSource) {
         nsCOMPtr<nsIRDFXMLSink> sink = do_QueryInterface(mDataSource);
@@ -975,12 +994,8 @@ RDFContentSinkImpl::GetResourceAttribute(const PRUnichar** aAttributes,
       mNodeIDMap.Get(nodeID,aResource);
 
       if (!*aResource) {
-          nsresult rv;
-          rv = gRDFService->GetAnonymousResource(aResource);
-          if (NS_FAILED(rv)) {
-              return rv;
-          }
           mNodeIDMap.Put(nodeID,*aResource);
+          return gRDFService->GetAnonymousResource(aResource);
       }
       return NS_OK;
   }
@@ -1026,8 +1041,11 @@ RDFContentSinkImpl::AddProperties(const PRUnichar** aAttributes,
           }
       }
 
+      const char* attrName;
+      localName->GetUTF8String(&attrName);
+
       NS_ConvertUTF16toUTF8 propertyStr(nameSpaceURI);    
-      propertyStr.Append(nsAtomCString(localName));
+      propertyStr.Append(attrName);
 
       // Add the assertion to RDF
       nsCOMPtr<nsIRDFResource> property;
@@ -1155,8 +1173,11 @@ RDFContentSinkImpl::OpenObject(const PRUnichar* aName,
     }
 
     if (isaTypedNode) {
+        const char* attrName;
+        localName->GetUTF8String(&attrName);
+
         NS_ConvertUTF16toUTF8 typeStr(nameSpaceURI);
-        typeStr.Append(nsAtomCString(localName));
+        typeStr.Append(attrName);
 
         nsCOMPtr<nsIRDFResource> type;
         nsresult rv = gRDFService->GetResource(typeStr, getter_AddRefs(type));
@@ -1184,8 +1205,11 @@ RDFContentSinkImpl::OpenProperty(const PRUnichar* aName, const PRUnichar** aAttr
     const nsDependentSubstring& nameSpaceURI =
         SplitExpatName(aName, getter_AddRefs(localName));
 
+    const char* attrName;
+    localName->GetUTF8String(&attrName);
+
     NS_ConvertUTF16toUTF8 propertyStr(nameSpaceURI);
-    propertyStr.Append(nsAtomCString(localName));
+    propertyStr.Append(attrName);
 
     nsCOMPtr<nsIRDFResource> property;
     rv = gRDFService->GetResource(propertyStr, getter_AddRefs(property));
@@ -1377,7 +1401,8 @@ RDFContentSinkImpl::SplitExpatName(const PRUnichar *aExpatName,
     }
 
     const nsDependentSubstring& nameSpaceURI = Substring(aExpatName, uriEnd);
-    *aLocalName = NS_NewAtom(Substring(nameStart, pos));
+    *aLocalName = NS_NewAtom(NS_ConvertUTF16toUTF8(nameStart,
+                                                   pos - nameStart));
     return nameSpaceURI;
 }
 
@@ -1450,16 +1475,24 @@ RDFContentSinkImpl::ReinitContainer(nsIRDFResource* aContainerType, nsIRDFResour
 ////////////////////////////////////////////////////////////////////////
 // Content stack management
 
+struct RDFContextStackElement {
+    nsIRDFResource*         mResource;
+    RDFContentSinkState     mState;
+    RDFContentSinkParseMode mParseMode;
+};
+
 nsIRDFResource* 
 RDFContentSinkImpl::GetContextElement(PRInt32 ancestor /* = 0 */)
 {
     if ((nsnull == mContextStack) ||
-        (PRUint32(ancestor) >= mContextStack->Length())) {
+        (ancestor >= mContextStack->Count())) {
         return nsnull;
     }
 
-    return mContextStack->ElementAt(
-           mContextStack->Length()-ancestor-1).mResource;
+    RDFContextStackElement* e =
+        static_cast<RDFContextStackElement*>(mContextStack->ElementAt(mContextStack->Count()-ancestor-1));
+
+    return e->mResource;
 }
 
 PRInt32 
@@ -1468,20 +1501,22 @@ RDFContentSinkImpl::PushContext(nsIRDFResource         *aResource,
                                 RDFContentSinkParseMode aParseMode)
 {
     if (! mContextStack) {
-        mContextStack = new nsAutoTArray<RDFContextStackElement, 8>();
+        mContextStack = new nsAutoVoidArray();
         if (! mContextStack)
             return 0;
     }
 
-    RDFContextStackElement* e = mContextStack->AppendElement();
+    RDFContextStackElement* e = new RDFContextStackElement;
     if (! e)
-        return mContextStack->Length();
+        return mContextStack->Count();
 
+    NS_IF_ADDREF(aResource);
     e->mResource  = aResource;
     e->mState     = aState;
     e->mParseMode = aParseMode;
   
-    return mContextStack->Length();
+    mContextStack->AppendElement(static_cast<void*>(e));
+    return mContextStack->Count();
 }
  
 nsresult
@@ -1489,20 +1524,22 @@ RDFContentSinkImpl::PopContext(nsIRDFResource         *&aResource,
                                RDFContentSinkState     &aState,
                                RDFContentSinkParseMode &aParseMode)
 {
+    RDFContextStackElement* e;
     if ((nsnull == mContextStack) ||
-        (mContextStack->IsEmpty())) {
+        (0 == mContextStack->Count())) {
         return NS_ERROR_NULL_POINTER;
     }
 
-    PRUint32 i = mContextStack->Length() - 1;
-    RDFContextStackElement &e = mContextStack->ElementAt(i);
-
-    aResource  = e.mResource;
-    NS_IF_ADDREF(aResource);
-    aState     = e.mState;
-    aParseMode = e.mParseMode;
-
+    PRInt32 i = mContextStack->Count() - 1;
+    e = static_cast<RDFContextStackElement*>(mContextStack->ElementAt(i));
     mContextStack->RemoveElementAt(i);
+
+    // don't bother Release()-ing: call it our implicit AddRef().
+    aResource  = e->mResource;
+    aState     = e->mState;
+    aParseMode = e->mParseMode;
+
+    delete e;
     return NS_OK;
 }
  

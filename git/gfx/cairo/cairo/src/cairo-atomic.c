@@ -36,11 +36,7 @@
 #include "cairo-atomic-private.h"
 #include "cairo-mutex-private.h"
 
-#ifdef HAS_ATOMIC_OPS
-COMPILE_TIME_ASSERT(sizeof(void*) == sizeof(int) ||
-		    sizeof(void*) == sizeof(long) ||
-		    sizeof(void*) == sizeof(long long));
-#else
+#ifndef CAIRO_HAS_ATOMIC_OPS
 void
 _cairo_atomic_int_inc (int *x)
 {
@@ -75,22 +71,9 @@ _cairo_atomic_int_cmpxchg (int *x, int oldv, int newv)
     return ret;
 }
 
-void *
-_cairo_atomic_ptr_cmpxchg (void **x, void *oldv, void *newv)
-{
-    void *ret;
-
-    CAIRO_MUTEX_LOCK (_cairo_atomic_mutex);
-    ret = *x;
-    if (ret == oldv)
-	*x = newv;
-    CAIRO_MUTEX_UNLOCK (_cairo_atomic_mutex);
-
-    return ret;
-}
 #endif
 
-#ifdef ATOMIC_OP_NEEDS_MEMORY_BARRIER
+#ifdef CAIRO_ATOMIC_OP_NEEDS_MEMORY_BARRIER
 int
 _cairo_atomic_int_get (int *x)
 {

@@ -49,24 +49,6 @@ InsertTextTxn::InsertTextTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(InsertTextTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(InsertTextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(InsertTextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(InsertTextTxn)
-  if (aIID.Equals(InsertTextTxn::GetCID())) {
-    *aInstancePtr = (void*)(InsertTextTxn*)this;
-    NS_ADDREF_THIS();
-    return NS_OK;
-  } else
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
-
 NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
                                   PRUint32             aOffset,
                                   const nsAString     &aStringToInsert,
@@ -81,7 +63,7 @@ NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
 #endif
 
   NS_ASSERTION(aElement && aEditor, "bad args");
-  NS_ENSURE_TRUE(aElement && aEditor, NS_ERROR_NULL_POINTER);
+  if (!aElement || !aEditor) return NS_ERROR_NULL_POINTER;
 
   mElement = do_QueryInterface(aElement);
   mOffset = aOffset;
@@ -93,18 +75,14 @@ NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
 NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Do Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Do Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
   if (!mElement || !mEditor) { return NS_ERROR_NOT_INITIALIZED; }
 
   nsresult result = mElement->InsertData(mOffset, mStringToInsert);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   // only set selection to insertion point if editor gives permission
   PRBool bAdjustSelection;
@@ -113,8 +91,8 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!selection) return NS_ERROR_NULL_POINTER;
     result = selection->Collapse(mElement, mOffset+mStringToInsert.Length());
     NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after insert.");
   }
@@ -129,11 +107,7 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 NS_IMETHODIMP InsertTextTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Undo Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Undo Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
@@ -164,11 +138,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMer
         mStringToInsert += otherData;
         *aDidMerge = PR_TRUE;
 #ifdef NS_DEBUG
-        if (gNoisy)
-        {
-          printf("InsertTextTxn assimilated %p\n",
-                 static_cast<void*>(aTransaction));
-        }
+        if (gNoisy) { printf("InsertTextTxn assimilated %p\n", aTransaction); }
 #endif
       }
       NS_RELEASE(otherInsTxn);
@@ -182,6 +152,22 @@ NS_IMETHODIMP InsertTextTxn::GetTxnDescription(nsAString& aString)
   aString.AssignLiteral("InsertTextTxn: ");
   aString += mStringToInsert;
   return NS_OK;
+}
+
+/* ============= nsISupports implementation ====================== */
+
+NS_IMETHODIMP
+InsertTextTxn::QueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  if (!aInstancePtr) {
+    return NS_ERROR_NULL_POINTER;
+  }
+  if (aIID.Equals(InsertTextTxn::GetCID())) {
+    *aInstancePtr = (void*)(InsertTextTxn*)this;
+    NS_ADDREF_THIS();
+    return NS_OK;
+  }
+  return (EditTxn::QueryInterface(aIID, aInstancePtr));
 }
 
 /* ============ protected methods ================== */

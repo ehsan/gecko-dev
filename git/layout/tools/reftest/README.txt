@@ -64,16 +64,6 @@ must be one of the following:
       random-if(condition) The results of the test are random if a given
                            condition is met.
 
-      silentfail This test may fail silently, and if that happens it should
-                 count as if the test passed. This is useful for cases where
-                 silent failure is the intended behavior (for example, in
-                 an out of memory situation in JavaScript, we stop running
-                 the script silently and immediately, in hopes of reclaiming
-                 enough memory to keep the browser functioning).
-
-      silentfail-if(condition) This test may fail silently if the condition
-                               is met.
-
       skip  This test should not be run. This is useful when a test fails in a
             catastrophic way, such as crashing or hanging the browser. Using
             'skip' is preferred to simply commenting out the test because we
@@ -84,63 +74,21 @@ must be one of the following:
                          particular platform (i.e. it allows us to get test
                          coverage on the other platforms).
 
-      slow  The test may take a long time to run, so run it if slow tests are
-            either enabled or not disabled (test manifest interpreters may
-            choose whether or not to run such tests by default).
-
-      slow-if(condition) If the condition is met, the test is treated as if
-                         'slow' had been specified.  This is useful for tests
-                         which are slow only on particular platforms (e.g. a
-                         test which exercised out-of-memory behavior might be
-                         fast on a 32-bit system but inordinately slow on a
-                         64-bit system).
-
-      asserts(count)
-          Loading the test and reference is known to assert exactly
-          count times.
-          NOTE: An asserts() notation with a non-zero count or maxCount
-          suppresses use of a cached canvas for the test with the
-          annotation.  However, if later occurrences of the same test
-          are not annotated, they will use the cached canvas
-          (potentially from the load that asserted).  This allows
-          repeated use of the same test or reference to be annotated
-          correctly (which may be particularly useful when the uses are
-          in different subdirectories that can be tested independently),
-          but does not force them to be, nor does it force suppression
-          of caching for a common reference when it is the test that
-          asserts.
-
-      asserts(minCount-maxCount)
-          Loading the test and reference is known to assert between
-          minCount and maxCount times, inclusive.
-          NOTE: See above regarding canvas caching.
-
-      asserts-if(condition,count)
-      asserts-if(condition,minCount-maxCount)
-          Same as above, but only if condition is true.
-
-      Conditions are JavaScript expressions *without spaces* in them.
-      They are evaluated in a sandbox in which a limited set of
-      variables are defined.  See the BuildConditionSandbox function in
-      layout/tools/reftest.js for details.
-
       Examples of using conditions:
-          fails-if(winWidget) == test reference
-          asserts-if(cocoaWidget,2) load crashtest
+          fails-if(MOZ_WIDGET_TOOLKIT=="windows") ...
+          fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") ...
+          fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") ...
 
-   b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
-      "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that
+   b. <http>, if present, is the string "HTTP" (sans quotes), indicating that
       the test should be run over an HTTP server because it requires certain
       HTTP headers or a particular HTTP status.  (Don't use this if your test
       doesn't require this functionality, because it unnecessarily slows down
       the test.)
 
-      With "HTTP", HTTP tests have the restriction that any resource an HTTP
-      test accesses must be accessed using a relative URL, and the test and
-      the resource must be within the directory containing the reftest
-      manifest that describes the test (or within a descendant directory).
-      The variants "HTTP(..)", etc., can be used to relax this restriction by
-      allowing resources in the parent directory, etc.
+      HTTP tests have the restriction that any resource an HTTP test accesses
+      must be accessed using a relative URL, and the test and the resource must
+      be within the directory containing the reftest manifest that describes
+      the test (or within a descendant directory).
 
       To modify the HTTP status or headers of a resource named FOO, create a
       sibling file named FOO^headers^ with the following contents:
@@ -189,31 +137,14 @@ must be one of the following:
 
    c. <type> is one of the following:
 
-      ==     The test passes if the images of the two renderings are the
-             SAME.
-      !=     The test passes if the images of the two renderings are 
-             DIFFERENT.
-      load   The test passes unconditionally if the page loads.  url_ref
-             must be omitted, and the test cannot be marked as fails or
-             random.  (Used to test for crashes, hangs, assertions, and
-             leaks.)
-      script The loaded page records the test's pass or failure status
-             in a JavaScript data structure accessible through the following
-             API.
-
-             getTestCases() returns an array of test result objects
-             representing the results of the tests performed by the page.
-
-             Each test result object has two methods:
-
-             testPassed() returns true if the test result object passed,
-             otherwise it returns false.
-
-             testDescription() returns a string describing the test
-             result.
-
-             url_ref must be omitted. The test may be marked as fails or
-             random. (Used to test the JavaScript Engine.)
+      ==    The test passes if the images of the two renderings are the
+            SAME.
+      !=    The test passes if the images of the two renderings are 
+            DIFFERENT.
+      load  The test passes unconditionally if the page loads.  url_ref
+            must be omitted, and the test cannot be marked as fails or
+            random.  (Used to test for crashes, hangs, assertions, and
+            leaks.)
 
    d. <url> is either a relative file path or an absolute URL for the
       test page
@@ -223,24 +154,6 @@ must be one of the following:
 
    The only difference between <url> and <url_ref> is that results of
    the test are reported using <url> only.
-
-3. Specification of a url prefix
-
-   url-prefix <string>
-
-   <string> will be prepended to relative <url> and <url_ref> for all following
-   test items in the manifest.
-
-   <string> will not be prepended to the relative path when including another
-   manifest, e.g. include <relative_path>.
-
-   <string> will not be prepended to any <url> or <url_ref> matching the pattern
-   /^\w+:/. This will prevent the prefix from being applied to any absolute url
-   containing a protocol such as data:, about:, or http:.
-
-   While the typical use of url-prefix is expected to be as the first line of
-   a manifest, it is legal to use it anywhere in a manifest. Subsequent uses
-   of url-prefix overwrite any existing values.
 
 This test manifest format could be used by other harnesses, such as ones
 that do not depend on XUL, or even ones testing other layout engines.
@@ -350,38 +263,6 @@ Note that in layout tests it is often enough to trigger layout using
 
 When possible, you should use this technique instead of making your
 test async.
-
-Invalidation Tests
-==================
-
-When a test (or reference) uses reftest-wait, reftest tracks invalidation
-via MozAfterPaint and updates the test image in the same way that
-a regular window would be repainted. Therefore it is possible to test
-invalidation-related bugs by setting up initial content and then
-dynamically modifying it before removing reftest-wait. However, it is
-important to get the timing of these dynamic modifications right so that
-the test doesn't accidentally pass because a full repaint of the window
-was already pending. To help with this, reftest fires one MozReftestInvalidate
-event at the document root element for a reftest-wait test when it is safe to
-make changes that should test invalidation. The event bubbles up to the
-document and window so you can set listeners there too. For example,
-
-function doTest() {
-  document.body.style.border = "";
-  document.documentElement.removeAttribute('class');
-}
-document.addEventListener("MozReftestInvalidate", doTest, false);
-
-Zoom Tests
-==========
-
-When the root element of a test has a "reftest-zoom" attribute, that zoom
-factor is applied when rendering the test. The reftest document will be
-800 device pixels wide by 1000 device pixels high. The reftest harness assumes
-that the CSS pixel dimensions are 800/zoom and 1000/zoom. For best results
-therefore, choose zoom factors that do not require rounding when we calculate
-the number of appunits per device pixel; i.e. the zoom factor should divide 60,
-so 60/zoom is an integer.
 
 Printing Tests
 ==============

@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *	Vladimir Vukicevic <vladimir@mozilla.com>
@@ -36,13 +36,98 @@
 
 #include "cairoint.h"
 
+#ifdef CAIRO_HAS_QUARTZ_IMAGE_SURFACE
 #include "cairo-quartz-image.h"
+#endif
+
 #include "cairo-quartz-private.h"
 
 #define SURFACE_ERROR_NO_MEMORY (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY)))
 #define SURFACE_ERROR_TYPE_MISMATCH (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_SURFACE_TYPE_MISMATCH)))
-#define SURFACE_ERROR_INVALID_SIZE (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_INVALID_SIZE)))
 #define SURFACE_ERROR_INVALID_FORMAT (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_INVALID_FORMAT)))
+
+CGImageRef
+_cairo_quartz_create_cgimage (cairo_format_t format,
+			      unsigned int width,
+			      unsigned int height,
+			      unsigned int stride,
+			      void *data,
+			      cairo_bool_t interpolate,
+			      CGColorSpaceRef colorSpaceOverride,
+			      CGDataProviderReleaseDataCallback releaseCallback,
+			      void *releaseInfo)
+{
+    CGImageRef image = NULL;
+    CGDataProviderRef dataProvider = NULL;
+    CGColorSpaceRef colorSpace = colorSpaceOverride;
+    CGBitmapInfo bitinfo;
+    int bitsPerComponent, bitsPerPixel;
+
+    switch (format) {
+	case CAIRO_FORMAT_ARGB32:
+	    if (colorSpace == NULL)
+		colorSpace = CGColorSpaceCreateDeviceRGB();
+	    bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+	    bitsPerComponent = 8;
+	    bitsPerPixel = 32;
+	    break;
+
+	case CAIRO_FORMAT_RGB24:
+	    if (colorSpace == NULL)
+		colorSpace = CGColorSpaceCreateDeviceRGB();
+	    bitinfo = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
+	    bitsPerComponent = 8;
+	    bitsPerPixel = 32;
+	    break;
+
+	/* XXX -- should use CGImageMaskCreate! */
+	case CAIRO_FORMAT_A8:
+	    if (colorSpace == NULL)
+		colorSpace = CGColorSpaceCreateDeviceGray();
+	    bitinfo = kCGImageAlphaNone;
+	    bitsPerComponent = 8;
+	    bitsPerPixel = 8;
+	    break;
+
+	case CAIRO_FORMAT_A1:
+	default:
+	    return NULL;
+    }
+
+    dataProvider = CGDataProviderCreateWithData (releaseInfo,
+						 data,
+						 height * stride,
+						 releaseCallback);
+
+    if (!dataProvider) {
+	// manually release
+	if (releaseCallback)
+	    releaseCallback (releaseInfo, data, height * stride);
+	goto FINISH;
+    }
+
+    image = CGImageCreate (width, height,
+			   bitsPerComponent,
+			   bitsPerPixel,
+			   stride,
+			   colorSpace,
+			   bitinfo,
+			   dataProvider,
+			   NULL,
+			   interpolate,
+			   kCGRenderingIntentDefault);
+
+FINISH:
+
+    CGDataProviderRelease (dataProvider);
+
+    if (colorSpace != colorSpaceOverride)
+	CGColorSpaceRelease (colorSpace);
+
+    return image;
+}
+
+#ifdef CAIRO_HAS_QUARTZ_IMAGE_SURFACE
 
 static void
 DataProviderReleaseCallback (void *info, const void *data, size_t size)
@@ -58,8 +143,9 @@ _cairo_quartz_image_surface_create_similar (void *asurface,
 					    int height)
 {
     cairo_surface_t *result;
-    cairo_surface_t *isurf =
-	_cairo_image_surface_create_with_content (content, width, height);
+    cairo_surface_t *isurf = cairo_image_surface_create (_cairo_format_from_content (content),
+							 width,
+							 height);
     if (cairo_surface_status(isurf))
 	return isurf;
 
@@ -107,16 +193,18 @@ _cairo_quartz_image_surface_acquire_dest_image (void *asurface,
     *image_extra = NULL;
 
     return CAIRO_STATUS_SUCCESS;
+   
 }
 
-static cairo_bool_t
+static cairo_int_status_t
 _cairo_quartz_image_surface_get_extents (void *asurface,
 					 cairo_rectangle_int_t *extents)
 {
     cairo_quartz_image_surface_t *surface = (cairo_quartz_image_surface_t *) asurface;
 
     *extents = surface->extents;
-    return TRUE;
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 /* we assume some drawing happened to the image buffer; make sure it's
@@ -146,8 +234,6 @@ _cairo_quartz_image_surface_flush (void *asurface)
     surface->image = newImage;
     CGImageRelease (oldImage);
 
-    surface->base.is_clear = surface->imageSurface->base.is_clear;
-
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -163,10 +249,10 @@ static const cairo_surface_backend_t cairo_quartz_image_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
+    NULL, /* set_clip_region */
+    NULL, /* intersect_clip_path */
     _cairo_quartz_image_surface_get_extents,
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
@@ -182,6 +268,7 @@ static const cairo_surface_backend_t cairo_quartz_image_surface_backend = {
     NULL, /* surface_show_glyphs */
     NULL, /* snapshot */
     NULL, /* is_similar */
+    NULL, /* reset */
     NULL  /* fill_stroke */
 
 };
@@ -224,10 +311,10 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface)
     data = image_surface->data;
 
     if (!_cairo_quartz_verify_surface_size(width, height))
-	return SURFACE_ERROR_INVALID_SIZE;
+	return SURFACE_ERROR_NO_MEMORY;
 
     if (width == 0 || height == 0)
-	return SURFACE_ERROR_INVALID_SIZE;
+	return SURFACE_ERROR_NO_MEMORY;
 
     if (format != CAIRO_FORMAT_ARGB32 && format != CAIRO_FORMAT_RGB24)
 	return SURFACE_ERROR_INVALID_FORMAT;
@@ -269,8 +356,6 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface)
     qisurf->image = image;
     qisurf->imageSurface = image_surface;
 
-    qisurf->base.is_clear = image_surface->base.is_clear;
-
     return &qisurf->base;
 }
 
@@ -285,3 +370,5 @@ cairo_quartz_image_surface_get_image (cairo_surface_t *asurface)
 
     return (cairo_surface_t*) surface->imageSurface;
 }
+
+#endif /* CAIRO_HAS_QUARTZ_IMAGE_SURFACE */

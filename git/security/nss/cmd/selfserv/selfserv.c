@@ -176,7 +176,6 @@ Usage(const char *progName)
 "Usage: %s -n rsa_nickname -p port [-3BDENRSTbjlmrsuvx] [-w password]\n"
 "         [-t threads] [-i pid_file] [-c ciphers] [-d dbdir] [-g numblocks]\n"
 "         [-f password_file] [-L [seconds]] [-M maxProcs] [-P dbprefix]\n"
-"         [-a sni_name]\n"
 #ifdef NSS_ENABLE_ECC
 "         [-C SSLCacheEntries] [-e ec_nickname]\n"
 #else
@@ -190,8 +189,6 @@ Usage(const char *progName)
 "-D means disable Nagle delays in TCP\n"
 "-E means disable export ciphersuites and SSL step down key gen\n"
 "-R means disable detection of rollback from TLS to SSL3\n"
-"-a configure server for SNI.\n"
-"-k expected name negotiated on server sockets"
 "-b means try binding to the port and exit\n"
 "-m means test the model-socket feature of SSL_ImportFD.\n"
 "-r flag is interepreted as follows:\n"
@@ -203,7 +200,6 @@ Usage(const char *progName)
 "-u means enable Session Ticket extension for TLS.\n"
 "-v means verbose output\n"
 "-x means use export policy.\n"
-"-z means enable compression.\n"
 "-L seconds means log statistics every 'seconds' seconds (default=30).\n"
 "-M maxProcs tells how many processes to run in a multi-process server\n"
 "-N means do NOT use the server session cache.  Incompatible with -M.\n"
@@ -391,24 +387,10 @@ printSecurityInfo(PRFileDesc *fd)
 	       suite.effectiveKeyBits, suite.symCipherName, 
 	       suite.macBits, suite.macAlgorithmName);
 	    FPRINTF(stderr, 
-	    "selfserv: Server Auth: %d-bit %s, Key Exchange: %d-bit %s\n"
-	    "          Compression: %s\n",
+	    "selfserv: Server Auth: %d-bit %s, Key Exchange: %d-bit %s\n",
 	       channel.authKeyBits, suite.authAlgorithmName,
-	       channel.keaKeyBits,  suite.keaTypeName,
-	       channel.compressionMethodName);
+	       channel.keaKeyBits,  suite.keaTypeName);
     	}
-    }
-    if (verbose) {
-        SECItem *hostInfo  = SSL_GetNegotiatedHostInfo(fd);
-        if (hostInfo) {
-            char namePref[] = "selfserv: Negotiated server name: ";
-
-            fprintf(stderr, "%s", namePref);
-            fwrite(hostInfo->data, hostInfo->len, 1, stderr);
-            SECITEM_FreeItem(hostInfo, PR_TRUE);
-            hostInfo = NULL;
-            fprintf(stderr, "\n");
-        }
     }
     if (requestCert)
 	cert = SSL_PeerCertificate(fd);
@@ -443,71 +425,6 @@ myBadCertHandler( void *arg, PRFileDesc *fd)
             err, SECU_Strerror(err));
     return (MakeCertOK ? SECSuccess : SECFailure);
 }
-
-#define MAX_VIRT_SERVER_NAME_ARRAY_INDEX  10
-
-/* Simple SNI socket config function that does not use SSL_ReconfigFD.
- * Only uses one server name but verifies that the names match. */
-PRInt32 
-mySSLSNISocketConfig(PRFileDesc *fd, const SECItem *sniNameArr,
-                     PRUint32 sniNameArrSize, void *arg)
-{
-    PRInt32        i = 0;
-    const SECItem *current = sniNameArr;
-    const char    **nameArr = (const char**)arg;
-    const secuPWData *pwdata;
-    CERTCertificate *    cert = NULL;
-    SECKEYPrivateKey *   privKey = NULL;
-
-    PORT_Assert(fd && sniNameArr);
-    if (!fd || !sniNameArr) {
-	return SSL_SNI_SEND_ALERT;
-    }
-
-    pwdata = SSL_RevealPinArg(fd);
-
-    for (;current && i < sniNameArrSize;i++) {
-        int j = 0;
-        for (;j < MAX_VIRT_SERVER_NAME_ARRAY_INDEX && nameArr[j];j++) {
-            if (!PORT_Strncmp(nameArr[j],
-                              (const char *)current[i].data,
-                              current[i].len) &&
-                PORT_Strlen(nameArr[j]) == current[i].len) {
-                const char *nickName = nameArr[j];
-                if (j == 0) {
-                    /* default cert */
-                    return 0;
-                }
-                /* if pwdata is NULL, then we would not get the key and
-                 * return an error status. */
-                cert = PK11_FindCertFromNickname(nickName, &pwdata);
-                if (cert == NULL) {
-                    goto loser; /* Send alert */
-                }
-                privKey = PK11_FindKeyByAnyCert(cert, &pwdata);
-                if (privKey == NULL) {
-                    goto loser; /* Send alert */
-                }
-                if (SSL_ConfigSecureServer(fd, cert, privKey,
-                                           kt_rsa) != SECSuccess) {
-                    goto loser; /* Send alert */
-                }
-                SECKEY_DestroyPrivateKey(privKey);
-                CERT_DestroyCertificate(cert);
-                return i;
-            }
-        }
-    }
-loser:
-    if (privKey) {
-        SECKEY_DestroyPrivateKey(privKey);
-    }
-    if (cert) {
-        CERT_DestroyCertificate(cert);
-    }
-    return SSL_SNI_SEND_ALERT;
-}
-
 
 /**************************************************************************
 ** Begin thread management routines and data.
@@ -735,8 +652,8 @@ logger(void *arg)
          */
         PR_Sleep(logPeriodTicks);
         secondsElapsed++;
-        totalPeriodBytes +=  PR_ATOMIC_SET(&loggerBytes, 0);
-        totalPeriodBytesTCP += PR_ATOMIC_SET(&loggerBytesTCP, 0);
+        totalPeriodBytes +=  PR_AtomicSet(&loggerBytes, 0);
+        totalPeriodBytesTCP += PR_AtomicSet(&loggerBytesTCP, 0);
         if (secondsElapsed != logPeriod) {
             continue;
         }
@@ -800,9 +717,6 @@ PRBool bypassPKCS11    = PR_FALSE;
 PRBool disableLocking  = PR_FALSE;
 PRBool testbypass      = PR_FALSE;
 PRBool enableSessionTickets = PR_FALSE;
-PRBool enableCompression    = PR_FALSE;
-PRBool failedToNegotiateName  = PR_FALSE;
-static char  *virtServerNameArray[MAX_VIRT_SERVER_NAME_ARRAY_INDEX];
 
 static const char stopCmd[] = { "GET /stop " };
 static const char getCmd[]  = { "GET " };
@@ -1200,7 +1114,7 @@ handle_connection(
 	    char *      fnEnd;
 	    PRFileInfo  info;
 	    /* try to open the file named.  
-	     * If successful, then write it to the client.
+	     * If succesful, then write it to the client.
 	     */
 	    fnEnd = strpbrk(fnBegin, " \r\n");
 	    if (fnEnd) {
@@ -1349,8 +1263,8 @@ handle_connection(
         /* Send testBulkTotal chunks to the client. Unlimited if 0. */
         if (testBulk) {
             while (0 < (rv = PR_Write(ssl_sock, testBulkBuf, testBulkSize))) {
-                PR_ATOMIC_ADD(&loggerBytes, rv);
-                PR_ATOMIC_INCREMENT(&bulkSentChunks);
+                PR_AtomicAdd(&loggerBytes, rv);
+                PR_AtomicIncrement(&bulkSentChunks);
                 if ((bulkSentChunks > testBulkTotal) && (testBulkTotal != 0))
                     break;
             }
@@ -1359,7 +1273,7 @@ handle_connection(
             if (bulkSentChunks <= testBulkTotal) {
                 errWarn("PR_Write");
             }
-            PR_ATOMIC_DECREMENT(&loggerOps);
+            PR_AtomicDecrement(&loggerOps);
             break;
         }
     } while (0);
@@ -1444,7 +1358,7 @@ do_accepts(
         VLOG(("selfserv: do_accept: Got connection\n"));
 
         if (logStats) {
-            PR_ATOMIC_INCREMENT(&loggerOps);
+            PR_AtomicIncrement(&loggerOps);
         }
 
 	PZ_Lock(qLock);
@@ -1558,7 +1472,7 @@ logWritev (
         timeout);
     /* Add the amount written, but not if there's an error */
     if (rv > 0) 
-        PR_ATOMIC_ADD(&loggerBytesTCP, rv);
+        PR_AtomicAdd(&loggerBytesTCP, rv);
     return rv;
 }
     
@@ -1571,7 +1485,7 @@ logWrite (
     PRInt32 rv = (fd->lower->methods->write)(fd->lower, buf, amount);
     /* Add the amount written, but not if there's an error */
     if (rv > 0) 
-        PR_ATOMIC_ADD(&loggerBytesTCP, rv);
+        PR_AtomicAdd(&loggerBytesTCP, rv);
     
     return rv;
 }
@@ -1588,7 +1502,7 @@ logSend (
         flags, timeout);
     /* Add the amount written, but not if there's an error */
     if (rv > 0) 
-        PR_ATOMIC_ADD(&loggerBytesTCP, rv);
+        PR_AtomicAdd(&loggerBytesTCP, rv);
     return rv;
 }
  
@@ -1607,25 +1521,11 @@ void initLoggingLayer(void)
 }
 
 void
-handshakeCallback(PRFileDesc *fd, void *client_data)
-{
-    const char *handshakeName = (const char *)client_data;
-    if (handshakeName && !failedToNegotiateName) {
-        SECItem *hostInfo  = SSL_GetNegotiatedHostInfo(fd);
-        if (!hostInfo || PORT_Strncmp(handshakeName, (char*)hostInfo->data,
-                                      hostInfo->len)) {
-            failedToNegotiateName = PR_TRUE;
-        }
-    }
-}
-
-void
 server_main(
     PRFileDesc *        listen_sock,
     int                 requestCert, 
     SECKEYPrivateKey ** privKey,
-    CERTCertificate **  cert,
-    const char *expectedHostNameVal)
+    CERTCertificate **  cert)
 {
     PRFileDesc *model_sock	= NULL;
     int         rv;
@@ -1699,19 +1599,6 @@ server_main(
 	}
     }
 
-    if (enableCompression) {
-	rv = SSL_OptionSet(model_sock, SSL_ENABLE_DEFLATE, PR_TRUE);
-	if (rv != SECSuccess) {
-	    errExit("error enabling compression ");
-	}
-    }
-
-    rv = SSL_SNISocketConfigHook(model_sock, mySSLSNISocketConfig,
-                                 (void*)&virtServerNameArray);
-    if (rv != SECSuccess) {
-        errExit("error enabling SNI extension ");
-    }
-
     for (kea = kt_rsa; kea < kt_kea_size; kea++) {
 	if (cert[kea] != NULL) {
 	    secStatus = SSL_ConfigSecureServer(model_sock, 
@@ -1744,10 +1631,6 @@ server_main(
 	errExit("SSL_CipherPrefSetDefault:SSL_RSA_WITH_NULL_MD5");
     }
 
-    if (expectedHostNameVal) {
-        SSL_HandshakeCallback(model_sock, handshakeCallback,
-                              (void*)expectedHostNameVal);
-    }
 
     if (requestCert) {
 	SSL_AuthCertificateHook(model_sock, mySSLAuthCertificate, 
@@ -1883,6 +1766,35 @@ beAGoodParent(int argc, char **argv, int maxProcs, PRFileDesc * listen_sock)
     exit(0);
 }
 
+#ifdef DEBUG_nelsonb
+
+#if defined(XP_UNIX) || defined(XP_OS2) || defined(XP_BEOS)
+#define SSL_GETPID getpid
+#elif defined(_WIN32_WCE)
+#define SSL_GETPID GetCurrentProcessId
+#elif defined(WIN32)
+extern int __cdecl _getpid(void);
+#define SSL_GETPID _getpid
+#else
+#define SSL_GETPID() 0   
+#endif
+
+void
+WaitForDebugger(void)
+{
+
+    int waiting       = 12;
+    int myPid         = SSL_GETPID();
+    PRIntervalTime    nrval = PR_SecondsToInterval(5);
+
+    while (waiting) {
+    	printf("child %d is waiting to be debugged!\n", myPid);
+	PR_Sleep(nrval); 
+	--waiting;
+    }
+}
+#endif
+
 #define HEXCHAR_TO_INT(c, i) \
     if (((c) >= '0') && ((c) <= '9')) { \
 	i = (c) - '0'; \
@@ -1935,9 +1847,7 @@ main(int argc, char **argv)
     SSL3Statistics      *ssl3stats;
     PRUint32             i;
     secuPWData  pwdata = { PW_NONE, 0 };
-    int                  virtServerNameIndex = 1;
-    char                *expectedHostNameVal = NULL;
-
+ 
     tmp = strrchr(argv[0], '/');
     tmp = tmp ? tmp + 1 : argv[0];
     progName = strrchr(tmp, '\\');
@@ -1949,7 +1859,7 @@ main(int argc, char **argv)
     ** numbers, then capital letters, then lower case, alphabetical. 
     */
     optstate = PL_CreateOptState(argc, argv, 
-        "2:3BC:DEL:M:NP:RSTa:bc:d:e:f:g:hi:jk:lmn:op:qrst:uvw:xyz");
+        "2:3BC:DEL:M:NP:RSTbc:d:e:f:g:hi:jlmn:op:qrst:uvw:xy");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	++optionsFound;
 	switch(optstate->option) {
@@ -1988,12 +1898,6 @@ main(int argc, char **argv)
 
 	case 'T': disableTLS = PR_TRUE; break;
 
-	case 'a': if (virtServerNameIndex >= MAX_VIRT_SERVER_NAME_ARRAY_INDEX) {
-                      Usage(progName);
-                  }
-                  virtServerNameArray[virtServerNameIndex++] =
-                      PORT_Strdup(optstate->value); break;
-
 	case 'b': bindOnly = PR_TRUE; break;
 
 	case 'c': cipherString = PORT_Strdup(optstate->value); break;
@@ -2023,16 +1927,11 @@ main(int argc, char **argv)
             loggingLayer = PR_TRUE;
             break;
 
-        case 'k': expectedHostNameVal = PORT_Strdup(optstate->value);
-                  break;
-
         case 'l': useLocalThreads = PR_TRUE; break;
 
 	case 'm': useModelSocket = PR_TRUE; break;
 
-	case 'n': nickName = PORT_Strdup(optstate->value);
-                  virtServerNameArray[0] = PORT_Strdup(optstate->value);
-                  break;
+	case 'n': nickName = PORT_Strdup(optstate->value); break;
 
 	case 'P': certPrefix = PORT_Strdup(optstate->value); break;
 
@@ -2064,8 +1963,6 @@ main(int argc, char **argv)
 	case 'x': useExportPolicy = PR_TRUE; break;
 
 	case 'y': debugCache = PR_TRUE; break;
-
-	case 'z': enableCompression = PR_TRUE; break;
 
 	default:
 	case '?':
@@ -2163,6 +2060,9 @@ main(int argc, char **argv)
 	prStatus = PR_SetFDInheritable(listen_sock, PR_FALSE);
 	if (prStatus != PR_SUCCESS)
 	    errExit("PR_SetFDInheritable");
+#endif
+#ifdef DEBUG_nelsonb
+	WaitForDebugger();
 #endif
 	rv = SSL_InheritMPServerSIDCache(envString);
 	if (rv != SECSuccess)
@@ -2360,8 +2260,7 @@ main(int argc, char **argv)
     }
 
     if (rv == SECSuccess) {
-	server_main(listen_sock, requestCert, privKey, cert,
-                    expectedHostNameVal);
+	server_main(listen_sock, requestCert, privKey, cert);
     }
 
     VLOG(("selfserv: server_thread: exiting"));
@@ -2372,10 +2271,6 @@ cleanup:
     if (ssl3stats->hch_sid_ticket_parse_failures != 0) {
 	fprintf(stderr, "selfserv: Experienced ticket parse failure(s)\n");
 	exit(1);
-    }
-    if (failedToNegotiateName) {
-        fprintf(stderr, "selfserv: Failed properly negotiate server name\n");
-        exit(1);
     }
 
     {
@@ -2388,19 +2283,14 @@ cleanup:
 		SECKEY_DestroyPrivateKey(privKey[i]);
 	    }
 	}
-        for (i = 0;virtServerNameArray[i];i++) {
-            PORT_Free(virtServerNameArray[i]);
-        }
     }
 
     if (debugCache) {
 	nss_DumpCertificateCacheInfo();
     }
+
     if (nickName) {
         PORT_Free(nickName);
-    }
-    if (expectedHostNameVal) {
-        PORT_Free(expectedHostNameVal);
     }
     if (passwd) {
         PORT_Free(passwd);

@@ -56,6 +56,8 @@ OS_COMPILE_CFLAGS += -GL-
 endif
 endif
 
+REQUIRES	= $(ZLIB_REQUIRES) \
+		  $(NULL)
 
 CSRCS		= \
 		png.c \
@@ -66,21 +68,30 @@ CSRCS		= \
 		pngtrans.c \
 		$(NULL)
 
-# These files enable support for reading/writting PNGs
+# These files enable support for reading PNGs
+ifneq (,$(filter png,$(MOZ_IMG_DECODERS)))
 CSRCS		+= \
 		pngpread.c \
 		pngread.c \
 		pngrio.c \
-		pngrtran.c \
 		pngrutil.c \
+		$(NULL)
+
+DEFINES		+= -DMOZ_PNG_READ
+endif
+
+# These files enable support for writing PNGs
+ifneq (,$(filter png,$(MOZ_IMG_ENCODERS)))
+CSRCS		+= \
 		pngwio.c \
 		pngwrite.c \
 		pngwtran.c \
+		pngrtran.c \
 		pngwutil.c \
 		$(NULL)
 
-DEFINES		+= -DMOZ_PNG_READ \
-		-DMOZ_PNG_WRITE
+DEFINES		+= -DMOZ_PNG_WRITE
+endif
 
 EXPORTS		= png.h pngconf.h mozpngconf.h
 

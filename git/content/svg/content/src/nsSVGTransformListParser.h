@@ -60,7 +60,7 @@ private:
   nsCOMArray<nsIDOMSVGTransform> *mTransform;
 
   // helpers
-  virtual nsresult Match();
+  nsresult Match();
 
   nsresult MatchNumberArguments(float *aResult,
                                 PRUint32 aMaxNum,

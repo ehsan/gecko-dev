@@ -78,15 +78,8 @@
 #define NS_XPCOMPROXY_CONTRACTID "@mozilla.org/xpcomproxy;1"
 
 /**
- * The contract id for the nsIXULAppInfo service.
+ * Memory reporter service CID
  */
-#define XULAPPINFO_SERVICE_CONTRACTID \
-  "@mozilla.org/xre/app-info;1"
-
-/**
- * The contract id for the nsIXULRuntime service.
- */
-#define XULRUNTIME_SERVICE_CONTRACTID \
-  "@mozilla.org/xre/runtime;1"
+#define NS_MEMORY_REPORTER_MANAGER_CONTRACTID "@mozilla.org/memory-reporter-manager;1"
 
 #endif  // nsXPCOMCIDInternal_h__

@@ -48,99 +48,121 @@ options="p:b:x:N:E:d:"
 function usage()
 {
     cat <<EOF
-usage:
-$SCRIPT -p product -b branch -x executablepath -N profilename -E extensiondir
+usage: 
+$SCRIPT -p product -b branch -x executablepath -N profilename -E extensions 
        [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox.
--b branch           required. supported branch. see library.sh
--x executablepath   required. directory-tree containing executable named
+-p product          required. firefox|thunderbird
+-b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
+-x executablepath   required. directory-tree containing executable named 
                     'product'
--N profilename      required. profile name
--E extensiondir       required. path to directory containing xpis to be installed
--d datafiles        optional. one or more filenames of files containing
-            environment variable definitions to be included.
+-N profilename      required. profile name 
+-E extensions       required. path to directory containing xpis to be installed
+-d datafiles        optional. one or more filenames of files containing 
+                    environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the
+note that the environment variables should have the same names as in the 
 "variable" column.
 
 EOF
     exit 1
 }
 
-unset product branch executablepath profilename extensiondir datafiles
+unset product branch executablepath profilename extensions datafiles
 
-while getopts $options optname ;
-do
-    case $optname in
-        p) product=$OPTARG;;
-        b) branch=$OPTARG;;
-        x) executablepath=$OPTARG;;
-        N) profilename=$OPTARG;;
-        E) extensiondir=$OPTARG;;
-        d) datafiles=$OPTARG;;
-    esac
+while getopts $options optname ; 
+  do 
+  case $optname in
+      p) product=$OPTARG;;
+      b) branch=$OPTARG;;
+      x) executablepath=$OPTARG;;
+      N) profilename=$OPTARG;;
+      E) extensions=$OPTARG;;
+      d) datafiles=$OPTARG;;
+  esac
 done
 
 # include environment variables
 loaddata $datafiles
 
 if [[ -z "$product" || -z "$branch" || \
-    -z "$executablepath" || -z "$profilename" || -z "$extensiondir" ]]; then
+    -z "$executablepath" || -z "$profilename" || -z "$extensions" ]]; then
     usage
 fi
 
-checkProductBranch $product $branch
+if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
+    error "product \"$product\" must be one of firefox or thunderbird" $LINENO
+fi
+
+if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" && "$branch" != "1.9.1" ]]; 
+    then
+    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0 1.9.1" $LINENO
+fi
+
+executable=`get_executable $product $branch $executablepath`
 
 if echo $profilename | egrep -qiv '[a-z0-9_]'; then
     error "profile name must consist of letters, digits or _" $LINENO
 fi
 
-executable=`get_executable $product $branch $executablepath`
-executableextensiondir=`dirname $executable`/extensions
-
-# create directory to contain installed extensions
-if [[ ! -d /tmp/sisyphus/extensions ]]; then
-    create-directory.sh -n -d /tmp/sisyphus/extensions
-fi
-
-for extensionloc in $extensiondir/all/*.xpi $extensiondir/$OSID/*.xpi; do
-    if [[ $extensionloc == "$extensiondir/all/*.xpi" ]]; then
-        continue
+for extension in $extensions/all/*.xpi; do 
+    if [[ $extension == "$extensions/all/*.xpi" ]]; then
+	    break
     fi
-    if [[ $extensionloc == "$extensiondir/$OSID/*.xpi" ]]; then
-        continue
-    fi
-
-    extensionname=`xbasename $extensionloc .xpi`
-    extensioninstalldir=/tmp/sisyphus/extensions/$extensionname
-
     if [[ "$OSID" == "nt" ]]; then
-        extensionosinstalldir=`cygpath -a -w $extensioninstalldir`
+        extensionos=`cygpath -a -w $extension`
     else
-        extensionosinstalldir=$extensioninstalldir
-    fi
-    echo installing $extensionloc
-
-    # unzip the extension if it does not already exist.
-    if [[ ! -e $extensioninstalldir ]]; then
-        create-directory.sh -n -d $extensioninstalldir
-        unzip -d $extensioninstalldir $extensionloc
+        extensionos="$extension"
     fi
 
-    extensionuuid=`perl $TEST_DIR/bin/get-extension-uuid.pl $extensioninstalldir/install.rdf`
-    if [[ ! -e $executableextensiondir/$extensionuuid ]]; then
-        echo $extensionosinstalldir > $executableextensiondir/$extensionuuid
-    fi
-
+    echo installing $extension
+    let tries=1
+    while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Install extension $extension: try $tries" \
+        $EXECUTABLE_DRIVER \
+        $executable -P $profilename -install-global-extension "$extensionos"; do
+        let tries=tries+1
+        if [[ "$tries" -gt $TEST_STARTUP_TRIES ]]; then
+            error "Failed to install extension $extension. Exiting..." $LINENO
+        fi
+        sleep 30
+    done
+    # there is no reliable method of determining if the install worked 
+    # from the output or from the exit code.
 done
 
-# restart to make extension manager happy
+for extension in $extensions/$OSID/*; do 
+    if [[ $extension == "$extensions/$OSID/*" ]]; then
+	    break
+    fi
+    if [[ "$OSID" == "nt" ]]; then
+        extensionos=`cygpath -a -w $extension`
+    else
+        extensionos="$extension"
+    fi
+
+    echo installing $extension
+    let tries=1
+    while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Install extension $extension: try $tries" \
+        $executable -P $profilename -install-global-extension "$extensionos"; do
+        let tries=tries+1
+        if [[ "$tries" -gt $TEST_STARTUP_TRIES ]]; then
+            error "Failed to install extension $extension. Exiting..." $LINENO
+        fi
+        sleep 30
+    done
+done
+
+# restart twice to make extension manager happy
+
 if ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "install extensions - first restart" \
     $executable -P $profilename "http://${TEST_HTTP}/bin/install-extensions-1.html"; then
     echo "Ignoring 1st failure to load the install-extensions page"
 fi
 
-exit 0
+if ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "install extensions - second restart" \
+    $executable -P $profilename "http://${TEST_HTTP}/bin/install-extensions-2.html"; then
+    error "Fatal 2nd failure to load the install-extensions page" $LINENO
+fi
+

@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -44,18 +44,16 @@ function nsLoginInfo() {}
 
 nsLoginInfo.prototype = {
 
+    classDescription  : "LoginInfo",
+    contractID : "@mozilla.org/login-manager/loginInfo;1",
     classID : Components.ID("{0f2f347c-1e4f-40cc-8efd-792dea70a85e}"),
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo, Ci.nsILoginMetaInfo]), 
+    QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo]), 
 
     // Allow storage-Legacy.js to get at the JS object so it can
     // slap on a few extra properties for internal use.
     get wrappedJSObject() {
         return this;
     },
-
-    //
-    // nsILoginInfo interfaces...
-    //
 
     hostname      : null,
     formSubmitURL : null,
@@ -107,36 +105,11 @@ nsLoginInfo.prototype = {
             return false;
 
         return true;
-    },
-
-    clone : function() {
-        let clone = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                    createInstance(Ci.nsILoginInfo);
-        clone.init(this.hostname, this.formSubmitURL, this.httpRealm,
-                   this.username, this.password,
-                   this.usernameField, this.passwordField);
-
-        // Copy nsILoginMetaInfo props
-        clone.QueryInterface(Ci.nsILoginMetaInfo);
-        clone.guid = this.guid;
-        clone.timeCreated = this.timeCreated;
-        clone.timeLastUsed = this.timeLastUsed;
-        clone.timePasswordChanged = this.timePasswordChanged;
-        clone.timesUsed = this.timesUsed;
-
-        return clone;
-    },
-
-    //
-    // nsILoginMetaInfo interfaces...
-    //
-
-    guid : null,
-    timeCreated : null,
-    timeLastUsed : null,
-    timePasswordChanged : null,
-    timesUsed : null
+    }
 
 }; // end of nsLoginInfo implementation
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsLoginInfo]);
+var component = [nsLoginInfo];
+function NSGetModule(compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

@@ -102,15 +102,13 @@ var observer = {
   },
   onTitleChanged: function(aURI, aPageTitle) {
   },
-  onBeforeDeleteURI: function(aURI) {
-  },
   onDeleteURI: function(aURI) {
   },
   onClearHistory: function() {
   },
   onPageChanged: function(aURI, aWhat, aValue) {
   },
-  onDeleteVisits: function() {
+  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {
   },
   QueryInterface: function(iid) {
     if (iid.equals(Ci.nsINavHistoryObserver) ||

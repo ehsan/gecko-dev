@@ -439,7 +439,7 @@ RDFContainerUtilsImpl::MakeContainer(nsIRDFDataSource* aDataSource, nsIRDFResour
     rv = IsContainer(aDataSource, aResource, &isContainer);
     if (NS_FAILED(rv)) return rv;
 
-    if (!isContainer)
+    if (isContainer == PR_FALSE)
     {
 	rv = aDataSource->Assert(aResource, kRDF_instanceOf, aType, PR_TRUE);
 	if (NS_FAILED(rv)) return rv;

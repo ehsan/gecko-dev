@@ -36,13 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <dlfcn.h>
-
 #include "nsMenuX.h"
 #include "nsMenuItemX.h"
 #include "nsMenuUtilsX.h"
 #include "nsMenuItemIconX.h"
-#include "nsStandaloneNativeMenu.h"
 
 #include "nsObjCExceptions.h"
 
@@ -77,74 +74,30 @@
 extern nsIRollupListener * gRollupListener;
 extern nsIWidget         * gRollupWidget;
 
+extern "C" MenuRef _NSGetCarbonMenu(NSMenu* aMenu);
+
 static PRBool gConstructingMenu = PR_FALSE;
 static PRBool gMenuMethodsSwizzled = PR_FALSE;
 
 PRInt32 nsMenuX::sIndexingMenuLevel = 0;
 
 
-//
-// Objective-C class used for representedObject
-//
-
-@implementation MenuItemInfo
-
-- (id) initWithMenuGroupOwner:(nsMenuGroupOwnerX *)aMenuGroupOwner
-{
-  if ((self = [super init]) != nil) {
-    mMenuGroupOwner = nsnull;
-    [self setMenuGroupOwner:aMenuGroupOwner];
-  }
-  return self;
-}
-
-- (void) dealloc
-{
-  [self setMenuGroupOwner:nsnull];
-  [super dealloc];
-}
-
-- (nsMenuGroupOwnerX *) menuGroupOwner
-{
-  return mMenuGroupOwner;
-}
-
-- (void) setMenuGroupOwner:(nsMenuGroupOwnerX *)aMenuGroupOwner
-{
-  // weak reference as the nsMenuGroupOwnerX owns all of its sub-objects
-  mMenuGroupOwner = aMenuGroupOwner;
-}
-
-@end
-
-
-//
-// nsMenuX
-//
-
 nsMenuX::nsMenuX()
-: mVisibleItemsCount(0), mParent(nsnull), mMenuGroupOwner(nsnull),
+: mVisibleItemsCount(0), mParent(nsnull), mMenuBar(nsnull),
   mNativeMenu(nil), mNativeMenuItem(nil), mIsEnabled(PR_TRUE),
   mDestroyHandlerCalled(PR_FALSE), mNeedsRebuild(PR_TRUE),
   mConstructed(PR_FALSE), mVisible(PR_TRUE), mXBLAttached(PR_FALSE)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!gMenuMethodsSwizzled) {
+  if (nsToolkit::OnLeopardOrLater() && !gMenuMethodsSwizzled) {
     nsToolkit::SwizzleMethods([NSMenu class], @selector(_addItem:toTable:),
                               @selector(nsMenuX_NSMenu_addItem:toTable:), PR_TRUE);
     nsToolkit::SwizzleMethods([NSMenu class], @selector(_removeItem:fromTable:),
                               @selector(nsMenuX_NSMenu_removeItem:fromTable:), PR_TRUE);
-    // On SnowLeopard the Shortcut framework (which contains the
-    // SCTGRLIndex class) is loaded on demand, whenever the user first opens
-    // a menu (which normally hasn't happened yet).  So we need to load it
-    // here explicitly.
-    if (nsToolkit::OnSnowLeopardOrLater())
-      dlopen("/System/Library/PrivateFrameworks/Shortcut.framework/Shortcut", RTLD_LAZY);
     Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
     nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
                               @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
-
     gMenuMethodsSwizzled = PR_TRUE;
   }
 
@@ -158,33 +111,29 @@ nsMenuX::nsMenuX()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 nsMenuX::~nsMenuX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  // Prevent the icon object from outliving us.
-  if (mIcon)
-    mIcon->Destroy();
 
   RemoveAll();
 
   [mNativeMenu setDelegate:nil];
   [mNativeMenu release];
   [mMenuDelegate release];
-  // autorelease the native menu item so that anything else happening to this
-  // object happens before the native menu item actually dies
-  [mNativeMenuItem autorelease];
+  [mNativeMenuItem release];
 
   // alert the change notifier we don't care no more
   if (mContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mContent);
+    mMenuBar->UnregisterForContentChanges(mContent);
 
   MOZ_COUNT_DTOR(nsMenuX);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode)
+
+nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuBarX* aMenuBar, nsIContent* aNode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -193,31 +142,30 @@ nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOw
   mNativeMenu = CreateMenuWithGeckoString(mLabel);
 
   // register this menu to be notified when changes are made to our content object
-  mMenuGroupOwner = aMenuGroupOwner; // weak ref
-  NS_ASSERTION(mMenuGroupOwner, "No menu owner given, must have one");
-  mMenuGroupOwner->RegisterForContentChanges(mContent, this);
+  mMenuBar = aMenuBar; // weak ref
+  NS_ASSERTION(mMenuBar, "No menu bar given, must have one");
+  mMenuBar->RegisterForContentChanges(mContent, this);
 
   mParent = aParent;
   // our parent could be either a menu bar (if we're toplevel) or a menu (if we're a submenu)
-
-#ifdef DEBUG
-  nsMenuObjectTypeX parentType =
-#endif
-    mParent->MenuObjectType();
-  NS_ASSERTION((parentType == eMenuBarObjectType || parentType == eSubmenuObjectType || parentType == eStandaloneNativeMenuObjectType),
-               "Menu parent not a menu bar, menu, or native menu!");
+  nsMenuObjectTypeX parentType = mParent->MenuObjectType();
+  NS_ASSERTION((parentType == eMenuBarObjectType || parentType == eSubmenuObjectType),
+               "Menu parent not a menu bar or menu!");
 
   if (nsMenuUtilsX::NodeIsHiddenOrCollapsed(mContent))
     mVisible = PR_FALSE;
   if (mContent->GetChildCount() == 0)
     mVisible = PR_FALSE;
 
-  NSString *newCocoaLabelString = nsMenuUtilsX::GetTruncatedCocoaLabel(mLabel);
-  mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
-  [mNativeMenuItem setSubmenu:mNativeMenu];
-
   SetEnabled(!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
                                     nsWidgetAtoms::_true, eCaseMatters));
+
+  NSString *newCocoaLabelString = nsMenuUtilsX::CreateTruncatedCocoaLabel(mLabel);
+  mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
+  [newCocoaLabelString release];
+  [mNativeMenuItem setSubmenu:mNativeMenu];
+
+  [mNativeMenuItem setEnabled:(BOOL)mIsEnabled];
 
   // We call MenuConstruct here because keyboard commands are dependent upon
   // native menu items being created. If we only call MenuConstruct when a menu
@@ -231,6 +179,7 @@ nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOw
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 nsresult nsMenuX::AddMenuItem(nsMenuItemX* aMenuItem)
 {
@@ -254,15 +203,13 @@ nsresult nsMenuX::AddMenuItem(nsMenuItemX* aMenuItem)
   [newNativeMenuItem setAction:@selector(menuItemHit:)];
 
   // set its command. we get the unique command id from the menubar
-  [newNativeMenuItem setTag:mMenuGroupOwner->RegisterForCommand(aMenuItem)];
-  MenuItemInfo * info = [[MenuItemInfo alloc] initWithMenuGroupOwner:mMenuGroupOwner];
-  [newNativeMenuItem setRepresentedObject:info];
-  [info release];
+  [newNativeMenuItem setTag:mMenuBar->RegisterForCommand(aMenuItem)];
 
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 nsresult nsMenuX::AddMenu(nsMenuX* aMenu)
 {
@@ -290,11 +237,13 @@ nsresult nsMenuX::AddMenu(nsMenuX* aMenu)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 // Includes all items, including hidden/collapsed ones
 PRUint32 nsMenuX::GetItemCount()
 {
   return mMenuObjectsArray.Length();
 }
+
 
 // Includes all items, including hidden/collapsed ones
 nsMenuObjectX* nsMenuX::GetItemAt(PRUint32 aPos)
@@ -305,12 +254,14 @@ nsMenuObjectX* nsMenuX::GetItemAt(PRUint32 aPos)
   return mMenuObjectsArray[aPos];
 }
 
+
 // Only includes visible items
 nsresult nsMenuX::GetVisibleItemCount(PRUint32 &aCount)
 {
   aCount = mVisibleItemsCount;
   return NS_OK;
 }
+
 
 // Only includes visible items. Note that this is provides O(N) access
 // If you need to iterate or search, consider using GetItemAt and doing your own filtering
@@ -342,6 +293,7 @@ nsMenuObjectX* nsMenuX::GetVisibleItemAt(PRUint32 aPos)
   return NULL;
 }
 
+
 nsresult nsMenuX::RemoveAll()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -350,7 +302,7 @@ nsresult nsMenuX::RemoveAll()
     // clear command id's
     int itemCount = [mNativeMenu numberOfItems];
     for (int i = 0; i < itemCount; i++)
-      mMenuGroupOwner->UnregisterCommand((PRUint32)[[mNativeMenu itemAtIndex:i] tag]);
+      mMenuBar->UnregisterCommand((PRUint32)[[mNativeMenu itemAtIndex:i] tag]);
     // get rid of Cocoa menu items
     for (int i = [mNativeMenu numberOfItems] - 1; i >= 0; i--)
       [mNativeMenu removeItemAtIndex:i];
@@ -364,37 +316,58 @@ nsresult nsMenuX::RemoveAll()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsEventStatus nsMenuX::MenuOpened()
+
+nsEventStatus nsMenuX::MenuOpened(const nsMenuEvent & aMenuEvent)
 {
-  // Open the node.
-  mContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::open, NS_LITERAL_STRING("true"), PR_TRUE);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // Fire a handler. If we're told to stop, don't build the menu at all
-  PRBool keepProcessing = OnOpen();
+  // Determine if this is the correct menu to handle the event
+  MenuRef selectedMenuHandle = (MenuRef)aMenuEvent.mCommand;
 
-  if (!mNeedsRebuild || !keepProcessing)
-    return nsEventStatus_eConsumeNoDefault;
+  // at this point, the carbon event handler was installed so there
+  // must be a carbon MenuRef to be had
+  if (_NSGetCarbonMenu(mNativeMenu) == selectedMenuHandle) {
+    // Open the node.
+    mContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::open, NS_LITERAL_STRING("true"), PR_TRUE);
 
-  if (!mConstructed || mNeedsRebuild) {
-    if (mNeedsRebuild)
-      RemoveAll();
+    // Fire a handler. If we're told to stop, don't build the menu at all
+    PRBool keepProcessing = OnOpen();
 
-    MenuConstruct();
-    mConstructed = true;
+    if (!mNeedsRebuild || !keepProcessing)
+      return nsEventStatus_eConsumeNoDefault;
+
+    if (!mConstructed || mNeedsRebuild) {
+      if (mNeedsRebuild)
+        RemoveAll();
+
+      MenuConstruct();
+      mConstructed = true;
+    }
+
+    OnOpened();
+
+    return nsEventStatus_eConsumeNoDefault;  
+  }
+  else {
+    // Make sure none of our submenus are the ones that should be handling this
+    PRUint32 count = mMenuObjectsArray.Length();
+    for (PRUint32 i = 0; i < count; i++) {
+      nsMenuObjectX* menuObject = mMenuObjectsArray[i];
+      if (menuObject->MenuObjectType() == eSubmenuObjectType) {
+        nsEventStatus status = static_cast<nsMenuX*>(menuObject)->MenuOpened(aMenuEvent);
+        if (status != nsEventStatus_eIgnore)
+          return status;
+      }  
+    }
   }
 
-  nsEventStatus status = nsEventStatus_eIgnore;
-  nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_SHOWN, nsnull, nsMouseEvent::eReal);
+  return nsEventStatus_eIgnore;
 
-  nsCOMPtr<nsIContent> popupContent;
-  GetMenuPopupContent(getter_AddRefs(popupContent));
-  nsIContent* dispatchTo = popupContent ? popupContent : mContent;
-  dispatchTo->DispatchDOMEvent(&event, nsnull, nsnull, &status);
-  
-  return nsEventStatus_eConsumeNoDefault;
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsEventStatus_eIgnore);
 }
 
-void nsMenuX::MenuClosed()
+
+void nsMenuX::MenuClosed(const nsMenuEvent & aMenuEvent)
 {
   if (mConstructed) {
     // Don't close if a handler tells us to stop.
@@ -406,18 +379,12 @@ void nsMenuX::MenuClosed()
 
     mContent->UnsetAttr(kNameSpaceID_None, nsWidgetAtoms::open, PR_TRUE);
 
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_HIDDEN, nsnull, nsMouseEvent::eReal);
+    OnClosed();
 
-    nsCOMPtr<nsIContent> popupContent;
-    GetMenuPopupContent(getter_AddRefs(popupContent));
-    nsIContent* dispatchTo = popupContent ? popupContent : mContent;
-    dispatchTo->DispatchDOMEvent(&event, nsnull, nsnull, &status);
-
-    mDestroyHandlerCalled = PR_TRUE;
     mConstructed = false;
   }
 }
+
 
 void nsMenuX::MenuConstruct()
 {
@@ -481,21 +448,24 @@ void nsMenuX::MenuConstruct()
   // printf("Done building, mMenuObjectsArray.Count() = %d \n", mMenuObjectsArray.Count());
 }
 
+
 void nsMenuX::SetRebuild(PRBool aNeedsRebuild)
 {
   if (!gConstructingMenu)
     mNeedsRebuild = aNeedsRebuild;
 }
 
+
 nsresult nsMenuX::SetEnabled(PRBool aIsEnabled)
 {
   if (aIsEnabled != mIsEnabled) {
     // we always want to rebuild when this changes
+    SetRebuild(PR_TRUE); 
     mIsEnabled = aIsEnabled;
-    [mNativeMenuItem setEnabled:(BOOL)mIsEnabled];
   }
   return NS_OK;
 }
+
 
 nsresult nsMenuX::GetEnabled(PRBool* aIsEnabled)
 {
@@ -503,6 +473,7 @@ nsresult nsMenuX::GetEnabled(PRBool* aIsEnabled)
   *aIsEnabled = mIsEnabled;
   return NS_OK;
 }
+
 
 GeckoNSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
 {
@@ -525,6 +496,7 @@ GeckoNSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
+
 
 void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
 {
@@ -555,7 +527,7 @@ void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
   if (!menuItem)
     return;
 
-  nsresult rv = menuItem->Create(this, menuitemName, itemType, mMenuGroupOwner, inMenuItemContent);
+  nsresult rv = menuItem->Create(this, menuitemName, itemType, mMenuBar, inMenuItemContent);
   if (NS_FAILED(rv)) {
     delete menuItem;
     return;
@@ -568,13 +540,14 @@ void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
   menuItem->SetupIcon();
 }
 
+
 void nsMenuX::LoadSubMenu(nsIContent* inMenuContent)
 {
   nsAutoPtr<nsMenuX> menu(new nsMenuX());
   if (!menu)
     return;
 
-  nsresult rv = menu->Create(this, mMenuGroupOwner, inMenuContent);
+  nsresult rv = menu->Create(this, mMenuBar, inMenuContent);
   if (NS_FAILED(rv))
     return;
 
@@ -586,6 +559,7 @@ void nsMenuX::LoadSubMenu(nsIContent* inMenuContent)
 
   menu.forget();
 }
+
 
 // This menu is about to open. Returns TRUE if we should keep processing the event,
 // FALSE if the handler wants to stop the opening of the menu.
@@ -669,6 +643,25 @@ PRBool nsMenuX::OnOpen()
   return PR_TRUE;
 }
 
+
+PRBool nsMenuX::OnOpened()
+{
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_SHOWN, nsnull, nsMouseEvent::eReal);
+  
+  nsCOMPtr<nsIContent> popupContent;
+  GetMenuPopupContent(getter_AddRefs(popupContent));
+
+  nsresult rv = NS_OK;
+  nsIContent* dispatchTo = popupContent ? popupContent : mContent;
+  rv = dispatchTo->DispatchDOMEvent(&event, nsnull, nsnull, &status);
+  if (NS_FAILED(rv) || status == nsEventStatus_eConsumeNoDefault)
+    return PR_FALSE;  
+  
+  return PR_TRUE;
+}
+
+
 // Returns TRUE if we should keep processing the event, FALSE if the handler
 // wants to stop the closing of the menu.
 PRBool nsMenuX::OnClose()
@@ -695,6 +688,29 @@ PRBool nsMenuX::OnClose()
   return PR_TRUE;
 }
 
+
+PRBool nsMenuX::OnClosed()
+{
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsMouseEvent event(PR_TRUE, NS_XUL_POPUP_HIDDEN, nsnull,
+                     nsMouseEvent::eReal);
+
+  nsCOMPtr<nsIContent> popupContent;
+  GetMenuPopupContent(getter_AddRefs(popupContent));
+
+  nsresult rv = NS_OK;
+  nsIContent* dispatchTo = popupContent ? popupContent : mContent;
+  rv = dispatchTo->DispatchDOMEvent(&event, nsnull, nsnull, &status);
+  
+  mDestroyHandlerCalled = PR_TRUE;
+  
+  if (NS_FAILED(rv) || status == nsEventStatus_eConsumeNoDefault)
+    return PR_FALSE;
+  
+  return PR_TRUE;
+}
+
+
 // Find the |menupopup| child in the |popup| representing this menu. It should be one
 // of a very few children so we won't be iterating over a bazillion menu items to find
 // it (so the strcmp won't kill us).
@@ -708,20 +724,6 @@ void nsMenuX::GetMenuPopupContent(nsIContent** aResult)
   nsCOMPtr<nsIXBLService> xblService = do_GetService("@mozilla.org/xbl;1", &rv);
   if (!xblService)
     return;
-
-  // Check to see if we are a "menupopup" node (if we are a native menu).
-  {
-    PRInt32 dummy;
-    nsCOMPtr<nsIAtom> tag;
-    xblService->ResolveTag(mContent, &dummy, getter_AddRefs(tag));
-    if (tag == nsWidgetAtoms::menupopup) {
-      *aResult = mContent;
-      NS_ADDREF(*aResult);
-      return;
-    }
-  }
-
-  // Otherwise check our child nodes.
   
   PRUint32 count = mContent->GetChildCount();
 
@@ -736,28 +738,20 @@ void nsMenuX::GetMenuPopupContent(nsIContent** aResult)
       return;
     }
   }
+
 }
+
 
 NSMenuItem* nsMenuX::NativeMenuItem()
 {
   return mNativeMenuItem;
 }
 
-PRBool nsMenuX::IsXULHelpMenu(nsIContent* aMenuContent)
-{
-  PRBool retval = PR_FALSE;
-  if (aMenuContent) {
-    nsAutoString id;
-    aMenuContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::id, id);
-    if (id.Equals(NS_LITERAL_STRING("helpMenu")))
-      retval = PR_TRUE;
-  }
-  return retval;
-}
 
 //
 // nsChangeObserver
 //
+
 
 void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aContent,
                                       nsIAtom *aAttribute)
@@ -771,10 +765,13 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
   nsMenuObjectTypeX parentType = mParent->MenuObjectType();
 
   if (aAttribute == nsWidgetAtoms::disabled) {
+    SetRebuild(PR_TRUE);
     SetEnabled(!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
                                       nsWidgetAtoms::_true, eCaseMatters));
   }
   else if (aAttribute == nsWidgetAtoms::label) {
+    SetRebuild(PR_TRUE);
+    
     mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::label, mLabel);
 
     // invalidate my parent. If we're a submenu parent, we have to rebuild
@@ -783,15 +780,13 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
     if (parentType == eMenuBarObjectType) {
       // reuse the existing menu, to avoid rebuilding the root menu bar.
       NS_ASSERTION(mNativeMenu, "nsMenuX::AttributeChanged: invalid menu handle.");
-      NSString *newCocoaLabelString = nsMenuUtilsX::GetTruncatedCocoaLabel(mLabel);
+      NSString *newCocoaLabelString = nsMenuUtilsX::CreateTruncatedCocoaLabel(mLabel);
       [mNativeMenu setTitle:newCocoaLabelString];
+      [newCocoaLabelString release];
     }
-    else if (parentType == eSubmenuObjectType) {
+    else {
       static_cast<nsMenuX*>(mParent)->SetRebuild(PR_TRUE);
     }    
-    else if (parentType == eStandaloneNativeMenuObjectType) {
-      static_cast<nsStandaloneNativeMenu*>(mParent)->GetMenuXObject()->SetRebuild(PR_TRUE);
-    }
   }
   else if (aAttribute == nsWidgetAtoms::hidden || aAttribute == nsWidgetAtoms::collapsed) {
     SetRebuild(PR_TRUE);
@@ -803,9 +798,7 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
       return;
 
     if (contentIsHiddenOrCollapsed) {
-      if (parentType == eMenuBarObjectType ||
-          parentType == eSubmenuObjectType ||
-          parentType == eStandaloneNativeMenuObjectType) {
+      if (parentType == eMenuBarObjectType || parentType == eSubmenuObjectType) {
         NSMenu* parentMenu = (NSMenu*)mParent->NativeData();
         // An exception will get thrown if we try to remove an item that isn't
         // in the menu.
@@ -815,21 +808,21 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
       }
     }
     else {
-      if (parentType == eMenuBarObjectType ||
-          parentType == eSubmenuObjectType ||
-          parentType == eStandaloneNativeMenuObjectType) {
-        int insertionIndex = nsMenuUtilsX::CalculateNativeInsertionPoint(mParent, this);
-        if (parentType == eMenuBarObjectType) {
-          // Before inserting we need to figure out if we should take the native
-          // application menu into account.
-          nsMenuBarX* mb = static_cast<nsMenuBarX*>(mParent);
-          if (mb->MenuContainsAppMenu())
-            insertionIndex++;
+      PRUint32 insertAfter = 0;
+      if (NS_SUCCEEDED(nsMenuUtilsX::CountVisibleBefore(mParent, this, &insertAfter))) {
+        if (parentType == eMenuBarObjectType || parentType == eSubmenuObjectType) {
+          if (parentType == eMenuBarObjectType) {
+            // Before inserting we need to figure out if we should take the native
+            // application menu into account.
+            nsMenuBarX* mb = static_cast<nsMenuBarX*>(mParent);
+            if (mb->MenuContainsAppMenu())
+              insertAfter++;
+          }
+          NSMenu* parentMenu = (NSMenu*)mParent->NativeData();
+          [parentMenu insertItem:mNativeMenuItem atIndex:insertAfter];
+          [mNativeMenuItem setSubmenu:mNativeMenu];
+          mVisible = PR_TRUE;
         }
-        NSMenu* parentMenu = (NSMenu*)mParent->NativeData();
-        [parentMenu insertItem:mNativeMenuItem atIndex:insertionIndex];
-        [mNativeMenuItem setSubmenu:mNativeMenu];
-        mVisible = PR_TRUE;
       }
     }
   }
@@ -840,6 +833,7 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 void nsMenuX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
                                     PRInt32 aIndexInContainer)
 {
@@ -847,8 +841,9 @@ void nsMenuX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
     return;
 
   SetRebuild(PR_TRUE);
-  mMenuGroupOwner->UnregisterForContentChanges(aChild);
+  mMenuBar->UnregisterForContentChanges(aChild);
 }
+
 
 void nsMenuX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild,
                                      PRInt32 aIndexInContainer)
@@ -858,6 +853,7 @@ void nsMenuX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild,
 
   SetRebuild(PR_TRUE);
 }
+
 
 nsresult nsMenuX::SetupIcon()
 {
@@ -869,72 +865,149 @@ nsresult nsMenuX::SetupIcon()
   return mIcon->SetupIcon();
 }
 
+
+//
+// Carbon event support
+//
+
+
+static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRef event, void* userData)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
+  // higher).  This stops the Help menu from being able to search in our
+  // menus, but it also resolves many other problems -- including crashes and
+  // long delays while opening the Help menu.  Once we know better which
+  // operations are safe during (re)indexing, we can start allowing some
+  // operations here while it's happening.  This change resolves bmo bugs
+  // 426499 and 414699.
+  if (nsMenuX::sIndexingMenuLevel > 0)
+    return noErr;
+
+  nsMenuX* targetMenu = static_cast<nsMenuX*>(userData);
+  UInt32 kind = ::GetEventKind(event);
+  if (kind == kEventMenuTargetItem) {
+    // get the position of the menu item we want
+    PRUint16 aPos;
+    ::GetEventParameter(event, kEventParamMenuItemIndex, typeMenuItemIndex, NULL, sizeof(MenuItemIndex), NULL, &aPos);
+    aPos--; // subtract 1 from aPos because Carbon menu positions start at 1 not 0
+    
+    // don't request a menu item that doesn't exist or we crash
+    // this might happen just due to some random quirks in the event system
+    PRUint32 itemCount;
+    targetMenu->GetVisibleItemCount(itemCount);
+    if (aPos >= itemCount)
+      return eventNotHandledErr;
+
+    // Send DOM event if we're over a menu item
+    nsMenuObjectX* target = targetMenu->GetVisibleItemAt((PRUint32)aPos);
+    if (target->MenuObjectType() == eMenuItemObjectType) {
+      nsMenuItemX* targetMenuItem = static_cast<nsMenuItemX*>(target);
+      PRBool handlerCalledPreventDefault; // but we don't actually care
+      targetMenuItem->DispatchDOMEvent(NS_LITERAL_STRING("DOMMenuItemActive"), &handlerCalledPreventDefault);
+      return noErr;
+    }
+  }
+  else if (kind == kEventMenuOpening || kind == kEventMenuClosed) {
+    if (kind == kEventMenuOpening && gRollupListener && gRollupWidget) {
+      gRollupListener->Rollup(nsnull);
+      return userCanceledErr;
+    }
+    MenuRef menuRef;
+    ::GetEventParameter(event, kEventParamDirectObject, typeMenuRef, NULL, sizeof(menuRef), NULL, &menuRef);
+    nsMenuEvent menuEvent(PR_TRUE, NS_MENU_SELECTED, nsnull);
+    menuEvent.time = PR_IntervalNow();
+    menuEvent.mCommand = (PRUint32)menuRef;
+    if (kind == kEventMenuOpening)
+      targetMenu->MenuOpened(menuEvent);
+    else
+      targetMenu->MenuClosed(menuEvent);
+    return noErr;
+  }
+  return eventNotHandledErr;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(noErr);
+}
+
+
+static OSStatus InstallMyMenuEventHandler(MenuRef menuRef, void* userData, EventHandlerRef* outHandler)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  static EventTypeSpec eventList[] = {
+    {kEventClassMenu, kEventMenuOpening},
+    {kEventClassMenu, kEventMenuClosed},
+    {kEventClassMenu, kEventMenuTargetItem}
+  };
+  
+  static EventHandlerUPP gMyMenuEventHandlerUPP = NewEventHandlerUPP(&MyMenuEventHandler);
+  OSStatus status = ::InstallMenuEventHandler(menuRef, gMyMenuEventHandlerUPP,
+                                   sizeof(eventList) / sizeof(EventTypeSpec), eventList,
+                                   userData, outHandler);
+  NS_ASSERTION(status == noErr,"Installing carbon menu events failed.");
+  return status;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(noErr);
+}
+
+
 //
 // MenuDelegate Objective-C class, used to set up Carbon events
 //
 
+
 @implementation MenuDelegate
+
 
 - (id)initWithGeckoMenu:(nsMenuX*)geckoMenu
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super init])) {
-    NS_ASSERTION(geckoMenu, "Cannot initialize native menu delegate with NULL gecko menu! Will crash!");
     mGeckoMenu = geckoMenu;
+    mHaveInstalledCarbonEvents = FALSE;
   }
   return self;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-- (void)menu:(NSMenu *)menu willHighlightItem:(NSMenuItem *)item
-{
-  if (!menu || !item || !mGeckoMenu)
-    return;
 
-  nsMenuObjectX* target = mGeckoMenu->GetVisibleItemAt((PRUint32)[menu indexOfItem:item]);
-  if (target && (target->MenuObjectType() == eMenuItemObjectType)) {
-    nsMenuItemX* targetMenuItem = static_cast<nsMenuItemX*>(target);
-    PRBool handlerCalledPreventDefault; // but we don't actually care
-    targetMenuItem->DispatchDOMEvent(NS_LITERAL_STRING("DOMMenuItemActive"), &handlerCalledPreventDefault);
-  }
+- (void)dealloc
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  RemoveEventHandler(mEventHandler);
+  [super dealloc];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)menuWillOpen:(NSMenu *)menu
+
+// You can get a MenuRef from an NSMenu*, but not until it has been made visible
+// or added to the main menu bar. Basically, Cocoa is attempting lazy loading,
+// and that doesn't work for us. We don't need any carbon events until after the
+// first time the menu is shown, so when that happens we install the carbon
+// event handler. This works because at this point we can get a MenuRef without
+// much trouble.
+- (void)menuNeedsUpdate:(NSMenu*)aMenu
 {
-  if (!mGeckoMenu)
-    return;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
-  // higher).  This stops the Help menu from being able to search in our
-  // menus, but it also resolves many other problems.
-  if (nsMenuX::sIndexingMenuLevel > 0)
-    return;
-
-  if (gRollupListener && gRollupWidget) {
-    gRollupListener->Rollup(nsnull, nsnull);
-    [menu cancelTracking];
-    return;
+  if (!mHaveInstalledCarbonEvents) {
+    MenuRef myMenuRef = _NSGetCarbonMenu(aMenu);
+    if (myMenuRef) {
+      InstallMyMenuEventHandler(myMenuRef, mGeckoMenu, &mEventHandler);
+      mHaveInstalledCarbonEvents = TRUE;
+    }
   }
-  mGeckoMenu->MenuOpened();
-}
 
-- (void)menuDidClose:(NSMenu *)menu
-{
-  if (!mGeckoMenu)
-    return;
-
-  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
-  // higher).  This stops the Help menu from being able to search in our
-  // menus, but it also resolves many other problems.
-  if (nsMenuX::sIndexingMenuLevel > 0)
-    return;
-
-  mGeckoMenu->MenuClosed();
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 @end
+
 
 // OS X Leopard (at least as of 10.5.2) has an obscure bug triggered by some
 // behavior that's present in Mozilla.org browsers but not (as best I can
@@ -1049,6 +1122,7 @@ static NSMutableDictionary *gShadowKeyEquivDB = nil;
 }
 
 @end
+
 
 @interface NSMenu (MethodSwizzling)
 + (void)nsMenuX_NSMenu_addItem:(NSMenuItem *)aItem toTable:(NSMapTable *)aTable;

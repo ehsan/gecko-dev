@@ -53,7 +53,7 @@
 #endif
 
 #include "plugin.h"
-#include "npfunctions.h"
+#include "npupp.h"
 
 static NPIdentifier sFoo_id;
 static NPIdentifier sBar_id;
@@ -449,17 +449,12 @@ ScriptablePluginObject::Invoke(NPIdentifier name, const NPVariant *args,
 
     NPN_ReleaseVariantValue(&docv);
 
-    const char* outString = "foo return val";
-    char* npOutString = (char *)NPN_MemAlloc(strlen(outString) + 1);
-    if (!npOutString)
-      return false;
-    strcpy(npOutString, outString);
-    STRINGZ_TO_NPVARIANT(npOutString, *result);
+    STRINGZ_TO_NPVARIANT(strdup("foo return val"), *result);
 
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -468,20 +463,15 @@ ScriptablePluginObject::InvokeDefault(const NPVariant *args, uint32_t argCount,
 {
   printf ("ScriptablePluginObject default method called!\n");
 
-  const char* outString = "default method return val";
-  char* npOutString = (char *)NPN_MemAlloc(strlen(outString) + 1);
-  if (!npOutString)
-    return false;
-  strcpy(npOutString, outString);
-  STRINGZ_TO_NPVARIANT(npOutString, *result);
+  STRINGZ_TO_NPVARIANT(strdup("default method return val"), *result);
 
-  return true;
+  return PR_TRUE;
 }
 
 CPlugin::CPlugin(NPP pNPInstance) :
   m_pNPInstance(pNPInstance),
   m_pNPStream(NULL),
-  m_bInitialized(false),
+  m_bInitialized(FALSE),
   m_pScriptableObject(NULL)
 {
 #ifdef XP_WIN
@@ -517,8 +507,8 @@ CPlugin::CPlugin(NPP pNPInstance) :
 
   if (!NPN_IdentifierIsString(n)) {
     NPString str;
-    str.UTF8Characters = "alert('NPN_IdentifierIsString() test failed!');";
-    str.UTF8Length = strlen(str.UTF8Characters);
+    str.utf8characters = "alert('NPN_IdentifierIsString() test failed!');";
+    str.utf8length = strlen(str.utf8characters);
 
     NPN_Evaluate(m_pNPInstance, sWindowObj, &str, NULL);
   }
@@ -533,7 +523,7 @@ CPlugin::CPlugin(NPP pNPInstance) :
     NPN_GetProperty(m_pNPInstance, doc, n, &rval);
 
     if (NPVARIANT_IS_STRING(rval)) {
-      printf ("title = %s\n", NPVARIANT_TO_STRING(rval).UTF8Characters);
+      printf ("title = %s\n", NPVARIANT_TO_STRING(rval).utf8characters);
 
       NPN_ReleaseVariantValue(&rval);
     }
@@ -544,8 +534,8 @@ CPlugin::CPlugin(NPP pNPInstance) :
     NPN_SetProperty(m_pNPInstance, sWindowObj, n, &v);
 
     NPString str;
-    str.UTF8Characters = "document.getElementById('result').innerHTML += '<p>' + 'NPN_Evaluate() test, document = ' + this + '</p>';";
-    str.UTF8Length = strlen(str.UTF8Characters);
+    str.utf8characters = "document.getElementById('result').innerHTML += '<p>' + 'NPN_Evaluate() test, document = ' + this + '</p>';";
+    str.utf8length = strlen(str.utf8characters);
 
     NPN_Evaluate(m_pNPInstance, doc, &str, NULL);
 
@@ -582,7 +572,7 @@ CPlugin::CPlugin(NPP pNPInstance) :
   NPN_Invoke(sWindowObj, n, vars, 3, &rval);
 
   if (NPVARIANT_IS_STRING(rval)) {
-    printf ("prompt returned '%s'\n", NPVARIANT_TO_STRING(rval).UTF8Characters);
+    printf ("prompt returned '%s'\n", NPVARIANT_TO_STRING(rval).utf8characters);
   }
 
   NPN_ReleaseVariantValue(&rval);
@@ -632,12 +622,12 @@ static WNDPROC lpOldProc = NULL;
 NPBool CPlugin::init(NPWindow* pNPWindow)
 {
   if(pNPWindow == NULL)
-    return false;
+    return FALSE;
 
 #ifdef XP_WIN
   m_hWnd = (HWND)pNPWindow->window;
   if(m_hWnd == NULL)
-    return false;
+    return FALSE;
 
   // subclass window so we can intercept window messages and
   // do our drawing to it
@@ -645,13 +635,13 @@ NPBool CPlugin::init(NPWindow* pNPWindow)
 
   // associate window with our CPlugin object so we can access 
   // it in the window procedure
-  SetWindowLongPtr(m_hWnd, GWLP_USERDATA, (LONG_PTR)this);
+  SetWindowLong(m_hWnd, GWL_USERDATA, (LONG)this);
 #endif
 
   m_Window = pNPWindow;
 
-  m_bInitialized = true;
-  return true;
+  m_bInitialized = TRUE;
+  return TRUE;
 }
 
 void CPlugin::shut()
@@ -662,7 +652,7 @@ void CPlugin::shut()
   m_hWnd = NULL;
 #endif
 
-  m_bInitialized = false;
+  m_bInitialized = FALSE;
 }
 
 NPBool CPlugin::isInitialized()
@@ -692,7 +682,7 @@ void CPlugin::showVersion()
   strcpy(m_String, ua);
 
 #ifdef XP_WIN
-  InvalidateRect(m_hWnd, NULL, true);
+  InvalidateRect(m_hWnd, NULL, TRUE);
   UpdateWindow(m_hWnd);
 #endif
 
@@ -714,7 +704,7 @@ void CPlugin::clear()
   strcpy(m_String, "");
 
 #ifdef XP_WIN
-  InvalidateRect(m_hWnd, NULL, true);
+  InvalidateRect(m_hWnd, NULL, TRUE);
   UpdateWindow(m_hWnd);
 #endif
 }
@@ -756,7 +746,7 @@ static LRESULT CALLBACK PluginWinProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
         RECT rc;
         GetClientRect(hWnd, &rc);
         FrameRect(hdc, &rc, GetStockBrush(BLACK_BRUSH));
-        CPlugin * p = (CPlugin *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+        CPlugin * p = (CPlugin *)GetWindowLong(hWnd, GWL_USERDATA);
         if(p) {
           if (p->m_String[0] == 0) {
             strcpy("foo", p->m_String);

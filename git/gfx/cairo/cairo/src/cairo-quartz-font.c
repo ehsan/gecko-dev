@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *	Vladimir Vukicevic <vladimir@mozilla.com>
@@ -131,79 +131,6 @@ struct _cairo_quartz_font_face {
  * font face backend
  */
 
-static cairo_status_t
-_cairo_quartz_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
-					cairo_font_face_t      **font_face)
-{
-    const char *family;
-    char *full_name;
-    CFStringRef cgFontName = NULL;
-    CGFontRef cgFont = NULL;
-    int loop;
-
-    quartz_font_ensure_symbols();
-    if (! _cairo_quartz_font_symbols_present)
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-    family = toy_face->family;
-    full_name = malloc (strlen (family) + 64); // give us a bit of room to tack on Bold, Oblique, etc.
-    /* handle CSS-ish faces */
-    if (!strcmp(family, "serif") || !strcmp(family, "Times Roman"))
-	family = "Times";
-    else if (!strcmp(family, "sans-serif") || !strcmp(family, "sans"))
-	family = "Helvetica";
-    else if (!strcmp(family, "cursive"))
-	family = "Apple Chancery";
-    else if (!strcmp(family, "fantasy"))
-	family = "Papyrus";
-    else if (!strcmp(family, "monospace") || !strcmp(family, "mono"))
-	family = "Courier";
-
-    /* Try to build up the full name, e.g. "Helvetica Bold Oblique" first,
-     * then drop the bold, then drop the slant, then drop both.. finally
-     * just use "Helvetica".  And if Helvetica doesn't exist, give up.
-     */
-    for (loop = 0; loop < 5; loop++) {
-	if (loop == 4)
-	    family = "Helvetica";
-
-	strcpy (full_name, family);
-
-	if (loop < 3 && (loop & 1) == 0) {
-	    if (toy_face->weight == CAIRO_FONT_WEIGHT_BOLD)
-		strcat (full_name, " Bold");
-	}
-
-	if (loop < 3 && (loop & 2) == 0) {
-	    if (toy_face->slant == CAIRO_FONT_SLANT_ITALIC)
-		strcat (full_name, " Italic");
-	    else if (toy_face->slant == CAIRO_FONT_SLANT_OBLIQUE)
-		strcat (full_name, " Oblique");
-	}
-
-	if (CGFontCreateWithFontNamePtr) {
-	    cgFontName = CFStringCreateWithCString (NULL, full_name, kCFStringEncodingASCII);
-	    cgFont = CGFontCreateWithFontNamePtr (cgFontName);
-	    CFRelease (cgFontName);
-	} else {
-	    cgFont = CGFontCreateWithNamePtr (full_name);
-	}
-
-	if (cgFont)
-	    break;
-    }
-
-    if (!cgFont) {
-	/* Give up */
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    }
-
-    *font_face = cairo_quartz_font_face_create_for_cgfont (cgFont);
-    CGFontRelease (cgFont);
-
-    return CAIRO_STATUS_SUCCESS;
-}
-
 static void
 _cairo_quartz_font_face_destroy (void *abstract_face)
 {
@@ -211,8 +138,6 @@ _cairo_quartz_font_face_destroy (void *abstract_face)
 
     CGFontRelease (font_face->cgFont);
 }
-
-static const cairo_scaled_font_backend_t _cairo_quartz_scaled_font_backend;
 
 static cairo_status_t
 _cairo_quartz_font_face_scaled_font_create (void *abstract_face,
@@ -297,9 +222,8 @@ FINISH:
     return status;
 }
 
-const cairo_font_face_backend_t _cairo_quartz_font_face_backend = {
+static const cairo_font_face_backend_t _cairo_quartz_font_face_backend = {
     CAIRO_FONT_TYPE_QUARTZ,
-    _cairo_quartz_font_face_create_for_toy,
     _cairo_quartz_font_face_destroy,
     _cairo_quartz_font_face_scaled_font_create
 };
@@ -345,13 +269,106 @@ static cairo_quartz_font_face_t *
 _cairo_quartz_scaled_to_face (void *abstract_font)
 {
     cairo_quartz_scaled_font_t *sfont = (cairo_quartz_scaled_font_t*) abstract_font;
-    cairo_font_face_t *font_face = sfont->base.font_face;
-    assert (font_face->backend->type == CAIRO_FONT_TYPE_QUARTZ);
+    cairo_font_face_t *font_face = cairo_scaled_font_get_font_face (&sfont->base);
+    if (!font_face || font_face->backend->type != CAIRO_FONT_TYPE_QUARTZ)
+	return NULL;
+
     return (cairo_quartz_font_face_t*) font_face;
 }
 
+static cairo_status_t
+_cairo_quartz_font_create_toy(cairo_toy_font_face_t *toy_face,
+			      const cairo_matrix_t *font_matrix,
+			      const cairo_matrix_t *ctm,
+			      const cairo_font_options_t *options,
+			      cairo_scaled_font_t **font_out)
+{
+    const char *family = toy_face->family;
+    char *full_name = malloc(strlen(family) + 64); // give us a bit of room to tack on Bold, Oblique, etc.
+    CFStringRef cgFontName = NULL;
+    CGFontRef cgFont = NULL;
+    int loop;
+
+    cairo_status_t status;
+    cairo_font_face_t *face;
+    cairo_scaled_font_t *scaled_font;
+
+    quartz_font_ensure_symbols();
+    if (!_cairo_quartz_font_symbols_present)
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
+    /* handle CSS-ish faces */
+    if (!strcmp(family, "serif") || !strcmp(family, "Times Roman"))
+	family = "Times";
+    else if (!strcmp(family, "sans-serif") || !strcmp(family, "sans"))
+	family = "Helvetica";
+    else if (!strcmp(family, "cursive"))
+	family = "Apple Chancery";
+    else if (!strcmp(family, "fantasy"))
+	family = "Papyrus";
+    else if (!strcmp(family, "monospace") || !strcmp(family, "mono"))
+	family = "Courier";
+
+    /* Try to build up the full name, e.g. "Helvetica Bold Oblique" first,
+     * then drop the bold, then drop the slant, then drop both.. finally
+     * just use "Helvetica".  And if Helvetica doesn't exist, give up.
+     */
+    for (loop = 0; loop < 5; loop++) {
+	if (loop == 4)
+	    family = "Helvetica";
+
+	strcpy (full_name, family);
+
+	if (loop < 3 && (loop & 1) == 0) {
+	    if (toy_face->weight == CAIRO_FONT_WEIGHT_BOLD)
+		strcat (full_name, " Bold");
+	}
+
+	if (loop < 3 && (loop & 2) == 0) {
+	    if (toy_face->slant == CAIRO_FONT_SLANT_ITALIC)
+		strcat (full_name, " Italic");
+	    else if (toy_face->slant == CAIRO_FONT_SLANT_OBLIQUE)
+		strcat (full_name, " Oblique");
+	}
+
+	if (CGFontCreateWithFontNamePtr) {
+	    cgFontName = CFStringCreateWithCString (NULL, full_name, kCFStringEncodingASCII);
+	    cgFont = CGFontCreateWithFontNamePtr (cgFontName);
+	    CFRelease (cgFontName);
+	} else {
+	    cgFont = CGFontCreateWithNamePtr (full_name);
+	}
+
+	if (cgFont)
+	    break;
+    }
+
+    if (!cgFont) {
+	/* Give up */
+	return CAIRO_STATUS_NO_MEMORY;
+    }
+
+    face = cairo_quartz_font_face_create_for_cgfont (cgFont);
+    CGFontRelease (cgFont);
+
+    if (face->status)
+	return face->status;
+
+    status = _cairo_quartz_font_face_scaled_font_create (face,
+							 font_matrix, ctm,
+							 options,
+							 &scaled_font);
+    cairo_font_face_destroy (face);
+    if (status)
+	return status;
+
+    *font_out = scaled_font;
+
+    return CAIRO_STATUS_SUCCESS;
+}
+
 static void
-_cairo_quartz_scaled_font_fini(void *abstract_font)
+_cairo_quartz_font_fini(void *abstract_font)
 {
 }
 
@@ -417,16 +434,6 @@ _cairo_quartz_init_glyph_metrics (cairo_quartz_scaled_font_t *font,
     if (!CGFontGetGlyphAdvancesPtr (font_face->cgFont, &glyph, 1, &advance) ||
 	!CGFontGetGlyphBBoxesPtr (font_face->cgFont, &glyph, 1, &bbox))
 	goto FAIL;
-
-    /* broken fonts like Al Bayan return incorrect bounds for some null characters,
-       see https://bugzilla.mozilla.org/show_bug.cgi?id=534260 */
-    if (unlikely (bbox.origin.x == -32767 &&
-                  bbox.origin.y == -32767 &&
-                  bbox.size.width == 65534 &&
-                  bbox.size.height == 65534)) {
-        bbox.origin.x = bbox.origin.y = 0;
-        bbox.size.width = bbox.size.height = 0;
-    }
 
     status = _cairo_matrix_compute_basis_scale_factors (&font->base.scale,
 						  &xscale, &yscale, 1);
@@ -701,9 +708,9 @@ _cairo_quartz_init_glyph_surface (cairo_quartz_scaled_font_t *font,
 }
 
 static cairo_int_status_t
-_cairo_quartz_scaled_glyph_init (void *abstract_font,
-				 cairo_scaled_glyph_t *scaled_glyph,
-				 cairo_scaled_glyph_info_t info)
+_cairo_quartz_font_scaled_glyph_init (void *abstract_font,
+				      cairo_scaled_glyph_t *scaled_glyph,
+				      cairo_scaled_glyph_info_t info)
 {
     cairo_quartz_scaled_font_t *font = (cairo_quartz_scaled_font_t *) abstract_font;
     cairo_int_status_t status = CAIRO_STATUS_SUCCESS;
@@ -734,10 +741,11 @@ _cairo_quartz_ucs4_to_index (void *abstract_font,
     return glyph;
 }
 
-static const cairo_scaled_font_backend_t _cairo_quartz_scaled_font_backend = {
+const cairo_scaled_font_backend_t _cairo_quartz_scaled_font_backend = {
     CAIRO_FONT_TYPE_QUARTZ,
-    _cairo_quartz_scaled_font_fini,
-    _cairo_quartz_scaled_glyph_init,
+    _cairo_quartz_font_create_toy,
+    _cairo_quartz_font_fini,
+    _cairo_quartz_font_scaled_glyph_init,
     NULL, /* text_to_glyphs */
     _cairo_quartz_ucs4_to_index,
     NULL, /* show_glyphs */
@@ -757,7 +765,7 @@ _cairo_quartz_scaled_font_get_cg_font_ref (cairo_scaled_font_t *abstract_font)
     return ffont->cgFont;
 }
 
-#ifndef __LP64__
+
 /*
  * compat with old ATSUI backend
  */
@@ -797,4 +805,3 @@ cairo_atsui_font_face_create_for_atsu_font_id (ATSUFontID font_id)
 {
     return cairo_quartz_font_face_create_for_atsu_font_id (font_id);
 }
-#endif

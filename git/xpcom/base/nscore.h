@@ -38,17 +38,11 @@
 #define nscore_h___
 
 /**
- * Make sure that we have the proper platform specific
+ * Make sure that we have the proper platform specific 
  * c++ definitions needed by nscore.h
  */
 #ifndef _XPCOM_CONFIG_H_
 #include "xpcom-config.h"
-#endif
-
-/* Definitions of functions and operators that allocate memory. */
-#if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
-#  include "mozilla/mozalloc.h"
-#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 /**
@@ -58,7 +52,7 @@
 
 /* Core XPCOM declarations. */
 
-/**
+/** 
  * Macros defining the target platform...
  */
 #ifdef _WIN32
@@ -151,11 +145,10 @@
  *           NS_HIDDEN_(int) NS_FASTCALL func2(char *foo);
  */
 
-#if defined(__i386__) && defined(__GNUC__) && \
-    (__GNUC__ >= 3) && !defined(XP_OS2)
+#if defined(__i386__) && defined(__GNUC__) && (__GNUC__ >= 3) && !defined(XP_OS2)
 #define NS_FASTCALL __attribute__ ((regparm (3), stdcall))
 #define NS_CONSTRUCTOR_FASTCALL __attribute__ ((regparm (3), stdcall))
-#elif defined(XP_WIN) && !defined(_WIN64)
+#elif defined(XP_WIN)
 #define NS_FASTCALL __fastcall
 #define NS_CONSTRUCTOR_FASTCALL
 #else
@@ -167,8 +160,7 @@
  * NS_DEFCALL undoes the effect of a global regparm/stdcall setting
  * so that xptcall works correctly.
  */
-#if defined(__i386__) && defined(__GNUC__) && \
-    (__GNUC__ >= 3) && !defined(XP_OS2)
+#if defined(__i386__) && defined(__GNUC__) && (__GNUC__ >= 3) && !defined(XP_OS2)
 #define NS_DEFCALL __attribute__ ((regparm (0), cdecl))
 #else
 #define NS_DEFCALL
@@ -195,7 +187,7 @@
 #define NS_EXPORT_STATIC_MEMBER_(type) type
 #define NS_IMPORT_STATIC_MEMBER_(type) type
 
-#elif defined(XP_OS2)
+#elif defined(XP_OS2) && defined(__declspec)
 
 #define NS_IMPORT __declspec(dllimport)
 #define NS_IMPORT_(type) type __declspec(dllimport)
@@ -324,26 +316,6 @@
 #  endif
 #endif
 
-#if (defined(DEBUG) || defined(FORCE_BUILD_REFCNT_LOGGING))
-/* Make refcnt logging part of the build. This doesn't mean that
- * actual logging will occur (that requires a separate enable; see
- * nsTraceRefcnt.h for more information).  */
-#define NS_BUILD_REFCNT_LOGGING
-#endif
-
-/* If NO_BUILD_REFCNT_LOGGING is defined then disable refcnt logging
- * in the build. This overrides FORCE_BUILD_REFCNT_LOGGING. */
-#if defined(NO_BUILD_REFCNT_LOGGING)
-#undef NS_BUILD_REFCNT_LOGGING
-#endif
-
-/* If a program allocates memory for the lifetime of the app, it doesn't make
- * sense to touch memory pages and free that memory at shutdown,
- * unless we are running leak stats.
- */
-#if defined(NS_TRACE_MALLOC) || defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
-#define NS_FREE_PERMANENT_DATA
-#endif
 
 /**
  * NS_NO_VTABLE is emitted by xpidl in interface declarations whenever
@@ -382,15 +354,9 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * The preferred symbol for null.  Make sure this is the same size as
- * void* on the target.  See bug 547964.
+ * The preferred symbol for null.
  */
-#if defined(_WIN64)
-# define nsnull 0LL
-#else
-# define nsnull 0L
-#endif
-
+#define nsnull 0
 
 #include "nsError.h"
 
@@ -404,6 +370,21 @@ typedef PRUint32 nsrefcnt;
 
     Need to add an autoconf test for this.
   */
+
+  /* under Metrowerks (Mac), we don't have autoconf yet */
+#ifdef __MWERKS__
+  #define HAVE_CPP_PARTIAL_SPECIALIZATION
+  #define HAVE_CPP_MODERN_SPECIALIZE_TEMPLATE_SYNTAX
+
+  #define HAVE_CPP_ACCESS_CHANGING_USING
+  #define HAVE_CPP_AMBIGUITY_RESOLVING_USING
+  #define HAVE_CPP_EXPLICIT
+  #define HAVE_CPP_TYPENAME
+  #define HAVE_CPP_BOOL
+  #define HAVE_CPP_NAMESPACE_STD
+  #define HAVE_CPP_UNAMBIGUOUS_STD_NOTEQUAL
+  #define HAVE_CPP_2BYTE_WCHAR_T
+#endif
 
   /* under VC++ (Windows), we don't have autoconf yet */
 #if defined(_MSC_VER) && (_MSC_VER>=1100)
@@ -432,9 +413,8 @@ typedef PRUint32 nsrefcnt;
 #endif
 
   /*
-    If the compiler doesn't support |explicit|, we'll just make it go
-    away, trusting that the builds under compilers that do have it
-    will keep us on the straight and narrow.
+    If the compiler doesn't support |explicit|, we'll just make it go away, trusting
+    that the builds under compilers that do have it will keep us on the straight and narrow.
   */
 #ifndef HAVE_CPP_EXPLICIT
   #define explicit
@@ -450,7 +430,7 @@ typedef PRUint32 nsrefcnt;
   #define NS_SPECIALIZE_TEMPLATE
 #endif
 
-/*
+/* 
  * Use these macros to do 64bit safe pointer conversions.
  */
 
@@ -463,11 +443,6 @@ typedef PRUint32 nsrefcnt;
  */
 #define NS_STRINGIFY_HELPER(x_) #x_
 #define NS_STRINGIFY(x_) NS_STRINGIFY_HELPER(x_)
-
-/*
- * Use NS_CLAMP to force a value (such as a preference) into a range.
- */
-#define NS_CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 /*
  * These macros allow you to give a hint to the compiler about branch
@@ -495,16 +470,12 @@ typedef PRUint32 nsrefcnt;
 #endif
 
  /*
-  * If we're being linked as standalone glue, we don't want a dynamic
-  * dependency on NSPR libs, so we skip the debug thread-safety
-  * checks, and we cannot use the THREADSAFE_ISUPPORTS macros.
+  * If we're being linked as standalone glue, we don't want a dynamic dependency
+  * on NSPR libs, so we skip the debug thread-safety checks, and we cannot use
+  * the THREADSAFE_ISUPPORTS macros.
   */
 #if defined(XPCOM_GLUE) && !defined(XPCOM_GLUE_USE_NSPR)
 #define XPCOM_GLUE_AVOID_NSPR
-#endif
-
-#if defined(HAVE_THREAD_TLS_KEYWORD)
-#define NS_TLS __thread
 #endif
 
 /**
@@ -512,58 +483,32 @@ typedef PRUint32 nsrefcnt;
  *
  * NS_STACK_CLASS: a class which must only be instantiated on the stack
  * NS_FINAL_CLASS: a class which may not be subclassed
- *
- * NS_MUST_OVERRIDE:
- *   a method which every immediate subclass of this class must
- *   override.  A subclass override can itself be NS_MUST_OVERRIDE, in
- *   which case its own subclasses must override the method as well.
- *
- *   This is similar to, but not the same as, marking a method pure
- *   virtual.  It has no effect on the class in which the annotation
- *   appears, you can still provide a definition for the method, and
- *   it objects to the mere existence of a subclass that doesn't
- *   override the method.  See examples in analysis/must-override.js.
  */
 #ifdef NS_STATIC_CHECKING
 #define NS_STACK_CLASS __attribute__((user("NS_stack")))
 #define NS_OKONHEAP    __attribute__((user("NS_okonheap")))
 #define NS_SUPPRESS_STACK_CHECK __attribute__((user("NS_suppress_stackcheck")))
 #define NS_FINAL_CLASS __attribute__((user("NS_final")))
-#define NS_MUST_OVERRIDE __attribute__((user("NS_must_override")))
 #else
 #define NS_STACK_CLASS
 #define NS_OKONHEAP
 #define NS_SUPPRESS_STACK_CHECK
 #define NS_FINAL_CLASS
-#define NS_MUST_OVERRIDE
 #endif
 
 /**
- * Attributes defined to help Dehydra GCC analysis.
+ * Attributes defined to help Dehydra GCC analysis.	
  */
 #ifdef NS_STATIC_CHECKING
 # define NS_SCRIPTABLE __attribute__((user("NS_script")))
 # define NS_INPARAM __attribute__((user("NS_inparam")))
 # define NS_OUTPARAM  __attribute__((user("NS_outparam")))
 # define NS_INOUTPARAM __attribute__((user("NS_inoutparam")))
-# define NS_OVERRIDE __attribute__((user("NS_override")))
 #else
 # define NS_SCRIPTABLE
 # define NS_INPARAM
 # define NS_OUTPARAM
 # define NS_INOUTPARAM
-# define NS_OVERRIDE
-#endif
-
-/*
- * SEH exception macros.
- */
-#ifdef HAVE_SEH_EXCEPTIONS
-#define MOZ_SEH_TRY           __try
-#define MOZ_SEH_EXCEPT(expr)  __except(expr)
-#else
-#define MOZ_SEH_TRY           if(PR_TRUE)
-#define MOZ_SEH_EXCEPT(expr)  else
 #endif
 
 #endif /* nscore_h___ */

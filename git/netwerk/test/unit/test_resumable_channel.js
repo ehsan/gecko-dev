@@ -1,6 +1,6 @@
 /* Tests various aspects of nsIResumableChannel in combination with HTTP */
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var httpserver = null;
 
@@ -38,7 +38,7 @@ AuthPrompt2.prototype = {
   },
 
   asyncPromptAuth: function ap2_async(chan, cb, ctx, lvl, info) {
-    throw 0x80004001;
+    do_throw("not implemented yet")
   }
 };
 
@@ -72,13 +72,11 @@ function run_test() {
   httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/auth", authHandler);
   httpserver.registerPathHandler("/range", rangeHandler);
-  httpserver.registerPathHandler("/acceptranges", acceptRangesHandler);
   httpserver.registerPathHandler("/redir", redirHandler);
 
   var entityID;
 
   function get_entity_id(request, data, ctx) {
-    dump("*** get_entity_id()\n");
     do_check_true(request instanceof Ci.nsIResumableChannel,
                   "must be a resumable channel");
     entityID = request.entityID;
@@ -91,7 +89,6 @@ function run_test() {
   }
 
   function try_resume(request, data, ctx) {
-    dump("*** try_resume()\n");
     do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
 
     // Try a successful resume
@@ -101,104 +98,8 @@ function run_test() {
   }
 
   function try_resume_zero(request, data, ctx) {
-    dump("*** try_resume_zero()\n");
     do_check_true(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(data, rangeBody.substring(1));
-
-    // Try a server which doesn't support range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "none", false);
-    chan.asyncOpen(new ChannelListener(try_no_range, null, CL_EXPECT_FAILURE), null);
-  }
-
-  function try_no_range(request, data, ctx) {
-    dump("*** try_no_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
-
-    // Try a server which supports "bytes" range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "bytes", false);
-    chan.asyncOpen(new ChannelListener(try_bytes_range, null), null);
-  }
-
-  function try_bytes_range(request, data, ctx) {
-    dump("*** try_bytes_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(data, rangeBody);
-
-    // Try a server which supports "foo" and "bar" range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "foo, bar", false);
-    chan.asyncOpen(new ChannelListener(try_foo_bar_range, null, CL_EXPECT_FAILURE), null);
-  }
-
-  function try_foo_bar_range(request, data, ctx) {
-    dump("*** try_foo_bar_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
-
-    // Try a server which supports "foobar" range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "foobar", false);
-    chan.asyncOpen(new ChannelListener(try_foobar_range, null, CL_EXPECT_FAILURE), null);
-  }
-
-  function try_foobar_range(request, data, ctx) {
-    dump("*** try_foobar_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
-
-    // Try a server which supports "bytes" and "foobar" range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "bytes, foobar", false);
-    chan.asyncOpen(new ChannelListener(try_bytes_foobar_range, null), null);
-  }
-
-  function try_bytes_foobar_range(request, data, ctx) {
-    dump("*** try_bytes_foobar_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(data, rangeBody);
-
-    // Try a server which supports "bytesfoo" and "bar" range requests
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.nsIHttpChannel.setRequestHeader("X-Range-Type", "bytesfoo, bar", false);
-    chan.asyncOpen(new ChannelListener(try_bytesfoo_bar_range, null, CL_EXPECT_FAILURE), null);
-  }
-
-  function try_bytesfoo_bar_range(request, data, ctx) {
-    dump("*** try_bytesfoo_bar_range()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
-
-    // Try a server which doesn't send Accept-Ranges header at all
-    var chan = make_channel("http://localhost:4444/acceptranges");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.asyncOpen(new ChannelListener(try_no_accept_ranges, null), null);
-  }
-
-  function try_no_accept_ranges(request, data, ctx) {
-    dump("*** try_no_accept_ranges()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(data, rangeBody);
-
-    // Try a successful suspend/resume from 0
-    var chan = make_channel("http://localhost:4444/range");
-    chan.nsIResumableChannel.resumeAt(0, entityID);
-    chan.asyncOpen(new ChannelListener(try_suspend_resume, null,
-                                       CL_SUSPEND | CL_EXPECT_3S_DELAY), null);
-  }
-
-  function try_suspend_resume(request, data, ctx) {
-    dump("*** try_suspend_resume()\n");
-    do_check_true(request.nsIHttpChannel.requestSucceeded);
-    do_check_eq(data, rangeBody);
 
     // Try a successful resume from 0
     var chan = make_channel("http://localhost:4444/range");
@@ -207,10 +108,8 @@ function run_test() {
   }
 
   function success(request, data, ctx) {
-    dump("*** success()\n");
     do_check_true(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(data, rangeBody);
-
 
     // Authentication (no password; working resume)
     // (should not give us any data)
@@ -221,23 +120,21 @@ function run_test() {
   }
 
   function test_auth_nopw(request, data, ctx) {
-    dump("*** test_auth_nopw()\n");
     do_check_false(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(request.status, NS_ERROR_ENTITY_CHANGED);
 
     // Authentication + not working resume
-    var chan = make_channel("http://guest:guest@localhost:4444/auth");
+    var chan = make_channel("http://localhost:4444/auth");
     chan.nsIResumableChannel.resumeAt(1, entityID);
     chan.notificationCallbacks = new Requestor();
     chan.asyncOpen(new ChannelListener(test_auth, null, CL_EXPECT_FAILURE), null);
   }
   function test_auth(request, data, ctx) {
-    dump("*** test_auth()\n");
     do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
     do_check_true(request.nsIHttpChannel.responseStatus < 300);
 
     // Authentication + working resume
-    var chan = make_channel("http://guest:guest@localhost:4444/range");
+    var chan = make_channel("http://localhost:4444/range");
     chan.nsIResumableChannel.resumeAt(1, entityID);
     chan.notificationCallbacks = new Requestor();
     chan.nsIHttpChannel.setRequestHeader("X-Need-Auth", "true", false);
@@ -245,7 +142,6 @@ function run_test() {
   }
 
   function test_auth_resume(request, data, ctx) {
-    dump("*** test_auth_resume()\n");
     do_check_eq(data, rangeBody.substring(1));
     do_check_true(request.nsIHttpChannel.requestSucceeded);
 
@@ -257,7 +153,6 @@ function run_test() {
   }
 
   function test_404(request, data, ctx) {
-    dump("*** test_404()\n");
     do_check_eq(request.status, NS_ERROR_ENTITY_CHANGED);
     do_check_eq(request.nsIHttpChannel.responseStatus, 404);
 
@@ -268,7 +163,6 @@ function run_test() {
   }
 
   function test_416(request, data, ctx) {
-    dump("*** test_416()\n");
     do_check_eq(request.status, NS_ERROR_ENTITY_CHANGED);
     do_check_eq(request.nsIHttpChannel.responseStatus, 416);
 
@@ -280,7 +174,6 @@ function run_test() {
   }
 
   function test_redir_resume(request, data, ctx) {
-    dump("*** test_redir_resume()\n");
     do_check_true(request.nsIHttpChannel.requestSucceeded);
     do_check_eq(data, rangeBody.substring(1));
     do_check_eq(request.nsIHttpChannel.responseStatus, 206);
@@ -293,10 +186,10 @@ function run_test() {
   }
 
   function test_redir_noresume(request, data, ctx) {
-    dump("*** test_redir_noresume()\n");
     do_check_eq(request.status, NS_ERROR_NOT_RESUMABLE);
 
-    httpserver.stop(do_test_finished);
+    httpserver.stop();
+    do_test_finished();
   }
 
   httpserver.start(4444);
@@ -333,7 +226,7 @@ function handleAuth(metadata, response) {
 // /auth
 function authHandler(metadata, response) {
   response.setHeader("Content-Type", "text/html", false);
-  var body = handleAuth(metadata, response) ? "success" : "failure";
+  body = handleAuth(metadata, response) ? "success" : "failure";
   response.bodyOutputStream.write(body, body.length);
 }
 
@@ -375,14 +268,6 @@ function rangeHandler(metadata, response) {
   }
 
   response.bodyOutputStream.write(body, body.length);
-}
-
-// /acceptranges
-function acceptRangesHandler(metadata, response) {
-  response.setHeader("Content-Type", "text/html", false);
-  if (metadata.hasHeader("X-Range-Type"))
-    response.setHeader("Accept-Ranges", metadata.getHeader("X-Range-Type"), false);
-  response.bodyOutputStream.write(rangeBody, rangeBody.length);
 }
 
 // /redir

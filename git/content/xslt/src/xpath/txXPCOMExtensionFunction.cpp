@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Peter Van der Beken <peterv@propagandism.org>
- *   Merle Sterling <msterlin@us.ibm.com>
  *
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -50,9 +49,6 @@
 #include "txNodeSetAdaptor.h"
 #include "txXPathTreeWalker.h"
 #include "xptcall.h"
-#include "txXPathObjectAdaptor.h"
-
-NS_IMPL_ISUPPORTS1(txXPathObjectAdaptor, txIXPathObject)
 
 class txFunctionEvaluationContext : public txIFunctionEvaluationContext
 {
@@ -123,7 +119,6 @@ enum txArgumentType {
     eSTRING = nsXPTType::T_DOMSTRING,
     eNODESET,
     eCONTEXT,
-    eOBJECT,
     eUNKNOWN
 };
 
@@ -191,13 +186,10 @@ private:
 
 static nsresult
 LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
-               PRUint16 &aMethodIndex, nsISupports **aHelper)
+               PRUint16 &aMethodIndex)
 {
     nsresult rv;
-    nsCOMPtr<nsISupports> helper = do_GetService(aContractID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(helper, &rv);
+    nsCOMPtr<nsIClassInfo> classInfo = do_GetClassObject(aContractID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIInterfaceInfoManager> iim =
@@ -215,9 +207,10 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
     // foo-bar becomes fooBar). Note that if there are any names that already
     // have uppercase letters they might cause false matches (both fooBar and
     // foo-bar matching fooBar).
-    const PRUnichar *name = aName->GetUTF16String();
+    const char *name;
+    aName->GetUTF8String(&name);
     nsCAutoString methodName;
-    PRUnichar letter;
+    char letter;
     PRBool upperNext = PR_FALSE;
     while ((letter = *name)) {
         if (letter == '-') {
@@ -255,7 +248,8 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
 
             aIID = *iid;
             aMethodIndex = methodIndex;
-            return helper->QueryInterface(aIID, (void**)aHelper);
+
+            return NS_OK;
         }
     }
 
@@ -270,10 +264,11 @@ TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, PRInt32 aNamespaceID,
 {
     nsIID iid;
     PRUint16 methodIndex;
-    nsCOMPtr<nsISupports> helper;
+    nsresult rv = LookupFunction(aContractID.get(), aName, iid, methodIndex);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsresult rv = LookupFunction(aContractID.get(), aName, iid, methodIndex,
-                                 getter_AddRefs(helper));
+    nsCOMPtr<nsISupports> helper;
+    rv = CallGetService(aContractID.get(), iid, getter_AddRefs(helper));
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!aFunction) {
@@ -311,9 +306,6 @@ txXPCOMExtensionFunctionCall::GetParamType(const nsXPTParamInfo &aParam,
             }
             if (iid.Equals(NS_GET_IID(txIFunctionEvaluationContext))) {
                 return eCONTEXT;
-            }
-            if (iid.Equals(NS_GET_IID(txIXPathObject))) {
-                return eOBJECT;
             }
         }
         default:
@@ -479,11 +471,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
             }
             case eNUMBER:
             {
-                double dbl;
-                rv = evaluateToNumber(mParams[0], aContext, &dbl);
-                NS_ENSURE_SUCCESS(rv, rv);
-
-                invokeParam.val.d = dbl;
+                invokeParam.val.d = evaluateToNumber(expr, aContext);
                 break;
             }
             case eSTRING:
@@ -499,22 +487,6 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
                 invokeParam.SetValIsDOMString();
                 invokeParam.val.p = value;
                 break;
-            }
-            case eOBJECT:
-            {
-              nsRefPtr<txAExprResult> exprRes;
-              rv = expr->evaluate(aContext, getter_AddRefs(exprRes));
-              NS_ENSURE_SUCCESS(rv, rv);
-
-              nsCOMPtr<txIXPathObject> adaptor =
-                new txXPathObjectAdaptor(exprRes);
-              if (!adaptor) {
-                  return NS_ERROR_OUT_OF_MEMORY;
-              }
-
-              invokeParam.SetValIsInterface();
-              adaptor.swap((txIXPathObject*&)invokeParam.val.p);
-              break;
             }
             case eCONTEXT:
             case eUNKNOWN:
@@ -544,9 +516,6 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
     }
     else {
         returnParam.SetPtrIsData();
-        if (returnType == eNODESET || returnType == eOBJECT) {
-            returnParam.SetValIsInterface();
-        }
         returnParam.ptr = &returnParam.val;
     }
 
@@ -563,11 +532,10 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
     switch (returnType) {
         case eNODESET:
         {
-            txINodeSet* nodeSet = static_cast<txINodeSet*>(returnParam.val.p);
-            nsCOMPtr<txIXPathObject> object = do_QueryInterface(nodeSet, &rv);
-            NS_ENSURE_SUCCESS(rv, rv);
+            txINodeSet *nodeSet = static_cast<txINodeSet*>
+                                             (returnParam.val.p);
 
-            NS_ADDREF(*aResult = object->GetResult());
+            NS_ADDREF(*aResult = nodeSet->GetTxNodeSet());
 
             return NS_OK;
         }
@@ -587,15 +555,6 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
             nsString *returned = static_cast<nsString*>
                                             (returnParam.val.p);
             return aContext->recycler()->getStringResult(*returned, aResult);
-        }
-        case eOBJECT:
-        {
-            txIXPathObject *object =
-                 static_cast<txIXPathObject*>(returnParam.val.p);
-
-            NS_ADDREF(*aResult = object->GetResult());
-
-            return NS_OK;
         }
         default:
         {

@@ -2,7 +2,8 @@ function test() {
   waitForExplicitFinish(); 
 
   var w;
-  const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+  const secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
+                   getService(Components.interfaces.nsIScriptSecurityManager);
   var iteration = 1;
   const uris = ["", "about:blank"];
   var uri;

@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -50,7 +51,7 @@ class nsHTMLSharedListElement : public nsGenericHTMLElement,
                                 public nsIDOMHTMLUListElement
 {
 public:
-  nsHTMLSharedListElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLSharedListElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLSharedListElement();
 
   // nsISupports
@@ -81,18 +82,13 @@ public:
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo()
-  {
-    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
-  }
-  nsIClassInfo* GetClassInfoInternal();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(SharedList)
 
 
-nsHTMLSharedListElement::nsHTMLSharedListElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLSharedListElement::nsHTMLSharedListElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -106,38 +102,18 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSharedListElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedListElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLOListElement, nsHTMLSharedListElement)
-DOMCI_DATA(HTMLDListElement, nsHTMLSharedListElement)
-DOMCI_DATA(HTMLUListElement, nsHTMLSharedListElement)
-
-nsIClassInfo* 
-nsHTMLSharedListElement::GetClassInfoInternal()
-{
-  if (mNodeInfo->Equals(nsGkAtoms::ol)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLOListElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::dl)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLDListElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::ul)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLUListElement_id);
-  }
-  return nsnull;
-}
-
 // QueryInterface implementation for nsHTMLSharedListElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLSharedListElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedListElement,
-                                                  nsIDOMHTMLOListElement)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(nsHTMLSharedListElement,
-                                                         nsGenericHTMLElement,
-                                                         nsIDOMHTMLOListElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGOUS_HEAD(nsHTMLSharedListElement,
+                                              nsGenericHTMLElement,
+                                              nsIDOMHTMLOListElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLOListElement, ol)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLDListElement, dl)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLUListElement, ul)
 
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_GETTER(GetClassInfoInternal)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLOListElement, ol)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLDListElement, dl)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLUListElement, ul)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
@@ -145,7 +121,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLSharedListElement)
 
 
 NS_IMPL_BOOL_ATTR(nsHTMLSharedListElement, Compact, compact)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSharedListElement, Start, start, 1)
+NS_IMPL_INT_ATTR(nsHTMLSharedListElement, Start, start)
 NS_IMPL_STRING_ATTR(nsHTMLSharedListElement, Type, type)
 
 
@@ -182,7 +158,7 @@ nsHTMLSharedListElement::ParseAttribute(PRInt32 aNamespaceID,
     if (mNodeInfo->Equals(nsGkAtoms::ol) ||
         mNodeInfo->Equals(nsGkAtoms::ul)) {
       if (aAttribute == nsGkAtoms::type) {
-        return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE) ||
+        return aResult.ParseEnumValue(aValue, kListTypeTable) ||
                aResult.ParseEnumValue(aValue, kOldListTypeTable, PR_TRUE);
       }
       if (aAttribute == nsGkAtoms::start) {

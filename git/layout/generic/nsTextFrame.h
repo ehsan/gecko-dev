@@ -29,7 +29,7 @@
  *   Daniel Glazman <glazman@netscape.com>
  *   Neil Deakin <neil@mozdevgroup.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Uri Bernstein <uriber@gmail.com>
  *   Stephen Blackheath <entangled.mooched.stephen@blacksapphire.com>
  *
@@ -51,7 +51,6 @@
 #define nsTextFrame_h__
 
 #include "nsFrame.h"
-#include "nsSplittableFrame.h"
 #include "nsLineBox.h"
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
@@ -62,12 +61,10 @@ class PropertyProvider;
 
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
-#define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
 
 class nsTextFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend class nsContinuingTextFrame;
 
   nsTextFrame(nsStyleContext* aContext) : nsFrame(aContext)
@@ -84,14 +81,16 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   
-  NS_IMETHOD CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD CharacterDataChanged(nsPresContext* aPresContext,
+                                  nsIContent*     aChild,
+                                  PRBool          aAppend);
                                   
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
   
   virtual nsIFrame* GetNextContinuation() const {
     return mNextContinuation;
@@ -150,34 +149,22 @@ public:
 #endif
   
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
-  ContentOffsets GetCharacterOffsetAtFramePoint(const nsPoint &aPoint);
-
-  /**
-   * This is called only on the primary text frame. It indicates that
-   * the selection state of the given character range has changed.
-   * Text in the range is unconditionally invalidated
-   * (nsTypedSelection::Repaint depends on this).
-   * @param aSelected true if the selection has been added to the range,
-   * false otherwise
-   * @param aType the type of selection added or removed
-   */
-  virtual void SetSelected(PRBool        aSelected,
-                           SelectionType aType);
-  void SetSelectedRange(PRUint32 aStart,
-                        PRUint32 aEnd,
-                        PRBool aSelected,
-                        SelectionType aType);
-
+   
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread,
+                         SelectionType aType);
+  
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
-  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
-                                     PRBool aRespectClusters = PR_TRUE);
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState* aState);
 
   NS_IMETHOD CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aRecurse, PRBool *aFinished, PRBool *_retval);
   
   // Update offsets to account for new length. This may clear mTextRun.
-  void SetLength(PRInt32 aLength, nsLineLayout* aLineLayout);
+  void SetLength(PRInt32 aLength);
   
   NS_IMETHOD GetOffsets(PRInt32 &start, PRInt32 &end)const;
   
@@ -195,7 +182,6 @@ public:
   
   virtual PRBool IsEmpty();
   virtual PRBool IsSelfEmpty() { return IsEmpty(); }
-  virtual nscoord GetBaseline() const;
   
   /**
    * @return PR_TRUE if this text frame ends with a newline character.  It
@@ -218,7 +204,7 @@ public:
   }
   
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
   
   virtual void MarkIntrinsicWidthsDirty();
@@ -243,7 +229,7 @@ public:
   // placeholders or inlines containing such).
   struct TrimOutput {
     // true if we trimmed some space or changed metrics in some other way.
-    // In this case, we should call RecomputeOverflow on this frame.
+    // In this case, we should call RecomputeOverflowRect on this frame.
     PRPackedBool mChanged;
     // true if the last character is not justifiable so should be subtracted
     // from the count of justifiable characters in the frame, since the last
@@ -259,7 +245,7 @@ public:
                                    PRUint32 aSkippedStartOffset = 0,
                                    PRUint32 aSkippedMaxLength = PR_UINT32_MAX);
 
-  nsOverflowAreas RecomputeOverflow();
+  nsRect RecomputeOverflowRect();
 
   void AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
                                 nsIFrame::InlineMinWidthData *aData);
@@ -309,8 +295,6 @@ public:
                                      SelectionDetails* aDetails,
                                      SelectionType aSelectionType);
 
-  virtual nscolor GetCaretColorAt(PRInt32 aOffset);
-
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 
 #ifdef DEBUG
@@ -335,6 +319,9 @@ public:
   // boundary.
   PRInt32 GetInFlowContentLength();
 
+  // Clears out mTextRun from this frame and all other frames that hold a reference
+  // to it, then deletes the textrun.
+  void ClearTextRun();
   /**
    * Acquires the text run for this content, if necessary.
    * @param aRC the rendering context to use as a reference for creating
@@ -354,12 +341,6 @@ public:
 
   gfxTextRun* GetTextRun() { return mTextRun; }
   void SetTextRun(gfxTextRun* aTextRun) { mTextRun = aTextRun; }
-  /**
-   * Clears out |mTextRun| from all frames that hold a reference to it,
-   * starting at |aStartContinuation|, or if it's nsnull, starting at |this|.
-   * Deletes |mTextRun| if all references were cleared and it's not cached.
-   */
-  void ClearTextRun(nsTextFrame* aStartContinuation);
 
   // Get the DOM content range mapped by this frame after excluding
   // whitespace subject to start-of-line and end-of-line trimming.
@@ -372,14 +353,9 @@ public:
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    PRBool aTrimAfter);
 
-  // Similar to Reflow(), but for use from nsLineLayout
-  void ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
-                  nsIRenderingContext* aRenderingContext, PRBool aShouldBlink,
-                  nsHTMLReflowMetrics& aMetrics, nsReflowStatus& aStatus);
-
 protected:
   virtual ~nsTextFrame();
-
+  
   nsIFrame*   mNextContinuation;
   // The key invariant here is that mContentOffset never decreases along
   // a next-continuation chain. And of course mContentOffset is always <= the
@@ -405,7 +381,7 @@ protected:
   
   void UnionTextDecorationOverflow(nsPresContext* aPresContext,
                                    PropertyProvider& aProvider,
-                                   nsRect* aVisualOverflowRect);
+                                   nsRect* aOverflowRect);
 
   void DrawText(gfxContext* aCtx,
                 const gfxPoint& aTextBaselinePt,
@@ -420,7 +396,7 @@ protected:
                       PRUint32 aLength,
                       nsCSSShadowItem* aShadowDetails,
                       PropertyProvider* aProvider,
-                      const nsRect& aDirtyRect,
+                      const gfxRect& aDirtyRect,
                       const gfxPoint& aFramePt,
                       const gfxPoint& aTextBaselinePt,
                       gfxContext* aCtx,
@@ -454,19 +430,10 @@ protected:
   };
   TextDecorations GetTextDecorations(nsPresContext* aPresContext);
 
-  // Set non empty rect to aRect, it should be overflow rect or frame rect.
-  // If the result rect is larger than the given rect, this returns PR_TRUE.
-  PRBool CombineSelectionUnderlineRect(nsPresContext* aPresContext,
-                                       nsRect& aRect);
+  PRBool HasSelectionOverflowingDecorations(nsPresContext* aPresContext,
+                                            float* aRatio = nsnull);
 
   PRBool IsFloatingFirstLetterChild();
-
-  ContentOffsets GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
-                   PRBool aForInsertionPoint);
-
-  void ClearFrameOffsetCache();
-
-  virtual PRBool HasAnyNoncollapsedCharacters();
 };
 
 #endif

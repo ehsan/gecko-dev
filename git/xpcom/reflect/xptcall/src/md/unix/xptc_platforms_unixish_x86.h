@@ -67,7 +67,7 @@
 *
 */
 
-#if defined(LINUX) || (defined(__GLIBC__) && (defined(__FreeBSD_kernel__) || defined(__GNU__)))
+#if defined(LINUX) || (defined(__GLIBC__) && defined(__FreeBSD_kernel__))
 
 #if (__GNUC__ == 2) && (__GNUC_MINOR__ <= 7)
 /* Old gcc 2.7.x.x.  What does gcc 2.8.x do?? */
@@ -150,7 +150,7 @@
 #elif defined(_WIN32)
 #define THUNK_BASED_THIS_ADJUST
 
-#elif defined(__OS2__)
+#elif defined(__EMX__)
 #define THUNK_BASED_THIS_ADJUST
 
 #elif defined (__APPLE__) && (__MACH__)

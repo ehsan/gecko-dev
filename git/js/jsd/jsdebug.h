@@ -54,11 +54,13 @@ extern "C"
 }
 #endif
 
+JS_BEGIN_EXTERN_C
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #ifdef LIVEWIRE
 #include "lwdbgapi.h"
 #endif
+JS_END_EXTERN_C
 
 JS_BEGIN_EXTERN_C
 
@@ -143,32 +145,10 @@ JSD_DebuggerOnForUser(JSRuntime*         jsrt,
                       void*              user);
 
 /*
- * Startup JSD in an application that uses compartments. Debugger
- * objects will be allocated in the same compartment as scopeobj.
- */
-extern JSD_PUBLIC_API(JSDContext*)
-JSD_DebuggerOnForUserWithCompartment(JSRuntime*         jsrt,
-                                     JSD_UserCallbacks* callbacks,
-                                     void*              user,
-                                     JSObject*          scopeobj);
-
-/*
 * Shutdown JSD for this JSDContext
 */
 extern JSD_PUBLIC_API(void)
 JSD_DebuggerOff(JSDContext* jsdc);
-
-/*
- * Pause JSD for this JSDContext
- */
-extern JSD_PUBLIC_API(void)
-JSD_DebuggerPause(JSDContext* jsdc);
-
-/*
- * Unpause JSD for this JSDContext
- */
-extern JSD_PUBLIC_API(void)
-JSD_DebuggerUnpause(JSDContext* jsdc);
 
 /*
 * Get the Major Version (initial JSD release used major version = 1)
@@ -250,12 +230,11 @@ JSD_ClearAllProfileData(JSDContext* jsdc);
 * If JSD_HIDE_DISABLED_FRAMES is set, this is effectively set as well.
 */
 #define JSD_MASK_TOP_FRAME_ONLY   0x20
-
 /*
-* 0x40 was formerly used to hook into object creation.
+* When this flag is set, object creation will not be tracked.  This will
+* reduce the performance price you pay by enabling the debugger.
 */
-#define JSD_DISABLE_OBJECT_TRACE_RETIRED 0x40
-
+#define JSD_DISABLE_OBJECT_TRACE  0x40
 
 extern JSD_PUBLIC_API(void)
 JSD_SetContextFlags (JSDContext* jsdc, uint32 flags);
@@ -429,12 +408,10 @@ extern JSD_PUBLIC_API(const char*)
 JSD_GetScriptFilename(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
-* Get the function name associated with this script (NULL if not a function).
-* If the function does not have a name the result is the string "anonymous".
-* *** new for gecko 2.0 ****
+* Get the function name associated with this script (NULL if not a function)
 */
-extern JSD_PUBLIC_API(JSString *)
-JSD_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript);
+extern JSD_PUBLIC_API(const char*)
+JSD_GetScriptFunctionName(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
 * Get the base linenumber of the sourcefile from which this script was loaded.
@@ -805,12 +782,6 @@ JSD_SetInterruptHook(JSDContext*           jsdc,
                      void*                 callerdata);
 
 /*
-* Call the interrupt hook at least once per source line
-*/
-extern JSD_PUBLIC_API(JSBool)
-JSD_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript *jsdscript, JSBool enable);
-
-/*
 * Clear the current interrupt hook.
 */
 extern JSD_PUBLIC_API(JSBool)
@@ -962,10 +933,17 @@ JSD_GetThisForStackFrame(JSDContext* jsdc,
 /*
 * Get the name of the function executing in this stack frame.  Especially useful
 * for native frames (without script objects.)
-* *** new for gecko 2.0 ****
 */
-extern JSD_PUBLIC_API(JSString *)
-JSD_GetIdForStackFrame(JSDContext* jsdc,
+extern JSD_PUBLIC_API(const char*)
+JSD_GetNameForStackFrame(JSDContext* jsdc,
+                         JSDThreadState* jsdthreadstate,
+                         JSDStackFrameInfo* jsdframe);
+
+/*
+* True if stack frame represents a native frame.
+*/
+extern JSD_PUBLIC_API(JSBool)
+JSD_IsStackFrameNative(JSDContext* jsdc,
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe);
 
@@ -1280,7 +1258,7 @@ JSD_GetValueInt(JSDContext* jsdc, JSDValue* jsdval);
 * Return double value (does NOT do conversion).
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(jsdouble)
+extern JSD_PUBLIC_API(jsdouble*)
 JSD_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
@@ -1295,18 +1273,10 @@ JSD_GetValueString(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Return name of function IFF JSDValue represents a function.
-* *** new for gecko 2.0 ****
-*/
-extern JSD_PUBLIC_API(JSString *)
-JSD_GetValueFunctionId(JSDContext* jsdc, JSDValue* jsdval);
-
-/*
-* Return function object IFF JSDValue represents a function or an object
-* wrapping a function.
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(JSFunction*)
-JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
+extern JSD_PUBLIC_API(const char*)
+JSD_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 
@@ -1365,13 +1335,6 @@ JSD_GetValueConstructor(JSDContext* jsdc, JSDValue* jsdval);
 */
 extern JSD_PUBLIC_API(const char*)
 JSD_GetValueClassName(JSDContext* jsdc, JSDValue* jsdval);
-
-/*
-* Get the script for the given value if the given value represents a
-* scripted function.  Otherwise, return null.
-*/
-extern JSD_PUBLIC_API(JSDScript*)
-JSD_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval);
 
 /**************************************************/
 

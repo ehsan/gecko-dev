@@ -37,17 +37,6 @@
 #
 # ***** END LICENSE BLOCK *****
 
-////////////////////////////////////////////////////////////////////////
-//
-// USE OF THIS API FOR DRAG AND DROP IS DEPRECATED!
-// Do not use this file for new code.
-//
-// For documentation about what to use instead, see:
-//   http://developer.mozilla.org/En/DragDrop/Drag_and_Drop
-//
-////////////////////////////////////////////////////////////////////////
-
-
 /** 
  *  nsTransferable - a wrapper for nsITransferable that simplifies
  *                   javascript clipboard and drag&drop. for use in
@@ -306,7 +295,6 @@ var transferUtils = {
     switch (flavour) {
       case "text/unicode":
       case "text/plain":
-      case "text/x-moz-text-internal":
         return aData.replace(/^\s+|\s+$/g, "");
       case "text/x-moz-url":
         return ((aData instanceof Components.interfaces.nsISupportsString) ? aData.toString() : aData).split("\n")[0];
@@ -585,6 +573,10 @@ var nsDragAndDrop = {
    **/
   dragDropSecurityCheck: function (aEvent, aDragSession, aDraggedText)
     {
+      var sourceDoc = aDragSession.sourceDocument;
+      if (!sourceDoc)
+        return;
+
       // Strip leading and trailing whitespace, then try to create a
       // URI from the dropped string. If that succeeds, we're
       // dropping a URI and we need to do a security check to make
@@ -613,16 +605,8 @@ var nsDragAndDrop = {
       var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
                              .getService(nsIScriptSecurityManager);
 
-      if (!aDragSession)
-        aDragSession = this.mDragService.getCurrentSession();
-
-      var sourceDoc = aDragSession.sourceDocument;
-      // Use "file:///" as the default sourceURI so that drops of file:// URIs
-      // are always allowed.
-      var sourceURI = sourceDoc ? sourceDoc.documentURI : "file:///";
-
       try {
-        secMan.checkLoadURIStr(sourceURI, aDraggedText,
+        secMan.checkLoadURIStr(sourceDoc.documentURI, aDraggedText,
                                nsIScriptSecurityManager.STANDARD);
       } catch (e) {
         // Stop event propagation right here.

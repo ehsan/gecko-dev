@@ -135,7 +135,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if ((self = [super init])) {
     mGeckoAccessible = geckoAccessible;
     mIsExpired = NO;
-    mRole = geckoAccessible->Role();
+    geckoAccessible->GetFinalRole(&mRole);
     
     // Check for OS X "role skew"; the role constants in nsIAccessible.idl need to match the ones
     // in nsRoleMap.h.
@@ -468,8 +468,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (NSString*)role
 {
 #ifdef DEBUG_A11Y
-  NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(mGeckoAccessible),
-               "Does not support nsIAccessibleText when it should");
+  NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(mGeckoAccessible), "Does not support nsIAccessibleText when it should");
 #endif
   return AXRoles[mRole];
 }
@@ -549,14 +548,14 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (BOOL)isFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSED) != 0;
 }
 
 - (BOOL)canBeFocused
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_FOCUSABLE) != 0;
 }
 
@@ -569,7 +568,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
 - (BOOL)isEnabled
 {
   PRUint32 state = 0;
-  mGeckoAccessible->GetState (&state, nsnull);
+  mGeckoAccessible->GetFinalState (&state, nsnull);
   return (state & nsIAccessibleStates::STATE_UNAVAILABLE) == 0;
 }
 
@@ -594,13 +593,9 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   nsAccessibleWrap *accWrap = static_cast<nsAccessibleWrap*>(mGeckoAccessible);
-
-  // Get a pointer to the native window (NSWindow) we reside in.
   NSWindow *nativeWindow = nil;
-  nsDocAccessible* docAcc = accWrap->GetDocAccessible();
-  if (docAcc)
-    nativeWindow = static_cast<NSWindow*>(docAcc->GetNativeWindow());
-
+  accWrap->GetNativeWindow ((void**)&nativeWindow);
+  
   NSAssert1(nativeWindow, @"Could not get native window for %@", self);
   return nativeWindow;
 

@@ -23,7 +23,6 @@
  *   Maha Abou El Rous <mahar@eg.ibm.com>
  *   Lina Kemmel <lkemmel@il.ibm.com>
  *   Simon Montagu <smontagu@netscape.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -117,17 +116,44 @@ typedef enum nsCharType nsCharType;
                            || ( ( (val) > eCharType_ArabicNumber) && ( (val) != eCharType_RightToLeftArabic) ) )
 
   /**
-   * Inspects a Unichar, converting numbers to Arabic or Hindi forms and returning them
-   * @param aChar is the character
-   * @param aPrevCharArabic is true if the previous character in the string is an Arabic char
-   * @param aNumFlag specifies the conversion to perform:
-   *        IBMBIDI_NUMERAL_NOMINAL:      don't do any conversion
-   *        IBMBIDI_NUMERAL_HINDI:        convert to Hindi forms (Unicode 0660-0669)
-   *        IBMBIDI_NUMERAL_ARABIC:       convert to Arabic forms (Unicode 0030-0039)
-   *        IBMBIDI_NUMERAL_HINDICONTEXT: convert numbers in Arabic text to Hindi, otherwise to Arabic
-   * @return the converted Unichar
+   * Perform Arabic shaping on a Unichar string
+   * @param aString is the input string
+   * @param aLen is the length of aStrong
+   * @param aBuf receives the shaped output
+   * @param aBuflen receives the length of aBuf
+   * @param aInputLogical indicates that the input is in logical order
+   * @param aOutputLogical indicates that the output should be in logical order
    */
-  PRUnichar HandleNumberInChar(PRUnichar aChar, PRBool aPrevCharArabic, PRUint32 aNumFlag);
+  nsresult ArabicShaping(const PRUnichar* aString, PRUint32 aLen,
+                         PRUnichar* aBuf, PRUint32* aBufLen,
+                         PRBool aInputLogical, PRBool aOutputLogical);
+
+  /**
+   * Scan an nsString, converting characters in the FExx range (Arabic presentation forms) to the equivalent characters in the 06xx
+   * range
+   * @param aSrc is the input string
+   * @param aDst is the output string
+   */
+  nsresult Conv_FE_06(const nsString& aSrc, nsString& aDst);
+
+  /**
+   * Scan an nsString, converting characters in the FExx range (Arabic presentation forms) to the equivalent characters in the 06xx
+   * range, and also reverse the string
+   * @param aSrc is the input string
+   * @param aDst is the output string
+   */
+  nsresult Conv_FE_06_WithReverse(const nsString& aSrc, nsString& aDst);
+
+  /**
+   * Scan an nsString, converting characters in the 06xx range to the equivalent characters in the 0Fxx range (Arabic presentation
+   * forms), with the option to reverse the string
+   * @param aSrc is the input string
+   * @param aDst is the output string
+   * @param aDir indicates whether the string should be reversed
+   *        IBMBIDI_TEXTDIRECTION_LTR: do not reverse the string
+   *        IBMBIDI_TEXTDIRECTION_RTL: reverse the string
+   */
+  nsresult Conv_06_FE_WithReverse(const nsString& aSrc, nsString& aDst, PRUint32 aDir);
 
   /**
    * Scan a Unichar string, converting numbers to Arabic or Hindi forms in place
@@ -140,6 +166,30 @@ typedef enum nsCharType nsCharType;
    *        IBMBIDI_NUMERAL_HINDICONTEXT: convert numbers in Arabic text to Hindi, otherwise to Arabic
    */
   nsresult HandleNumbers(PRUnichar* aBuffer, PRUint32 aSize, PRUint32  aNumFlag);
+
+  /**
+   * Scan an nsString, converting numerals to Arabic or Hindi forms
+   * @param aSrc is the input string
+   * @param aDst is the output string
+   */
+  nsresult HandleNumbers(const nsString& aSrc, nsString& aDst);
+
+  /**
+   * Give a Unicode character, return the symmetric equivalent
+   */
+  PRUint32 SymmSwap(PRUint32 aChar);
+
+  /**
+   * Give a UTF-32 codepoint, return an eBidiCategory
+   */
+  eBidiCategory GetBidiCategory(PRUint32 aChar);
+
+  /**
+   * Give a UTF-32 codepoint and an eBidiCategory, 
+   * return PR_TRUE if the codepoint is in that category, 
+   * return PR_FALSE, otherwise
+   */
+  PRBool IsBidiCategory(PRUint32 aChar, eBidiCategory aBidiCategory);
 
   /**
    * Give a UTF-32 codepoint, return a nsCharType (compatible with ICU)
@@ -157,7 +207,7 @@ typedef enum nsCharType nsCharType;
    * Give an nsString.
    * @return PR_TRUE if the string contains right-to-left characters
    */
-  PRBool HasRTLChars(const nsAString& aString);
+  PRBool HasRTLChars(nsAString& aString);
 
 // --------------------------------------------------
 // IBMBIDI 
@@ -172,12 +222,14 @@ typedef enum nsCharType nsCharType;
 //
 #define IBMBIDI_TEXTDIRECTION_STR       "bidi.direction"
 #define IBMBIDI_TEXTTYPE_STR            "bidi.texttype"
+#define IBMBIDI_CONTROLSTEXTMODE_STR    "bidi.controlstextmode"
 #define IBMBIDI_NUMERAL_STR             "bidi.numeral"
 #define IBMBIDI_SUPPORTMODE_STR         "bidi.support"
 #define IBMBIDI_CHARSET_STR             "bidi.characterset"
 
 #define IBMBIDI_TEXTDIRECTION       1
 #define IBMBIDI_TEXTTYPE            2
+#define IBMBIDI_CONTROLSTEXTMODE    3
 #define IBMBIDI_NUMERAL             4
 #define IBMBIDI_SUPPORTMODE         5
 #define IBMBIDI_CHARSET             6
@@ -196,6 +248,13 @@ typedef enum nsCharType nsCharType;
 #define IBMBIDI_TEXTTYPE_LOGICAL      2 //  2 = logicaltexttypeBidi
 #define IBMBIDI_TEXTTYPE_VISUAL       3 //  3 = visualtexttypeBidi
 //  ------------------
+//  Controls Text Mode
+//  ------------------
+//  bidi.controlstextmode
+#define IBMBIDI_CONTROLSTEXTMODE_LOGICAL   1 //  1 = logicalcontrolstextmodeBidiCmd *
+#define IBMBIDI_CONTROLSTEXTMODE_VISUAL    2 //  2 = visualcontrolstextmodeBidi
+#define IBMBIDI_CONTROLSTEXTMODE_CONTAINER 3 //  3 = containercontrolstextmodeBidi
+//  ------------------
 //  Numeral Style
 //  ------------------
 //  bidi.numeral
@@ -204,8 +263,6 @@ typedef enum nsCharType nsCharType;
 #define IBMBIDI_NUMERAL_HINDICONTEXT  2 //  2 = hindicontextnumeralBidi
 #define IBMBIDI_NUMERAL_ARABIC        3 //  3 = arabicnumeralBidi
 #define IBMBIDI_NUMERAL_HINDI         4 //  4 = hindinumeralBidi
-#define IBMBIDI_NUMERAL_PERSIANCONTEXT 5 // 5 = persiancontextnumeralBidi
-#define IBMBIDI_NUMERAL_PERSIAN       6 //  6 = persiannumeralBidi
 //  ------------------
 //  Support Mode
 //  ------------------
@@ -223,22 +280,25 @@ typedef enum nsCharType nsCharType;
 #define IBMBIDI_DEFAULT_BIDI_OPTIONS              \
         ((IBMBIDI_TEXTDIRECTION_LTR<<0)         | \
          (IBMBIDI_TEXTTYPE_CHARSET<<4)          | \
-         (IBMBIDI_NUMERAL_NOMINAL<<8)          | \
-         (IBMBIDI_SUPPORTMODE_MOZILLA<<12)      | \
-         (IBMBIDI_CHARSET_BIDI<<16))
+         (IBMBIDI_CONTROLSTEXTMODE_LOGICAL<<8)  | \
+         (IBMBIDI_NUMERAL_NOMINAL<<12)          | \
+         (IBMBIDI_SUPPORTMODE_MOZILLA<<16)      | \
+         (IBMBIDI_CHARSET_BIDI<<20))
 
 
 #define GET_BIDI_OPTION_DIRECTION(bo) (((bo)>>0) & 0x0000000F) /* 4 bits for DIRECTION */
 #define GET_BIDI_OPTION_TEXTTYPE(bo) (((bo)>>4) & 0x0000000F) /* 4 bits for TEXTTYPE */
-#define GET_BIDI_OPTION_NUMERAL(bo) (((bo)>>8) & 0x0000000F) /* 4 bits for NUMERAL */
-#define GET_BIDI_OPTION_SUPPORT(bo) (((bo)>>12) & 0x0000000F) /* 4 bits for SUPPORT */
-#define GET_BIDI_OPTION_CHARACTERSET(bo) (((bo)>>16) & 0x0000000F) /* 4 bits for CHARACTERSET */
+#define GET_BIDI_OPTION_CONTROLSTEXTMODE(bo) (((bo)>>8) & 0x0000000F) /* 4 bits for CONTROLTEXTMODE */
+#define GET_BIDI_OPTION_NUMERAL(bo) (((bo)>>12) & 0x0000000F) /* 4 bits for NUMERAL */
+#define GET_BIDI_OPTION_SUPPORT(bo) (((bo)>>16) & 0x0000000F) /* 4 bits for SUPPORT */
+#define GET_BIDI_OPTION_CHARACTERSET(bo) (((bo)>>20) & 0x0000000F) /* 4 bits for CHARACTERSET */
 
 #define SET_BIDI_OPTION_DIRECTION(bo, dir) {(bo)=((bo) & 0xFFFFFFF0)|(((dir)& 0x0000000F)<<0);}
 #define SET_BIDI_OPTION_TEXTTYPE(bo, tt) {(bo)=((bo) & 0xFFFFFF0F)|(((tt)& 0x0000000F)<<4);}
-#define SET_BIDI_OPTION_NUMERAL(bo, num) {(bo)=((bo) & 0xFFFFF0FF)|(((num)& 0x0000000F)<<8);}
-#define SET_BIDI_OPTION_SUPPORT(bo, sup) {(bo)=((bo) & 0xFFFF0FFF)|(((sup)& 0x0000000F)<<12);}
-#define SET_BIDI_OPTION_CHARACTERSET(bo, cs) {(bo)=((bo) & 0xFFF0FFFF)|(((cs)& 0x0000000F)<<16);}
+#define SET_BIDI_OPTION_CONTROLSTEXTMODE(bo, cotm) {(bo)=((bo) & 0xFFFFF0FF)|(((cotm)& 0x0000000F)<<8);}
+#define SET_BIDI_OPTION_NUMERAL(bo, num) {(bo)=((bo) & 0xFFFF0FFF)|(((num)& 0x0000000F)<<12);}
+#define SET_BIDI_OPTION_SUPPORT(bo, sup) {(bo)=((bo) & 0xFFF0FFFF)|(((sup)& 0x0000000F)<<16);}
+#define SET_BIDI_OPTION_CHARACTERSET(bo, cs) {(bo)=((bo) & 0xFF0FFFFF)|(((cs)& 0x0000000F)<<20);}
 
 /* Constants related to the position of numerics in the codepage */
 #define START_HINDI_DIGITS              0x0660
@@ -250,18 +310,7 @@ typedef enum nsCharType nsCharType;
 #define IS_HINDI_DIGIT(u)   ( ( (u) >= START_HINDI_DIGITS )  && ( (u) <= END_HINDI_DIGITS ) )
 #define IS_ARABIC_DIGIT(u)  ( ( (u) >= START_ARABIC_DIGITS ) && ( (u) <= END_ARABIC_DIGITS ) )
 #define IS_FARSI_DIGIT(u)  ( ( (u) >= START_FARSI_DIGITS ) && ( (u) <= END_FARSI_DIGITS ) )
-/**
- * Arabic numeric separator and numeric formatting characters:
- *  U+0600;ARABIC NUMBER SIGN
- *  U+0601;ARABIC SIGN SANAH
- *  U+0602;ARABIC FOOTNOTE MARKER
- *  U+0603;ARABIC SIGN SAFHA
- *  U+066A;ARABIC PERCENT SIGN
- *  U+066B;ARABIC DECIMAL SEPARATOR
- *  U+066C;ARABIC THOUSANDS SEPARATOR
- *  U+06DD;ARABIC END OF AYAH
- */
-#define IS_ARABIC_SEPARATOR(u) ( ( (u) == 0x0600 ) || ( (u) == 0x0601 ) || ( (u) == 0x0602 ) || ( (u) == 0x0603 ) || ( (u) == 0x066A ) || ( (u) == 0x066B ) || ( (u) == 0x066C ) || ( (u) == 0x06DD ) )
+#define IS_ARABIC_SEPARATOR(u) ( ( (u) == 0x066A ) || ( (u) == 0x066B ) || ( (u) == 0x066C ) )
 
 #define IS_BIDI_DIACRITIC(u) ( \
   ( (u) >= 0x0591 && (u) <= 0x05A1) || ( (u) >= 0x05A3 && (u) <= 0x05B9) \
@@ -272,6 +321,9 @@ typedef enum nsCharType nsCharType;
     || ( (u) >= 0x06EA && (u) <= 0x06ED) )
 
 #define IS_HEBREW_CHAR(c) (((0x0590 <= (c)) && ((c)<= 0x05FF)) || (((c) >= 0xfb1d) && ((c) <= 0xfb4f)))
+#define IS_06_CHAR(c) ((0x0600 <= (c)) && ((c)<= 0x06FF))
+#define IS_FE_CHAR(c) (((0xfb50 <= (c)) && ((c)<= 0xfbFF)) \
+                       || ((0xfe70 <= (c)) && ((c)<= 0xfeFC)))
 #define IS_ARABIC_CHAR(c) ((0x0600 <= (c)) && ((c)<= 0x06FF))
 #define IS_ARABIC_ALPHABETIC(c) (IS_ARABIC_CHAR(c) && \
                                 !(IS_HINDI_DIGIT(c) || IS_FARSI_DIGIT(c) || IS_ARABIC_SEPARATOR(c)))

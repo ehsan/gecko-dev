@@ -43,6 +43,8 @@
 #include "nsIFormControlFrame.h"
 #include "nsHTMLParts.h"
 
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsStyleContext.h"
 #include "nsLeafFrame.h"
 #include "nsCSSRendering.h"
@@ -52,7 +54,6 @@
 #include "nsButtonFrameRenderer.h"
 
 class nsIRenderingContext;
-class nsPresContext;
 
 class nsHTMLButtonControlFrame : public nsHTMLContainerFrame,
                                  public nsIFormControlFrame 
@@ -61,10 +62,10 @@ public:
   nsHTMLButtonControlFrame(nsStyleContext* aContext);
   ~nsHTMLButtonControlFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  virtual void Destroy();
+
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -94,17 +95,17 @@ public:
                                          nsStyleContext* aStyleContext);
  
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -114,8 +115,6 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("HTMLButtonControl"), aResult);
   }
 #endif
-
-  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
 
   // nsIFormControlFrame
   void SetFocus(PRBool aOn, PRBool aRepaint);
@@ -134,13 +133,17 @@ public:
   }
 
 protected:
-  virtual PRBool IsInput() { return PR_FALSE; }
+  virtual PRBool IsReset(PRInt32 type);
+  virtual PRBool IsSubmit(PRInt32 type);
   void ReflowButtonContents(nsPresContext* aPresContext,
                             nsHTMLReflowMetrics& aDesiredSize,
                             const nsHTMLReflowState& aReflowState,
                             nsIFrame* aFirstKid,
                             nsMargin aFocusPadding,
                             nsReflowStatus& aStatus);
+
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 
   PRIntn GetSkipSides() const;
   nsButtonFrameRenderer mRenderer;

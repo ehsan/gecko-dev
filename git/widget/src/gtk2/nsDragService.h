@@ -98,18 +98,17 @@ public:
 
     NS_IMETHOD TargetSetTimeCallback (nsIDragSessionGTKTimeCB aCallback);
 
-    //  END PUBLIC API
-
-    // These methods are public only so that they can be called from functions
-    // with C calling conventions.  They are called for drags started with the
-    // invisible widget.
-    void           SourceEndDragSession(GdkDragContext *aContext,
-                                        gint            aResult);
+    // This is called when the drag started with the invisible widget
+    // finishes.  It's called from within the drag service code but from
+    // a callback - it needs to be public.
+    void           SourceEndDrag(void);
     void           SourceDataGet(GtkWidget        *widget,
                                  GdkDragContext   *context,
                                  GtkSelectionData *selection_data,
                                  guint             info,
                                  guint32           aTime);
+
+    //  END PUBLIC API
 
 private:
 
@@ -138,8 +137,6 @@ private:
 
     // the source of our drags
     GtkWidget     *mHiddenWidget;
-    // the widget receiving mouse events
-    GtkWidget     *mGrabWidget;
     // our source data items
     nsCOMPtr<nsISupportsArray> mSourceDataItems;
     // get a list of the sources in gtk's format
@@ -147,11 +144,11 @@ private:
 
     // attempts to create a semi-transparent drag image. Returns TRUE if
     // successful, FALSE if not
-    PRBool SetAlphaPixmap(gfxASurface     *aPixbuf,
-                          GdkDragContext  *aContext,
-                          PRInt32          aXOffset,
-                          PRInt32          aYOffset,
-                          const nsIntRect &dragRect);
+    PRBool SetAlphaPixmap(gfxASurface    *aPixbuf,
+                          GdkDragContext *aContext,
+                          PRInt32         aXOffset,
+                          PRInt32         aYOffset,
+                          const nsRect&   dragRect);
 
 };
 

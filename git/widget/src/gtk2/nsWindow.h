@@ -40,13 +40,12 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#ifdef MOZ_IPC
-#  include "mozilla/ipc/SharedMemorySysV.h"
-#endif
-
 #include "nsAutoPtr.h"
 
+#include "nsCommonWidget.h"
+
 #include "mozcontainer.h"
+#include "mozdrawingarea.h"
 #include "nsWeakReference.h"
 
 #include "nsIDragService.h"
@@ -55,9 +54,6 @@
 
 #include "gfxASurface.h"
 
-#include "nsBaseWidget.h"
-#include "nsGUIEvent.h"
-#include <gdk/gdk.h>
 #include <gtk/gtk.h>
 
 #ifdef MOZ_DFB
@@ -67,47 +63,19 @@
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #endif /* MOZ_X11 */
+#include <gtk/gtkwindow.h>
 
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessNode.h"
+#include "nsIAccessible.h"
 #endif
 
-#include "nsGtkIMModule.h"
-
-#ifdef MOZ_LOGGING
-
-// make sure that logging is enabled before including prlog.h
-#define FORCE_PR_LOG
-
-#include "prlog.h"
-#include "nsTArray.h"
-
-extern PRLogModuleInfo *gWidgetLog;
-extern PRLogModuleInfo *gWidgetFocusLog;
-extern PRLogModuleInfo *gWidgetDragLog;
-extern PRLogModuleInfo *gWidgetDrawLog;
-
-#define LOG(args) PR_LOG(gWidgetLog, 4, args)
-#define LOGFOCUS(args) PR_LOG(gWidgetFocusLog, 4, args)
-#define LOGDRAG(args) PR_LOG(gWidgetDragLog, 4, args)
-#define LOGDRAW(args) PR_LOG(gWidgetDrawLog, 4, args)
-
-#else
-
-#define LOG(args)
-#define LOGFOCUS(args)
-#define LOGDRAG(args)
-#define LOGDRAW(args)
-
-#endif /* MOZ_LOGGING */
-
-#if defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
-#  define MOZ_HAVE_SHMIMAGE
-
-class nsShmImage;
+#ifdef USE_XIM
+#include <gtk/gtkimmulticontext.h>
+#include "pldhash.h"
 #endif
 
-class nsWindow : public nsBaseWidget, public nsSupportsWeakReference
+class nsWindow : public nsCommonWidget, public nsSupportsWeakReference
 {
 public:
     nsWindow();
@@ -116,37 +84,24 @@ public:
     static void ReleaseGlobals();
 
     NS_DECL_ISUPPORTS_INHERITED
-    
-    void CommonCreate(nsIWidget *aParent, PRBool aListenForResizes);
-    
-    // event handling code
-    void InitKeyEvent(nsKeyEvent &aEvent, GdkEventKey *aGdkEvent);
-
-    void DispatchActivateEvent(void);
-    void DispatchDeactivateEvent(void);
-    void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
-
-    virtual nsresult DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
-    
-    // called when we are destroyed
-    void OnDestroy(void);
-
-    // called to check and see if a widget's dimensions are sane
-    PRBool AreBoundsSane(void);
 
     // nsIWidget
     NS_IMETHOD         Create(nsIWidget        *aParent,
-                              nsNativeWidget   aNativeParent,
-                              const nsIntRect  &aRect,
+                              const nsRect     &aRect,
+                              EVENT_CALLBACK   aHandleEventFunction,
+                              nsIDeviceContext *aContext,
+                              nsIAppShell      *aAppShell,
+                              nsIToolkit       *aToolkit,
+                              nsWidgetInitData *aInitData);
+    NS_IMETHOD         Create(nsNativeWidget aParent,
+                              const nsRect     &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
     NS_IMETHOD         Destroy(void);
-    virtual nsIWidget *GetParent();
-    virtual float      GetDPI();
-    virtual nsresult   SetParent(nsIWidget* aNewParent);
+    NS_IMETHOD         SetParent(nsIWidget* aNewParent);
     NS_IMETHOD         SetModal(PRBool aModal);
     NS_IMETHOD         IsVisible(PRBool & aState);
     NS_IMETHOD         ConstrainPosition(PRBool aAllowSlop,
@@ -154,18 +109,6 @@ public:
                                          PRInt32 *aY);
     NS_IMETHOD         Move(PRInt32 aX,
                             PRInt32 aY);
-    NS_IMETHOD         Show             (PRBool aState);
-    NS_IMETHOD         Resize           (PRInt32 aWidth,
-                                         PRInt32 aHeight,
-                                         PRBool  aRepaint);
-    NS_IMETHOD         Resize           (PRInt32 aX,
-                                         PRInt32 aY,
-                                         PRInt32 aWidth,
-                                         PRInt32 aHeight,
-                                         PRBool   aRepaint);
-    NS_IMETHOD         IsEnabled        (PRBool *aState);
-
-
     NS_IMETHOD         PlaceBehind(nsTopLevelWidgetZPlacement  aPlacement,
                                    nsIWidget                  *aWidget,
                                    PRBool                      aActivate);
@@ -173,35 +116,55 @@ public:
     NS_IMETHOD         SetSizeMode(PRInt32 aMode);
     NS_IMETHOD         Enable(PRBool aState);
     NS_IMETHOD         SetFocus(PRBool aRaise = PR_FALSE);
-    NS_IMETHOD         GetScreenBounds(nsIntRect &aRect);
+    NS_IMETHOD         GetScreenBounds(nsRect &aRect);
     NS_IMETHOD         SetForegroundColor(const nscolor &aColor);
     NS_IMETHOD         SetBackgroundColor(const nscolor &aColor);
     NS_IMETHOD         SetCursor(nsCursor aCursor);
     NS_IMETHOD         SetCursor(imgIContainer* aCursor,
                                  PRUint32 aHotspotX, PRUint32 aHotspotY);
-    NS_IMETHOD         Invalidate(const nsIntRect &aRect,
-                                  PRBool           aIsSynchronous);
+    NS_IMETHOD         Validate();
+    NS_IMETHOD         Invalidate(PRBool aIsSynchronous);
+    NS_IMETHOD         Invalidate(const nsRect &aRect,
+                                  PRBool        aIsSynchronous);
+    NS_IMETHOD         InvalidateRegion(const nsIRegion *aRegion,
+                                        PRBool           aIsSynchronous);
     NS_IMETHOD         Update();
+    NS_IMETHOD         SetColorMap(nsColorMap *aColorMap);
+    NS_IMETHOD         Scroll(PRInt32  aDx,
+                              PRInt32  aDy,
+                              nsRect  *aClipRect);
+    NS_IMETHOD         ScrollWidgets(PRInt32 aDx,
+                                     PRInt32 aDy);
+    NS_IMETHOD         ScrollRect(nsRect  &aSrcRect,
+                                  PRInt32  aDx,
+                                  PRInt32  aDy);
     virtual void*      GetNativeData(PRUint32 aDataType);
+    NS_IMETHOD         SetBorderStyle(nsBorderStyle aBorderStyle);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
-    virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD         SetMenuBar(void * aMenuBar);
+    NS_IMETHOD         ShowMenuBar(PRBool aShow);
+    NS_IMETHOD         WidgetToScreen(const nsRect& aOldRect,
+                                      nsRect& aNewRect);
+    NS_IMETHOD         ScreenToWidget(const nsRect& aOldRect,
+                                      nsRect& aNewRect);
+    NS_IMETHOD         BeginResizingChildren(void);
+    NS_IMETHOD         EndResizingChildren(void);
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
+    virtual void       ConvertToDeviceCoordinates(nscoord &aX,
+                                                  nscoord &aY);
+    NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
     NS_IMETHOD         CaptureMouse(PRBool aCapture);
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
-                                           nsIMenuRollup *aMenuRollup,
                                            PRBool aDoCapture,
                                            PRBool aConsumeRollupEvent);
     NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
-
-    virtual PRBool     HasPendingInputEvent();
-
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD         HideWindowChrome(PRBool aShouldHide);
 
-    // utility method, -1 if no change should be made, otherwise returns a
-    // value that can be passed to gdk_window_set_decorations
+    // utility methods
+    void               LoseFocus();
     gint               ConvertBorderStyles(nsBorderStyle aStyle);
 
     // event callbacks
@@ -209,7 +172,6 @@ public:
                                      GdkEventExpose *aEvent);
     gboolean           OnConfigureEvent(GtkWidget *aWidget,
                                         GdkEventConfigure *aEvent);
-    void               OnContainerUnrealize(GtkWidget *aWidget);
     void               OnSizeAllocate(GtkWidget *aWidget,
                                       GtkAllocation *aAllocation);
     void               OnDeleteEvent(GtkWidget *aWidget,
@@ -265,19 +227,28 @@ public:
     void               OnDragLeave(void);
     void               OnDragEnter(nscoord aX, nscoord aY);
 
-    virtual void       NativeResize(PRInt32 aWidth,
+
+    nsresult           NativeCreate(nsIWidget        *aParent,
+                                    nsNativeWidget    aNativeParent,
+                                    const nsRect     &aRect,
+                                    EVENT_CALLBACK    aHandleEventFunction,
+                                    nsIDeviceContext *aContext,
+                                    nsIAppShell      *aAppShell,
+                                    nsIToolkit       *aToolkit,
+                                    nsWidgetInitData *aInitData);
+
+    void               NativeResize(PRInt32 aWidth,
                                     PRInt32 aHeight,
                                     PRBool  aRepaint);
 
-    virtual void       NativeResize(PRInt32 aX,
+    void               NativeResize(PRInt32 aX,
                                     PRInt32 aY,
                                     PRInt32 aWidth,
                                     PRInt32 aHeight,
                                     PRBool  aRepaint);
 
-    virtual void       NativeShow  (PRBool  aAction);
-    void               SetHasMappedToplevel(PRBool aState);
-    nsIntSize          GetSafeWindowSize(nsIntSize aSize);
+    void               NativeShow  (PRBool  aAction);
+    virtual nsSize     GetSafeWindowSize(nsSize aSize);
 
     void               EnsureGrabs  (void);
     void               GrabPointer  (void);
@@ -298,109 +269,140 @@ public:
 
     void               ThemeChanged(void);
 
-    void CheckNeedDragLeaveEnter(nsWindow* aInnerMostWidget,
-                                 nsIDragService* aDragService,
-                                 GdkDragContext *aDragContext,
-                                 nscoord aX, nscoord aY);
-
 #ifdef MOZ_X11
     Window             mOldFocusWindow;
 #endif /* MOZ_X11 */
 
-    static guint32     sLastButtonPressTime;
-    static guint32     sLastButtonReleaseTime;
+    static guint32     mLastButtonPressTime;
+    static guint32     mLastButtonReleaseTime;
 
-    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-    NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
-    MozContainer*      GetMozContainer() { return mContainer; }
-    GdkWindow*         GetGdkWindow() { return mGdkWindow; }
-    PRBool             IsDestroyed() { return mIsDestroyed; }
+#ifdef USE_XIM
+    void               IMEInitData       (void);
+    void               IMEReleaseData    (void);
+    void               IMEDestroyContext (void);
+    void               IMESetFocus       (void);
+    void               IMELoseFocus      (void);
+    void               IMEComposeStart   (void);
+    void               IMEComposeText    (const PRUnichar *aText,
+                                          const PRInt32 aLen,
+                                          const gchar *aPreeditString,
+                                          const gint aCursorPos,
+                                          const PangoAttrList *aFeedback);
+    void               IMEComposeEnd     (void);
+    GtkIMContext*      IMEGetContext     (void);
+    nsWindow*          IMEGetOwningWindow(void);
+    // "Enabled" means the users can use all IMEs.
+    // I.e., the focus is in the normal editors.
+    PRBool             IMEIsEnabledState (void);
+    // "Editable" means the users can input characters. They may be not able to
+    // use IMEs but they can use dead keys.
+    // I.e., the forcus is in the normal editors or the password editors or
+    // the |ime-mode: disabled;| editors.
+    PRBool             IMEIsEditableState(void);
+    nsWindow*          IMEComposingWindow(void);
+    void               IMECreateContext  (void);
+    PRBool             IMEFilterEvent    (GdkEventKey *aEvent);
+    void               IMESetCursorPosition(const nsTextEventReply& aReply);
 
-    // If this dispatched the keydown event actually, this returns TRUE,
-    // otherwise, FALSE.
-    PRBool             DispatchKeyDownEvent(GdkEventKey *aEvent,
-                                            PRBool *aIsCancelled);
+    /*
+     *  |mIMEData| has all IME data for the window and its children widgets.
+     *  Only stand-alone windows and child windows embedded in non-Mozilla GTK
+     *  containers own IME contexts.
+     *  But this is referred from all children after the widget gets focus.
+     *  The children refers to its owning window's object.
+     */
+    struct nsIMEData {
+        // Actual context. This is used for handling the user's input.
+        GtkIMContext       *mContext;
+        // mSimpleContext is used for the password field and
+        // the |ime-mode: disabled;| editors. These editors disable IME.
+        // But dead keys should work. Fortunately, the simple IM context of
+        // GTK2 support only them.
+        GtkIMContext       *mSimpleContext;
+        // mDummyContext is a dummy context and will be used in IMESetFocus()
+        // when mEnabled is false. This mDummyContext IM state is always
+        // "off", so it works to switch conversion mode to OFF on IM status
+        // window.
+        GtkIMContext       *mDummyContext;
+        // This mComposingWindow is set in IMEComposeStart(), when user starts
+        // composition, then unset in IMEComposeEnd() when user ends the
+        // composition. We will keep the widget where the actual composition is
+        // started. During the composition, we may get some events like
+        // ResetInputStateInternal() and CancelIMECompositionInternal() by
+        // changing input focus, we will use the original widget of
+        // mComposingWindow to commit or reset the composition.
+        nsWindow           *mComposingWindow;
+        // Owner of this struct.
+        // The owner window must release the contexts at destroying.
+        nsWindow           *mOwner;
+        // The reference counter. When this will be zero by the decrement,
+        // the decrementer must free the instance.
+        PRUint32           mRefCount;
+        // IME enabled state in this window.
+        PRUint32           mEnabled;
+        nsIMEData(nsWindow* aOwner) {
+            mContext         = nsnull;
+            mSimpleContext   = nsnull;
+            mDummyContext    = nsnull;
+            mComposingWindow = nsnull;
+            mOwner           = aOwner;
+            mRefCount        = 1;
+            mEnabled         = nsIWidget::IME_STATUS_ENABLED;
+        }
+    };
+    nsIMEData          *mIMEData;
 
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD SetInputMode(const IMEContext& aContext);
-    NS_IMETHOD GetInputMode(IMEContext& aContext);
+    NS_IMETHOD SetIMEOpenState(PRBool aState);
+    NS_IMETHOD GetIMEOpenState(PRBool* aState);
+    NS_IMETHOD SetIMEEnabled(PRUint32 aState);
+    NS_IMETHOD GetIMEEnabled(PRUint32* aState);
     NS_IMETHOD CancelIMEComposition();
-    NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
+
+#endif
 
    void                ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight);
    void                ApplyTransparencyBitmap();
    virtual void        SetTransparencyMode(nsTransparencyMode aMode);
    virtual nsTransparencyMode GetTransparencyMode();
-   virtual nsresult    ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-   nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
+   nsresult            UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
     gfxASurface       *GetThebesSurface();
 
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
-                                                                  const nsIntSize& aSize);
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
+                                                                  const nsSize& aSize);
 
 #ifdef ACCESSIBILITY
     static PRBool      sAccessibilityEnabled;
 #endif
-protected:
-    // Helper for SetParent and ReparentNativeWidget.
-    void ReparentNativeWidgetInternal(nsIWidget* aNewParent,
-                                      GtkWidget* aNewContainer,
-                                      GdkWindow* aNewParentWindow,
-                                      GtkWidget* aOldContainer);
-    nsCOMPtr<nsIWidget> mParent;
-    // Is this a toplevel window?
-    PRPackedBool        mIsTopLevel;
-    // Has this widget been destroyed yet?
-    PRPackedBool        mIsDestroyed;
-
-    // This is a flag that tracks if we need to resize a widget or
-    // window when we show it.
-    PRPackedBool        mNeedsResize;
-    // This is a flag that tracks if we need to move a widget or
-    // window when we show it.
-    PRPackedBool        mNeedsMove;
-    // Should we send resize events on all resizes?
-    PRPackedBool        mListenForResizes;
-    // This flag tracks if we're hidden or shown.
-    PRPackedBool        mIsShown;
-    PRPackedBool        mNeedsShow;
-    // is this widget enabled?
-    PRPackedBool        mEnabled;
-    // has the native window for this been created yet?
-    PRPackedBool        mCreated;
 
 private:
-    void               DestroyChildWindows();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
-    nsWindow          *GetContainerWindow();
+    void               GetContainerWindow(nsWindow  **aWindow);
     void               SetUrgencyHint(GtkWidget *top_window, PRBool state);
     void              *SetupPluginPort(void);
-    nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
+    nsresult           SetWindowIconList(const nsCStringArray &aIconList);
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
-                                           PRBool aIntersectWithExisting);
-    PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
-                                   GdkWindow** aWindow, gint* aButton,
-                                   gint* aRootX, gint* aRootY);
-    void               ClearCachedResources();
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
-    GdkWindow          *mGdkWindow;
+    MozDrawingarea     *mDrawingarea;
 
     GtkWindowGroup     *mWindowGroup;
 
-    PRUint32            mHasMappedToplevel : 1,
-                        mIsFullyObscured : 1,
+    PRUint32            mContainerGotFocus : 1,
+                        mContainerLostFocus : 1,
+                        mContainerBlockFocus : 1,
+                        mIsVisible : 1,
                         mRetryPointerGrab : 1,
+                        mActivatePending : 1,
                         mRetryKeyboardGrab : 1;
     GtkWindow          *mTransientParent;
     PRInt32             mSizeState;
@@ -409,10 +411,6 @@ private:
     PRInt32             mTransparencyBitmapWidth;
     PRInt32             mTransparencyBitmapHeight;
 
-#ifdef MOZ_HAVE_SHMIMAGE
-    // If we're using xshm rendering, mThebesSurface wraps mShmImage
-    nsRefPtr<nsShmImage>  mShmImage;
-#endif
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef MOZ_DFB
@@ -424,37 +422,12 @@ private:
 #endif
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<nsAccessible> mRootAccessible;
-
-    /**
-     * Request to create the accessible for this window if it is top level.
-     */
+    nsCOMPtr<nsIAccessible> mRootAccessible;
     void                CreateRootAccessible();
-
-    /**
-     * Generate the NS_GETACCESSIBLE event to get accessible for this window
-     * and return it.
-     */
-    nsAccessible       *DispatchAccessibleEvent();
-
-    /**
-     * Dispatch accessible event for the top level window accessible.
-     *
-     * @param  aEventType  [in] the accessible event type to dispatch
-     */
-    void                DispatchEventToRootAccessible(PRUint32 aEventType);
-
-    /**
-     * Dispatch accessible window activate event for the top level window
-     * accessible.
-     */
-    void                DispatchActivateEventAccessible();
-
-    /**
-     * Dispatch accessible window deactivate event for the top level window
-     * accessible.
-     */
-    void                DispatchDeactivateEventAccessible();
+    void                GetRootAccessible(nsIAccessible** aAccessible);
+    void                DispatchActivateEvent(void);
+    void                DispatchDeactivateEvent(void);
+    NS_IMETHOD_(PRBool) DispatchAccessibleEvent(nsIAccessible** aAccessible);
 #endif
 
     // The cursor cache
@@ -469,41 +442,68 @@ private:
  
     // all of our DND stuff
     // this is the last window that had a drag event happen on it.
-    static nsWindow    *sLastDragMotionWindow;
+    static nsWindow    *mLastDragMotionWindow;
     void   InitDragEvent         (nsDragEvent &aEvent);
-    void   UpdateDragStatus      (GdkDragContext *aDragContext,
+    void   UpdateDragStatus      (nsDragEvent &aEvent,
+                                  GdkDragContext *aDragContext,
                                   nsIDragService *aDragService);
 
+    // this is everything we need to be able to fire motion events
+    // repeatedly
+    GtkWidget         *mDragMotionWidget;
+    GdkDragContext    *mDragMotionContext;
+    gint               mDragMotionX;
+    gint               mDragMotionY;
+    guint              mDragMotionTime;
+    guint              mDragMotionTimerID;
     nsCOMPtr<nsITimer> mDragLeaveTimer;
-    float              mLastMotionPressure;
-
-    // Remember the last sizemode so that we can restore it when
-    // leaving fullscreen
-    nsSizeMode         mLastSizeMode;
 
     static PRBool      sIsDraggingOutOf;
     // drag in progress
     static PRBool DragInProgress(void);
 
+    void         ResetDragMotionTimer     (GtkWidget      *aWidget,
+                                           GdkDragContext *aDragContext,
+                                           gint           aX,
+                                           gint           aY,
+                                           guint          aTime);
+    void         FireDragMotionTimer      (void);
     void         FireDragLeaveTimer       (void);
+    static guint DragMotionTimerCallback (gpointer aClosure);
     static void  DragLeaveTimerCallback  (nsITimer *aTimer, void *aClosure);
 
-    void DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent);
+    /* Key Down event is DOM Virtual Key driven, needs 256 bits. */
+    PRUint32 mKeyDownFlags[8];
 
-    /**
-     * |mIMModule| takes all IME related stuff.
-     *
-     * This is owned by the top-level nsWindow or the topmost child
-     * nsWindow embedded in a non-Gecko widget.
-     *
-     * The instance is created when the top level widget is created.  And when
-     * the widget is destroyed, it's released.  All child windows refer its
-     * ancestor widget's instance.  So, one set of IM contexts is created for
-     * all windows in a hierarchy.  If the children are released after the top
-     * level window is released, the children still have a valid pointer,
-     * however, IME doesn't work at that time.
-     */
-    nsRefPtr<nsGtkIMModule> mIMModule;
+    /* Helper methods for DOM Key Down event suppression. */
+    PRUint32* GetFlagWord32(PRUint32 aKeyCode, PRUint32* aMask) {
+        /* Mozilla DOM Virtual Key Code is from 0 to 224. */
+        NS_ASSERTION((aKeyCode <= 0xFF), "Invalid DOM Key Code");
+        aKeyCode &= 0xFF;
+
+        /* 32 = 2^5 = 0x20 */
+        *aMask = PRUint32(1) << (aKeyCode & 0x1F);
+        return &mKeyDownFlags[(aKeyCode >> 5)];
+    }
+
+    PRBool IsKeyDown(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        return ((*flag) & mask) != 0;
+    }
+
+    void SetKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag |= mask;
+    }
+
+    void ClearKeyDownFlag(PRUint32 aKeyCode) {
+        PRUint32 mask;
+        PRUint32* flag = GetFlagWord32(aKeyCode, &mask);
+        *flag &= ~mask;
+    }
+
 };
 
 class nsChildWindow : public nsWindow {

@@ -1,10 +1,25 @@
-// Try no args. This shouldn't do anything.
-importScripts();
+function messageListener(message, source) {
+  switch (message) {
+    case 'start':
+      loadScripts("importScripts_worker_imported2.js");
+      importedScriptFunction2();
+      tryBadScripts();
+      source.postMessage('started');
+      break;
+    case 'stop':
+      tryBadScripts();
+      postMessageToPool('stopped');
+      break;
+    default:
+      throw new Error("Bad message: " + message);
+      break;
+  }
+}
 
 // This caused security exceptions in the past, make sure it doesn't!
 var constructor = {}.constructor;
 
-importScripts("importScripts_worker_imported1.js");
+loadScripts("importScripts_worker_imported1.js");
 
 // Try to call a function defined in the imported script.
 importedScriptFunction();
@@ -25,7 +40,7 @@ function tryBadScripts() {
     var caughtException = false;
     var url = badScripts[i];
     try {
-      importScripts(url);
+      loadScripts(url);
     }
     catch (e) {
       caughtException = true;
@@ -33,24 +48,6 @@ function tryBadScripts() {
     if (!caughtException) {
       throw "Bad script didn't throw exception: " + url;
     }
-  }
-}
-
-onmessage = function(event) {
-  switch (event.data) {
-    case 'start':
-      importScripts("importScripts_worker_imported2.js");
-      importedScriptFunction2();
-      tryBadScripts();
-      postMessage('started');
-      break;
-    case 'stop':
-      tryBadScripts();
-      postMessage('stopped');
-      break;
-    default:
-      throw new Error("Bad message: " + event.data);
-      break;
   }
 }
 

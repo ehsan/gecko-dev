@@ -36,14 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGEHELPER_H
-#define MOZSTORAGEHELPER_H
-
-#include "nsAutoPtr.h"
+#ifndef _MOZSTORAGEHELPER_H_
+#define _MOZSTORAGEHELPER_H_
 
 #include "mozIStorageConnection.h"
-#include "mozIStorageStatement.h"
-#include "mozStorage.h"
 
 
 /**
@@ -72,9 +68,13 @@ public:
       mCommitOnComplete(aCommitOnComplete),
       mCompleted(PR_FALSE)
   {
-    // We won't try to get a transaction if one is already in progress.
-    if (mConnection)
-      mHasTransaction = NS_SUCCEEDED(mConnection->BeginTransactionAs(aType));
+    if (mConnection) {
+      PRBool transactionInProgress = PR_FALSE;
+      mConnection->GetTransactionInProgress(&transactionInProgress);
+      mHasTransaction = ! transactionInProgress;
+      if (mHasTransaction)
+        mConnection->BeginTransactionAs(aType);
+    }
   }
   ~mozStorageTransaction()
   {
@@ -98,11 +98,7 @@ public:
     mCompleted = PR_TRUE;
     if (! mHasTransaction)
       return NS_OK; // transaction not ours, ignore
-    nsresult rv = mConnection->CommitTransaction();
-    if (NS_SUCCEEDED(rv))
-      mHasTransaction = PR_FALSE;
-
-    return rv;
+    return mConnection->CommitTransaction();
   }
 
   /**
@@ -117,19 +113,7 @@ public:
     mCompleted = PR_TRUE;
     if (! mHasTransaction)
       return NS_ERROR_FAILURE;
-
-    // It is possible that a rollback will return busy, so we busy wait...
-    nsresult rv = NS_OK;
-    do {
-      rv = mConnection->RollbackTransaction();
-      if (rv == NS_ERROR_STORAGE_BUSY)
-        (void)PR_Sleep(PR_INTERVAL_NO_WAIT);
-    } while (rv == NS_ERROR_STORAGE_BUSY);
-
-    if (NS_SUCCEEDED(rv))
-      mHasTransaction = PR_FALSE;
-
-    return rv;
+    return mConnection->RollbackTransaction();
   }
 
   /**
@@ -192,4 +176,4 @@ protected:
   nsCOMPtr<mozIStorageStatement> mStatement;
 };
 
-#endif /* MOZSTORAGEHELPER_H */
+#endif /* _MOZSTORAGEHELPER_H_ */

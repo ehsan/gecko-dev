@@ -48,14 +48,11 @@
 class nsXFormsLabelAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsLabelAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetDescription(nsAString& aDescription);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -65,10 +62,9 @@ public:
 class nsXFormsOutputAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsOutputAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsOutputAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  NS_IMETHOD GetRole(PRUint32 *aRole);
 };
 
 /**
@@ -78,17 +74,14 @@ public:
 class nsXFormsTriggerAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsTriggerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsTriggerAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetValue(nsAString& aValue);
 
   NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -98,17 +91,14 @@ public:
 class nsXFormsInputAccessible : public nsXFormsEditableAccessible
 {
 public:
-  nsXFormsInputAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsInputAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
 };
 
 /**
@@ -118,16 +108,13 @@ public:
 class nsXFormsInputBooleanAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsInputBooleanAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsInputBooleanAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /**
@@ -137,10 +124,9 @@ public:
 class nsXFormsInputDateAccessible : public nsXFormsContainerAccessible
 {
 public:
-  nsXFormsInputDateAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsInputDateAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  NS_IMETHOD GetRole(PRUint32 *aRole);
 };
 
 /**
@@ -150,14 +136,11 @@ public:
 class nsXFormsSecretAccessible : public nsXFormsInputAccessible
 {
 public:
-  nsXFormsSecretAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsSecretAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& aValue);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -168,17 +151,16 @@ public:
 class nsXFormsRangeAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsRangeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsRangeAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
+
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 
   // nsIAccessibleValue
   NS_IMETHOD GetMaximumValue(double *aMaximumValue);
   NS_IMETHOD GetMinimumValue(double *aMinimumValue);
   NS_IMETHOD GetMinimumIncrement(double *aMinimumIncrement);
   NS_IMETHOD GetCurrentValue(double *aCurrentValue);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -190,10 +172,9 @@ public:
 class nsXFormsSelectAccessible : public nsXFormsContainerAccessible
 {
 public:
-  nsXFormsSelectAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsSelectAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
-  // nsAccessible
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -204,17 +185,12 @@ public:
 class nsXFormsChoicesAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsChoicesAccessible(nsIContent* aContent, nsIWeakReference *aShell);
+  nsXFormsChoicesAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetValue(nsAString& aValue);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-
-protected:
-  // nsAccessible
-  virtual void CacheChildren();
+  void CacheChildren();
 };
 
 
@@ -226,14 +202,11 @@ protected:
 class nsXFormsSelectFullAccessible : public nsXFormsSelectableAccessible
 {
 public:
-  nsXFormsSelectFullAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXFormsSelectFullAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  NS_IMETHOD GetRole(PRUint32 *aRole);
 
-protected:
-  // nsAccessible
-  virtual void CacheChildren();
+  void CacheChildren();
 };
 
 
@@ -246,15 +219,11 @@ protected:
 class nsXFormsItemCheckgroupAccessible : public nsXFormsSelectableItemAccessible
 {
 public:
-  nsXFormsItemCheckgroupAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell);
+  nsXFormsItemCheckgroupAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -267,15 +236,11 @@ public:
 class nsXFormsItemRadiogroupAccessible : public nsXFormsSelectableItemAccessible
 {
 public:
-  nsXFormsItemRadiogroupAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell);
+  nsXFormsItemRadiogroupAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 
@@ -287,13 +252,14 @@ public:
 class nsXFormsSelectComboboxAccessible : public nsXFormsSelectableAccessible
 {
 public:
-  nsXFormsSelectComboboxAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell);
+  nsXFormsSelectComboboxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRBool GetAllowsAnonChildAccessibles();
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+
+  // Allows accessible nodes in anonymous content of xforms element by
+  // always returning PR_TRUE value.
+  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
 };
 
 
@@ -306,15 +272,11 @@ public:
 class nsXFormsItemComboboxAccessible : public nsXFormsSelectableItemAccessible
 {
 public:
-  nsXFormsItemComboboxAccessible(nsIContent *aContent,
-                                 nsIWeakReference *aShell);
+  nsXFormsItemComboboxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-
-  // nsAccessible
-  virtual PRUint32 NativeRole();
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 #endif

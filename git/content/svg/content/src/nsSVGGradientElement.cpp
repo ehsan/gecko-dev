@@ -41,12 +41,10 @@
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGGradientElement.h"
-#include "nsIDOMMutationEvent.h"
 #include "nsCOMPtr.h"
 #include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsSVGGradientElement.h"
-#include "nsIFrame.h"
 
 //--------------------- Gradients------------------------
 
@@ -71,7 +69,7 @@ nsSVGElement::EnumInfo nsSVGGradientElement::sEnumInfo[2] =
 
 nsSVGElement::StringInfo nsSVGGradientElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 //----------------------------------------------------------------------
@@ -88,60 +86,36 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGGradientElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGGradientElement::nsSVGGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGGradientElement::nsSVGGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGGradientElementBase(aNodeInfo)
 {
 }
 
 nsresult
-nsSVGGradientElement::CreateTransformList()
+nsSVGGradientElement::Init()
 {
-  nsresult rv;
+  nsresult rv = nsSVGGradientElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
 
-  // DOM property: transform, #IMPLIED attrib: transform
-  nsCOMPtr<nsIDOMSVGTransformList> transformList;
-  rv = nsSVGTransformList::Create(getter_AddRefs(transformList));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = NS_NewSVGAnimatedTransformList(getter_AddRefs(mGradientTransform),
-                                      transformList);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = AddMappedSVGValue(nsGkAtoms::gradientTransform, mGradientTransform);
-  if (NS_FAILED(rv)) {
-    mGradientTransform = nsnull;
-    return rv;
+  // Create mapped attributes
+
+  // DOM property: gradientTransform ,  #IMPLIED attrib: gradientTransform
+  {
+    nsCOMPtr<nsIDOMSVGTransformList> transformList;
+    rv = nsSVGTransformList::Create(getter_AddRefs(transformList));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedTransformList(getter_AddRefs(mGradientTransform),
+                                        transformList);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::gradientTransform, mGradientTransform);
+    NS_ENSURE_SUCCESS(rv,rv);
   }
 
   return NS_OK;
 }
 
-nsresult
-nsSVGGradientElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                    const nsAString* aValue, PRBool aNotify)
-{
-  if (aNamespaceID == kNameSpaceID_None &&
-      aName == nsGkAtoms::gradientTransform &&
-      !mGradientTransform &&
-      NS_FAILED(CreateTransformList()))
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  return nsSVGGradientElementBase::BeforeSetAttr(aNamespaceID, aName,
-                                                 aValue, aNotify);
-}
-
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-void
-nsSVGGradientElement::DidAnimateTransform()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::gradientTransform,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
 
 nsSVGElement::EnumAttributesInfo
 nsSVGGradientElement::GetEnumInfo()
@@ -169,9 +143,6 @@ NS_IMETHODIMP nsSVGGradientElement::GetGradientUnits(nsIDOMSVGAnimatedEnumeratio
 /* readonly attribute nsIDOMSVGAnimatedTransformList gradientTransform; */
 NS_IMETHODIMP nsSVGGradientElement::GetGradientTransform(nsIDOMSVGAnimatedTransformList * *aGradientTransform)
 {
-  if (!mGradientTransform && NS_FAILED(CreateTransformList()))
-    return NS_ERROR_OUT_OF_MEMORY;
-
   *aGradientTransform = mGradientTransform;
   NS_IF_ADDREF(*aGradientTransform);
   return NS_OK;
@@ -226,20 +197,19 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(LinearGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 
-DOMCI_NODE_DATA(SVGLinearGradientElement, nsSVGLinearGradientElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGLinearGradientElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGLinearGradientElement, nsIDOMNode,
-                           nsIDOMElement, nsIDOMSVGElement,
-                           nsIDOMSVGGradientElement,
-                           nsIDOMSVGLinearGradientElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLinearGradientElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGLinearGradientElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGGradientElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLinearGradientElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLinearGradientElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGLinearGradientElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGLinearGradientElement::nsSVGLinearGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGLinearGradientElement::nsSVGLinearGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGLinearGradientElementBase(aNodeInfo)
 {
 }
@@ -306,20 +276,19 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(RadialGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 
-DOMCI_NODE_DATA(SVGRadialGradientElement, nsSVGRadialGradientElement)
-
-NS_INTERFACE_TABLE_HEAD(nsSVGRadialGradientElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGRadialGradientElement, nsIDOMNode,
-                           nsIDOMElement, nsIDOMSVGElement,
-                           nsIDOMSVGGradientElement,
-                           nsIDOMSVGRadialGradientElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRadialGradientElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGRadialGradientElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGGradientElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRadialGradientElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRadialGradientElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGRadialGradientElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGRadialGradientElement::nsSVGRadialGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGRadialGradientElement::nsSVGRadialGradientElement(nsINodeInfo* aNodeInfo)
   : nsSVGRadialGradientElementBase(aNodeInfo)
 {
 }
@@ -371,3 +340,4 @@ nsSVGRadialGradientElement::GetLengthInfo()
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
+

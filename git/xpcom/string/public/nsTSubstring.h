@@ -50,7 +50,8 @@ class NS_COM nsTStringComparator_CharT
 
       nsTStringComparator_CharT() {}
 
-      virtual int operator()( const char_type*, const char_type*, PRUint32, PRUint32 ) const = 0;
+      virtual int operator()( const char_type*, const char_type*, PRUint32 length ) const = 0;
+      virtual int operator()( char_type, char_type ) const = 0;
   };
 
 
@@ -65,7 +66,8 @@ class NS_COM nsTDefaultStringComparator_CharT
 
       nsTDefaultStringComparator_CharT() {}
 
-      virtual int operator()( const char_type*, const char_type*, PRUint32, PRUint32 ) const;
+      virtual int operator()( const char_type*, const char_type*, PRUint32 length ) const;
+      virtual int operator()( char_type, char_type ) const;
   };
 
   /**
@@ -110,7 +112,7 @@ class nsTSubstring_CharT
     public:
 
         // this acts like a virtual destructor
-      ~nsTSubstring_CharT() { Finalize(); }
+      NS_COM NS_CONSTRUCTOR_FASTCALL ~nsTSubstring_CharT();
 
         /**
          * reading iterators
@@ -387,48 +389,6 @@ class nsTSubstring_CharT
 
       void AppendASCII( const char* data, size_type length = size_type(-1) )                     { ReplaceASCII(mLength, 0, data, length); }
 
-    // AppendPrintf truncates output to 31 ASCII characters
-      NS_COM void AppendPrintf( const char* format, ... );
-      void AppendInt( PRInt32 aInteger )
-                 { AppendPrintf( "%d", aInteger ); }
-      void AppendInt( PRInt32 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%d" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRUint32 aInteger )
-                 { AppendPrintf( "%u", aInteger ); }
-      void AppendInt( PRUint32 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%u" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRInt64 aInteger )
-                 { AppendPrintf( "%lld", aInteger ); }
-      void AppendInt( PRInt64 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%lld" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRUint64 aInteger )
-                 { AppendPrintf( "%llu", aInteger ); }
-      void AppendInt( PRUint64 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%llu" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf( fmt, aInteger );
-        }
-
-      /**
-       * Append the given float to this string 
-       */
-      void AppendFloat( float aFloat )
-                      { DoAppendFloat(aFloat, 6); }
-      void AppendFloat( double aFloat )
-                      { DoAppendFloat(aFloat, 15); }
-  private:
-      NS_COM void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
-  public:
-
     // AppendLiteral must ONLY be applied to an actual literal string.
     // Do not attempt to use it with a regular char* pointer, or with a char
     // array variable. Use AppendASCII for those.
@@ -461,15 +421,7 @@ class nsTSubstring_CharT
          * buffer sizing
          */
 
-        /**
-         * Attempts to set the capacity to the given size, without affecting
-         * the length of the string. Also ensures that the buffer is mutable.
-         *
-         * @returns PR_TRUE on success
-         *          PR_FALSE on out-of-memory, or if requesting a size bigger
-         *                   than a string can hold (2^31 chars).
-         */
-      NS_COM PRBool NS_FASTCALL SetCapacity( size_type newCapacity );
+      NS_COM void NS_FASTCALL SetCapacity( size_type newCapacity );
 
       NS_COM void NS_FASTCALL SetLength( size_type newLength );
 
@@ -537,29 +489,6 @@ class nsTSubstring_CharT
          
       NS_COM void StripChar( char_type aChar, PRInt32 aOffset=0 );
 
-        /**
-         *  This method is used to remove all occurrences of aChars from this
-         * string.
-         *
-         *  @param  aChars -- chars to be stripped
-         *  @param  aOffset -- where in this string to start stripping chars
-         */
-
-      NS_COM void StripChars( const char_type* aChars, PRUint32 aOffset=0 );
-
-        /**
-         * If the string uses a shared buffer, this method
-         * clears the pointer without releasing the buffer.
-         */
-      void ForgetSharedBuffer()
-      {
-        if (mFlags & nsSubstring::F_SHARED)
-          {
-            mData = char_traits::sEmptyBuffer;
-            mLength = 0;
-            mFlags = F_TERMINATED;
-          }
-      }
 
     public:
 
@@ -567,13 +496,7 @@ class nsTSubstring_CharT
          * this is public to support automatic conversion of tuple to string
          * base type, which helps avoid converting to nsTAString.
          */
-      nsTSubstring_CharT(const substring_tuple_type& tuple)
-        : mData(nsnull),
-          mLength(0),
-          mFlags(F_NONE)
-        {
-          Assign(tuple);
-        }
+      NS_COM nsTSubstring_CharT(const substring_tuple_type& tuple);
 
         /**
          * allows for direct initialization of a nsTSubstring object. 
@@ -581,18 +504,11 @@ class nsTSubstring_CharT
          * NOTE: this constructor is declared public _only_ for convenience
          * inside the string implementation.
          */
-        // XXXbz or can I just include nscore.h and use NS_BUILD_REFCNT_LOGGING?
-#if defined(DEBUG) || defined(FORCE_BUILD_REFCNT_LOGGING)
-#define XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
-       NS_COM nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags );
+#ifdef XP_OS2 /* Workaround for GCC 3.3.x bug. */
+       nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags ) NS_COM;
 #else
-#undef XPCOM_STRING_CONSTRUCTOR_OUT_OF_LINE
-       nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags )
-         : mData(data),
-           mLength(length),
-           mFlags(flags) {}
-#endif /* DEBUG || FORCE_BUILD_REFCNT_LOGGING */
-
+       NS_COM nsTSubstring_CharT( char_type *data, size_type length, PRUint32 flags );
+#endif
     protected:
 
       friend class nsTObsoleteAStringThunk_CharT;
@@ -606,29 +522,22 @@ class nsTSubstring_CharT
       PRUint32    mFlags;
 
         // default initialization 
-      nsTSubstring_CharT()
-        : mData(char_traits::sEmptyBuffer),
-          mLength(0),
-          mFlags(F_TERMINATED) {}
+      NS_COM nsTSubstring_CharT();
 
         // version of constructor that leaves mData and mLength uninitialized
       explicit
-      nsTSubstring_CharT( PRUint32 flags )
-        : mFlags(flags) {}
+      NS_COM nsTSubstring_CharT( PRUint32 flags );
 
         // copy-constructor, constructs as dependent on given object
         // (NOTE: this is for internal use only)
-      nsTSubstring_CharT( const self_type& str )
-        : mData(str.mData),
-          mLength(str.mLength),
-          mFlags(str.mFlags & (F_TERMINATED | F_VOIDED)) {}
+      NS_COM nsTSubstring_CharT( const self_type& str );
 
         /**
          * this function releases mData and does not change the value of
          * any of its member variables.  in other words, this function acts
          * like a destructor.
          */
-      void NS_COM NS_FASTCALL Finalize();
+      void NS_FASTCALL Finalize();
 
         /**
          * this function prepares mData to be mutated.
@@ -670,31 +579,13 @@ class nsTSubstring_CharT
          * this function returns false if is unable to allocate sufficient
          * memory.
          */
-      PRBool ReplacePrep(index_type cutStart, size_type cutLength,
-                         size_type newLength)
-      {
-        cutLength = NS_MIN(cutLength, mLength - cutStart);
-        PRUint32 newTotalLen = mLength - cutLength + newLength;
-        if (cutStart == mLength && Capacity() > newTotalLen) {
-          mFlags &= ~F_VOIDED;
-          mData[newTotalLen] = char_type(0);
-          mLength = newTotalLen;
-          return PR_TRUE;
-        }
-        return ReplacePrepInternal(cutStart, cutLength, newLength, newTotalLen);
-      }
+      PRBool NS_FASTCALL ReplacePrep( index_type cutStart, size_type cutLength, size_type newLength );
 
-      PRBool NS_FASTCALL ReplacePrepInternal(index_type cutStart,
-                                             size_type cutLength,
-                                             size_type newFragLength,
-                                             size_type newTotalLength);
-      
         /**
          * returns the number of writable storage units starting at mData.
          * the value does not include space for the null-terminator character.
          *
-         * NOTE: this function returns 0 if mData is immutable (or the buffer
-         *       is 0-sized).
+         * NOTE: this function returns size_type(-1) if mData is immutable.
          */
       size_type NS_FASTCALL Capacity() const;
 

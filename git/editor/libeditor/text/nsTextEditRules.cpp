@@ -57,23 +57,21 @@
 #include "nsIContentIterator.h"
 #include "nsEditorUtils.h"
 #include "EditTxn.h"
-#include "nsEditProperty.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 #include "DeleteTextTxn.h"
-#include "nsNodeIterator.h"
-#include "nsIDOMNodeFilter.h"
 
 // for IBMBIDI
+#include "nsIPresShell.h"
 #include "nsFrameSelection.h"
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define CANCEL_OPERATION_IF_READONLY_OR_DISABLED \
-  if (IsReadonly() || IsDisabled()) \
+  if ((mFlags & nsIPlaintextEditor::eEditorReadonlyMask) || (mFlags & nsIPlaintextEditor::eEditorDisabledMask)) \
   {                     \
     *aCancel = PR_TRUE; \
     return NS_OK;       \
@@ -99,72 +97,78 @@ nsTextEditRules::nsTextEditRules()
 , mPasswordText()
 , mPasswordIMEText()
 , mPasswordIMEIndex(0)
+, mFlags(0) // initialized to 0 ("no flags set").  Real initial value is given in Init()
 , mActionNesting(0)
 , mLockRulesSniffing(PR_FALSE)
 , mDidExplicitlySetInterline(PR_FALSE)
 , mTheAction(0)
-, mLastStart(0)
-, mLastLength(0)
 {
 }
 
 nsTextEditRules::~nsTextEditRules()
 {
    // do NOT delete mEditor here.  We do not hold a ref count to mEditor.  mEditor owns our lifespan.
-
-  if (mTimer)
-    mTimer->Cancel();
 }
 
 /********************************************************
  *  XPCOM Cruft
  ********************************************************/
 
-NS_IMPL_CYCLE_COLLECTION_2(nsTextEditRules, mBogusNode, mCachedSelectionNode)
+NS_IMPL_ISUPPORTS1(nsTextEditRules, nsIEditRules)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTextEditRules)
-  NS_INTERFACE_MAP_ENTRY(nsIEditRules)
-  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditRules)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTextEditRules)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTextEditRules)
 
 /********************************************************
  *  Public methods 
  ********************************************************/
 
 NS_IMETHODIMP
-nsTextEditRules::Init(nsPlaintextEditor *aEditor)
+nsTextEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
 {
   if (!aEditor) { return NS_ERROR_NULL_POINTER; }
 
   mEditor = aEditor;  // we hold a non-refcounted reference back to our editor
+  // call SetFlags only aftet mEditor has been initialized!
+  SetFlags(aFlags);
   nsCOMPtr<nsISelection> selection;
   mEditor->GetSelection(getter_AddRefs(selection));
   NS_ASSERTION(selection, "editor cannot get selection");
 
+  // Cache our body node, if available.
+  nsIDOMNode *body = mEditor->GetRoot();
+
   // Put in a magic br if needed. This method handles null selection,
   // which should never happen anyway
   nsresult res = CreateBogusNodeIfNeeded(selection);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
-  // If the selection hasn't been set up yet, set it up collapsed to the end of
-  // our editable content.
-  PRInt32 rangeCount;
-  res = selection->GetRangeCount(&rangeCount);
-  NS_ENSURE_SUCCESS(res, res);
-  if (!rangeCount) {
-    res = mEditor->EndOfDocument();
-    NS_ENSURE_SUCCESS(res, res);
-  }
-
-  if (IsPlaintextEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPlaintextMask)
   {
     // ensure trailing br node
     res = CreateTrailingBRIfNeeded();
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
+  }
+
+  if (body)
+  {
+    // create a range that is the entire body contents
+    nsCOMPtr<nsIDOMRange> wholeDoc =
+      do_CreateInstance("@mozilla.org/content/range;1");
+    if (!wholeDoc) return NS_ERROR_NULL_POINTER;
+    wholeDoc->SetStart(body,0);
+    nsCOMPtr<nsIDOMNodeList> list;
+    res = body->GetChildNodes(getter_AddRefs(list));
+    if (NS_FAILED(res)) return res;
+    if (!list) return NS_ERROR_FAILURE;
+
+    PRUint32 listCount;
+    res = list->GetLength(&listCount);
+    if (NS_FAILED(res)) return res;
+
+    res = wholeDoc->SetEnd(body, listCount);
+    if (NS_FAILED(res)) return res;
+
+    // replace newlines in that range with breaks
+    res = ReplaceNewlines(wholeDoc);
   }
 
   PRBool deleteBidiImmediately = PR_FALSE;
@@ -179,12 +183,24 @@ nsTextEditRules::Init(nsPlaintextEditor *aEditor)
 }
 
 NS_IMETHODIMP
-nsTextEditRules::DetachEditor()
+nsTextEditRules::GetFlags(PRUint32 *aFlags)
 {
-  if (mTimer)
-    mTimer->Cancel();
+  if (!aFlags) { return NS_ERROR_NULL_POINTER; }
+  *aFlags = mFlags;
+  return NS_OK;
+}
 
-  mEditor = nsnull;
+NS_IMETHODIMP
+nsTextEditRules::SetFlags(PRUint32 aFlags)
+{
+  if (mFlags == aFlags) return NS_OK;
+  
+  // XXX - this won't work if body element already has
+  // a style attribute on it, don't know why.
+  // SetFlags() is really meant to only be called once
+  // and at editor init time.  
+
+  mFlags = aFlags;
   return NS_OK;
 }
 
@@ -195,21 +211,22 @@ nsTextEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   
   nsAutoLockRulesSniffing lockIt(this);
   mDidExplicitlySetInterline = PR_FALSE;
+  
+  // get the selection and cache the position before editing
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = mEditor->GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(res)) 
+    return res;
+
+  selection->GetAnchorNode(getter_AddRefs(mCachedSelectionNode));
+  selection->GetAnchorOffset(&mCachedSelectionOffset);
+
   if (!mActionNesting)
   {
     // let rules remember the top level action
     mTheAction = action;
   }
   mActionNesting++;
-  
-  // get the selection and cache the position before editing
-  nsCOMPtr<nsISelection> selection;
-  nsresult res = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-
-  selection->GetAnchorNode(getter_AddRefs(mCachedSelectionNode));
-  selection->GetAnchorOffset(&mCachedSelectionOffset);
-
   return NS_OK;
 }
 
@@ -227,23 +244,23 @@ nsTextEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   {
     nsCOMPtr<nsISelection>selection;
     res = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   
     res = mEditor->HandleInlineSpellCheck(action, selection,
                                           mCachedSelectionNode, mCachedSelectionOffset,
                                           nsnull, 0, nsnull, 0);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) 
+      return res;
 
     // detect empty doc
     res = CreateBogusNodeIfNeeded(selection);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) 
+      return res;
     
     // insure trailing br node
     res = CreateTrailingBRIfNeeded();
-    NS_ENSURE_SUCCESS(res, res);
-
-    // collapse the selection to the trailing BR if it's at the end of our text node
-    CollapseSelectionToTrailingBRIfNeeded(selection);
+    if (NS_FAILED(res)) 
+      return res;
     
     /* After inserting text the cursor Bidi level must be set to the level of the inserted text.
      * This is difficult, because we cannot know what the level is until after the Bidi algorithm
@@ -286,7 +303,7 @@ nsTextEditRules::WillDoAction(nsISelection *aSelection,
   switch (info->action)
   {
     case kInsertBreak:
-      return WillInsertBreak(aSelection, aCancel, aHandled, info->maxLength);
+      return WillInsertBreak(aSelection, aCancel, aHandled);
     case kInsertText:
     case kInsertTextIME:
       return WillInsertText(info->action,
@@ -327,7 +344,8 @@ nsTextEditRules::DidDoAction(nsISelection *aSelection,
   // Note that this won't prevent explicit selection setting from working.
   nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
 
-  NS_ENSURE_TRUE(aSelection && aInfo, NS_ERROR_NULL_POINTER);
+  if (!aSelection || !aInfo) 
+    return NS_ERROR_NULL_POINTER;
     
   // my kingdom for dynamic cast
   nsTextRulesInfo *info = static_cast<nsTextRulesInfo*>(aInfo);
@@ -360,7 +378,8 @@ nsTextEditRules::DidDoAction(nsISelection *aSelection,
 NS_IMETHODIMP
 nsTextEditRules::DocumentIsEmpty(PRBool *aDocumentIsEmpty)
 {
-  NS_ENSURE_TRUE(aDocumentIsEmpty, NS_ERROR_NULL_POINTER);
+  if (!aDocumentIsEmpty)
+    return NS_ERROR_NULL_POINTER;
   
   *aDocumentIsEmpty = (mBogusNode != nsnull);
   return NS_OK;
@@ -374,7 +393,8 @@ nsTextEditRules::DocumentIsEmpty(PRBool *aDocumentIsEmpty)
 nsresult
 nsTextEditRules::WillInsert(nsISelection *aSelection, PRBool *aCancel)
 {
-  NS_ENSURE_TRUE(aSelection && aCancel, NS_ERROR_NULL_POINTER);
+  if (!aSelection || !aCancel)
+    return NS_ERROR_NULL_POINTER;
   
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
 
@@ -398,46 +418,30 @@ nsTextEditRules::DidInsert(nsISelection *aSelection, nsresult aResult)
 }
 
 nsresult
-nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
-                                 PRBool *aCancel,
-                                 PRBool *aHandled,
-                                 PRInt32 aMaxLength)
+nsTextEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBool *aHandled)
 {
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
   *aHandled = PR_FALSE;
-  if (IsSingleLineEditor()) {
+  if (mFlags & nsIPlaintextEditor::eEditorSingleLineMask) {
     *aCancel = PR_TRUE;
   }
   else 
   {
-    // handle docs with a max length
-    // NOTE, this function copies inString into outString for us.
-    NS_NAMED_LITERAL_STRING(inString, "\n");
-    nsAutoString outString;
-    PRBool didTruncate;
-    nsresult res = TruncateInsertionIfNeeded(aSelection, &inString, &outString,
-                                             aMaxLength, &didTruncate);
-    NS_ENSURE_SUCCESS(res, res);
-    if (didTruncate) {
-      *aCancel = PR_TRUE;
-      return NS_OK;
-    }
-
     *aCancel = PR_FALSE;
 
     // if the selection isn't collapsed, delete it.
     PRBool bCollapsed;
-    res = aSelection->GetIsCollapsed(&bCollapsed);
-    NS_ENSURE_SUCCESS(res, res);
+    nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+    if (NS_FAILED(res)) return res;
     if (!bCollapsed)
     {
       res = mEditor->DeleteSelection(nsIEditor::eNone);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
     }
 
     res = WillInsert(aSelection, aCancel);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     // initialize out param
     // we want to ignore result of WillInsert()
     *aCancel = PR_FALSE;
@@ -449,160 +453,50 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
 nsresult
 nsTextEditRules::DidInsertBreak(nsISelection *aSelection, nsresult aResult)
 {
-  return NS_OK;
-}
-
-nsresult
-nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
-{
   // we only need to execute the stuff below if we are a plaintext editor.
   // html editors have a different mechanism for putting in mozBR's
   // (because there are a bunch more places you have to worry about it in html) 
-  if (!IsPlaintextEditor()) {
-    return NS_OK;
-  }
+  if (!nsIPlaintextEditor::eEditorPlaintextMask & mFlags) return NS_OK;
 
-  // if we are at the end of the textarea, we need to set the
-  // selection to stick to the mozBR at the end of the textarea.
+  // if we are at the end of the document, we need to insert 
+  // a special mozBR following the normal br, and then set the
+  // selection to stick to the mozBR.
   PRInt32 selOffset;
   nsCOMPtr<nsIDOMNode> selNode;
   nsresult res;
-  res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
-  NS_ENSURE_SUCCESS(res, res);
-
-  nsCOMPtr<nsIDOMText> nodeAsText = do_QueryInterface(selNode);
-  if (!nodeAsText) return NS_OK; // nothing to do if we're not at a text node
-
-  PRUint32 length;
-  res = nodeAsText->GetLength(&length);
-  NS_ENSURE_SUCCESS(res, res);
-
-  // nothing to do if we're not at the end of the text node
-  if (selOffset != PRInt32(length))
-    return NS_OK;
-
-  nsCOMPtr<nsIDOMNode> parentNode;
-  PRInt32 parentOffset;
-  res = nsEditor::GetNodeLocation(selNode, address_of(parentNode),
-                                  &parentOffset);
-  NS_ENSURE_SUCCESS(res, res);
-
+  res = mEditor->GetStartNodeAndOffset(aSelection, address_of(selNode), &selOffset);
+  if (NS_FAILED(res)) return res;
+  // confirm we are at end of document
+  if (selOffset == 0) return NS_OK;  // can't be after a br if we are at offset 0
   nsIDOMElement *rootElem = mEditor->GetRoot();
-  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(rootElem);
-  NS_ENSURE_TRUE(root, NS_ERROR_NULL_POINTER);
-  if (parentNode != root) return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> nextNode = mEditor->GetChildAt(parentNode,
-                                                      parentOffset + 1);
-  if (nextNode && nsTextEditUtils::IsMozBR(nextNode))
+  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(rootElem);
+  if (!root) return NS_ERROR_NULL_POINTER;
+  if (selNode != root) return NS_OK; // must be inside text node or somewhere other than end of root
+
+  nsCOMPtr<nsIDOMNode> temp = mEditor->GetChildAt(selNode, selOffset);
+  if (temp) return NS_OK; // can't be at end if there is a node after us.
+
+  nsCOMPtr<nsIDOMNode> nearNode = mEditor->GetChildAt(selNode, selOffset-1);
+  if (nearNode && nsTextEditUtils::IsBreak(nearNode) && !nsTextEditUtils::IsMozBR(nearNode))
   {
-    res = aSelection->Collapse(parentNode, parentOffset + 1);
-    NS_ENSURE_SUCCESS(res, res);
+    nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(aSelection));
+    // need to insert special moz BR. Why?  Because if we don't
+    // the user will see no new line for the break.  Also, things
+    // like table cells won't grow in height.
+    nsCOMPtr<nsIDOMNode> brNode;
+    res = CreateMozBR(selNode, selOffset, address_of(brNode));
+    if (NS_FAILED(res)) return res;
+
+    res = nsEditor::GetNodeLocation(brNode, address_of(selNode), &selOffset);
+    if (NS_FAILED(res)) return res;
+    selPrivate->SetInterlinePosition(PR_TRUE);
+    res = aSelection->Collapse(selNode, selOffset);
+    if (NS_FAILED(res)) return res;
   }
   return res;
 }
 
-static inline already_AddRefed<nsIDOMNode>
-GetTextNode(nsISelection *selection, nsEditor *editor) {
-  PRInt32 selOffset;
-  nsCOMPtr<nsIDOMNode> selNode;
-  nsresult res = editor->GetStartNodeAndOffset(selection, getter_AddRefs(selNode), &selOffset);
-  NS_ENSURE_SUCCESS(res, nsnull);
-  if (!editor->IsTextNode(selNode)) {
-    // Get an nsINode from the nsIDOMNode
-    nsCOMPtr<nsINode> node = do_QueryInterface(selNode);
-    // if node is null, return it to indicate there's no text
-    NS_ENSURE_TRUE(node, nsnull);
-    // This should be the root node, walk the tree looking for text nodes
-    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nsnull, PR_TRUE);
-    while (!editor->IsTextNode(selNode)) {
-      if (NS_FAILED(res = iter.NextNode(getter_AddRefs(selNode))) || !selNode) {
-        return nsnull;
-      }
-    }
-  }
-  return selNode.forget();
-}
-#ifdef DEBUG
-#define ASSERT_PASSWORD_LENGTHS_EQUAL()                                \
-  if (IsPasswordEditor()) {                                            \
-    PRInt32 txtLen;                                                    \
-    mEditor->GetTextLength(&txtLen);                                    \
-    NS_ASSERTION(mPasswordText.Length() == PRUint32(txtLen),           \
-                 "password length not equal to number of asterisks");  \
-  }
-#else
-#define ASSERT_PASSWORD_LENGTHS_EQUAL()
-#endif
-
-// static
-void
-nsTextEditRules::HandleNewLines(nsString &aString,
-                                PRInt32 aNewlineHandling)
-{
-  if (aNewlineHandling < 0) {
-    PRInt32 caretStyle;
-    nsPlaintextEditor::GetDefaultEditorPrefs(aNewlineHandling, caretStyle);
-  }
-
-  switch(aNewlineHandling)
-  {
-  case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
-    // Strip trailing newlines first so we don't wind up with trailing spaces
-    aString.Trim(CRLF, PR_FALSE, PR_TRUE);
-    aString.ReplaceChar(CRLF, ' ');
-    break;
-  case nsIPlaintextEditor::eNewlinesStrip:
-    aString.StripChars(CRLF);
-    break;
-  case nsIPlaintextEditor::eNewlinesPasteToFirst:
-  default:
-    {
-      PRInt32 firstCRLF = aString.FindCharInSet(CRLF);
-
-      // we get first *non-empty* line.
-      PRInt32 offset = 0;
-      while (firstCRLF == offset)
-      {
-        offset++;
-        firstCRLF = aString.FindCharInSet(CRLF, offset);
-      }
-      if (firstCRLF > 0)
-        aString.Truncate(firstCRLF);
-      if (offset > 0)
-        aString.Cut(0, offset);
-    }
-    break;
-  case nsIPlaintextEditor::eNewlinesReplaceWithCommas:
-    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
-    aString.ReplaceChar(CRLF, ',');
-    break;
-  case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
-    {
-      // find each newline, and strip all the whitespace before
-      // and after it
-      PRInt32 firstCRLF = aString.FindCharInSet(CRLF);
-      while (firstCRLF >= 0)
-      {
-        PRUint32 wsBegin = firstCRLF, wsEnd = firstCRLF + 1;
-        // look backwards for the first non-whitespace char
-        while (wsBegin > 0 && NS_IS_SPACE(aString[wsBegin - 1]))
-          --wsBegin;
-        while (wsEnd < aString.Length() && NS_IS_SPACE(aString[wsEnd]))
-          ++wsEnd;
-        // now cut this range out of the string
-        aString.Cut(wsBegin, wsEnd - wsBegin);
-        // look for another CR or LF
-        firstCRLF = aString.FindCharInSet(CRLF);
-      }
-    }
-    break;
-  case nsIPlaintextEditor::eNewlinesPasteIntact:
-    // even if we're pasting newlines, don't paste leading/trailing ones
-    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
-    break;
-  }
-}
 
 nsresult
 nsTextEditRules::WillInsertText(PRInt32          aAction,
@@ -633,38 +527,32 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
 
   // handle docs with a max length
   // NOTE, this function copies inString into outString for us.
-  PRBool truncated = PR_FALSE;
-  nsresult res = TruncateInsertionIfNeeded(aSelection, inString, outString,
-                                           aMaxLength, &truncated);
-  NS_ENSURE_SUCCESS(res, res);
-  if (truncated && outString->IsEmpty()) {
-    *aCancel = PR_TRUE;
-    return NS_OK;
-  }
+  nsresult res = TruncateInsertionIfNeeded(aSelection, inString, outString, aMaxLength);
+  if (NS_FAILED(res)) return res;
   
   PRUint32 start = 0;
   PRUint32 end = 0;  
 
   // handle password field docs
-  if (IsPasswordEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
     res = mEditor->GetTextSelectionOffsets(aSelection, start, end);
     NS_ASSERTION((NS_SUCCEEDED(res)), "getTextSelectionOffsets failed!");
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   // if the selection isn't collapsed, delete it.
   PRBool bCollapsed;
   res = aSelection->GetIsCollapsed(&bCollapsed);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (!bCollapsed)
   {
     res = mEditor->DeleteSelection(nsIEditor::eNone);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   res = WillInsert(aSelection, aCancel);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   // initialize out param
   // we want to ignore result of WillInsert()
   *aCancel = PR_FALSE;
@@ -672,11 +560,11 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // handle password field data
   // this has the side effect of changing all the characters in aOutString
   // to the replacement character
-  if (IsPasswordEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
     if (aAction == kInsertTextIME)  {
       res = RemoveIMETextFromPWBuf(start, outString);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
     }
   }
 
@@ -690,48 +578,80 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // 4. replace with commas
   // 5. strip newlines and surrounding whitespace
   // So find out what we're expected to do:
-  if (IsSingleLineEditor())
+  if (nsIPlaintextEditor::eEditorSingleLineMask & mFlags)
   {
     nsAutoString tString(*outString);
 
-    HandleNewLines(tString, mEditor->mNewlineHandling);
+    switch(mEditor->mNewlineHandling)
+    {
+    case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
+      tString.ReplaceChar(CRLF, ' ');
+      break;
+    case nsIPlaintextEditor::eNewlinesStrip:
+      tString.StripChars(CRLF);
+      break;
+    case nsIPlaintextEditor::eNewlinesPasteToFirst:
+    default:
+      {
+        PRInt32 firstCRLF = tString.FindCharInSet(CRLF);
+
+        // we get first *non-empty* line.
+        PRInt32 offset = 0;
+        while (firstCRLF == offset)
+        {
+          offset++;
+          firstCRLF = tString.FindCharInSet(CRLF, offset);
+        }
+        if (firstCRLF > 0)
+          tString.Truncate(firstCRLF);
+        if (offset > 0)
+          tString.Cut(0, offset);
+      }
+      break;
+    case nsIPlaintextEditor::eNewlinesReplaceWithCommas:
+      tString.Trim(CRLF, PR_TRUE, PR_TRUE);
+      tString.ReplaceChar(CRLF, ',');
+      break;
+    case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
+      {
+        // find each newline, and strip all the whitespace before
+        // and after it
+        PRInt32 firstCRLF = tString.FindCharInSet(CRLF);
+        while (firstCRLF >= 0)
+        {
+          PRUint32 wsBegin = firstCRLF, wsEnd = firstCRLF + 1;
+          // look backwards for the first non-whitespace char
+          while (wsBegin > 0 && NS_IS_SPACE(tString[wsBegin - 1]))
+            --wsBegin;
+          while (wsEnd < tString.Length() && NS_IS_SPACE(tString[wsEnd]))
+            ++wsEnd;
+          // now cut this range out of the string
+          tString.Cut(wsBegin, wsEnd - wsBegin);
+          // look for another CR or LF
+          firstCRLF = tString.FindCharInSet(CRLF);
+        }
+      }
+      break;
+    case nsIPlaintextEditor::eNewlinesPasteIntact:
+      // even if we're pasting newlines, don't paste leading/trailing ones
+      tString.Trim(CRLF, PR_TRUE, PR_TRUE);
+      break;
+    }
 
     outString->Assign(tString);
   }
 
-  if (IsPasswordEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
-    // manage the password buffer
-    mPasswordText.Insert(*outString, start);
-
-    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
-    if (lookAndFeel->GetEchoPassword() && !DontEchoPassword()) {
-      HideLastPWInput();
-      mLastStart = start;
-      mLastLength = outString->Length();
-      if (mTimer)
-      {
-        mTimer->Cancel();
-      }
-      else
-      {
-        mTimer = do_CreateInstance("@mozilla.org/timer;1", &res);
-        NS_ENSURE_SUCCESS(res, res);
-      }
-      mTimer->InitWithCallback(this, 600, nsITimer::TYPE_ONE_SHOT);
-    } 
-    else 
-    {
-      res = FillBufWithPWChars(outString, outString->Length());
-      NS_ENSURE_SUCCESS(res, res);
-    }
+    res = EchoInsertionToPWBuff(start, end, outString);
+    if (NS_FAILED(res)) return res;
   }
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode;
   PRInt32 selOffset;
-  res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  res = mEditor->GetStartNodeAndOffset(aSelection, address_of(selNode), &selOffset);
+  if (NS_FAILED(res)) return res;
 
   // don't put text in places that can't have it
   if (!mEditor->IsTextNode(selNode) && !mEditor->CanContainTag(selNode, NS_LITERAL_STRING("#text")))
@@ -740,13 +660,13 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // we need to get the doc
   nsCOMPtr<nsIDOMDocument>doc;
   res = mEditor->GetDocument(getter_AddRefs(doc));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!doc) return NS_ERROR_NULL_POINTER;
     
   if (aAction == kInsertTextIME) 
   { 
     res = mEditor->InsertTextImpl(*outString, address_of(selNode), &selOffset, doc);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
   else // aAction == kInsertText
   {
@@ -754,26 +674,145 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
     nsCOMPtr<nsIDOMNode> curNode = selNode;
     PRInt32 curOffset = selOffset;
 
+    // is our text going to be PREformatted?  
+    // We remember this so that we know how to handle tabs.
+    PRBool isPRE;
+    res = mEditor->IsPreformatted(selNode, &isPRE);
+    if (NS_FAILED(res)) return res;    
+
     // don't spaz my selection in subtransactions
     nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
+    nsString tString(*outString);
+    const PRUnichar *unicodeBuf = tString.get();
+    nsCOMPtr<nsIDOMNode> unused;
+    PRInt32 pos = 0;
 
-    res = mEditor->InsertTextImpl(*outString, address_of(curNode),
-                                  &curOffset, doc);
-    NS_ENSURE_SUCCESS(res, res);
+    // for efficiency, break out the pre case separately.  This is because
+    // it's a lot cheaper to search the input string for only newlines than
+    // it is to search for both tabs and newlines.
+    if (isPRE)
+    {
+      while (unicodeBuf && (pos != -1) && ((PRUint32)pos < tString.Length()))
+      {
+        PRInt32 oldPos = pos;
+        PRInt32 subStrLen;
+        pos = tString.FindChar(nsCRT::LF, oldPos);
+        
+        if (pos != -1) 
+        {
+          subStrLen = pos - oldPos;
+          // if first char is newline, then use just it
+          if (subStrLen == 0)
+            subStrLen = 1;
+        }
+        else
+        {
+          subStrLen = tString.Length() - oldPos;
+          pos = tString.Length();
+        }
+
+        nsDependentSubstring subStr(tString, oldPos, subStrLen);
+        
+        // is it a return?
+        if (subStr.EqualsLiteral(LFSTR))
+        {
+          if (nsIPlaintextEditor::eEditorSingleLineMask & mFlags)
+          {
+            NS_ASSERTION((mEditor->mNewlineHandling == nsIPlaintextEditor::eNewlinesPasteIntact),
+                  "Newline improperly getting into single-line edit field!");
+            res = mEditor->InsertTextImpl(subStr, address_of(curNode), &curOffset, doc);
+          }
+          else
+          {
+            res = mEditor->CreateBRImpl(address_of(curNode), &curOffset, address_of(unused), nsIEditor::eNone);
+
+            // If the newline is the last character in the string, and the BR we
+            // just inserted is the last node in the content tree, we need to add
+            // a mozBR so that a blank line is created.
+
+            if (NS_SUCCEEDED(res) && curNode && pos == (PRInt32)(tString.Length() - 1))
+            {
+              nsCOMPtr<nsIDOMNode> nextChild = mEditor->GetChildAt(curNode, curOffset);
+
+              if (!nextChild)
+              {
+                // We must be at the end since there isn't a nextChild.
+                //
+                // curNode and curOffset should be set to the position after
+                // the BR we added above, so just create a mozBR at that position.
+                //
+                // Note that we don't update curOffset after we've created/inserted
+                // the mozBR since we never want the selection to be placed after it.
+
+                res = CreateMozBR(curNode, curOffset, address_of(unused));
+              }
+            }
+          }
+          pos++;
+        }
+        else
+        {
+          res = mEditor->InsertTextImpl(subStr, address_of(curNode), &curOffset, doc);
+        }
+        if (NS_FAILED(res)) return res;
+      }
+    }
+    else
+    {
+      char specialChars[] = {TAB, nsCRT::LF, 0};
+      while (unicodeBuf && (pos != -1) && ((PRUint32)pos < tString.Length()))
+      {
+        PRInt32 oldPos = pos;
+        PRInt32 subStrLen;
+        pos = tString.FindCharInSet(specialChars, oldPos);
+        
+        if (pos != -1) 
+        {
+          subStrLen = pos - oldPos;
+          // if first char is newline, then use just it
+          if (subStrLen == 0)
+            subStrLen = 1;
+        }
+        else
+        {
+          subStrLen = tString.Length() - oldPos;
+          pos = tString.Length();
+        }
+
+        nsDependentSubstring subStr(tString, oldPos, subStrLen);
+        
+        // is it a tab?
+        if (subStr.EqualsLiteral("\t"))
+        {
+          res = mEditor->InsertTextImpl(NS_LITERAL_STRING("    "), address_of(curNode), &curOffset, doc);
+          pos++;
+        }
+        // is it a return?
+        else if (subStr.EqualsLiteral(LFSTR))
+        {
+          res = mEditor->CreateBRImpl(address_of(curNode), &curOffset, address_of(unused), nsIEditor::eNone);
+          pos++;
+        }
+        else
+        {
+          res = mEditor->InsertTextImpl(subStr, address_of(curNode), &curOffset, doc);
+        }
+        if (NS_FAILED(res)) return res;
+      }
+    }
+    outString->Assign(tString);
 
     if (curNode) 
     {
+      aSelection->Collapse(curNode, curOffset);
+      
       // Make the caret attach to the inserted text, unless this text ends with a LF, 
       // in which case make the caret attach to the next line.
-      PRBool endsWithLF =
-        !outString->IsEmpty() && outString->Last() == nsCRT::LF;
+      PRBool endsWithLF = !tString.IsEmpty() && tString.get()[tString.Length() - 1] == nsCRT::LF;
       nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(aSelection));
       selPrivate->SetInterlinePosition(endsWithLF);
-
-      aSelection->Collapse(curNode, curOffset);
     }
   }
-  ASSERT_PASSWORD_LENGTHS_EQUAL()
   return res;
 }
 
@@ -793,7 +832,7 @@ nsTextEditRules::WillSetTextProperty(nsISelection *aSelection, PRBool *aCancel, 
     { return NS_ERROR_NULL_POINTER; }
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
-  if (IsPlaintextEditor()) {
+  if (nsIPlaintextEditor::eEditorPlaintextMask & mFlags) {
     *aCancel = PR_TRUE;
   }
   return NS_OK;
@@ -812,7 +851,7 @@ nsTextEditRules::WillRemoveTextProperty(nsISelection *aSelection, PRBool *aCance
     { return NS_ERROR_NULL_POINTER; }
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
-  if (IsPlaintextEditor()) {
+  if (nsIPlaintextEditor::eEditorPlaintextMask & mFlags) {
     *aCancel = PR_TRUE;
   }
   return NS_OK;
@@ -845,27 +884,12 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
 
   nsresult res = NS_OK;
 
-  if (IsPasswordEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
-    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
-    NS_ENSURE_SUCCESS(res, res);
-
     // manage the password buffer
     PRUint32 start, end;
     mEditor->GetTextSelectionOffsets(aSelection, start, end);
     NS_ENSURE_SUCCESS(res, res);
-    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
-
-    if (lookAndFeel->GetEchoPassword()) {
-      HideLastPWInput();
-      mLastStart = start;
-      mLastLength = 0;
-      if (mTimer)
-      {
-        mTimer->Cancel();
-      }
-    }
-
     if (end == start)
     { // collapsed selection
       if (nsIEditor::ePrevious==aCollapsedAction && 0<start) { // del back
@@ -884,32 +908,105 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
   {
     nsCOMPtr<nsIDOMNode> startNode;
     PRInt32 startOffset;
-    res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(startNode), &startOffset);
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
+    res = mEditor->GetStartNodeAndOffset(aSelection, address_of(startNode), &startOffset);
+    if (NS_FAILED(res)) return res;
+    if (!startNode) return NS_ERROR_FAILURE;
     
     PRBool bCollapsed;
     res = aSelection->GetIsCollapsed(&bCollapsed);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   
-    if (!bCollapsed)
-      return NS_OK;
+    if (bCollapsed)
+    {
+      // Test for distance between caret and text that will be deleted
+      res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
+      if (NS_FAILED(res)) return res;
+      if (*aCancel) return NS_OK;
 
-    // Test for distance between caret and text that will be deleted
-    res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
-    NS_ENSURE_SUCCESS(res, res);
-    if (*aCancel) return NS_OK;
+      nsCOMPtr<nsIDOMText> textNode;
+      PRUint32 strLength;
+      
+      // destroy any empty text nodes in our path
+      if (mEditor->IsTextNode(startNode))
+      {
+        textNode = do_QueryInterface(startNode);
+        res = textNode->GetLength(&strLength);
+        if (NS_FAILED(res)) return res;
+        // if it has a length and we aren't at the edge, we are done
+        if (strLength && !( ((aCollapsedAction == nsIEditor::ePrevious) && startOffset) ||
+                            ((aCollapsedAction == nsIEditor::eNext) && startOffset==PRInt32(strLength)) ) )
+          return NS_OK;
+        
+        // remember where we are
+        nsCOMPtr<nsIDOMNode> selNode = startNode;
+        res = nsEditor::GetNodeLocation(selNode, address_of(startNode), &startOffset);
+        if (NS_FAILED(res)) return res;
 
-    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
-    NS_ENSURE_SUCCESS(res, res);
+        // delete this text node if empty
+        if (!strLength)
+        {
+          // delete empty text node
+          res = mEditor->DeleteNode(selNode);
+          if (NS_FAILED(res)) return res;
+        }
+        else
+        {
+          // if text node isn't empty, but we are at end of it, remeber that we are after it
+          if (aCollapsedAction == nsIEditor::eNext)
+            startOffset++;
+        }
+      }
+
+      // find next node (we know we are in container here)
+      nsCOMPtr<nsIContent> child, content(do_QueryInterface(startNode));
+      if (!content) return NS_ERROR_NULL_POINTER;
+      if (aCollapsedAction == nsIEditor::ePrevious)
+        --startOffset;
+      child = content->GetChildAt(startOffset);
+
+      nsCOMPtr<nsIDOMNode> nextNode = do_QueryInterface(child);
+      
+      // scan for next node, deleting empty text nodes on way
+      while (nextNode && mEditor->IsTextNode(nextNode))
+      {
+        textNode = do_QueryInterface(nextNode);
+        if (!textNode) break;// found a br, stop there
+
+        res = textNode->GetLength(&strLength);
+        if (NS_FAILED(res)) return res;
+        if (strLength) break;  // found a non-empty text node
+        
+        // delete empty text node
+        res = mEditor->DeleteNode(nextNode);
+        if (NS_FAILED(res)) return res;
+        
+        // find next node
+        if (aCollapsedAction == nsIEditor::ePrevious)
+          --startOffset;
+          // don't need to increment startOffset for nsIEditor::eNext
+        child = content->GetChildAt(startOffset);
+
+        nextNode = do_QueryInterface(child);
+      }
+      // fix for bugzilla #125161: if we are about to forward delete a <BR>,
+      // make sure it is not last node in editfield.  If it is, cancel deletion.
+      if (nextNode && (aCollapsedAction == nsIEditor::eNext) && nsTextEditUtils::IsBreak(nextNode))
+      {
+        nsIDOMNode *body = mEditor->GetRoot();
+        if (!body)
+          return NS_ERROR_NULL_POINTER;
+        nsCOMPtr<nsIDOMNode> lastChild;
+        res = body->GetLastChild(getter_AddRefs(lastChild));
+        if (lastChild == nextNode)
+        {
+          *aCancel = PR_TRUE;
+          return NS_OK;
+        }
+      }
+    }
   }
 
-  res = mEditor->DeleteSelectionImpl(aCollapsedAction);
-  NS_ENSURE_SUCCESS(res, res);
-
-  *aHandled = PR_TRUE;
-  ASSERT_PASSWORD_LENGTHS_EQUAL()
-  return NS_OK;
+  return res;
 }
 
 nsresult
@@ -919,9 +1016,9 @@ nsTextEditRules::DidDeleteSelection(nsISelection *aSelection,
 {
   nsCOMPtr<nsIDOMNode> startNode;
   PRInt32 startOffset;
-  nsresult res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(startNode), &startOffset);
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
+  nsresult res = mEditor->GetStartNodeAndOffset(aSelection, address_of(startNode), &startOffset);
+  if (NS_FAILED(res)) return res;
+  if (!startNode) return NS_ERROR_FAILURE;
   
   // delete empty text nodes at selection
   if (mEditor->IsTextNode(startNode))
@@ -929,13 +1026,13 @@ nsTextEditRules::DidDeleteSelection(nsISelection *aSelection,
     nsCOMPtr<nsIDOMText> textNode = do_QueryInterface(startNode);
     PRUint32 strLength;
     res = textNode->GetLength(&strLength);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     
     // are we in an empty text node?
     if (!strLength)
     {
       res = mEditor->DeleteNode(startNode);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
     }
   }
   if (!mDidExplicitlySetInterline)
@@ -977,7 +1074,7 @@ nsTextEditRules:: DidUndo(nsISelection *aSelection, nsresult aResult)
     else
     {
       nsIDOMElement *theRoot = mEditor->GetRoot();
-      NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
+      if (!theRoot) return NS_ERROR_FAILURE;
       nsCOMPtr<nsIDOMNode> node = mEditor->GetLeftmostChild(theRoot);
       if (node && mEditor->IsMozEditorBogusNode(node))
         mBogusNode = node;
@@ -1010,21 +1107,21 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
     else
     {
       nsIDOMElement *theRoot = mEditor->GetRoot();
-      NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
+      if (!theRoot) return NS_ERROR_FAILURE;
       
       nsCOMPtr<nsIDOMNodeList> nodeList;
-      res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("br"),
+      res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("div"),
                                           getter_AddRefs(nodeList));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       if (nodeList)
       {
         PRUint32 len;
         nodeList->GetLength(&len);
         
-        if (len != 1) return NS_OK;  // only in the case of one br could there be the bogus node
+        if (len != 1) return NS_OK;  // only in the case of one div could there be the bogus node
         nsCOMPtr<nsIDOMNode> node;
         nodeList->Item(0, getter_AddRefs(node));
-        NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+        if (!node) return NS_ERROR_NULL_POINTER;
         if (mEditor->IsMozEditorBogusNode(node))
           mBogusNode = node;
       }
@@ -1052,7 +1149,7 @@ nsTextEditRules::WillOutputText(nsISelection *aSelection,
   ToLowerCase(outputFormat);
   if (outputFormat.EqualsLiteral("text/plain"))
   { // only use these rules for plain text output
-    if (IsPasswordEditor())
+    if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
     {
       *aOutString = mPasswordText;
       *aHandled = PR_TRUE;
@@ -1073,25 +1170,104 @@ nsTextEditRules::DidOutputText(nsISelection *aSelection, nsresult aResult)
 }
 
 nsresult
+nsTextEditRules::ReplaceNewlines(nsIDOMRange *aRange)
+{
+  if (!aRange) return NS_ERROR_NULL_POINTER;
+  
+  // convert any newlines in editable, preformatted text nodes 
+  // into normal breaks.  this is because layout won't give us a place 
+  // to put the cursor on empty lines otherwise.
+
+  nsresult res;
+  nsCOMPtr<nsIContentIterator> iter =
+       do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &res);
+  if (NS_FAILED(res)) return res;
+
+  res = iter->Init(aRange);
+  if (NS_FAILED(res)) return res;
+  
+  nsCOMArray<nsIDOMCharacterData> arrayOfNodes;
+  
+  // gather up a list of editable preformatted text nodes
+  while (!iter->IsDone())
+  {
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(iter->GetCurrentNode());
+    if (!node)
+      return NS_ERROR_FAILURE;
+
+    if (mEditor->IsTextNode(node) && mEditor->IsEditable(node))
+    {
+      PRBool isPRE;
+      res = mEditor->IsPreformatted(node, &isPRE);
+      if (NS_FAILED(res)) return res;
+      if (isPRE)
+      {
+        nsCOMPtr<nsIDOMCharacterData> data = do_QueryInterface(node);
+        arrayOfNodes.AppendObject(data);
+      }
+    }
+    iter->Next();
+  }
+  
+  // replace newlines with breaks.  have to do this left to right,
+  // since inserting the break can split the text node, and the
+  // original node becomes the righthand node.
+  PRInt32 j, nodeCount = arrayOfNodes.Count();
+  for (j = 0; j < nodeCount; j++)
+  {
+    nsCOMPtr<nsIDOMNode> brNode;
+    nsCOMPtr<nsIDOMCharacterData> textNode = arrayOfNodes[0];
+    arrayOfNodes.RemoveObjectAt(0);
+    // find the newline
+    PRInt32 offset;
+    nsAutoString tempString;
+    do 
+    {
+      textNode->GetData(tempString);
+      offset = tempString.FindChar(nsCRT::LF);
+      if (offset == -1) break; // done with this node
+      
+      // delete the newline
+      nsRefPtr<DeleteTextTxn> txn;
+      // note 1: we are not telling edit listeners about these because they don't care
+      // note 2: we are not wrapping these in a placeholder because we know they already are,
+      //         or, failing that, undo is disabled
+      res = mEditor->CreateTxnForDeleteText(textNode, offset, 1,
+                                            getter_AddRefs(txn));
+      if (NS_FAILED(res))  return res; 
+      if (!txn)  return NS_ERROR_OUT_OF_MEMORY;
+      res = mEditor->DoTransaction(txn); 
+      if (NS_FAILED(res))  return res; 
+      
+      // insert a break
+      res = mEditor->CreateBR(textNode, offset, address_of(brNode));
+      if (NS_FAILED(res)) return res;
+    } while (1);  // break used to exit while loop
+  }
+  return res;
+}
+
+nsresult
 nsTextEditRules::CreateTrailingBRIfNeeded()
 {
   // but only if we aren't a single line edit field
-  if (IsSingleLineEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorSingleLineMask)
     return NS_OK;
   nsIDOMNode *body = mEditor->GetRoot();
-  NS_ENSURE_TRUE(body, NS_ERROR_NULL_POINTER);
+  if (!body)
+    return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMNode> lastChild;
   nsresult res = body->GetLastChild(getter_AddRefs(lastChild));
   // assuming CreateBogusNodeIfNeeded() has been called first
-  NS_ENSURE_SUCCESS(res, res);  
-  NS_ENSURE_TRUE(lastChild, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;  
+  if (!lastChild) return NS_ERROR_NULL_POINTER;
 
   if (!nsTextEditUtils::IsBreak(lastChild))
   {
     nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
     PRUint32 rootLen;
     res = mEditor->GetLengthOfDOMNode(body, rootLen);
-    NS_ENSURE_SUCCESS(res, res); 
+    if (NS_FAILED(res)) return res; 
     nsCOMPtr<nsIDOMNode> unused;
     res = CreateMozBR(body, rootLen, address_of(unused));
   }
@@ -1136,26 +1312,25 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
     bodyChild->GetNextSibling(getter_AddRefs(temp));
     bodyChild = do_QueryInterface(temp);
   }
-  // Skip adding the bogus node if body is read-only
-  if (needsBogusContent && mEditor->IsModifiableNode(body))
+  if (needsBogusContent)
   {
     // create a br
     nsCOMPtr<nsIContent> newContent;
     res = mEditor->CreateHTMLContent(NS_LITERAL_STRING("br"), getter_AddRefs(newContent));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     nsCOMPtr<nsIDOMElement>brElement = do_QueryInterface(newContent);
 
     // set mBogusNode to be the newly created <br>
     mBogusNode = brElement;
-    NS_ENSURE_TRUE(mBogusNode, NS_ERROR_NULL_POINTER);
+    if (!mBogusNode) return NS_ERROR_NULL_POINTER;
 
     // give it a special attribute
-    newContent->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                        kMOZEditorBogusNodeValue, PR_FALSE);
+    brElement->SetAttribute( kMOZEditorBogusNodeAttr,
+                             kMOZEditorBogusNodeValue );
     
     // put the node in the document
     res = mEditor->InsertNode(mBogusNode, body, 0);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     // set selection
     aSelection->Collapse(body, 0);
@@ -1168,18 +1343,15 @@ nsresult
 nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection, 
                                            const nsAString  *aInString,
                                            nsAString  *aOutString,
-                                           PRInt32          aMaxLength,
-                                           PRBool *aTruncated)
+                                           PRInt32          aMaxLength)
 {
   if (!aSelection || !aInString || !aOutString) {return NS_ERROR_NULL_POINTER;}
   
   nsresult res = NS_OK;
   *aOutString = *aInString;
-  if (aTruncated) {
-    *aTruncated = PR_FALSE;
-  }
   
-  if ((-1 != aMaxLength) && IsPlaintextEditor() && !mEditor->IsIMEComposing() )
+  if ((-1 != aMaxLength) && (mFlags & nsIPlaintextEditor::eEditorPlaintextMask)
+      && !mEditor->IsIMEComposing() )
   {
     // Get the current text length.
     // Get the length of inString.
@@ -1210,9 +1382,6 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
     if (resultingDocLength >= aMaxLength)
     {
       aOutString->Truncate();
-      if (aTruncated) {
-        *aTruncated = PR_TRUE;
-      }
     }
     else
     {
@@ -1220,9 +1389,6 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
       if (inCount + resultingDocLength > aMaxLength)
       {
         aOutString->Truncate(aMaxLength - resultingDocLength);
-        if (aTruncated) {
-          *aTruncated = PR_TRUE;
-        }
       }
     }
   }
@@ -1257,47 +1423,13 @@ nsTextEditRules::RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsTextEditRules::Notify(class nsITimer *) {
-  nsresult res = HideLastPWInput();
-  ASSERT_PASSWORD_LENGTHS_EQUAL();
-  mLastLength = 0;
-  return res;
-}
-
-nsresult nsTextEditRules::HideLastPWInput() {
-  if (!mLastLength) {
-    // Special case, we're trying to replace a range that no longer exists
-    return NS_OK;
-  }
-
-  nsAutoString hiddenText;
-  FillBufWithPWChars(&hiddenText, mLastLength);
-
-  nsCOMPtr<nsISelection> selection;
-  PRUint32 start, end;
-  nsresult res = mEditor->GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  res = mEditor->GetTextSelectionOffsets(selection, start, end);
-  NS_ENSURE_SUCCESS(res, res);
-
-  nsCOMPtr<nsIDOMNode> selNode = GetTextNode(selection, mEditor);
-  NS_ENSURE_TRUE(selNode, NS_OK);
-  
-  nsCOMPtr<nsIDOMCharacterData> nodeAsText(do_QueryInterface(selNode));
-  NS_ENSURE_TRUE(nodeAsText, NS_OK);
-  
-  nodeAsText->ReplaceData(mLastStart, mLastLength, hiddenText);
-  selection->Collapse(selNode, start);
-  if (start != end)
-    selection->Extend(selNode, end);
-  return NS_OK;
-}
-
-// static
 nsresult
-nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
+nsTextEditRules::EchoInsertionToPWBuff(PRInt32 aStart, PRInt32 aEnd, nsAString *aOutString)
 {
   if (!aOutString) {return NS_ERROR_NULL_POINTER;}
+
+  // manage the password buffer
+  mPasswordText.Insert(*aOutString, aStart);
 
   // change the output to the platform password character
   PRUnichar passwordChar = PRUnichar('*');
@@ -1307,10 +1439,13 @@ nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
     passwordChar = lookAndFeel->GetPasswordCharacter();
   }
 
+  PRInt32 length = aOutString->Length();
   PRInt32 i;
   aOutString->Truncate();
-  for (i=0; i < aLength; i++)
+  for (i=0; i<length; i++)
+  {
     aOutString->Append(passwordChar);
+  }
 
   return NS_OK;
 }
@@ -1322,23 +1457,17 @@ nsTextEditRules::FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength)
 nsresult 
 nsTextEditRules::CreateMozBR(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<nsIDOMNode> *outBRNode)
 {
-  NS_ENSURE_TRUE(inParent && outBRNode, NS_ERROR_NULL_POINTER);
+  if (!inParent || !outBRNode) return NS_ERROR_NULL_POINTER;
 
   nsresult res = mEditor->CreateBR(inParent, inOffset, outBRNode);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   // give it special moz attr
   nsCOMPtr<nsIDOMElement> brElem = do_QueryInterface(*outBRNode);
   if (brElem)
   {
     res = mEditor->SetAttribute(brElem, NS_LITERAL_STRING("type"), NS_LITERAL_STRING("_moz"));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
   return res;
-}
-
-NS_IMETHODIMP
-nsTextEditRules::DocumentModified()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }

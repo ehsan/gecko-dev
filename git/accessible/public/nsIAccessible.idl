@@ -55,8 +55,10 @@ interface nsIAccessibleRelation;
  * nodes in the DOM tree -- such as documents, focusable elements and text.
  * Mozilla creates the implementations of nsIAccessible on demand.
  * See http://www.mozilla.org/projects/ui/accessibility for more information.
+ *
+ * @status UNDER_REVIEW
  */
-[scriptable, uuid(c81d8f8c-8585-4094-bc7c-71dd01494906)]
+[scriptable, uuid(c7520419-87ec-42bc-98cc-04c0bf173530)]
 interface nsIAccessible : nsISupports
 {
   /**
@@ -101,14 +103,7 @@ interface nsIAccessible : nsISupports
   readonly attribute long indexInParent;
 
   /**
-   * Accessible name -- the main text equivalent for this node. The name is
-   * specified by ARIA or by native markup. Example of ARIA markup is
-   * aria-labelledby attribute placed on element of this accessible. Example
-   * of native markup is HTML label linked with HTML element of this accessible.
-   *
-   * Value can be string or null. A null value indicates that AT may attempt to
-   * compute the name. Any string value, including the empty string, should be
-   * considered author-intentional, and respected.
+   * Accessible name -- the main text equivalent for this node
    */
   attribute AString name;
 
@@ -145,12 +140,19 @@ interface nsIAccessible : nsISupports
   nsIDOMDOMStringList getKeyBindings(in PRUint8 aActionIndex);
 
   /**
-   * Enumerated accessible role (see the constants defined in nsIAccessibleRole).
-   *
-   * @note  The values might depend on platform because of variations. Widgets
-   *        can use ARIA role attribute to force the final role.
+   * Natural enumerated accessible role for the associated element.
+   * The values depend on platform because of variations.
+   * See the ROLE_* constants defined in nsIAccessibleRole.
+   * This does not take into account role attribute as the finalRole does.
    */
   readonly attribute unsigned long role;
+
+  /**
+   * Enumerated accessible role. The values depend on platform because of variations.
+   * See the ROLE_* constants defined in nsIAccessibleRole.
+   * Widgets can use role attribute to force the final role
+   */
+  readonly attribute unsigned long finalRole;
 
   /**
    * Accessible states -- bit fields which describe boolean properties of node.
@@ -162,7 +164,7 @@ interface nsIAccessible : nsISupports
    * @param aExtraState - the second bit field
    *                      (see nsIAccessibleStates::EXT_STATE_* constants)
    */
-  void getState(out unsigned long aState, out unsigned long aExtraState);
+  void getFinalState(out unsigned long aState, out unsigned long aExtraState);
 
   /**
    * Help text associated with node
@@ -242,10 +244,10 @@ interface nsIAccessible : nsISupports
   nsIAccessible getAccessibleBelow();
 
   /**
-   * Return accessible relation by the given relation type (see.
+   * Return accessible related to this one by the given relation type (see.
    * constants defined in nsIAccessibleRelation).
    */
-  nsIAccessibleRelation getRelationByType(in unsigned long aRelationType);
+  nsIAccessible getAccessibleRelated(in unsigned long aRelationType);
 
   /**
    * Returns the number of accessible relations for this object.

@@ -39,25 +39,22 @@
 // NOTE: alphabetically ordered
 #include "nsTextAccessibleWrap.h"
 #include "ISimpleDOMText_i.c"
-
-#include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
-
+#include "nsIAccessibleDocument.h"
 #include "nsIFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIRenderingContext.h"
+#include "nsIWidget.h"
 #include "nsIComponentManager.h"
 
-////////////////////////////////////////////////////////////////////////////////
+// --------------------------------------------------------
 // nsTextAccessibleWrap Accessible
-////////////////////////////////////////////////////////////////////////////////
+// --------------------------------------------------------
 
-nsTextAccessibleWrap::
-  nsTextAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsTextAccessible(aContent, aShell)
-{
+nsTextAccessibleWrap::nsTextAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
+nsTextAccessible(aDOMNode, aShell)
+{ 
 }
 
 STDMETHODIMP_(ULONG) nsTextAccessibleWrap::AddRef()
@@ -90,13 +87,12 @@ STDMETHODIMP nsTextAccessibleWrap::get_domText(
 __try {
   *aDomText = NULL;
 
-  if (IsDefunct())
-    return E_FAIL;
-
+  if (!mDOMNode) {
+    return E_FAIL; // Node already shut down
+  }
   nsAutoString nodeValue;
 
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  DOMNode->GetNodeValue(nodeValue);
+  mDOMNode->GetNodeValue(nodeValue);
   if (nodeValue.IsEmpty())
     return S_FALSE;
 
@@ -125,15 +121,15 @@ __try {
     return rv;
   }
 
-  nsDocAccessible *docAccessible = GetDocAccessible();
-  NS_ASSERTION(docAccessible,
-               "There must always be a doc accessible, but there isn't. Crash!");
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
+  nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(docAccessible));
+  NS_ASSERTION(accessible, "There must always be a doc accessible, but there isn't");
 
-  docAccessible->GetBounds(&docX, &docY, &docWidth, &docHeight);
+  accessible->GetBounds(&docX, &docY, &docWidth, &docHeight);
 
-  nsIntRect unclippedRect(x, y, width, height);
-  nsIntRect docRect(docX, docY, docWidth, docHeight);
-  nsIntRect clippedRect;
+  nsRect unclippedRect(x, y, width, height);
+  nsRect docRect(docX, docY, docWidth, docHeight);
+  nsRect clippedRect;
 
   clippedRect.IntersectRect(unclippedRect, docRect);
 
@@ -157,8 +153,9 @@ STDMETHODIMP nsTextAccessibleWrap::get_unclippedSubstringBounds(
 __try {
   *aX = *aY = *aWidth = *aHeight = 0;
 
-  if (IsDefunct())
-    return E_FAIL;
+  if (!mDOMNode) {
+    return E_FAIL; // Node already shut down
+  }
 
   if (NS_FAILED(GetCharacterExtents(aStartIndex, aEndIndex, 
                                     aX, aY, aWidth, aHeight))) {
@@ -175,14 +172,9 @@ STDMETHODIMP nsTextAccessibleWrap::scrollToSubstring(
     /* [in] */ unsigned int aEndIndex)
 {
 __try {
-  if (IsDefunct())
-    return E_FAIL;
-
-  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-  nsresult rv =
-    nsCoreUtils::ScrollSubstringTo(GetFrame(), DOMNode, aStartIndex,
-                                   DOMNode, aEndIndex,
-                                   nsIAccessibleScrollType::SCROLL_TYPE_ANYWHERE);
+  nsresult rv = nsAccUtils::ScrollSubstringTo(GetFrame(), mDOMNode, aStartIndex,
+                                              mDOMNode, aEndIndex,
+                                              nsIAccessibleScrollType::SCROLL_TYPE_ANYWHERE);
   if (NS_FAILED(rv))
     return E_FAIL;
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -219,6 +211,9 @@ nsresult nsTextAccessibleWrap::GetCharacterExtents(PRInt32 aStartOffset, PRInt32
   nsIFrame *frame = GetFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
+  nsIWidget *widget = frame->GetWindow();
+  NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
+  
   nsPoint startPoint, endPoint;
   nsIFrame *startFrame = GetPointFromOffset(frame, aStartOffset, PR_TRUE, startPoint);
   nsIFrame *endFrame = GetPointFromOffset(frame, aEndOffset, PR_FALSE, endPoint);
@@ -226,11 +221,11 @@ nsresult nsTextAccessibleWrap::GetCharacterExtents(PRInt32 aStartOffset, PRInt32
     return E_FAIL;
   }
   
-  nsIntRect sum(0, 0, 0, 0);
+  nsRect sum(0, 0, 0, 0);
   nsIFrame *iter = startFrame;
   nsIFrame *stopLoopFrame = endFrame->GetNextContinuation();
   for (; iter != stopLoopFrame; iter = iter->GetNextContinuation()) {
-    nsIntRect rect = iter->GetScreenRectExternal();
+    nsRect rect = iter->GetScreenRectExternal();
     nscoord start = (iter == startFrame) ? presContext->AppUnitsToDevPixels(startPoint.x) : 0;
     nscoord end = (iter == endFrame) ? presContext->AppUnitsToDevPixels(endPoint.x) :
                                        rect.width;
@@ -255,11 +250,12 @@ __try {
 
   nsIFrame *frame = GetFrame();
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  if (!frame || !presShell || !presShell->GetPresContext()) {
+  if (!frame || !presShell) {
     return E_FAIL;
   }
 
-  nsCOMPtr<nsIRenderingContext> rc = presShell->GetReferenceRenderingContext();
+  nsCOMPtr<nsIRenderingContext> rc;
+  presShell->CreateRenderingContext(frame, getter_AddRefs(rc));
   if (!rc) {
     return E_FAIL;
   }
@@ -268,8 +264,7 @@ __try {
 
   const nsStyleVisibility *visibility = frame->GetStyleVisibility();
 
-  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLanguage,
-                            presShell->GetPresContext()->GetUserFontSet()))) {
+  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLangGroup))) {
     return E_FAIL;
   }
 
@@ -279,8 +274,8 @@ __try {
     return E_FAIL;
   }
 
-  nsCOMPtr<nsIFontMetrics> fm;
-  rc->GetFontMetrics(*getter_AddRefs(fm));
+  nsIFontMetrics *fm;
+  rc->GetFontMetrics(fm);
   if (!fm) {
     return E_FAIL;
   }

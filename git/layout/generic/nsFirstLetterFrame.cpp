@@ -47,16 +47,12 @@
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsFrameManager.h"
-#include "nsPlaceholderFrame.h"
-#include "nsCSSFrameConstructor.h"
 
 nsIFrame*
 NS_NewFirstLetterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsFirstLetterFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
 
 #ifdef NS_DEBUG
 NS_IMETHODIMP
@@ -101,17 +97,31 @@ nsFirstLetterFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::SetInitialChildList(nsIAtom*     aListName,
-                                        nsFrameList& aChildList)
+nsFirstLetterFrame::SetInitialChildList(nsIAtom*  aListName,
+                                        nsIFrame* aChildList)
 {
+  mFrames.SetFrames(aChildList);
   nsFrameManager *frameManager = PresContext()->FrameManager();
 
-  for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(e.get()->GetParent() == this, "Unexpected parent");
-    frameManager->ReparentStyleContext(e.get());
+  for (nsIFrame* frame = aChildList; frame; frame = frame->GetNextSibling()) {
+    NS_ASSERTION(frame->GetParent() == this, "Unexpected parent");
+    frameManager->ReParentStyleContext(frame);
   }
+  return NS_OK;
+}
 
-  mFrames.SetFrames(aChildList);
+NS_IMETHODIMP
+nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType)
+{
+  if (aSelected && ParentDisablesSelection())
+    return NS_OK;
+  nsIFrame *child = GetFirstChild(nsnull);
+  while (child)
+  {
+    child->SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
+    // don't worry about result. there are more frames to come
+    child = child->GetNextSibling();
+  }
   return NS_OK;
 }
 
@@ -214,26 +224,23 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     ll.BeginLineReflow(bp.left, bp.top, availSize.width, NS_UNCONSTRAINEDSIZE,
                        PR_FALSE, PR_TRUE);
     rs.mLineLayout = &ll;
-    ll.SetInFirstLetter(PR_TRUE);
     ll.SetFirstLetterStyleOK(PR_TRUE);
 
     kid->WillReflow(aPresContext);
     kid->Reflow(aPresContext, aMetrics, rs, aReflowStatus);
 
     ll.EndLineReflow();
-    ll.SetInFirstLetter(PR_FALSE);
   }
   else {
     // Pretend we are a span and reflow the child frame
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
-    ll->SetInFirstLetter(
-      mStyleContext->GetPseudo() == nsCSSPseudoElements::firstLetter);
+    NS_ASSERTION(ll->GetFirstLetterStyleOK() || GetPrevContinuation(),
+                 "First-continuation first-letter should have first-letter style enabled in nsLineLayout!");
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);
-    ll->SetInFirstLetter(PR_FALSE);
   }
 
   // Place and size the child and update the output metrics
@@ -249,8 +256,9 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   // Ensure that the overflow rect contains the child textframe's overflow rect.
   // Note that if this is floating, the overline/underline drawable area is in
   // the overflow rect of the child textframe.
-  aMetrics.UnionOverflowAreasWithDesiredBounds();
-  ConsiderChildOverflow(aMetrics.mOverflowAreas, kid);
+  aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea,
+                           nsRect(0, 0, aMetrics.width, aMetrics.height));
+  ConsiderChildOverflow(aMetrics.mOverflowArea, kid);
 
   // Create a continuation or remove existing continuations based on
   // the reflow completion status.
@@ -262,31 +270,29 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     if (kidNextInFlow) {
       // Remove all of the childs next-in-flows
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
     }
   }
   else {
     // Create a continuation for the child frame if it doesn't already
     // have one.
-    if (!GetStyleDisplay()->IsFloating()) {
-      nsIFrame* nextInFlow;
-      rv = CreateNextInFlow(aPresContext, kid, nextInFlow);
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
+    nsIFrame* nextInFlow;
+    rv = CreateNextInFlow(aPresContext, this, kid, nextInFlow);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
-      // And then push it to our overflow list
-      const nsFrameList& overflow = mFrames.RemoveFramesAfter(kid);
-      if (overflow.NotEmpty()) {
-        SetOverflowFrames(aPresContext, overflow);
+    // And then push it to our overflow list
+    if (nextInFlow) {
+      kid->SetNextSibling(nsnull);
+      SetOverflowFrames(aPresContext, nextInFlow);
+    }
+    else {
+      nsIFrame* nextSib = kid->GetNextSibling();
+      if (nextSib) {
+        kid->SetNextSibling(nsnull);
+        SetOverflowFrames(aPresContext, nextSib);
       }
-    } else if (!kid->GetNextInFlow()) {
-      // For floating first letter frames (if a continuation wasn't already
-      // created for us) we need to put the continuation with the rest of the
-      // text that the first letter frame was made out of.
-      nsIFrame* continuation;
-      rv = CreateContinuationForFloatingParent(aPresContext, kid,
-                                               &continuation, PR_TRUE);
     }
   }
 
@@ -303,79 +309,34 @@ nsFirstLetterFrame::CanContinueTextRun() const
   return PR_TRUE;
 }
 
-nsresult
-nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresContext,
-                                                        nsIFrame* aChild,
-                                                        nsIFrame** aContinuation,
-                                                        PRBool aIsFluid)
-{
-  NS_ASSERTION(GetStyleDisplay()->IsFloating(),
-               "can only call this on floating first letter frames");
-  NS_PRECONDITION(aContinuation, "bad args");
-
-  *aContinuation = nsnull;
-  nsresult rv = NS_OK;
-
-  nsIPresShell* presShell = aPresContext->PresShell();
-  nsPlaceholderFrame* placeholderFrame =
-    presShell->FrameManager()->GetPlaceholderFrameFor(this);
-  nsIFrame* parent = placeholderFrame->GetParent();
-
-  nsIFrame* continuation;
-  rv = presShell->FrameConstructor()->
-    CreateContinuingFrame(aPresContext, aChild, parent, &continuation, aIsFluid);
-  if (NS_FAILED(rv) || !continuation) {
-    return rv;
-  }
-
-  // The continuation will have gotten the first letter style from it's
-  // prev continuation, so we need to repair the style context so it
-  // doesn't have the first letter styling.
-  nsStyleContext* parentSC = this->GetStyleContext()->GetParent();
-  if (parentSC) {
-    nsRefPtr<nsStyleContext> newSC;
-    newSC = presShell->StyleSet()->ResolveStyleForNonElement(parentSC);
-    if (newSC) {
-      continuation->SetStyleContext(newSC);
-    }
-  }
-
-  //XXX Bidi may not be involved but we have to use the list name
-  // nsGkAtoms::nextBidi because this is just like creating a continuation
-  // except we have to insert it in a different place and we don't want a
-  // reflow command to try to be issued.
-  nsFrameList temp(continuation, continuation);
-  rv = parent->InsertFrames(nsGkAtoms::nextBidi, placeholderFrame, temp);
-
-  *aContinuation = continuation;
-  return rv;
-}
-
 void
 nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
 {
-  nsAutoPtr<nsFrameList> overflowFrames;
+  nsIFrame* overflowFrames;
 
   // Check for an overflow list with our prev-in-flow
   nsFirstLetterFrame* prevInFlow = (nsFirstLetterFrame*)GetPrevInFlow();
   if (nsnull != prevInFlow) {
-    overflowFrames = prevInFlow->StealOverflowFrames();
+    overflowFrames = prevInFlow->GetOverflowFrames(aPresContext, PR_TRUE);
     if (overflowFrames) {
       NS_ASSERTION(mFrames.IsEmpty(), "bad overflow list");
 
       // When pushing and pulling frames we need to check for whether any
       // views need to be reparented.
-      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflowFrames,
-                                                  prevInFlow, this);
-      mFrames.InsertFrames(this, nsnull, *overflowFrames);
+      nsIFrame* f = overflowFrames;
+      while (f) {
+        nsHTMLContainerFrame::ReparentFrameView(aPresContext, f, prevInFlow, this);
+        f = f->GetNextSibling();
+      }
+      mFrames.InsertFrames(this, nsnull, overflowFrames);
     }
   }
 
   // It's also possible that we have an overflow list for ourselves
-  overflowFrames = StealOverflowFrames();
+  overflowFrames = GetOverflowFrames(aPresContext, PR_TRUE);
   if (overflowFrames) {
     NS_ASSERTION(mFrames.NotEmpty(), "overflow list w/o frames");
-    mFrames.AppendFrames(nsnull, *overflowFrames);
+    mFrames.AppendFrames(nsnull, overflowFrames);
   }
 
   // Now repair our first frames style context (since we only reflow
@@ -394,10 +355,4 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
       }
     }
   }
-}
-
-nscoord
-nsFirstLetterFrame::GetBaseline() const
-{
-  return mBaseline;
 }

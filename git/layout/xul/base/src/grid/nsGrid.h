@@ -101,6 +101,8 @@ public:
   nsIBox* GetBox() { return mBox; }
   nsIBox* GetRowsBox() { return mRowsBox; }
   nsIBox* GetColumnsBox() { return mColumnsBox; }
+  nsGridRow* GetColumns();
+  nsGridRow* GetRows();
   PRInt32 GetRowCount(PRInt32 aIsHorizontal = PR_TRUE);
   PRInt32 GetColumnCount(PRInt32 aIsHorizontal = PR_TRUE);
 

@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QApplication>
-#include <QSound>
-
 #include <string.h>
 
 #include "nscore.h"
@@ -46,7 +43,6 @@
 #include "prlink.h"
 
 #include "nsSound.h"
-#include "nsString.h"
 
 #include "nsIURL.h"
 #include "nsIFileURL.h"
@@ -54,6 +50,9 @@
 #include "nsCOMPtr.h"
 #include "nsNativeCharsetUtils.h"
 #include "nsAutoPtr.h"
+
+#include <QApplication>
+#include <QSound>
 
 /* used with esd_open_sound */
 static int esdref = -1;
@@ -70,14 +69,17 @@ static PRLibrary *elib = nsnull;
 
 #define WAV_MIN_LENGTH 44
 
-typedef int (*EsdOpenSoundType)(const char *host);
-typedef int (*EsdCloseType)(int);
+typedef int (PR_CALLBACK *EsdOpenSoundType)(const char *host);
+typedef int (PR_CALLBACK *EsdCloseType)(int);
 
 /* used to play the sounds from the find symbol call */
-typedef int  (*EsdPlayStreamType) (int, int, const char *, const char *);
-typedef int  (*EsdAudioOpenType)  (void);
-typedef int  (*EsdAudioWriteType) (const void *, int);
-typedef void (*EsdAudioCloseType) (void);
+typedef int (PR_CALLBACK *EsdPlayStreamType)  (int, 
+                                               int, 
+                                               const char *, 
+                                               const char *);
+typedef int  (PR_CALLBACK *EsdAudioOpenType)  (void);
+typedef int  (PR_CALLBACK *EsdAudioWriteType) (const void *, int);
+typedef void (PR_CALLBACK *EsdAudioCloseType) (void);
 
 NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
 
@@ -124,7 +126,7 @@ nsSound::Init()
     EsdOpenSoundType EsdOpenSound;
 
     elib = PR_LoadLibrary("libesd.so.0");
-    if (!elib) return NS_ERROR_NOT_AVAILABLE;
+    if (!elib) return NS_ERROR_FAILURE;
 
     EsdOpenSound = (EsdOpenSoundType) PR_FindFunctionSymbol(elib, "esd_open_sound");
 
@@ -368,7 +370,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
         Init();
 
     if (!elib) 
-        return NS_ERROR_NOT_AVAILABLE;
+        return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIStreamLoader> loader;
     rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);
@@ -378,11 +380,8 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
 
 NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
-    if (NS_IsMozAliasSound(aSoundAlias)) {
-      NS_WARNING("nsISound::playSystemSound is called with \"_moz_\" events, they are obsolete, use nsISound::playEventSound instead");
-      if (aSoundAlias.Equals(NS_SYSSOUND_MAIL_BEEP))
+    if (aSoundAlias.EqualsLiteral("_moz_mailbeep")) {
         return Beep();
-      return NS_OK;
     }
 
     nsresult rv;
@@ -404,9 +403,3 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
     return rv;
 
 }
-
-NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
-{
-    return aEventId == EVENT_NEW_MAIL_RECEIVED ? Beep() : NS_OK;
-}
-

@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -51,9 +50,7 @@
 enum nsCSSProperty {
   eCSSProperty_UNKNOWN = -1,
 
-  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,     \
-                   kwtable_, stylestruct_, stylestructoffset_, animtype_) \
-    eCSSProperty_##id_,
+  #define CSS_PROP(name_, id_, method_, datastruct_, member_, type_, kwtable_) eCSSProperty_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP
 
@@ -61,22 +58,21 @@ enum nsCSSProperty {
   // Make the count continue where it left off:
   eCSSProperty_COUNT_DUMMY = eCSSProperty_COUNT_no_shorthands - 1,
 
-  #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) eCSSProperty_##id_,
+  #define CSS_PROP_SHORTHAND(name_, id_, method_) eCSSProperty_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP_SHORTHAND
 
-  eCSSProperty_COUNT,
+  eCSSProperty_COUNT
+};
 
-  // Some of the values below could probably overlap with each other and
-  // with eCSSProperty_COUNT if we had a need for them to do so.
-
-  // Extra values for use in the values of the 'transition-property'
-  // property.
-  eCSSPropertyExtra_no_properties,
-  eCSSPropertyExtra_all_properties,
-
-  // Extra dummy values for nsCSSParser internal use.
-  eCSSPropertyExtra_x_none_value
+// The types of values that can be in the nsCSS*/nsRuleData* structs.
+// See nsCSSPropList.h for uses.
+enum nsCSSType {
+  eCSSType_Value,
+  eCSSType_Rect,
+  eCSSType_ValuePair,
+  eCSSType_ValueList,
+  eCSSType_ValuePairList
 };
 
 // The "descriptors" that can appear in a @font-face rule.
@@ -91,8 +87,6 @@ enum nsCSSFontDesc {
   eCSSFontDesc_Stretch,
   eCSSFontDesc_Src,
   eCSSFontDesc_UnicodeRange,
-  eCSSFontDesc_FontFeatureSettings,
-  eCSSFontDesc_FontLanguageOverride,
   eCSSFontDesc_COUNT
 };
 

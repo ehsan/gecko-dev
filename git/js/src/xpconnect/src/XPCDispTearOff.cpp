@@ -338,8 +338,6 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
         XPCJSRuntime* rt = ccx.GetRuntime();
         int j;
 
-        js::InvokeArgsGuard args;
-
         thisObj = obj = GetJSObject();;
 
         if(!cx || !xpcc)
@@ -351,11 +349,16 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
         xpcc->SetException(nsnull);
         ccx.GetThreadData()->SetException(nsnull);
 
-        // We use js_Invoke so that the gcthings we use as args will be rooted
-        // by the engine as we do conversions and prepare to do the function
-        // call.
+        // We use js_AllocStack, js_Invoke, and js_FreeStack so that the gcthings
+        // we use as args will be rooted by the engine as we do conversions and
+        // prepare to do the function call. This adds a fair amount of complexity,
+        // but is a good optimization compared to calling JS_AddRoot for each item.
 
-        js::LeaveTrace(cx);
+        // setup stack
+
+        // allocate extra space for function and 'this'
+        stack_size = argc + 2;
+
 
         // In the xpidl [function] case we are making sure now that the 
         // JSObject is callable. If it is *not* callable then we silently 
@@ -379,17 +382,19 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
             goto pre_call_clean_up;
         }
 
-        if (!cx->stack().pushInvokeArgsFriendAPI(cx, argc, args))
+        // if stack_size is zero then we won't be needing a stack
+        if(stack_size && !(stackbase = sp = js_AllocStack(cx, stack_size, &mark)))
         {
             retval = NS_ERROR_OUT_OF_MEMORY;
             goto pre_call_clean_up;
         }
 
-        sp = stackbase = Jsvalify(args.getvp());
-
         // this is a function call, so push function and 'this'
-        *sp++ = fval;
-        *sp++ = OBJECT_TO_JSVAL(thisObj);
+        if(stack_size != argc)
+        {
+            *sp++ = fval;
+            *sp++ = OBJECT_TO_JSVAL(thisObj);
+        }
 
         // make certain we leave no garbage in the stack
         for(i = 0; i < argc; i++)
@@ -420,7 +425,7 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
                 }
                 // We'll assume in/out
                 // TODO: I'm not sure we tell out vs in/out
-                JS_SetPropertyById(cx, out_obj,
+                OBJ_SET_PROPERTY(cx, out_obj,
                         rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val);
                 *sp++ = OBJECT_TO_JSVAL(out_obj);
@@ -440,7 +445,7 @@ pre_call_clean_up:
 
         if(!JSVAL_IS_PRIMITIVE(fval))
         {
-            success = js::InvokeFriendAPI(cx, args, 0);
+            success = js_Invoke(cx, argc, stackbase, 0);
             result = stackbase[0];
         }
         else
@@ -460,7 +465,7 @@ pre_call_clean_up:
             nsCOMPtr<nsIException> e;
 
             XPCConvert::ConstructException(code, sz, "IDispatch", name.get(),
-                                           nsnull, getter_AddRefs(e), nsnull, nsnull);
+                                           nsnull, getter_AddRefs(e), nsnull);
             xpcc->SetException(e);
             if(sz)
                 JS_smprintf_free(sz);
@@ -491,7 +496,7 @@ pre_call_clean_up:
             {
                 jsval val;
                 if(JSVAL_IS_PRIMITIVE(stackbase[i+2]) ||
-                        !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
+                        !OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                             rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                             &val))
                 {
@@ -522,6 +527,9 @@ pre_call_clean_up:
         }
 
 done:
+        if(sp)
+            js_FreeStack(cx, mark);
+
         // TODO: I think we may need to translate this error, 
         // for now we'll pass through
         return retval;

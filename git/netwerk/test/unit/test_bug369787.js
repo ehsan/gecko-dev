@@ -1,4 +1,4 @@
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const BUGID = "369787";
 var server = null;
@@ -16,32 +16,20 @@ function change_content_type() {
 function TestListener() {
 }
 TestListener.prototype.onStartRequest = function(request, context) {
-  try {
-    // request might be different from channel
-    channel = request.QueryInterface(Components.interfaces.nsIChannel);
-
-    change_content_type();
-  } catch (ex) {
-    print(ex);
-    throw ex;
-  }
+  change_content_type();
 }
 TestListener.prototype.onStopRequest = function(request, context, status) {
-  try {
-    change_content_type();
-  } catch (ex) {
-    print(ex);
-    // don't re-throw ex to avoid hanging the test
-  }
+  change_content_type();
 
-  do_timeout(0, after_channel_closed);
+  do_timeout(0, "after_channel_closed()");
 }
 
 function after_channel_closed() {
   try {
     change_content_type();
   } finally {
-    server.stop(do_test_finished);
+    server.stop();
+    do_test_finished();
   }
 }
 

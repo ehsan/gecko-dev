@@ -43,10 +43,12 @@
   // for |#ifdef NS_DEBUG|
 struct nsSize;
 
-// 2e89c566-0a31-4c93-bdff-222651df45a0
+
+// {6672E0EA-C936-11DC-9BB7-0014850B592F}
 #define NS_ILOOKANDFEEL_IID \
-{ 0x2e89c566, 0x0a31, 0x4c93, \
-  { 0xbd, 0xff, 0x22, 0x26, 0x51, 0xdf, 0x45, 0xa0 } }
+{ 0x6672e0ea, 0xc936, 0x11dc, \
+    { 0x9b, 0xb7, 0x00, 0x14, 0x85, 0x0b, 0x59, 0x2f} }
+
 
 class nsILookAndFeel: public nsISupports {
 public:
@@ -88,8 +90,6 @@ public:
     eColor_IMESelectedConvertedTextBackground,
     eColor_IMESelectedConvertedTextForeground,
     eColor_IMESelectedConvertedTextUnderline,
-
-    eColor_SpellCheckerUnderline,
 
     // New CSS 2 color definitions
     eColor_activeborder,
@@ -137,7 +137,6 @@ public:
     eColor__moz_buttonhovertext,                             //used to button text, when mouse is over
     eColor__moz_menuhover,                                   //used to menu item background, when mouse is over
     eColor__moz_menuhovertext,                               //used to menu item text, when mouse is over
-    eColor__moz_menubartext,                                 //used to menu bar item text
     eColor__moz_menubarhovertext,                            //used to menu bar item text, when mouse is over
     // On platforms where these colors are the same as
     // -moz-field, use -moz-fieldtext as foreground color
@@ -152,8 +151,16 @@ public:
     eColor__moz_mac_menushadow,				//colour used to do shadows on menu items
     eColor__moz_mac_menutextdisable,                    // color used to display text for disabled menu items
     eColor__moz_mac_menutextselect,			//colour used to display text while mouse is over a menu item
-    eColor__moz_mac_disabledtoolbartext,                    // text color of disabled text on toolbars
 
+  	//all of the accent colours
+  	eColor__moz_mac_accentlightesthighlight,
+    eColor__moz_mac_accentregularhighlight,
+    eColor__moz_mac_accentface,
+    eColor__moz_mac_accentlightshadow,
+    eColor__moz_mac_accentregularshadow,
+    eColor__moz_mac_accentdarkshadow,
+    eColor__moz_mac_accentdarkestshadow,
+    
     //new in 10.2
     eColor__moz_mac_alternateprimaryhighlight, //active list highlight
     eColor__moz_mac_secondaryhighlight,        //inactive light hightlight
@@ -165,11 +172,7 @@ public:
     // Hyperlink color extracted from the system, not affected by the browser.anchor_color user pref.
     // There is no OS-specified safe background color for this text, 
     // but it is used regularly within Windows and the Gnome DE on Dialog and Window colors.
-    eColor__moz_nativehyperlinktext,
-
-    // Combo box widgets
-    eColor__moz_comboboxtext,
-    eColor__moz_combobox,
+    eColor__moz_nativehyperlinktext,		
 
     // keep this one last, please
     eColor_LAST_COLOR
@@ -178,17 +181,39 @@ public:
   // When modifying this list, also modify nsXPLookAndFeel::sIntPrefs
   // in widget/src/xpwidgts/nsXPLookAndFeel.cpp.
   typedef enum {
+    eMetric_WindowTitleHeight,
+    eMetric_WindowBorderWidth,
+    eMetric_WindowBorderHeight,
+    eMetric_Widget3DBorder,
+    eMetric_TextFieldBorder,                              // Native border size
+    eMetric_TextFieldHeight,
+    eMetric_TextVerticalInsidePadding,                    // needed only because of GTK
+    eMetric_TextShouldUseVerticalInsidePadding,           // needed only because of GTK
+    eMetric_TextHorizontalInsideMinimumPadding,  
+    eMetric_TextShouldUseHorizontalInsideMinimumPadding,  // needed only because of GTK
+    eMetric_ButtonHorizontalInsidePaddingNavQuirks,  
+    eMetric_ButtonHorizontalInsidePaddingOffsetNavQuirks, 
+    eMetric_CheckboxSize,
+    eMetric_RadioboxSize,
+    
+    eMetric_ListShouldUseHorizontalInsideMinimumPadding,  // needed only because of GTK
+    eMetric_ListHorizontalInsideMinimumPadding,         
+
+    eMetric_ListShouldUseVerticalInsidePadding,           // needed only because of GTK
+    eMetric_ListVerticalInsidePadding,                    // needed only because of GTK
+
     eMetric_CaretBlinkTime,                               // default, may be overriden by OS
     eMetric_CaretWidth,                                   // pixel width of caret
     eMetric_ShowCaretDuringSelection,                       // show the caret when text is selected?
     eMetric_SelectTextfieldsOnKeyFocus,                   // select textfields when focused via tab/accesskey?
     eMetric_SubmenuDelay,                                 // delay before submenus open
     eMetric_MenusCanOverlapOSBar,                         // can popups overlap menu/task bar?
-    eMetric_ScrollbarsCanOverlapContent,                  // can scrollbars float above content?
     eMetric_SkipNavigatingDisabledMenuItem,               // skip navigating to disabled menu item?
+    eMetric_DragFullWindow,                               // show window contents while dragging?
     eMetric_DragThresholdX,                               // begin a drag if the mouse is moved further than the threshold while the button is down
     eMetric_DragThresholdY,
     eMetric_UseAccessibilityTheme,                        // Accessibility theme being used?
+    eMetric_IsScreenReaderActive,                         // Screen reader being used?
 
     eMetric_ScrollArrowStyle,                             // position of scroll arrows in a scrollbar
     eMetric_ScrollSliderStyle,                            // is scroll thumb proportional or fixed?
@@ -203,7 +228,6 @@ public:
     eMetric_TreeScrollDelay,                              // delay for scrolling the tree
     eMetric_TreeScrollLinesMax,                           // the maximum number of lines to be scrolled at ones
     eMetric_TabFocusModel,                                // What type of tab-order to use
-    eMetric_ChosenMenuItemsShouldBlink,                   // Should menu items blink when they're chosen?
 
     /*
      * A Boolean value to determine whether the Windows default theme is
@@ -232,15 +256,6 @@ public:
     eMetric_WindowsClassic,
 
     /*
-     * A Boolean value to determine whether the device is a touch enabled
-     * device. Currently this is only supported by the Windows 7 Touch API.
-     *
-     * Platforms that do not support this metric should return
-     * NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eMetric_TouchEnabled,
-
-    /*
      * A Boolean value to determine whether the Mac graphite theme is
      * being used.
      *
@@ -248,15 +263,6 @@ public:
      * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
      */
     eMetric_MacGraphiteTheme,
-
-    /*
-     * A Boolean value to determine whether Mameo is using the new Fremantle
-     * theme.
-     *
-     * The value of this metric is not used on other platforms. These platforms
-     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eMetric_MaemoClassic,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the
@@ -284,46 +290,19 @@ public:
     eMetric_ScrollToClick,
 
     /**
-     * IME and spell checker underline styles, the values should be
-     * NS_DECORATION_LINE_STYLE_*.  They are defined below.
+     * IME underline styles, the values should be NS_DECORATION_LINE_STYLE_*.
+     * They are defined below.
      */
     eMetric_IMERawInputUnderlineStyle,
     eMetric_IMESelectedRawTextUnderlineStyle,
     eMetric_IMEConvertedTextUnderlineStyle,
     eMetric_IMESelectedConvertedTextUnderline,
-    eMetric_SpellCheckerUnderlineStyle,
 
     /**
      * If this metric != 0, show icons in menus.
      */
-    eMetric_ImagesInMenus,
-    /**
-     * If this metric != 0, show icons in buttons.
-     */
-    eMetric_ImagesInButtons,
-    /**
-     * If this metric != 0, support window dragging on the menubar.
-     */
-    eMetric_MenuBarDrag,
-    /**
-     * Return the appropriate WindowsThemeIdentifier for the current theme.
-     */
-    eMetric_WindowsThemeIdentifier
+    eMetric_ImagesInMenus
   } nsMetricID;
-
-  /**
-   * Windows themes we currently detect.
-   */
-  enum WindowsThemeIdentifier {
-    eWindowsTheme_Generic = 0, // unrecognized theme
-    eWindowsTheme_Classic,
-    eWindowsTheme_Aero,
-    eWindowsTheme_LunaBlue,
-    eWindowsTheme_LunaOlive,
-    eWindowsTheme_LunaSilver,
-    eWindowsTheme_Royale,
-    eWindowsTheme_Zune
-  };
 
   enum {
     eMetric_ScrollArrowStartBackward = 0x1000,
@@ -348,8 +327,15 @@ public:
   // When modifying this list, also modify nsXPLookAndFeel::sFloatPrefs
   // in widget/src/xpwidgts/nsXPLookAndFeel.cpp.
   typedef enum {
+    eMetricFloat_TextFieldVerticalInsidePadding,
+    eMetricFloat_TextFieldHorizontalInsidePadding,
+    eMetricFloat_TextAreaVerticalInsidePadding,
+    eMetricFloat_TextAreaHorizontalInsidePadding,
+    eMetricFloat_ListVerticalInsidePadding,
+    eMetricFloat_ListHorizontalInsidePadding,
+    eMetricFloat_ButtonVerticalInsidePadding,
+    eMetricFloat_ButtonHorizontalInsidePadding,
     eMetricFloat_IMEUnderlineRelativeSize,
-    eMetricFloat_SpellCheckerUnderlineRelativeSize,
 
     // The width/height ratio of the cursor. If used, the CaretWidth int metric
     // should be added to the calculated caret width.
@@ -362,15 +348,6 @@ public:
   virtual PRUnichar GetPasswordCharacter()
   {
     return PRUnichar('*');
-  }
-
-  virtual PRBool GetEchoPassword()
-  {
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    return PR_TRUE;
-#else
-    return PR_FALSE;
-#endif
   }
 
   NS_IMETHOD LookAndFeelChanged() = 0;
@@ -412,9 +389,9 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsILookAndFeel, NS_ILOOKANDFEEL_IID)
 	// Of course if other plaforms work like the Mac, they can use it too.
 #define NS_DONT_CHANGE_COLOR 	NS_RGB(0x01, 0x01, 0x01)
 
-// -----------------------------------------------------------------
-//  Special colors for eColor_IME* and eColor_SpellCheckerUnderline
-// -----------------------------------------------------------------
+// --------------------------------
+//  Special colors for eColor_IME*
+// --------------------------------
 
 // For background color only.
 #define NS_TRANSPARENT                NS_RGBA(0x01, 0x00, 0x00, 0x00)
@@ -422,9 +399,9 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsILookAndFeel, NS_ILOOKANDFEEL_IID)
 #define NS_SAME_AS_FOREGROUND_COLOR   NS_RGBA(0x02, 0x00, 0x00, 0x00)
 #define NS_40PERCENT_FOREGROUND_COLOR NS_RGBA(0x03, 0x00, 0x00, 0x00)
 
-#define NS_IS_SELECTION_SPECIAL_COLOR(c) ((c) == NS_TRANSPARENT || \
-                                          (c) == NS_SAME_AS_FOREGROUND_COLOR || \
-                                          (c) == NS_40PERCENT_FOREGROUND_COLOR)
+#define NS_IS_IME_SPECIAL_COLOR(c) ((c) == NS_TRANSPARENT || \
+                                    (c) == NS_SAME_AS_FOREGROUND_COLOR || \
+                                    (c) == NS_40PERCENT_FOREGROUND_COLOR)
 
 // -------------------------------------------------
 //  Underline styles for eMetric_IME*UnderlineStyle
@@ -435,10 +412,9 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsILookAndFeel, NS_ILOOKANDFEEL_IID)
 #define NS_UNDERLINE_STYLE_DASHED 2
 #define NS_UNDERLINE_STYLE_SOLID  3
 #define NS_UNDERLINE_STYLE_DOUBLE 4
-#define NS_UNDERLINE_STYLE_WAVY   5
 
 #define NS_IS_VALID_UNDERLINE_STYLE(s) \
-  (NS_UNDERLINE_STYLE_NONE <= (s) && (s) <= NS_UNDERLINE_STYLE_WAVY)
+  (NS_UNDERLINE_STYLE_NONE <= (s) && (s) <= NS_UNDERLINE_STYLE_DOUBLE)
 
 // ------------------------------------------
 //  Bits for eMetric_AlertNotificationOrigin

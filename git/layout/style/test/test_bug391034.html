@@ -5,7 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=391034
 -->
 <head>
   <title>Test for Bug 391034</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -56,13 +56,13 @@ is(getComp("three").bottom, "6px",
 is(getComp("three").left, "10px",
    "Incorrect computed left offset if specified in %")
 
-is(getComp("four").top, "auto",
+is(getComp("four").top, "0px",
    "Incorrect undisplayed computed top offset if specified in %")
-is(getComp("four").right, "auto",
+is(getComp("four").right, "0px",
    "Incorrect undisplayed computed right offset if specified in %")
-is(getComp("four").bottom, "20%",
+is(getComp("four").bottom, "0px",
    "Incorrect undisplayed computed bottom offset if specified in %")
-is(getComp("four").left, "10%",
+is(getComp("four").left, "0px",
    "Incorrect undisplayed computed left offset if specified in %")
 
 </script>

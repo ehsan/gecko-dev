@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  *
  * Contributor(s):
  *	Vladimir Vukicevic <vladimir@pobox.com>
@@ -38,13 +38,6 @@
 #define CAIRO_MALLOC_PRIVATE_H
 
 #include "cairo-wideint-private.h"
-
-#if HAVE_MEMFAULT
-#include <memfault.h>
-#define CAIRO_INJECT_FAULT() MEMFAULT_INJECT_FAULT()
-#else
-#define CAIRO_INJECT_FAULT() 0
-#endif
 
 /**
  * _cairo_malloc:

@@ -53,62 +53,59 @@ try {
   do_throw("Could not get services\n");
 }
 
-const TEST_URI = uri("http://foo.com");
-const TEST_BOOKMARKED_URI = uri("http://bar.com");
-
 function run_test() {
+  do_test_pending();
   var now = Date.now();
+  var testURI = uri("http://foo.com");
+  var testBookmarkedURI = uri("http://bar.com");
 
   // add pages to history
-  histsvc.addVisit(TEST_URI, now, null,
+  histsvc.addVisit(testURI, now, null,
                    Ci.nsINavHistoryService.TRANSITION_TYPED,
                    false, 0);
-  histsvc.addVisit(TEST_BOOKMARKED_URI, now, null,
+  histsvc.addVisit(testBookmarkedURI, now, null,
                    Ci.nsINavHistoryService.TRANSITION_TYPED,
                    false, 0);
 
-  // create bookmarks on TEST_BOOKMARKED_URI
+  // create bookmarks on testBookmarkedURI
   var bm1 = bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
-                                 TEST_BOOKMARKED_URI, bmsvc.DEFAULT_INDEX,
-                                 TEST_BOOKMARKED_URI.spec);
+                                 testBookmarkedURI, bmsvc.DEFAULT_INDEX,
+                                 testBookmarkedURI.spec);
   var bm2 = bmsvc.insertBookmark(bmsvc.toolbarFolder,
-                                 TEST_BOOKMARKED_URI, bmsvc.DEFAULT_INDEX,
-                                 TEST_BOOKMARKED_URI.spec);
+                                 testBookmarkedURI, bmsvc.DEFAULT_INDEX,
+                                 testBookmarkedURI.spec);
 
   // set charset on not-bookmarked page
-  histsvc.setCharsetForURI(TEST_URI, charset);
+  histsvc.setCharsetForURI(testURI, charset);
   // set charset on bookmarked page
-  histsvc.setCharsetForURI(TEST_BOOKMARKED_URI, charset);
+  histsvc.setCharsetForURI(testBookmarkedURI, charset);
 
   // check that we have created a page annotation
-  do_check_eq(annosvc.getPageAnnotation(TEST_URI, CHARSET_ANNO), charset);
+  do_check_eq(annosvc.getPageAnnotation(testURI, CHARSET_ANNO), charset);
 
   // get charset from not-bookmarked page
-  do_check_eq(histsvc.getCharsetForURI(TEST_URI), charset);
+  do_check_eq(histsvc.getCharsetForURI(testURI), charset);
   // get charset from bookmarked page
-  do_check_eq(histsvc.getCharsetForURI(TEST_BOOKMARKED_URI), charset);
+  do_check_eq(histsvc.getCharsetForURI(testBookmarkedURI), charset);
 
-  waitForClearHistory(continue_test);
+  // clear history
+  bhist.removeAllPages();
 
-  do_test_pending();
-}
-
-function continue_test() {
   // ensure that charset has gone for not-bookmarked page
-  do_check_neq(histsvc.getCharsetForURI(TEST_URI), charset);
+  do_check_neq(histsvc.getCharsetForURI(testURI), charset);
 
   // check that page annotation has been removed
   try {
-    annosvc.getPageAnnotation(TEST_URI, CHARSET_ANNO);
+    annosvc.getPageAnnotation(testURI, CHARSET_ANNO);
     do_throw("Charset page annotation has not been removed correctly");
   } catch (e) {}
 
   // ensure that charset still exists for bookmarked page
-  do_check_eq(histsvc.getCharsetForURI(TEST_BOOKMARKED_URI), charset);
+  do_check_eq(histsvc.getCharsetForURI(testBookmarkedURI), charset);
 
   // remove charset from bookmark and check that has gone
-  histsvc.setCharsetForURI(TEST_BOOKMARKED_URI, "");
-  do_check_neq(histsvc.getCharsetForURI(TEST_BOOKMARKED_URI), charset);
+  histsvc.setCharsetForURI(testBookmarkedURI, "");
+  do_check_neq(histsvc.getCharsetForURI(testBookmarkedURI), charset);
 
   do_test_finished();
 }

@@ -146,11 +146,9 @@ nsAttrAndChildArray::GetSafeChildAt(PRUint32 aPos) const
 }
 
 nsIContent * const *
-nsAttrAndChildArray::GetChildArray(PRUint32* aChildCount) const
+nsAttrAndChildArray::GetChildArray() const
 {
-  *aChildCount = ChildCount();
-  
-  if (!*aChildCount) {
+  if (!mImpl) {
     return nsnull;
   }
   
@@ -175,7 +173,8 @@ nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, PRUint32 aPos)
     if (childCount != aPos) {
       memmove(pos + 1, pos, (childCount - aPos) * sizeof(nsIContent*));
     }
-    SetChildAtPos(pos, aChild, aPos, childCount);
+    *pos = aChild;
+    NS_ADDREF(aChild);
 
     SetChildCount(childCount + 1);
 
@@ -190,9 +189,10 @@ nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, PRUint32 aPos)
     void** newStart = mImpl->mBuffer + attrCount * ATTRSIZE;
     void** oldStart = mImpl->mBuffer + offset;
     memmove(newStart, oldStart, aPos * sizeof(nsIContent*));
+    newStart[aPos] = aChild;
     memmove(&newStart[aPos + 1], &oldStart[aPos],
             (childCount - aPos) * sizeof(nsIContent*));
-    SetChildAtPos(newStart + aPos, aChild, aPos, childCount);
+    NS_ADDREF(aChild);
 
     SetAttrSlotAndChildCount(attrCount, childCount + 1);
 
@@ -208,7 +208,8 @@ nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, PRUint32 aPos)
   if (childCount != aPos) {
     memmove(pos + 1, pos, (childCount - aPos) * sizeof(nsIContent*));
   }
-  SetChildAtPos(pos, aChild, aPos, childCount);
+  *pos = aChild;
+  NS_ADDREF(aChild);
 
   SetChildCount(childCount + 1);
   
@@ -223,14 +224,6 @@ nsAttrAndChildArray::RemoveChildAt(PRUint32 aPos)
   PRUint32 childCount = ChildCount();
   void** pos = mImpl->mBuffer + AttrSlotsSize() + aPos;
   nsIContent* child = static_cast<nsIContent*>(*pos);
-  if (child->mPreviousSibling) {
-    child->mPreviousSibling->mNextSibling = child->mNextSibling;
-  }
-  if (child->mNextSibling) {
-    child->mNextSibling->mPreviousSibling = child->mPreviousSibling;
-  }
-  child->mPreviousSibling = child->mNextSibling = nsnull;
-
   NS_RELEASE(child);
   memmove(pos, pos + 1, (childCount - aPos - 1) * sizeof(nsIContent*));
   SetChildCount(childCount - 1);
@@ -321,7 +314,7 @@ nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
   PRUint32 i, slotCount = AttrSlotCount();
   if (aNamespaceID == kNameSpaceID_None) {
     // This should be the common case so lets make an optimized loop
-    for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
       if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
         return &ATTRS(mImpl)[i].mValue;
       }
@@ -332,7 +325,7 @@ nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
     }
   }
   else {
-    for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
       if (ATTRS(mImpl)[i].mName.Equals(aLocalName, aNamespaceID)) {
         return &ATTRS(mImpl)[i].mValue;
       }
@@ -360,7 +353,7 @@ nsresult
 nsAttrAndChildArray::SetAttr(nsIAtom* aLocalName, const nsAString& aValue)
 {
   PRUint32 i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+  for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
     if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
       ATTRS(mImpl)[i].mValue.SetTo(aValue);
 
@@ -385,7 +378,7 @@ nsresult
 nsAttrAndChildArray::SetAndTakeAttr(nsIAtom* aLocalName, nsAttrValue& aValue)
 {
   PRUint32 i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+  for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
     if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
       ATTRS(mImpl)[i].mValue.Reset();
       ATTRS(mImpl)[i].mValue.SwapValueWith(aValue);
@@ -418,7 +411,7 @@ nsAttrAndChildArray::SetAndTakeAttr(nsINodeInfo* aName, nsAttrValue& aValue)
   }
 
   PRUint32 i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+  for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
     if (ATTRS(mImpl)[i].mName.Equals(localName, namespaceID)) {
       ATTRS(mImpl)[i].mName.SetTo(aName);
       ATTRS(mImpl)[i].mValue.Reset();
@@ -518,10 +511,10 @@ nsAttrAndChildArray::GetSafeAttrNameAt(PRUint32 aPos) const
 }
 
 const nsAttrName*
-nsAttrAndChildArray::GetExistingAttrNameFromQName(const nsAString& aName) const
+nsAttrAndChildArray::GetExistingAttrNameFromQName(const nsACString& aName) const
 {
   PRUint32 i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+  for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
     if (ATTRS(mImpl)[i].mName.QualifiedNameEquals(aName)) {
       return &ATTRS(mImpl)[i].mName;
     }
@@ -550,14 +543,14 @@ nsAttrAndChildArray::IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) cons
   PRUint32 slotCount = AttrSlotCount();
   if (aNamespaceID == kNameSpaceID_None) {
     // This should be the common case so lets make an optimized loop
-    for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
       if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
         return i + mapped;
       }
     }
   }
   else {
-    for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
       if (ATTRS(mImpl)[i].mName.Equals(aLocalName, aNamespaceID)) {
         return i + mapped;
       }
@@ -605,7 +598,7 @@ nsAttrAndChildArray::SetMappedAttrStyleSheet(nsHTMLStyleSheet* aSheet)
 void
 nsAttrAndChildArray::WalkMappedAttributeStyleRules(nsRuleWalker* aRuleWalker)
 {
-  if (mImpl && mImpl->mMappedAttrs) {
+  if (mImpl && mImpl->mMappedAttrs && aRuleWalker) {
     aRuleWalker->Forward(mImpl->mMappedAttrs);
   }
 }
@@ -655,7 +648,7 @@ nsAttrAndChildArray::Clear()
   }
 
   PRUint32 i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+  for (i = 0; i < slotCount && mImpl->mBuffer[i * ATTRSIZE]; ++i) {
     ATTRS(mImpl)[i].~InternalAttr();
   }
 
@@ -666,18 +659,6 @@ nsAttrAndChildArray::Clear()
     // making this PR_FALSE so tree teardown doesn't end up being
     // O(N*D) (number of nodes times average depth of tree).
     child->UnbindFromTree(PR_FALSE); // XXX is it better to let the owner do this?
-    // Make sure to unlink our kids from each other, since someone
-    // else could stil be holding references to some of them.
-
-    // XXXbz We probably can't push this assignment down into the |aNullParent|
-    // case of UnbindFromTree because we still need the assignment in
-    // RemoveChildAt.  In particular, ContentRemoved fires between
-    // RemoveChildAt and UnbindFromTree, and in ContentRemoved the sibling
-    // chain needs to be correct.  Though maybe we could set the prev and next
-    // to point to each other but keep the kid being removed pointing to them
-    // through ContentRemoved so consumers can find where it used to be in the
-    // list?
-    child->mPreviousSibling = child->mNextSibling = nsnull;
     NS_RELEASE(child);
   }
 
@@ -785,14 +766,16 @@ nsAttrAndChildArray::GrowBy(PRUint32 aGrowSize)
     size = PR_BIT(PR_CeilingLog2(minSize));
   }
 
-  PRBool needToInitialize = !mImpl;
-  Impl* newImpl = static_cast<Impl*>(PR_Realloc(mImpl, size * sizeof(void*)));
+  Impl* newImpl = static_cast<Impl*>
+                             (mImpl ? PR_Realloc(mImpl, size * sizeof(void*)) :
+              PR_Malloc(size * sizeof(void*)));
   NS_ENSURE_TRUE(newImpl, PR_FALSE);
 
+  Impl* oldImpl = mImpl;
   mImpl = newImpl;
 
   // Set initial counts if we didn't have a buffer before
-  if (needToInitialize) {
+  if (!oldImpl) {
     mImpl->mMappedAttrs = nsnull;
     SetAttrSlotAndChildCount(0, 0);
   }
@@ -825,25 +808,4 @@ nsAttrAndChildArray::AddAttrSlot()
   offset[1] = nsnull;
 
   return PR_TRUE;
-}
-
-inline void
-nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
-                                   PRUint32 aIndex, PRUint32 aChildCount)
-{
-  NS_PRECONDITION(!aChild->GetNextSibling(), "aChild with next sibling?");
-  NS_PRECONDITION(!aChild->GetPreviousSibling(), "aChild with prev sibling?");
-
-  *aPos = aChild;
-  NS_ADDREF(aChild);
-  if (aIndex != 0) {
-    nsIContent* previous = static_cast<nsIContent*>(*(aPos - 1));
-    aChild->mPreviousSibling = previous;
-    previous->mNextSibling = aChild;
-  }
-  if (aIndex != aChildCount) {
-    nsIContent* next = static_cast<nsIContent*>(*(aPos + 1));
-    aChild->mNextSibling = next;
-    next->mPreviousSibling = aChild;
-  }
 }

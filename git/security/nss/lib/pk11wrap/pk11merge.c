@@ -13,7 +13,6 @@
 #include "keyhi.h"
 #include "hasht.h"
 #include "cert.h"
-#include "certdb.h"
 
 /*************************************************************************
  *
@@ -321,7 +320,7 @@ done:
  *   1) the single byte overflows. On overflow we increment the next byte up 
  *    and so forth until we have overflowed the entire CKA_ID.
  *   2) If we overflow the entire CKA_ID we expand it by one byte.
- *   3) the CKA_ID is non-existent, we create a new one with one byte.
+ *   3) the CKA_ID is non-existant, we create a new one with one byte.
  *    This means no matter what CKA_ID is passed, the result of this function 
  *    is always a new CKA_ID, and this function will never return the same 
  *    CKA_ID the it has returned in the passed.
@@ -672,62 +671,6 @@ done:
  *************************************************************************/
 
 /*
- * Two copies of the source code for this algorithm exist in NSS.  
- * Changes must be made in both copies.
- * The other copy is in sftkdb_resolveConflicts() in softoken/sftkdb.c.
- */
-static char *
-pk11_IncrementNickname(char *nickname)
-{
-    char *newNickname = NULL;
-    int end;
-    int digit;
-    int len = strlen(nickname);
-
-    /* does nickname end with " #n*" ? */
-    for (end = len - 1; 
-         end >= 2 && (digit = nickname[end]) <= '9' &&  digit >= '0'; 
-	 end--)  /* just scan */ ;
-    if (len >= 3 &&
-        end < (len - 1) /* at least one digit */ &&
-	nickname[end]     == '#'  && 
-	nickname[end - 1] == ' ') {
-    	/* Already has a suitable suffix string */
-    } else {
-	/* ... append " #2" to the name */
-	static const char num2[] = " #2";
-	newNickname = PORT_Realloc(nickname, len + sizeof(num2));
-	if (newNickname) {
-	    PORT_Strcat(newNickname, num2);
-	} else {
-	    PORT_Free(nickname);
-	}
-	return newNickname;
-    }
-
-    for (end = len - 1; 
-	 end >= 0 && (digit = nickname[end]) <= '9' &&  digit >= '0'; 
-	 end--) {
-	if (digit < '9') {
-	    nickname[end]++;
-	    return nickname;
-	}
-	nickname[end] = '0';
-    }
-
-    /* we overflowed, insert a new '1' for a carry in front of the number */
-    newNickname = PORT_Realloc(nickname, len + 2);
-    if (newNickname) {
-	newNickname[++end] = '1';
-	PORT_Memset(&newNickname[end + 1], '0', len - end);
-	newNickname[len + 1] = 0;
-    } else {
-	PORT_Free(nickname);
-    }
-    return newNickname;
-}
-
-/*
  * merge a certificate object
  *
  * Use the high level NSS calls to extract and import the certificate.
@@ -754,35 +697,6 @@ pk11_mergeCert(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
     }
 
     nickname = PK11_GetObjectNickname(sourceSlot, id);
-
-    /* The database code will prevent nickname collisions for certs with
-     * different subjects. This code will prevent us from getting
-     * actual import errors */
-    if (nickname) {
-	const char *tokenName = PK11_GetTokenName(targetSlot);
-	char *tokenNickname = NULL;
-
-	do {
-	    tokenNickname = PR_smprintf("%s:%s",tokenName, nickname);
-	    if (!tokenNickname) {
-		break;
-	    }
-	    if (!SEC_CertNicknameConflict(tokenNickname, 
-			&sourceCert->derSubject, CERT_GetDefaultCertDB())) {
-		break;
-	     }
-	    nickname = pk11_IncrementNickname(nickname);
-	    if (!nickname) {
-		break;
-	    }
-	    PR_smprintf_free(tokenNickname);
-	} while (1);
-	if (tokenNickname) {
-	    PR_smprintf_free(tokenNickname);
-	}
-    }
-
-	
 
     /* see if the cert is already there */
     targetCertID = PK11_FindCertInSlot(targetSlot, sourceCert, targetPwArg);
@@ -1386,7 +1300,7 @@ loser:
 }
 
 PK11MergeLog *
-PK11_CreateMergeLog(void)
+PK11_CreateMergeLog()
 {
     PRArenaPool *arena;
     PK11MergeLog *log;

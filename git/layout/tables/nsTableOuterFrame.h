@@ -48,8 +48,6 @@ class nsTableFrame;
 class nsTableCaptionFrame : public nsBlockFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsISupports
   virtual nsIAtom* GetType() const;
   friend nsIFrame* NS_NewTableCaptionFrame(nsIPresShell* aPresShell, nsStyleContext*  aContext);
@@ -63,7 +61,7 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef NS_DEBUG
@@ -88,8 +86,9 @@ protected:
 class nsTableOuterFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
 public:
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -100,23 +99,29 @@ public:
   
   // nsIFrame overrides - see there for a description
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
+      ~nsIFrame::eExcludesIgnorableWhitespace);
+  }
+
   virtual PRBool IsContainingBlock() const;
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
  
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
 
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
@@ -126,7 +131,7 @@ public:
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -167,8 +172,11 @@ public:
 
   /** SetSelected needs to be overridden to talk to inner tableframe
    */
-  void SetSelected(PRBool aSelected,
-                   SelectionType aType);
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread,
+                         SelectionType aType);
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
                                         nsIFrame**      aProviderFrame,
@@ -190,6 +198,8 @@ public:
   NS_IMETHOD GetIndexByRowAndColumn(PRInt32 aRow, PRInt32 aColumn, PRInt32 *aIndex);
   NS_IMETHOD GetRowAndColumnByIndex(PRInt32 aIndex, PRInt32 *aRow, PRInt32 *aColumn);
 
+  PRBool IsNested(const nsHTMLReflowState& aReflowState) const;
+
 protected:
 
 
@@ -203,6 +213,13 @@ protected:
     * The inner table frame can answer this question in a meaningful way.
     * @see nsHTMLContainerFrame::GetSkipSides */
   virtual PRIntn GetSkipSides() const;
+
+#ifdef NS_DEBUG
+  /** overridden here to handle special caption-table relationship
+    * @see nsContainerFrame::VerifyTree
+    */
+  NS_IMETHOD VerifyTree() const;
+#endif
 
   PRUint8 GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
@@ -219,6 +236,12 @@ protected:
                       const nsMargin& aCaptionMargin,
                       nscoord&        aWidth,
                       nscoord&        aHeight);
+
+  void BalanceLeftRightCaption(PRUint8         aCaptionSide,
+                               const nsMargin& aInnerMargin, 
+                               const nsMargin& aCaptionMargin,
+                               nscoord&        aInnerWidth,
+                               nscoord&        aCaptionWidth);
 
   nsresult   GetCaptionOrigin(PRUint32         aCaptionSide,
                               const nsSize&    aContainBlockSize,
@@ -257,11 +280,11 @@ protected:
 
   // Get the margin.  aMarginNoAuto is aMargin, but with auto 
   // margins set to 0
-  void GetChildMargin(nsPresContext*           aPresContext,
-                      const nsHTMLReflowState& aOuterRS,
-                      nsIFrame*                aChildFrame,
-                      nscoord                  aAvailableWidth,
-                      nsMargin&                aMargin);
+  void GetMargin(nsPresContext*           aPresContext,
+                 const nsHTMLReflowState& aOuterRS,
+                 nsIFrame*                aChildFrame,
+                 nscoord                  aAvailableWidth,
+                 nsMargin&                aMargin);
 
 private:
   // used to keep track of this frame's children. They are redundant with mFrames, but more convient

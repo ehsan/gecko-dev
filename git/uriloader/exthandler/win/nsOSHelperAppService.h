@@ -45,7 +45,6 @@
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 #include <windows.h>
 
@@ -94,7 +93,7 @@ protected:
   static PRBool typeFromExtEquals(const PRUnichar* aExt, const char *aType);
 
 private:
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#if !defined(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
   IApplicationAssociationRegistration* mAppAssoc;
 #endif
 };

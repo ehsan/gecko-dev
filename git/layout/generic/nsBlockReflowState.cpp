@@ -50,8 +50,6 @@
 #include "nsGkAtoms.h"
 #include "nsIFrame.h"
 #include "nsFrameManager.h"
-#include "mozilla/AutoRestore.h"
-#include "FrameLayerBuilder.h"
 
 #include "nsINameSpaceManager.h"
 
@@ -60,20 +58,17 @@
 #include "nsBlockDebugFlags.h"
 #endif
 
-using namespace mozilla;
-
 nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                                        nsPresContext* aPresContext,
                                        nsBlockFrame* aFrame,
                                        const nsHTMLReflowMetrics& aMetrics,
                                        PRBool aTopMarginRoot,
                                        PRBool aBottomMarginRoot,
-                                       PRBool aBlockNeedsFloatManager)
+                                       PRBool aBlockNeedsSpaceManager)
   : mBlock(aFrame),
     mPresContext(aPresContext),
     mReflowState(aReflowState),
-    mPushedFloats(nsnull),
-    mOverflowTracker(nsnull),
+    mOverflowTracker(aPresContext, aFrame, PR_FALSE),
     mPrevBottomMargin(),
     mLineNumber(0),
     mFlags(0),
@@ -94,18 +89,19 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   if (GetFlag(BRS_ISTOPMARGINROOT)) {
     SetFlag(BRS_APPLYTOPMARGIN, PR_TRUE);
   }
-  if (aBlockNeedsFloatManager) {
-    SetFlag(BRS_FLOAT_MGR, PR_TRUE);
+  if (aBlockNeedsSpaceManager) {
+    SetFlag(BRS_SPACE_MGR, PR_TRUE);
   }
   
-  mFloatManager = aReflowState.mFloatManager;
+  mSpaceManager = aReflowState.mSpaceManager;
 
-  NS_ASSERTION(mFloatManager,
-               "FloatManager should be set in nsBlockReflowState" );
-  if (mFloatManager) {
-    // Save the coordinate system origin for later.
-    mFloatManager->GetTranslation(mFloatManagerX, mFloatManagerY);
-    mFloatManager->PushState(&mFloatManagerStateBefore); // never popped
+  NS_ASSERTION(mSpaceManager,
+               "SpaceManager should be set in nsBlockReflowState" );
+  if (mSpaceManager) {
+    // Translate into our content area and then save the 
+    // coordinate system origin for later.
+    mSpaceManager->Translate(borderPadding.left, borderPadding.top);
+    mSpaceManager->GetTranslation(mSpaceManagerX, mSpaceManagerY);
   }
 
   mReflowStatus = NS_FRAME_COMPLETE;
@@ -113,10 +109,8 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mPresContext = aPresContext;
   mNextInFlow = static_cast<nsBlockFrame*>(mBlock->GetNextInFlow());
 
-  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aReflowState.ComputedWidth(),
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aReflowState.ComputedWidth(),
+               "no unconstrained widths should be present anymore");
   mContentArea.width = aReflowState.ComputedWidth();
 
   // Compute content area height. Unlike the width, if we have a
@@ -130,7 +124,7 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
     // the bottom border and padding. The content area height doesn't
     // include either border or padding edge.
     mBottomEdge = aReflowState.availableHeight - borderPadding.bottom;
-    mContentArea.height = NS_MAX(0, mBottomEdge - borderPadding.top);
+    mContentArea.height = PR_MAX(0, mBottomEdge - borderPadding.top);
   }
   else {
     // When we are not in a paginated situation then we always use
@@ -138,13 +132,53 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
     SetFlag(BRS_UNCONSTRAINEDHEIGHT, PR_TRUE);
     mContentArea.height = mBottomEdge = NS_UNCONSTRAINEDSIZE;
   }
-  mContentArea.x = borderPadding.left;
-  mY = mContentArea.y = borderPadding.top;
+
+  mY = borderPadding.top;
+  mBand.Init(mSpaceManager, mContentArea);
 
   mPrevChild = nsnull;
   mCurrentLine = aFrame->end_lines();
 
-  mMinLineHeight = aReflowState.CalcLineHeight();
+  mMinLineHeight = nsHTMLReflowState::CalcLineHeight(aReflowState.frame);
+
+  // Calculate mOutsideBulletX
+  GetAvailableSpace();
+  // FIXME (bug 25888): need to check the entire region that the first
+  // line overlaps, not just the top pixel.
+  mOutsideBulletX =
+    mReflowState.mStyleVisibility->mDirection == NS_STYLE_DIRECTION_LTR ?
+      mAvailSpaceRect.x :
+      PR_MIN(mReflowState.ComputedWidth(), mAvailSpaceRect.XMost()) +
+        mReflowState.mComputedBorderPadding.LeftRight();
+}
+
+void
+nsBlockReflowState::SetupOverflowPlaceholdersProperty()
+{
+  if (mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE ||
+      !mOverflowPlaceholders.IsEmpty()) {
+    mBlock->SetProperty(nsGkAtoms::overflowPlaceholdersProperty,
+                        &mOverflowPlaceholders, nsnull);
+    mBlock->AddStateBits(NS_BLOCK_HAS_OVERFLOW_PLACEHOLDERS);
+  }
+}
+
+nsBlockReflowState::~nsBlockReflowState()
+{
+  NS_ASSERTION(mOverflowPlaceholders.IsEmpty(),
+               "Leaking overflow placeholder frames");
+
+  // Restore the coordinate system, unless the space manager is null,
+  // which means it was just destroyed.
+  if (mSpaceManager) {
+    const nsMargin& borderPadding = BorderPadding();
+    mSpaceManager->Translate(-borderPadding.left, -borderPadding.top);
+  }
+
+  if (mBlock->GetStateBits() & NS_BLOCK_HAS_OVERFLOW_PLACEHOLDERS) {
+    mBlock->UnsetProperty(nsGkAtoms::overflowPlaceholdersProperty);
+    mBlock->RemoveStateBits(NS_BLOCK_HAS_OVERFLOW_PLACEHOLDERS);
+  }
 }
 
 nsLineBox*
@@ -165,24 +199,23 @@ nsBlockReflowState::FreeLineBox(nsLineBox* aLine)
 
 void
 nsBlockReflowState::ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
-                                                         const nsRect& aFloatAvailableSpace,
                                                          nscoord& aLeftResult,
                                                          nscoord& aRightResult,
                                                          nsBlockFrame::
                                                       ReplacedElementWidthToClear
                                                                  *aReplacedWidth)
 {
-  // The frame is clueless about the float manager and therefore we
+  // The frame is clueless about the space manager and therefore we
   // only give it free space. An example is a table frame - the
   // tables do not flow around floats.
   // However, we can let its margins intersect floats.
-  NS_ASSERTION(aFloatAvailableSpace.x >= mContentArea.x, "bad avail space rect x");
-  NS_ASSERTION(aFloatAvailableSpace.width == 0 ||
-               aFloatAvailableSpace.XMost() <= mContentArea.XMost(),
+  NS_ASSERTION(mAvailSpaceRect.x >= 0, "bad avail space rect x");
+  NS_ASSERTION(mAvailSpaceRect.width == 0 ||
+               mAvailSpaceRect.XMost() <= mContentArea.width,
                "bad avail space rect width");
 
   nscoord leftOffset, rightOffset;
-  if (aFloatAvailableSpace.width == mContentArea.width) {
+  if (mAvailSpaceRect.width == mContentArea.width) {
     // We don't need to compute margins when there are no floats around.
     leftOffset = 0;
     rightOffset = 0;
@@ -199,17 +232,16 @@ nsBlockReflowState::ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
                   aReplacedWidth->marginRight == os.mComputedMargin.right),
                  "unexpected aReplacedWidth");
 
-    nscoord leftFloatXOffset = aFloatAvailableSpace.x - mContentArea.x;
-    leftOffset = NS_MAX(leftFloatXOffset, os.mComputedMargin.left) -
+    nscoord leftFloatXOffset = mAvailSpaceRect.x;
+    leftOffset = PR_MAX(leftFloatXOffset, os.mComputedMargin.left) -
                  (aReplacedWidth ? aReplacedWidth->marginLeft
                                  : os.mComputedMargin.left);
-    leftOffset = NS_MAX(leftOffset, 0); // in case of negative margin
-    nscoord rightFloatXOffset =
-      mContentArea.XMost() - aFloatAvailableSpace.XMost();
-    rightOffset = NS_MAX(rightFloatXOffset, os.mComputedMargin.right) -
+    leftOffset = PR_MAX(leftOffset, 0); // in case of negative margin
+    nscoord rightFloatXOffset = mContentArea.width - mAvailSpaceRect.XMost();
+    rightOffset = PR_MAX(rightFloatXOffset, os.mComputedMargin.right) -
                   (aReplacedWidth ? aReplacedWidth->marginRight
                                   : os.mComputedMargin.right);
-    rightOffset = NS_MAX(rightOffset, 0); // in case of negative margin
+    rightOffset = PR_MAX(rightOffset, 0); // in case of negative margin
   }
   aLeftResult = leftOffset;
   aRightResult = rightOffset;
@@ -221,21 +253,22 @@ nsBlockReflowState::ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
 void
 nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
                                            const nsStyleDisplay* aDisplay,
-                                           const nsFlowAreaRect& aFloatAvailableSpace,
                                            PRBool aBlockAvoidsFloats,
                                            nsRect& aResult)
 {
 #ifdef REALLY_NOISY_REFLOW
-  printf("CBAS frame=%p has floats %d\n",
-         aFrame, aFloatAvailableSpace.mHasFloats);
+  printf("CBAS frame=%p has float count %d\n", aFrame, mBand.GetFloatCount());
+  mBand.List();
 #endif
   aResult.y = mY;
   aResult.height = GetFlag(BRS_UNCONSTRAINEDHEIGHT)
     ? NS_UNCONSTRAINEDSIZE
-    : mReflowState.availableHeight - mY;
+    : PR_MAX(0, mReflowState.availableHeight - mY);
   // mY might be greater than mBottomEdge if the block's top margin pushes
   // it off the page/column. Negative available height can confuse other code
   // and is nonsense in principle.
+
+  const nsMargin& borderPadding = BorderPadding();
 
   // XXX Do we really want this condition to be this restrictive (i.e.,
   // more restrictive than it used to be)?  The |else| here is allowed
@@ -253,7 +286,7 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
                  !aBlockAvoidsFloats,
                "unexpected replaced width");
   if (!aBlockAvoidsFloats) {
-    if (aFloatAvailableSpace.mHasFloats) {
+    if (mBand.GetFloatCount()) {
       // Use the float-edge property to determine how the child block
       // will interact with the float.
       const nsStyleBorder* borderStyle = aFrame->GetStyleBorder();
@@ -262,15 +295,15 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
         case NS_STYLE_FLOAT_EDGE_CONTENT:  // content and only content does runaround of floats
           // The child block will flow around the float. Therefore
           // give it all of the available space.
-          aResult.x = mContentArea.x;
+          aResult.x = borderPadding.left;
           aResult.width = mContentArea.width;
           break;
         case NS_STYLE_FLOAT_EDGE_MARGIN:
           {
             // The child block's margins should be placed adjacent to,
             // but not overlap the float.
-            aResult.x = aFloatAvailableSpace.mRect.x;
-            aResult.width = aFloatAvailableSpace.mRect.width;
+            aResult.x = mAvailSpaceRect.x + borderPadding.left;
+            aResult.width = mAvailSpaceRect.width;
           }
           break;
       }
@@ -279,7 +312,7 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
       // Since there are no floats present the float-edge property
       // doesn't matter therefore give the block element all of the
       // available space since it will flow around the float itself.
-      aResult.x = mContentArea.x;
+      aResult.x = borderPadding.left;
       aResult.width = mContentArea.width;
     }
   }
@@ -288,16 +321,13 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
     nsBlockFrame::ReplacedElementWidthToClear *replacedWidth = nsnull;
     if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
       replacedWidth = &replacedWidthStruct;
-      replacedWidthStruct =
-        nsBlockFrame::WidthToClearPastFloats(*this, aFloatAvailableSpace.mRect,
-                                             aFrame);
+      replacedWidthStruct = nsBlockFrame::WidthToClearPastFloats(*this, aFrame);
     }
 
     nscoord leftOffset, rightOffset;
-    ComputeReplacedBlockOffsetsForFloats(aFrame, aFloatAvailableSpace.mRect,
-                                         leftOffset, rightOffset,
+    ComputeReplacedBlockOffsetsForFloats(aFrame, leftOffset, rightOffset,
                                          replacedWidth);
-    aResult.x = mContentArea.x + leftOffset;
+    aResult.x = borderPadding.left + leftOffset;
     aResult.width = mContentArea.width - leftOffset - rightOffset;
   }
 
@@ -306,68 +336,29 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
 #endif
 }
 
-nsFlowAreaRect
-nsBlockReflowState::GetFloatAvailableSpaceWithState(
-                      nscoord aY,
-                      nsFloatManager::SavedState *aState) const
+void
+nsBlockReflowState::GetAvailableSpace(nscoord aY, PRBool aRelaxHeightConstraint)
 {
 #ifdef DEBUG
   // Verify that the caller setup the coordinate system properly
   nscoord wx, wy;
-  mFloatManager->GetTranslation(wx, wy);
-  NS_ASSERTION((wx == mFloatManagerX) && (wy == mFloatManagerY),
+  mSpaceManager->GetTranslation(wx, wy);
+  NS_ASSERTION((wx == mSpaceManagerX) && (wy == mSpaceManagerY),
                "bad coord system");
 #endif
 
-  nscoord height = (mContentArea.height == nscoord_MAX)
-                     ? nscoord_MAX : NS_MAX(mContentArea.YMost() - aY, 0);
-  nsFlowAreaRect result =
-    mFloatManager->GetFlowArea(aY, nsFloatManager::BAND_FROM_POINT,
-                               height, mContentArea, aState);
-  // Keep the width >= 0 for compatibility with nsSpaceManager.
-  if (result.mRect.width < 0)
-    result.mRect.width = 0;
+  mBand.GetAvailableSpace(aY - BorderPadding().top, aRelaxHeightConstraint,
+                          mAvailSpaceRect);
 
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
     nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
-    printf("GetAvailableSpace: band=%d,%d,%d,%d hasfloats=%d\n",
-           result.mRect.x, result.mRect.y, result.mRect.width,
-           result.mRect.height, result.mHasFloats);
+    printf("GetAvailableSpace: band=%d,%d,%d,%d count=%d\n",
+           mAvailSpaceRect.x, mAvailSpaceRect.y,
+           mAvailSpaceRect.width, mAvailSpaceRect.height,
+           mBand.GetTrapezoidCount());
   }
 #endif
-  return result;
-}
-
-nsFlowAreaRect
-nsBlockReflowState::GetFloatAvailableSpaceForHeight(
-                      nscoord aY, nscoord aHeight,
-                      nsFloatManager::SavedState *aState) const
-{
-#ifdef DEBUG
-  // Verify that the caller setup the coordinate system properly
-  nscoord wx, wy;
-  mFloatManager->GetTranslation(wx, wy);
-  NS_ASSERTION((wx == mFloatManagerX) && (wy == mFloatManagerY),
-               "bad coord system");
-#endif
-
-  nsFlowAreaRect result =
-    mFloatManager->GetFlowArea(aY, nsFloatManager::WIDTH_WITHIN_HEIGHT,
-                               aHeight, mContentArea, aState);
-  // Keep the width >= 0 for compatibility with nsSpaceManager.
-  if (result.mRect.width < 0)
-    result.mRect.width = 0;
-
-#ifdef DEBUG
-  if (nsBlockFrame::gNoisyReflow) {
-    nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
-    printf("GetAvailableSpaceForHeight: space=%d,%d,%d,%d hasfloats=%d\n",
-           result.mRect.x, result.mRect.y, result.mRect.width,
-           result.mRect.height, result.mHasFloats);
-  }
-#endif
-  return result;
 }
 
 /*
@@ -410,26 +401,8 @@ nsBlockReflowState::ReconstructMarginAbove(nsLineList::iterator aLine)
   }
 }
 
-void
-nsBlockReflowState::SetupPushedFloatList()
-{
-  NS_ABORT_IF_FALSE(!GetFlag(BRS_PROPTABLE_FLOATCLIST) == !mPushedFloats,
-                    "flag mismatch");
-  if (!GetFlag(BRS_PROPTABLE_FLOATCLIST)) {
-    // If we're being re-Reflow'd without our next-in-flow having been
-    // reflowed, some pushed floats from our previous reflow might
-    // still be on our pushed floats list.  However, that's
-    // actually fine, since they'll all end up being stolen and
-    // reordered into the correct order again.
-    // (nsBlockFrame::ReflowDirtyLines ensures that any lines with
-    // pushed floats are reflowed.)
-    mPushedFloats = mBlock->EnsurePushedFloats();
-    SetFlag(BRS_PROPTABLE_FLOATCLIST, PR_TRUE);
-  }
-}
-
 /**
- * Restore information about floats into the float manager for an
+ * Restore information about floats into the space manager for an
  * incremental reflow, and simultaneously push the floats by
  * |aDeltaY|, which is the amount |aLine| was pushed relative to its
  * parent.  The recovery of state is one of the things that makes
@@ -445,32 +418,63 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
     // them, just like the regular frames on the line.
     nsFloatCache* fc = aLine->GetFirstFloat();
     while (fc) {
-      nsIFrame* floatFrame = fc->mFloat;
+      nsIFrame* floatFrame = fc->mPlaceholder->GetOutOfFlowFrame();
       if (aDeltaY != 0) {
+        fc->mRegion.y += aDeltaY;
         nsPoint p = floatFrame->GetPosition();
         floatFrame->SetPosition(nsPoint(p.x, p.y + aDeltaY));
         nsContainerFrame::PositionFrameView(floatFrame);
         nsContainerFrame::PositionChildViews(floatFrame);
       }
 #ifdef DEBUG
-      if (nsBlockFrame::gNoisyReflow || nsBlockFrame::gNoisyFloatManager) {
+      if (nsBlockFrame::gNoisyReflow || nsBlockFrame::gNoisySpaceManager) {
         nscoord tx, ty;
-        mFloatManager->GetTranslation(tx, ty);
+        mSpaceManager->GetTranslation(tx, ty);
         nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
         printf("RecoverFloats: txy=%d,%d (%d,%d) ",
-               tx, ty, mFloatManagerX, mFloatManagerY);
+               tx, ty, mSpaceManagerX, mSpaceManagerY);
         nsFrame::ListTag(stdout, floatFrame);
-        nsRect region = nsFloatManager::GetRegionFor(floatFrame);
         printf(" aDeltaY=%d region={%d,%d,%d,%d}\n",
-               aDeltaY, region.x, region.y, region.width, region.height);
+               aDeltaY, fc->mRegion.x, fc->mRegion.y,
+               fc->mRegion.width, fc->mRegion.height);
       }
 #endif
-      mFloatManager->AddFloat(floatFrame,
-                              nsFloatManager::GetRegionFor(floatFrame));
+      mSpaceManager->AddRectRegion(floatFrame, fc->mRegion);
       fc = fc->Next();
     }
   } else if (aLine->IsBlock()) {
-    nsBlockFrame::RecoverFloatsFor(aLine->mFirstChild, *mFloatManager);
+    nsBlockFrame *kid = nsLayoutUtils::GetAsBlock(aLine->mFirstChild);
+    // don't recover any state inside a block that has its own space
+    // manager (we don't currently have any blocks like this, though,
+    // thanks to our use of extra frames for 'overflow')
+    if (kid && !nsBlockFrame::BlockNeedsSpaceManager(kid)) {
+      nscoord tx = kid->mRect.x, ty = kid->mRect.y;
+
+      // If the element is relatively positioned, then adjust x and y
+      // accordingly so that we consider relatively positioned frames
+      // at their original position.
+      if (NS_STYLE_POSITION_RELATIVE == kid->GetStyleDisplay()->mPosition) {
+        nsPoint *offsets = static_cast<nsPoint*>
+                                      (mPresContext->PropertyTable()->GetProperty(kid,
+                                       nsGkAtoms::computedOffsetProperty));
+
+        if (offsets) {
+          tx -= offsets->x;
+          ty -= offsets->y;
+        }
+      }
+ 
+      mSpaceManager->Translate(tx, ty);
+      for (nsBlockFrame::line_iterator line = kid->begin_lines(),
+                                   line_end = kid->end_lines();
+           line != line_end;
+           ++line)
+        // Pass 0, not the real DeltaY, since these floats aren't
+        // moving relative to their parent block, only relative to
+        // the space manager.
+        RecoverFloats(line, 0);
+      mSpaceManager->Translate(-tx, -ty);
+    }
   }
 }
 
@@ -493,16 +497,51 @@ nsBlockReflowState::RecoverStateFrom(nsLineList::iterator aLine,
   // Make the line being recovered the current line
   mCurrentLine = aLine;
 
-  // Place floats for this line into the float manager
+  // Place floats for this line into the space manager
   if (aLine->HasFloats() || aLine->IsBlock()) {
+    // Undo border/padding translation since the nsFloatCache's
+    // coordinates are relative to the frame not relative to the
+    // border/padding.
+    const nsMargin& bp = BorderPadding();
+    mSpaceManager->Translate(-bp.left, -bp.top);
+
     RecoverFloats(aLine, aDeltaY);
 
 #ifdef DEBUG
-    if (nsBlockFrame::gNoisyReflow || nsBlockFrame::gNoisyFloatManager) {
-      mFloatManager->List(stdout);
+    if (nsBlockFrame::gNoisyReflow || nsBlockFrame::gNoisySpaceManager) {
+      mSpaceManager->List(stdout);
     }
 #endif
+    // And then put the translation back again
+    mSpaceManager->Translate(bp.left, bp.top);
   }
+}
+
+PRBool
+nsBlockReflowState::IsImpactedByFloat() const
+{
+#ifdef REALLY_NOISY_REFLOW
+  printf("nsBlockReflowState::IsImpactedByFloat %p returned %d\n", 
+         this, mBand.GetFloatCount());
+#endif
+  return mBand.GetFloatCount() > 0;
+}
+
+
+PRBool
+nsBlockReflowState::InitFloat(nsLineLayout&       aLineLayout,
+                              nsPlaceholderFrame* aPlaceholder,
+                              nscoord             aAvailableWidth,
+                              nsReflowStatus&     aReflowStatus)
+{
+  // Set the geometric parent of the float
+  nsIFrame* floatFrame = aPlaceholder->GetOutOfFlowFrame();
+  floatFrame->SetParent(mBlock);
+
+  // Then add the float to the current line and place it when
+  // appropriate
+  return AddFloat(aLineLayout, aPlaceholder, PR_TRUE,
+                  aAvailableWidth, aReflowStatus);
 }
 
 // This is called by the line layout's AddFloat method when a
@@ -516,49 +555,18 @@ nsBlockReflowState::RecoverStateFrom(nsLineList::iterator aLine,
 // float as well unless it won't fit next to what we already have.
 // But nobody else implements it that way...
 PRBool
-nsBlockReflowState::AddFloat(nsLineLayout*       aLineLayout,
-                             nsIFrame*           aFloat,
-                             nscoord             aAvailableWidth)
+nsBlockReflowState::AddFloat(nsLineLayout&       aLineLayout,
+                             nsPlaceholderFrame* aPlaceholder,
+                             PRBool              aInitialReflow,
+                             nscoord             aAvailableWidth,
+                             nsReflowStatus&     aReflowStatus)
 {
-  NS_PRECONDITION(aLineLayout, "must have line layout");
   NS_PRECONDITION(mBlock->end_lines() != mCurrentLine, "null ptr");
-  NS_PRECONDITION(aFloat->GetStateBits() & NS_FRAME_OUT_OF_FLOW,
-                  "aFloat must be an out-of-flow frame");
 
-  NS_ABORT_IF_FALSE(aFloat->GetParent(), "float must have parent");
-  NS_ABORT_IF_FALSE(aFloat->GetParent()->IsFrameOfType(nsIFrame::eBlockFrame),
-                    "float's parent must be block");
-  NS_ABORT_IF_FALSE(aFloat->GetParent() == mBlock ||
-                    (aFloat->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT),
-                    "float should be in this block unless it was marked as "
-                    "pushed float");
-  if (aFloat->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT) {
-    // If, in a previous reflow, the float was pushed entirely to
-    // another column/page, we need to steal it back.  (We might just
-    // push it again, though.)  Likewise, if that previous reflow
-    // reflowed this block but not its next continuation, we might need
-    // to steal it from our own float-continuations list.
-    nsBlockFrame *floatParent =
-      static_cast<nsBlockFrame*>(aFloat->GetParent());
-    floatParent->StealFrame(mPresContext, aFloat);
-
-    aFloat->RemoveStateBits(NS_FRAME_IS_PUSHED_FLOAT);
-
-    // Appending is fine, since if a float was pushed to the next
-    // page/column, all later floats were also pushed.
-    mBlock->mFloats.AppendFrame(mBlock, aFloat);
-  }
-
-  // Because we are in the middle of reflowing a placeholder frame
-  // within a line (and possibly nested in an inline frame or two
-  // that's a child of our block) we need to restore the space
-  // manager's translation to the space that the block resides in
-  // before placing the float.
-  nscoord ox, oy;
-  mFloatManager->GetTranslation(ox, oy);
-  nscoord dx = ox - mFloatManagerX;
-  nscoord dy = oy - mFloatManagerY;
-  mFloatManager->Translate(-dx, -dy);
+  aReflowStatus = NS_FRAME_COMPLETE;
+  // Allocate a nsFloatCache for the float
+  nsFloatCache* fc = mFloatCacheFreeList.Alloc();
+  fc->mPlaceholder = aPlaceholder;
 
   PRBool placed;
 
@@ -567,24 +575,59 @@ nsBlockReflowState::AddFloat(nsLineLayout*       aLineLayout,
   // If one or more floats has already been pushed to the next line,
   // don't let this one go on the current line, since that would violate
   // float ordering.
-  nsRect floatAvailableSpace = GetFloatAvailableSpace().mRect;
   if (mBelowCurrentLineFloats.IsEmpty() &&
-      (aLineLayout->LineIsEmpty() ||
-       mBlock->ComputeFloatWidth(*this, floatAvailableSpace, aFloat)
-       <= aAvailableWidth)) {
+      (aLineLayout.LineIsEmpty() ||
+       mBlock->ComputeFloatWidth(*this, aPlaceholder) <= aAvailableWidth)) {
+    // Because we are in the middle of reflowing a placeholder frame
+    // within a line (and possibly nested in an inline frame or two
+    // that's a child of our block) we need to restore the space
+    // manager's translation to the space that the block resides in
+    // before placing the float.
+    nscoord ox, oy;
+    mSpaceManager->GetTranslation(ox, oy);
+    nscoord dx = ox - mSpaceManagerX;
+    nscoord dy = oy - mSpaceManagerY;
+    mSpaceManager->Translate(-dx, -dy);
+
     // And then place it
-    placed = FlowAndPlaceFloat(aFloat);
-    if (placed) {
+    PRBool isLeftFloat;
+    // force it to fit if we're at the top of the block and we can't
+    // break before this
+    PRBool forceFit = IsAdjacentWithTop() && !aLineLayout.LineIsBreakable();
+    placed = FlowAndPlaceFloat(fc, &isLeftFloat, aReflowStatus, forceFit);
+    NS_ASSERTION(placed || !forceFit,
+                 "If we asked for force-fit, it should have been placed");
+    if (forceFit || (placed && !NS_FRAME_IS_TRUNCATED(aReflowStatus))) {
       // Pass on updated available space to the current inline reflow engine
-      nsFlowAreaRect floatAvailSpace = GetFloatAvailableSpace(mY);
-      nsRect availSpace(nsPoint(floatAvailSpace.mRect.x, mY),
-                        floatAvailSpace.mRect.Size());
-      aLineLayout->UpdateBand(availSpace, aFloat);
+      GetAvailableSpace(mY, forceFit);
+      nsRect availSpace(nsPoint(mAvailSpaceRect.x + BorderPadding().left, mY),
+                        mAvailSpaceRect.Size());
+      aLineLayout.UpdateBand(availSpace, isLeftFloat,
+                             aPlaceholder->GetOutOfFlowFrame());
+      
       // Record this float in the current-line list
-      mCurrentLineFloats.Append(mFloatCacheFreeList.Alloc(aFloat));
-    } else {
-      (*aLineLayout->GetLine())->SetHadFloatPushed();
+      mCurrentLineFloats.Append(fc);
+      // If we can't break here, hide the fact that it's truncated
+      // XXX We can probably do this more cleanly
+      aReflowStatus &= ~NS_FRAME_TRUNCATED;
     }
+    else {
+      if (IsAdjacentWithTop()) {
+        // Pushing the line to the next page won't give us any more space;
+        // therefore, we break.
+        NS_ASSERTION(aLineLayout.LineIsBreakable(),
+                     "We can't get here unless forceFit is false");
+        aReflowStatus = NS_INLINE_LINE_BREAK_BEFORE();
+      } else {
+        // Make sure we propagate the truncated status; this signals the
+        // block to push the line to the next page.
+        aReflowStatus |= NS_FRAME_TRUNCATED;
+      }
+      delete fc;
+    }
+
+    // Restore coordinate system
+    mSpaceManager->Translate(dx, dy);
   }
   else {
     // Always claim to be placed; we don't know whether we fit yet, so we
@@ -592,72 +635,147 @@ nsBlockReflowState::AddFloat(nsLineLayout*       aLineLayout,
     placed = PR_TRUE;
     // This float will be placed after the line is done (it is a
     // below-current-line float).
-    mBelowCurrentLineFloats.Append(mFloatCacheFreeList.Alloc(aFloat));
+    mBelowCurrentLineFloats.Append(fc);
+    if (aPlaceholder->GetNextInFlow()) {
+      // If the float might not be complete, mark it incomplete now to
+      // prevent its next-in-flow placeholders being torn down. We will destroy any
+      // placeholders later if PlaceBelowCurrentLineFloats finds the
+      // float is complete.
+      // Note that we could have unconstrained height and yet have
+      // a next-in-flow placeholder --- for example columns can switch
+      // from constrained height to unconstrained height.
+      if (aPlaceholder->GetSplittableType() != NS_FRAME_NOT_SPLITTABLE) {
+        aReflowStatus = NS_FRAME_NOT_COMPLETE;
+      }
+    }
   }
-
-  // Restore coordinate system
-  mFloatManager->Translate(dx, dy);
-
   return placed;
 }
 
 PRBool
-nsBlockReflowState::CanPlaceFloat(nscoord aFloatWidth,
-                                  const nsFlowAreaRect& aFloatAvailableSpace)
+nsBlockReflowState::CanPlaceFloat(const nsSize& aFloatSize,
+                                  PRUint8 aFloats, PRBool aForceFit)
 {
-  // A float fits at a given vertical position if there are no floats at
-  // its horizontal position (no matter what its width) or if its width
-  // fits in the space remaining after prior floats have been placed.
-  // FIXME: We should allow overflow by up to half a pixel here (bug 21193).
-  return !aFloatAvailableSpace.mHasFloats ||
-         aFloatAvailableSpace.mRect.width >= aFloatWidth;
-}
+  // If the current Y coordinate is not impacted by any floats
+  // then by definition the float fits.
+  PRBool result = PR_TRUE;
+  if (0 != mBand.GetFloatCount()) {
+    // XXX We should allow overflow by up to half a pixel here (bug 21193).
+    if (mAvailSpaceRect.width < aFloatSize.width) {
+      // The available width is too narrow (and its been impacted by a
+      // prior float)
+      result = PR_FALSE;
+    }
+  }
 
-static nscoord
-FloatMarginWidth(const nsHTMLReflowState& aCBReflowState,
-                 nscoord aFloatAvailableWidth,
-                 nsIFrame *aFloat,
-                 const nsCSSOffsetState& aFloatOffsetState)
-{
-  return aFloat->ComputeSize(
-    aCBReflowState.rendContext,
-    nsSize(aCBReflowState.ComputedWidth(),
-           aCBReflowState.ComputedHeight()),
-    aFloatAvailableWidth,
-    nsSize(aFloatOffsetState.mComputedMargin.LeftRight(),
-           aFloatOffsetState.mComputedMargin.TopBottom()),
-    nsSize(aFloatOffsetState.mComputedBorderPadding.LeftRight() -
-             aFloatOffsetState.mComputedPadding.LeftRight(),
-           aFloatOffsetState.mComputedBorderPadding.TopBottom() -
-             aFloatOffsetState.mComputedPadding.TopBottom()),
-    nsSize(aFloatOffsetState.mComputedPadding.LeftRight(),
-           aFloatOffsetState.mComputedPadding.TopBottom()),
-    PR_TRUE).width +
-  aFloatOffsetState.mComputedMargin.LeftRight() +
-  aFloatOffsetState.mComputedBorderPadding.LeftRight();
+  if (!result)
+    return result;
+
+  // At this point we know that there is enough horizontal space for
+  // the float (somewhere). Lets see if there is enough vertical
+  // space.
+  if (NSCoordGreaterThan(aFloatSize.height, mAvailSpaceRect.height)) {
+    // The available height is too short. However, its possible that
+    // there is enough open space below which is not impacted by a
+    // float.
+    //
+    // Compute the X coordinate for the float based on its float
+    // type, assuming its placed on the current line. This is
+    // where the float will be placed horizontally if it can go
+    // here.
+    nscoord xa;
+    if (NS_STYLE_FLOAT_LEFT == aFloats) {
+      xa = mAvailSpaceRect.x;
+    }
+    else {
+      xa = mAvailSpaceRect.XMost() - aFloatSize.width;
+
+      // In case the float is too big, don't go past the left edge
+      // XXXldb This seems wrong, but we might want to fix bug 6976
+      // first.
+      if (xa < mAvailSpaceRect.x) {
+        xa = mAvailSpaceRect.x;
+      }
+    }
+    nscoord xb = xa + aFloatSize.width;
+
+    // Calculate the top and bottom y coordinates, again assuming
+    // that the float is placed on the current line.
+    const nsMargin& borderPadding = BorderPadding();
+    nscoord ya = mY - borderPadding.top;
+    if (ya < 0) {
+      // CSS2 spec, 9.5.1 rule [4]: "A floating box's outer top may not
+      // be higher than the top of its containing block."  (Since the
+      // containing block is the content edge of the block box, this
+      // means the margin edge of the float can't be higher than the
+      // content edge of the block that contains it.)
+      ya = 0;
+    }
+    nscoord yb = ya + aFloatSize.height;
+
+    nscoord saveY = mY;
+    for (;;) {
+      // Get the available space at the new Y coordinate
+      if (mAvailSpaceRect.height <= 0) {
+        // there is no more available space. We lose.
+        result = PR_FALSE;
+        break;
+      }
+
+      mY += mAvailSpaceRect.height;
+      GetAvailableSpace(mY, aForceFit);
+
+      if (0 != mBand.GetFloatCount()) {
+        if ((xa < mAvailSpaceRect.x) || (xb > mAvailSpaceRect.XMost())) {
+          // The float can't go here.
+          result = PR_FALSE;
+          break;
+        }
+      }
+
+      // See if there is now enough height for the float.
+      if (yb <= mY + mAvailSpaceRect.height) {
+        // Winner. The bottom Y coordinate of the float is in
+        // this band.
+        break;
+      }
+    }
+
+    // Restore Y coordinate and available space information
+    // regardless of the outcome.
+    mY = saveY;
+    GetAvailableSpace(mY, aForceFit);
+  }
+
+  return result;
 }
 
 PRBool
-nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
+nsBlockReflowState::FlowAndPlaceFloat(nsFloatCache*   aFloatCache,
+                                      PRBool*         aIsLeftFloat,
+                                      nsReflowStatus& aReflowStatus,
+                                      PRBool          aForceFit)
 {
+  aReflowStatus = NS_FRAME_COMPLETE;
   // Save away the Y coordinate before placing the float. We will
   // restore mY at the end after placing the float. This is
   // necessary because any adjustments to mY during the float
   // placement are for the float only, not for any non-floating
   // content.
-  AutoRestore<nscoord> restoreY(mY);
-  // FIXME: Should give AutoRestore a getter for the value to avoid this.
-  const nscoord saveY = mY;
+  nscoord saveY = mY;
+
+  nsPlaceholderFrame* placeholder = aFloatCache->mPlaceholder;
+  nsIFrame*           floatFrame = placeholder->GetOutOfFlowFrame();
 
   // Grab the float's display information
-  const nsStyleDisplay* floatDisplay = aFloat->GetStyleDisplay();
+  const nsStyleDisplay* floatDisplay = floatFrame->GetStyleDisplay();
 
   // The float's old region, so we can propagate damage.
-  nsRect oldRegion = nsFloatManager::GetRegionFor(aFloat);
+  nsRect oldRegion = aFloatCache->mRegion;
 
   // Enforce CSS2 9.5.1 rule [2], i.e., make sure that a float isn't
   // ``above'' another float that preceded it in the flow.
-  mY = NS_MAX(mFloatManager->GetLowestFloatTop(), mY);
+  mY = NS_MAX(mSpaceManager->GetLowestRegionTop() + BorderPadding().top, mY);
 
   // See if the float should clear any preceding floats...
   // XXX We need to mark this float somehow so that it gets reflowed
@@ -667,35 +785,28 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
     mY = ClearFloats(mY, floatDisplay->mBreakType);
   }
     // Get the band of available space
-  nsFlowAreaRect floatAvailableSpace = GetFloatAvailableSpace(mY);
-  nsRect adjustedAvailableSpace = mBlock->AdjustFloatAvailableSpace(*this,
-                                    floatAvailableSpace.mRect, aFloat);
+  GetAvailableSpace(mY, aForceFit);
 
-  NS_ASSERTION(aFloat->GetParent() == mBlock,
+  NS_ASSERTION(floatFrame->GetParent() == mBlock,
                "Float frame has wrong parent");
 
-  nsCSSOffsetState offsets(aFloat, mReflowState.rendContext,
-                           mReflowState.ComputedWidth());
+  // Reflow the float
+  nsMargin floatMargin;
+  mBlock->ReflowFloat(*this, placeholder, floatMargin, aReflowStatus);
 
-  nscoord floatMarginWidth = FloatMarginWidth(mReflowState,
-                                              adjustedAvailableSpace.width,
-                                              aFloat, offsets);
-
-  nsMargin floatMargin; // computed margin
-  nsReflowStatus reflowStatus;
-
-  // If it's a floating first-letter, we need to reflow it before we
-  // know how wide it is (since we don't compute which letters are part
-  // of the first letter until reflow!).
-  PRBool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
-  if (isLetter) {
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, PR_FALSE, reflowStatus);
-    floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
-    NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
-                 "letter frames shouldn't break, and if they do now, "
-                 "then they're breaking at the wrong point");
+#ifdef DEBUG
+  if (nsBlockFrame::gNoisyReflow) {
+    nsRect region = floatFrame->GetRect();
+    nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
+    printf("flowed float: ");
+    nsFrame::ListTag(stdout, floatFrame);
+    printf(" (%d,%d,%d,%d)\n",
+	   region.x, region.y, region.width, region.height);
   }
+#endif
+
+  nsSize floatSize = floatFrame->GetSize() +
+                     nsSize(floatMargin.LeftRight(), floatMargin.TopBottom());
 
   // Find a place to place the float. The CSS2 spec doesn't want
   // floats overlapping each other or sticking out of the containing
@@ -707,47 +818,31 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // Can the float fit here?
   PRBool keepFloatOnSameLine = PR_FALSE;
 
-  // Are we required to place at least part of the float because we're
-  // at the top of the page (to avoid an infinite loop of pushing and
-  // breaking).
-  PRBool mustPlaceFloat =
-    mReflowState.mFlags.mIsTopOfPage && IsAdjacentWithTop();
-
-  for (;;) {
-    if (mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE &&
-        floatAvailableSpace.mRect.height <= 0 &&
-        !mustPlaceFloat) {
+  while (!CanPlaceFloat(floatSize, floatDisplay->mFloats, aForceFit)) {
+    if (mAvailSpaceRect.height <= 0) {
       // No space, nowhere to put anything.
-      PushFloatPastBreak(aFloat);
+      mY = saveY;
       return PR_FALSE;
-    }
-
-    if (CanPlaceFloat(floatMarginWidth, floatAvailableSpace)) {
-      // We found an appropriate place.
-      break;
     }
 
     // Nope. try to advance to the next band.
     if (NS_STYLE_DISPLAY_TABLE != floatDisplay->mDisplay ||
           eCompatibility_NavQuirks != mPresContext->CompatibilityMode() ) {
 
-      mY += floatAvailableSpace.mRect.height;
-      if (adjustedAvailableSpace.height != NS_UNCONSTRAINEDSIZE) {
-        adjustedAvailableSpace.height -= floatAvailableSpace.mRect.height;
-      }
-      floatAvailableSpace = GetFloatAvailableSpace(mY);
+      mY += mAvailSpaceRect.height;
+      GetAvailableSpace(mY, aForceFit);
     } else {
-      // This quirk matches the one in nsBlockFrame::AdjustFloatAvailableSpace
+      // This quirk matches the one in nsBlockFrame::ReflowFloat
       // IE handles float tables in a very special way
 
       // see if the previous float is also a table and has "align"
       nsFloatCache* fc = mCurrentLineFloats.Head();
       nsIFrame* prevFrame = nsnull;
       while (fc) {
-        if (fc->mFloat == aFloat) {
+        if (fc->mPlaceholder->GetOutOfFlowFrame() == floatFrame) {
           break;
         }
-        prevFrame = fc->mFloat;
+        prevFrame = fc->mPlaceholder->GetOutOfFlowFrame();
         fc = fc->Next();
       }
       
@@ -773,148 +868,149 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
       }
 
       // the table does not fit anymore in this line so advance to next band 
-      mY += floatAvailableSpace.mRect.height;
-      // To match nsBlockFrame::AdjustFloatAvailableSpace, we have to
-      // get a new width for the new band.
-      floatAvailableSpace = GetFloatAvailableSpace(mY);
-      adjustedAvailableSpace = mBlock->AdjustFloatAvailableSpace(*this,
-                                 floatAvailableSpace.mRect, aFloat);
-      floatMarginWidth = FloatMarginWidth(mReflowState,
-                                          adjustedAvailableSpace.width,
-                                          aFloat, offsets);
+      mY += mAvailSpaceRect.height;
+      GetAvailableSpace(mY, aForceFit);
+      // reflow the float again now since we have more space
+      // XXXldb We really don't need to Reflow in a loop, we just need
+      // to ComputeSize in a loop (once ComputeSize depends on
+      // availableWidth, which should make this work again).
+      mBlock->ReflowFloat(*this, placeholder, floatMargin, aReflowStatus);
+      // Get the floats bounding box and margin information
+      floatSize = floatFrame->GetSize() +
+                     nsSize(floatMargin.LeftRight(), floatMargin.TopBottom());
     }
-
-    mustPlaceFloat = PR_FALSE;
   }
-
   // If the float is continued, it will get the same absolute x value as its prev-in-flow
 
   // We don't worry about the geometry of the prev in flow, let the continuation
   // place and size itself as required.
 
-  // Assign an x and y coordinate to the float.
+  // Assign an x and y coordinate to the float. Note that the x,y
+  // coordinates are computed <b>relative to the translation in the
+  // spacemanager</b> which means that the impacted region will be
+  // <b>inside</b> the border/padding area.
+  PRBool isLeftFloat;
   nscoord floatX, floatY;
   if (NS_STYLE_FLOAT_LEFT == floatDisplay->mFloats) {
-    floatX = floatAvailableSpace.mRect.x;
+    isLeftFloat = PR_TRUE;
+    floatX = mAvailSpaceRect.x;
   }
   else {
+    isLeftFloat = PR_FALSE;
     if (!keepFloatOnSameLine) {
-      floatX = floatAvailableSpace.mRect.XMost() - floatMarginWidth;
+      floatX = mAvailSpaceRect.XMost() - floatSize.width;
     } 
     else {
       // this is the IE quirk (see few lines above)
       // the table is kept in the same line: don't let it overlap the
       // previous float 
-      floatX = floatAvailableSpace.mRect.x;
+      floatX = mAvailSpaceRect.x;
     }
   }
-  // CSS2 spec, 9.5.1 rule [4]: "A floating box's outer top may not
-  // be higher than the top of its containing block."  (Since the
-  // containing block is the content edge of the block box, this
-  // means the margin edge of the float can't be higher than the
-  // content edge of the block that contains it.)
-  floatY = NS_MAX(mY, mContentArea.y);
-
-  // Reflow the float after computing its vertical position so it knows
-  // where to break.
-  if (!isLetter) {
-    PRBool pushedDown = mY != saveY;
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
-                        floatMargin, pushedDown, reflowStatus);
-  }
-  if (aFloat->GetPrevInFlow())
-    floatMargin.top = 0;
-  if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus))
-    floatMargin.bottom = 0;
-
-  // In the case that we're in columns and not splitting floats, we need
-  // to check here that the float's height fit, and if it didn't, bail.
-  // (This code is only for DISABLE_FLOAT_BREAKING_IN_COLUMNS .)
-  //
-  // Likewise, if none of the float fit, and it needs to be pushed in
-  // its entirety to the next page (NS_FRAME_IS_TRUNCATED), we need to
-  // do the same.
-  if ((mContentArea.height != NS_UNCONSTRAINEDSIZE &&
-       adjustedAvailableSpace.height == NS_UNCONSTRAINEDSIZE &&
-       !mustPlaceFloat &&
-       aFloat->GetSize().height + floatMargin.TopBottom() >
-         mContentArea.YMost() - floatY) ||
-      NS_FRAME_IS_TRUNCATED(reflowStatus)) {
-
-    PushFloatPastBreak(aFloat);
-    return PR_FALSE;
+  *aIsLeftFloat = isLeftFloat;
+  const nsMargin& borderPadding = BorderPadding();
+  floatY = mY - borderPadding.top;
+  if (floatY < 0) {
+    // CSS2 spec, 9.5.1 rule [4]: "A floating box's outer top may not
+    // be higher than the top of its containing block."  (Since the
+    // containing block is the content edge of the block box, this
+    // means the margin edge of the float can't be higher than the
+    // content edge of the block that contains it.)
+    floatY = 0;
   }
 
-  // Calculate the actual origin of the float frame's border rect
-  // relative to the parent block; the margin must be added in
-  // to get the border rect
-  nsPoint origin(floatMargin.left + floatX,
-                 floatMargin.top + floatY);
-
-  // If float is relatively positioned, factor that in as well
-  origin += aFloat->GetRelativeOffset(floatDisplay);
-
-  // Position the float and make sure and views are properly
-  // positioned. We need to explicitly position its child views as
-  // well, since we're moving the float after flowing it.
-  PRBool moved = aFloat->GetPosition() != origin;
-  if (moved) {
-    aFloat->SetPosition(origin);
-    nsContainerFrame::PositionFrameView(aFloat);
-    nsContainerFrame::PositionChildViews(aFloat);
-    FrameLayerBuilder::InvalidateThebesLayersInSubtree(aFloat);
-  }
-
-  // Update the float combined area state
-  // XXX Floats should really just get invalidated here if necessary
-  mFloatOverflowAreas.UnionWith(aFloat->GetOverflowAreas() + origin);
-
-  // Place the float in the float manager
-  // calculate region
-  nsRect region = nsFloatManager::CalculateRegionFor(aFloat, floatMargin);
-  // if the float split, then take up all of the vertical height
-  if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus) &&
+  // Place the float in the space manager
+  // if the float split, then take up all of the vertical height 
+  if (NS_FRAME_IS_NOT_COMPLETE(aReflowStatus) && 
       (NS_UNCONSTRAINEDSIZE != mContentArea.height)) {
-    region.height = NS_MAX(region.height, mContentArea.height - floatY);
+    floatSize.height = PR_MAX(floatSize.height, mContentArea.height - floatY);
   }
+
+  nsRect region(floatX, floatY, floatSize.width, floatSize.height);
+  
+  // Don't send rectangles with negative margin-box width or height to
+  // the space manager; it can't deal with them.
+  if (region.width < 0) {
+    // Preserve the right margin-edge for left floats and the left
+    // margin-edge for right floats
+    if (isLeftFloat) {
+      region.x = region.XMost();
+    }
+    region.width = 0;
+  }
+  if (region.height < 0) {
+    region.height = 0;
+  }
+#ifdef DEBUG
   nsresult rv =
-  mFloatManager->AddFloat(aFloat, region);
+#endif
+  mSpaceManager->AddRectRegion(floatFrame, region);
   NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "bad float placement");
-  // store region
-  rv = nsFloatManager::StoreRegionFor(aFloat, region);
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "float region storage failed");
+
+  // Save away the floats region in the spacemanager, after making
+  // it relative to the containing block's frame instead of relative
+  // to the spacemanager translation (which is inset by the
+  // border+padding).
+  // XXX Maybe RecoverFloats should calc/add in the borderPadding itself?
+  // It's kind of confusing to have the spacemanager translation be different
+  // depending on what stage of reflow we're in.
+  aFloatCache->mRegion = region +
+                         nsPoint(borderPadding.left, borderPadding.top);
 
   // If the float's dimensions have changed, note the damage in the
-  // float manager.
-  if (region != oldRegion) {
+  // space manager.
+  if (aFloatCache->mRegion != oldRegion) {
     // XXXwaterson conservative: we could probably get away with noting
     // less damage; e.g., if only height has changed, then only note the
     // area into which the float has grown or from which the float has
     // shrunk.
     nscoord top = NS_MIN(region.y, oldRegion.y);
     nscoord bottom = NS_MAX(region.YMost(), oldRegion.YMost());
-    mFloatManager->IncludeInDamage(top, bottom);
+    mSpaceManager->IncludeInDamage(top, bottom);
   }
 
-  if (!NS_FRAME_IS_FULLY_COMPLETE(reflowStatus)) {
-    mBlock->SplitFloat(*this, aFloat, reflowStatus);
-  }
-
-#ifdef NOISY_FLOATMANAGER
+#ifdef NOISY_SPACEMANAGER
   nscoord tx, ty;
-  mFloatManager->GetTranslation(tx, ty);
+  mSpaceManager->GetTranslation(tx, ty);
   nsFrame::ListTag(stdout, mBlock);
-  printf(": FlowAndPlaceFloat: AddFloat: txy=%d,%d (%d,%d) {%d,%d,%d,%d}\n",
-         tx, ty, mFloatManagerX, mFloatManagerY,
-         region.x, region.y, region.width, region.height);
+  printf(": FlowAndPlaceFloat: AddRectRegion: txy=%d,%d (%d,%d) {%d,%d,%d,%d}\n",
+         tx, ty, mSpaceManagerX, mSpaceManagerY,
+         aFloatCache->mRegion.x, aFloatCache->mRegion.y,
+         aFloatCache->mRegion.width, aFloatCache->mRegion.height);
 #endif
+
+  // Calculate the actual origin of the float frame's border rect
+  // relative to the parent block; floatX/Y must be converted from space-manager
+  // coordinates to parent coordinates, and the margin must be added in
+  // to get the border rect
+  nsPoint origin(borderPadding.left + floatMargin.left + floatX,
+                 borderPadding.top + floatMargin.top + floatY);
+
+  // If float is relatively positioned, factor that in as well
+  origin += floatFrame->GetRelativeOffset(floatDisplay);
+
+  // Position the float and make sure and views are properly
+  // positioned. We need to explicitly position its child views as
+  // well, since we're moving the float after flowing it.
+  floatFrame->SetPosition(origin);
+  nsContainerFrame::PositionFrameView(floatFrame);
+  nsContainerFrame::PositionChildViews(floatFrame);
+
+  // Update the float combined area state
+  nsRect combinedArea = floatFrame->GetOverflowRect() + origin;
+
+  // XXX Floats should really just get invalidated here if necessary
+  mFloatCombinedArea.UnionRect(combinedArea, mFloatCombinedArea);
+
+  // Now restore mY
+  mY = saveY;
 
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
-    nsRect r = aFloat->GetRect();
+    nsRect r = floatFrame->GetRect();
     nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
     printf("placed float: ");
-    nsFrame::ListTag(stdout, aFloat);
+    nsFrame::ListTag(stdout, floatFrame);
     printf(" %d,%d,%d,%d\n", r.x, r.y, r.width, r.height);
   }
 #endif
@@ -922,104 +1018,102 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   return PR_TRUE;
 }
 
-void
-nsBlockReflowState::PushFloatPastBreak(nsIFrame *aFloat)
-{
-  // This ensures that we:
-  //  * don't try to place later but smaller floats (which CSS says
-  //    must have their tops below the top of this float)
-  //  * don't waste much time trying to reflow this float again until
-  //    after the break
-  if (aFloat->GetStyleDisplay()->mFloats == NS_STYLE_FLOAT_LEFT) {
-    mFloatManager->SetPushedLeftFloatPastBreak();
-  } else {
-    NS_ABORT_IF_FALSE(aFloat->GetStyleDisplay()->mFloats ==
-                        NS_STYLE_FLOAT_RIGHT,
-                      "unexpected float value");
-    mFloatManager->SetPushedRightFloatPastBreak();
-  }
-
-  // Put the float on the pushed floats list, even though it
-  // isn't actually a continuation.
-  nsresult rv = mBlock->StealFrame(mPresContext, aFloat);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame should succeed");
-  AppendPushedFloat(aFloat);
-
-  NS_FRAME_SET_OVERFLOW_INCOMPLETE(mReflowStatus);
-}
-
 /**
  * Place below-current-line floats.
  */
-void
-nsBlockReflowState::PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aList,
-                                                nsLineBox* aLine)
+PRBool
+nsBlockReflowState::PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aList, PRBool aForceFit)
 {
   nsFloatCache* fc = aList.Head();
   while (fc) {
+    {
 #ifdef DEBUG
-    if (nsBlockFrame::gNoisyReflow) {
-      nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
-      printf("placing bcl float: ");
-      nsFrame::ListTag(stdout, fc->mFloat);
-      printf("\n");
-    }
+      if (nsBlockFrame::gNoisyReflow) {
+        nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
+        printf("placing bcl float: ");
+        nsFrame::ListTag(stdout, fc->mPlaceholder->GetOutOfFlowFrame());
+        printf("\n");
+      }
 #endif
-    // Place the float
-    PRBool placed = FlowAndPlaceFloat(fc->mFloat);
-    nsFloatCache *next = fc->Next();
-    if (!placed) {
-      aList.Remove(fc);
-      delete fc;
-      aLine->SetHadFloatPushed();
+      // Place the float
+      PRBool isLeftFloat;
+      nsReflowStatus reflowStatus;
+      PRBool placed = FlowAndPlaceFloat(fc, &isLeftFloat, reflowStatus, aForceFit);
+      NS_ASSERTION(placed || !aForceFit,
+                   "If we're in force-fit mode, we should have placed the float");
+
+      if (!placed || (NS_FRAME_IS_TRUNCATED(reflowStatus) && !aForceFit)) {
+        // return before processing all of the floats, since the line will be pushed.
+        return PR_FALSE;
+      }
+      else if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus)) {
+        // Create a continuation for the incomplete float and its placeholder.
+        nsresult rv = mBlock->SplitPlaceholder(*this, fc->mPlaceholder);
+        if (NS_FAILED(rv)) 
+          return PR_FALSE;
+      } else {
+        // XXX We could deal with truncated frames better by breaking before
+        // the associated placeholder
+        NS_WARN_IF_FALSE(!NS_FRAME_IS_TRUNCATED(reflowStatus),
+                         "This situation currently leads to data not printing");
+
+        // Float is complete. We need to delete any leftover placeholders now.
+        nsIFrame* nextPlaceholder = fc->mPlaceholder->GetNextInFlow();
+        if (nextPlaceholder) {
+          nsHTMLContainerFrame* parent =
+            static_cast<nsHTMLContainerFrame*>(nextPlaceholder->GetParent());
+          parent->DeleteNextInFlowChild(mPresContext, nextPlaceholder);
+        }
+      }
     }
-    fc = next;
+    fc = fc->Next();
   }
+  return PR_TRUE;
 }
 
 nscoord
 nsBlockReflowState::ClearFloats(nscoord aY, PRUint8 aBreakType,
-                                nsIFrame *aReplacedBlock,
-                                PRUint32 aFlags)
+                                nsIFrame *aReplacedBlock)
 {
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
     nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
-    printf("clear floats: in: aY=%d\n", aY);
+    printf("clear floats: in: aY=%d(%d)\n",
+           aY, aY - BorderPadding().top);
   }
 #endif
 
 #ifdef NOISY_FLOAT_CLEARING
   printf("nsBlockReflowState::ClearFloats: aY=%d breakType=%d\n",
          aY, aBreakType);
-  mFloatManager->List(stdout);
+  mSpaceManager->List(stdout);
 #endif
   
+  const nsMargin& bp = BorderPadding();
   nscoord newY = aY;
 
   if (aBreakType != NS_STYLE_CLEAR_NONE) {
-    newY = mFloatManager->ClearFloats(newY, aBreakType, aFlags);
+    newY = bp.top + mSpaceManager->ClearFloats(newY - bp.top, aBreakType);
   }
 
   if (aReplacedBlock) {
     for (;;) {
-      nsFlowAreaRect floatAvailableSpace = GetFloatAvailableSpace(newY);
+      GetAvailableSpace(newY, PR_FALSE);
       nsBlockFrame::ReplacedElementWidthToClear replacedWidth =
-        nsBlockFrame::WidthToClearPastFloats(*this, floatAvailableSpace.mRect,
-                                             aReplacedBlock);
-      if (!floatAvailableSpace.mHasFloats ||
-          NS_MAX(floatAvailableSpace.mRect.x - mContentArea.x,
-                 replacedWidth.marginLeft) +
+        nsBlockFrame::WidthToClearPastFloats(*this, aReplacedBlock);
+      if (mBand.GetFloatCount() == 0 ||
+          PR_MAX(mAvailSpaceRect.x, replacedWidth.marginLeft) +
             replacedWidth.borderBoxWidth +
-            NS_MAX(mContentArea.XMost() - floatAvailableSpace.mRect.XMost(),
+            PR_MAX(mContentArea.width -
+                     PR_MIN(mContentArea.width, mAvailSpaceRect.XMost()),
                    replacedWidth.marginRight) <=
           mContentArea.width) {
         break;
       }
       // See the analogous code for inlines in nsBlockFrame::DoReflowInlineFrames
-      if (floatAvailableSpace.mRect.height > 0) {
+      if (mAvailSpaceRect.height > 0) {
         // See if there's room in the next band.
-        newY += floatAvailableSpace.mRect.height;
+        newY += mAvailSpaceRect.height;
       } else {
         if (mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE) {
           // Stop trying to clear here; we'll just get pushed to the
@@ -1030,12 +1124,17 @@ nsBlockReflowState::ClearFloats(nscoord aY, PRUint8 aBreakType,
         newY += 1;
       }
     }
+    // Restore mBand and mAvailSpaceRect to the way they were.  This may
+    // well not be needed, and we should probably come up with
+    // well-defined rules about when these members are valid so that
+    // it's clearly not needed.
+    GetAvailableSpace();
   }
 
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {
     nsFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
-    printf("clear floats: out: y=%d\n", newY);
+    printf("clear floats: out: y=%d(%d)\n", newY, newY - bp.top);
   }
 #endif
 

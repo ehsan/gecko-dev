@@ -47,7 +47,7 @@
 #include "nsISupportsPrimitives.h"
 #include "prlong.h"
 #include "plstr.h"
-#include "nsCOMArray.h"
+#include "nsSupportsArray.h"
 #include "nsIComponentRegistrar.h"
 
 namespace TestPageLoad {
@@ -68,7 +68,7 @@ nsresult auxLoad(char *uriBuf);
 static nsCString globalStream;
 //static char urlBuf[256];
 static nsCOMPtr<nsIURI> baseURI;
-static nsCOMArray<nsIURI> uriList;
+static nsCOMPtr<nsISupportsArray> uriList;
 
 //Temp, should remove:
 static int numStart=0;
@@ -89,14 +89,14 @@ static NS_METHOD streamParse (nsIInputStream* in,
   char parseBuf[2048], loc[2048], lineBuf[2048];
   char *loc_t, *loc_t2;
   int i = 0;
-  const char *tmp;
+  char *tmp;
 
   if(!globalStream.IsEmpty()) {
     globalStream.Append(fromRawSegment);
-    tmp = globalStream.get();
+    tmp = ToNewCString(globalStream);
     //printf("\n>>NOW:\n^^^^^\n%s\n^^^^^^^^^^^^^^", tmp);
   } else {
-    tmp = fromRawSegment;
+    tmp = (char *)fromRawSegment;
   }
 
   while(i < (int)count) {
@@ -317,16 +317,20 @@ nsresult auxLoad(char *uriBuf)
     }
 
     //Compare to see if exists
+    PRUint32 num;
+    uriList->Count(&num);
     PRBool equal;
-    for(PRInt32 i = 0; i < uriList.Count(); i++) {
-      uri->Equals(uriList[i], &equal);
+    nsCOMPtr<nsIURI> uriTmp;
+    for(PRUint32 i = 0; i < num; i++) {
+      uriList->GetElementAt(i, getter_AddRefs(uriTmp));
+      uri->Equals(uriTmp, &equal);
       if(equal) {
         printf("(duplicate, canceling) %s\n",uriBuf); 
         return NS_OK;
       }
     }
     printf("\n");
-    uriList.AppendObject(uri);
+    uriList->AppendElement(uri);
     rv = NS_NewChannel(getter_AddRefs(chan), uri, nsnull, nsnull, callbacks);
     RETURN_IF_FAILED(rv, "NS_NewChannel");
 
@@ -360,8 +364,15 @@ int main(int argc, char **argv)
     {
         nsCOMPtr<nsIServiceManager> servMan;
         NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
+        nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
+        NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
+        if (registrar)
+            registrar->AutoRegister(nsnull);
 
         PRTime start, finish;
+
+        uriList = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID, &rv);
+        RETURN_IF_FAILED(rv, "do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID)");
 
         printf("Loading necko ... \n");
         nsCOMPtr<nsIChannel> chan;

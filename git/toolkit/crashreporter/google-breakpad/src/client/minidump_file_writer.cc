@@ -37,8 +37,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "common/linux/linux_syscall_support.h"
-#include "common/linux/linux_libc_support.h"
 #include "client/minidump_file_writer-inl.h"
 #include "common/string_conversion.h"
 
@@ -55,11 +53,7 @@ MinidumpFileWriter::~MinidumpFileWriter() {
 
 bool MinidumpFileWriter::Open(const char *path) {
   assert(file_ == -1);
-#if __linux__
-  file_ = sys_open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
-#else
   file_ = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
-#endif
 
   return file_ != -1;
 }
@@ -68,14 +62,8 @@ bool MinidumpFileWriter::Close() {
   bool result = true;
 
   if (file_ != -1) {
-    if (-1 == ftruncate(file_, position_)) {
-       return false;
-    }
-#if __linux__
-    result = (sys_close(file_) == 0);
-#else
+    ftruncate(file_, position_);
     result = (close(file_) == 0);
-#endif
     file_ = -1;
   }
 
@@ -92,22 +80,22 @@ bool MinidumpFileWriter::CopyStringToMDString(const wchar_t *str,
   } else {
     u_int16_t out[2];
     int out_idx = 0;
-
+    
     // Copy the string character by character
     while (length && result) {
       UTF32ToUTF16Char(*str, out);
       if (!out[0])
         return false;
-
+      
       // Process one character at a time
       --length;
       ++str;
-
+      
       // Append the one or two UTF-16 characters.  The first one will be non-
       // zero, but the second one may be zero, depending on the conversion from
       // UTF-32.
       int out_count = out[1] ? 2 : 1;
-      size_t out_size = sizeof(u_int16_t) * out_count;
+      int out_size = sizeof(u_int16_t) * out_count;
       result = mdstring->CopyIndexAfterObject(out_idx, out, out_size);
       out_idx += out_count;
     }
@@ -127,14 +115,14 @@ bool MinidumpFileWriter::CopyStringToMDString(const char *str,
     int conversion_count = UTF8ToUTF16Char(str, length, out);
     if (!conversion_count)
       return false;
-
+    
     // Move the pointer along based on the nubmer of converted characters
     length -= conversion_count;
     str += conversion_count;
-
+    
     // Append the one or two UTF-16 characters
     int out_count = out[1] ? 2 : 1;
-    size_t out_size = sizeof(u_int16_t) * out_count;
+    int out_size = sizeof(u_int16_t) * out_count;
     result = mdstring->CopyIndexAfterObject(out_idx, out, out_size);
     out_idx += out_count;
   }
@@ -161,8 +149,7 @@ bool MinidumpFileWriter::WriteStringCore(const CharType *str,
     return false;
 
   // Set length excluding the NULL and copy the string
-  mdstring.get()->length =
-      static_cast<u_int32_t>(mdstring_length * sizeof(u_int16_t));
+  mdstring.get()->length = mdstring_length * sizeof(u_int16_t);
   bool result = CopyStringToMDString(str, mdstring_length, &mdstring);
 
   // NULL terminate
@@ -236,20 +223,13 @@ bool MinidumpFileWriter::Copy(MDRVA position, const void *src, ssize_t size) {
   assert(file_ != -1);
 
   // Ensure that the data will fit in the allocated space
-  if (static_cast<size_t>(size + position) > size_)
+  if (size + position > size_)
     return false;
 
   // Seek and write the data
-#if __linux__
-  if (sys_lseek(file_, position, SEEK_SET) == static_cast<off_t>(position)) {
-    if (sys_write(file_, src, size) == size) {
-#else
-  if (lseek(file_, position, SEEK_SET) == static_cast<off_t>(position)) {
-    if (write(file_, src, size) == size) {
-#endif
+  if (lseek(file_, position, SEEK_SET) == static_cast<off_t>(position))
+    if (write(file_, src, size) == size)
       return true;
-    }
-  }
 
   return false;
 }
@@ -261,11 +241,11 @@ bool UntypedMDRVA::Allocate(size_t size) {
   return position_ != MinidumpFileWriter::kInvalidMDRVA;
 }
 
-bool UntypedMDRVA::Copy(MDRVA pos, const void *src, size_t size) {
+bool UntypedMDRVA::Copy(MDRVA position, const void *src, size_t size) {
   assert(src);
   assert(size);
-  assert(pos + size <= position_ + size_);
-  return writer_->Copy(pos, src, size);
+  assert(position + size <= position_ + size_);
+  return writer_->Copy(position, src, size);
 }
 
 }  // namespace google_breakpad

@@ -42,12 +42,10 @@
 
 #include "nsPresContext.h"
 
-DOMCI_DATA(ClientRect, nsClientRect)
-
 NS_INTERFACE_TABLE_HEAD(nsClientRect)
   NS_INTERFACE_TABLE1(nsClientRect, nsIDOMClientRect)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ClientRect)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ClientRect)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsClientRect)
@@ -100,12 +98,10 @@ nsClientRect::GetHeight(float* aResult)
   return NS_OK;
 }
 
-DOMCI_DATA(ClientRectList, nsClientRectList)
-
 NS_INTERFACE_TABLE_HEAD(nsClientRectList)
   NS_INTERFACE_TABLE1(nsClientRectList, nsIDOMClientRectList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ClientRectList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ClientRectList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsClientRectList)
@@ -122,7 +118,12 @@ nsClientRectList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP    
 nsClientRectList::Item(PRUint32 aIndex, nsIDOMClientRect** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex));
+  if (aIndex >= PRUint32(mArray.Count())) {
+    *aReturn = nsnull;
+    return NS_OK;
+  } 
+  
+  NS_IF_ADDREF(*aReturn = mArray.ObjectAt(aIndex));
   return NS_OK;
 }
 
@@ -133,13 +134,13 @@ RoundFloat(double aValue)
 }
 
 void
-nsClientRect::SetLayoutRect(const nsRect& aLayoutRect)
+nsClientRect::SetLayoutRect(const nsRect& aLayoutRect, nsPresContext* aPresContext)
 {
   double scale = 65536.0;
   // Round to the nearest 1/scale units. We choose scale so it can be represented
   // exactly by machine floating point.
   double scaleInv = 1/scale;
-  double t2pScaled = scale/nsPresContext::AppUnitsPerCSSPixel();
+  double t2pScaled = scale/aPresContext->AppUnitsPerCSSPixel();
   double x = RoundFloat(aLayoutRect.x*t2pScaled)*scaleInv;
   double y = RoundFloat(aLayoutRect.y*t2pScaled)*scaleInv;
   SetRect(x, y, RoundFloat(aLayoutRect.XMost()*t2pScaled)*scaleInv - x,

@@ -61,7 +61,7 @@ SECStatus EC_CopyParams(PRArenaPool *arena, ECParams *dstParams,
 	      const ECParams *srcParams);
 #endif
 
-/* Temporary - add debugging output on windows for RSA to track QA failure */
+/* Temporary - add debugging ouput on windows for RSA to track QA failure */
 #ifdef _WIN32
 #define TRACK_BLTEST_BUG
     char __bltDBG[] = "BLTEST DEBUG";
@@ -121,7 +121,7 @@ static void Usage()
 #define PRINTUSAGE(subject, option, predicate) \
     fprintf(stderr, "%10s %s\t%s\n", subject, option, predicate);
     fprintf(stderr, "\n");
-    PRINTUSAGE(progName, "[-DEHSVR]", "List available cipher modes"); /* XXX */
+    PRINTUSAGE(progName, "[-DEHSV]", "List available cipher modes"); /* XXX */
     fprintf(stderr, "\n");
     PRINTUSAGE(progName, "-E -m mode ", "Encrypt a buffer");
     PRINTUSAGE("",	"", "[-i plaintext] [-o ciphertext] [-k key] [-v iv]");
@@ -217,13 +217,6 @@ static void Usage()
     PRINTUSAGE("",      "", "[-g keysize] [-u cxreps]");
     PRINTUSAGE("",	"-g", "key size (in bytes)");
     PRINTUSAGE("",      "-u", "number of repetitions of context creation");
-    fprintf(stderr, "\n");
-    PRINTUSAGE(progName, "-R [-g keysize] [-e exp]", 
-                                            "Test the RSA populate key function");
-    PRINTUSAGE("",      "", "[-r repetitions]");
-    PRINTUSAGE("",	"-g", "key size (in bytes)");
-    PRINTUSAGE("", 	"-e", "rsa public exponent");
-    PRINTUSAGE("", 	"-r", "repetitions of the test");
     fprintf(stderr, "\n");
     PRINTUSAGE(progName, "-F", "Run the FIPS self-test");
     fprintf(stderr, "\n");
@@ -674,16 +667,12 @@ typedef enum {
     bltestRC2_ECB,	  /* .			   */
     bltestRC2_CBC,	  /* .			   */
     bltestRC4,		  /* .			   */
-#ifdef NSS_SOFTOKEN_DOES_RC5
     bltestRC5_ECB,	  /* .			   */
     bltestRC5_CBC,	  /* .			   */
-#endif
     bltestAES_ECB,        /* .                     */
     bltestAES_CBC,        /* .                     */
     bltestCAMELLIA_ECB,   /* .                     */
     bltestCAMELLIA_CBC,   /* .                     */
-    bltestSEED_ECB,       /* SEED algorithm	   */
-    bltestSEED_CBC,       /* SEED algorithm	   */
     bltestRSA,		  /* Public Key Ciphers	   */
 #ifdef NSS_ENABLE_ECC
     bltestECDSA,	  /* . (Public Key Sig.)   */
@@ -707,16 +696,12 @@ static char *mode_strings[] =
     "rc2_ecb",
     "rc2_cbc",
     "rc4",
-#ifdef NSS_SOFTOKEN_DOES_RC5
     "rc5_ecb",
     "rc5_cbc",
-#endif
     "aes_ecb",
     "aes_cbc",
     "camellia_ecb",
     "camellia_cbc",
-    "seed_ecb",
-    "seed_cbc",
     "rsa",
 #ifdef NSS_ENABLE_ECC
     "ecdsa",
@@ -832,7 +817,7 @@ PRBool
 is_symmkeyCipher(bltestCipherMode mode)
 {
     /* change as needed! */
-    if (mode >= bltestDES_ECB && mode <= bltestSEED_CBC)
+    if (mode >= bltestDES_ECB && mode <= bltestCAMELLIA_CBC)
 	return PR_TRUE;
     return PR_FALSE;
 }
@@ -873,12 +858,8 @@ cipher_requires_IV(bltestCipherMode mode)
 {
     /* change as needed! */
     if (mode == bltestDES_CBC || mode == bltestDES_EDE_CBC ||
-	mode == bltestRC2_CBC || 
-#ifdef NSS_SOFTOKEN_DOES_RC5
-        mode == bltestRC5_CBC     ||
-#endif
-        mode == bltestAES_CBC || mode == bltestCAMELLIA_CBC||
-	mode == bltestSEED_CBC)
+	mode == bltestRC2_CBC || mode == bltestRC5_CBC     ||
+        mode == bltestAES_CBC || mode == bltestCAMELLIA_CBC)
 	return PR_TRUE;
     return PR_FALSE;
 }
@@ -1133,24 +1114,6 @@ camellia_Decrypt(void *cx, unsigned char *output, unsigned int *outputLen,
 }
 
 SECStatus
-seed_Encrypt(void *cx, unsigned char *output, unsigned int *outputLen,
-            unsigned int maxOutputLen, const unsigned char *input,
-            unsigned int inputLen)
-{
-    return SEED_Encrypt((SEEDContext *)cx, output, outputLen, maxOutputLen,
-                       input, inputLen);
-}
-
-SECStatus
-seed_Decrypt(void *cx, unsigned char *output, unsigned int *outputLen,
-            unsigned int maxOutputLen, const unsigned char *input,
-            unsigned int inputLen)
-{
-    return SEED_Decrypt((SEEDContext *)cx, output, outputLen, maxOutputLen,
-                       input, inputLen);
-}
-
-SECStatus
 rsa_PublicKeyOp(void *key, SECItem *output, const SECItem *input)
 {
     return RSA_PublicKeyOp((RSAPublicKey *)key, output->data, input->data);
@@ -1302,7 +1265,7 @@ bltest_rc4_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
 SECStatus
 bltest_rc5_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
 {
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     PRIntervalTime time1, time2;
     bltestRC5Params *rc5p = &cipherInfo->params.rc5;
     int minorMode;
@@ -1411,46 +1374,6 @@ bltest_camellia_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
     else
 	cipherInfo->cipher.symmkeyCipher = camellia_Decrypt;
     return SECSuccess;
-}
-
-SECStatus
-bltest_seed_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
-{
-    PRIntervalTime time1, time2;
-    bltestSymmKeyParams *seedp = &cipherInfo->params.sk;
-    int minorMode;
-    int i;
-
-    switch (cipherInfo->mode) {
-    case bltestSEED_ECB:	minorMode = NSS_SEED;		break;
-    case bltestSEED_CBC:	minorMode = NSS_SEED_CBC;	break;
-    default:
-	return SECFailure;
-    }
-    cipherInfo->cx = (void*)SEED_CreateContext(seedp->key.buf.data,
-					      seedp->iv.buf.data,
-					      minorMode, encrypt);
-    if (cipherInfo->cxreps > 0) {
-	SEEDContext **dummycx;
-	dummycx = PORT_Alloc(cipherInfo->cxreps * sizeof(SEEDContext *));
-	TIMESTART();
-	for (i=0; i<cipherInfo->cxreps; i++) {
-	    dummycx[i] = (void*)SEED_CreateContext(seedp->key.buf.data,
-					          seedp->iv.buf.data,
-					          minorMode, encrypt);
-	}
-	TIMEFINISH(cipherInfo->cxtime, 1.0);
-	for (i=0; i<cipherInfo->cxreps; i++) {
-	    SEED_DestroyContext(dummycx[i], PR_TRUE);
-	}
-	PORT_Free(dummycx);
-    }
-    if (encrypt)
-	cipherInfo->cipher.symmkeyCipher = seed_Encrypt;
-    else
-	cipherInfo->cipher.symmkeyCipher = seed_Decrypt;
-	
-	return SECSuccess;
 }
 
 SECStatus
@@ -1993,9 +1916,9 @@ cipherInit(bltestCipherInfo *cipherInfo, PRBool encrypt)
 			  cipherInfo->input.pBuf.len);
 	return bltest_rc4_init(cipherInfo, encrypt);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
+#if NSS_SOFTOKEN_DOES_RC5
 	SECITEM_AllocItem(cipherInfo->arena, &cipherInfo->output.buf,
 			  cipherInfo->input.pBuf.len);
 #endif
@@ -2012,12 +1935,6 @@ cipherInit(bltestCipherInfo *cipherInfo, PRBool encrypt)
 	SECITEM_AllocItem(cipherInfo->arena, &cipherInfo->output.buf,
 			  cipherInfo->input.pBuf.len);
 	return bltest_camellia_init(cipherInfo, encrypt);
-	break;
-    case bltestSEED_ECB:
-    case bltestSEED_CBC:
-	SECITEM_AllocItem(cipherInfo->arena, &cipherInfo->output.buf,
-			  cipherInfo->input.pBuf.len);
-	return bltest_seed_init(cipherInfo, encrypt);
 	break;
     case bltestRSA:
 	SECITEM_AllocItem(cipherInfo->arena, &cipherInfo->output.buf,
@@ -2473,10 +2390,6 @@ cipherFinish(bltestCipherInfo *cipherInfo)
     case bltestCAMELLIA_CBC:
 	Camellia_DestroyContext((CamelliaContext *)cipherInfo->cx, PR_TRUE);
 	break;
-    case bltestSEED_ECB:
-    case bltestSEED_CBC:
-	SEED_DestroyContext((SEEDContext *)cipherInfo->cx, PR_TRUE);
-	break;
     case bltestRC2_ECB:
     case bltestRC2_CBC:
 	RC2_DestroyContext((RC2Context *)cipherInfo->cx, PR_TRUE);
@@ -2484,7 +2397,7 @@ cipherFinish(bltestCipherInfo *cipherInfo)
     case bltestRC4:
 	RC4_DestroyContext((RC4Context *)cipherInfo->cx, PR_TRUE);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
 	RC5_DestroyContext((RC5Context *)cipherInfo->cx, PR_TRUE);
@@ -2627,8 +2540,6 @@ print_td:
       case bltestAES_CBC:
       case bltestCAMELLIA_ECB:
       case bltestCAMELLIA_CBC:
-      case bltestSEED_ECB:
-      case bltestSEED_CBC:
       case bltestRC2_ECB:
       case bltestRC2_CBC:
       case bltestRC4:
@@ -2637,7 +2548,7 @@ print_td:
           else
               fprintf(stdout, "%8d", 8*info->params.sk.key.buf.len);
           break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
       case bltestRC5_ECB:
       case bltestRC5_CBC:
           if (info->params.sk.key.buf.len > 0)
@@ -2761,7 +2672,7 @@ get_params(PRArenaPool *arena, bltestParams *params,
 {
     char filename[256];
     char *modestr = mode_strings[mode];
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     FILE *file;
     char *mark, *param, *val;
     int index = 0;
@@ -2772,7 +2683,6 @@ get_params(PRArenaPool *arena, bltestParams *params,
     case bltestRC2_CBC:
     case bltestAES_CBC:
     case bltestCAMELLIA_CBC:
-    case bltestSEED_CBC: 
 	sprintf(filename, "%s/tests/%s/%s%d", testdir, modestr, "iv", j);
 	load_file_data(arena, &params->sk.iv, filename, bltestBinary);
     case bltestDES_ECB:
@@ -2781,11 +2691,10 @@ get_params(PRArenaPool *arena, bltestParams *params,
     case bltestRC4:
     case bltestAES_ECB:
     case bltestCAMELLIA_ECB:
-    case bltestSEED_ECB:
 	sprintf(filename, "%s/tests/%s/%s%d", testdir, modestr, "key", j);
 	load_file_data(arena, &params->sk.key, filename, bltestBinary);
 	break;
-#ifdef NSS_SOFTOKEN_DOES_RC5
+#if NSS_SOFTOKEN_DOES_RC5
     case bltestRC5_ECB:
     case bltestRC5_CBC:
 	sprintf(filename, "%s/tests/%s/%s%d", testdir, modestr, "iv", j);
@@ -2932,6 +2841,7 @@ blapi_selftest(bltestCipherMode *modes, int numModes, int inoff, int outoff,
     finished = PR_FALSE;
     nummodes = (numModes == 0) ? NUMMODES : numModes;
     for (i=0; i < nummodes && !finished; i++) {
+	if (i == bltestRC5_ECB || i == bltestRC5_CBC) continue;
 	if (numModes > 0)
 	    mode = modes[i];
 	else
@@ -3144,192 +3054,6 @@ void ThreadExecTest(void *data)
     cipherFinish(cipherInfo);
 }
 
-static void rsaPrivKeyReset(RSAPrivateKey *tstKey)
-{
-    PLArenaPool *arena;
-
-    tstKey->version.data = NULL;
-    tstKey->version.len = 0;
-    tstKey->modulus.data = NULL;
-    tstKey->modulus.len = 0;
-    tstKey->publicExponent.data = NULL;
-    tstKey->publicExponent.len = 0;
-    tstKey->privateExponent.data = NULL;
-    tstKey->privateExponent.len = 0;
-    tstKey->prime1.data = NULL;
-    tstKey->prime1.len = 0;
-    tstKey->prime2.data = NULL;
-    tstKey->prime2.len = 0;
-    tstKey->exponent1.data = NULL;
-    tstKey->exponent1.len = 0;
-    tstKey->exponent2.data = NULL;
-    tstKey->exponent2.len = 0;
-    tstKey->coefficient.data = NULL;
-    tstKey->coefficient.len = 0;
-
-    arena = tstKey->arena;
-    tstKey->arena = NULL;
-    if (arena) {
-	PORT_FreeArena(arena, PR_TRUE);
-    }
-}
-
-
-#define RSA_TEST_EQUAL(comp) \
-    if (!SECITEM_ItemsAreEqual(&(src->comp),&(dest->comp))) { \
-	fprintf(stderr, "key->" #comp " not equal"); \
-	if (src->comp.len != dest->comp.len) { \
-	    fprintf(stderr, "src_len = %d, dest_len = %d",  \
-					src->comp.len, dest->comp.len); \
-	} \
-	fprintf(stderr, "\n"); \
-	areEqual = PR_FALSE; \
-    }
-	    
-
-static PRBool rsaPrivKeysAreEqual(RSAPrivateKey *src, RSAPrivateKey *dest)
-{
-    PRBool areEqual = PR_TRUE;
-    RSA_TEST_EQUAL(modulus)
-    RSA_TEST_EQUAL(publicExponent)
-    RSA_TEST_EQUAL(privateExponent)
-    RSA_TEST_EQUAL(prime1)
-    RSA_TEST_EQUAL(prime2)
-    RSA_TEST_EQUAL(exponent1)
-    RSA_TEST_EQUAL(exponent2)
-    RSA_TEST_EQUAL(coefficient)
-    if (!areEqual) {
-	fprintf(stderr, "original key:\n");
-	dump_rsakey(src);
-	fprintf(stderr, "recreated key:\n");
-	dump_rsakey(dest);
-    }
-    return areEqual;
-}
-
-/*
- * Test the RSA populate command to see that it can really build
- * keys from it's components.
- */
-static int doRSAPopulateTest(unsigned int keySize, unsigned long exponent)
-{
-    RSAPrivateKey *srcKey;
-    RSAPrivateKey tstKey = { 0 };
-    SECItem expitem = { 0, 0, 0 };
-    SECStatus rv;
-    unsigned char pubExp[4];
-    int expLen = 0;
-    int failed = 0;
-    int i;
-
-    for (i=0; i < sizeof(unsigned long); i++) {
-	int shift = (sizeof(unsigned long) - i -1 ) * 8;
-	if (expLen || (exponent && ((unsigned long)0xffL << shift))) {
-	    pubExp[expLen] = (unsigned char) ((exponent >> shift) & 0xff);
-	    expLen++;
-        }
-    }
-
-    expitem.data = pubExp;
-    expitem.len = expLen;
-
-    srcKey = RSA_NewKey(keySize, &expitem);
-    if (srcKey == NULL) {
-	fprintf(stderr, "RSA Key Gen failed");
-	return -1;
-    }
-
-    /* test the basic case - most common, public exponent, modulus, prime */
-    tstKey.arena = NULL;
-    rsaPrivKeyReset(&tstKey);
-
-    tstKey.publicExponent = srcKey->publicExponent;
-    tstKey.modulus = srcKey->modulus;
-    tstKey.prime1 = srcKey->prime1;
-
-    rv = RSA_PopulatePrivateKey(&tstKey);
-    if (rv != SECSuccess) {
-	fprintf(stderr, "RSA Populate failed: pubExp mod p\n");
-	failed = 1;
-    } else if (!rsaPrivKeysAreEqual(&tstKey, srcKey)) {
-	fprintf(stderr, "RSA Populate key mismatch: pubExp mod p\n");
-	failed = 1;
-    }
-
-    /* test the basic2 case, public exponent, modulus, prime2 */
-    rsaPrivKeyReset(&tstKey);
-
-    tstKey.publicExponent = srcKey->publicExponent;
-    tstKey.modulus = srcKey->modulus;
-    tstKey.prime1 = srcKey->prime2; /* test with q in the prime1 position */
-
-    rv = RSA_PopulatePrivateKey(&tstKey);
-    if (rv != SECSuccess) {
-	fprintf(stderr, "RSA Populate failed: pubExp mod q\n");
-	failed = 1;
-    } else if (!rsaPrivKeysAreEqual(&tstKey, srcKey)) {
-	fprintf(stderr, "RSA Populate key mismatch: pubExp mod q\n");
-	failed = 1;
-    }
-
-    /* test the medium case, private exponent, prime1, prime2 */
-    rsaPrivKeyReset(&tstKey);
-
-    tstKey.privateExponent = srcKey->privateExponent;
-    tstKey.prime1 = srcKey->prime2; /* purposefully swap them to make */
-    tstKey.prime2 = srcKey->prime1; /* sure populated swaps them back */
-
-    rv = RSA_PopulatePrivateKey(&tstKey);
-    if (rv != SECSuccess) {
-	fprintf(stderr, "RSA Populate failed: privExp p q\n");
-	failed = 1;
-    } else if (!rsaPrivKeysAreEqual(&tstKey, srcKey)) {
-	fprintf(stderr, "RSA Populate key mismatch: privExp  p q\n");
-	failed = 1;
-    }
-
-    /* test the advanced case, public exponent, private exponent, prime2 */
-    rsaPrivKeyReset(&tstKey);
-
-    tstKey.privateExponent = srcKey->privateExponent;
-    tstKey.publicExponent = srcKey->publicExponent;
-    tstKey.prime2 = srcKey->prime2; /* use q in the prime2 position */
-
-    rv = RSA_PopulatePrivateKey(&tstKey);
-    if (rv != SECSuccess) {
-	fprintf(stderr, "RSA Populate failed: pubExp privExp q\n");
-	fprintf(stderr, " - not fatal\n");
-	/* it's possible that we can't uniquely determine the original key
-	 * from just the exponents and prime. Populate returns an error rather
-	 * than return the wrong key. */
-    } else if (!rsaPrivKeysAreEqual(&tstKey, srcKey)) {
-	/* if we returned a key, it *must* be correct */
-	fprintf(stderr, "RSA Populate key mismatch: pubExp privExp  q\n");
-	rv = RSA_PrivateKeyCheck(&tstKey);
-	failed = 1;
-    }
-
-    /* test the advanced case2, public exponent, private exponent, modulus */
-    rsaPrivKeyReset(&tstKey);
-
-    tstKey.privateExponent = srcKey->privateExponent;
-    tstKey.publicExponent = srcKey->publicExponent;
-    tstKey.modulus = srcKey->modulus;
-
-    rv = RSA_PopulatePrivateKey(&tstKey);
-    if (rv != SECSuccess) {
-	fprintf(stderr, "RSA Populate failed: pubExp privExp mod\n");
-	failed = 1;
-    } else if (!rsaPrivKeysAreEqual(&tstKey, srcKey)) {
-	fprintf(stderr, "RSA Populate key mismatch: pubExp privExp  mod\n");
-	failed = 1;
-    }
-
-    return failed ? -1 : 0;
-}
-
-
-
 /* bltest commands */
 enum {
     cmd_Decrypt = 0,
@@ -3338,7 +3062,6 @@ enum {
     cmd_Hash,
     cmd_Nonce,
     cmd_Dump,
-    cmd_RSAPopulate,
     cmd_Sign,
     cmd_SelfTest,
     cmd_Verify
@@ -3390,7 +3113,6 @@ static secuCommandFlag bltest_commands[] =
     { /* cmd_Hash	*/ 'H', PR_FALSE, 0, PR_FALSE },
     { /* cmd_Nonce      */ 'N', PR_FALSE, 0, PR_FALSE },
     { /* cmd_Dump	*/ 'P', PR_FALSE, 0, PR_FALSE },
-    { /* cmd_RSAPopulate*/ 'R', PR_FALSE, 0, PR_FALSE },
     { /* cmd_Sign	*/ 'S', PR_FALSE, 0, PR_FALSE },
     { /* cmd_SelfTest	*/ 'T', PR_FALSE, 0, PR_FALSE },
     { /* cmd_Verify	*/ 'V', PR_FALSE, 0, PR_FALSE }
@@ -3441,7 +3163,7 @@ int main(int argc, char **argv)
 
     double              totalTime;
     PRIntervalTime      time1, time2;
-    PRFileDesc          *outfile = NULL;
+    PRFileDesc          *outfile;           
     bltestCipherInfo    *cipherInfoListHead, *cipherInfo;
     bltestIOMode        ioMode;
     int                 bufsize, exponent, curThrdNum;
@@ -3464,11 +3186,6 @@ int main(int argc, char **argv)
     progName = progName ? progName+1 : argv[0];
 
     rv = RNG_RNGInit();
-    if (rv != SECSuccess) {
-    	SECU_PrintPRandOSError(progName);
-	return -1;
-    }
-    rv = BL_Init();
     if (rv != SECSuccess) {
     	SECU_PrintPRandOSError(progName);
 	return -1;
@@ -3504,7 +3221,6 @@ int main(int argc, char **argv)
         goto print_usage;
     }
 
-
     if (bltest.commands[cmd_Sign].activated)
 	bltest.commands[cmd_Encrypt].activated = PR_TRUE;
     if (bltest.commands[cmd_Verify].activated)
@@ -3524,36 +3240,6 @@ int main(int argc, char **argv)
     /*
      * Handle three simple cases first
      */
-
-    /* test the RSA_PopulatePrivateKey function */
-    if (bltest.commands[cmd_RSAPopulate].activated) {
-	unsigned int keySize = 1024;
-	unsigned long exponent = 65537;
-	int rounds = 1;
-	int ret;
-	
-	if (bltest.options[opt_KeySize].activated) {
-	    keySize = PORT_Atoi(bltest.options[opt_KeySize].arg);
-	}
-	if (bltest.options[opt_Rounds].activated) {
-	    rounds = PORT_Atoi(bltest.options[opt_Rounds].arg);
-	}
-	if (bltest.options[opt_Exponent].activated) {
-	    exponent = PORT_Atoi(bltest.options[opt_Exponent].arg);
-	}
-
-	for (i=0; i < rounds; i++) {
-	    printf("Running RSA Populate test round %d\n",i);
-	    ret = doRSAPopulateTest(keySize,exponent);
-	    if (ret != 0) {
-		break;
-	    }
-	}
-	if (ret != 0) {
-	    fprintf(stderr,"RSA Populate test round %d: FAILED\n",i);
-	}
-	return ret;
-    }
 
     /* Do BLAPI self-test */
     if (bltest.commands[cmd_SelfTest].activated) {
@@ -3774,11 +3460,9 @@ int main(int argc, char **argv)
             char *ivstr = NULL;
             bltestSymmKeyParams *skp;
             file = NULL;
-#ifdef NSS_SOFTOKEN_DOES_RC5
             if (cipherInfo->mode == bltestRC5_CBC)
                 skp = (bltestSymmKeyParams *)&params->rc5;
             else
-#endif
                 skp = &params->sk;
             if (bltest.options[opt_IV].activated) {
                 if (bltest.options[opt_CmdLine].activated) {
@@ -3968,4 +3652,3 @@ int main(int argc, char **argv)
 
     return SECSuccess;
 }
-

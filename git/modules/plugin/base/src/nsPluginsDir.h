@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginsDir_h_
-#define nsPluginsDir_h_
+#ifndef nsPluginsDir_h___
+#define nsPluginsDir_h___
 
 #include "nsError.h"
 #include "nsIFile.h"
@@ -57,6 +57,7 @@ public:
 struct PRLibrary;
 
 struct nsPluginInfo {
+	PRUint32 fPluginInfoSize;	// indicates how large the structure is currently.
 	char* fName;				// name of the plugin
 	char* fDescription;			// etc.
 	PRUint32 fVariantCount;
@@ -93,13 +94,12 @@ public:
 	 * Loads the plugin into memory using NSPR's shared-library loading
 	 * mechanism. Handles platform differences in loading shared libraries.
 	 */
-	nsresult LoadPlugin(PRLibrary **outLibrary);
+	nsresult LoadPlugin(PRLibrary* &outLibrary);
 
 	/**
 	 * Obtains all of the information currently available for this plugin.
-	 * Has a library outparam which will be non-null if a library load was required.
 	 */
-	nsresult GetPluginInfo(nsPluginInfo &outPluginInfo, PRLibrary **outLibrary);
+	nsresult GetPluginInfo(nsPluginInfo &outPluginInfo);
 
   /**
 	 * Should be called after GetPluginInfo to free all allocated stuff
@@ -110,4 +110,4 @@ public:
 	short OpenPluginResource(void);
 };
 
-#endif /* nsPluginsDir_h_ */
+#endif /* nsPluginsDir_h___ */

@@ -1,6 +1,6 @@
 // This file tests channel event sinks (bug 315598 et al)
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const sinkCID = Components.ID("{14aa4b81-e266-45cb-88f8-89595dece114}");
 const sinkContract = "@mozilla.org/network/unittest/channeleventsink;1";
@@ -31,7 +31,7 @@ var eventsink = {
     throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
-  asyncOnChannelRedirect: function eventsink_onredir(oldChan, newChan, flags, callback) {
+  onChannelRedirect: function eventsink_onredir(oldChan, newChan, flags) {
     // veto
     this.called = true;
     throw NS_BINDING_ABORTED;
@@ -81,12 +81,10 @@ var listener = {
   },
 
   onStopRequest: function test_onStopR(request, ctx, status) {
-    if (this._iteration <= 2) {
+    if (this._iteration <= 2)
       run_test_continued();
-    } else {
-      do_test_pending();
-      httpserv.stop(do_test_finished);
-    }
+    else
+      httpserv.stop();
     do_test_finished();
   },
 

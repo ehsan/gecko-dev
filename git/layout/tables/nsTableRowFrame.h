@@ -46,13 +46,13 @@ class  nsTableCellFrame;
 struct nsTableCellReflowState;
 
 // This is also used on rows, from nsTableRowGroupFrame.h
-// #define NS_REPEATED_ROW_OR_ROWGROUP      NS_FRAME_STATE_BIT(28)
+// #define NS_REPEATED_ROW_OR_ROWGROUP      0x10000000
 
 // Indicates whether this row has any cells that have
 // non-auto-height and rowspan=1
-#define NS_ROW_HAS_CELL_WITH_STYLE_HEIGHT   NS_FRAME_STATE_BIT(29)
+#define NS_ROW_HAS_CELL_WITH_STYLE_HEIGHT   0x20000000
 
-#define NS_TABLE_ROW_HAS_UNPAGINATED_HEIGHT NS_FRAME_STATE_BIT(30)
+#define NS_TABLE_ROW_HAS_UNPAGINATED_HEIGHT 0x40000000
 
 /**
  * nsTableRowFrame is the frame that maps table rows 
@@ -67,23 +67,17 @@ struct nsTableCellReflowState;
 class nsTableRowFrame : public nsHTMLContainerFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableRowFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
   virtual ~nsTableRowFrame();
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-  
+
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -123,6 +117,12 @@ public:
                     nsReflowStatus&          aStatus);
 
   void DidResize();
+
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
+      ~nsIFrame::eExcludesIgnorableWhitespace);
+  }
 
   /**
    * Get the "type" of the frame
@@ -188,18 +188,18 @@ public:
                                  PRBool  aCollapseGroup,
                                  PRBool& aDidCollapse);
 
-  /**
-   * Insert a cell frame after the last cell frame that has a col index
-   * that is less than aColIndex.  If no such cell frame is found the
-   * frame to insert is prepended to the child list.
-   * @param aFrame the cell frame to insert
-   * @param aColIndex the col index
-   */
+  void InsertCellFrame(nsTableCellFrame* aFrame, 
+                       nsTableCellFrame* aPrevSibling);
+
   void InsertCellFrame(nsTableCellFrame* aFrame,
                        PRInt32           aColIndex);
 
-  nsresult CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
-                                     nscoord&          aDesiredHeight);
+  void RemoveCellFrame(nsTableCellFrame* aFrame);
+
+  nsresult CalculateCellActualSize(nsIFrame*       aRowFrame,
+                                   nscoord&        aDesiredWidth,
+                                   nscoord&        aDesiredHeight,
+                                   nscoord         aAvailWidth);
 
   PRBool IsFirstInserted() const;
   void   SetFirstInserted(PRBool aValue);
@@ -279,11 +279,11 @@ protected:
    * Called for incremental/dirty and resize reflows. If aDirtyOnly is true then
    * only reflow dirty cells.
    */
-  nsresult ReflowChildren(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsTableFrame&            aTableFrame,
-                          nsReflowStatus&          aStatus);
+  NS_IMETHOD ReflowChildren(nsPresContext*          aPresContext,
+                            nsHTMLReflowMetrics&     aDesiredSize,
+                            const nsHTMLReflowState& aReflowState,
+                            nsTableFrame&            aTableFrame,
+                            nsReflowStatus&          aStatus);
 
 private:
   struct RowBits {

@@ -48,6 +48,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIView.h"
+#include "nsIWidget.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #else
@@ -58,9 +59,6 @@
 #include "nsISupportsPrimitives.h"
 #include "prtypes.h"
 #include "nsSupportsPrimitives.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 // Implementation /////////////////////////////////////////////////////////////////
 
@@ -68,38 +66,18 @@ using namespace mozilla::dom;
 
 // Implement our nsISupports methods
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsBoxObject)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsBoxObject)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsBoxObject)
-
-DOMCI_DATA(BoxObject, nsBoxObject)
-
 // QueryInterface implementation for nsBoxObject
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBoxObject)
+NS_INTERFACE_MAP_BEGIN(nsBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsIBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsPIBoxObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(BoxObject)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(BoxObject)
 NS_INTERFACE_MAP_END
 
-PR_STATIC_CALLBACK(PLDHashOperator)
-PropertyTraverser(const nsAString& aKey, nsISupports* aProperty, void* userArg)
-{
-  nsCycleCollectionTraversalCallback *cb = 
-    static_cast<nsCycleCollectionTraversalCallback*>(userArg);
 
-  cb->NoteXPCOMChild(aProperty);
+NS_IMPL_ADDREF(nsBoxObject)
+NS_IMPL_RELEASE(nsBoxObject)
 
-  return PL_DHASH_NEXT;
-}
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsBoxObject)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBoxObject)
-  if (tmp->mPropertyTable) {
-    tmp->mPropertyTable->EnumerateRead(PropertyTraverser, &cb);
-  }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // Constructors/Destructors
 nsBoxObject::nsBoxObject(void)
@@ -158,12 +136,7 @@ nsBoxObject::GetFrame(PRBool aFlushLayout)
     shell->FlushPendingNotifications(Flush_Frames);
   }
 
-  // The flush might have killed mContent.
-  if (!mContent) {
-    return nsnull;
-  }
-
-  return mContent->GetPrimaryFrame();
+  return shell->GetPrimaryFrameFor(mContent);
 }
 
 nsIPresShell*
@@ -182,13 +155,14 @@ nsBoxObject::GetPresShell(PRBool aFlushLayout)
     doc->FlushPendingNotifications(Flush_Layout);
   }
 
-  return doc->GetShell();
+  return doc->GetPrimaryShell();
 }
 
 nsresult 
-nsBoxObject::GetOffsetRect(nsIntRect& aRect)
+nsBoxObject::GetOffsetRect(nsRect& aRect)
 {
-  aRect.SetRect(0, 0, 0, 0);
+  aRect.x = aRect.y = 0;
+  aRect.Empty();
  
   if (!mContent)
     return NS_ERROR_NOT_INITIALIZED;
@@ -200,7 +174,7 @@ nsBoxObject::GetOffsetRect(nsIntRect& aRect)
     nsPoint origin = frame->GetPositionIgnoringScrolling();
 
     // Find the frame parent whose content is the document element.
-    Element *docElement = mContent->GetCurrentDoc()->GetRootElement();
+    nsIContent *docElement = mContent->GetCurrentDoc()->GetRootContent();
     nsIFrame* parent = frame->GetParent();
     for (;;) {
       // If we've hit the document element, break here
@@ -267,7 +241,7 @@ nsBoxObject::GetScreenPosition(nsIntPoint& aPoint)
 NS_IMETHODIMP
 nsBoxObject::GetX(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.x;
   return NS_OK;
@@ -276,7 +250,7 @@ nsBoxObject::GetX(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetY(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.y;
   return NS_OK;
@@ -285,7 +259,7 @@ nsBoxObject::GetY(PRInt32* aResult)
 NS_IMETHODIMP
 nsBoxObject::GetWidth(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.width;
   return NS_OK;
@@ -294,7 +268,7 @@ nsBoxObject::GetWidth(PRInt32* aResult)
 NS_IMETHODIMP 
 nsBoxObject::GetHeight(PRInt32* aResult)
 {
-  nsIntRect rect;
+  nsRect rect;
   GetOffsetRect(rect);
   *aResult = rect.height;
   return NS_OK;
@@ -340,6 +314,16 @@ nsBoxObject::GetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports**
 NS_IMETHODIMP
 nsBoxObject::SetPropertyAsSupports(const PRUnichar* aPropertyName, nsISupports* aValue)
 {
+#ifdef DEBUG
+  if (aValue) {
+    nsIFrame* frame;
+    CallQueryInterface(aValue, &frame);
+    NS_ASSERTION(!frame,
+                 "Calling SetPropertyAsSupports on a frame.  Prepare to crash "
+                 "and be exploited any time some random website decides to "
+                 "exploit you");
+  }
+#endif
   NS_ENSURE_ARG(aPropertyName && *aPropertyName);
   
   if (!mPropertyTable) {  
@@ -372,8 +356,11 @@ nsBoxObject::GetProperty(const PRUnichar* aPropertyName, PRUnichar** aResult)
   nsCOMPtr<nsISupportsString> supportsStr = do_QueryInterface(data);
   if (!supportsStr) 
     return NS_ERROR_FAILURE;
-  
-  return supportsStr->ToString(aResult);
+  nsAutoString result;  
+  supportsStr->GetData(result);
+
+  *aResult = result.IsVoid() ? nsnull : ToNewUnicode(result);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -88,7 +88,6 @@
 <!ENTITY  permTab               "Permissions">
 <!ENTITY  permTab.accesskey     "P">
 <!ENTITY  permUseDefault        "Use Default">
-<!ENTITY  permAskAlways         "Always ask">
 <!ENTITY  permAllow             "Allow">
 <!ENTITY  permAllowSession      "Allow for Session">
 <!ENTITY  permBlock             "Block">
@@ -97,11 +96,6 @@
 <!ENTITY  permPopup             "Open Pop-up Windows">
 <!ENTITY  permCookie            "Set Cookies">
 <!ENTITY  permInstall           "Install Extensions or Themes">
-<!ENTITY  permGeo               "Share Location">
-
-<!ENTITY  permIndexedDB              "Maintain Offline Storage">
-<!ENTITY  permClearStorage           "Clear Storage">
-<!ENTITY  permClearStorage.accesskey "C">
 
 <!ENTITY  securityTab           "Security">
 <!ENTITY  securityTab.accesskey "S">
@@ -112,12 +106,12 @@
 
 
 <!ENTITY  securityView.identity.header   "Web Site Identity">
-<!ENTITY  securityView.identity.owner    "Owner:">
-<!ENTITY  securityView.identity.domain   "Web site:">
-<!ENTITY  securityView.identity.verifier "Verified by:">
+<!ENTITY  securityView.identity.owner    "Owner: ">
+<!ENTITY  securityView.identity.domain   "Web site: ">
+<!ENTITY  securityView.identity.verifier "Verified by: ">
 
 <!ENTITY  securityView.privacy.header                   "Privacy &amp; History">
-<!ENTITY  securityView.privacy.history                  "Have I visited this web site prior to today?">
+<!ENTITY  securityView.privacy.history                  "Have I visited this web site before today?">
 <!ENTITY  securityView.privacy.cookies                  "Is this web site storing information (cookies) on my computer?">
 <!ENTITY  securityView.privacy.viewCookies              "View Cookies">
 <!ENTITY  securityView.privacy.viewCookies.accessKey    "k">

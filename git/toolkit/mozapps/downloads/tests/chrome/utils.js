@@ -45,19 +45,19 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 /**
- * Returns the toolkit implementation of the download manager UI service.
- * If the toolkit implementation of the service can't be found (e.g. because
- * SeaMonkey doesn't package that version but an own implementation that calls
- * different UI), then returns false (see bug 483781).
- *
- * @returns toolkit's nsIDownloadManagerUI implementation or false if not found
+ * Executes a function shortly after the call, but lets the caller continue
+ * working (or finish).
  */
-function getDMUI()
+function executeSoon(aFunc)
 {
-  if (Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"])
-    return Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"].
-           getService(Ci.nsIDownloadManagerUI);
-  return false;
+  let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
+
+  tm.mainThread.dispatch({
+    run: function()
+    {
+      aFunc();
+    }
+  }, Ci.nsIThread.DISPATCH_NORMAL);
 }
 
 /**
@@ -127,18 +127,21 @@ function populateDM(DownloadData)
            getService(Ci.nsIDownloadManager);
   let db = dm.DBConnection;
 
-  let stmt = db.createStatement(
+  let rawStmt = db.createStatement(
     "INSERT INTO moz_downloads (name, source, target, startTime, endTime, " +
       "state, currBytes, maxBytes, preferredAction, autoResume) " +
     "VALUES (:name, :source, :target, :startTime, :endTime, :state, " +
       ":currBytes, :maxBytes, :preferredAction, :autoResume)");
+  let stmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+             createInstance(Ci.mozIStorageStatementWrapper)
+  stmt.initialize(rawStmt);
   for each (let dl in DownloadData) {
     for (let prop in dl)
       stmt.params[prop] = dl[prop];
 
     stmt.execute();
   }
-  stmt.finalize();
+  stmt.statement.finalize();
 }
 
 /**

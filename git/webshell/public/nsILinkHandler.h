@@ -38,17 +38,24 @@
 #define nsILinkHandler_h___
 
 #include "nsISupports.h"
-#include "nsIContent.h"
 
 class nsIInputStream;
 class nsIDocShell;
 class nsIRequest;
+class nsIContent;
 class nsString;
 class nsGUIEvent;
 
 // Interface ID for nsILinkHandler
 #define NS_ILINKHANDLER_IID \
- { 0x71627c30, 0xd3c5, 0x4ad0,{0xb5, 0x33, 0x6e, 0x01, 0x91, 0xf2, 0x79, 0x32}}
+ { 0x514bc565, 0x8d38, 0x4dde,{0xb4, 0xeb, 0xe7, 0xb5, 0x01, 0x2b, 0xf4, 0x64}}
+
+enum nsLinkState {
+  eLinkState_Unknown    = 0,
+  eLinkState_Unvisited  = 1,
+  eLinkState_Visited    = 2, 
+  eLinkState_NotLink    = 3
+};
 
 /**
  * Interface used for handling clicks on links
@@ -112,6 +119,12 @@ public:
    * Process the mouse leaving a link.
    */
   NS_IMETHOD OnLeaveLink() = 0;
+      
+
+  /**
+   * Get the state of a link to a given absolute URL
+   */
+  NS_IMETHOD GetLinkState(nsIURI* aLinkURI, nsLinkState& aState) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsILinkHandler, NS_ILINKHANDLER_IID)

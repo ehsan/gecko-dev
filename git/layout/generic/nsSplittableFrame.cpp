@@ -45,8 +45,6 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSplittableFrame)
-
 NS_IMETHODIMP
 nsSplittableFrame::Init(nsIContent*      aContent,
                         nsIFrame*        aParent,
@@ -64,7 +62,7 @@ nsSplittableFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsSplittableFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSplittableFrame::Destroy()
 {
   // Disconnect from the flow list
   if (mPrevContinuation || mNextContinuation) {
@@ -72,7 +70,7 @@ nsSplittableFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   // Let the base class destroy the frame
-  nsFrame::DestroyFrom(aDestructRoot);
+  nsFrame::Destroy();
 }
 
 nsSplittableType
@@ -133,26 +131,20 @@ nsIFrame* nsSplittableFrame::GetLastContinuation() const
 #ifdef DEBUG
 PRBool nsSplittableFrame::IsInPrevContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
 {
-  PRInt32 iterations = 0;
-  while (aFrame1 && iterations < 10) {
-    // Bail out after 10 iterations so we don't bog down debug builds too much
+  while (aFrame1) {
     if (aFrame1 == aFrame2)
       return PR_TRUE;
     aFrame1 = aFrame1->GetPrevContinuation();
-    ++iterations;
   }
   return PR_FALSE;
 }
 
 PRBool nsSplittableFrame::IsInNextContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
 {
-  PRInt32 iterations = 0;
-  while (aFrame1 && iterations < 10) {
-    // Bail out after 10 iterations so we don't bog down debug builds too much
+  while (aFrame1) {
     if (aFrame1 == aFrame2)
       return PR_TRUE;
     aFrame1 = aFrame1->GetNextContinuation();
-    ++iterations;
   }
   return PR_FALSE;
 }
@@ -237,11 +229,34 @@ nsSplittableFrame::RemoveFromFlow(nsIFrame* aFrame)
   aFrame->SetNextInFlow(nsnull);
 }
 
+// Detach from previous frame in flow
+void
+nsSplittableFrame::BreakFromPrevFlow(nsIFrame* aFrame)
+{
+  nsIFrame* prevInFlow = aFrame->GetPrevInFlow();
+  // If this frame has a non-fluid continuation, transfer it to its prevInFlow
+  nsIFrame* nextNonFluid = nsnull;
+  nsIFrame* nextContinuation = aFrame->GetNextContinuation();
+  if (nextContinuation && !(nextContinuation->GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION)) {
+    nextNonFluid = nextContinuation;
+    aFrame->SetNextContinuation(nsnull);
+  }
+  if (prevInFlow) {
+    if (nextNonFluid) {
+      prevInFlow->SetNextContinuation(nextNonFluid);
+      nextNonFluid->SetPrevContinuation(prevInFlow);
+    } else {
+      prevInFlow->SetNextInFlow(nsnull);
+    }
+    aFrame->SetPrevInFlow(nsnull);
+  }
+}
+
 #ifdef DEBUG
 void
-nsSplittableFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent)
+nsSplittableFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData)
 {
-  nsFrame::DumpBaseRegressionData(aPresContext, out, aIndent);
+  nsFrame::DumpBaseRegressionData(aPresContext, out, aIndent, aIncludeStyleData);
   if (nsnull != mNextContinuation) {
     IndentBy(out, aIndent);
     fprintf(out, "<next-continuation va=\"%ld\"/>\n", PRUptrdiff(mNextContinuation));

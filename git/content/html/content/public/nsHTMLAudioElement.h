@@ -35,23 +35,18 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#if !defined(nsHTMLAudioElement_h__)
-#define nsHTMLAudioElement_h__
-
 #include "nsIDOMHTMLAudioElement.h"
-#include "nsIJSNativeInitializer.h"
 #include "nsHTMLMediaElement.h"
+#include "nsVideoDecoder.h"
 
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
 
 class nsHTMLAudioElement : public nsHTMLMediaElement,
-                           public nsIDOMHTMLAudioElement,
-                           public nsIJSNativeInitializer
+                           public nsIDOMHTMLAudioElement
 {
 public:
-  nsHTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+  nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLAudioElement();
 
   // nsISupports
@@ -72,14 +67,12 @@ public:
   // nsIDOMHTMLAudioElement
   NS_DECL_NSIDOMHTMLAUDIOELEMENT
 
-  // nsIJSNativeInitializer
-  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
-                        JSObject* aObj, PRUint32 argc, jsval* argv);
-
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
-
-  virtual nsXPCClassInfo* GetClassInfo();
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
+protected:
+  virtual nsresult InitializeDecoder(nsAString& aChosenMediaResource);
 };
-
-#endif

@@ -43,6 +43,9 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+# FIXME: bug 419893
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+
 MODULE = places
 LIBRARY_NAME  = places
 LIBXUL_LIBRARY = 1
@@ -50,31 +53,47 @@ EXPORT_LIBRARY = 1
 MODULE_NAME = nsPlacesModule
 IS_COMPONENT = 1
 
-EXPORTS_NAMESPACES = mozilla/places
-
-EXPORTS_mozilla/places = \
-  History.h \
-  $(NULL)
+REQUIRES = xpcom \
+           string \
+           docshell \
+           dom \
+           morkreader \
+           pref \
+           necko \
+           imglib2 \
+           gfx \
+           intl \
+           layout \
+           locale \
+           uconv \
+           unicharutil \
+           autocomplete \
+           storage \
+           txmgr \
+           nkcache \
+           widget \
+           chardet \
+           $(NULL)
 
 CPPSRCS = \
           nsAnnoProtocolHandler.cpp \
           nsAnnotationService.cpp \
           nsFaviconService.cpp \
           nsNavHistory.cpp \
+          nsNavHistoryExpire.cpp \
           nsNavHistoryQuery.cpp \
           nsNavHistoryResult.cpp \
           nsNavBookmarks.cpp \
           nsMaybeWeakPtr.cpp \
           nsMorkHistoryImporter.cpp \
           nsPlacesModule.cpp \
-          SQLFunctions.cpp \
-          Helpers.cpp \
-          History.cpp \
-          nsPlacesImportExportService.cpp \
-          AsyncFaviconHelpers.cpp \
-          PlaceInfo.cpp \
-          VisitInfo.cpp \
           $(NULL)
+
+ifdef MOZ_XUL
+CPPSRCS += \
+          nsNavHistoryAutoComplete.cpp \
+          $(NULL)
+endif
 
 EXTRA_DSO_LDOPTS += \
 	$(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX) \
@@ -82,39 +101,17 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_COMPONENT_LIBS) \
 	$(NULL)
 
-ifndef MOZ_ENABLE_LIBXUL
-EXTRA_DSO_LDOPTS += \
-	$(MOZ_JS_LIBS) \
-	$(NULL)
-endif
-
 LOCAL_INCLUDES += -I$(srcdir)/../../build
 
-# This is the default value.  Must be in sync with the one defined in SQLite.
-DEFINES += -DSQLITE_DEFAULT_PAGE_SIZE=32768
-
-EXTRA_COMPONENTS = \
-  toolkitplaces.manifest \
-  nsLivemarkService.js \
-  nsTaggingService.js \
-  nsPlacesExpiration.js \
-  nsMicrosummaryService.js \
-  PlacesCategoriesStarter.js \
-  $(NULL)
-
-ifdef MOZ_XUL
-EXTRA_COMPONENTS += nsPlacesAutoComplete.js nsPlacesAutoComplete.manifest
-endif
+EXTRA_PP_COMPONENTS = nsLivemarkService.js \
+                      nsTaggingService.js \
+                      $(NULL)
 
 EXTRA_JS_MODULES = \
-  PlacesDBUtils.jsm \
   utils.js \
+  PlacesBackground.jsm \
   $(NULL)
 
-EXTRA_PP_JS_MODULES = \
-  PlacesUtils.jsm \
-  $(NULL)
+EXTRA_PP_JS_MODULES = utils.js
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk

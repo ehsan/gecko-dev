@@ -41,6 +41,8 @@
 #include "nsStyleConsts.h"
 
 #include "nsGkAtoms.h"
+#include "nsILinkHandler.h"
+#include "nsILink.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
@@ -49,7 +51,6 @@
 #include "nsReadableUtils.h"
 #include "nsContentUtils.h"
 #include "nsTextFormatter.h"
-#include "nsCSSProps.h"
 
 // XXX This is here because nsCachedStyleData is accessed outside of
 // the content module; e.g., by nsCSSFrameConstructor.
@@ -224,11 +225,11 @@ nsStyleUtil::CalcFontPointSize(PRInt32 aHTMLSize, PRInt32 aBasePointSize,
   {
     PRInt32 row = fontSize - sFontSizeTableMin;
 
-    if (aPresContext->CompatibilityMode() == eCompatibility_NavQuirks) {
-      dFontSize = nsPresContext::CSSPixelsToAppUnits(sQuirksFontSizeTable[row][column[aHTMLSize]]);
-    } else {
-      dFontSize = nsPresContext::CSSPixelsToAppUnits(sStrictFontSizeTable[row][column[aHTMLSize]]);
-    }
+	  if (aPresContext->CompatibilityMode() == eCompatibility_NavQuirks) {
+	    dFontSize = nsPresContext::CSSPixelsToAppUnits(sQuirksFontSizeTable[row][column[aHTMLSize]]);
+	  } else {
+	    dFontSize = nsPresContext::CSSPixelsToAppUnits(sStrictFontSizeTable[row][column[aHTMLSize]]);
+	  }
   }
   else
   {
@@ -266,13 +267,13 @@ nscoord nsStyleUtil::FindNextSmallerFontSize(nscoord aFontSize, PRInt32 aBasePoi
 
   nscoord onePx = nsPresContext::CSSPixelsToAppUnits(1);
 
-  if (aFontSizeType == eFontSize_HTML) {
-    indexMin = 1;
-    indexMax = 7;
-  } else {
-    indexMin = 0;
-    indexMax = 6;
-  }
+	if (aFontSizeType == eFontSize_HTML) {
+		indexMin = 1;
+		indexMax = 7;
+	} else {
+		indexMin = 0;
+		indexMax = 6;
+	}
   
   smallestIndexFontSize = CalcFontPointSize(indexMin, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
   largestIndexFontSize = CalcFontPointSize(indexMax, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType); 
@@ -305,7 +306,7 @@ nscoord nsStyleUtil::FindNextSmallerFontSize(nscoord aFontSize, PRInt32 aBasePoi
     }
   }
   else { // smaller than HTML table, drop by 1px
-    smallerSize = NS_MAX(aFontSize - onePx, onePx);
+    smallerSize = PR_MAX(aFontSize - onePx, onePx);
   }
   return smallerSize;
 }
@@ -331,13 +332,13 @@ nscoord nsStyleUtil::FindNextLargerFontSize(nscoord aFontSize, PRInt32 aBasePoin
 
   nscoord onePx = nsPresContext::CSSPixelsToAppUnits(1);
 
-  if (aFontSizeType == eFontSize_HTML) {
-    indexMin = 1;
-    indexMax = 7;
-  } else {
-    indexMin = 0;
-    indexMax = 6;
-  }
+	if (aFontSizeType == eFontSize_HTML) {
+		indexMin = 1;
+		indexMax = 7;
+	} else {
+		indexMin = 0;
+		indexMax = 6;
+	}
   
   smallestIndexFontSize = CalcFontPointSize(indexMin, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
   largestIndexFontSize = CalcFontPointSize(indexMax, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType); 
@@ -401,6 +402,114 @@ nsStyleUtil::ConstrainFontWeight(PRInt32 aWeight)
   return (base + ((negativeStep) ? -step : step));
 }
 
+static nsLinkState
+GetLinkStateFromURI(nsIURI* aURI, nsIContent* aContent,
+                    nsILinkHandler* aLinkHandler)
+{
+  NS_PRECONDITION(aURI, "Must have URI");
+  nsLinkState state;
+  if (NS_LIKELY(aLinkHandler)) {
+    aLinkHandler->GetLinkState(aURI, state);
+  }
+  else {
+    // no link handler?  Try to get one off the content
+    NS_ASSERTION(aContent->GetOwnerDoc(), "Shouldn't happen");
+    nsCOMPtr<nsISupports> supp =
+      aContent->GetOwnerDoc()->GetContainer();
+    nsCOMPtr<nsILinkHandler> handler = do_QueryInterface(supp);
+    if (handler) {
+      handler->GetLinkState(aURI, state);
+    } else {
+      // no link handler?  then all links are unvisited
+      state = eLinkState_Unvisited;
+    }
+  }
+
+  return state;  
+}
+
+/*static*/
+PRBool nsStyleUtil::IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
+                               nsILinkHandler *aLinkHandler,
+                               PRBool aForStyling,
+                               nsLinkState *aState)
+{
+  NS_ASSERTION(aContent && aState, "null arg in IsHTMLLink");
+
+  // check for:
+  //  - HTML ANCHOR with valid HREF
+  //  - HTML LINK with valid HREF
+  //  - HTML AREA with valid HREF
+
+  PRBool result = PR_FALSE;
+
+  if ((aTag == nsGkAtoms::a) ||
+      (aTag == nsGkAtoms::link) ||
+      (aTag == nsGkAtoms::area)) {
+
+    nsCOMPtr<nsILink> link( do_QueryInterface(aContent) );
+    // In XML documents, this can be null.
+    if (link) {
+      nsLinkState linkState;
+      link->GetLinkState(linkState);
+      if (linkState == eLinkState_Unknown) {
+        // if it is an anchor, area or link then check the href attribute
+        // make sure this anchor has a link even if we are not testing state
+        // if there is no link, then this anchor is not really a linkpseudo.
+        // bug=23209
+
+        nsCOMPtr<nsIURI> hrefURI;
+        link->GetHrefURI(getter_AddRefs(hrefURI));
+
+        if (hrefURI) {
+          linkState = GetLinkStateFromURI(hrefURI, aContent, aLinkHandler);
+        } else {
+          linkState = eLinkState_NotLink;
+        }
+        if (linkState != eLinkState_NotLink && aForStyling &&
+            aContent->IsInDoc()) {
+          aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, hrefURI);
+        }
+        link->SetLinkState(linkState);
+      }
+      if (linkState != eLinkState_NotLink) {
+        *aState = linkState;
+        result = PR_TRUE;
+      }
+    }
+  }
+
+  return result;
+}
+
+/*static*/
+PRBool nsStyleUtil::IsLink(nsIContent     *aContent,
+                           nsILinkHandler *aLinkHandler,
+                           PRBool          aForStyling,
+                           nsLinkState    *aState)
+{
+  // XXX PERF This function will cause serious performance problems on
+  // pages with lots of XLinks.  We should be caching the visited
+  // state of the XLinks.  Where???
+
+  NS_ASSERTION(aContent && aState, "invalid call to IsLink with null content");
+
+  PRBool rv = PR_FALSE;
+
+  if (aContent && aState) {
+    nsCOMPtr<nsIURI> absURI;
+    if (aContent->IsLink(getter_AddRefs(absURI))) {
+      *aState = GetLinkStateFromURI(absURI, aContent, aLinkHandler);
+      if (aForStyling && aContent->IsInDoc()) {
+        aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, absURI);
+      }
+
+      rv = PR_TRUE;
+    }
+  }
+  return rv;
+}
+
 // Compare two language strings
 PRBool nsStyleUtil::DashMatchCompare(const nsAString& aAttributeValue,
                                      const nsAString& aSelectorValue,
@@ -429,10 +538,9 @@ PRBool nsStyleUtil::DashMatchCompare(const nsAString& aAttributeValue,
   return result;
 }
 
-void nsStyleUtil::AppendEscapedCSSString(const nsString& aString,
-                                         nsAString& aReturn)
+void nsStyleUtil::EscapeCSSString(const nsString& aString, nsAString& aReturn)
 {
-  aReturn.Append(PRUnichar('"'));
+  aReturn.Truncate();
 
   const nsString::char_type* in = aString.get();
   const nsString::char_type* const end = in + aString.Length();
@@ -462,85 +570,6 @@ void nsStyleUtil::AppendEscapedCSSString(const nsString& aString,
        aReturn.Append(PRUnichar(*in));
     }
   }
-
-  aReturn.Append(PRUnichar('"'));
-}
-
-/* static */ void
-nsStyleUtil::AppendEscapedCSSIdent(const nsString& aIdent, nsAString& aReturn)
-{
-  // The relevant parts of the CSS grammar are:
-  //   ident    [-]?{nmstart}{nmchar}*
-  //   nmstart  [_a-z]|{nonascii}|{escape}
-  //   nmchar   [_a-z0-9-]|{nonascii}|{escape}
-  //   nonascii [^\0-\177]
-  //   escape   {unicode}|\\[^\n\r\f0-9a-f]
-  //   unicode  \\[0-9a-f]{1,6}(\r\n|[ \n\r\t\f])?
-  // from http://www.w3.org/TR/CSS21/syndata.html#tokenization
-
-  const nsString::char_type* in = aIdent.get();
-  const nsString::char_type* const end = in + aIdent.Length();
-
-  // Deal with the leading dash separately so we don't need to
-  // unnecessarily escape digits.
-  if (in != end && *in == '-') {
-    aReturn.Append(PRUnichar('-'));
-    ++in;
-  }
-
-  PRBool first = PR_TRUE;
-  for (; in != end; ++in, first = PR_FALSE)
-  {
-    if (*in < 0x20 || (first && '0' <= *in && *in <= '9'))
-    {
-      // Escape all characters below 0x20, and digits at the start
-      // (including after a dash), numerically.  If we didn't escape
-      // digits numerically, they'd get interpreted as a numeric escape
-      // for the wrong character.
-
-      /*
-       This is the buffer into which snprintf should write. As the hex.
-       value is, for numbers below 0x7F, max. 2 characters long, we
-       don't need more than 5 characters ("\XX "+NUL).
-      */
-      PRUnichar buf[5];
-      nsTextFormatter::snprintf(buf, NS_ARRAY_LENGTH(buf),
-                                NS_LITERAL_STRING("\\%hX ").get(), *in);
-      aReturn.Append(buf);
-    } else {
-      PRUnichar ch = *in;
-      if (!((ch == PRUnichar('_')) ||
-            (PRUnichar('A') <= ch && ch <= PRUnichar('Z')) ||
-            (PRUnichar('a') <= ch && ch <= PRUnichar('z')) ||
-            PRUnichar(0x80) <= ch ||
-            (!first && ch == PRUnichar('-')) ||
-            (PRUnichar('0') <= ch && ch <= PRUnichar('9')))) {
-        // Character needs to be escaped
-        aReturn.Append(PRUnichar('\\'));
-      }
-      aReturn.Append(ch);
-    }
-  }
-}
-
-/* static */ void
-nsStyleUtil::AppendBitmaskCSSValue(nsCSSProperty aProperty,
-                                   PRInt32 aMaskedValue,
-                                   PRInt32 aFirstMask,
-                                   PRInt32 aLastMask,
-                                   nsAString& aResult)
-{
-  for (PRInt32 mask = aFirstMask; mask <= aLastMask; mask <<= 1) {
-    if (mask & aMaskedValue) {
-      AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, mask),
-                         aResult);
-      aMaskedValue &= ~mask;
-      if (aMaskedValue) { // more left
-        aResult.Append(PRUnichar(' '));
-      }
-    }
-  }
-  NS_ABORT_IF_FALSE(aMaskedValue == 0, "unexpected bit remaining in bitfield");
 }
 
 /* static */ float

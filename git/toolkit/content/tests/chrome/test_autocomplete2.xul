@@ -46,7 +46,6 @@ nsAutoCompleteSimpleResult.prototype = {
  getCommentAt: function() { return null; },
  getStyleAt: function() { return null; },
  getImageAt: function() { return null; },
- getLabelAt: function() { return null; },
  removeValueAt: function() {}
 };
 
@@ -119,9 +118,6 @@ function check() {
   // Toggle this value, so we can re-use the one function.
   returnResult = !returnResult;
 
-  // blur the field to ensure that the popup is closed and that the previous
-  // search has stopped, then start a new search.
-  autocomplete.blur();
   autocomplete.focus();
   synthesizeKey("r", {});
 }
@@ -139,13 +135,13 @@ function checkResult() {
     // is set.
     autocomplete.highlightNonMatches = "true";
 
-    isnot(style.getPropertyCSSValue("color").cssText, "rgb(255, 0, 0)",
-          "not nomatch and highlightNonMatches - should not be red");
+    is(style.getPropertyCSSValue("color").cssText, "rgb(0, 0, 0)",
+       "not nomatch and highlightNonMatches - should be black");
 
     autocomplete.highlightNonMatches = "false";
 
-    isnot(style.getPropertyCSSValue("color").cssText, "rgb(255, 0, 0)",
-          "not nomatch and not highlightNonMatches - should not be red");
+    is(style.getPropertyCSSValue("color").cssText, "rgb(0, 0, 0)",
+       "not nomatch and not highlightNonMatches - should be black");
 
     setTimeout(check, 0);
   }
@@ -163,8 +159,8 @@ function checkResult() {
 
     autocomplete.highlightNonMatches = "false";
 
-    isnot(style.getPropertyCSSValue("color").cssText, "rgb(255, 0, 0)",
-          "nomatch and not highlightNonMatches - should not be red");
+    is(style.getPropertyCSSValue("color").cssText, "rgb(0, 0, 0)",
+       "nomatch and not highlightNonMatches - should be black");
 
     setTimeout(function() {
       // Unregister the factory so that we don't get in the way of other tests

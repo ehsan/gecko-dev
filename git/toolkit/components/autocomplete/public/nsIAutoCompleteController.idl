@@ -41,7 +41,7 @@
 
 interface nsIAutoCompleteInput;
 
-[scriptable, uuid(dd2c4489-e4bd-4702-86bc-e1691744e556)]
+[scriptable, uuid(6F08D134-8536-4B28-B456-D150FBAA66A9)]
 interface nsIAutoCompleteController : nsISupports
 {
   /*
@@ -82,7 +82,7 @@ interface nsIAutoCompleteController : nsISupports
    * means of changing the text value, including typing a character, backspacing, deleting, or
    * pasting in an entirely new value.
    */
-  void handleText();
+  void handleText(in boolean aIgnoreSelection);
 
   /*
    * Notify the controller that the user wishes to enter the current text. If
@@ -134,11 +134,6 @@ interface nsIAutoCompleteController : nsISupports
    * Get the value of the result at a given index in the last completed search
    */
   AString getValueAt(in long index);
-
-  /*
-   * Get the label of the result at a given index in the last completed search
-   */
-  AString getLabelAt(in long index);
 
   /*
    * Get the comment of the result at a given index in the last completed search

@@ -73,7 +73,7 @@
 
 /**
  * The async request has been "redirected" to a different async request.
- * (e.g., an HTTP redirect occurred).
+ * (e.g., an HTTP redirect occured).
  *
  * This error code is used with load groups to notify the load group observer
  * when a request in the load group is redirected to another request.
@@ -240,14 +240,6 @@
 #define NS_ERROR_UNSAFE_CONTENT_TYPE \
     NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_NETWORK, 74)
 
-/**
- * The request failed because the user tried to access to a remote XUL document
- * from a website that is not in its white-list.
- */
-#define NS_ERROR_REMOTE_XUL \
-    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_NETWORK, 75)
-
-
 /******************************************************************************
  * FTP specific error codes:
  *
@@ -279,14 +271,6 @@
  */
 #define NS_ERROR_UNKNOWN_HOST \
     NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_NETWORK, 30)
-
-/**
- * A low or medium priority DNS lookup failed because the pending
- * queue was already full. High priorty (the default) always
- * makes room
- */
-#define NS_ERROR_DNS_LOOKUP_QUEUE_FULL \
-    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_NETWORK, 33)
 
 /**
  * The lookup of a proxy hostname failed.
@@ -368,19 +352,6 @@
  */
 #define NS_ERROR_HOST_IS_IP_ADDRESS \
     NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_NETWORK, 81)
-
-
-/******************************************************************************
- * StreamLoader specific result codes:
- */
-
-/**
- * Result code returned by nsIStreamLoaderObserver to indicate that
- * the observer is taking over responsibility for the data buffer,
- * and the loader should NOT free it.
- */
-#define NS_SUCCESS_ADOPTED_DATA \
-    NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_NETWORK, 90)
 
 
 #endif // !nsNetError_h__

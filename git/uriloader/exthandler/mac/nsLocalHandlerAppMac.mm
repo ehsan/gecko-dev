@@ -35,8 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#import <CoreFoundation/CoreFoundation.h>
-#import <ApplicationServices/ApplicationServices.h>
+#import <Carbon/Carbon.h>
 
 #include "nsObjCExceptions.h"
 #include "nsLocalHandlerAppMac.h"

@@ -69,7 +69,7 @@ public:
     NS_DECL_NSISCRIPTLOADEROBSERVER
     
     // nsICSSLoaderObserver
-    NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+    NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus);
 
@@ -102,14 +102,12 @@ public:
     txMozillaXMLOutput(txOutputFormat* aFormat,
                        nsIDOMDocumentFragment* aFragment,
                        PRBool aNoFixup);
-    ~txMozillaXMLOutput();
 
     TX_DECL_TXAXMLEVENTHANDLER
     TX_DECL_TXAOUTPUTXMLEVENTHANDLER
 
-    nsresult closePrevious(PRBool aFlushText);
-
 private:
+    nsresult closePrevious(PRBool aFlushText);
     nsresult createTxWrapper();
     nsresult startHTMLElement(nsIContent* aElement, PRBool aXHTML);
     nsresult endHTMLElement(nsIContent* aElement);
@@ -123,7 +121,7 @@ private:
     nsresult attributeInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                PRInt32 aNsID, const nsString& aValue);
     nsresult startElementInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                                  PRInt32 aNsID);
+                                  PRInt32 aNsID, PRInt32 aElemType);
 
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsINode> mCurrentNode;     // This is updated once an element is
@@ -154,6 +152,8 @@ private:
     nsAutoString mText;
 
     txOutputFormat mOutputFormat;
+
+    PRPackedBool mHaveBaseElement;
 
     PRPackedBool mCreatingNewDocument;
 

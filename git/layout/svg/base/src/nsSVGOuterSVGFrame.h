@@ -43,8 +43,6 @@
 #include "nsISVGSVGFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsIDOMSVGNumber.h"
-#include "nsSVGFeatures.h"
-#include "gfxMatrix.h"
 
 class nsSVGForeignObjectFrame;
 
@@ -57,13 +55,17 @@ class nsSVGOuterSVGFrame : public nsSVGOuterSVGFrameBase,
                            public nsISVGSVGFrame
 {
   friend nsIFrame*
-  NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGOuterSVGFrame(nsStyleContext* aContext);
 
+   // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
+
 public:
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
   ~nsSVGOuterSVGFrame() {
@@ -93,6 +95,8 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
+
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
@@ -110,8 +114,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  void Paint(const nsDisplayListBuilder* aBuilder,
-             nsIRenderingContext& aRenderingContext,
+  void Paint(nsIRenderingContext& aRenderingContext,
              const nsRect& aDirtyRect, nsPoint aPt);
 
 #ifdef DEBUG
@@ -142,7 +145,7 @@ public:
   NS_IMETHOD NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   /* Methods to allow descendant nsSVGForeignObjectFrame frames to register and
    * unregister themselves with their nearest nsSVGOuterSVGFrame ancestor so
@@ -160,11 +163,6 @@ protected:
    */
   PRBool EmbeddedByReference(nsIFrame **aEmbeddingFrame = nsnull);
 
-  /* Returns true if our content is the document element and our document is
-   * being used as an image.
-   */
-  PRBool IsRootOfImage();
-
   // A hash-set containing our nsSVGForeignObjectFrame descendants. Note we use
   // a hash-set to avoid the O(N^2) behavior we'd get tearing down an SVG frame
   // subtree if we were to use a list (see bug 381285 comment 20).
@@ -173,13 +171,16 @@ protected:
   PRUint32 mRedrawSuspendCount;
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 
+  // zoom and pan
+  nsCOMPtr<nsIDOMSVGPoint>  mCurrentTranslate;
+  nsCOMPtr<nsIDOMSVGNumber> mCurrentScale;
+
   float mFullZoom;
 
   PRPackedBool mViewportInitialized;
 #ifdef XP_MACOSX
   PRPackedBool mEnableBitmapFallback;
 #endif
-  PRPackedBool mIsRootContent;
 };
 
 #endif

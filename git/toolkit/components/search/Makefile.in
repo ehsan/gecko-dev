@@ -43,9 +43,17 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-EXTRA_COMPONENTS = toolkitsearch.manifest
+MODULE = toolkitsearch
+XPIDL_MODULE = toolkitsearch
+
+XPIDLSRCS = nsIBrowserSearchService.idl
+
 EXTRA_PP_COMPONENTS = nsSearchService.js \
 	nsSearchSuggestions.js
+
+ifneq (,$(BUILD_OFFICIAL)$(MOZILLA_OFFICIAL))
+DEFINES += -DOFFICIAL_BUILD=1
+endif
 
 DEFINES += -DMOZ_DISTRIBUTION_ID=$(MOZ_DISTRIBUTION_ID)
 

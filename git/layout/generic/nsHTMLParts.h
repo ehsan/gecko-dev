@@ -42,7 +42,6 @@
 
 #include "nscore.h"
 #include "nsISupports.h"
-#include "nsIFrame.h"
 class nsIAtom;
 class nsNodeInfoManager;
 class nsIContent;
@@ -51,6 +50,7 @@ class nsIDocument;
 class nsIFrame;
 class nsIHTMLContentSink;
 class nsIFragmentContentSink;
+class nsPresContext;
 class nsStyleContext;
 class nsIURI;
 class nsString;
@@ -62,34 +62,28 @@ class nsTableColFrame;
  * Additional frame-state bits used by nsBlockFrame
  * See the meanings at http://www.mozilla.org/newlayout/doc/block-and-line.html
  *
- * NS_BLOCK_CLIP_PAGINATED_OVERFLOW is only set in paginated prescontexts, on
- *  blocks which were forced to not have scrollframes but still need to clip
- *  the display of their kids.
- *
  * NS_BLOCK_HAS_FIRST_LETTER_STYLE means that the block has first-letter style,
  *  even if it has no actual first-letter frame among its descendants.
  *
  * NS_BLOCK_HAS_FIRST_LETTER_CHILD means that there is an inflow first-letter
  *  frame among the block's descendants. If there is a floating first-letter
  *  frame, or the block has first-letter style but has no first letter, this
- *  bit is not set. This bit is set on the first continuation only.
+ *  bit is not set.
  */
-#define NS_BLOCK_MARGIN_ROOT              NS_FRAME_STATE_BIT(22)
-#define NS_BLOCK_FLOAT_MGR                NS_FRAME_STATE_BIT(23)
-#define NS_BLOCK_CLIP_PAGINATED_OVERFLOW  NS_FRAME_STATE_BIT(28)
-#define NS_BLOCK_HAS_FIRST_LETTER_STYLE   NS_FRAME_STATE_BIT(29)
-#define NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET NS_FRAME_STATE_BIT(30)
-#define NS_BLOCK_HAS_FIRST_LETTER_CHILD   NS_FRAME_STATE_BIT(31)
+#define NS_BLOCK_NO_AUTO_MARGINS            0x00200000
+#define NS_BLOCK_MARGIN_ROOT                0x00400000
+#define NS_BLOCK_SPACE_MGR                  0x00800000
+#define NS_BLOCK_HAS_FIRST_LETTER_STYLE     0x20000000
+#define NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET   0x40000000
+#define NS_BLOCK_HAS_FIRST_LETTER_CHILD     0x80000000
 // These are the bits that get inherited from a block frame to its
 // next-in-flows and are not private to blocks
-#define NS_BLOCK_FLAGS_MASK               (NS_BLOCK_MARGIN_ROOT | \
-                                           NS_BLOCK_FLOAT_MGR | \
-                                           NS_BLOCK_CLIP_PAGINATED_OVERFLOW | \
-                                           NS_BLOCK_HAS_FIRST_LETTER_STYLE | \
-                                           NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET | \
-                                           NS_BLOCK_HAS_FIRST_LETTER_CHILD)
+#define NS_BLOCK_FLAGS_MASK                 0xF0E00000 
 
 // Factory methods for creating html layout objects
+
+// These are variations on AreaFrame with slightly different layout
+// policies.
 
 // Create a frame that supports "display: block" layout behavior
 nsIFrame*
@@ -109,12 +103,34 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
 nsIFrame*
 NS_NewSelectsAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
-// Create a block formatting context blockframe
-inline nsIFrame* NS_NewBlockFormattingContext(nsIPresShell* aPresShell,
-                                              nsStyleContext* aStyleContext)
-{
-  return NS_NewBlockFrame(aPresShell, aStyleContext,
-                          NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+// Create a basic area frame.
+nsIFrame*
+NS_NewAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
+
+// These AreaFrame's shrink wrap around their contents
+inline nsIFrame*
+NS_NewTableCellInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewBlockFrame(aPresShell, aContext);
+}
+
+// This type of BlockFrame is a margin root, but does not shrink wrap
+inline nsIFrame*
+NS_NewAbsoluteItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewBlockFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+}
+
+// This type of BlockFrame shrink wraps
+inline nsIFrame*
+NS_NewFloatingItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewBlockFrame(aPresShell, aContext,
+    NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+}
+
+// This type of BlockFrame doesn't use its own space manager and
+// doesn't shrink wrap.
+inline nsIFrame*
+NS_NewRelativeItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags) {
+  return NS_NewBlockFrame(aPresShell, aContext, aFlags);
 }
 
 nsIFrame*
@@ -142,6 +158,8 @@ nsIFrame*
 NS_NewPositionedInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+nsIFrame*
+NS_NewSpacerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewTextFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
@@ -239,8 +257,6 @@ NS_NewHTMLFragmentContentSink2(nsIFragmentContentSink** aInstancePtrResult);
 // in nsContentSink.h
 nsresult
 NS_NewHTMLParanoidFragmentSink(nsIFragmentContentSink** aInstancePtrResult);
-nsresult
-NS_NewHTMLParanoidFragmentSink2(nsIFragmentContentSink** aInstancePtrResult);
 void
 NS_HTMLParanoidFragmentSinkShutdown();
 #endif /* nsHTMLParts_h___ */

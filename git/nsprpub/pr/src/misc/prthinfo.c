@@ -37,7 +37,11 @@
 
 #include "prlog.h"
 #include "prthread.h"
+#ifdef XP_MAC
+#include "pprthred.h"
+#else
 #include "private/pprthred.h"
+#endif
 #include "primpl.h"
 
 PR_IMPLEMENT(PRWord *)
@@ -149,6 +153,7 @@ PR_ThreadScanStackPointers(PRThread* t,
     if (status != PR_SUCCESS)
         return status;
 
+#ifndef GC_LEAK_DETECTOR
     /* if thread is not allocated on stack, this is redundant. */
     ptd = t->privateData;
     for (index = 0; index < t->tpdLength; index++, ptd++) {
@@ -156,6 +161,7 @@ PR_ThreadScanStackPointers(PRThread* t,
         if (status != PR_SUCCESS)
             return status;
     }
+#endif
     
     return PR_SUCCESS;
 }
@@ -169,6 +175,9 @@ typedef struct PRScanStackData {
 static PRStatus PR_CALLBACK
 pr_ScanStack(PRThread* t, int i, void* arg)
 {
+#if defined(XP_MAC)
+#pragma unused (i)
+#endif
     PRScanStackData* data = (PRScanStackData*)arg;
     return PR_ThreadScanStackPointers(t, data->scanFun, data->scanClosure);
 }

@@ -60,11 +60,6 @@ XPIDLSRCS += \
   nsIDynamicContainer.idl \
   nsITaggingService.idl  \
   nsPIPlacesDatabase.idl \
-  nsPIPlacesHistoryListenersNotifier.idl \
-  mozIPlacesAutoComplete.idl \
-  nsIMicrosummaryService.idl \
-  nsIPlacesImportExportService.idl \
-  mozIAsyncHistory.idl \
   $(NULL)
 endif
 

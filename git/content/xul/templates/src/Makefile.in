@@ -46,6 +46,26 @@ MODULE		= xultmpl
 LIBRARY_NAME	= gkconxultmpl_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  js \
+		  xpconnect \
+		  caps \
+		  gfx \
+		  thebes \
+		  layout \
+		  content \
+		  pref \
+		  widget \
+		  dom \
+		  rdf \
+		  necko \
+		  locale \
+		  unicharutil \
+		  xuldoc \
+		  webshell \
+		  storage \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsContentSupportMap.cpp \
@@ -82,8 +102,7 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES	= -I$(srcdir)/../../../base/src \
-		  -I$(srcdir)/../../content/src \
-		  -I$(srcdir)/../../../../layout/xul/base/src/tree/src \
-		  $(NULL)
+		   -I$(srcdir)/../../content/src \
+		   $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

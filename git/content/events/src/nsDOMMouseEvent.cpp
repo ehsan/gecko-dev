@@ -60,15 +60,11 @@ nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
     mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 
   switch (mEvent->eventStructType)
   {
     case NS_MOUSE_EVENT:
-      NS_ASSERTION(static_cast<nsMouseEvent*>(mEvent)->reason
-                   != nsMouseEvent::eSynthesized,
-                   "Don't dispatch DOM events from synthesized mouse events");
       mDetail = static_cast<nsMouseEvent*>(mEvent)->clickCount;
       break;
     default:
@@ -95,12 +91,9 @@ nsDOMMouseEvent::~nsDOMMouseEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMMouseEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMMouseEvent, nsDOMUIEvent)
 
-DOMCI_DATA(MouseEvent, nsDOMMouseEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMMouseEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseEvent)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNSMouseEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MouseEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(MouseEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
@@ -112,14 +105,11 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, PRBool aCanBubble, PRBo
 {
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  
   switch(mEvent->eventStructType)
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
     {
        static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget = aRelatedTarget;
        static_cast<nsMouseEvent_base*>(mEvent)->button = aButton;
@@ -147,25 +137,6 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, PRBool aCanBubble, PRBo
 }   
 
 NS_IMETHODIMP
-nsDOMMouseEvent::InitNSMouseEvent(const nsAString & aType, PRBool aCanBubble, PRBool aCancelable,
-                                  nsIDOMAbstractView *aView, PRInt32 aDetail, PRInt32 aScreenX,
-                                  PRInt32 aScreenY, PRInt32 aClientX, PRInt32 aClientY,
-                                  PRBool aCtrlKey, PRBool aAltKey, PRBool aShiftKey,
-                                  PRBool aMetaKey, PRUint16 aButton, nsIDOMEventTarget *aRelatedTarget,
-                                  float aPressure, PRUint16 aInputSource)
-{
-  nsresult rv = nsDOMMouseEvent::InitMouseEvent(aType, aCanBubble, aCancelable,
-                                                aView, aDetail, aScreenX, aScreenY,
-                                                aClientX, aClientY, aCtrlKey, aAltKey, aShiftKey,
-                                                aMetaKey, aButton, aRelatedTarget);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  static_cast<nsMouseEvent_base*>(mEvent)->pressure = aPressure;
-  static_cast<nsMouseEvent_base*>(mEvent)->inputSource = aInputSource;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMMouseEvent::GetButton(PRUint16* aButton)
 {
   NS_ENSURE_ARG_POINTER(aButton);
@@ -173,9 +144,6 @@ nsDOMMouseEvent::GetButton(PRUint16* aButton)
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
       *aButton = static_cast<nsMouseEvent_base*>(mEvent)->button;
       break;
     default:
@@ -196,9 +164,6 @@ nsDOMMouseEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
       relatedTarget = static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget;
       break;
     default:
@@ -206,15 +171,6 @@ nsDOMMouseEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
   }
 
   if (relatedTarget) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(relatedTarget);
-    if (content && content->IsInNativeAnonymousSubtree() &&
-        !nsContentUtils::CanAccessNativeAnon()) {
-      relatedTarget = content->FindFirstNonNativeAnonymous();
-      if (!relatedTarget) {
-        return NS_OK;
-      }
-    }
-
     CallQueryInterface(relatedTarget, aRelatedTarget);
   }
   return NS_OK;
@@ -290,22 +246,6 @@ nsDOMMouseEvent::GetWhich(PRUint32* aWhich)
   PRUint16 button;
   (void) GetButton(&button);
   *aWhich = button + 1;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozPressure(float* aPressure)
-{
-  NS_ENSURE_ARG_POINTER(aPressure);
-  *aPressure = static_cast<nsMouseEvent_base*>(mEvent)->pressure;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozInputSource(PRUint16* aInputSource)
-{
-  NS_ENSURE_ARG_POINTER(aInputSource);
-  *aInputSource = static_cast<nsMouseEvent_base*>(mEvent)->inputSource;
   return NS_OK;
 }
 

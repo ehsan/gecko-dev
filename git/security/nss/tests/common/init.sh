@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 #
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -17,11 +17,10 @@
 #
 # The Initial Developer of the Original Code is
 # Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1994-2009
+# Portions created by the Initial Developer are Copyright (C) 1994-2000
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Slavomir Katuscak <slavomir.katuscak@sun.com>, Sun Microsystems
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -108,13 +107,13 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
 
         CERT_EXTENSIONS_DIR=${HOSTDIR}/cert_extensions
 
-        PWFILE=${HOSTDIR}/tests.pw
-        NOISE_FILE=${HOSTDIR}/tests_noise
-        CORELIST_FILE=${HOSTDIR}/clist
+        PWFILE=${HOSTDIR}/tests.pw.$$
+        NOISE_FILE=${HOSTDIR}/tests_noise.$$
+        CORELIST_FILE=${HOSTDIR}/clist.$$
 
-        FIPSPWFILE=${HOSTDIR}/tests.fipspw
-        FIPSBADPWFILE=${HOSTDIR}/tests.fipsbadpw
-        FIPSP12PWFILE=${HOSTDIR}/tests.fipsp12pw
+        FIPSPWFILE=${HOSTDIR}/tests.fipspw.$$
+        FIPSBADPWFILE=${HOSTDIR}/tests.fipsbadpw.$$
+        FIPSP12PWFILE=${HOSTDIR}/tests.fipsp12pw.$$
 
         echo "fIps140" > ${FIPSPWFILE}
         echo "fips104" > ${FIPSBADPWFILE}
@@ -135,7 +134,7 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
         # see if their portion of the cert has succeeded, also for me -
         CERT_LOG_FILE=${HOSTDIR}/cert.log      #the output.log is so crowded...
 
-        TEMPFILES=foobar   # keep "${PWFILE} ${NOISE_FILE}" around
+        TEMPFILES="${PWFILE} ${NOISE_FILE}"
 
         export HOSTDIR
     }
@@ -157,8 +156,12 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
         echo "HOSTDIR=\"${HOSTDIR}\""
         echo "TABLE_ARGS="
         echo "NSS_TEST_DISABLE_CRL=${NSS_TEST_DISABLE_CRL}"
-        echo "NSS_SSL_TESTS=\"${NSS_SSL_TESTS}\""
-        echo "NSS_SSL_RUN=\"${NSS_SSL_RUN}\""
+        echo "NSS_TEST_DISABLE_CIPHERS=${NSS_TEST_DISABLE_CIPHERS}"
+        echo "NSS_TEST_DISABLE_BYPASS=${NSS_TEST_DISABLE_BYPASS}"
+        echo "NSS_TEST_DISABLE_CLIENT_BYPASS=${NSS_TEST_DISABLE_CLIENT_BYPASS}"
+        echo "NSS_TEST_DISABLE_SERVER_BYPASS=${NSS_TEST_DISABLE_SERVER_BYPASS}"
+        echo "NSS_TEST_SERVER_CLIENT_BYPASS=${NSS_TEST_SERVER_CLIENT_BYPASS}"
+        echo "NSS_TEST_DISABLE_FIPS=${NSS_TEST_DISABLE_FIPS}"
         echo "NSS_DEFAULT_DB_TYPE=${NSS_DEFAULT_DB_TYPE}"
         echo "export NSS_DEFAULT_DB_TYPE"
         echo "NSS_ENABLE_PKIX_VERIFY=${NSS_ENABLE_PKIX_VERIFY}"
@@ -225,15 +228,6 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
         html "<TR><TD>#${MSG_ID}: $1 ${HTML_FAILED}"
         echo "${SCRIPTNAME}: #${MSG_ID}: $* - FAILED"
     }
-    html_unknown()
-    {
-        html_detect_core "$@" || return
-        MSG_ID=`cat ${MSG_ID_FILE}`
-        MSG_ID=`expr ${MSG_ID} + 1`
-        echo ${MSG_ID} > ${MSG_ID_FILE}
-        html "<TR><TD>#${MSG_ID}: $1 ${HTML_UNKNOWN}"
-        echo "${SCRIPTNAME}: #${MSG_ID}: $* - UNKNOWN"
-    }
     html_detect_core()
     {
         detect_core
@@ -265,7 +259,6 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
     HTML_FAILED='</TD><TD bgcolor=red>Failed</TD><TR>'
     HTML_FAILED_CORE='</TD><TD bgcolor=red>Failed Core</TD><TR>'
     HTML_PASSED='</TD><TD bgcolor=lightGreen>Passed</TD><TR>'
-    HTML_UNKNOWN='</TD><TD>Unknown/TD><TR>'
     TABLE_ARGS=
 
 
@@ -570,12 +563,12 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
 	P_R_EXT_CLIENTDIR="multiaccess:${D_EXT_CLIENT}"
     fi
 
-    R_PWFILE=../tests.pw
-    R_NOISE_FILE=../tests_noise
+    R_PWFILE=../tests.pw.$$
+    R_NOISE_FILE=../tests_noise.$$
 
-    R_FIPSPWFILE=../tests.fipspw
-    R_FIPSBADPWFILE=../tests.fipsbadpw
-    R_FIPSP12PWFILE=../tests.fipsp12pw
+    R_FIPSPWFILE=../tests.fipspw.$$
+    R_FIPSBADPWFILE=../tests.fipsbadpw.$$
+    R_FIPSP12PWFILE=../tests.fipsp12pw.$$
 
     trap "Exit $0 Signal_caught" 2 3
 

@@ -40,15 +40,15 @@
 #ifndef NSFILEPICKER_H
 #define NSFILEPICKER_H
 
-#include <qfiledialog.h>
 #include "nsBaseFilePicker.h"
 #include "nsString.h"
 #include "nsIURI.h"
-#include "nsTArray.h"
-#include "nsCOMArray.h"
+#include "nsVoidArray.h"
+#include <qfiledialog.h>
 
 class nsIWidget;
 class nsILocalFile;
+class nsISupportsArray;
 class QFileDialog;
 
 class nsFilePicker : public nsBaseFilePicker
@@ -79,7 +79,7 @@ private:
 
 protected:
     QFileDialog *mDialog;
-    nsCOMArray<nsILocalFile> mFiles;
+    nsCOMPtr<nsISupportsArray> mFiles;
 
     PRInt16   mMode;
     PRInt16   mSelectedType;
@@ -88,8 +88,8 @@ protected:
     nsString  mDefault;
     nsString  mDefaultExtension;
 
-    nsTArray<nsCString> mFilters;
-    nsTArray<nsCString> mFilterNames;
+    nsCStringArray mFilters;
+    nsCStringArray mFilterNames;
 };
 
 #endif

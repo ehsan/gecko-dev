@@ -72,12 +72,7 @@ PRBool txNameTest::matches(const txXPathNode& aNode, txIMatchContext* aContext)
         return MB_TRUE;
 
     // Compare namespaces
-    if (mNamespace != txXPathNodeUtils::getNamespaceID(aNode) 
-#ifndef TX_EXE
-        && !(mNamespace == kNameSpaceID_None &&
-             txXPathNodeUtils::isHTMLElementInHTMLDocument(aNode))
-#endif
-       )
+    if (txXPathNodeUtils::getNamespaceID(aNode) != mNamespace)
         return MB_FALSE;
 
     // Name wild?

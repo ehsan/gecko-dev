@@ -53,7 +53,6 @@
 #include "nsISHistoryListener.h"
 #include "nsIHistoryEntry.h"
 #include "nsIObserver.h"
-#include "nsIPrefBranch2.h"
 
 // Needed to maintain global list of all SHistory objects
 #include "prclist.h"
@@ -62,22 +61,20 @@ class nsIDocShell;
 class nsSHEnumerator;
 class nsSHistoryObserver;
 class nsSHistory: public PRCList,
-                  public nsISHistory_2_0_BRANCH,
+                  public nsISHistory,
                   public nsISHistoryInternal,
                   public nsIWebNavigation
 {
 public:
-  nsSHistory();
+	nsSHistory();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISHISTORY
   NS_DECL_NSISHISTORYINTERNAL
   NS_DECL_NSIWEBNAVIGATION
-  NS_DECL_NSISHISTORY_2_0_BRANCH
 
   // One time initialization method called upon docshell module construction
   static nsresult Startup();
-  static void UpdatePrefs(nsIPrefBranch *aPrefBranch);
 
   // Max number of total cached content viewers.  If the pref
   // browser.sessionhistory.max_total_viewers is negative, then
@@ -97,31 +94,21 @@ protected:
    nsresult InitiateLoad(nsISHEntry * aFrameEntry, nsIDocShell * aFrameDS, long aLoadType);
 
    NS_IMETHOD LoadEntry(PRInt32 aIndex, long aLoadType, PRUint32 histCmd);
-
+	
 #ifdef DEBUG
    nsresult PrintHistory();
 #endif
 
-  // Evict the viewers at indices between aStartIndex and aEndIndex,
-  // including aStartIndex but not aEndIndex.
   void EvictContentViewersInRange(PRInt32 aStartIndex, PRInt32 aEndIndex);
   void EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex);
   static void EvictGlobalContentViewer();
-  static void EvictAllContentViewersGlobally();
+  static void EvictAllContentViewers();
 
   // Calculates a max number of total
   // content viewers to cache, based on amount of total memory
   static PRUint32 CalcMaxTotalViewers();
 
-  void RemoveDynEntries(PRInt32 aOldIndex, PRInt32 aNewIndex);
-
-  nsresult LoadNextPossibleEntry(PRInt32 aNewIndex, long aLoadType, PRUint32 aHistCmd);
 protected:
-  // aIndex is the index of the transaction which may be removed.
-  // If aKeepNext is PR_TRUE, aIndex is compared to aIndex + 1,
-  // otherwise comparison is done to aIndex - 1.
-  PRBool RemoveDuplicate(PRInt32 aIndex, PRBool aKeepNext);
-
   nsCOMPtr<nsISHTransaction> mListRoot;
   PRInt32 mIndex;
   PRInt32 mLength;

@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -63,13 +62,13 @@ var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
          getService(Ci.nsINavBookmarksService);
 
 function add_visit(aURI, aDate) {
-  var visitId = hs.addVisit(aURI,
+  var placeID = hs.addVisit(aURI,
                             aDate,
                             null, // no referrer
                             hs.TRANSITION_TYPED, // user typed in URL bar
                             false, // not redirect
                             0);
-  return visitId;
+  return placeID;
 }
 
 function add_bookmark(aURI) {
@@ -87,7 +86,7 @@ var ptests = [];
 
 /*********************** end header **********************/
 
-const TEST_REPEAT_COUNT = 6;
+const TEST_REPEAT_COUNT = 10;
 
 // test duration of bookmarks sidebar opening
 ptests.push({
@@ -117,19 +116,18 @@ ptests.push({
     var avgDuration = totalDuration/this.times.length;
     var report = make_test_report("open_bookmarks_sidebar", avgDuration);
     ok(true, report);
-    setTimeout(runNextTest, 0);
+    runNextTest();
   }
 });
 
 function test() {
   // kick off tests
-  setTimeout(runNextTest, 0);
+  runNextTest();
 }
 
 function runNextTest() {
-  if (ptests.length > 0) {
+  if (ptests.length > 0)
     ptests.shift().run();
-  }
   else
     finish();
 }

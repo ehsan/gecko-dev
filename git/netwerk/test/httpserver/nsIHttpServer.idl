@@ -11,7 +11,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the httpd.js server.
+ * The Original Code is the MozJSHTTP server.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Corporation.
@@ -36,58 +36,48 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#include "nsIPropertyBag.idl"
 
-interface nsIInputStream;
 interface nsILocalFile;
-interface nsIOutputStream;
 interface nsISimpleEnumerator;
+interface nsIOutputStream;
 
 interface nsIHttpServer;
-interface nsIHttpServerStoppedCallback;
 interface nsIHttpRequestHandler;
-interface nsIHttpRequest;
+interface nsIHttpRequestMetadata;
 interface nsIHttpResponse;
 interface nsIHttpServerIdentity;
 
 /**
  * An interface which represents an HTTP server.
  */
-[scriptable, uuid(71ecfba5-15cf-457f-9642-4b33f6e9baf4)]
+[scriptable, uuid(9049C469-8402-4FA6-883C-826B0FE9CAF9)]
 interface nsIHttpServer : nsISupports
 {
   /**
-   * Starts up this server, listening upon the given port.
+   * Starts up this server, listening upon the given port.  This method may
+   * throw if the process does not have sufficient privileges to open a socket
+   * for the given port, and it also throws when called upon a server which has
+   * already been started.
    *
    * @param port
    *   the port upon which listening should happen, or -1 if no specific port is
    *   desired
-   * @throws NS_ERROR_ALREADY_INITIALIZED
-   *   if this server is already started
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if the server is not started and cannot be started on the desired port
-   *   (perhaps because the port is already in use or because the process does
-   *   not have privileges to do so)
-   * @note
-   *   Behavior is undefined if this method is called after stop() has been
-   *   called on this but before the provided callback function has been
-   *   called.
    */
   void start(in long port);
 
   /**
-   * Shuts down this server if it is running (including the period of time after
-   * stop() has been called but before the provided callback has been called).
+   * Shuts down this server if it is running; if it is not, this method is a
+   * no-op.
    *
-   * @param callback
-   *   an asynchronous callback used to notify the user when this server is
-   *   stopped and all pending requests have been fully served
-   * @throws NS_ERROR_NULL_POINTER
-   *   if callback is null
-   * @throws NS_ERROR_UNEXPECTED
-   *   if this server is not running
+   * This method will do its best to return after the socket in this
+   * server has been closed and all pending requests have completed being
+   * served, but this may or may not actually happen, since in some
+   * implementations this may not actually be possible.  Implementations which
+   * can make this promise should make it explicit in implementation
+   * documentation.
    */
-  void stop(in nsIHttpServerStoppedCallback callback);
+  void stop();
 
   /**
    * Associates the local file represented by the string file with all requests
@@ -196,56 +186,6 @@ interface nsIHttpServer : nsISupports
 
   /** Represents the locations at which this server is reachable. */
   readonly attribute nsIHttpServerIdentity identity;
-
-  /**
-   * Retrieves the string associated with the given key in this, for the given
-   * path's saved state.  All keys are initially associated with the empty
-   * string.
-   */
-  AString getState(in AString path, in AString key);
-
-  /**
-   * Sets the string associated with the given key in this, for the given path's
-   * saved state.
-   */
-  void setState(in AString path, in AString key, in AString value);
-
-  /**
-   * Retrieves the string associated with the given key in this, in
-   * entire-server saved state.  All keys are initially associated with the
-   * empty string.
-   */
-  AString getSharedState(in AString key);
-
-  /**
-   * Sets the string associated with the given key in this, in entire-server
-   * saved state.
-   */
-  void setSharedState(in AString key, in AString value);
-
-  /**
-   * Retrieves the object associated with the given key in this in
-   * object-valued saved state.  All keys are initially associated with null.
-   */
-  nsISupports getObjectState(in AString key);
-
-  /**
-   * Sets the object associated with the given key in this in object-valued
-   * saved state.  The value may be null.
-   */
-  void setObjectState(in AString key, in nsISupports value);
-};
-
-/**
- * An interface through which a notification of the complete stopping (socket
- * closure, in-flight requests all fully served and responded to) of an HTTP
- * server may be received.
- */
-[scriptable, function, uuid(925a6d33-9937-4c63-abe1-a1c56a986455)]
-interface nsIHttpServerStoppedCallback : nsISupports
-{
-  /** Called when the corresponding server has been fully stopped. */
-  void onStopped();
 };
 
 /**
@@ -261,8 +201,8 @@ interface nsIHttpServerIdentity : nsISupports
 {
   /**
    * The primary scheme at which the corresponding server is located, defaulting
-   * to 'http'.  This name will be the value of nsIHttpRequest.scheme for
-   * HTTP/1.0 requests.
+   * to 'http'.  This name will be the value of nsIHttpRequestMetadata.scheme
+   * for HTTP/1.0 requests.
    *
    * This value is always set when the corresponding server is running.  If the
    * server is not running, this value is set only if it has been set to a
@@ -273,8 +213,8 @@ interface nsIHttpServerIdentity : nsISupports
 
   /**
    * The primary name by which the corresponding server is known, defaulting to
-   * 'localhost'.  This name will be the value of nsIHttpRequest.host for
-   * HTTP/1.0 requests.
+   * 'localhost'.  This name will be the value of nsIHttpRequestMetadata.host
+   * for HTTP/1.0 requests.
    *
    * This value is always set when the corresponding server is running.  If the
    * server is not running, this value is set only if it has been set to a
@@ -286,7 +226,7 @@ interface nsIHttpServerIdentity : nsISupports
   /**
    * The primary port on which the corresponding server runs, defaulting to the
    * associated server's port.  This name will be the value of
-   * nsIHttpRequest.port for HTTP/1.0 requests.
+   * nsIHttpRequestMetadata.port for HTTP/1.0 requests.
    *
    * This value is always set when the corresponding server is running.  If the
    * server is not running, this value is set only if it has been set to a
@@ -362,37 +302,28 @@ interface nsIHttpServerIdentity : nsISupports
 interface nsIHttpRequestHandler : nsISupports
 {
   /**
-   * Processes an HTTP request and initializes the passed-in response to reflect
-   * the correct HTTP response.
+   * Processes the HTTP request represented by metadata and initializes the
+   * passed-in response to reflect the correct HTTP response.
    *
-   * If this method throws an exception, externally observable behavior depends
-   * upon whether is being processed asynchronously.  If such is the case, the
-   * output is some prefix (perhaps all, perhaps none, perhaps only some) of the
-   * data which would have been sent if, instead, the response had been finished
-   * at that point.  If no data has been written, the response has not had
-   * seizePower() called on it, and it is not being asynchronously created, an
-   * error handler will be invoked (usually 500 unless otherwise specified).
+   * Note that in some uses of nsIHttpRequestHandler, this method is required to
+   * not throw an exception; in the general case, however, this method may throw
+   * an exception (causing an HTTP 500 response to occur).
    *
-   * Some uses of nsIHttpRequestHandler may require this method to never throw
-   * an exception; in the general case, however, this method may throw an
-   * exception (causing an HTTP 500 response to occur, if the above conditions
-   * are met).
-   *
-   * @param request
+   * @param metadata
    *   data representing an HTTP request
    * @param response
    *   an initially-empty response which must be modified to reflect the data
    *   which should be sent as the response to the request described by metadata
    */
-  void handle(in nsIHttpRequest request, in nsIHttpResponse response);
+  void handle(in nsIHttpRequestMetadata metadata, in nsIHttpResponse response);
 };
 
 
 /**
  * A representation of the data included in an HTTP request.
  */
-[scriptable, uuid(978cf30e-ad73-42ee-8f22-fe0aaf1bf5d2)]
-interface nsIHttpRequest : nsISupports
+[scriptable, uuid(45b92a9e-5e0a-42da-81a6-983e4b1bc1b0)]
+interface nsIHttpRequestMetadata : nsIPropertyBag
 {
   /**
    * The request type for this request (see RFC 2616, section 5.1.1).
@@ -423,14 +354,13 @@ interface nsIHttpRequest : nsISupports
 
   /**
    * The requested path, without any query string (e.g. "/dir/file.txt").  It is
-   * guaranteed to begin with a "/".  The individual components in this string
-   * are URL-encoded.
+   * guaranteed to begin with a "/".  This string is in the 
    */
   readonly attribute string path;
 
   /**
    * The URL-encoded query string associated with this request, not including
-   * the initial "?", or "" if no query string was present.
+   * the initial "?".
    */
   readonly attribute string queryString;
 
@@ -450,11 +380,10 @@ interface nsIHttpRequest : nsISupports
    *   header field names are case-insensitive, this method produces equivalent
    *   results for "HeAdER" and "hEADer" as fieldName
    * @returns
-   *   The result is a string containing the individual values of the header,
-   *   usually separated with a comma.  The headers WWW-Authenticate,
-   *   Proxy-Authenticate, and Set-Cookie violate the HTTP specification,
-   *   however, and for these headers only the separator string is '\n'.
-   *
+   *   the field value for the given header; note that this value may be
+   *   normalized (e.g., leading/trailing whitespace removed from the value [or
+   *   from the values which make this up, if the header is a comma-separated
+   *   list of values], whitespace runs compressed to single spaces, etc.)
    * @throws NS_ERROR_INVALID_ARG
    *   if fieldName does not constitute a valid header field name
    * @throws NS_ERROR_NOT_AVAILABLE
@@ -482,17 +411,14 @@ interface nsIHttpRequest : nsISupports
    */
   readonly attribute nsISimpleEnumerator headers;
 
-  /**
-   * A stream from which data appearing in the body of this request can be read.
-   */
-  readonly attribute nsIInputStream bodyInputStream;
+  // XXX expose request body here!
 };
 
 
 /**
  * Represents an HTTP response, as described in RFC 2616, section 6.
  */
-[scriptable, uuid(1acd16c2-dc59-42fa-9160-4f26c43c1c21)]
+[scriptable, uuid(a2aaaff7-03bd-43b6-b460-94671e288093)]
 interface nsIHttpResponse : nsISupports
 {
   /**
@@ -511,10 +437,6 @@ interface nsIHttpResponse : nsISupports
    * @throws NS_ERROR_INVALID_ARG
    *   if httpVersion is not a valid HTTP version string, statusCode is greater
    *   than 999, or description contains invalid characters
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if this response is being processed asynchronously and data has been
-   *   written to this response's body, or if seizePower() has been called on
-   *   this
    */
   void setStatusLine(in string httpVersion,
                      in unsigned short statusCode,
@@ -531,100 +453,25 @@ interface nsIHttpResponse : nsISupports
    * @param merge
    *   when true, if the given header already exists in this, the values passed
    *   to this function will be merged into the existing header, per RFC 2616
-   *   header semantics (except for the Set-Cookie, WWW-Authenticate, and
-   *   Proxy-Authenticate headers, which will treat each such merged header as
-   *   an additional instance of the header, for real-world compatibility
-   *   reasons); when false, replaces any existing header of the given name (if
-   *   any exists) with a new header with the specified value
+   *   header semantics; when false, if the given header already exists in this,
+   *   it is overwritten with the passed-in values; if the header doesn't exist
+   *   in this, it is set regardless of the value of this parameter
    * @throws NS_ERROR_INVALID_ARG
    *   if name or value is not a valid header component
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if this response is being processed asynchronously and data has been
-   *   written to this response's body, or if seizePower() has been called on
-   *   this
    */
   void setHeader(in string name, in string value, in boolean merge);
 
   /**
-   * A stream to which data appearing in the body of this response (or in the
-   * totality of the response if seizePower() is called) should be written.
-   * After this response has been designated as being processed asynchronously,
-   * or after seizePower() has been called on this, subsequent writes will no
-   * longer be buffered and will be written to the underlying transport without
-   * delaying until the entire response is constructed.  Write-through may or
-   * may not be synchronous in the implementation, and in any case particular
-   * behavior may not be observable to the HTTP client as intermediate buffers
-   * both in the server socket and in the client may delay written data; be
-   * prepared for delays at any time.
-   *
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if accessed after this response is fully constructed
+   * A stream to which data appearing in the body of this response should be
+   * written.
    */
   readonly attribute nsIOutputStream bodyOutputStream;
 
   /**
-   * Writes a string to the response's output stream.  This method is merely a
-   * convenient shorthand for writing the same data to bodyOutputStream
-   * directly.
+   * Write a string to the response's output stream.
    *
    * @note
    *   This method is only guaranteed to work with ASCII data.
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if called after this response has been fully constructed
    */
   void write(in string data);
-
-  /**
-   * Signals that this response is being constructed asynchronously.  Requests
-   * are typically completely constructed during nsIHttpRequestHandler.handle;
-   * however, responses which require significant resources (time, memory,
-   * processing) to construct can be created and sent incrementally by calling
-   * this method during the call to nsIHttpRequestHandler.handle.  This method
-   * only has this effect when called during nsIHttpRequestHandler.handle;
-   * behavior is undefined if it is called at a later time.  It may be called
-   * multiple times with no ill effect, so long as each call occurs before
-   * finish() is called.
-   *
-   * @throws NS_ERROR_UNEXPECTED
-   *   if not initially called within a nsIHttpRequestHandler.handle call or if
-   *   called after this response has been finished
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if seizePower() has been called on this
-   */
-  void processAsync();
-
-  /**
-   * Seizes complete control of this response (and its connection) from the
-   * server, allowing raw and unfettered access to data being sent in the HTTP
-   * response.  Once this method has been called the only property which may be
-   * accessed without an exception being thrown is bodyOutputStream, and the
-   * only methods which may be accessed without an exception being thrown are
-   * write(), finish(), and seizePower() (which may be called multiple times
-   * without ill effect so long as all calls are otherwise allowed).
-   *
-   * After a successful call, all data subsequently written to the body of this
-   * response is written directly to the corresponding connection.  (Previously-
-   * written data is silently discarded.)  No status line or headers are sent
-   * before doing so; if the response handler wishes to write such data, it must
-   * do so manually.  Data generation completes only when finish() is called; it
-   * is not enough to simply call close() on bodyOutputStream.
-   *
-   * @throws NS_ERROR_NOT_AVAILABLE
-   *   if processAsync() has been called on this
-   * @throws NS_ERROR_UNEXPECTED
-   *   if finish() has been called on this
-   */
-  void seizePower();
-
-  /**
-   * Signals that construction of this response is complete and that it may be
-   * sent over the network to the client, or if seizePower() has been called
-   * signals that all data has been written and that the underlying connection
-   * may be closed.  This method may only be called after processAsync() or
-   * seizePower() has been called.  This method is idempotent.
-   *
-   * @throws NS_ERROR_UNEXPECTED
-   *   if processAsync() or seizePower() has not already been properly called
-   */
-  void finish();
 };

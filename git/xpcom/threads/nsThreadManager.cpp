@@ -38,31 +38,22 @@
 
 #include "nsThreadManager.h"
 #include "nsThread.h"
-#include "nsThreadUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
-#include "nsCycleCollectorUtils.h"
-
-#ifdef XP_WIN
-#include <windows.h>
-DWORD gTLSThreadIDIndex = TlsAlloc();
-#elif defined(NS_TLS)
-NS_TLS mozilla::threads::ID gTLSThreadID = mozilla::threads::Generic;
-#endif
 
 typedef nsTArray< nsRefPtr<nsThread> > nsThreadArray;
 
 //-----------------------------------------------------------------------------
 
-static void
+PR_STATIC_CALLBACK(void)
 ReleaseObject(void *data)
 {
   static_cast<nsISupports *>(data)->Release();
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AppendAndRemoveThread(const void *key, nsRefPtr<nsThread> &thread, void *arg)
 {
   nsThreadArray *threads = static_cast<nsThreadArray *>(arg);
@@ -77,9 +68,6 @@ nsThreadManager nsThreadManager::sInstance;
 // statically allocated instance
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::AddRef() { return 2; }
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::Release() { return 1; }
-NS_IMPL_CLASSINFO(nsThreadManager, NULL,
-                  nsIClassInfo::THREADSAFE | nsIClassInfo::SINGLETON,
-                  NS_THREADMANAGER_CID)
 NS_IMPL_QUERY_INTERFACE1_CI(nsThreadManager, nsIThreadManager)
 NS_IMPL_CI_INTERFACE_GETTER1(nsThreadManager, nsIThreadManager)
 
@@ -112,12 +100,6 @@ nsThreadManager::Init()
   // We need to keep a pointer to the current thread, so we can satisfy
   // GetIsMainThread calls that occur post-Shutdown.
   mMainThread->GetPRThread(&mMainPRThread);
-
-#ifdef XP_WIN
-  TlsSetValue(gTLSThreadIDIndex, (void*) mozilla::threads::Main);
-#elif defined(NS_TLS)
-  gTLSThreadID = mozilla::threads::Main;
-#endif
 
   mInitialized = PR_TRUE;
   return NS_OK;
@@ -172,11 +154,6 @@ nsThreadManager::Shutdown()
     nsAutoLock lock(mLock);
     mThreadsByPRThread.Clear();
   }
-
-  // Normally thread shutdown clears the observer for the thread, but since the
-  // main thread is special we do it manually here after we're sure all events
-  // have been processed.
-  mMainThread->SetObserver(nsnull);
 
   // Release main thread object.
   mMainThread = nsnull;
@@ -304,12 +281,5 @@ nsThreadManager::GetIsMainThread(PRBool *result)
   // This method may be called post-Shutdown
 
   *result = (PR_GetCurrentThread() == mMainPRThread);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThreadManager::GetIsCycleCollectorThread(PRBool *result)
-{
-  *result = PRBool(NS_IsCycleCollectorThread());
   return NS_OK;
 }

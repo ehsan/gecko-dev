@@ -40,15 +40,22 @@
 #include "nsThebesRenderingContext.h"
 #include "nsThebesDeviceContext.h"
 
+#include "nsRect.h"
 #include "nsString.h"
 #include "nsTransform2D.h"
+#include "nsIRegion.h"
 #include "nsIServiceManager.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsGfxCIID.h"
 
-#include "nsThebesRegion.h"
+#include "imgIContainer.h"
+#include "gfxIImageFrame.h"
+#include "nsIImage.h"
 
-#include <stdlib.h>
+#include "nsIThebesFontMetrics.h"
+#include "nsThebesRegion.h"
+#include "nsThebesImage.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -74,50 +81,8 @@ static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 
 NS_IMPL_ISUPPORTS1(nsThebesRenderingContext, nsIRenderingContext)
 
-// Hard limit substring lengths to 8000 characters ... this lets us statically
-// size the cluster buffer array in FindSafeLength
-#define MAX_GFX_TEXT_BUF_SIZE 8000
-static PRInt32 GetMaxChunkLength(nsThebesRenderingContext* aContext)
-{
-    PRInt32 len = aContext->GetMaxStringLength();
-    return PR_MIN(len, MAX_GFX_TEXT_BUF_SIZE);
-}
-
-static PRInt32 FindSafeLength(nsThebesRenderingContext* aContext,
-                              const PRUnichar *aString, PRUint32 aLength,
-                              PRUint32 aMaxChunkLength)
-{
-    if (aLength <= aMaxChunkLength)
-        return aLength;
-
-    PRInt32 len = aMaxChunkLength;
-
-    // Ensure that we don't break inside a surrogate pair
-    while (len > 0 && NS_IS_LOW_SURROGATE(aString[len])) {
-        len--;
-    }
-    if (len == 0) {
-        // We don't want our caller to go into an infinite loop, so don't
-        // return zero. It's hard to imagine how we could actually get here
-        // unless there are languages that allow clusters of arbitrary size.
-        // If there are and someone feeds us a 500+ character cluster, too
-        // bad.
-        return aMaxChunkLength;
-    }
-    return len;
-}
-
-static PRInt32 FindSafeLength(nsThebesRenderingContext* aContext,
-                              const char *aString, PRUint32 aLength,
-                              PRUint32 aMaxChunkLength)
-{
-    // Since it's ASCII, we don't need to worry about clusters or RTL
-    return PR_MIN(aLength, aMaxChunkLength);
-}
-
-nsThebesRenderingContext::nsThebesRenderingContext()
-  : mLineStyle(nsLineStyle_kNone)
-  , mColor(NS_RGB(0,0,0))
+nsThebesRenderingContext::nsThebesRenderingContext() :
+    mLineStyle(nsLineStyle_kNone)
 {
 }
 
@@ -193,7 +158,7 @@ nsThebesRenderingContext::GetDeviceContext(nsIDeviceContext *& aDeviceContext)
     return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsThebesRenderingContext::PushTranslation(PushedTranslation* aState)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::PushTranslation\n", this));
@@ -277,9 +242,10 @@ nsThebesRenderingContext::SetClipRect(const nsRect& aRect,
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetClipRegion(const nsIntRegion& aRegion,
+nsThebesRenderingContext::SetClipRegion(const nsIRegion& pxRegion,
                                         nsClipCombine aCombine)
 {
+    //return NS_OK;
     // Region is in device coords, no transformation.
     // This should only be called when there is no transform in place, when we
     // we just start painting a widget. The region is set by the platform paint
@@ -287,25 +253,50 @@ nsThebesRenderingContext::SetClipRegion(const nsIntRegion& aRegion,
     NS_ASSERTION(aCombine == nsClipCombine_kReplace,
                  "Unexpected usage of SetClipRegion");
 
+    nsRegionComplexity cplx;
+    pxRegion.GetRegionComplexity(cplx);
+
     gfxMatrix mat = mThebes->CurrentMatrix();
     mThebes->IdentityMatrix();
 
     mThebes->ResetClip();
-    
-    mThebes->NewPath();
-    nsIntRegionRectIterator iter(aRegion);
-    const nsIntRect* rect;
-    while ((rect = iter.Next())) {
-        mThebes->Rectangle(gfxRect(rect->x, rect->y, rect->width, rect->height),
-                           PR_TRUE);
+    // GetBoundingBox, GetRects, FreeRects are non-const
+    nsIRegion *evilPxRegion = const_cast<nsIRegion*>(&pxRegion);
+    if (cplx == eRegionComplexity_rect) {
+        PRInt32 x, y, w, h;
+        evilPxRegion->GetBoundingBox(&x, &y, &w, &h);
+
+        PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetClipRegion %d [%d,%d,%d,%d]", this, cplx, x, y, w, h));
+
+        mThebes->NewPath();
+        mThebes->Rectangle(gfxRect(x, y, w, h), PR_TRUE);
+        mThebes->Clip();
+    } else if (cplx == eRegionComplexity_complex) {
+        nsRegionRectSet *rects = nsnull;
+        nsresult rv = evilPxRegion->GetRects (&rects);
+        PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetClipRegion %d %d rects", this, cplx, rects->mNumRects));
+        if (NS_FAILED(rv) || !rects) {
+            mThebes->SetMatrix(mat);
+            return rv;
+        }
+
+        mThebes->NewPath();
+        for (PRUint32 i = 0; i < rects->mNumRects; i++) {
+            mThebes->Rectangle(gfxRect(rects->mRects[i].x,
+                                       rects->mRects[i].y,
+                                       rects->mRects[i].width,
+                                       rects->mRects[i].height),
+                               PR_TRUE);
+        }
+        mThebes->Clip();
+
+        evilPxRegion->FreeRects (rects);
     }
-    mThebes->Clip();
 
     mThebes->SetMatrix(mat);
 
     return NS_OK;
 }
-
 //
 // other junk
 //
@@ -344,7 +335,7 @@ nsThebesRenderingContext::SetColor(nscolor aColor)
      * CSS colors are defined to be in by the spec.
      */
     mThebes->SetColor(gfxRGBA(aColor));
-
+    
     mColor = aColor;
     return NS_OK;
 }
@@ -524,7 +515,7 @@ nsThebesRenderingContext::DrawRect(nscoord aX, nscoord aY, nscoord aWidth, nscoo
  * the width and height are clamped such x+width or y+height are equal
  * to CAIRO_COORD_MAX, and PR_TRUE is returned.
  */
-#define CAIRO_COORD_MAX (double(0x7fffff))
+#define CAIRO_COORD_MAX (8388608.0)
 
 static PRBool
 ConditionRect(gfxRect& r) {
@@ -769,6 +760,76 @@ nsThebesRenderingContext::PopFilter()
     return NS_OK;
 }
 
+NS_IMETHODIMP
+nsThebesRenderingContext::DrawTile(imgIContainer *aImage,
+                                   nscoord twXOffset, nscoord twYOffset,
+                                   const nsRect *twTargetRect,
+                                   const nsIntRect *subimageRect)
+{
+    PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::DrawTile %p %f %f [%f,%f,%f,%f]\n",
+                                         this, aImage, FROM_TWIPS(twXOffset), FROM_TWIPS(twYOffset),
+                                         FROM_TWIPS(twTargetRect->x), FROM_TWIPS(twTargetRect->y),
+                                         FROM_TWIPS(twTargetRect->width), FROM_TWIPS(twTargetRect->height)));
+
+    nscoord containerWidth, containerHeight;
+    aImage->GetWidth(&containerWidth);
+    aImage->GetHeight(&containerHeight);
+
+    nsCOMPtr<gfxIImageFrame> imgFrame;
+    aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+    if (!imgFrame) return NS_ERROR_FAILURE;
+
+    nsRect imgFrameRect;
+    imgFrame->GetRect(imgFrameRect);
+
+    nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+    if (!img) return NS_ERROR_FAILURE;
+    
+    nsThebesImage *thebesImage = static_cast<nsThebesImage*>((nsIImage*) img.get());
+
+    /* Phase offset of the repeated image from the origin */
+    gfxPoint phase(FROM_TWIPS(twXOffset), FROM_TWIPS(twYOffset));
+
+    /* The image may be smaller than the container (bug 113561),
+     * so we need to make sure that there is the right amount of padding
+     * in between each tile of the nsIImage.  This problem goes away
+     * when we change the way the GIF decoder works to have it store
+     * full frames that are ready to be composited.
+     */
+    PRInt32 xPadding = 0;
+    PRInt32 yPadding = 0;
+
+    nsIntRect tmpSubimageRect;
+    if (subimageRect) {
+        tmpSubimageRect = *subimageRect;
+    } else {
+        tmpSubimageRect = nsIntRect(0, 0, containerWidth, containerHeight);
+    }
+
+    if (imgFrameRect.width != containerWidth ||
+        imgFrameRect.height != containerHeight)
+    {
+        xPadding = containerWidth - imgFrameRect.width;
+        yPadding = containerHeight - imgFrameRect.height;
+
+        // XXXroc shouldn't we be adding to 'phase' here? it's tbe origin
+        // at which the image origin should be drawn, and ThebesDrawTile
+        // just draws the origin of its "frame" there, so we should be
+        // adding imgFrameRect.x/y. so that the imgFrame draws in the
+        // right place.
+        phase.x -= imgFrameRect.x;
+        phase.y -= imgFrameRect.y;
+
+        tmpSubimageRect.x -= imgFrameRect.x;
+        tmpSubimageRect.y -= imgFrameRect.y;
+    }
+
+    return thebesImage->ThebesDrawTile (mThebes, mDeviceContext, phase,
+                                        GFX_RECT_FROM_TWIPS_RECT(*twTargetRect),
+                                        tmpSubimageRect,
+                                        xPadding, yPadding);
+}
+
 //
 // text junk
 //
@@ -788,31 +849,16 @@ nsThebesRenderingContext::GetRightToLeftText(PRBool* aIsRTL)
 void
 nsThebesRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 {
-    mFontMetrics->SetTextRunRTL(aIsRTL);
+	mFontMetrics->SetTextRunRTL(aIsRTL);
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLanguage,
-                                  gfxUserFontSet *aUserFontSet)
+nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLangGroup)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
 
     nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, aLanguage, aUserFontSet,
-                                  *getter_AddRefs(newMetrics));
-    mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont,
-                                  gfxUserFontSet *aUserFontSet)
-{
-    PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
-
-    nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, nsnull, aUserFontSet,
-                                  *getter_AddRefs(newMetrics));
+    mDeviceContext->GetMetricsFor(aFont, aLangGroup, *getter_AddRefs(newMetrics));
     mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
     return NS_OK;
 }
@@ -837,9 +883,9 @@ nsThebesRenderingContext::GetFontMetrics(nsIFontMetrics *&aFontMetrics)
 PRInt32
 nsThebesRenderingContext::GetMaxStringLength()
 {
-    if (!mFontMetrics)
-        return 1;
-    return mFontMetrics->GetMaxStringLength();
+  if (!mFontMetrics)
+    return 1;
+  return mFontMetrics->GetMaxStringLength();
 }
 
 NS_IMETHODIMP
@@ -858,407 +904,6 @@ nsThebesRenderingContext::GetWidth(PRUnichar aC, nscoord &aWidth, PRInt32 *aFont
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::GetWidth(const nsString& aString, nscoord &aWidth,
-                                   PRInt32 *aFontID)
-{
-    return GetWidth(aString.get(), aString.Length(), aWidth, aFontID);
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetWidth(const char* aString, nscoord& aWidth)
-{
-    return GetWidth(aString, strlen(aString), aWidth);
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::DrawString(const nsString& aString, nscoord aX, nscoord aY,
-                                     PRInt32 aFontID, const nscoord* aSpacing)
-{
-    return DrawString(aString.get(), aString.Length(), aX, aY, aFontID, aSpacing);
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetWidth(const char* aString,
-                                   PRUint32 aLength,
-                                   nscoord& aWidth)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    aWidth = 0;
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nscoord width;
-        nsresult rv = GetWidthInternal(aString, len, width);
-        if (NS_FAILED(rv))
-            return rv;
-        aWidth += width;
-        aLength -= len;
-        aString += len;
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetWidth(const PRUnichar *aString,
-                                   PRUint32 aLength,
-                                   nscoord &aWidth,
-                                   PRInt32 *aFontID)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    aWidth = 0;
-
-    if (aFontID) {
-        *aFontID = 0;
-    }
-
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nscoord width;
-        nsresult rv = GetWidthInternal(aString, len, width);
-        if (NS_FAILED(rv))
-            return rv;
-        aWidth += width;
-        aLength -= len;
-        aString += len;
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetTextDimensions(const char* aString,
-                                            PRUint32 aLength,
-                                            nsTextDimensions& aDimensions)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= maxChunkLength)
-        return GetTextDimensionsInternal(aString, aLength, aDimensions);
-
-    PRBool firstIteration = PR_TRUE;
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nsTextDimensions dimensions;
-        nsresult rv = GetTextDimensionsInternal(aString, len, dimensions);
-        if (NS_FAILED(rv))
-            return rv;
-        if (firstIteration) {
-            // Instead of combining with a Clear()ed nsTextDimensions, we
-            // assign directly in the first iteration. This ensures that
-            // negative ascent/ descent can be returned.
-            aDimensions = dimensions;
-        } else {
-            aDimensions.Combine(dimensions);
-        }
-        aLength -= len;
-        aString += len;
-        firstIteration = PR_FALSE;
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetTextDimensions(const PRUnichar* aString,
-                                            PRUint32 aLength,
-                                            nsTextDimensions& aDimensions,
-                                            PRInt32* aFontID)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= maxChunkLength)
-        return GetTextDimensionsInternal(aString, aLength, aDimensions);
-
-    if (aFontID) {
-        *aFontID = nsnull;
-    }
-
-    PRBool firstIteration = PR_TRUE;
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nsTextDimensions dimensions;
-        nsresult rv = GetTextDimensionsInternal(aString, len, dimensions);
-        if (NS_FAILED(rv))
-            return rv;
-        if (firstIteration) {
-            // Instead of combining with a Clear()ed nsTextDimensions, we
-            // assign directly in the first iteration. This ensures that
-            // negative ascent/ descent can be returned.
-            aDimensions = dimensions;
-        } else {
-            aDimensions.Combine(dimensions);
-        }
-        aLength -= len;
-        aString += len;
-        firstIteration = PR_FALSE;
-    }
-    return NS_OK;
-}
-
-#if defined(_WIN32) || defined(XP_OS2) || defined(MOZ_X11) || defined(XP_BEOS)
-NS_IMETHODIMP
-nsThebesRenderingContext::GetTextDimensions(const char*       aString,
-                                            PRInt32           aLength,
-                                            PRInt32           aAvailWidth,
-                                            PRInt32*          aBreaks,
-                                            PRInt32           aNumBreaks,
-                                            nsTextDimensions& aDimensions,
-                                            PRInt32&          aNumCharsFit,
-                                            nsTextDimensions& aLastWordDimensions,
-                                            PRInt32*          aFontID)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= PRInt32(maxChunkLength))
-        return GetTextDimensionsInternal(aString, aLength, aAvailWidth, aBreaks, aNumBreaks,
-                                         aDimensions, aNumCharsFit, aLastWordDimensions, aFontID);
-
-    if (aFontID) {
-        *aFontID = 0;
-    }
-
-    // Do a naive implementation based on 3-arg GetTextDimensions
-    PRInt32 x = 0;
-    PRInt32 wordCount;
-    for (wordCount = 0; wordCount < aNumBreaks; ++wordCount) {
-        PRInt32 lastBreak = wordCount > 0 ? aBreaks[wordCount - 1] : 0;
-        nsTextDimensions dimensions;
-
-        NS_ASSERTION(aBreaks[wordCount] > lastBreak, "Breaks must be monotonically increasing");
-        NS_ASSERTION(aBreaks[wordCount] <= aLength, "Breaks can't exceed string length");
-
-         // Call safe method
-
-        nsresult rv =
-            GetTextDimensions(aString + lastBreak, aBreaks[wordCount] - lastBreak,
-                            dimensions);
-        if (NS_FAILED(rv))
-            return rv;
-        x += dimensions.width;
-        // The first word always "fits"
-        if (x > aAvailWidth && wordCount > 0)
-            break;
-        // aDimensions ascent/descent should exclude the last word (unless there
-        // is only one word) so we let it run one word behind
-        if (wordCount == 0) {
-            aDimensions = dimensions;
-        } else {
-            aDimensions.Combine(aLastWordDimensions);
-        }
-        aNumCharsFit = aBreaks[wordCount];
-        aLastWordDimensions = dimensions;
-    }
-    // aDimensions width should include all the text
-    aDimensions.width = x;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetTextDimensions(const PRUnichar*  aString,
-                                            PRInt32           aLength,
-                                            PRInt32           aAvailWidth,
-                                            PRInt32*          aBreaks,
-                                            PRInt32           aNumBreaks,
-                                            nsTextDimensions& aDimensions,
-                                            PRInt32&          aNumCharsFit,
-                                            nsTextDimensions& aLastWordDimensions,
-                                            PRInt32*          aFontID)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= PRInt32(maxChunkLength))
-        return GetTextDimensionsInternal(aString, aLength, aAvailWidth, aBreaks, aNumBreaks,
-                                     aDimensions, aNumCharsFit, aLastWordDimensions, aFontID);
-
-    if (aFontID) {
-        *aFontID = 0;
-    }
-
-    // Do a naive implementation based on 3-arg GetTextDimensions
-    PRInt32 x = 0;
-    PRInt32 wordCount;
-    for (wordCount = 0; wordCount < aNumBreaks; ++wordCount) {
-        PRInt32 lastBreak = wordCount > 0 ? aBreaks[wordCount - 1] : 0;
-
-        NS_ASSERTION(aBreaks[wordCount] > lastBreak, "Breaks must be monotonically increasing");
-        NS_ASSERTION(aBreaks[wordCount] <= aLength, "Breaks can't exceed string length");
-
-        nsTextDimensions dimensions;
-        // Call safe method
-        nsresult rv =
-            GetTextDimensions(aString + lastBreak, aBreaks[wordCount] - lastBreak,
-                        dimensions);
-        if (NS_FAILED(rv))
-            return rv;
-        x += dimensions.width;
-        // The first word always "fits"
-        if (x > aAvailWidth && wordCount > 0)
-            break;
-        // aDimensions ascent/descent should exclude the last word (unless there
-        // is only one word) so we let it run one word behind
-        if (wordCount == 0) {
-            aDimensions = dimensions;
-        } else {
-            aDimensions.Combine(aLastWordDimensions);
-        }
-        aNumCharsFit = aBreaks[wordCount];
-        aLastWordDimensions = dimensions;
-    }
-    // aDimensions width should include all the text
-    aDimensions.width = x;
-    return NS_OK;
-}
-#endif
-
-#ifdef MOZ_MATHML
-NS_IMETHODIMP
-nsThebesRenderingContext::GetBoundingMetrics(const char*        aString,
-                                             PRUint32           aLength,
-                                             nsBoundingMetrics& aBoundingMetrics)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= maxChunkLength)
-        return GetBoundingMetricsInternal(aString, aLength, aBoundingMetrics);
-
-    PRBool firstIteration = PR_TRUE;
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nsBoundingMetrics metrics;
-        nsresult rv = GetBoundingMetricsInternal(aString, len, metrics);
-        if (NS_FAILED(rv))
-            return rv;
-        if (firstIteration) {
-            // Instead of combining with a Clear()ed nsBoundingMetrics, we
-            // assign directly in the first iteration. This ensures that
-            // negative ascent/ descent can be returned and the left bearing
-            // is properly initialized.
-            aBoundingMetrics = metrics;
-        } else {
-            aBoundingMetrics += metrics;
-        }
-        aLength -= len;
-        aString += len;
-        firstIteration = PR_FALSE;
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::GetBoundingMetrics(const PRUnichar*   aString,
-                                             PRUint32           aLength,
-                                             nsBoundingMetrics& aBoundingMetrics,
-                                             PRInt32*           aFontID)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= maxChunkLength)
-        return GetBoundingMetricsInternal(aString, aLength, aBoundingMetrics, aFontID);
-
-    if (aFontID) {
-        *aFontID = 0;
-    }
-
-    PRBool firstIteration = PR_TRUE;
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nsBoundingMetrics metrics;
-        nsresult rv = GetBoundingMetricsInternal(aString, len, metrics);
-        if (NS_FAILED(rv))
-            return rv;
-        if (firstIteration) {
-            // Instead of combining with a Clear()ed nsBoundingMetrics, we
-            // assign directly in the first iteration. This ensures that
-            // negative ascent/ descent can be returned and the left bearing
-            // is properly initialized.
-            aBoundingMetrics = metrics;
-        } else {
-            aBoundingMetrics += metrics;
-        }
-        aLength -= len;
-        aString += len;
-        firstIteration = PR_FALSE;
-    }
-    return NS_OK;
-}
-#endif
-
-NS_IMETHODIMP
-nsThebesRenderingContext::DrawString(const char *aString, PRUint32 aLength,
-                                   nscoord aX, nscoord aY,
-                                   const nscoord* aSpacing)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nsresult rv = DrawStringInternal(aString, len, aX, aY);
-        if (NS_FAILED(rv))
-            return rv;
-        aLength -= len;
-
-        if (aLength > 0) {
-            nscoord width;
-            rv = GetWidthInternal(aString, len, width);
-            if (NS_FAILED(rv))
-                return rv;
-            aX += width;
-            aString += len;
-        }
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::DrawString(const PRUnichar *aString, PRUint32 aLength,
-                                   nscoord aX, nscoord aY,
-                                   PRInt32 aFontID,
-                                   const nscoord* aSpacing)
-{
-    PRUint32 maxChunkLength = GetMaxChunkLength(this);
-    if (aLength <= maxChunkLength) {
-        return DrawStringInternal(aString, aLength, aX, aY, aFontID, aSpacing);
-    }
-
-    PRBool isRTL = PR_FALSE;
-    GetRightToLeftText(&isRTL);
-
-    if (isRTL) {
-        nscoord totalWidth = 0;
-        if (aSpacing) {
-            for (PRUint32 i = 0; i < aLength; ++i) {
-                totalWidth += aSpacing[i];
-            }
-        } else {
-            nsresult rv = GetWidth(aString, aLength, totalWidth);
-            if (NS_FAILED(rv))
-                return rv;
-        }
-        aX += totalWidth;
-    }
-
-    while (aLength > 0) {
-        PRInt32 len = FindSafeLength(this, aString, aLength, maxChunkLength);
-        nscoord width = 0;
-        if (aSpacing) {
-            for (PRInt32 i = 0; i < len; ++i) {
-                width += aSpacing[i];
-            }
-        } else {
-            nsresult rv = GetWidthInternal(aString, len, width);
-            if (NS_FAILED(rv))
-                return rv;
-        }
-
-        if (isRTL) {
-            aX -= width;
-        }
-        nsresult rv = DrawStringInternal(aString, len, aX, aY, aFontID, aSpacing);
-        if (NS_FAILED(rv))
-            return rv;
-        aLength -= len;
-        if (!isRTL) {
-            aX += width;
-        }
-        aString += len;
-        if (aSpacing) {
-            aSpacing += len;
-        }
-    }
-    return NS_OK;
-}
-
-nsresult
 nsThebesRenderingContext::GetWidthInternal(const char* aString, PRUint32 aLength, nscoord& aWidth)
 {
 #ifdef DISABLE_TEXT
@@ -1274,7 +919,7 @@ nsThebesRenderingContext::GetWidthInternal(const char* aString, PRUint32 aLength
     return mFontMetrics->GetWidth(aString, aLength, aWidth, this);
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetWidthInternal(const PRUnichar *aString, PRUint32 aLength,
                                            nscoord &aWidth, PRInt32 *aFontID)
 {
@@ -1291,28 +936,28 @@ nsThebesRenderingContext::GetWidthInternal(const PRUnichar *aString, PRUint32 aL
     return mFontMetrics->GetWidth(aString, aLength, aWidth, aFontID, this);
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetTextDimensionsInternal(const char* aString, PRUint32 aLength,
                                                     nsTextDimensions& aDimensions)
 {
-    mFontMetrics->GetMaxAscent(aDimensions.ascent);
-    mFontMetrics->GetMaxDescent(aDimensions.descent);
-    return GetWidth(aString, aLength, aDimensions.width);
+  mFontMetrics->GetMaxAscent(aDimensions.ascent);
+  mFontMetrics->GetMaxDescent(aDimensions.descent);
+  return GetWidth(aString, aLength, aDimensions.width);
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetTextDimensionsInternal(const PRUnichar* aString,
                                                     PRUint32 aLength,
                                                     nsTextDimensions& aDimensions,
                                                     PRInt32* aFontID)
 {
-    mFontMetrics->GetMaxAscent(aDimensions.ascent);
-    mFontMetrics->GetMaxDescent(aDimensions.descent);
-    return GetWidth(aString, aLength, aDimensions.width, aFontID);
+  mFontMetrics->GetMaxAscent(aDimensions.ascent);
+  mFontMetrics->GetMaxDescent(aDimensions.descent);
+  return GetWidth(aString, aLength, aDimensions.width, aFontID);
 }
 
 #if defined(_WIN32) || defined(XP_OS2) || defined(MOZ_X11) || defined(XP_BEOS) || defined(XP_MACOSX) || defined (MOZ_DFB)
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetTextDimensionsInternal(const char*       aString,
                                                     PRInt32           aLength,
                                                     PRInt32           aAvailWidth,
@@ -1326,7 +971,7 @@ nsThebesRenderingContext::GetTextDimensionsInternal(const char*       aString,
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetTextDimensionsInternal(const PRUnichar*  aString,
                                                     PRInt32           aLength,
                                                     PRInt32           aAvailWidth,
@@ -1342,7 +987,7 @@ nsThebesRenderingContext::GetTextDimensionsInternal(const PRUnichar*  aString,
 #endif
 
 #ifdef MOZ_MATHML
-nsresult 
+NS_IMETHODIMP 
 nsThebesRenderingContext::GetBoundingMetricsInternal(const char*        aString,
                                                      PRUint32           aLength,
                                                      nsBoundingMetrics& aBoundingMetrics)
@@ -1350,7 +995,7 @@ nsThebesRenderingContext::GetBoundingMetricsInternal(const char*        aString,
     return mFontMetrics->GetBoundingMetrics(aString, aLength, this, aBoundingMetrics);
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::GetBoundingMetricsInternal(const PRUnichar*   aString,
                                                      PRUint32           aLength,
                                                      nsBoundingMetrics& aBoundingMetrics,
@@ -1360,7 +1005,7 @@ nsThebesRenderingContext::GetBoundingMetricsInternal(const PRUnichar*   aString,
 }
 #endif // MOZ_MATHML
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::DrawStringInternal(const char *aString, PRUint32 aLength,
                                              nscoord aX, nscoord aY,
                                              const nscoord* aSpacing)
@@ -1373,7 +1018,7 @@ nsThebesRenderingContext::DrawStringInternal(const char *aString, PRUint32 aLeng
                                     this);
 }
 
-nsresult
+NS_IMETHODIMP
 nsThebesRenderingContext::DrawStringInternal(const PRUnichar *aString, PRUint32 aLength,
                                              nscoord aX, nscoord aY,
                                              PRInt32 aFontID,

@@ -44,24 +44,8 @@
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 #include "nsIAtom.h"
-#include "nsGkAtoms.h"
 
 #define kNullCh (PRUnichar('\0'))
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(ChangeCSSInlineStyleTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ChangeCSSInlineStyleTxn,
-                                                EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ChangeCSSInlineStyleTxn,
-                                                  EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ChangeCSSInlineStyleTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
 // answers true if aValue is in the string list of white-space separated values aValueList
 // a case-sensitive search is performed if aCaseSensitive is true
@@ -176,23 +160,23 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
   if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
 
   nsCOMPtr<nsIDOMElementCSSInlineStyle> inlineStyles = do_QueryInterface(mElement);
-  NS_ENSURE_TRUE(inlineStyles, NS_ERROR_NULL_POINTER);
+  if (!inlineStyles) return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
   nsresult result = inlineStyles->GetStyle(getter_AddRefs(cssDecl));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(cssDecl, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!cssDecl) return NS_ERROR_NULL_POINTER;
 
   nsAutoString propertyNameString;
   mProperty->ToString(propertyNameString);
 
   NS_NAMED_LITERAL_STRING(styleAttr, "style");
   result = mElement->HasAttribute(styleAttr, &mUndoAttributeWasSet);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   nsAutoString values;
   result = cssDecl->GetPropertyValue(propertyNameString, values);
-  NS_ENSURE_SUCCESS(result, result);     
+  if (NS_FAILED(result)) return result;     
   mUndoValue.Assign(values);
 
   // does this property accept more than 1 value ?
@@ -211,26 +195,26 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
       RemoveValueFromListOfValues(values, mValue);
       if (values.IsEmpty()) {
         result = cssDecl->RemoveProperty(propertyNameString, returnString);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
       }
       else {
         nsAutoString priority;
         result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
         result = cssDecl->SetProperty(propertyNameString, values,
                                       priority);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
       }
     }
     else {
       result = cssDecl->RemoveProperty(propertyNameString, returnString);
-      NS_ENSURE_SUCCESS(result, result);     
+      if (NS_FAILED(result)) return result;     
     }
   }
   else {
     nsAutoString priority;
     result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result)) return result;
     if (multiple) {
       // the property can have more than one value, let's add
       // the value we have to add to the others
@@ -243,16 +227,16 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
       values.Assign(mValue);
     result = cssDecl->SetProperty(propertyNameString, values,
                                   priority);
-    NS_ENSURE_SUCCESS(result, result);     
+    if (NS_FAILED(result)) return result;     
   }
 
   // let's be sure we don't keep an empty style attribute
   PRUint32 length;
   result = cssDecl->GetLength(&length);
-  NS_ENSURE_SUCCESS(result, result);     
+  if (NS_FAILED(result)) return result;     
   if (!length) {
     result = mElement->RemoveAttribute(styleAttr);
-    NS_ENSURE_SUCCESS(result, result);     
+    if (NS_FAILED(result)) return result;     
   }
   else
     mRedoAttributeWasSet = PR_TRUE;
@@ -266,18 +250,18 @@ nsresult ChangeCSSInlineStyleTxn::SetStyle(PRBool aAttributeWasSet,
   NS_ASSERTION(mEditor && mElement, "bad state");
   if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
 
-  nsresult result = NS_OK;
+  nsresult result;
   if (aAttributeWasSet) {
     // the style attribute was set and not empty, let's recreate the declaration
     nsAutoString propertyNameString;
     mProperty->ToString(propertyNameString);
 
     nsCOMPtr<nsIDOMElementCSSInlineStyle> inlineStyles = do_QueryInterface(mElement);
-    NS_ENSURE_TRUE(inlineStyles, NS_ERROR_NULL_POINTER);
+    if (!inlineStyles) return NS_ERROR_NULL_POINTER;
     nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
     result = inlineStyles->GetStyle(getter_AddRefs(cssDecl));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(cssDecl, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!cssDecl) return NS_ERROR_NULL_POINTER;
 
     if (aValue.IsEmpty()) {
       // an empty value means we have to remove the property
@@ -288,7 +272,7 @@ nsresult ChangeCSSInlineStyleTxn::SetStyle(PRBool aAttributeWasSet,
       // let's recreate the declaration as it was
       nsAutoString priority;
       result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result)) return result;
       result = cssDecl->SetProperty(propertyNameString, aValue, priority);
     }
   }
@@ -326,7 +310,10 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::GetTxnDescription(nsAString& aString)
 PRBool
 ChangeCSSInlineStyleTxn::AcceptsMoreThanOneValue(nsIAtom *aCSSProperty)
 {
-  return aCSSProperty == nsGkAtoms::text_decoration;
+  nsIAtom * textDecorationAtom = NS_NewAtom("text-decoration");
+  PRBool res = (textDecorationAtom == aCSSProperty);
+  NS_IF_RELEASE(textDecorationAtom);
+  return res;
 }
 
 // adds the value aNewValue to the list of white-space separated values aValues

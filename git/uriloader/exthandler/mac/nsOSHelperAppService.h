@@ -48,7 +48,6 @@
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsMIMEInfoImpl.h"
 #include "nsCOMPtr.h"
 
 class nsOSHelperAppService : public nsExternalHelperAppService
@@ -77,10 +76,8 @@ public:
                                    PRBool * aHandlerExists);
 
 protected:
-  virtual void FixFilePermissions(nsILocalFile* aFile);
-
-private:
-  PRUint32 mPermissions;
+  // add any mac specific service state here
+  void UpdateCreatorInfo(nsIMIMEInfo * aMIMEInfo);
 };
 
 #endif // nsOSHelperAppService_h__

@@ -59,9 +59,6 @@
  * nsStringHashKey
  * nsCStringHashKey
  * nsUint32HashKey
- * nsUint64HashKey
- * nsPtrHashkey
- * nsClearingPtrHashKey
  * nsVoidPtrHashKey
  * nsClearingVoidPtrHashKey
  * nsISupportsHashKey
@@ -166,32 +163,6 @@ private:
 };
 
 /**
- * hashkey wrapper using PRUint64 KeyType
- *
- * @see nsTHashtable::EntryType for specification
- */
-class nsUint64HashKey : public PLDHashEntryHdr
-{
-public:
-  typedef const PRUint64& KeyType;
-  typedef const PRUint64* KeyTypePointer;
-  
-  nsUint64HashKey(KeyTypePointer aKey) : mValue(*aKey) { }
-  nsUint64HashKey(const nsUint64HashKey& toCopy) : mValue(toCopy.mValue) { }
-  ~nsUint64HashKey() { }
-
-  KeyType GetKey() const { return mValue; }
-  PRBool KeyEquals(KeyTypePointer aKey) const { return *aKey == mValue; }
-
-  static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
-  static PLDHashNumber HashKey(KeyTypePointer aKey) { return PLDHashNumber(*aKey); }
-  enum { ALLOW_MEMMOVE = PR_TRUE };
-
-private:
-  const PRUint64 mValue;
-};
-
-/**
  * hashkey wrapper using nsISupports* KeyType
  *
  * @see nsTHashtable::EntryType for specification
@@ -224,56 +195,71 @@ private:
 };
 
 /**
- * hashkey wrapper using T* KeyType
+ * hashkey wrapper using void* KeyType
  *
  * @see nsTHashtable::EntryType for specification
  */
-template<class T>
-class nsPtrHashKey : public PLDHashEntryHdr
+class nsVoidPtrHashKey : public PLDHashEntryHdr
 {
- public:
-  typedef T *KeyType;
-  typedef const T *KeyTypePointer;
+public:
+  typedef const void* KeyType;
+  typedef const void* KeyTypePointer;
 
-  nsPtrHashKey(const T *key) : mKey(const_cast<T*>(key)) {}
-  nsPtrHashKey(const nsPtrHashKey<T> &toCopy) : mKey(toCopy.mKey) {}
-  ~nsPtrHashKey() {}
+  nsVoidPtrHashKey(const void* key) :
+    mKey(key) { }
+  nsVoidPtrHashKey(const nsVoidPtrHashKey& toCopy) :
+    mKey(toCopy.mKey) { }
+  ~nsVoidPtrHashKey() { }
 
   KeyType GetKey() const { return mKey; }
+  
+  PRBool KeyEquals(KeyTypePointer aKey) const { return aKey == mKey; }
 
-  PRBool KeyEquals(KeyTypePointer key) const { return key == mKey; }
-
-  static KeyTypePointer KeyToPointer(KeyType key) { return key; }
-  static PLDHashNumber HashKey(KeyTypePointer key)
+  static KeyTypePointer KeyToPointer(KeyType aKey) { return aKey; }
+  static PLDHashNumber HashKey(KeyTypePointer aKey)
   {
-    return NS_PTR_TO_INT32(key) >> 2;
+    return NS_PTR_TO_INT32(aKey) >>2;
   }
   enum { ALLOW_MEMMOVE = PR_TRUE };
 
- protected:
-  T *mKey;
+private:
+  const void* mKey;
 };
 
 /**
- * hashkey wrapper using T* KeyType that sets key to NULL upon
+ * hashkey wrapper using void* KeyType, that sets key to NULL upon
  * destruction. Relevant only in cases where a memory pointer-scanner
  * like valgrind might get confused about stale references.
  *
  * @see nsTHashtable::EntryType for specification
  */
 
-template<class T>
-class nsClearingPtrHashKey : public nsPtrHashKey<T>
+class nsClearingVoidPtrHashKey : public PLDHashEntryHdr
 {
- public:
-  nsClearingPtrHashKey(const T *key) : nsPtrHashKey<T>(key) {}
-  nsClearingPtrHashKey(const nsClearingPtrHashKey<T> &toCopy) :
-    nsPtrHashKey<T>(toCopy) {}
-  ~nsClearingPtrHashKey() { nsPtrHashKey<T>::mKey = nsnull; }
-};
+public:
+  typedef const void* KeyType;
+  typedef const void* KeyTypePointer;
 
-typedef nsPtrHashKey<const void> nsVoidPtrHashKey; 
-typedef nsClearingPtrHashKey<const void> nsClearingVoidPtrHashKey;
+  nsClearingVoidPtrHashKey(const void* key) :
+    mKey(key) { }
+  nsClearingVoidPtrHashKey(const nsClearingVoidPtrHashKey& toCopy) :
+    mKey(toCopy.mKey) { }
+  ~nsClearingVoidPtrHashKey() { mKey = NULL; }
+
+  KeyType GetKey() const { return mKey; }
+  
+  PRBool KeyEquals(KeyTypePointer aKey) const { return aKey == mKey; }
+
+  static KeyTypePointer KeyToPointer(KeyType aKey) { return aKey; }
+  static PLDHashNumber HashKey(KeyTypePointer aKey)
+  {
+    return NS_PTR_TO_INT32(aKey) >>2;
+  }
+  enum { ALLOW_MEMMOVE = PR_TRUE };
+
+private:
+  const void* mKey;
+};
 
 /**
  * hashkey wrapper using nsID KeyType

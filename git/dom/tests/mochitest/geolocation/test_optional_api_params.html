@@ -5,8 +5,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452566
 -->
 <head>
   <title>Test for Bug 452566</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="prompt_common.js"></script>
   <script type="text/javascript" src="geolocation_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -19,15 +20,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452566
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-// ensure we are using the right testing provider
-resume_geolocationProvider();
-force_prompt(true)
-
 /** Test for Bug 452566 **/
 
 const NOT_ENOUGH_ARGS = 2153185281;
 
 ok(navigator.geolocation, "Should have geolocation");
+
+attachPrompt();
+promptOption = ACCEPT;
 
 var exception = null;
 try {
@@ -109,10 +109,10 @@ try {
 }
 ok(!exception, exception);
 
-// so clean up ready for the next test.
-reset_prompt();
+removePrompt();
 
 </script>
 </pre>
 </body>
 </html>
+

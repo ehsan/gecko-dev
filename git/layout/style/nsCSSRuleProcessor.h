@@ -47,13 +47,9 @@
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsCSSStyleSheet.h"
-#include "nsTArray.h"
-#include "nsAutoPtr.h"
-#include "nsCSSRules.h"
 
 struct RuleCascadeData;
 struct nsCSSSelectorList;
-struct CascadeEnumData;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -68,9 +64,7 @@ struct CascadeEnumData;
 
 class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
-  typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
-
-  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
+  nsCSSRuleProcessor(const nsCOMArray<nsICSSStyleSheet>& aSheets);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -78,82 +72,48 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static nsresult Startup();
-  static void Shutdown();
   static void FreeSystemMetrics();
-  static PRBool HasSystemMetric(nsIAtom* aMetric);
 
   /*
    * Returns true if the given RuleProcessorData matches one of the
    * selectors in aSelectorList.  Note that this method will assume
-   * the matching is not for styling purposes.  aSelectorList must not
-   * include any pseudo-element selectors.  aSelectorList is allowed
-   * to be null; in this case PR_FALSE will be returned.
+   * the matching is not for styling purposes.
    */
   static PRBool SelectorListMatches(RuleProcessorData& aData,
                                     nsCSSSelectorList* aSelectorList);
 
   // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
 
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
+                                    nsReStyleHint* aResult);
 
-#ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
-#endif
+  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                        nsReStyleHint* aResult);
 
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
-
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
-
-  // Append all the currently-active font face rules to aArray.  Return
-  // true for success and false for failure.
-  PRBool AppendFontFaceRules(nsPresContext* aPresContext,
-                             nsTArray<nsFontFaceRuleContainer>& aArray);
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged);
 
 #ifdef DEBUG
   void AssertQuirksChangeOK() {
-    NS_ASSERTION(!mRuleCascades, "can't toggle quirks style sheet without "
-                                 "clearing rule cascades");
+    NS_ASSERTION(!mRuleCascades, "too late to set quirks style sheet");
   }
 #endif
 
-#ifdef XP_WIN
-  // Cached theme identifier for the moz-windows-theme media query.
-  static PRUint8 GetWindowsThemeIdentifier();
-  static void SetWindowsThemeIdentifier(PRUint8 aId) { 
-    sWinThemeId = aId;
-  }
-#endif
-
-private:
-  static PRBool CascadeSheet(nsCSSStyleSheet* aSheet, CascadeEnumData* aData);
-
+protected:
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
 
   // The sheet order here is the same as in nsStyleSet::mSheets
-  sheet_array_type mSheets;
+  nsCOMArray<nsICSSStyleSheet> mSheets;
 
   // active first, then cached (most recent first)
   RuleCascadeData* mRuleCascades;
 
   // The last pres context for which GetRuleCascades was called.
   nsPresContext *mLastPresContext;
-  
-  // type of stylesheet using this processor
-  PRUint8 mSheetType;  // == nsStyleSet::sheetType
-
-#ifdef XP_WIN
-  static PRUint8 sWinThemeId;
-#endif
 };
 
 #endif /* nsCSSRuleProcessor_h_ */

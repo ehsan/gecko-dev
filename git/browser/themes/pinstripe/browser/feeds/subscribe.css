@@ -1,3 +1,8 @@
+
+*[hidden] {
+  display: none;
+}
+
 html {
   background: -moz-Dialog;
   font: 3mm tahoma,arial,helvetica,sans-serif;
@@ -13,7 +18,7 @@ html {
 
 #feedHeader {
   border: 1px solid ThreeDShadow;
-  border-radius: 10px;
+  -moz-border-radius: 10px;
   padding-top: 4em;
   padding-bottom: .3em;
   -moz-padding-start: .3em;
@@ -47,6 +52,10 @@ html {
 
 #feedSubscribeLine {
   padding: 0 1em 1em 2em;
+}
+
+#alwaysUse {
+  padding: 3px;
 }
 
 #feedHeader[firstrun="true"] #feedSubscribeLine {

@@ -40,9 +40,8 @@
 
 #include "cairoint.h"
 
-#if CAIRO_HAS_QUARTZ_SURFACE
+#ifdef CAIRO_HAS_QUARTZ_SURFACE
 #include "cairo-quartz.h"
-#include "cairo-surface-clipper-private.h"
 
 typedef struct cairo_quartz_surface {
     cairo_surface_t base;
@@ -53,23 +52,21 @@ typedef struct cairo_quartz_surface {
     void *imageData;
     cairo_surface_t *imageSurfaceEquiv;
 
-    cairo_surface_clipper_t clipper;
-
-    /**
-     * If non-null, this is a CGImage representing the contents of the surface.
-     * We clear this out before any painting into the surface, so that we
-     * don't force a copy to be created.
-     */
-    CGImageRef bitmapContextImage;
-
-    /**
-     * If non-null, this is the CGLayer for the surface.
-     */
-    CGLayerRef cgLayer;
-
     cairo_rectangle_int_t extents;
 
-    cairo_bool_t ownsData;
+    /* These are stored while drawing operations are in place, set up
+     * by quartz_setup_source() and quartz_finish_source()
+     */
+    CGAffineTransform sourceTransform;
+
+    CGImageRef sourceImage;
+    cairo_surface_t *sourceImageSurface;
+    CGRect sourceImageRect;
+
+    CGShadingRef sourceShading;
+    CGPatternRef sourcePattern;
+
+    CGInterpolationQuality oldInterpolationQuality;
 } cairo_quartz_surface_t;
 
 typedef struct cairo_quartz_image_surface {
@@ -98,10 +95,11 @@ _cairo_quartz_create_cgimage (cairo_format_t format,
 CGFontRef
 _cairo_quartz_scaled_font_get_cg_font_ref (cairo_scaled_font_t *sfont);
 
-#else
-
-# error Cairo was not compiled with support for the quartz backend
-
 #endif /* CAIRO_HAS_QUARTZ_SURFACE */
+
+#if CAIRO_HAS_CGFONT_FONT
+CGFontRef
+_cairo_cgfont_scaled_font_get_cg_font_ref (cairo_scaled_font_t *sfont);
+#endif /* CAIRO_HAS_CGFONT_FONT */
 
 #endif /* CAIRO_QUARTZ_PRIVATE_H */

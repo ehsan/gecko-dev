@@ -60,7 +60,6 @@ class nsScriptLoadRequest;
 
 class nsScriptLoader : public nsIStreamLoaderObserver
 {
-  friend class nsScriptRequestProcessor;
 public:
   nsScriptLoader(nsIDocument* aDocument);
   virtual ~nsScriptLoader();
@@ -126,11 +125,6 @@ public:
     return mCurrentScript;
   }
 
-  nsIScriptElement* GetCurrentParserInsertedScript()
-  {
-    return mCurrentParserInsertedScript;
-  }
-
   /**
    * Whether the loader is enabled or not.
    * When disabled, processing of new script elements is disabled. 
@@ -187,15 +181,6 @@ public:
   void ProcessPendingRequests();
 
   /**
-   * Check whether it's OK to load a script from aURI in
-   * aDocument.
-   */
-  static nsresult ShouldLoadScript(nsIDocument* aDocument,
-                                   nsISupports* aContext,
-                                   nsIURI* aURI,
-                                   const nsAString &aType);
-
-  /**
    * Check whether it's OK to execute a script loaded via aChannel in
    * aDocument.
    */
@@ -209,29 +194,16 @@ public:
   void BeginDeferringScripts()
   {
     mDeferEnabled = PR_TRUE;
-    if (mDocument) {
-      mDocument->BlockOnload();
-    }
   }
 
   /**
-   * Notifies the script loader that parsing is done.  If aTerminated is true,
-   * this will drop any pending scripts that haven't run yet.  Otherwise, it
-   * will stops deferring scripts and immediately processes the
-   * mDeferredRequests queue.
+   * Stops defering scripts and immediately processes the mDeferredRequests
+   * queue.
    *
-   * WARNING: This function will synchronously execute content scripts, so be
+   * WARNING: This function will syncronously execute content scripts, so be
    * prepared that the world might change around you.
    */
-  void ParsingComplete(PRBool aTerminated);
-
-  /**
-   * Returns the number of pending scripts, deferred or not.
-   */
-  PRUint32 HasPendingOrCurrentScripts()
-  {
-    return mCurrentScript || mParserBlockingRequest;
-  }
+  void EndDeferringScripts();
 
   /**
    * Adds aURI to the preload list and starts loading it.
@@ -243,26 +215,16 @@ public:
   virtual void PreloadURI(nsIURI *aURI, const nsAString &aCharset,
                           const nsAString &aType);
 
-private:
-  /**
-   * Helper function to check the content policy for a given request.
-   */
-  static nsresult CheckContentPolicy(nsIDocument* aDocument,
-                                     nsISupports *aContext,
-                                     nsIURI *aURI,
-                                     const nsAString &aType);
-
+protected:
   /**
    * Start a load for aRequest's URI.
    */
   nsresult StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType);
 
   /**
-   * Process any pending requests asynchronously (i.e. off an event) if there
+   * Process any pending requests asyncronously (i.e. off an event) if there
    * are any. Note that this is a no-op if there aren't any currently pending
    * requests.
-   *
-   * This function is virtual to allow cross-library calls to SetEnabled()
    */
   virtual void ProcessPendingRequestsAsync();
 
@@ -300,13 +262,12 @@ private:
                                 PRUint32 aStringLen,
                                 const PRUint8* aString);
 
+  // Returns the first pending (non deferred) request
+  nsScriptLoadRequest* GetFirstPendingRequest();
+
   nsIDocument* mDocument;                   // [WEAK]
   nsCOMArray<nsIScriptLoaderObserver> mObservers;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mNonAsyncExternalScriptInsertedRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mAsyncRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mDeferRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mXSLTRequests;
-  nsRefPtr<nsScriptLoadRequest> mParserBlockingRequest;
+  nsCOMArray<nsScriptLoadRequest> mRequests;
 
   // In mRequests, the additional information here is stored by the element.
   struct PreloadInfo {
@@ -327,13 +288,11 @@ private:
   nsTArray<PreloadInfo> mPreloads;
 
   nsCOMPtr<nsIScriptElement> mCurrentScript;
-  nsCOMPtr<nsIScriptElement> mCurrentParserInsertedScript;
   // XXXbz do we want to cycle-collect these or something?  Not sure.
   nsTArray< nsRefPtr<nsScriptLoader> > mPendingChildLoaders;
   PRUint32 mBlockerCount;
   PRPackedBool mEnabled;
   PRPackedBool mDeferEnabled;
-  PRPackedBool mDocumentParsingDone;
 };
 
 #endif //__nsScriptLoader_h__

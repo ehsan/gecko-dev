@@ -36,7 +36,7 @@
 /*
  * certi.h - private data structures for the certificate library
  *
- * $Id: certi.h,v 1.34 2010/05/21 00:43:51 wtc%google.com Exp $
+ * $Id: certi.h,v 1.26 2008/06/18 01:00:40 wtc%google.com Exp $
  */
 #ifndef _CERTI_H_
 #define _CERTI_H_
@@ -58,8 +58,6 @@ typedef struct CRLDPCacheStr CRLDPCache;
 typedef struct CRLIssuerCacheStr CRLIssuerCache;
 typedef struct CRLCacheStr CRLCache;
 typedef struct CachedCrlStr CachedCrl;
-typedef struct NamedCRLCacheStr NamedCRLCache;
-typedef struct NamedCRLCacheEntryStr NamedCRLCacheEntry;
 
 struct OpaqueCRLFieldsStr {
     PRBool partial;
@@ -105,17 +103,6 @@ typedef enum {
     CRL_OriginExplicit = 1  /* CRL was explicitly added to the cache, from RAM */
 } CRLOrigin;
 
-typedef enum {
-    dpcacheNoEntry = 0,             /* no entry found for this SN */
-    dpcacheFoundEntry = 1,          /* entry found for this SN */
-    dpcacheCallerError = 2,         /* invalid args */
-    dpcacheInvalidCacheError = 3,   /* CRL in cache may be bad DER */
-                                    /* or unverified */
-    dpcacheEmpty = 4,               /* no CRL in cache */
-    dpcacheLookupError = 5          /* internal error */
-} dpcacheStatus;
-
-
 struct CachedCrlStr {
     CERTSignedCrl* crl;
     CRLOrigin origin;
@@ -150,7 +137,7 @@ struct CRLDPCacheStr {
 #else
     PRLock* lock;
 #endif
-    CERTCertificate* issuer;    /* issuer cert
+    CERTCertificate* issuer;    /* cert issuer 
                                    XXX there may be multiple issuer certs,
                                        with different validity dates. Also
                                        need to deal with SKID/AKID . See
@@ -178,9 +165,9 @@ struct CRLDPCacheStr {
     /* cache invalidity bitflag */
     PRUint16 invalid;       /* this state will be set if either
              CRL_CACHE_INVALID_CRLS or CRL_CACHE_LAST_FETCH_FAILED is set.
-             In those cases, all certs are considered to have unknown status.
-             The invalid state can only be cleared during an update if all
-             error states are cleared */
+             In those cases, all certs are considered revoked as a
+             security precaution. The invalid state can only be cleared
+             during an update if all error states are cleared */
     PRBool refresh;        /* manual refresh from tokens has been forced */
     PRBool mustchoose;     /* trigger reselection algorithm, for case when
                               RAM CRL objects are dropped from the cache */
@@ -262,24 +249,25 @@ extern int cert_AVAOidTagToMaxLen(SECOidTag tag);
 extern CERTAVA * CERT_CreateAVAFromRaw(PRArenaPool *pool, 
                                const SECItem * OID, const SECItem * value);
 
-/* Make an AVA from binary input specified by SECItem */
-extern CERTAVA * CERT_CreateAVAFromSECItem(PRArenaPool *arena, SECOidTag kind, 
-                                           int valueType, SECItem *value);
-
 /*
  * get a DPCache object for the given issuer subject and dp
  * Automatically creates the cache object if it doesn't exist yet.
  */
-SECStatus AcquireDPCache(CERTCertificate* issuer, const SECItem* subject,
-                         const SECItem* dp, int64 t, void* wincx,
+SECStatus AcquireDPCache(CERTCertificate* issuer, SECItem* subject,
+                         SECItem* dp, int64 t, void* wincx,
                          CRLDPCache** dpcache, PRBool* writeLocked);
-
-/* check if a particular SN is in the CRL cache and return its entry */
-dpcacheStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
-                             CERTCrlEntry** returned);
 
 /* release a DPCache object that was previously acquired */
 void ReleaseDPCache(CRLDPCache* dpcache, PRBool writeLocked);
+
+/* this function assumes the caller holds a lock on the DPCache */
+SECStatus DPCache_GetAllCRLs(CRLDPCache* dpc, PRArenaPool* arena,
+                             CERTSignedCrl*** crls, PRUint16* status);
+
+/* this function assumes the caller holds a lock on the DPCache */
+SECStatus DPCache_GetCRLEntry(CRLDPCache* cache, PRBool readlocked,
+                              CERTSignedCrl* crl, SECItem* sn,
+                              CERTCrlEntry** returned);
 
 /*
  * map Stan errors into NSS errors
@@ -318,77 +306,6 @@ extern PRUint32 cert_ComputeCertType(CERTCertificate *cert);
 void cert_AddToVerifyLog(CERTVerifyLog *log,CERTCertificate *cert,
                          unsigned long errorCode, unsigned int depth,
                          void *arg);
-
-/* Insert a DER CRL into the CRL cache, and take ownership of it.
- *
- * cert_CacheCRLByGeneralName takes ownership of the memory in crl argument
- * completely.  crl must be freeable by SECITEM_FreeItem. It will be freed
- * immediately if it is rejected from the CRL cache, or later during cache
- * updates when a new crl is available, or at shutdown time.
- *
- * canonicalizedName represents the source of the CRL, a GeneralName.
- * The format of the encoding is not restricted, but all callers of
- * cert_CacheCRLByGeneralName and cert_FindCRLByGeneralName must use
- * the same encoding. To facilitate X.500 name matching, a canonicalized
- * encoding of the GeneralName should be used, if available.
- */
- 
-SECStatus cert_CacheCRLByGeneralName(CERTCertDBHandle* dbhandle, SECItem* crl,
-                                     const SECItem* canonicalizedName);
-
-struct NamedCRLCacheStr {
-    PRLock* lock;
-    PLHashTable* entries;
-};
-
-/* NamedCRLCacheEntryStr is filled in by cert_CacheCRLByGeneralName,
- * and read by cert_FindCRLByGeneralName */
-struct NamedCRLCacheEntryStr {
-    SECItem* canonicalizedName;
-    SECItem* crl;                   /* DER, kept only if CRL
-                                     * is successfully cached */
-    PRBool inCRLCache;
-    PRTime successfulInsertionTime; /* insertion time */
-    PRTime lastAttemptTime;         /* time of last call to
-                              cert_CacheCRLByGeneralName with this name */
-    PRBool badDER;      /* ASN.1 error */
-    PRBool dupe;        /* matching DER CRL already in CRL cache */
-    PRBool unsupported; /* IDP, delta, any other reason */
-};
-
-typedef enum {
-    certRevocationStatusRevoked = 0,
-    certRevocationStatusValid = 1,
-    certRevocationStatusUnknown = 2
-} CERTRevocationStatus;
-
-/* Returns detailed status of the cert(revStatus variable). Tells if
- * issuer cache has OriginFetchedWithTimeout crl in it. */
-SECStatus
-cert_CheckCertRevocationStatus(CERTCertificate* cert, CERTCertificate* issuer,
-                               const SECItem* dp, PRTime t, void *wincx,
-                               CERTRevocationStatus *revStatus,
-                               CERTCRLEntryReasonCode *revReason);
-
-
-SECStatus cert_AcquireNamedCRLCache(NamedCRLCache** returned);
-
-/* cert_FindCRLByGeneralName must be called only while the named cache is
- * acquired, and the entry is only valid until cache is released.
- */
-SECStatus cert_FindCRLByGeneralName(NamedCRLCache* ncc,
-                                    const SECItem* canonicalizedName,
-                                    NamedCRLCacheEntry** retEntry);
-
-SECStatus cert_ReleaseNamedCRLCache(NamedCRLCache* ncc);
-
-/* This is private for now.  Maybe shoule be public. */
-CERTGeneralName *
-cert_GetSubjectAltNameList(CERTCertificate *cert, PRArenaPool *arena);
-
-/* Count DNS names and IP addresses in a list of GeneralNames */
-PRUint32
-cert_CountDNSPatterns(CERTGeneralName *firstName);
 
 #endif /* _CERTI_H_ */
 

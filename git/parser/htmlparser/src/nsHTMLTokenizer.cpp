@@ -51,6 +51,7 @@
 #include "nsHTMLTokenizer.h"
 #include "nsScanner.h"
 #include "nsElementTable.h"
+#include "CParserContext.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 
@@ -70,11 +71,11 @@ NS_IMPL_ISUPPORTS1(nsHTMLTokenizer, nsITokenizer)
  * @param  aDocType The document type of the current document
  * @param  aCommand What we are trying to do (view-source, parse a fragment, etc.)
  */
-nsHTMLTokenizer::nsHTMLTokenizer(nsDTDMode aParseMode,
+nsHTMLTokenizer::nsHTMLTokenizer(PRInt32 aParseMode,
                                  eParserDocType aDocType,
                                  eParserCommands aCommand,
-                                 PRUint32 aFlags)
-  : mTokenDeque(0), mFlags(aFlags)
+                                 PRUint16 aFlags) :
+  nsITokenizer(), mTokenDeque(0), mFlags(aFlags)
 {
   if (aParseMode == eDTDMode_full_standards ||
       aParseMode == eDTDMode_almost_standards) {
@@ -118,26 +119,7 @@ nsHTMLTokenizer::~nsHTMLTokenizer()
     mTokenDeque.ForEach(theDeallocator);
   }
 }
-
-/*static*/ PRUint32
-nsHTMLTokenizer::GetFlags(const nsIContentSink* aSink)
-{
-  PRUint32 flags = 0;
-  nsCOMPtr<nsIHTMLContentSink> sink =
-    do_QueryInterface(const_cast<nsIContentSink*>(aSink));
-  if (sink) {
-    PRBool enabled = PR_TRUE;
-    sink->IsEnabled(eHTMLTag_frameset, &enabled);
-    if (enabled) {
-      flags |= NS_IPARSER_FLAG_FRAMES_ENABLED;
-    }
-    sink->IsEnabled(eHTMLTag_script, &enabled);
-    if (enabled) {
-      flags |= NS_IPARSER_FLAG_SCRIPT_ENABLED;
-    }
-  }
-  return flags;
-}
+ 
 
 /*******************************************************************
   Here begins the real working methods for the tokenizer.

@@ -64,24 +64,13 @@ nsIFrame*
 NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsScrollbarButtonFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarButtonFrame)
+} // NS_NewScrollBarButtonFrame
 
 NS_IMETHODIMP
 nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext, 
                                     nsGUIEvent* aEvent,
                                     nsEventStatus* aEventStatus)
 {  
-  NS_ENSURE_ARG_POINTER(aEventStatus);
-
-  // If a web page calls event.preventDefault() we still want to
-  // scroll when scroll arrow is clicked. See bug 511075.
-  if (!mContent->IsInNativeAnonymousSubtree() &&
-      nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   // XXX hack until handle release is actually called in nsframe.
   if (aEvent->message == NS_MOUSE_EXIT_SYNTH ||
       aEvent->message == NS_MOUSE_BUTTON_UP)
@@ -241,7 +230,8 @@ nsScrollbarButtonFrame::DoButtonAction(PRBool aSmoothScroll)
   else if (curpos > maxpos)
     curpos = maxpos;
 
-  nsIScrollbarFrame* sb = do_QueryFrame(scrollbar);
+  nsIScrollbarFrame* sb;
+  CallQueryInterface(scrollbar, &sb);
   if (sb) {
     nsIScrollbarMediator* m = sb->GetScrollbarMediator();
     if (m) {
@@ -319,10 +309,10 @@ nsScrollbarButtonFrame::GetParentWithTag(nsIAtom* toFind, nsIFrame* start,
 }
 
 void
-nsScrollbarButtonFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsScrollbarButtonFrame::Destroy()
 {
   // Ensure our repeat service isn't going... it's possible that a scrollbar can disappear out
   // from under you while you're in the process of scrolling.
   StopRepeat();
-  nsButtonBoxFrame::DestroyFrom(aDestructRoot);
+  nsButtonBoxFrame::Destroy();
 }

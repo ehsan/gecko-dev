@@ -35,13 +35,8 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: dsa.c,v 1.20.22.1 2010/12/04 18:59:01 rrelyea%redhat.com Exp $ */
+/* $Id: dsa.c,v 1.18 2005/10/12 00:48:25 wtchang%redhat.com Exp $ */
 
-#ifdef FREEBL_NO_DEPEND
-#include "stubs.h"
-#endif
-
-#include "prerror.h"
 #include "secerr.h"
 
 #include "prtypes.h"
@@ -56,136 +51,18 @@
  /* XXX to be replaced by define in blapit.h */
 #define NSS_FREEBL_DSA_DEFAULT_CHUNKSIZE 2048
 
-/*
- * FIPS 186-2 requires result from random output to be reduced mod q when 
- * generating random numbers for DSA. 
- *
- * Input: w, 2*qLen bytes
- *        q, qLen bytes
- * Output: xj, qLen bytes
- */
-static SECStatus
-fips186Change_ReduceModQForDSA(const PRUint8 *w, const PRUint8 *q,
-                               unsigned int qLen, PRUint8 * xj)
-{
-    mp_int W, Q, Xj;
-    mp_err err;
-    SECStatus rv = SECSuccess;
-
-    /* Initialize MPI integers. */
-    MP_DIGITS(&W) = 0;
-    MP_DIGITS(&Q) = 0;
-    MP_DIGITS(&Xj) = 0;
-    CHECK_MPI_OK( mp_init(&W) );
-    CHECK_MPI_OK( mp_init(&Q) );
-    CHECK_MPI_OK( mp_init(&Xj) );
-    /*
-     * Convert input arguments into MPI integers.
-     */
-    CHECK_MPI_OK( mp_read_unsigned_octets(&W, w, 2*qLen) );
-    CHECK_MPI_OK( mp_read_unsigned_octets(&Q, q, qLen) );
-
-    /*
-     * Algorithm 1 of FIPS 186-2 Change Notice 1, Step 3.3
-     *
-     * xj = (w0 || w1) mod q
-     */
-    CHECK_MPI_OK( mp_mod(&W, &Q, &Xj) );
-    CHECK_MPI_OK( mp_to_fixlen_octets(&Xj, xj, qLen) );
-cleanup:
-    mp_clear(&W);
-    mp_clear(&Q);
-    mp_clear(&Xj);
-    if (err) {
-	MP_TO_SEC_ERROR(err);
-	rv = SECFailure;
-    }
-    return rv;
-}
-
-/*
- * FIPS 186-2 requires result from random output to be reduced mod q when 
- * generating random numbers for DSA. 
- */
-SECStatus
-FIPS186Change_ReduceModQForDSA(const unsigned char *w,
-                               const unsigned char *q,
-                               unsigned char *xj) {
-    return fips186Change_ReduceModQForDSA(w, q, DSA_SUBPRIME_LEN, xj);
-}
-
-/*
- * The core of Algorithm 1 of FIPS 186-2 Change Notice 1.
- *
- * We no longer support FIPS 186-2 RNG. This function was exported
- * for power-up self tests and FIPS tests. Keep this stub, which fails,
- * to prevent crashes, but also to signal to test code that FIPS 186-2
- * RNG is no longer supported.
- */
-SECStatus
-FIPS186Change_GenerateX(PRUint8 *XKEY, const PRUint8 *XSEEDj,
-                        PRUint8 *x_j)
-{
-    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
-    return SECFailure;
-}
-
-/*
- * Specialized RNG for DSA
- *
- * As per Algorithm 1 of FIPS 186-2 Change Notice 1, in step 3.3 the value
- * Xj should be reduced mod q, a 160-bit prime number.  Since this parameter
- * is only meaningful in the context of DSA, the above RNG functions
- * were implemented without it.  They are re-implemented below for use
- * with DSA.
- */
-
-/*
-** Generate some random bytes, using the global random number generator
-** object.  In DSA mode, so there is a q.
-*/
-static SECStatus 
-dsa_GenerateGlobalRandomBytes(const SECItem * qItem, PRUint8 * dest,
-                              unsigned int * destLen, unsigned int maxDestLen)
-{
-    SECStatus rv;
-    SECItem w;
-    const PRUint8 * q = qItem->data;
-    unsigned int qLen = qItem->len;
-
-    if (*q == 0) {
-        ++q;
-        --qLen;
-    }
-    if (maxDestLen < qLen) {
-        /* This condition can occur when DSA_SignDigest is passed a group
-           with a subprime that is larger than DSA_SUBPRIME_LEN. */
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return SECFailure;
-    }
-    w.data = NULL; /* otherwise SECITEM_AllocItem asserts */
-    if (!SECITEM_AllocItem(NULL, &w, 2*qLen)) {
-        return SECFailure;
-    }
-    *destLen = qLen;
-
-    rv = RNG_GenerateGlobalRandomBytes(w.data, w.len);
-    if (rv == SECSuccess) {
-        rv = fips186Change_ReduceModQForDSA(w.data, q, qLen, dest);
-    }
-
-    SECITEM_FreeItem(&w, PR_FALSE);
-    return rv;
-}
+/* DSA-specific random number function defined in prng_fips1861.c. */
+extern SECStatus 
+DSA_GenerateGlobalRandomBytes(void *dest, size_t len, const unsigned char *q);
 
 static void translate_mpi_error(mp_err err)
 {
     MP_TO_SEC_ERROR(err);
 }
 
-static SECStatus 
-dsa_NewKeyExtended(const PQGParams *params, const SECItem * seed,
-                   DSAPrivateKey **privKey)
+SECStatus 
+dsa_NewKey(const PQGParams *params, DSAPrivateKey **privKey, 
+           const unsigned char *xb)
 {
     mp_int p, g;
     mp_int x, y;
@@ -193,7 +70,7 @@ dsa_NewKeyExtended(const PQGParams *params, const SECItem * seed,
     PRArenaPool *arena;
     DSAPrivateKey *key;
     /* Check args. */
-    if (!params || !privKey || !seed || !seed->data) {
+    if (!params || !privKey) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
     }
@@ -228,10 +105,10 @@ dsa_NewKeyExtended(const PQGParams *params, const SECItem * seed,
     /* Convert stored p, g, and received x into MPI integers. */
     SECITEM_TO_MPINT(params->prime, &p);
     SECITEM_TO_MPINT(params->base,  &g);
-    OCTETS_TO_MPINT(seed->data, &x, seed->len);
+    OCTETS_TO_MPINT(xb, &x, DSA_SUBPRIME_LEN);
     /* Store x in private key */
-    SECITEM_AllocItem(arena, &key->privateValue, seed->len);
-    PORT_Memcpy(key->privateValue.data, seed->data, seed->len);
+    SECITEM_AllocItem(arena, &key->privateValue, DSA_SUBPRIME_LEN);
+    memcpy(key->privateValue.data, xb, DSA_SUBPRIME_LEN);
     /* Compute public key y = g**x mod p */
     CHECK_MPI_OK( mp_exptmod(&g, &x, &p, &y) );
     /* Store y in public key */
@@ -252,53 +129,6 @@ cleanup:
     return SECSuccess;
 }
 
-SECStatus
-DSA_NewRandom(PLArenaPool * arena, const SECItem * q, SECItem * seed)
-{
-    int retries = 10;
-    unsigned int i;
-    PRBool good;
-
-    if (q == NULL || q->data == NULL || q->len == 0 ||
-        (q->data[0] == 0 && q->len == 1)) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return SECFailure;
-    }
-
-    if (!SECITEM_AllocItem(arena, seed, q->len)) {
-        return SECFailure;
-    }
-
-    do {
-	/* Generate seed bytes for x according to FIPS 186-1 appendix 3 */
-        if (dsa_GenerateGlobalRandomBytes(q, seed->data, &seed->len,
-                                          seed->len)) {
-            goto loser;
-        }
-	/* Disallow values of 0 and 1 for x. */
-	good = PR_FALSE;
-	for (i = 0; i < seed->len-1; i++) {
-	    if (seed->data[i] != 0) {
-		good = PR_TRUE;
-		break;
-	    }
-	}
-	if (!good && seed->data[i] > 1) {
-	    good = PR_TRUE;
-	}
-    } while (!good && --retries > 0);
-
-    if (!good) {
-	PORT_SetError(SEC_ERROR_NEED_RANDOM);
-loser:	if (arena != NULL) {
-            SECITEM_FreeItem(seed, PR_FALSE);
-        }
-	return SECFailure;
-    }
-
-    return SECSuccess;
-}
-
 /*
 ** Generate and return a new DSA public and private key pair,
 **	both of which are encoded into a single DSAPrivateKey struct.
@@ -308,21 +138,37 @@ loser:	if (arena != NULL) {
 SECStatus 
 DSA_NewKey(const PQGParams *params, DSAPrivateKey **privKey)
 {
-    SECItem seed;
     SECStatus rv;
+    unsigned char seed[DSA_SUBPRIME_LEN];
+    int retries = 10;
+    int i;
+    PRBool good;
 
-    seed.data = NULL;
+    do {
+	/* Generate seed bytes for x according to FIPS 186-1 appendix 3 */
+	if (DSA_GenerateGlobalRandomBytes(seed, DSA_SUBPRIME_LEN,
+					  params->subPrime.data))
+	    return SECFailure;
+	/* Disallow values of 0 and 1 for x. */
+	good = PR_FALSE;
+	for (i = 0; i < DSA_SUBPRIME_LEN-1; i++) {
+	    if (seed[i] != 0) {
+		good = PR_TRUE;
+		break;
+	    }
+	}
+	if (!good && seed[i] > 1) {
+	    good = PR_TRUE;
+	}
+    } while (!good && --retries > 0);
 
-    rv = DSA_NewRandom(NULL, &params->subPrime, &seed);
-    if (rv == SECSuccess) {
-        if (seed.len != DSA_SUBPRIME_LEN) {
-            PORT_SetError(SEC_ERROR_INVALID_ARGS);
-            rv = SECFailure;
-        } else {
-            rv = dsa_NewKeyExtended(params, &seed, privKey);
-        }
+    if (!good) {
+	PORT_SetError(SEC_ERROR_NEED_RANDOM);
+	return SECFailure;
     }
-    SECITEM_FreeItem(&seed, PR_FALSE);
+
+    /* Generate a new DSA key using random seed. */
+    rv = dsa_NewKey(params, privKey, seed);
     return rv;
 }
 
@@ -332,11 +178,9 @@ DSA_NewKeyFromSeed(const PQGParams *params,
                    const unsigned char *seed,
                    DSAPrivateKey **privKey)
 {
-    /* TODO: check Q size */
-    SECItem seedItem;
-    seedItem.data = (unsigned char*) seed;
-    seedItem.len = DSA_SUBPRIME_LEN;
-    return dsa_NewKeyExtended(params, &seedItem, privKey);
+    SECStatus rv;
+    rv = dsa_NewKey(params, privKey, seed);
+    return rv;
 }
 
 static SECStatus 
@@ -446,24 +290,18 @@ DSA_SignDigest(DSAPrivateKey *key, SECItem *signature, const SECItem *digest)
     SECStatus rv;
     int       retries = 10;
     unsigned char kSeed[DSA_SUBPRIME_LEN];
-    unsigned int kSeedLen = 0;
-    unsigned int i;
+    int       i;
     PRBool    good;
 
     PORT_SetError(0);
     do {
-	rv = dsa_GenerateGlobalRandomBytes(&key->params.subPrime,
-                                           kSeed, &kSeedLen, sizeof kSeed);
+	rv = DSA_GenerateGlobalRandomBytes(kSeed, DSA_SUBPRIME_LEN, 
+					   key->params.subPrime.data);
 	if (rv != SECSuccess) 
 	    break;
-        if (kSeedLen != DSA_SUBPRIME_LEN) {
-            PORT_SetError(SEC_ERROR_INVALID_ARGS);
-            rv = SECFailure;
-            break;
-        }
 	/* Disallow a value of 0 for k. */
 	good = PR_FALSE;
-	for (i = 0; i < kSeedLen; i++) {
+	for (i = 0; i < DSA_SUBPRIME_LEN; i++) {
 	    if (kSeed[i] != 0) {
 		good = PR_TRUE;
 		break;

@@ -34,6 +34,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== datetimepicker.css =============================================
+  == Styles used by the XUL datepicker and timepicker elements.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
 
@@ -53,8 +57,8 @@ datepicker, timepicker {
   -moz-border-right-colors: transparent #FFFFFF #000000;
   -moz-border-bottom-colors: transparent #FFFFFF #000000;
   -moz-border-left-colors: transparent #888888 #000000;
-  border-top-right-radius: 2px;
-  border-bottom-left-radius: 2px;
+  -moz-border-radius-topright: 2px;
+  -moz-border-radius-bottomleft: 2px;
   padding: 0px;
   background-color: -moz-Field;
   color: -moz-FieldText;
@@ -65,7 +69,11 @@ datepicker, timepicker {
 }
 
 html|*.datetimepicker-input {
-  text-align: end;
+  text-align: right;
+}
+
+html|*.datetimepicker-input[chromedir="rtl"] {
+  text-align: left;
 }
 
 .datetimepicker-separator {

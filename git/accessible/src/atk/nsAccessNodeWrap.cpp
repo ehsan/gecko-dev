@@ -37,24 +37,23 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessNodeWrap.h"
-#include "nsApplicationAccessibleWrap.h"
+#include "nsAppRootAccessible.h"
 
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessNodeWrap
-////////////////////////////////////////////////////////////////////////////////
+/*
+ * Class nsAccessNodeWrap
+ */
 
 //-----------------------------------------------------
 // construction 
 //-----------------------------------------------------
 
-nsAccessNodeWrap::
-    nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-    nsAccessNode(aContent, aShell)
+nsAccessNodeWrap::nsAccessNodeWrap(nsIDOMNode *aNode, nsIWeakReference* aShell): 
+  nsAccessNode(aNode, aShell)
 {
 }
 

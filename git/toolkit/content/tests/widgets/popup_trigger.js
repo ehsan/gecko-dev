@@ -2,7 +2,6 @@ var gMenuPopup = null;
 var gTrigger = null;
 var gIsMenu = false;
 var gScreenX = -1, gScreenY = -1;
-var gCachedEvent = null;
 
 function runTests()
 {
@@ -18,8 +17,6 @@ function runTests()
   var mouseFn = function(event) {
     gScreenX = event.screenX;
     gScreenY = event.screenY;
-    // cache the event so that we can use it in calls to openPopup
-    gCachedEvent = event;
   }
 
   // a hacky way to get the screen position of the document
@@ -33,25 +30,8 @@ var popupTests = [
 {
   testname: "mouse click on trigger",
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
-  test: function() {
-    // for menus, no trigger will be set. For non-menus using the popup
-    // attribute, the trigger will be set to the node with the popup attribute
-    gExpectedTriggerNode = gIsMenu ? "notset" : gTrigger;
-    synthesizeMouse(gTrigger, 4, 4, { });
-  },
+  test: function() { synthesizeMouse(gTrigger, 4, 4, { }); },
   result: function (testname) {
-    gExpectedTriggerNode = null;
-    // menus are the anchor but non-menus are opened at screen coordinates
-    is(gMenuPopup.anchorNode, gIsMenu ? gTrigger : null, testname + " anchorNode");
-    // menus are opened internally, but non-menus have a mouse event which
-    // triggered them
-    is(gMenuPopup.triggerNode, gIsMenu ? null : gTrigger, testname + " triggerNode");
-    is(document.popupNode, gIsMenu ? null : gTrigger, testname + " document.popupNode");
-    is(document.tooltipNode, null, testname + " document.tooltipNode");
-    // check to ensure the popup node for a different document isn't used
-    if (window.opener)
-      is(window.opener.document.popupNode, null, testname + " opener.document.popupNode");
-
     checkActive(gMenuPopup, "", testname);
     checkOpen("trigger", testname);
     // if a menu, the popup should be opened underneath the menu in the
@@ -156,12 +136,7 @@ var popupTests = [
     // rollup this way.
     // synthesizeMouse(gTrigger, 0, -12, { });
   },
-  result: function(testname, step) {
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
-    is(gMenuPopup.triggerNode, null, testname + " triggerNode");
-    is(document.popupNode, null, testname + " document.popupNode");
-    checkClosed("trigger", testname);
-  }
+  result: function(testname, step) { checkClosed("trigger", testname); }
 },
 {
   // these tests check to ensure that passing an anchor and position
@@ -170,69 +145,9 @@ var popupTests = [
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   autohide: "thepopup",
   steps: ["before_start", "before_end", "after_start", "after_end",
-          "start_before", "start_after", "end_before", "end_after", "after_pointer", "overlap",
-          "topleft topleft", "topcenter topleft", "topright topleft",
-          "leftcenter topright", "rightcenter topright",
-          "bottomleft bottomleft", "bottomcenter bottomleft", "bottomright bottomleft",
-          "topleft bottomright", "bottomcenter bottomright", "rightcenter topright"],
-  test: function(testname, step) {
-    gExpectedTriggerNode = "notset";
-    gMenuPopup.openPopup(gTrigger, step, 0, 0, false, false);
-  },
-  result: function(testname, step) {
-    // no triggerNode because it was opened without passing an event
-    gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, gTrigger, testname + " anchorNode");
-    is(gMenuPopup.triggerNode, null, testname + " triggerNode");
-    is(document.popupNode, null, testname + " document.popupNode");
-    compareEdge(gTrigger, gMenuPopup, step, 0, 0, testname);
-  }
-},
-{
-  // these tests check the same but with a 10 pixel margin on the popup
-  testname: "open popup anchored with margin",
-  events: [ "popupshowing thepopup", "popupshown thepopup" ],
-  autohide: "thepopup",
-  steps: ["before_start", "before_end", "after_start", "after_end",
-          "start_before", "start_after", "end_before", "end_after", "after_pointer", "overlap",
-          "topleft topleft", "topcenter topleft", "topright topleft",
-          "leftcenter topright", "rightcenter topright",
-          "bottomleft bottomleft", "bottomcenter bottomleft", "bottomright bottomleft",
-          "topleft bottomright", "bottomcenter bottomright", "rightcenter topright"],
-  test: function(testname, step) {
-    gMenuPopup.setAttribute("style", "margin: 10px;");
-    gMenuPopup.openPopup(gTrigger, step, 0, 0, false, false);
-  },
-  result: function(testname, step) {
-    var rightmod = step == "before_end" || step == "after_end" ||
-                   step == "start_before" || step == "start_after" ||
-                   step.match(/topright$/) || step.match(/bottomright$/);
-    var bottommod = step == "before_start" || step == "before_end" ||
-                    step == "start_after" || step == "end_after" ||
-                   step.match(/bottomleft$/) || step.match(/bottomright$/);
-    compareEdge(gTrigger, gMenuPopup, step, rightmod ? -10 : 10, bottommod ? -10 : 10, testname);
-    gMenuPopup.removeAttribute("style");
-  }
-},
-{
-  // these tests check the same but with a -8 pixel margin on the popup
-  testname: "open popup anchored with negative margin",
-  events: [ "popupshowing thepopup", "popupshown thepopup" ],
-  autohide: "thepopup",
-  steps: ["before_start", "before_end", "after_start", "after_end",
-          "start_before", "start_after", "end_before", "end_after", "after_pointer", "overlap"],
-  test: function(testname, step) {
-    gMenuPopup.setAttribute("style", "margin: -8px;");
-    gMenuPopup.openPopup(gTrigger, step, 0, 0, false, false);
-  },
-  result: function(testname, step) {
-    var rightmod = step == "before_end" || step == "after_end" ||
-                   step == "start_before" || step == "start_after";
-    var bottommod = step == "before_start" || step == "before_end" ||
-                    step == "start_after" || step == "end_after";
-    compareEdge(gTrigger, gMenuPopup, step, rightmod ? 8 : -8, bottommod ? 8 : -8, testname);
-    gMenuPopup.removeAttribute("style");
-  }
+          "start_before", "start_after", "end_before", "end_after", "overlap"],
+  test: function(testname, step) { gMenuPopup.openPopup(gTrigger, step, 0, 0, false, false); },
+  result: function(testname, step) { compareEdge(gTrigger, gMenuPopup, step, 0, 0, testname); }
 },
 {
   // these tests check to ensure that the position attribute can be used
@@ -241,8 +156,7 @@ var popupTests = [
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   autohide: "thepopup",
   steps: ["before_start", "before_end", "after_start", "after_end",
-          "start_before", "start_after", "end_before", "end_after", "after_pointer", "overlap",
-          "topcenter topleft", "topright bottomright", "leftcenter topright"],
+          "start_before", "start_after", "end_before", "end_after", "overlap"],
   test: function(testname, step) {
     gMenuPopup.setAttribute("position", step);
     gMenuPopup.openPopup(gTrigger, "", 0, 0, false, false);
@@ -250,24 +164,16 @@ var popupTests = [
   result: function(testname, step) { compareEdge(gTrigger, gMenuPopup, step, 0, 0, testname); }
 },
 {
-  // this test checks to ensure that the attributes override flag to openPopup
-  // can be used to override the popup's position. This test also passes an
-  // event to openPopup to check the trigger node.
+  // this test checks to ensure that attributes override flag to openPopup
+  // can be used to override the popup's position
   testname: "open popup anchored with override",
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   test: function(testname, step) {
     // attribute overrides the position passed in
     gMenuPopup.setAttribute("position", "end_after");
-    gExpectedTriggerNode = gCachedEvent.target;
-    gMenuPopup.openPopup(gTrigger, "before_start", 0, 0, false, true, gCachedEvent);
+    gMenuPopup.openPopup(gTrigger, "before_start", 0, 0, false, true);
   },
-  result: function(testname, step) {
-    gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, gTrigger, testname + " anchorNode");
-    is(gMenuPopup.triggerNode, gCachedEvent.target, testname + " triggerNode");
-    is(document.popupNode, gCachedEvent.target, testname + " document.popupNode");
-    compareEdge(gTrigger, gMenuPopup, "end_after", 0, 0, testname);
-  }
+  result: function(testname, step) { compareEdge(gTrigger, gMenuPopup, "end_after", 0, 0, testname); }
 },
 {
   testname: "close popup with escape",
@@ -333,11 +239,7 @@ var popupTests = [
   },
   result: function(testname, step) {
     var rect = gMenuPopup.getBoundingClientRect();
-    ok(true, gScreenX + "," + gScreenY);
-    is(rect.left, 60, testname + " left");
-    is(rect.top, 15, testname + " top");
-    ok(rect.right, testname + " right is " + rect.right);
-    ok(rect.bottom, testname + " bottom is " + rect.bottom);
+    ok(rect.left == 60 && rect.top == 15 && rect.right && rect.bottom, testname);
   }
 },
 {
@@ -373,19 +275,11 @@ var popupTests = [
   testname: "open popup at screen",
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   test: function(testname, step) {
-    gExpectedTriggerNode = "notset";
     gMenuPopup.openPopupAtScreen(gScreenX + 24, gScreenY + 20, false);
   },
   result: function(testname, step) {
-    gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
-    is(gMenuPopup.triggerNode, null, testname + " triggerNode");
-    is(document.popupNode, null, testname + " document.popupNode");
     var rect = gMenuPopup.getBoundingClientRect();
-    is(rect.left, 24, testname + " left");
-    is(rect.top, 20, testname + " top");
-    ok(rect.right, testname + " right is " + rect.right);
-    ok(rect.bottom, testname + " bottom is " + rect.bottom);
+    ok(rect.left == 24 && rect.top == 20 && rect.right && rect.bottom, testname);
   }
 },
 {
@@ -405,36 +299,11 @@ var popupTests = [
   testname: "open context popup at screen",
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   test: function(testname, step) {
-    gExpectedTriggerNode = gCachedEvent.target;
-    gMenuPopup.openPopupAtScreen(gScreenX + 8, gScreenY + 16, true, gCachedEvent);
+    gMenuPopup.openPopupAtScreen(gScreenX + 8, gScreenY + 16, true);
   },
   result: function(testname, step) {
-    gExpectedTriggerNode = null;
-    is(gMenuPopup.anchorNode, null, testname + " anchorNode");
-    is(gMenuPopup.triggerNode, gCachedEvent.target, testname + " triggerNode");
-    is(document.popupNode, gCachedEvent.target, testname + " document.popupNode");
-
-    var childframe = document.getElementById("childframe");
-    if (childframe) {
-      for (var t = 0; t < 2; t++) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-        var child = childframe.contentDocument; 
-        var evt = child.createEvent("Event");
-        evt.initEvent("click", true, true);
-        child.documentElement.dispatchEvent(evt);
-        is(child.documentElement.getAttribute("data"), "xnull",
-           "cannot get popupNode from other document");
-        child.documentElement.setAttribute("data", "none");
-        // now try again with document.popupNode set explicitly
-        document.popupNode = gCachedEvent.target;
-      }
-    }
-
     var rect = gMenuPopup.getBoundingClientRect();
-    is(rect.left, 10, testname + " left");
-    is(rect.top, 18, testname + " top");
-    ok(rect.right, testname + " right is " + rect.right);
-    ok(rect.bottom, testname + " bottom is " + rect.bottom);
+    ok(rect.left == 10 && rect.top == 18 && rect.right && rect.bottom, testname);
   }
 },
 {
@@ -762,6 +631,6 @@ var popupTests = [
     var popup = document.getElementById("thepopup");
     popup.parentNode.removeChild(popup);
   }
-}
+},
 
 ];

@@ -53,12 +53,11 @@ var observer =
     setTimeout(runTest, 1000);
     bmsvc.removeObserver(this);
   },
-  onItemAdded: function(){},
-  onBeforeItemRemoved: function(){},
-  onItemRemoved: function(){},
-  onItemChanged: function(){},
-  onItemVisited: function(){},
-  onItemMoved: function(){},
+  onItemAdded: function(itemId, folder, index) {},
+  onItemRemoved: function(itemId, folder, index){},
+  onItemChanged: function(itemId, property, isAnnotationProperty, value){},
+  onItemVisited: function(itemId, aVisitID, time){},
+  onItemMoved: function(itemId, oldParent, oldIndex, newParent, newIndex){},
 
 };
 
@@ -79,14 +78,15 @@ function runTest() {
   }
 
   rootNode.containerOpen = false;
-  bmsvc.removeItem(gLivemarkId);
+  bmsvc.removeFolder(gLivemarkId);
   SimpleTest.finish();
 }
 
-const FEEDSPEC = "http://mochi.test:8888/tests/toolkit/components/places/tests/chrome/bad_links.atom";
+var root = bmsvc.bookmarksRoot;
+const FEEDSPEC = "http://localhost:8888/tests/toolkit/components/places/tests/chrome/bad_links.atom";
 
 gLivemarkId = lmsvc.createLivemarkFolderOnly(toolbarFolderId, "foo",
-                                             uri("http:/mochi.test/"),
+                                             uri("http:/localhost/"),
                                              uri(FEEDSPEC), -1);
 bmsvc.addObserver(observer, false);
 lmsvc.reloadLivemarkFolder(gLivemarkId);

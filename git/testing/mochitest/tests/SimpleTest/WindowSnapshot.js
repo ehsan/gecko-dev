@@ -1,52 +1,47 @@
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-var gWindowUtils;
+var gWindowSnapshotCompareHelper;
 
 try {
-  gWindowUtils = window.QueryInterface(CI.nsIInterfaceRequestor).getInterface(CI.nsIDOMWindowUtils);
-  if (gWindowUtils && !gWindowUtils.compareCanvases)
-    gWindowUtils = null;
+  gWindowSnapshotCompareHelper =
+    Components.classes["@mozilla.org/reftest-helper;1"]
+              .getService(Components.interfaces.nsIReftestHelper);
 } catch (e) {
-  gWindowUtils = null;
+  gWindowSnapshotCompareHelper = null;
 }
 
-function snapshotWindow(win, withCaret) {
-  // drawWindow requires privileges, as might innerWidth/innerHeight if it's
-  // a cross domain window
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
+function snapshotWindow(win) {
   var el = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
   el.width = win.innerWidth;
   el.height = win.innerHeight;
 
-  var ctx = el.getContext("2d");
-  ctx.drawWindow(win, win.scrollX, win.scrollY,
-                 win.innerWidth, win.innerHeight,
-                 "rgb(255,255,255)",
-                 withCaret ? ctx.DRAWWINDOW_DRAW_CARET : 0);
+  // drawWindow requires privileges
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  
+  el.getContext("2d").drawWindow(win, win.scrollX, win.scrollY,
+				 win.innerWidth, win.innerHeight,
+				 "rgb(255,255,255)");
   return el;
 }
 
-// If the two snapshots don't compare as expected (true for equal, false for
-// unequal), returns their serializations as data URIs.  In all cases, returns
-// whether the comparison was as expected.
-function compareSnapshots(s1, s2, expected) {
+// If the two snapshots aren't equal, returns their serializations as data URIs.
+function compareSnapshots(s1, s2) {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
   var s1Str, s2Str;
-  var correct = false;
-  if (gWindowUtils) {
-    correct = ((gWindowUtils.compareCanvases(s1, s2, {}) == 0) == expected);
+  var equal = false;
+  if (gWindowSnapshotCompareHelper) {
+    equal = (gWindowSnapshotCompareHelper.compareCanvas(s1, s2) == 0);
   }
 
-  if (!correct) {
+  if (!equal) {
     s1Str = s1.toDataURL();
     s2Str = s2.toDataURL();
 
-    if (!gWindowUtils) {
-	correct = ((s1Str == s2Str) == expected);
+    if (!gWindowSnapshotCompareHelper) {
+      equal = (s1Str == s2Str);
     }
   }
 
-  return [correct, s1Str, s2Str];
+  return [equal, s1Str, s2Str];
 }

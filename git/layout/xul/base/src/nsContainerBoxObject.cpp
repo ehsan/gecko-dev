@@ -45,7 +45,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
-#include "nsSubDocumentFrame.h"
+#include "nsIFrameFrame.h"
 
 /**
  * nsContainerBoxObject implements deprecated nsIBrowserBoxObject,
@@ -83,12 +83,14 @@ NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
   nsIFrame *frame = GetFrame(PR_FALSE);
 
   if (frame) {
-    nsSubDocumentFrame *subDocFrame = do_QueryFrame(frame);
-    if (subDocFrame) {
-      // Ok, the frame for mContent is an nsSubDocumentFrame, it knows how
+    nsIFrameFrame *frame_frame = nsnull;
+    CallQueryInterface(frame, &frame_frame);
+
+    if (frame_frame) {
+      // Ok, the frame for mContent is a nsIFrameFrame, it knows how
       // to reach the docshell, so ask it...
 
-      return subDocFrame->GetDocShell(aResult);
+      return frame_frame->GetDocShell(aResult);
     }
   }
 
@@ -96,7 +98,7 @@ NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
     return NS_OK;
   }
   
-  // No nsSubDocumentFrame available for mContent, try if there's a mapping
+  // No nsIFrameFrame available for mContent, try if there's a mapping
   // between mContent's document to mContent's subdocument.
 
   // XXXbz sXBL/XBL2 issue -- ownerDocument or currentDocument?

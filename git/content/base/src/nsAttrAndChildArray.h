@@ -64,7 +64,7 @@ class nsMappedAttributeElement;
     ((1 << ATTRCHILD_ARRAY_ATTR_SLOTS_BITS) - 1)
 
 #define ATTRCHILD_ARRAY_MAX_CHILD_COUNT \
-    (~PRUint32(0) >> ATTRCHILD_ARRAY_ATTR_SLOTS_BITS)
+    (~PtrBits(0) >> ATTRCHILD_ARRAY_ATTR_SLOTS_BITS)
 
 #define ATTRCHILD_ARRAY_ATTR_SLOTS_COUNT_MASK \
     ((1 << ATTRCHILD_ARRAY_ATTR_SLOTS_BITS) - 1)
@@ -88,7 +88,7 @@ public:
     return reinterpret_cast<nsIContent*>(mImpl->mBuffer[AttrSlotsSize() + aPos]);
   }
   nsIContent* GetSafeChildAt(PRUint32 aPos) const;
-  nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  nsIContent * const * GetChildArray() const;
   nsresult AppendChild(nsIContent* aChild)
   {
     return InsertChildAt(aChild, ChildCount());
@@ -114,7 +114,8 @@ public:
   // Returns attribute name at given position or null if aPos is out-of-bounds
   const nsAttrName* GetSafeAttrNameAt(PRUint32 aPos) const;
 
-  const nsAttrName* GetExistingAttrNameFromQName(const nsAString& aName) const;
+  // aName is UTF-8 encoded
+  const nsAttrName* GetExistingAttrNameFromQName(const nsACString& aName) const;
   PRInt32 IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID = kNameSpaceID_None) const;
 
   nsresult SetAndTakeMappedAttr(nsIAtom* aLocalName, nsAttrValue& aValue,
@@ -124,12 +125,6 @@ public:
   void WalkMappedAttributeStyleRules(nsRuleWalker* aRuleWalker);
 
   void Compact();
-
-  bool CanFitMoreAttrs() const
-  {
-    return AttrSlotCount() < ATTRCHILD_ARRAY_MAX_ATTR_COUNT ||
-           !AttrSlotIsTaken(ATTRCHILD_ARRAY_MAX_ATTR_COUNT - 1);
-  }
 
 private:
   nsAttrAndChildArray(const nsAttrAndChildArray& aOther); // Not to be implemented
@@ -156,12 +151,6 @@ private:
     return mImpl ? mImpl->mAttrAndChildCount & ATTRCHILD_ARRAY_ATTR_SLOTS_COUNT_MASK : 0;
   }
 
-  bool AttrSlotIsTaken(PRUint32 aSlot) const
-  {
-    NS_PRECONDITION(aSlot < AttrSlotCount(), "out-of-bounds");
-    return mImpl->mBuffer[aSlot * ATTRSIZE];
-  }
-
   void SetChildCount(PRUint32 aCount)
   {
     mImpl->mAttrAndChildCount = 
@@ -184,14 +173,6 @@ private:
 
   PRBool GrowBy(PRUint32 aGrowSize);
   PRBool AddAttrSlot();
-
-  /**
-   * Set *aPos to aChild and update sibling pointers as needed.  aIndex is the
-   * index at which aChild is actually being inserted.  aChildCount is the
-   * number of kids we had before the insertion.
-   */
-  inline void SetChildAtPos(void** aPos, nsIContent* aChild, PRUint32 aIndex,
-                            PRUint32 aChildCount);
 
   struct InternalAttr
   {

@@ -61,10 +61,10 @@ nsMaybeWeakPtr_base::GetValueAs(const nsIID &iid) const
   return nsnull;
 }
 
-nsresult
-NS_AppendWeakElementBase(isupports_array_type *aArray,
-                         nsISupports *aElement,
-                         PRBool aOwnsWeak)
+/* static */ nsresult
+nsMaybeWeakPtrArray_base::AppendWeakElementBase(nsTArray_base *aArray,
+                                                nsISupports *aElement,
+                                                PRBool aOwnsWeak)
 {
   nsCOMPtr<nsISupports> ref;
   if (aOwnsWeak) {
@@ -75,22 +75,24 @@ NS_AppendWeakElementBase(isupports_array_type *aArray,
     ref = aElement;
   }
 
-  if (aArray->IndexOf(ref) != aArray->NoIndex) {
+  isupports_type *array = static_cast<isupports_type*>(aArray);
+  if (array->IndexOf(ref) != isupports_type::NoIndex) {
     return NS_ERROR_INVALID_ARG; // already present
   }
-  if (!aArray->AppendElement(ref)) {
+  if (!array->AppendElement(ref)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
 }
 
-nsresult
-NS_RemoveWeakElementBase(isupports_array_type *aArray,
-                         nsISupports *aElement)
+/* static */ nsresult
+nsMaybeWeakPtrArray_base::RemoveWeakElementBase(nsTArray_base *aArray,
+                                                nsISupports *aElement)
 {
-  PRUint32 index = aArray->IndexOf(aElement);
-  if (index != aArray->NoIndex) {
-    aArray->RemoveElementAt(index);
+  isupports_type *array = static_cast<isupports_type*>(aArray);
+  PRUint32 index = array->IndexOf(aElement);
+  if (index != isupports_type::NoIndex) {
+    array->RemoveElementAt(index);
     return NS_OK;
   }
 
@@ -103,11 +105,11 @@ NS_RemoveWeakElementBase(isupports_array_type *aArray,
   nsresult rv = supWeakRef->GetWeakReference(getter_AddRefs(weakRef));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  index = aArray->IndexOf(weakRef);
-  if (index == aArray->NoIndex) {
+  index = array->IndexOf(weakRef);
+  if (index == isupports_type::NoIndex) {
     return NS_ERROR_INVALID_ARG;
   }
 
-  aArray->RemoveElementAt(index);
+  array->RemoveElementAt(index);
   return NS_OK;
 }

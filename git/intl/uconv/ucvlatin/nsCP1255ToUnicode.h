@@ -47,7 +47,7 @@
  * @author  Catalin Rotaru [CATA]
  */
 
-nsresult
+NS_METHOD
 nsCP1255ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

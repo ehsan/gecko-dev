@@ -48,10 +48,14 @@
 #include "nsIFileChannel.h"
 #include "nsILocalFile.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 
 class nsILocalFileMac;
 @class NSArray;
+
+
+/**
+ * Native Mac Cocoa FileSelector wrapper
+ */
 
 class nsFilePicker : public nsBaseFilePicker
 {
@@ -60,8 +64,8 @@ public:
   virtual ~nsFilePicker();
 
   NS_DECL_ISUPPORTS
-
-  // nsIFilePicker (less what's in nsBaseFilePicker)
+   
+    // nsIFilePicker (less what's in nsBaseFilePicker)
   NS_IMETHOD GetDefaultString(nsAString& aDefaultString);
   NS_IMETHOD SetDefaultString(const nsAString& aDefaultString);
   NS_IMETHOD GetDefaultExtension(nsAString& aDefaultExtension);
@@ -76,13 +80,14 @@ public:
 
 protected:
 
-  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle, PRInt16 aMode);
+  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle,
+                          PRInt16 aMode);
 
-  // actual implementations of get/put dialogs using NSOpenPanel & NSSavePanel
-  // aFile is an existing but unspecified file. These functions must specify it.
-  //
-  // will return |returnCancel| or |returnOK| as result.
-  PRInt16 GetLocalFiles(const nsString& inTitle, const nsString& inDefaultName, PRBool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles);
+    // actual implementations of get/put dialogs using NSOpenPanel & NSSavePanel
+    // aFile is an existing but unspecified file. These functions must specify it.
+    //
+    // will return |returnCancel| or |returnOK| as result.
+  PRInt16 GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles);
   PRInt16 GetLocalFolder(const nsString& inTitle, nsILocalFile** outFile);
   PRInt16 PutLocalFile(const nsString& inTitle, const nsString& inDefaultName, nsILocalFile** outFile);
 
@@ -96,8 +101,8 @@ protected:
   nsCOMArray<nsILocalFile> mFiles;
   nsString               mDefault;
 
-  nsTArray<nsString>     mFilters; 
-  nsTArray<nsString>     mTitles;
+  nsStringArray          mFilters; 
+  nsStringArray          mTitles;
 
   PRInt32                mSelectedTypeIndex;
 };

@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: blapi.h,v 1.33.22.2 2010/12/04 18:59:01 rrelyea%redhat.com Exp $ */
+/* $Id: blapi.h,v 1.27 2007/11/09 18:49:32 wtc%google.com Exp $ */
 
 #ifndef _BLAPI_H_
 #define _BLAPI_H_
@@ -52,8 +52,6 @@ SEC_BEGIN_PROTOS
 ** RSA encryption/decryption. When encrypting/decrypting the output
 ** buffer must be at least the size of the public key modulus.
 */
-
-extern SECStatus BL_Init(void);
 
 /*
 ** Generate and return a new RSA public and private key.
@@ -98,57 +96,10 @@ extern SECStatus RSA_PrivateKeyOpDoubleChecked(RSAPrivateKey *  key,
 */
 extern SECStatus RSA_PrivateKeyCheck(RSAPrivateKey *key);
 
-/*
-** Given only minimal private key parameters, fill in the rest of the
-** parameters.
-**
-**
-** All the entries, including those supplied by the caller, will be 
-** overwritten with data alocated out of the arena.
-**
-** If no arena is supplied, one will be created.
-**
-** The following fields must be supplied in order for this function
-** to succeed:
-**   one of either publicExponent or privateExponent
-**   two more of the following 5 parameters (not counting the above).
-**      modulus (n)
-**      prime1  (p)
-**      prime2  (q)
-**      publicExponent (e)
-**      privateExponent (d)
-**
-** NOTE: if only the publicExponent, privateExponent, and one prime is given,
-** then there may be more than one RSA key that matches that combination. If
-** we find 2 possible valid keys that meet this criteria, we return an error.
-** If we return the wrong key, and the original modulus is compared to the
-** new modulus, both can be factored by calculateing gcd(n_old,n_new) to get
-** the common prime.
-**
-** NOTE: in some cases the publicExponent must be less than 2^23 for this
-** function to work correctly. (The case where we have only one of: modulus
-** prime1 and prime2).
-**
-** All parameters will be replaced in the key structure with new parameters
-** allocated out of the arena. There is no attempt to free the old structures.
-** prime1 will always be greater than prime2 (even if the caller supplies the
-** smaller prime as prime1 or the larger prime as prime2). The parameters are
-** not overwritten on failure.
-**
-** While the remaining Chinese remainder theorem parameters (dp,dp, and qinv)
-** can also be used in reconstructing the private key, they are currently
-** ignored in this implementation.
-*/
-extern SECStatus RSA_PopulatePrivateKey(RSAPrivateKey *key);
 
 /********************************************************************
 ** DSA signing algorithm
 */
-
-/* Generate a new random value within the interval [2, q-1].
-*/
-extern SECStatus DSA_NewRandom(PLArenaPool * arena, const SECItem * q,
-                               SECItem * random);
 
 /*
 ** Generate and return a new DSA public and private key pair,
@@ -239,72 +190,6 @@ extern SECStatus KEA_Derive(SECItem *prime,
  * subprime domain.
  */
 extern PRBool KEA_Verify(SECItem *Y, SECItem *prime, SECItem *subPrime);
-
-/****************************************
- * J-PAKE key transport
- */
-
-/* Given gx == g^x, create a Schnorr zero-knowledge proof for the value x
- * using the specified hash algorithm and signer ID. The signature is
- * returned in the values gv and r. testRandom must be NULL for a PRNG
- * generated random committment to be used in the sigature. When testRandom
- * is non-NULL, that value must contain a value in the subgroup q; that
- * value will be used instead of a PRNG-generated committment in order to
- * facilitate known-answer tests.
- *
- * If gxIn is non-NULL then it must contain a pre-computed value of g^x that
- * will be used by the function; in this case, the gxOut parameter must be NULL.
- * If the gxIn parameter is NULL then gxOut must be non-NULL; in this case
- * gxOut will contain the value g^x on output.
- *
- * gx (if not supplied by the caller), gv, and r will be allocated in the arena.
- * The arena is *not* optional so do not pass NULL for the arena parameter.
- * The arena should be zeroed when it is freed.
- */
-SECStatus
-JPAKE_Sign(PLArenaPool * arena, const PQGParams * pqg, HASH_HashType hashType,
-           const SECItem * signerID, const SECItem * x,
-           const SECItem * testRandom, const SECItem * gxIn, SECItem * gxOut,
-           SECItem * gv, SECItem * r);
-
-/* Given gx == g^x, verify the Schnorr zero-knowledge proof (gv, r) for the
- * value x using the specified hash algorithm and signer ID.
- *
- * The arena is *not* optional so do not pass NULL for the arena parameter. 
- */
-SECStatus
-JPAKE_Verify(PRArenaPool * arena, const PQGParams * pqg,
-             HASH_HashType hashType, const SECItem * signerID,
-             const SECItem * peerID, const SECItem * gx,
-             const SECItem * gv, const SECItem * r);
-
-/* Call before round 2 with x2, s, and x2s all non-NULL. This will calculate
- * base = g^(x1+x3+x4) (mod p) and x2s = x2*s (mod q). The values to send in 
- * round 2 (A and the proof of knowledge of x2s) can then be calculated with
- * JPAKE_Sign using pqg->base = base and x = x2s.
- *
- * Call after round 2 with x2, s, and x2s all NULL, and passing (gx1, gx2, gx3)
- * instead of (gx1, gx3, gx4). This will calculate base = g^(x1+x2+x3). Then call
- * JPAKE_Verify with pqg->base = base and then JPAKE_Final.
- *
- * base and x2s will be allocated in the arena. The arena is *not* optional so
- * do not pass NULL for the arena parameter. The arena should be zeroed when it
- * is freed.
-*/
-SECStatus
-JPAKE_Round2(PLArenaPool * arena, const SECItem * p, const SECItem  *q,
-             const SECItem * gx1, const SECItem * gx3, const SECItem * gx4,
-             SECItem * base, const SECItem * x2, const SECItem * s, SECItem * x2s);
-
-/* K = (B/g^(x2*x4*s))^x2 (mod p)
- *
- * K will be allocated in the arena. The arena is *not* optional so do not pass
- * NULL for the arena parameter. The arena should be zeroed when it is freed.
- */
-SECStatus
-JPAKE_Final(PLArenaPool * arena, const SECItem * p, const SECItem  *q,
-            const SECItem * x2, const SECItem * gx4, const SECItem * x2s,
-            const SECItem * B, SECItem * K);
 
 /******************************************************
 ** Elliptic Curve algorithms
@@ -630,30 +515,6 @@ extern SECStatus DES_Encrypt(DESContext *cx, unsigned char *output,
 extern SECStatus DES_Decrypt(DESContext *cx, unsigned char *output,
 			    unsigned int *outputLen, unsigned int maxOutputLen,
 			    const unsigned char *input, unsigned int inputLen);
-
-/******************************************/
-/* 
-** SEED symmetric block cypher		  
-*/
-extern SEEDContext *
-SEED_CreateContext(const unsigned char *key, const unsigned char *iv, 
-		   int mode, PRBool encrypt);
-extern SEEDContext *SEED_AllocateContext(void);
-extern SECStatus   SEED_InitContext(SEEDContext *cx, 
-				    const unsigned char *key, 
-				    unsigned int keylen, 
-				    const unsigned char *iv, 
-				    int mode, unsigned int encrypt, 
-				    unsigned int );
-extern void SEED_DestroyContext(SEEDContext *cx, PRBool freeit);
-extern SECStatus 
-SEED_Encrypt(SEEDContext *cx, unsigned char *output, 
-	     unsigned int *outputLen, unsigned int maxOutputLen, 
-	     const unsigned char *input, unsigned int inputLen);
-extern SECStatus 
-SEED_Decrypt(SEEDContext *cx, unsigned char *output, 
-	     unsigned int *outputLen, unsigned int maxOutputLen, 
-             const unsigned char *input, unsigned int inputLen);
 
 /******************************************/
 /*
@@ -1194,8 +1055,22 @@ extern void RNG_SystemInfoForRNG(void);
  */
 
 /*
- * FIPS186Change_GenerateX is now deprecated. It will return SECFailure with
- * the error set to PR_NOT_IMPLEMENTED_ERROR.
+ * Given the seed-key and the seed, generate the random output.
+ *
+ * Parameters:
+ *   XKEY [input/output]: the state of the RNG (seed-key)
+ *   XSEEDj [input]: optional user input (seed)
+ *   x_j [output]: output of the RNG
+ *
+ * Return value:
+ * This function usually returns SECSuccess.  The only reason
+ * this function returns SECFailure is that XSEEDj equals
+ * XKEY, including the intermediate XKEY value between the two
+ * iterations.  (This test is actually a FIPS 140-2 requirement
+ * and not required for FIPS algorithm testing, but it is too
+ * hard to separate from this function.)  If this function fails,
+ * XKEY is not updated, but some data may have been written to
+ * x_j, which should be ignored.
  */
 extern SECStatus
 FIPS186Change_GenerateX(unsigned char *XKEY,
@@ -1214,27 +1089,6 @@ extern SECStatus
 FIPS186Change_ReduceModQForDSA(const unsigned char *w,
                                const unsigned char *q,
                                unsigned char *xj);
-
-/*
- * The following functions are for FIPS poweron self test and FIPS algorithm
- * testing.
- */
-extern SECStatus
-PRNGTEST_Instantiate(const PRUint8 *entropy, unsigned int entropy_len, 
-		const PRUint8 *nonce, unsigned int nonce_len,
-		const PRUint8 *personal_string, unsigned int ps_len);
-
-extern SECStatus
-PRNGTEST_Reseed(const PRUint8 *entropy, unsigned int entropy_len, 
-		  const PRUint8 *additional, unsigned int additional_len);
-
-extern SECStatus
-PRNGTEST_Generate(PRUint8 *bytes, unsigned int bytes_len, 
-		  const PRUint8 *additional, unsigned int additional_len);
-
-extern SECStatus
-PRNGTEST_Uninstantiate(void);
-
 
 /* Generate PQGParams and PQGVerify structs.
  * Length of seed and length of h both equal length of P. 
@@ -1262,7 +1116,7 @@ PQG_ParamGenSeedLen(
  *  If vfy is non-NULL, test PQGParams to make sure they were generated
  *       using the specified seed, counter, and h values.
  *
- *  Return value indicates whether Verification operation ran successfully
+ *  Return value indicates whether Verification operation ran succesfully
  *  to completion, but does not indicate if PQGParams are valid or not.
  *  If return value is SECSuccess, then *pResult has these meanings:
  *       SECSuccess: PQGParams are valid.
@@ -1314,8 +1168,6 @@ PRBool BLAPI_VerifySelf(const char *name);
 
 /*********************************************************************/
 extern const SECHashObject * HASH_GetRawHashObject(HASH_HashType hashType);
-
-extern void BL_SetForkState(PRBool forked);
 
 SEC_END_PROTOS
 

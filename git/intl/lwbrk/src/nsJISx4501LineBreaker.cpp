@@ -219,7 +219,7 @@
               1 [a] 7  8  9 [b]15 18 COMPLEX [c] [d] [e]
 
         1     X  X  X  X  X  X  X  X  X       X    X   X
-      [a]        X                                 X   X
+      [a]        X                            X    X   X
         7        X  X                                  X
         8        X              X                      X
         9        X                                     X
@@ -238,7 +238,7 @@
                  18    <-   1
 
        1  0000 1111 1111 1111  = 0x0FFF
-      [a] 0000 1100 0000 0010  = 0x0C02
+      [a] 0000 1110 0000 0010  = 0x0E02
        7  0000 1000 0000 0110  = 0x0806
        8  0000 1000 0100 0010  = 0x0842
        9  0000 1000 0000 0010  = 0x0802
@@ -255,7 +255,7 @@
 
 static const PRUint16 gPair[MAX_CLASSES] = {
   0x0FFF,
-  0x0C02,
+  0x0E02,
   0x0806,
   0x0842,
   0x0802,
@@ -307,7 +307,7 @@ static const PRUint16 gPair[MAX_CLASSES] = {
       18  0000 1111 1101 1111  = 0x0FDF
  COMPLEX  0000 1111 1100 0010  = 0x0FC2
       [c] 0000 1111 1111 1111  = 0x0FFF
-      [d] 0000 1111 1101 1111  = 0x0FDF
+      [d] 0000 1111 1101 1111  = 0x0EDF
       [e] 0000 1111 1111 1111  = 0x0FFF
 */
 
@@ -322,7 +322,7 @@ static const PRUint16 gPairConservative[MAX_CLASSES] = {
   0x0FDF,
   0x0FC2,
   0x0FFF,
-  0x0FDF,
+  0x0EDF,
   0x0FFF
 };
 
@@ -384,19 +384,13 @@ static const PRUint16 gPairConservative[MAX_CLASSES] = {
 #define U_AMPERSAND PRUnichar('&')
 #define U_SEMICOLON PRUnichar(';')
 #define U_BACKSLASH PRUnichar('\\')
-#define U_OPEN_SINGLE_QUOTE PRUnichar(0x2018)
-#define U_OPEN_DOUBLE_QUOTE PRUnichar(0x201C)
-#define U_OPEN_GUILLEMET    PRUnichar(0x00AB)
 
 #define NEED_CONTEXTUAL_ANALYSIS(c) (IS_HYPHEN(c) || \
                                      (c) == U_SLASH || \
                                      (c) == U_PERCENT || \
                                      (c) == U_AMPERSAND || \
                                      (c) == U_SEMICOLON || \
-                                     (c) == U_BACKSLASH || \
-                                     (c) == U_OPEN_SINGLE_QUOTE || \
-                                     (c) == U_OPEN_DOUBLE_QUOTE || \
-                                     (c) == U_OPEN_GUILLEMET)
+                                     (c) == U_BACKSLASH)
 
 #define IS_ASCII_DIGIT(u) (0x0030 <= (u) && (u) <= 0x0039)
 
@@ -581,8 +575,10 @@ public:
     return mUniText ? mUniText[aIndex] : PRUnichar(mText[aIndex]);
   }
 
-  void AdvanceIndex() {
-    ++mIndex;
+  void AdvanceIndexTo(PRUint32 aIndex) {
+    NS_ASSERTION(mIndex <= aIndex, "the index cannot decrease.");
+    NS_ASSERTION(aIndex < mLength, "out of range");
+    mIndex = aIndex;
   }
 
   void NotifyBreakBefore() { mLastBreakIndex = mIndex; }
@@ -623,44 +619,33 @@ public:
     return PR_FALSE;
   }
 
-  PRBool HasPreviousEqualsSign() const {
-    return mHasPreviousEqualsSign;
-  }
-  void NotifySeenEqualsSign() {
-    mHasPreviousEqualsSign = PR_TRUE;
-  }
-
-  PRBool HasPreviousSlash() const {
-    return mHasPreviousSlash;
-  }
-  void NotifySeenSlash() {
-    mHasPreviousSlash = PR_TRUE;
+  PRBool HasCharacterAlready(PRUnichar aCh) {
+    // Be careful for the index being unsigned.
+    for (PRUint32 i = mIndex; i > 0; --i) {
+      if (GetCharAt(i - 1) == aCh)
+        return PR_TRUE;
+    }
+    return PR_FALSE;
   }
 
-  PRBool HasPreviousBackslash() const {
-    return mHasPreviousBackslash;
-  }
-  void NotifySeenBackslash() {
-    mHasPreviousBackslash = PR_TRUE;
-  }
-
-  PRUnichar GetPreviousNonHyphenCharacter() const {
-    return mPreviousNonHyphenCharacter;
-  }
-  void NotifyNonHyphenCharacter(PRUnichar ch) {
-    mPreviousNonHyphenCharacter = ch;
+  PRUnichar GetPreviousNonHyphenCharacter() {
+    NS_ASSERTION(IS_HYPHEN(GetCharAt(mIndex)),
+                 "current character isn't hyphen");
+    // Be careful for the index being unsigned.
+    for (PRUint32 i = mIndex; i > 0; --i) {
+      PRUnichar ch = GetCharAt(i - 1);
+      if (!IS_HYPHEN(ch))
+        return ch;
+    }
+    return U_NULL;
   }
 
 private:
   void Init() {
     mIndex = 0;
     mLastBreakIndex = 0;
-    mPreviousNonHyphenCharacter = U_NULL;
     mHasCJKChar = 0;
     mHasNonbreakableSpace = 0;
-    mHasPreviousEqualsSign = PR_FALSE;
-    mHasPreviousSlash = PR_FALSE;
-    mHasPreviousBackslash = PR_FALSE;
 
     for (PRUint32 i = 0; i < mLength; ++i) {
       PRUnichar u = GetCharAt(i);
@@ -677,14 +662,9 @@ private:
   PRUint32 mIndex;
   PRUint32 mLength;         // length of text
   PRUint32 mLastBreakIndex;
-  PRUnichar mPreviousNonHyphenCharacter; // The last character we have seen
-                                         // which is not U_HYPHEN
   PRPackedBool mHasCJKChar; // if the text has CJK character, this is true.
   PRPackedBool mHasNonbreakableSpace; // if the text has no-breakable space,
                                      // this is true.
-  PRPackedBool mHasPreviousEqualsSign; // True if we have seen a U_EQUAL
-  PRPackedBool mHasPreviousSlash;      // True if we have seen a U_SLASH
-  PRPackedBool mHasPreviousBackslash;  // True if we have seen a U_BACKSLASH
 };
 
 static PRInt8
@@ -716,52 +696,31 @@ ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
           return CLASS_CLOSE;
       }
     }
-  } else {
-    aState.NotifyNonHyphenCharacter(cur);
-    if (cur == U_SLASH || cur == U_BACKSLASH) {
-      // If this is immediately after same char, we should not break here.
-      if (prev == cur)
-        return CLASS_CHARACTER;
-      // If this text has two or more (BACK)SLASHs, this may be file path or URL.
-      // Make sure to compute shouldReturn before we notify on this slash.
-      PRBool shouldReturn = !aState.UseConservativeBreaking() &&
-        (cur == U_SLASH ?
-         aState.HasPreviousSlash() : aState.HasPreviousBackslash());
-
-      if (cur == U_SLASH) {
-        aState.NotifySeenSlash();
-      } else {
-        aState.NotifySeenBackslash();
-      }
-
-      if (shouldReturn)
+  } else if (cur == U_SLASH || cur == U_BACKSLASH) {
+    // If this is immediately after same char, we should not break here.
+    if (prev == cur)
+      return CLASS_CHARACTER;
+    // If this text has two or more (BACK)SLASHs, this may be file path or URL.
+    if (!aState.UseConservativeBreaking() &&
+        aState.HasCharacterAlready(cur))
+      return CLASS_OPEN;
+  } else if (cur == U_PERCENT) {
+    // If this is a part of the param of URL, we should break before.
+    if (!aState.UseConservativeBreaking()) {
+      if (aState.Index() >= 3 &&
+          aState.GetCharAt(aState.Index() - 3) == U_PERCENT)
         return CLASS_OPEN;
-    } else if (cur == U_PERCENT) {
-      // If this is a part of the param of URL, we should break before.
-      if (!aState.UseConservativeBreaking()) {
-        if (aState.Index() >= 3 &&
-            aState.GetCharAt(aState.Index() - 3) == U_PERCENT)
-          return CLASS_OPEN;
-        if (aState.Index() + 3 < aState.Length() &&
-            aState.GetCharAt(aState.Index() + 3) == U_PERCENT)
-          return CLASS_OPEN;
-      }
-    } else if (cur == U_AMPERSAND || cur == U_SEMICOLON) {
-      // If this may be a separator of params of URL, we should break after.
-      if (!aState.UseConservativeBreaking(1) &&
-          aState.HasPreviousEqualsSign())
-        return CLASS_CLOSE;
-    } else if (cur == U_OPEN_SINGLE_QUOTE ||
-               cur == U_OPEN_DOUBLE_QUOTE ||
-               cur == U_OPEN_GUILLEMET) {
-      // for CJK usage, we treat these as openers to allow a break before them,
-      // but otherwise treat them as normal characters because quote mark usage
-      // in various Western languages varies too much; see bug #450088 discussion.
-      if (!aState.UseConservativeBreaking() && IS_CJK_CHAR(next))
+      if (aState.Index() + 3 < aState.Length() &&
+          aState.GetCharAt(aState.Index() + 3) == U_PERCENT)
         return CLASS_OPEN;
-    } else {
-      NS_ERROR("Forgot to handle the current character!");
     }
+  } else if (cur == U_AMPERSAND || cur == U_SEMICOLON) {
+    // If this may be a separator of params of URL, we should break after.
+    if (!aState.UseConservativeBreaking(1) &&
+        aState.HasCharacterAlready(U_EQUAL))
+      return CLASS_CLOSE;
+  } else {
+    NS_ERROR("Forgot to handle the current character!");
   }
   return GetClass(cur);
 }
@@ -813,7 +772,7 @@ nsJISx4051LineBreaker::Next(const PRUnichar* aText, PRUint32 aLen,
                             PRUint32 aPos) 
 {
   NS_ASSERTION(aText, "aText shouldn't be null");
-  NS_ASSERTION(aLen > aPos, "Bad position passed to nsJISx4051LineBreaker::Next");
+  NS_ASSERTION(aLen > aPos, "Illegal value (length > position)");
 
   PRInt32 nextPos = WordMove(aText, aLen, aPos, 1);
   return nextPos < PRInt32(aLen) ? nextPos : NS_LINEBREAKER_NEED_MORE_TEXT;
@@ -824,8 +783,7 @@ nsJISx4051LineBreaker::Prev(const PRUnichar* aText, PRUint32 aLen,
                             PRUint32 aPos) 
 {
   NS_ASSERTION(aText, "aText shouldn't be null");
-  NS_ASSERTION(aLen >= aPos && aPos > 0,
-               "Bad position passed to nsJISx4051LineBreaker::Prev");
+  NS_ASSERTION(aLen >= aPos, "Illegal value (length >= position)");
 
   PRInt32 prevPos = WordMove(aText, aLen, aPos, -1);
   return prevPos > 0 ? prevPos : NS_LINEBREAKER_NEED_MORE_TEXT;
@@ -839,9 +797,10 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
   PRInt8 lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);
 
-  for (cur = 0; cur < aLength; ++cur, state.AdvanceIndex()) {
+  for (cur = 0; cur < aLength; ++cur) {
     PRUnichar ch = aChars[cur];
     PRInt8 cl;
+    state.AdvanceIndexTo(cur);
 
     if (NEED_CONTEXTUAL_ANALYSIS(ch)) {
       cl = ContextualAnalysis(cur > 0 ? aChars[cur - 1] : U_NULL,
@@ -849,9 +808,6 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
                               cur + 1 < aLength ? aChars[cur + 1] : U_NULL,
                               state);
     } else {
-      if (ch == U_EQUAL)
-        state.NotifySeenEqualsSign();
-      state.NotifyNonHyphenCharacter(ch);
       cl = GetClass(ch);
     }
 
@@ -896,9 +852,10 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength
   PRInt8 lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);
 
-  for (cur = 0; cur < aLength; ++cur, state.AdvanceIndex()) {
+  for (cur = 0; cur < aLength; ++cur) {
     PRUnichar ch = aChars[cur];
     PRInt8 cl;
+    state.AdvanceIndexTo(cur);
 
     if (NEED_CONTEXTUAL_ANALYSIS(ch)) {
       cl = ContextualAnalysis(cur > 0 ? aChars[cur - 1] : U_NULL,
@@ -906,9 +863,6 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength
                               cur + 1 < aLength ? aChars[cur + 1] : U_NULL,
                               state);
     } else {
-      if (ch == U_EQUAL)
-        state.NotifySeenEqualsSign();
-      state.NotifyNonHyphenCharacter(ch);
       cl = GetClass(ch);
     }
 

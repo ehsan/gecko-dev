@@ -43,7 +43,7 @@
 #include "nsCP874ToUnicode.h"
 
 // Just make it an alias to CP874 decoder. (bug 127755)
-nsresult
+NS_METHOD
 nsTIS620ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult);
 

@@ -44,6 +44,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsAutoPtr.h"
 
 // Interfaces needed
@@ -56,15 +57,14 @@
 #include "nsIEnumerator.h"
 #include "nsIHistoryEntry.h"
 #include "nsRect.h"
-#include "nsISupportsArray.h"
+#include "nsSupportsArray.h"
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
 #include "nsDocShellEditorData.h"
 
 class nsSHEntry : public nsISHEntry,
                   public nsISHContainer,
-                  public nsIMutationObserver,
-                  public nsISHEntryInternal
+                  public nsIMutationObserver
 {
 public: 
   nsSHEntry();
@@ -73,7 +73,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIHISTORYENTRY
   NS_DECL_NSISHENTRY
-  NS_DECL_NSISHENTRYINTERNAL
   NS_DECL_NSISHCONTAINER
   NS_DECL_NSIMUTATIONOBSERVER
 
@@ -88,6 +87,7 @@ public:
   
 private:
   ~nsSHEntry();
+  void DocumentMutated();
 
   nsCOMPtr<nsIURI>                mURI;
   nsCOMPtr<nsIURI>                mReferrerURI;
@@ -97,30 +97,25 @@ private:
   nsCOMPtr<nsIInputStream>        mPostData;
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
   nsCOMArray<nsISHEntry>          mChildren;
-  PRUint32                        mLoadType;
+  PRUint32                        mLoadType;  
   PRUint32                        mID;
   PRUint32                        mPageIdentifier;
-  PRInt64                         mDocIdentifier;
   PRInt32                         mScrollPositionX;
   PRInt32                         mScrollPositionY;
   PRPackedBool                    mIsFrameNavigation;
   PRPackedBool                    mSaveLayoutState;
   PRPackedBool                    mExpired;
   PRPackedBool                    mSticky;
-  PRPackedBool                    mDynamicallyCreated;
   nsCString                       mContentType;
   nsCOMPtr<nsISupports>           mCacheKey;
   nsISHEntry *                    mParent;  // weak reference
   nsCOMPtr<nsISupports>           mWindowState;
-  nsIntRect                       mViewerBounds;
+  nsRect                          mViewerBounds;
   nsCOMArray<nsIDocShellTreeItem> mChildShells;
   nsCOMPtr<nsISupportsArray>      mRefreshURIList;
   nsCOMPtr<nsISupports>           mOwner;
   nsExpirationState               mExpirationState;
   nsAutoPtr<nsDocShellEditorData> mEditorData;
-  nsString                        mStateData;
-  PRUint64                        mDocShellID;
-  PRUint32                        mLastTouched;
 };
 
 #endif /* nsSHEntry_h */

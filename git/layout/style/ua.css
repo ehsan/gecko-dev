@@ -34,8 +34,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-@import url(resource://gre-resources/html.css);
+@import url(resource://gre/res/html.css);
 @import url(chrome://global/content/xul.css);
+@import url(resource://gre/res/quirk.css);
 
 @namespace parsererror url(http://www.mozilla.org/newlayout/xml/parsererror.xml);
 
@@ -111,7 +112,7 @@
   cursor: pointer;
 }
 
-*|*:-moz-any-link:-moz-focusring {
+*|*:-moz-any-link:focus {
   /* Don't specify the outline-color, we should always use initial value. */
   outline: 1px dotted;
 }
@@ -126,27 +127,23 @@
 *|*::-moz-anonymous-block, *|*::-moz-anonymous-positioned-block {
   /* we currently inherit from the inline that is split */
   outline: inherit;
-  outline-offset: inherit;
+  -moz-outline-offset: inherit;
   clip-path: inherit;
   filter: inherit;
   mask: inherit;
-  -moz-box-ordinal-group: inherit !important;
 }
 
 *|*::-moz-xul-anonymous-block {
   display: block ! important;
   position: static ! important;
   float: none ! important;
-  -moz-box-ordinal-group: inherit !important;
 }
 
 *|*::-moz-scrolled-content, *|*::-moz-scrolled-canvas,
 *|*::-moz-scrolled-page-sequence {
   /* e.g., text inputs, select boxes */
   padding: inherit;
-  /* The display doesn't affect the kind of frame constructed here.  This just
-     affects auto-width sizing of the block we create. */
-  display: block;
+  display: inherit;
   -moz-box-orient: inherit;
   /* make unicode-bidi inherit, otherwise it has no effect on text inputs and
      blocks with overflow: scroll; */
@@ -167,9 +164,6 @@
 
 *|*::-moz-viewport-scroll {
   overflow: auto;
-%ifdef XP_WIN
-  resize: both;
-%endif
 }
 
 *|*::-moz-column-content { 
@@ -214,6 +208,11 @@
 
   * {
     cursor: default !important;
+  }
+
+  *|*::-moz-viewport, *|*::-moz-viewport-scroll, *|*::-moz-canvas,
+  *|*::-moz-scrolled-canvas {
+    background-color: #737373 !important;
   }
 
 }
