@@ -118,14 +118,6 @@ struct DeviceStorageAddParams
   PBlob blob;
 };
 
-struct DeviceStorageAppendParams
-{
-  nsString type;
-  nsString storageName;
-  nsString relpath;
-  PBlob blob;
-};
-
 struct DeviceStorageCreateFdParams
 {
   nsString type;
@@ -159,7 +151,6 @@ struct DeviceStorageEnumerationParams
 union DeviceStorageParams
 {
   DeviceStorageAddParams;
-  DeviceStorageAppendParams;
   DeviceStorageCreateFdParams;
   DeviceStorageGetParams;
   DeviceStorageDeleteParams;

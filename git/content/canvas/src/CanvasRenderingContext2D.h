@@ -85,14 +85,11 @@ public:
                 const gfx::Point& aCP2,
                 const gfx::Point& aCP3);
 
-  TemporaryRef<gfx::Path> GetPath(const CanvasWindingRule& aWinding,
-                                  const gfx::DrawTarget* aTarget) const;
+  mozilla::RefPtr<mozilla::gfx::Path> GetPath(const CanvasWindingRule& winding,
+                                              const mozilla::RefPtr<mozilla::gfx::DrawTarget>& mTarget) const;
 
   explicit CanvasPath(nsISupports* aParent);
-  // TemporaryRef arg because the return value from Path::CopyToBuilder() is
-  // passed directly and we can't drop the only ref to have a raw pointer.
-  CanvasPath(nsISupports* aParent,
-             TemporaryRef<gfx::PathBuilder> aPathBuilder);
+  CanvasPath(nsISupports* aParent, RefPtr<gfx::PathBuilder> mPathBuilder);
   virtual ~CanvasPath() {}
 
 private:

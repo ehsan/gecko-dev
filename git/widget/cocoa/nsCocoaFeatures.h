@@ -16,9 +16,8 @@ public:
   static int32_t OSXVersionBugFix();
   static bool OnLionOrLater();
   static bool OnMountainLionOrLater();
-  static bool OnMavericksOrLater();
-  static bool OnYosemiteOrLater();
   static bool SupportCoreAnimationPlugins();
+  static bool OnMavericksOrLater();
 
 private:
   static void InitializeVersionNumbers();

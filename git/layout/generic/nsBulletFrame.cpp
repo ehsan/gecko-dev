@@ -781,11 +781,11 @@ nsBulletFrame::GetImage() const
 }
 
 nscoord
-nsBulletFrame::GetLogicalBaseline(WritingMode aWritingMode) const
+nsBulletFrame::GetBaseline() const
 {
   nscoord ascent = 0, bottomPadding;
   if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
-    ascent = BSize(aWritingMode);
+    ascent = GetRect().height;
   } else {
     nsRefPtr<nsFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
@@ -820,8 +820,7 @@ nsBulletFrame::GetLogicalBaseline(WritingMode aWritingMode) const
         break;
     }
   }
-  return ascent +
-    GetLogicalUsedMargin(aWritingMode).BStart(aWritingMode);
+  return ascent + GetUsedBorderAndPadding().top;
 }
 
 void

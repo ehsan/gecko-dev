@@ -27,7 +27,7 @@ class ErrorResult;
 namespace dom {
 
 class OwningNodeOrHTMLCollection;
-template<typename> struct Nullable;
+template<typename> class Nullable;
 
 class HTMLAllCollection MOZ_FINAL : public nsISupports
                                   , public nsWrapperCache

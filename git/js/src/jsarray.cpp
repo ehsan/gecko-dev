@@ -943,22 +943,23 @@ struct EmptySeparatorOp
     bool operator()(JSContext *, StringBuffer &sb) { return true; }
 };
 
-template <typename CharT>
 struct CharSeparatorOp
 {
-    const CharT sep;
-    explicit CharSeparatorOp(CharT sep) : sep(sep) {};
+    jschar sep;
+    explicit CharSeparatorOp(jschar sep) : sep(sep) {};
     bool operator()(JSContext *, StringBuffer &sb) { return sb.append(sep); }
 };
 
 struct StringSeparatorOp
 {
-    HandleLinearString sep;
+    const jschar *sepchars;
+    size_t seplen;
 
-    explicit StringSeparatorOp(HandleLinearString sep) : sep(sep) {}
+    StringSeparatorOp(const jschar *sepchars, size_t seplen)
+      : sepchars(sepchars), seplen(seplen) {};
 
     bool operator()(JSContext *cx, StringBuffer &sb) {
-        return sb.append(sep);
+        return sb.append(sepchars, seplen);
     }
 };
 
@@ -1063,16 +1064,22 @@ ArrayJoin(JSContext *cx, CallArgs &args)
         return false;
 
     // Steps 4 and 5
-    RootedLinearString sepstr(cx);
+    RootedString sepstr(cx, nullptr);
+    const jschar *sepchars;
+    size_t seplen;
     if (!Locale && args.hasDefined(0)) {
-        JSString *s = ToString<CanGC>(cx, args[0]);
-        if (!s)
-            return false;
-        sepstr = s->ensureLinear(cx);
+        sepstr = ToString<CanGC>(cx, args[0]);
         if (!sepstr)
             return false;
+        sepchars = sepstr->getChars(cx);
+        if (!sepchars)
+            return false;
+        seplen = sepstr->length();
     } else {
-        sepstr = cx->names().comma;
+        HandlePropertyName comma = cx->names().comma;
+        sepstr = comma;
+        sepchars = comma->chars();
+        seplen = comma->length();
     }
 
     JS::Anchor<JSString*> anchor(sepstr);
@@ -1093,12 +1100,9 @@ ArrayJoin(JSContext *cx, CallArgs &args)
     }
 
     StringBuffer sb(cx);
-    if (sepstr->hasTwoByteChars() && !sb.ensureTwoByteChars())
-        return false;
 
     // The separator will be added |length - 1| times, reserve space for that
     // so that we don't have to unnecessarily grow the buffer.
-    size_t seplen = sepstr->length();
     if (length > 0 && !sb.reserve(seplen * (length - 1)))
         return false;
 
@@ -1108,18 +1112,11 @@ ArrayJoin(JSContext *cx, CallArgs &args)
         if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
             return false;
     } else if (seplen == 1) {
-        jschar c = sepstr->latin1OrTwoByteChar(0);
-        if (c <= JSString::MAX_LATIN1_CHAR) {
-            CharSeparatorOp<Latin1Char> op(c);
-            if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
-                return false;
-        } else {
-            CharSeparatorOp<jschar> op(c);
-            if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
-                return false;
-        }
+        CharSeparatorOp op(sepchars[0]);
+        if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
+            return false;
     } else {
-        StringSeparatorOp op(sepstr);
+        StringSeparatorOp op(sepchars, seplen);
         if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
             return false;
     }

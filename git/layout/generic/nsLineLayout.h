@@ -90,17 +90,11 @@ public:
     PushFrame(aFrame);
   }
 
-  /**
-   * Place frames in the block direction (CSS property vertical-align)
-   */
-  void VerticalAlignLine();
+  void BlockDirAlignLine();
 
   bool TrimTrailingWhiteSpace();
 
-  /**
-   * Place frames in the inline direction (CSS property text-align).
-   */
-  void TextAlignLine(nsLineBox* aLine, bool aIsLastLine);
+  void InlineDirAlignFrames(nsLineBox* aLine, bool aIsLastLine);
 
   /**
    * Handle all the relative positioning in the line, compute the
@@ -486,7 +480,7 @@ protected:
 
   nscoord mInflationMinFontSize;
 
-  // Final computed line-bSize value after VerticalAlignFrames for
+  // Final computed line-bSize value after BlockDirAlignFrames for
   // the block has been called.
   nscoord mFinalLineBSize;
   
@@ -548,11 +542,11 @@ protected:
   void PlaceFrame(PerFrameData* pfd,
                   nsHTMLReflowMetrics& aMetrics);
 
-  void VerticalAlignFrames(PerSpanData* psd);
+  void BlockDirAlignFrames(PerSpanData* psd);
 
-  void PlaceTopBottomFrames(PerSpanData* psd,
-                            nscoord aDistanceFromStart,
-                            nscoord aLineBSize);
+  void PlaceStartEndFrames(PerSpanData* psd,
+                           nscoord aDistanceFromStart,
+                           nscoord aLineBSize);
 
   void RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflowAreas);
 
