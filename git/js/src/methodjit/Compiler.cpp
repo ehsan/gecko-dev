@@ -50,6 +50,7 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/LinkBuffer.h"
 #include "FrameState-inl.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "InlineFrameAssembler.h"
 #include "jscompartment.h"
@@ -305,6 +306,12 @@ mjit::Compiler::generatePrologue()
             hasScope.linkTo(masm.label(), &masm);
         }
     }
+
+    if (isConstructing)
+        constructThis();
+
+    if (debugMode)
+        stubCall(stubs::EnterScript);
 
     return Compile_Okay;
 }
@@ -590,7 +597,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     JS_ASSERT(size_t(cursor - (uint8*)jit) == totalBytes);
 
-    script->setNativeMap(isConstructing, nmap);
+    jit->nmap = nmap;
     *jitp = jit;
 
     return Compile_Okay;
@@ -1208,7 +1215,7 @@ mjit::Compiler::generateMethod()
           {
             jsop_getarg(GET_SLOTNO(PC));
             if (op == JSOP_CALLARG)
-                frame.push(NullValue());
+                frame.push(UndefinedValue());
           }
           END_CASE(JSOP_GETARG)
 
@@ -1261,10 +1268,13 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_NEWINIT)
           {
-            jsint i = GET_INT8(PC);
+            jsint i = GET_UINT16(PC);
+            uint32 count = GET_UINT16(PC + UINT16_LEN);
+
             JS_ASSERT(i == JSProto_Array || i == JSProto_Object);
 
             prepareStubCall(Uses(0));
+            masm.move(Imm32(count), Registers::ArgReg1);
             if (i == JSProto_Array)
                 stubCall(stubs::NewInitArray);
             else
@@ -1339,16 +1349,16 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_LOCALDEC)
 
           BEGIN_CASE(JSOP_BINDNAME)
-            jsop_bindname(fullAtomIndex(PC));
+            jsop_bindname(fullAtomIndex(PC), true);
           END_CASE(JSOP_BINDNAME)
 
           BEGIN_CASE(JSOP_SETPROP)
-            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)), true);
           END_CASE(JSOP_SETPROP)
 
           BEGIN_CASE(JSOP_SETNAME)
           BEGIN_CASE(JSOP_SETMETHOD)
-            jsop_setprop(script->getAtom(fullAtomIndex(PC)));
+            jsop_setprop(script->getAtom(fullAtomIndex(PC)), true);
           END_CASE(JSOP_SETNAME)
 
           BEGIN_CASE(JSOP_THROW)
@@ -1490,14 +1500,14 @@ mjit::Compiler::generateMethod()
             RegisterID reg = frame.allocReg();
             masm.loadPayload(Address(JSFrameReg, JSStackFrame::offsetOfCallee(fun)), reg);
             // obj->getFlatClosureUpvars()
-            Address upvarAddress(reg, offsetof(JSObject, fslots) + 
-                                      JSObject::JSSLOT_FLAT_CLOSURE_UPVARS * sizeof(Value));
+            masm.loadPtr(Address(reg, offsetof(JSObject, slots)), reg);
+            Address upvarAddress(reg, JSObject::JSSLOT_FLAT_CLOSURE_UPVARS * sizeof(Value));
             masm.loadPrivate(upvarAddress, reg);
             // push ((Value *) reg)[index]
             frame.freeReg(reg);
             frame.push(Address(reg, index * sizeof(Value)));
             if (op == JSOP_CALLFCSLOT)
-                frame.push(NullValue());
+                frame.push(UndefinedValue());
           }
           END_CASE(JSOP_CALLFCSLOT)
 
@@ -1536,7 +1546,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLGNAME)
             jsop_getgname(fullAtomIndex(PC));
             if (op == JSOP_CALLGNAME)
-                frame.push(NullValue());
+                frame.push(UndefinedValue());
           END_CASE(JSOP_GETGNAME)
 
           BEGIN_CASE(JSOP_SETGNAME)
@@ -1571,7 +1581,7 @@ mjit::Compiler::generateMethod()
             stubCall(stubs::GetUpvar);
             frame.pushSynced();
             if (op == JSOP_CALLUPVAR)
-                frame.push(NullValue());
+                frame.push(UndefinedValue());
           }
           END_CASE(JSOP_CALLUPVAR)
 
@@ -1607,7 +1617,7 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_CALLLOCAL)
             frame.pushLocal(GET_SLOTNO(PC));
-            frame.push(NullValue());
+            frame.push(UndefinedValue());
           END_CASE(JSOP_CALLLOCAL)
 
           BEGIN_CASE(JSOP_INT8)
@@ -1682,7 +1692,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLGLOBAL)
             jsop_getglobal(GET_SLOTNO(PC));
             if (op == JSOP_CALLGLOBAL)
-                frame.push(NullValue());
+                frame.push(UndefinedValue());
           END_CASE(JSOP_GETGLOBAL)
 
           BEGIN_CASE(JSOP_SETGLOBAL)
@@ -1697,11 +1707,6 @@ mjit::Compiler::generateMethod()
             jsop_globalinc(op, GET_SLOTNO(PC));
             break;
           END_CASE(JSOP_GLOBALINC)
-
-          BEGIN_CASE(JSOP_BEGIN)
-            if (isConstructing)
-                constructThis();
-          END_CASE(JSOP_BEGIN)
 
           default:
            /* Sorry, this opcode isn't implemented yet. */
@@ -1925,6 +1930,11 @@ mjit::Compiler::emitReturn(FrameEntry *fe)
 
     /* Only the top of the stack can be returned. */
     JS_ASSERT_IF(fe, fe == frame.peek(-1));
+
+    if (debugMode) {
+        prepareStubCall(Uses(0));
+        stubCall(stubs::LeaveScript);
+    }
 
     /*
      * If there's a function object, deal with the fact that it can escape.
@@ -2358,20 +2368,28 @@ mjit::Compiler::emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused)
 }
 
 void
-mjit::Compiler::jsop_setprop_slow(JSAtom *atom)
+mjit::Compiler::jsop_setprop_slow(JSAtom *atom, bool usePropCache)
 {
     prepareStubCall(Uses(2));
     masm.move(ImmPtr(atom), Registers::ArgReg1);
-    stubCall(STRICT_VARIANT(stubs::SetName));
+    if (usePropCache)
+        stubCall(STRICT_VARIANT(stubs::SetName));
+    else
+        stubCall(STRICT_VARIANT(stubs::SetPropNoCache));
     JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
     frame.shimmy(1);
 }
 
 void
-mjit::Compiler::jsop_getprop_slow()
+mjit::Compiler::jsop_getprop_slow(JSAtom *atom, bool usePropCache)
 {
     prepareStubCall(Uses(1));
-    stubCall(stubs::GetProp);
+    if (usePropCache) {
+        stubCall(stubs::GetProp);
+    } else {
+        masm.move(ImmPtr(atom), Registers::ArgReg1);
+        stubCall(stubs::GetPropNoCache);
+    }
     frame.pop();
     frame.pushSynced();
 }
@@ -2436,7 +2454,7 @@ mjit::Compiler::passPICAddress(PICGenInfo &pic)
 }
 
 void
-mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
+mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck, bool usePropCache)
 {
     FrameEntry *top = frame.peek(-1);
 
@@ -2444,7 +2462,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
     if (top->isTypeKnown() && top->getKnownType() != JSVAL_TYPE_OBJECT) {
         JS_ASSERT_IF(atom == cx->runtime->atomState.lengthAtom,
                      top->getKnownType() != JSVAL_TYPE_STRING);
-        jsop_getprop_slow();
+        jsop_getprop_slow(atom, usePropCache);
         return;
     }
 
@@ -2460,7 +2478,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
         shapeReg = frame.allocReg();
     }
 
-    PICGenInfo pic(ic::PICInfo::GET);
+    PICGenInfo pic(ic::PICInfo::GET, usePropCache);
 
     /* Guard that the type is an object. */
     Jump typeCheck;
@@ -2514,7 +2532,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -2567,7 +2585,7 @@ void
 mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID objReg,
                                  RegisterID idReg, RegisterID shapeReg)
 {
-    PICGenInfo pic(ic::PICInfo::GETELEM);
+    PICGenInfo pic(ic::PICInfo::GETELEM, true);
 
     pic.objRemat = frame.dataRematInfo(obj);
     pic.idRemat = frame.dataRematInfo(id);
@@ -2615,7 +2633,7 @@ mjit::Compiler::jsop_getelem_pic(FrameEntry *obj, FrameEntry *id, RegisterID obj
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -2680,7 +2698,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     RegisterID objReg = frame.copyDataIntoReg(top);
     RegisterID shapeReg = frame.allocReg();
 
-    PICGenInfo pic(ic::PICInfo::CALL);
+    PICGenInfo pic(ic::PICInfo::CALL, true);
 
     /* Guard that the type is an object. */
     pic.typeReg = frame.copyTypeIntoReg(top);
@@ -2746,7 +2764,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -2818,7 +2836,9 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.shift(-1);
 
     /* 4) Test if the function can take a primitive. */
+#ifdef DEBUG
     FrameEntry *funFe = frame.peek(-2);
+#endif
     JS_ASSERT(!funFe->isTypeKnown());
 
     /*
@@ -2838,27 +2858,6 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     frame.pushTypedPayload(JSVAL_TYPE_STRING, strReg);
     frame.forgetType(frame.peek(-1));
 
-    RegisterID temp = frame.allocReg();
-    RegisterID funReg = frame.copyDataIntoReg(funFe);
-    Jump notFun1 = frame.testObject(Assembler::NotEqual, funFe);
-    Jump notFun2 = masm.testFunction(Assembler::NotEqual, funReg);
-
-    masm.loadFunctionPrivate(funReg, temp);
-    masm.load16(Address(temp, offsetof(JSFunction, flags)), temp);
-    Jump noPrim = masm.branchTest32(Assembler::Zero, temp, Imm32(JSFUN_THISP_STRING));
-    {
-        stubcc.linkExit(noPrim, Uses(2));
-        stubcc.leave();
-        stubcc.call(stubs::WrapPrimitiveThis);
-    }
-
-    frame.freeReg(funReg);
-    frame.freeReg(temp);
-    notFun2.linkTo(masm.label(), &masm);
-    notFun1.linkTo(masm.label(), &masm);
-    
-    stubcc.rejoin(Changes(1));
-
     return true;
 }
 
@@ -2867,7 +2866,7 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
 {
     FrameEntry *top = frame.peek(-1);
 
-    PICGenInfo pic(ic::PICInfo::CALL);
+    PICGenInfo pic(ic::PICInfo::CALL, true);
 
     JS_ASSERT(top->isTypeKnown());
     JS_ASSERT(top->getKnownType() == JSVAL_TYPE_OBJECT);
@@ -2905,7 +2904,7 @@ mjit::Compiler::jsop_callprop_obj(JSAtom *atom)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
 
     /* Copy the slot value to the expression stack. */
     Address slot(objReg, 1 << 24);
@@ -2984,20 +2983,20 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
 }
 
 void
-mjit::Compiler::jsop_setprop(JSAtom *atom)
+mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
 {
     FrameEntry *lhs = frame.peek(-2);
     FrameEntry *rhs = frame.peek(-1);
 
     /* If the incoming type will never PIC, take slow path. */
     if (lhs->isTypeKnown() && lhs->getKnownType() != JSVAL_TYPE_OBJECT) {
-        jsop_setprop_slow(atom);
+        jsop_setprop_slow(atom, usePropCache);
         return;
     }
 
     JSOp op = JSOp(*PC);
 
-    PICGenInfo pic(op == JSOP_SETMETHOD ? ic::PICInfo::SETMETHOD : ic::PICInfo::SET);
+    PICGenInfo pic(op == JSOP_SETMETHOD ? ic::PICInfo::SETMETHOD : ic::PICInfo::SET, usePropCache);
     pic.atom = atom;
 
     /* Guard that the type is an object. */
@@ -3013,19 +3012,11 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
         pic.typeCheck = stubcc.linkExit(j, Uses(2));
         stubcc.leave();
 
-        /*
-         * This gets called from PROPINC/PROPDEC which aren't compatible with
-         * the normal SETNAME property cache logic.
-         */
-        JSOp op = JSOp(*PC);
         stubcc.masm.move(ImmPtr(atom), Registers::ArgReg1);
-        if (op == JSOP_SETNAME || op == JSOP_SETPROP || op == JSOP_SETGNAME || op ==
-            JSOP_SETMETHOD) {
+        if (usePropCache)
             stubcc.call(STRICT_VARIANT(stubs::SetName));
-        } else {
+        else
             stubcc.call(STRICT_VARIANT(stubs::SetPropNoCache));
-        }
-
         typeCheck = stubcc.masm.jump();
         pic.hasTypeCheck = true;
     } else {
@@ -3073,7 +3064,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
 #elif defined JS_PUNBOX64
     Label dslotsLoadLabel = masm.label();
 #endif
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
 
     /* Store RHS into object slot. */
     Address slot(objReg, 1 << 24);
@@ -3128,7 +3119,7 @@ mjit::Compiler::jsop_setprop(JSAtom *atom)
 void
 mjit::Compiler::jsop_name(JSAtom *atom)
 {
-    PICGenInfo pic(ic::PICInfo::NAME);
+    PICGenInfo pic(ic::PICInfo::NAME, true);
 
     pic.shapeReg = frame.allocReg();
     pic.objReg = frame.allocReg();
@@ -3160,7 +3151,7 @@ mjit::Compiler::jsop_name(JSAtom *atom)
 void
 mjit::Compiler::jsop_xname(JSAtom *atom)
 {
-    PICGenInfo pic(ic::PICInfo::XNAME);
+    PICGenInfo pic(ic::PICInfo::XNAME, true);
 
     FrameEntry *fe = frame.peek(-1);
     if (fe->isNotType(JSVAL_TYPE_OBJECT)) {
@@ -3202,9 +3193,9 @@ mjit::Compiler::jsop_xname(JSAtom *atom)
 }
 
 void
-mjit::Compiler::jsop_bindname(uint32 index)
+mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
 {
-    PICGenInfo pic(ic::PICInfo::BIND);
+    PICGenInfo pic(ic::PICInfo::BIND, usePropCache);
 
     pic.shapeReg = frame.allocReg();
     pic.objReg = frame.allocReg();
@@ -3265,9 +3256,9 @@ mjit::Compiler::jsop_xname(JSAtom *atom)
 }
 
 void
-mjit::Compiler::jsop_getprop(JSAtom *atom, bool typecheck)
+mjit::Compiler::jsop_getprop(JSAtom *atom, bool typecheck, bool usePropCache)
 {
-    jsop_getprop_slow();
+    jsop_getprop_slow(atom, usePropCache);
 }
 
 bool
@@ -3277,13 +3268,13 @@ mjit::Compiler::jsop_callprop(JSAtom *atom)
 }
 
 void
-mjit::Compiler::jsop_setprop(JSAtom *atom)
+mjit::Compiler::jsop_setprop(JSAtom *atom, bool usePropCache)
 {
-    jsop_setprop_slow(atom);
+    jsop_setprop_slow(atom, usePropCache);
 }
 
 void
-mjit::Compiler::jsop_bindname(uint32 index)
+mjit::Compiler::jsop_bindname(uint32 index, bool usePropCache)
 {
     RegisterID reg = frame.allocReg();
     Address scopeChain(JSFrameReg, JSStackFrame::offsetOfScopeChain());
@@ -3295,7 +3286,12 @@ mjit::Compiler::jsop_bindname(uint32 index)
 
     stubcc.linkExit(j, Uses(0));
     stubcc.leave();
-    stubcc.call(stubs::BindName);
+    if (usePropCache) {
+        stubcc.call(stubs::BindName);
+    } else {
+        masm.move(ImmPtr(script->getAtom(index)), Registers::ArgReg1);
+        stubcc.call(stubs::BindNameNoCache);
+    }
 
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
 
@@ -3313,20 +3309,15 @@ void
 mjit::Compiler::jsop_this()
 {
     Address thisvAddr(JSFrameReg, JSStackFrame::offsetOfThis(fun));
-    if (0 && !script->strictModeCode) {
-        Jump null = masm.testNull(Assembler::Equal, thisvAddr);
-        stubcc.linkExit(null, Uses(1));
-        stubcc.leave();
-        stubcc.call(stubs::ComputeThis);
-        stubcc.rejoin(Changes(1));
-
-        RegisterID reg = frame.allocReg();
-        masm.loadPayload(thisvAddr, reg);
-        frame.pushTypedPayload(JSVAL_TYPE_OBJECT, reg);
-    } else {
-        frame.push(thisvAddr);
-        Jump null = frame.testNull(Assembler::Equal, frame.peek(-1));
-        stubcc.linkExit(null, Uses(1));
+    frame.push(thisvAddr);
+    /* 
+     * In strict mode code, we don't wrap 'this'.
+     * In direct-call eval code, we wrapped 'this' before entering the eval.
+     * In global code, 'this' is always an object.
+     */
+    if (fun && !script->strictModeCode) {
+        Jump notObj = frame.testObject(Assembler::NotEqual, frame.peek(-1));
+        stubcc.linkExit(notObj, Uses(1));
         stubcc.leave();
         stubcc.call(stubs::This);
         stubcc.rejoin(Changes(1));
@@ -3443,7 +3434,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         jsop_binary(JSOP_SUB, stubs::Sub);
         // N+1
 
-        jsop_bindname(index);
+        jsop_bindname(index, false);
         // V+1 OBJ
 
         frame.dup2();
@@ -3455,7 +3446,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // OBJ V+1
 
-        jsop_setprop(atom);
+        jsop_setprop(atom, false);
         // V+1
 
         if (pop)
@@ -3478,7 +3469,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         jsop_binary(JSOP_ADD, stubs::Add);
         // N N+1
 
-        jsop_bindname(index);
+        jsop_bindname(index, false);
         // N N+1 OBJ
 
         frame.dup2();
@@ -3490,7 +3481,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.shift(-1);
         // N OBJ N+1
 
-        jsop_setprop(atom);
+        jsop_setprop(atom, false);
         // N N+1
 
         frame.pop();
@@ -3536,7 +3527,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             jsop_binary(JSOP_SUB, stubs::Sub);
             // OBJ V+1
 
-            jsop_setprop(atom);
+            jsop_setprop(atom, false);
             // V+1
 
             if (pop)
@@ -3568,7 +3559,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.dupAt(-2);
             // OBJ N N+1 OBJ N+1
 
-            jsop_setprop(atom);
+            jsop_setprop(atom, false);
             // OBJ N N+1 N+1
 
             frame.popn(2);
@@ -3642,8 +3633,7 @@ mjit::Compiler::iter(uintN flags)
     stubcc.linkExit(nullIterator, Uses(1));
 
     /* Get NativeIterator from iter obj. :FIXME: X64, also most of this function */
-    Address privSlot(ioreg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
-    masm.loadPtr(privSlot, nireg);
+    masm.loadPtr(Address(ioreg, offsetof(JSObject, privateData)), nireg);
 
     /* Test for active iterator. */
     Address flagsAddr(nireg, offsetof(NativeIterator, flags));
@@ -3827,8 +3817,7 @@ mjit::Compiler::iterEnd()
     stubcc.linkExit(notIterator, Uses(1));
 
     /* Get private from iter obj. :FIXME: X64 */
-    Address privSlot(reg, offsetof(JSObject, fslots) + sizeof(Value) * JSSLOT_PRIVATE);
-    masm.loadPtr(privSlot, T1);
+    masm.loadPtr(Address(reg, offsetof(JSObject, privateData)), T1);
 
     RegisterID T2 = frame.allocReg();
 
@@ -3942,7 +3931,7 @@ mjit::Compiler::jsop_getgname(uint32 index)
     /* Garbage value. */
     uint32 slot = 1 << 24;
 
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
     Address address(objReg, slot);
     
     /*
@@ -4062,7 +4051,7 @@ mjit::Compiler::jsop_setgname(uint32 index)
         v = fe->getValue();
     }
 
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
     Address address(objReg, slot);
 
     mic.load = masm.label();
@@ -4375,7 +4364,7 @@ mjit::Compiler::constructThis()
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, calleeReg);
 
     // Get callee.prototype.
-    jsop_getprop(cx->runtime->atomState.classPrototypeAtom);
+    jsop_getprop(cx->runtime->atomState.classPrototypeAtom, false, false);
 
     // Reach into the proto Value and grab a register for its data.
     FrameEntry *protoFe = frame.peek(-1);

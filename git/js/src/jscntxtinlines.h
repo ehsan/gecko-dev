@@ -46,6 +46,7 @@
 #include "jsstaticcheck.h"
 #include "jsxml.h"
 #include "jsregexp.h"
+#include "jsgc.h"
 
 inline js::RegExpStatics *
 JSContext::regExpStatics()
@@ -352,12 +353,12 @@ StackSpace::popInvokeFrame(const InvokeFrameGuard &fg)
     }
 }
 
-JS_REQUIRES_STACK JS_ALWAYS_INLINE
-InvokeFrameGuard::~InvokeFrameGuard()
+JS_ALWAYS_INLINE void
+InvokeFrameGuard::pop()
 {
-    if (JS_UNLIKELY(!pushed()))
-        return;
+    JS_ASSERT(pushed());
     cx_->stack().popInvokeFrame(*this);
+    cx_ = NULL;
 }
 
 JS_REQUIRES_STACK JS_ALWAYS_INLINE JSStackFrame *
@@ -508,10 +509,8 @@ class CompartmentChecker
      * compartment mismatches.
      */
     static void fail(JSCompartment *c1, JSCompartment *c2) {
-#ifdef DEBUG_jorendorff
         printf("*** Compartment mismatch %p vs. %p\n", (void *) c1, (void *) c2);
-        // JS_NOT_REACHED("compartment mismatch");
-#endif
+        JS_NOT_REACHED("compartment mismatched");
     }
 
     void check(JSCompartment *c) {
@@ -527,7 +526,7 @@ class CompartmentChecker
 
     void check(JSObject *obj) {
         if (obj)
-            check(obj->getCompartment(context));
+            check(obj->getCompartment());
     }
 
     void check(const js::Value &v) {
@@ -564,8 +563,11 @@ class CompartmentChecker
     }
 
     void check(JSScript *script) {
-        if (script && script->u.object)
-            check(script->u.object);
+        if (script && script != JSScript::emptyScript()) {
+            check(script->compartment);
+            if (script->u.object)
+                check(script->u.object);
+        }
     }
 
     void check(JSString *) { /* nothing for now */ }
