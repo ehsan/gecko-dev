@@ -96,7 +96,7 @@ class Logging
 
         if (local == incoming) {
             JS::RootedObject obj(cx);
-            obj = shared->objects_.find(id);
+            obj = shared->findObjectById(id);
             if (obj) {
                 JSAutoCompartment ac(cx, obj);
                 objDesc = js_ObjectClassName(cx, obj);
@@ -160,9 +160,9 @@ class Logging
           case JSVariant::TObjectVariant: {
               const ObjectVariant &ovar = value.get_ObjectVariant();
               if (ovar.type() == ObjectVariant::TLocalObject)
-                  formatObject(incoming, true, ObjectId::deserialize(ovar.get_LocalObject().serializedId()), out);
+                  formatObject(incoming, true, ovar.get_LocalObject().id(), out);
               else
-                  formatObject(incoming, false, ObjectId::deserialize(ovar.get_RemoteObject().serializedId()), out);
+                  formatObject(incoming, false, ovar.get_RemoteObject().id(), out);
               break;
           }
           case JSVariant::Tdouble: {

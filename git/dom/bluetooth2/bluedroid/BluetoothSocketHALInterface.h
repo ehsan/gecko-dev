@@ -36,8 +36,6 @@ public:
 
   void Accept(int aFd, BluetoothSocketResultHandler* aRes);
 
-  void Close(BluetoothSocketResultHandler* aRes);
-
 protected:
   BluetoothSocketHALInterface(const btsock_interface_t* aInterface);
   ~BluetoothSocketHALInterface();

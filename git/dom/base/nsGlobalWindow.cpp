@@ -5274,7 +5274,7 @@ nsGlobalWindow::RequestAnimationFrame(JS::Handle<JS::Value> aCallback,
                                       JSContext* cx,
                                       int32_t* aHandle)
 {
-  if (!aCallback.isObject() || !JS::IsCallable(&aCallback.toObject())) {
+  if (!aCallback.isObject() || !JS_ObjectIsCallable(cx, &aCallback.toObject())) {
     return NS_ERROR_INVALID_ARG;
   }
 

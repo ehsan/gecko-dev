@@ -5452,7 +5452,7 @@ DestroyContext(JSContext *cx, bool withGC)
     // data.
     JSShellContextData *data = (JSShellContextData *) JS_GetContextPrivate(cx);
     JS_SetContextPrivate(cx, nullptr);
-    js_free(data);
+    free(data);
     withGC ? JS_DestroyContext(cx) : JS_DestroyContextNoGC(cx);
 }
 

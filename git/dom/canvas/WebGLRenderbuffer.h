@@ -18,7 +18,7 @@ namespace mozilla {
 
 class WebGLRenderbuffer MOZ_FINAL
     : public nsWrapperCache
-    , public WebGLBindableName<RBTarget>
+    , public WebGLBindableName<GLenum>
     , public WebGLRefCountedObject<WebGLRenderbuffer>
     , public LinkedListElement<WebGLRenderbuffer>
     , public WebGLRectangleObject
@@ -52,9 +52,9 @@ public:
 
     void BindRenderbuffer() const;
     void RenderbufferStorage(GLenum internalFormat, GLsizei width, GLsizei height) const;
-    void FramebufferRenderbuffer(FBAttachment attachment) const;
+    void FramebufferRenderbuffer(GLenum attachment) const;
     // Only handles a subset of `pname`s.
-    GLint GetRenderbufferParameter(RBTarget target, RBParam pname) const;
+    GLint GetRenderbufferParameter(GLenum target, GLenum pname) const;
 
     virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;
 

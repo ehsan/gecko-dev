@@ -275,8 +275,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitSimdBinaryArith(MSimdBinaryArith *ins);
     bool visitSimdBinaryBitwise(MSimdBinaryBitwise *ins);
     bool visitSimdConstant(MSimdConstant *ins);
-    bool visitSimdConvert(MSimdConvert *ins);
-    bool visitSimdReinterpretCast(MSimdReinterpretCast *ins);
     bool visitPhi(MPhi *ins);
     bool visitBeta(MBeta *ins);
     bool visitObjectState(MObjectState *ins);

@@ -54,8 +54,6 @@ public:
 
   virtual void Accept(int aFd, BluetoothSocketResultHandler* aRes) = 0;
 
-  virtual void Close(BluetoothSocketResultHandler* aRes) = 0;
-
 protected:
   virtual ~BluetoothSocketInterface();
 };

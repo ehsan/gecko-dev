@@ -1588,7 +1588,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Step 1. */
-    RootedValue thisv(cx, args.thisv());
+    Value thisv = args.thisv();
 
     /* Step 2. */
     if (!IsCallable(thisv)) {

@@ -36,7 +36,7 @@ EXPORTS.mozilla.dom.workers.bindings += [
     'XMLHttpRequestUpload.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'ChromeWorkerScope.cpp',
     'DataStore.cpp',
     'DataStoreCursor.cpp',

@@ -34,11 +34,10 @@ typedef MutableHandle<ArgumentsObject *> MutableHandleArgumentsObject;
 
 /*****************************************************************************/
 
-static JSObject *
-InnermostStaticScope(JSScript *script, jsbytecode *pc)
+JSObject *
+js::InnermostStaticScope(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(script->containsPC(pc));
-    JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
 
     NestedScopeObject *scope = script->getStaticScope(pc);
     if (scope)
@@ -361,8 +360,7 @@ DeclEnvObject::create(JSContext *cx, HandleObject enclosing, HandleFunction call
 
 template<XDRMode mode>
 bool
-js::XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope,
-                        MutableHandle<StaticWithObject*> objp)
+js::XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope, StaticWithObject **objp)
 {
     if (mode == XDR_DECODE) {
         JSContext *cx = xdr->cx();
@@ -370,7 +368,7 @@ js::XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope,
         if (!obj)
             return false;
         obj->initEnclosingNestedScope(enclosingScope);
-        objp.set(obj);
+        *objp = obj;
     }
     // For encoding, there is nothing to do.  The only information that is
     // encoded by a StaticWithObject is its presence on the scope chain, and the
@@ -380,10 +378,10 @@ js::XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope,
 }
 
 template bool
-js::XDRStaticWithObject(XDRState<XDR_ENCODE> *, HandleObject, MutableHandle<StaticWithObject*>);
+js::XDRStaticWithObject(XDRState<XDR_ENCODE> *, HandleObject, StaticWithObject **);
 
 template bool
-js::XDRStaticWithObject(XDRState<XDR_DECODE> *, HandleObject, MutableHandle<StaticWithObject*>);
+js::XDRStaticWithObject(XDRState<XDR_DECODE> *, HandleObject, StaticWithObject **);
 
 StaticWithObject *
 StaticWithObject::create(ExclusiveContext *cx)
@@ -732,7 +730,7 @@ const Class BlockObject::class_ = {
 template<XDRMode mode>
 bool
 js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
-                         MutableHandle<StaticBlockObject*> objp)
+                         StaticBlockObject **objp)
 {
     /* NB: Keep this in sync with CloneStaticBlockObject. */
 
@@ -742,7 +740,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
     uint32_t count = 0, offset = 0;
 
     if (mode == XDR_ENCODE) {
-        obj = objp;
+        obj = *objp;
         count = obj->numVariables();
         offset = obj->localOffset();
     }
@@ -752,7 +750,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
         if (!obj)
             return false;
         obj->initEnclosingNestedScope(enclosingScope);
-        objp.set(obj);
+        *objp = obj;
     }
 
     if (!xdr->codeUint32(&count))
@@ -824,10 +822,10 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
 }
 
 template bool
-js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *, HandleObject, MutableHandle<StaticBlockObject*>);
+js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *, HandleObject, StaticBlockObject **);
 
 template bool
-js::XDRStaticBlockObject(XDRState<XDR_DECODE> *, HandleObject, MutableHandle<StaticBlockObject*>);
+js::XDRStaticBlockObject(XDRState<XDR_DECODE> *, HandleObject, StaticBlockObject **);
 
 static JSObject *
 CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<StaticBlockObject*> srcBlock)
@@ -2050,9 +2048,6 @@ DebugScopes::ensureCompartmentData(JSContext *cx)
     if (c->debugScopes && c->debugScopes->init())
         return c->debugScopes;
 
-    if (c->debugScopes)
-        js_delete<DebugScopes>(c->debugScopes);
-    c->debugScopes = nullptr;
     js_ReportOutOfMemory(cx);
     return nullptr;
 }

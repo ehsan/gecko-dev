@@ -53,8 +53,7 @@ JavaScriptParent::trace(JSTracer *trc)
 {
     if (active()) {
         objects_.trace(trc);
-        unwaivedObjectIds_.trace(trc);
-        waivedObjectIds_.trace(trc);
+        objectIds_.trace(trc);
     }
 }
 

@@ -539,11 +539,6 @@ GetLowIntegrityTemp(nsIFile** aLowIntegrityTemp)
     return rv;
   }
 
-  rv = localFile->Create(nsIFile::DIRECTORY_TYPE, 0700);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
   localFile.forget(aLowIntegrityTemp);
   return rv;
 }

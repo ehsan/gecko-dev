@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const URL = "http://example.com/browser/browser/base/content/test/general/dummy_page.html";
+const URL = "about:robots";
 
 function test() {
   let win;

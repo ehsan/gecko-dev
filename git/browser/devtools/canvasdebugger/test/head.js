@@ -185,42 +185,45 @@ function initCallWatcherBackend(aUrl) {
   return Task.spawn(function*() {
     let tab = yield addTab(aUrl);
     let target = TargetFactory.forTab(tab);
+    let debuggee = target.window.wrappedJSObject;
 
     yield target.makeRemote();
 
     let front = new CallWatcherFront(target.client, target.form);
-    return { target, front };
+    return [target, debuggee, front];
   });
 }
 
-function initCanvasDebuggerBackend(aUrl) {
+function initCanavsDebuggerBackend(aUrl) {
   info("Initializing a canvas debugger front.");
   initServer();
 
   return Task.spawn(function*() {
     let tab = yield addTab(aUrl);
     let target = TargetFactory.forTab(tab);
+    let debuggee = target.window.wrappedJSObject;
 
     yield target.makeRemote();
 
     let front = new CanvasFront(target.client, target.form);
-    return { target, front };
+    return [target, debuggee, front];
   });
 }
 
-function initCanvasDebuggerFrontend(aUrl) {
+function initCanavsDebuggerFrontend(aUrl) {
   info("Initializing a canvas debugger pane.");
 
   return Task.spawn(function*() {
     let tab = yield addTab(aUrl);
     let target = TargetFactory.forTab(tab);
+    let debuggee = target.window.wrappedJSObject;
 
     yield target.makeRemote();
 
     Services.prefs.setBoolPref("devtools.canvasdebugger.enabled", true);
     let toolbox = yield gDevTools.showToolbox(target, "canvasdebugger");
     let panel = toolbox.getCurrentPanel();
-    return { target, panel };
+    return [target, debuggee, panel];
   });
 }
 

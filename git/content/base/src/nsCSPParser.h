@@ -126,6 +126,7 @@ class nsCSPParser {
     bool            schemeChar();
     bool            port();
     bool            path(nsCSPHostSrc* aCspHost);
+    bool            fileAndArguments();
 
     bool subHost();                                       // helper function to parse subDomains
     bool subPath(nsCSPHostSrc* aCspHost);                 // helper function to parse paths
@@ -171,9 +172,6 @@ class nsCSPParser {
     {
       mCurValue.Truncate();
     }
-
-    bool atEndOfPath();
-    bool atValidPathChar();
 
     void resetCurChar(const nsAString& aToken);
 

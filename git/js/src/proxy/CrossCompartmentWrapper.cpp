@@ -364,7 +364,7 @@ CrossCompartmentWrapper::fun_toString(JSContext *cx, HandleObject wrapper, unsig
         if (!str)
             return nullptr;
     }
-    if (!cx->compartment()->wrap(cx, &str))
+    if (!cx->compartment()->wrap(cx, str.address()))
         return nullptr;
     return str;
 }

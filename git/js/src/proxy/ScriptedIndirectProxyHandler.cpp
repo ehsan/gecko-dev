@@ -371,7 +371,8 @@ CallableScriptedIndirectProxyHandler::construct(JSContext *cx, HandleObject prox
     JS_ASSERT(ccHolder->getClass() == &CallConstructHolder);
     RootedValue construct(cx, ccHolder->getReservedSlot(1));
     JS_ASSERT(construct.isObject() && construct.toObject().isCallable());
-    return InvokeConstructor(cx, construct, args.length(), args.array(), args.rval());
+    return InvokeConstructor(cx, construct, args.length(), args.array(),
+                             args.rval().address());
 }
 
 const CallableScriptedIndirectProxyHandler CallableScriptedIndirectProxyHandler::singleton;
