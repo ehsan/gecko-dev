@@ -52,10 +52,10 @@ WMFReader::~WMFReader()
   // Note: We must shutdown the byte stream before calling MFShutdown, else we
   // get assertion failures when unlocking the byte stream's work queue.
   if (mByteStream) {
-    DebugOnly<nsresult> rv = mByteStream->Shutdown();
+    nsresult rv = mByteStream->Shutdown();
     NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to shutdown WMFByteStream");
   }
-  DebugOnly<HRESULT> hr = wmf::MFShutdown();
+  HRESULT hr = wmf::MFShutdown();
   NS_ASSERTION(SUCCEEDED(hr), "MFShutdown failed");
   MOZ_COUNT_DTOR(WMFReader);
 }
@@ -65,7 +65,7 @@ WMFReader::OnDecodeThreadStart()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
-  NS_ENSURE_TRUE_VOID(SUCCEEDED(hr));
+  NS_ENSURE_TRUE(SUCCEEDED(hr), );
 }
 
 void
@@ -118,12 +118,12 @@ ConfigureSourceReaderStream(IMFSourceReader *aReader,
   NS_ENSURE_TRUE(aReader, E_POINTER);
   NS_ENSURE_TRUE(aAllowedInSubTypes, E_POINTER);
 
-  RefPtr<IMFMediaType> nativeType;
-  RefPtr<IMFMediaType> type;
+  IMFMediaTypePtr nativeType;
+  IMFMediaTypePtr type;
   HRESULT hr;
 
   // Find the native format of the stream.
-  hr = aReader->GetNativeMediaType(aStreamIndex, 0, byRef(nativeType));
+  hr = aReader->GetNativeMediaType(aStreamIndex, 0, &nativeType);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   // Get the native output subtype of the stream. This denotes the uncompressed
@@ -152,7 +152,7 @@ ConfigureSourceReaderStream(IMFSourceReader *aReader,
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   // Define the output type.
-  hr = wmf::MFCreateMediaType(byRef(type));
+  hr = wmf::MFCreateMediaType(&type);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   hr = type->SetGUID(MF_MT_MAJOR_TYPE, majorType);
@@ -258,9 +258,9 @@ WMFReader::ConfigureVideoDecoder()
     return;
   }
 
-  RefPtr<IMFMediaType> mediaType;
+  IMFMediaTypePtr mediaType;
   hr = mSourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
-                                          byRef(mediaType));
+                                          &mediaType);
   if (FAILED(hr)) {
     NS_WARNING("Failed to get configured video media type");
     return;
@@ -324,9 +324,9 @@ WMFReader::ConfigureAudioDecoder()
     return;
   }
 
-  RefPtr<IMFMediaType> mediaType;
+  IMFMediaTypePtr mediaType;
   HRESULT hr = mSourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
-                                                  byRef(mediaType));
+                                                  &mediaType);
   if (FAILED(hr)) {
     NS_WARNING("Failed to get configured audio media type");
     return;
@@ -353,7 +353,7 @@ WMFReader::ReadMetadata(VideoInfo* aInfo,
   LOG("WMFReader::ReadMetadata()");
   HRESULT hr;
 
-  hr = wmf::MFCreateSourceReaderFromByteStream(mByteStream, NULL, byRef(mSourceReader));
+  hr = wmf::MFCreateSourceReaderFromByteStream(mByteStream, NULL, &mSourceReader);
   NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
 
   ConfigureVideoDecoder();
@@ -396,13 +396,13 @@ WMFReader::DecodeAudioData()
   LONGLONG timestampHns;
   HRESULT hr;
 
-  RefPtr<IMFSample> sample;
+  IMFSamplePtr sample;
   hr = mSourceReader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
                                  0, // control flags
                                  nullptr, // read stream index
                                  &flags,
                                  &timestampHns,
-                                 byRef(sample));
+                                 &sample);
 
   if (FAILED(hr) ||
       (flags & MF_SOURCE_READERF_ERROR) ||
@@ -412,8 +412,8 @@ WMFReader::DecodeAudioData()
     return false;
   }
 
-  RefPtr<IMFMediaBuffer> buffer;
-  hr = sample->ConvertToContiguousBuffer(byRef(buffer));
+  IMFMediaBufferPtr buffer;
+  hr = sample->ConvertToContiguousBuffer(&buffer);
   NS_ENSURE_TRUE(SUCCEEDED(hr), false);
 
   BYTE* data = nullptr; // Note: *data will be owned by the IMFMediaBuffer, we don't need to free it.
@@ -461,13 +461,13 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   LONGLONG timestampHns;
   HRESULT hr;
 
-  RefPtr<IMFSample> sample;
+  IMFSamplePtr sample;
   hr = mSourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                  0, // control flags
                                  nullptr, // read stream index
                                  &flags,
                                  &timestampHns,
-                                 byRef(sample));
+                                 &sample);
   if (flags & MF_SOURCE_READERF_ERROR) {
     NS_WARNING("WMFReader: Catastrophic failure reading video sample");
     // Future ReadSample() calls will fail, so give up and report end of stream.
@@ -498,10 +498,10 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   int64_t offset = mDecoder->GetResource()->Tell();
   int64_t duration = GetSampleDuration(sample);
 
-  RefPtr<IMFMediaBuffer> buffer;
+  IMFMediaBufferPtr buffer;
 
   // Must convert to contiguous buffer to use IMD2DBuffer interface.
-  hr = sample->ConvertToContiguousBuffer(byRef(buffer));
+  hr = sample->ConvertToContiguousBuffer(&buffer);
   if (FAILED(hr)) {
     NS_WARNING("ConvertToContiguousBuffer() failed!");
     return true;
@@ -512,9 +512,8 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   // but only some systems (Windows 8?) support it.
   BYTE* data = nullptr;
   LONG stride = 0;
-  RefPtr<IMF2DBuffer> twoDBuffer;
-  hr = buffer->QueryInterface(static_cast<IMF2DBuffer**>(byRef(twoDBuffer)));
-  if (SUCCEEDED(hr)) {
+  IMF2DBufferPtr twoDBuffer = buffer;
+  if (twoDBuffer) {
     hr = twoDBuffer->Lock2D(&data, &stride);
     NS_ENSURE_TRUE(SUCCEEDED(hr), false);
   } else {

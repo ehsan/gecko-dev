@@ -140,7 +140,7 @@ JSBool
 js_HasOwnProperty(JSContext *cx, LookupGenericOp lookup, HandleObject obj, HandleId id,
                   MutableHandleObject objp, MutableHandleShape propp)
 {
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     if (lookup) {
         if (!lookup(cx, obj, id, objp, propp))
             return false;
@@ -328,7 +328,7 @@ js::GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char
 static bool
 HasProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, bool *foundp)
 {
-    if (!JSObject::hasProperty(cx, obj, id, foundp, 0))
+    if (!JSObject::hasProperty(cx, obj, id, foundp, JSRESOLVE_QUALIFIED))
         return false;
     if (!*foundp) {
         vp.setUndefined();
@@ -1520,8 +1520,11 @@ js_InferFlags(JSContext *cx, unsigned defaultFlags)
     if (!script)
         return defaultFlags;
 
-    uint32_t format = js_CodeSpec[*pc].format;
+    const JSCodeSpec *cs = &js_CodeSpec[*pc];
+    uint32_t format = cs->format;
     unsigned flags = 0;
+    if (JOF_MODE(format) != JOF_NAME)
+        flags |= JSRESOLVE_QUALIFIED;
     if (format & JOF_SET)
         flags |= JSRESOLVE_ASSIGNING;
     return flags;
@@ -2618,11 +2621,8 @@ js::SetProto(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, boo
         return true;
     }
 
-    if (proto.isObject()) {
-        RootedObject protoObj(cx, proto.toObject());
-        if (!JSObject::setNewTypeUnknown(cx, protoObj))
-            return false;
-    }
+    if (proto.isObject() && !proto.toObject()->setNewTypeUnknown(cx))
+        return false;
 
     TypeObject *type = cx->compartment->getNewType(cx, proto);
     if (!type)
@@ -3444,7 +3444,7 @@ baseops::GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, Handle
 {
     RootedShape prop(cx);
     RootedObject obj2(cx);
-    if (!LookupPropertyWithFlags(cx, obj, id, 0, &obj2, &prop))
+    if (!LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
         return false;
 
     if (!prop) {
@@ -3458,7 +3458,7 @@ baseops::GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, Handle
 JSBool
 js::GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, MutableHandleValue vp)
 {
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     GenericIdOp op = obj->getOps()->getGeneric;
     if (!op) {

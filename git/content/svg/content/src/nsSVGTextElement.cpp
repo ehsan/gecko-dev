@@ -133,45 +133,45 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGTextElement)
 //----------------------------------------------------------------------
 // nsIDOMSVGTextPositioningElement methods
 
-/* readonly attribute DOMSVGAnimatedLengthList x; */
+/* readonly attribute nsIDOMSVGAnimatedLengthList x; */
 NS_IMETHODIMP
-nsSVGTextElement::GetX(nsISupports * *aX)
+nsSVGTextElement::GetX(nsIDOMSVGAnimatedLengthList * *aX)
 {
   *aX = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[X],
                                                 this, X, SVGContentUtils::X).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList y; */
+/* readonly attribute nsIDOMSVGAnimatedLengthList y; */
 NS_IMETHODIMP
-nsSVGTextElement::GetY(nsISupports * *aY)
+nsSVGTextElement::GetY(nsIDOMSVGAnimatedLengthList * *aY)
 {
   *aY = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[Y],
                                                 this, Y, SVGContentUtils::Y).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList dx; */
+/* readonly attribute nsIDOMSVGAnimatedLengthList dx; */
 NS_IMETHODIMP
-nsSVGTextElement::GetDx(nsISupports * *aDx)
+nsSVGTextElement::GetDx(nsIDOMSVGAnimatedLengthList * *aDx)
 {
   *aDx = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[DX],
                                                  this, DX, SVGContentUtils::X).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedLengthList dy; */
+/* readonly attribute nsIDOMSVGAnimatedLengthList dy; */
 NS_IMETHODIMP
-nsSVGTextElement::GetDy(nsISupports * *aDy)
+nsSVGTextElement::GetDy(nsIDOMSVGAnimatedLengthList * *aDy)
 {
   *aDy = DOMSVGAnimatedLengthList::GetDOMWrapper(&mLengthListAttributes[DY],
                                                  this, DY, SVGContentUtils::Y).get();
   return NS_OK;
 }
 
-/* readonly attribute DOMSVGAnimatedNumberList rotate; */
+/* readonly attribute nsIDOMSVGAnimatedNumberList rotate; */
 NS_IMETHODIMP
-nsSVGTextElement::GetRotate(nsISupports * *aRotate)
+nsSVGTextElement::GetRotate(nsIDOMSVGAnimatedNumberList * *aRotate)
 {
   *aRotate = DOMSVGAnimatedNumberList::GetDOMWrapper(&mNumberListAttributes[ROTATE],
                                                      this, ROTATE).get();
@@ -244,9 +244,9 @@ nsSVGTextElement::GetSubStringLength(uint32_t charnum, uint32_t nchars, float *_
   return NS_OK;
 }
 
-/* DOMSVGPoint getStartPositionOfChar (in unsigned long charnum); */
+/* nsIDOMSVGPoint getStartPositionOfChar (in unsigned long charnum); */
 NS_IMETHODIMP
-nsSVGTextElement::GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval)
+nsSVGTextElement::GetStartPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
   nsSVGTextContainerFrame* metrics = GetTextContainerFrame();
@@ -256,9 +256,9 @@ nsSVGTextElement::GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval
   return metrics->GetStartPositionOfChar(charnum, _retval);
 }
 
-/* DOMSVGPoint getEndPositionOfChar (in unsigned long charnum); */
+/* nsIDOMSVGPoint getEndPositionOfChar (in unsigned long charnum); */
 NS_IMETHODIMP
-nsSVGTextElement::GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval)
+nsSVGTextElement::GetEndPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
   nsSVGTextContainerFrame* metrics = GetTextContainerFrame();
@@ -293,20 +293,19 @@ nsSVGTextElement::GetRotationOfChar(uint32_t charnum, float *_retval)
   return metrics->GetRotationOfChar(charnum, _retval);
 }
 
-/* long getCharNumAtPosition (in DOMSVGPoint point); */
+/* long getCharNumAtPosition (in nsIDOMSVGPoint point); */
 NS_IMETHODIMP
-nsSVGTextElement::GetCharNumAtPosition(nsISupports *point, int32_t *_retval)
+nsSVGTextElement::GetCharNumAtPosition(nsIDOMSVGPoint *point, int32_t *_retval)
 {
-  *_retval = -1;
-
-  nsCOMPtr<DOMSVGPoint> domPoint = do_QueryInterface(point);
-  if (!domPoint) {
+  nsCOMPtr<DOMSVGPoint> p = do_QueryInterface(point);
+  if (!p)
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-  }
+
+  *_retval = -1;
 
   nsSVGTextContainerFrame* metrics = GetTextContainerFrame();
   if (metrics)
-    *_retval = metrics->GetCharNumAtPosition(domPoint);
+    *_retval = metrics->GetCharNumAtPosition(point);
 
   return NS_OK;
 }

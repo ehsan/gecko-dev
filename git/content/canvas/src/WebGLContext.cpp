@@ -45,14 +45,12 @@
 #include "mozilla/Services.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ipc/ProcessPriorityManager.h"
 
 #include "Layers.h"
 
 using namespace mozilla;
 using namespace mozilla::gl;
 using namespace mozilla::dom;
-using namespace mozilla::dom::ipc;
 using namespace mozilla::layers;
 
 NS_IMETHODIMP
@@ -65,10 +63,7 @@ WebGLMemoryPressureObserver::Observe(nsISupports* aSubject,
 
     bool wantToLoseContext = true;
 
-    if (!mContext->mCanLoseContextInForeground && CurrentProcessIsForeground())
-        wantToLoseContext = false;
-    else if (!nsCRT::strcmp(aSomeData,
-                            NS_LITERAL_STRING("heap-minimize").get()))
+    if (!nsCRT::strcmp(aSomeData, NS_LITERAL_STRING("heap-minimize").get()))
         wantToLoseContext = mContext->mLoseContextOnHeapMinimize;
 
     if (wantToLoseContext)
@@ -184,7 +179,6 @@ WebGLContext::WebGLContext()
     mContextStatus = ContextStable;
     mContextLostErrorSet = false;
     mLoseContextOnHeapMinimize = false;
-    mCanLoseContextInForeground = true;
 
     mAlreadyGeneratedWarnings = 0;
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;

@@ -103,7 +103,7 @@ var shell = {
     } catch(e) { }
 
     // Bail if there isn't a valid crashID.
-    if (!crashID && !this.CrashSubmit.pendingIDs().length) {
+    if (!crashID) {
       return;
     }
 
@@ -125,20 +125,10 @@ var shell = {
     });
   },
 
-  // this function submit the pending crashes.
-  // make sure you are online.
-  submitQueuedCrashes: function shell_submitQueuedCrashes() {
-    // submit the pending queue.
-    let pending = shell.CrashSubmit.pendingIDs();
-    for (let crashid of pending) {
-      shell.CrashSubmit.submit(crashid);
-    }
-  },
-
   // This function submits a crash when we're online.
   submitCrash: function shell_submitCrash(aCrashID) {
     if (this.onlineForCrashReport()) {
-      this.submitQueuedCrashes();
+      this.CrashSubmit.submit(aCrashID);
       return;
     }
 
@@ -146,7 +136,13 @@ var shell = {
       let network = subject.QueryInterface(Ci.nsINetworkInterface);
       if (network.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED
           && network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-        shell.submitQueuedCrashes();
+        shell.CrashSubmit.submit(aCrashID);
+
+        // submit the pending queue.
+        let pending = shell.CrashSubmit.pendingIDs();
+        for (let crashid of pending) {
+          shell.CrashSubmit.submit(crashid);
+        }
 
         Services.obs.removeObserver(observer, topic);
       }
@@ -688,7 +684,7 @@ var AlertsHelper = {
           let message = messages[i];
           if (message === "notification") {
             return helper.fullLaunchPath();
-          } else if (typeof message == "object" && "notification" in message) {
+          } else if ("notification" in message) {
             return helper.resolveFromOrigin(message["notification"]);
           }
         }

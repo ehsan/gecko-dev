@@ -22,7 +22,6 @@
 #include "nsDirectoryServiceUtils.h"
 #include "mozilla/SHA1.h"
 #include <sys/stat.h>
-#include <sys/socket.h>
 #include <vector>
 #include <algorithm>
 #include <string.h>
@@ -285,26 +284,6 @@ public:
 //   completely undo it.
 bool PoisoningDisabled = true;
 
-// We want to detect "actual" writes, not IPC. Some IPC mechanisms are
-// implemented with file descriptors, so filter them out.
-bool IsIPCWrite(int fd, const struct stat &buf) {
-    if ((buf.st_mode & S_IFMT) == S_IFIFO) {
-        return true;
-    }
-
-    if ((buf.st_mode & S_IFMT) != S_IFSOCK) {
-        return false;
-    }
-
-    sockaddr_storage address;
-    socklen_t len = sizeof(address);
-    if (getsockname(fd, (sockaddr*) &address, &len) != 0) {
-        return true; // Ignore the fd if we can't find what it is.
-    }
-
-    return address.ss_family == AF_UNIX;
-}
-
 void AbortOnBadWrite(int fd, const void *wbuf, size_t count) {
     if (PoisoningDisabled)
         return;
@@ -322,7 +301,8 @@ void AbortOnBadWrite(int fd, const void *wbuf, size_t count) {
     if (!ValidWriteAssert(rv == 0))
         return;
 
-    if (IsIPCWrite(fd, buf))
+    // FIFOs are used for thread communication during shutdown.
+    if ((buf.st_mode & S_IFMT) == S_IFIFO)
         return;
 
     {

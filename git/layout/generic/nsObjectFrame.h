@@ -266,7 +266,7 @@ private:
   };
 
   nsPluginInstanceOwner*          mInstanceOwner; // WEAK
-  nsView*                        mInnerView;
+  nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
   /**

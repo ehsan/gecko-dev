@@ -9,10 +9,10 @@
 #include "gfxMatrix.h"
 #include "nsIDOMSVGLocatable.h"
 #include "nsIDOMSVGTransformable.h"
-#include "nsSVGElement.h"
+#include "nsSVGStylableElement.h"
 #include "SVGAnimatedTransformList.h"
 
-typedef nsSVGElement nsSVGGraphicElementBase;
+typedef nsSVGStylableElement nsSVGGraphicElementBase;
 
 class nsSVGGraphicElement : public nsSVGGraphicElementBase,
                             public nsIDOMSVGTransformable // : nsIDOMSVGLocatable
@@ -32,10 +32,6 @@ public:
   nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                       int32_t aModType) const;
 
-
-  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
-
-
   virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
                       TransformTypes aWhich = eAllTransforms) const;
   virtual const gfxMatrix* GetAnimateMotionTransform() const;
@@ -49,6 +45,7 @@ public:
 
 protected:
   // nsSVGElement overrides
+  virtual bool IsEventName(nsIAtom* aName);
 
   nsAutoPtr<mozilla::SVGAnimatedTransformList> mTransforms;
 

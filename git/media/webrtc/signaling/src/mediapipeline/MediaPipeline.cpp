@@ -50,17 +50,6 @@ static char kDTLSExporterLabel[] = "EXTRACTOR-dtls_srtp";
 
 nsresult MediaPipeline::Init() {
   ASSERT_ON_THREAD(main_thread_);
-
-  // TODO(ekr@rtfm.com): is there a way to make this async?
-  nsresult ret;
-  RUN_ON_THREAD(sts_thread_,
-		WrapRunnableRet(this, &MediaPipeline::Init_s, &ret),
-		NS_DISPATCH_SYNC);
-  return ret;
-}
-
-nsresult MediaPipeline::Init_s() {
-  ASSERT_ON_THREAD(sts_thread_);
   conduit_->AttachTransport(transport_);
 
   MOZ_ASSERT(rtp_transport_);
@@ -100,7 +89,6 @@ nsresult MediaPipeline::Init_s() {
 void MediaPipeline::DetachTransport_s() {
   ASSERT_ON_THREAD(sts_thread_);
 
-  disconnect_all();
   transport_->Detach();
   rtp_transport_ = NULL;
   rtcp_transport_ = NULL;
@@ -497,7 +485,7 @@ nsresult MediaPipelineTransmit::Init() {
 nsresult MediaPipelineTransmit::TransportReady(TransportFlow *flow) {
   // Call base ready function.
   MediaPipeline::TransportReady(flow);
-
+  
   if (flow == rtp_transport_) {
     // TODO(ekr@rtfm.com): Move onto MSG thread.
     listener_->SetActive(true);
@@ -508,16 +496,17 @@ nsresult MediaPipelineTransmit::TransportReady(TransportFlow *flow) {
 
 nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
     const void *data, int len) {
+    nsresult ret;
 
     nsAutoPtr<DataBuffer> buf(new DataBuffer(static_cast<const uint8_t *>(data),
                                              len));
 
     RUN_ON_THREAD(sts_thread_,
-                  WrapRunnable(
+		  WrapRunnableRet(
                       RefPtr<MediaPipeline::PipelineTransport>(this),
-                      &MediaPipeline::PipelineTransport::SendRtpPacket_s,
-                      buf),
-                  NS_DISPATCH_NORMAL);
+		      &MediaPipeline::PipelineTransport::SendRtpPacket_s,
+                      buf, &ret),
+      NS_DISPATCH_NORMAL);
 
     return NS_OK;
 }
@@ -559,16 +548,17 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket_s(
 
 nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
     const void *data, int len) {
+    nsresult ret;
 
     nsAutoPtr<DataBuffer> buf(new DataBuffer(static_cast<const uint8_t *>(data),
                                              len));
 
     RUN_ON_THREAD(sts_thread_,
-                  WrapRunnable(
+		  WrapRunnableRet(
                       RefPtr<MediaPipeline::PipelineTransport>(this),
-                      &MediaPipeline::PipelineTransport::SendRtcpPacket_s,
-                      buf),
-                  NS_DISPATCH_NORMAL);
+		      &MediaPipeline::PipelineTransport::SendRtcpPacket_s,
+		      buf, &ret),
+		  NS_DISPATCH_NORMAL);
 
     return NS_OK;
 }
@@ -617,7 +607,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
   MOZ_MTLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
 
   if (!active_) {
-    MOZ_MTLOG(PR_LOG_DEBUG, "Discarding packets because transport not ready");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Discarding packets because transport not ready");    
     return;
   }
 
@@ -884,3 +874,4 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
 
 
 }  // end namespace
+

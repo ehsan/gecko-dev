@@ -97,9 +97,9 @@ NS_IMETHODIMP nsSVGImageElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
   return mLengthAttributes[HEIGHT].ToDOMAnimatedLength(aHeight, this);
 }
 
-/* readonly attribute SVGPreserveAspectRatio preserveAspectRatio; */
+/* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGImageElement::GetPreserveAspectRatio(nsISupports
+nsSVGImageElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
                                           **aPreserveAspectRatio)
 {
   return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);

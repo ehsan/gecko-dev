@@ -42,7 +42,8 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
     inliningDepth(inliningDepth),
     failedBoundsCheck_(info->script()->failedBoundsCheck),
     failedShapeGuard_(info->script()->failedShapeGuard),
-    lazyArguments_(NULL)
+    lazyArguments_(NULL),
+    callee_(NULL)
 {
     script_.init(info->script());
     pc = info->startPC();
@@ -133,6 +134,20 @@ IonBuilder::CFGState::TableSwitch(jsbytecode *exitpc, MTableSwitch *ins)
     state.tableswitch.breaks = NULL;
     state.tableswitch.ins = ins;
     state.tableswitch.currentBlock = 0;
+    return state;
+}
+
+IonBuilder::CFGState
+IonBuilder::CFGState::LookupSwitch(jsbytecode *exitpc)
+{
+    CFGState state;
+    state.state = LOOKUP_SWITCH;
+    state.stopAt = exitpc;
+    state.lookupswitch.exitpc = exitpc;
+    state.lookupswitch.breaks = NULL;
+    state.lookupswitch.bodies =
+        (FixedList<MBasicBlock *> *)GetIonContext()->temp->allocate(sizeof(FixedList<MBasicBlock *>));
+    state.lookupswitch.currentBlock = 0;
     return state;
 }
 
@@ -569,6 +584,15 @@ IonBuilder::initScopeChain()
 {
     MInstruction *scope = NULL;
 
+    // Add callee, it will be removed if it is not used by neither the scope
+    // chain nor the function body.
+    JSFunction *fun = info().fun();
+    if (fun) {
+        JS_ASSERT(!callee_);
+        callee_ = MCallee::New();
+        current->add(callee_);
+    }
+
     // If the script doesn't use the scopechain, then it's already initialized
     // from earlier.
     if (!script()->analysis()->usesScopeChain())
@@ -581,22 +605,19 @@ IonBuilder::initScopeChain()
     if (!script()->compileAndGo)
         return abort("non-CNG global scripts are not supported");
 
-    if (JSFunction *fun = info().fun()) {
-        MCallee *callee = MCallee::New();
-        current->add(callee);
-
-        scope = MFunctionEnvironment::New(callee);
+    if (fun) {
+        scope = MFunctionEnvironment::New(callee_);
         current->add(scope);
 
         // This reproduce what is done in CallObject::createForFunction
         if (fun->isHeavyweight()) {
             if (fun->isNamedLambda()) {
-                scope = createDeclEnvObject(callee, scope);
+                scope = createDeclEnvObject(callee_, scope);
                 if (!scope)
                     return false;
             }
 
-            scope = createCallObject(callee, scope);
+            scope = createCallObject(callee_, scope);
             if (!scope)
                 return false;
         }
@@ -745,6 +766,9 @@ IonBuilder::snoopControlFlow(JSOp op)
       case JSOP_TABLESWITCH:
         return tableSwitch(op, info().getNote(cx, pc));
 
+      case JSOP_LOOKUPSWITCH:
+        return lookupSwitch(op, info().getNote(cx, pc));
+
       case JSOP_IFNE:
         // We should never reach an IFNE, it's a stopAt point, which will
         // trigger closing the loop.
@@ -817,9 +841,6 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_DEFVAR:
       case JSOP_DEFCONST:
         return jsop_defvar(GET_UINT32_INDEX(pc));
-
-      case JSOP_DEFFUN:
-        return jsop_deffun(GET_UINT32_INDEX(pc));
 
       case JSOP_EQ:
       case JSOP_NE:
@@ -1030,12 +1051,9 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_this();
 
       case JSOP_CALLEE:
-      {
-        MCallee *callee = MCallee::New();
-        current->add(callee);
-        current->push(callee);
+        JS_ASSERT(callee_);
+        current->push(callee_);
         return true;
-      }
 
       case JSOP_GETPROP:
       case JSOP_CALLPROP:
@@ -1191,6 +1209,9 @@ IonBuilder::processCfgEntry(CFGState &state)
 
       case CFGState::TABLE_SWITCH:
         return processNextTableSwitchCase(state);
+
+      case CFGState::LOOKUP_SWITCH:
+        return processNextLookupSwitchCase(state);
 
       case CFGState::COND_SWITCH_CASE:
         return processCondSwitchCase(state);
@@ -1614,6 +1635,46 @@ IonBuilder::processNextTableSwitchCase(CFGState &state)
 }
 
 IonBuilder::ControlStatus
+IonBuilder::processNextLookupSwitchCase(CFGState &state)
+{
+    JS_ASSERT(state.state == CFGState::LOOKUP_SWITCH);
+
+    size_t curBlock = state.lookupswitch.currentBlock;
+    IonSpew(IonSpew_MIR, "processNextLookupSwitchCase curBlock=%d", curBlock);
+
+    state.lookupswitch.currentBlock = ++curBlock;
+
+    // Test if there are still unprocessed successors (cases/default)
+    if (curBlock >= state.lookupswitch.bodies->length())
+        return processSwitchEnd(state.lookupswitch.breaks, state.lookupswitch.exitpc);
+
+    // Get the next successor
+    MBasicBlock *successor = (*state.lookupswitch.bodies)[curBlock];
+
+    // Add current block as predecessor if available.
+    // This means the previous case didn't have a break statement.
+    // So flow will continue in this block.
+    if (current) {
+        current->end(MGoto::New(successor));
+        successor->addPredecessor(current);
+    }
+
+    // Move next body block to end to maintain RPO.
+    graph().moveBlockToEnd(successor);
+
+    // If this is the last successor the block should stop at the end of the lookupswitch
+    // Else it should stop at the start of the next successor
+    if (curBlock + 1 < state.lookupswitch.bodies->length())
+        state.stopAt = (*state.lookupswitch.bodies)[curBlock + 1]->pc();
+    else
+        state.stopAt = state.lookupswitch.exitpc;
+
+    current = successor;
+    pc = current->pc();
+    return ControlStatus_Jumped;
+}
+
+IonBuilder::ControlStatus
 IonBuilder::processAndOrEnd(CFGState &state)
 {
     // We just processed the RHS of an && or || expression.
@@ -1736,6 +1797,9 @@ IonBuilder::processSwitchBreak(JSOp op, jssrcnote *sn)
     switch (state.state) {
       case CFGState::TABLE_SWITCH:
         breaks = &state.tableswitch.breaks;
+        break;
+      case CFGState::LOOKUP_SWITCH:
+        breaks = &state.lookupswitch.breaks;
         break;
       case CFGState::COND_SWITCH_BODY:
         breaks = &state.condswitch.breaks;
@@ -2131,7 +2195,7 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
 
         // If the casepc equals the current pc, it is not a written case,
         // but a filled gap. That way we can use a tableswitch instead of
-        // condswitch, even if not all numbers are consecutive.
+        // lookupswitch, even if not all numbers are consecutive.
         // In that case this block goes to the default case
         if (casepc == pc) {
             caseblock->end(MGoto::New(defaultcase));
@@ -2178,6 +2242,207 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
     if (!cfgStack_.append(state))
         return ControlStatus_Error;
 
+    pc = current->pc();
+    return ControlStatus_Jumped;
+}
+
+IonBuilder::ControlStatus
+IonBuilder::lookupSwitch(JSOp op, jssrcnote *sn)
+{
+    // LookupSwitch op looks as follows:
+    // DEFAULT  : JUMP_OFFSET           # jump offset (exitpc if no default block)
+    // NCASES   : UINT16                # number of cases
+    // CONST_1  : UINT32_INDEX          # case 1 constant index
+    // OFFSET_1 : JUMP_OFFSET           # case 1 offset
+    // ...
+    // CONST_N  : UINT32_INDEX          # case N constant index
+    // OFFSET_N : JUMP_OFFSET           # case N offset
+
+    // A sketch of some of the design decisions on this code.
+    //
+    // 1. The bodies of case expressions may be shared, e.g.:
+    //   case FOO:
+    //   case BAR:
+    //     /* code */
+    //   case BAZ:
+    //     /* code */
+    //  In this cases we want to build a single codeblock for the conditionals (e.g. for FOO and BAR).
+    //
+    // 2. The ending MTest can only be added to a conditional block once the next conditional
+    //    block has been created, and ending MTest on the final conditional block can only be
+    //    added after the default body block has been created.
+    //
+    //    For the above two reasons, the loop keeps track of the previous iteration's major
+    //    components (cond block, body block, cmp instruction, body start pc, whether the
+    //    previous case had a shared body, etc.) and uses them in the next iteration.
+    //
+    // 3. The default body block may be shared with the body of a 'case'.  This is tested for
+    //    within the iteration loop in IonBuilder::lookupSwitch.  Also, the default body block
+    //    may not occur at the end of the switch statements, and instead may occur in between.
+    //
+    //    For this reason, the default body may be created within the loop (when a regular body
+    //    block is created, because the default body IS the regular body), or it will be created
+    //    after the loop.  It must then still be inserted into the right location into the list
+    //    of body blocks to process, which is done later in lookupSwitch.
+
+    JS_ASSERT(op == JSOP_LOOKUPSWITCH);
+
+    // Pop input.
+    MDefinition *ins = current->pop();
+
+    // Get the default and exit pc
+    jsbytecode *exitpc = pc + js_GetSrcNoteOffset(sn, 0);
+    jsbytecode *defaultpc = pc + GET_JUMP_OFFSET(pc);
+
+    JS_ASSERT(defaultpc > pc && defaultpc <= exitpc);
+
+    // Get ncases, which will be >= 1, since a zero-case switch
+    // will get byte-compiled into a TABLESWITCH.
+    jsbytecode *pc2 = pc;
+    pc2 += JUMP_OFFSET_LEN;
+    unsigned int ncases = GET_UINT16(pc2);
+    pc2 += UINT16_LEN;
+    JS_ASSERT(ncases >= 1);
+
+    // Vector of body blocks.
+    Vector<MBasicBlock*, 0, IonAllocPolicy> bodyBlocks;
+
+    MBasicBlock *defaultBody = NULL;
+    unsigned int defaultIdx = UINT_MAX;
+    bool defaultShared = false;
+
+    MBasicBlock *prevCond = NULL;
+    MCompare *prevCmpIns = NULL;
+    MBasicBlock *prevBody = NULL;
+    bool prevShared = false;
+    jsbytecode *prevpc = NULL;
+    for (unsigned int i = 0; i < ncases; i++) {
+        Value rval = script()->getConst(GET_UINT32_INDEX(pc2));
+        pc2 += UINT32_INDEX_LEN;
+        jsbytecode *casepc = pc + GET_JUMP_OFFSET(pc2);
+        pc2 += JUMP_OFFSET_LEN;
+        JS_ASSERT(casepc > pc && casepc <= exitpc);
+        JS_ASSERT_IF(i > 0, prevpc <= casepc);
+
+        // Create case block
+        MBasicBlock *cond = newBlock(((i == 0) ? current : prevCond), casepc);
+        if (!cond)
+            return ControlStatus_Error;
+
+        MConstant *rvalIns = MConstant::New(rval);
+        cond->add(rvalIns);
+
+        MCompare *cmpIns = MCompare::New(ins, rvalIns, JSOP_STRICTEQ);
+        cond->add(cmpIns);
+        if (cmpIns->isEffectful() && !resumeAfter(cmpIns))
+            return ControlStatus_Error;
+
+        // Create or pull forward body block
+        MBasicBlock *body;
+        if (prevpc == casepc) {
+            body = prevBody;
+        } else {
+            body = newBlock(cond, casepc);
+            if (!body)
+                return ControlStatus_Error;
+            bodyBlocks.append(body);
+        }
+
+        // Check for default body
+        if (defaultpc <= casepc && defaultIdx == UINT_MAX) {
+            defaultIdx = bodyBlocks.length() - 1;
+            if (defaultpc == casepc) {
+                defaultBody = body;
+                defaultShared = true;
+            }
+        }
+
+        // Go back and fill in the MTest for the previous case block, or add the MGoto
+        // to the current block
+        if (i == 0) {
+            // prevCond is definitely NULL, end 'current' with MGoto to this case.
+            current->end(MGoto::New(cond));
+        } else {
+            // End previous conditional block with an MTest.
+            MTest *test = MTest::New(prevCmpIns, prevBody, cond);
+            prevCond->end(test);
+
+            // If the previous cond shared its body with a prior cond, then
+            // add the previous cond as a predecessor to its body (since it's
+            // now finished).
+            if (prevShared)
+                prevBody->addPredecessor(prevCond);
+        }
+
+        // Save the current cond block, compare ins, and body block for next iteration
+        prevCond = cond;
+        prevCmpIns = cmpIns;
+        prevBody = body;
+        prevShared = (prevpc == casepc);
+        prevpc = casepc;
+    }
+
+    // Create a new default body block if one was not already created.
+    if (!defaultBody) {
+        JS_ASSERT(!defaultShared);
+        defaultBody = newBlock(prevCond, defaultpc);
+        if (!defaultBody)
+            return ControlStatus_Error;
+
+        if (defaultIdx >= bodyBlocks.length())
+            bodyBlocks.append(defaultBody);
+        else
+            bodyBlocks.insert(&bodyBlocks[defaultIdx], defaultBody);
+    }
+
+    // Add edge from last conditional block to the default block
+    if (defaultBody == prevBody) {
+        // Last conditional block goes to default body on both comparison
+        // success and comparison failure.
+        prevCond->end(MGoto::New(defaultBody));
+    } else {
+        // Last conditional block has body that is distinct from
+        // the default block.
+        MTest *test = MTest::New(prevCmpIns, prevBody, defaultBody);
+        prevCond->end(test);
+
+        // Add the cond as a predecessor as a default, but only if
+        // the default is shared with another block, because otherwise
+        // the default block would have been constructed with the final
+        // cond as its predecessor anyway.
+        if (defaultShared)
+            defaultBody->addPredecessor(prevCond);
+    }
+
+    // If the last cond shared its body with a prior cond, then
+    // it needs to be explicitly added as a predecessor now that it's finished.
+    if (prevShared)
+        prevBody->addPredecessor(prevCond);
+
+    // Create CFGState
+    CFGState state = CFGState::LookupSwitch(exitpc);
+    if (!state.lookupswitch.bodies || !state.lookupswitch.bodies->init(bodyBlocks.length()))
+        return ControlStatus_Error;
+
+    // Fill bodies in CFGState using bodies in bodyBlocks, move them to
+    // end in order in order to maintain RPO
+    for (size_t i = 0; i < bodyBlocks.length(); i++) {
+        (*state.lookupswitch.bodies)[i] = bodyBlocks[i];
+    }
+    graph().moveBlockToEnd(bodyBlocks[0]);
+
+    // Create control flow info
+    ControlFlowInfo switchinfo(cfgStack_.length(), exitpc);
+    if (!switches_.append(switchinfo))
+        return ControlStatus_Error;
+
+    // If there is more than one block, next stopAt is at beginning of second block.
+    if (state.lookupswitch.bodies->length() > 1)
+        state.stopAt = (*state.lookupswitch.bodies)[1]->pc();
+    if (!cfgStack_.append(state))
+        return ControlStatus_Error;
+
+    current = (*state.lookupswitch.bodies)[0];
     pc = current->pc();
     return ControlStatus_Jumped;
 }
@@ -4090,27 +4355,6 @@ IonBuilder::makeCallHelper(HandleFunction target, bool constructing,
     return call;
 }
 
-static types::StackTypeSet*
-AdjustTypeBarrierForDOMCall(const JSJitInfo* jitinfo, types::StackTypeSet *types,
-                            types::StackTypeSet *barrier)
-{
-    // If the return type of our DOM native is in "types" already, we don't
-    // actually need a barrier.
-    if (jitinfo->returnType == JSVAL_TYPE_UNKNOWN)
-        return barrier;
-
-    // JSVAL_TYPE_OBJECT doesn't tell us much; we still have to barrier on the
-    // actual type of the object.
-    if (jitinfo->returnType == JSVAL_TYPE_OBJECT)
-        return barrier;
-
-    if (jitinfo->returnType != types->getKnownTypeTag())
-        return barrier;
-    
-    // No need for a barrier if we're already expecting the type we'll produce.
-    return NULL;
-}
-
 bool
 IonBuilder::makeCallBarrier(HandleFunction target, uint32_t argc,
                             bool constructing,
@@ -4139,12 +4383,6 @@ IonBuilder::makeCallBarrier(HandleFunction target, bool constructing,
     current->push(call);
     if (!resumeAfter(call))
         return false;
-
-    if (call->isDOMFunction()) {
-        JSFunction* target = call->getSingleTarget();
-        JS_ASSERT(target && target->isNative() && target->jitInfo());
-        barrier = AdjustTypeBarrierForDOMCall(target->jitInfo(), types, barrier);
-    }
 
     return pushTypeBarrier(call, types, barrier);
 }
@@ -4323,7 +4561,7 @@ IonBuilder::jsop_initprop(HandlePropertyName name)
     RootedShape shape(cx);
     RootedId id(cx, NameToId(name));
     bool res = LookupPropertyWithFlags(cx, templateObject, id,
-                                       0, &holder, &shape);
+                                       JSRESOLVE_QUALIFIED, &holder, &shape);
     if (!res)
         return false;
 
@@ -4865,11 +5103,6 @@ IonBuilder::pushTypeBarrier(MInstruction *ins, types::StackTypeSet *actual,
             current->pop();
             current->add(replace);
             current->push(replace);
-            if (replace->acceptsTypeSet())
-                replace->setTypeSet(cloneTypeSet(actual));
-        } else {
-            if (ins->acceptsTypeSet())
-                ins->setTypeSet(cloneTypeSet(actual));
         }
         return true;
     }
@@ -4918,7 +5151,7 @@ IonBuilder::pushTypeBarrier(MInstruction *ins, types::StackTypeSet *actual,
 // Test the type of values returned by a VM call. This is an optimized version
 // of calling TypeScript::Monitor inside such stubs.
 void
-IonBuilder::monitorResult(MInstruction *ins, types::TypeSet *barrier, types::StackTypeSet *types)
+IonBuilder::monitorResult(MInstruction *ins, types::TypeSet *barrier, types::TypeSet *types)
 {
     // MonitorTypes is redundant if we will also add a type barrier.
     if (barrier)
@@ -6262,7 +6495,6 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, HandleId id, types::StackTypeS
 
         if (get->isEffectful() && !resumeAfter(get))
             return false;
-        barrier = AdjustTypeBarrierForDOMCall(jitinfo, types, barrier);
         if (!pushTypeBarrier(get, types, barrier))
             return false;
 
@@ -6538,7 +6770,7 @@ IonBuilder::jsop_defvar(uint32_t index)
 {
     JS_ASSERT(JSOp(*pc) == JSOP_DEFVAR || JSOp(*pc) == JSOP_DEFCONST);
 
-    RootedPropertyName name(cx, script()->getName(index));
+    PropertyName *name = script()->getName(index);
 
     // Bake in attrs.
     unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT;
@@ -6553,19 +6785,6 @@ IonBuilder::jsop_defvar(uint32_t index)
     current->add(defvar);
 
     return resumeAfter(defvar);
-}
-
-bool
-IonBuilder::jsop_deffun(uint32_t index)
-{
-    RootedFunction fun(cx, script()->getFunction(index));
-
-    JS_ASSERT(script()->analysis()->usesScopeChain());
-
-    MDefFun *deffun = MDefFun::New(fun, current->scopeChain());
-    current->add(deffun);
-
-    return resumeAfter(deffun);
 }
 
 bool
@@ -6862,8 +7081,8 @@ IonBuilder::addShapeGuard(MDefinition *obj, const UnrootedShape shape, BailoutKi
     return guard;
 }
 
-const types::StackTypeSet *
-IonBuilder::cloneTypeSet(const types::StackTypeSet *types)
+const types::TypeSet *
+IonBuilder::cloneTypeSet(const types::TypeSet *types)
 {
     if (!js_IonOptions.parallelCompilation)
         return types;

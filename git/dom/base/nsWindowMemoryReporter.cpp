@@ -105,7 +105,7 @@ AppendWindowURI(nsGlobalWindow *aWindow, nsACString& aStr)
   }
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(WindowsMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMStyleMallocSizeOf, "windows")
 
 // The key is the window ID.
 typedef nsDataHashtable<nsUint64HashKey, nsCString> WindowPaths;
@@ -166,7 +166,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
     }                                                                         \
   } while (0)
 
-  nsWindowSizes windowSizes(WindowsMallocSizeOf);
+  nsWindowSizes windowSizes(DOMStyleMallocSizeOf);
   aWindow->SizeOfIncludingThis(&windowSizes);
 
   REPORT("/dom/other", windowSizes.mDOMOther,

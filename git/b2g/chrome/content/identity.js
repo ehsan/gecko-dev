@@ -98,7 +98,6 @@ function doInternalWatch() {
 function doInternalRequest() {
   log("doInternalRequest:", options && isLoaded);
   if (options && isLoaded) {
-    var stringifiedOptions = JSON.stringify(options);
     content.wrappedJSObject.BrowserID.internal.get(
       options.origin,
       function(assertion, internalParams) {
@@ -111,7 +110,7 @@ function doInternalRequest() {
         }
         closeIdentityDialog();
       },
-      stringifiedOptions);
+      options);
   }
 }
 

@@ -8,7 +8,7 @@
 #define mozilla_dom_audiochannelservice_h__
 
 #include "nsAutoPtr.h"
-#include "nsIObserver.h"
+#include "nsISupports.h"
 
 #include "AudioChannelCommon.h"
 #include "AudioChannelAgent.h"
@@ -17,11 +17,10 @@
 namespace mozilla {
 namespace dom {
 
-class AudioChannelService : public nsIObserver
+class AudioChannelService : public nsISupports
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
 
   /**
    * Returns the AudioChannelServce singleton. Only to be called from main thread.
@@ -57,8 +56,8 @@ protected:
   void Notify();
 
   /* Register/Unregister IPC types: */
-  void RegisterType(AudioChannelType aType, uint64_t aChildID);
-  void UnregisterType(AudioChannelType aType, uint64_t aChildID);
+  void RegisterType(AudioChannelType aType);
+  void UnregisterType(AudioChannelType aType);
 
   AudioChannelService();
   virtual ~AudioChannelService();
@@ -69,7 +68,7 @@ protected:
 
   nsDataHashtable< nsPtrHashKey<AudioChannelAgent>, AudioChannelType > mAgents;
 
-  nsTArray<uint64_t> mChannelCounters[AUDIO_CHANNEL_PUBLICNOTIFICATION+1];
+  int32_t* mChannelCounters;
 
   AudioChannelType mCurrentHigherChannel;
 

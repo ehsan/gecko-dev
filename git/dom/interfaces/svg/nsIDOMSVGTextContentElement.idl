@@ -7,7 +7,9 @@
 
 interface nsIDOMSVGAnimatedLength;
 interface nsIDOMSVGAnimatedEnumeration;
+interface nsIDOMSVGPoint;
 interface nsIDOMSVGRect;
+
 
 [scriptable, uuid(8A884160-DB64-4BF7-B932-15398E536A8D)]
 interface nsIDOMSVGTextContentElement
@@ -39,17 +41,15 @@ interface nsIDOMSVGTextContentElement
   float    getComputedTextLength();
   float    getSubStringLength(in unsigned long charnum, in unsigned long nchars);
     // raises(DOMException);
-  // SVGPoint
-  nsISupports getStartPositionOfChar(in unsigned long charnum);
+  nsIDOMSVGPoint getStartPositionOfChar(in unsigned long charnum);
     // raises(DOMException);
-  // SVGPoint
-  nsISupports getEndPositionOfChar(in unsigned long charnum);
+  nsIDOMSVGPoint getEndPositionOfChar(in unsigned long charnum);
     // raises(DOMException);
   nsIDOMSVGRect  getExtentOfChar(in unsigned long charnum);
     // raises(DOMException);
   float    getRotationOfChar(in unsigned long charnum);
-    // raises(DOMException);       SVGPoint
-  long     getCharNumAtPosition(in nsISupports point);
+    // raises(DOMException);
+  long     getCharNumAtPosition(in nsIDOMSVGPoint point);
   void     selectSubString(in unsigned long charnum, in unsigned long nchars);
     // raises(DOMException);
 };

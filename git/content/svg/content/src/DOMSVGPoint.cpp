@@ -8,10 +8,11 @@
 #include "SVGPoint.h"
 #include "SVGAnimatedPointList.h"
 #include "nsSVGElement.h"
+#include "nsIDOMSVGPoint.h"
 #include "nsError.h"
+#include "nsIDOMSVGMatrix.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
 #include "DOMSVGMatrix.h"
-#include "mozilla/dom/SVGPointBinding.h"
 
 // See the architecture comment in DOMSVGPointList.h.
 
@@ -28,48 +29,46 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGPoint)
     tmp->mList->mItems[tmp->mListIndex] = nullptr;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK(mList)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMSVGPoint)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(DOMSVGPoint)
-NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGPoint)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGPoint)
 
+DOMCI_DATA(SVGPoint, DOMSVGPoint)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGPoint)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(DOMSVGPoint) // pseudo-interface
-  NS_INTERFACE_MAP_ENTRY(nsISVGPoint)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPoint)
 NS_INTERFACE_MAP_END
 
-float
-DOMSVGPoint::X()
+
+NS_IMETHODIMP
+DOMSVGPoint::GetX(float* aX)
 {
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
-  return HasOwner() ? InternalItem().mX : mPt.mX;
+  *aX = HasOwner() ? InternalItem().mX : mPt.mX;
+  return NS_OK;
 }
 
-void
-DOMSVGPoint::SetX(float aX, ErrorResult& rv)
+NS_IMETHODIMP
+DOMSVGPoint::SetX(float aX)
 {
   if (mIsAnimValItem || mIsReadonly) {
-    rv.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
+
+  NS_ENSURE_FINITE(aX, NS_ERROR_ILLEGAL_VALUE);
 
   if (HasOwner()) {
     if (InternalItem().mX == aX) {
-      return;
+      return NS_OK;
     }
     nsAttrValue emptyOrOldValue = Element()->WillChangePointList();
     InternalItem().mX = aX;
@@ -77,31 +76,34 @@ DOMSVGPoint::SetX(float aX, ErrorResult& rv)
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
     }
-    return;
+    return NS_OK;
   }
   mPt.mX = aX;
+  return NS_OK;
 }
 
-float
-DOMSVGPoint::Y()
+NS_IMETHODIMP
+DOMSVGPoint::GetY(float* aY)
 {
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
-  return HasOwner() ? InternalItem().mY : mPt.mY;
+  *aY = HasOwner() ? InternalItem().mY : mPt.mY;
+  return NS_OK;
 }
 
-void
-DOMSVGPoint::SetY(float aY, ErrorResult& rv)
+NS_IMETHODIMP
+DOMSVGPoint::SetY(float aY)
 {
   if (mIsAnimValItem || mIsReadonly) {
-    rv.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
+
+  NS_ENSURE_FINITE(aY, NS_ERROR_ILLEGAL_VALUE);
 
   if (HasOwner()) {
     if (InternalItem().mY == aY) {
-      return;
+      return NS_OK;
     }
     nsAttrValue emptyOrOldValue = Element()->WillChangePointList();
     InternalItem().mY = aY;
@@ -109,20 +111,27 @@ DOMSVGPoint::SetY(float aY, ErrorResult& rv)
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
     }
-    return;
+    return NS_OK;
   }
   mPt.mY = aY;
+  return NS_OK;
 }
 
-already_AddRefed<nsISVGPoint>
-DOMSVGPoint::MatrixTransform(DOMSVGMatrix& matrix)
+NS_IMETHODIMP
+DOMSVGPoint::MatrixTransform(nsIDOMSVGMatrix *matrix,
+                             nsIDOMSVGPoint **_retval)
 {
+  nsCOMPtr<DOMSVGMatrix> domMatrix = do_QueryInterface(matrix);
+  if (!domMatrix)
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+
   float x = HasOwner() ? InternalItem().mX : mPt.mX;
   float y = HasOwner() ? InternalItem().mY : mPt.mY;
 
-  gfxPoint pt = matrix.Matrix().Transform(gfxPoint(x, y));
-  nsCOMPtr<nsISVGPoint> newPoint = new DOMSVGPoint(pt);
-  return newPoint.forget();
+  gfxPoint pt = domMatrix->Matrix().Transform(gfxPoint(x, y));
+  NS_ADDREF(*_retval = new DOMSVGPoint(pt));
+
+  return NS_OK;
 }
 
 void

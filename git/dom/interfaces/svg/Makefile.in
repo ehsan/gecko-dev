@@ -19,10 +19,15 @@ XPIDLSRCS	= \
 		nsIDOMGetSVGDocument.idl \
 		nsIDOMSVGAElement.idl \
 		nsIDOMSVGAltGlyphElement.idl \
+		nsIDOMSVGAngle.idl \
+		nsIDOMSVGAnimatedAngle.idl \
+		nsIDOMSVGAnimatedBoolean.idl \
 		nsIDOMSVGAnimatedEnum.idl \
 		nsIDOMSVGAnimatedInteger.idl \
 		nsIDOMSVGAnimatedLength.idl \
+		nsIDOMSVGAnimatedLengthList.idl \
 		nsIDOMSVGAnimatedNumber.idl \
+		nsIDOMSVGAnimatedNumberList.idl \
 		nsIDOMSVGAnimatedPathData.idl \
 		nsIDOMSVGAnimatedPoints.idl \
 		nsIDOMSVGAnimatedRect.idl \
@@ -31,6 +36,8 @@ XPIDLSRCS	= \
 		nsIDOMSVGAnimateMotionElement.idl \
 		nsIDOMSVGAnimateTransformElement.idl \
 		nsIDOMSVGAnimationElement.idl \
+		nsIDOMSVGAnimPresAspRatio.idl \
+		nsIDOMSVGAnimTransformList.idl \
 		nsIDOMSVGCircleElement.idl \
 		nsIDOMSVGClipPathElement.idl \
 		nsIDOMSVGDefsElement.idl \
@@ -47,17 +54,25 @@ XPIDLSRCS	= \
 		nsIDOMSVGGradientElement.idl \
 		nsIDOMSVGImageElement.idl \
 		nsIDOMSVGLength.idl \
+		nsIDOMSVGLengthList.idl \
 		nsIDOMSVGLineElement.idl \
 		nsIDOMSVGLocatable.idl \
 		nsIDOMSVGMarkerElement.idl \
 		nsIDOMSVGMaskElement.idl \
+		nsIDOMSVGMatrix.idl \
 		nsIDOMSVGMetadataElement.idl \
 		nsIDOMSVGMpathElement.idl \
 		nsIDOMSVGNumber.idl \
+		nsIDOMSVGNumberList.idl \
 		nsIDOMSVGPathElement.idl \
+		nsIDOMSVGPathSeg.idl \
+		nsIDOMSVGPathSegList.idl \
 		nsIDOMSVGPatternElement.idl \
+		nsIDOMSVGPoint.idl \
+		nsIDOMSVGPointList.idl \
 		nsIDOMSVGPolygonElement.idl \
 		nsIDOMSVGPolylineElement.idl \
+		nsIDOMSVGPresAspectRatio.idl \
 		nsIDOMSVGRect.idl \
 		nsIDOMSVGRectElement.idl \
 		nsIDOMSVGScriptElement.idl \
@@ -65,6 +80,7 @@ XPIDLSRCS	= \
 		nsIDOMSVGSVGElement.idl \
 		nsIDOMSVGStopElement.idl \
 		nsIDOMSVGStringList.idl \
+		nsIDOMSVGStylable.idl \
 		nsIDOMSVGStyleElement.idl \
 		nsIDOMSVGSwitchElement.idl \
 		nsIDOMSVGSymbolElement.idl \
@@ -74,6 +90,8 @@ XPIDLSRCS	= \
 		nsIDOMSVGTextPathElement.idl \
 		nsIDOMSVGTextPositionElem.idl \
 		nsIDOMSVGTitleElement.idl \
+		nsIDOMSVGTransform.idl \
+		nsIDOMSVGTransformList.idl \
 		nsIDOMSVGTransformable.idl \
 		nsIDOMSVGTSpanElement.idl \
 		nsIDOMSVGURIReference.idl \

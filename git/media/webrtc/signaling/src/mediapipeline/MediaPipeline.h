@@ -207,7 +207,6 @@ class MediaPipeline : public sigslot::has_slots<> {
   std::string description_;
 
  private:
-  nsresult Init_s();
   void DetachTransport();
   void DetachTransport_s();
 

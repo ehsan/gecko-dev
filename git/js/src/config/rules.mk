@@ -108,19 +108,6 @@ LIBS += $(XPCOM_GLUE_LDOPTS) $(NSPR_LIBS) $(MOZ_JS_LIBS) $(if $(JS_SHARED_LIBRAR
 check::
 	@$(PYTHON) $(topsrcdir)/testing/runcppunittests.py --xre-path=$(DIST)/bin --symbols-path=$(DIST)/crashreporter-symbols $(subst .cpp,$(BIN_SUFFIX),$(CPP_UNIT_TESTS))
 
-cppunittests-remote: DM_TRANS?=adb
-cppunittests-remote:
-	@if [ "${TEST_DEVICE}" != "" -o "$(DM_TRANS)" = "adb" ]; then \
-		$(PYTHON) -u $(topsrcdir)/testing/remotecppunittests.py \
-			--xre-path=$(DEPTH)/dist/bin \
-			--localLib=$(DEPTH)/dist/$(MOZ_APP_NAME) \
-			--dm_trans=$(DM_TRANS) \
-			--deviceIP=${TEST_DEVICE} \
- 			$(subst .cpp,$(BIN_SUFFIX),$(CPP_UNIT_TESTS)) $(EXTRA_TEST_ARGS); \
-	else \
-		echo "please prepare your host with environment variables for TEST_DEVICE"; \
-	fi
-
 endif # CPP_UNIT_TESTS
 
 .PHONY: check
@@ -1214,12 +1201,6 @@ PREF_JS_EXPORTS_PATH := $(FINAL_TARGET)/$(PREF_DIR)
 PREF_JS_EXPORTS_FLAGS := $(PREF_PPFLAGS)
 PP_TARGETS += PREF_JS_EXPORTS
 endif
-endif
-
-# Set a flag that can be used in pref files to disable features if
-# we are not building for Aurora or Nightly.
-ifeq (,$(findstring a,$(GRE_MILESTONE)))
-PREF_PPFLAGS += -DRELEASE_BUILD
 endif
 
 ################################################################################

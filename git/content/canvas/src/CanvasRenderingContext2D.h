@@ -744,7 +744,9 @@ protected:
       return mCanvasElement->OwnerDoc()->GetShell();
     }
     if (mDocShell) {
-      return mDocShell->GetPresShell();
+      nsCOMPtr<nsIPresShell> shell;
+      mDocShell->GetPresShell(getter_AddRefs(shell));
+      return shell.get();
     }
     return nullptr;
   }

@@ -28,7 +28,7 @@ struct nsRect;
 class nsIContent;
 class nsIFrame;
 class nsIAtom;
-class nsView;
+class nsIView;
 
 namespace mozilla {
 namespace a11y {
@@ -520,7 +520,7 @@ public:
   bool IsTextLeaf() const { return mType == eTextLeafType; }
   TextLeafAccessible* AsTextLeaf();
 
-  bool IsXULTabpanels() const { return mType == eXULTabpanelsType; }
+  bool IsXULDeck() const { return mType == eXULDeckType; }
 
   bool IsXULTree() const { return mType == eXULTreeType; }
   XULTreeAccessible* AsXULTree();

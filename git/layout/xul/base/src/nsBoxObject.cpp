@@ -13,7 +13,7 @@
 #include "nsIDocShell.h"
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsView.h"
+#include "nsIView.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #else

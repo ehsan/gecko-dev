@@ -802,9 +802,7 @@ abstract public class GeckoApp
         }
     }
 
-    public void addTab() { }
-
-    public void addPrivateTab() { }
+    void addTab() { }
 
     public void showNormalTabs() { }
 

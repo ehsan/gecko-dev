@@ -27,7 +27,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEvent.h"

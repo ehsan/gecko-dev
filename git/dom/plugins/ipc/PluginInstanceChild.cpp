@@ -259,7 +259,7 @@ PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
                                                            &currentResult);
                 break;
             default:
-                MOZ_ASSERT(false);
+                NS_NOTREACHED("Don't know what to do with this value type!");
         }
 
         // Make sure that the current actor returned by the parent matches our

@@ -115,6 +115,7 @@ public:
   NS_DECL_IPEERCONNECTION
 
   static PeerConnectionImpl* CreatePeerConnection();
+  static void Shutdown();
   static nsresult ConvertConstraints(
     const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx);
   static nsresult MakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aStream);
@@ -216,8 +217,8 @@ private:
   void ShutdownMedia(bool isSynchronous);
 
   // ICE callbacks run on the right thread.
-  nsresult IceGatheringCompleted_m(NrIceCtx *aCtx);
-  nsresult IceCompleted_m(NrIceCtx *aCtx);
+  void IceGatheringCompleted_m(NrIceCtx *aCtx);
+  void IceCompleted_m(NrIceCtx *aCtx);
 
   // The role we are adopting
   Role mRole;

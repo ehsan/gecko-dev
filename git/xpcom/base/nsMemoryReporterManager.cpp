@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -544,7 +543,7 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(Explicit,
     "different results.")
 #endif  // HAVE_JEMALLOC_STATS
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf, "atom-table")
 
 static int64_t GetAtomTableSize() {
   return NS_SizeOfAtomTablesIncludingThis(AtomTableMallocSizeOf);
@@ -597,17 +596,11 @@ public:
       NS_ENSURE_SUCCESS(rv, rv);                                              \
     } while (0)
 
-    REPORT("explicit/dmd/stack-traces/used",
-           sizes.mStackTracesUsed,
-           "Memory used by stack traces which correspond to at least "
-           "one heap block DMD is tracking.");
+    REPORT("explicit/dmd/stack-traces",
+           sizes.mStackTraces,
+           "Memory used by DMD's stack traces.");
 
-    REPORT("explicit/dmd/stack-traces/unused",
-           sizes.mStackTracesUnused,
-           "Memory used by stack traces which don't correspond to any heap "
-           "blocks DMD is currently tracking.");
-
-    REPORT("explicit/dmd/stack-traces/table",
+    REPORT("explicit/dmd/stack-trace-table",
            sizes.mStackTraceTable,
            "Memory used by DMD's stack trace table.");
 
@@ -1119,7 +1112,7 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
     return mgr->UnregisterMultiReporter(reporter);
 }
 
-#if defined(MOZ_DMD)
+#if defined(MOZ_DMDV) || defined(MOZ_DMD)
 
 namespace mozilla {
 namespace dmd {
@@ -1134,7 +1127,7 @@ public:
                         const nsACString &aDescription,
                         nsISupports *aData)
     {
-        // Do nothing;  the reporter has already reported to DMD.
+        // Do nothing;  the reporter has already reported to DMDV.
         return NS_OK;
     }
 };
@@ -1177,7 +1170,7 @@ RunReporters()
             path.Find("explicit") == 0)
         {
             // Just getting the amount is enough for the reporter to report to
-            // DMD.
+            // DMDV.
             int64_t amount;
             (void)r->GetAmount(&amount);
         }
@@ -1197,5 +1190,20 @@ RunReporters()
 } // namespace dmd
 } // namespace mozilla
 
-#endif  // defined(MOZ_DMD)
+#endif  // defined(MOZ_DMDV) || defined(MOZ_DMD)
+
+#ifdef MOZ_DMDV
+namespace mozilla {
+namespace dmdv {
+
+void
+Dump()
+{
+    VALGRIND_DMDV_CHECK_REPORTING;
+}
+
+} // namespace dmdv
+} // namespace mozilla
+
+#endif  /* defined(MOZ_DMDV) */
 

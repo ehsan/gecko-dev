@@ -18,6 +18,7 @@ CPPSRCS = \
   Zip.cpp \
   $(NULL)
 
+ifndef MOZ_OLD_LINKER
 HOST_PROGRAM = szip
 
 HOST_CPPSRCS = \
@@ -32,5 +33,6 @@ CPPSRCS += \
   Mappable.cpp \
   SeekableZStream.cpp \
   $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -67,10 +67,6 @@ static bool gHQDownscaling = false;
 // This is interpreted as a floating-point value / 1000
 static uint32_t gHQDownscalingMinFactor = 1000;
 
-// The maximum number of times any one RasterImage was decoded.  This is only
-// used for statistics.
-static int32_t sMaxDecodeCount = 0;
-
 static void
 InitPrefCaches()
 {
@@ -355,9 +351,8 @@ NS_IMPL_ISUPPORTS3(RasterImage, imgIContainer, nsIProperties,
 #endif
 
 //******************************************************************************
-RasterImage::RasterImage(imgStatusTracker* aStatusTracker,
-                         nsIURI* aURI /* = nullptr */) :
-  ImageResource(aStatusTracker, aURI), // invoke superclass's constructor
+RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
+  Image(aStatusTracker), // invoke superclass's constructor
   mSize(0,0),
   mFrameDecodeFlags(DECODE_FLAGS_DEFAULT),
   mAnim(nullptr),
@@ -444,6 +439,7 @@ RasterImage::Initialize()
 nsresult
 RasterImage::Init(imgDecoderObserver *aObserver,
                   const char* aMimeType,
+                  const char* aURIString,
                   uint32_t aFlags)
 {
   // We don't support re-initialization
@@ -468,6 +464,7 @@ RasterImage::Init(imgDecoderObserver *aObserver,
     mObserver = aObserver->asWeakPtr();
   }
   mSourceDataMimeType.Assign(aMimeType);
+  mURIString.Assign(aURIString);
   mDiscardable = !!(aFlags & INIT_FLAG_DISCARDABLE);
   mDecodeOnDraw = !!(aFlags & INIT_FLAG_DECODE_ON_DRAW);
   mMultipart = !!(aFlags & INIT_FLAG_MULTIPART);
@@ -689,7 +686,7 @@ RasterImage::ExtractFrame(uint32_t aWhichFrame,
   // We don't actually have a mimetype in this case. The empty string tells the
   // init routine not to try to instantiate a decoder. This should be fixed in
   // bug 505959.
-  img->Init(nullptr, "", INIT_FLAG_NONE);
+  img->Init(nullptr, "", "", INIT_FLAG_NONE);
   img->SetSize(aRegion.width, aRegion.height);
   img->mDecoded = true; // Also, we need to mark the image as decoded
   img->mHasBeenDecoded = true;
@@ -2577,16 +2574,6 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
     Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Subtract(mDecodeCount);
     mDecodeCount++;
     Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(mDecodeCount);
-
-    if (mDecodeCount > sMaxDecodeCount) {
-      // Don't subtract out 0 from the histogram, because that causes its count
-      // to go negative, which is not kosher.
-      if (sMaxDecodeCount > 0) {
-        Telemetry::GetHistogramById(Telemetry::IMAGE_MAX_DECODE_COUNT)->Subtract(sMaxDecodeCount);
-      }
-      sMaxDecodeCount = mDecodeCount;
-      Telemetry::GetHistogramById(Telemetry::IMAGE_MAX_DECODE_COUNT)->Add(sMaxDecodeCount);
-    }
   }
 
   return NS_OK;
@@ -3282,7 +3269,7 @@ RasterImage::WriteToRasterImage(nsIInputStream* /* unused */,
 bool
 RasterImage::ShouldAnimate()
 {
-  return ImageResource::ShouldAnimate() && mFrames.Length() >= 2 &&
+  return Image::ShouldAnimate() && mFrames.Length() >= 2 &&
          !mAnimationFinished;
 }
 

@@ -26,7 +26,7 @@
 #include "nsNetUtil.h"
 #include "nsIFile.h"
 #include "nsIViewManager.h"
-#include "nsView.h"
+#include "nsIView.h"
 
 
 
@@ -74,7 +74,8 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  docShell->GetPresShell(getter_AddRefs(presShell));
 
   nsIFrame* root = presShell->GetRootFrame();
 

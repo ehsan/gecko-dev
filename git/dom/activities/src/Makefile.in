@@ -36,7 +36,6 @@ EXTRA_COMPONENTS = \
 
 EXTRA_JS_MODULES =   \
   ActivitiesService.jsm \
-  ActivitiesServiceFilter.jsm \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk

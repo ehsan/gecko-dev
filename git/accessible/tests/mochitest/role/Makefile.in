@@ -14,7 +14,6 @@ MOCHITEST_A11Y_FILES =\
 		test_aria.html \
 		test_aria.xul \
 		test_general.html \
-		test_svg.html \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

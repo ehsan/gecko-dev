@@ -38,7 +38,7 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsIComponentManager.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMElement.h"

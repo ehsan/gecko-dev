@@ -49,14 +49,14 @@ private:
   static already_AddRefed<Image> CreateRasterImage(nsIRequest* aRequest,
                                                    imgStatusTracker* aStatusTracker,
                                                    const nsCString& aMimeType,
-                                                   nsIURI* aURI,
+                                                   const nsCString& aURIString,
                                                    uint32_t aImageFlags,
                                                    uint32_t aInnerWindowId);
 
   static already_AddRefed<Image> CreateVectorImage(nsIRequest* aRequest,
                                                    imgStatusTracker* aStatusTracker,
                                                    const nsCString& aMimeType,
-                                                   nsIURI* aURI,
+                                                   const nsCString& aURIString,
                                                    uint32_t aImageFlags,
                                                    uint32_t aInnerWindowId);
 

@@ -15,7 +15,6 @@
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/Hal.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
@@ -52,6 +51,7 @@
 #include "nsThreadUtils.h"
 #include "StructuredCloneUtils.h"
 #include "TabChild.h"
+#include "Hal.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -1132,13 +1132,15 @@ TabParent::DeallocPRenderFrame(PRenderFrameParent* aFrame)
 mozilla::docshell::POfflineCacheUpdateParent*
 TabParent::AllocPOfflineCacheUpdate(const URIParams& aManifestURI,
                                     const URIParams& aDocumentURI,
+                                    const bool& isInBrowserElement,
+                                    const uint32_t& appId,
                                     const bool& stickDocument)
 {
   nsRefPtr<mozilla::docshell::OfflineCacheUpdateParent> update =
-    new mozilla::docshell::OfflineCacheUpdateParent(OwnOrContainingAppId(),
-                                                    IsBrowserElement());
+    new mozilla::docshell::OfflineCacheUpdateParent();
 
-  nsresult rv = update->Schedule(aManifestURI, aDocumentURI, stickDocument);
+  nsresult rv = update->Schedule(aManifestURI, aDocumentURI,
+                                 isInBrowserElement, appId, stickDocument);
   if (NS_FAILED(rv))
     return nullptr;
 

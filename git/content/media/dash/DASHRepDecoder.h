@@ -178,7 +178,7 @@ public:
     mDecoderStateMachine = nullptr;
     // Call parent class shutdown.
     MediaDecoder::Shutdown();
-    NS_ENSURE_TRUE_VOID(mShuttingDown);
+    NS_ENSURE_TRUE(mShuttingDown, );
     // Cleanup ref to main decoder.
     mMainDecoder = nullptr;
   }

@@ -21,7 +21,7 @@
 #include "nsIURL.h"
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsWidgetsCID.h"
 #include "nsGkAtoms.h"
@@ -42,12 +42,11 @@
 #include "nsNodeUtils.h"
 #include "mozAutoDocUpdate.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/HTMLFrameSetElement.h"
+#include "nsHTMLFrameSetElement.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsSubDocumentFrame.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // masks for mEdgeVisibility
 #define LEFT_VIS   0x0001
@@ -277,7 +276,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
   nscolor borderColor = GetBorderColor();
 
   // Get the rows= cols= data
-  HTMLFrameSetElement* ourContent = HTMLFrameSetElement::FromContent(mContent);
+  nsHTMLFrameSetElement* ourContent = nsHTMLFrameSetElement::FromContent(mContent);
   NS_ASSERTION(ourContent, "Someone gave us a broken frameset element!");
   const nsFramesetSpec* rowSpecs = nullptr;
   const nsFramesetSpec* colSpecs = nullptr;
@@ -930,7 +929,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*           aPresContext,
   height -= (mNumRows - 1) * borderWidth;
   if (height < 0) height = 0;
 
-  HTMLFrameSetElement* ourContent = HTMLFrameSetElement::FromContent(mContent);
+  nsHTMLFrameSetElement* ourContent = nsHTMLFrameSetElement::FromContent(mContent);
   NS_ASSERTION(ourContent, "Someone gave us a broken frameset element!");
   const nsFramesetSpec* rowSpecs = nullptr;
   const nsFramesetSpec* colSpecs = nullptr;
@@ -1390,7 +1389,7 @@ nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
     if (change != 0) {
       // Recompute the specs from the new sizes.
       nscoord width = mRect.width - (mNumCols - 1) * GetBorderWidth(aPresContext, true);
-      HTMLFrameSetElement* ourContent = HTMLFrameSetElement::FromContent(mContent);
+      nsHTMLFrameSetElement* ourContent = nsHTMLFrameSetElement::FromContent(mContent);
       NS_ASSERTION(ourContent, "Someone gave us a broken frameset element!");
       const nsFramesetSpec* colSpecs = nullptr;
       ourContent->GetColSpec(&mNumCols, &colSpecs);
@@ -1413,7 +1412,7 @@ nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
     if (change != 0) {
       // Recompute the specs from the new sizes.
       nscoord height = mRect.height - (mNumRows - 1) * GetBorderWidth(aPresContext, true);
-      HTMLFrameSetElement* ourContent = HTMLFrameSetElement::FromContent(mContent);
+      nsHTMLFrameSetElement* ourContent = nsHTMLFrameSetElement::FromContent(mContent);
       NS_ASSERTION(ourContent, "Someone gave us a broken frameset element!");
       const nsFramesetSpec* rowSpecs = nullptr;
       ourContent->GetRowSpec(&mNumRows, &rowSpecs);

@@ -90,6 +90,7 @@ WMFDecoder::UnloadDLLs()
 bool IsWindows7OrLater()
 {
   OSVERSIONINFO versionInfo;
+  BOOL isWin7OrLater = FALSE;
   versionInfo.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
   if (!GetVersionEx(&versionInfo)) {
     return false;

@@ -117,7 +117,9 @@ public:
   static DocAccessible* GetDocAccessibleFor(nsIDocShellTreeItem* aContainer)
   {
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
-    return GetAccService()->GetDocAccessible(docShell->GetPresShell());
+    nsCOMPtr<nsIPresShell> presShell;
+    docShell->GetPresShell(getter_AddRefs(presShell));
+    return GetAccService()->GetDocAccessible(presShell);
   }
 
   /**

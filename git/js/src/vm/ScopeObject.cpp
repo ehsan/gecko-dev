@@ -880,60 +880,60 @@ js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<St
 /*****************************************************************************/
 
 ScopeIter::ScopeIter(JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(NULL),
     cur_(cx, reinterpret_cast<JSObject *>(-1)),
     block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
     type_(Type(-1))
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(const ScopeIter &si, JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(si.fp_),
     cur_(cx, si.cur_),
     block_(cx, si.block_),
     type_(si.type_),
     hasScopeObject_(si.hasScopeObject_)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(JSObject &enclosingScope, JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(NULL),
     cur_(cx, &enclosingScope),
     block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
     type_(Type(-1))
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(StackFrame *fp, JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(fp),
     cur_(cx, fp->scopeChain()),
     block_(cx, fp->maybeBlockChain())
 {
     assertSameCompartment(cx, fp);
     settle();
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(const ScopeIter &si, StackFrame *fp, JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(fp),
     cur_(cx, si.cur_),
     block_(cx, si.block_),
     type_(si.type_),
     hasScopeObject_(si.hasScopeObject_)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(StackFrame *fp, ScopeObject &scope, JSContext *cx
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+                     JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
   : fp_(fp),
     cur_(cx, &scope),
     block_(cx)
@@ -965,7 +965,7 @@ ScopeIter::ScopeIter(StackFrame *fp, ScopeObject &scope, JSContext *cx
         block_ = NULL;
     }
     settle();
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeObject &
@@ -1350,7 +1350,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return true;
         }
 
-        return JS_GetPropertyDescriptorById(cx, scope, id, 0, desc);
+        return JS_GetPropertyDescriptorById(cx, scope, id, JSRESOLVE_QUALIFIED, desc);
     }
 
     bool get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid idArg, Value *vp) MOZ_OVERRIDE

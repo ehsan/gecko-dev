@@ -427,7 +427,7 @@ GDIFontEntry::InitLogFont(const nsAString& aName,
     mLogFont.lfWeight         = mWeight;
 
     int len = NS_MIN<int>(aName.Length(), LF_FACESIZE - 1);
-    memcpy(&mLogFont.lfFaceName, aName.BeginReading(), len * sizeof(PRUnichar));
+    memcpy(&mLogFont.lfFaceName, nsPromiseFlatString(aName).get(), len * 2);
     mLogFont.lfFaceName[len] = '\0';
 }
 
@@ -560,7 +560,10 @@ GDIFontFamily::FindStyleVariations()
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfPitchAndFamily = 0;
     uint32_t l = NS_MIN<uint32_t>(mName.Length(), LF_FACESIZE - 1);
-    memcpy(logFont.lfFaceName, mName.get(), l * sizeof(PRUnichar));
+    memcpy(logFont.lfFaceName,
+           nsPromiseFlatString(mName).get(),
+           l * sizeof(PRUnichar));
+    logFont.lfFaceName[l] = 0;
 
     EnumFontFamiliesExW(hdc, &logFont,
                         (FONTENUMPROCW)GDIFontFamily::FamilyAddStylesProc,

@@ -76,7 +76,7 @@
   #undef NSCAP_FEATURE_TEST_DONTQUERY_CASES
 #endif
 
-#ifdef __GNUC__
+#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
   // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
   // don't reorder instructions based on aliasing assumptions for

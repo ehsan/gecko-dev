@@ -113,20 +113,18 @@ public class LightweightTheme implements GeckoEventListener {
     }
 
     public void resetLightweightTheme() {
-        if (mBitmap != null) {
-            // Reset the bitmap.
-            mBitmap = null;
+        // Reset the bitmap.
+        mBitmap = null;
 
-            // Post the reset on the UI thread.
-            for (OnChangeListener listener : mListeners) {
-                 final OnChangeListener oneListener = listener;
-                 oneListener.post(new Runnable() {
-                     @Override
-                     public void run() {
-                         oneListener.onLightweightThemeReset();
-                     }
-                 });
-            }
+        // Post the reset on the UI thread.
+        for (OnChangeListener listener : mListeners) {
+             final OnChangeListener oneListener = listener;
+             oneListener.post(new Runnable() {
+                 @Override
+                 public void run() {
+                     oneListener.onLightweightThemeReset();
+                 }
+             });
         }
     }
 
@@ -164,21 +162,6 @@ public class LightweightTheme implements GeckoEventListener {
         }
     }
 
-
-    /**
-     * A lightweight theme is enabled only if there is an active bitmap.
-     *
-     * @return True if the theme is enabled.
-     */
-    public boolean isEnabled() {
-        return (mBitmap != null);
-    }
-
-    /**
-     * Based on the luminance of the domanint color, a theme is classified as light or dark.
-     *
-     * @return True if the theme is light.
-     */
     public boolean isLightTheme() {
         return mIsLight;
     }

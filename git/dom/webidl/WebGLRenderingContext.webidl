@@ -19,6 +19,7 @@
 // bindings yet.
 interface Event;
 interface HTMLCanvasElement;
+interface HTMLImageElement;
 interface HTMLVideoElement;
 interface ImageData;
 

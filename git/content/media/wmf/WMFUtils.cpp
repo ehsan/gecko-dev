@@ -6,7 +6,6 @@
 
 #include "WMFUtils.h"
 #include "mozilla/StandardInteger.h"
-#include "mozilla/RefPtr.h"
 #include "prlog.h"
 #include "nsThreadUtils.h"
 
@@ -194,8 +193,8 @@ nsCString GetGUIDName(const GUID& guid)
 bool
 SourceReaderHasStream(IMFSourceReader* aReader, const DWORD aIndex)
 {
-  RefPtr<IMFMediaType> nativeType;
-  HRESULT hr = aReader->GetNativeMediaType(aIndex, 0, byRef(nativeType));
+  IMFMediaTypePtr nativeType;
+  HRESULT hr = aReader->GetNativeMediaType(aIndex, 0, &nativeType);
   return FAILED(hr) ? false : true;
 }
 
@@ -204,16 +203,18 @@ namespace wmf {
 static bool sDLLsLoaded = false;
 static bool sFailedToLoadDlls = false;
 
+static HMODULE sMfPlatMod = NULL;
+
 struct WMFModule {
   const char* name;
   HMODULE handle;
 };
 
 static WMFModule sDLLs[] = {
-  { "mfplat.dll", NULL },
-  { "mfreadwrite.dll", NULL },
-  { "propsys.dll", NULL },
-  { "mf.dll", NULL }
+  { "C:\\Windows\\system32\\mfplat.dll", NULL },
+  { "C:\\Windows\\system32\\mfreadwrite.dll", NULL },
+  { "C:\\Windows\\system32\\propsys.dll", NULL },
+  { "C:\\Windows\\system32\\mf.dll", NULL },
 };
 
 HRESULT

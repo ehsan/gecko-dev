@@ -25,7 +25,6 @@ interface Element : Node {
   readonly attribute DOMString? prefix;
   readonly attribute DOMString localName;
 */
-  // Not [Constant] because it depends on which document we're in
   readonly attribute DOMString tagName;
 
            attribute DOMString id;
@@ -33,7 +32,6 @@ interface Element : Node {
   FIXME Bug 810677 Move className from HTMLElement to Element
            attribute DOMString className;
 */
-  [Constant]
   readonly attribute DOMTokenList? classList;
 
   //readonly attribute Attr[] attributes;
@@ -55,7 +53,6 @@ interface Element : Node {
   HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
   HTMLCollection getElementsByClassName(DOMString classNames);
 
-  [Constant]
   readonly attribute HTMLCollection children;
   readonly attribute Element? firstElementChild;
   readonly attribute Element? lastElementChild;
@@ -169,16 +166,21 @@ partial interface Element {
 /*
 };
 
+enum insertAdjacentHTMLPosition {
+  "beforebegin",
+  "afterbegin",
+  "beforeend",
+  "afterend"
+};
+
 // http://domparsing.spec.whatwg.org/#extensions-to-the-element-interface
 partial interface Element {
-*/
-  [Throws,TreatNullAs=EmptyString]
+  [Throws]
   attribute DOMString innerHTML;
-  [Throws,TreatNullAs=EmptyString]
+  [Throws]
   attribute DOMString outerHTML;
   [Throws]
-  void insertAdjacentHTML(DOMString position, DOMString text);
-/*
+  void insertAdjacentHTML(insertAdjacentHTMLPosition position, DOMString text);
 };
 
 // http://www.w3.org/TR/selectors-api/#interface-definitions

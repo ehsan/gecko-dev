@@ -82,7 +82,6 @@ public:
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
   bool RestoreState(nsPresState* aState);
-  virtual bool IsDisabledForEvents(uint32_t aMessage);
 
   nsEventStates IntrinsicState() const;
 
@@ -252,22 +251,17 @@ nsHTMLButtonElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-bool
-nsHTMLButtonElement::IsDisabledForEvents(uint32_t aMessage)
+nsresult
+nsHTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
   nsIFrame* formFrame = NULL;
   if (formControlFrame) {
     formFrame = do_QueryFrame(formControlFrame);
   }
-  return IsElementDisabledForEvents(aMessage, formFrame);
-}
 
-nsresult
-nsHTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
   aVisitor.mCanHandle = false;
-  if (IsDisabledForEvents(aVisitor.mEvent->message)) {
+  if (IsElementDisabledForEvents(aVisitor.mEvent->message, formFrame)) {
     return NS_OK;
   }
 

@@ -98,7 +98,7 @@ typedef struct cc_call_info_t_{
     cc_string_t   sdp;
     unsigned int  media_stream_track_id;
     unsigned int  media_stream_id;
-    cc_media_constraints_t* cc_constraints;
+    const cc_media_constraints_t* cc_constraints;
 } session_data_t;
 
 typedef enum {

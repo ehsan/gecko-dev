@@ -38,20 +38,12 @@ public:
               ErrorResult& aRv);
 
   void
-  Decode(nsAString& aOutDecodedString,
-         ErrorResult& aRv) {
-    TextDecoderBase::Decode(nullptr, 0, false,
-                            aOutDecodedString, aRv);
-  }
-
-  void
-  Decode(const ArrayBufferView& aView,
+  Decode(const ArrayBufferView* aView,
          const TextDecodeOptionsWorkers& aOptions,
          nsAString& aOutDecodedString,
          ErrorResult& aRv) {
-    TextDecoderBase::Decode(reinterpret_cast<char*>(aView.Data()),
-                            aView.Length(), aOptions.mStream,
-                            aOutDecodedString, aRv);
+    return TextDecoderBase::Decode(aView, aOptions.mStream,
+                                   aOutDecodedString, aRv);
   }
 };
 

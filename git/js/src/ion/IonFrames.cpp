@@ -948,11 +948,12 @@ InlineFrameIterator::findNextFrame()
     framesRead_++;
 }
 
-InlineFrameIterator &
+InlineFrameIterator
 InlineFrameIterator::operator++()
 {
+    InlineFrameIterator iter(*this);
     findNextFrame();
-    return *this;
+    return iter;
 }
 
 bool

@@ -75,7 +75,7 @@ this.DOMApplicationRegistry = {
                      "Webapps:GetSelf", "Webapps:CheckInstalled",
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
                      "Webapps:Launch", "Webapps:GetAll",
-                     "Webapps:InstallPackage", "Webapps:GetAppInfo",
+                     "Webapps:InstallPackage", "Webapps:GetBasePath",
                      "Webapps:GetList", "Webapps:RegisterForMessages",
                      "Webapps:UnregisterForMessages",
                      "Webapps:CancelDownload", "Webapps:CheckForUpdate",
@@ -110,9 +110,6 @@ this.DOMApplicationRegistry = {
           this.webapps = aData;
           let appDir = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], false);
           for (let id in this.webapps) {
-
-            this.webapps[id].id = id;
-
             // Make sure we have a localId
             if (this.webapps[id].localId === undefined) {
               this.webapps[id].localId = this._nextLocalId();
@@ -218,7 +215,7 @@ this.DOMApplicationRegistry = {
     let app = this.webapps[aId];
     let baseDir;
     try {
-      baseDir = FileUtils.getDir("coreAppsDir", ["webapps", aId], false);
+      baseDir = FileUtils.getDir("coreAppsDir", ["webapps", aId], true, true);
     } catch(e) {
       // In ENG builds, we don't have apps in coreAppsDir.
       return;
@@ -322,8 +319,6 @@ this.DOMApplicationRegistry = {
           if (!(id in this.webapps)) {
             this.webapps[id] = aData[id];
             this.webapps[id].basePath = appDir.path;
-
-            this.webapps[id].id = id;
 
             // Create a new localId.
             this.webapps[id].localId = this._nextLocalId();
@@ -784,13 +779,12 @@ this.DOMApplicationRegistry = {
       case "Webapps:InstallPackage":
         this.doInstallPackage(msg, mm);
         break;
-      case "Webapps:GetAppInfo":
+      case "Webapps:GetBasePath":
         if (!this.webapps[msg.id]) {
           debug("No webapp for " + msg.id);
           return null;
         }
-        return { "basePath":  this.webapps[msg.id].basePath + "/",
-                 "isCoreApp": !this.webapps[msg.id].removable };
+        return this.webapps[msg.id].basePath;
         break;
       case "Webapps:RegisterForMessages":
         this.addMessageListener(msg, mm);
@@ -1485,9 +1479,9 @@ this.DOMApplicationRegistry = {
       }
     } else {
       id = this.makeAppId();
+      app.id = id;
       localId = this._nextLocalId();
     }
-    app.id = id;
 
     let manifestName = "manifest.webapp";
     if (aData.isPackage) {
@@ -1512,7 +1506,6 @@ this.DOMApplicationRegistry = {
     let appNote = JSON.stringify(appObject);
     appNote.id = id;
 
-    appObject.id = id;
     appObject.localId = localId;
     appObject.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true).path;
     let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
@@ -1759,8 +1752,7 @@ this.DOMApplicationRegistry = {
       let requestChannel = NetUtil.newChannel(aManifest.fullPackagePath())
                                   .QueryInterface(Ci.nsIHttpChannel);
       if (app.packageEtag) {
-        debug('Add If-None-Match header: ' + app.packageEtag);
-        requestChannel.setRequestHeader("If-None-Match", app.packageEtag, false);
+        requestChannel.setRequestHeader("If-None-Match", app.packageEtag);
       }
 
       AppDownloadManager.add(aApp.manifestURL,
@@ -1835,17 +1827,7 @@ this.DOMApplicationRegistry = {
       let listener = Cc["@mozilla.org/network/simple-stream-listener;1"]
                        .createInstance(Ci.nsISimpleStreamListener);
       listener.init(bufferedOutputStream, {
-        onStartRequest: function(aRequest, aContext) {
-          // early check for ETag header
-          try {
-            requestChannel.getResponseHeader("Etag");
-          } catch (e) {
-            // in https://bugzilla.mozilla.org/show_bug.cgi?id=825218
-            // we might do something cleaner to have a proper user error
-            debug("We found no ETag Header, canceling the request");
-            requestChannel.cancel(Cr.NS_BINDING_ABORTED);
-          }
-        },
+        onStartRequest: function(aRequest, aContext) { },
         onStopRequest: function(aRequest, aContext, aStatusCode) {
           debug("onStopRequest " + aStatusCode);
           bufferedOutputStream.close();
@@ -1871,6 +1853,10 @@ this.DOMApplicationRegistry = {
             }
             return;
           }
+
+          // Save the new Etag for the package.
+          app.packageEtag = requestChannel.getResponseHeader("Etag");
+          debug("Package etag=" + app.packageEtag);
 
           if (!Components.isSuccessCode(aStatusCode)) {
             cleanup("NETWORK_ERROR");
@@ -1938,17 +1924,6 @@ this.DOMApplicationRegistry = {
                 throw "INVALID_SECURITY_LEVEL";
               }
               aApp.appStatus = AppsUtils.getAppManifestStatus(manifest);
-              // Save the new Etag for the package.
-              try {
-                app.packageEtag = requestChannel.getResponseHeader("Etag");
-                debug("Package etag=" + app.packageEtag);
-              } catch (e) {
-                // in https://bugzilla.mozilla.org/show_bug.cgi?id=825218
-                // we'll fail gracefully in this case
-                // for now, just going on
-                app.packageEtag = null;
-                debug("Can't find an etag, this should not happen");
-              }
 
               if (aOnSuccess) {
                 aOnSuccess(id, manifest);
@@ -2212,14 +2187,6 @@ this.DOMApplicationRegistry = {
 
   getAppFromObserverMessage: function(aMessage) {
     return AppsUtils.getAppFromObserverMessage(this.webapps, aMessage);
-  },
-
-  getCoreAppsBasePath: function() {
-    return FileUtils.getDir("coreAppsDir", ["webapps"], false).path;
-  },
-
-  getWebAppsBasePath: function getWebAppsBasePath() {
-    return FileUtils.getDir(DIRECTORY_NAME, ["webapps"], false).path;
   },
 
   getAllWithoutManifests: function(aCallback) {

@@ -516,8 +516,7 @@ ReplaceAnimationRule(nsRuleNode *aOldRuleNode,
   }
 
   NS_ABORT_IF_FALSE(!IsMoreSpecificThanAnimation(n) &&
-                    (n->IsRoot() ||
-                     n->GetLevel() != nsStyleSet::eAnimationSheet),
+                    n->GetLevel() != nsStyleSet::eAnimationSheet,
                     "wrong level");
 
   if (aNewAnimRule) {

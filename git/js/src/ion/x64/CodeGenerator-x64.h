@@ -51,8 +51,6 @@ class CodeGeneratorX64 : public CodeGeneratorX86Shared
     bool visitInterruptCheck(LInterruptCheck *lir);
     bool visitCompareB(LCompareB *lir);
     bool visitCompareBAndBranch(LCompareBAndBranch *lir);
-    bool visitCompareV(LCompareV *lir);
-    bool visitCompareVAndBranch(LCompareVAndBranch *lir);
 };
 
 typedef CodeGeneratorX64 CodeGeneratorSpecific;

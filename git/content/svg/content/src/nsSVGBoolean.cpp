@@ -8,14 +8,25 @@
 #include "nsSVGBoolean.h"
 #include "nsSMILValue.h"
 #include "SMILBoolType.h"
-#include "SVGAnimatedBoolean.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGBoolean::DOMAnimatedBoolean, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGBoolean::DOMAnimatedBoolean)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGBoolean::DOMAnimatedBoolean)
+
+DOMCI_DATA(SVGAnimatedBoolean, nsSVGBoolean::DOMAnimatedBoolean)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGBoolean::DOMAnimatedBoolean)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedBoolean)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedBoolean)
+NS_INTERFACE_MAP_END
 
 /* Implementation */
 
-static nsSVGAttrTearoffTable<nsSVGBoolean, SVGAnimatedBoolean>
+static nsSVGAttrTearoffTable<nsSVGBoolean, nsSVGBoolean::DOMAnimatedBoolean>
   sSVGAnimatedBooleanTearoffTable;
 
 static nsresult
@@ -107,13 +118,13 @@ nsSVGBoolean::SetAnimValue(bool aValue, nsSVGElement *aSVGElement)
 }
 
 nsresult
-nsSVGBoolean::ToDOMAnimatedBoolean(nsISupports **aResult,
+nsSVGBoolean::ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
                                    nsSVGElement *aSVGElement)
 {
-  nsRefPtr<SVGAnimatedBoolean> domAnimatedBoolean =
+  nsRefPtr<DOMAnimatedBoolean> domAnimatedBoolean =
     sSVGAnimatedBooleanTearoffTable.GetTearoff(this);
   if (!domAnimatedBoolean) {
-    domAnimatedBoolean = new SVGAnimatedBoolean(this, aSVGElement);
+    domAnimatedBoolean = new DOMAnimatedBoolean(this, aSVGElement);
     sSVGAnimatedBooleanTearoffTable.AddTearoff(this, domAnimatedBoolean);
   }
 
@@ -121,7 +132,7 @@ nsSVGBoolean::ToDOMAnimatedBoolean(nsISupports **aResult,
   return NS_OK;
 }
 
-SVGAnimatedBoolean::~SVGAnimatedBoolean()
+nsSVGBoolean::DOMAnimatedBoolean::~DOMAnimatedBoolean()
 {
   sSVGAnimatedBooleanTearoffTable.RemoveTearoff(mVal);
 }

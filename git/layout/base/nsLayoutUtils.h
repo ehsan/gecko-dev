@@ -21,12 +21,13 @@ class nsFontFaceList;
 class nsHTMLCanvasElement;
 class nsHTMLVideoElement;
 class nsIImageLoadingContent;
+class nsHTMLImageElement;
 
 #include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
 #include "nsIPresShell.h"
@@ -46,7 +47,6 @@ class gfxDrawable;
 namespace mozilla {
 namespace dom {
 class Element;
-class HTMLImageElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -272,7 +272,7 @@ public:
    * corresponding content is before aFrame's content (view siblings
    * are in reverse content order).
    */
-  static nsView* FindSiblingViewFor(nsView* aParentView, nsIFrame* aFrame);
+  static nsIView* FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame);
 
   /**
    * Get the parent of aFrame. If aFrame is the root frame for a document,
@@ -471,7 +471,7 @@ public:
    */
   static nsPoint TranslateWidgetToView(nsPresContext* aPresContext,
                                        nsIWidget* aWidget, nsIntPoint aPt,
-                                       nsView* aView);
+                                       nsIView* aView);
 
   /**
    * Given a matrix and a point, let T be the transformation matrix translating points
@@ -1471,10 +1471,10 @@ public:
                                                      uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsIImageLoadingContent *aElement,
                                                      uint32_t aSurfaceFlags = 0);
-  // Need an HTMLImageElement overload, because otherwise the
+  // Need an nsHTMLImageElement overload, because otherwise the
   // nsIImageLoadingContent and mozilla::dom::Element overloads are ambiguous
-  // for HTMLImageElement.
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLImageElement *aElement,
+  // for nsHTMLImageElement.
+  static SurfaceFromElementResult SurfaceFromElement(nsHTMLImageElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsHTMLCanvasElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);

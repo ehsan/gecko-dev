@@ -9,7 +9,6 @@
 #define jscompartment_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
@@ -579,24 +578,20 @@ JSContext::global() const
 
 namespace js {
 
-class AssertCompartmentUnchanged
-{
+class AssertCompartmentUnchanged {
+  protected:
+    JSContext * const cx;
+    JSCompartment * const oldCompartment;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
-    AssertCompartmentUnchanged(JSContext *cx
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), oldCompartment(cx->compartment)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+     AssertCompartmentUnchanged(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+     : cx(cx), oldCompartment(cx->compartment) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AssertCompartmentUnchanged() {
         JS_ASSERT(cx->compartment == oldCompartment);
     }
-
-  protected:
-    JSContext * const cx;
-    JSCompartment * const oldCompartment;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoCompartment
@@ -733,22 +728,22 @@ class AutoWrapperVector : public AutoVectorRooter<WrapperValue>
 {
   public:
     explicit AutoWrapperVector(JSContext *cx
-                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<WrapperValue>(cx, WRAPVECTOR)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class AutoWrapperRooter : private AutoGCRooter {
   public:
     AutoWrapperRooter(JSContext *cx, WrapperValue v
-                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                      JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, WRAPPER), value(v)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     operator JSObject *() const {
@@ -759,7 +754,7 @@ class AutoWrapperRooter : private AutoGCRooter {
 
   private:
     WrapperValue value;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 } /* namespace js */

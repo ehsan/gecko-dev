@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabChild.h"
@@ -27,7 +26,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
-#include "StaticPtr.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -44,8 +42,6 @@ namespace ipc {
 
 namespace {
 static bool sInitialized = false;
-class ProcessPriorityManager;
-static StaticRefPtr<ProcessPriorityManager> sManager;
 
 // Some header defines a LOG macro, but we don't want it here.
 #ifdef LOG
@@ -130,8 +126,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTLISTENER
-
-  ProcessPriority GetPriority() const { return mProcessPriority; }
 
 private:
   void SetPriority(ProcessPriority aPriority);
@@ -395,15 +389,9 @@ InitProcessPriorityManager()
     return;
   }
 
-  sManager = new ProcessPriorityManager();
-  sManager->Init();
-  ClearOnShutdown(&sManager);
-}
-
-bool
-CurrentProcessIsForeground()
-{
-  return sManager->GetPriority() >= PROCESS_PRIORITY_FOREGROUND;
+  // This object is held alive by the observer service.
+  nsRefPtr<ProcessPriorityManager> mgr = new ProcessPriorityManager();
+  mgr->Init();
 }
 
 } // namespace ipc

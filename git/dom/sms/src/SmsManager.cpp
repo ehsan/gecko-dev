@@ -130,13 +130,14 @@ SmsManager::Shutdown()
 }
 
 NS_IMETHODIMP
-SmsManager::GetSegmentInfoForText(const nsAString& aText,
-                                  nsIDOMMozSmsSegmentInfo** aResult)
+SmsManager::GetNumberOfMessagesForText(const nsAString& aText, uint16_t* aResult)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(smsService, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(smsService, NS_OK);
 
-  return smsService->GetSegmentInfoForText(aText, aResult);
+  smsService->GetNumberOfMessagesForText(aText, aResult);
+
+  return NS_OK;
 }
 
 nsresult

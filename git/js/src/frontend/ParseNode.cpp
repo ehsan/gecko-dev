@@ -463,6 +463,7 @@ CloneParseTree(ParseNode *opn, Parser *parser)
             NULLCHECK(pn->pn_right = CloneParseTree(opn->pn_right, parser));
         else
             pn->pn_right = pn->pn_left;
+        pn->pn_pval = opn->pn_pval;
         pn->pn_iflags = opn->pn_iflags;
         break;
 

@@ -233,7 +233,6 @@ static void Shutdown();
 #include "mozilla/dom/sms/SmsServicesFactory.h"
 #include "nsIPowerManagerService.h"
 #include "nsIAlarmHalService.h"
-#include "nsIMediaManager.h"
 #include "nsMixedContentBlocker.h"
 
 #include "AudioChannelService.h"
@@ -245,7 +244,6 @@ static void Shutdown();
 #ifdef MOZ_WIDGET_GONK
 #include "GonkGPSGeolocationProvider.h"
 #endif
-#include "MediaManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -328,8 +326,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITimeService,
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIGeolocationProvider,
                                          GonkGPSGeolocationProvider::GetSingleton)
 #endif
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIMediaManagerService,
-                                         MediaManager::GetInstance)
 
 //-----------------------------------------------------------------------------
 
@@ -844,7 +840,6 @@ NS_DEFINE_NAMED_CID(NS_TIMESERVICE_CID);
 #ifdef MOZ_WIDGET_GONK
 NS_DEFINE_NAMED_CID(GONK_GPS_GEOLOCATION_PROVIDER_CID);
 #endif
-NS_DEFINE_NAMED_CID(NS_MEDIAMANAGERSERVICE_CID);
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -1124,7 +1119,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #ifdef MOZ_WIDGET_GONK
   { &kGONK_GPS_GEOLOCATION_PROVIDER_CID, false, NULL, nsIGeolocationProviderConstructor },
 #endif
-  { &kNS_MEDIAMANAGERSERVICE_CID, false, NULL, nsIMediaManagerServiceConstructor },
   { NULL }
 };
 
@@ -1268,7 +1262,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #ifdef MOZ_WIDGET_GONK
   { GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID, &kGONK_GPS_GEOLOCATION_PROVIDER_CID },
 #endif
-  { MEDIAMANAGERSERVICE_CONTRACTID, &kNS_MEDIAMANAGERSERVICE_CID },
   { NULL }
 };
 

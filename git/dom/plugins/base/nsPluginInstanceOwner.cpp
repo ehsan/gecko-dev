@@ -727,7 +727,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
     
     nsIWidget* win = mObjectFrame->GetNearestWidget();
     if (win) {
-      nsView *view = nsView::GetViewFor(win);
+      nsIView *view = nsIView::GetViewFor(win);
       NS_ASSERTION(view, "No view for widget");
       nsPoint offset = view->GetOffsetTo(nullptr);
       
@@ -1018,7 +1018,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentEncoding(const char* *result)
   if (charset.EqualsLiteral("us-ascii")) {
     *result = PL_strdup("US_ASCII");
   } else if (charset.EqualsLiteral("ISO-8859-1") ||
-      !nsCRT::strncmp(charset.get(), "UTF", 3)) {
+      !nsCRT::strncmp(PromiseFlatCString(charset).get(), "UTF", 3)) {
     *result = ToNewCString(charset);
   } else {
     if (!gCharsetMap) {

@@ -28,7 +28,6 @@ interface Node : EventTarget {
   const unsigned short DOCUMENT_TYPE_NODE = 10;
   const unsigned short DOCUMENT_FRAGMENT_NODE = 11;
   const unsigned short NOTATION_NODE = 12; // historical
-  [Constant]
   readonly attribute unsigned short nodeType;
   readonly attribute DOMString nodeName;
 
@@ -38,7 +37,6 @@ interface Node : EventTarget {
   readonly attribute Node? parentNode;
   readonly attribute Element? parentElement;
   boolean hasChildNodes();
-  [Constant]
   readonly attribute NodeList childNodes;
   readonly attribute Node? firstChild;
   readonly attribute Node? lastChild;
@@ -78,15 +76,12 @@ interface Node : EventTarget {
 
   // Mozilla-specific stuff
   // These have been moved to Element in the spec.
-  [Constant]
   readonly attribute NamedNodeMap? attributes;
   // If we move namespaceURI, prefix and localName to Element they should return
   // a non-nullable type.
-  [Throws, Constant]
+  [Throws]
   readonly attribute DOMString? namespaceURI;
-  [Constant]
   readonly attribute DOMString? prefix;
-  [Constant]
   readonly attribute DOMString? localName;
 
   // This has been removed from the spec.

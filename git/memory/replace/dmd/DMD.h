@@ -52,8 +52,7 @@ FpWrite(void* aFp, const char* aFmt, va_list aAp);
 
 struct Sizes
 {
-  size_t mStackTracesUsed;
-  size_t mStackTracesUnused;
+  size_t mStackTraces;
   size_t mStackTraceTable;
   size_t mBlockTable;
 

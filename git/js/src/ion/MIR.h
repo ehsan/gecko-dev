@@ -166,22 +166,17 @@ class AliasSet {
         None_             = 0,
         ObjectFields      = 1 << 0, // shape, class, slots, length etc.
         Element           = 1 << 1, // A member of obj->elements.
-        DynamicSlot       = 1 << 2, // A member of obj->slots.
-        FixedSlot         = 1 << 3, // A member of obj->fixedSlots().
-        TypedArrayElement = 1 << 4, // A typed array element.
+        Slot              = 1 << 2, // A member of obj->slots.
+        TypedArrayElement = 1 << 3, // A typed array element.
         Last              = TypedArrayElement,
         Any               = Last | (Last - 1),
-
-        NumCategories     = 5,
 
         // Indicates load or store.
         Store_            = 1 << 31
     };
     AliasSet(uint32_t flags)
       : flags_(flags)
-    {
-        JS_STATIC_ASSERT((1 << NumCategories) - 1 == Any);
-    }
+    { }
 
   public:
     inline bool isNone() const {
@@ -214,6 +209,8 @@ class AliasSet {
         return AliasSet(flags | Store_);
     }
 };
+
+static const unsigned NUM_ALIAS_SETS = sizeof(AliasSet) * 8;
 
 // An MDefinition is an SSA name.
 class MDefinition : public MNode
@@ -443,15 +440,6 @@ class MDefinition : public MNode
         resultType_ = type;
     }
 
-    virtual bool acceptsTypeSet() const {
-        return false;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return NULL;
-    }
-
     MDefinition *dependency() const {
         return dependency_;
     }
@@ -464,14 +452,6 @@ class MDefinition : public MNode
     }
     bool isEffectful() const {
         return getAliasSet().isStore();
-    }
-    virtual bool mightAlias(MDefinition *store) {
-        // Return whether this load may depend on the specified store, given
-        // that the alias sets intersect. This may be refined to exclude
-        // possible aliasing in cases where alias set flags are too imprecise.
-        JS_ASSERT(!isEffectful() && store->isEffectful());
-        JS_ASSERT(getAliasSet().flags() & store->getAliasSet().flags());
-        return true;
     }
 };
 
@@ -672,12 +652,12 @@ class MConstant : public MNullaryInstruction
 class MParameter : public MNullaryInstruction
 {
     int32_t index_;
-    const types::StackTypeSet *typeSet_;
+    const types::TypeSet *typeSet_;
 
   public:
     static const int32_t THIS_SLOT = -1;
 
-    MParameter(int32_t index, const types::StackTypeSet *types)
+    MParameter(int32_t index, const types::TypeSet *types)
       : index_(index),
         typeSet_(types)
     {
@@ -686,12 +666,12 @@ class MParameter : public MNullaryInstruction
 
   public:
     INSTRUCTION_HEADER(Parameter)
-    static MParameter *New(int32_t index, const types::StackTypeSet *types);
+    static MParameter *New(int32_t index, const types::TypeSet *types);
 
     int32_t index() const {
         return index_;
     }
-    const types::StackTypeSet *typeSet() const {
+    const types::TypeSet *typeSet() const {
         return typeSet_;
     }
     void printOpcode(FILE *fp);
@@ -1402,51 +1382,11 @@ class MCompare
   : public MBinaryInstruction,
     public ComparePolicy
 {
-  public:
-    enum CompareType {
-
-        // Anything compared to Undefined
-        Compare_Undefined,
-
-        // Anything compared to Null
-        Compare_Null,
-
-        // Undefined compared to Boolean
-        // Null      compared to Boolean
-        // Double    compared to Boolean
-        // String    compared to Boolean
-        // Object    compared to Boolean
-        // Value     compared to Boolean
-        Compare_Boolean,
-
-        // Int32   compared to Int32
-        // Boolean compared to Boolean
-        Compare_Int32,
-
-        // Double compared to Double
-        Compare_Double,
-
-        // String compared to String
-        Compare_String,
-
-        // Object compared to Object
-        Compare_Object,
-
-        // Compare 2 values bitwise
-        Compare_Value,
-
-        // All other possible compares
-        Compare_Unknown
-    };
-
-  private:
-    CompareType compareType_;
     JSOp jsop_;
     bool operandMightEmulateUndefined_;
 
     MCompare(MDefinition *left, MDefinition *right, JSOp jsop)
       : MBinaryInstruction(left, right),
-        compareType_(Compare_Unknown),
         jsop_(jsop),
         operandMightEmulateUndefined_(true)
     {
@@ -1456,7 +1396,6 @@ class MCompare
 
   public:
     INSTRUCTION_HEADER(Compare)
-
     static MCompare *New(MDefinition *left, MDefinition *right, JSOp op);
 
     bool tryFold(bool *result);
@@ -1464,13 +1403,9 @@ class MCompare
     MDefinition *foldsTo(bool useValueNumbers);
 
     void infer(const TypeOracle::BinaryTypes &b, JSContext *cx);
-    CompareType compareType() const {
-        return compareType_;
+    MIRType specialization() const {
+        return specialization_;
     }
-    void setCompareType(CompareType type) {
-        compareType_ = type;
-    }
-    MIRType inputType();
 
     JSOp jsop() const {
         return jsop_;
@@ -1488,9 +1423,9 @@ class MCompare
         // Strict equality is never effectful.
         if (jsop_ == JSOP_STRICTEQ || jsop_ == JSOP_STRICTNE)
             return AliasSet::None();
-        if (compareType_ == Compare_Unknown)
+        if (specialization_ == MIRType_None)
             return AliasSet::Store(AliasSet::Any);
-        JS_ASSERT(compareType_ <= Compare_Value);
+        JS_ASSERT(specialization_ <= MIRType_Object);
         return AliasSet::None();
     }
 
@@ -2608,13 +2543,6 @@ class MSub : public MBinaryArithInstruction
 
 class MMul : public MBinaryArithInstruction
 {
-  public:
-    enum Mode {
-        Normal,
-        Integer
-    };
-
-  private:
     // Annotation the result could be a negative zero
     // and we need to guard this during execution.
     bool canBeNegativeZero_;
@@ -2628,23 +2556,12 @@ class MMul : public MBinaryArithInstruction
     // In that case the truncated result isn't correct.
     bool implicitTruncate_;
 
-    Mode mode_;
-
-    MMul(MDefinition *left, MDefinition *right, MIRType type, Mode mode)
+    MMul(MDefinition *left, MDefinition *right, MIRType type)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
         possibleTruncate_(false),
-        implicitTruncate_(false),
-        mode_(mode)
+        implicitTruncate_(false)
     {
-        if (mode == Integer) {
-            // This implements the required behavior for Math.imul, which
-            // can never fail and always truncates its output to int32.
-            canBeNegativeZero_ = false;
-            possibleTruncate_ = implicitTruncate_ = true;
-        }
-        JS_ASSERT_IF(mode != Integer, mode == Normal);
-
         if (type != MIRType_Value)
             specialization_ = type;
         setResultType(type);
@@ -2653,10 +2570,10 @@ class MMul : public MBinaryArithInstruction
   public:
     INSTRUCTION_HEADER(Mul)
     static MMul *New(MDefinition *left, MDefinition *right) {
-        return new MMul(left, right, MIRType_Value, MMul::Normal);
+        return new MMul(left, right, MIRType_Value);
     }
-    static MMul *New(MDefinition *left, MDefinition *right, MIRType type, Mode mode = Normal) {
-        return new MMul(left, right, type, mode);
+    static MMul *New(MDefinition *left, MDefinition *right, MIRType type) {
+        return new MMul(left, right, type);
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
@@ -2699,8 +2616,6 @@ class MMul : public MBinaryArithInstruction
         // because we are not sure if it was removed by this or other passes.
         canBeNegativeZero_ = !truncate;
     }
-
-    Mode mode() { return mode_; }
 };
 
 class MDiv : public MBinaryArithInstruction
@@ -3082,8 +2997,8 @@ class MInterruptCheck : public MNullaryInstruction
 // If not defined, set a global variable to |undefined|.
 class MDefVar : public MUnaryInstruction
 {
-    CompilerRootPropertyName name_; // Target name to be defined.
-    unsigned attrs_; // Attributes to be set.
+  PropertyName *name_; // Target name to be defined.
+  unsigned attrs_; // Attributes to be set.
 
   private:
     MDefVar(PropertyName *name, unsigned attrs, MDefinition *scopeChain)
@@ -3110,31 +3025,6 @@ class MDefVar : public MUnaryInstruction
         return getOperand(0);
     }
 
-};
-
-class MDefFun : public MUnaryInstruction
-{
-    CompilerRootFunction fun_;
-
-  private:
-    MDefFun(HandleFunction fun, MDefinition *scopeChain)
-      : MUnaryInstruction(scopeChain),
-        fun_(fun)
-    {}
-
-  public:
-    INSTRUCTION_HEADER(DefFun)
-
-    static MDefFun *New(HandleFunction fun, MDefinition *scopeChain) {
-        return new MDefFun(fun, scopeChain);
-    }
-
-    JSFunction *fun() const {
-        return fun_;
-    }
-    MDefinition *scopeChain() const {
-        return getOperand(0);
-    }
 };
 
 class MRegExp : public MNullaryInstruction
@@ -4171,11 +4061,10 @@ class MLoadFixedSlot
     public SingleObjectPolicy
 {
     size_t slot_;
-    const types::StackTypeSet *types_;
 
   protected:
     MLoadFixedSlot(MDefinition *obj, size_t slot)
-      : MUnaryInstruction(obj), slot_(slot), types_(NULL)
+      : MUnaryInstruction(obj), slot_(slot)
     {
         setResultType(MIRType_Value);
         setMovable();
@@ -4190,16 +4079,6 @@ class MLoadFixedSlot
 
     TypePolicy *typePolicy() {
         return this;
-    }
-
-    virtual bool acceptsTypeSet() const {
-        return true;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-        types_ = types;
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return types_;
     }
 
     MDefinition *object() const {
@@ -4217,10 +4096,8 @@ class MLoadFixedSlot
     }
 
     AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::FixedSlot);
+        return AliasSet::Load(AliasSet::Slot);
     }
-
-    bool mightAlias(MDefinition *store);
 };
 
 class MStoreFixedSlot
@@ -4261,7 +4138,7 @@ class MStoreFixedSlot
     }
 
     AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::FixedSlot);
+        return AliasSet::Store(AliasSet::Slot);
     }
     bool needsBarrier() const {
         return needsBarrier_;
@@ -4422,11 +4299,8 @@ class MGetPropertyCache
     }
 
     AliasSet getAliasSet() const {
-        if (idempotent_) {
-            return AliasSet::Load(AliasSet::ObjectFields |
-                                  AliasSet::FixedSlot |
-                                  AliasSet::DynamicSlot);
-        }
+        if (idempotent_)
+            return AliasSet::Load(AliasSet::ObjectFields | AliasSet::Slot);
         return AliasSet::Store(AliasSet::Any);
     }
 
@@ -4762,12 +4636,10 @@ class MLoadSlot
     public SingleObjectPolicy
 {
     uint32_t slot_;
-    const types::StackTypeSet *types_;
 
     MLoadSlot(MDefinition *slots, uint32_t slot)
       : MUnaryInstruction(slots),
-        slot_(slot),
-        types_(NULL)
+        slot_(slot)
     {
         setResultType(MIRType_Value);
         setMovable();
@@ -4790,17 +4662,6 @@ class MLoadSlot
     uint32_t slot() const {
         return slot_;
     }
-
-    virtual bool acceptsTypeSet() const {
-        return true;
-    }
-    virtual void setTypeSet(const types::StackTypeSet *types) {
-        types_ = types;
-    }
-    virtual const types::StackTypeSet *typeSet() const {
-        return types_;
-    }
-
     bool congruentTo(MDefinition * const &ins) const {
         if (!ins->isLoadSlot())
             return false;
@@ -4810,9 +4671,8 @@ class MLoadSlot
     }
     AliasSet getAliasSet() const {
         JS_ASSERT(slots()->type() == MIRType_Slots);
-        return AliasSet::Load(AliasSet::DynamicSlot);
+        return AliasSet::Load(AliasSet::Slot);
     }
-    bool mightAlias(MDefinition *store);
 };
 
 // Inline call to access a function's environment (scope chain).
@@ -4892,7 +4752,7 @@ class MStoreSlot
         needsBarrier_ = true;
     }
     AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::DynamicSlot);
+        return AliasSet::Store(AliasSet::Slot);
     }
 };
 
@@ -5642,9 +5502,9 @@ class MGetArgument
 class MTypeBarrier : public MUnaryInstruction
 {
     BailoutKind bailoutKind_;
-    const types::StackTypeSet *typeSet_;
+    const types::TypeSet *typeSet_;
 
-    MTypeBarrier(MDefinition *def, const types::StackTypeSet *types)
+    MTypeBarrier(MDefinition *def, const types::TypeSet *types)
       : MUnaryInstruction(def),
         typeSet_(types)
     {
@@ -5659,7 +5519,7 @@ class MTypeBarrier : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(TypeBarrier)
 
-    static MTypeBarrier *New(MDefinition *def, const types::StackTypeSet *types) {
+    static MTypeBarrier *New(MDefinition *def, const types::TypeSet *types) {
         return new MTypeBarrier(def, types);
     }
     bool congruentTo(MDefinition * const &def) const {
@@ -5671,7 +5531,7 @@ class MTypeBarrier : public MUnaryInstruction
     BailoutKind bailoutKind() const {
         return bailoutKind_;
     }
-    const types::StackTypeSet *typeSet() const {
+    const types::TypeSet *typeSet() const {
         return typeSet_;
     }
     AliasSet getAliasSet() const {
@@ -5688,9 +5548,9 @@ class MTypeBarrier : public MUnaryInstruction
 // TypeScript::Monitor inside these stubs.
 class MMonitorTypes : public MUnaryInstruction
 {
-    const types::StackTypeSet *typeSet_;
+    const types::TypeSet *typeSet_;
 
-    MMonitorTypes(MDefinition *def, const types::StackTypeSet *types)
+    MMonitorTypes(MDefinition *def, const types::TypeSet *types)
       : MUnaryInstruction(def),
         typeSet_(types)
     {
@@ -5702,13 +5562,13 @@ class MMonitorTypes : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(MonitorTypes)
 
-    static MMonitorTypes *New(MDefinition *def, const types::StackTypeSet *types) {
+    static MMonitorTypes *New(MDefinition *def, const types::TypeSet *types) {
         return new MMonitorTypes(def, types);
     }
     MDefinition *input() const {
         return getOperand(0);
     }
-    const types::StackTypeSet *typeSet() const {
+    const types::TypeSet *typeSet() const {
         return typeSet_;
     }
     AliasSet getAliasSet() const {

@@ -8,12 +8,11 @@
 #ifndef MapObject_h__
 #define MapObject_h__
 
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/GuardObjects.h"
-
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsobj.h"
+
+#include "mozilla/FloatingPoint.h"
 
 namespace js {
 
@@ -49,10 +48,10 @@ class HashableValue {
     {
       public:
         explicit AutoRooter(JSContext *cx, HashableValue *v_
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
           : AutoGCRooter(cx, HASHABLEVALUE), v(v_), skip(cx, v_)
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
         friend void AutoGCRooter::trace(JSTracer *trc);
@@ -61,7 +60,7 @@ class HashableValue {
       private:
         HashableValue *v;
         SkipRoot skip;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
 };
 

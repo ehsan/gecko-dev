@@ -707,12 +707,13 @@ function checkPopup(popup, notificationObj) {
     is(notification.getAttribute("buttonlabel"), notificationObj.mainAction.label, "main action label matches");
     is(notification.getAttribute("buttonaccesskey"), notificationObj.mainAction.accessKey, "main action accesskey matches");
   }
-  let actualSecondaryActions = Array.filter(notification.childNodes,
-                                            function (child) child.nodeName == "menuitem");
+  let actualSecondaryActions = notification.childNodes;
   let secondaryActions = notificationObj.secondaryActions || [];
   let actualSecondaryActionsCount = actualSecondaryActions.length;
   if (secondaryActions.length) {
-    is(notification.lastChild.tagName, "menuseparator", "menuseparator exists");
+    let lastChild = actualSecondaryActions.item(actualSecondaryActions.length - 1);
+    is(lastChild.tagName, "menuseparator", "menuseparator exists");
+    actualSecondaryActionsCount--;
   }
   is(actualSecondaryActionsCount, secondaryActions.length, actualSecondaryActions.length + " secondary actions");
   secondaryActions.forEach(function (a, i) {

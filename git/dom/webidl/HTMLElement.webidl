@@ -23,18 +23,16 @@ interface HTMLElement : Element {
   //         attribute boolean translate;
   [SetterThrows]
            attribute DOMString dir;
-  [Constant]
   readonly attribute DOMStringMap dataset;
 
   // microdata 
   [SetterThrows]
            attribute boolean itemScope;
-  [PutForwards=value,Constant] readonly attribute DOMSettableTokenList itemType;
+  [PutForwards=value] readonly attribute DOMSettableTokenList itemType;
   [SetterThrows]
            attribute DOMString itemId;
-  [PutForwards=value,Constant] readonly attribute DOMSettableTokenList itemRef;
-  [PutForwards=value,Constant] readonly attribute DOMSettableTokenList itemProp;
-  [Constant]
+  [PutForwards=value] readonly attribute DOMSettableTokenList itemRef;
+  [PutForwards=value] readonly attribute DOMSettableTokenList itemProp;
   readonly attribute HTMLPropertiesCollection properties;
   [Throws]
            attribute any itemValue;
@@ -73,7 +71,7 @@ interface HTMLElement : Element {
   //readonly attribute boolean? commandChecked;
 
   // styling
-  [Throws, Constant]
+  [Throws]
   readonly attribute CSSStyleDeclaration style;
 
   // event handler IDL attributes
@@ -222,6 +220,15 @@ interface HTMLElement : Element {
            attribute EventHandler oncut;
   [SetterThrows]
            attribute EventHandler onpaste;
+
+  // FIXME Bug 811701 Move innerHTML/outerHTML/insertAdjacentHTML from
+  //                  HTMLElement to Element
+  [Throws,TreatNullAs=EmptyString]
+  attribute DOMString innerHTML;
+  [Throws,TreatNullAs=EmptyString]
+  attribute DOMString outerHTML;
+  [Throws]
+  void insertAdjacentHTML(DOMString position, DOMString text);
 /*
 };
 

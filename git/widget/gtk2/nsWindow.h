@@ -347,9 +347,12 @@ private:
     MozContainer       *mContainer;
     GdkWindow          *mGdkWindow;
 
+    GtkWindowGroup     *mWindowGroup;
+
     uint32_t            mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
                         mRetryPointerGrab : 1;
+    GtkWindow          *mTransientParent;
     nsSizeMode          mSizeState;
     PluginType          mPluginType;
 

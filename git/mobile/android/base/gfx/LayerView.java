@@ -319,10 +319,6 @@ public class LayerView extends FrameLayout {
         return getDrawable(R.drawable.shadow);
     }
 
-    Bitmap getScrollbarImage() {
-        return getDrawable(R.drawable.scrollbar);
-    }
-
     private void onSizeChanged(int width, int height) {
         mGLController.surfaceChanged(width, height);
 

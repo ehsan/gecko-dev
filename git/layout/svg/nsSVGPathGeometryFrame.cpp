@@ -40,7 +40,6 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGPathGeometryFrame)
 
 NS_QUERYFRAME_HEAD(nsSVGPathGeometryFrame)
   NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-  NS_QUERYFRAME_ENTRY(nsSVGPathGeometryFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGPathGeometryFrameBase)
 
 //----------------------------------------------------------------------

@@ -91,9 +91,9 @@ nsSVGViewElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
   return mViewBox.ToDOMAnimatedRect(aViewBox, this);
 }
 
-/* readonly attribute SVGPreserveAspectRatio preserveAspectRatio; */
+/* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGViewElement::GetPreserveAspectRatio(nsISupports
+nsSVGViewElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
                                          **aPreserveAspectRatio)
 {
   return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);

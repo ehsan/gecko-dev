@@ -269,11 +269,7 @@ var PlacesCommandHook = {
       var description;
       var charset;
       try {
-        let isErrorPage = /^about:(neterror|certerror|blocked)/
-                          .test(webNav.document.documentURI);
-        title = isErrorPage ? PlacesUtils.history.getPageTitle(url)
-                            : webNav.document.title;
-        title = title || url.spec;
+        title = webNav.document.title || url.spec;
         description = PlacesUIUtils.getDescriptionFromDocument(webNav.document);
         charset = webNav.document.characterSet;
       }
