@@ -261,9 +261,7 @@ GenConversionForIntArray(Assembler &masm, js::TypedArray *tarray, const ValueRem
 
     if (!vr.isTypeKnown() || vr.knownType() != JSVAL_TYPE_INT32) {
         // If a conversion is necessary, save registers now.
-        MaybeJump checkInt32;
-        if (!vr.isTypeKnown())
-            checkInt32 = masm.testInt32(Assembler::Equal, vr.typeReg());
+        Jump checkInt32 = masm.testInt32(Assembler::Equal, vr.typeReg());
 
         // Store the value to convert.
         StackMarker vp = masm.allocStack(sizeof(Value), sizeof(double));
@@ -283,15 +281,14 @@ GenConversionForIntArray(Assembler &masm, js::TypedArray *tarray, const ValueRem
             stub = stubs::ConvertToTypedInt<true>;
         else 
             stub = stubs::ConvertToTypedInt<false>;
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stub), false);
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stub));
         if (vr.dataReg() != Registers::ReturnReg)
             masm.move(Registers::ReturnReg, vr.dataReg());
 
         saveForCall.restore();
         masm.freeStack(vp);
 
-        if (checkInt32.isSet())
-            checkInt32.get().linkTo(masm.label(), &masm);
+        checkInt32.linkTo(masm.label(), &masm);
     }
 
     // Performing clamping, if needed.
@@ -366,7 +363,7 @@ GenConversionForFloatArray(Assembler &masm, js::TypedArray *tarray, const ValueR
         masm.setupABICall(Registers::FastCall, 2);
         masm.storeArg(0, masm.vmFrameOffset(offsetof(VMFrame, cx)));
         masm.storeArgAddr(1, masm.addressOfExtra(vp));
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stubs::ConvertToTypedFloat), false);
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, stubs::ConvertToTypedFloat));
         saveForCall.restore();
 
         // Load the value from the outparam, then pop the stack.

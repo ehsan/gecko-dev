@@ -181,7 +181,6 @@
 #include "LayerManagerD3D10.h"
 #endif
 #include "LayerManagerOGL.h"
-#include "nsIGfxInfo.h"
 #endif
 #include "BasicLayers.h"
 
@@ -262,7 +261,6 @@ imgIContainer*  nsWindow::sCursorImgContainer     = nsnull;
 nsWindow*       nsWindow::sCurrentWindow          = nsnull;
 PRBool          nsWindow::sJustGotDeactivate      = PR_FALSE;
 PRBool          nsWindow::sJustGotActivate        = PR_FALSE;
-PRBool          nsWindow::sIsInMouseCapture       = PR_FALSE;
 
 // imported in nsWidgetFactory.cpp
 TriStateBool    nsWindow::sCanQuit                = TRI_UNKNOWN;
@@ -318,8 +316,6 @@ PRUint32        nsWindow::sOOPPPluginFocusEvent   =
                   RegisterWindowMessageW(kOOPPPluginFocusEventId);
 #endif
 
-MSG             nsWindow::sRedirectedKeyDown;
-
 /**************************************************************
  *
  * SECTION: globals variables
@@ -365,17 +361,6 @@ static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 // General purpose user32.dll hook object
 static WindowsDllInterceptor sUser32Intercept;
 
-// A glass window's opaque rectangle must be at least this height
-// before we use glass margins. Shorter opaque rectangles lead to
-// stupid-looking visual effects because Windows (foolishly) makes the
-// window edge rendering dependent on the opaque rect height.
-static const int MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS = 50;
-
-// Maximum number of pixels for the left and right horizontal glass margins.
-// If the margins are bigger than this, we won't use margins at all because
-// Windows' glaze effect will start to look stupid.
-static const int MAX_HORIZONTAL_GLASS_MARGIN = 5;
-
 /**************************************************************
  **************************************************************
  **
@@ -407,6 +392,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mNativeDragTarget     = nsnull;
   mInDtor               = PR_FALSE;
   mIsVisible            = PR_FALSE;
+  mIsInMouseCapture     = PR_FALSE;
   mIsTopWidgetWindow    = PR_FALSE;
   mUnicodeWidget        = PR_TRUE;
   mDisplayPanFeedback   = PR_FALSE;
@@ -426,6 +412,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOldStyle             = 0;
   mOldExStyle           = 0;
   mPainting             = 0;
+  mExitToNonClientArea  = 0;
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
   mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
@@ -473,8 +460,6 @@ nsWindow::nsWindow() : nsBaseWidget()
     nsUXThemeData::InitTitlebarInfo();
     // Init theme data
     nsUXThemeData::UpdateNativeThemeInfo();
-
-    ForgetRedirectedKeyDownMessage();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -2584,11 +2569,11 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
 
   // If there is no opaque region or hidechrome=true, set margins
   // to support a full sheet of glass.
-  // Comments in MSDN indicate all values must be set to -1 to get a full
-  // sheet of glass.
-  margins.cxLeftWidth = margins.cxRightWidth =
-    margins.cyTopHeight = margins.cyBottomHeight = -1;
-  if (!opaqueRegion.IsEmpty() && !mHideChrome) {
+  if (opaqueRegion.IsEmpty() || mHideChrome) {
+    // Comments in MSDN indicate all values must be set to -1
+    margins.cxLeftWidth = margins.cxRightWidth = 
+      margins.cyTopHeight = margins.cyBottomHeight = -1;
+  } else {
     nsIntRect pluginBounds;
     for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
       nsWindowType type;
@@ -2611,21 +2596,17 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
     // Find the largest rectangle and use that to calculate the inset. Our top
     // priority is to include the bounds of all plugins.
     nsIntRect largest = opaqueRegion.GetLargestRectangle(pluginBounds);
-    if (largest.x <= MAX_HORIZONTAL_GLASS_MARGIN &&
-        clientBounds.width - largest.XMost() <= MAX_HORIZONTAL_GLASS_MARGIN &&
-        largest.height >= MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS) {
-      margins.cxLeftWidth = largest.x;
-      margins.cxRightWidth = clientBounds.width - largest.XMost();
-      margins.cyBottomHeight = clientBounds.height - largest.YMost();
+    margins.cxLeftWidth = largest.x;
+    margins.cxRightWidth = clientBounds.width - largest.XMost();
+    margins.cyBottomHeight = clientBounds.height - largest.YMost();
 
-      if (mCustomNonClient) {
-        // The minimum glass height must be the caption buttons height,
-        // otherwise the buttons are drawn incorrectly.
-        largest.y = PR_MAX(largest.y,
-                           nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
-      }
-      margins.cyTopHeight = largest.y;
+    if (mCustomNonClient) {
+      // The minimum glass height must be the caption buttons height,
+      // otherwise the buttons are drawn incorrectly.
+      largest.y = PR_MAX(largest.y, 
+                         nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
     }
+    margins.cyTopHeight = largest.y;
   }
 
   // Only update glass area if there are changes
@@ -3142,7 +3123,7 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
     nsToolkit::gMouseTrailer->SetCaptureWindow(NULL);
     ::ReleaseCapture();
   }
-  sIsInMouseCapture = aCapture;
+  mIsInMouseCapture = aCapture;
   return NS_OK;
 }
 
@@ -3290,48 +3271,6 @@ nsWindow::HasPendingInputEvent()
  *
  **************************************************************/
 
-struct LayerManagerPrefs {
-  LayerManagerPrefs()
-    : mAccelerateByDefault(PR_TRUE)
-    , mDisableAcceleration(PR_FALSE)
-    , mPreferOpenGL(PR_FALSE)
-    , mPreferD3D9(PR_FALSE)
-  {}
-  PRBool mAccelerateByDefault;
-  PRBool mDisableAcceleration;
-  PRBool mForceAcceleration;
-  PRBool mPreferOpenGL;
-  PRBool mPreferD3D9;
-};
-
-static void
-GetLayerManagerPrefs(LayerManagerPrefs* aManagerPrefs)
-{
-  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (prefs) {
-    prefs->GetBoolPref("layers.acceleration.disabled",
-                       &aManagerPrefs->mDisableAcceleration);
-    prefs->GetBoolPref("layers.acceleration.force-enabled",
-                       &aManagerPrefs->mForceAcceleration);
-    prefs->GetBoolPref("layers.prefer-opengl",
-                       &aManagerPrefs->mPreferOpenGL);
-    prefs->GetBoolPref("layers.prefer-d3d9",
-                       &aManagerPrefs->mPreferD3D9);
-  }
-
-  const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  aManagerPrefs->mAccelerateByDefault =
-    aManagerPrefs->mAccelerateByDefault ||
-    (acceleratedEnv && (*acceleratedEnv != '0'));
-
-  PRBool safeMode = PR_FALSE;
-  nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-  if (xr)
-    xr->GetInSafeMode(&safeMode);
-  aManagerPrefs->mDisableAcceleration =
-    aManagerPrefs->mDisableAcceleration || safeMode;
-}
-
 mozilla::layers::LayerManager*
 nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowRetaining)
 {
@@ -3363,16 +3302,41 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
         mozilla::layers::LayerManager::LAYERS_BASIC)) {
     // If D3D9 is not currently allowed but the permanent manager is required,
     // -and- we're currently using basic layers, run through this check.
-    LayerManagerPrefs prefs;
-    GetLayerManagerPrefs(&prefs);
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+    PRBool accelerateByDefault = PR_TRUE;
+    PRBool disableAcceleration = PR_FALSE;
+    PRBool preferOpenGL = PR_FALSE;
+    PRBool preferD3D9 = PR_FALSE;
+    if (prefs) {
+      prefs->GetBoolPref("layers.accelerate-all",
+                         &accelerateByDefault);
+      prefs->GetBoolPref("layers.accelerate-none",
+                         &disableAcceleration);
+      prefs->GetBoolPref("layers.prefer-opengl",
+                         &preferOpenGL);
+      prefs->GetBoolPref("layers.prefer-d3d9",
+                         &preferD3D9);
+    }
+
+    const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
+    accelerateByDefault = accelerateByDefault ||
+                          (acceleratedEnv && (*acceleratedEnv != '0'));
 
     /* We don't currently support using an accelerated layer manager with
      * transparent windows so don't even try. I'm also not sure if we even
      * want to support this case. See bug #593471 */
-    if (eTransparencyTransparent == mTransparencyMode ||
-        prefs.mDisableAcceleration)
+    disableAcceleration = disableAcceleration ||
+                          eTransparencyTransparent == mTransparencyMode;
+
+    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
+    PRBool safeMode = PR_FALSE;
+    if (xr)
+      xr->GetInSafeMode(&safeMode);
+
+    if (disableAcceleration || safeMode)
       mUseAcceleratedRendering = PR_FALSE;
-    else if (prefs.mAccelerateByDefault)
+    else if (accelerateByDefault)
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
@@ -3383,7 +3347,7 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       }
 
 #ifdef MOZ_ENABLE_D3D10_LAYER
-      if (!prefs.mPreferD3D9) {
+      if (!preferD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
           new mozilla::layers::LayerManagerD3D10(this);
         if (layerManager->Initialize()) {
@@ -3392,7 +3356,7 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       }
 #endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!prefs.mPreferOpenGL && !mLayerManager && sAllowD3D9) {
+      if (!preferOpenGL && !mLayerManager && sAllowD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -3400,23 +3364,11 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
         }
       }
 #endif
-      if (!mLayerManager && prefs.mPreferOpenGL) {
-        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-        PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
-
-        if (gfxInfo && !prefs.mForceAcceleration) {
-          gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status);
-        }
-
-        if (status == nsIGfxInfo::FEATURE_NO_INFO) {
-          nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
-            new mozilla::layers::LayerManagerOGL(this);
-          if (layerManager->Initialize()) {
-            mLayerManager = layerManager;
-          }
-
-        } else {
-          NS_WARNING("OpenGL accelerated layers are not supported on this system.");
+      if (!mLayerManager && preferOpenGL) {
+        nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+          new mozilla::layers::LayerManagerOGL(this);
+        if (layerManager->Initialize()) {
+          mLayerManager = layerManager;
         }
       }
     }
@@ -3964,7 +3916,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_MOVE:
     case NS_MOUSE_EXIT:
-      if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) && sIsInMouseCapture)
+      if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) && mIsInMouseCapture)
         CaptureMouse(PR_FALSE);
       break;
 
@@ -4142,7 +4094,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     if (nsToolkit::gMouseTrailer)
       nsToolkit::gMouseTrailer->Disable();
     if (aEventType == NS_MOUSE_MOVE) {
-      if (nsToolkit::gMouseTrailer && !sIsInMouseCapture) {
+      if (nsToolkit::gMouseTrailer && !mIsInMouseCapture) {
         nsToolkit::gMouseTrailer->SetMouseTrailerWindow(mWnd);
       }
       nsIntRect rect;
@@ -5054,6 +5006,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       if ((sLastMouseMovePoint.x != mp.x) || (sLastMouseMovePoint.y != mp.y)) {
         userMovedMouse = PR_TRUE;
       }
+      mExitToNonClientArea = PR_FALSE;
 
       result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam,
                                   PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
@@ -5066,7 +5019,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_NCMOUSEMOVE:
       // If we receive a mouse move event on non-client chrome, make sure and
       // send an NS_MOUSE_EXIT event as well.
-      if (mMousePresent && !sIsInMouseCapture)
+      if (mMousePresent && !mIsInMouseCapture)
         SendMessage(mWnd, WM_MOUSELEAVE, 0, 0);
     break;
 
@@ -5355,11 +5308,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #endif
 
     case WM_SETFOCUS:
-      // If previous focused window isn't ours, it must have received the
-      // redirected message.  So, we should forget it.
-      if (!IsOurProcessWindow(HWND(wParam))) {
-        ForgetRedirectedKeyDownMessage();
-      }
       if (sJustGotActivate) {
         result = DispatchFocusToTopLevelWindow(NS_ACTIVATE);
       }
@@ -5878,7 +5826,7 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
                      my <= winRect.bottom - bottomMargin;
   }
 
-  if (!sIsInMouseCapture &&
+  if (!mIsInMouseCapture && 
       contentOverlap &&
       (testResult == HTCLIENT ||
        testResult == HTTOP ||
@@ -5892,6 +5840,12 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
       // The mouse is over a blank area
       testResult = testResult == HTCLIENT ? HTCAPTION : testResult;
 
+      if (!mExitToNonClientArea) {
+        // The first time the mouse pointer goes from client area to non-client area,
+        // we don't want to miss that movement so we can interpret mouseout input.
+        ::SendMessage(mWnd, WM_MOUSEMOVE, 0, lParamClient);
+        mExitToNonClientArea = PR_TRUE;
+      }
     } else {
       // There's content over the mouse pointer. Set HTCLIENT
       // to possibly override a resizer border.
@@ -5911,25 +5865,6 @@ void nsWindow::PostSleepWakeNotification(const char* aNotification)
     observerService->NotifyObservers(nsnull, aNotification, nsnull);
 }
 #endif
-
-// RemoveNextCharMessage() should be called by WM_KEYDOWN or WM_SYSKEYDOWM
-// message handler.  If there is no WM_(SYS)CHAR message for it, this
-// method does nothing.
-// NOTE: WM_(SYS)CHAR message is posted by TranslateMessage() API which is
-// called in message loop.  So, WM_(SYS)KEYDOWN message should have
-// WM_(SYS)CHAR message in the queue if the keydown event causes character
-// input.
-
-/* static */
-void nsWindow::RemoveNextCharMessage(HWND aWnd)
-{
-  MSG msg;
-  if (::PeekMessageW(&msg, aWnd,
-                     WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE | PM_NOYIELD) &&
-      (msg.message == WM_CHAR || msg.message == WM_SYSCHAR)) {
-    ::GetMessageW(&msg, aWnd, msg.message, msg.message);
-  }
-}
 
 LRESULT nsWindow::ProcessCharMessage(const MSG &aMsg, PRBool *aEventDispatched)
 {
@@ -5992,12 +5927,6 @@ LRESULT nsWindow::ProcessKeyDownMessage(const MSG &aMsg,
   NS_PRECONDITION(aMsg.message == WM_KEYDOWN || aMsg.message == WM_SYSKEYDOWN,
                   "message is not keydown event");
 
-  // If this method doesn't call OnKeyDown(), this method must clean up the
-  // redirected message information itself.  For more information, see above
-  // comment of AutoForgetRedirectedKeyDownMessage struct definition in
-  // nsWindow.h.
-  AutoForgetRedirectedKeyDownMessage forgetRedirectedMessage(this, aMsg);
-
   nsModifierKeyState modKeyState;
 
   // Note: the original code passed (HIWORD(lParam)) to OnKeyDown as
@@ -6019,9 +5948,6 @@ LRESULT nsWindow::ProcessKeyDownMessage(const MSG &aMsg,
     nsIMM32Handler::NotifyEndStatusChange();
   } else if (!nsIMM32Handler::IsComposingOn(this)) {
     result = OnKeyDown(aMsg, modKeyState, aEventDispatched, nsnull);
-    // OnKeyDown cleaned up the redirected message information itself, so,
-    // we should do nothing.
-    forgetRedirectedMessage.mCancel = PR_TRUE;
   }
 
 #ifndef WINCE
@@ -6733,14 +6659,6 @@ UINT nsWindow::MapFromNativeToDOM(UINT aNativeKeyCode)
   return aNativeKeyCode;
 }
 
-/* static */
-PRBool nsWindow::IsRedirectedKeyDownMessage(const MSG &aMsg)
-{
-  return (aMsg.message == WM_KEYDOWN || aMsg.message == WM_SYSKEYDOWN) &&
-         (sRedirectedKeyDown.message == aMsg.message &&
-          GetScanCode(sRedirectedKeyDown.lParam) == GetScanCode(aMsg.lParam));
-}
-
 /**
  * nsWindow::OnKeyDown peeks into the message queue and pulls out
  * WM_CHAR messages for processing. During testing we don't want to
@@ -6754,15 +6672,14 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
                             PRBool *aEventDispatched,
                             nsFakeCharMessage* aFakeCharMessage)
 {
-  UINT virtualKeyCode =
-    aMsg.wParam != VK_PROCESSKEY ? aMsg.wParam : ::ImmGetVirtualKey(mWnd);
+  UINT virtualKeyCode = aMsg.wParam;
 
 #ifndef WINCE
-  gKbdLayout.OnKeyDown(virtualKeyCode);
+  gKbdLayout.OnKeyDown (virtualKeyCode);
 #endif
 
   // Use only DOMKeyCode for XP processing.
-  // Use virtualKeyCode for gKbdLayout and native processing.
+  // Use aVirtualKeyCode for gKbdLayout and native processing.
   UINT DOMKeyCode = nsIMM32Handler::IsComposingOn(this) ?
                       virtualKeyCode : MapFromNativeToDOM(virtualKeyCode);
 
@@ -6770,71 +6687,10 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   //printf("In OnKeyDown virt: %d\n", DOMKeyCode);
 #endif
 
-  static PRBool sRedirectedKeyDownEventPreventedDefault = PR_FALSE;
-  PRBool noDefault;
-  if (aFakeCharMessage || !IsRedirectedKeyDownMessage(aMsg)) {
-    HIMC oldIMC = mOldIMC;
-    noDefault =
-      DispatchKeyEvent(NS_KEY_DOWN, 0, nsnull, DOMKeyCode, &aMsg, aModKeyState);
-    if (aEventDispatched) {
-      *aEventDispatched = PR_TRUE;
-    }
-
-    // If IMC wasn't associated to the window but is associated it now (i.e.,
-    // focus is moved from a non-editable editor to an editor by keydown
-    // event handler), WM_CHAR and WM_SYSCHAR shouldn't cause first character
-    // inputting if IME is opened.  But then, we should redirect the native
-    // keydown message to IME.
-    // However, note that if focus has been already moved to another
-    // application, we shouldn't redirect the message to it because the keydown
-    // message is processed by us, so, nobody shouldn't process it.
-    HWND focusedWnd = ::GetFocus();
-    if (!noDefault && !aFakeCharMessage && oldIMC && !mOldIMC && focusedWnd &&
-        !PluginHasFocus()) {
-      RemoveNextCharMessage(focusedWnd);
-
-      INPUT keyinput;
-      keyinput.type = INPUT_KEYBOARD;
-      keyinput.ki.wVk = aMsg.wParam;
-      keyinput.ki.wScan = GetScanCode(aMsg.lParam);
-      keyinput.ki.dwFlags = KEYEVENTF_SCANCODE;
-      if (IsExtendedScanCode(aMsg.lParam)) {
-        keyinput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-      }
-      keyinput.ki.time = 0;
-      keyinput.ki.dwExtraInfo = NULL;
-
-      sRedirectedKeyDownEventPreventedDefault = noDefault;
-      sRedirectedKeyDown = aMsg;
-
-      ::SendInput(1, &keyinput, sizeof(keyinput));
-
-      // Return here.  We shouldn't dispatch keypress event for this WM_KEYDOWN.
-      // If it's needed, it will be dispatched after next (redirected)
-      // WM_KEYDOWN.
-      return PR_TRUE;
-    }
-
-    if (mOnDestroyCalled) {
-      // If this was destroyed by the keydown event handler, we shouldn't
-      // dispatch keypress event on this window.
-      return PR_TRUE;
-    }
-  } else {
-    noDefault = sRedirectedKeyDownEventPreventedDefault;
-    // If this is redirected keydown message, we have dispatched the keydown
-    // event already.
-    if (aEventDispatched) {
-      *aEventDispatched = PR_TRUE;
-    }
-  }
-
-  ForgetRedirectedKeyDownMessage();
-
-  // If the key was processed by IME, we shouldn't dispatch keypress event.
-  if (aMsg.wParam == VK_PROCESSKEY) {
-    return noDefault;
-  }
+  PRBool noDefault =
+    DispatchKeyEvent(NS_KEY_DOWN, 0, nsnull, DOMKeyCode, &aMsg, aModKeyState);
+  if (aEventDispatched)
+    *aEventDispatched = PR_TRUE;
 
   // If we won't be getting a WM_CHAR, WM_SYSCHAR or WM_DEADCHAR, synthesize a keypress
   // for almost all keys
@@ -7538,19 +7394,14 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
     nsWindowGfx::OnSettingsChangeGfx(wParam);
 }
 
-/* static */
-PRBool nsWindow::IsOurProcessWindow(HWND aHWND)
+static PRBool IsOurProcessWindow(HWND aHWND)
 {
-  if (!aHWND) {
-    return PR_FALSE;
-  }
   DWORD processId = 0;
   ::GetWindowThreadProcessId(aHWND, &processId);
   return processId == ::GetCurrentProcessId();
 }
 
-/* static */
-HWND nsWindow::FindOurProcessWindow(HWND aHWND)
+static HWND FindOurProcessWindow(HWND aHWND)
 {
   for (HWND wnd = ::GetParent(aHWND); wnd; wnd = ::GetParent(wnd)) {
     if (IsOurProcessWindow(wnd)) {
@@ -7832,23 +7683,6 @@ void
 nsWindow::StartAllowingD3D9(bool aReinitialize)
 {
   sAllowD3D9 = true;
-
-  LayerManagerPrefs prefs;
-  GetLayerManagerPrefs(&prefs);
-  if (prefs.mDisableAcceleration) {
-    // The guarantee here is, if there's *any* chance that after we
-    // throw out our layer managers we'd create at least one new,
-    // accelerated one, we *will* throw out all the current layer
-    // managers.  We early-return here because currently, if
-    // |disableAcceleration|, we will always use basic managers and
-    // it's a waste to recreate them.
-    //
-    // NB: the above implies that it's eminently possible for us to
-    // skip this early return but still recreate basic managers.
-    // That's OK.  It's *not* OK to take this early return when we
-    // *might* have created an accelerated manager.
-    return;
-  }
 
   if (aReinitialize) {
     EnumAllWindows(AllowD3D9WithReinitializeCallback);

@@ -183,12 +183,15 @@ struct UnifiedGradientInfo {
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
+  BOOL mInUnifiedToolbarReset;
   NSColor *mBackgroundColor;
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (void)setUnifiedToolbarHeight:(float)aHeight;
+- (void)notifyToolbarAt:(float)aY height:(float)aHeight;
 - (float)unifiedToolbarHeight;
+- (float)beginMaybeResetUnifiedToolbar;
+- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight;
 - (float)titlebarHeight;
 - (NSRect)titlebarRect;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
@@ -296,7 +299,6 @@ public:
     static void UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut);
 
     void SetPopupWindowLevel();
-    PRBool IsVisible();
 
     PRBool IsChildInFailingLeftClickThrough(NSView *aChild);
     PRBool ShouldFocusPlugin();
@@ -340,7 +342,6 @@ protected:
                                         // this is used for sibling sheet contention only
   PRPackedBool         mFullScreen;
   PRPackedBool         mModal;
-  PRPackedBool         mIsShowing;      // PR_TRUE during a Show(PR_TRUE) call.
 
   PRInt32              mNumModalDescendents;
 };

@@ -768,7 +768,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
 
   nsCAutoString newEncoding;
   CopyUTF16toUTF8(*aEncoding, newEncoding);
-  newEncoding.Trim(" \t\r\n\f");
+  // XXX spec says only UTF-16
   if (newEncoding.LowerCaseEqualsLiteral("utf-16") ||
       newEncoding.LowerCaseEqualsLiteral("utf-16be") ||
       newEncoding.LowerCaseEqualsLiteral("utf-16le")) {

@@ -3922,36 +3922,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Bad Content Encoding.
             error.AssignLiteral("contentEncodingError");
             break;
-        case NS_ERROR_REMOTE_XUL:
-        {
-            error.AssignLiteral("remoteXUL");
-
-            /**
-             * We want to set an hardcoded messageStr which uses the
-             * brandShortName.
-             */
-            nsCOMPtr<nsIStringBundleService> stringBundleService =
-                mozilla::services::GetStringBundleService();
-            if (!stringBundleService) {
-                return NS_ERROR_FAILURE;
-            }
-
-            nsCOMPtr<nsIStringBundle> brandBundle;
-            rv = stringBundleService->CreateBundle(kBrandBundleURL,
-                                                   getter_AddRefs(brandBundle));
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            nsXPIDLString brandName;
-            rv = brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
-                                                getter_Copies(brandName));
-
-            // We could use something like nsTextFormatter::smprintf.
-            messageStr.AssignLiteral("This page uses an unsupported technology "
-                                     "that is no longer available by default in ");
-            messageStr.Append(brandName);
-            messageStr.AppendLiteral(".");
-            break;
-        }
         case NS_ERROR_UNSAFE_CONTENT_TYPE:
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
@@ -6283,7 +6253,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
                  aStatus == NS_ERROR_MALWARE_URI ||
                  aStatus == NS_ERROR_PHISHING_URI ||
                  aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
-                 aStatus == NS_ERROR_REMOTE_XUL ||
                  NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
         }
@@ -6448,8 +6417,7 @@ nsDocShell::EnsureContentViewer()
 
 nsresult
 nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
-                                          nsIURI* aBaseURI,
-                                          PRBool aTryToSaveOldPresentation)
+                                          nsIURI* aBaseURI)
 {
   nsCOMPtr<nsIDocument> blankDoc;
   nsCOMPtr<nsIContentViewer> viewer;
@@ -6481,8 +6449,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
       return NS_ERROR_FAILURE;
     }
 
-    mSavingOldViewer = aTryToSaveOldPresentation && 
-                       CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
+    mSavingOldViewer = CanSavePresentation(LOAD_NORMAL, nsnull, nsnull);
 
     // Make sure to blow away our mLoadingURI just in case.  No loads
     // from inside this pagehide.
@@ -7325,7 +7292,7 @@ nsDocShell::CreateContentViewer(const char *aContentType,
                                       aContentHandler, getter_AddRefs(viewer));
 
     if (NS_FAILED(rv))
-        return rv;
+        return NS_ERROR_FAILURE;
 
     // Notify the current document that it is about to be unloaded!!
     //
@@ -7507,14 +7474,14 @@ nsDocShell::NewContentViewerObj(const char *aContentType,
 
     // Now create an instance of the content viewer
     // nsLayoutDLF makes the determination if it should be a "view-source" instead of "view"
-    nsresult rv = docLoaderFactory->CreateInstance("view",
-                                                   aOpenedChannel,
-                                                   aLoadGroup, aContentType,
-                                                   static_cast<nsIContentViewerContainer*>(this),
-                                                   nsnull,
-                                                   aContentHandler,
-                                                   aViewer);
-    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_SUCCESS(docLoaderFactory->CreateInstance("view",
+                                                       aOpenedChannel,
+                                                       aLoadGroup, aContentType,
+                                                       static_cast<nsIContentViewerContainer*>(this),
+                                                       nsnull,
+                                                       aContentHandler,
+                                                       aViewer),
+                      NS_ERROR_FAILURE);
 
     (*aViewer)->SetContainer(static_cast<nsIContentViewerContainer *>(this));
     return NS_OK;
@@ -9994,10 +9961,7 @@ nsDocShell::LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType)
         // anything from the current document from leaking into any JavaScript
         // code in the URL.
         nsCOMPtr<nsIPrincipal> prin = do_QueryInterface(owner);
-        // Don't cache the presentation if we're going to just reload the
-        // current entry. Caching would lead to trying to save the different
-        // content viewers in the same nsISHEntry object.
-        rv = CreateAboutBlankContentViewer(prin, nsnull, aEntry != mOSHE);
+        rv = CreateAboutBlankContentViewer(prin, nsnull);
 
         if (NS_FAILED(rv)) {
             // The creation of the intermittent about:blank content
@@ -10582,9 +10546,6 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
 {
   nsCOMPtr<nsIPrompt> prompter;
   CallGetInterface(this, static_cast<nsIPrompt**>(getter_AddRefs(prompter)));
-  if (!prompter) {
-      return NS_ERROR_NOT_AVAILABLE;
-  }
 
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     mozilla::services::GetStringBundleService();

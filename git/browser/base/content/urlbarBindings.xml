@@ -1063,12 +1063,6 @@
           </xul:button>
         </xul:hbox>
       </xul:vbox>
-      <xul:vbox pack="start">
-        <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton"
-                           xbl:inherits="oncommand=closebuttoncommand"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:vbox>
     </content>
     <implementation>  
       <constructor><![CDATA[
@@ -1078,6 +1072,31 @@
         let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
         link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
       ]]></constructor>
+    </implementation>
+  </binding>
+
+  <binding id="splitmenu">
+    <content>
+      <xul:menuitem anonid="item" flex="1"
+                    class="menuitem-tooltip split-menuitem-item"
+                    xbl:inherits="label,key"/>
+      <xul:menu anonid="menu" class="split-menuitem-menu"
+                oncommand="event.stopPropagation();">
+        <children includes="menupopup"/>
+      </xul:menu>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (this.getAttribute("iconic") == "true") {
+          this.item.classList.remove("menuitem-tooltip");
+          this.item.classList.add("menuitem-iconic-tooltip");
+          this.item.classList.add("menuitem-iconic");
+        }
+      ]]></constructor>
+      <field name="item" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "item");
+      </field>
     </implementation>
   </binding>
 
@@ -1108,12 +1127,6 @@
             </xul:menupopup>
           </xul:button>
         </xul:hbox>
-      </xul:vbox>
-      <xul:vbox pack="start">
-        <xul:toolbarbutton anonid="closebutton"
-                           class="messageCloseButton popup-notification-closebutton"
-                           xbl:inherits="oncommand=closebuttoncommand"
-                           tooltiptext="&closeNotification.tooltip;"/>
       </xul:vbox>
     </content>
     <implementation>
@@ -1293,31 +1306,6 @@
           this.updateProgress();
         ]]></body>
       </method>
-    </implementation>
-  </binding>
-
-  <binding id="splitmenu">
-    <content>
-      <xul:menuitem anonid="item" flex="1"
-                    class="menuitem-tooltip split-menuitem-item"
-                    xbl:inherits="label,key"/>
-      <xul:menu anonid="menu" class="split-menuitem-menu"
-                oncommand="event.stopPropagation();">
-        <children includes="menupopup"/>
-      </xul:menu>
-    </content>
-
-    <implementation>
-      <constructor><![CDATA[
-        if (this.getAttribute("iconic") == "true") {
-          this.item.classList.remove("menuitem-tooltip");
-          this.item.classList.add("menuitem-iconic-tooltip");
-          this.item.classList.add("menuitem-iconic");
-        }
-      ]]></constructor>
-      <field name="item" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "item");
-      </field>
     </implementation>
   </binding>
 

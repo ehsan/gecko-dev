@@ -1102,8 +1102,7 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
         JS_ASSERT(fun == callobj.getCallObjCalleeFunction());
         JS_ASSERT(script == fun->script());
 
-        uintN n = bindings.countArgsAndVars();
-        if (n > 0) {
+        if (uintN n = bindings.countArgsAndVars()) {
             JS_ASSERT(JSObject::CALL_RESERVED_SLOTS + n <= callobj.numSlots());
 
             uint32 nvars = bindings.countVars();
@@ -2430,7 +2429,6 @@ Function(JSContext *cx, uintN argc, Value *vp)
     }
 
     Bindings bindings(cx);
-    AutoBindingsRooter root(cx, bindings);
 
     Value *argv = vp + 2;
     uintN n = argc ? argc - 1 : 0;
@@ -2637,7 +2635,7 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
 #endif
     fun->u.i.script = script;
 
-    if (obj->isGlobal()) {
+    if (obj->getClass()->flags & JSCLASS_IS_GLOBAL) {
         /* ES5 13.2.3: Construct the unique [[ThrowTypeError]] function object. */
         JSObject *throwTypeError =
             js_NewFunction(cx, NULL, reinterpret_cast<Native>(ThrowTypeError), 0,

@@ -61,7 +61,6 @@ GetShmInfoPtr(const Shmem& aShmem)
 
 gfxSharedImageSurface::~gfxSharedImageSurface()
 {
-    MOZ_COUNT_DTOR(gfxSharedImageSurface);
 }
 
 /*static*/ PRBool
@@ -76,8 +75,6 @@ gfxSharedImageSurface::gfxSharedImageSurface(const gfxIntSize& aSize,
                                              gfxImageFormat aFormat,
                                              const Shmem& aShmem)
 {
-    MOZ_COUNT_CTOR(gfxSharedImageSurface);
-
     mSize = aSize;
     mFormat = aFormat;
     mStride = ComputeStride(aSize, aFormat);

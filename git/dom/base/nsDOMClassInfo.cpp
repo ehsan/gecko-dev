@@ -670,12 +670,10 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(DOMPrototype, nsDOMConstructorSH,
                            DOM_BASE_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_PRECREATE |
                            nsIXPCScriptable::WANT_HASINSTANCE |
                            nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE)
   NS_DEFINE_CLASSINFO_DATA(DOMConstructor, nsDOMConstructorSH,
                            DOM_BASE_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_PRECREATE |
                            nsIXPCScriptable::WANT_HASINSTANCE |
                            nsIXPCScriptable::WANT_CALL |
                            nsIXPCScriptable::WANT_CONSTRUCT |
@@ -2251,32 +2249,17 @@ nsDOMClassInfo::Init()
   rv = stack->GetSafeJSContext(&cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (nsGlobalWindow::HasIndexedDBSupport()) {
-    DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
-    DOM_CLASSINFO_MAP_END
-  } else {
-    DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
-    DOM_CLASSINFO_MAP_END
-  }
+  DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
+  DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(WindowUtils, nsIDOMWindowUtils)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowUtils)
@@ -2981,7 +2964,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
   DOM_CLASSINFO_MAP_END
@@ -3872,7 +3854,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
   DOM_CLASSINFO_MAP_END
 
@@ -5754,8 +5735,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDOMCONSTRUCTOR
 
-  nsresult PreCreate(JSContext *cx, JSObject *globalObj, JSObject **parentObj);
-
   nsresult Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                      JSObject *obj, PRUint32 argc, jsval *argv,
                      jsval *vp, PRBool *_retval);
@@ -5766,7 +5745,7 @@ public:
 
   nsresult Install(JSContext *cx, JSObject *target, jsval thisAsVal)
   {
-    JSBool ok = JS_WrapValue(cx, &thisAsVal) &&
+    JSBool ok =
       ::JS_DefineUCProperty(cx, target,
                             reinterpret_cast<const jschar *>(mClassName),
                             nsCRT::strlen(mClassName), thisAsVal, nsnull,
@@ -5895,20 +5874,6 @@ NS_INTERFACE_MAP_BEGIN(nsDOMConstructor)
     }
   } else
 NS_INTERFACE_MAP_END
-
-nsresult
-nsDOMConstructor::PreCreate(JSContext *cx, JSObject *globalObj, JSObject **parentObj)
-{
-  nsCOMPtr<nsPIDOMWindow> owner(do_QueryReferent(mWeakOwner));
-  if (!owner) {
-    // Can't do anything.
-    return NS_OK;
-  }
-
-  nsGlobalWindow *win = static_cast<nsGlobalWindow *>(owner.get());
-  *parentObj = win->FastGetGlobalJSObject();
-  return NS_OK;
-}
 
 nsresult
 nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
@@ -6190,12 +6155,6 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
   const char *class_parent_name = nsnull;
 
   if (!primary_iid->Equals(NS_GET_IID(nsISupports))) {
-    JSAutoEnterCompartment ac;
-
-    if (!ac.enter(cx, class_obj)) {
-      return NS_ERROR_FAILURE;
-    }
-
     rv = DefineInterfaceConstants(cx, class_obj, primary_iid);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6320,11 +6279,6 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
   }
 
   v = OBJECT_TO_JSVAL(dot_prototype);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, class_obj)) {
-    return NS_ERROR_UNEXPECTED;
-  }
 
   // Per ECMA, the prototype property is {DontEnum, DontDelete, ReadOnly}
   if (!JS_WrapValue(cx, &v) ||
@@ -8928,16 +8882,21 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
-  // If we are called via document.all(id) instead of document.all.item(i) or
-  // another method, use the document.all callee object as self.
   JSObject *self;
-  if (JSVAL_IS_OBJECT(JS_CALLEE(cx, vp)) &&
-      ::JS_GetClass(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp))) == &sHTMLDocumentAllClass) {
-    self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
-  } else {
+
+  if (::JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION) {
+    // If the callee is a function, we're called through
+    // document.all.item() or something similar. In such a case, self
+    // is passed as obj.
+
     self = JS_THIS_OBJECT(cx, vp);
     if (!self)
       return JS_FALSE;
+  } else {
+    // In other cases (i.e. document.all("foo")), self is passed as
+    // the callee
+
+    self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
   }
 
   size_t length;
@@ -9611,13 +9570,6 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
     return NS_OK;
   }
 
-  JSAutoRequest ar(cx);
-
-  JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, obj)) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
   nsCOMPtr<nsIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -9658,6 +9610,8 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
   // Get 'this.__proto__'
   rv = wrapper->GetJSObjectPrototype(&my_proto);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  JSAutoRequest ar(cx);
 
   // Set 'this.__proto__' to pi
   if (!::JS_SetPrototype(cx, obj, pi_obj)) {
@@ -10650,23 +10604,6 @@ nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
   *_retval = target.forget().get();
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMConstructorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                              JSObject *globalObj, JSObject **parentObj)
-{
-  nsDOMConstructor *wrapped = static_cast<nsDOMConstructor *>(nativeObj);
-
-#ifdef DEBUG
-  {
-    nsCOMPtr<nsIDOMDOMConstructor> is_constructor =
-      do_QueryInterface(nativeObj);
-    NS_ASSERTION(is_constructor, "How did we not get a constructor?");
-  }
-#endif
-
-  return wrapped->PreCreate(cx, globalObj, parentObj);
 }
 
 NS_IMETHODIMP

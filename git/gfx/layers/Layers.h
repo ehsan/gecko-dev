@@ -86,30 +86,19 @@ class SpecificLayerAttributes;
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
  */
-struct THEBES_API FrameMetrics {
-public:
-  // We use IDs to identify frames across processes.
-  typedef PRUint64 ViewID;
-  static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
-  static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
-  static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
-                                        // will begin at.
-
+struct FrameMetrics {
   FrameMetrics()
-    : mViewport(0, 0, 0, 0)
-    , mContentSize(0, 0)
+    : mViewportSize(0, 0)
     , mViewportScrollOffset(0, 0)
-    , mScrollId(NULL_SCROLL_ID)
   {}
 
   // Default copy ctor and operator= are fine
 
   PRBool operator==(const FrameMetrics& aOther) const
   {
-    return (mViewport == aOther.mViewport &&
+    return (mViewportSize == aOther.mViewportSize &&
             mViewportScrollOffset == aOther.mViewportScrollOffset &&
-            mDisplayPort == aOther.mDisplayPort &&
-            mScrollId == aOther.mScrollId);
+            mDisplayPort == aOther.mDisplayPort);
   }
 
   PRBool IsDefault() const
@@ -117,21 +106,9 @@ public:
     return (FrameMetrics() == *this);
   }
 
-  PRBool IsRootScrollable() const
-  {
-    return mScrollId == ROOT_SCROLL_ID;
-  }
-
-  PRBool IsScrollable() const
-  {
-    return mScrollId != NULL_SCROLL_ID;
-  }
-
-  nsIntRect mViewport;
-  nsIntSize mContentSize;
+  nsIntSize mViewportSize;
   nsIntPoint mViewportScrollOffset;
   nsIntRect mDisplayPort;
-  ViewID mScrollId;
 };
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
@@ -294,18 +271,6 @@ public:
    */
   virtual void BeginTransactionWithTarget(gfxContext* aTarget) = 0;
   /**
-   * Attempts to end an "empty transaction". There must have been no
-   * changes to the layer tree since the BeginTransaction().
-   * It's possible for this to fail; ThebesLayers may need to be updated
-   * due to VRAM data being lost, for example. In such cases this method
-   * returns false, and the caller must proceed with a normal layer tree
-   * update and EndTransaction.
-   */
-  virtual bool EndEmptyTransaction()
-  {
-    return false;
-  }
-  /**
    * Function called to draw the contents of each ThebesLayer.
    * aRegionToDraw contains the region that needs to be drawn.
    * This would normally be a subregion of the visible region.
@@ -345,6 +310,21 @@ public:
    */
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData) = 0;
+
+  /**
+   * Attempts to perform an "empty transaction", i.e., a BeginTransaction()
+   * followed by no changes to the layer tree and an EndTransaction with no
+   * ThebesLayer drawing callback. This will only work if no ThebesLayers
+   * need to be updated (i.e. the visible region of each ThebesLayer is already
+   * fully retained). Since this cannot be predicted in advance,
+   * DoEmptyTransaction is allowed to fail and return false. When
+   * DoEmptyTransaction fails it must be immediately (within the same paint
+   * event) followed by a normal BeginTransaction/EndTransaction pair.
+   */
+  virtual bool DoEmptyTransaction()
+  {
+    return false;
+  }
 
   PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 

@@ -82,7 +82,7 @@ function testGroupSwitch(contentWindow, groupItemOne, groupItemTwo) {
      "The currently selected tab should be the only tab in the groupItemTwo");
 
   // switch to groupItemOne
-  let tabItem = contentWindow.GroupItems.getNextGroupItemTab(false);
+  tabItem = contentWindow.GroupItems.getNextGroupItemTab(false);
   if (tabItem)
     gBrowser.selectedTab = tabItem.tab;
   is(gBrowser.selectedTab, groupItemOne.getChild(0).tab,

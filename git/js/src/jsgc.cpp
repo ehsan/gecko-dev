@@ -560,7 +560,7 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
 
     rt->gcTriggerFactor = uint32(100.0f * GC_HEAP_GROWTH_FACTOR);
 
-    rt->atomsCompartment->setGCLastBytes(8192);
+    rt->defaultCompartment->setGCLastBytes(8192);
     
     /*
      * The assigned value prevents GC from running when GC memory is too low
@@ -854,14 +854,14 @@ js_FinishGC(JSRuntime *rt)
         js_DumpGCStats(rt, stdout);
 #endif
 
-    /* Delete all remaining Compartments. Ideally only the atomsCompartment should be left. */
+    /* Delete all remaining Compartments. Ideally only the defaultCompartment should be left. */
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         JSCompartment *comp = *c;
         comp->finishArenaLists();
-        js_delete(comp);
+        delete comp;
     }
     rt->compartments.clear();
-    rt->atomsCompartment = NULL;
+    rt->defaultCompartment = NULL;
 
     for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
         ReleaseGCChunk(rt, r.front());
@@ -1027,7 +1027,7 @@ JSRuntime::setGCTriggerFactor(uint32 factor)
     for (JSCompartment **c = compartments.begin(); c != compartments.end(); ++c) {
         (*c)->setGCLastBytes(gcLastBytes);
     }
-    atomsCompartment->setGCLastBytes(gcLastBytes);
+    defaultCompartment->setGCLastBytes(gcLastBytes);
 }
 
 void
@@ -1108,9 +1108,9 @@ RunLastDitchGC(JSContext *cx)
     JSRuntime *rt = cx->runtime;
     METER(rt->gcStats.lastditch++);
 #ifdef JS_THREADSAFE
-    Conditionally<AutoUnlockAtomsCompartment>
-        unlockAtomsCompartmenIf(cx->compartment == rt->atomsCompartment &&
-                                  rt->atomsCompartmentIsLocked, cx);
+    Conditionally<AutoUnlockDefaultCompartment>
+        unlockDefaultCompartmenIf(cx->compartment == rt->defaultCompartment &&
+                                  rt->defaultCompartmentIsLocked, cx);
 #endif
     /* The last ditch GC preserves all atoms. */
     AutoKeepAtoms keep(rt);
@@ -1601,11 +1601,6 @@ AutoGCRooter::trace(JSTracer *trc)
         MarkIdRange(trc, vector.length(), vector.begin(), "js::AutoIdVector.vector");
         return;
       }
-
-      case BINDINGS: {
-        static_cast<js::AutoBindingsRooter *>(this)->bindings.trace(trc);
-        return;
-      }
     }
 
     JS_ASSERT(tag >= 0);
@@ -1614,7 +1609,7 @@ AutoGCRooter::trace(JSTracer *trc)
 
 namespace js {
 
-JS_FRIEND_API(void)
+void
 MarkContext(JSTracer *trc, JSContext *acx)
 {
     /* Stack frames and slots are traced by StackSpace::mark. */
@@ -1635,6 +1630,15 @@ MarkContext(JSTracer *trc, JSContext *acx)
 
     if (acx->compartment)
         acx->compartment->marked = true;
+
+#ifdef JS_TRACER
+    TracerState* state = acx->tracerState;
+    while (state) {
+        if (state->nativeVp)
+            MarkValueRange(trc, state->nativeVpLen, state->nativeVp, "nativeVp");
+        state = state->prev;
+    }
+#endif
 }
 
 JS_REQUIRES_STACK void
@@ -1723,11 +1727,6 @@ MarkRuntime(JSTracer *trc)
     while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter))
         MarkContext(trc, acx);
 
-#ifdef JS_TRACER
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
-        (*c)->traceMonitor.mark(trc);
-#endif
-
     for (ThreadDataIter i(rt); !i.empty(); i.popFront())
         i.threadData()->mark(trc);
 
@@ -1794,7 +1793,7 @@ TriggerCompartmentGC(JSCompartment *comp)
     }
 #endif
 
-    if (rt->gcMode != JSGC_MODE_COMPARTMENT || comp == rt->atomsCompartment) {
+    if (comp == rt->defaultCompartment) {
         /* We can't do a compartmental GC of the default compartment. */
         TriggerGC(rt);
         return;
@@ -2192,8 +2191,8 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
     JSCompartment **end = rt->compartments.end();
     JSCompartment **write = read;
 
-    /* Delete atomsCompartment only during runtime shutdown */
-    rt->atomsCompartment->marked = true;
+    /* Delete defaultCompartment only during runtime shutdown */
+    rt->defaultCompartment->marked = true;
 
     while (read < end) {
         JSCompartment *compartment = (*read++);
@@ -2207,7 +2206,7 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
                     (void) callback(cx, compartment, JSCOMPARTMENT_DESTROY);
                 if (compartment->principals)
                     JSPRINCIPALS_DROP(cx, compartment->principals);
-                js_delete(compartment);
+                delete compartment;
             } else {
                 compartment->marked = false;
                 *write++ = compartment;
@@ -2864,9 +2863,9 @@ JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
-    JSCompartment *compartment = js_new<JSCompartment>(rt);
+    JSCompartment *compartment = new JSCompartment(rt);
     if (!compartment || !compartment->init()) {
-        js_delete(compartment);
+        delete compartment;
         JS_ReportOutOfMemory(cx);
         return NULL;
     }

@@ -3,15 +3,12 @@
 // found in the LICENSE file.
 
 #include "yuv_row.h"
-#include "mozilla/SSE.h"
 
 #define DCHECK(a)
 
 extern "C" {
 
 #if defined(ARCH_CPU_X86_64)
-
-// We don't need CPUID guards here, since x86-64 implies SSE2.
 
 // AMD64 ABI uses register paremters.
 void FastConvertYUVToRGB32Row(const uint8* y_buf,  // rdi
@@ -258,20 +255,20 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
 );
 }
 
-#elif defined(MOZILLA_MAY_SUPPORT_SSE) && defined(ARCH_CPU_X86_32) && !defined(__PIC__)
+#elif defined(ARCH_CPU_X86_32) && !defined(__PIC__)
 
 // PIC version is slower because less registers are available, so
 // non-PIC is used on platforms where it is possible.
-void FastConvertYUVToRGB32Row_SSE(const uint8* y_buf,
-                                  const uint8* u_buf,
-                                  const uint8* v_buf,
-                                  uint8* rgb_buf,
-                                  int width);
+void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                              const uint8* u_buf,
+                              const uint8* v_buf,
+                              uint8* rgb_buf,
+                              int width);
   asm(
   ".text\n"
-  ".global FastConvertYUVToRGB32Row_SSE\n"
-  ".type FastConvertYUVToRGB32Row_SSE, @function\n"
-"FastConvertYUVToRGB32Row_SSE:\n"
+  ".global FastConvertYUVToRGB32Row\n"
+  ".type FastConvertYUVToRGB32Row, @function\n"
+"FastConvertYUVToRGB32Row:\n"
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
   "mov    0x28(%esp),%edi\n"
@@ -324,32 +321,18 @@ void FastConvertYUVToRGB32Row_SSE(const uint8* y_buf,
 #endif
 );
 
-void FastConvertYUVToRGB32Row(const uint8* y_buf,
-                              const uint8* u_buf,
-                              const uint8* v_buf,
-                              uint8* rgb_buf,
-                              int width)
-{
-  if (mozilla::supports_sse()) {
-    FastConvertYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf, width);
-    return;
-  }
 
-  FastConvertYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, 1);
-}
-
-
-void ScaleYUVToRGB32Row_SSE(const uint8* y_buf,
-                            const uint8* u_buf,
-                            const uint8* v_buf,
-                            uint8* rgb_buf,
-                            int width,
-                            int source_dx);
+void ScaleYUVToRGB32Row(const uint8* y_buf,
+                        const uint8* u_buf,
+                        const uint8* v_buf,
+                        uint8* rgb_buf,
+                        int width,
+                        int source_dx);
   asm(
   ".text\n"
-  ".global ScaleYUVToRGB32Row_SSE\n"
-  ".type ScaleYUVToRGB32Row_SSE, @function\n"
-"ScaleYUVToRGB32Row_SSE:\n"
+  ".global ScaleYUVToRGB32Row\n"
+  ".type ScaleYUVToRGB32Row, @function\n"
+"ScaleYUVToRGB32Row:\n"
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
   "mov    0x28(%esp),%edi\n"
@@ -417,33 +400,17 @@ void ScaleYUVToRGB32Row_SSE(const uint8* y_buf,
 #endif
 );
 
-void ScaleYUVToRGB32Row(const uint8* y_buf,
-                        const uint8* u_buf,
-                        const uint8* v_buf,
-                        uint8* rgb_buf,
-                        int width,
-                        int source_dx)
-{
-  if (mozilla::supports_sse()) {
-    ScaleYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf,
-                           width, source_dx);
-  }
-
-  ScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf,
-                       width, source_dx);
-}
-
-void LinearScaleYUVToRGB32Row_SSE(const uint8* y_buf,
-                                  const uint8* u_buf,
-                                  const uint8* v_buf,
-                                  uint8* rgb_buf,
-                                  int width,
-                                  int source_dx);
+void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                              const uint8* u_buf,
+                              const uint8* v_buf,
+                              uint8* rgb_buf,
+                              int width,
+                              int source_dx);
   asm(
   ".text\n"
-  ".global LinearScaleYUVToRGB32Row_SSE\n"
-  ".type LinearScaleYUVToRGB32Row_SSE, @function\n"
-"LinearScaleYUVToRGB32Row_SSE:\n"
+  ".global LinearScaleYUVToRGB32Row\n"
+  ".type LinearScaleYUVToRGB32Row, @function\n"
+"LinearScaleYUVToRGB32Row:\n"
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
   "mov    0x28(%esp),%edi\n"
@@ -548,37 +515,21 @@ void LinearScaleYUVToRGB32Row_SSE(const uint8* y_buf,
 #endif
 );
 
-void LinearScaleYUVToRGB32Row(const uint8* y_buf,
-                              const uint8* u_buf,
-                              const uint8* v_buf,
-                              uint8* rgb_buf,
-                              int width,
-                              int source_dx)
-{
-  if (mozilla::supports_sse()) {
-    LinearScaleYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf,
-                                 width, source_dx);
-  }
+#elif defined(ARCH_CPU_X86_32) && defined(__PIC__)
 
-  LinearScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf,
-                             width, source_dx);
-}
-
-#elif defined(MOZILLA_MAY_SUPPORT_SSE) && defined(ARCH_CPU_X86_32) && defined(__PIC__)
-
-void PICConvertYUVToRGB32Row_SSE(const uint8* y_buf,
-                                 const uint8* u_buf,
-                                 const uint8* v_buf,
-                                 uint8* rgb_buf,
-                                 int width,
-                                 int16 *kCoefficientsRgbY);
+void PICConvertYUVToRGB32Row(const uint8* y_buf,
+                             const uint8* u_buf,
+                             const uint8* v_buf,
+                             uint8* rgb_buf,
+                             int width,
+                             int16 *kCoefficientsRgbY);
 
   asm(
   ".text\n"
 #if defined(XP_MACOSX)
-"_PICConvertYUVToRGB32Row_SSE:\n"
+"_PICConvertYUVToRGB32Row:\n"
 #else
-"PICConvertYUVToRGB32Row_SSE:\n"
+"PICConvertYUVToRGB32Row:\n"
 #endif
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
@@ -637,31 +588,25 @@ void FastConvertYUVToRGB32Row(const uint8* y_buf,
                               const uint8* u_buf,
                               const uint8* v_buf,
                               uint8* rgb_buf,
-                              int width)
-{
-  if (mozilla::supports_sse()) {
-    PICConvertYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf, width,
-                                &kCoefficientsRgbY[0][0]);
-    return;
-  }
-
-  FastConvertYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, 1);
+                              int width) {
+  PICConvertYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width,
+                          &kCoefficientsRgbY[0][0]);
 }
 
-void PICScaleYUVToRGB32Row_SSE(const uint8* y_buf,
-                               const uint8* u_buf,
-                               const uint8* v_buf,
-                               uint8* rgb_buf,
-                               int width,
-                               int source_dx,
-                               int16 *kCoefficientsRgbY);
+void PICScaleYUVToRGB32Row(const uint8* y_buf,
+                           const uint8* u_buf,
+                           const uint8* v_buf,
+                           uint8* rgb_buf,
+                           int width,
+                           int source_dx,
+                           int16 *kCoefficientsRgbY);
 
   asm(
   ".text\n"
 #if defined(XP_MACOSX)
-"_PICScaleYUVToRGB32Row_SSE:\n"
+"_PICScaleYUVToRGB32Row:\n"
 #else
-"PICScaleYUVToRGB32Row_SSE:\n"
+"PICScaleYUVToRGB32Row:\n"
 #endif
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
@@ -735,31 +680,25 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,
                         const uint8* v_buf,
                         uint8* rgb_buf,
                         int width,
-                        int source_dx)
-{
-  if (mozilla::supports_sse()) {
-    PICScaleYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
-                              &kCoefficientsRgbY[0][0]);
-    return;
-  }
-
-  ScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+                        int source_dx) {
+  PICScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+                        &kCoefficientsRgbY[0][0]);
 }
 
-void PICLinearScaleYUVToRGB32Row_SSE(const uint8* y_buf,
-                                     const uint8* u_buf,
-                                     const uint8* v_buf,
-                                     uint8* rgb_buf,
-                                     int width,
-                                     int source_dx,
-                                     int16 *kCoefficientsRgbY);
+void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+                                 const uint8* u_buf,
+                                 const uint8* v_buf,
+                                 uint8* rgb_buf,
+                                 int width,
+                                 int source_dx,
+                                 int16 *kCoefficientsRgbY);
 
   asm(
   ".text\n"
 #if defined(XP_MACOSX)
-"_PICLinearScaleYUVToRGB32Row_SSE:\n"
+"_PICLinearScaleYUVToRGB32Row:\n"
 #else
-"PICLinearScaleYUVToRGB32Row_SSE:\n"
+"PICLinearScaleYUVToRGB32Row:\n"
 #endif
   "pusha\n"
   "mov    0x24(%esp),%edx\n"
@@ -874,15 +813,9 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
                               const uint8* v_buf,
                               uint8* rgb_buf,
                               int width,
-                              int source_dx)
-{
-  if (mozilla::supports_sse()) {
-    PICLinearScaleYUVToRGB32Row_SSE(y_buf, u_buf, v_buf, rgb_buf, width,
-                                    source_dx, &kCoefficientsRgbY[0][0]);
-    return;
-  }
-
-  LinearScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+                              int source_dx) {
+  PICLinearScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+                              &kCoefficientsRgbY[0][0]);
 }
 #else
 void FastConvertYUVToRGB32Row(const uint8* y_buf,
@@ -912,4 +845,5 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
 }
 #endif
 
-}
+}  // extern "C"
+

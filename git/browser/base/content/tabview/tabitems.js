@@ -53,7 +53,7 @@ function TabItem(tab, options) {
 
   this.tab = tab;
   // register this as the tab's tabItem
-  this.tab._tabViewTabItem = this;
+  this.tab.tabItem = this;
 
   if (!options)
     options = {};
@@ -62,7 +62,7 @@ function TabItem(tab, options) {
   var $div = iQ('<div>')
     .addClass('tab')
     .html("<div class='thumb'>" +
-          "<img class='cached-thumb' style='display:none'/><canvas moz-opaque='true'/></div>" +
+          "<img class='cached-thumb' style='display:none'/><canvas/></div>" +
           "<div class='favicon'><img/></div>" +
           "<span class='tab-title'>&nbsp;</span>"
     )
@@ -142,7 +142,7 @@ function TabItem(tab, options) {
         position: "absolute",
         zIndex: -99
       })
-      .css(groupItemBounds)
+      .css(groupItemBounds.css())
       .hide()
       .appendTo("body");
 
@@ -155,7 +155,7 @@ function TabItem(tab, options) {
 
     // Utils.log('updatedBounds:',updatedBounds);
     if (updatedBounds)
-      phantom.css(updatedBounds);
+      phantom.css(updatedBounds.css());
 
     phantom.fadeIn();
 
@@ -351,7 +351,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (tabData.groupID) {
         var groupItem = GroupItems.groupItem(tabData.groupID);
         if (groupItem) {
-          groupItem.add(this, {immediately: true});
+          groupItem.add(this, null, {immediately: true});
 
           // if it matches the selected tab or no active tab and the browser 
           // tab is hidden, the active group item would be set.
@@ -364,9 +364,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (tabData.imageData)
         this.showCachedData(tabData);
     } else {
-      // create tab by double click is handled in UI_init().
-      if (!TabItems.creatingNewOrphanTab)
-        GroupItems.newTab(this, {immediately: true});
+      GroupItems.newTab(this, {immediately: true});
     }
 
     this._reconnected = true;  
@@ -393,8 +391,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     if (!options)
       options = {};
-
-    TabItems.enforceMinSize(rect);
 
     if (this._zoomPrep)
       this.bounds.copy(rect);
@@ -578,7 +574,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     if (value) {
       this.resizeOptions.minWidth = TabItems.minTabWidth;
-      this.resizeOptions.minHeight = TabItems.minTabHeight;
+      this.resizeOptions.minHeight = TabItems.minTabWidth * (TabItems.tabHeight / TabItems.tabWidth);
       immediately ? $resizer.show() : $resizer.fadeIn();
       this.resizable(true);
     } else {
@@ -649,15 +645,13 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           duration: 230,
           easing: 'fast',
           complete: function() {
+            TabItems.resumePainting();
+    
+            $tabEl
+              .css(orig.css())
+              .removeClass("front");
+
             onZoomDone();
-
-            setTimeout(function() {
-              TabItems.resumePainting();
-
-              $tabEl
-                .css(orig)
-                .removeClass("front");
-            }, 0);
           }
         });
       } else {
@@ -748,7 +742,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
 
     var $div = iQ(this.container);
+    var data;
 
+    var box = this.getBounds();
     if (value && animateZoom) {
       this._zoomPrep = true;
 
@@ -765,7 +761,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         .addClass('front')
         .css(this.getZoomRect(2));
     } else {
-      let box = this.getBounds();
       this._zoomPrep = false;
       $div.removeClass('front');
 
@@ -787,12 +782,11 @@ let TabItems = {
   cachedDataCounter: 0,  // total number of cached data being displayed.
   tabsProgressListener: null,
   _tabsWaitingForUpdate: [],
-  _heartbeat: null, // see explanation at startHeartbeat() below
+  _heartbeatOn: false, // see explanation at startHeartbeat() below
   _heartbeatTiming: 100, // milliseconds between _checkHeartbeat() calls
   _lastUpdateTime: Date.now(),
   _eventListeners: [],
   _pauseUpdateForTest: false,
-  creatingNewOrphanTab: false,
   tempCanvas: null,
   _reconnectingPaused: false,
 
@@ -802,11 +796,8 @@ let TabItems = {
   init: function TabItems_init() {
     Utils.assert(window.AllTabs, "AllTabs must be initialized first");
     let self = this;
-    
-    this.minTabHeight = this.minTabWidth * this.tabHeight / this.tabWidth;
 
-    let $canvas = iQ("<canvas>")
-      .attr('moz-opaque', true);
+    let $canvas = iQ("<canvas>");
     $canvas.appendTo(iQ("body"));
     $canvas.hide();
     this.tempCanvas = $canvas[0];
@@ -892,7 +883,7 @@ let TabItems = {
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
-      Utils.assertThrow(tab._tabViewTabItem, "should already be linked");
+      Utils.assertThrow(tab.tabItem, "should already be linked");
 
       let shouldDefer = (
         this.isPaintingPaused() ||
@@ -900,9 +891,12 @@ let TabItems = {
         Date.now() - this._lastUpdateTime < this._heartbeatTiming
       );
 
-      if (shouldDefer) {
-        if (!this.reconnectingPaused() && !tab._tabViewTabItem._reconnected)
-          this._reconnect(tab._tabViewTabItem);          
+      let isCurrentTab = (
+        !UI.isTabViewVisible() &&
+        tab == gBrowser.selectedTab
+      );
+
+      if (shouldDefer && !isCurrentTab) {
         if (this._tabsWaitingForUpdate.indexOf(tab) == -1)
           this._tabsWaitingForUpdate.push(tab);
         this.startHeartbeat();
@@ -929,24 +923,16 @@ let TabItems = {
         this._tabsWaitingForUpdate.splice(index, 1);
 
       // ___ get the TabItem
-      Utils.assertThrow(tab._tabViewTabItem, "must already be linked");
-      let tabItem = tab._tabViewTabItem;
+      Utils.assertThrow(tab.tabItem, "must already be linked");
+      let tabItem = tab.tabItem;
 
       // ___ icon
-      if (this.shouldLoadFavIcon(tab.linkedBrowser)) {
-        let iconUrl = tab.image;
-        if (!iconUrl)
-          iconUrl = Utils.defaultFaviconURL;
+      let iconUrl = tab.image;
+      if (!iconUrl)
+        iconUrl = Utils.defaultFaviconURL;
 
-        if (iconUrl != tabItem.favImgEl.src)
-          tabItem.favImgEl.src = iconUrl;
-
-        iQ(tabItem.favEl).show();
-      } else {
-        if (tabItem.favImgEl.hasAttribute("src"))
-          tabItem.favImgEl.removeAttribute("src");
-        iQ(tabItem.favEl).hide();
-      }
+      if (iconUrl != tabItem.favImgEl.src)
+        tabItem.favImgEl.src = iconUrl;
 
       // ___ URL
       let tabUrl = tab.linkedBrowser.currentURI.spec;
@@ -987,22 +973,14 @@ let TabItems = {
   },
 
   // ----------
-  // Function: shouldLoadFavIcon
-  // Takes a xul:browser and checks whether we should display a favicon for it.
-  shouldLoadFavIcon: function TabItems_shouldLoadFavIcon(browser) {
-    return !(browser.contentDocument instanceof window.ImageDocument) &&
-           gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject);
-  },
-
-  // ----------
   // Function: link
   // Takes in a xul:tab, creates a TabItem for it and adds it to the scene. 
   link: function TabItems_link(tab, options) {
     try {
       Utils.assertThrow(tab, "tab");
       Utils.assertThrow(!tab.pinned, "shouldn't be an app tab");
-      Utils.assertThrow(!tab._tabViewTabItem, "shouldn't already be linked");
-      new TabItem(tab, options); // sets tab._tabViewTabItem to itself
+      Utils.assertThrow(!tab.tabItem, "shouldn't already be linked");
+      new TabItem(tab, options); // sets tab.tabItem to itself
     } catch(e) {
       Utils.log(e);
     }
@@ -1014,16 +992,16 @@ let TabItems = {
   unlink: function TabItems_unlink(tab) {
     try {
       Utils.assertThrow(tab, "tab");
-      Utils.assertThrow(tab._tabViewTabItem, "should already be linked");
+      Utils.assertThrow(tab.tabItem, "should already be linked");
       // note that it's ok to unlink an app tab; see .handleTabUnpin
 
-      this.unregister(tab._tabViewTabItem);
-      tab._tabViewTabItem._sendToSubscribers("close");
-      iQ(tab._tabViewTabItem.container).remove();
-      tab._tabViewTabItem.removeTrenches();
-      Items.unsquish(null, tab._tabViewTabItem);
+      this.unregister(tab.tabItem);
+      tab.tabItem._sendToSubscribers("close");
+      iQ(tab.tabItem.container).remove();
+      tab.tabItem.removeTrenches();
+      Items.unsquish(null, tab.tabItem);
 
-      tab._tabViewTabItem = null;
+      tab.tabItem = null;
       Storage.saveTab(tab, null);
 
       let index = this._tabsWaitingForUpdate.indexOf(tab);
@@ -1052,25 +1030,26 @@ let TabItems = {
   // Start a new heartbeat if there isn't one already started.
   // The heartbeat is a chain of setTimeout calls that allows us to spread
   // out update calls over a period of time.
-  // _heartbeat is used to make sure that we don't add multiple 
+  // _heartbeatOn is used to make sure that we don't add multiple 
   // setTimeout chains.
   startHeartbeat: function TabItems_startHeartbeat() {
-    if (!this._heartbeat) {
+    if (!this._heartbeatOn) {
+      this._heartbeatOn = true;
       let self = this;
-      this._heartbeat = setTimeout(function() {
+      setTimeout(function() {
         self._checkHeartbeat();
       }, this._heartbeatTiming);
     }
   },
-
+  
   // ----------
   // Function: _checkHeartbeat
   // This periodically checks for tabs waiting to be updated, and calls
   // _update on them.
   // Should only be called by startHeartbeat and resumePainting.
   _checkHeartbeat: function TabItems__checkHeartbeat() {
-    this._heartbeat = null;
-
+    this._heartbeatOn = false;
+    
     if (this.isPaintingPaused())
       return;
 
@@ -1092,12 +1071,8 @@ let TabItems = {
    // pausePainting needs to be mirrored with a call to <resumePainting>.
    pausePainting: function TabItems_pausePainting() {
      this.paintingPaused++;
-     if (this._heartbeat) {
-       clearTimeout(this._heartbeat);
-       this._heartbeat = null;
-     }
    },
-
+ 
    // ----------
    // Function: resumePainting
    // Undoes a call to <pausePainting>. For instance, if you called
@@ -1197,18 +1172,6 @@ let TabItems = {
     }
 
     return sane;
-  },
-
-  // ----------
-  // Function: enforceMinSize
-  // Takes a <Rect> and modifies that <Rect> in case it is too small to be
-  // the bounds of a <TabItem>.
-  //
-  // Parameters:
-  //   bounds - (<Rect>) the target bounds of a <TabItem>
-  enforceMinSize: function TabItems_enforceMinSize(bounds) {
-    bounds.width = Math.max(bounds.width, this.minTabWidth);
-    bounds.height = Math.max(bounds.height, this.minTabHeight);
   }
 };
 
@@ -1294,9 +1257,7 @@ TabCanvas.prototype = {
       ctx.save();
       ctx.scale(scaler, scaler);
       try{
-        ctx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, 
-          w/scaler, h/scaler, "#fff",
-          Ci.nsIDOMCanvasRenderingContext2D.DRAWWINDOW_DO_NOT_FLUSH);
+        ctx.drawWindow(fromWin, fromWin.scrollX, fromWin.scrollY, w/scaler, h/scaler, "#fff");
       } catch(e) {
         Utils.error('paint', e);
       }

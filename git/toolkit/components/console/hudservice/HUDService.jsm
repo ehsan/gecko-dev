@@ -203,10 +203,7 @@ const HISTORY_BACK = -1;
 const HISTORY_FORWARD = 1;
 
 // The maximum number of bytes a Network ResponseListener can hold.
-const RESPONSE_BODY_LIMIT = 1024*1024; // 1 MB
-
-// The maximum uint32 value.
-const PR_UINT32_MAX = 4294967295;
+const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
 
 // Minimum console height, in pixels.
 const MINIMUM_CONSOLE_HEIGHT = 150;
@@ -251,10 +248,9 @@ function ResponseListener(aHttpActivity) {
 ResponseListener.prototype =
 {
   /**
-   * The response will be written into the outputStream of this nsIPipe.
-   * Both ends of the pipe must be blocking.
+   * The original listener for this request.
    */
-  sink: null,
+  originalListener: null,
 
   /**
    * The HttpActivity object associated with this response.
@@ -265,11 +261,6 @@ ResponseListener.prototype =
    * Stores the received data as a string.
    */
   receivedData: null,
-
-  /**
-   * The nsIRequest we are started for.
-   */
-  request: null,
 
   /**
    * Sets the httpActivity object's response header if it isn't set already.
@@ -302,32 +293,10 @@ ResponseListener.prototype =
   },
 
   /**
-   * Set the async listener for the given nsIAsyncInputStream. This allows us to
-   * wait asynchronously for any data coming from the stream.
-   *
-   * @param nsIAsyncInputStream aStream
-   *        The input stream from where we are waiting for data to come in.
-   *
-   * @param nsIInputStreamCallback aListener
-   *        The input stream callback you want. This is an object that must have
-   *        the onInputStreamReady() method. If the argument is null, then the
-   *        current callback is removed.
-   *
-   * @returns void
-   */
-  setAsyncListener: function RL_setAsyncListener(aStream, aListener)
-  {
-    // Asynchronously wait for the stream to be readable or closed.
-    aStream.asyncWait(aListener, 0, 0, Services.tm.mainThread);
-  },
-
-  /**
-   * Stores the received data, if request/response body logging is enabled. It
-   * also does limit the number of stored bytes, based on the
-   * RESPONSE_BODY_LIMIT constant.
-   *
-   * Learn more about nsIStreamListener at:
+   * See documention at
    * https://developer.mozilla.org/en/XPCOM_Interface_Reference/nsIStreamListener
+   *
+   * Grabs a copy of the original data and passes it on to the original listener.
    *
    * @param nsIRequest aRequest
    * @param nsISupports aContext
@@ -336,9 +305,19 @@ ResponseListener.prototype =
    * @param unsigned long aCount
    */
   onDataAvailable: function RL_onDataAvailable(aRequest, aContext, aInputStream,
-                                               aOffset, aCount)
+                                                aOffset, aCount)
   {
     this.setResponseHeader(aRequest);
+
+    let StorageStream = Components.Constructor("@mozilla.org/storagestream;1",
+                                                "nsIStorageStream",
+                                                "init");
+    let BinaryOutputStream = Components.Constructor("@mozilla.org/binaryoutputstream;1",
+                                                      "nsIBinaryOutputStream",
+                                                      "setOutputStream");
+
+    storageStream = new StorageStream(8192, aCount, null);
+    binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
 
@@ -346,6 +325,17 @@ ResponseListener.prototype =
         this.receivedData.length < RESPONSE_BODY_LIMIT) {
       this.receivedData += NetworkHelper.
                            convertToUnicode(data, aRequest.contentCharset);
+    }
+
+    binaryOutputStream.writeBytes(data, aCount);
+
+    let newInputStream = storageStream.newInputStream(0);
+    try {
+    this.originalListener.onDataAvailable(aRequest, aContext,
+        newInputStream, aOffset, aCount);
+    }
+    catch(ex) {
+      aRequest.cancel(ex);
     }
   },
 
@@ -358,60 +348,35 @@ ResponseListener.prototype =
    */
   onStartRequest: function RL_onStartRequest(aRequest, aContext)
   {
-    this.request = aRequest;
-    // Asynchronously wait for the data coming from the request.
-    this.setAsyncListener(this.sink.inputStream, this);
+    try {
+    this.originalListener.onStartRequest(aRequest, aContext);
+    }
+    catch(ex) {
+      aRequest.cancel(ex);
+    }
   },
 
   /**
-   * Handle the onStopRequest by storing the response header is stored on the
-   * httpActivity object. The sink output stream is also closed.
-   *
-   * For more documentation about nsIRequestObserver go to:
+   * See documentation at
    * https://developer.mozilla.org/En/NsIRequestObserver
    *
+   * If aRequest is an nsIHttpChannel then the response header is stored on the
+   * httpActivity object. Also, the response body is set on the httpActivity
+   * object (if the user has turned on response content logging) and the
+   * HUDService.lastFinishedRequestCallback is called if there is one.
+   *
    * @param nsIRequest aRequest
-   *        The request we are observing.
    * @param nsISupports aContext
    * @param nsresult aStatusCode
    */
   onStopRequest: function RL_onStopRequest(aRequest, aContext, aStatusCode)
   {
-    // Retrieve the response headers, as they are, from the server.
-    let response = null;
-    for each (let item in HUDService.openResponseHeaders) {
-      if (item.channel === aRequest) {
-        response = item;
-        break;
-      }
+    try {
+    this.originalListener.onStopRequest(aRequest, aContext, aStatusCode);
     }
+    catch (ex) { }
 
-    if (response) {
-      this.httpActivity.response.header = response.headers;
-      delete HUDService.openResponseHeaders[response.id];
-    }
-    else {
-      this.setResponseHeader(aRequest);
-    }
-
-    this.sink.outputStream.close();
-  },
-
-  /**
-   * Clean up the response listener once the response input stream is closed.
-   * This is called from onStopRequest() or from onInputStreamReady() when the
-   * stream is closed.
-   *
-   * @returns void
-   */
-  onStreamClose: function RL_onStreamClose()
-  {
-    if (!this.httpActivity) {
-      return;
-    }
-
-    // Remove our listener from the request input stream.
-    this.setAsyncListener(this.sink.inputStream, null);
+    this.setResponseHeader(aRequest);
 
     if (HUDService.saveRequestAndResponseBodies) {
       this.httpActivity.response.body = this.receivedData;
@@ -435,52 +400,11 @@ ResponseListener.prototype =
     this.httpActivity.response.listener = null;
     this.httpActivity = null;
     this.receivedData = "";
-    this.request = null;
-    this.sink = null;
-    this.inputStream = null;
-  },
-
-  /**
-   * The nsIInputStreamCallback for when the request input stream is ready -
-   * either it has more data or it is closed.
-   *
-   * @param nsIAsyncInputStream aStream
-   *        The sink input stream from which data is coming.
-   *
-   * @returns void
-   */
-  onInputStreamReady: function RL_onInputStreamReady(aStream)
-  {
-    if (!(aStream instanceof Ci.nsIAsyncInputStream) || !this.httpActivity) {
-      return;
-    }
-
-    let available = -1;
-    try {
-      // This may throw if the stream is closed normally or due to an error.
-      available = aStream.available();
-    }
-    catch (ex) { }
-
-    if (available != -1) {
-      if (available != 0) {
-        // Note that passing 0 as the offset here is wrong, but the
-        // onDataAvailable() method does not use the offset, so it does not
-        // matter.
-        this.onDataAvailable(this.request, null, aStream, 0, available);
-      }
-      this.setAsyncListener(aStream, this);
-    }
-    else {
-      this.onStreamClose();
-    }
   },
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIStreamListener,
-    Ci.nsIInputStreamCallback,
-    Ci.nsIRequestObserver,
-    Ci.nsISupports,
+    Ci.nsISupports
   ])
 }
 
@@ -1178,20 +1102,10 @@ function pruneConsoleOutputIfNecessary(aConsoleNode)
     logLimit = DEFAULT_LOG_LIMIT;
   }
 
-  let scrollBox = aConsoleNode.scrollBoxObject.element;
-  let oldScrollHeight = scrollBox.scrollHeight;
-  let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(aConsoleNode);
-
   // Prune the nodes.
   let messageNodes = aConsoleNode.querySelectorAll(".hud-msg-node");
-  let removeNodes = messageNodes.length - logLimit;
-  for (let i = 0; i < removeNodes; i++) {
+  for (let i = 0; i < messageNodes.length - logLimit; i++) {
     messageNodes[i].parentNode.removeChild(messageNodes[i]);
-  }
-
-  if (!scrolledToBottom && removeNodes > 0 &&
-      oldScrollHeight != scrollBox.scrollHeight) {
-    scrollBox.scrollTop -= oldScrollHeight - scrollBox.scrollHeight;
   }
 
   return logLimit;
@@ -1219,11 +1133,6 @@ function HUD_SERVICE()
 
   // Remembers the last console height, in pixels.
   this.lastConsoleHeight = Services.prefs.getIntPref("devtools.hud.height");
-
-  // Network response bodies are piped through a buffer of the given size (in
-  // bytes).
-  this.responsePipeSegmentSize =
-    Services.prefs.getIntPref("network.buffer.cache.size");
 };
 
 HUD_SERVICE.prototype =
@@ -1783,12 +1692,6 @@ HUD_SERVICE.prototype =
     activityDistributor.removeObserver(this.httpObserver);
     delete this.httpObserver;
 
-    Services.obs.removeObserver(this.httpResponseExaminer,
-                                "http-on-examine-response");
-
-    this.openRequests = {};
-    this.openResponseHeaders = {};
-
     // delete the storage as it holds onto channels
     delete this.storage;
     delete this.defaultFilterPrefs;
@@ -2044,11 +1947,6 @@ HUD_SERVICE.prototype =
   openRequests: {},
 
   /**
-   * Response headers for requests that haven't finished yet.
-   */
-  openResponseHeaders: {},
-
-  /**
    * Assign a function to this property to listen for finished httpRequests.
    * Used by unit tests.
    */
@@ -2155,30 +2053,8 @@ HUD_SERVICE.prototype =
             // Add listener for the response body.
             let newListener = new ResponseListener(httpActivity);
             aChannel.QueryInterface(Ci.nsITraceableChannel);
-
+            newListener.originalListener = aChannel.setNewListener(newListener);
             httpActivity.response.listener = newListener;
-
-            let tee = Cc["@mozilla.org/network/stream-listener-tee;1"].
-                      createInstance(Ci.nsIStreamListenerTee);
-
-            // The response will be written into the outputStream of this pipe.
-            // This allows us to buffer the data we are receiving and read it
-            // asynchronously.
-            // Both ends of the pipe must be blocking.
-            let sink = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
-
-            // The streams need to be blocking because this is required by the
-            // stream tee.
-            sink.init(false, false, HUDService.responsePipeSegmentSize,
-                      PR_UINT32_MAX, null);
-
-            // Remember the input stream, so it isn't released by GC.
-            newListener.inputStream = sink.inputStream;
-
-            let originalListener = aChannel.setNewListener(tee);
-            newListener.sink = sink;
-
-            tee.init(originalListener, sink.outputStream, newListener);
 
             // Copy the request header data.
             aChannel.visitRequestHeaders({
@@ -2385,58 +2261,6 @@ HUD_SERVICE.prototype =
     this.httpObserver = httpObserver;
 
     activityDistributor.addObserver(httpObserver);
-
-    // This is used to find the correct HTTP response headers.
-    Services.obs.addObserver(this.httpResponseExaminer,
-                             "http-on-examine-response", false);
-  },
-
-  /**
-   * Observe notifications for the http-on-examine-response topic, coming from
-   * the nsIObserver service.
-   *
-   * @param string aTopic
-   * @param nsIHttpChannel aSubject
-   * @returns void
-   */
-  httpResponseExaminer: function HS_httpResponseExaminer(aSubject, aTopic)
-  {
-    if (aTopic != "http-on-examine-response" ||
-        !(aSubject instanceof Ci.nsIHttpChannel)) {
-      return;
-    }
-
-    let channel = aSubject.QueryInterface(Ci.nsIHttpChannel);
-    let win = NetworkHelper.getWindowForRequest(channel);
-    if (!win) {
-      return;
-    }
-    let hudId = HUDService.getHudIdByWindow(win);
-    if (!hudId) {
-      return;
-    }
-
-    let response = {
-      id: HUDService.sequenceId(),
-      hudId: hudId,
-      channel: channel,
-      headers: {},
-    };
-
-    try {
-      channel.visitResponseHeaders({
-        visitHeader: function(aName, aValue) {
-          response.headers[aName] = aValue;
-        }
-      });
-    }
-    catch (ex) {
-      delete response.headers;
-    }
-
-    if (response.headers) {
-      HUDService.openResponseHeaders[response.id] = response;
-    }
   },
 
   /**
@@ -4892,6 +4716,10 @@ ConsoleUtils = {
                       "without any clipboard text");
     }
 
+    // Make the marker (the colored part of the timeline).
+    let markerNode = aDocument.createElementNS(XUL_NS, "xul:vbox");
+    markerNode.classList.add("webconsole-marker");
+
     // Make the icon container, which is a vertical box. Its purpose is to
     // ensure that the icon stays anchored at the top of the message even for
     // long multi-line messages.
@@ -4948,6 +4776,7 @@ ConsoleUtils = {
     ConsoleUtils.setMessageType(node, aCategory, aSeverity);
 
     node.appendChild(timestampNode);
+    node.appendChild(markerNode);
     node.appendChild(iconContainer);
     node.appendChild(bodyNode);
     if (locationNode) {
@@ -5079,9 +4908,6 @@ ConsoleUtils = {
     ConsoleUtils.filterMessageNode(aNode, aHUDId);
 
     let outputNode = HUDService.hudReferences[aHUDId].outputNode;
-
-    let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(outputNode);
-
     outputNode.appendChild(aNode);
     HUDService.regroupOutput(outputNode);
 
@@ -5091,36 +4917,10 @@ ConsoleUtils = {
       return;
     }
 
-    let isInputOutput = aNode.classList.contains("webconsole-msg-input") ||
-                        aNode.classList.contains("webconsole-msg-output");
-    let isFiltered = aNode.classList.contains("hud-filtered-by-string") ||
-                     aNode.classList.contains("hud-filtered-by-type");
-
-    // Scroll to the new node if it is not filtered, and if the output node is
-    // scrolled at the bottom or if the new node is a jsterm input/output
-    // message.
-    if (!isFiltered && (scrolledToBottom || isInputOutput)) {
+    if (!aNode.classList.contains("hud-filtered-by-string") &&
+        !aNode.classList.contains("hud-filtered-by-type")) {
       ConsoleUtils.scrollToVisible(aNode);
     }
-  },
-
-  /**
-   * Check if the given output node is scrolled to the bottom.
-   *
-   * @param nsIDOMNode aOutputNode
-   * @return boolean
-   *         True if the output node is scrolled to the bottom, or false
-   *         otherwise.
-   */
-  isOutputScrolledToBottom:
-  function ConsoleUtils_isOutputScrolledToBottom(aOutputNode)
-  {
-    let lastNodeHeight = aOutputNode.lastChild ?
-                         aOutputNode.lastChild.clientHeight : 0;
-    let scrollBox = aOutputNode.scrollBoxObject.element;
-
-    return scrollBox.scrollTop + scrollBox.clientHeight >=
-           scrollBox.scrollHeight - lastNodeHeight / 2;
   },
 
   /**

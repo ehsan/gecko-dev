@@ -51,6 +51,7 @@
 #include "nsIPresShell.h"
 #include "nsRootAccessible.h"
 #include "nsISelectionPrivate.h"
+#include "nsISelection2.h"
 #include "nsServiceManagerUtils.h"
 
 class nsIWidget;
@@ -210,55 +211,27 @@ nsCaretAccessible::NotifySelectionChanged(nsIDOMDocument* aDOMDocument,
   nsCOMPtr<nsIDocument> documentNode(do_QueryInterface(aDOMDocument));
   nsDocAccessible* document = GetAccService()->GetDocAccessible(documentNode);
 
-#ifdef DEBUG_NOTIFICATIONS
-  nsCOMPtr<nsISelection2> sel2(do_QueryInterface(aSelection));
-
-  PRInt16 type = 0;
-  sel2->GetType(&type);
-
-  if (type == nsISelectionController::SELECTION_NORMAL ||
-      type == nsISelectionController::SELECTION_SPELLCHECK) {
-
-    bool isNormalSelection =
-      (type == nsISelectionController::SELECTION_NORMAL);
-
-    bool isIgnored = !document || !document->IsContentLoaded();
-    printf("\nSelection changed, selection type: %s, notification %s\n",
-           (isNormalSelection ? "normal" : "spellcheck"),
-           (isIgnored ? "ignored" : "pending"));
-  }
-#endif
-
   // Don't fire events until document is loaded.
-  if (document && document->IsContentLoaded()) {
-    // The caret accessible has the same lifetime as the root accessible, and
-    // this outlives all its descendant document accessibles, so that we are
-    // guaranteed that the notification is processed before the caret accessible
-    // is destroyed.
-    document->HandleNotification<nsCaretAccessible, nsISelection>
-      (this, &nsCaretAccessible::ProcessSelectionChanged, aSelection);
-  }
+  if (!document || !document->IsContentLoaded())
+    return NS_OK;
 
-  return NS_OK;
-}
-
-void
-nsCaretAccessible::ProcessSelectionChanged(nsISelection* aSelection)
-{
   nsCOMPtr<nsISelection2> sel2(do_QueryInterface(aSelection));
 
   PRInt16 type = 0;
   sel2->GetType(&type);
 
   if (type == nsISelectionController::SELECTION_NORMAL)
-    NormalSelectionChanged(aSelection);
+    NormalSelectionChanged(document, aSelection);
 
   else if (type == nsISelectionController::SELECTION_SPELLCHECK)
-    SpellcheckSelectionChanged(aSelection);
+    SpellcheckSelectionChanged(document, aSelection);
+
+  return NS_OK;
 }
 
 void
-nsCaretAccessible::NormalSelectionChanged(nsISelection* aSelection)
+nsCaretAccessible::NormalSelectionChanged(nsDocAccessible* aDocument,
+                                          nsISelection* aSelection)
 {
   mLastUsedSelection = do_GetWeakReference(aSelection);
 
@@ -292,11 +265,12 @@ nsCaretAccessible::NormalSelectionChanged(nsISelection* aSelection)
   nsRefPtr<AccEvent> event =
     new AccCaretMoveEvent(mLastTextAccessible->GetNode());
   if (event)
-    mLastTextAccessible->GetDocAccessible()->FireDelayedAccessibleEvent(event);
+    aDocument->FireDelayedAccessibleEvent(event);
 }
 
 void
-nsCaretAccessible::SpellcheckSelectionChanged(nsISelection* aSelection)
+nsCaretAccessible::SpellcheckSelectionChanged(nsDocAccessible* aDocument,
+                                              nsISelection* aSelection)
 {
   // XXX: fire an event for accessible of focus node of the selection. If
   // spellchecking is enabled then we will fire the number of events for
@@ -312,7 +286,7 @@ nsCaretAccessible::SpellcheckSelectionChanged(nsISelection* aSelection)
   nsRefPtr<AccEvent> event =
     new AccEvent(nsIAccessibleEvent::EVENT_TEXT_ATTRIBUTE_CHANGED, textAcc);
   if (event)
-    textAcc->GetDocAccessible()->FireDelayedAccessibleEvent(event);
+    aDocument->FireDelayedAccessibleEvent(event);
 }
 
 nsIntRect

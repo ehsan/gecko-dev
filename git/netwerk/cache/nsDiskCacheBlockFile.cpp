@@ -46,27 +46,23 @@
  * nsDiskCacheBlockFile - 
  *****************************************************************************/
 
+const unsigned short kBitMapBytes = 4096;
+const unsigned short kBitMapWords = (kBitMapBytes/4);
+
 /******************************************************************************
  *  Open
  *****************************************************************************/
 nsresult
-nsDiskCacheBlockFile::Open(nsILocalFile * blockFile,
-                           PRUint32       blockSize,
-                           PRUint32       bitMapSize)
+nsDiskCacheBlockFile::Open( nsILocalFile *  blockFile, PRUint32  blockSize)
 {
-    if (bitMapSize % 32)
-        return NS_ERROR_INVALID_ARG;
-
     mBlockSize = blockSize;
-    mBitMapWords = bitMapSize / 32;
-    PRUint32 bitMapBytes = mBitMapWords * 4;
     
     // open the file - restricted to user, the data could be confidential
     nsresult rv = blockFile->OpenNSPRFileDesc(PR_RDWR | PR_CREATE_FILE, 00600, &mFD);
     if (NS_FAILED(rv))  return rv;  // unable to open or create file
     
     // allocate bit map buffer
-    mBitMap = new PRUint32[mBitMapWords];
+    mBitMap = new PRUint32[kBitMapWords];
     if (!mBitMap) {
         rv = NS_ERROR_OUT_OF_MEMORY;
         goto error_exit;
@@ -81,24 +77,24 @@ nsDiskCacheBlockFile::Open(nsILocalFile * blockFile,
     }
     if (mFileSize == 0) {
         // initialize bit map and write it
-        memset(mBitMap, 0, bitMapBytes);
-        if (!Write(0, mBitMap, bitMapBytes))
+        memset(mBitMap, 0, kBitMapBytes);
+        if (!Write(0, mBitMap, kBitMapBytes))
             goto error_exit;
         
-    } else if ((PRUint32)mFileSize < bitMapBytes) {
+    } else if (mFileSize < kBitMapBytes) {
         rv = NS_ERROR_UNEXPECTED;  // XXX NS_ERROR_CACHE_INVALID;
         goto error_exit;
         
     } else {
         // read the bit map
-        const PRInt32 bytesRead = PR_Read(mFD, mBitMap, bitMapBytes);
-        if ((bytesRead < 0) || ((PRUint32)bytesRead < bitMapBytes)) {
+        const PRInt32 bytesRead = PR_Read(mFD, mBitMap, kBitMapBytes);
+        if (bytesRead < kBitMapBytes) {
             rv = NS_ERROR_UNEXPECTED;
             goto error_exit;
         }
 #if defined(IS_LITTLE_ENDIAN)
         // Swap from network format
-        for (unsigned int i = 0; i < mBitMapWords; ++i)
+        for (int i = 0; i < kBitMapWords; ++i)
             mBitMap[i] = ntohl(mBitMap[i]);
 #endif
         // validate block file size
@@ -159,7 +155,7 @@ nsDiskCacheBlockFile::AllocateBlocks(PRInt32 numBlocks)
 {
     const int maxPos = 32 - numBlocks;
     const PRUint32 mask = (0x01 << numBlocks) - 1;
-    for (unsigned int i = 0; i < mBitMapWords; ++i) {
+    for (int i = 0; i < kBitMapWords; ++i) {
         PRUint32 mapWord = ~mBitMap[i]; // flip bits so free bits are 1
         if (mapWord) {                  // At least one free bit
             // Binary search for first free bit in word
@@ -175,7 +171,7 @@ nsDiskCacheBlockFile::AllocateBlocks(PRInt32 numBlocks)
                 if ((mask & mapWord) == mask) {
                     mBitMap[i] |= mask << bit; 
                     mBitMapDirty = PR_TRUE;
-                    return (PRInt32)i * 32 + bit;
+                    return i * 32 + bit;
                 }
             }
         }
@@ -193,7 +189,7 @@ nsDiskCacheBlockFile::DeallocateBlocks( PRInt32  startBlock, PRInt32  numBlocks)
 {
     if (!mFD)  return NS_ERROR_NOT_AVAILABLE;
 
-    if ((startBlock < 0) || ((PRUint32)startBlock > mBitMapWords * 32 - 1) ||
+    if ((startBlock < 0) || (startBlock > kBitMapBytes * 8 - 1) ||
         (numBlocks < 1)  || (numBlocks > 4))
        return NS_ERROR_ILLEGAL_VALUE;
            
@@ -228,11 +224,10 @@ nsDiskCacheBlockFile::WriteBlocks( void *   buffer,
 
     // allocate some blocks in the cache block file
     *startBlock = AllocateBlocks(numBlocks);
-    if (*startBlock < 0)
-        return NS_ERROR_NOT_AVAILABLE;
-
+    NS_ENSURE_STATE(*startBlock >= 0);
+    
     // seek to block position
-    PRInt32 blockPos = mBitMapWords * 4 + *startBlock * mBlockSize;
+    PRInt32 blockPos = kBitMapBytes + *startBlock * mBlockSize;
     
     // write the blocks
     return Write(blockPos, buffer, size) ? NS_OK : NS_ERROR_FAILURE;
@@ -255,7 +250,7 @@ nsDiskCacheBlockFile::ReadBlocks( void *    buffer,
     if (NS_FAILED(rv))  return rv;
     
     // seek to block position
-    PRInt32 blockPos = mBitMapWords * 4 + startBlock * mBlockSize;
+    PRInt32 blockPos = kBitMapBytes + startBlock * mBlockSize;
     PRInt32 filePos = PR_Seek(mFD, blockPos, PR_SEEK_SET);
     if (filePos != blockPos)  return NS_ERROR_UNEXPECTED;
 
@@ -279,21 +274,17 @@ nsDiskCacheBlockFile::FlushBitMap()
     if (!mBitMapDirty)  return NS_OK;
     
 #if defined(IS_LITTLE_ENDIAN)
-    PRUint32 *bitmap = new PRUint32[mBitMapWords];
+    PRUint32 bitmap[kBitMapWords];
     // Copy and swap to network format
     PRUint32 *p = bitmap;
-    for (unsigned int i = 0; i < mBitMapWords; ++i, ++p)
+    for (int i = 0; i < kBitMapWords; ++i, ++p)
       *p = htonl(mBitMap[i]);
 #else
     PRUint32 *bitmap = mBitMap;
 #endif
 
     // write bitmap
-    bool written = Write(0, bitmap, mBitMapWords * 4);
-#if defined(IS_LITTLE_ENDIAN)
-    delete [] bitmap;
-#endif
-    if (!written)
+    if (!Write(0, bitmap, kBitMapBytes))
         return NS_ERROR_UNEXPECTED;
 
     PRStatus err = PR_Sync(mFD);
@@ -316,7 +307,7 @@ nsDiskCacheBlockFile::FlushBitMap()
 nsresult
 nsDiskCacheBlockFile::VerifyAllocation( PRInt32  startBlock, PRInt32  numBlocks)
 {
-    if ((startBlock < 0) || ((PRUint32)startBlock > mBitMapWords * 32 - 1) ||
+    if ((startBlock < 0) || (startBlock > kBitMapBytes * 8 - 1) ||
         (numBlocks < 1)  || (numBlocks > 4))
        return NS_ERROR_ILLEGAL_VALUE;
     
@@ -344,8 +335,8 @@ PRUint32
 nsDiskCacheBlockFile::CalcBlockFileSize()
 {
     // search for last byte in mBitMap with allocated bits
-    PRUint32  estimatedSize = mBitMapWords * 4;
-    PRInt32   i = mBitMapWords;
+    PRUint32  estimatedSize = kBitMapBytes;      
+    PRInt32   i = kBitMapWords;
     while (--i >= 0) {
         if (mBitMap[i]) break;
     }
@@ -384,7 +375,7 @@ nsDiskCacheBlockFile::Write(PRInt32 offset, const void *buf, PRInt32 amount)
     const PRInt32 maxPreallocate = 20*1000*1000;
     if (mFileSize < upTo) {
         // maximal file size
-        const PRInt32 maxFileSize = mBitMapWords * 4 * (mBlockSize * 8 + 1);
+        const PRInt32 maxFileSize = kBitMapBytes * (mBlockSize * 8 + 1);
         if (upTo > maxPreallocate) {
             // grow the file as a multiple of minPreallocate
             mFileSize = ((upTo + minPreallocate - 1) / minPreallocate) * minPreallocate;

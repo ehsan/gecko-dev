@@ -27,7 +27,6 @@ function open_details(aId, aType, aCallback) {
     while (item) {
       if ("mAddon" in item && item.mAddon.id == aId) {
         list.ensureElementIsVisible(item);
-        EventUtils.synthesizeMouseAtCenter(item, { clickCount: 1 }, gManagerWindow);
         EventUtils.synthesizeMouseAtCenter(item, { clickCount: 2 }, gManagerWindow);
         wait_for_view_load(gManagerWindow, aCallback);
         return;
@@ -153,8 +152,7 @@ add_test(function() {
     is(get("detail-icon").src, "chrome://foo/skin/icon64.png", "Icon should be correct");
     is_element_hidden(get("detail-creator"), "Creator should be hidden");
     is_element_hidden(get("detail-screenshot"), "Screenshot should be hidden");
-    is(get("detail-desc").textContent, "Short description", "Description should be correct");
-    is(get("detail-fulldesc").textContent, "Longer description", "Full description should be correct");
+    is(get("detail-desc").textContent, "Longer description", "Description should be correct");
 
     is_element_visible(get("detail-contributions"), "Contributions section should be visible");
     is_element_visible(get("detail-contrib-suggested"), "Contributions amount should be visible");
@@ -185,7 +183,8 @@ add_test(function() {
     is_element_visible(get("detail-findUpdates-btn"), "Check for updates should be visible");
     EventUtils.synthesizeMouseAtCenter(get("detail-autoUpdate").firstChild, {}, gManagerWindow);
     ok(get("detail-autoUpdate").firstChild.selected, "Updates should be automatic");
-    is_element_hidden(get("detail-findUpdates-btn"), "Check for updates should be hidden");
+//XXX Disabled due to bug 596172
+//    is_element_hidden(get("detail-findUpdates-btn"), "Check for updates should be hidden");
 
     is_element_hidden(get("detail-prefs-btn"), "Preferences button should be hidden");
     is_element_hidden(get("detail-enable-btn"), "Enable button should be hidden");
@@ -259,7 +258,6 @@ add_test(function() {
     is_element_visible(get("detail-screenshot"), "Screenshot should be visible");
     is(get("detail-screenshot").src, "http://example.com/screenshot", "Should be showing the full sized screenshot");
     is(get("detail-desc").textContent, "Short description", "Description should be correct");
-    is_element_hidden(get("detail-fulldesc"), "Full description should be hidden");
 
     is_element_visible(get("detail-contributions"), "Contributions section should be visible");
     is_element_hidden(get("detail-contrib-suggested"), "Contributions amount should be hidden");
@@ -674,8 +672,7 @@ add_test(function() {
     is(get("detail-icon").src, "chrome://foo/skin/icon264.png", "Icon should be correct");
     is_element_hidden(get("detail-creator"), "Creator should be hidden");
     is_element_hidden(get("detail-screenshot"), "Screenshot should be hidden");
-    is(get("detail-desc").textContent, "Short description replacement", "Description should be correct");
-    is(get("detail-fulldesc").textContent, "Longer description replacement", "Full description should be correct");
+    is(get("detail-desc").textContent, "Longer description replacement", "Description should be correct");
 
     is_element_hidden(get("detail-contributions"), "Contributions section should be hidden");
 

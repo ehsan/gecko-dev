@@ -388,8 +388,7 @@ struct MatchStack {
     MatchFrame* allocateNextFrame() {
         if (canUseStackBufferForNextFrame())
             return currentFrame + 1;
-        // FIXME: bug 574459 -- no NULL check
-        MatchFrame *frame = js_new<MatchFrame>();
+        MatchFrame *frame = new MatchFrame;
         frame->init(regExpPool);
         return frame;
     }
@@ -413,7 +412,7 @@ struct MatchStack {
         MatchFrame* oldFrame = currentFrame;
         currentFrame = currentFrame->previousFrame;
         if (size > numFramesOnStack)
-            js_delete(oldFrame);
+            delete oldFrame;
         size--;
     }
 
@@ -705,7 +704,7 @@ RECURSE:
                         int end = stack.currentFrame->args.subjectPtr - md.startSubject;
                         if (start == end && stack.currentFrame->args.groupMatched) {
                             DPRINTF(("empty string while group already matched; bailing"));
-                            RRETURN_NO_MATCH;
+                            RRETURN;
                         }
                         DPRINTF(("saving; start: %d; end: %d\n", start, end));
                         JS_ASSERT(start <= end);

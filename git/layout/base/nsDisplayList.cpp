@@ -67,7 +67,6 @@
 
 using namespace mozilla;
 using namespace mozilla::layers;
-typedef FrameMetrics::ViewID ViewID;
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     Mode aMode, PRBool aBuildCaret)
@@ -146,49 +145,6 @@ static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
       return;
     f->RemoveStateBits(NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO);
   }
-}
-
-static void RecordFrameMetrics(nsIFrame* aForFrame,
-                               ContainerLayer* aRoot,
-                               nsRect aVisibleRect,
-                               nsRect aViewport,
-                               ViewID aScrollId) {
-  nsPresContext* presContext = aForFrame->PresContext();
-  nsIPresShell* presShell = presContext->GetPresShell();
-
-  nsIntRect visible = aVisibleRect.ToNearestPixels(presContext->AppUnitsPerDevPixel());
-  aRoot->SetVisibleRegion(nsIntRegion(visible));
-
-  FrameMetrics metrics;
-
-  PRInt32 auPerDevPixel = presContext->AppUnitsPerDevPixel();
-  metrics.mViewport = aViewport.ToNearestPixels(auPerDevPixel);
-  if (presShell->UsingDisplayPort()) {
-    metrics.mDisplayPort =
-      presShell->GetDisplayPort().ToNearestPixels(auPerDevPixel);
-  }
-
-  nsIScrollableFrame* rootScrollableFrame =
-    presShell->GetRootScrollFrameAsScrollable();
-  if (rootScrollableFrame) {
-    nsSize contentSize = 
-      rootScrollableFrame->GetScrollRange().Size() +
-      rootScrollableFrame->GetScrollPortRect().Size();
-    metrics.mContentSize = nsIntSize(NSAppUnitsToIntPixels(contentSize.width, auPerDevPixel),
-                                     NSAppUnitsToIntPixels(contentSize.height, auPerDevPixel));
-
-    metrics.mViewportScrollOffset =
-      rootScrollableFrame->GetScrollPosition().ToNearestPixels(auPerDevPixel);
-    
-  }
-  else {
-    nsSize contentSize = aForFrame->GetSize();
-    metrics.mContentSize = nsIntSize(NSAppUnitsToIntPixels(contentSize.width, auPerDevPixel),
-                                     NSAppUnitsToIntPixels(contentSize.height, auPerDevPixel));
-  }
-
-  metrics.mScrollId = aScrollId;
-  aRoot->SetFrameMetrics(metrics);
 }
 
 nsDisplayListBuilder::~nsDisplayListBuilder() {
@@ -459,17 +415,16 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                "Must call ComputeVisibility before calling Paint");
 
   nsRefPtr<LayerManager> layerManager;
-  bool allowRetaining = false;
-  bool doBeginTransaction = true;
   if (aFlags & PAINT_USE_WIDGET_LAYERS) {
     nsIFrame* referenceFrame = aBuilder->ReferenceFrame();
     NS_ASSERTION(referenceFrame == nsLayoutUtils::GetDisplayRootFrame(referenceFrame),
                  "Reference frame must be a display root for us to use the layer manager");
     nsIWidget* window = referenceFrame->GetNearestWidget();
     if (window) {
+      bool allowRetaining = true;
       layerManager = window->GetLayerManager(&allowRetaining);
-      if (layerManager) {
-        doBeginTransaction = !(aFlags & PAINT_EXISTING_TRANSACTION);
+      if (layerManager && allowRetaining) {
+        aBuilder->LayerBuilder()->WillBeginRetainedLayerTransaction(layerManager);
       }
     }
   }
@@ -487,15 +442,10 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     FrameLayerBuilder::InvalidateAllLayers(layerManager);
   }
 
-  if (doBeginTransaction) {
-    if (aCtx) {
-      layerManager->BeginTransactionWithTarget(aCtx->ThebesContext());
-    } else {
-      layerManager->BeginTransaction();
-    }
-  }
-  if (allowRetaining) {
-    aBuilder->LayerBuilder()->DidBeginRetainedLayerTransaction(layerManager);
+  if (aCtx) {
+    layerManager->BeginTransactionWithTarget(aCtx->ThebesContext());
+  } else {
+    layerManager->BeginTransaction();
   }
 
   nsRefPtr<ContainerLayer> root = aBuilder->LayerBuilder()->
@@ -506,10 +456,28 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   nsPresContext* presContext = aForFrame->PresContext();
   nsIPresShell* presShell = presContext->GetPresShell();
 
-  ViewID id = presContext->IsRootContentDocument() ? FrameMetrics::ROOT_SCROLL_ID
-                                                   : FrameMetrics::NULL_SCROLL_ID;
+  nsIntRect visible = mVisibleRect.ToNearestPixels(presContext->AppUnitsPerDevPixel());
+  root->SetVisibleRegion(nsIntRegion(visible));
 
-  RecordFrameMetrics(aForFrame, root, mVisibleRect, mVisibleRect, id);
+  // Collect frame metrics with which to stamp the root layer.
+  FrameMetrics metrics;
+
+  PRInt32 auPerCSSPixel = nsPresContext::AppUnitsPerCSSPixel();
+  metrics.mViewportSize =
+    presContext->GetVisibleArea().ToNearestPixels(auPerCSSPixel).Size();
+  if (presShell->UsingDisplayPort()) {
+    metrics.mDisplayPort =
+      presShell->GetDisplayPort().ToNearestPixels(auPerCSSPixel);
+  }
+
+  nsIScrollableFrame* rootScrollableFrame =
+    presShell->GetRootScrollFrameAsScrollable();
+  if (rootScrollableFrame) {
+    metrics.mViewportScrollOffset =
+      rootScrollableFrame->GetScrollPosition().ToNearestPixels(auPerCSSPixel);
+  }
+
+  root->SetFrameMetrics(metrics);
 
   // If the layer manager supports resolution scaling, set that up
   if (LayerManager::LAYERS_BASIC == layerManager->GetBackendType()) {
@@ -747,9 +715,19 @@ void nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 static void
-RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
+RegisterThemeWidgetGeometry(nsIFrame* aFrame)
 {
+  nsPresContext* presContext = aFrame->PresContext();
+  nsITheme* theme = presContext->GetTheme();
+  if (!theme)
+    return;
+
   nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(aFrame);
+  nsIWidget* widget = displayRoot->GetNearestWidget();
+  // If the display root doesn't have a widget, just bail. Something
+  // weird is going on, maybe we're printing?
+  if (!widget)
+    return;
 
   for (nsIFrame* f = aFrame; f; f = f->GetParent()) {
     // Bail out if we're in a transformed subtree
@@ -761,8 +739,9 @@ RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
   }
 
   nsRect borderBox(aFrame->GetOffsetTo(displayRoot), aFrame->GetSize());
-  aBuilder->RegisterThemeGeometry(aFrame->GetStyleDisplay()->mAppearance,
-      borderBox.ToNearestPixels(aFrame->PresContext()->AppUnitsPerDevPixel()));
+  theme->RegisterWidgetGeometry(widget,
+      aFrame->GetStyleDisplay()->mAppearance,
+      borderBox.ToNearestPixels(presContext->AppUnitsPerDevPixel()));
 }
 
 nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
@@ -774,11 +753,11 @@ nsDisplayBackground::nsDisplayBackground(nsDisplayListBuilder* aBuilder,
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
   mIsThemed = mFrame->IsThemed(disp, &mThemeTransparency);
 
-  // Perform necessary RegisterThemeGeometry
+  // Perform necessary RegisterWidgetGeometry
   if (mIsThemed &&
       (disp->mAppearance == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
        disp->mAppearance == NS_THEME_TOOLBAR)) {
-    RegisterThemeGeometry(aBuilder, aFrame);
+    RegisterThemeWidgetGeometry(aFrame);
   }
 }
 
@@ -1021,15 +1000,8 @@ nsDisplayBackground::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 PRBool
 nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) {
   // theme background overrides any other background
-  if (mIsThemed) {
-    const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
-    if (disp->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS ||
-        disp->mAppearance == NS_THEME_WIN_GLASS) {
-      *aColor = NS_RGBA(0,0,0,0);
-      return PR_TRUE;
-    }
+  if (mIsThemed)
     return PR_FALSE;
-  }
 
   nsStyleContext *bgSC;
   PRBool hasBG =
@@ -1618,79 +1590,6 @@ nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList);
   return layer.forget();
 }
-
-#ifdef MOZ_IPC
-
-nsDisplayScrollLayer::nsDisplayScrollLayer(nsDisplayListBuilder* aBuilder,
-                                           nsDisplayList* aList,
-                                           nsIFrame* aForFrame,
-                                           nsIFrame* aViewportFrame)
-  : nsDisplayOwnLayer(aBuilder, aForFrame, aList)
-  , mViewportFrame(aViewportFrame)
-{
-#ifdef NS_BUILD_REFCNT_LOGGING
-  MOZ_COUNT_CTOR(nsDisplayScrollLayer);
-#endif
-
-  NS_ASSERTION(mFrame && mFrame->GetContent(),
-               "Need a child frame with content");
-}
-
-already_AddRefed<Layer>
-nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
-                                 LayerManager* aManager) {
-  nsRefPtr<ContainerLayer> layer = aBuilder->LayerBuilder()->
-    BuildContainerLayerFor(aBuilder, aManager, mFrame, this, mList);
-
-  // Get the already set unique ID for scrolling this content remotely.
-  // Or, if not set, generate a new ID.
-  nsIContent* content = mFrame->GetContent();
-  ViewID scrollId = nsLayoutUtils::FindIDFor(content);
-
-  nsRect viewport = mViewportFrame->GetRect() -
-                    mViewportFrame->GetPosition() +
-                    aBuilder->ToReferenceFrame(mViewportFrame);
-
-  RecordFrameMetrics(mFrame, layer, mVisibleRect, viewport, scrollId);
-
-  return layer.forget();
-}
-
-PRBool
-nsDisplayScrollLayer::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                        nsRegion* aVisibleRegion)
-{
-  nsPresContext* presContext = mFrame->PresContext();
-  nsIPresShell* presShell = presContext->GetPresShell();
-
-  if (presShell->UsingDisplayPort()) {
-    // The visible region for the children may be much bigger than the hole we
-    // are viewing the children from, so that the compositor process has enough
-    // content to asynchronously pan while content is being refreshed.
-
-    nsRegion childVisibleRegion = presShell->GetDisplayPort() + aBuilder->ToReferenceFrame(mViewportFrame);
-
-    nsRect boundedRect;
-    boundedRect.IntersectRect(childVisibleRegion.GetBounds(), mList.GetBounds(aBuilder));
-    PRBool visible = mList.ComputeVisibilityForSublist(
-      aBuilder, &childVisibleRegion, boundedRect);
-    mVisibleRect = boundedRect;
-
-    return visible;
-
-  } else {
-    return nsDisplayOwnLayer::ComputeVisibility(aBuilder, aVisibleRegion);
-  }
-}
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-nsDisplayScrollLayer::~nsDisplayScrollLayer()
-{
-  MOZ_COUNT_DTOR(nsDisplayScrollLayer);
-}
-#endif
-
-#endif
 
 nsDisplayClip::nsDisplayClip(nsDisplayListBuilder* aBuilder,
                              nsIFrame* aFrame, nsDisplayItem* aItem,

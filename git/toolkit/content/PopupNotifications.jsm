@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Gavin Sharp <gavin@gavinsharp.com> (Original Author)
- *   Margaret Leibovic <margaret.leibovic@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -291,7 +290,6 @@ PopupNotifications.prototype = {
         return true;
       }
 
-      this._fireCallback(notification, "removed");
       return false;
     }, this);
 
@@ -308,7 +306,7 @@ PopupNotifications.prototype = {
     this._remove(notification);
 
     // update the panel, if needed
-    if (isCurrent)
+    if (this.isPanelOpen && isCurrent)
       this._update();
   },
 
@@ -375,7 +373,6 @@ PopupNotifications.prototype = {
       // in the document.
       popupnotification.setAttribute("id", n.id + "-notification");
       popupnotification.setAttribute("popupid", n.id);
-      popupnotification.setAttribute("closebuttoncommand", "PopupNotifications._dismiss();");
       if (n.mainAction) {
         popupnotification.setAttribute("buttonlabel", n.mainAction.label);
         popupnotification.setAttribute("buttonaccesskey", n.mainAction.accessKey);
@@ -414,21 +411,18 @@ PopupNotifications.prototype = {
     if (this.isPanelOpen && this._currentAnchorElement == anchorElement)
       return;
 
+    // Make sure the identity popup hangs in the correct direction.
+    var position = (this.window.getComputedStyle(this.panel, "").direction == "rtl") ?
+      "bottomcenter topright" : "bottomcenter topleft";
+
     // If the panel is already open but we're changing anchors, we need to hide
     // it first.  Otherwise it can appear in the wrong spot.  (_hidePanel is
     // safe to call even if the panel is already hidden.)
     this._hidePanel();
 
-    // If the anchor element is hidden, use the tab as the anchor. We only ever
-    // show notifications for the current browser, so we can just use the
-    // current tab.
-    let bo = anchorElement.boxObject;
-    if (bo.height == 0 && bo.width == 0)
-      anchorElement = this.tabbrowser.selectedTab;
-
     this._currentAnchorElement = anchorElement;
 
-    this.panel.openPopup(anchorElement, "bottomcenter topleft");
+    this.panel.openPopup(anchorElement, position);
     notificationsToShow.forEach(function (n) {
       this._fireCallback(n, "shown");
     }, this);

@@ -39,16 +39,6 @@
     background-color: @customToolbarColor@;
   }
 
-  .tabbrowser-tab:not(:-moz-lwtheme),
-  .tabs-newtab-button:not(:-moz-lwtheme) {
-    background-image: @genericBgTabTexture@, -moz-linear-gradient(@customToolbarColor@, @customToolbarColor@);
-  }
-
-  .tabbrowser-tab:not(:-moz-lwtheme):hover,
-  .tabs-newtab-button:not(:-moz-lwtheme):hover {
-    background-image: @genericBgTabTextureHover@, -moz-linear-gradient(@customToolbarColor@, @customToolbarColor@);
-  }
-
   .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
     background-image: -moz-linear-gradient(white, @toolbarHighlight@ 30%),
                       -moz-linear-gradient(@customToolbarColor@, @customToolbarColor@);
@@ -73,7 +63,7 @@
   }
 
   #main-window[sizemode="maximized"] #titlebar-buttonbox {
-    -moz-margin-end: 3px;
+    -moz-margin-end: 2px;
   }
 
   #main-window {
@@ -125,15 +115,10 @@
     border-left: 1px solid @glassToolbarBorderColor@;
     border-right: 1px solid @glassToolbarBorderColor@;
   }
-  #navigator-toolbox[tabsontop="false"],
-  #main-window[disablechrome] #navigator-toolbox[tabsontop="true"],
+  #navigator-toolbox,
   #navigator-toolbox > toolbar {
     border-color: @glassToolbarBorderColor@ !important;
     background-clip: padding-box;
-  }
-  #main-window[sizemode="normal"]:not([disablechrome]) #navigator-toolbox[tabsontop="true"] {
-    border-bottom-left-radius: 2px;
-    border-bottom-right-radius: 2px;
   }
   #main-window[sizemode="normal"] #browser-border-start,
   #main-window[sizemode="normal"] #browser-border-end {
@@ -152,14 +137,6 @@
   #main-window[sizemode="normal"] #navigator-toolbox:not([tabsontop="true"]) > #PersonalToolbar:not(:-moz-lwtheme) {
     border-top-left-radius: 3.5px;
     border-top-right-radius: 3.5px;
-  }
-
-  #tabbrowser-tabs[tabsontop="true"] > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop="true"] > #nav-bar:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + toolbar:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop="true"]:not([customizing]) > #nav-bar[collapsed="true"] + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme) {
-    position: relative;
-    z-index: 1;
   }
 
   #navigator-toolbox:not([tabsontop="true"]) > #PersonalToolbar {
@@ -219,6 +196,17 @@
 
   .tabbrowser-tab:not(:-moz-lwtheme) {
     text-shadow: none;
+  }
+
+  .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]),
+  .tabs-newtab-button:not(:-moz-lwtheme) {
+    background-image: -moz-linear-gradient(hsl(214,15%,80%), hsl(214,15%,65%) 50%);
+    color: black;
+  }
+
+  .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]):hover,
+  .tabs-newtab-button:not(:-moz-lwtheme):hover {
+    background-image: -moz-linear-gradient(hsl(214,15%,90%), hsl(214,15%,75%) 50%);
   }
 
   #allTabs-panel,

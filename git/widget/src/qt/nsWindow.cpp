@@ -226,9 +226,6 @@ nsWindow::nsWindow()
     mListenForResizes    = PR_FALSE;
     mNeedsShow           = PR_FALSE;
     mGesturesCancelled   = PR_FALSE;
-    mTimerStarted        = PR_FALSE;
-    mPinchEvent.needDispatch = false;
-    mMoveEvent.needDispatch = false;
     
     if (!gGlobalsInitialized) {
         gGlobalsInitialized = PR_TRUE;
@@ -1061,21 +1058,21 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
         ctx->Translate(gfxPoint(-r.x(), -r.y()));
     }
-    else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
-      gfxMatrix matr;
-      matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
 #ifdef MOZ_ENABLE_MEEGOTOUCH
+    else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
       MWindow* window = MApplication::activeWindow();
       if (window) {
         // This is needed for rotate transformation on MeeGo
         // This will work very slow if pixman does not handle rotation very well
+        gfxMatrix matr;
         M::OrientationAngle angle = window->orientationAngle();
+        matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
         matr.Rotate((M_PI/180)*angle);
+        ctx->SetMatrix(matr);
         NS_ASSERTION(PIXMAN_VERSION > PIXMAN_VERSION_ENCODE(0, 21, 2) || !angle, "Old pixman and rotate transform, it is going to be slow");
       }
-#endif
-      ctx->SetMatrix(matr);
     }
+#endif
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
     event.refPoint.x = rect.x;
@@ -1257,12 +1254,20 @@ nsWindow::OnMotionNotifyEvent(QGraphicsSceneMouseEvent *aEvent)
 
     CHECK_MOUSE_BLOCKED
 
-    mMoveEvent.pos = aEvent->pos();
-    mMoveEvent.modifiers = aEvent->modifiers();
-    mMoveEvent.needDispatch = true;
-    DispatchMotionToMainThread();
+    nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
-    return nsEventStatus_eIgnore;
+    event.refPoint.x = nscoord(aEvent->pos().x());
+    event.refPoint.y = nscoord(aEvent->pos().y());
+
+    event.isShift         = ((aEvent->modifiers() & Qt::ShiftModifier) != 0);
+    event.isControl       = ((aEvent->modifiers() & Qt::ControlModifier) != 0);
+    event.isAlt           = ((aEvent->modifiers() & Qt::AltModifier) != 0);
+    event.isMeta          = ((aEvent->modifiers() & Qt::MetaModifier) != 0);
+    event.clickCount      = 0;
+
+    nsEventStatus status = DispatchEvent(&event);
+
+    return status;
 }
 
 void
@@ -1896,17 +1901,23 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
             gestureNotifyEvent.refPoint = nsIntPoint(fpos.x(), fpos.y());
             DispatchEvent(&gestureNotifyEvent);
         }
-        mPinchEvent.needDispatch = true;
     }
     else if (event->type() == QEvent::TouchEnd) {
         mGesturesCancelled = PR_FALSE;
-        mPinchEvent.needDispatch = false;
     }
 
-    if (touchPoints.count() > 0) {
-        // Remember start touch point in order to use it for
-        // distance calculation in NS_SIMPLE_GESTURE_MAGNIFY_UPDATE
-        mPinchEvent.touchPoint = touchPoints.at(0).scenePos();
+    if (touchPoints.count() == 2) {
+        mTouchPointDistance = DistanceBetweenPoints(touchPoints.at(0).scenePos(),
+                                                    touchPoints.at(1).scenePos());
+        if (event->type() == QEvent::TouchBegin) {
+            mLastPinchDistance = mTouchPointDistance;
+        }
+    }
+
+    //Disable mouse events when gestures are used, because they cause problems with
+    //Fennec
+    if (touchPoints.count() > 1) {
+        mLastMultiTouchTime.start();
     }
 
     return nsEventStatus_eIgnore;
@@ -1928,38 +1939,32 @@ nsWindow::OnGestureEvent(QGestureEvent* event, PRBool &handled) {
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         handled = PR_TRUE;
 
-        mPinchEvent.centerPoint =
+        QPointF mappedCenterPoint =
             mWidget->mapFromScene(event->mapToGraphicsScene(pinch->centerPoint()));
-        nsIntPoint centerPoint(mPinchEvent.centerPoint.x(),
-                               mPinchEvent.centerPoint.y());
+        nsIntPoint centerPoint(mappedCenterPoint.x(), mappedCenterPoint.y());
 
         if (pinch->state() == Qt::GestureStarted) {
             event->accept();
-            mPinchEvent.startDistance = DistanceBetweenPoints(mPinchEvent.centerPoint, mPinchEvent.touchPoint) * 2;
-            mPinchEvent.prevDistance = mPinchEvent.startDistance;
+            mPinchStartDistance = mTouchPointDistance;
             result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY_START,
                                           0, 0, centerPoint);
         }
         else if (pinch->state() == Qt::GestureUpdated) {
-            if (mPinchEvent.needDispatch) {
-                mPinchEvent.delta = 0;
-                DispatchMotionToMainThread();
-            }
+            double delta = mTouchPointDistance - mLastPinchDistance;
+
+            result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY_UPDATE,
+                                          0, delta, centerPoint);
         }
         else if (pinch->state() == Qt::GestureFinished) {
-            double distance = DistanceBetweenPoints(mPinchEvent.centerPoint, mPinchEvent.touchPoint) * 2;
-            double delta = distance - mPinchEvent.startDistance;
+            double delta =mTouchPointDistance - mPinchStartDistance;
             result = DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY,
                                           0, delta, centerPoint);
-            mPinchEvent.needDispatch = false;
         }
         else {
             handled = false;
         }
 
-        //Disable mouse events when gestures are used, because they cause problems with
-        //Fennec
-        mLastMultiTouchTime.start();
+        mLastPinchDistance = mTouchPointDistance;
     }
 
     gesture = event->gesture(gSwipeGestureId);
@@ -1978,17 +1983,12 @@ nsWindow::OnGestureEvent(QGestureEvent* event, PRBool &handled) {
 
             // Cancel pinch gesture
             mGesturesCancelled = PR_TRUE;
-            mPinchEvent.needDispatch = false;
-
-            double distance = DistanceBetweenPoints(swipe->hotSpot(), mPinchEvent.touchPoint) * 2;
-            PRFloat64 delta = distance - mPinchEvent.startDistance;
-
-            DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY, 0, delta / 2, hotspot);
+            PRFloat64 delta = mTouchPointDistance - mPinchStartDistance;
+            DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY, 0, delta/2, hotspot);
 
             result = DispatchGestureEvent(NS_SIMPLE_GESTURE_SWIPE,
                                           swipe->Direction(), 0, hotspot);
         }
-        mLastMultiTouchTime.start();
     }
 
     return result;
@@ -2261,14 +2261,12 @@ nsWindow::NativeResize(PRInt32 aWidth, PRInt32 aHeight, PRBool  aRepaint)
 
     mNeedsResize = PR_FALSE;
 
-#ifdef MOZ_IPC
 #ifndef MOZ_ENABLE_MEEGOTOUCH
     if (mIsTopLevel && XRE_GetProcessType() == GeckoProcessType_Default) {
         QWidget *widget = GetViewWidget();
         NS_ENSURE_TRUE(widget,);
         widget->resize(aWidth, aHeight);
     }
-#endif
 #endif
 
     mWidget->resize( aWidth, aHeight);
@@ -2288,7 +2286,6 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     mNeedsResize = PR_FALSE;
     mNeedsMove = PR_FALSE;
 
-#ifdef MOZ_IPC
 #ifndef MOZ_ENABLE_MEEGOTOUCH
     if (mIsTopLevel) {
         if (XRE_GetProcessType() == GeckoProcessType_Default) {
@@ -2297,7 +2294,6 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
             widget->setGeometry(aX, aY, aWidth, aHeight);
         }
     }
-#endif
 #endif
 
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
@@ -2314,11 +2310,8 @@ nsWindow::NativeShow(PRBool aAction)
         // On e10s, we never want the child process or plugin process
         // to go fullscreen because if we do the window because visible
         // do to disabled Qt-Xembed
-        if (widget &&
-#ifdef MOZ_IPC
-            (XRE_GetProcessType() == GeckoProcessType_Default) &&
-#endif
-            !widget->isVisible())
+        if ((XRE_GetProcessType() == GeckoProcessType_Default) &&
+            widget && !widget->isVisible())
             MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
         mWidget->show();
 
@@ -2568,14 +2561,12 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 
     if (mIsTopLevel) {
         QGraphicsView* newView = nsnull;
-#if defined MOZ_IPC && defined MOZ_ENABLE_MEEGOTOUCH
+#ifdef MOZ_ENABLE_MEEGOTOUCH
         if (XRE_GetProcessType() == GeckoProcessType_Default) {
             newView = new MozMGraphicsView(widget);
         } else
 #else
-        {
-            newView = new MozQGraphicsView(widget);
-        }
+        newView = new MozQGraphicsView(widget);
 #endif
         if (!newView) {
             delete widget;

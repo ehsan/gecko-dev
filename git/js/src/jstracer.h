@@ -666,7 +666,6 @@ public:
         OP_FWDJUMP, // Jumps with positive delta
         OP_NEW, // JSOP_NEW instructions
         OP_RECURSIVE, // Recursive calls
-        OP_ARRAY_READ, // Reads from dense arrays
         OP_TYPED_ARRAY, // Accesses to typed arrays
         OP_LIMIT
     };
@@ -686,14 +685,8 @@ public:
     /* Whether we have run a complete profile of the loop. */
     bool profiled;
 
-    /* Sometimes we can't decide in one profile run whether to trace, so we set undecided. */
-    bool undecided;
-
     /* If we have profiled the loop, this saves the decision of whether to trace it. */
     bool traceOK;
-
-    /* Memoized value of isCompilationUnprofitable. */
-    bool unprofitable;
 
     /*
      * Sometimes loops are not good tracing opportunities, but they are nested inside
@@ -821,7 +814,7 @@ public:
 
     /* Once a loop's profile is done, these decide whether it should be traced. */
     bool isCompilationExpensive(JSContext *cx, uintN depth);
-    bool isCompilationUnprofitable(JSContext *cx, uintN goodOps);
+    bool isCompilationUnprofitable(JSContext *cx, uintN depth);
     void decide(JSContext *cx);
 };
 
@@ -838,13 +831,7 @@ typedef enum BuiltinStatus {
 static JS_INLINE void
 SetBuiltinError(JSContext *cx)
 {
-    JS_TRACE_MONITOR(cx).tracerState->builtinStatus |= BUILTIN_ERROR;
-}
-
-static JS_INLINE bool
-WasBuiltinSuccessful(JSContext *cx)
-{
-    return JS_TRACE_MONITOR(cx).tracerState->builtinStatus == 0;
+    cx->tracerState->builtinStatus |= BUILTIN_ERROR;
 }
 
 #ifdef DEBUG_RECORDING_STATUS_NOT_BOOL
@@ -1102,14 +1089,6 @@ class TraceRecorder
     int                             initDepth;
     bool                            hadNewInit;
 
-#ifdef DEBUG
-    /*
-     * If we are expecting a record_AddProperty callback for this instruction,
-     * the shape of the object before adding the data property. Else NULL.
-     */
-    const js::Shape* addPropShapeBefore;
-#endif
-
     /***************************************** Temporal state hoisted into the recording session */
 
     /* Carry the return value from a STOP/RETURN to the subsequent record_LeaveFrame. */
@@ -1131,7 +1110,7 @@ class TraceRecorder
     nanojit::LIns*                  pendingGuardCondition;
 
     /* See AbortRecordingIfUnexpectedGlobalWrite. */
-    js::Vector<unsigned>            pendingGlobalSlotsToSet;
+    int                             pendingGlobalSlotToSet;
 
     /* Carry whether we have an always-exit from emitIf to checkTraceEnd. */
     bool                            pendingLoop;
@@ -1418,6 +1397,16 @@ class TraceRecorder
                                                 nanojit::LIns* str_ins, nanojit::LIns* idx_ins,
                                                 JSOp mode, nanojit::LIns** out_ins);
 
+    JS_REQUIRES_STACK RecordingStatus nativeSet(JSObject* obj, nanojit::LIns* obj_ins,
+                                                const js::Shape* shape,
+                                                const Value &v, nanojit::LIns* v_ins);
+    JS_REQUIRES_STACK RecordingStatus setProp(Value &l, PropertyCacheEntry* entry,
+                                              const js::Shape* shape,
+                                              Value &v, nanojit::LIns*& v_ins,
+                                              bool isDefinitelyAtom);
+    JS_REQUIRES_STACK RecordingStatus setCallProp(JSObject *callobj, nanojit::LIns *callobj_ins,
+                                                  const js::Shape *shape, nanojit::LIns *v_ins,
+                                                  const Value &v);
     JS_REQUIRES_STACK RecordingStatus initOrSetPropertyByName(nanojit::LIns* obj_ins,
                                                               Value* idvalp, Value* rvalp,
                                                               bool init);
@@ -1426,23 +1415,6 @@ class TraceRecorder
                                                                Value* rvalp, bool init);
     JS_REQUIRES_STACK AbortableRecordingStatus setElem(int lval_spindex, int idx_spindex,
                                                        int v_spindex);
-
-    JS_REQUIRES_STACK RecordingStatus lookupForSetPropertyOp(JSObject* obj, nanojit::LIns* obj_ins,
-                                                             jsid id, bool* safep,
-                                                             JSObject** pobjp,
-                                                             const js::Shape** shapep);
-    JS_REQUIRES_STACK RecordingStatus nativeSet(JSObject* obj, nanojit::LIns* obj_ins,
-                                                const js::Shape* shape,
-                                                const Value& v, nanojit::LIns* v_ins);
-    JS_REQUIRES_STACK RecordingStatus addDataProperty(JSObject* obj);
-    JS_REQUIRES_STACK RecordingStatus setCallProp(JSObject* callobj, nanojit::LIns* callobj_ins,
-                                                  const js::Shape* shape, nanojit::LIns* v_ins,
-                                                  const Value& v);
-    JS_REQUIRES_STACK RecordingStatus setProperty(JSObject* obj, nanojit::LIns* obj_ins,
-                                                  const Value& v, nanojit::LIns* v_ins,
-                                                  bool* deferredp);
-    JS_REQUIRES_STACK RecordingStatus recordSetPropertyOp();
-    JS_REQUIRES_STACK RecordingStatus recordInitPropertyOp(jsbytecode op);
 
     void box_undefined_into(tjit::Address addr);
 #if JS_BITS_PER_WORD == 32
@@ -1500,7 +1472,7 @@ class TraceRecorder
                                                                            nanojit::LIns* obj_ins,
                                                                            VMSideExit *exit);
     JS_REQUIRES_STACK RecordingStatus guardNativeConversion(Value& v);
-    JS_REQUIRES_STACK void clearReturningFrameFromNativeTracker();
+    JS_REQUIRES_STACK void clearReturningFrameFromNativeveTracker();
     JS_REQUIRES_STACK void putActivationObjects();
     JS_REQUIRES_STACK RecordingStatus guardCallee(Value& callee);
     JS_REQUIRES_STACK JSStackFrame      *guardArguments(JSObject *obj, nanojit::LIns* obj_ins,
@@ -1575,6 +1547,9 @@ class TraceRecorder
 # include "jsopcode.tbl"
 #undef OPDEF
 
+    inline void* operator new(size_t size) { return js_calloc(size); }
+    inline void operator delete(void *p) { js_free(p); }
+
     JS_REQUIRES_STACK
     TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*,
                   unsigned stackSlots, unsigned ngslots, JSValueType* typeMap,
@@ -1625,15 +1600,15 @@ class TraceRecorder
     JS_REQUIRES_STACK AbortableRecordingStatus monitorRecording(JSOp op);
     JS_REQUIRES_STACK AbortableRecordingStatus record_EnterFrame();
     JS_REQUIRES_STACK AbortableRecordingStatus record_LeaveFrame();
-    JS_REQUIRES_STACK AbortableRecordingStatus record_AddProperty(JSObject *obj);
+    JS_REQUIRES_STACK AbortableRecordingStatus record_SetPropHit(PropertyCacheEntry* entry,
+                                                                 const js::Shape* shape);
     JS_REQUIRES_STACK AbortableRecordingStatus record_DefLocalFunSetSlot(uint32 slot,
                                                                          JSObject* obj);
     JS_REQUIRES_STACK AbortableRecordingStatus record_NativeCallComplete();
     void forgetGuardedShapesForObject(JSObject* obj);
 
     bool globalSetExpected(unsigned slot) {
-        unsigned *pi = Find(pendingGlobalSlotsToSet, slot);
-        if (pi == pendingGlobalSlotsToSet.end()) {
+        if (pendingGlobalSlotToSet != (int)slot) {
             /*
              * Do slot arithmetic manually to avoid getSlotRef assertions which
              * do not need to be satisfied for this purpose.
@@ -1651,9 +1626,9 @@ class TraceRecorder
              * could lazily resolve. Since resolving adds properties to
              * reserved slots, the tracer will never have imported them.
              */
-            return tree->globalSlots->offsetOf((uint16)nativeGlobalSlot(vp)) == -1;
+            return tree->globalSlots->offsetOf(nativeGlobalSlot(vp)) == -1;
         }
-        pendingGlobalSlotsToSet.erase(pi);
+        pendingGlobalSlotToSet = -1;
         return true;
     }
 
@@ -1722,7 +1697,7 @@ RecordTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist);
 
 extern JS_REQUIRES_STACK TracePointAction
 MonitorTracePoint(JSContext*, uintN& inlineCallCount, bool* blacklist,
-                  void** traceData, uintN *traceEpoch, uint32 *loopCounter, uint32 hits);
+                  void** traceData, uintN *traceEpoch);
 
 extern JS_REQUIRES_STACK TraceRecorder::AbortResult
 AbortRecording(JSContext* cx, const char* reason);
@@ -1896,9 +1871,9 @@ namespace js {
  * While recording, the slots of the global object may change payload or type.
  * This is fine as long as the recorder expects this change (and therefore has
  * generated the corresponding LIR, snapshots, etc). The recorder indicates
- * that it expects a write to a global slot by setting pendingGlobalSlotsToSet
+ * that it expects a write to a global slot by setting pendingGlobalSlotToSet
  * in the recorder, before the write is made by the interpreter, and clearing
- * pendingGlobalSlotsToSet before recording the next op. Any global slot write
+ * pendingGlobalSlotToSet before recording the next op. Any global slot write
  * that has not been whitelisted in this manner is therefore unexpected and, if
  * the global slot is actually being tracked, recording must be aborted.
  */

@@ -652,9 +652,6 @@ loadTestEVInfos()
     temp_ev->cert = CERT_FindCertByIssuerAndSN(nsnull, &ias);
     NS_ASSERTION(temp_ev->cert, "Could not find EV root in NSS storage");
 
-    SECITEM_FreeItem(&ias.derIssuer, PR_FALSE);
-    SECITEM_FreeItem(&ias.serialNumber, PR_FALSE);
-
     if (!temp_ev->cert)
       return;
 
@@ -859,9 +856,6 @@ nsNSSComponent::IdentityInfoInit()
 
     entry.cert = CERT_FindCertByIssuerAndSN(nsnull, &ias);
     NS_ASSERTION(entry.cert, "Could not find EV root in NSS storage");
-
-    SECITEM_FreeItem(&ias.derIssuer, PR_FALSE);
-    SECITEM_FreeItem(&ias.serialNumber, PR_FALSE);
 
     if (!entry.cert)
       continue;

@@ -65,7 +65,6 @@
 
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
 
-PRTime gFirstPaintTimestamp = 0; // Timestamp of the first paint event
 /**
    XXX TODO XXX
 
@@ -446,8 +445,6 @@ void nsViewManager::RenderViews(nsView *aView, nsIWidget *aWidget,
     nsRegion region = ConvertRegionBetweenViews(aRegion, aView, displayRoot);
     mObserver->Paint(displayRoot, aView, aWidget, region, aIntRegion,
                      aPaintDefaultBackground, aWillSendDidPaint);
-    if (!gFirstPaintTimestamp)
-      gFirstPaintTimestamp = PR_Now();
   }
 }
 

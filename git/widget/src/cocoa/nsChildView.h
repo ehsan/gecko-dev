@@ -395,8 +395,6 @@ public:
   virtual gfxASurface* GetThebesSurface();
   virtual void DrawOver(LayerManager* aManager, nsIntRect aRect);
 
-  virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
-
   NS_IMETHOD BeginSecureKeyboardInput();
   NS_IMETHOD EndSecureKeyboardInput();
 

@@ -1655,6 +1655,7 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
                               const nsAString& password)
 {
   NS_ENSURE_ARG(!method.IsEmpty());
+  NS_ENSURE_ARG(!url.IsEmpty());
 
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 

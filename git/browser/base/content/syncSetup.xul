@@ -174,19 +174,16 @@
                       accesskey="&setup.tosAgree1.accesskey;"
                       oncommand="this.focus(); gSyncSetup.checkFields();"/>
             <description id="tosDesc"
-                         flex="1"
                          onclick="document.getElementById('tos').focus();
                                   document.getElementById('tos').click()">
               &setup.tosAgree1.label;
               <label class="text-link inline-link"
-                     onclick="event.stopPropagation();gSyncUtils.openToS();">
-                &setup.tosLink.label;
-              </label>
+                     onclick="event.stopPropagation();gSyncUtils.openToS();"
+                     value="&setup.tosLink.label;"/>
               &setup.tosAgree2.label;
               <label class="text-link inline-link"
-                     onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();">
-                &setup.ppLink.label;
-              </label>
+                     onclick="event.stopPropagation();gSyncUtils.openPrivacyPolicy();"
+                     value="&setup.ppLink.label;"/>
               &setup.tosAgree3.label;
             </description>
           </hbox>
@@ -312,15 +309,14 @@
             <spacer/>
             <hbox>
               <image class="statusIcon"/>
-              <label class="status" value=" "/>
+              <vbox>
+                <label class="status" value=" "/>
+                <label class="text-link"
+                       value="&resetPassword.label;"
+                       onclick="gSyncUtils.resetPassword(); return false;"/>
+              </vbox>
             </hbox>
           </row>
-          <row align="center">
-            <spacer/>
-            <label class="text-link"
-                   value="&resetPassword.label;"
-                   onclick="gSyncUtils.resetPassword(); return false;"/>
-	  </row>
           <row align="center">
             <label control="existingServer"
                    value="&server.label;"/>
@@ -361,7 +357,12 @@
       <vbox align="left" id="existingPassphraseFeedbackRow" hidden="true">
         <hbox>
           <image class="statusIcon"/>
-          <label class="status" value=" "/>
+          <vbox>
+            <label class="status" value=" "/>
+            <label class="text-link"
+                   value="&lostSyncKey.label;"
+                   onclick="gSyncUtils.resetPassphrase(); return false;"/>
+          </vbox>
         </hbox>
       </vbox>
     </groupbox>
@@ -372,9 +373,6 @@
         <label class="text-link"
                value="&addDevice.showMeHow.label;"
                href="https://services.mozilla.com/sync/help/manual-setup"/>
-        <label class="text-link"
-               value="&resetSyncKey.label;"
-               onclick="gSyncUtils.resetPassphrase(); return false;"/>
       </description>
     </vbox>
   </wizardpage>
@@ -432,7 +430,7 @@
             <column/>
             <column flex="1"/>
           </columns>
-          <rows flex="1">
+          <rows>
             <row align="center">
               <radio id="resetClient"
                      class="mergeChoiceButton"
@@ -447,18 +445,16 @@
                      class="mergeChoiceButton"
                      aria-labelledby="wipeClientLabel"/>
               <label id="wipeClientLabel"
-                     control="wipeClient">
-                &choice2.client.main.label;
-              </label>
+                     control="wipeClient"
+                     value="&choice2.client.main.label;"/>
             </row>
             <row align="center">
               <radio id="wipeRemote"
                      class="mergeChoiceButton"
                      aria-labelledby="wipeRemoteLabel"/>
               <label id="wipeRemoteLabel"
-                     control="wipeRemote">
-                &choice2.server.main.label;
-              </label>
+                     control="wipeRemote"
+                     value="&choice2.server.main.label;"/>
             </row>
           </rows>
         </grid>

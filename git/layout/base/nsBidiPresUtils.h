@@ -208,8 +208,7 @@ public:
    *  NSBIDI_LTR - left-to-right string
    *  NSBIDI_RTL - right-to-left string
    * @param aPresContext the presentation context
-   * @param aRenderingContext the rendering context to render to
-   * @param aTextRunConstructionContext the rendering context to be used to construct the textrun (affects font hinting)
+   * @param aRenderingContext the rendering context
    * @param aX the x-coordinate to render the string
    * @param aY the y-coordinate to render the string
    * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nsnull if this functionality is not required
@@ -220,14 +219,13 @@ public:
                       nsBidiDirection        aBaseDirection,
                       nsPresContext*         aPresContext,
                       nsIRenderingContext&   aRenderingContext,
-                      nsIRenderingContext&   aTextRunConstructionContext,
                       nscoord                aX,
                       nscoord                aY,
                       nsBidiPositionResolve* aPosResolve = nsnull,
                       PRInt32                aPosResolveCount = 0)
   {
     return ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                                          aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
+                                          MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
   }
   
   nscoord MeasureTextWidth(const PRUnichar*     aText,
@@ -237,8 +235,7 @@ public:
                            nsIRenderingContext& aRenderingContext)
   {
     nscoord length;
-    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext,
-                                                 aRenderingContext, aRenderingContext,
+    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
                                                  MODE_MEASURE, 0, 0, nsnull, 0, &length);
     return NS_SUCCEEDED(rv) ? length : 0;
   }
@@ -344,16 +341,12 @@ public:
    */
   PRUint32 EstimateMemoryUsed();
 
-  void Traverse(nsCycleCollectionTraversalCallback &cb) const;
-  void Unlink();
-
 private:
   nsresult ProcessTextForRenderingContext(const PRUnichar*       aText,
                                           PRInt32                aLength,
                                           nsBidiDirection        aBaseDirection,
                                           nsPresContext*         aPresContext,
                                           nsIRenderingContext&   aRenderingContext,
-                                          nsIRenderingContext&   aTextRunConstructionContext,
                                           Mode                   aMode,
                                           nscoord                aX, // DRAW only
                                           nscoord                aY, // DRAW only

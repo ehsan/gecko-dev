@@ -92,10 +92,6 @@ public:
   PRPackedBool mFrameHasNoAlpha;
   PRPackedBool mFrameIsHidden;
 
-  // whether CMS or premultiplied alpha are forced off
-  PRUint32 mCMSMode;
-  PRPackedBool mDisablePremultipliedAlpha;
-  
   /*
    * libpng callbacks
    *

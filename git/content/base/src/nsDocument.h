@@ -1035,6 +1035,7 @@ protected:
                          nsIPresShell** aInstancePtrResult);
 
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
+  virtual nsStyleSet::sheetType GetAttrSheetType();
   void FillStyleSet(nsStyleSet* aStyleSet);
 
   // Return whether all the presshells for this document are safe to flush
@@ -1163,6 +1164,8 @@ protected:
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;
+
+  nsString mBaseTarget;
 
   // Our update nesting level
   PRUint32 mUpdateNestLevel;

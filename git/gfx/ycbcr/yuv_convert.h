@@ -8,7 +8,7 @@
 #include "chromium_types.h"
 #include "gfxCore.h"
 
-#ifdef HAVE_ARM_NEON
+#ifdef __arm__
 #define HAVE_YCBCR_TO_RGB565 1
 #endif
  

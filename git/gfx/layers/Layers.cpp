@@ -47,12 +47,7 @@
 #include "gfxPlatform.h"
 
 using namespace mozilla::layers;
-
-typedef FrameMetrics::ViewID ViewID;
-const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
-const ViewID FrameMetrics::ROOT_SCROLL_ID = 1;
-const ViewID FrameMetrics::START_SCROLL_ID = 2;
-
+ 
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
 FILEOrDefault(FILE* aFile)
@@ -81,15 +76,6 @@ AppendToString(nsACString& s, const gfxPattern::GraphicsFilter& f,
     NS_ERROR("unknown filter type");
     s += "???";
   }
-  return s += sfx;
-}
-
-nsACString&
-AppendToString(nsACString& s, ViewID n,
-               const char* pfx="", const char* sfx="")
-{
-  s += pfx;
-  s.AppendInt(n);
   return s += sfx;
 }
 
@@ -178,10 +164,9 @@ AppendToString(nsACString& s, const FrameMetrics& m,
                const char* pfx="", const char* sfx="")
 {
   s += pfx;
-  AppendToString(s, m.mViewport, "{ viewport=");
+  AppendToString(s, m.mViewportSize, "{ viewport=");
   AppendToString(s, m.mViewportScrollOffset, " viewportScroll=");
-  AppendToString(s, m.mDisplayPort, " displayport=");
-  AppendToString(s, m.mScrollId, " scrollId=", " }");
+  AppendToString(s, m.mDisplayPort, " displayport=", " }");
   return s += sfx;
 }
 

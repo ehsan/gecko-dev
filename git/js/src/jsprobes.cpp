@@ -44,10 +44,6 @@
 #include "jsscript.h"
 #include "jsstr.h"
 
-#ifdef __APPLE__
-#include "sharkctl.h"
-#endif
-
 #include "jsprobes.h"
 #include <sys/types.h>
 
@@ -168,21 +164,3 @@ Probes::handleFunctionReturn(JSContext *cx, JSFunction *fun, JSScript *script)
 }
 
 #endif
-
-bool
-Probes::startProfiling()
-{
-#ifdef MOZ_SHARK
-    if (Shark::Start())
-        return true;
-#endif
-    return false;
-}
-
-void
-Probes::stopProfiling()
-{
-#ifdef MOZ_SHARK
-    Shark::Stop();
-#endif
-}

@@ -66,15 +66,11 @@ struct CharacterClassTable {
     /* Ownership transferred to caller. */
     static CharacterClassTable *create(const char* table, bool inverted)
     {
-        // FIXME: bug 574459 -- no NULL checks done by any of the callers, all
-        // of which are in RegExpJitTables.h.
-        /* We can't (easily) use js_new() here because the constructor is private. */
-        void *memory = js_malloc(sizeof(CharacterClassTable));
-        return memory ? new(memory) CharacterClassTable(table, inverted) : NULL;
+        return new CharacterClassTable(table, inverted);
     }
 
     void incref() { JS_ATOMIC_INCREMENT(&m_refcount); }
-    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) js_delete(this); }
+    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) delete this; }
 
 private:
     CharacterClassTable(const char* table, bool inverted)
@@ -267,14 +263,6 @@ struct PatternAlternative {
     bool m_containsBOL : 1;
 };
 
-template<typename T, size_t N, class AP>
-static inline void
-deleteAllValues(js::Vector<T*,N,AP> &vector)
-{
-    for (T** t = vector.begin(); t < vector.end(); ++t)
-        js_delete(*t);
-}
-
 struct PatternDisjunction {
     PatternDisjunction(PatternAlternative* parent = 0)
         : m_parent(parent)
@@ -289,8 +277,7 @@ struct PatternDisjunction {
 
     PatternAlternative* addNewAlternative()
     {
-        // FIXME: bug 574459 -- no NULL check
-        PatternAlternative* alternative = js_new<PatternAlternative>(this);
+        PatternAlternative* alternative = new PatternAlternative(this);
         m_alternatives.append(alternative);
         return alternative;
     }

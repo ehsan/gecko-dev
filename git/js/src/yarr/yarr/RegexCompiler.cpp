@@ -139,8 +139,7 @@ public:
 
     CharacterClass* charClass()
     {
-        // FIXME: bug 574459 -- no NULL check
-        CharacterClass* characterClass = js_new<CharacterClass>((CharacterClassTable*)NULL);
+        CharacterClass* characterClass = new CharacterClass(0);
 
         characterClass->m_matches.append(m_matches);
         characterClass->m_ranges.append(m_ranges);
@@ -345,8 +344,7 @@ public:
         if (capture)
             m_pattern.m_numSubpatterns++;
 
-        // FIXME: bug 574459 -- no NULL check
-        PatternDisjunction* parenthesesDisjunction = js_new<PatternDisjunction>(m_alternative);
+        PatternDisjunction* parenthesesDisjunction = new PatternDisjunction(m_alternative);
         m_pattern.m_disjunctions.append(parenthesesDisjunction);
         m_alternative->m_terms.append(PatternTerm(PatternTerm::TypeParenthesesSubpattern, subpatternId, parenthesesDisjunction, capture));
         m_alternative = parenthesesDisjunction->addNewAlternative();
@@ -354,8 +352,7 @@ public:
 
     void atomParentheticalAssertionBegin(bool invert = false)
     {
-        // FIXME: bug 574459 -- no NULL check
-        PatternDisjunction* parenthesesDisjunction = js_new<PatternDisjunction>(m_alternative);
+        PatternDisjunction* parenthesesDisjunction = new PatternDisjunction(m_alternative);
         m_pattern.m_disjunctions.append(parenthesesDisjunction);
         m_alternative->m_terms.append(PatternTerm(PatternTerm::TypeParentheticalAssertion, m_pattern.m_numSubpatterns + 1, parenthesesDisjunction, invert));
         m_alternative = parenthesesDisjunction->addNewAlternative();
@@ -400,8 +397,7 @@ public:
 
     PatternDisjunction* copyDisjunction(PatternDisjunction* disjunction)
     {
-        // FIXME: bug 574459 -- no NULL check
-        PatternDisjunction* newDisjunction = js_new<PatternDisjunction>();
+        PatternDisjunction* newDisjunction = new PatternDisjunction();
 
         newDisjunction->m_parent = disjunction->m_parent;
         for (unsigned alt = 0; alt < disjunction->m_alternatives.length(); ++alt) {
@@ -471,8 +467,7 @@ public:
 
     void regexBegin()
     {
-        // FIXME: bug 574459 -- no NULL check
-        m_pattern.m_body = js_new<PatternDisjunction>();
+        m_pattern.m_body = new PatternDisjunction();
         m_alternative = m_pattern.m_body->addNewAlternative();
         m_pattern.m_disjunctions.append(m_pattern.m_body);
     }

@@ -882,7 +882,10 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
       return NS_OK;
     }
 
-    doc->FlushPendingNotifications(Flush_Frames);
+    nsCOMPtr<nsIPresShell> shell = doc->GetShell();
+    if (shell) {
+      shell->RecreateFramesFor(thisContent);
+    }
 
     mInstantiating = PR_FALSE;
 
@@ -1521,7 +1524,7 @@ nsObjectLoadingContent::RemovedFromDocument()
 void
 nsObjectLoadingContent::Traverse(nsCycleCollectionTraversalCallback &cb)
 {
-  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(mFrameLoader));
+  cb.NoteXPCOMChild(mFrameLoader);
 }
 
 // <private>

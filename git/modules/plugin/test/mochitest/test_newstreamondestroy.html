@@ -22,7 +22,7 @@
       ok(!p.streamTest('loremipsum.txt', false, null, null,
                        function(r, t) {
                          ok(false, "get-during-destroy should have failed");
-                       }, null, true), "NPN_GetURLNotify should fail during NPP_Destroy");
+                       }, true), "NPN_GetURLNotify should fail during NPP_Destroy");
     });
     document.body.removeChild(p);
 

@@ -52,8 +52,7 @@ enum Nv_Stereo_Mode {
   NV_STEREO_MODE_RIGHT_LEFT = 1,
   NV_STEREO_MODE_TOP_BOTTOM = 2,
   NV_STEREO_MODE_BOTTOM_TOP = 3,
-  NV_STEREO_MODE_MONO       = 4,
-  NV_STEREO_MODE_LAST       = 5 
+  NV_STEREO_MODE_LAST       = 4 
 };
 
 class INv3DVStreaming : public IUnknown {

@@ -1238,6 +1238,9 @@ nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter a
     if (mOpaque)
         ctx->SetOperator(op);
 
+    mIsEntireFrameInvalid = PR_FALSE;
+    mInvalidateCount = 0;
+
     return rv;
 }
 
@@ -2573,6 +2576,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
                            0,
                            mTextRun->GetLength(),
                            nsnull,
+                           nsnull,
                            nsnull);
     }
 
@@ -2920,6 +2924,7 @@ nsCanvasRenderingContext2D::MozDrawText(const nsAString& textToDraw)
                   /* offset = */ 0,
                   textToDraw.Length(),
                   nsnull,
+                  nsnull,
                   nsnull);
 
     return Redraw();
@@ -3056,7 +3061,7 @@ nsCanvasRenderingContext2D::MozTextAlongPath(const nsAString& textToDraw, PRBool
         if(stroke) {
             textRun->DrawToPath(mThebes, pt, i, 1, nsnull, nsnull);
         } else {
-            textRun->Draw(mThebes, pt, i, 1, nsnull, nsnull);
+            textRun->Draw(mThebes, pt, i, 1, nsnull, nsnull, nsnull);
         }
         mThebes->SetMatrix(matrix);
     }
@@ -3689,7 +3694,7 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
     if (!loaderOwner)
         return NS_ERROR_FAILURE;
 
-    nsRefPtr<nsFrameLoader> frameloader = loaderOwner->GetFrameLoader();
+    nsCOMPtr<nsFrameLoader> frameloader = loaderOwner->GetFrameLoader();
     if (!frameloader)
         return NS_ERROR_FAILURE;
 
@@ -4058,13 +4063,8 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
     if (!mResetLayer && aOldLayer &&
         aOldLayer->HasUserData(&g2DContextLayerUserData)) {
         NS_ADDREF(aOldLayer);
-        if (mIsEntireFrameInvalid || mInvalidateCount > 0) {
-            // XXX Need to just update the changed area here; we should keep track
-            // of the rectangle based on Redraw args.
-            aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
-            MarkContextClean();
-        }
-
+        // XXX Need to just update the changed area here
+        aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
         return aOldLayer;
     }
 
@@ -4086,9 +4086,6 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mResetLayer = PR_FALSE;
-
-    MarkContextClean();
-
     return canvasLayer.forget().get();
 }
 
@@ -4096,6 +4093,5 @@ void
 nsCanvasRenderingContext2D::MarkContextClean()
 {
     mIsEntireFrameInvalid = PR_FALSE;
-    mInvalidateCount = 0;
 }
 

@@ -372,6 +372,11 @@ protected:
 
 private:
   /**
+   * Embedded objects collector.
+   */
+  nsAutoPtr<AccCollector> mLinks;
+
+  /**
    * End text offsets array.
    */
   nsTArray<PRUint32> mOffsets;

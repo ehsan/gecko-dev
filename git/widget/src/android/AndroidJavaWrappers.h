@@ -356,8 +356,8 @@ public:
     AndroidGeckoEvent(int aType) {
         Init(aType);
     }
-    AndroidGeckoEvent(int x1, int y1, int x2, int y2) {
-        Init(x1, y1, x2, y2);
+    AndroidGeckoEvent(void *window, int x1, int y1, int x2, int y2) {
+        Init(window, x1, y1, x2, y2);
     }
     AndroidGeckoEvent(JNIEnv *jenv, jobject jobj) {
         Init(jenv, jobj);
@@ -365,11 +365,12 @@ public:
 
     void Init(JNIEnv *jenv, jobject jobj);
     void Init(int aType);
-    void Init(int x1, int y1, int x2, int y2);
+    void Init(void *window, int x1, int y1, int x2, int y2);
 
     int Action() { return mAction; }
     int Type() { return mType; }
     int64_t Time() { return mTime; }
+    void *NativeWindow() { return mNativeWindow; }
     const nsIntPoint& P0() { return mP0; }
     const nsIntPoint& P1() { return mP1; }
     float X() { return mX; }
@@ -393,6 +394,7 @@ protected:
     int mAction;
     int mType;
     int64_t mTime;
+    void *mNativeWindow;
     nsIntPoint mP0;
     nsIntPoint mP1;
     nsIntRect mRect;

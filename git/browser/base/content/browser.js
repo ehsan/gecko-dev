@@ -873,27 +873,7 @@ const gFormSubmitObserver = {
     }, false);
 
     this.panel.hidden = false;
-
-    // We want to show the popup at the middle of checkbox and radio buttons
-    // and where the content begin for the other elements.
-    let offset = 0;
-    let position = "";
-
-    if (element.tagName == 'INPUT' &&
-        (element.type == 'radio' || element.type == 'checkbox')) {
-      position = "bottomcenter topleft";
-    } else {
-      let style = element.ownerDocument.defaultView.getComputedStyle(element, null);
-      if (style.direction == 'rtl') {
-        offset = parseInt(style.paddingRight) + parseInt(style.borderRightWidth);
-      } else {
-        offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
-      }
-
-      position = "after_start";
-    }
-
-    this.panel.openPopup(element, position, offset, 0);
+    this.panel.openPopup(element, "after_start", 0, 0);
   }
 };
 
@@ -1284,9 +1264,6 @@ function BrowserStartup() {
     document.documentElement.setAttribute("height", defaultHeight);
   }
 
-  if (!gShowPageResizers)
-    document.getElementById("status-bar").setAttribute("hideresizer", "true");
-
   if (!window.toolbar.visible) {
     // adjust browser UI for popups
     if (gURLBar) {
@@ -1635,9 +1612,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   if (consoleEnabled) {
     document.getElementById("javascriptConsole").hidden = false;
     document.getElementById("key_errorConsole").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-    document.getElementById("appmenu_errorConsole").hidden = false;
-#endif
   }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
@@ -1698,6 +1672,7 @@ function BrowserShutdown()
     Components.utils.reportError(ex);
   }
 
+  TabView.uninit();
   BrowserOffline.uninit();
   OfflineApps.uninit();
   gPrivateBrowsingUI.uninit();
@@ -1876,7 +1851,7 @@ function gotoHistoryIndex(aEvent) {
   }
   // Modified click. Go there in a new tab/window.
 
-  duplicateTabIn(gBrowser.selectedTab, where, index - gBrowser.sessionHistory.index);
+  duplicateTabIn(gBrowser.selectedTab, where, index);
   return true;
 }
 
@@ -1891,7 +1866,8 @@ function BrowserForward(aEvent) {
     }
   }
   else {
-    duplicateTabIn(gBrowser.selectedTab, where, 1);
+    let currentIndex = getWebNavigation().sessionHistory.index;
+    duplicateTabIn(gBrowser.selectedTab, where, currentIndex + 1);
   }
 }
 
@@ -1906,7 +1882,8 @@ function BrowserBack(aEvent) {
     }
   }
   else {
-    duplicateTabIn(gBrowser.selectedTab, where, -1);
+    let currentIndex = getWebNavigation().sessionHistory.index;
+    duplicateTabIn(gBrowser.selectedTab, where, currentIndex - 1);
   }
 }
 
@@ -2801,7 +2778,6 @@ var PrintPreviewListener = {
     var addonBar = document.getElementById("addon-bar");
     this._chromeState.addonBarOpen = !addonBar.collapsed;
     addonBar.collapsed = true;
-    gBrowser.updateWindowResizers();
 
     this._chromeState.findOpen = gFindBarInitialized && !gFindBar.hidden;
     if (gFindBarInitialized)
@@ -2818,10 +2794,8 @@ var PrintPreviewListener = {
     if (this._chromeState.notificationsOpen)
       gBrowser.getNotificationBox().notificationsHidden = false;
 
-    if (this._chromeState.addonBarOpen) {
+    if (this._chromeState.addonBarOpen)
       document.getElementById("addon-bar").collapsed = false;
-      gBrowser.updateWindowResizers();
-    }
 
     if (this._chromeState.findOpen)
       gFindBar.open();
@@ -3947,25 +3921,6 @@ var FullScreen = {
       document.documentElement.setAttribute("inFullscreen", true);
     }
 
-    // In tabs-on-top mode, move window controls to the tab bar,
-    // and in tabs-on-bottom mode, move them back to the navigation toolbar.
-    // When there is a chance the tab bar may be collapsed, put window
-    // controls on nav bar.
-    var fullscreenflex = document.getElementById("fullscreenflex");
-    var fullscreenctls = document.getElementById("window-controls");
-    var ctlsOnTabbar = TabsOnTop.enabled &&
-                       !gPrefService.getBoolPref("browser.tabs.autoHide");
-    if (fullscreenctls.parentNode.id == "nav-bar" && ctlsOnTabbar) {
-      document.getElementById("TabsToolbar").appendChild(fullscreenctls);
-      // we don't need this space in tabs-on-top mode, so prevent it from 
-      // being shown
-      fullscreenflex.removeAttribute("fullscreencontrol");
-    }
-    else if (fullscreenctls.parentNode.id == "TabsToolbar" && !ctlsOnTabbar) {
-      document.getElementById("nav-bar").appendChild(fullscreenctls);
-      fullscreenflex.setAttribute("fullscreencontrol", "true");
-    }
-
     var controls = document.getElementsByAttribute("fullscreencontrol", "true");
     for (var i = 0; i < controls.length; ++i)
       controls[i].hidden = aShow;
@@ -4795,7 +4750,6 @@ function setToolbarVisibility(toolbar, isVisible) {
 
   PlacesToolbarHelper.init();
   BookmarksMenuButton.updatePosition();
-  gBrowser.updateWindowResizers();
 
 #ifdef MENUBAR_CAN_AUTOHIDE
   updateAppButtonDisplay();
@@ -4878,7 +4832,7 @@ var TabsInTitlebar = {
   },
 
   _update: function () {
-    if (!this._initialized || window.fullScreen)
+    if (!this._initialized)
       return;
 
     let allowed = true;
@@ -4914,17 +4868,6 @@ var TabsInTitlebar = {
       titlebar.style.marginBottom = - Math.min(distance, maxMargin) + "px";
 
       docElement.setAttribute("tabsintitlebar", "true");
-
-      if (!this._draghandle) {
-        let tmp = {};
-        Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
-        this._draghandle = new tmp.WindowDraggingElement(tabsToolbar, window);
-        this._draghandle.mouseDownCheck = function () {
-          return !this._dragBindingAlive &&
-                 this.ownerDocument.documentElement
-                     .getAttribute("tabsintitlebar") == "true";
-        };
-      }
     } else {
       docElement.removeAttribute("tabsintitlebar");
 
@@ -5493,47 +5436,48 @@ function BrowserSetForcedDetector(doReload)
     BrowserReloadWithFlags(nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
 }
 
-function charsetMenuGetElement(parent, id) {
-  return parent.getElementsByAttribute("id", id)[0];
-}
-
-function UpdateCurrentCharset(target) {
+function UpdateCurrentCharset()
+{
     // extract the charset from DOM
     var wnd = document.commandDispatcher.focusedWindow;
     if ((window == wnd) || (wnd == null)) wnd = window.content;
 
     // Uncheck previous item
     if (gPrevCharset) {
-        var pref_item = charsetMenuGetElement(target, "charset." + gPrevCharset);
+        var pref_item = document.getElementById('charset.' + gPrevCharset);
         if (pref_item)
           pref_item.setAttribute('checked', 'false');
     }
 
-    var menuitem = charsetMenuGetElement(target, "charset." + wnd.document.characterSet);
+    var menuitem = document.getElementById('charset.' + wnd.document.characterSet);
     if (menuitem) {
         menuitem.setAttribute('checked', 'true');
     }
 }
 
-function UpdateCharsetDetector(target) {
-  var prefvalue;
+function UpdateCharsetDetector() {
+  var prefvalue = "off";
 
   try {
     prefvalue = gPrefService.getComplexValue("intl.charset.detector", Ci.nsIPrefLocalizedString).data;
   }
   catch (ex) {}
-  
-  if (!prefvalue)
-    prefvalue = "off";
 
-  var menuitem = charsetMenuGetElement(target, "chardet." + prefvalue);
+  prefvalue = "chardet." + prefvalue;
+
+  var menuitem = document.getElementById(prefvalue);
   if (menuitem)
     menuitem.setAttribute("checked", "true");
 }
 
 function UpdateMenus(event) {
-  UpdateCurrentCharset(event.target);
-  UpdateCharsetDetector(event.target);
+  // use setTimeout workaround to delay checkmark the menu
+  // when onmenucomplete is ready then use it instead of oncreate
+  // see bug 78290 for the detail
+  UpdateCurrentCharset();
+  setTimeout(UpdateCurrentCharset, 0);
+  UpdateCharsetDetector();
+  setTimeout(UpdateCharsetDetector, 0);
 }
 
 function CreateMenu(node) {
@@ -7545,6 +7489,10 @@ var gIdentityHandler = {
     // Update the popup strings
     this.setPopupMessages(this._identityBox.className);
 
+    // Make sure the identity popup hangs toward the middle of the location bar
+    // in RTL builds
+    var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'bottomcenter topright' : 'bottomcenter topleft';
+
     // Add the "open" attribute to the identity box for styling
     this._identityBox.setAttribute("open", "true");
     var self = this;
@@ -7554,7 +7502,7 @@ var gIdentityHandler = {
     }, false);
 
     // Now open the popup, anchored off the primary chrome element
-    this._identityPopup.openPopup(this._identityBox, "bottomcenter topleft");
+    this._identityPopup.openPopup(this._identityBox, position);
   },
 
   onDragStart: function (event) {
@@ -8267,8 +8215,8 @@ var TabContextMenu = {
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
 
-    // Hide "Move to Group" if it's a pinned tab.
-    document.getElementById("context_tabViewMenu").hidden = this.contextTab.pinned;
+    // Disable "Move to Group" if it's a pinned tab.
+    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 
@@ -8306,12 +8254,25 @@ function safeModeRestart()
  *                tabs, and vice versa
  *  "window"      new window
  *
- * delta is the offset to the history entry that you want to load.
+ * historyIndex is an index the page can navigate to after the new tab is
+ * created and loaded, it can for example be used to go back one page after the
+ * tab is duplicated.
  */
-function duplicateTabIn(aTab, where, delta) {
-  let newTab = Cc['@mozilla.org/browser/sessionstore;1']
-                 .getService(Ci.nsISessionStore)
-                 .duplicateTab(window, aTab, delta);
+function duplicateTabIn(aTab, where, historyIndex) {
+  let newTab = gBrowser.duplicateTab(aTab);
+
+  // Go to index if it's provided, fallback to loadURI if there's no history.
+  if (historyIndex != null) {
+    try {
+      gBrowser.getBrowserForTab(newTab).gotoIndex(historyIndex);
+    }
+    catch (ex) {
+      let sessionHistory = aTab.linkedBrowser.sessionHistory;
+      let entry = sessionHistory.getEntryAtIndex(historyIndex, false);
+      let fallbackUrl = entry.URI.spec;
+      gBrowser.getBrowserForTab(newTab).loadURI(fallbackUrl);
+    }
+  }
 
   var loadInBackground =
     getBoolPref("browser.tabs.loadBookmarksInBackground", false);
@@ -8369,15 +8330,3 @@ let AddonsMgrListener = {
       setToolbarVisibility(this.addonBar, false);
   }
 };
-
-XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
-#ifdef XP_WIN
-  // Only show resizers on Windows 2000 and XP
-  let sysInfo = Components.classes["@mozilla.org/system-info;1"]
-                          .getService(Components.interfaces.nsIPropertyBag2);
-  return parseFloat(sysInfo.getProperty("version")) < 6;
-#else
-  return false;
-#endif
-});
-

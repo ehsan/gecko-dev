@@ -79,7 +79,6 @@ nsSVGEnum::SetBaseValueString(const nsAString& aValue,
 
   while (mapping && mapping->mKey) {
     if (valAtom == *(mapping->mKey)) {
-      mIsBaseSet = PR_TRUE;
       if (mBaseVal != mapping->mVal) {
         mBaseVal = mapping->mVal;
         if (!mIsAnimated) {
@@ -128,7 +127,6 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
 
   while (mapping && mapping->mKey) {
     if (mapping->mVal == aValue) {
-      mIsBaseSet = PR_TRUE;
       if (mBaseVal != PRUint8(aValue)) {
         mBaseVal = PRUint8(aValue);
         if (!mIsAnimated) {

@@ -380,6 +380,4 @@ nsLayoutStatics::Shutdown()
   nsFrameList::Shutdown();
 
   nsHTMLInputElement::DestroyUploadLastDir();
-
-  nsLayoutUtils::Shutdown();
 }

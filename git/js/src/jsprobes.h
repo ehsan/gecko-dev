@@ -106,12 +106,9 @@ class Probes {
     static void GCStartSweepPhase(JSCompartment *compartment);
     static void GCEndSweepPhase(JSCompartment *compartment);
 
-    static bool CustomMark(JSString *string);
-    static bool CustomMark(const char *string);
-    static bool CustomMark(int marker);
-
-    static bool startProfiling();
-    static void stopProfiling();
+    static JSBool CustomMark(JSString *string);
+    static JSBool CustomMark(const char *string);
+    static JSBool CustomMark(int marker);
 };
 
 inline bool
@@ -229,9 +226,9 @@ inline void Probes::GCStartMarkPhase(JSCompartment *compartment) {}
 inline void Probes::GCEndMarkPhase(JSCompartment *compartment) {}
 inline void Probes::GCStartSweepPhase(JSCompartment *compartment) {}
 inline void Probes::GCEndSweepPhase(JSCompartment *compartment) {}
-inline bool Probes::CustomMark(JSString *string) { return JS_TRUE; }
-inline bool Probes::CustomMark(const char *string) { return JS_TRUE; }
-inline bool Probes::CustomMark(int marker) { return JS_TRUE; }
+inline JSBool Probes::CustomMark(JSString *string) { return JS_TRUE; }
+inline JSBool Probes::CustomMark(const char *string) { return JS_TRUE; }
+inline JSBool Probes::CustomMark(int marker) { return JS_TRUE; }
 
 struct AutoFunctionCallProbe {
     JSContext * const cx;

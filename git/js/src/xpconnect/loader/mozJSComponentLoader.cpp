@@ -93,7 +93,9 @@
 #endif
 #include "mozilla/Omnijar.h"
 
+#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE) || defined(MOZ_TRACEVIS)
 #include "jsdbgapi.h"
+#endif
 
 #include "mozilla/FunctionTimer.h"
 
@@ -240,6 +242,12 @@ static JSFunctionSpec gGlobalFun[] = {
     {"debug",   Debug,  1,0},
     {"atob",    Atob,   1,0},
     {"btoa",    Btoa,   1,0},
+#ifdef MOZ_SHARK
+    {"startShark",      js_StartShark,     0,0},
+    {"stopShark",       js_StopShark,      0,0},
+    {"connectShark",    js_ConnectShark,   0,0},
+    {"disconnectShark", js_DisconnectShark,0,0},
+#endif
 #ifdef MOZ_CALLGRIND
     {"startCallgrind",  js_StartCallgrind, 0,0},
     {"stopCallgrind",   js_StopCallgrind,  0,0},
@@ -343,7 +351,6 @@ ReportOnCaller(JSCLContextHelper &helper,
     return OutputError(cx, format, ap);
 }
 
-#ifdef MOZ_ENABLE_LIBXUL
 static nsresult
 ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
                      JSScript **script)
@@ -445,7 +452,6 @@ WriteScriptToStream(JSContext *cx, JSScript *script,
     JS_XDRDestroy(xdr);
     return rv;
 }
-#endif // MOZ_ENABLE_LIBXUL
 
 mozJSComponentLoader::mozJSComponentLoader()
     : mRuntime(nsnull),
@@ -541,9 +547,6 @@ mozJSComponentLoader::ReallyInit()
 
     rv = obsSvc->AddObserver(this, "xpcom-shutdown-loaders", PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Set up localized comparison and string conversion
-    xpc_LocalizeContext(mContext);
 
 #ifdef DEBUG_shaver_off
     fprintf(stderr, "mJCL: ReallyInit success!\n");
@@ -996,8 +999,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     if (!ac.enter(cx, global))
         return NS_ERROR_FAILURE;
 
-    if (!JS_DefineFunctions(cx, global, gGlobalFun) ||
-        !JS_DefineProfilingFunctions(cx, global)) {
+    if (!JS_DefineFunctions(cx, global, gGlobalFun)) {
         return NS_ERROR_FAILURE;
     }
 

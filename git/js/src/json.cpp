@@ -146,16 +146,16 @@ js_json_stringify(JSContext *cx, uintN argc, Value *vp)
     if (!JS_ConvertArguments(cx, argc, Jsvalify(argv), "v / o v", vp, replacer.addr(), space.addr()))
         return JS_FALSE;
 
-    StringBuffer sb(cx);
+    JSCharBuffer cb(cx);
 
-    if (!js_Stringify(cx, vp, replacer.object(), space.value(), sb))
+    if (!js_Stringify(cx, vp, replacer.object(), space.value(), cb))
         return JS_FALSE;
 
     // XXX This can never happen to nsJSON.cpp, but the JSON object
     // needs to support returning undefined. So this is a little awkward
     // for the API, because we want to support streaming writers.
-    if (!sb.empty()) {
-        JSString *str = sb.finishString();
+    if (!cb.empty()) {
+        JSString *str = js_NewStringFromCharBuffer(cx, cb);
         if (!str)
             return JS_FALSE;
         vp->setString(str);
@@ -186,23 +186,23 @@ static const char backslash = '\\';
 static const char unicodeEscape[] = "\\u00";
 
 static JSBool
-write_string(JSContext *cx, StringBuffer &sb, const jschar *buf, uint32 len)
+write_string(JSContext *cx, JSCharBuffer &cb, const jschar *buf, uint32 len)
 {
-    if (!sb.append(quote))
+    if (!cb.append(quote))
         return JS_FALSE;
 
     uint32 mark = 0;
     uint32 i;
     for (i = 0; i < len; ++i) {
         if (buf[i] == quote || buf[i] == backslash) {
-            if (!sb.append(&buf[mark], i - mark) || !sb.append(backslash) ||
-                !sb.append(buf[i])) {
+            if (!cb.append(&buf[mark], i - mark) || !cb.append(backslash) ||
+                !cb.append(buf[i])) {
                 return JS_FALSE;
             }
             mark = i + 1;
         } else if (buf[i] <= 31 || buf[i] == 127) {
-            if (!sb.append(&buf[mark], i - mark) ||
-                !sb.append(unicodeEscape)) {
+            if (!cb.append(&buf[mark], i - mark) ||
+                !js_AppendLiteral(cb, unicodeEscape)) {
                 return JS_FALSE;
             }
             char ubuf[3];
@@ -211,24 +211,24 @@ write_string(JSContext *cx, StringBuffer &sb, const jschar *buf, uint32 len)
             jschar wbuf[3];
             size_t wbufSize = JS_ARRAY_LENGTH(wbuf);
             if (!js_InflateStringToBuffer(cx, ubuf, len, wbuf, &wbufSize) ||
-                !sb.append(wbuf, wbufSize)) {
+                !cb.append(wbuf, wbufSize)) {
                 return JS_FALSE;
             }
             mark = i + 1;
         }
     }
 
-    if (mark < len && !sb.append(&buf[mark], len - mark))
+    if (mark < len && !cb.append(&buf[mark], len - mark))
         return JS_FALSE;
 
-    return sb.append(quote);
+    return cb.append(quote);
 }
 
 class StringifyContext
 {
 public:
-    StringifyContext(JSContext *cx, StringBuffer &sb, JSObject *replacer)
-    : sb(sb), gap(cx), replacer(replacer), depth(0), objectStack(cx)
+    StringifyContext(JSContext *cx, JSCharBuffer &cb, JSObject *replacer)
+    : cb(cb), gap(cx), replacer(replacer), depth(0), objectStack(cx)
     {}
 
     bool initializeGap(JSContext *cx, const Value &space) {
@@ -242,7 +242,7 @@ public:
         }
 
         if (gapValue.value().isString()) {
-            if (!ValueToStringBuffer(cx, gapValue.value(), gap))
+            if (!js_ValueToCharBuffer(cx, gapValue.value(), gap))
                 return false;
             if (gap.length() > 10)
                 gap.resize(10);
@@ -266,8 +266,8 @@ public:
     ~StringifyContext() { JS_ASSERT(objectStack.empty()); }
 #endif
 
-    StringBuffer &sb;
-    StringBuffer gap;
+    JSCharBuffer &cb;
+    JSCharBuffer gap;
     JSObject *replacer;
     uint32 depth;
     HashSet<JSObject *> objectStack;
@@ -282,10 +282,10 @@ static JSBool
 WriteIndent(JSContext *cx, StringifyContext *scx, uint32 limit)
 {
     if (!scx->gap.empty()) {
-        if (!scx->sb.append('\n'))
+        if (!scx->cb.append('\n'))
             return JS_FALSE;
         for (uint32 i = 0; i < limit; i++) {
-            if (!scx->sb.append(scx->gap.begin(), scx->gap.end()))
+            if (!scx->cb.append(scx->gap.begin(), scx->gap.end()))
                 return JS_FALSE;
         }
     }
@@ -327,7 +327,7 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
     if (!detect.init(cx))
         return JS_FALSE;
 
-    if (!scx->sb.append('{'))
+    if (!scx->cb.append('{'))
         return JS_FALSE;
 
     Value vec[3] = { NullValue(), NullValue(), NullValue() };
@@ -394,7 +394,7 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
             continue;
 
         // output a comma unless this is the first member to write
-        if (memberWritten && !scx->sb.append(','))
+        if (memberWritten && !scx->cb.append(','))
             return JS_FALSE;
         memberWritten = JS_TRUE;
 
@@ -411,9 +411,9 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
         if (!chars)
             return JS_FALSE;
 
-        if (!write_string(cx, scx->sb, chars, length) ||
-            !scx->sb.append(':') ||
-            !(scx->gap.empty() || scx->sb.append(' ')) ||
+        if (!write_string(cx, scx->cb, chars, length) ||
+            !scx->cb.append(':') ||
+            !(scx->gap.empty() || scx->cb.append(' ')) ||
             !Str(cx, id, obj, scx, &outputValue, true)) {
             return JS_FALSE;
         }
@@ -422,7 +422,7 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
     if (memberWritten && !WriteIndent(cx, scx, scx->depth - 1))
         return JS_FALSE;
 
-    return scx->sb.append('}');
+    return scx->cb.append('}');
 }
 
 static JSBool
@@ -434,7 +434,7 @@ JA(JSContext *cx, Value *vp, StringifyContext *scx)
     if (!detect.init(cx))
         return JS_FALSE;
 
-    if (!scx->sb.append('['))
+    if (!scx->cb.append('['))
         return JS_FALSE;
 
     jsuint length;
@@ -458,12 +458,12 @@ JA(JSContext *cx, Value *vp, StringifyContext *scx)
             return JS_FALSE;
 
         if (outputValue.value().isUndefined()) {
-            if (!scx->sb.append("null"))
+            if (!js_AppendLiteral(scx->cb, "null"))
                 return JS_FALSE;
         }
 
         if (i < length - 1) {
-            if (!scx->sb.append(','))
+            if (!scx->cb.append(','))
                 return JS_FALSE;
             if (!WriteIndent(cx, scx, scx->depth))
                 return JS_FALSE;
@@ -473,7 +473,7 @@ JA(JSContext *cx, Value *vp, StringifyContext *scx)
     if (length != 0 && !WriteIndent(cx, scx, scx->depth - 1))
         return JS_FALSE;
 
-    return scx->sb.append(']');
+    return scx->cb.append(']');
 }
 
 static JSBool
@@ -515,27 +515,30 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, 
         const jschar *chars = str->getChars(cx);
         if (!chars)
             return JS_FALSE;
-        return write_string(cx, scx->sb, chars, length);
+        return write_string(cx, scx->cb, chars, length);
     }
 
-    if (vp->isNull())
-        return scx->sb.append("null");
+    if (vp->isNull()) {
+        return js_AppendLiteral(scx->cb, "null");
+    }
 
-    if (vp->isBoolean())
-        return vp->toBoolean() ? scx->sb.append("true") : scx->sb.append("false");
+    if (vp->isBoolean()) {
+        return vp->toBoolean() ? js_AppendLiteral(scx->cb, "true")
+                               : js_AppendLiteral(scx->cb, "false");
+    }
 
     if (vp->isNumber()) {
         if (vp->isDouble()) {
             jsdouble d = vp->toDouble();
             if (!JSDOUBLE_IS_FINITE(d))
-                return scx->sb.append("null");
+                return js_AppendLiteral(scx->cb, "null");
         }
 
-        StringBuffer sb(cx);
-        if (!NumberValueToStringBuffer(cx, *vp, sb))
+        JSCharBuffer cb(cx);
+        if (!js_NumberValueToCharBuffer(cx, *vp, cb))
             return JS_FALSE;
 
-        return scx->sb.append(sb.begin(), sb.length());
+        return scx->cb.append(cb.begin(), cb.length());
     }
 
     if (vp->isObject() && !IsFunctionObject(*vp) && !IsXML(*vp)) {
@@ -554,9 +557,9 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, 
 
 JSBool
 js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, const Value &space,
-             StringBuffer &sb)
+             JSCharBuffer &cb)
 {
-    StringifyContext scx(cx, sb, replacer);
+    StringifyContext scx(cx, cb, replacer);
     if (!scx.initializeGap(cx, space) || !scx.initializeStack())
         return JS_FALSE;
 

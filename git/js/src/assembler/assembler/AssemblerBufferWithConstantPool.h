@@ -39,8 +39,6 @@
 #include "assembler/wtf/SegmentedVector.h"
 #include "assembler/wtf/Assertions.h"
 
-#include "methodjit/Logging.h"
-
 #define ASSEMBLER_HAS_CONSTANT_POOL 1
 
 namespace JSC {
@@ -269,8 +267,6 @@ private:
 
     void flushConstantPool(bool useBarrier = true)
     {
-        js::JaegerSpew(js::JSpew_Insns, " -- FLUSHING CONSTANT POOL WITH %d CONSTANTS --\n",
-                       m_numConsts);
         ASSERT(m_allowFlush);
         if (m_numConsts == 0)
             return;

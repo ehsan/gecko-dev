@@ -48,7 +48,6 @@ DIRS	= \
   editabletext \
   events \
   hyperlink \
-  hypertext \
   name \
   relations \
   selectable \
@@ -102,6 +101,7 @@ _TEST_FILES =\
  		test_nsIAccessible_selects.html \
 		test_nsIAccessible_focus.html \
 		test_nsIAccessibleDocument.html \
+		test_nsIAccessibleHyperText.html \
 		test_nsIAccessibleImage.html \
 		test_nsIAccessNode_utils.html \
 		test_nsOuterDocAccessible.html \

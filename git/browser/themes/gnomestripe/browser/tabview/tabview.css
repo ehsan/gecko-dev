@@ -405,14 +405,15 @@ input.name {
   margin-bottom: 0;
   -moz-margin-start: 3px;
   padding: 1px;
+  background-image: url(chrome://browser/skin/tabview/edit-light.png);
+  -moz-padding-start: 20px;
 }
 
 html[dir=rtl] input.name {
   background-position: right top;
 }
 
-.title-container:hover input.name,
-.title-container input.name:focus {
+.title-container:hover input.name {
   border: 1px solid #ddd;
 }
 
@@ -425,17 +426,13 @@ input.name:focus {
   color: #555;
 }
 
-input.name:-moz-placeholder {
+input.defaultName {
   font-style: italic !important;
-  color: transparent;
-  background-image: url(chrome://browser/skin/tabview/edit-light.png);
   background-image-opacity: .1;
-  background-repeat: no-repeat;
-  -moz-padding-start: 20px;
-  -moz-padding-end: -20px;
+  color: transparent;
 }
 
-.title-container:hover input.name:-moz-placeholder {
+.title-container:hover input.defaultName {
   color: #CCC;
 }
 
@@ -465,15 +462,15 @@ html[dir=rtl] .title-shield {
 }
 
 .stackExpander {
+  opacity: .4;
   cursor: pointer;
-  bottom: 8px;
-  background-image: -moz-image-rect(url(chrome://browser/skin/tabview/stack-expander.png), 0, 48, 24, 24);
+  background-image: url(chrome://browser/skin/tabview/stack-expander.png);
   width: 24px;
   height: 24px;
 }
 
 .stackExpander:hover {
-  background-image: -moz-image-rect(url(chrome://browser/skin/tabview/stack-expander.png), 0, 24, 24, 0);
+  opacity: .7 !important;
 }
 
 /* Resizable
@@ -514,14 +511,16 @@ html[dir=rtl] .iq-resizable-se {
 /* Exit button
 +----------------------------------*/
 #exit-button {
+  cursor: default;
+  top: 0;
+  right: 0;
   width: 16px;
   height: 16px;
-  -moz-margin-end: 8px;
-  margin-top: 5px;
+  -moz-margin-end: 7px;
+  margin-top: 7px;
   background-image: -moz-image-rect(url(chrome://browser/skin/tabview/tabview.png), 0, 80, 16, 64);
   background-attachment: scroll;
   background-repeat: no-repeat;
-  border: none;
 }
 
 #exit-button[groups="0"] {
@@ -538,6 +537,11 @@ html[dir=rtl] .iq-resizable-se {
 
 #exit-button[groups="3"] {
   background-image: -moz-image-rect(url(chrome://browser/skin/tabview/tabview.png), 0, 64, 16, 48);
+}
+
+html[dir=rtl] #exit-button {
+  right: auto;
+  left: 0;
 }
 
 /* Search
@@ -567,22 +571,10 @@ html[dir=rtl] .iq-resizable-se {
 }
 
 #actions{
-  top: -3px;
-  padding-top: 3px;
-  width: 29px;
+  width: 26px;
+  height: 26px;
+  border: none;
   text-align: center;
-  border: 1px solid rgba(230,230,230,1);
-  background-color: rgba(248,248,248,1);
-  border-radius: 0.4em;
-  box-shadow:
-    inset rgba(255, 255, 255, 0.6) 0 0 0 2px,
-    rgba(0,0,0,0.2) 1px 1px 3px;
-}
-
-html[dir=rtl] #actions {
-  box-shadow:
-    inset rgba(255, 255, 255, 0.6) 0 0 0 2px,
-    rgba(0,0,0,0.2) -1px 1px 3px;
 }
 
 #actions #searchbutton{
@@ -591,7 +583,6 @@ html[dir=rtl] #actions {
   width: 20px;
   height: 20px;
   margin-top: 3px;
-  -moz-margin-end: 1px;
 }
 
 .notMainMatch{

@@ -57,6 +57,8 @@
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
 
+static pthread_t gGeckoThread = 0;
+
 struct AutoAttachJavaThread {
     AutoAttachJavaThread() {
         attached = mozilla_AndroidBridge_SetMainThread((void*)pthread_self());
@@ -157,6 +159,8 @@ Java_org_mozilla_gecko_GeckoAppShell_nativeRun(JNIEnv *jenv, jclass jc, jstring 
     jenv->GetStringRegion(jargs, 0, len, wargs.BeginWriting());
     char *args = ToNewUTF8String(wargs);
 
-    GeckoStart(args);
+    if (pthread_create(&gGeckoThread, NULL, GeckoStart, args) != 0) {
+        LOG("pthread_create failed!");
+    }
 }
 

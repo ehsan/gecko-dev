@@ -127,32 +127,24 @@ public:
 protected:
   NS_DECL_RUNNABLEMETHOD(nsRootAccessible, FireCurrentFocusEvent)
 
-  /**
-   * Add/remove DOM event listeners.
-   */
-  virtual nsresult AddEventListeners();
-  virtual nsresult RemoveEventListeners();
-
-  /**
-   * Process the DOM event.
-   */
-  void ProcessDOMEvent(nsIDOMEvent* aEvent);
+    nsresult AddEventListeners();
+    nsresult RemoveEventListeners();
 
   /**
    * Process "popupshown" event. Used by HandleEvent().
    */
-  void HandlePopupShownEvent(nsAccessible* aAccessible);
 
+  nsresult HandlePopupShownEvent(nsAccessible *aAccessible);
   /*
    * Process "popuphiding" event. Used by HandleEvent().
    */
-  void HandlePopupHidingEvent(nsINode* aNode, nsAccessible* aAccessible);
+  nsresult HandlePopupHidingEvent(nsINode *aNode, nsAccessible *aAccessible);
 
 #ifdef MOZ_XUL
-    void HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
-                                        nsXULTreeAccessible* aAccessible);
-    void HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
-                                    nsXULTreeAccessible* aAccessible);
+    nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
+                                            nsXULTreeAccessible *aAccessible);
+    nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
+                                        nsXULTreeAccessible *aAccessible);
 
     PRUint32 GetChromeFlags();
 #endif
@@ -164,4 +156,4 @@ protected:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsRootAccessible, NS_ROOTACCESSIBLE_IMPL_CID)
 
-#endif
+#endif  

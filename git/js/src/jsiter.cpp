@@ -328,7 +328,7 @@ Snapshot(JSContext *cx, JSObject *obj, uintN flags, typename EnumPolicy::ResultV
             if (pobj->isProxy()) {
                 AutoIdVector proxyProps(cx);
                 if (flags & JSITER_OWNONLY) {
-                    if (!JSProxy::keys(cx, pobj, proxyProps))
+                    if (!JSProxy::enumerateOwn(cx, pobj, proxyProps))
                         return false;
                 } else {
                     if (!JSProxy::enumerate(cx, pobj, proxyProps))
@@ -404,10 +404,8 @@ GetCustomIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
         return false;
 
     /* If there is no custom __iterator__ method, we are done here. */
-    if (!vp->isObject()) {
-        vp->setUndefined();
+    if (vp->isUndefined())
         return true;
-    }
 
     /* Otherwise call it and return that object. */
     LeaveTrace(cx);

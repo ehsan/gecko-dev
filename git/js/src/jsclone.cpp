@@ -173,16 +173,6 @@ SCInput::readPair(uint32_t *tagp, uint32_t *datap)
     return ok;
 }
 
-/*
- * The purpose of this never-inlined function is to avoid a strange g++ build
- * error on OS X 10.5 (see bug 624080).  :-(
- */
-static JS_NEVER_INLINE double
-CanonicalizeNan(double d)
-{
-    return JS_CANONICALIZE_NAN(d);
-}
-
 bool
 SCInput::readDouble(jsdouble *p)
 {
@@ -192,7 +182,7 @@ SCInput::readDouble(jsdouble *p)
     } pun;
     if (!read(&pun.u))
         return false;
-    *p = CanonicalizeNan(pun.d);
+    *p = JS_CANONICALIZE_NAN(pun.d);
     return true;
 }
 
@@ -295,7 +285,7 @@ ReinterpretPairAsDouble(uint32_t tag, uint32_t data)
 bool
 SCOutput::writeDouble(jsdouble d)
 {
-    return write(ReinterpretDoubleAsUInt64(CanonicalizeNan(d)));
+    return write(ReinterpretDoubleAsUInt64(JS_CANONICALIZE_NAN(d)));
 }
 
 template <class T>

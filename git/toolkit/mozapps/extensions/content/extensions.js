@@ -2129,9 +2129,6 @@ var gListView = {
     if (aObj.type != this._type)
       return;
 
-    if (aIsInstall && aObj.existingAddon)
-      return;
-
     let prop = aIsInstall ? "mInstall" : "mAddon";
     for (let i = 0; i < this._listBox.itemCount; i++) {
       let item = this._listBox.childNodes[i];
@@ -2247,15 +2244,8 @@ var gDetailView = {
     }
 
     var desc = document.getElementById("detail-desc");
-    desc.textContent = aAddon.description;
-
-    var fullDesc = document.getElementById("detail-fulldesc");
-    if (aAddon.fullDescription) {
-      fullDesc.textContent = aAddon.fullDescription;
-      fullDesc.hidden = false;
-    } else {
-      fullDesc.hidden = true;
-    }
+    desc.textContent = aAddon.fullDescription ? aAddon.fullDescription
+                                              : aAddon.description;
 
     var contributions = document.getElementById("detail-contributions");
     if ("contributionURL" in aAddon && aAddon.contributionURL) {
@@ -2730,7 +2720,7 @@ var gUpdatesView = {
       var count = aInstallsList.filter(function(aInstall) {
         return self.isManualUpdate(aInstall, true);
       }).length;
-      self._categoryItem.disabled = gViewController.currentViewId != "addons://updates/available" &&
+      self._categoryItem.disabled = gViewController.currentViewObj != self &&
                                     count == 0;
       self._categoryItem.badgeCount = count;
       if (aInitializing)

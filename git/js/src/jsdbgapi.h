@@ -487,11 +487,6 @@ JS_MakeSystemObject(JSContext *cx, JSObject *obj);
 
 /************************************************************************/
 
-extern JS_PUBLIC_API(JSObject *)
-JS_UnwrapObject(JSContext *cx, JSObject *obj);
-
-/************************************************************************/
-
 extern JS_FRIEND_API(void)
 js_RevertVersion(JSContext *cx);
 
@@ -505,14 +500,33 @@ JS_SetContextDebugHooks(JSContext *cx, const JSDebugHooks *hooks);
 extern JS_PUBLIC_API(JSDebugHooks *)
 JS_ClearContextDebugHooks(JSContext *cx);
 
-extern JS_PUBLIC_API(JSBool)
-JS_StartProfiling();
-
-extern JS_PUBLIC_API(void)
-JS_StopProfiling();
+#ifdef MOZ_SHARK
 
 extern JS_PUBLIC_API(JSBool)
-JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj);
+JS_StartChudRemote();
+
+extern JS_PUBLIC_API(JSBool)
+JS_StopChudRemote();
+
+extern JS_PUBLIC_API(JSBool)
+JS_ConnectShark();
+
+extern JS_PUBLIC_API(JSBool)
+JS_DisconnectShark();
+
+extern JS_FRIEND_API(JSBool)
+js_StopShark(JSContext *cx, uintN argc, jsval *vp);
+
+extern JS_FRIEND_API(JSBool)
+js_StartShark(JSContext *cx, uintN argc, jsval *vp);
+
+extern JS_FRIEND_API(JSBool)
+js_ConnectShark(JSContext *cx, uintN argc, jsval *vp);
+
+extern JS_FRIEND_API(JSBool)
+js_DisconnectShark(JSContext *cx, uintN argc, jsval *vp);
+
+#endif /* MOZ_SHARK */
 
 #ifdef MOZ_CALLGRIND
 

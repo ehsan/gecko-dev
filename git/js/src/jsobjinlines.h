@@ -191,7 +191,7 @@ ChangesMethodValue(const js::Value &prev, const js::Value &v)
            (!v.isObject() || &v.toObject() != prevObj);
 }
 
-inline const js::Shape *
+inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
     if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
@@ -202,7 +202,7 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
             return methodShapeChange(cx, shape);
         }
     }
-    return &shape;
+    return true;
 }
 
 inline bool
@@ -963,7 +963,7 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::FinalizeKind kind)
     } else {
         global = cx->fp()->scopeChain().getGlobal();
     }
-    JS_ASSERT(global->isGlobal());
+    JS_ASSERT(global->getClass()->flags & JSCLASS_IS_GLOBAL);
 
     const Value &v = global->getReservedSlot(JSProto_LIMIT + protoKey);
     JSObject *proto;

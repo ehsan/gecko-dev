@@ -121,7 +121,7 @@
 
   In addition, the following methods cause state transitions:
 
-  Shutdown(), Play(), Pause(), Seek(double)
+  Shutdown(), Play(), Pause(), Seek(float)
 
   The decoder implementation is currently limited to Linear PCM encoded
   audio data with one or two channels of 8- or 16-bit samples at sample
@@ -155,13 +155,13 @@ class nsWaveDecoder : public nsMediaDecoder
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
 
   // Return the current playback position in the media in seconds.
-  virtual double GetCurrentTime();
+  virtual float GetCurrentTime();
 
   // Return the total playback length of the media in seconds.
-  virtual double GetDuration();
+  virtual float GetDuration();
 
   // Set the audio playback volume; must be in range [0.0, 1.0].
-  virtual void SetVolume(double aVolume);
+  virtual void SetVolume(float aVolume);
 
   virtual nsresult Play();
   virtual void Pause();
@@ -169,7 +169,7 @@ class nsWaveDecoder : public nsMediaDecoder
   // Set the current time of the media to aTime.  This may cause mStream to
   // create a new channel to fetch data from the appropriate position in the
   // stream.
-  virtual nsresult Seek(double aTime);
+  virtual nsresult Seek(float aTime);
 
   // Report whether the decoder is currently seeking.
   virtual PRBool IsSeeking() const;
@@ -244,7 +244,6 @@ class nsWaveDecoder : public nsMediaDecoder
 
   virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
 
-  void NotifyDataExhausted() {}
 private:
   // Notifies the element that seeking has started.
   void SeekingStarted();
@@ -267,7 +266,7 @@ private:
   nsresult StartStateMachineThread();
 
   // Volume that the audio backend will be initialized with.
-  double mInitialVolume;
+  float mInitialVolume;
 
   // Thread that handles audio playback, including data download.
   nsCOMPtr<nsIThread> mPlaybackThread;
@@ -284,12 +283,12 @@ private:
   // seconds. This is updated every time a block of audio is passed to the
   // backend (unless an prior update is still pending).  It is read and
   // written from the main thread only.
-  double mCurrentTime;
+  float mCurrentTime;
 
   // Copy of the duration and ended state when the state machine was
   // disposed.  Used to respond to duration and ended queries with sensible
   // values after the state machine has been destroyed.
-  double mEndedDuration;
+  float mEndedDuration;
   PRPackedBool mEnded;
 
   // True if the media resource is seekable.

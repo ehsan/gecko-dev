@@ -166,10 +166,10 @@ js_BooleanToString(JSContext *cx, JSBool b)
 }
 
 /* This function implements E-262-3 section 9.8, toString. */
-bool
-js::BooleanToStringBuffer(JSContext *cx, JSBool b, StringBuffer &sb)
+JSBool
+js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
 {
-    return b ? sb.append("true") : sb.append("false");
+    return b ? js_AppendLiteral(cb, "true") : js_AppendLiteral(cb, "false");
 }
 
 JSBool

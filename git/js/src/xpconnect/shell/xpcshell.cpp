@@ -78,7 +78,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsIXPCSecurityManager.h"
-#include "xpcpublic.h"
 #ifdef XP_MACOSX
 #include "xpcshellMacUtils.h"
 #endif
@@ -874,6 +873,12 @@ static JSFunctionSpec glob_functions[] = {
     {"sendCommand",     SendCommand,    1,0},
     {"getChildGlobalObject", GetChildGlobalObject, 0,0},
 #endif
+#ifdef MOZ_SHARK
+    {"startShark",      js_StartShark,      0,0},
+    {"stopShark",       js_StopShark,       0,0},
+    {"connectShark",    js_ConnectShark,    0,0},
+    {"disconnectShark", js_DisconnectShark, 0,0},
+#endif
 #ifdef MOZ_CALLGRIND
     {"startCallgrind",  js_StartCallgrind,  0,0},
     {"stopCallgrind",   js_StopCallgrind,   0,0},
@@ -1322,6 +1327,11 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'm':
             JS_ToggleOptions(cx, JSOPTION_METHODJIT);
             break;
+#ifdef MOZ_SHARK
+        case 'k':
+            JS_ConnectShark();
+            break;
+#endif
         default:
             return usage();
         }
@@ -1892,10 +1902,6 @@ main(int argc, char **argv)
             return 1;
         }
 
-#ifdef MOZ_ENABLE_LIBXUL
-        xpc_LocalizeContext(cx);
-#endif
-
         nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
         if (!xpc) {
             printf("failed to get nsXPConnect service!\n");
@@ -1985,8 +1991,7 @@ main(int argc, char **argv)
                 return 1;
             }
 
-            if (!JS_DefineFunctions(cx, glob, glob_functions) ||
-                !JS_DefineProfilingFunctions(cx, glob)) {
+            if (!JS_DefineFunctions(cx, glob, glob_functions)) {
                 JS_EndRequest(cx);
                 return 1;
             }
