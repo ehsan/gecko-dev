@@ -6,7 +6,6 @@
 #include "nsISupportsUtils.h"
 #include "nsIVolume.h"
 #include "nsVolumeStat.h"
-#include "Volume.h"
 
 namespace mozilla {
 namespace system {
@@ -30,13 +29,6 @@ NS_VolumeStateStr(PRInt32 aState)
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsVolume, nsIVolume)
-
-nsVolume::nsVolume(const Volume *aVolume)
-  : mName(NS_ConvertUTF8toUTF16(aVolume->Name())),
-    mMountPoint(NS_ConvertUTF8toUTF16(aVolume->MountPoint())),
-    mState(aVolume->State())
-{
-}
 
 NS_IMETHODIMP nsVolume::GetName(nsAString &aName)
 {

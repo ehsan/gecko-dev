@@ -20,8 +20,7 @@ function IsD2DEnabled() {
 }
 
 function IsLinux() {
-    return navigator.platform.indexOf("Linux") == 0 &&
-           navigator.appVersion.indexOf("Android") == -1;
+    return navigator.platform.indexOf("Linux") == 0;
 }
 
 function IsMacOSX10_5orOlder() {

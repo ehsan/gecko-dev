@@ -379,7 +379,7 @@ private:
     nsRefPtr<AsyncConnectionHelper> mHelper;
     nsCOMPtr<nsIRunnable> mRunnable;
     nsTArray<nsCOMPtr<nsIRunnable> > mDelayedRunnables;
-    nsTArray<IDBDatabase*> mDatabases;
+    nsTArray<nsRefPtr<IDBDatabase> > mDatabases;
   };
 
   // A callback runnable used by the TransactionPool when it's safe to proceed

@@ -2775,7 +2775,7 @@ nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 }
 
 NS_IMETHODIMP
-nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 aLen)
+nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
 {
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
@@ -2783,7 +2783,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 aLen)
   if (!data)
     return NS_ERROR_INVALID_ARG;
 
-  PRUint64 n;
+  PRUint32 n;
   nsresult rv = data->Available(&n);
   if (NS_FAILED(rv))
     return rv;
@@ -2791,8 +2791,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 aLen)
   // if the user has passed PR_UINT32_MAX, then read
   // everything in the stream
 
-  PRUint64 len = aLen;
-  if (aLen == PR_UINT32_MAX)
+  if (len == PR_UINT32_MAX)
     len = n;
 
   // So, if the stream has NO data available for the hash,
@@ -2810,7 +2809,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 aLen)
   
   while(NS_SUCCEEDED(rv) && len>0)
   {
-    readLimit = (PRUint32)NS_MIN<PRUint64>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
+    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), len);
     
     rv = data->Read(buffer, readLimit, &read);
     
@@ -2976,7 +2975,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
   if (!aStream)
     return NS_ERROR_INVALID_ARG;
 
-  PRUint64 n;
+  PRUint32 n;
   nsresult rv = aStream->Available(&n);
   if (NS_FAILED(rv))
     return rv;
@@ -2984,9 +2983,8 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
   // if the user has passed PR_UINT32_MAX, then read
   // everything in the stream
 
-  PRUint64 len = aLen;
   if (aLen == PR_UINT32_MAX)
-    len = n;
+    aLen = n;
 
   // So, if the stream has NO data available for the hash,
   // or if the data available is less then what the caller
@@ -2995,15 +2993,15 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
   // that there is not enough data in the stream to satisify
   // the request.
 
-  if (n == 0 || n < len)
+  if (n == 0 || n < aLen)
     return NS_ERROR_NOT_AVAILABLE;
   
   char buffer[NS_CRYPTO_HASH_BUFFER_SIZE];
   PRUint32 read, readLimit;
   
-  while(NS_SUCCEEDED(rv) && len > 0)
+  while(NS_SUCCEEDED(rv) && aLen > 0)
   {
-    readLimit = (PRUint32)NS_MIN<PRUint64>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
+    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), aLen);
     
     rv = aStream->Read(buffer, readLimit, &read);
     if (read == 0)
@@ -3012,7 +3010,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
     if (NS_SUCCEEDED(rv))
       rv = Update((const PRUint8*)buffer, read);
     
-    len -= read;
+    aLen -= read;
   }
   
   return rv;

@@ -541,7 +541,7 @@ void
 ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
 {
     const char *usageStr = "usage";
-    PropertyName *usageAtom = Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
+    PropertyName *usageAtom = js_Atomize(cx, usageStr, strlen(usageStr))->asPropertyName();
     DebugOnly<Shape *> shape = callee->nativeLookup(cx, NameToId(usageAtom));
     JS_ASSERT(!shape->configurable());
     JS_ASSERT(!shape->writable());
@@ -810,8 +810,8 @@ js_ReportIsNotDefined(JSContext *cx, const char *name)
 }
 
 JSBool
-js_ReportIsNullOrUndefined(JSContext *cx, int spindex, HandleValue v,
-                           HandleString fallback)
+js_ReportIsNullOrUndefined(JSContext *cx, int spindex, const Value &v,
+                           JSString *fallback)
 {
     char *bytes;
     JSBool ok;
@@ -844,11 +844,11 @@ js_ReportIsNullOrUndefined(JSContext *cx, int spindex, HandleValue v,
 }
 
 void
-js_ReportMissingArg(JSContext *cx, HandleValue v, unsigned arg)
+js_ReportMissingArg(JSContext *cx, const Value &v, unsigned arg)
 {
     char argbuf[11];
     char *bytes;
-    RootedAtom atom(cx);
+    JSAtom *atom;
 
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
@@ -867,7 +867,7 @@ js_ReportMissingArg(JSContext *cx, HandleValue v, unsigned arg)
 
 JSBool
 js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumber,
-                         int spindex, HandleValue v, HandleString fallback,
+                         int spindex, const Value &v, JSString *fallback,
                          const char *arg1, const char *arg2)
 {
     char *bytes;

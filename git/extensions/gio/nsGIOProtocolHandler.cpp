@@ -145,7 +145,7 @@ class nsGIOInputStream : public nsIInputStream
       , mChannel(nullptr)
       , mHandle(nullptr)
       , mStream(nullptr)
-      , mBytesRemaining(PR_UINT64_MAX)
+      , mBytesRemaining(PR_UINT32_MAX)
       , mStatus(NS_OK)
       , mDirList(nullptr)
       , mDirListPtr(nullptr)
@@ -634,12 +634,17 @@ nsGIOInputStream::Close()
  * @param aResult remaining bytes
  */
 NS_IMETHODIMP
-nsGIOInputStream::Available(PRUint64 *aResult)
+nsGIOInputStream::Available(PRUint32 *aResult)
 {
   if (NS_FAILED(mStatus))
     return mStatus;
 
-  *aResult = mBytesRemaining;
+  /* When remaining bytes are bigger than max PRUint32 value an aResult must
+     be set to PRUint32 maximum */
+  if (mBytesRemaining > PR_UINT32_MAX)
+    *aResult = PR_UINT32_MAX;
+  else
+    *aResult = mBytesRemaining;
 
   return NS_OK;
 }

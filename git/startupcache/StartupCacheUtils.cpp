@@ -79,14 +79,11 @@ NewBufferFromStorageStream(nsIStorageStream *storageStream,
   rv = storageStream->NewInputStream(0, getter_AddRefs(inputStream));
   NS_ENSURE_SUCCESS(rv, rv);
   
-  PRUint64 avail64;
-  rv = inputStream->Available(&avail64);
+  PRUint32 avail, read;
+  rv = inputStream->Available(&avail);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(avail64 <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
-
-  PRUint32 avail = (PRUint32)avail64;
+  
   nsAutoArrayPtr<char> temp (new char[avail]);
-  PRUint32 read;
   rv = inputStream->Read(temp, avail, &read);
   if (NS_SUCCEEDED(rv) && avail != read)
     rv = NS_ERROR_UNEXPECTED;

@@ -452,13 +452,6 @@ extern "C" {
         MOZ_ASSERT(i != Vec.end());
         Vec.erase(i);
     }
-    void MozillaUnRegisterDebugFILE(FILE *f) {
-        int fd = fileno(f);
-        if (fd == 1 || fd == 2)
-            return;
-        fflush(f);
-        MozillaUnRegisterDebugFD(fd);
-    }
 }
 
 namespace mozilla {

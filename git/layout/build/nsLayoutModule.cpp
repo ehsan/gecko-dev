@@ -1224,9 +1224,6 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   { "net-channel-event-sinks", "CSPService", CSPSERVICE_CONTRACTID },
   { JAVASCRIPT_GLOBAL_STATIC_NAMESET_CATEGORY, "PrivilegeManager", NS_SECURITYNAMESET_CONTRACTID },
   { "app-startup", "Script Security Manager", "service," NS_SCRIPTSECURITYMANAGER_CONTRACTID },
-#ifdef MOZ_WIDGET_GONK
-  { "app-startup", "Volume Service", "service," NS_VOLUMESERVICE_CONTRACTID },
-#endif
   CONTENTDLF_CATEGORIES
 #ifdef MOZ_B2G_RIL
   { "profile-after-change", "Telephony System Worker Manager", SYSTEMWORKERMANAGER_CONTRACTID },

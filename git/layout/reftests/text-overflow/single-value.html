@@ -51,10 +51,9 @@ function scrolldivs() {
   }
   document.documentElement.removeAttribute('class');
 }
-window.addEventListener("MozReftestInvalidate", scrolldivs, false);
 </script>
 </head>
-<body>
+<body onload="scrolldivs()">
 
     <div class="ltr start p hidden">A long line that does not break (overflow:hidden)</div>
     <div class="ltr start p auto">A long line that does not break (overflow:auto)</div>

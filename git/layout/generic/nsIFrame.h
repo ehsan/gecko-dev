@@ -1542,20 +1542,7 @@ public:
     nscoord trailingWhitespace;
 
     // Floats encountered in the lines.
-    class FloatInfo {
-    public:
-      FloatInfo(const nsIFrame* aFrame, nscoord aWidth)
-        : mFrame(aFrame), mWidth(aWidth)
-      { }
-      const nsIFrame* Frame() const { return mFrame; }
-      nscoord         Width() const { return mWidth; }
-
-    private:
-      const nsIFrame* mFrame;
-      nscoord         mWidth;
-    };
-
-    nsTArray<FloatInfo> floats;
+    nsTArray<nsIFrame*> floats;
   };
 
   struct InlineMinWidthData : public InlineIntrinsicWidthData {

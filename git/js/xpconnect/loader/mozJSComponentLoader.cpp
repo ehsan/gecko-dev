@@ -855,15 +855,12 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
             rv = scriptChannel->Open(getter_AddRefs(scriptStream));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            PRUint64 len64;
-            PRUint32 bytesRead;
+            PRUint32 len, bytesRead;
 
-            rv = scriptStream->Available(&len64);
+            rv = scriptStream->Available(&len);
             NS_ENSURE_SUCCESS(rv, rv);
-            NS_ENSURE_TRUE(len64 < PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
-            if (!len64)
+            if (!len)
                 return NS_ERROR_FAILURE;
-            PRUint32 len = (PRUint32)len64;
 
             /* malloc an internal buf the size of the file */
             nsAutoArrayPtr<char> buf(new char[len + 1]);

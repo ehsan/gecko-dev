@@ -731,9 +731,11 @@ EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
     static ProfileEntry stack[1000];
     static uint32_t stack_size = 0;
 
-    SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
+    if (args[0].toBoolean())
+        SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
+    else
+        SetRuntimeProfilingStack(cx->runtime, NULL, NULL, 0);
     cx->runtime->spsProfiler.enableSlowAssertions(args[0].toBoolean());
-    cx->runtime->spsProfiler.enable(true);
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
@@ -841,11 +843,9 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "  memory or been terminated by the slow script dialog."),
 
     JS_FN_HELP("enableSPSProfilingAssertions", EnableSPSProfilingAssertions, 1, 0,
-"enableSPSProfilingAssertions(slow)",
-"  Enables SPS instrumentation and corresponding assertions. If 'slow' is\n"
-"  true, then even slower assertions are enabled for all generated JIT code.\n"
-"  When 'slow' is false, then instrumentation is enabled, but the slow\n"
-"  assertions are disabled."),
+"enableSPSProfilingAssertions(enabled)",
+"  Enables or disables the assertions related to SPS profiling. This is fairly\n"
+"  expensive, so it shouldn't be enabled normally."),
 
     JS_FS_HELP_END
 };

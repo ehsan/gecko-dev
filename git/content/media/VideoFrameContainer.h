@@ -37,13 +37,11 @@ public:
                       already_AddRefed<ImageContainer> aContainer)
     : mElement(aElement),
       mImageContainer(aContainer), mMutex("nsVideoFrameContainer"),
-      mIntrinsicSizeChanged(false), mImageSizeChanged(false),
-      mNeedInvalidation(true)
+      mIntrinsicSizeChanged(false), mImageSizeChanged(false)
   {
     NS_ASSERTION(aElement, "aElement must not be null");
     NS_ASSERTION(mImageContainer, "aContainer must not be null");
   }
-
   // Call on any thread
   void SetCurrentFrame(const gfxIntSize& aIntrinsicSize, Image* aImage,
                        TimeStamp aTargetTime);
@@ -88,8 +86,6 @@ protected:
   // frame is fully invalidated instead of just invalidating for the image change
   // in the ImageLayer.
   bool mImageSizeChanged;
-
-  bool mNeedInvalidation;
 };
 
 }

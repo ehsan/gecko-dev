@@ -347,6 +347,7 @@ DrawTargetCairo::DrawSurface(SourceSurface *aSurface,
   cairo_pattern_set_filter(pat, GfxFilterToCairoFilter(aSurfOptions.mFilter));
   cairo_pattern_set_extend(pat, CAIRO_EXTEND_PAD);
 
+  cairo_save(mContext);
   cairo_translate(mContext, aDest.X(), aDest.Y());
 
   if (OperatorAffectsUncoveredAreas(aOptions.mCompositionOp) ||
@@ -367,6 +368,8 @@ DrawTargetCairo::DrawSurface(SourceSurface *aSurface,
   cairo_set_operator(mContext, GfxOpToCairoOp(aOptions.mCompositionOp));
 
   cairo_paint_with_alpha(mContext, aOptions.mAlpha);
+
+  cairo_restore(mContext);
 
   cairo_pattern_destroy(pat);
 }
@@ -540,6 +543,8 @@ DrawTargetCairo::CopySurface(SourceSurface *aSurface,
 
   cairo_surface_t* surf = static_cast<SourceSurfaceCairo*>(aSurface)->GetSurface();
 
+  cairo_save(mContext);
+
   cairo_identity_matrix(mContext);
 
   cairo_set_source_surface(mContext, surf, aDest.x - aSource.x, aDest.y - aSource.y);
@@ -549,6 +554,8 @@ DrawTargetCairo::CopySurface(SourceSurface *aSurface,
   cairo_new_path(mContext);
   cairo_rectangle(mContext, aDest.x, aDest.y, aSource.width, aSource.height);
   cairo_fill(mContext);
+
+  cairo_restore(mContext);
 }
 
 void
@@ -556,11 +563,15 @@ DrawTargetCairo::ClearRect(const Rect& aRect)
 {
   AutoPrepareForDrawing prep(this, mContext);
 
+  cairo_save(mContext);
+
   cairo_new_path(mContext);
   cairo_set_operator(mContext, CAIRO_OPERATOR_CLEAR);
   cairo_rectangle(mContext, aRect.X(), aRect.Y(),
                   aRect.Width(), aRect.Height());
   cairo_fill(mContext);
+
+  cairo_restore(mContext);
 }
 
 void

@@ -834,10 +834,6 @@ SpecialPowersAPI.prototype = {
     Components.utils.forceGC();
   },
 
-  forceCC: function() {
-    Components.utils.forceCC();
-  },
-
   exactGC: function(win, callback) {
     var self = this;
     let count = 0;
@@ -1131,7 +1127,7 @@ SpecialPowersAPI.prototype = {
     if (typeof(urlOrDocument) == "string") {
       return Cc["@mozilla.org/network/io-service;1"].
                getService(Ci.nsIIOService).
-               newURI(urlOrDocument, null, null);
+               newURI(url, null, null);
     }
     // Assume document.
     return this.getDocumentURIObject(urlOrDocument);

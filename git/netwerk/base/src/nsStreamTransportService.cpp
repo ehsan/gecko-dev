@@ -163,7 +163,7 @@ nsInputStreamTransport::Close()
 }
 
 NS_IMETHODIMP
-nsInputStreamTransport::Available(PRUint64 *result)
+nsInputStreamTransport::Available(PRUint32 *result)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }

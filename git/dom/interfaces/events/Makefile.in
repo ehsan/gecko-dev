@@ -57,7 +57,6 @@ XPIDLSRCS =					\
 	nsIDOMHashChangeEvent.idl		\
 	nsIDOMCustomEvent.idl			\
 	nsIDOMCompositionEvent.idl		\
-	nsIDOMWheelEvent.idl			\
 	nsIWifiEventInits.idl \
 	$(NULL)
 

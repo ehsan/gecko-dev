@@ -61,6 +61,7 @@ var observers = os.enumerateObservers("invalidformsubmit");
  */
 
 if (observers.hasMoreElements()) {
+
   document.getElementById('av').addEventListener("invalid", function(aEvent) {
     aEvent.target.removeAttribute("invalid", arguments.callee, false);
     ok(true, "formnovalidate should not apply on if not set on the submit " +
@@ -132,8 +133,6 @@ if (observers.hasMoreElements()) {
   SimpleTest.waitForFocus(function() {
     document.getElementById('a').click();
   });
-} else {
-  todo(false, "No 'invalidformsubmit' observers. Skip test.");
 }
 
 </script>

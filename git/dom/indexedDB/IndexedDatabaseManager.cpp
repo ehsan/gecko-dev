@@ -1181,7 +1181,7 @@ IndexedDatabaseManager::RunSynchronizedOp(IDBDatabase* aDatabase,
   FileService* service = FileService::Get();
   TransactionThreadPool* pool = TransactionThreadPool::Get();
 
-  nsTArray<IDBDatabase*> databases;
+  nsTArray<nsRefPtr<IDBDatabase> > databases;
   if (aDatabase) {
     if (service || pool) {
       databases.AppendElement(aDatabase);

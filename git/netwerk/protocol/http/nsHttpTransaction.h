@@ -141,7 +141,7 @@ private:
 
     nsCString                       mReqHeaderBuf;    // flattened request headers
     nsCOMPtr<nsIInputStream>        mRequestStream;
-    PRUint64                        mRequestSize;
+    PRUint32                        mRequestSize;
 
     nsAHttpConnection              *mConnection;      // hard ref
     nsHttpConnectionInfo           *mConnInfo;        // hard ref

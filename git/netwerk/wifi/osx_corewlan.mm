@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #import <Cocoa/Cocoa.h>
-#import <CoreWLAN/CoreWLAN.h>
 
 #include <mach-o/dyld.h>
 #include <dlfcn.h>

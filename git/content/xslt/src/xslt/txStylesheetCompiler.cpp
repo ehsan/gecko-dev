@@ -859,8 +859,9 @@ txStylesheetCompilerState::resolveNamespacePrefix(nsIAtom* aPrefix,
 class txErrorFunctionCall : public FunctionCall
 {
 public:
-    txErrorFunctionCall(nsIAtom* aName)
-      : mName(aName)
+    txErrorFunctionCall(nsIAtom* aName, const PRInt32 aID)
+        : mName(aName),
+          mID(aID)
     {
     }
 
@@ -868,6 +869,7 @@ public:
 
 private:
     nsCOMPtr<nsIAtom> mName;
+    PRInt32 mID;
 };
 
 nsresult
@@ -1090,7 +1092,7 @@ txStylesheetCompilerState::resolveFunctionCall(nsIAtom* aName, PRInt32 aID,
     nsresult rv = findFunction(aName, aID, this, aFunction);
     if (rv == NS_ERROR_XPATH_UNKNOWN_FUNCTION &&
         (aID != kNameSpaceID_None || fcp())) {
-        *aFunction = new txErrorFunctionCall(aName);
+        *aFunction = new txErrorFunctionCall(aName, aID);
         rv = *aFunction ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
     }
 

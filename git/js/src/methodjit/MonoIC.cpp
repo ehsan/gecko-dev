@@ -342,8 +342,7 @@ class EqualityCompiler : public BaseCompiler
     bool update()
     {
         if (!ic.generated) {
-            SPSInstrumentation sps(&f);
-            Assembler masm(&sps);
+            Assembler masm;
             Value rval = f.regs.sp[-1];
             Value lval = f.regs.sp[-2];
 
@@ -771,7 +770,7 @@ class CallCompiler : public BaseCompiler
             return false;
 
         if (callingNew)
-            args.setThis(MagicValue(JS_IS_CONSTRUCTING));
+            args.thisv().setMagic(JS_IS_CONSTRUCTING);
 
         RecompilationMonitor monitor(cx);
 

@@ -7,7 +7,6 @@ package org.mozilla.gecko.ui;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONException;
@@ -27,7 +26,6 @@ class SubdocumentScrollHelper implements GeckoEventListener {
 
     private final PanZoomController mPanZoomController;
     private final Handler mUiHandler;
-    private final EventDispatcher mEventDispatcher;
 
     /* This is the amount of displacement we have accepted but not yet sent to JS; this is
      * only valid when mOverrideScrollPending is true. */
@@ -49,30 +47,21 @@ class SubdocumentScrollHelper implements GeckoEventListener {
      * the subdocument; we use this to decide when we have reached the end of the subdocument. */
     private boolean mScrollSucceeded;
 
-    SubdocumentScrollHelper(PanZoomController controller, EventDispatcher eventDispatcher) {
+    SubdocumentScrollHelper(PanZoomController controller) {
         mPanZoomController = controller;
         // mUiHandler will be bound to the UI thread since that's where this constructor runs
         mUiHandler = new Handler();
         mPendingDisplacement = new PointF();
 
-        mEventDispatcher = eventDispatcher;
-        registerEventListener(MESSAGE_PANNING_OVERRIDE);
-        registerEventListener(MESSAGE_CANCEL_OVERRIDE);
-        registerEventListener(MESSAGE_SCROLL_ACK);
+        GeckoAppShell.registerGeckoEventListener(MESSAGE_PANNING_OVERRIDE, this);
+        GeckoAppShell.registerGeckoEventListener(MESSAGE_CANCEL_OVERRIDE, this);
+        GeckoAppShell.registerGeckoEventListener(MESSAGE_SCROLL_ACK, this);
     }
 
     void destroy() {
-        unregisterEventListener(MESSAGE_PANNING_OVERRIDE);
-        unregisterEventListener(MESSAGE_CANCEL_OVERRIDE);
-        unregisterEventListener(MESSAGE_SCROLL_ACK);
-    }
-
-    private void registerEventListener(String event) {
-        mEventDispatcher.registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        mEventDispatcher.unregisterEventListener(event, this);
+        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_PANNING_OVERRIDE, this);
+        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_CANCEL_OVERRIDE, this);
+        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_SCROLL_ACK, this);
     }
 
     boolean scrollBy(PointF displacement) {

@@ -677,8 +677,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 
   // Account for stroke:
   if ((aFlags & nsSVGUtils::eBBoxIncludeStrokeGeometry) ||
-      ((aFlags & nsSVGUtils::eBBoxIncludeStroke) &&
-       nsSVGUtils::HasStroke(this))) {
+      ((aFlags & nsSVGUtils::eBBoxIncludeStroke) && HasStroke())) {
     bbox.UnionEdges(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
                                                               this,
                                                               aToBBoxUserspace));
@@ -950,13 +949,13 @@ nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePatte
   DrawMode toDraw = DrawMode(0);
   const nsStyleSVG* style = GetStyleSVG();
 
-  if (nsSVGUtils::HasStroke(this)) {
+  if (HasStroke()) {
     gfxContextMatrixAutoSaveRestore matrixRestore(aContext);
     aContext->IdentityMatrix();
 
     toDraw = DrawMode(toDraw | gfxFont::GLYPH_STROKE);
 
-    nsSVGUtils::SetupCairoStrokeHitGeometry(this, aContext);
+    SetupCairoStrokeHitGeometry(aContext);
     float opacity = style->mStrokeOpacity;
     nsSVGPaintServerFrame *ps =
       nsSVGEffects::GetPaintServer(this, &style->mStroke,
@@ -983,7 +982,7 @@ nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePatte
     strokePattern.forget(aStrokePattern);
   }
 
-  if (nsSVGUtils::SetupCairoFillPaint(this, aContext)) {
+  if (SetupCairoFill(aContext)) {
     toDraw = DrawMode(toDraw | gfxFont::GLYPH_FILL);
   }
 

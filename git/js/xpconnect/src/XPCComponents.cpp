@@ -32,7 +32,6 @@
 #include "nsPrincipal.h"
 #include "mozilla/Attributes.h"
 #include "nsIScriptContext.h"
-#include "nsJSEnvironment.h"
 
 using namespace mozilla;
 using namespace js;
@@ -4046,14 +4045,6 @@ nsXPCComponents_Utils::ForceGC()
     JSRuntime* rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
     js::PrepareForFullGC(rt);
     js::GCForReason(rt, js::gcreason::COMPONENT_UTILS);
-    return NS_OK;
-}
-
-/* void forceCC (); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::ForceCC()
-{
-    nsJSContext::CycleCollectNow(nullptr, 0);
     return NS_OK;
 }
 

@@ -212,7 +212,7 @@ nsInputStreamTee::Close()
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::Available(PRUint64 *avail)
+nsInputStreamTee::Available(PRUint32 *avail)
 {
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
     return mSource->Available(avail);

@@ -278,8 +278,6 @@ IDBDatabase::CloseInternal(bool aIsDead)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!mClosed) {
-    mClosed = true;
-
     // If we're getting called from Unlink, avoid cloning the DatabaseInfo.
     {
       nsRefPtr<DatabaseInfo> previousInfo;
@@ -302,6 +300,8 @@ IDBDatabase::CloseInternal(bool aIsDead)
       NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
       mActorChild->SendClose(aIsDead);
     }
+
+    mClosed = true;
   }
 }
 

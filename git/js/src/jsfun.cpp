@@ -469,8 +469,7 @@ fun_hasInstance(JSContext *cx, HandleObject obj_, const Value *v, JSBool *bp)
          * Throw a runtime error if instanceof is called on a function that
          * has a non-object as its .prototype value.
          */
-        RootedValue val(cx, ObjectValue(*obj));
-        js_ReportValueError(cx, JSMSG_BAD_PROTOTYPE, -1, val, NullPtr());
+        js_ReportValueError(cx, JSMSG_BAD_PROTOTYPE, -1, ObjectValue(*obj), NULL);
         return JS_FALSE;
     }
 
@@ -746,15 +745,13 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, unsigned indent)
 static JSBool
 fun_toString(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(IsFunctionObject(args.calleev()));
-
+    JS_ASSERT(IsFunctionObject(vp[0]));
     uint32_t indent = 0;
 
-    if (args.length() != 0 && !ToUint32(cx, args[0], &indent))
+    if (argc != 0 && !ToUint32(cx, vp[2], &indent))
         return false;
 
-    JSObject *obj = ToObject(cx, args.thisv());
+    JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
 
@@ -762,7 +759,7 @@ fun_toString(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    args.rval().setString(str);
+    vp->setString(str);
     return true;
 }
 
@@ -770,10 +767,9 @@ fun_toString(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 fun_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(IsFunctionObject(args.calleev()));
+    JS_ASSERT(IsFunctionObject(vp[0]));
 
-    JSObject *obj = ToObject(cx, args.thisv());
+    JSObject *obj = ToObject(cx, &vp[1]);
     if (!obj)
         return false;
 
@@ -781,7 +777,7 @@ fun_toSource(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    args.rval().setString(str);
+    vp->setString(str);
     return true;
 }
 #endif
@@ -813,8 +809,8 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
         return JS_FALSE;
 
     /* Push fval, thisv, and the args. */
-    args.setCallee(fval);
-    args.setThis(thisv);
+    args.calleev() = fval;
+    args.thisv() = thisv;
     PodCopy(args.array(), argv, argc);
 
     bool ok = Invoke(cx, args);
@@ -859,8 +855,8 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         /* Push fval, obj, and aobj's elements as args. */
-        args.setCallee(fval);
-        args.setThis(vp[2]);
+        args.calleev() = fval;
+        args.thisv() = vp[2];
 
         /* Steps 7-8. */
         cx->fp()->forEachUnaliasedActual(CopyTo(args.array()));
@@ -890,8 +886,8 @@ js_fun_apply(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         /* Push fval, obj, and aobj's elements as args. */
-        args.setCallee(fval);
-        args.setThis(vp[2]);
+        args.calleev() = fval;
+        args.thisv() = vp[2];
 
         /* Steps 7-8. */
         if (!GetElements(cx, aobj, length, args.array()))
@@ -1021,10 +1017,10 @@ CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
     PodCopy(args.array() + argslen, vp + 2, argc);
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 5. */
-    args.setCallee(ObjectValue(*target));
+    args.calleev().setObject(*target);
 
     if (!constructing)
-        args.setThis(boundThis);
+        args.thisv() = boundThis;
 
     if (constructing ? !InvokeConstructor(cx, args) : !Invoke(cx, args))
         return false;
@@ -1064,7 +1060,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Step 1. */
-    Value thisv = args.thisv();
+    Value &thisv = args.thisv();
 
     /* Step 2. */
     if (!js_IsCallable(thisv)) {
@@ -1521,7 +1517,7 @@ js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
 void
 js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
 {
-    Value thisv = call.thisv();
+    Value &thisv = call.thisv();
 
 #ifdef DEBUG
     if (thisv.isObject()) {

@@ -178,7 +178,7 @@ nsStringInputStream::Close()
 }
     
 NS_IMETHODIMP
-nsStringInputStream::Available(PRUint64 *aLength)
+nsStringInputStream::Available(PRUint32 *aLength)
 {
     NS_ASSERTION(aLength, "null ptr");
 

@@ -19,7 +19,7 @@ nsInputStreamChannel::OpenContentStream(bool async, nsIInputStream **result,
 
   PRInt64 len = ContentLength64();
   if (len < 0) {
-    PRUint64 avail;
+    PRUint32 avail;
     nsresult rv = mContentStream->Available(&avail);
     if (rv == NS_BASE_STREAM_CLOSED) {
       // This just means there's nothing in the stream

@@ -563,7 +563,8 @@ public class ProfileMigrator {
                     if (!parsePrefs(jsonPrefs))
                         return;
 
-                    unregisterEventListener("Preferences:Data", this);
+                    GeckoAppShell.unregisterGeckoEventListener("Preferences:Data",
+                                                               (GeckoEventListener)this);
 
                     // Now call the password provider to fill in the rest.
                     for (String location: SYNC_REALM_LIST) {
@@ -692,7 +693,8 @@ public class ProfileMigrator {
         protected void registerAndRequest() {
             GeckoAppShell.getHandler().post(new Runnable() {
                 public void run() {
-                    registerEventListener("Preferences:Data", SyncTask.this);
+                    GeckoAppShell.registerGeckoEventListener("Preferences:Data",
+                                                             SyncTask.this);
                     requestValues();
                 }
             });
@@ -717,14 +719,6 @@ public class ProfileMigrator {
                     }
                 }
             }.execute(mContext);
-        }
-
-        private void registerEventListener(String event, GeckoEventListener listener) {
-            GeckoAppShell.getEventDispatcher().registerEventListener(event, listener);
-        }
-
-        private void unregisterEventListener(String event, GeckoEventListener listener) {
-            GeckoAppShell.getEventDispatcher().unregisterEventListener(event, listener);
         }
     }
 

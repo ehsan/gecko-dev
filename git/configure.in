@@ -4150,6 +4150,7 @@ MOZ_SPEEX_RESAMPLER=1
 MOZ_CUBEB=
 MOZ_VORBIS=
 MOZ_TREMOR=
+MOZ_FLOATING_POINT_AUDIO=
 MOZ_WAVE=1
 MOZ_MEDIA=
 MOZ_OPUS=1
@@ -5200,6 +5201,24 @@ fi
 AC_SUBST(MOZ_WEBRTC)
 
 dnl ========================================================
+dnl = Disable floating point audio.
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(floating-point,
+[ --disable-floating-point     Disable floating point audio],
+    MOZ_FLOATING_POINT_AUDIO=,
+    MOZ_FLOATING_POINT_AUDIO=1)
+
+
+case "$target_cpu" in
+arm*)
+;;
+*)
+    AC_DEFINE(MOZ_FLOATING_POINT_AUDIO)
+    MOZ_FLOATING_POINT_AUDIO=1
+;;
+esac
+
+dnl ========================================================
 dnl = Enable Raw Codecs
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(raw,
@@ -5227,14 +5246,6 @@ if test -n "$MOZ_OGG"; then
     MOZ_SYDNEYAUDIO=1
     MOZ_CUBEB=1
     MOZ_MEDIA=1
-    case "$target_cpu" in
-    arm*)
-        MOZ_TREMOR=1
-    ;;
-    *)
-        MOZ_VORBIS=1
-    ;;
-    esac
 
     dnl Checks for __attribute__(aligned()) directive
     AC_CACHE_CHECK([__attribute__ ((aligned ())) support],
@@ -5304,7 +5315,7 @@ if test -n "$MOZ_MEDIA_NAVIGATOR"; then
 fi
 
 dnl ========================================================
-dnl = Enable building OMX media plugin (B2G or Android)
+dnl = Enable building OMX media plugin (B2G)
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(omx-plugin,
 [  --enable-omx-plugin      Enable building OMX plugin (B2G)],
@@ -5312,12 +5323,12 @@ MOZ_ARG_ENABLE_BOOL(omx-plugin,
     MOZ_OMX_PLUGIN=)
 
 if test -n "$MOZ_OMX_PLUGIN"; then
-    if test "$OS_TARGET" = "Android"; then
-        dnl Only allow building OMX plugin on Gonk (B2G) or Android
+    if test "$OS_TARGET" = "Android" -a -n "$gonkdir"; then
+        dnl Only allow building OMX plugin on Gonk (B2G)
         AC_DEFINE(MOZ_OMX_PLUGIN)
     else
-       dnl fail if we're not building on Gonk or Android
-       AC_MSG_ERROR([OMX media plugin can only be built on B2G or Android])
+       dnl fail if we're not building on Gonk
+       AC_MSG_ERROR([OMX media plugin can only be built on B2G])
     fi
 fi
 
@@ -5364,14 +5375,11 @@ if test "$MOZ_WEBM"; then
     MOZ_SYDNEYAUDIO=1
     MOZ_CUBEB=1
     MOZ_MEDIA=1
-    case "$target_cpu" in
-    arm*)
-        MOZ_TREMOR=1
-    ;;
-    *)
+    if test -n "$MOZ_FLOATING_POINT_AUDIO"; then
         MOZ_VORBIS=1
-    ;;
-    esac
+    else
+        MOZ_TREMOR=1
+    fi
 fi
 
 if test -n "$MOZ_VP8" -a -z "$MOZ_NATIVE_LIBVPX"; then

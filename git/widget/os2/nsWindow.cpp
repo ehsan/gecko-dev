@@ -43,13 +43,10 @@
 #include "nsTHashtable.h"
 #include "nsGkAtoms.h"
 #include "wdgtos2rc.h"
-#include "nsIDOMWheelEvent.h"
 #include "mozilla/Preferences.h"
 #include <os2im.h>
 
 using namespace mozilla;
-using namespace mozilla::widget;
-
 //=============================================================================
 //  Macros
 //=============================================================================
@@ -3227,51 +3224,46 @@ bool nsWindow::DispatchActivationEvent(PRUint32 aEventType)
 
 bool nsWindow::DispatchScrollEvent(ULONG msg, MPARAM mp1, MPARAM mp2)
 {
-  WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
-  InitEvent(wheelEvent);
+  nsMouseScrollEvent scrollEvent(true, NS_MOUSE_SCROLL, this);
+  InitEvent(scrollEvent);
 
-  wheelEvent.InitBasicModifiers(isKeyDown(VK_CTRL),
-                                isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF),
-                                isKeyDown(VK_SHIFT), false);
+  scrollEvent.InitBasicModifiers(isKeyDown(VK_CTRL),
+                                 isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF),
+                                 isKeyDown(VK_SHIFT), false);
+  scrollEvent.scrollFlags = (msg == WM_HSCROLL) ?
+                            nsMouseScrollEvent::kIsHorizontal :
+                            nsMouseScrollEvent::kIsVertical;
+
   // The SB_* constants for analogous vertical & horizontal ops have the
   // the same values, so only use the verticals to avoid compiler errors.
-  PRInt32 delta;
   switch (SHORT2FROMMP(mp2)) {
     case SB_LINEUP:
     //   SB_LINELEFT:
-      wheelEvent.deltaMode = nsIDOMWheelEvent.DOM_DELTA_LINE;
-      delta = -1;
+      scrollEvent.delta = -1;
       break;
 
     case SB_LINEDOWN:
     //   SB_LINERIGHT:
-      wheelEvent.deltaMode = nsIDOMWheelEvent.DOM_DELTA_LINE;
-      delta = 1;
+      scrollEvent.delta = 1;
       break;
 
     case SB_PAGEUP:
     //   SB_PAGELEFT:
-      wheelEvent.deltaMode = nsIDOMWheelEvent.DOM_DELTA_PAGE;
-      delta = -1;
+      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
+      scrollEvent.delta = -1;
       break;
 
     case SB_PAGEDOWN:
     //   SB_PAGERIGHT:
-      wheelEvent.deltaMode = nsIDOMWheelEvent.DOM_DELTA_PAGE;
-      delta = 1;
+      scrollEvent.scrollFlags |= nsMouseScrollEvent::kIsFullPage;
+      scrollEvent.delta = 1;
       break;
 
     default:
-      return false;
+      scrollEvent.delta = 0;
+      break;
   }
-
-  if (msg == WM_HSCROLL) {
-    wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = delta;
-  } else {
-    wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = delta;
-  }
-
-  DispatchWindowEvent(&wheelEvent);
+  DispatchWindowEvent(&scrollEvent);
 
   return false;
 }

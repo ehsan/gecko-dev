@@ -57,6 +57,7 @@ private:
   nsCOMPtr<nsIURI> mBaseURI;
   nsWeakPtr mScriptHandlingObject;
   
+  bool mLoopingForSyncLoad;
   bool mAttemptedInit;
 };
 

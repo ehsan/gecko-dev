@@ -1241,8 +1241,10 @@ static void maybeUnregisterAndCloseFile(FILE *&f) {
   if (!f)
     return;
 
-  MozillaUnRegisterDebugFILE(f);
+  int fd = fileno(f);
   fclose(f);
+  if (fd != 1 && fd != 2)
+    MozillaUnRegisterDebugFD(fd);
   f = nullptr;
 }
 

@@ -46,8 +46,9 @@ public:
                     bool aFinish,
                     nsIRunnable* aFinishRunnable);
 
-  bool WaitForAllDatabasesToComplete(nsTArray<IDBDatabase*>& aDatabases,
-                                     nsIRunnable* aCallback);
+  bool WaitForAllDatabasesToComplete(
+                                   nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
+                                   nsIRunnable* aCallback);
 
   // Abort all transactions, unless they are already in the process of being
   // committed, for aDatabase.
@@ -106,7 +107,7 @@ protected:
 
   struct DatabasesCompleteCallback
   {
-    nsTArray<IDBDatabase*> mDatabases;
+    nsTArray<nsRefPtr<IDBDatabase> > mDatabases;
     nsCOMPtr<nsIRunnable> mCallback;
   };
 

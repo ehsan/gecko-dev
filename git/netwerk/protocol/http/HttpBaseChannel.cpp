@@ -445,24 +445,33 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
   // contentLength are unspecified.
 
   if (stream) {
-    nsCAutoString method;
-    bool hasHeaders;
-
     if (contentType.IsEmpty()) {
-      method = nsHttp::Post;
-      hasHeaders = true;
+      mUploadStreamHasHeaders = true;
+      mRequestHead.SetMethod(nsHttp::Post); // POST request
     } else {
-      method = nsHttp::Put;
-      hasHeaders = false;
+      if (contentLength < 0) {
+        // Not really kosher to assume Available == total length of
+        // stream, but apparently works for the streams we see here.
+        stream->Available((PRUint32 *) &contentLength);
+        if (contentLength < 0) {
+          NS_ERROR("unable to determine content length");
+          return NS_ERROR_FAILURE;
+        }
+      }
+      // SetRequestHeader propagates headers to chrome if HttpChannelChild 
+      nsCAutoString contentLengthStr;
+      contentLengthStr.AppendInt(PRInt64(contentLength));
+      SetRequestHeader(NS_LITERAL_CSTRING("Content-Length"), contentLengthStr, 
+                       false);
+      SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), contentType, 
+                       false);
+      mUploadStreamHasHeaders = false;
+      mRequestHead.SetMethod(nsHttp::Put); // PUT request
     }
-    return ExplicitSetUploadStream(stream, contentType, contentLength,
-                                   method, hasHeaders);
+  } else {
+    mUploadStreamHasHeaders = false;
+    mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
   }
-
-  // if stream is null, ExplicitSetUploadStream returns error.
-  // So we need special case for GET method.
-  mUploadStreamHasHeaders = false;
-  mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
   mUploadStream = stream;
   return NS_OK;
 }
@@ -482,8 +491,10 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
   NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
 
   if (aContentLength < 0 && !aStreamHasHeaders) {
-    nsresult rv = aStream->Available(reinterpret_cast<PRUint64*>(&aContentLength));
-    if (NS_FAILED(rv) || aContentLength < 0) {
+    PRUint32 streamLength;
+    aStream->Available(&streamLength);
+    aContentLength = streamLength;
+    if (aContentLength < 0) {
       NS_ERROR("unable to determine content length");
       return NS_ERROR_FAILURE;
     }

@@ -163,7 +163,6 @@ public:
     virtual bool RecvLastPrivateDocShellDestroyed();
 
     virtual bool RecvFilePathUpdate(const nsString& path, const nsCString& reason);
-    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const PRInt32& aState);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }

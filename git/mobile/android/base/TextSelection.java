@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
-import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 
@@ -21,32 +20,29 @@ class TextSelection extends Layer implements GeckoEventListener {
 
     private final TextSelectionHandle mStartHandle;
     private final TextSelectionHandle mEndHandle;
-    private final EventDispatcher mEventDispatcher;
 
     private float mViewLeft;
     private float mViewTop;
     private float mViewZoom;
 
-    TextSelection(TextSelectionHandle startHandle, TextSelectionHandle endHandle,
-                  EventDispatcher eventDispatcher) {
+    TextSelection(TextSelectionHandle startHandle, TextSelectionHandle endHandle) {
         mStartHandle = startHandle;
         mEndHandle = endHandle;
-        mEventDispatcher = eventDispatcher;
 
         // Only register listeners if we have valid start/end handles
         if (mStartHandle == null || mEndHandle == null) {
             Log.e(LOGTAG, "Failed to initialize text selection because at least one handle is null");
         } else {
-            registerEventListener("TextSelection:ShowHandles");
-            registerEventListener("TextSelection:HideHandles");
-            registerEventListener("TextSelection:PositionHandles");
+            GeckoAppShell.registerGeckoEventListener("TextSelection:ShowHandles", this);
+            GeckoAppShell.registerGeckoEventListener("TextSelection:HideHandles", this);
+            GeckoAppShell.registerGeckoEventListener("TextSelection:PositionHandles", this);
         }
     }
 
     void destroy() {
-        unregisterEventListener("TextSelection:ShowHandles");
-        unregisterEventListener("TextSelection:HideHandles");
-        unregisterEventListener("TextSelection:PositionHandles");
+        GeckoAppShell.unregisterGeckoEventListener("TextSelection:ShowHandles", this);
+        GeckoAppShell.unregisterGeckoEventListener("TextSelection:HideHandles", this);
+        GeckoAppShell.unregisterGeckoEventListener("TextSelection:PositionHandles", this);
     }
 
     public void handleMessage(String event, JSONObject message) {
@@ -116,13 +112,5 @@ class TextSelection extends Layer implements GeckoEventListener {
                 mEndHandle.repositionWithViewport(context.viewport.left, context.viewport.top, context.zoomFactor);
             }
         });
-    }
-
-    private void registerEventListener(String event) {
-        mEventDispatcher.registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        mEventDispatcher.unregisterEventListener(event, this);
     }
 }

@@ -252,10 +252,6 @@ struct ArenaLists {
         return arenaLists[thingKind].head;
     }
 
-    ArenaHeader *getFirstArenaToSweep(AllocKind thingKind) const {
-        return arenaListsToSweep[thingKind];
-    }
-
     bool arenaListsAreEmpty() const {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i) {
             /*

@@ -85,8 +85,6 @@ class nsPluginEvent;
 namespace mozilla {
 namespace widget {
 
-class WheelEvent;
-
 // All modifier keys should be defined here.  This is used for managing
 // modifier states for DOM Level 3 or later.
 enum Modifier {

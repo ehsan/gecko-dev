@@ -82,14 +82,8 @@ nsPlaceholderFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
   // false.
 
   // ...but push floats onto the list
-  if (mOutOfFlowFrame->IsFloating()) {
-    nscoord floatWidth =
-      nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
-                                           mOutOfFlowFrame,
-                                           nsLayoutUtils::MIN_WIDTH);
-    aData->floats.AppendElement(
-      InlineIntrinsicWidthData::FloatInfo(mOutOfFlowFrame, floatWidth));
-  }
+  if (mOutOfFlowFrame->IsFloating())
+    aData->floats.AppendElement(mOutOfFlowFrame);
 }
 
 /* virtual */ void
@@ -103,14 +97,8 @@ nsPlaceholderFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
   // false.
 
   // ...but push floats onto the list
-  if (mOutOfFlowFrame->IsFloating()) {
-    nscoord floatWidth =
-      nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
-                                           mOutOfFlowFrame,
-                                           nsLayoutUtils::PREF_WIDTH);
-    aData->floats.AppendElement(
-      InlineIntrinsicWidthData::FloatInfo(mOutOfFlowFrame, floatWidth));
-  }
+  if (mOutOfFlowFrame->IsFloating())
+    aData->floats.AppendElement(mOutOfFlowFrame);
 }
 
 NS_IMETHODIMP

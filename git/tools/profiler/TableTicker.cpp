@@ -30,9 +30,6 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 
-// JS
-#include "jsdbgapi.h"
-
 // we eventually want to make this runtime switchable
 #if defined(MOZ_PROFILING) && (defined(XP_UNIX) && !defined(XP_MACOSX))
  #ifndef ANDROID
@@ -132,11 +129,6 @@ public:
     , mTagName(aTagName)
   { }
 
-  ProfileEntry(char aTagName, int aTagLine)
-    : mTagLine(aTagLine)
-    , mTagName(aTagName)
-  { }
-
   friend std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry);
 
 private:
@@ -148,7 +140,6 @@ private:
     double mTagFloat;
     Address mTagAddress;
     uintptr_t mTagOffset;
-    int mTagLine;
   };
   char mTagName;
 };
@@ -340,13 +331,6 @@ public:
                 b.DefineProperty(frame, "location", tagBuff);
               } else {
                 b.DefineProperty(frame, "location", tagStringData);
-                readAheadPos = (readPos + incBy) % mEntrySize;
-                if (readAheadPos != mLastFlushPos &&
-                    mEntries[readAheadPos].mTagName == 'n') {
-                  b.DefineProperty(frame, "line",
-                                   mEntries[readAheadPos].mTagLine);
-                  incBy++;
-                }
               }
               b.ArrayPush(frames, frame);
             }
@@ -640,15 +624,12 @@ JSObject* TableTicker::ToJSObject(JSContext *aCx)
 }
 
 static
-void addProfileEntry(volatile StackEntry &entry, ThreadProfile &aProfile,
-                     ProfileStack *stack, void *lastpc)
+void addProfileEntry(ProfileStack *aStack, ThreadProfile &aProfile, int i)
 {
-  int lineno = -1;
-
   // First entry has tagName 's' (start)
   // Check for magic pointer bit 1 to indicate copy
-  const char* sampleLabel = entry.label();
-  if (entry.isCopyLabel()) {
+  const char* sampleLabel = aStack->mStack[i].mLabel;
+  if (aStack->mStack[i].isCopyLabel()) {
     // Store the string using 1 or more 'd' (dynamic) tags
     // that will happen to the preceding tag
 
@@ -665,30 +646,8 @@ void addProfileEntry(volatile StackEntry &entry, ThreadProfile &aProfile,
       // Cast to *((void**) to pass the text data to a void*
       aProfile.addTag(ProfileEntry('d', *((void**)(&text[0]))));
     }
-    if (entry.js()) {
-      if (!entry.pc()) {
-        // The JIT only allows the top-most entry to have a NULL pc
-        MOZ_ASSERT(&entry == &stack->mStack[stack->stackSize() - 1]);
-        // If stack-walking was disabled, then that's just unfortunate
-        if (lastpc) {
-          jsbytecode *jspc = js::ProfilingGetPC(stack->mRuntime, entry.script(),
-                                                lastpc);
-          if (jspc) {
-            lineno = JS_PCToLineNumber(NULL, entry.script(), jspc);
-          }
-        }
-      } else {
-        lineno = JS_PCToLineNumber(NULL, entry.script(), entry.pc());
-      }
-    } else {
-      lineno = entry.line();
-    }
   } else {
     aProfile.addTag(ProfileEntry('c', sampleLabel));
-    lineno = entry.line();
-  }
-  if (lineno != -1) {
-    aProfile.addTag(ProfileEntry('n', lineno));
   }
 }
 
@@ -781,13 +740,13 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
     // pseudoStackPos is the position in the Pseudo stack starting
     // at the first frame (run_js in the example) and increasing.
     for (size_t i = array.count; i > 0; --i) {
-      while (pseudoStackPos < stack->stackSize()) {
+      while (pseudoStackPos < stack->mStackPointer) {
         volatile StackEntry& entry = stack->mStack[pseudoStackPos];
 
-        if (entry.stackAddress() < array.sp_array[i-1] && entry.stackAddress())
+        if (entry.mStackAddress < array.sp_array[i-1] && entry.mStackAddress)
           break;
 
-        addProfileEntry(entry, aProfile, stack, array.array[0]);
+        addProfileEntry(stack, aProfile, pseudoStackPos);
         pseudoStackPos++;
       }
 
@@ -852,8 +811,10 @@ void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSampl
   // 's' tag denotes the start of a sample block
   // followed by 0 or more 'c' tags.
   aProfile.addTag(ProfileEntry('s', "(root)"));
-  for (uint32_t i = 0; i < aStack->stackSize(); i++) {
-    addProfileEntry(aStack->mStack[i], aProfile, aStack, nullptr);
+  for (mozilla::sig_safe_t i = 0;
+       i < aStack->mStackPointer && i < mozilla::ArrayLength(aStack->mStack);
+       i++) {
+    addProfileEntry(aStack, aProfile, i);
   }
 #ifdef ENABLE_SPS_LEAF_DATA
   if (sample) {

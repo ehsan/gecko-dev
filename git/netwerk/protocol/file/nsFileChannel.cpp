@@ -422,12 +422,11 @@ nsFileChannel::SetUploadStream(nsIInputStream *stream,
     mUploadLength = contentLength;
     if (mUploadLength < 0) {
       // Make sure we know how much data we are uploading.
-      PRUint64 avail;
+      PRUint32 avail;
       nsresult rv = mUploadStream->Available(&avail);
       if (NS_FAILED(rv))
         return rv;
-      if (avail < PR_INT64_MAX)
-        mUploadLength = avail;
+      mUploadLength = avail;
     }
   } else {
     mUploadLength = -1;

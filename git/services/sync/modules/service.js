@@ -115,13 +115,13 @@ WeaveSvc.prototype = {
   get isLoggedIn() { return this._loggedIn; },
 
   get locked() { return this._locked; },
-  lock: function lock() {
+  lock: function Svc_lock() {
     if (this._locked)
       return false;
     this._locked = true;
     return true;
   },
-  unlock: function unlock() {
+  unlock: function Svc_unlock() {
     this._locked = false;
   },
 
@@ -155,7 +155,7 @@ WeaveSvc.prototype = {
     this.cryptoKeysURL = this.storageURL + CRYPTO_COLLECTION + "/" + KEYS_WBO;
   },
 
-  _checkCrypto: function _checkCrypto() {
+  _checkCrypto: function WeaveSvc__checkCrypto() {
     let ok = false;
 
     try {
@@ -327,7 +327,7 @@ WeaveSvc.prototype = {
     // Send an event now that Weave service is ready.  We don't do this
     // synchronously so that observers can import this module before
     // registering an observer.
-    Utils.nextTick(function onNextTick() {
+    Utils.nextTick(function() {
       Status.ready = true;
       Svc.Obs.notify("weave:service:ready");
     });
@@ -376,7 +376,7 @@ WeaveSvc.prototype = {
   /**
    * Register the built-in engines for certain applications
    */
-  _registerEngines: function _registerEngines() {
+  _registerEngines: function WeaveSvc__registerEngines() {
     let engines = [];
     // Applications can provide this preference (comma-separated list)
     // to specify which engines should be registered on startup.
@@ -386,9 +386,7 @@ WeaveSvc.prototype = {
     }
 
     // Grab the actual engines and register them
-    Engines.register(engines.map(function onItem(name) {
-      return Weave[name + "Engine"];
-    }));
+    Engines.register(engines.map(function(name) Weave[name + "Engine"]));
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
@@ -396,7 +394,7 @@ WeaveSvc.prototype = {
 
   // nsIObserver
 
-  observe: function observe(subject, topic, data) {
+  observe: function WeaveSvc__observe(subject, topic, data) {
     switch (topic) {
       case "weave:service:setup-complete":
         let status = this._checkSetup();
@@ -631,7 +629,7 @@ WeaveSvc.prototype = {
   },
 
   verifyLogin: function verifyLogin()
-    this._notify("verify-login", "", function onNotify() {
+    this._notify("verify-login", "", function() {
       if (!this._identity.username) {
         this._log.warn("No username in verifyLogin.");
         Status.login = LOGIN_FAILED_NO_USERNAME;
@@ -719,7 +717,8 @@ WeaveSvc.prototype = {
       }
     })(),
 
-  generateNewSymmetricKeys: function generateNewSymmetricKeys() {
+  generateNewSymmetricKeys:
+  function WeaveSvc_generateNewSymmetricKeys() {
     this._log.info("Generating new keys WBO...");
     let wbo = CollectionKeys.generateNewKeysWBO();
     this._log.info("Encrypting new key bundle.");
@@ -776,8 +775,8 @@ WeaveSvc.prototype = {
     }
   },
 
-  changePassword: function changePassword(newpass) {
-    return this._notify("changepwd", "", function onNotify() {
+  changePassword: function WeaveSvc_changePassword(newpass)
+    this._notify("changepwd", "", function() {
       let url = this.userAPI + this._identity.username + "/password";
       try {
         let resp = new Resource(url).post(Utils.encodeUTF8(newpass));
@@ -796,11 +795,10 @@ WeaveSvc.prototype = {
       this._identity.basicPassword = newpass;
       this.persistLogin();
       return true;
-    })();
-  },
+    })(),
 
-  changePassphrase: function changePassphrase(newphrase) {
-    return this._catch(this._notify("changepph", "", function onNotify() {
+  changePassphrase: function WeaveSvc_changePassphrase(newphrase)
+    this._catch(this._notify("changepph", "", function() {
       /* Wipe. */
       this.wipeServer();
 
@@ -817,8 +815,7 @@ WeaveSvc.prototype = {
       /* Login and sync. This also generates new keys. */
       this.sync();
       return true;
-    }))();
-  },
+    }))(),
 
   startOver: function startOver() {
     this._log.trace("Invoking Service.startOver.");
@@ -871,8 +868,9 @@ WeaveSvc.prototype = {
     }
   },
 
-  login: function login(username, password, passphrase) {
-    function onNotify() {
+  login: function login(username, password, passphrase)
+    this._catch(this._lock("service.js: login",
+          this._notify("login", "", function() {
       this._loggedIn = false;
       if (Services.io.offline) {
         Status.login = LOGIN_FAILED_NETWORK_ERROR;
@@ -912,11 +910,7 @@ WeaveSvc.prototype = {
       this._loggedIn = true;
 
       return true;
-    }
-
-    let notifier = this._notify("login", "", onNotify.bind(this));
-    return this._catch(this._lock("service.js: login", notifier))();
-  },
+    })))(),
 
   logout: function logout() {
     // No need to do anything if we're already logged out.
@@ -990,7 +984,7 @@ WeaveSvc.prototype = {
 
   // Stuff we need to do after login, before we can really do
   // anything (e.g. key setup).
-  _remoteSetup: function _remoteSetup(infoResponse) {
+  _remoteSetup: function WeaveSvc__remoteSetup(infoResponse) {
     let reset = false;
 
     this._log.debug("Fetching global metadata record");
@@ -1144,7 +1138,7 @@ WeaveSvc.prototype = {
    *
    * @return Reason for not syncing; not-truthy if sync should run
    */
-  _checkSync: function _checkSync(ignore) {
+  _checkSync: function WeaveSvc__checkSync(ignore) {
     let reason = "";
     if (!this.enabled)
       reason = kSyncWeaveDisabled;
@@ -1189,7 +1183,7 @@ WeaveSvc.prototype = {
    */
   _lockedSync: function _lockedSync()
     this._lock("service.js: sync",
-               this._notify("sync", "", function onNotify() {
+               this._notify("sync", "", function() {
 
     this._log.info("In sync().");
 
@@ -1394,7 +1388,7 @@ WeaveSvc.prototype = {
 
   // Returns true if sync should proceed.
   // false / no return value means sync should be aborted.
-  _syncEngine: function _syncEngine(engine) {
+  _syncEngine: function WeaveSvc__syncEngine(engine) {
     try {
       engine.sync();
     }
@@ -1453,7 +1447,7 @@ WeaveSvc.prototype = {
     return true;
   },
 
-  _freshStart: function _freshStart() {
+  _freshStart: function WeaveSvc__freshStart() {
     this._log.info("Fresh start. Resetting client and considering key upgrade.");
     this.resetClient();
     CollectionKeys.clear();
@@ -1503,7 +1497,7 @@ WeaveSvc.prototype = {
    * @return the server's timestamp of the (last) DELETE.
    */
   wipeServer: function wipeServer(collections)
-    this._notify("wipe-server", "", function onNotify() {
+    this._notify("wipe-server", "", function() {
       let response;
       if (!collections) {
         // Strip the trailing slash.
@@ -1550,8 +1544,8 @@ WeaveSvc.prototype = {
    * @param engines [optional]
    *        Array of engine names to wipe. If not given, all engines are used.
    */
-  wipeClient: function wipeClient(engines)
-    this._notify("wipe-client", "", function onNotify() {
+  wipeClient: function WeaveSvc_wipeClient(engines)
+    this._notify("wipe-client", "", function() {
       // If we don't have any engines, reset the service and wipe all engines
       if (!engines) {
         // Clear out any service data
@@ -1607,8 +1601,8 @@ WeaveSvc.prototype = {
   /**
    * Reset local service information like logs, sync times, caches.
    */
-  resetService: function resetService()
-    this._catch(this._notify("reset-service", "", function onNotify() {
+  resetService: function WeaveSvc_resetService()
+    this._catch(this._notify("reset-service", "", function() {
       this._log.info("Service reset.");
 
       // Pretend we've never synced to the server and drop cached data
@@ -1622,8 +1616,8 @@ WeaveSvc.prototype = {
    * @param engines [optional]
    *        Array of engine names to reset. If not given, all engines are used.
    */
-  resetClient: function resetClient(engines)
-    this._catch(this._notify("reset-client", "", function onNotify() {
+  resetClient: function WeaveSvc_resetClient(engines)
+    this._catch(this._notify("reset-client", "", function() {
       // If we don't have any engines, reset everything including the service
       if (!engines) {
         // Clear out any service data

@@ -148,19 +148,19 @@ nsMultiplexInputStream::Close()
     return rv;
 }
 
-/* unsigned long long available (); */
+/* unsigned long available (); */
 NS_IMETHODIMP
-nsMultiplexInputStream::Available(PRUint64 *_retval)
+nsMultiplexInputStream::Available(PRUint32 *_retval)
 {
     if (NS_FAILED(mStatus))
         return mStatus;
 
     nsresult rv;
-    PRUint64 avail = 0;
+    PRUint32 avail = 0;
 
     PRUint32 len = mStreams.Count();
     for (PRUint32 i = mCurrentStream; i < len; i++) {
-        PRUint64 streamAvail;
+        PRUint32 streamAvail;
         rv = mStreams[i]->Available(&streamAvail);
         NS_ENSURE_SUCCESS(rv, rv);
         avail += streamAvail;

@@ -359,12 +359,11 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
     aDataURL = NS_LITERAL_STRING("data:") + type +
       NS_LITERAL_STRING(";base64,");
 
-  PRUint64 count;
+  PRUint32 count;
   rv = stream->Available(&count);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(count <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
-  return Base64EncodeInputStream(stream, aDataURL, (PRUint32)count, aDataURL.Length());
+  return Base64EncodeInputStream(stream, aDataURL, count, aDataURL.Length());
 }
 
 NS_IMETHODIMP
@@ -399,18 +398,17 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
     type.AssignLiteral("image/png");
   }
 
-  PRUint64 imgSize;
+  PRUint32 imgSize;
   rv = stream->Available(&imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(imgSize <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   void* imgData = nullptr;
-  rv = NS_ReadInputStreamToBuffer(stream, &imgData, (PRUint32)imgSize);
+  rv = NS_ReadInputStreamToBuffer(stream, &imgData, imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The DOMFile takes ownership of the buffer
   nsRefPtr<nsDOMMemoryFile> file =
-    new nsDOMMemoryFile(imgData, (PRUint32)imgSize, aName, type);
+    new nsDOMMemoryFile(imgData, imgSize, aName, type);
 
   file.forget(aResult);
   return NS_OK;

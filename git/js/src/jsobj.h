@@ -1334,29 +1334,27 @@ js_ValueToNonNullObject(JSContext *cx, const js::Value &v);
 namespace js {
 
 /*
- * Invokes the ES5 ToObject algorithm on vp, returning the result. If vp might
- * already be an object, use ToObject. reportCantConvert controls how null and
- * undefined errors are reported.
+ * Invokes the ES5 ToObject algorithm on *vp, writing back the object to vp.
+ * If *vp might already be an object, use ToObject.
  */
 extern JSObject *
-ToObjectSlow(JSContext *cx, HandleValue vp, bool reportScanStack);
+ToObjectSlow(JSContext *cx, Value *vp);
 
-/* For object conversion in e.g. native functions. */
 JS_ALWAYS_INLINE JSObject *
-ToObject(JSContext *cx, HandleValue vp)
+ToObject(JSContext *cx, Value *vp)
 {
-    if (vp.isObject())
-        return &vp.toObject();
-    return ToObjectSlow(cx, vp, false);
+    if (vp->isObject())
+        return &vp->toObject();
+    return ToObjectSlow(cx, vp);
 }
 
-/* For converting stack values to objects. */
-JS_ALWAYS_INLINE JSObject *
-ToObjectFromStack(JSContext *cx, HandleValue vp)
+/* As for ToObject, but preserves the original value. */
+inline JSObject *
+ValueToObject(JSContext *cx, const Value &v)
 {
-    if (vp.isObject())
-        return &vp.toObject();
-    return ToObjectSlow(cx, vp, true);
+    if (v.isObject())
+        return &v.toObject();
+    return js_ValueToNonNullObject(cx, v);
 }
 
 } /* namespace js */

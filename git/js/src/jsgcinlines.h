@@ -182,61 +182,44 @@ GCPoke(JSRuntime *rt, Value oldval)
 #endif
 }
 
-class ArenaIter
+/*
+ * Invoke ArenaOp and CellOp on every arena and cell in a compartment which
+ * have the specified thing kind.
+ */
+template <class ArenaOp, class CellOp>
+void
+ForEachArenaAndCell(JSCompartment *compartment, AllocKind thingKind,
+                    ArenaOp arenaOp, CellOp cellOp)
 {
-    ArenaHeader *aheader;
-    ArenaHeader *remainingHeader;
+    size_t thingSize = Arena::thingSize(thingKind);
+    ArenaHeader *aheader = compartment->arenas.getFirstArena(thingKind);
 
-  public:
-    ArenaIter() {
-        init();
-    }
+    for (; aheader; aheader = aheader->next) {
+        Arena *arena = aheader->getArena();
+        arenaOp(arena);
+        FreeSpan firstSpan(aheader->getFirstFreeSpan());
+        const FreeSpan *span = &firstSpan;
 
-    ArenaIter(JSCompartment *comp, AllocKind kind) {
-        init(comp, kind);
-    }
-
-    void init() {
-        aheader = NULL;
-        remainingHeader = NULL;
-    }
-
-    void init(ArenaHeader *aheaderArg) {
-        aheader = aheaderArg;
-        remainingHeader = NULL;
-    }
-
-    void init(JSCompartment *comp, AllocKind kind) {
-        aheader = comp->arenas.getFirstArena(kind);
-        remainingHeader = comp->arenas.getFirstArenaToSweep(kind);
-        if (!aheader) {
-            aheader = remainingHeader;
-            remainingHeader = NULL;
+        for (uintptr_t thing = arena->thingsStart(thingKind); ; thing += thingSize) {
+            JS_ASSERT(thing <= arena->thingsEnd());
+            if (thing == span->first) {
+                if (!span->hasNext())
+                    break;
+                thing = span->last;
+                span = span->nextSpan();
+            } else {
+                Cell *t = reinterpret_cast<Cell *>(thing);
+                cellOp(t);
+            }
         }
     }
-
-    bool done() {
-        return !aheader;
-    }
-
-    ArenaHeader *get() {
-        return aheader;
-    }
-
-    void next() {
-        aheader = aheader->next;
-        if (!aheader) {
-            aheader = remainingHeader;
-            remainingHeader = NULL;
-        }
-    }
-};
+}
 
 class CellIterImpl
 {
     size_t firstThingOffset;
     size_t thingSize;
-    ArenaIter aiter;
+    ArenaHeader *aheader;
     FreeSpan firstSpan;
     const FreeSpan *span;
     uintptr_t thing;
@@ -256,15 +239,15 @@ class CellIterImpl
     }
 
     void init(ArenaHeader *singleAheader) {
-        initSpan(singleAheader->compartment, singleAheader->getAllocKind());
-        aiter.init(singleAheader);
+        aheader = singleAheader;
+        initSpan(aheader->compartment, aheader->getAllocKind());
         next();
-        aiter.init();
+        aheader = NULL;
     }
 
     void init(JSCompartment *comp, AllocKind kind) {
         initSpan(comp, kind);
-        aiter.init(comp, kind);
+        aheader = comp->arenas.getFirstArena(kind);
         next();
     }
 
@@ -292,15 +275,14 @@ class CellIterImpl
                 span = span->nextSpan();
                 break;
             }
-            if (aiter.done()) {
+            if (!aheader) {
                 cell = NULL;
                 return;
             }
-            ArenaHeader *aheader = aiter.get();
             firstSpan = aheader->getFirstFreeSpan();
             span = &firstSpan;
             thing = aheader->arenaAddress() | firstThingOffset;
-            aiter.next();
+            aheader = aheader->next;
         }
         cell = reinterpret_cast<Cell *>(thing);
         thing += thingSize;
@@ -367,23 +349,6 @@ class CellIter : public CellIterImpl
             lists->clearFreeListInArena(kind);
     }
 };
-
-/*
- * Invoke ArenaOp and CellOp on every arena and cell in a compartment which
- * have the specified thing kind.
- */
-template <class ArenaOp, class CellOp>
-void
-ForEachArenaAndCell(JSCompartment *compartment, AllocKind thingKind,
-                    ArenaOp arenaOp, CellOp cellOp)
-{
-    for (ArenaIter aiter(compartment, thingKind); !aiter.done(); aiter.next()) {
-        ArenaHeader *aheader = aiter.get();
-        arenaOp(aheader->getArena());
-        for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
-            cellOp(iter.getCell());
-    }
-}
 
 /* Signatures for ArenaOp and CellOp above. */
 

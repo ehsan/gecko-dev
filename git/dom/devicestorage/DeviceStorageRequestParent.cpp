@@ -8,9 +8,6 @@
 #include "nsIMIMEService.h"
 #include "nsCExternalHandlerService.h"
 #include "mozilla/unused.h"
-#include "mozilla/dom/ipc/Blob.h"
-#include "ContentParent.h"
-#include "nsProxyRelease.h"
 
 namespace mozilla {
 namespace dom {
@@ -29,14 +26,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
       nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-
-      BlobParent* bp = static_cast<BlobParent*>(p.blobParent());
-      nsCOMPtr<nsIDOMBlob> blob = bp->GetBlob();
-
-      nsCOMPtr<nsIInputStream> stream;
-      blob->GetInternalStream(getter_AddRefs(stream));
-
-      nsRefPtr<CancelableRunnable> r = new WriteFileEvent(this, dsf, stream);
+      nsRefPtr<WriteFileEvent> r = new WriteFileEvent(this, dsf, p.bits());
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
       NS_ASSERTION(target, "Must have stream transport service");
@@ -52,8 +42,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
       nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      dsf->SetPath(p.name());
-      nsRefPtr<CancelableRunnable> r = new ReadFileEvent(this, dsf);
+      nsRefPtr<ReadFileEvent> r = new ReadFileEvent(this, dsf);
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
       NS_ASSERTION(target, "Must have stream transport service");
@@ -69,23 +58,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
       nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      nsRefPtr<CancelableRunnable> r = new DeleteFileEvent(this, dsf);
-
-      nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
-      NS_ASSERTION(target, "Must have stream transport service");
-      target->Dispatch(r, NS_DISPATCH_NORMAL);
-      break;
-    }
-
-    case DeviceStorageParams::TDeviceStorageStatParams:
-    {
-      DeviceStorageStatParams p = aParams;
-
-      nsCOMPtr<nsIFile> f;
-      NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
-
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      nsRefPtr<StatFileEvent> r = new StatFileEvent(this, dsf);
+      nsRefPtr<DeleteFileEvent> r = new DeleteFileEvent(this, dsf);
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
       NS_ASSERTION(target, "Must have stream transport service");
@@ -101,7 +74,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
       nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
-      nsRefPtr<CancelableRunnable> r = new EnumerateFileEvent(this, dsf, p.since());
+      nsRefPtr<EnumerateFileEvent> r = new EnumerateFileEvent(this, dsf, p.since());
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
       NS_ASSERTION(target, "Must have stream transport service");
@@ -121,31 +94,18 @@ DeviceStorageRequestParent::~DeviceStorageRequestParent()
   MOZ_COUNT_DTOR(DeviceStorageRequestParent);
 }
 
-NS_IMPL_THREADSAFE_ADDREF(DeviceStorageRequestParent);
-NS_IMPL_THREADSAFE_RELEASE(DeviceStorageRequestParent);
-
-void
-DeviceStorageRequestParent::ActorDestroy(ActorDestroyReason)
-{
-  PRInt32 count = mRunnables.Length();
-  for (PRInt32 index = 0; index < count; index++) {
-    mRunnables[index]->Cancel();
-  }
-}
-
 DeviceStorageRequestParent::PostErrorEvent::PostErrorEvent(DeviceStorageRequestParent* aParent,
                                                            const char* aError)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
 {
-  CopyASCIItoUTF16(aError, mError);
+  mError.AssignWithConversion(aError);
 }
 
 DeviceStorageRequestParent::PostErrorEvent::~PostErrorEvent() {}
 
-nsresult
-DeviceStorageRequestParent::PostErrorEvent::CancelableRun() {
+NS_IMETHODIMP
+DeviceStorageRequestParent::PostErrorEvent::Run() {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
   ErrorResponse response(mError);
   unused << mParent->Send__delete__(mParent, response);
   return NS_OK;
@@ -153,14 +113,14 @@ DeviceStorageRequestParent::PostErrorEvent::CancelableRun() {
 
 
 DeviceStorageRequestParent::PostSuccessEvent::PostSuccessEvent(DeviceStorageRequestParent* aParent)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
 {
 }
 
 DeviceStorageRequestParent::PostSuccessEvent::~PostSuccessEvent() {}
 
-nsresult
-DeviceStorageRequestParent::PostSuccessEvent::CancelableRun() {
+NS_IMETHODIMP
+DeviceStorageRequestParent::PostSuccessEvent::Run() {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   SuccessResponse response;
@@ -169,49 +129,39 @@ DeviceStorageRequestParent::PostSuccessEvent::CancelableRun() {
 }
 
 DeviceStorageRequestParent::PostBlobSuccessEvent::PostBlobSuccessEvent(DeviceStorageRequestParent* aParent,
-                                                                       DeviceStorageFile* aFile,
+                                                                       void* aBuffer,
                                                                        PRUint32 aLength,
                                                                        nsACString& aMimeType)
-  : CancelableRunnable(aParent)
-  , mLength(aLength)
-  , mFile(aFile)
+  : mParent(aParent)
   , mMimeType(aMimeType)
 {
+  mBits.SetCapacity(aLength);
+  void* bits = mBits.Elements();
+  memcpy(bits, aBuffer, aLength);
 }
 
 DeviceStorageRequestParent::PostBlobSuccessEvent::~PostBlobSuccessEvent() {}
 
-nsresult
-DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
+NS_IMETHODIMP
+DeviceStorageRequestParent::PostBlobSuccessEvent::Run() {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsString mime;
-  mime.AssignWithConversion(mMimeType);
-  CopyASCIItoUTF16(mMimeType, mime);
-
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(mFile->mPath, mime, mLength, mFile->mFile);
-
-  ContentParent* cp = static_cast<ContentParent*>(mParent->Manager());
-  BlobParent* actor = cp->GetOrCreateActorForBlob(blob);
-
-  BlobResponse response;
-  response.blobParent() = actor;
-
+  BlobResponse response(mBits, mMimeType);
   unused <<  mParent->Send__delete__(mParent, response);
   return NS_OK;
 }
 
 DeviceStorageRequestParent::PostEnumerationSuccessEvent::PostEnumerationSuccessEvent(DeviceStorageRequestParent* aParent,
                                                                                      InfallibleTArray<DeviceStorageFileValue>& aPaths)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
   , mPaths(aPaths)
 {
 }
 
 DeviceStorageRequestParent::PostEnumerationSuccessEvent::~PostEnumerationSuccessEvent() {}
 
-nsresult
-DeviceStorageRequestParent::PostEnumerationSuccessEvent::CancelableRun() {
+NS_IMETHODIMP
+DeviceStorageRequestParent::PostEnumerationSuccessEvent::Run() {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   EnumerationResponse response(mPaths);
@@ -221,10 +171,10 @@ DeviceStorageRequestParent::PostEnumerationSuccessEvent::CancelableRun() {
 
 DeviceStorageRequestParent::WriteFileEvent::WriteFileEvent(DeviceStorageRequestParent* aParent,
                                                            DeviceStorageFile* aFile,
-                                                           nsIInputStream* aInputStream)
-  : CancelableRunnable(aParent)
+                                                           InfallibleTArray<PRUint8>& aBits)
+  : mParent(aParent)
   , mFile(aFile)
-  , mInputStream(aInputStream)
+  , mBits(aBits)
 {
 }
 
@@ -232,20 +182,11 @@ DeviceStorageRequestParent::WriteFileEvent::~WriteFileEvent()
 {
 }
 
-nsresult
-DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
+NS_IMETHODIMP
+DeviceStorageRequestParent::WriteFileEvent::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
   nsRefPtr<nsRunnable> r;
-
-  if (!mInputStream) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
-  }
-
-  nsresult rv = mFile->Write(mInputStream);
+  nsresult rv = mFile->Write(mBits);
 
   if (NS_FAILED(rv)) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
@@ -261,7 +202,7 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
 
 DeviceStorageRequestParent::DeleteFileEvent::DeleteFileEvent(DeviceStorageRequestParent* aParent,
                                                              DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
   , mFile(aFile)
 {
 }
@@ -270,11 +211,9 @@ DeviceStorageRequestParent::DeleteFileEvent::~DeleteFileEvent()
 {
 }
 
-nsresult
-DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
+NS_IMETHODIMP
+DeviceStorageRequestParent::DeleteFileEvent::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
   mFile->mFile->Remove(true);
 
   nsRefPtr<nsRunnable> r;
@@ -287,44 +226,13 @@ DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
   else {
     r = new PostPathResultEvent(mParent, mFile->mPath);
   }
-
-  NS_DispatchToMainThread(r);
-  return NS_OK;
-}
-
-DeviceStorageRequestParent::StatFileEvent::StatFileEvent(DeviceStorageRequestParent* aParent,
-                                                         DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
-  , mFile(aFile)
-{
-}
-
-DeviceStorageRequestParent::StatFileEvent::~StatFileEvent()
-{
-}
-
-nsresult
-DeviceStorageRequestParent::StatFileEvent::CancelableRun()
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  nsCOMPtr<nsIRunnable> r;
-  PRUint64 diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
-  PRInt64 freeSpace = 0;
-  nsresult rv = mFile->mFile->GetDiskSpaceAvailable(&freeSpace);
-  if (NS_FAILED(rv)) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    NS_DispatchToMainThread(r);
-    return NS_OK;
-  }
-  r = new PostStatResultEvent(mParent, diskUsage, freeSpace);
   NS_DispatchToMainThread(r);
   return NS_OK;
 }
 
 DeviceStorageRequestParent::ReadFileEvent::ReadFileEvent(DeviceStorageRequestParent* aParent,
                                                          DeviceStorageFile* aFile)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
   , mFile(aFile)
 {
   nsCOMPtr<nsIMIMEService> mimeService = do_GetService(NS_MIMESERVICE_CONTRACTID);
@@ -340,15 +248,12 @@ DeviceStorageRequestParent::ReadFileEvent::~ReadFileEvent()
 {
 }
 
-nsresult
-DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
+NS_IMETHODIMP
+DeviceStorageRequestParent::ReadFileEvent::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
   nsCOMPtr<nsIRunnable> r;
   bool check = false;
   mFile->mFile->Exists(&check);
-
   if (!check) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
     NS_DispatchToMainThread(r);
@@ -362,8 +267,24 @@ DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
     NS_DispatchToMainThread(r);
     return NS_OK;
   }
+  
+  PRFileDesc *fileHandle;
+  rv = mFile->mFile->OpenNSPRFileDesc(PR_RDONLY, 0, &fileHandle);
 
-  r = new PostBlobSuccessEvent(mParent, mFile, fileSize, mMimeType);
+  // i am going to hell.  this is temp until bent provides seralizaiton of blobs.
+  void* buf = (void*) malloc(fileSize);
+  PRInt32 read = PR_Read(fileHandle, buf, fileSize); 
+  if (read != fileSize) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    NS_DispatchToMainThread(r);
+    return NS_OK;
+  }
+
+  r = new PostBlobSuccessEvent(mParent, buf, fileSize, mMimeType);
+
+  PR_Free(buf);
+  PR_Close(fileHandle);
+
   NS_DispatchToMainThread(r);
   return NS_OK;
 }
@@ -371,7 +292,7 @@ DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
 DeviceStorageRequestParent::EnumerateFileEvent::EnumerateFileEvent(DeviceStorageRequestParent* aParent,
                                                                    DeviceStorageFile* aFile,
                                                                    PRUint32 aSince)
-  : CancelableRunnable(aParent)
+  : mParent(aParent)
   , mFile(aFile)
   , mSince(aSince)
 {
@@ -381,11 +302,9 @@ DeviceStorageRequestParent::EnumerateFileEvent::~EnumerateFileEvent()
 {
 }
 
-nsresult
-DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
+NS_IMETHODIMP
+DeviceStorageRequestParent::EnumerateFileEvent::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
   nsCOMPtr<nsIRunnable> r;
   bool check = false;
   mFile->mFile->Exists(&check);
@@ -404,7 +323,7 @@ DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
   for (PRUint32 i = 0; i < count; i++) {
     nsString fullpath;
     files[i]->mFile->GetPath(fullpath);
-    DeviceStorageFileValue dsvf(files[i]->mPath, fullpath);
+    DeviceStorageFileValue dsvf(fullpath, files[i]->mPath);
     values.AppendElement(dsvf);
   }
 
@@ -415,8 +334,8 @@ DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
 
 
 DeviceStorageRequestParent::PostPathResultEvent::PostPathResultEvent(DeviceStorageRequestParent* aParent,
-                                                                     const nsAString& aPath)
-  : CancelableRunnable(aParent)
+                                                             const nsAString& aPath)
+  : mParent(aParent)
   , mPath(aPath)
 {
 }
@@ -425,35 +344,12 @@ DeviceStorageRequestParent::PostPathResultEvent::~PostPathResultEvent()
 {
 }
 
-nsresult
-DeviceStorageRequestParent::PostPathResultEvent::CancelableRun()
+NS_IMETHODIMP
+DeviceStorageRequestParent::PostPathResultEvent::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   SuccessResponse response;
-  unused <<  mParent->Send__delete__(mParent, response);
-  return NS_OK;
-}
-
-DeviceStorageRequestParent::PostStatResultEvent::PostStatResultEvent(DeviceStorageRequestParent* aParent,
-                                                                     PRInt64 aFreeBytes,
-                                                                     PRInt64 aTotalBytes)
-  : CancelableRunnable(aParent)
-  , mFreeBytes(aFreeBytes)
-  , mTotalBytes(aTotalBytes)
-{
-}
-
-DeviceStorageRequestParent::PostStatResultEvent::~PostStatResultEvent()
-{
-}
-
-nsresult
-DeviceStorageRequestParent::PostStatResultEvent::CancelableRun()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  StatStorageResponse response(mFreeBytes, mTotalBytes);
   unused <<  mParent->Send__delete__(mParent, response);
   return NS_OK;
 }

@@ -55,7 +55,7 @@ nsBaseContentStream::Close()
 }
 
 NS_IMETHODIMP
-nsBaseContentStream::Available(PRUint64 *result)
+nsBaseContentStream::Available(PRUint32 *result)
 {
   *result = 0;
   return mStatus;

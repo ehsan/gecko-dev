@@ -12,8 +12,6 @@
 #include "nsIDOMWindow.h"
 #include "nsWeakReference.h"
 
-class nsPIDOMWindow;
-
 namespace mozilla {
 namespace dom {
 namespace power {
@@ -33,10 +31,8 @@ public:
   nsresult Init(nsIDOMWindow *aWindow);
   nsresult Shutdown();
 
-  static already_AddRefed<PowerManager>
-  CheckPermissionAndCreateInstance(nsPIDOMWindow*);
-
 private:
+  bool CheckPermission();
 
   nsWeakPtr mWindow;
   nsTArray<nsCOMPtr<nsIDOMMozWakeLockListener> > mListeners;

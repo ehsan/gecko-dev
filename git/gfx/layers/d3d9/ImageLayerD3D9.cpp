@@ -355,7 +355,7 @@ void
 ImageLayerD3D9::RenderLayer()
 {
   ImageContainer *container = GetContainer();
-  if (!container || mD3DManager->CompositingDisabled()) {
+  if (!container) {
     return;
   }
 
@@ -609,10 +609,6 @@ ShadowImageLayerD3D9::GetLayer()
 void
 ShadowImageLayerD3D9::RenderLayer()
 {
-  if (mD3DManager->CompositingDisabled()) {
-    return;
-  }
-
   if (mBuffer) {
     mBuffer->RenderTo(mD3DManager, GetEffectiveVisibleRegion());
   } else if (mYCbCrImage) {

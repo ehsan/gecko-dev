@@ -51,7 +51,6 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsMutationEvent.h"
 #include "nsNodeUtils.h"
-#include "mozilla/dom/DirectionalityUtils.h"
 #include "nsDocument.h"
 #include "nsAttrValueOrString.h"
 #ifdef MOZ_XUL
@@ -129,7 +128,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::directionality;
 
 nsEventStates
 Element::IntrinsicState() const
@@ -607,7 +605,10 @@ PRInt32
 nsGenericElement::GetScrollTop()
 {
   nsIScrollableFrame* sf = GetScrollFrame();
-  return sf ? sf->GetScrollPositionCSSPixels().y : 0;
+
+  return sf ?
+         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().y) :
+         0;
 }
 
 NS_IMETHODIMP
@@ -623,7 +624,9 @@ nsGenericElement::SetScrollTop(PRInt32 aScrollTop)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
-    sf->ScrollToCSSPixels(nsIntPoint(sf->GetScrollPositionCSSPixels().x, aScrollTop));
+    nsPoint pt = sf->GetScrollPosition();
+    sf->ScrollToCSSPixels(nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                                     aScrollTop));
   }
   return NS_OK;
 }
@@ -632,7 +635,10 @@ PRInt32
 nsGenericElement::GetScrollLeft()
 {
   nsIScrollableFrame* sf = GetScrollFrame();
-  return sf ? sf->GetScrollPositionCSSPixels().x : 0;
+
+  return sf ?
+         nsPresContext::AppUnitsToIntCSSPixels(sf->GetScrollPosition().x) :
+         0;
 }
 
 NS_IMETHODIMP
@@ -648,7 +654,9 @@ nsGenericElement::SetScrollLeft(PRInt32 aScrollLeft)
 {
   nsIScrollableFrame* sf = GetScrollFrame();
   if (sf) {
-    sf->ScrollToCSSPixels(nsIntPoint(aScrollLeft, sf->GetScrollPositionCSSPixels().y));
+    nsPoint pt = sf->GetScrollPosition();
+    sf->ScrollToCSSPixels(nsIntPoint(aScrollLeft,
+                                     nsPresContext::AppUnitsToIntCSSPixels(pt.y)));
   }
   return NS_OK;
 }
@@ -1350,13 +1358,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     SetSubtreeRootPointer(aParent->SubtreeRoot());
   }
 
-  // This has to be here, rather than in nsGenericHTMLElement::BindToTree, 
-  //  because it has to happen after updating the parent pointer, but before
-  //  recursively binding the kids.
-  if (IsHTML()) {
-    RecomputeDirectionality(this, false);
-  }
-
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
   // that also need to be told that they are moving.
   nsresult rv;
@@ -1540,13 +1541,6 @@ nsGenericElement::UnbindFromTree(bool aDeep, bool aNullParent)
     if (slots) {
       slots->mBindingParent = nullptr;
     }
-  }
-
-  // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree, 
-  //  because it has to happen after unsetting the parent pointer, but before
-  //  recursively unbinding the kids.
-  if (IsHTML()) {
-    RecomputeDirectionality(this, false);
   }
 
   if (aDeep) {

@@ -491,10 +491,10 @@ nsHttpTransaction::Caps()
     return mCaps;
 }
 
-PRUint64
+PRUint32
 nsHttpTransaction::Available()
 {
-    PRUint64 size;
+    PRUint32 size;
     if (NS_FAILED(mRequestStream->Available(&size)))
         size = 0;
     return size;

@@ -562,11 +562,11 @@ nsHttpConnection::CanReuse()
     // which we would deal with later on through the restart logic, but that
     // path is more expensive than just closing the socket now.
 
-    PRUint64 dataSize;
+    PRUint32 dataSize;
     if (canReuse && mSocketIn && !mUsingSpdyVersion && mHttp1xTransactionCount &&
         NS_SUCCEEDED(mSocketIn->Available(&dataSize)) && dataSize) {
         LOG(("nsHttpConnection::CanReuse %p %s"
-             "Socket not reusable because read data pending (%llu) on it.\n",
+             "Socket not reusable because read data pending (%d) on it.\n",
              this, mConnInfo->Host(), dataSize));
         canReuse = false;
     }

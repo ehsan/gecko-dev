@@ -15,8 +15,6 @@ const NOTIFICATION_EVENT_SHOWN = "shown";
 const ICON_SELECTOR = ".notification-anchor-icon";
 const ICON_ATTRIBUTE_SHOWING = "showing";
 
-let popupNotificationsMap = new WeakMap();
-
 /**
  * Notification object describes a single popup notification.
  *
@@ -353,7 +351,7 @@ PopupNotifications.prototype = {
     return this._getNotificationsForBrowser(this.tabbrowser.selectedBrowser);
   },
   set _currentNotifications(a) {
-    return this._setNotificationsForBrowser(this.tabbrowser.selectedBrowser, a);
+    return this.tabbrowser.selectedBrowser.popupNotifications = a;
   },
 
   _remove: function PopupNotifications_removeHelper(notification) {
@@ -433,7 +431,7 @@ PopupNotifications.prototype = {
 
           popupnotification.appendChild(item);
         }, this);
-
+  
         if (n.secondaryActions.length) {
           let closeItemSeparator = doc.createElementNS(XUL_NS, "menuseparator");
           popupnotification.appendChild(closeItemSeparator);
@@ -541,21 +539,11 @@ PopupNotifications.prototype = {
     }
   },
 
-  /**
-   * Gets and sets notifications for the browser.
-   */
   _getNotificationsForBrowser: function PopupNotifications_getNotifications(browser) {
-    let notifications = popupNotificationsMap.get(browser);
-    if (!notifications) {
-      // Initialize the WeakMap for the browser so callers can reference/manipulate the array.
-      notifications = [];
-      popupNotificationsMap.set(browser, notifications);
-    }
-    return notifications;
-  },
-  _setNotificationsForBrowser: function PopupNotifications_setNotifications(browser, notifications) {
-    popupNotificationsMap.set(browser, notifications);
-    return notifications;
+    if (browser.popupNotifications)
+      return browser.popupNotifications;
+
+    return browser.popupNotifications = [];
   },
 
   _onIconBoxCommand: function PopupNotifications_onIconBoxCommand(event) {

@@ -8,8 +8,10 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.content.Context;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 import android.view.Gravity;
@@ -48,14 +50,14 @@ public class DoorHangerPopup extends PopupWindow
         mArrowWidth = aActivity.getResources().getDimensionPixelSize(R.dimen.doorhanger_arrow_width);
         mDoorHangers = new HashSet<DoorHanger>();
 
-        registerEventListener("Doorhanger:Add");
-        registerEventListener("Doorhanger:Remove");
+        GeckoAppShell.registerGeckoEventListener("Doorhanger:Add", this);
+        GeckoAppShell.registerGeckoEventListener("Doorhanger:Remove", this);
         Tabs.registerOnTabsChangedListener(this);
     }
 
     void destroy() {
-        unregisterEventListener("Doorhanger:Add");
-        unregisterEventListener("Doorhanger:Remove");
+        GeckoAppShell.unregisterGeckoEventListener("Doorhanger:Add", this);
+        GeckoAppShell.unregisterGeckoEventListener("Doorhanger:Remove", this);
         Tabs.unregisterOnTabsChangedListener(this);
     }
 
@@ -257,13 +259,5 @@ public class DoorHangerPopup extends PopupWindow
                 break;
             }
         }
-    }
-
-    private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 }

@@ -1160,7 +1160,6 @@ struct TypeCompartment
     void markSetsUnknown(JSContext *cx, TypeObject *obj);
 
     void sweep(FreeOp *fop);
-    void sweepCompilerOutputs(FreeOp *fop);
     void finalizeObjects();
 };
 

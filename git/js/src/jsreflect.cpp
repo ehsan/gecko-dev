@@ -172,7 +172,7 @@ class NodeBuilder
         RootedValue funv(cx);
         for (unsigned i = 0; i < AST_LIMIT; i++) {
             const char *name = callbackNames[i];
-            JSAtom *atom = Atomize(cx, name, strlen(name));
+            JSAtom *atom = js_Atomize(cx, name, strlen(name));
             if (!atom)
                 return false;
             RootedId id(cx, AtomToId(atom));
@@ -186,7 +186,7 @@ class NodeBuilder
 
             if (!funv.isObject() || !funv.toObject().isFunction()) {
                 js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_NOT_FUNCTION,
-                                         JSDVG_SEARCH_STACK, funv, NullPtr(), NULL, NULL);
+                                         JSDVG_SEARCH_STACK, funv, NULL, NULL, NULL);
                 return false;
             }
 
@@ -283,9 +283,9 @@ class NodeBuilder
 
     bool atomValue(const char *s, Value *dst) {
         /*
-         * Bug 575416: instead of Atomize, lookup constant atoms in tbl file
+         * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = Atomize(cx, s, strlen(s));
+        JSAtom *atom = js_Atomize(cx, s, strlen(s));
         if (!atom)
             return false;
 
@@ -417,9 +417,9 @@ class NodeBuilder
             val.setNull();
 
         /*
-         * Bug 575416: instead of Atomize, lookup constant atoms in tbl file
+         * Bug 575416: instead of js_Atomize, lookup constant atoms in tbl file
          */
-        JSAtom *atom = Atomize(cx, name, strlen(name));
+        JSAtom *atom = js_Atomize(cx, name, strlen(name));
         if (!atom)
             return false;
 
@@ -3183,12 +3183,12 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
     JSObject *builder = NULL;
 
-    RootedValue arg(cx, argc > 1 ? JS_ARGV(cx, vp)[1] : UndefinedValue());
+    Value arg = argc > 1 ? JS_ARGV(cx, vp)[1] : UndefinedValue();
 
     if (!arg.isNullOrUndefined()) {
         if (!arg.isObject()) {
             js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                     JSDVG_SEARCH_STACK, arg, NullPtr(), "not an object", NULL);
+                                     JSDVG_SEARCH_STACK, arg, NULL, "not an object", NULL);
             return JS_FALSE;
         }
 
@@ -3245,7 +3245,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
         if (!prop.isNullOrUndefined()) {
             if (!prop.isObject()) {
                 js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                         JSDVG_SEARCH_STACK, prop, NullPtr(), "not an object", NULL);
+                                         JSDVG_SEARCH_STACK, prop, NULL, "not an object", NULL);
                 return JS_FALSE;
             }
             builder = &prop.toObject();

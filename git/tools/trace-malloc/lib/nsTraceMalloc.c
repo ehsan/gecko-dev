@@ -1777,8 +1777,9 @@ NS_TraceMallocDumpAllocations(const char *pathname)
                                          ofp);
         }
         rv = ferror(ofp) ? -1 : 0;
-        MozillaUnRegisterDebugFILE(ofp);
-        fclose(ofp);
+        fd = fileno(ofp);
+        fclose(ofp); /* May call write. */
+        MozillaUnRegisterDebugFD(fd);
     } else {
         rv = -1;
     }
