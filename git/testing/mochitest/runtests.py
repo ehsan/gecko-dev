@@ -669,9 +669,6 @@ class Mochitest(MochitestUtilsMixin):
       browserEnv["NSPR_LOG_FILE"] = "%s/nspr.log" % tempfile.gettempdir()
       browserEnv["GECKO_SEPARATE_NSPR_LOGS"] = "1"
 
-    if debugger and not options.slowscript:
-      browserEnv["JS_DISABLE_SLOW_SCRIPT_SIGNALS"] = "1"
-
     return browserEnv
 
   def cleanup(self, manifest, options):

@@ -8,8 +8,7 @@ DIRS += [
     'modules',
 ]
 
-MOCHITEST_CHROME_MANIFESTS += ['tests/mochi/chrome.ini']
-XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell/xpcshell.ini']
+TEST_DIRS += ['tests']
 
 EXTRA_PP_JS_MODULES += [
     'osfile.jsm',

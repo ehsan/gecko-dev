@@ -1477,7 +1477,7 @@ class PropertyDefiner:
                    ',\n'.join(prefableSpecs) + "\n" +
                    "};\n\n") % (specType, name, specType, name))
         if doIdArrays:
-            arrays += ("static jsid %s_ids[%i];\n\n" %
+            arrays += ("static jsid %s_ids[%i] = { JSID_VOID };\n\n" %
                        (name, len(specs)))
         return arrays
 
@@ -1633,10 +1633,8 @@ class MethodDefiner(PropertyDefiner):
                     jitinfo = ("reinterpret_cast<const JSJitInfo*>(&%s_methodinfo)" % accessor)
                     if m.get("allowCrossOriginThis", False):
                         accessor = "genericCrossOriginMethod"
-                    elif self.descriptor.needsSpecialGenericOps():
-                        accessor = "genericMethod"
                     else:
-                        accessor = "GenericBindingMethod"
+                        accessor = "genericMethod"
                 else:
                     jitinfo = "nullptr"
 
@@ -1693,10 +1691,8 @@ class AttrDefiner(PropertyDefiner):
                     accessor = "genericLenientGetter"
                 elif attr.getExtendedAttribute("CrossOriginReadable"):
                     accessor = "genericCrossOriginGetter"
-                elif self.descriptor.needsSpecialGenericOps():
-                    accessor = "genericGetter"
                 else:
-                    accessor = "GenericBindingGetter"
+                    accessor = "genericGetter"
                 jitinfo = "&%s_getterinfo" % attr.identifier.name
             return "{ { JS_CAST_NATIVE_TO(%s, JSPropertyOp), %s } }" % \
                    (accessor, jitinfo)
@@ -1714,10 +1710,8 @@ class AttrDefiner(PropertyDefiner):
                     accessor = "genericLenientSetter"
                 elif attr.getExtendedAttribute("CrossOriginWritable"):
                     accessor = "genericCrossOriginSetter"
-                elif self.descriptor.needsSpecialGenericOps():
-                    accessor = "genericSetter"
                 else:
-                    accessor = "GenericBindingSetter"
+                    accessor = "genericSetter"
                 jitinfo = "&%s_setterinfo" % attr.identifier.name
             return "{ { JS_CAST_NATIVE_TO(%s, JSStrictPropertyOp), %s } }" % \
                    (accessor, jitinfo)
@@ -1885,17 +1879,23 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                 if props.hasNonChromeOnly():
                     idsToInit.append(props.variableName(False))
         if len(idsToInit) > 0:
-            initIdCalls = ["!InitIds(aCx, %s, %s_ids)" % (varname, varname)
-                           for varname in idsToInit]
-            idsInitedFlag = CGGeneric("static bool sIdsInited = false;")
-            setFlag = CGGeneric("sIdsInited = true;")
-            initIdConditionals = [CGIfWrapper(CGGeneric("return;"), call)
-                                  for call in initIdCalls]
-            initIds = CGList([idsInitedFlag,
-                              CGIfWrapper(CGList(initIdConditionals + [setFlag],
-                                                 "\n"),
-                                          "!sIdsInited && NS_IsMainThread()")],
-                             "\n")
+            initIds = CGList(
+                [CGGeneric("!InitIds(aCx, %s, %s_ids)" % (varname, varname)) for
+                 varname in idsToInit], ' ||\n')
+            if len(idsToInit) > 1:
+                initIds = CGWrapper(initIds, pre="(", post=")", reindent=True)
+            initIds = CGList(
+                [CGGeneric("%s_ids[0] == JSID_VOID &&" % idsToInit[0]),
+                 CGGeneric("NS_IsMainThread() &&"),
+                 initIds],
+                "\n")
+            initIds = CGWrapper(initIds, pre="if (", post=") {", reindent=True)
+            initIds = CGList(
+                [initIds,
+                 CGGeneric(("  %s_ids[0] = JSID_VOID;\n"
+                            "  return;") % idsToInit[0]),
+                 CGGeneric("}")],
+                "\n")
         else:
             initIds = None
 
@@ -8739,7 +8739,7 @@ class CGDescriptor(CGThing):
                 continue
             if (m.isMethod() and m == descriptor.operations['Jsonifier']):
                 hasJsonifier = True
-                hasMethod = descriptor.needsSpecialGenericOps()
+                hasMethod = True
                 jsonifierMethod = m
             elif (m.isMethod() and
                   (not m.isIdentifierLess() or m == descriptor.operations['Stringifier'])):
@@ -8751,7 +8751,7 @@ class CGDescriptor(CGThing):
                     cgThings.append(CGMemberJITInfo(descriptor, m))
                     if m.getExtendedAttribute("CrossOriginCallable"):
                         crossOriginMethods.add(m.identifier.name)
-                    elif descriptor.needsSpecialGenericOps():
+                    else:
                         hasMethod = True
             elif m.isAttr():
                 if m.stringifier:
@@ -8767,7 +8767,7 @@ class CGDescriptor(CGThing):
                         hasLenientGetter = True
                     elif m.getExtendedAttribute("CrossOriginReadable"):
                         crossOriginGetters.add(m.identifier.name)
-                    elif descriptor.needsSpecialGenericOps():
+                    else:
                         hasGetter = True
                 if not m.readonly:
                     for extAttr in ["PutForwards", "Replaceable"]:
@@ -8785,18 +8785,17 @@ class CGDescriptor(CGThing):
                             hasLenientSetter = True
                         elif m.getExtendedAttribute("CrossOriginWritable"):
                             crossOriginSetters.add(m.identifier.name)
-                        elif descriptor.needsSpecialGenericOps():
+                        else:
                             hasSetter = True
                 elif m.getExtendedAttribute("PutForwards"):
                     cgThings.append(CGSpecializedForwardingSetter(descriptor, m))
                     if m.getExtendedAttribute("CrossOriginWritable"):
                         crossOriginSetters.add(m.identifier.name)
-                    elif descriptor.needsSpecialGenericOps():
+                    else:
                         hasSetter = True
                 elif m.getExtendedAttribute("Replaceable"):
                     cgThings.append(CGSpecializedReplaceableSetter(descriptor, m))
-                    if descriptor.needsSpecialGenericOps():
-                        hasSetter = True
+                    hasSetter = True
                 if (not m.isStatic() and
                     descriptor.interface.hasInterfacePrototypeObject()):
                     cgThings.append(CGMemberJITInfo(descriptor, m))
@@ -9000,7 +8999,7 @@ class CGNamespacedEnum(CGThing):
     def declare(self):
         return self.node.declare()
     def define(self):
-        return ""
+        assert False # Only for headers.
 
 class CGDictionary(CGThing):
     def __init__(self, dictionary, descriptorProvider):
@@ -11541,14 +11540,11 @@ class GlobalGenRoots():
             remaining = [CGGeneric(declare="prototypes::id::_ID_Count")] * (config.maxProtoChainLength - ifaceCount)
             macro = CGWrapper(CGList(supplied, ", "),
                               pre="#define INTERFACE_CHAIN_" + str(ifaceCount) + "(",
-                              post=") \\\n",
-                              declareOnly=True)
+                              post=") \\\n")
             macroContent = CGIndenter(CGList(supplied + remaining, ", \\\n"))
             macroContent = CGIndenter(CGWrapper(macroContent, pre="{ \\\n",
-                                                post=" \\\n}",
-                                                declareOnly=True))
-            return CGWrapper(CGList([macro, macroContent]), post="\n\n",
-                             declareOnly=True)
+                                                post=" \\\n}"))
+            return CGWrapper(CGList([macro, macroContent]), post="\n\n")
 
         idEnum.append(ifaceChainMacro(1))
 
@@ -11591,18 +11587,6 @@ template <prototypes::ID PrototypeID>
 struct PrototypeTraits;
 """)]
         traitsDecls.extend(CGPrototypeTraitsClass(d) for d in descriptorsWithPrototype)
-
-        ifaceNamesWithProto = ['  "%s"' % d.interface.identifier.name
-                               for d in descriptorsWithPrototype]
-        traitsDecls.append(CGGeneric(
-                declare=("extern const char* NamesOfInterfacesWithProtos[%d];\n\n" %
-                         len(ifaceNamesWithProto)),
-                define=("\n"
-                        "const char* NamesOfInterfacesWithProtos[%d] = {\n"
-                        "%s"
-                        "\n};\n\n" %
-                        (len(ifaceNamesWithProto),
-                         ",\n".join(ifaceNamesWithProto)))))
 
         traitsDecl = CGNamespace.build(['mozilla', 'dom'],
                                         CGList(traitsDecls, "\n"))

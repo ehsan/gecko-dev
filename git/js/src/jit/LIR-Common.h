@@ -737,12 +737,12 @@ class LInterruptCheckImplicit : public LInstructionHelper<0, 0, 0>
     }
 };
 
-class LInterruptCheckPar : public LInstructionHelper<0, 1, 1>
+class LCheckInterruptPar : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(InterruptCheckPar);
+    LIR_HEADER(CheckInterruptPar);
 
-    LInterruptCheckPar(const LAllocation &cx, const LDefinition &tempReg) {
+    LCheckInterruptPar(const LAllocation &cx, const LDefinition &tempReg) {
         setOperand(0, cx);
         setTemp(0, tempReg);
     }

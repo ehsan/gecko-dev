@@ -149,7 +149,7 @@ JSScript::principals()
 }
 
 inline JSFunction *
-JSScript::donorFunction() const {
+JSScript::originalFunction() const {
     if (!isCallsiteClone())
         return nullptr;
     return &enclosingScopeOrOriginalFunction_->as<JSFunction>();

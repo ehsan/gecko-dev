@@ -162,11 +162,6 @@ struct SurfaceCache
    */
   static void Discard(const ImageKey aImageKey);
 
-  /*
-   * Evicts all caches surfaces from ths cache.
-   */
-  static void DiscardAll();
-
 private:
   virtual ~SurfaceCache() = 0;  // Forbid instantiation.
 };

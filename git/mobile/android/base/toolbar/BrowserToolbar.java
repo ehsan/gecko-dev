@@ -24,7 +24,6 @@ import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.OnTitleChangeListener;
 import org.mozilla.gecko.toolbar.ToolbarDisplayLayout.UpdateFlags;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.MenuUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.widget.GeckoImageButton;
@@ -250,9 +249,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     return;
                 }
 
-                // NOTE: Use MenuUtils.safeSetVisible because some actions might
-                // be on the Page menu
-
                 MenuInflater inflater = mActivity.getMenuInflater();
                 inflater.inflate(R.menu.titlebar_contextmenu, menu);
 
@@ -267,22 +263,22 @@ public class BrowserToolbar extends GeckoRelativeLayout
                     String url = tab.getURL();
                     if (url == null) {
                         menu.findItem(R.id.copyurl).setVisible(false);
+                        menu.findItem(R.id.share).setVisible(false);
                         menu.findItem(R.id.add_to_launcher).setVisible(false);
-                        MenuUtils.safeSetVisible(menu, R.id.share, false);
                     }
 
-                    MenuUtils.safeSetVisible(menu, R.id.subscribe, tab.hasFeeds());
-                    MenuUtils.safeSetVisible(menu, R.id.add_search_engine, tab.hasOpenSearch());
+                    menu.findItem(R.id.subscribe).setVisible(tab.hasFeeds());
+                    menu.findItem(R.id.add_search_engine).setVisible(tab.hasOpenSearch());
                 } else {
                     // if there is no tab, remove anything tab dependent
                     menu.findItem(R.id.copyurl).setVisible(false);
+                    menu.findItem(R.id.share).setVisible(false);
                     menu.findItem(R.id.add_to_launcher).setVisible(false);
-                    MenuUtils.safeSetVisible(menu, R.id.share, false);
-                    MenuUtils.safeSetVisible(menu, R.id.subscribe, false);
-                    MenuUtils.safeSetVisible(menu, R.id.add_search_engine, false);
+                    menu.findItem(R.id.subscribe).setVisible(false);
+                    menu.findItem(R.id.add_search_engine).setVisible(false);
                 }
 
-                MenuUtils.safeSetVisible(menu, R.id.share, !GeckoProfile.get(getContext()).inGuestMode());
+                menu.findItem(R.id.share).setVisible(!GeckoProfile.get(getContext()).inGuestMode());
             }
         });
 

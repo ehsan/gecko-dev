@@ -285,7 +285,7 @@
     _(AsmJSPassStackArg)            \
     _(AsmJSCall)                    \
     _(AsmJSCheckOverRecursed)       \
-    _(InterruptCheckPar)            \
+    _(CheckInterruptPar)            \
     _(RecompileCheck)               \
     _(AssertRangeI)                 \
     _(AssertRangeD)                 \

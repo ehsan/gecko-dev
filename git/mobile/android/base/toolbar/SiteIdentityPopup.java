@@ -79,8 +79,7 @@ public class SiteIdentityPopup extends ArrowPopup {
             init();
         }
 
-        if (mSiteIdentity.getSecurityMode() == SecurityMode.MIXED_CONTENT_LOADED ||
-            mSiteIdentity.getSecurityMode() == SecurityMode.MIXED_CONTENT_BLOCKED) {
+        if (mSiteIdentity.getSecurityMode() == SecurityMode.MIXED_CONTENT_LOADED) {
             // Hide the identity data if there isn't valid site identity data.
             // Set some top padding on the popup content to create a of light blue
             // between the popup arrow and the mixed content notification.

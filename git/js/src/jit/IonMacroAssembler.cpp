@@ -875,14 +875,11 @@ MacroAssembler::compareStrings(JSOp op, Register left, Register right, Register 
 }
 
 void
-MacroAssembler::checkInterruptFlagPar(const Register &tempReg, Label *fail)
+MacroAssembler::checkInterruptFlagsPar(const Register &tempReg,
+                                            Label *fail)
 {
-#ifdef JS_THREADSAFE
-    movePtr(ImmPtr(GetIonContext()->runtime->addressOfInterruptPar()), tempReg);
+    movePtr(ImmPtr(GetIonContext()->runtime->addressOfInterrupt()), tempReg);
     branch32(Assembler::NonZero, Address(tempReg, 0), Imm32(0), fail);
-#else
-    MOZ_ASSUME_UNREACHABLE("JSRuntime::interruptPar doesn't exist on non-threadsafe builds.");
-#endif
 }
 
 static void

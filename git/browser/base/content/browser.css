@@ -249,11 +249,6 @@ toolbarpaletteitem > toolbaritem[sdkstylewidget="true"] > iframe {
   display: none;
 }
 
-toolbarpaletteitem[removable="false"] {
-  opacity: 0.5;
-  cursor: default;
-}
-
 #bookmarks-toolbar-placeholder,
 toolbarpaletteitem > #personal-bookmarks > #PlacesToolbar,
 #personal-bookmarks[cui-areatype="menu-panel"] > #PlacesToolbar,
@@ -758,6 +753,14 @@ toolbarbutton[type="socialmark"] > .toolbarbutton-icon {
 toolbarpaletteitem[place="palette"] > toolbarbutton[type="badged"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
   max-width: 32px;
   max-height: 32px;
+}
+
+toolbarbutton[sdk-button="true"] > .toolbarbutton-icon {
+  max-height: 32px;
+}
+
+toolbarbutton[sdk-button="true"][cui-areatype="toolbar"] > .toolbarbutton-icon {
+  max-height: 18px;
 }
 
 panelview > .social-panel-frame {
