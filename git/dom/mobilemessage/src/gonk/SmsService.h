@@ -28,7 +28,8 @@ public:
   SmsService();
 
 protected:
-  nsCOMPtr<nsIRadioInterfaceLayer> mRil;
+  // TODO: Bug 854326 - B2G Multi-SIM: support multiple SIM cards for SMS/MMS
+  nsCOMPtr<nsIRadioInterface> mRadioInterface;
   nsTArray<nsString> mSilentNumbers;
   uint32_t mDefaultServiceId;
 };

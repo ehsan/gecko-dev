@@ -23,7 +23,6 @@ BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSocket;
 class ObexHeaderSet;
-class SendFileBatch;
 
 class BluetoothOppManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
@@ -47,7 +46,7 @@ public:
 
   bool Listen();
 
-  bool SendFile(const nsAString& aDeviceAddress, BlobParent* aActor);
+  bool SendFile(const nsAString& aDeviceAddress, BlobParent* aBlob);
   bool StopSendingFile();
   bool ConfirmReceivingFile(bool aConfirm);
 
@@ -126,10 +125,6 @@ private:
   void NotifyAboutFileChange();
   bool AcquireSdcardMountLock();
   void SendObexData(uint8_t* aData, uint8_t aOpcode, int aSize);
-  void AppendBlobToSend(const nsAString& aDeviceAddress, BlobParent* aActor);
-  void DiscardBlobsToSend();
-  bool ProcessNextBatch();
-  void ConnectInternal(const nsAString& aDeviceAddress);
 
   /**
    * OBEX session status.
@@ -212,7 +207,7 @@ private:
 
   int mCurrentBlobIndex;
   nsCOMPtr<nsIDOMBlob> mBlob;
-  nsTArray<SendFileBatch> mBatches;
+  nsCOMArray<nsIDOMBlob> mBlobs;
 
   /**
    * A seperate member thread is required because our read calls can block

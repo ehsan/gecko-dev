@@ -397,8 +397,10 @@ TypeSet::addTypesToConstraint(JSContext *cx, TypeConstraint *constraint)
 }
 
 void
-ConstraintTypeSet::add(JSContext *cx, TypeConstraint *constraint, bool callExisting)
+TypeSet::add(JSContext *cx, TypeConstraint *constraint, bool callExisting)
 {
+    JS_ASSERT(isStackSet() || isHeapSet());
+
     if (!constraint) {
         /* OOM failure while constructing the constraint. */
         cx->compartment()->types.setPendingNukeTypes(cx);
@@ -483,7 +485,9 @@ TypeSet::clone(LifoAlloc *alloc, TemporaryTypeSet *result) const
         PodCopy(newSet, objectSet, capacity);
     }
 
-    new(result) TemporaryTypeSet(flags, capacity ? newSet : objectSet);
+    uint32_t newFlags = flags & ~(TYPE_FLAG_STACK_SET | TYPE_FLAG_HEAP_SET);
+
+    new(result) TemporaryTypeSet(newFlags, capacity ? newSet : objectSet);
     return true;
 }
 
@@ -1348,7 +1352,7 @@ ObjectStateChange(ExclusiveContext *cxArg, TypeObject *object, bool markingUnkno
         return;
 
     /* All constraints listening to state changes are on the empty id. */
-    HeapTypeSet *types = object->maybeGetProperty(JSID_EMPTY);
+    TypeSet *types = object->maybeGetProperty(JSID_EMPTY);
 
     /* Mark as unknown after getting the types, to avoid assertion. */
     if (markingUnknown)
@@ -2168,7 +2172,7 @@ TypeCompartment::markSetsUnknown(JSContext *cx, TypeObject *target)
      * types can't be done while iterating over cells as it can potentially make
      * new type objects as well or trigger GC.
      */
-    Vector<ConstraintTypeSet *> pending(cx);
+    Vector<TypeSet *> pending(cx);
     for (gc::CellIter i(cx->zone(), gc::FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
         TypeObject *object = i.get<TypeObject>();
         unsigned count = object->getPropertyCount();
@@ -2188,7 +2192,7 @@ TypeCompartment::markSetsUnknown(JSContext *cx, TypeObject *target)
         RootedScript script(cx, i.get<JSScript>());
         if (script->types) {
             unsigned count = TypeScript::NumTypeSets(script);
-            StackTypeSet *typeArray = script->types->typeArray();
+            TypeSet *typeArray = script->types->typeArray();
             for (unsigned i = 0; i < count; i++) {
                 if (typeArray[i].hasType(Type::ObjectType(target)))
                     typeArray[i].addType(cx, Type::AnyObjectType());
@@ -2757,7 +2761,7 @@ InlineAddTypeProperty(ExclusiveContext *cx, TypeObject *obj, jsid id, Type type)
 
     AutoEnterAnalysis enter(cx);
 
-    HeapTypeSet *types = obj->getProperty(cx, id);
+    TypeSet *types = obj->getProperty(cx, id);
     if (!types || types->hasType(type))
         return;
 
@@ -2807,7 +2811,7 @@ TypeObject::markPropertyConfigured(ExclusiveContext *cx, jsid id)
 
     id = IdToTypeId(id);
 
-    HeapTypeSet *types = getProperty(cx, id);
+    TypeSet *types = getProperty(cx, id);
     if (types)
         types->setConfiguredProperty(cx);
 }
@@ -2828,7 +2832,7 @@ TypeObject::markStateChange(ExclusiveContext *cxArg)
         return;
 
     AutoEnterAnalysis enter(cxArg);
-    HeapTypeSet *types = maybeGetProperty(JSID_EMPTY);
+    TypeSet *types = maybeGetProperty(JSID_EMPTY);
     if (types) {
         if (JSContext *cx = cxArg->maybeJSContext()) {
             TypeConstraint *constraint = types->constraintList;
@@ -3182,10 +3186,10 @@ types::AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
     TypeObjectKey *calleeKey = Type::ObjectType(calleeScript->function()).objectKey();
 
     unsigned count = TypeScript::NumTypeSets(script);
-    StackTypeSet *typeArray = script->types->typeArray();
+    TypeSet *typeArray = script->types->typeArray();
 
     for (unsigned i = 0; i < count; i++) {
-        StackTypeSet *types = &typeArray[i];
+        TypeSet *types = &typeArray[i];
         if (!types->unknownObject() && types->getObjectCount() == 1) {
             if (calleeKey != types->getObject(0)) {
                 // Also check if the object is the Function.call or
@@ -3361,7 +3365,7 @@ types::TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const 
     AutoEnterAnalysis enter(cx);
 
     Type type = GetValueType(rval);
-    StackTypeSet *types = TypeScript::BytecodeTypes(script, pc);
+    TypeSet *types = TypeScript::BytecodeTypes(script, pc);
     if (types->hasType(type))
         return;
 
@@ -3447,7 +3451,7 @@ JSScript::makeTypes(JSContext *cx)
 
     unsigned count = TypeScript::NumTypeSets(this);
 
-    types = (TypeScript *) cx->calloc_(sizeof(TypeScript) + (sizeof(StackTypeSet) * count));
+    types = (TypeScript *) cx->calloc_(sizeof(TypeScript) + (sizeof(TypeSet) * count));
     if (!types) {
         cx->compartment()->types.setPendingNukeTypes(cx);
         return false;
@@ -3882,7 +3886,7 @@ ExclusiveContext::getLazyType(const Class *clasp, TaggedProto proto)
 /////////////////////////////////////////////////////////////////////
 
 void
-ConstraintTypeSet::sweep(Zone *zone)
+TypeSet::sweep(Zone *zone)
 {
     /*
      * Purge references to type objects that are no longer live. Type sets hold
@@ -4178,7 +4182,7 @@ TypeScript::Sweep(FreeOp *fop, JSScript *script)
     JS_ASSERT(compartment->zone()->types.inferenceEnabled);
 
     unsigned num = NumTypeSets(script);
-    StackTypeSet *typeArray = script->types->typeArray();
+    TypeSet *typeArray = script->types->typeArray();
 
     /* Remove constraints and references to dead objects from the persistent type sets. */
     for (unsigned i = 0; i < num; i++)

@@ -668,9 +668,6 @@ AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
 extern bool
 AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
 
-extern void
-RemoveRoot(JSRuntime *rt, void *rp);
-
 } /* namespace js */
 
 extern bool

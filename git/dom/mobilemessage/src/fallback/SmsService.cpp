@@ -36,8 +36,7 @@ SmsService::GetSegmentInfoForText(const nsAString& aText,
 }
 
 NS_IMETHODIMP
-SmsService::Send(uint32_t         aServiceId,
-                 const nsAString& aNumber,
+SmsService::Send(const nsAString& aNumber,
                  const nsAString& aMessage,
                  const bool       aSilent,
                  nsIMobileMessageCallback* aRequest)

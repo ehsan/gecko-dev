@@ -35,10 +35,8 @@ private:
    * Internal Send() method used to send one message.
    */
   nsresult Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
-                uint32_t aServiceId,
                 JS::Handle<JSString*> aNumber,
-                const nsAString& aMessage,
-                JS::Value* aRequest);
+                const nsAString& aMessage, JS::Value* aRequest);
 
   nsresult DispatchTrustedSmsEventToSelf(const char* aTopic,
                                          const nsAString& aEventName,

@@ -75,7 +75,6 @@
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
-#include "mozilla/gfx/DataSurfaceHelpers.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/ipc/PDocumentRendererParent.h"
 #include "mozilla/MathAlgorithms.h"
@@ -1061,20 +1060,40 @@ CanvasRenderingContext2D::GetImageBuffer(uint8_t** aImageBuffer,
   *aImageBuffer = nullptr;
   *aFormat = 0;
 
-  EnsureTarget();
-  RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
-  if (!snapshot) {
+  nsRefPtr<gfxASurface> surface;
+  nsresult rv = GetThebesSurface(getter_AddRefs(surface));
+  if (NS_FAILED(rv)) {
     return;
   }
 
-  RefPtr<DataSourceSurface> data = snapshot->GetDataSurface();
-  if (!data) {
+  static const fallible_t fallible = fallible_t();
+  uint8_t* imageBuffer = new (fallible) uint8_t[mWidth * mHeight * 4];
+  if (!imageBuffer) {
     return;
   }
 
-  MOZ_ASSERT(data->GetSize() == IntSize(mWidth, mHeight));
+  nsRefPtr<gfxImageSurface> imgsurf =
+    new gfxImageSurface(imageBuffer,
+                        gfxIntSize(mWidth, mHeight),
+                        mWidth * 4,
+                        gfxImageFormatARGB32);
 
-  *aImageBuffer = SurfaceToPackedBGRA(data);
+  if (!imgsurf || imgsurf->CairoStatus()) {
+    delete[] imageBuffer;
+    return;
+  }
+
+  nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
+  if (!ctx || ctx->HasError()) {
+    delete[] imageBuffer;
+    return;
+  }
+
+  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+  ctx->SetSource(surface, gfxPoint(0, 0));
+  ctx->Paint();
+
+  *aImageBuffer = imageBuffer;
   *aFormat = imgIEncoder::INPUT_FORMAT_HOSTARGB;
 }
 
@@ -2559,7 +2578,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   GetAppUnitsValues(&processor.mAppUnitsPerDevPixel, nullptr);
   processor.mPt = gfxPoint(aX, aY);
   processor.mThebes =
-    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
   // If we don't have a target then we don't have a transform. A target won't
   // be needed in the case where we're measuring the text size. This allows
@@ -3282,9 +3301,6 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
   Matrix matrix = mTarget->GetTransform();
   double sw = matrix._11 * w;
   double sh = matrix._22 * h;
-  if (!sw || !sh) {
-    return;
-  }
   nsRefPtr<gfxContext> thebes;
   nsRefPtr<gfxASurface> drawSurf;
   RefPtr<DrawTarget> drawDT;
@@ -3345,11 +3361,6 @@ CanvasRenderingContext2D::DrawWindow(nsGlobalWindow& window, double x,
                                              data->GetSize(),
                                              data->Stride(),
                                              data->GetFormat());
-    }
-
-    if (!source) {
-      error.Throw(NS_ERROR_FAILURE);
-      return;
     }
 
     mgfx::Rect destRect(0, 0, w, h);

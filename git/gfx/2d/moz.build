@@ -20,7 +20,6 @@ EXPORTS.mozilla.gfx += [
     'BaseSize.h',
     'Blur.h',
     'BorrowedContext.h',
-    'DataSurfaceHelpers.h',
     'Matrix.h',
     'PathHelpers.h',
     'Point.h',
