@@ -8,23 +8,23 @@
 #define _VARIABLEPACKER_INCLUDED_
 
 #include <vector>
-#include "compiler/translator/VariableInfo.h"
+#include "compiler/translator/ShHandle.h"
 
 class VariablePacker {
  public:
     // Returns true if the passed in variables pack in maxVectors following
     // the packing rules from the GLSL 1.017 spec, Appendix A, section 7.
-    template <typename VarT>
-    bool CheckVariablesWithinPackingLimits(unsigned int maxVectors,
-                                           const std::vector<VarT> &in_variables);
+    bool CheckVariablesWithinPackingLimits(
+        int maxVectors,
+        const TVariableInfoList& in_variables);
 
     // Gets how many components in a row a data type takes.
-    static int GetNumComponentsPerRow(sh::GLenum type);
+    static int GetNumComponentsPerRow(ShDataType type);
 
     // Gets how many rows a data type takes.
-    static int GetNumRows(sh::GLenum type);
+    static int GetNumRows(ShDataType type);
 
-  private:
+ private:
     static const int kNumColumns = 4;
     static const unsigned kColumnMask = (1 << kNumColumns) - 1;
 

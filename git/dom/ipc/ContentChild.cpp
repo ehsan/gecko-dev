@@ -199,7 +199,7 @@ public:
     NS_DECL_ISUPPORTS
 
     MemoryReportRequestChild(uint32_t aGeneration, bool aAnonymize,
-                             const MaybeFileDesc& aDMDFile);
+                             const FileDescriptor& aDMDFile);
     NS_IMETHOD Run();
 private:
     virtual ~MemoryReportRequestChild();
@@ -212,13 +212,11 @@ private:
 NS_IMPL_ISUPPORTS(MemoryReportRequestChild, nsIRunnable)
 
 MemoryReportRequestChild::MemoryReportRequestChild(
-    uint32_t aGeneration, bool aAnonymize, const MaybeFileDesc& aDMDFile)
-  : mGeneration(aGeneration), mAnonymize(aAnonymize)
+    uint32_t aGeneration, bool aAnonymize, const FileDescriptor& aDMDFile)
+  : mGeneration(aGeneration), mAnonymize(aAnonymize),
+    mDMDFile(aDMDFile)
 {
     MOZ_COUNT_CTOR(MemoryReportRequestChild);
-    if (aDMDFile.type() == MaybeFileDesc::TFileDescriptor) {
-        mDMDFile = aDMDFile.get_FileDescriptor();
-    }
 }
 
 MemoryReportRequestChild::~MemoryReportRequestChild()
@@ -706,7 +704,7 @@ PMemoryReportRequestChild*
 ContentChild::AllocPMemoryReportRequestChild(const uint32_t& aGeneration,
                                              const bool &aAnonymize,
                                              const bool &aMinimizeMemoryUsage,
-                                             const MaybeFileDesc& aDMDFile)
+                                             const FileDescriptor& aDMDFile)
 {
     MemoryReportRequestChild *actor =
         new MemoryReportRequestChild(aGeneration, aAnonymize, aDMDFile);
@@ -764,7 +762,7 @@ ContentChild::RecvPMemoryReportRequestConstructor(
     const uint32_t& aGeneration,
     const bool& aAnonymize,
     const bool& aMinimizeMemoryUsage,
-    const MaybeFileDesc& aDMDFile)
+    const FileDescriptor& aDMDFile)
 {
     MemoryReportRequestChild *actor =
         static_cast<MemoryReportRequestChild*>(aChild);

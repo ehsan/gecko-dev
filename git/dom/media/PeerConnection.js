@@ -557,10 +557,9 @@ RTCPeerConnection.prototype = {
   createOffer: function(onSuccess, onError, options) {
 
     // TODO: Remove old constraint-like RTCOptions support soon (Bug 1064223).
-    // Note that webidl bindings make o.mandatory implicit but not o.optional.
     function convertLegacyOptions(o) {
-      if (!(Object.keys(o.mandatory).length || o.optional) ||
-          Object.keys(o).length != (o.optional? 2 : 1)) {
+      if (!(o.mandatory || o.optional) ||
+          Object.keys(o).length != ((o.mandatory && o.optional)? 2 : 1)) {
         return false;
       }
       let old = o.mandatory || {};

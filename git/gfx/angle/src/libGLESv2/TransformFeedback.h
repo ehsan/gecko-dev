@@ -10,12 +10,8 @@
 #include "common/angleutils.h"
 #include "common/RefCountObject.h"
 
-#include "angle_gl.h"
-
-namespace rx
-{
-class TransformFeedbackImpl;
-}
+#include <GLES3/gl3.h>
+#include <GLES2/gl2.h>
 
 namespace gl
 {
@@ -23,7 +19,7 @@ namespace gl
 class TransformFeedback : public RefCountObject
 {
   public:
-    TransformFeedback(rx::TransformFeedbackImpl* impl, GLuint id);
+    explicit TransformFeedback(GLuint id);
     virtual ~TransformFeedback();
 
     void start(GLenum primitiveMode);
@@ -38,8 +34,6 @@ class TransformFeedback : public RefCountObject
 
   private:
     DISALLOW_COPY_AND_ASSIGN(TransformFeedback);
-
-    rx::TransformFeedbackImpl* mTransformFeedback;
 
     GLboolean mStarted;
     GLenum mPrimitiveMode;

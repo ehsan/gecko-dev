@@ -183,21 +183,6 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
-     * Releases the callData for a specific loopCallId
-     *
-     * The result of this call will be a free call session slot.
-     *
-     * @param {int} loopCallId
-     */
-    releaseCallData: {
-      enumerable: true,
-      writable: true,
-      value: function(loopCallId) {
-        MozLoopService.releaseCallData(loopCallId);
-      }
-    },
-
-    /**
      * Returns the contacts API.
      *
      * @returns {Object} The contacts API object

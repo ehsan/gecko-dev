@@ -34,7 +34,7 @@
 
 #include "common/angleutils.h"
 #include "compiler/translator/InfoSink.h"
-#include "compiler/translator/IntermNode.h"
+#include "compiler/translator/intermediate.h"
 
 // Symbol base class. (Can build functions or variables out of these...)
 class TSymbol
@@ -185,7 +185,7 @@ class TFunction : public TSymbol
           defined(false)
     {
     }
-    TFunction(const TString *name, const TType &retType, TOperator tOp = EOpNull)
+    TFunction(const TString *name, TType &retType, TOperator tOp = EOpNull)
         : TSymbol(name),
           returnType(retType),
           mangledName(TFunction::mangleName(*name)),
@@ -288,15 +288,36 @@ class TSymbolTableLevel
     }
     ~TSymbolTableLevel();
 
-    bool insert(TSymbol *symbol);
+    bool insert(const TString &name, TSymbol &symbol)
+    {
+        symbol.setUniqueId(++uniqueId);
 
-    TSymbol *find(const TString &name) const;
+        // returning true means symbol was added to the table
+        tInsertResult result = level.insert(tLevelPair(name, &symbol));
+
+        return result.second;
+    }
+
+    bool insert(TSymbol &symbol)
+    {
+        return insert(symbol.getMangledName(), symbol);
+    }
+
+    TSymbol *find(const TString &name) const
+    {
+        tLevel::const_iterator it = level.find(name);
+        if (it == level.end())
+            return 0;
+        else
+            return (*it).second;
+    }
 
     void relateToOperator(const char *name, TOperator op);
     void relateToExtension(const char *name, const TString &ext);
 
   protected:
     tLevel level;
+    static int uniqueId; // for unique identification in code generation
 };
 
 enum ESymbolLevel
@@ -323,15 +344,15 @@ class TSymbolTable
     // When the symbol table is initialized with the built-ins, there should
     // 'push' calls, so that built-ins are at level 0 and the shader
     // globals are at level 1.
-    bool isEmpty() const
+    bool isEmpty()
     {
         return table.empty();
     }
-    bool atBuiltInLevel() const
+    bool atBuiltInLevel()
     {
         return currentLevel() <= LAST_BUILTIN_LEVEL;
     }
-    bool atGlobalLevel() const
+    bool atGlobalLevel()
     {
         return currentLevel() <= GLOBAL_LEVEL;
     }
@@ -350,12 +371,12 @@ class TSymbolTable
         precisionStack.pop_back();
     }
 
-    bool declare(TSymbol *symbol)
+    bool declare(TSymbol &symbol)
     {
         return insert(currentLevel(), symbol);
     }
 
-    bool insert(ESymbolLevel level, TSymbol *symbol)
+    bool insert(ESymbolLevel level, TSymbol &symbol)
     {
         return table[level]->insert(symbol);
     }
@@ -365,7 +386,7 @@ class TSymbolTable
         TVariable *constant = new TVariable(
             NewPoolTString(name), TType(EbtInt, EbpUndefined, EvqConst, 1));
         constant->getConstPointer()->setIConst(value);
-        return insert(level, constant);
+        return insert(level, *constant);
     }
 
     void insertBuiltIn(ESymbolLevel level, TType *rvalue, const char *name,
@@ -373,8 +394,8 @@ class TSymbolTable
                        TType *ptype4 = 0, TType *ptype5 = 0);
 
     TSymbol *find(const TString &name, int shaderVersion,
-                  bool *builtIn = NULL, bool *sameScope = NULL) const;
-    TSymbol *findBuiltIn(const TString &name, int shaderVersion) const;
+                  bool *builtIn = NULL, bool *sameScope = NULL);
+    TSymbol *findBuiltIn(const TString &name, int shaderVersion);
     
     TSymbolTableLevel *getOuterLevel()
     {
@@ -406,12 +427,7 @@ class TSymbolTable
 
     // Searches down the precisionStack for a precision qualifier
     // for the specified TBasicType
-    TPrecision getDefaultPrecision(TBasicType type) const;
-
-    static int nextUniqueId()
-    {
-        return ++uniqueIdCounter;
-    }
+    TPrecision getDefaultPrecision(TBasicType type);
 
   private:
     ESymbolLevel currentLevel() const
@@ -422,8 +438,6 @@ class TSymbolTable
     std::vector<TSymbolTableLevel *> table;
     typedef TMap<TBasicType, TPrecision> PrecisionStackLevel;
     std::vector< PrecisionStackLevel *> precisionStack;
-
-    static int uniqueIdCounter;
 };
 
 #endif // _SYMBOL_TABLE_INCLUDED_

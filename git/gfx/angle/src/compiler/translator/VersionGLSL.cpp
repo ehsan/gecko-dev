@@ -35,82 +35,102 @@ static const int GLSL_VERSION_120 = 120;
 //    - invariant gl_Position;
 //    - varying vec3 color; invariant color;
 //
-TVersionGLSL::TVersionGLSL(sh::GLenum type)
-    : mVersion(GLSL_VERSION_110)
+TVersionGLSL::TVersionGLSL(ShShaderType type)
+    : mShaderType(type),
+      mVersion(GLSL_VERSION_110)
 {
 }
 
-void TVersionGLSL::visitSymbol(TIntermSymbol *node)
+void TVersionGLSL::visitSymbol(TIntermSymbol* node)
 {
     if (node->getSymbol() == "gl_PointCoord")
         updateVersion(GLSL_VERSION_120);
 }
 
-bool TVersionGLSL::visitAggregate(Visit, TIntermAggregate *node)
+void TVersionGLSL::visitConstantUnion(TIntermConstantUnion*)
+{
+}
+
+bool TVersionGLSL::visitBinary(Visit, TIntermBinary*)
+{
+    return true;
+}
+
+bool TVersionGLSL::visitUnary(Visit, TIntermUnary*)
+{
+    return true;
+}
+
+bool TVersionGLSL::visitSelection(Visit, TIntermSelection*)
+{
+    return true;
+}
+
+bool TVersionGLSL::visitAggregate(Visit, TIntermAggregate* node)
 {
     bool visitChildren = true;
 
-    switch (node->getOp())
-    {
+    switch (node->getOp()) {
       case EOpSequence:
         // We need to visit sequence children to get to global or inner scope.
         visitChildren = true;
         break;
-      case EOpDeclaration:
-        {
-            const TIntermSequence &sequence = *(node->getSequence());
-            TQualifier qualifier = sequence.front()->getAsTyped()->getQualifier();
-            if ((qualifier == EvqInvariantVaryingIn) ||
-                (qualifier == EvqInvariantVaryingOut))
-            {
-                updateVersion(GLSL_VERSION_120);
-            }
-            break;
+      case EOpDeclaration: {
+        const TIntermSequence& sequence = node->getSequence();
+        TQualifier qualifier = sequence.front()->getAsTyped()->getQualifier();
+        if ((qualifier == EvqInvariantVaryingIn) ||
+            (qualifier == EvqInvariantVaryingOut)) {
+            updateVersion(GLSL_VERSION_120);
         }
-      case EOpInvariantDeclaration:
-        updateVersion(GLSL_VERSION_120);
         break;
-      case EOpParameters:
+      }
+      case EOpParameters: {
+        const TIntermSequence& params = node->getSequence();
+        for (TIntermSequence::const_iterator iter = params.begin();
+             iter != params.end(); ++iter)
         {
-            const TIntermSequence &params = *(node->getSequence());
-            for (TIntermSequence::const_iterator iter = params.begin();
-                 iter != params.end(); ++iter)
+            const TIntermTyped* param = (*iter)->getAsTyped();
+            if (param->isArray())
             {
-                const TIntermTyped *param = (*iter)->getAsTyped();
-                if (param->isArray())
-                {
-                    TQualifier qualifier = param->getQualifier();
-                    if ((qualifier == EvqOut) || (qualifier ==  EvqInOut))
-                    {
-                        updateVersion(GLSL_VERSION_120);
-                        break;
-                    }
-                }
-            }
-            // Fully processed. No need to visit children.
-            visitChildren = false;
-            break;
-        }
-      case EOpConstructMat2:
-      case EOpConstructMat3:
-      case EOpConstructMat4:
-        {
-            const TIntermSequence &sequence = *(node->getSequence());
-            if (sequence.size() == 1)
-            {
-                TIntermTyped *typed = sequence.front()->getAsTyped();
-                if (typed && typed->isMatrix())
+                TQualifier qualifier = param->getQualifier();
+                if ((qualifier == EvqOut) || (qualifier ==  EvqInOut))
                 {
                     updateVersion(GLSL_VERSION_120);
+                    break;
                 }
             }
-            break;
         }
-      default:
+        // Fully processed. No need to visit children.
+        visitChildren = false;
         break;
+      }
+      case EOpConstructMat2:
+      case EOpConstructMat3:
+      case EOpConstructMat4: {
+        const TIntermSequence& sequence = node->getSequence();
+        if (sequence.size() == 1) {
+          TIntermTyped* typed = sequence.front()->getAsTyped();
+          if (typed && typed->isMatrix()) {
+            updateVersion(GLSL_VERSION_120);
+          }
+        }
+        break;
+      }
+
+      default: break;
     }
 
     return visitChildren;
+}
+
+bool TVersionGLSL::visitLoop(Visit, TIntermLoop*)
+{
+    return true;
+}
+
+bool TVersionGLSL::visitBranch(Visit, TIntermBranch*)
+{
+    return true;
 }
 
 void TVersionGLSL::updateVersion(int version)

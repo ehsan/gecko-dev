@@ -644,9 +644,9 @@ TransplantObject(JSContext *cx, JS::HandleObject origobj, JS::HandleObject targe
 }
 
 nsIGlobalObject *
-NativeGlobal(JSObject *obj)
+GetNativeForGlobal(JSObject *obj)
 {
-    obj = js::GetGlobalForObjectCrossCompartment(obj);
+    MOZ_ASSERT(JS_IsGlobalObject(obj));
 
     // Every global needs to hold a native as its private or be a
     // WebIDL object with an nsISupports DOM object.
