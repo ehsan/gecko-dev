@@ -58,7 +58,7 @@ setup(name='tps',
       keywords='',
       author='Jonathan Griffin',
       author_email='jgriffin@mozilla.com',
-      url='http://hg.mozilla.org/services/services-central',
+      url='http://hg.mozilla.org/services/tps',
       license='MPL',
       dependency_links = [
          "http://people.mozilla.org/~jgriffin/packages/"
@@ -72,7 +72,4 @@ setup(name='tps',
       [console_scripts]
       runtps = tps.cli:main
       """,
-      data_files=[
-        ('tps', ['config/config.json.in']),
-      ],
       )

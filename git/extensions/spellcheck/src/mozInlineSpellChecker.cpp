@@ -85,7 +85,7 @@
 #include "nsIPrefService.h"
 #include "nsIRunnable.h"
 #include "nsISelection.h"
-#include "nsISelectionPrivate.h"
+#include "nsISelection2.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsITextServicesFilter.h"
@@ -1281,7 +1281,8 @@ nsresult mozInlineSpellChecker::DoSpellCheck(mozInlineSpellWordUtil& aWordUtil,
   if (iscollapsed)
     return NS_OK;
 
-  nsCOMPtr<nsISelectionPrivate> privSel = do_QueryInterface(aSpellCheckSelection);
+  nsCOMPtr<nsISelection2> sel2 = do_QueryInterface(aSpellCheckSelection, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // see if the selection has any ranges, if not, then we can optimize checking
   // range inclusion later (we have no ranges when we are initially checking or
@@ -1346,9 +1347,9 @@ nsresult mozInlineSpellChecker::DoSpellCheck(mozInlineSpellWordUtil& aWordUtil,
         createdRange->IsPointInRange(beginNode, beginOffset, &inCreatedRange);
       if (! inCreatedRange) {
         nsCOMArray<nsIDOMRange> ranges;
-        rv = privSel->GetRangesForIntervalCOMArray(beginNode, beginOffset,
-                                                   endNode, endOffset,
-                                                   PR_TRUE, &ranges);
+        rv = sel2->GetRangesForIntervalCOMArray(beginNode, beginOffset,
+                                                endNode, endOffset,
+                                                PR_TRUE, &ranges);
         NS_ENSURE_SUCCESS(rv, rv);
         for (PRInt32 i = 0; i < ranges.Count(); i ++)
           RemoveRange(aSpellCheckSelection, ranges[i]);
@@ -1477,11 +1478,13 @@ mozInlineSpellChecker::IsPointInSelection(nsISelection *aSelection,
 {
   *aRange = nsnull;
 
-  nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(aSelection));
+  nsresult rv;
+  nsCOMPtr<nsISelection2> sel2 = do_QueryInterface(aSelection, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMArray<nsIDOMRange> ranges;
-  nsresult rv = privSel->GetRangesForIntervalCOMArray(aNode, aOffset, aNode, aOffset,
-                                                      PR_TRUE, &ranges);
+  rv = sel2->GetRangesForIntervalCOMArray(aNode, aOffset, aNode, aOffset,
+                                          PR_TRUE, &ranges);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (ranges.Count() == 0)

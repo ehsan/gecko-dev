@@ -56,7 +56,7 @@
 #include "nsPresContext.h"
 #include "nsIScrollableFrame.h"
 #include "nsEventStateManager.h"
-#include "nsISelectionPrivate.h"
+#include "nsISelection2.h"
 #include "nsISelectionController.h"
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
@@ -331,18 +331,20 @@ nsCoreUtils::ScrollSubstringTo(nsIFrame *aFrame,
   scrollToRange->SetStart(aStartNode, aStartIndex);
   scrollToRange->SetEnd(aEndNode, aEndIndex);
 
-  nsCOMPtr<nsISelection> selection;
+  nsCOMPtr<nsISelection> selection1;
   selCon->GetSelection(nsISelectionController::SELECTION_ACCESSIBILITY,
-                       getter_AddRefs(selection));
+                       getter_AddRefs(selection1));
 
-  nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(selection));
-  selection->RemoveAllRanges();
-  selection->AddRange(scrollToRange);
+  nsCOMPtr<nsISelection2> selection(do_QueryInterface(selection1));
+  if (selection) {
+    selection->RemoveAllRanges();
+    selection->AddRange(scrollToRange);
 
-  privSel->ScrollIntoView(nsISelectionController::SELECTION_ANCHOR_REGION,
-                          PR_TRUE, aVPercent, aHPercent);
+    selection->ScrollIntoView(nsISelectionController::SELECTION_ANCHOR_REGION,
+                              PR_TRUE, aVPercent, aHPercent);
 
-  selection->CollapseToStart();
+    selection->CollapseToStart();
+  }
 
   return NS_OK;
 }
