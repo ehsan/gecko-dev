@@ -31,16 +31,6 @@ public:
     mEndContainer(Move(aRange.mEndContainer)),
     mStartOffset(aRange.mStartOffset), mEndOffset(aRange.mEndOffset) {}
 
-  TextRange& operator= (TextRange&& aRange)
-  {
-    mRoot = Move(aRange.mRoot);
-    mStartContainer = Move(aRange.mStartContainer);
-    mEndContainer = Move(aRange.mEndContainer);
-    mStartOffset = aRange.mStartOffset;
-    mEndOffset = aRange.mEndOffset;
-    return *this;
-  }
-
   Accessible* StartContainer() const { return mStartContainer; }
   int32_t StartOffset() const { return mStartOffset; }
   Accessible* EndContainer() const { return mEndContainer; }
@@ -57,17 +47,12 @@ public:
   bool IsValid() const { return mRoot; }
 
 private:
-  TextRange(const TextRange& aRange) MOZ_DELETE;
-  TextRange& operator=(const TextRange& aRange) MOZ_DELETE;
-
   friend class HyperTextAccessible;
-  friend class xpcAccessibleTextRange;
 
-  void Set(HyperTextAccessible* aRoot,
-           Accessible* aStartContainer, int32_t aStartOffset,
-           Accessible* aEndContainer, int32_t aEndOffset);
+  TextRange(const TextRange&) MOZ_DELETE;
+  TextRange& operator=(const TextRange&) MOZ_DELETE;
 
-  nsRefPtr<HyperTextAccessible> mRoot;
+  const nsRefPtr<HyperTextAccessible> mRoot;
   nsRefPtr<Accessible> mStartContainer;
   nsRefPtr<Accessible> mEndContainer;
   int32_t mStartOffset;

@@ -10,6 +10,7 @@
 #include "SurfaceStream.h"              // for SurfaceStream
 #include "SurfaceTypes.h"               // for SurfaceStreamHandle
 #include "gfx2DGlue.h"                  // for ImageFormatToSurfaceFormat
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/layers/CompositableForwarder.h"

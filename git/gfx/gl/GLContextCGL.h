@@ -42,7 +42,7 @@ public:
         return static_cast<GLContextCGL*>(gl);
     }
 
-    bool Init() MOZ_OVERRIDE;
+    bool Init();
 
     NSOpenGLContext* GetNSOpenGLContext() const { return mContext; }
     CGLContextObj GetCGLContext() const;

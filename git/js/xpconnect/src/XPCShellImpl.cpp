@@ -650,20 +650,18 @@ File(JSContext *cx, unsigned argc, Value *vp)
   return true;
 }
 
-static Maybe<PersistentRootedValue> sScriptedInterruptCallback;
+static Value sScriptedInterruptCallback = UndefinedValue();
 
 static bool
 XPCShellInterruptCallback(JSContext *cx)
 {
-    MOZ_ASSERT(!sScriptedInterruptCallback.empty());
-    RootedValue callback(cx, sScriptedInterruptCallback.ref());
-
     // If no interrupt callback was set by script, no-op.
-    if (callback.isUndefined())
+    if (sScriptedInterruptCallback.isUndefined())
         return true;
 
-    JSAutoCompartment ac(cx, &callback.toObject());
+    JSAutoCompartment ac(cx, &sScriptedInterruptCallback.toObject());
     RootedValue rv(cx);
+    RootedValue callback(cx, sScriptedInterruptCallback);
     if (!JS_CallFunctionValue(cx, JS::NullPtr(), callback, JS::HandleValueArray::empty(), &rv) ||
         !rv.isBoolean())
     {
@@ -678,8 +676,6 @@ XPCShellInterruptCallback(JSContext *cx)
 static bool
 SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
-    MOZ_ASSERT(!sScriptedInterruptCallback.empty());
-
     // Sanity-check args.
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
     if (args.length() != 1) {
@@ -689,7 +685,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 
     // Allow callers to remove the interrupt callback by passing undefined.
     if (args[0].isUndefined()) {
-        sScriptedInterruptCallback.ref() = UndefinedValue();
+        sScriptedInterruptCallback = UndefinedValue();
         return true;
     }
 
@@ -699,7 +695,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    sScriptedInterruptCallback.ref() = args[0];
+    sScriptedInterruptCallback = args[0];
 
     return true;
 }
@@ -802,7 +798,7 @@ env_enumerate(JSContext *cx, HandleObject obj)
 {
     static bool reflected;
     char **evp, *name, *value;
-    RootedString valstr(cx);
+    JSString *valstr;
     bool ok;
 
     if (reflected)
@@ -814,7 +810,12 @@ env_enumerate(JSContext *cx, HandleObject obj)
             continue;
         *value++ = '\0';
         valstr = JS_NewStringCopyZ(cx, value);
-        ok = valstr ? JS_DefineProperty(cx, obj, name, valstr, JSPROP_ENUMERATE) : false;
+        if (!valstr) {
+            ok = false;
+        } else {
+            ok = JS_DefineProperty(cx, obj, name, STRING_TO_JSVAL(valstr),
+                                   nullptr, nullptr, JSPROP_ENUMERATE);
+        }
         value[-1] = '=';
         if (!ok)
             return false;
@@ -1089,8 +1090,10 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
     argsObj = JS_NewArrayObject(cx, 0);
     if (!argsObj)
         return 1;
-    if (!JS_DefineProperty(cx, obj, "arguments", argsObj, 0))
+    if (!JS_DefineProperty(cx, obj, "arguments", OBJECT_TO_JSVAL(argsObj),
+                           nullptr, nullptr, 0)) {
         return 1;
+    }
 
     for (size_t j = 0, length = argc - i; j < length; j++) {
         JSString *str = JS_NewStringCopyZ(cx, argv[i++]);
@@ -1468,7 +1471,6 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
         // Override the default XPConnect interrupt callback. We could store the
         // old one and restore it before shutting down, but there's not really a
         // reason to bother.
-        sScriptedInterruptCallback.construct(rt, UndefinedValue());
         JS_SetInterruptCallback(rt, XPCShellInterruptCallback);
 
         cx = JS_NewContext(rt, 8192);
@@ -1578,10 +1580,12 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             if (GetCurrentWorkingDirectory(workingDirectory))
                 gWorkingDirectory = &workingDirectory;
 
-            JS_DefineProperty(cx, glob, "__LOCATION__", JS::UndefinedHandleValue, 0,
-                              GetLocationProperty, nullptr);
+            JS_DefineProperty(cx, glob, "__LOCATION__", JSVAL_VOID,
+                              GetLocationProperty, nullptr, 0);
 
+            JS_AddValueRoot(cx, &sScriptedInterruptCallback);
             result = ProcessArgs(cx, glob, argv, argc, &dirprovider);
+            JS_RemoveValueRoot(cx, &sScriptedInterruptCallback);
 
             JS_DropPrincipals(rt, gJSPrincipals);
             JS_SetAllNonReservedSlotsToUndefined(cx, glob);
@@ -1598,8 +1602,6 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     rv = NS_ShutdownXPCOM( nullptr );
     MOZ_ASSERT(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
-
-    sScriptedInterruptCallback.destroyIfConstructed();
 
 #ifdef TEST_CALL_ON_WRAPPED_JS_AFTER_SHUTDOWN
     // test of late call and release (see above)

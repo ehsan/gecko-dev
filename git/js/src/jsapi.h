@@ -1889,7 +1889,6 @@ JS_strdup(JSContext *cx, const char *s);
 extern JS_PUBLIC_API(char *)
 JS_strdup(JSRuntime *rt, const char *s);
 
-namespace JS {
 
 /*
  * A GC root is a pointer to a jsval, JSObject * or JSString * that itself
@@ -1917,54 +1916,52 @@ namespace JS {
  * before freeing structPtr's memory.
  */
 extern JS_PUBLIC_API(bool)
-AddValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp);
+JS_AddValueRoot(JSContext *cx, jsval *vp);
 
 extern JS_PUBLIC_API(bool)
-AddStringRoot(JSContext *cx, JS::Heap<JSString *> *rp);
+JS_AddStringRoot(JSContext *cx, JSString **rp);
 
 extern JS_PUBLIC_API(bool)
-AddObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp);
+JS_AddObjectRoot(JSContext *cx, JSObject **rp);
 
 extern JS_PUBLIC_API(bool)
-AddNamedValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp, const char *name);
+JS_AddNamedValueRoot(JSContext *cx, jsval *vp, const char *name);
 
 extern JS_PUBLIC_API(bool)
-AddNamedValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp, const char *name);
+JS_AddNamedValueRootRT(JSRuntime *rt, jsval *vp, const char *name);
 
 extern JS_PUBLIC_API(bool)
-AddNamedStringRoot(JSContext *cx, JS::Heap<JSString *> *rp, const char *name);
+JS_AddNamedStringRoot(JSContext *cx, JSString **rp, const char *name);
 
 extern JS_PUBLIC_API(bool)
-AddNamedObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp, const char *name);
+JS_AddNamedObjectRoot(JSContext *cx, JSObject **rp, const char *name);
 
 extern JS_PUBLIC_API(bool)
-AddNamedScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp, const char *name);
+JS_AddNamedScriptRoot(JSContext *cx, JSScript **rp, const char *name);
 
 extern JS_PUBLIC_API(void)
-RemoveValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp);
+JS_RemoveValueRoot(JSContext *cx, jsval *vp);
 
 extern JS_PUBLIC_API(void)
-RemoveStringRoot(JSContext *cx, JS::Heap<JSString *> *rp);
+JS_RemoveStringRoot(JSContext *cx, JSString **rp);
 
 extern JS_PUBLIC_API(void)
-RemoveObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp);
+JS_RemoveObjectRoot(JSContext *cx, JSObject **rp);
 
 extern JS_PUBLIC_API(void)
-RemoveScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp);
+JS_RemoveScriptRoot(JSContext *cx, JSScript **rp);
 
 extern JS_PUBLIC_API(void)
-RemoveValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp);
+JS_RemoveValueRootRT(JSRuntime *rt, jsval *vp);
 
 extern JS_PUBLIC_API(void)
-RemoveStringRootRT(JSRuntime *rt, JS::Heap<JSString *> *rp);
+JS_RemoveStringRootRT(JSRuntime *rt, JSString **rp);
 
 extern JS_PUBLIC_API(void)
-RemoveObjectRootRT(JSRuntime *rt, JS::Heap<JSObject *> *rp);
+JS_RemoveObjectRootRT(JSRuntime *rt, JSObject **rp);
 
 extern JS_PUBLIC_API(void)
-RemoveScriptRootRT(JSRuntime *rt, JS::Heap<JSScript *> *rp);
-
-} /* namespace JS */
+JS_RemoveScriptRootRT(JSRuntime *rt, JSScript **rp);
 
 /*
  * Register externally maintained GC roots.
@@ -2763,34 +2760,8 @@ extern JS_PUBLIC_API(bool)
 JS_DefineProperties(JSContext *cx, JS::HandleObject obj, const JSPropertySpec *ps);
 
 extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleValue value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
-extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleObject value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
-extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, JS::HandleString value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
-extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, int32_t value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
-extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, uint32_t value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
-extern JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, JS::HandleObject obj, const char *name, double value,
-                  unsigned attrs,
-                  JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
+JS_DefineProperty(JSContext *cx, JSObject *obj, const char *name, jsval value,
+                  JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 
 extern JS_PUBLIC_API(bool)
 JS_DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, jsval value,
@@ -3165,29 +3136,6 @@ JS_AllocateArrayBufferContents(JSContext *maybecx, uint32_t nbytes);
  */
 extern JS_PUBLIC_API(void *)
 JS_ReallocateArrayBufferContents(JSContext *cx, uint32_t nbytes, void *oldContents, uint32_t oldNbytes);
-
-/*
- * Create a new mapped array buffer with the given memory mapped contents.
- */
-extern JS_PUBLIC_API(JSObject *)
-JS_NewMappedArrayBufferWithContents(JSContext *cx, size_t nbytes, void *contents);
-
-/*
- * Create memory mapped array buffer contents.
- * Caller must take care of closing fd after calling this function.
- */
-extern JS_PUBLIC_API(void *)
-JS_CreateMappedArrayBufferContents(int fd, size_t offset, size_t length);
-
-/*
- * Release the allocated resource of mapped array buffer contents before the
- * object is created.
- * If a new object has been created by JS_NewMappedArrayBufferWithContents()
- * with this content, then JS_NeuterArrayBuffer() should be used instead to
- * release the resource used by the object.
- */
-extern JS_PUBLIC_API(void)
-JS_ReleaseMappedArrayBufferContents(void *contents, size_t length);
 
 extern JS_PUBLIC_API(JSIdArray *)
 JS_Enumerate(JSContext *cx, JS::HandleObject obj);

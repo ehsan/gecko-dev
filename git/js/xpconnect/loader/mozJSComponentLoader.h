@@ -73,8 +73,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
 
     nsresult ObjectForLocation(nsIFile* aComponentFile,
                                nsIURI *aComponent,
-                               JS::MutableHandleObject aObject,
-                               JS::MutableHandleScript aTableScript,
+                               JSObject **aObject,
+                               JSScript **aTableScript,
                                char **location,
                                bool aCatchException,
                                JS::MutableHandleValue aException);
@@ -94,9 +94,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     class ModuleEntry : public mozilla::Module
     {
     public:
-        ModuleEntry(JSContext* aCx)
-          : mozilla::Module(), obj(aCx, nullptr), thisObjectKey(aCx, nullptr)
-        {
+        ModuleEntry() : mozilla::Module() {
             mVersion = mozilla::Module::kVersion;
             mCIDs = nullptr;
             mContractIDs = nullptr;
@@ -105,6 +103,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
             loadProc = nullptr;
             unloadProc = nullptr;
 
+            obj = nullptr;
+            thisObjectKey = nullptr;
             location = nullptr;
         }
 
@@ -120,8 +120,9 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                 JSAutoCompartment ac(cx, obj);
 
                 JS_SetAllNonReservedSlotsToUndefined(cx, obj);
-                obj = nullptr;
-                thisObjectKey = nullptr;
+                JS_RemoveObjectRoot(cx, &obj);
+                if (thisObjectKey)
+                    JS_RemoveScriptRoot(cx, &thisObjectKey);
             }
 
             if (location)
@@ -138,8 +139,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                                                        const mozilla::Module::CIDEntry& entry);
 
         nsCOMPtr<xpcIJSGetFactory> getfactoryobj;
-        JS::PersistentRootedObject obj;
-        JS::PersistentRootedScript thisObjectKey;
+        JSObject            *obj;
+        JSScript            *thisObjectKey;
         char                *location;
     };
 

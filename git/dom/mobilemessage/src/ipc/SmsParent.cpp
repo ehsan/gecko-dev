@@ -39,19 +39,21 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
                                                    JS::NullPtr()));
   NS_ENSURE_TRUE(obj, nullptr);
 
-  JS::Rooted<JSString*> idStr(aContext, JS_NewUCStringCopyN(aContext,
-                                                            aAttachment.id().get(),
-                                                            aAttachment.id().Length()));
+  JSString* idStr = JS_NewUCStringCopyN(aContext,
+                                        aAttachment.id().get(),
+                                        aAttachment.id().Length());
   NS_ENSURE_TRUE(idStr, nullptr);
-  if (!JS_DefineProperty(aContext, obj, "id", idStr, 0)) {
+  if (!JS_DefineProperty(aContext, obj, "id", JS::StringValue(idStr),
+                         nullptr, nullptr, 0)) {
     return nullptr;
   }
 
-  JS::Rooted<JSString*> locStr(aContext, JS_NewUCStringCopyN(aContext,
-                                                             aAttachment.location().get(),
-                                                             aAttachment.location().Length()));
+  JSString* locStr = JS_NewUCStringCopyN(aContext,
+                                         aAttachment.location().get(),
+                                         aAttachment.location().Length());
   NS_ENSURE_TRUE(locStr, nullptr);
-  if (!JS_DefineProperty(aContext, obj, "location", locStr, 0)) {
+  if (!JS_DefineProperty(aContext, obj, "location", JS::StringValue(locStr),
+                         nullptr, nullptr, 0)) {
     return nullptr;
   }
 
@@ -62,7 +64,8 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
                                            &NS_GET_IID(nsIDOMBlob),
                                            &content);
   NS_ENSURE_SUCCESS(rv, nullptr);
-  if (!JS_DefineProperty(aContext, obj, "content", content, 0)) {
+  if (!JS_DefineProperty(aContext, obj, "content", content,
+                         nullptr, nullptr, 0)) {
     return nullptr;
   }
 
@@ -78,20 +81,22 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
   NS_ENSURE_TRUE(paramsObj, false);
 
   // smil
-  JS::Rooted<JSString*> smilStr(aCx, JS_NewUCStringCopyN(aCx,
-                                                         aRequest.smil().get(),
-                                                         aRequest.smil().Length()));
+  JSString* smilStr = JS_NewUCStringCopyN(aCx,
+                                          aRequest.smil().get(),
+                                          aRequest.smil().Length());
   NS_ENSURE_TRUE(smilStr, false);
-  if(!JS_DefineProperty(aCx, paramsObj, "smil", smilStr, 0)) {
+  if(!JS_DefineProperty(aCx, paramsObj, "smil", JS::StringValue(smilStr),
+                        nullptr, nullptr, 0)) {
     return false;
   }
 
   // subject
-  JS::Rooted<JSString*> subjectStr(aCx, JS_NewUCStringCopyN(aCx,
-                                                            aRequest.subject().get(),
-                                                            aRequest.subject().Length()));
+  JSString* subjectStr = JS_NewUCStringCopyN(aCx,
+                                             aRequest.subject().get(),
+                                             aRequest.subject().Length());
   NS_ENSURE_TRUE(subjectStr, false);
-  if(!JS_DefineProperty(aCx, paramsObj, "subject", subjectStr, 0)) {
+  if(!JS_DefineProperty(aCx, paramsObj, "subject",
+                        JS::StringValue(subjectStr), nullptr, nullptr, 0)) {
     return false;
   }
 
@@ -102,7 +107,8 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
                                   receiverArray.address()))) {
     return false;
   }
-  if (!JS_DefineProperty(aCx, paramsObj, "receivers", receiverArray, 0)) {
+  if (!JS_DefineProperty(aCx, paramsObj, "receivers",
+                         JS::ObjectValue(*receiverArray), nullptr, nullptr, 0)) {
     return false;
   }
 
@@ -118,7 +124,8 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
     }
   }
 
-  if (!JS_DefineProperty(aCx, paramsObj, "attachments", attachmentArray, 0)) {
+  if (!JS_DefineProperty(aCx, paramsObj, "attachments",
+                         JS::ObjectValue(*attachmentArray), nullptr, nullptr, 0)) {
     return false;
   }
 

@@ -31,7 +31,7 @@ bool JSAPITest::init()
 bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 {
     JS::RootedValue v(cx);
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
+    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&this->global);
     return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, &v) ||
         fail(bytes, filename, lineno);
 }
@@ -39,14 +39,14 @@ bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 bool JSAPITest::evaluate(const char *bytes, const char *filename, int lineno,
                          JS::MutableHandleValue vp)
 {
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
+    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&this->global);
     return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, vp) ||
         fail(bytes, filename, lineno);
 }
 
 bool JSAPITest::definePrint()
 {
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
+    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&this->global);
     return JS_DefineFunction(cx, global, "print", (JSNative) print, 0, 0);
 }
 
@@ -58,8 +58,9 @@ JSObject * JSAPITest::createGlobal(JSPrincipals *principals)
     global = JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook, options);
     if (!global)
         return nullptr;
-    JS::AddNamedObjectRoot(cx, &global, "test-global");
-    JS::HandleObject globalHandle = JS::HandleObject::fromMarkedLocation(global.unsafeGet());
+    JS_AddNamedObjectRoot(cx, &global, "test-global");
+    JS::HandleObject globalHandle = JS::HandleObject::fromMarkedLocation(&global);
+
     JSAutoCompartment ac(cx, globalHandle);
 
     /* Populate the global object with the standard globals, like Object and
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        JS::HandleObject global = JS::HandleObject::fromMarkedLocation(test->global.unsafeGet());
+        JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&test->global);
         if (test->run(global)) {
             printf("TEST-PASS | %s | ok\n", name);
         } else {

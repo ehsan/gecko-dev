@@ -29,11 +29,9 @@ ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tag
     /*
      * Eagerly mark properties unknown for proxies, so we don't try to track
      * their properties and so that we don't need to walk the compartment if
-     * their prototype changes later.  But don't do this for DOM proxies,
-     * because we want to be able to keep track of them in typesets in useful
-     * ways.
+     * their prototype changes later.
      */
-    if (proto.isObject() && !options.singleton() && !clasp->isDOMClass()) {
+    if (proto.isObject() && !options.singleton()) {
         RootedObject protoObj(cx, proto.toObject());
         if (!JSObject::setNewTypeUnknown(cx, clasp, protoObj))
             return nullptr;
@@ -51,8 +49,8 @@ ProxyObject::New(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tag
     proxy->initHandler(handler);
     proxy->initCrossCompartmentPrivate(priv);
 
-    /* Don't track types of properties of non-DOM and non-singleton proxies. */
-    if (newKind != SingletonObject && !clasp->isDOMClass())
+    /* Don't track types of properties of proxies. */
+    if (newKind != SingletonObject)
         MarkTypeObjectUnknownProperties(cx, proxy->type());
 
     return proxy;

@@ -47,6 +47,7 @@
 #include "prlog.h"                      // for PRLogModuleInfo
 #include "gfx2DGlue.h"
 
+class gfxASurface;
 class gfxContext;
 
 extern uint8_t gLayerManagerLayerBuilder;
@@ -1723,14 +1724,10 @@ public:
    */
   bool SupportsComponentAlphaChildren() { return mSupportsComponentAlphaChildren; }
 
-  /**
-   * Returns true if aLayer or any layer in its parent chain has the opaque
-   * content flag set.
-   */
-  static bool HasOpaqueAncestorLayer(Layer* aLayer);
-
 protected:
   friend class ReadbackProcessor;
+
+  static bool HasOpaqueAncestorLayer(Layer* aLayer);
 
   void DidInsertChild(Layer* aLayer);
   void DidRemoveChild(Layer* aLayer);

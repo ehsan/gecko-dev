@@ -80,11 +80,6 @@ function fallback() {
   FirefoxCom.requestSync('fallback', null)
 }
 
-var playerglobalInfo = {
-  abcs: SHUMWAY_ROOT + "playerglobal/playerglobal.abcs",
-  catalog: SHUMWAY_ROOT + "playerglobal/playerglobal.json"
-};
-
 function runViewer() {
   var flashParams = JSON.parse(FirefoxCom.requestSync('getPluginParams', null));
   FileLoadingService.setBaseUrl(flashParams.baseUrl);
@@ -227,7 +222,7 @@ var FileLoadingService = {
           case "open": this.onopen(); break;
           case "close":
             this.onclose();
-            FileLoadingService.sessions[sessionId] = null;
+            delete FileLoadingService.sessions[sessionId];
             console.log('Session #' + sessionId +': closed');
             break;
           case "error":
@@ -263,9 +258,6 @@ var FileLoadingService = {
 };
 
 function parseSwf(url, movieParams, objectParams) {
-  var enableVerifier = Shumway.AVM2.Runtime.enableVerifier;
-  var EXECUTION_MODE = Shumway.AVM2.Runtime.EXECUTION_MODE;
-
   var compilerSettings = JSON.parse(
     FirefoxCom.requestSync('getCompilerSettings', null));
   enableVerifier.value = compilerSettings.verifier;
@@ -282,7 +274,7 @@ function parseSwf(url, movieParams, objectParams) {
     FirefoxCom.request('endActivation', null);
   }
 
-  createAVM2(builtinPath, playerglobalInfo, avm1Path,
+  createAVM2(builtinPath, playerGlobalPath, avm1Path,
     compilerSettings.sysCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET,
     compilerSettings.appCompiler ? EXECUTION_MODE.COMPILE : EXECUTION_MODE.INTERPRET,
     function (avm2) {

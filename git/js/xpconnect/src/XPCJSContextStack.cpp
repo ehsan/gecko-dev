@@ -23,6 +23,10 @@ using mozilla::dom::DestroyProtoAndIfaceCache;
 XPCJSContextStack::~XPCJSContextStack()
 {
     if (mSafeJSContext) {
+        {
+            JSAutoRequest ar(mSafeJSContext);
+            JS_RemoveObjectRoot(mSafeJSContext, &mSafeJSContextGlobal);
+        }
         mSafeJSContextGlobal = nullptr;
         JS_DestroyContextNoGC(mSafeJSContext);
         mSafeJSContext = nullptr;
@@ -183,6 +187,7 @@ XPCJSContextStack::InitSafeJSContext()
                                               principal, options);
     if (!mSafeJSContextGlobal)
         MOZ_CRASH();
+    JS_AddNamedObjectRoot(mSafeJSContext, &mSafeJSContextGlobal, "SafeJSContext global");
 
     // Note: make sure to set the private before calling
     // InitClasses

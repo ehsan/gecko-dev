@@ -39,6 +39,11 @@ public:
   URL(nsIURI* aURI);
 
   // WebIDL methods
+  nsISupports* GetParentObject() const
+  {
+    return nullptr;
+  }
+
   JSObject*
   WrapObject(JSContext* aCx);
 

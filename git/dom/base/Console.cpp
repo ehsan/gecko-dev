@@ -507,7 +507,9 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Console)
     }
 
     for (uint32_t i = 0; i < data->mArguments.Length(); ++i) {
-      aCallbacks.Trace(&data->mArguments[i], "data->mArguments[i]", aClosure);
+      if (JSVAL_IS_TRACEABLE(data->mArguments[i])) {
+        aCallbacks.Trace(&data->mArguments[i], "data->mArguments[i]", aClosure);
+      }
     }
   }
 
@@ -695,7 +697,8 @@ Console::ProfileMethod(JSContext* aCx, const nsAString& aAction,
   JS::Rooted<JSObject*> eventObj(aCx, &eventValue.toObject());
   MOZ_ASSERT(eventObj);
 
-  if (!JS_DefineProperty(aCx, eventObj, "wrappedJSObject", eventValue, JSPROP_ENUMERATE)) {
+  if (!JS_DefineProperty(aCx, eventObj, "wrappedJSObject", eventValue,
+                         nullptr, nullptr, JSPROP_ENUMERATE)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
@@ -1003,7 +1006,8 @@ Console::ProcessCallData(ConsoleCallData* aData)
   JS::Rooted<JSObject*> eventObj(cx, &eventValue.toObject());
   MOZ_ASSERT(eventObj);
 
-  if (!JS_DefineProperty(cx, eventObj, "wrappedJSObject", eventValue, JSPROP_ENUMERATE)) {
+  if (!JS_DefineProperty(cx, eventObj, "wrappedJSObject", eventValue,
+                         nullptr, nullptr, JSPROP_ENUMERATE)) {
     return;
   }
 

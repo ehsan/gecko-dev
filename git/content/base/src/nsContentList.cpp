@@ -23,7 +23,6 @@
 #include "mozilla/dom/NodeListBinding.h"
 #include "mozilla/Likely.h"
 #include "nsGenericHTMLElement.h"
-#include "jsfriendapi.h"
 #include <algorithm>
 
 // Form related includes
@@ -554,12 +553,8 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
 }
 
 void
-nsContentList::GetSupportedNames(unsigned aFlags, nsTArray<nsString>& aNames)
+nsContentList::GetSupportedNames(nsTArray<nsString>& aNames)
 {
-  if (!(aFlags & JSITER_HIDDEN)) {
-    return;
-  }
-
   BringSelfUpToDate(true);
 
   nsAutoTArray<nsIAtom*, 8> atoms;

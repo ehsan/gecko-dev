@@ -22,6 +22,7 @@
 
 #include "nsIMemoryReporter.h"
 
+#include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "gfx2DGlue.h"
 #include "GLContext.h"

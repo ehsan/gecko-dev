@@ -613,7 +613,6 @@ public final class HomeConfig {
         private final String mBackImageUrl;
         private final String mFilter;
         private final EmptyViewConfig mEmptyViewConfig;
-        private final EnumSet<Flags> mFlags;
 
         private static final String JSON_KEY_TYPE = "type";
         private static final String JSON_KEY_DATASET = "dataset";
@@ -622,11 +621,6 @@ public final class HomeConfig {
         private static final String JSON_KEY_BACK_IMAGE_URL = "backImageUrl";
         private static final String JSON_KEY_FILTER = "filter";
         private static final String JSON_KEY_EMPTY = "empty";
-        private static final String JSON_KEY_REFRESH_ENABLED = "refreshEnabled";
-
-        public enum Flags {
-            REFRESH_ENABLED
-        }
 
         public ViewConfig(int index, JSONObject json) throws JSONException, IllegalArgumentException {
             mIndex = index;
@@ -644,11 +638,6 @@ public final class HomeConfig {
                 mEmptyViewConfig = null;
             }
 
-            mFlags = EnumSet.noneOf(Flags.class);
-            if (json.optBoolean(JSON_KEY_REFRESH_ENABLED, false)) {
-                mFlags.add(Flags.REFRESH_ENABLED);
-            }
-
             validate();
         }
 
@@ -662,7 +651,6 @@ public final class HomeConfig {
             mBackImageUrl = in.readString();
             mFilter = in.readString();
             mEmptyViewConfig = (EmptyViewConfig) in.readParcelable(getClass().getClassLoader());
-            mFlags = (EnumSet<Flags>) in.readSerializable();
 
             validate();
         }
@@ -676,14 +664,13 @@ public final class HomeConfig {
             mBackImageUrl = viewConfig.mBackImageUrl;
             mFilter = viewConfig.mFilter;
             mEmptyViewConfig = viewConfig.mEmptyViewConfig;
-            mFlags = viewConfig.mFlags.clone();
 
             validate();
         }
 
         public ViewConfig(int index, ViewType type, String datasetId, ItemType itemType,
                           ItemHandler itemHandler, String backImageUrl, String filter,
-                          EmptyViewConfig emptyViewConfig, EnumSet<Flags> flags) {
+                          EmptyViewConfig emptyViewConfig) {
             mIndex = index;
             mType = type;
             mDatasetId = datasetId;
@@ -692,7 +679,6 @@ public final class HomeConfig {
             mBackImageUrl = backImageUrl;
             mFilter = filter;
             mEmptyViewConfig = emptyViewConfig;
-            mFlags = flags;
 
             validate();
         }
@@ -712,10 +698,6 @@ public final class HomeConfig {
 
             if (mItemHandler == null) {
                 throw new IllegalArgumentException("Can't create ViewConfig with null item handler");
-            }
-
-            if (mFlags == null) {
-               throw new IllegalArgumentException("Can't create ViewConfig with null flags");
             }
         }
 
@@ -751,10 +733,6 @@ public final class HomeConfig {
             return mEmptyViewConfig;
         }
 
-        public boolean isRefreshEnabled() {
-            return mFlags.contains(Flags.REFRESH_ENABLED);
-        }
-
         public JSONObject toJSON() throws JSONException {
             final JSONObject json = new JSONObject();
 
@@ -775,10 +753,6 @@ public final class HomeConfig {
                 json.put(JSON_KEY_EMPTY, mEmptyViewConfig.toJSON());
             }
 
-            if (mFlags.contains(Flags.REFRESH_ENABLED)) {
-                json.put(JSON_KEY_REFRESH_ENABLED, true);
-            }
-
             return json;
         }
 
@@ -797,7 +771,6 @@ public final class HomeConfig {
             dest.writeString(mBackImageUrl);
             dest.writeString(mFilter);
             dest.writeParcelable(mEmptyViewConfig, 0);
-            dest.writeSerializable(mFlags);
         }
 
         public static final Creator<ViewConfig> CREATOR = new Creator<ViewConfig>() {

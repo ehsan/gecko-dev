@@ -597,7 +597,7 @@ private:
     nsTArray<xpcContextCallback> extraContextCallbacks;
     nsRefPtr<WatchdogManager> mWatchdogManager;
     JS::GCSliceCallback mPrevGCSliceCallback;
-    JS::PersistentRootedObject mJunkScope;
+    JSObject* mJunkScope;
     nsRefPtr<AsyncFreeSnowWhite> mAsyncSnowWhiteFreer;
 
     mozilla::TimeStamp mSlowScriptCheckpoint;
@@ -2768,7 +2768,7 @@ public:
     XPCJSContextStack(XPCJSRuntime *aRuntime)
       : mRuntime(aRuntime)
       , mSafeJSContext(nullptr)
-      , mSafeJSContextGlobal(aRuntime->Runtime(), nullptr)
+      , mSafeJSContextGlobal(nullptr)
     { }
 
     virtual ~XPCJSContextStack();
@@ -2804,7 +2804,7 @@ private:
     AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
     XPCJSRuntime* mRuntime;
     JSContext*  mSafeJSContext;
-    JS::PersistentRootedObject mSafeJSContextGlobal;
+    JSObject* mSafeJSContextGlobal;
 };
 
 /***************************************************************************/

@@ -26,6 +26,7 @@
 #include "GLXLibrary.h"
 #include "gfxXlibSurface.h"
 #include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "GLContextGLX.h"
 #include "gfxUtils.h"
@@ -824,11 +825,6 @@ GLContextGLX::~GLContextGLX()
 {
     MarkDestroyed();
 
-    // Wrapped context should not destroy glxContext/Surface
-    if (!mOwnsContext) {
-        return;
-    }
-
     // see bug 659842 comment 76
 #ifdef DEBUG
     bool success =
@@ -928,8 +924,7 @@ GLContextGLX::GLContextGLX(
       mDeleteDrawable(aDeleteDrawable),
       mDoubleBuffered(aDoubleBuffered),
       mGLX(&sGLXLibrary),
-      mPixmap(aPixmap),
-      mOwnsContext(true)
+      mPixmap(aPixmap)
 {
     MOZ_ASSERT(mGLX);
     // See 899855
@@ -963,36 +958,6 @@ AreCompatibleVisuals(Visual *one, Visual *two)
     return true;
 }
 
-static StaticRefPtr<GLContext> gGlobalContext;
-
-already_AddRefed<GLContext>
-GLContextProviderGLX::CreateWrappingExisting(void* aContext, void* aSurface)
-{
-    if (!sGLXLibrary.EnsureInitialized()) {
-        return nullptr;
-    }
-
-    if (aContext && aSurface) {
-        SurfaceCaps caps = SurfaceCaps::Any();
-        nsRefPtr<GLContextGLX> glContext =
-            new GLContextGLX(caps,
-                             nullptr, // SharedContext
-                             false, // Offscreen
-                             (Display*)DefaultXDisplay(), // Display
-                             (GLXDrawable)aSurface, (GLXContext)aContext,
-                             false, // aDeleteDrawable,
-                             true,
-                             (gfxXlibSurface*)nullptr);
-
-        glContext->mOwnsContext = false;
-        gGlobalContext = glContext;
-
-        return glContext.forget();
-    }
-
-    return nullptr;
-}
-
 already_AddRefed<GLContext>
 GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
 {
@@ -1008,11 +973,6 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
     // is a relatively safe intermediate step.
 
     Display *display = (Display*)aWidget->GetNativeData(NS_NATIVE_DISPLAY);
-    if (!display) {
-        NS_ERROR("X Display required for GLX Context provider");
-        return nullptr;
-    }
-
     int xscreen = DefaultScreen(display);
     Window window = GET_NATIVE_WINDOW(aWidget);
 
@@ -1228,6 +1188,8 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
 
     return glContext.forget();
 }
+
+static StaticRefPtr<GLContext> gGlobalContext;
 
 GLContext*
 GLContextProviderGLX::GetGlobalContext()

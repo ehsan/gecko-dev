@@ -86,17 +86,12 @@ public:
     aFound = IsSupportedNamedProperty(aName);
     return aFound ? NamedItem(aName) : nullptr;
   }
-  bool NameIsEnumerable(const nsAString& aName)
-  {
-    return true;
-  }
   DOMStringList* Names()
   {
     EnsureFresh();
     return mNames;
   }
-  virtual void GetSupportedNames(unsigned,
-                                 nsTArray<nsString>& aNames) MOZ_OVERRIDE;
+  virtual void GetSupportedNames(nsTArray<nsString>& aNames) MOZ_OVERRIDE;
 
   NS_DECL_NSIDOMHTMLCOLLECTION
 
