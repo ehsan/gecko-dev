@@ -53,9 +53,7 @@ LIBRARY_NAME = mozce_shunt
 FORCE_SHARED_LIB= 1
 DIST_INSTALL = 1
 
-EXPORTS_NAMESPACES = mozce_shunt
-EXPORTS_mozce_shunt = \
-  include/windows.h \
+EXPORTS = include/windows.h \
   include/ymath.h \
   include/stdlib.h \
   include/direct.h \
@@ -74,7 +72,7 @@ ifdef MOZ_MEMORY
 REQUIRES = jemalloc 
 CFLAGS += -DMOZ_MEMORY
 CXXFLAGS += -DMOZ_MEMORY
-EXPORTS_mozce_shunt += $(topsrcdir)/memory/jemalloc/jemalloc.h
+EXPORTS += $(topsrcdir)/memory/jemalloc/jemalloc.h
 
 # We have to include the obj file directly, because we want to export
 # some of its symbols through our def file

@@ -51,15 +51,13 @@ function run_test() {
   removeUpdateDirsAndFiles();
   startAUS();
   startUpdateChecker();
-  getPrefBranch().setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
-                              URL_HOST + "update.xml");
+  gPrefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, URL_HOST + "update.xml");
   overrideXHR(callHandleEvent);
   do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
   do_test_finished();
-  cleanUp();
 }
 
 // Callback function used by the custom XMLHttpRequest implemetation to
