@@ -35,7 +35,7 @@ namespace mozilla {
 namespace net {
 
 //-------------------------------------------------------------------
-prio(normal upto urgent) sync protocol PNecko
+sync protocol PNecko
 {
   manager PContent;
   manages PHttpChannel;
@@ -55,7 +55,7 @@ prio(normal upto urgent) sync protocol PNecko
 parent:
   __delete__();
 
-  prio(urgent) async PCookieService();
+  PCookieService();
   PHttpChannel(PBrowserOrId browser,
                SerializedLoadContext loadContext,
                HttpChannelCreationArgs args);

@@ -252,14 +252,24 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   PR_INIT_CLIST(&mDOMMediaQueryLists);
 }
 
-void
-nsPresContext::Destroy()
+nsPresContext::~nsPresContext()
 {
+  NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
+  SetShell(nullptr);
+
+  NS_ABORT_IF_FALSE(PR_CLIST_IS_EMPTY(&mDOMMediaQueryLists),
+                    "must not have media query lists left");
+
+  // Disconnect the refresh driver *after* the transition manager, which
+  // needs it.
+  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
+    mRefreshDriver->Disconnect();
+  }
+
   if (mEventManager) {
     // unclear if these are needed, but can't hurt
     mEventManager->NotifyDestroyPresContext(this);
     mEventManager->SetPresContext(nullptr);
-    mEventManager = nullptr;
   }
 
   if (mPrefChangedTimer)
@@ -311,24 +321,6 @@ nsPresContext::Destroy()
   Preferences::UnregisterCallback(nsPresContext::PrefChangedCallback,
                                   "nglayout.debug.paint_flashing_chrome",
                                   this);
-
-  // Disconnect the refresh driver *after* the transition manager, which
-  // needs it.
-  if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
-    mRefreshDriver->Disconnect();
-    mRefreshDriver = nullptr;
-  }
-}
-
-nsPresContext::~nsPresContext()
-{
-  NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
-  SetShell(nullptr);
-
-  NS_ABORT_IF_FALSE(PR_CLIST_IS_EMPTY(&mDOMMediaQueryLists),
-                    "must not have media query lists left");
-
-  Destroy();
 }
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPresContext)
@@ -376,6 +368,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument);
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDeviceContext); // worth bothering?
+  if (tmp->mEventManager) {
+    // unclear if these are needed, but can't hurt
+    tmp->mEventManager->NotifyDestroyPresContext(tmp);
+    tmp->mEventManager->SetPresContext(nullptr);
+    tmp->mEventManager = nullptr;
+  }
+
   // We own only the items in mDOMMediaQueryLists that have listeners;
   // this reference is managed by their AddListener and RemoveListener
   // methods.
@@ -388,11 +387,15 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   }
 
   // NS_RELEASE(tmp->mLanguage); // an atom
+
   // NS_IMPL_CYCLE_COLLECTION_UNLINK(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_UNLINK(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrintSettings);
-
-  tmp->Destroy();
+  if (tmp->mPrefChangedTimer)
+  {
+    tmp->mPrefChangedTimer->Cancel();
+    tmp->mPrefChangedTimer = nullptr;
+  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 

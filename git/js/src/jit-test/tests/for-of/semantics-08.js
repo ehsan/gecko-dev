@@ -3,10 +3,7 @@
 load(libdir + "iteration.js");
 
 var g = newGlobal();
-g.eval(`
-    var obj = {};
-    obj[${uneval(std_iterator)}] = function () { return this; };
-    obj.next = function () { return { done: true }; };
-`);
-for (x of g.obj)
+var it = g.eval("({ '" + std_iterator + "': function () { return this; }, " +
+                "next: function () { return { done: true } } });");
+for (x of it)
     throw 'FAIL';
