@@ -526,6 +526,7 @@ class PerThreadData : public PerThreadDataFriendFields
     friend struct ::JSRuntime;
   public:
     void initJitStackLimit();
+    void initJitStackLimitPar(uintptr_t limit);
 
     uintptr_t jitStackLimit() const { return jitStackLimit_; }
 

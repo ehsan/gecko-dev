@@ -29,7 +29,7 @@ extern PRLogModuleInfo* GetMediaSourceAPILog();
 #define MSE_DEBUG(...)
 #endif
 
-#define UNIMPLEMENTED() { /* Logging this is too spammy to do by default */ }
+#define UNIMPLEMENTED() MSE_DEBUG("SourceBufferResource(%p): UNIMPLEMENTED FUNCTION at %s:%d", this, __FILE__, __LINE__)
 
 class nsIStreamListener;
 
@@ -115,13 +115,10 @@ public:
   void Ended();
   // Remove data from resource if it holds more than the threshold
   // number of bytes. Returns amount evicted.
-  uint32_t EvictData(uint64_t aPlaybackOffset, uint32_t aThreshold);
+  uint32_t EvictData(uint32_t aThreshold);
 
   // Remove data from resource before the given offset.
   void EvictBefore(uint64_t aOffset);
-
-  // Remove all data from the resource
-  uint32_t EvictAll();
 
   // Returns the amount of data currently retained by this resource.
   int64_t GetSize() {

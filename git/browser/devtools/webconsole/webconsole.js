@@ -3555,8 +3555,8 @@ JSTerm.prototype = {
       deferred.resolve(window);
     };
 
-    let tabPanel = this.sidebar.getTabPanel("variablesview");
-    if (tabPanel) {
+    let tab = this.sidebar.getTab("variablesview");
+    if (tab) {
       if (this.sidebar.getCurrentTabID() == "variablesview") {
         onTabReady();
       }

@@ -568,8 +568,7 @@ let ClickEventHandler = {
       this.onAboutBlocked(originalTarget, ownerDoc);
       return;
     } else if (ownerDoc.documentURI.startsWith("about:neterror")) {
-      this.onAboutNetError(event, ownerDoc.documentURI);
-      return;
+      this.onAboutNetError(originalTarget, ownerDoc);
     }
 
     let [href, node] = this._hrefAndLinkNodeForClickEvent(event);
@@ -636,18 +635,12 @@ let ClickEventHandler = {
     });
   },
 
-  onAboutNetError: function (event, documentURI) {
-    let elmId = event.originalTarget.getAttribute("id");
-    if (elmId != "errorTryAgain" || !/e=netOffline/.test(documentURI)) {
+  onAboutNetError: function (targetElement, ownerDoc) {
+    let elmId = targetElement.getAttribute("id");
+    if (elmId != "errorTryAgain" || !/e=netOffline/.test(ownerDoc.documentURI)) {
       return;
     }
-    // browser front end will handle clearing offline mode and refreshing
-    // the page *if* we're in offline mode now. Otherwise let the error page
-    // handle the click.
-    if (Services.io.offline) {
-      event.preventDefault();
-      sendAsyncMessage("Browser:EnableOnlineMode", {});
-    }
+    sendSyncMessage("Browser:NetworkError", {});
   },
 
   /**

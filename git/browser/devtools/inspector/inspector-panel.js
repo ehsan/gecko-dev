@@ -347,6 +347,8 @@ InspectorPanel.prototype = {
                           "animationinspector" == defaultTab);
     }
 
+    let ruleViewTab = this.sidebar.getTab("ruleview");
+
     this.sidebar.show();
   },
 

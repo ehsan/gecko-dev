@@ -244,10 +244,10 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     finishClassInit(JSContext *cx, HandleObject ctor, HandleObject proto)
     {
         RootedValue bytesValue(cx, Int32Value(BYTES_PER_ELEMENT));
-        if (!DefineProperty(cx, ctor, cx->names().BYTES_PER_ELEMENT, bytesValue,
-                            nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) ||
-            !DefineProperty(cx, proto, cx->names().BYTES_PER_ELEMENT, bytesValue,
-                            nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
+        if (!JSObject::defineProperty(cx, ctor, cx->names().BYTES_PER_ELEMENT, bytesValue,
+                                      nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) ||
+            !JSObject::defineProperty(cx, proto, cx->names().BYTES_PER_ELEMENT, bytesValue,
+                                      nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
         {
             return false;
         }
@@ -704,16 +704,19 @@ FinishTypedArrayInit(JSContext *cx, HandleObject ctor, HandleObject proto)
         return false;
 
     RootedValue funValue(cx, ObjectValue(*fun));
-    if (!DefineProperty(cx, proto, cx->names().values, funValue, nullptr, nullptr, 0))
+    if (!JSObject::defineProperty(cx, proto, cx->names().values, funValue, nullptr, nullptr, 0))
         return false;
 
 #ifdef JS_HAS_SYMBOLS
     RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
-    if (!DefineProperty(cx, proto, iteratorId, funValue, nullptr, nullptr, 0))
+    if (!JSObject::defineGeneric(cx, proto, iteratorId, funValue, nullptr, nullptr, 0))
         return false;
 #else
-    if (!DefineProperty(cx, proto, cx->names().std_iterator, funValue, nullptr, nullptr, 0))
+    if (!JSObject::defineProperty(cx, proto, cx->names().std_iterator, funValue, nullptr,
+                                  nullptr, 0))
+    {
         return false;
+    }
 #endif
 
     return true;
@@ -830,8 +833,7 @@ TypedArrayObject::protoFunctions[] = {
 
 /* static */ const JSFunctionSpec
 TypedArrayObject::staticFunctions[] = {
-    JS_SELF_HOSTED_FN("from", "TypedArrayStaticFrom", 3, 0),
-    JS_SELF_HOSTED_FN("of", "TypedArrayStaticOf", 0, 0),
+    // Coming soon...
     JS_FS_END
 };
 
@@ -1966,7 +1968,7 @@ DataViewObject::defineGetter(JSContext *cx, PropertyName *name, HandleNativeObje
     if (!getter)
         return false;
 
-    return NativeDefineProperty(cx, proto, id, UndefinedHandleValue,
+    return DefineNativeProperty(cx, proto, id, UndefinedHandleValue,
                                 JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, attrs);
 }
 

@@ -2530,6 +2530,10 @@ GetElementsWithAdder(JSContext *cx, JS::HandleObject obj, JS::HandleObject recei
 JS_FRIEND_API(bool)
 ForwardToNative(JSContext *cx, JSNative native, const JS::CallArgs &args);
 
+/* ES5 8.12.8. */
+extern JS_FRIEND_API(bool)
+DefaultValue(JSContext *cx, JS::HandleObject obj, JSType hint, JS::MutableHandleValue vp);
+
 /*
  * Helper function. To approximate a call to the [[DefineOwnProperty]] internal
  * method described in ES5, first call this, then call JS_DefinePropertyById.
@@ -2619,14 +2623,6 @@ SetJitExceptionHandler(JitExceptionHandler handler);
  */
 extern JS_FRIEND_API(JSObject *)
 GetObjectEnvironmentObjectForFunction(JSFunction *fun);
-
-/*
- * Get the stored principal of the stack frame this SavedFrame object
- * represents.  note that this is not the same thing as the object principal of
- * the object itself.  Do NOT pass a non-SavedFrame object here.
- */
-extern JS_FRIEND_API(JSPrincipals *)
-GetSavedFramePrincipals(JS::HandleObject savedFrame);
 
 } /* namespace js */
 

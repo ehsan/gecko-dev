@@ -169,8 +169,6 @@ public:
   explicit CrashStatsLogForwarder(const char* aKey);
   virtual void Log(const std::string& aString) MOZ_OVERRIDE;
 
-  virtual std::vector<std::pair<int32_t,std::string> > StringsVectorCopy();
-
   void SetCircularBufferSize(uint32_t aCapacity);
 
 private:
@@ -201,13 +199,6 @@ void CrashStatsLogForwarder::SetCircularBufferSize(uint32_t aCapacity)
 
   mMaxCapacity = aCapacity;
   mBuffer.reserve(static_cast<size_t>(aCapacity));
-}
-
-std::vector<std::pair<int32_t,std::string> >
-CrashStatsLogForwarder::StringsVectorCopy()
-{
-  MutexAutoLock lock(mMutex);
-  return mBuffer;
 }
 
 bool

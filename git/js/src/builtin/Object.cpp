@@ -195,7 +195,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
         RootedId id(cx, idv[i]);
         RootedObject obj2(cx);
         RootedShape shape(cx);
-        if (!LookupProperty(cx, obj, id, &obj2, &shape))
+        if (!JSObject::lookupGeneric(cx, obj, id, &obj2, &shape))
             return nullptr;
 
         /*  Decide early whether we prefer get/set or old getter/setter syntax. */
@@ -220,7 +220,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
             if (doGet) {
                 valcnt = 1;
                 gsop[0].set(nullptr);
-                if (!GetProperty(cx, obj, obj, id, val[0]))
+                if (!JSObject::getGeneric(cx, obj, obj, id, val[0]))
                     return nullptr;
             }
         }
@@ -334,7 +334,7 @@ JS_BasicObjectToString(JSContext *cx, HandleObject obj)
     if (obj->is<NumberObject>())
         return cx->names().objectNumber;
 
-    const char *className = GetObjectClassName(cx, obj);
+    const char *className = JSObject::className(cx, obj);
 
     if (strcmp(className, "Window") == 0)
         return cx->names().objectWindow;
@@ -421,7 +421,7 @@ js::obj_getPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 3. */
     RootedObject proto(cx);
-    if (!GetPrototype(cx, obj, &proto))
+    if (!JSObject::getProto(cx, obj, &proto))
         return false;
     args.rval().setObjectOrNull(proto);
     return true;
@@ -467,7 +467,7 @@ obj_setPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
     RootedObject newProto(cx, args[1].toObjectOrNull());
 
     bool success;
-    if (!SetPrototype(cx, obj, newProto, &success))
+    if (!JSObject::setProto(cx, obj, newProto, &success))
         return false;
 
     /* Step 7. */
@@ -535,7 +535,7 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
     if (!ValueToId<CanGC>(cx, args[0], &propid))
         return false;
 
-    if (!WatchProperty(cx, obj, propid, callable))
+    if (!JSObject::watch(cx, obj, propid, callable))
         return false;
 
     args.rval().setUndefined();
@@ -562,7 +562,7 @@ obj_unwatch(JSContext *cx, unsigned argc, Value *vp)
         id = JSID_VOID;
     }
 
-    if (!UnwatchProperty(cx, obj, id))
+    if (!JSObject::unwatch(cx, obj, id))
         return false;
 
     args.rval().setUndefined();
@@ -704,9 +704,7 @@ js::obj_getOwnPropertyDescriptor(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     // Steps 5-7.
-    Rooted<PropertyDescriptor> desc(cx);
-    return GetOwnPropertyDescriptor(cx, obj, id, &desc) &&
-           NewPropertyDescriptorObject(cx, desc, args.rval());
+    return GetOwnPropertyDescriptor(cx, obj, id, args.rval());
 }
 
 // ES6 draft rev27 (2014/08/24) 19.1.2.14 Object.keys(O)
@@ -814,12 +812,8 @@ js::obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!ValueToId<CanGC>(cx, args.get(1), &id))
         return false;
 
-    Rooted<PropDesc> desc(cx);
-    if (!desc.initialize(cx, args.get(2)))
-        return false;
-
-    bool ignored;
-    if (!StandardDefineProperty(cx, obj, id, desc, true, &ignored))
+    bool junk;
+    if (!DefineOwnProperty(cx, obj, id, args.get(2), &junk))
         return false;
 
     args.rval().setObject(*obj);
@@ -865,7 +859,7 @@ obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
     // Step 2.
     if (args.get(0).isObject()) {
         RootedObject obj(cx, &args.get(0).toObject());
-        if (!IsExtensible(cx, obj, &extensible))
+        if (!JSObject::isExtensible(cx, obj, &extensible))
             return false;
     }
     args.rval().setBoolean(extensible);
@@ -887,7 +881,7 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, &args.get(0).toObject());
 
     bool status;
-    if (!PreventExtensions(cx, obj, &status))
+    if (!JSObject::preventExtensions(cx, obj, &status))
         return false;
 
     // Step 4.
@@ -913,7 +907,7 @@ obj_freeze(JSContext *cx, unsigned argc, Value *vp)
 
     // Steps 2-5.
     RootedObject obj(cx, &args.get(0).toObject());
-    return SetIntegrityLevel(cx, obj, IntegrityLevel::Frozen);
+    return JSObject::freeze(cx, obj);
 }
 
 // ES6 draft rev27 (2014/08/24) 19.1.2.12 Object.isFrozen(O)
@@ -928,7 +922,7 @@ obj_isFrozen(JSContext *cx, unsigned argc, Value *vp)
     // Step 2.
     if (args.get(0).isObject()) {
         RootedObject obj(cx, &args.get(0).toObject());
-        if (!TestIntegrityLevel(cx, obj, IntegrityLevel::Frozen, &frozen))
+        if (!JSObject::isFrozen(cx, obj, &frozen))
             return false;
     }
     args.rval().setBoolean(frozen);
@@ -948,7 +942,7 @@ obj_seal(JSContext *cx, unsigned argc, Value *vp)
 
     // Steps 2-5.
     RootedObject obj(cx, &args.get(0).toObject());
-    return SetIntegrityLevel(cx, obj, IntegrityLevel::Sealed);
+    return JSObject::seal(cx, obj);
 }
 
 // ES6 draft rev27 (2014/08/24) 19.1.2.13 Object.isSealed(O)
@@ -963,7 +957,7 @@ obj_isSealed(JSContext *cx, unsigned argc, Value *vp)
     // Step 2.
     if (args.get(0).isObject()) {
         RootedObject obj(cx, &args.get(0).toObject());
-        if (!TestIntegrityLevel(cx, obj, IntegrityLevel::Sealed, &sealed))
+        if (!JSObject::isSealed(cx, obj, &sealed))
             return false;
     }
     args.rval().setBoolean(sealed);
@@ -984,7 +978,7 @@ ProtoGetter(JSContext *cx, unsigned argc, Value *vp)
 
     RootedObject obj(cx, &args.thisv().toObject());
     RootedObject proto(cx);
-    if (!GetPrototype(cx, obj, &proto))
+    if (!JSObject::getProto(cx, obj, &proto))
         return false;
     args.rval().setObjectOrNull(proto);
     return true;
@@ -1031,7 +1025,7 @@ ProtoSetter(JSContext *cx, unsigned argc, Value *vp)
     Rooted<JSObject*> newProto(cx, args[0].toObjectOrNull());
 
     bool success;
-    if (!SetPrototype(cx, obj, newProto, &success))
+    if (!JSObject::setProto(cx, obj, newProto, &success))
         return false;
 
     if (!success) {
@@ -1164,8 +1158,8 @@ FinishObjectClassInit(JSContext *cx, JS::HandleObject ctor, JS::HandleObject pro
     self->setIntrinsicsHolder(intrinsicsHolder);
     /* Define a property 'global' with the current global as its value. */
     RootedValue global(cx, ObjectValue(*self));
-    if (!DefineProperty(cx, intrinsicsHolder, cx->names().global, global,
-                        nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!JSObject::defineProperty(cx, intrinsicsHolder, cx->names().global, global,
+                                  nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
     }

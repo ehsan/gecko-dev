@@ -38,6 +38,7 @@
 
 #include "jsboolinlines.h"
 
+#include "jit/ExecutionMode-inl.h"
 #include "jit/shared/CodeGenerator-shared-inl.h"
 #include "vm/Interpreter-inl.h"
 
@@ -7094,12 +7095,13 @@ bool
 CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
 {
     RootedScript script(cx, gen->info().script());
+    ExecutionMode executionMode = gen->info().executionMode();
     OptimizationLevel optimizationLevel = gen->optimizationInfo().level();
 
     // We finished the new IonScript. Invalidate the current active IonScript,
     // so we can replace it with this new (probably higher optimized) version.
-    if (script->hasIonScript()) {
-        MOZ_ASSERT(script->ionScript()->isRecompiling());
+    if (HasIonScript(script, executionMode)) {
+        MOZ_ASSERT(GetIonScript(script, executionMode)->isRecompiling());
         // Do a normal invalidate, except don't cancel offThread compilations,
         // since that will cancel this compilation too.
         if (!Invalidate(cx, script, /* resetUses */ false, /* cancelOffThread*/ false))
@@ -7113,7 +7115,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     // will trickle to jit::Compile() and return Method_Skipped.
     uint32_t warmUpCount = script->getWarmUpCount();
     types::RecompileInfo recompileInfo;
-    if (!types::FinishCompilation(cx, script, constraints, &recompileInfo))
+    if (!types::FinishCompilation(cx, script, executionMode, constraints, &recompileInfo))
         return true;
 
     // IonMonkey could have inferred better type information during
@@ -7207,7 +7209,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     if (sps_.enabled())
         ionScript->setHasSPSInstrumentation();
 
-    script->setIonScript(cx, ionScript);
+    SetIonScript(cx, script, executionMode, ionScript);
 
     invalidateEpilogueData_.fixup(&masm);
     Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),

@@ -15,8 +15,6 @@
 // tunnels) so that a nsHttpConnection becomes fully established in
 // anticipation of a real transaction needing to use it soon.
 
-class nsIHttpActivityObserver;
-
 namespace mozilla { namespace net {
 
 class nsAHttpConnection;
@@ -67,7 +65,6 @@ protected:
   nsRefPtr<nsAHttpConnection> mConnection;
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   nsRefPtr<nsHttpConnectionInfo> mConnectionInfo;
-  nsCOMPtr<nsIHttpActivityObserver> mActivityDistributor;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(NullHttpTransaction, NS_NULLHTTPTRANSACTION_IID)

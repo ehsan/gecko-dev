@@ -93,19 +93,6 @@ TCPSocketParent::GetAppId()
   return appId;
 };
 
-bool
-TCPSocketParent::GetInBrowser()
-{
-  bool inBrowser = false;
-  const PContentParent *content = Manager()->Manager();
-  const InfallibleTArray<PBrowserParent*>& browsers = content->ManagedPBrowserParent();
-  if (browsers.Length() > 0) {
-    TabParent *tab = static_cast<TabParent*>(browsers[0]);
-    inBrowser = tab->IsBrowserElement();
-  }
-  return inBrowser;
-}
-
 nsresult
 TCPSocketParent::OfflineNotification(nsISupports *aSubject)
 {
@@ -175,7 +162,6 @@ TCPSocketParent::RecvOpen(const nsString& aHost, const uint16_t& aPort, const bo
 
   // Obtain App ID
   uint32_t appId = GetAppId();
-  bool     inBrowser = GetInBrowser();
 
   if (NS_IsAppOffline(appId)) {
     NS_ERROR("Can't open socket because app is offline");
@@ -191,7 +177,7 @@ TCPSocketParent::RecvOpen(const nsString& aHost, const uint16_t& aPort, const bo
   }
 
   rv = mIntermediary->Open(this, aHost, aPort, aUseSSL, aBinaryType, appId,
-                           inBrowser, getter_AddRefs(mSocket));
+                           getter_AddRefs(mSocket));
   if (NS_FAILED(rv) || !mSocket) {
     FireInteralError(this, __LINE__);
     return true;

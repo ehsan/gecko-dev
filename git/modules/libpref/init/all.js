@@ -1584,7 +1584,7 @@ pref("network.dir.format", 2);
 pref("network.prefetch-next", true);
 
 // enables the predictive service
-pref("network.predictor.enabled", true);
+pref("network.predictor.enabled", false);
 pref("network.predictor.enable-hover-on-ssl", false);
 pref("network.predictor.page-degradation.day", 0);
 pref("network.predictor.page-degradation.week", 5);
@@ -1599,8 +1599,9 @@ pref("network.predictor.subresource-degradation.max", 100);
 pref("network.predictor.preconnect-min-confidence", 90);
 pref("network.predictor.preresolve-min-confidence", 60);
 pref("network.predictor.redirect-likely-confidence", 75);
-pref("network.predictor.max-resources-per-entry", 100);
-pref("network.predictor.cleaned-up", false);
+pref("network.predictor.max-queue-size", 50);
+pref("network.predictor.max-db-size", 157286400); // bytes
+pref("network.predictor.preserve", 80); // percentage of predictor data to keep when cleaning up
 
 // The following prefs pertain to the negotiate-auth extension (see bug 17578),
 // which provides transparent Kerberos or NTLM authentication using the SPNEGO
@@ -1708,6 +1709,13 @@ pref("intl.locale.matchOS",                 false);
 // for ISO-8859-1
 pref("intl.fallbackCharsetList.ISO-8859-1", "windows-1252");
 pref("font.language.group",                 "chrome://global/locale/intl.properties");
+
+// Android-specific pref to use key-events-only mode for IME-unaware webapps.
+#ifdef MOZ_WIDGET_ANDROID
+pref("intl.ime.hack.on_ime_unaware_apps.fire_key_events_for_composition", true);
+#else
+pref("intl.ime.hack.on_ime_unaware_apps.fire_key_events_for_composition", false);
+#endif
 
 // these locales have right-to-left UI
 pref("intl.uidirection.ar", "rtl");
@@ -3785,6 +3793,9 @@ pref("image.mem.allow_locking_in_content_processes", true);
 // Chunk size for calls to the image decoders
 pref("image.mem.decode_bytes_at_a_time", 16384);
 
+// The longest time we can spend in an iteration of an async decode
+pref("image.mem.max_ms_before_yield", 5);
+
 // Minimum timeout for expiring unused images from the surface cache, in
 // milliseconds. This controls how long we store cached temporary surfaces.
 pref("image.mem.surfacecache.min_expiration_ms", 60000); // 60ms
@@ -3826,6 +3837,7 @@ pref("gl.msaa-level", 2);
 #endif
 pref("webgl.force-enabled", false);
 pref("webgl.disabled", false);
+pref("webgl.shader_validator", true);
 pref("webgl.disable-angle", false);
 pref("webgl.min_capability_mode", false);
 pref("webgl.disable-extensions", false);
@@ -3839,7 +3851,6 @@ pref("webgl.restore-context-when-visible", true);
 pref("webgl.max-warnings-per-context", 32);
 pref("webgl.enable-draft-extensions", false);
 pref("webgl.enable-privileged-extensions", false);
-pref("webgl.bypass-shader-validation", false);
 #ifdef XP_WIN
 pref("webgl.angle.try-d3d11", true);
 pref("webgl.angle.force-d3d11", false);
@@ -4330,9 +4341,6 @@ pref("dom.voicemail.enabled", false);
 // Numeric default service id for Voice Mail API calls with |serviceId|
 // parameter omitted.
 pref("dom.voicemail.defaultServiceId", 0);
-
-// DOM BroadcastChannel API.
-pref("dom.broadcastChannel.enabled", true);
 
 // DOM Inter-App Communication API.
 pref("dom.inter-app-communication-api.enabled", false);
