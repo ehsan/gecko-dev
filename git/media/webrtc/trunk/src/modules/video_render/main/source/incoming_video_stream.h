@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -11,8 +11,8 @@
 #ifndef WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_INCOMING_VIDEO_STREAM_H_
 #define WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_INCOMING_VIDEO_STREAM_H_
 
-#include "modules/video_render/main/interface/video_render.h"
-#include "system_wrappers/interface/map_wrapper.h"
+#include "video_render.h"
+#include "map_wrapper.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -21,94 +21,120 @@ class ThreadWrapper;
 class VideoRenderCallback;
 class VideoRenderFrames;
 
-struct VideoMirroring {
-  VideoMirroring() : mirror_x_axis(false), mirror_y_axis(false) {}
-  bool mirror_x_axis;
-  bool mirror_y_axis;
+struct VideoMirroring
+{
+    bool mirrorXAxis;
+    bool mirrorYAxis;
+    VideoMirroring() :
+        mirrorXAxis(false), mirrorYAxis(false)
+    {
+    }
 };
 
-class IncomingVideoStream : public VideoRenderCallback {
- public:
-  IncomingVideoStream(const WebRtc_Word32 module_id,
-                      const WebRtc_UWord32 stream_id);
-  ~IncomingVideoStream();
+// Class definitions
+class IncomingVideoStream: public VideoRenderCallback
+{
+public:
+    /*
+     *   VideoRenderer constructor/destructor
+     */
+    IncomingVideoStream(const WebRtc_Word32 moduleId,
+                        const WebRtc_UWord32 streamId);
+    ~IncomingVideoStream();
 
-  WebRtc_Word32 ChangeModuleId(const WebRtc_Word32 id);
+    WebRtc_Word32 ChangeModuleId(const WebRtc_Word32 id);
 
-  // Get callback to deliver frames to the module.
-  VideoRenderCallback* ModuleCallback();
-  virtual WebRtc_Word32 RenderFrame(const WebRtc_UWord32 stream_id,
-                                    VideoFrame& video_frame);
+    // Get callbck to deliver frames to the module
+    VideoRenderCallback* ModuleCallback();
+    virtual WebRtc_Word32 RenderFrame(const WebRtc_UWord32 streamId,
+                                      VideoFrame& videoFrame);
 
-  // Set callback to the platform dependent code.
-  WebRtc_Word32 SetRenderCallback(VideoRenderCallback* render_callback);
+    // Set callback to the platform dependant code
+    WebRtc_Word32 SetRenderCallback(VideoRenderCallback* renderCallback);
 
-  // Callback for file recording, snapshot, ...
-  WebRtc_Word32 SetExternalCallback(VideoRenderCallback* render_object);
+    // Callback for file recording, snapshot, ...
+    WebRtc_Word32 SetExternalCallback(VideoRenderCallback* renderObject);
 
-  // Start/Stop.
-  WebRtc_Word32 Start();
-  WebRtc_Word32 Stop();
+    /*
+     *   Start/Stop
+     */
+    WebRtc_Word32 Start();
+    WebRtc_Word32 Stop();
 
-  // Clear all buffers.
-  WebRtc_Word32 Reset();
+    // Clear all buffers
+    WebRtc_Word32 Reset();
 
-  // Properties.
-  WebRtc_UWord32 StreamId() const;
-  WebRtc_UWord32 IncomingRate() const;
+    /*
+     *   Properties
+     */
+    WebRtc_UWord32 StreamId() const;
+    WebRtc_UWord32 IncomingRate() const;
 
-  WebRtc_Word32 GetLastRenderedFrame(VideoFrame& video_frame) const;
+    /*
+     *
+     */
+    WebRtc_Word32 GetLastRenderedFrame(VideoFrame& videoFrame) const;
 
-  WebRtc_Word32 SetStartImage(const VideoFrame& video_frame);
+    WebRtc_Word32 SetStartImage(const VideoFrame& videoFrame);
 
-  WebRtc_Word32 SetTimeoutImage(const VideoFrame& video_frame,
-                                const WebRtc_UWord32 timeout);
+    WebRtc_Word32 SetTimeoutImage(const VideoFrame& videoFrame,
+                                  const WebRtc_UWord32 timeout);
 
-  WebRtc_Word32 EnableMirroring(const bool enable,
-                                const bool mirror_xaxis,
-                                const bool mirror_yaxis);
+    WebRtc_Word32 EnableMirroring(const bool enable,
+                                  const bool mirrorXAxis,
+                                  const bool mirrorYAxis);
 
- protected:
-  static bool IncomingVideoStreamThreadFun(void* obj);
-  bool IncomingVideoStreamProcess();
+protected:
+    static bool IncomingVideoStreamThreadFun(void* obj);
+    bool IncomingVideoStreamProcess();
 
- private:
-  enum { KEventStartupTimeMS = 10 };
-  enum { KEventMaxWaitTimeMs = 100 };
-  enum { KFrameRatePeriodMs = 1000 };
+private:
 
-  WebRtc_Word32 module_id_;
-  WebRtc_UWord32 stream_id_;
-  // Critsects in allowed to enter order.
-  CriticalSectionWrapper& stream_critsect_;
-  CriticalSectionWrapper& thread_critsect_;
-  CriticalSectionWrapper& buffer_critsect_;
-  ThreadWrapper* incoming_render_thread_;
-  EventWrapper& deliver_buffer_event_;
-  bool running_;
+    // Enums
+    enum
+    {
+        KEventStartupTimeMS = 10
+    };
+    enum
+    {
+        KEventMaxWaitTimeMs = 100
+    };
+    enum
+    {
+        KFrameRatePeriodMs = 1000
+    };
 
-  VideoRenderCallback* external_callback_;
-  VideoRenderCallback* render_callback_;
-  VideoRenderFrames& render_buffers_;
+    WebRtc_Word32 _moduleId;
+    WebRtc_UWord32 _streamId;
+    CriticalSectionWrapper& _streamCritsect; // Critsects in allowed to enter order
+    CriticalSectionWrapper& _threadCritsect;
+    CriticalSectionWrapper& _bufferCritsect;
+    ThreadWrapper* _ptrIncomingRenderThread;
+    EventWrapper& _deliverBufferEvent;
+    bool _running;
 
-  RawVideoType callbackVideoType_;
-  WebRtc_UWord32 callbackWidth_;
-  WebRtc_UWord32 callbackHeight_;
+    VideoRenderCallback* _ptrExternalCallback;
+    VideoRenderCallback* _ptrRenderCallback;
+    VideoRenderFrames& _renderBuffers;
 
-  WebRtc_UWord32 incoming_rate_;
-  WebRtc_Word64 last_rate_calculation_time_ms_;
-  WebRtc_UWord16 num_frames_since_last_calculation_;
-  VideoFrame last_rendered_frame_;
-  VideoFrame temp_frame_;
-  VideoFrame start_image_;
-  VideoFrame timeout_image_;
-  WebRtc_UWord32 timeout_time_;
+    RawVideoType _callbackVideoType;
+    WebRtc_UWord32 _callbackWidth;
+    WebRtc_UWord32 _callbackHeight;
 
-  bool mirror_frames_enabled_;
-  VideoMirroring mirroring_;
-  VideoFrame transformed_video_frame_;
+    WebRtc_UWord32 _incomingRate;
+    WebRtc_Word64 _lastRateCalculationTimeMs;
+    WebRtc_UWord16 _numFramesSinceLastCalculation;
+    VideoFrame _lastRenderedFrame;
+    VideoFrame _tempFrame;
+    VideoFrame _startImage;
+    VideoFrame _timeoutImage;
+    WebRtc_UWord32 _timeoutTime;
+
+    bool _mirrorFramesEnabled;
+    VideoMirroring _mirroring;
+    VideoFrame _transformedVideoFrame;
 };
 
-}  // namespace webrtc
+} //namespace webrtc
 
 #endif  // WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_INCOMING_VIDEO_STREAM_H_

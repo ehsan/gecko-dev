@@ -139,7 +139,7 @@ XULColorPickerAccessible::AreItemsOperable() const
 void
 XULColorPickerAccessible::CacheChildren()
 {
-  NS_ENSURE_TRUE_VOID(mDoc);
+  NS_ENSURE_TRUE(mDoc,);
 
   nsAccTreeWalker walker(mDoc, mContent, true);
 

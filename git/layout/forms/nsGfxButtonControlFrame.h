@@ -6,7 +6,6 @@
 #ifndef nsGfxButtonControlFrame_h___
 #define nsGfxButtonControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFormControlFrame.h"
 #include "nsHTMLButtonControlFrame.h"
 #include "nsCOMPtr.h"
@@ -29,16 +28,16 @@ public:
 
   nsGfxButtonControlFrame(nsStyleContext* aContext);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsEventStatus* aEventStatus);
 
   virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   NS_DECL_QUERYFRAME
@@ -46,11 +45,11 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
-  virtual nsIFrame* CreateFrameFor(nsIContent* aContent) MOZ_OVERRIDE;
+                                        uint32_t aFilter);
+  virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
   // nsIFormControlFrame
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const MOZ_OVERRIDE; 
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
 
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
@@ -59,16 +58,16 @@ public:
 
   virtual bool IsLeaf() const;
 
-  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE;
+  virtual nsIFrame* GetContentInsertionFrame();
 
 protected:
-  nsresult GetDefaultLabel(nsXPIDLString& aLabel) const;
+  nsresult GetDefaultLabel(nsXPIDLString& aLabel);
 
   nsresult GetLabel(nsXPIDLString& aLabel);
 
-  bool IsFileBrowseButton(int32_t type) const; // Browse button of file input
+  bool IsFileBrowseButton(int32_t type); // Browse button of file input
 
-  virtual bool IsInput() MOZ_OVERRIDE { return true; }
+  virtual bool IsInput() { return true; }
 private:
   nsCOMPtr<nsIContent> mTextContent;
 };

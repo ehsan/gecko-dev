@@ -8,6 +8,12 @@
   color: -moz-FieldText;
 }
 
+.property-header {
+  padding: 5px 0;
+  white-space: nowrap;
+  vertical-align: text-top;
+}
+
 /* Take away these two :visited rules to get a core dumper     */
 /* See https://bugzilla.mozilla.org/show_bug.cgi?id=575675#c30 */
 .link,
@@ -65,19 +71,15 @@
   visibility: visible;
 }
 
-.expander-container {
-  vertical-align: text-top;
-}
-
 .property-name {
-  padding: 2px 0;
+  font-size: 12px;
   color: -moz-FieldText;
 }
-
 .property-value {
   padding: 0;
-  -moz-padding-end: 6px;
+  font-size: 10px;
   color: grey;
+  vertical-align: text-top;
   width: 100%;
 }
 
@@ -146,7 +148,7 @@
 }
 
 .ruleview-rule-source {
-  color: hsl(90,2%,46%); /* grey */
+  color: hsl(121,42%,43%); /* green */
   -moz-padding-start: 5px;
   cursor: pointer;
   text-align: right;
@@ -233,7 +235,7 @@
 
 .ruleview-propertyname {
   padding: 1px 0;
-  color: hsl(276,44%,45%); /* purple */
+  color: hsl(210,100%,38%); /* blue */
 }
 
 .ruleview-propertyvalue {
@@ -282,8 +284,4 @@
 .ruleview-namecontainer:hover > .ruleview-propertyname,
 .ruleview-propertycontainer:hover > .ruleview-propertyvalue {
   border-bottom-color: hsl(0,0%,50%);
-}
-
-.ruleview-selector-separator, .ruleview-selector-unmatched {
-  color: #888;
 }

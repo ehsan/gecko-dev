@@ -20,7 +20,6 @@ class nsPIDOMWindow;
 BEGIN_INDEXEDDB_NAMESPACE
 
 class HelperBase;
-class IDBFactory;
 class IDBTransaction;
 class IndexedDBRequestParentBase;
 
@@ -84,17 +83,15 @@ public:
 
   void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
 
-  bool IsPending() const
-  {
-    return !mHaveResultOrErrorCode;
-  }
-
 protected:
   IDBRequest();
   ~IDBRequest();
 
   nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
+
+  NS_DECL_EVENT_HANDLER(success)
+  NS_DECL_EVENT_HANDLER(error)
 
   jsval mResultVal;
 
@@ -120,8 +117,7 @@ public:
 
   static
   already_AddRefed<IDBOpenDBRequest>
-  Create(IDBFactory* aFactory,
-         nsPIDOMWindow* aOwner,
+  Create(nsPIDOMWindow* aOwner,
          JSObject* aScriptOwner,
          JSContext* aCallingCx);
 
@@ -130,17 +126,12 @@ public:
   // nsIDOMEventTarget
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  IDBFactory*
-  Factory() const
-  {
-    return mFactory;
-  }
-
 protected:
   ~IDBOpenDBRequest();
 
   // Only touched on the main thread.
-  nsRefPtr<IDBFactory> mFactory;
+  NS_DECL_EVENT_HANDLER(blocked)
+  NS_DECL_EVENT_HANDLER(upgradeneeded)
 };
 
 END_INDEXEDDB_NAMESPACE

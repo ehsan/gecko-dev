@@ -35,13 +35,13 @@ nsHtml5SpeculativeLoad::Perform(nsHtml5TreeOpExecutor* aExecutor)
 			       mCrossOrigin);
       break;
     case eSpeculativeLoadStyle:
-      aExecutor->PreloadStyle(mUrl, mCharset, mCrossOrigin);
+      aExecutor->PreloadStyle(mUrl, mCharset);
       break;
     case eSpeculativeLoadManifest:  
       aExecutor->ProcessOfflineManifest(mUrl);
       break;
     case eSpeculativeLoadSetDocumentCharset: {
-        nsAutoCString narrowName;
+        nsCAutoString narrowName;
         CopyUTF16toUTF8(mCharset, narrowName);
         NS_ASSERTION(mTypeOrCharsetSource.Length() == 1,
             "Unexpected charset source string");

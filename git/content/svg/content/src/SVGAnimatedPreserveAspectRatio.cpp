@@ -9,7 +9,6 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsSMILValue.h"
 #include "SMILEnumType.h"
-#include "nsAttrValueInlines.h"
 
 using namespace mozilla;
 

@@ -52,16 +52,10 @@ class MathCache
  */
 
 extern JSObject *
-js_InitMathClass(JSContext *cx, js::HandleObject obj);
+js_InitMathClass(JSContext *cx, JSObject *obj);
 
 extern void
 js_InitRandom(JSContext *cx);
-
-extern double
-math_random_no_outparam(JSContext *cx);
-
-extern JSBool
-js_math_random(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool
 js_math_abs(JSContext *cx, unsigned argc, js::Value *vp);
@@ -92,39 +86,5 @@ js_math_ceil_impl(double x);
 
 extern double
 js_math_floor_impl(double x);
-
-namespace js {
-
-extern JSBool
-math_log(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern double
-math_log_impl(MathCache *cache, double x);
-
-extern JSBool
-math_sin(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern double
-math_sin_impl(MathCache *cache, double x);
-
-extern JSBool
-math_cos(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern double
-math_cos_impl(MathCache *cache, double x);
-
-extern JSBool
-math_tan(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern double
-math_tan_impl(MathCache *cache, double x);
-
-extern double
-powi(double x, int y);
-
-extern double
-ecmaPow(double x, double y);
-
-} /* namespace js */
 
 #endif /* jsmath_h___ */

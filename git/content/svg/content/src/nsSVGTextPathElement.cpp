@@ -18,7 +18,7 @@ using namespace mozilla;
 
 nsSVGElement::LengthInfo nsSVGTextPathElement::sLengthInfo[1] =
 {
-  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
+  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
 };
 
 nsSVGEnumMapping nsSVGTextPathElement::sMethodMap[] = {

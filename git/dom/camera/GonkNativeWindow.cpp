@@ -24,14 +24,15 @@
 #include "GonkNativeWindow.h"
 #include "nsDebug.h"
 
-/**
- * DOM_CAMERA_LOGI() is enabled in debug builds, and turned on by setting
- * NSPR_LOG_MODULES=Camera:N environment variable, where N >= 3.
- *
- * CNW_LOGE() is always enabled.
- */
-#define CNW_LOGD(...)   DOM_CAMERA_LOGI(__VA_ARGS__)
-#define CNW_LOGE(...)   {(void)printf_stderr(__VA_ARGS__);}
+// enable debug logging by setting to 1
+#define CNW_DEBUG 0
+#if CNW_DEBUG
+#define CNW_LOGD(...) {(void)printf_stderr(__VA_ARGS__);}
+#else
+#define CNW_LOGD(...) ((void)0)
+#endif
+
+#define CNW_LOGE(...) {(void)printf_stderr(__VA_ARGS__);}
 
 using namespace android;
 using namespace mozilla::layers;
@@ -56,8 +57,6 @@ GonkNativeWindow::~GonkNativeWindow()
 void GonkNativeWindow::abandon()
 {
     Mutex::Autolock lock(mMutex);
-    ++mGeneration;
-    CNW_LOGD("abandon: new generation %d", mGeneration);
     freeAllBuffersLocked();
     mDequeueCondition.signal();
 }
@@ -80,7 +79,6 @@ void GonkNativeWindow::init()
     mTimestamp = NATIVE_WINDOW_TIMESTAMP_AUTO;
     mBufferCount = MIN_BUFFER_SLOTS;
     mFrameCounter = 0;
-    mGeneration = 0;
 }
 
 
@@ -263,15 +261,11 @@ int GonkNativeWindow::dequeueBuffer(android_native_buffer_t** buffer)
                                            mPixelFormat,
                                            mUsage,
                                            &buffer);
-        // We can only use a gralloc buffer here.  If we didn't get
-        // one back, something went wrong.
-        if (SurfaceDescriptor::TSurfaceDescriptorGralloc != buffer.type()) {
-            MOZ_ASSERT(SurfaceDescriptor::T__None == buffer.type());
-            CNW_LOGE("dequeueBuffer: failed to alloc gralloc buffer");
-            return -ENOMEM;
-        }
         sp<GraphicBuffer> graphicBuffer =
           GrallocBufferActor::GetFrom(buffer.get_SurfaceDescriptorGralloc());
+        if (!graphicBuffer.get()) {
+            return -ENOMEM;
+        }
         error = graphicBuffer->initCheck();
         if (error != NO_ERROR) {
             CNW_LOGE("dequeueBuffer: createGraphicBuffer failed with error %d",error);
@@ -305,18 +299,6 @@ int GonkNativeWindow::getSlotFromBufferLocked(
     }
     CNW_LOGE("getSlotFromBufferLocked: unknown buffer: %p", buffer->handle);
     return BAD_VALUE;
-}
-
-mozilla::layers::SurfaceDescriptor *
-GonkNativeWindow::getSurfaceDescriptorFromBuffer(ANativeWindowBuffer* buffer)
-{
-  int buf = getSlotFromBufferLocked(buffer);
-  if (buf < 0 || buf >= mBufferCount ||
-      mSlots[buf].mBufferState != BufferSlot::DEQUEUED) {
-    return nullptr;
-  }
-
-  return &mSlots[buf].mSurfaceDescriptor;
 }
 
 int GonkNativeWindow::queueBuffer(ANativeWindowBuffer* buffer)
@@ -364,7 +346,7 @@ int GonkNativeWindow::queueBuffer(ANativeWindowBuffer* buffer)
 already_AddRefed<GraphicBufferLocked>
 GonkNativeWindow::getCurrentBuffer()
 {
-  CNW_LOGD("GonkNativeWindow::getCurrentBuffer");
+  CNW_LOGD("GonkNativeWindow::lockCurrentBuffer");
   Mutex::Autolock lock(mMutex);
 
   int found = -1;
@@ -386,36 +368,30 @@ GonkNativeWindow::getCurrentBuffer()
   mSlots[found].mBufferState = BufferSlot::RENDERING;
 
   nsRefPtr<GraphicBufferLocked> ret =
-    new CameraGraphicBuffer(this, found, mGeneration, mSlots[found].mSurfaceDescriptor);
+    new CameraGraphicBuffer(this, found, mSlots[found].mSurfaceDescriptor);
   mDequeueCondition.signal();
   return ret.forget();
 }
 
-bool
-GonkNativeWindow::returnBuffer(uint32_t aIndex, uint32_t aGeneration)
+void
+GonkNativeWindow::returnBuffer(uint32_t aIndex)
 {
-  CNW_LOGD("GonkNativeWindow::returnBuffer: slot=%d (generation=%d)", aIndex, aGeneration);
+  CNW_LOGD("GonkNativeWindow::freeBuffer");
   Mutex::Autolock lock(mMutex);
 
-  if (aGeneration != mGeneration) {
-    CNW_LOGD("returnBuffer: buffer is from generation %d (current is %d)",
-      aGeneration, mGeneration);
-    return false;
-  }
   if (aIndex < 0 || aIndex >= mBufferCount) {
-    CNW_LOGE("returnBuffer: slot index out of range [0, %d]: %d",
+    CNW_LOGE("cancelBuffer: slot index out of range [0, %d]: %d",
              mBufferCount, aIndex);
-    return false;
-  }
-  if (mSlots[aIndex].mBufferState != BufferSlot::RENDERING) {
-    CNW_LOGE("returnBuffer: slot %d is not owned by the compositor (state=%d)",
+    return;
+  } else if (mSlots[aIndex].mBufferState != BufferSlot::RENDERING) {
+    printf_stderr("cancelBuffer: slot %d is not owned by the compositor (state=%d)",
                   aIndex, mSlots[aIndex].mBufferState);
-    return false;
+    return;
   }
 
   mSlots[aIndex].mBufferState = BufferSlot::FREE;
   mDequeueCondition.signal();
-  return true;
+  return;
 }
 
 int GonkNativeWindow::lockBuffer(ANativeWindowBuffer* buffer)
@@ -449,11 +425,9 @@ int GonkNativeWindow::cancelBuffer(ANativeWindowBuffer* buffer)
 int GonkNativeWindow::perform(int operation, va_list args)
 {
     switch (operation) {
-        case NATIVE_WINDOW_SET_BUFFERS_TRANSFORM:
-        case NATIVE_WINDOW_SET_BUFFERS_SIZE:
-        case NATIVE_WINDOW_SET_SCALING_MODE:
-        case NATIVE_WINDOW_SET_CROP:
         case NATIVE_WINDOW_CONNECT:
+            // deprecated. must return NO_ERROR.
+            return NO_ERROR;
         case NATIVE_WINDOW_DISCONNECT:
             // deprecated. must return NO_ERROR.
             return NO_ERROR;
@@ -469,12 +443,14 @@ int GonkNativeWindow::perform(int operation, va_list args)
             return dispatchSetBuffersDimensions(args);
         case NATIVE_WINDOW_SET_BUFFERS_FORMAT:
             return dispatchSetBuffersFormat(args);
+        case NATIVE_WINDOW_SET_CROP:
+        case NATIVE_WINDOW_SET_BUFFERS_TRANSFORM:
+        case NATIVE_WINDOW_SET_SCALING_MODE:
         case NATIVE_WINDOW_LOCK:
         case NATIVE_WINDOW_UNLOCK_AND_POST:
         case NATIVE_WINDOW_API_CONNECT:
         case NATIVE_WINDOW_API_DISCONNECT:
         default:
-            NS_WARNING("Unsupported operation");
             return INVALID_OPERATION;
     }
 }

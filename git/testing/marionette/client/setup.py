@@ -1,7 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
-version = '0.5.10'
+version = '0.3'
 
 # get documentation from the README
 try:
@@ -12,10 +12,9 @@ except (OSError, IOError):
 
 # dependencies
 deps = ['manifestdestiny', 'mozhttpd >= 0.3',
-        'mozprocess >= 0.6', 'mozrunner >= 5.11',
-        'mozdevice >= 0.12']
+        'mozprocess == 0.5', 'mozrunner == 5.10', 'datazilla == 0.2.1']
 
-setup(name='marionette_client',
+setup(name='marionette',
       version=version,
       description="Marionette test automation client",
       long_description=description,
@@ -26,14 +25,8 @@ setup(name='marionette_client',
       url='https://wiki.mozilla.org/Auto-tools/Projects/Marionette',
       license='MPL',
       packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
-      package_data={'marionette': ['touch/*.js']},
       include_package_data=True,
       zip_safe=False,
-      entry_points="""
-      # -*- Entry points: -*-
-      [console_scripts]
-      marionette = marionette.runtests:cli
-      """,
       install_requires=deps,
       )
 

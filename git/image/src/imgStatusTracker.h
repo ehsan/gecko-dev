@@ -22,6 +22,7 @@ class Image;
 
 #include "nsCOMPtr.h"
 #include "nsIRunnable.h"
+#include "prtypes.h"
 #include "nscore.h"
 
 enum {

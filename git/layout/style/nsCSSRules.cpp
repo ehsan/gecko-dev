@@ -57,43 +57,13 @@ IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_)
 namespace mozilla {
 namespace css {
 
-nsCSSStyleSheet*
-Rule::GetStyleSheet() const
-{
-  if (!(mSheet & 0x1)) {
-    return reinterpret_cast<nsCSSStyleSheet*>(mSheet);
-  }
-
-  return nullptr;
-}
-
-nsHTMLCSSStyleSheet*
-Rule::GetHTMLCSSStyleSheet() const
-{
-  if (mSheet & 0x1) {
-    return reinterpret_cast<nsHTMLCSSStyleSheet*>(mSheet & ~uintptr_t(0x1));
-  }
-
-  return nullptr;
-}
-
 /* virtual */ void
 Rule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
   // We don't reference count this up reference. The style sheet
   // will tell us when it's going away or when we're detached from
   // it.
-  mSheet = reinterpret_cast<uintptr_t>(aSheet);
-}
-
-void
-Rule::SetHTMLCSSStyleSheet(nsHTMLCSSStyleSheet* aSheet)
-{
-  // We don't reference count this up reference. The style sheet
-  // will tell us when it's going away or when we're detached from
-  // it.
-  mSheet = reinterpret_cast<uintptr_t>(aSheet);
-  mSheet |= 0x1;
+  mSheet = aSheet;
 }
 
 nsresult
@@ -112,7 +82,7 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
 
-  NS_IF_ADDREF(*aSheet = GetStyleSheet());
+  NS_IF_ADDREF(*aSheet = mSheet);
   return NS_OK;
 }
 
@@ -640,11 +610,10 @@ void
 GroupRule::AppendStyleRule(Rule* aRule)
 {
   mRules.AppendObject(aRule);
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  aRule->SetStyleSheet(sheet);
+  aRule->SetStyleSheet(mSheet);
   aRule->SetParentRule(this);
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 }
 
@@ -682,7 +651,7 @@ nsresult
 GroupRule::InsertStyleRulesAt(uint32_t aIndex,
                               nsCOMArray<Rule>& aRules)
 {
-  aRules.EnumerateForwards(SetStyleSheetReference, GetStyleSheet());
+  aRules.EnumerateForwards(SetStyleSheetReference, mSheet);
   aRules.EnumerateForwards(SetParentRuleReference, this);
   if (! mRules.InsertObjectsAt(aRules, aIndex)) {
     return NS_ERROR_FAILURE;
@@ -696,7 +665,7 @@ GroupRule::ReplaceStyleRule(Rule* aOld, Rule* aNew)
   int32_t index = mRules.IndexOf(aOld);
   NS_ENSURE_TRUE(index != -1, NS_ERROR_UNEXPECTED);
   mRules.ReplaceObjectAt(aNew, index);
-  aNew->SetStyleSheet(GetStyleSheet());
+  aNew->SetStyleSheet(mSheet);
   aNew->SetParentRule(this);
   aOld->SetStyleSheet(nullptr);
   aOld->SetParentRule(nullptr);
@@ -741,31 +710,29 @@ GroupRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 nsresult
 GroupRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
 {
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
   
   if (aIndex > uint32_t(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
+  NS_ASSERTION(uint32_t(mRules.Count()) <= PR_INT32_MAX,
                "Too many style rules!");
 
-  return sheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
+  return mSheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
 }
 
 nsresult
 GroupRule::DeleteRule(uint32_t aIndex)
 {
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
 
   if (aIndex >= uint32_t(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
+  NS_ASSERTION(uint32_t(mRules.Count()) <= PR_INT32_MAX,
                "Too many style rules!");
 
-  return sheet->DeleteRuleFromGroup(this, aIndex);
+  return mSheet->DeleteRuleFromGroup(this, aIndex);
 }
 
 /* virtual */ size_t
@@ -794,7 +761,7 @@ MediaRule::MediaRule(const MediaRule& aCopy)
     aCopy.mMedia->Clone(getter_AddRefs(mMedia));
     if (mMedia) {
       // XXXldb This doesn't really make sense.
-      mMedia->SetStyleSheet(aCopy.GetStyleSheet());
+      mMedia->SetStyleSheet(aCopy.mSheet);
     }
   }
 }
@@ -868,7 +835,7 @@ MediaRule::SetMedia(nsMediaList* aMedia)
 {
   mMedia = aMedia;
   if (aMedia)
-    mMedia->SetStyleSheet(GetStyleSheet());
+    mMedia->SetStyleSheet(mSheet);
   return NS_OK;
 }
 
@@ -1004,7 +971,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
 {
   for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  nsAutoCString str;
+  nsCAutoString str;
   str.AssignLiteral("@-moz-document ");
   for (URL *url = mURLs; url; url = url->next) {
     switch (url->func) {
@@ -1021,7 +988,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
         str.AppendLiteral("regexp(\"");
         break;
     }
-    nsAutoCString escapedURL(url->url);
+    nsCAutoString escapedURL(url->url);
     escapedURL.ReplaceSubstring("\"", "\\\""); // escape quotes
     str.Append(escapedURL);
     str.AppendLiteral("\"), ");
@@ -1126,7 +1093,7 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
 {
   nsIDocument *doc = aPresContext->Document();
   nsIURI *docURI = doc->GetDocumentURI();
-  nsAutoCString docURISpec;
+  nsCAutoString docURISpec;
   if (docURI)
     docURI->GetSpec(docURISpec);
 
@@ -1141,7 +1108,7 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
           return true;
       } break;
       case eDomain: {
-        nsAutoCString host;
+        nsCAutoString host;
         if (docURI)
           docURI->GetHost(host);
         int32_t lenDiff = host.Length() - url->url.Length();
@@ -1406,7 +1373,7 @@ AppendSerializedUnicodeRange(nsCSSValue const & aValue,
     return;
 
   nsCSSValue::Array const & sources = *aValue.GetArrayValue();
-  nsAutoCString buf;
+  nsCAutoString buf;
 
   NS_ABORT_IF_FALSE(sources.Count() % 2 == 0,
                     "odd number of entries in a unicode-range: array");
@@ -2072,9 +2039,8 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
     // for now, we don't do anything if the parse fails
   }
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2099,9 +2065,8 @@ nsCSSKeyframeRule::ChangeDeclaration(css::Declaration* aDeclaration)
     mDeclaration = aDeclaration;
   }
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 }
 
@@ -2224,9 +2189,8 @@ nsCSSKeyframesRule::SetName(const nsAString& aName)
 {
   mName = aName;
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2287,9 +2251,8 @@ nsCSSKeyframesRule::DeleteRule(const nsAString& aKey)
   uint32_t index = FindRuleIndexForKey(aKey);
   if (index != RULE_NOT_FOUND) {
     mRules.RemoveObjectAt(index);
-    nsCSSStyleSheet* sheet = GetStyleSheet();
-    if (sheet) {
-      sheet->SetModifiedByChildRule();
+    if (mSheet) {
+      mSheet->SetModifiedByChildRule();
     }
   }
   return NS_OK;

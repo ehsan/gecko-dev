@@ -64,7 +64,7 @@ struct VisitData {
   , sessionId(0)
   , hidden(true)
   , typed(false)
-  , transitionType(UINT32_MAX)
+  , transitionType(PR_UINT32_MAX)
   , visitTime(0)
   , frecency(-1)
   , titleChanged(false)
@@ -80,7 +80,7 @@ struct VisitData {
   , sessionId(0)
   , hidden(true)
   , typed(false)
-  , transitionType(UINT32_MAX)
+  , transitionType(PR_UINT32_MAX)
   , visitTime(0)
   , frecency(-1)
   , titleChanged(false)
@@ -907,7 +907,7 @@ private:
       mozStorageStatementScoper scoper(stmt);
       nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("visit_date"),
                                           _place.visitTime);
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       scoper.Abandon();
     }
@@ -1293,7 +1293,7 @@ public:
     rv = destinationFile->GetLeafName(destinationFileName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString destinationURISpec;
+    nsCAutoString destinationURISpec;
     rv = destinationFileURL->GetSpec(destinationURISpec);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1454,10 +1454,10 @@ History::~History()
 #endif
 }
 
-NS_IMETHODIMP
+void
 History::NotifyVisited(nsIURI* aURI)
 {
-  NS_ENSURE_ARG(aURI);
+  NS_ASSERTION(aURI, "Ruh-roh!  A NULL URI was passed to us!");
 
   nsAutoScriptBlocker scriptBlocker;
 
@@ -1477,14 +1477,14 @@ History::NotifyVisited(nsIURI* aURI)
   // If the hash table has not been initialized, then we have nothing to notify
   // about.
   if (!mObservers.IsInitialized()) {
-    return NS_OK;
+    return;
   }
 
   // Additionally, if we have no observers for this URI, we have nothing to
   // notify about.
   KeyClass* key = mObservers.GetEntry(aURI);
   if (!key) {
-    return NS_OK;
+    return;
   }
 
   // Update status of each Link node.
@@ -1503,7 +1503,6 @@ History::NotifyVisited(nsIURI* aURI)
 
   // All the registered nodes can now be removed for this URI.
   mObservers.RemoveEntry(aURI);
-  return NS_OK;
 }
 
 mozIStorageAsyncStatement*
@@ -1567,7 +1566,7 @@ History::InsertPlace(const VisitData& aPlace)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("hidden"), aPlace.hidden);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsAutoCString guid(aPlace.guid);
+  nsCAutoString guid(aPlace.guid);
   if (aPlace.guid.IsVoid()) {
     rv = GenerateGUID(guid);
     NS_ENSURE_SUCCESS(rv, rv);

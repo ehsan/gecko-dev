@@ -599,9 +599,6 @@ public:
   virtual void AddCatalogStyleSheet(nsIStyleSheet* aSheet);
   virtual void EnsureCatalogStyleSheet(const char *aStyleSheetURI);
 
-  virtual nsresult LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI);
-  virtual void RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* sheetURI);
-
   virtual nsIChannel* GetChannel() const {
     return mChannel;
   }
@@ -694,7 +691,7 @@ public:
   virtual bool IsNodeOfType(uint32_t aFlags) const;
   virtual nsIContent *GetChildAt(uint32_t aIndex) const;
   virtual nsIContent * const * GetChildArray(uint32_t* aChildCount) const;
-  virtual int32_t IndexOf(const nsINode* aPossibleChild) const MOZ_OVERRIDE;
+  virtual int32_t IndexOf(nsINode* aPossibleChild) const;
   virtual uint32_t GetChildCount() const;
   virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
                                  bool aNotify);
@@ -880,8 +877,7 @@ public:
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString &aCrossOriginAttr);
 
-  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset,
-                            const nsAString& aCrossOriginAttr);
+  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset);
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                        nsCSSStyleSheet** sheet);
@@ -1073,8 +1069,6 @@ protected:
                          nsCompatibility aCompatMode,
                          nsIPresShell** aInstancePtrResult);
 
-  void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
-                                      nsStyleSet::sheetType aType);
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
@@ -1124,7 +1118,6 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mCatalogSheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[2];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
@@ -1261,7 +1254,7 @@ protected:
   nsRefPtr<nsDOMNavigationTiming> mTiming;
 private:
   friend class nsUnblockOnloadEvent;
-  // This needs to stay in sync with the list in GetVisibilityState.
+  // This needs to stay in sync with the list in GetMozVisibilityState.
   enum VisibilityState {
     eHidden = 0,
     eVisible,
@@ -1274,7 +1267,7 @@ private:
   void DoUnblockOnload();
 
   nsresult CheckFrameOptions();
-  nsresult InitCSP(nsIChannel* aChannel);
+  nsresult InitCSP();
 
   // Sets aElement to be the pending pointer lock element. Once this document's
   // node principal's URI is granted the "fullscreen" permission, the pointer

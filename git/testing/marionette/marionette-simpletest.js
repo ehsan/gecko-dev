@@ -5,48 +5,38 @@
  * The Marionette object, passed to the script context.
  */
 
-function Marionette(scope, window, context, logObj, perfData, timeout, testName) {
+function Marionette(scope, window, context, logObj, perfData) {
   this.scope = scope;
   this.window = window;
   this.tests = [];
   this.logObj = logObj;
   this.perfData = perfData;
   this.context = context;
-  this.timeout = timeout;
-  this.testName = testName;
-  this.TEST_UNEXPECTED_FAIL = "TEST-UNEXPECTED-FAIL";
-  this.TEST_PASS = "TEST-PASS";
-  this.TEST_KNOWN_FAIL = "TEST-KNOWN-FAIL";
+  this.timeout = 0;
 }
 
 Marionette.prototype = {
   exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd', 'addPerfData', 'getPerfData', 'TEST_PASS',
-            'TEST_KNOWN_FAIL', 'TEST_UNEXPECTED_FAIL'],
+            'runEmulatorCmd', 'addPerfData', 'getPerfData'],
 
-  ok: function Marionette__ok(condition, name, passString, failString, diag) {
-    if (typeof(diag) == "undefined") {
-      diag = this.repr(condition) + " was false, expected true";
-    }
+  ok: function Marionette__ok(condition, name, diag) {
     let test = {'result': !!condition, 'name': name, 'diag': diag};
-    this.logResult(test,
-                   typeof(passString) == "undefined" ? this.TEST_PASS : passString,
-                   typeof(failString) == "undefined" ? this.TEST_UNEXPECTED_FAIL : failString);
+    this.logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
     this.tests.push(test);
   },
 
-  is: function Marionette__is(a, b, name, passString, failString) {
+  is: function Marionette__is(a, b, name) {
     let pass = (a == b);
     let diag = pass ? this.repr(a) + " should equal " + this.repr(b)
                     : "got " + this.repr(a) + ", expected " + this.repr(b);
-    this.ok(pass, name, passString, failString, diag);
+    this.ok(pass, name, diag);
   },
 
-  isnot: function Marionette__isnot (a, b, name, passString, failString) {
+  isnot: function Marionette__isnot (a, b, name) {
     let pass = (a != b);
     let diag = pass ? this.repr(a) + " should not equal " + this.repr(b)
                     : "didn't expect " + this.repr(a) + ", but got it";
-    this.ok(pass, name, passString, failString, diag);
+    this.ok(pass, name, diag);
   },
 
   addPerfData: function Marionette__addPerfData(testSuite, testName, data) {
@@ -97,7 +87,7 @@ Marionette.prototype = {
     //TODO: dump to file
     let resultString = test.result ? passString : failString;
     let diagnostic = test.name + (test.diag ? " - " + test.diag : "");
-    let msg = resultString + " | " + this.testName + " | " + diagnostic;
+    let msg = [resultString, diagnostic].join(" | ");
     dump("MARIONETTE TEST RESULT:" + msg + "\n");
   },
 
@@ -145,15 +135,14 @@ Marionette.prototype = {
           callback();
           return;
       }
-      var now = Date.now();
-      var deadline = now + (typeof(timeout) == "undefined" ? this.timeout : timeout);
-      if (deadline <= now) {
+      timeout = timeout || Date.now();
+      if (Date.now() - timeout > this.timeout) {
         dump("waitFor timeout: " + test.toString() + "\n");
         // the script will timeout here, so no need to raise a separate
         // timeout exception
         return;
       }
-      this.window.setTimeout(this.waitFor.bind(this), 100, callback, test, deadline - now);
+      this.window.setTimeout(this.waitFor.bind(this), 100, callback, test, timeout);
   },
 
   runEmulatorCmd: function runEmulatorCmd(cmd, callback) {

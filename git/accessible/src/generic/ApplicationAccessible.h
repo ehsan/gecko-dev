@@ -63,6 +63,7 @@ public:
   // nsAccessNode
   virtual void Init();
   virtual void Shutdown();
+  virtual bool IsPrimaryForNode() const;
 
   // Accessible
   virtual GroupPos GroupPosition();

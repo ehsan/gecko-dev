@@ -104,7 +104,7 @@ class RegExpCode
         codeBlock.release();
 #endif
         if (byteCode)
-            js_delete<BytecodePattern>(byteCode);
+            Foreground::delete_<BytecodePattern>(byteCode);
     }
 
     static bool checkSyntax(JSContext *cx, frontend::TokenStream *tokenStream,
@@ -167,15 +167,17 @@ class RegExpShared
     friend class RegExpGuard;
 
     detail::RegExpCode code;
-    unsigned           parenCount;
+    unsigned              parenCount;
     RegExpFlag         flags;
     size_t             activeUseCount;   /* See comment above. */
     uint64_t           gcNumberWhenUsed; /* See comment above. */
 
     bool compile(JSContext *cx, JSAtom *source);
 
-  public:
     RegExpShared(JSRuntime *rt, RegExpFlag flags);
+    JS_DECLARE_ALLOCATION_FRIENDS_FOR_PRIVATE_CONSTRUCTOR;
+
+  public:
 
     /* Called when a RegExpShared is installed into a RegExpObject. */
     inline void prepareForUse(JSContext *cx);
@@ -290,8 +292,6 @@ class RegExpCompartment
      * mapping property, 'hackedSource' is unambiguous.
      */
     bool lookupHack(JSAtom *source, RegExpFlag flags, JSContext *cx, RegExpGuard *g);
-
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf);
 };
 
 class RegExpObject : public JSObject

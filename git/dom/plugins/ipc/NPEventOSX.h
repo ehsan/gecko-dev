@@ -16,7 +16,6 @@ namespace plugins {
 
 struct NPRemoteEvent {
     NPCocoaEvent event;
-    double contentsScaleFactor;
 };
 
 } // namespace plugins
@@ -79,7 +78,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
                 NS_NOTREACHED("Attempted to serialize unknown event type.");
                 return;
         }
-        aMsg->WriteDouble(aParam.contentsScaleFactor);
     }
 
     static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -175,9 +173,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
             default:
                 NS_NOTREACHED("Attempted to de-serialize unknown event type.");
                 return false;
-        }
-        if (!aMsg->ReadDouble(aIter, &aResult->contentsScaleFactor)) {
-            return false;
         }
 
         return true;

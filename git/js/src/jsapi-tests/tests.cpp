@@ -24,16 +24,16 @@ bool JSAPITest::init()
     JS_SetGCZeal(cx, 0, 0);
 #endif
     JS_BeginRequest(cx);
-    js::RootedObject global(cx, createGlobal());
+    JS::RootedObject global(cx, createGlobal());
     if (!global)
         return false;
-    oldCompartment = JS_EnterCompartment(cx, global);
-    return oldCompartment != NULL;
+    call = JS_EnterCrossCompartmentCall(cx, global);
+    return call != NULL;
 }
 
 bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 {
-    js::RootedValue v(cx);
+    JS::RootedValue v(cx);
     JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&this->global);
     return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, v.address()) ||
         fail(bytes, filename, lineno);

@@ -194,6 +194,7 @@ pref("extensions.update.background.url", "https://versioncheck-bg.addons.mozilla
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
+pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/firefox/getpersonas");
 pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
 pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                 // restart.
@@ -578,6 +579,7 @@ pref("plugins.hide_infobar_for_missing_plugin", false);
 pref("plugins.hide_infobar_for_outdated_plugin", false);
 
 #ifdef XP_MACOSX
+pref("plugins.use_layers", true);
 pref("plugins.hide_infobar_for_carbon_failure_plugin", false);
 #endif
 
@@ -1004,7 +1006,6 @@ pref("devtools.inspector.htmlHeight", 112);
 pref("devtools.inspector.htmlPanelOpen", false);
 pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
-pref("devtools.inspector.markupPreview", false);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", true);
@@ -1019,7 +1020,7 @@ pref("devtools.debugger.chrome-enabled", false);
 pref("devtools.debugger.remote-host", "localhost");
 pref("devtools.debugger.remote-autoconnect", false);
 pref("devtools.debugger.remote-connection-retries", 3);
-pref("devtools.debugger.remote-timeout", 20000);
+pref("devtools.debugger.remote-timeout", 3000);
 
 // The default Debugger UI settings
 pref("devtools.debugger.ui.height", 250);
@@ -1174,5 +1175,3 @@ pref("social.sidebar.open", true);
 pref("social.sidebar.unload_timeout_ms", 10000);
 pref("social.active", false);
 pref("social.toast-notifications.enabled", true);
-
-pref("dom.identity.enabled", false);

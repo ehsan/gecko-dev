@@ -26,17 +26,16 @@ protected:
   typedef std::vector<std::string> StringVector;
 
 public:
-  typedef base::ChildPrivileges ChildPrivileges;
   typedef base::ProcessHandle ProcessHandle;
 
-  GeckoChildProcessHost(GeckoProcessType aProcessType,
-                        ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
+  GeckoChildProcessHost(GeckoProcessType aProcessType=GeckoProcessType_Default,
+                        base::WaitableEventWatcher::Delegate* aDelegate=nullptr);
 
   ~GeckoChildProcessHost();
 
-  static nsresult GetArchitecturesForBinary(const char *path, uint32_t *result);
+  static nsresult GetArchitecturesForBinary(const char *path, uint32 *result);
 
-  static uint32_t GetSupportedArchitecturesForProcessType(GeckoProcessType type);
+  static uint32 GetSupportedArchitecturesForProcessType(GeckoProcessType type);
 
   // Block until the IPC channel for our subprocess is initialized,
   // but no longer.  The child process may or may not have been
@@ -61,13 +60,13 @@ public:
   // the IPC channel, meaning it's fully initialized.  (Or until an
   // error occurs.)
   bool SyncLaunch(StringVector aExtraOpts=StringVector(),
-                  int32_t timeoutMs=0,
+                  int32 timeoutMs=0,
                   base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
   bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
                           base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
-  virtual void OnChannelConnected(int32_t peer_pid);
+  virtual void OnChannelConnected(int32 peer_pid);
   virtual void OnMessageReceived(const IPC::Message& aMsg);
   virtual void OnChannelError();
   virtual void GetQueuedMessages(std::queue<IPC::Message>& queue);
@@ -99,7 +98,6 @@ public:
 
 protected:
   GeckoProcessType mProcessType;
-  ChildPrivileges mPrivileges;
   Monitor mMonitor;
   FilePath mProcessPath;
   // This value must be accessed while holding mMonitor.

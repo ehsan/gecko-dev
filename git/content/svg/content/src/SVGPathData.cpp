@@ -4,16 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGPathData.h"
-#include "gfxPlatform.h"
+#include "SVGPathSegUtils.h"
+#include "nsSVGElement.h"
 #include "nsError.h"
 #include "nsString.h"
-#include "nsSVGElement.h"
+#include "nsSVGUtils.h"
+#include "string.h"
 #include "nsSVGPathDataParser.h"
 #include "nsSVGPathGeometryElement.h" // for nsSVGMark
+#include "gfxPlatform.h"
 #include <stdarg.h>
-#include "string.h"
-#include "SVGContentUtils.h"
-#include "SVGPathSegUtils.h"
 
 using namespace mozilla;
 
@@ -250,7 +250,7 @@ ApproximateZeroLengthSubpathSquareCaps(const gfxPoint &aPoint, gfxContext *aCtx)
 void
 SVGPathData::ConstructPath(gfxContext *aCtx) const
 {
-  if (mData.IsEmpty() || !IsMoveto(SVGPathSegUtils::DecodeType(mData[0]))) {
+  if (!mData.Length() || !IsMoveto(SVGPathSegUtils::DecodeType(mData[0]))) {
     return; // paths without an initial moveto are invalid
   }
 
@@ -258,8 +258,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
   bool subpathHasLength = false;  // visual length
   bool subpathContainsNonArc = false;
 
-  uint32_t segType     = nsIDOMSVGPathSeg::PATHSEG_UNKNOWN;
-  uint32_t prevSegType = nsIDOMSVGPathSeg::PATHSEG_UNKNOWN;
+  uint32_t segType, prevSegType = nsIDOMSVGPathSeg::PATHSEG_UNKNOWN;
   gfxPoint pathStart(0.0, 0.0); // start point of [sub]path
   gfxPoint segStart(0.0, 0.0);
   gfxPoint segEnd;
@@ -486,8 +485,6 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
   }
 
   NS_ABORT_IF_FALSE(i == mData.Length(), "Very, very bad - mData corrupt");
-  NS_ABORT_IF_FALSE(prevSegType == segType,
-                    "prevSegType should be left at the final segType");
 
   MAYBE_APPROXIMATE_ZERO_LENGTH_SUBPATH_SQUARE_CAPS;
 }
@@ -813,7 +810,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       } else {
         if (!(segType == nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH &&
               prevSegType == nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH))
-          mark.angle = SVGContentUtils::AngleBisect(prevSegEndAngle, segStartAngle);
+          mark.angle = nsSVGUtils::AngleBisect(prevSegEndAngle, segStartAngle);
       }
     }
 
@@ -828,7 +825,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
         prevSegType != nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH) {
       aMarks->ElementAt(aMarks->Length() - 1).angle =
         //aMarks->ElementAt(pathStartIndex).angle =
-        SVGContentUtils::AngleBisect(segEndAngle, pathStartAngle);
+        nsSVGUtils::AngleBisect(segEndAngle, pathStartAngle);
     }
 
     prevSegType = segType;

@@ -13,8 +13,6 @@
 #include "GrDefaultPathRenderer.h"
 #include "GrGpu.h"
 
-SK_DEFINE_INST_COUNT(GrPathRendererChain)
-
 GrPathRendererChain::GrPathRendererChain(GrContext* context, UsageFlags flags)
     : fInit(false)
     , fOwner(context)
@@ -51,10 +49,9 @@ GrPathRenderer* GrPathRendererChain::getPathRenderer(const SkPath& path,
 void GrPathRendererChain::init() {
     GrAssert(!fInit);
     GrGpu* gpu = fOwner->getGpu();
-    bool twoSided = gpu->getCaps().twoSidedStencilSupport();
-    bool wrapOp = gpu->getCaps().stencilWrapOpsSupport();
+    bool twoSided = gpu->getCaps().fTwoSidedStencilSupport;
+    bool wrapOp = gpu->getCaps().fStencilWrapOpsSupport;
     GrPathRenderer::AddPathRenderers(fOwner, fFlags, this);
-    this->addPathRenderer(SkNEW_ARGS(GrDefaultPathRenderer,
-                                     (twoSided, wrapOp)))->unref();
+    this->addPathRenderer(new GrDefaultPathRenderer(twoSided, wrapOp))->unref();
     fInit = true;
 }

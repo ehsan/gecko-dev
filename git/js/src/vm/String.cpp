@@ -17,21 +17,31 @@
 using namespace mozilla;
 using namespace js;
 
-#ifdef DEBUG
 bool
 JSString::isShort() const
 {
     bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING);
-    JS_ASSERT_IF(is_short, isFlat());
+    JS_ASSERT_IF(is_short, isFixed());
     return is_short;
 }
-#endif
+
+bool
+JSString::isFixed() const
+{
+    return isFlat() && !isExtensible();
+}
+
+bool
+JSString::isInline() const
+{
+    return isFixed() && (d.u1.chars == d.inlineStorage || isShort());
+}
 
 bool
 JSString::isExternal() const
 {
     bool is_external = (getAllocKind() == gc::FINALIZE_EXTERNAL_STRING);
-    JS_ASSERT_IF(is_external, isFlat());
+    JS_ASSERT_IF(is_external, isFixed());
     return is_external;
 }
 
@@ -56,48 +66,24 @@ JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
         return mallocSizeOf(extensible.chars());
     }
 
+    JS_ASSERT(isFixed());
+
     // JSExternalString: don't count, the chars could be stored anywhere.
     if (isExternal())
         return 0;
 
-    // JSInlineString, JSShortString [JSInlineAtom, JSShortAtom]: the chars are inline.
+    // JSInlineString, JSShortString, JSInlineAtom, JSShortAtom: the chars are inline.
     if (isInline())
         return 0;
 
-    // JSAtom, JSStableString, JSUndependedString: measure the space for the
+    // JSAtom, JSFixedString, JSUndependedString: measure the space for the
     // chars.  For JSUndependedString, there is no need to count the base
     // string, for the same reason as JSDependentString above.
-    JSFlatString &flat = asFlat();
-    return mallocSizeOf(flat.chars());
+    JSFixedString &fixed = asFixed();
+    return mallocSizeOf(fixed.chars());
 }
 
 #ifdef DEBUG
-
-void
-JSString::dumpChars(const jschar *s, size_t n)
-{
-    if (n == SIZE_MAX) {
-        n = 0;
-        while (s[n])
-            n++;
-    }
-
-    fputc('"', stderr);
-    for (size_t i = 0; i < n; i++) {
-        if (s[i] == '\n')
-            fprintf(stderr, "\\n");
-        else if (s[i] == '\t')
-            fprintf(stderr, "\\t");
-        else if (s[i] >= 32 && s[i] < 127)
-            fputc(s[i], stderr);
-        else if (s[i] <= 255)
-            fprintf(stderr, "\\x%02x", (unsigned int) s[i]);
-        else
-            fprintf(stderr, "\\u%04x", (unsigned int) s[i]);
-    }
-    fputc('"', stderr);
-}
-
 void
 JSString::dump()
 {
@@ -106,7 +92,7 @@ JSString::dump()
                 (void *) this, (void *) chars);
 
         extern void DumpChars(const jschar *s, size_t n);
-        dumpChars(chars, length());
+        DumpChars(chars, length());
     } else {
         fprintf(stderr, "(oom in JSString::dump)");
     }
@@ -154,7 +140,7 @@ AllocChars(JSContext *maybecx, size_t length, jschar **chars, size_t *capacity)
 
     JS_STATIC_ASSERT(JSString::MAX_LENGTH * sizeof(jschar) < UINT32_MAX);
     size_t bytes = numChars * sizeof(jschar);
-    *chars = (jschar *)(maybecx ? maybecx->malloc_(bytes) : js_malloc(bytes));
+    *chars = (jschar *)(maybecx ? maybecx->malloc_(bytes) : OffTheBooks::malloc_(bytes));
     return *chars != NULL;
 }
 
@@ -294,7 +280,7 @@ JSRope::flatten(JSContext *maybecx)
 #endif
 }
 
-JSString *
+JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, HandleString left, HandleString right)
 {
     JS_ASSERT_IF(!left->isAtom(), left->compartment() == cx->compartment);
@@ -333,7 +319,7 @@ js_ConcatStrings(JSContext *cx, HandleString left, HandleString right)
     return JSRope::new_(cx, left, right, wholeLength);
 }
 
-JSFlatString *
+JSFixedString *
 JSDependentString::undepend(JSContext *cx)
 {
     JS_ASSERT(JSString::isDependent());
@@ -361,22 +347,7 @@ JSDependentString::undepend(JSContext *cx)
      */
     d.lengthAndFlags = buildLengthAndFlags(n, UNDEPENDED_FLAGS);
 
-    return &this->asFlat();
-}
-
-JSStableString *
-JSInlineString::uninline(JSContext *maybecx)
-{
-    JS_ASSERT(isInline());
-    size_t n = length();
-    jschar *news = maybecx ? maybecx->pod_malloc<jschar>(n + 1) : js_pod_malloc<jschar>(n + 1);
-    if (!news)
-        return NULL;
-    js_strncpy(news, d.inlineStorage, n);
-    news[n] = 0;
-    d.u1.chars = news;
-    JS_ASSERT(!isInline());
-    return &asStable();
+    return &this->asFixed();
 }
 
 bool
@@ -469,7 +440,7 @@ StaticStrings::init(JSContext *cx)
 
     for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
         jschar buffer[] = { jschar(i), '\0' };
-        JSFlatString *s = js_NewStringCopyN(cx, buffer, 1);
+        JSFixedString *s = js_NewStringCopyN(cx, buffer, 1);
         if (!s)
             return false;
         unitStaticTable[i] = s->morphAtomizedStringIntoAtom();
@@ -477,7 +448,7 @@ StaticStrings::init(JSContext *cx)
 
     for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
         jschar buffer[] = { FROM_SMALL_CHAR(i >> 6), FROM_SMALL_CHAR(i & 0x3F), '\0' };
-        JSFlatString *s = js_NewStringCopyN(cx, buffer, 2);
+        JSFixedString *s = js_NewStringCopyN(cx, buffer, 2);
         if (!s)
             return false;
         length2StaticTable[i] = s->morphAtomizedStringIntoAtom();
@@ -495,7 +466,7 @@ StaticStrings::init(JSContext *cx)
                                 jschar('0' + ((i / 10) % 10)),
                                 jschar('0' + (i % 10)),
                                 '\0' };
-            JSFlatString *s = js_NewStringCopyN(cx, buffer, 3);
+            JSFixedString *s = js_NewStringCopyN(cx, buffer, 3);
             if (!s)
                 return false;
             intStaticTable[i] = s->morphAtomizedStringIntoAtom();

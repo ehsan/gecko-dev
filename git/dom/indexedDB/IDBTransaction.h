@@ -101,7 +101,6 @@ public:
 
   void OnNewRequest();
   void OnRequestFinished();
-  void OnRequestDisconnected();
 
   void RemoveObjectStore(const nsAString& aName);
 
@@ -189,12 +188,6 @@ public:
     return mActorChild;
   }
 
-  IndexedDBTransactionParent*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
   nsresult
   ObjectStoreInternal(const nsAString& aName,
                       IDBObjectStore** _retval);
@@ -235,6 +228,11 @@ private:
   ReadyState mReadyState;
   Mode mMode;
   uint32_t mPendingRequests;
+
+  // Only touched on the main thread.
+  NS_DECL_EVENT_HANDLER(error)
+  NS_DECL_EVENT_HANDLER(complete)
+  NS_DECL_EVENT_HANDLER(abort)
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;

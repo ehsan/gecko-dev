@@ -81,7 +81,7 @@ struct nsDiskCacheEntry;
 
 // The minimum amount of milliseconds to wait before re-attempting to
 // revalidate the cache.
-#define kRevalidateCacheTimeout 3000
+#define kRevalidateCacheTimeout 5000
 #define kRevalidateCacheTimeoutTolerance 10
 #define kRevalidateCacheErrorTimeout 1000
 
@@ -408,8 +408,7 @@ public:
  *  Returns error if it detects change in format or cache wasn't closed.
  */
     nsresult  Open( nsIFile *  cacheDirectory,
-                    nsDiskCache::CorruptCacheInfo *  corruptInfo,
-                    bool reportCacheCleanTelemetryData);
+                    nsDiskCache::CorruptCacheInfo *  corruptInfo);
     nsresult  Close(bool flush);
     nsresult  Trim();
 
@@ -540,8 +539,7 @@ private:
 
     // Initializes the _CACHE_CLEAN_ related functionality
     nsresult InitCacheClean(nsIFile *  cacheDirectory,
-                            nsDiskCache::CorruptCacheInfo *  corruptInfo,
-                            bool reportCacheCleanTelemetryData);
+                            nsDiskCache::CorruptCacheInfo *  corruptInfo);
     // Writes out a value of '0' or '1' in the _CACHE_CLEAN_ file
     nsresult WriteCacheClean(bool clean);
     // Resets the timout for revalidating the cache

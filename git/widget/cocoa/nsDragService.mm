@@ -30,7 +30,8 @@
 #include "nsIView.h"
 #include "gfxASurface.h"
 #include "gfxContext.h"
-#include "nsCocoaUtils.h"
+
+#import <Cocoa/Cocoa.h>
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* sCocoaLog;
@@ -133,26 +134,19 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  NSPoint screenPoint =
-    [[gLastDragView window] convertBaseToScreen:
-      [gLastDragMouseDownEvent locationInWindow]];
+  NSPoint screenPoint = [[gLastDragView window] convertBaseToScreen:[gLastDragMouseDownEvent locationInWindow]];
   // Y coordinates are bottom to top, so reverse this
-  screenPoint.y = nsCocoaUtils::FlippedScreenY(screenPoint.y);
-
-  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(gLastDragView);
-  nsIntPoint pt =
-    nsCocoaUtils::CocoaPointsToDevPixels(NSMakePoint(screenPoint.x,
-                                                     screenPoint.y),
-                                         scaleFactor);
+  if ([[NSScreen screens] count] > 0)
+    screenPoint.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - screenPoint.y;
 
   nsRefPtr<gfxASurface> surface;
   nsPresContext* pc;
-  nsresult rv = DrawDrag(aDOMNode, aRegion, pt.x, pt.y,
+  nsresult rv = DrawDrag(aDOMNode, aRegion,
+                         NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y),
                          aDragRect, getter_AddRefs(surface), &pc);
   if (!aDragRect->width || !aDragRect->height) {
     // just use some suitable defaults
-    int32_t size = nsCocoaUtils::CocoaPointsToDevPixels(20, scaleFactor);
-    aDragRect->SetRect(pt.x, pt.y, size, size);
+    aDragRect->SetRect(NSToIntRound(screenPoint.x), NSToIntRound(screenPoint.y), 20, 20);
   }
 
   if (NS_FAILED(rv) || !surface)
@@ -177,17 +171,16 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   uint32_t* imageData = (uint32_t*)imgSurface->Data();
   int32_t stride = imgSurface->Stride();
 
-  NSBitmapImageRep* imageRep =
-    [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-                                            pixelsWide:width
-                                            pixelsHigh:height
-                                         bitsPerSample:8
-                                       samplesPerPixel:4
-                                              hasAlpha:YES
-                                              isPlanar:NO
-                                        colorSpaceName:NSDeviceRGBColorSpace
-                                           bytesPerRow:width * 4
-                                          bitsPerPixel:32];
+  NSBitmapImageRep* imageRep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                       pixelsWide:width
+                                                                       pixelsHigh:height
+                                                                    bitsPerSample:8
+                                                                  samplesPerPixel:4
+                                                                         hasAlpha:YES
+                                                                         isPlanar:NO
+                                                                   colorSpaceName:NSDeviceRGBColorSpace
+                                                                      bytesPerRow:width * 4
+                                                                     bitsPerPixel:32];
 
   uint8_t* dest = [imageRep bitmapData];
   for (uint32_t i = 0; i < height; ++i) {
@@ -211,9 +204,7 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
     }
   }
 
-  NSImage* image =
-    [[NSImage alloc] initWithSize:NSMakeSize(width / scaleFactor,
-                                             height / scaleFactor)];
+  NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize((float)width, (float)height)];
   [image addRepresentation:imageRep];
   [imageRep release];
 
@@ -263,10 +254,12 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
     [image unlockFocus];
   }
 
-  nsIntPoint pt(dragRect.x, dragRect.YMost());
-  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(gLastDragView);
-  NSPoint point = nsCocoaUtils::DevPixelsToCocoaPoints(pt, scaleFactor);
-  point.y = nsCocoaUtils::FlippedScreenY(point.y);
+  NSPoint point;
+  point.x = dragRect.x;
+  if ([[NSScreen screens] count] > 0)
+    point.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - dragRect.YMost();
+  else
+    point.y = dragRect.y;
 
   point = [[gLastDragView window] convertScreenToBase: point];
   NSPoint localPoint = [gLastDragView convertPoint:point fromView:nil];

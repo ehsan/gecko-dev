@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
-
 function test() {
   /** Test for Bug 464199 **/
 
@@ -58,7 +56,9 @@ function test() {
     is(countByTitle(closedTabs, REMEMBER), remember_count,
        "Everything is set up.");
 
-    ForgetAboutSite.removeDataFromDomain("example.net");
+    let pb = Cc["@mozilla.org/privatebrowsing;1"].
+             getService(Ci.nsIPrivateBrowsingService);
+    pb.removeDataFromDomain("example.net");
 
     closedTabs = JSON.parse(ss.getClosedTabData(newWin));
     is(closedTabs.length, remember_count,

@@ -21,6 +21,7 @@
 #include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 // Uncomment the following line if you want to disable
 // table deletion when the only column/row is removed

@@ -83,6 +83,7 @@ public:
     uint32_t TimeToLive();
 
     void     DontReuse();
+    void     DropTransport() { DontReuse(); mSocketTransport = 0; }
 
     bool     IsProxyConnectInProgress()
     {

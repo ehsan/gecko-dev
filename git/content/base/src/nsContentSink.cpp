@@ -16,7 +16,6 @@
 #include "mozilla/css/Loader.h"
 #include "nsStyleLinkElement.h"
 #include "nsIDocShell.h"
-#include "nsILoadContext.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsCPrefetchService.h"
 #include "nsIURI.h"
@@ -256,7 +255,7 @@ nsContentSink::ProcessHTTPHeaders(nsIChannel* aChannel)
   // Note that the only header we care about is the "link" header, since we
   // have all the infrastructure for kicking off stylesheet loads.
   
-  nsAutoCString linkHeader;
+  nsCAutoString linkHeader;
   
   nsresult rv = httpchannel->GetResponseHeader(NS_LITERAL_CSTRING("link"),
                                                linkHeader);
@@ -350,7 +349,7 @@ nsContentSink::DoProcessLinkHeader()
 {
   nsAutoString value;
   mDocument->GetHeaderData(nsGkAtoms::link, value);
-  ProcessLinkHeader(value);
+  ProcessLinkHeader(nullptr, value);
 }
 
 // check whether the Link header field applies to the context resource
@@ -412,7 +411,7 @@ nsContentSink::Decode5987Format(nsAString& aEncoded) {
   if (NS_FAILED(rv))
     return false;
 
-  nsAutoCString asciiValue;
+  nsCAutoString asciiValue;
 
   const PRUnichar* encstart = aEncoded.BeginReading();
   const PRUnichar* encend = aEncoded.EndReading();
@@ -429,7 +428,7 @@ nsContentSink::Decode5987Format(nsAString& aEncoded) {
   }
 
   nsAutoString decoded;
-  nsAutoCString language;
+  nsCAutoString language;
 
   rv = mimehdrpar->DecodeRFC5987Param(asciiValue, language, decoded);
   if (NS_FAILED(rv))
@@ -440,7 +439,8 @@ nsContentSink::Decode5987Format(nsAString& aEncoded) {
 }
 
 nsresult
-nsContentSink::ProcessLinkHeader(const nsAString& aLinkData)
+nsContentSink::ProcessLinkHeader(nsIContent* aElement,
+                                 const nsAString& aLinkData)
 {
   nsresult rv = NS_OK;
 
@@ -639,7 +639,7 @@ nsContentSink::ProcessLinkHeader(const nsAString& aLinkData)
 
       href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
       if (!href.IsEmpty() && !rel.IsEmpty()) {
-        rv = ProcessLink(anchor, href, rel,
+        rv = ProcessLink(aElement, anchor, href, rel,
                          // prefer RFC 5987 variant over non-I18zed version
                          titleStar.IsEmpty() ? title : titleStar,
                          type, media);
@@ -660,7 +660,7 @@ nsContentSink::ProcessLinkHeader(const nsAString& aLinkData)
                 
   href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
   if (!href.IsEmpty() && !rel.IsEmpty()) {
-    rv = ProcessLink(anchor, href, rel,
+    rv = ProcessLink(aElement, anchor, href, rel,
                      // prefer RFC 5987 variant over non-I18zed version
                      titleStar.IsEmpty() ? title : titleStar,
                      type, media);
@@ -671,7 +671,8 @@ nsContentSink::ProcessLinkHeader(const nsAString& aLinkData)
 
 
 nsresult
-nsContentSink::ProcessLink(const nsSubstring& aAnchor, const nsSubstring& aHref,
+nsContentSink::ProcessLink(nsIContent* aElement,
+                           const nsSubstring& aAnchor, const nsSubstring& aHref,
                            const nsSubstring& aRel, const nsSubstring& aTitle,
                            const nsSubstring& aType, const nsSubstring& aMedia)
 {
@@ -688,7 +689,7 @@ nsContentSink::ProcessLink(const nsSubstring& aAnchor, const nsSubstring& aHref,
   bool hasPrefetch = linkTypes & PREFETCH;
   // prefetch href if relation is "next" or "prefetch"
   if (hasPrefetch || (linkTypes & NEXT)) {
-    PrefetchHref(aHref, mDocument, hasPrefetch);
+    PrefetchHref(aHref, aElement, hasPrefetch);
   }
 
   if (!aHref.IsEmpty() && (linkTypes & DNS_PREFETCH)) {
@@ -701,7 +702,7 @@ nsContentSink::ProcessLink(const nsSubstring& aAnchor, const nsSubstring& aHref,
   }
 
   bool isAlternate = linkTypes & ALTERNATE;
-  return ProcessStyleLink(nullptr, aHref, isAlternate, aTitle, aType,
+  return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }
 
@@ -737,15 +738,9 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
     return NS_OK;
   }
 
-  NS_ASSERTION(!aElement ||
-               aElement->NodeType() == nsIDOMNode::PROCESSING_INSTRUCTION_NODE,
-               "We only expect processing instructions here");
-
   // If this is a fragment parser, we don't want to observe.
-  // We don't support CORS for processing instructions
   bool isAlternate;
   rv = mCSSLoader->LoadStyleLink(aElement, url, aTitle, aMedia, aAlternate,
-                                 CORS_NONE,
                                  mRunsToCompletion ? nullptr : this, &isAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -795,7 +790,7 @@ nsContentSink::ProcessMETATag(nsIContent* aContent)
 
 void
 nsContentSink::PrefetchHref(const nsAString &aHref,
-                            nsINode *aSource,
+                            nsIContent *aSource,
                             bool aExplicit)
 {
   //
@@ -860,7 +855,7 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
     if (!uri) {
       return;
     }
-    nsAutoCString host;
+    nsCAutoString host;
     uri->GetHost(host);
     CopyUTF8toUTF16(host, hostname);
   }
@@ -886,8 +881,12 @@ nsContentSink::SelectDocAppCache(nsIApplicationCache *aLoadApplicationCache,
                "mDocument must implement nsIApplicationCacheContainer.");
 
   if (aLoadApplicationCache) {
+    nsCAutoString groupID;
+    rv = aLoadApplicationCache->GetGroupID(groupID);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     nsCOMPtr<nsIURI> groupURI;
-    rv = aLoadApplicationCache->GetManifestURI(getter_AddRefs(groupURI));
+    rv = NS_NewURI(getter_AddRefs(groupURI), groupID);
     NS_ENSURE_SUCCESS(rv, rv);
 
     bool equal = false;
@@ -905,7 +904,7 @@ nsContentSink::SelectDocAppCache(nsIApplicationCache *aLoadApplicationCache,
       // the cache the document was loaded from - associate the document with
       // that cache and invoke the cache update process.
 #ifdef DEBUG
-      nsAutoCString docURISpec, clientID;
+      nsCAutoString docURISpec, clientID;
       mDocumentURI->GetAsciiSpec(docURISpec);
       aLoadApplicationCache->GetClientID(clientID);
       SINK_TRACE(gContentSinkLogModuleInfo, SINK_TRACE_CALLS,
@@ -959,7 +958,7 @@ nsContentSink::SelectDocAppCacheNoManifest(nsIApplicationCache *aLoadApplication
                  "mDocument must implement nsIApplicationCacheContainer.");
 
 #ifdef DEBUG
-    nsAutoCString docURISpec, clientID;
+    nsCAutoString docURISpec, clientID;
     mDocumentURI->GetAsciiSpec(docURISpec);
     aLoadApplicationCache->GetClientID(clientID);
     SINK_TRACE(gContentSinkLogModuleInfo, SINK_TRACE_CALLS,
@@ -971,7 +970,11 @@ nsContentSink::SelectDocAppCacheNoManifest(nsIApplicationCache *aLoadApplication
 
     // Return the uri and invoke the update process for the selected
     // application cache.
-    rv = aLoadApplicationCache->GetManifestURI(aManifestURI);
+    nsCAutoString groupID;
+    rv = aLoadApplicationCache->GetGroupID(groupID);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = NS_NewURI(aManifestURI, groupID);
     NS_ENSURE_SUCCESS(rv, rv);
 
     *aAction = CACHE_SELECTION_UPDATE;
@@ -1006,13 +1009,6 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
   // Don't bother processing offline manifest for documents
   // without a docshell
   if (!mDocShell) {
-    return;
-  }
-
-  // If the docshell's in private browsing mode, we don't want to do any
-  // manifest processing.
-  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(mDocShell);
-  if (loadContext->UsePrivateBrowsing()) {
     return;
   }
 
@@ -1074,7 +1070,7 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
       bool fetchedWithHTTPGetOrEquiv = false;
       nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mDocument->GetChannel()));
       if (httpChannel) {
-        nsAutoCString method;
+        nsCAutoString method;
         rv = httpChannel->GetRequestMethod(method);
         if (NS_SUCCEEDED(rv))
           fetchedWithHTTPGetOrEquiv = method.Equals("GET");
@@ -1170,15 +1166,15 @@ nsContentSink::StartLayout(bool aIgnorePendingSheets)
 
   mDocument->SetMayStartLayout(true);
   nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
-  // Make sure we don't call Initialize() for a shell that has
+  // Make sure we don't call InitialReflow() for a shell that has
   // already called it. This can happen when the layout frame for
   // an iframe is constructed *between* the Embed() call for the
   // docshell in the iframe, and the content sink's call to OpenBody().
   // (Bug 153815)
-  if (shell && !shell->DidInitialize()) {
+  if (shell && !shell->DidInitialReflow()) {
     nsRect r = shell->GetPresContext()->GetVisibleArea();
     nsCOMPtr<nsIPresShell> shellGrip = shell;
-    nsresult rv = shell->Initialize(r.width, r.height);
+    nsresult rv = shell->InitialReflow(r.width, r.height);
     if (NS_FAILED(rv)) {
       return;
     }
@@ -1229,9 +1225,9 @@ nsContentSink::Notify(nsITimer *timer)
     int32_t delay;
 
     LL_I2L(interval, GetNotificationInterval());
-    diff = now - mLastNotificationTime;
+    LL_SUB(diff, now, mLastNotificationTime);
 
-    diff -= interval;
+    LL_SUB(diff, diff, interval);
     LL_L2I(delay, diff);
     delay /= PR_USEC_PER_MSEC;
 
@@ -1273,9 +1269,9 @@ nsContentSink::IsTimeToNotify()
   int64_t interval, diff;
 
   LL_I2L(interval, GetNotificationInterval());
-  diff = now - mLastNotificationTime;
+  LL_SUB(diff, now, mLastNotificationTime);
 
-  if (diff > interval) {
+  if (LL_CMP(diff, >, interval)) {
     mBackoffCount--;
     return true;
   }

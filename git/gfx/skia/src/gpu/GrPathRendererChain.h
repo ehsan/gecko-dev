@@ -27,7 +27,6 @@ class GrPathRenderer;
  */
 class GrPathRendererChain : public SkRefCnt {
 public:
-    SK_DECLARE_INST_COUNT(GrPathRendererChain)
 
     enum UsageFlags {
         kNone_UsageFlag      = 0,
@@ -59,8 +58,6 @@ private:
     GrContext*                                          fOwner;
     UsageFlags                                          fFlags;
     SkSTArray<kPreAllocCount, GrPathRenderer*, true>    fChain;
-
-    typedef SkRefCnt INHERITED;
 };
 
 GR_MAKE_BITFIELD_OPS(GrPathRendererChain::UsageFlags)

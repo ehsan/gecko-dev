@@ -1,4 +1,4 @@
-# Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+# Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
 #
 # Use of this source code is governed by a BSD-style license
 # that can be found in the LICENSE file in the root of the source
@@ -7,24 +7,25 @@
 # be found in the AUTHORS file in the root of the source tree.
 
 {
-  'conditions': [
-    ['include_tests==1', {
+  # Exclude the test target when building with chromium.
+  'conditions': [   
+    ['build_with_chromium==0', {
       'targets': [
         {
           'target_name': 'test_framework',
           'type': '<(library)',
 
           'dependencies': [
-            '<(DEPTH)/testing/gtest.gyp:gtest',
-            '<(webrtc_root)/common_video/common_video.gyp:webrtc_libyuv',
+            '<(webrtc_root)/../test/metrics.gyp:metrics',
+            '<(webrtc_root)/../test/test.gyp:test_support',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(webrtc_root)/test/metrics.gyp:metrics',
-            '<(webrtc_root)/test/test.gyp:test_support',
+            '<(webrtc_root)/common_video/common_video.gyp:webrtc_libyuv',
           ],
 
           'include_dirs': [
             '../interface',
-            '<(DEPTH)/testing/gtest/include',
+            '<(webrtc_root)/../testing/gtest/include',
             '../../../../common_video/interface',
           ],
 
@@ -59,6 +60,12 @@
           ],
         },
       ], # targets
-    }], # include_tests
+    }], # build_with_chromium
   ], # conditions
 }
+
+# Local Variables:
+# tab-width:2
+# indent-tabs-mode:nil
+# End:
+# vim: set expandtab tabstop=2 shiftwidth=2:

@@ -12,7 +12,6 @@
 #include "nsUXThemeConstants.h"
 #include "gfxFont.h"
 #include "WinUtils.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla::widget;
 using mozilla::LookAndFeel;
@@ -39,22 +38,8 @@ static int32_t GetSystemParam(long flag, int32_t def)
     return ::SystemParametersInfo(flag, 0, &value, 0) ? value : def;
 }
 
-namespace mozilla {
-namespace widget {
-// This is in use here and in nsDOMTouchEvent.cpp
-int32_t IsTouchDeviceSupportPresent()
-{
-  int32_t touchCapabilities;
-  touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
-  return ((touchCapabilities & NID_READY) && 
-          (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH)));
-}
-} }
-
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::TOUCH_ENABLED_DEVICE,
-                                 IsTouchDeviceSupportPresent());
 }
 
 nsLookAndFeel::~nsLookAndFeel()
@@ -380,7 +365,13 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         aResult = !IsAppThemed();
         break;
     case eIntID_TouchEnabled:
-        aResult = IsTouchDeviceSupportPresent();
+        aResult = 0;
+        int32_t touchCapabilities;
+        touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
+        if ((touchCapabilities & NID_READY) && 
+           (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH))) {
+            aResult = 1;
+        }
         break;
     case eIntID_WindowsDefaultTheme:
         aResult = nsUXThemeData::IsDefaultWindowTheme();
@@ -609,8 +600,7 @@ GetSysFontInfo(HDC aHDC, LookAndFeel::FontID anID,
 
 bool
 nsLookAndFeel::GetFontImpl(FontID anID, nsString &aFontName,
-                           gfxFontStyle &aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle &aFontStyle)
 {
   HDC tdc = GetDC(NULL);
   bool status = GetSysFontInfo(tdc, anID, aFontName, aFontStyle);

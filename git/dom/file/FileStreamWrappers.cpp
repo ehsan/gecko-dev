@@ -167,7 +167,7 @@ FileInputStreamWrapper::Read(char* aBuf, uint32_t aCount, uint32_t* _retval)
   if (mFirstTime) {
     mFirstTime = false;
 
-    if (mOffset != UINT64_MAX) {
+    if (mOffset != LL_MAXUINT) {
       nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mInputStream);
       if (seekable) {
         rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, mOffset);
@@ -293,7 +293,7 @@ FileOutputStreamWrapper::Write(const char* aBuf, uint32_t aCount,
 
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mOutputStream);
     if (seekable) {
-      if (mOffset == UINT64_MAX) {
+      if (mOffset == LL_MAXUINT) {
         rv = seekable->Seek(nsISeekableStream::NS_SEEK_END, 0);
       }
       else {

@@ -4,10 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-typedef long myLong;
-typedef TestInterface AnotherNameForTestInterface;
-typedef TestInterface? NullableTestInterface;
-
 interface TestExternalInterface;
 
 interface TestNonCastableInterface {
@@ -40,7 +36,7 @@ interface OnlyForUseInConstructor {
  ]
 interface TestInterface {
   // Integer types
-  // XXXbz add tests for throwing versions of all the integer stuff
+  // XXXbz add tests for infallible versions of all the integer stuff
   readonly attribute byte readonlyByte;
   attribute byte writableByte;
   void passByte(byte arg);
@@ -100,7 +96,7 @@ interface TestInterface {
   void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
 
   // Castable interface types
-  // XXXbz add tests for throwing versions of all the castable interface stuff
+  // XXXbz add tests for infallible versions of all the castable interface stuff
   TestInterface receiveSelf();
   TestInterface? receiveNullableSelf();
   TestInterface receiveWeakSelf();
@@ -216,9 +212,6 @@ interface TestInterface {
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
-  sequence<any> receiveAnySequence();
-  sequence<any>? receiveNullableAnySequence();
-
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
   void passNullableArrayBuffer(ArrayBuffer? arg);
@@ -235,7 +228,6 @@ interface TestInterface {
   void passUint8ClampedArray(Uint8ClampedArray arg);
   void passFloat32Array(Float32Array arg);
   void passFloat64Array(Float64Array arg);
-  Uint8Array receiveUint8Array();
 
   // String types
   void passString(DOMString arg);
@@ -311,21 +303,6 @@ interface TestInterface {
   void passDictionaryOrLong(long x);
 
   void passDictContainingDict(optional DictContainingDict arg);
-  void passDictContainingSequence(optional DictContainingSequence arg);
-
-  // EnforceRange/Clamp tests
-  void dontEnforceRangeOrClamp(byte arg);
-  void doEnforceRange([EnforceRange] byte arg);
-  void doClamp([Clamp] byte arg);
-
-  // Typedefs
-  const myLong myLongConstant = 5;
-  void exerciseTypedefInterfaces1(AnotherNameForTestInterface arg);
-  AnotherNameForTestInterface exerciseTypedefInterfaces2(NullableTestInterface arg);
-  void exerciseTypedefInterfaces3(YetAnotherNameForTestInterface arg);
-
-  // Miscellania
-  [LenientThis] attribute long attrWithLenientThis;
 };
 
 interface TestNonWrapperCacheInterface {
@@ -396,13 +373,8 @@ dictionary DictContainingDict {
   Dict memberDict;
 };
 
-dictionary DictContainingSequence {
-  sequence<long> ourSequence;
-};
-
 interface TestIndexedGetterInterface {
   getter long item(unsigned long index);
-  [Infallible]
   readonly attribute unsigned long length;
 };
 
@@ -413,7 +385,6 @@ interface TestNamedGetterInterface {
 interface TestIndexedAndNamedGetterInterface {
   getter long (unsigned long index);
   getter DOMString namedItem(DOMString name);
-  [Infallible]
   readonly attribute unsigned long length;
 };
 
@@ -435,8 +406,6 @@ interface TestIndexedAndNamedGetterAndSetterInterface : TestIndexedSetterInterfa
   getter DOMString namedItem(DOMString name);
   setter creator void (unsigned long index, long item);
   setter creator void (DOMString name, DOMString item);
-  [Infallible]
   stringifier DOMString ();
-  [Infallible]
   readonly attribute unsigned long length;
 };

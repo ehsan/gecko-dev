@@ -67,11 +67,6 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   if (loadContext.IsNotNull())
     mLoadContext = new LoadContext(loadContext);
-#ifdef DEBUG
-  else
-    // websocket channels cannot have a private bit override
-    MOZ_ASSERT(!loadContext.IsPrivateBitValid());
-#endif
 
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
@@ -155,7 +150,7 @@ NS_IMETHODIMP
 WebSocketChannelParent::OnStart(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnStart() %p\n", this));
-  nsAutoCString protocol, extensions;
+  nsCAutoString protocol, extensions;
   if (mChannel) {
     mChannel->GetProtocol(protocol);
     mChannel->GetExtensions(extensions);

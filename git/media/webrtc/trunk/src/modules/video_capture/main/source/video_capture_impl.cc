@@ -10,7 +10,7 @@
 
 #include "video_capture_impl.h"
 
-#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "common_video/libyuv/include/libyuv.h"
 #include "critical_section_wrapper.h"
 #include "module_common_types.h"
 #include "ref_count.h"
@@ -18,7 +18,9 @@
 #include "trace.h"
 #include "video_capture_config.h"
 
-#include <stdlib.h>
+#ifdef WEBRTC_ANDROID
+#include "video_capture_android.h" // Need inclusion here to set Java environment.
+#endif
 
 namespace webrtc
 {
@@ -48,7 +50,6 @@ WebRtc_Word32 VideoCaptureImpl::ChangeUniqueId(const WebRtc_Word32 id)
 // returns the number of milliseconds until the module want a worker thread to call Process
 WebRtc_Word32 VideoCaptureImpl::TimeUntilNextProcess()
 {
-    CriticalSectionScoped cs(&_callBackCs);
     TickTime timeNow = TickTime::Now();
 
     WebRtc_Word32 timeToNormalProcess = kProcessInterval
@@ -270,8 +271,7 @@ WebRtc_Word32 VideoCaptureImpl::IncomingFrame(
                   RawVideoTypeToCommonVideoVideoType(frameInfo.rawType);
 
         if (frameInfo.rawType != kVideoMJPEG &&
-            CalcBufferSize(commonVideoType, width,
-                           abs(height)) != videoFrameLength)
+            CalcBufferSize(commonVideoType, width, height) != videoFrameLength)
         {
             WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
                          "Wrong incoming frame length.");
@@ -279,7 +279,7 @@ WebRtc_Word32 VideoCaptureImpl::IncomingFrame(
         }
 
         // Allocate I420 buffer.
-        int requiredLength = CalcBufferSize(kI420, width, abs(height));
+        int requiredLength = CalcBufferSize(kI420, width, height);
         _captureFrame.VerifyAndAllocate(requiredLength);
         if (!_captureFrame.Buffer())
         {
@@ -317,8 +317,7 @@ WebRtc_Word32 VideoCaptureImpl::IncomingFrame(
         }
     }
 
-    DeliverCapturedFrame(_captureFrame, width, abs(height), captureTime,
-                         frameInfo.codecType);
+    DeliverCapturedFrame(_captureFrame, width, height, captureTime, frameInfo.codecType);
 
 
     const WebRtc_UWord32 processTime =
@@ -361,22 +360,19 @@ WebRtc_Word32 VideoCaptureImpl::IncomingFrameI420(
   // Copy Y
   for (int i = 0; i < y_rows; ++i) {
     memcpy(current_pointer, y_plane, y_width);
-    // Remove the alignment which ViE doesn't support.
-    current_pointer += y_width;
+    current_pointer += video_frame.y_pitch;
     y_plane += video_frame.y_pitch;
   }
   // Copy U
   for (int i = 0; i < uv_rows; ++i) {
     memcpy(current_pointer, u_plane, uv_width);
-    // Remove the alignment which ViE doesn't support.
-    current_pointer += uv_width;
+    current_pointer += video_frame.u_pitch;
     u_plane += video_frame.u_pitch;
   }
   // Copy V
   for (int i = 0; i < uv_rows; ++i) {
     memcpy(current_pointer, v_plane, uv_width);
-    // Remove the alignment which ViE doesn't support.
-    current_pointer += uv_width;
+    current_pointer += video_frame.v_pitch;
     v_plane += video_frame.v_pitch;
   }
   _captureFrame.SetLength(frame_size);

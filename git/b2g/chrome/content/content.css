@@ -185,7 +185,7 @@ select > button {
   background-color: transparent;
   background-position: -15px center, 4px center !important;
   background-repeat: no-repeat, no-repeat !important;
-  background-size: 100% 90%, auto auto;
+  background-size: 100% 90%, normal normal;
 
   -moz-binding: none !important;
   position: relative !important;

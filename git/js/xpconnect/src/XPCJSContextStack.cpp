@@ -44,11 +44,19 @@ XPCJSContextStack::Pop()
     --idx; // Advance to new top of the stack
 
     XPCJSContextInfo &e = mStack[idx];
-    if (e.cx && e.savedFrameChain) {
-        // Pop() can be called outside any request for e.cx.
-        JSAutoRequest ar(e.cx);
-        JS_RestoreFrameChain(e.cx);
-        e.savedFrameChain = false;
+    NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
+    if (e.cx) {
+        if (e.suspendDepth) {
+            JS_ResumeRequest(e.cx, e.suspendDepth);
+            e.suspendDepth = 0;
+        }
+
+        if (e.savedFrameChain) {
+            // Pop() can be called outside any request for e.cx.
+            JSAutoRequest ar(e.cx);
+            JS_RestoreFrameChain(e.cx);
+            e.savedFrameChain = false;
+        }
     }
     return cx;
 }
@@ -97,6 +105,9 @@ XPCJSContextStack::Push(JSContext *cx)
                 return false;
             e.savedFrameChain = true;
         }
+
+        if (!cx)
+            e.suspendDepth = JS_SuspendRequest(e.cx);
     }
 
     mStack.AppendElement(cx);
@@ -182,9 +193,9 @@ XPCJSContextStack::GetSafeJSContext()
         JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
 
         JSCompartment *compartment;
-        nsresult rv = xpc::CreateGlobalObject(mSafeJSContext, &global_class,
-                                              principal, false, &glob,
-                                              &compartment);
+        nsresult rv = xpc_CreateGlobalObject(mSafeJSContext, &global_class,
+                                             principal, principal, false,
+                                             &glob, &compartment);
         if (NS_FAILED(rv))
             glob = nullptr;
 

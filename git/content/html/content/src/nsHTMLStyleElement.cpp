@@ -16,10 +16,6 @@
 #include "nsUnicharUtils.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
-#include "nsStubMutationObserver.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLStyleElement : public nsGenericHTMLElement,
                            public nsIDOMHTMLStyleElement,
@@ -44,11 +40,24 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-  virtual void GetInnerHTML(nsAString& aInnerHTML,
-                            mozilla::ErrorResult& aError) MOZ_OVERRIDE;
-  virtual void SetInnerHTML(const nsAString& aInnerHTML,
-                            mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) {
+    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex) {
+    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
 
   // nsIDOMHTMLStyleElement
   NS_DECL_NSIDOMHTMLSTYLEELEMENT
@@ -267,23 +276,24 @@ nsHTMLStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
   return rv;
 }
 
-void
-nsHTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
+nsresult
+nsHTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  return NS_OK;
 }
 
-void
-nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML,
-                                 ErrorResult& aError)
+nsresult
+nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
   SetEnableUpdates(false);
 
-  aError = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
-
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  
   SetEnableUpdates(true);
-
+  
   UpdateStyleSheetInternal(nullptr);
+  return rv;
 }
 
 already_AddRefed<nsIURI>

@@ -588,7 +588,6 @@ static int32_t* GetRefCount(void* aPtr)
   }
 }
 
-#if defined(NS_IMPL_REFCNT_LOGGING) && defined(HAVE_CPP_DYNAMIC_CAST_TO_VOID_PTR)
 static int32_t* GetCOMPtrCount(void* aPtr)
 {
   PLHashEntry** hep = PL_HashTableRawLookup(gSerialNumbers, PLHashNumber(NS_PTR_TO_INT32(aPtr)), aPtr);
@@ -598,7 +597,6 @@ static int32_t* GetCOMPtrCount(void* aPtr)
     return nullptr;
   }
 }
-#endif
 
 static void RecycleSerialNumberPtr(void* aPtr)
 {
@@ -634,7 +632,7 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
     }
     else {
       FILE *stream;
-      nsAutoCString fname(value);
+      nsCAutoString fname(value);
       if (XRE_GetProcessType() != GeckoProcessType_Default) {
         bool hasLogExtension = 
             fname.RFind(".log", true, -1, 4) == kNotFound ? false : true;

@@ -14,30 +14,17 @@ class JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothNamedValue;
-class BluetoothValue;
-class BluetoothReplyRunnable;
+class BluetoothDevice;
 
-bool
-SetJsObject(JSContext* aContext,
-            JSObject* aObj,
-            const InfallibleTArray<BluetoothNamedValue>& aData);
+nsresult
+StringArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                     const nsTArray<nsString>& aSourceArray,
+                     JSObject** aResultArray);
 
-nsString
-GetObjectPathFromAddress(const nsAString& aAdapterPath,
-                         const nsAString& aDeviceAddress);
-
-nsString
-GetAddressFromObjectPath(const nsAString& aObjectPath);
-
-bool
-BroadcastSystemMessage(const nsAString& aType,
-                       const InfallibleTArray<BluetoothNamedValue>& aData);
-
-void
-DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
-                       const BluetoothValue& aValue,
-                       const nsAString& aErrorStr);
+nsresult
+BluetoothDeviceArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
+                              const nsTArray<nsRefPtr<BluetoothDevice> >& aSourceArray,
+                              JSObject** aResultArray);
 
 END_BLUETOOTH_NAMESPACE
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "AsyncResource",
   "Resource"
 ];
@@ -23,9 +23,7 @@ Cu.import("resource://services-sync/util.js");
 const DEFAULT_LOAD_FLAGS =
   // Always validate the cache:
   Ci.nsIRequest.LOAD_BYPASS_CACHE |
-  Ci.nsIRequest.INHIBIT_CACHING |
-  // Don't send user cookies over the wire (Bug 644734).
-  Ci.nsIRequest.LOAD_ANONYMOUS;
+  Ci.nsIRequest.INHIBIT_CACHING;
 
 /*
  * AsyncResource represents a remote network resource, identified by a URI.
@@ -49,7 +47,7 @@ const DEFAULT_LOAD_FLAGS =
  * passed (=undefined) when an error occurs. Note that this is independent of
  * the status of the HTTP response.
  */
-this.AsyncResource = function AsyncResource(uri) {
+function AsyncResource(uri) {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
     Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
@@ -355,9 +353,9 @@ AsyncResource.prototype = {
  * 'Resource' is not recommended for new code. Use the asynchronous API of
  * 'AsyncResource' instead.
  */
-this.Resource = function Resource(uri) {
+function Resource(uri) {
   AsyncResource.call(this, uri);
-};
+}
 Resource.prototype = {
 
   __proto__: AsyncResource.prototype,

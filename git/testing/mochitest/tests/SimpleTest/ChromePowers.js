@@ -54,9 +54,11 @@ ChromePowers.prototype._receiveMessage = function(aMessage) {
         // Hack out register/unregister specifically for browser-chrome leaks
         break;
       } else if (aMessage.type == "crash-observed") {
-        for (let e of msg.dumpIDs) {
-          this._encounteredCrashDumpFiles.push(e.id + "." + e.extension);
-        }
+        var self = this;
+        msg.dumpIDs.forEach(function(id) {
+          self._encounteredCrashDumpFiles.push(id + ".dmp");
+          self._encounteredCrashDumpFiles.push(id + ".extra");
+        });
       }
     default:
       // All calls go here, because we need to handle SPProcessCrashService calls as well

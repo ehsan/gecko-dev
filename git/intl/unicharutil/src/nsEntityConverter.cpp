@@ -78,7 +78,7 @@ nsEntityConverter::LoadVersionPropertyFile()
 already_AddRefed<nsIStringBundle>
 nsEntityConverter::LoadEntityBundle(uint32_t version)
 {
-  nsAutoCString url(NS_LITERAL_CSTRING("resource://gre/res/entityTables/"));
+  nsCAutoString url(NS_LITERAL_CSTRING("resource://gre/res/entityTables/"));
   nsresult rv;
 
   nsCOMPtr<nsIStringBundleService> bundleService =

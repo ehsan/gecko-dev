@@ -141,10 +141,15 @@ AlarmsManager.prototype = {
     if (!Services.prefs.getBoolPref("dom.mozAlarms.enabled"))
       return null;
 
-    // Only pages with perm set can use the alarms.
     let principal = aWindow.document.nodePrincipal;
+    let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+
     let perm = Services.perms.testExactPermissionFromPrincipal(principal, "alarms");
-    if (perm != Ci.nsIPermissionManager.ALLOW_ACTION)
+
+    // Only pages with perm set can use the alarms.
+    this.hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
+
+    if (!this.hasPrivileges)
       return null;
 
     this._cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
@@ -166,4 +171,4 @@ AlarmsManager.prototype = {
   },
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([AlarmsManager])
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([AlarmsManager])

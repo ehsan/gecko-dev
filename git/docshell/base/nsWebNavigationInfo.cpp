@@ -10,7 +10,6 @@
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIPluginHost.h"
 #include "nsContentUtils.h"
-#include "imgLoader.h"
 
 NS_IMPL_ISUPPORTS1(nsWebNavigationInfo, nsIWebNavigationInfo)
 
@@ -25,7 +24,9 @@ nsWebNavigationInfo::Init()
   mCategoryManager = do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  mImgLoader = do_GetService("@mozilla.org/image/loader;1", &rv);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -96,10 +97,9 @@ nsWebNavigationInfo::IsTypeSupportedInternal(const nsCString& aType,
     break;
 
   case nsContentUtils::TYPE_CONTENT:
-    // XXXbz we only need this because images register for the same
-    // contractid as documents, so we can't tell them apart based on
-    // contractid.
-    if (imgLoader::SupportImageWithMimeType(aType.get())) {
+    bool isImage = false;
+    mImgLoader->SupportImageWithMimeType(aType.get(), &isImage);
+    if (isImage) {
       *aIsSupported = nsIWebNavigationInfo::IMAGE;
     }
     else {

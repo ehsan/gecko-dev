@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "prtypes.h"
 #include "prmem.h"
 #include "nsString.h"
 #include "nsBidiUtils.h"
@@ -175,7 +176,7 @@ gfxGraphiteShaper::ShapeWord(gfxContext      *aContext,
     } else if (entry->mLanguageOverride) {
         grLang = MakeGraphiteLangTag(entry->mLanguageOverride);
     } else {
-        nsAutoCString langString;
+        nsCAutoString langString;
         style->language->ToUTF8String(langString);
         grLang = GetGraphiteTagForLang(langString);
     }

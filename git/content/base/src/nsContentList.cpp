@@ -19,8 +19,7 @@
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsGkAtoms.h"
-#include "mozilla/dom/HTMLCollectionBinding.h"
-#include "mozilla/dom/NodeListBinding.h"
+
 #include "dombindings.h"
 
 // Form related includes
@@ -163,13 +162,7 @@ JSObject*
 nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope,
                                 bool *triedToWrap)
 {
-  JSObject* obj = NodeListBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::NodeList::create(cx, scope, this);
+  return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this, triedToWrap);
 }
 
 // nsFormContentList
@@ -292,40 +285,6 @@ NS_GetContentList(nsINode* aRootNode,
   return list;
 }
 
-#ifdef DEBUG
-const nsCacheableFuncStringContentList::ContentListType
-  nsCacheableFuncStringNodeList::sType = nsCacheableFuncStringContentList::eNodeList;
-const nsCacheableFuncStringContentList::ContentListType
-  nsCacheableFuncStringHTMLCollection::sType = nsCacheableFuncStringContentList::eHTMLCollection;
-#endif
-
-JSObject*
-nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JSObject *scope,
-                                          bool *triedToWrap)
-{
-  JSObject* obj = NodeListBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::NodeList::create(cx, scope, this);
-}
-
-
-JSObject*
-nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JSObject *scope,
-                                                bool *triedToWrap)
-{
-  JSObject* obj = HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::HTMLCollection::create(cx, scope, this);
-}
-
 // Hashtable for storing nsCacheableFuncStringContentList
 static PLDHashTable gFuncStringContentListHashTable;
 
@@ -355,13 +314,12 @@ FuncStringContentListHashtableMatchEntry(PLDHashTable *table,
   return e->mContentList->Equals(ourKey);
 }
 
-template<class ListType>
 already_AddRefed<nsContentList>
-GetFuncStringContentList(nsINode* aRootNode,
-                         nsContentListMatchFunc aFunc,
-                         nsContentListDestroyFunc aDestroyFunc,
-                         nsFuncStringContentListDataAllocator aDataAllocator,
-                         const nsAString& aString)
+NS_GetFuncStringContentList(nsINode* aRootNode,
+                            nsContentListMatchFunc aFunc,
+                            nsContentListDestroyFunc aDestroyFunc,
+                            nsFuncStringContentListDataAllocator aDataAllocator,
+                            const nsAString& aString)
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
@@ -401,19 +359,15 @@ GetFuncStringContentList(nsINode* aRootNode,
                        (PL_DHashTableOperate(&gFuncStringContentListHashTable,
                                              &hashKey,
                                              PL_DHASH_ADD));
-    if (entry) {
+    if (entry)
       list = entry->mContentList;
-#ifdef DEBUG
-      MOZ_ASSERT_IF(list, list->mType == ListType::sType);
-#endif
-    }
   }
 
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    list = new ListType(aRootNode, aFunc, aDestroyFunc, aDataAllocator,
-                        aString);
+    list = new nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc,
+                                                aDataAllocator, aString);
     if (list && !list->AllocatedData()) {
       // Failed to allocate the data
       delete list;
@@ -435,34 +389,6 @@ GetFuncStringContentList(nsINode* aRootNode,
   // Don't cache these lists globally
 
   return list;
-}
-
-already_AddRefed<nsContentList>
-NS_GetFuncStringNodeList(nsINode* aRootNode,
-                         nsContentListMatchFunc aFunc,
-                         nsContentListDestroyFunc aDestroyFunc,
-                         nsFuncStringContentListDataAllocator aDataAllocator,
-                         const nsAString& aString)
-{
-  return GetFuncStringContentList<nsCacheableFuncStringNodeList>(aRootNode,
-                                                                 aFunc,
-                                                                 aDestroyFunc,
-                                                                 aDataAllocator,
-                                                                 aString);
-}
-
-already_AddRefed<nsContentList>
-NS_GetFuncStringHTMLCollection(nsINode* aRootNode,
-                               nsContentListMatchFunc aFunc,
-                               nsContentListDestroyFunc aDestroyFunc,
-                               nsFuncStringContentListDataAllocator aDataAllocator,
-                               const nsAString& aString)
-{
-  return GetFuncStringContentList<nsCacheableFuncStringHTMLCollection>(aRootNode,
-                                                                       aFunc,
-                                                                       aDestroyFunc,
-                                                                       aDataAllocator,
-                                                                       aString);
 }
 
 // nsContentList implementation
@@ -552,13 +478,8 @@ nsContentList::~nsContentList()
 JSObject*
 nsContentList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  JSObject* obj = HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::HTMLCollection::create(cx, scope, this);
+  return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope, this,
+                                                       triedToWrap);
 }
 
 DOMCI_DATA(ContentList, nsContentList)
@@ -600,7 +521,7 @@ nsContentList::Item(uint32_t aIndex, bool aDoFlush)
   }
 
   if (mState != LIST_UP_TO_DATE)
-    PopulateSelf(NS_MIN(aIndex, UINT32_MAX - 1) + 1);
+    PopulateSelf(NS_MIN(aIndex, PR_UINT32_MAX - 1) + 1);
 
   ASSERT_IN_SYNC;
   NS_ASSERTION(!mRootNode || mState != LIST_DIRTY,
@@ -698,16 +619,10 @@ nsContentList::NamedItem(const nsAString& aName, nsIDOMNode** aReturn)
   return NS_OK;
 }
 
-nsGenericElement*
-nsContentList::GetElementAt(uint32_t aIndex)
-{
-  return static_cast<nsGenericElement*>(Item(aIndex, true));
-}
-
 nsIContent*
 nsContentList::GetNodeAt(uint32_t aIndex)
 {
-  return GetElementAt(aIndex);
+  return Item(aIndex, true);
 }
 
 nsISupports*
@@ -716,24 +631,6 @@ nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
   nsIContent *item;
   *aCache = item = NamedItem(aName, true);
   return item;
-}
-
-JSObject*
-nsContentList::NamedItem(JSContext* cx, const nsAString& name,
-                         mozilla::ErrorResult& error)
-{
-  nsIContent *item = NamedItem(name, true);
-  if (!item) {
-    return nullptr;
-  }
-  JSObject* wrapper = GetWrapper();
-  JSAutoCompartment ac(cx, wrapper);
-  JS::Value v;
-  if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr, &v)) {
-    error.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-  return &v.toObject();
 }
 
 void

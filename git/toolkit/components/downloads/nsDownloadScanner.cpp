@@ -211,7 +211,7 @@ nsDownloadScanner::CheckPolicy(nsIURI *aSource, nsIURI *aTarget)
   if (!mAESExists || !aSource || !aTarget)
     return AVPOLICY_DOWNLOAD;
 
-  nsAutoCString source;
+  nsCAutoString source;
   rv = aSource->GetSpec(source);
   if (NS_FAILED(rv))
     return AVPOLICY_DOWNLOAD;
@@ -340,7 +340,7 @@ nsDownloadScanner::Scan::Start()
     do_GetService(XULAPPINFO_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString name;
+  nsCAutoString name;
   rv = appinfo->GetName(name);
   NS_ENSURE_SUCCESS(rv, rv);
   CopyUTF8toUTF16(name, mName);
@@ -350,7 +350,7 @@ nsDownloadScanner::Scan::Start()
   rv = mDownload->GetSource(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString origin;
+  nsCAutoString origin;
   rv = uri->GetSpec(origin);
   NS_ENSURE_SUCCESS(rv, rv);
 

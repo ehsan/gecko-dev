@@ -5,6 +5,7 @@
 #ifndef MOZILLA_IMAGELIB_ENDIAN_H_
 #define MOZILLA_IMAGELIB_ENDIAN_H_
 
+#include "prtypes.h"
 
 #if defined WORDS_BIGENDIAN || defined IS_BIG_ENDIAN
 // We must ensure that the entity is unsigned

@@ -4,10 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <windows.h>
-#include <ras.h>
-#include <wininet.h>
+#include "nsIWindowsRegKey.h"
 
-#include "mozilla/Util.h"
 #include "nsISystemProxySettings.h"
 #include "nsIServiceManager.h"
 #include "mozilla/ModuleUtils.h"
@@ -28,32 +26,54 @@ public:
 private:
     ~nsWindowsSystemProxySettings() {};
 
+    nsCOMPtr<nsIWindowsRegKey> mKey;
     bool MatchOverride(const nsACString& aHost);
     bool PatternMatch(const nsACString& aHost, const nsACString& aOverride);
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsWindowsSystemProxySettings, nsISystemProxySettings)
-
-NS_IMETHODIMP
-nsWindowsSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
-{
-  *aMainThreadOnly = false;
-  return NS_OK;
-}
-
+NS_IMPL_ISUPPORTS1(nsWindowsSystemProxySettings, nsISystemProxySettings)
 
 nsresult
 nsWindowsSystemProxySettings::Init()
 {
+    nsresult rv;
+    mKey = do_CreateInstance("@mozilla.org/windows-registry-key;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_NAMED_LITERAL_STRING(key,
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings");
+    rv = mKey->Open(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER, key,
+                    nsIWindowsRegKey::ACCESS_READ);
+    NS_ENSURE_SUCCESS(rv, rv);
     return NS_OK;
+}
+
+static void SetProxyResult(const char* aType, const nsACString& aHost,
+                           int32_t aPort, nsACString& aResult)
+{
+    aResult.AssignASCII(aType);
+    aResult.Append(' ');
+    aResult.Append(aHost);
+    aResult.Append(':');
+    aResult.Append(nsPrintfCString("%d", aPort));
 }
 
 static void SetProxyResult(const char* aType, const nsACString& aHostPort,
                            nsACString& aResult)
 {
-    aResult.AssignASCII(aType);
-    aResult.Append(' ');
-    aResult.Append(aHostPort);
+    nsCOMPtr<nsIURI> uri;
+    nsCAutoString host;
+    int32_t port;
+
+    // Try parsing it as a URI.
+    if (NS_SUCCEEDED(NS_NewURI(getter_AddRefs(uri), aHostPort)) &&
+        NS_SUCCEEDED(uri->GetHost(host)) && !host.IsEmpty() &&
+        NS_SUCCEEDED(uri->GetPort(&port))) {
+        SetProxyResult(aType, host, port, aResult);
+    } else {
+        aResult.AssignASCII(aType);
+        aResult.Append(' ');
+        aResult.Append(aHostPort);
+    }
 }
 
 static void SetProxyResultDirect(nsACString& aResult)
@@ -62,61 +82,19 @@ static void SetProxyResultDirect(nsACString& aResult)
     aResult.AssignASCII("DIRECT");
 }
 
-static nsresult ReadInternetOption(uint32_t aOption, uint32_t& aFlags,
-                                   nsAString& aValue)
-{
-    DWORD connFlags = 0;
-    WCHAR connName[RAS_MaxEntryName + 1];
-    InternetGetConnectedStateExW(&connFlags, connName,
-                                 mozilla::ArrayLength(connName), 0);
-
-    INTERNET_PER_CONN_OPTIONW options[2];
-    options[0].dwOption = INTERNET_PER_CONN_FLAGS_UI;
-    options[1].dwOption = aOption;
-
-    INTERNET_PER_CONN_OPTION_LISTW list;
-    list.dwSize = sizeof(INTERNET_PER_CONN_OPTION_LISTW);
-    list.pszConnection = connFlags & INTERNET_CONNECTION_MODEM ?
-                         connName : NULL;
-    list.dwOptionCount = mozilla::ArrayLength(options);
-    list.dwOptionError = 0;
-    list.pOptions = options;
-
-    unsigned long size = sizeof(INTERNET_PER_CONN_OPTION_LISTW);
-    if (!InternetQueryOptionW(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION,
-                              &list, &size)) {
-        if (GetLastError() != ERROR_INVALID_PARAMETER) {
-            return NS_ERROR_FAILURE;
-        }
-        options[0].dwOption = INTERNET_PER_CONN_FLAGS;
-        size = sizeof(INTERNET_PER_CONN_OPTION_LISTW);
-        if (!InternetQueryOptionW(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION,
-                                  &list, &size)) {
-            return NS_ERROR_FAILURE;
-        }
-    }
-
-    aFlags = options[0].Value.dwValue;
-    aValue.Assign(options[1].Value.pszValue);
-    GlobalFree(options[1].Value.pszValue);
-
-    return NS_OK;
-}
-
 bool
 nsWindowsSystemProxySettings::MatchOverride(const nsACString& aHost)
 {
     nsresult rv;
-    uint32_t flags = 0;
     nsAutoString buf;
 
-    rv = ReadInternetOption(INTERNET_PER_CONN_PROXY_BYPASS, flags, buf);
+    rv = mKey->ReadStringValue(NS_LITERAL_STRING("ProxyOverride"), buf);
     if (NS_FAILED(rv))
         return false;
 
     NS_ConvertUTF16toUTF8 cbuf(buf);
 
-    nsAutoCString host(aHost);
+    nsCAutoString host(aHost);
     int32_t start = 0;
     int32_t end = cbuf.Length();
 
@@ -133,7 +111,7 @@ nsWindowsSystemProxySettings::MatchOverride(const nsACString& aHost)
             delimiter = end;
 
         if (delimiter != start) {
-            const nsAutoCString override(Substring(cbuf, start,
+            const nsCAutoString override(Substring(cbuf, start,
                                                    delimiter - start));
             if (override.EqualsLiteral("<local>")) {
                 // This override matches local addresses.
@@ -157,8 +135,8 @@ bool
 nsWindowsSystemProxySettings::PatternMatch(const nsACString& aHost,
                                            const nsACString& aOverride)
 {
-    nsAutoCString host(aHost);
-    nsAutoCString override(aOverride);
+    nsCAutoString host(aHost);
+    nsCAutoString override(aOverride);
     int32_t overrideLength = override.Length();
     int32_t tokenStart = 0;
     int32_t offset = 0;
@@ -176,7 +154,7 @@ nsWindowsSystemProxySettings::PatternMatch(const nsACString& aHost,
         } else {
             if (tokenEnd == -1)
                 tokenEnd = overrideLength;
-            nsAutoCString token(Substring(override, tokenStart,
+            nsCAutoString token(Substring(override, tokenStart,
                                           tokenEnd - tokenStart));
             offset = host.Find(token, offset);
             if (offset == -1 || (!star && offset))
@@ -193,53 +171,59 @@ nsWindowsSystemProxySettings::PatternMatch(const nsACString& aHost,
 nsresult
 nsWindowsSystemProxySettings::GetPACURI(nsACString& aResult)
 {
+    NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
     nsresult rv;
-    uint32_t flags = 0;
     nsAutoString buf;
-
-    rv = ReadInternetOption(INTERNET_PER_CONN_AUTOCONFIG_URL, flags, buf);
-    if (!(flags & PROXY_TYPE_AUTO_PROXY_URL)) {
-        aResult.Truncate();
-        return rv;
-    }
-
+    rv = mKey->ReadStringValue(NS_LITERAL_STRING("AutoConfigURL"), buf);
     if (NS_SUCCEEDED(rv))
         aResult = NS_ConvertUTF16toUTF8(buf);
     return rv;
 }
 
 nsresult
-nsWindowsSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
-                                             const nsACString & aScheme,
-                                             const nsACString & aHost,
-                                             const int32_t      aPort,
-                                             nsACString & aResult)
+nsWindowsSystemProxySettings::GetProxyForURI(nsIURI* aURI, nsACString& aResult)
 {
+    NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
     nsresult rv;
-    uint32_t flags = 0;
-    nsAutoString buf;
+    uint32_t enabled = 0;
 
-    rv = ReadInternetOption(INTERNET_PER_CONN_PROXY_SERVER, flags, buf);
-    if (NS_FAILED(rv) || !(flags & PROXY_TYPE_PROXY)) {
+    rv = mKey->ReadIntValue(NS_LITERAL_STRING("ProxyEnable"), &enabled);
+    if (!enabled) {
         SetProxyResultDirect(aResult);
         return NS_OK;
     }
 
-    if (MatchOverride(aHost)) {
+    nsCAutoString scheme;
+    rv = aURI->GetScheme(scheme);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCAutoString host;
+    rv = aURI->GetHost(host);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (MatchOverride(host)) {
+        SetProxyResultDirect(aResult);
+        return NS_OK;
+    }
+
+    nsAutoString buf;
+
+    rv = mKey->ReadStringValue(NS_LITERAL_STRING("ProxyServer"), buf);
+    if (NS_FAILED(rv)) {
         SetProxyResultDirect(aResult);
         return NS_OK;
     }
 
     NS_ConvertUTF16toUTF8 cbuf(buf);
 
-    nsAutoCString prefix;
-    ToLowerCase(aScheme, prefix);
+    nsCAutoString prefix;
+    ToLowerCase(scheme, prefix);
 
     prefix.Append('=');
 
-    nsAutoCString specificProxy;
-    nsAutoCString defaultProxy;
-    nsAutoCString socksProxy;
+    nsCAutoString specificProxy;
+    nsCAutoString defaultProxy;
+    nsCAutoString socksProxy;
     int32_t start = 0;
     int32_t end = cbuf.Length();
 
@@ -249,7 +233,7 @@ nsWindowsSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
             delimiter = end;
 
         if (delimiter != start) {
-            const nsAutoCString proxy(Substring(cbuf, start,
+            const nsCAutoString proxy(Substring(cbuf, start,
                                                 delimiter - start));
             if (proxy.FindChar('=') == -1) {
                 // If a proxy name is listed by itself, it is used as the

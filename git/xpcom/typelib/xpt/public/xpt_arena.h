@@ -22,9 +22,7 @@
 #define XPT_PUBLIC_API(t)    t
 #define XPT_PUBLIC_DATA(t)   t
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /*
  * Simple Arena support. Use with caution!
@@ -92,8 +90,6 @@ XPT_AssertFailed(const char *s, const char *file, uint32_t lineno);
 #define XPT_ASSERT(_expr) ((void)0)
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* __xpt_arena_h__ */

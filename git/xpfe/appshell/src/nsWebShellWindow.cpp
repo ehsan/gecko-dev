@@ -128,13 +128,6 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
     if (NS_FAILED(rv)) {
       mOpenerScreenRect.SetEmpty();
     } else {
-      double scale;
-      if (NS_SUCCEEDED(base->GetUnscaledDevicePixelsPerCSSPixel(&scale))) {
-        mOpenerScreenRect.x = NSToIntRound(mOpenerScreenRect.x / scale);
-        mOpenerScreenRect.y = NSToIntRound(mOpenerScreenRect.y / scale);
-        mOpenerScreenRect.width = NSToIntRound(mOpenerScreenRect.width / scale);
-        mOpenerScreenRect.height = NSToIntRound(mOpenerScreenRect.height / scale);
-      }
       initialX = mOpenerScreenRect.x;
       initialY = mOpenerScreenRect.y;
       ConstrainToOpenerScreen(&initialX, &initialY);
@@ -617,7 +610,7 @@ void nsWebShellWindow::LoadContentAreas() {
 
       nsCOMPtr<nsIURL> url = do_QueryInterface(mainURL);
       if (url) {
-        nsAutoCString search;
+        nsCAutoString search;
         url->GetQuery(search);
 
         AppendUTF8toUTF16(search, searchSpec);
@@ -726,7 +719,7 @@ void nsWebShellWindow::ConstrainToOpenerScreen(int32_t* aX, int32_t* aY)
                              mOpenerScreenRect.width, mOpenerScreenRect.height,
                              getter_AddRefs(screen));
     if (screen) {
-      screen->GetAvailRectDisplayPix(&left, &top, &width, &height);
+      screen->GetAvailRect(&left, &top, &width, &height);
       if (*aX < left || *aX > left + width) {
         *aX = left;
       }

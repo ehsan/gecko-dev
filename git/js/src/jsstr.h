@@ -10,14 +10,12 @@
 #include <ctype.h>
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsprvtd.h"
 #include "jslock.h"
 #include "jsutil.h"
 
 #include "js/HashTable.h"
 #include "vm/Unicode.h"
-
-class JSFlatString;
-class JSStableString;
 
 namespace js {
 
@@ -41,7 +39,7 @@ class RopeBuilder;
 
 }  /* namespace js */
 
-extern JSString *
+extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, js::HandleString s1, js::HandleString s2);
 
 extern JSString * JS_FASTCALL
@@ -70,7 +68,7 @@ extern JSSubString js_EmptySubString;
 
 /* Initialize the String class, returning its prototype object. */
 extern JSObject *
-js_InitStringClass(JSContext *cx, js::HandleObject obj);
+js_InitStringClass(JSContext *cx, JSObject *obj);
 
 extern const char js_escape_str[];
 extern const char js_unescape_str[];
@@ -81,24 +79,24 @@ extern const char js_decodeURIComponent_str[];
 extern const char js_encodeURIComponent_str[];
 
 /* GC-allocate a string descriptor for the given malloc-allocated chars. */
-extern JSStableString *
+extern JSFixedString *
 js_NewString(JSContext *cx, jschar *chars, size_t length);
 
 extern JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *base, size_t start, size_t length);
 
 /* Copy a counted string and GC-allocate a descriptor for it. */
-extern JSFlatString *
+extern JSFixedString *
 js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n);
 
-extern JSFlatString *
+extern JSFixedString *
 js_NewStringCopyN(JSContext *cx, const char *s, size_t n);
 
 /* Copy a C string and GC-allocate a descriptor for it. */
-extern JSFlatString *
+extern JSFixedString *
 js_NewStringCopyZ(JSContext *cx, const jschar *s);
 
-extern JSFlatString *
+extern JSFixedString *
 js_NewStringCopyZ(JSContext *cx, const char *s);
 
 /*
@@ -125,7 +123,6 @@ ToStringSlow(JSContext *cx, const Value &v);
 static JS_ALWAYS_INLINE JSString *
 ToString(JSContext *cx, const js::Value &v)
 {
-    AssertCanGC();
 #ifdef DEBUG
     {
         SkipRoot skip(cx, &v);

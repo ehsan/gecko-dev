@@ -50,13 +50,13 @@ nsMIMEInfoAndroid::GetMimeInfoForMimeType(const nsACString& aMimeType,
   }
 
   nsIHandlerApp* systemDefault = nullptr;
-  bridge->GetHandlersForMimeType(nsAutoCString(aMimeType).get(), 
+  bridge->GetHandlersForMimeType(nsCAutoString(aMimeType).get(), 
                                  info->mHandlerApps, &systemDefault);
   
   if (systemDefault)
     info->mPrefApp = systemDefault;
 
-  nsAutoCString fileExt;
+  nsCAutoString fileExt;
   bridge->GetExtensionFromMimeType(aMimeType, fileExt);
   info->SetPrimaryExtension(fileExt);
   
@@ -109,15 +109,15 @@ nsMIMEInfoAndroid::GetMimeInfoForURL(const nsACString &aURL,
   }
 
   nsIHandlerApp* systemDefault = nullptr;
-  bridge->GetHandlersForURL(nsAutoCString(aURL).get(), 
+  bridge->GetHandlersForURL(nsCAutoString(aURL).get(), 
                             mimeinfo->mHandlerApps, &systemDefault);
   
   if (systemDefault)
     mimeinfo->mPrefApp = systemDefault;
 
 
-  nsAutoCString fileExt;
-  nsAutoCString mimeType;
+  nsCAutoString fileExt;
+  nsCAutoString mimeType;
   mimeinfo->GetType(mimeType);
   bridge->GetExtensionFromMimeType(mimeType, fileExt);
   mimeinfo->SetPrimaryExtension(fileExt);
@@ -338,7 +338,7 @@ nsMIMEInfoAndroid::Equals(nsIMIMEInfo *aMIMEInfo, bool *aRetVal)
 {
   if (!aMIMEInfo) return NS_ERROR_NULL_POINTER;
 
-  nsAutoCString type;
+  nsCAutoString type;
   nsresult rv = aMIMEInfo->GetMIMEType(type);
   if (NS_FAILED(rv)) return rv;
 

@@ -16,15 +16,10 @@
 #include "SkTemplates.h"
 #include "SkWriter32.h"
 
-class SkPictureStateTree;
-class SkBBoxHierarchy;
-
 class SkPictureRecord : public SkCanvas {
 public:
     SkPictureRecord(uint32_t recordFlags);
     virtual ~SkPictureRecord();
-
-    virtual SkDevice* setDevice(SkDevice* device) SK_OVERRIDE;
 
     virtual int save(SaveFlags) SK_OVERRIDE;
     virtual int saveLayer(const SkRect* bounds, const SkPaint*, SaveFlags) SK_OVERRIDE;
@@ -74,33 +69,36 @@ public:
 
     void addFontMetricsTopBottom(const SkPaint& paint, SkScalar minY, SkScalar maxY);
 
+    const SkTDArray<const SkFlatBitmap* >& getBitmaps() const {
+        return fBitmaps;
+    }
+    const SkTDArray<const SkFlatMatrix* >& getMatrices() const {
+        return fMatrices;
+    }
+    const SkTDArray<const SkFlatPaint* >& getPaints() const {
+        return fPaints;
+    }
     const SkTDArray<SkPicture* >& getPictureRefs() const {
         return fPictureRefs;
     }
-
-    void setFlags(uint32_t recordFlags) {
-        fRecordFlags = recordFlags;
+    const SkTDArray<const SkFlatRegion* >& getRegions() const {
+        return fRegions;
     }
+
+    void reset();
 
     const SkWriter32& writeStream() const {
         return fWriter;
     }
 
-    void endRecording();
 private:
-    void recordRestoreOffsetPlaceholder(SkRegion::Op);
-    void fillRestoreOffsetPlaceholdersForCurrentStackLevel(
-        uint32_t restoreOffset);
-
-    SkTDArray<int32_t> fRestoreOffsetStack;
+    SkTDArray<uint32_t> fRestoreOffsetStack;
     int fFirstSavedLayerIndex;
     enum {
         kNoSavedLayerIndex = -1
     };
 
     void addDraw(DrawType drawType) {
-        this->predrawNotify();
-
 #ifdef SK_DEBUG_TRACE
         SkDebugf("add %s\n", DrawTypeToString(drawType));
 #endif
@@ -129,7 +127,12 @@ private:
     void addRegion(const SkRegion& region);
     void addText(const void* text, size_t byteLength);
 
-    int find(const SkBitmap& bitmap);
+    int find(SkTDArray<const SkFlatBitmap* >& bitmaps,
+                   const SkBitmap& bitmap);
+    int find(SkTDArray<const SkFlatMatrix* >& matrices,
+                   const SkMatrix* matrix);
+    int find(SkTDArray<const SkFlatPaint* >& paints, const SkPaint* paint);
+    int find(SkTDArray<const SkFlatRegion* >& regions, const SkRegion& region);
 
 #ifdef SK_DEBUG_DUMP
 public:
@@ -165,29 +168,29 @@ public:
     void validate() const {}
 #endif
 
-protected:
-
-    // These are set to NULL in our constructor, but may be changed by
-    // subclasses, in which case they will be SkSafeUnref'd in our destructor.
-    SkBBoxHierarchy* fBoundingHierarchy;
-    SkPictureStateTree* fStateTree;
-
 private:
-    SkBitmapHeap* fBitmapHeap;
-    SkChunkFlatController fFlattenableHeap;
-
-    SkMatrixDictionary fMatrices;
-    SkPaintDictionary fPaints;
-    SkRegionDictionary fRegions;
-
+    SkChunkAlloc fHeap;
+    int fBitmapIndex;
+    SkTDArray<const SkFlatBitmap* > fBitmaps;
+    int fMatrixIndex;
+    SkTDArray<const SkFlatMatrix* > fMatrices;
+    int fPaintIndex;
+    SkTDArray<const SkFlatPaint* > fPaints;
+    int fRegionIndex;
+    SkTDArray<const SkFlatRegion* > fRegions;
     SkPathHeap* fPathHeap;  // reference counted
     SkWriter32 fWriter;
 
     // we ref each item in these arrays
     SkTDArray<SkPicture*> fPictureRefs;
 
+    SkRefCntSet fRCSet;
+    SkRefCntSet fTFSet;
+
     uint32_t fRecordFlags;
-    int fInitialSaveCount;
+
+    // helper function to handle save/restore culling offsets
+    void recordOffsetForRestore(SkRegion::Op op);
 
     friend class SkPicturePlayback;
     friend class SkPictureTester; // for unit testing

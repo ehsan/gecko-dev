@@ -16,18 +16,19 @@ XPCOMUtils.defineLazyServiceGetter(this, "mimeService", "@mozilla.org/mime;1",
                                    "nsIMIMEService");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
-                                  "resource://gre/modules/devtools/NetworkHelper.jsm");
+                                  "resource:///modules/NetworkHelper.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
-                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+                                  "resource:///modules/WebConsoleUtils.jsm");
 
-const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
-let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
+XPCOMUtils.defineLazyGetter(this, "l10n", function() {
+  return WebConsoleUtils.l10n;
+});
 
-this.EXPORTED_SYMBOLS = ["NetworkPanel"];
+var EXPORTED_SYMBOLS = ["NetworkPanel"];
 
 /**
  * Creates a new NetworkPanel.
@@ -37,7 +38,7 @@ this.EXPORTED_SYMBOLS = ["NetworkPanel"];
  * @param object aHttpActivity
  *        HttpActivity to display in the panel.
  */
-this.NetworkPanel = function NetworkPanel(aParent, aHttpActivity)
+function NetworkPanel(aParent, aHttpActivity)
 {
   let doc = aParent.ownerDocument;
   this.httpActivity = aHttpActivity;
@@ -66,6 +67,7 @@ this.NetworkPanel = function NetworkPanel(aParent, aHttpActivity)
     self.panel.parentNode.removeChild(self.panel);
     self.panel = null;
     self.iframe = null;
+    self.document = null;
     self.httpActivity = null;
 
     if (self.linkNode) {
@@ -75,17 +77,9 @@ this.NetworkPanel = function NetworkPanel(aParent, aHttpActivity)
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
-  this.iframe.addEventListener("load", function onLoad() {
-    if (!self.iframe) {
-      return;
-    }
-
-    self.iframe.removeEventListener("load", onLoad, true);
-    self.update();
-  }, true);
-
-  this.panel.addEventListener("popupshown", function onPopupShown() {
-    self.panel.removeEventListener("popupshown", onPopupShown, true);
+  this.panel.addEventListener("load", function onLoad() {
+    self.panel.removeEventListener("load", onLoad, true);
+    self.document = self.iframe.contentWindow.document;
     self.update();
   }, true);
 
@@ -101,6 +95,12 @@ this.NetworkPanel = function NetworkPanel(aParent, aHttpActivity)
 
 NetworkPanel.prototype =
 {
+  /**
+   * Callback is called once the NetworkPanel is processed completely. Used by
+   * unit tests.
+   */
+  isDoneCallback: null,
+
   /**
    * The current state of the output.
    */
@@ -118,20 +118,6 @@ NetworkPanel.prototype =
   _fromDataRegExp: /Content-Type\:\s*application\/x-www-form-urlencoded/,
 
   _contentType: null,
-
-  /**
-   * Function callback invoked whenever the panel content is updated. This is
-   * used only by tests.
-   *
-   * @private
-   * @type function
-   */
-  _onUpdate: null,
-
-  get document() {
-    return this.iframe && this.iframe.contentWindow ?
-           this.iframe.contentWindow.document : null;
-  },
 
   /**
    * Small helper function that is nearly equal to l10n.getFormatStr
@@ -165,8 +151,9 @@ NetworkPanel.prototype =
       return this._contentType;
     }
 
-    let request = this.httpActivity.request;
-    let response = this.httpActivity.response;
+    let entry = this.httpActivity.log.entries[0];
+    let request = entry.request;
+    let response = entry.response;
 
     let contentType = "";
     let types = response.content ?
@@ -250,7 +237,7 @@ NetworkPanel.prototype =
    */
   get _isResponseCached()
   {
-    return this.httpActivity.response.status == 304;
+    return this.httpActivity.log.entries[0].response.status == 304;
   },
 
   /**
@@ -261,7 +248,7 @@ NetworkPanel.prototype =
    */
   get _isRequestBodyFormData()
   {
-    let requestBody = this.httpActivity.request.postData.text;
+    let requestBody = this.httpActivity.log.entries[0].request.postData.text;
     return this._fromDataRegExp.test(requestBody);
   },
 
@@ -355,8 +342,9 @@ NetworkPanel.prototype =
    */
   _displayRequestHeader: function NP__displayRequestHeader()
   {
-    let request = this.httpActivity.request;
-    let requestTime = new Date(this.httpActivity.startedDateTime);
+    let entry = this.httpActivity.log.entries[0];
+    let request = entry.request;
+    let requestTime = new Date(entry.startedDateTime);
 
     this._appendTextNode("headUrl", request.url);
     this._appendTextNode("headMethod", request.method);
@@ -377,9 +365,8 @@ NetworkPanel.prototype =
    *
    * @returns void
    */
-  _displayRequestBody: function NP__displayRequestBody()
-  {
-    let postData = this.httpActivity.request.postData;
+  _displayRequestBody: function NP__displayRequestBody() {
+    let postData = this.httpActivity.log.entries[0].request.postData;
     this._displayNode("requestBody");
     this._appendTextNode("requestBodyContent", postData.text);
   },
@@ -390,9 +377,8 @@ NetworkPanel.prototype =
    *
    * @returns void
    */
-  _displayRequestForm: function NP__processRequestForm()
-  {
-    let postData = this.httpActivity.request.postData.text;
+  _displayRequestForm: function NP__processRequestForm() {
+    let postData = this.httpActivity.log.entries[0].request.postData.text;
     let requestBodyLines = postData.split("\n");
     let formData = requestBodyLines[requestBodyLines.length - 1].
                       replace(/\+/g, " ").split("&");
@@ -432,8 +418,9 @@ NetworkPanel.prototype =
    */
   _displayResponseHeader: function NP__displayResponseHeader()
   {
-    let timing = this.httpActivity.timings;
-    let response = this.httpActivity.response;
+    let entry = this.httpActivity.log.entries[0];
+    let timing = entry.timings;
+    let response = entry.response;
 
     this._appendTextNode("headStatus",
                          [response.httpVersion, response.status,
@@ -467,16 +454,16 @@ NetworkPanel.prototype =
   _displayResponseImage: function NP__displayResponseImage()
   {
     let self = this;
-    let timing = this.httpActivity.timings;
-    let request = this.httpActivity.request;
+    let entry = this.httpActivity.log.entries[0];
+    let timing = entry.timings;
+    let request = entry.request;
     let cached = "";
 
     if (this._isResponseCached) {
       cached = "Cached";
     }
 
-    let imageNode = this.document.getElementById("responseImage" +
-                                                 cached + "Node");
+    let imageNode = this.document.getElementById("responseImage" + cached +"Node");
     imageNode.setAttribute("src", request.url);
 
     // This function is called to set the imageInfo.
@@ -512,8 +499,9 @@ NetworkPanel.prototype =
    */
   _displayResponseBody: function NP__displayResponseBody()
   {
-    let timing = this.httpActivity.timings;
-    let response = this.httpActivity.response;
+    let entry = this.httpActivity.log.entries[0];
+    let timing = entry.timings;
+    let response = entry.response;
     let cached =  this._isResponseCached ? "Cached" : "";
 
     this._appendTextNode("responseBody" + cached + "Info",
@@ -532,7 +520,7 @@ NetworkPanel.prototype =
    */
   _displayResponseBodyUnknownType: function NP__displayResponseBodyUnknownType()
   {
-    let timing = this.httpActivity.timings;
+    let timing = this.httpActivity.log.entries[0].timings;
 
     this._displayNode("responseBodyUnknownType");
     this._appendTextNode("responseBodyUnknownTypeInfo",
@@ -550,7 +538,7 @@ NetworkPanel.prototype =
    */
   _displayNoResponseBody: function NP_displayNoResponseBody()
   {
-    let timing = this.httpActivity.timings;
+    let timing = this.httpActivity.log.entries[0].timings;
 
     this._displayNode("responseNoBody");
     this._appendTextNode("responseNoBodyInfo",
@@ -566,14 +554,15 @@ NetworkPanel.prototype =
   {
     // After the iframe's contentWindow is ready, the document object is set.
     // If the document object is not available yet nothing needs to be updated.
-    if (!this.document || !this.document.getElementById("headUrl")) {
+    if (!this.document) {
       return;
     }
 
-    let updates = this.httpActivity.updates;
-    let timing = this.httpActivity.timings;
-    let request = this.httpActivity.request;
-    let response = this.httpActivity.response;
+    let stages = this.httpActivity.meta.stages;
+    let entry = this.httpActivity.log.entries[0];
+    let timing = entry.timings;
+    let request = entry.request;
+    let response = entry.response;
 
     switch (this._state) {
       case this._INIT:
@@ -583,7 +572,7 @@ NetworkPanel.prototype =
 
       case this._DISPLAYED_REQUEST_HEADER:
         // Process the request body if there is one.
-        if (!this.httpActivity.discardRequestBody && request.postData.text) {
+        if (!this.httpActivity.meta.discardRequestBody && request.postData) {
           // Check if we send some form data. If so, display the form data special.
           if (this._isRequestBodyFormData) {
             this._displayRequestForm();
@@ -596,6 +585,9 @@ NetworkPanel.prototype =
         // FALL THROUGH
 
       case this._DISPLAYED_REQUEST_BODY:
+        // There is always a response header. Therefore we can skip here if
+        // we don't have a response header yet and don't have to try updating
+        // anything else in the NetworkPanel.
         if (!response.headers.length || !Object.keys(timing).length) {
           break;
         }
@@ -604,13 +596,13 @@ NetworkPanel.prototype =
         // FALL THROUGH
 
       case this._DISPLAYED_RESPONSE_HEADER:
-        if (updates.indexOf("responseContent") == -1 ||
-            updates.indexOf("eventTimings") == -1) {
+        if (stages.indexOf("REQUEST_STOP") == -1 ||
+            stages.indexOf("TRANSACTION_CLOSE") == -1) {
           break;
         }
 
         this._state = this._TRANSITION_CLOSED;
-        if (this.httpActivity.discardResponseBody) {
+        if (this.httpActivity.meta.discardResponseBody) {
           break;
         }
 
@@ -626,11 +618,8 @@ NetworkPanel.prototype =
         else if (response.content.text) {
           this._displayResponseBody();
         }
-        break;
-    }
 
-    if (this._onUpdate) {
-      this._onUpdate();
+        break;
     }
   }
 }

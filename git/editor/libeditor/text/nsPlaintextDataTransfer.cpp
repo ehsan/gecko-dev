@@ -44,6 +44,7 @@
 #include "nsString.h"
 #include "nsXPCOM.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 class nsILoadContext;
 class nsISupports;

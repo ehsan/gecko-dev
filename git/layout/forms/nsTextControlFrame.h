@@ -6,7 +6,6 @@
 #ifndef nsTextControlFrame_h___
 #define nsTextControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
@@ -46,7 +45,7 @@ public:
   nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
     if (!IsScrollable())
@@ -60,7 +59,7 @@ public:
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
+                                 nsSize aPadding, bool aShrinkWrap);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -95,14 +94,14 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
+                                        uint32_t aFilter);
 
   // Utility methods to set current widget state
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
+                                 nsFrameList&    aChildList);
 
 //==== BEGIN NSIFORMCONTROLFRAME
   virtual void SetFocus(bool aOn , bool aRepaint); 
@@ -114,34 +113,34 @@ public:
 
 //==== NSITEXTCONTROLFRAME
 
-  NS_IMETHOD    GetEditor(nsIEditor **aEditor) MOZ_OVERRIDE;
-  NS_IMETHOD    GetTextLength(int32_t* aTextLength) MOZ_OVERRIDE;
-  NS_IMETHOD    SetSelectionStart(int32_t aSelectionStart) MOZ_OVERRIDE;
-  NS_IMETHOD    SetSelectionEnd(int32_t aSelectionEnd) MOZ_OVERRIDE;
+  NS_IMETHOD    GetEditor(nsIEditor **aEditor);
+  NS_IMETHOD    GetTextLength(int32_t* aTextLength);
+  NS_IMETHOD    SetSelectionStart(int32_t aSelectionStart);
+  NS_IMETHOD    SetSelectionEnd(int32_t aSelectionEnd);
   NS_IMETHOD    SetSelectionRange(int32_t aSelectionStart,
                                   int32_t aSelectionEnd,
-                                  SelectionDirection aDirection = eNone) MOZ_OVERRIDE;
+                                  SelectionDirection aDirection = eNone);
   NS_IMETHOD    GetSelectionRange(int32_t* aSelectionStart,
                                   int32_t* aSelectionEnd,
-                                  SelectionDirection* aDirection = nullptr) MOZ_OVERRIDE;
-  NS_IMETHOD    GetOwnedSelectionController(nsISelectionController** aSelCon) MOZ_OVERRIDE;
-  virtual nsFrameSelection* GetOwnedFrameSelection() MOZ_OVERRIDE;
+                                  SelectionDirection* aDirection = nullptr);
+  NS_IMETHOD    GetOwnedSelectionController(nsISelectionController** aSelCon);
+  virtual nsFrameSelection* GetOwnedFrameSelection();
 
-  nsresult GetPhonetic(nsAString& aPhonetic) MOZ_OVERRIDE;
+  nsresult GetPhonetic(nsAString& aPhonetic);
 
   /**
    * Ensure mEditor is initialized with the proper flags and the default value.
    * @throws NS_ERROR_NOT_INITIALIZED if mEditor has not been created
    * @throws various and sundry other things
    */
-  virtual nsresult EnsureEditorInitialized() MOZ_OVERRIDE;
+  virtual nsresult EnsureEditorInitialized();
 
 //==== END NSITEXTCONTROLFRAME
 
 //==== NSISTATEFULFRAME
 
-  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) MOZ_OVERRIDE;
-  NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE;
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
+  NS_IMETHOD RestoreState(nsPresState* aState);
 
 //=== END NSISTATEFULFRAME
 
@@ -344,7 +343,7 @@ protected:
                              nsSize&             aIntrinsicSize,
                              float               aFontSizeInflation);
 
-  nsresult ScrollSelectionIntoView() MOZ_OVERRIDE;
+  nsresult ScrollSelectionIntoView();
 
 private:
   //helper methods

@@ -131,8 +131,9 @@ Readability.prototype = {
       for (let i = elems.length; --i >= 0;) {
         let elem = elems[i];
         let relativeURI = elem.getAttribute(propName);
-        if (relativeURI != null)
+        if (relativeURI != null) {
           elems[i].setAttribute(propName, toAbsoluteURI(relativeURI));
+        }
       }
     }
 
@@ -277,8 +278,9 @@ Readability.prototype = {
           // If we've hit another <br><br>, we're done adding children to this <p>.
           if (next.tagName == "BR") {
             let nextElem = this._nextElement(next);
-            if (nextElem && nextElem.tagName == "BR")
+            if (nextElem && nextElem.tagName == "BR") {
               break;
+            }
           }
           
           // Otherwise, make this node a child of the new <p>.
@@ -334,16 +336,18 @@ Readability.prototype = {
       if (imgCount === 0 &&
         embedCount === 0 &&
         objectCount === 0 &&
-        this._getInnerText(articleParagraphs[i], false) === '')
+        this._getInnerText(articleParagraphs[i], false) === '') {
         articleParagraphs[i].parentNode.removeChild(articleParagraphs[i]);
+      }
     }
 
     let brs = articleContent.getElementsByTagName("BR");
     for (let i = brs.length; --i >= 0;) {
       let br = brs[i];
       let next = this._nextElement(br.nextSibling);
-      if (next && next.tagName == "P")
+      if (next && next.tagName == "P") {
         br.parentNode.removeChild(br);
+      }
     }
   },
 
@@ -623,8 +627,9 @@ Readability.prototype = {
           contentBonus += topCandidate.readability.contentScore * 0.2;
 
         if (typeof siblingNode.readability !== 'undefined' &&
-          (siblingNode.readability.contentScore+contentBonus) >= siblingScoreThreshold)
+          (siblingNode.readability.contentScore+contentBonus) >= siblingScoreThreshold) {
           append = true;
+        }
 
         if (siblingNode.nodeName === "P") {
           let linkDensity = this._getLinkDensity(siblingNode);
@@ -1065,8 +1070,9 @@ Readability.prototype = {
     for (let page in possiblePages) {
       if (possiblePages.hasOwnProperty(page)) {
         if (possiblePages[page].score >= 50 &&
-          (!topPage || topPage.score < possiblePages[page].score))
+          (!topPage || topPage.score < possiblePages[page].score)) {
           topPage = possiblePages[page];
+        }
       }
     }
 
@@ -1093,11 +1099,13 @@ Readability.prototype = {
     function respondToReadyState(readyState) {
       if (request.readyState === 4) {
         if (this._successfulRequest(request)) {
-          if (options.success)
+          if (options.success) {
             options.success(request);
+          }
         } else {
-          if (options.error)
+          if (options.error) {
             options.error(request);
+          }
         }
       }
     }
@@ -1417,8 +1425,9 @@ Readability.prototype = {
 
     let articleTitle = this._getArticleTitle();
     let articleContent = this._grabArticle();
-    if (!articleContent)
+    if (!articleContent) {
       return null;
+    }
 
     this._postProcessContent(articleContent);
 

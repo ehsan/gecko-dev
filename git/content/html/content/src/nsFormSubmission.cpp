@@ -17,7 +17,6 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsError.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsISaveAsCharset.h"
 #include "nsIFile.h"
 #include "nsIDOMFile.h"
@@ -129,7 +128,7 @@ nsFSURLEncoded::AddNameValuePair(const nsAString& aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Encode name
-  nsAutoCString convName;
+  nsCAutoString convName;
   rv = URLEncode(aName, convName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -261,7 +260,7 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
     aURI->SchemeIs("mailto", &isMailto);
     if (isMailto) {
 
-      nsAutoCString path;
+      nsCAutoString path;
       rv = aURI->GetPath(path);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -319,12 +318,12 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
       url->SetQuery(mQueryString);
     }
     else {
-      nsAutoCString path;
+      nsCAutoString path;
       rv = aURI->GetPath(path);
       NS_ENSURE_SUCCESS(rv, rv);
       // Bug 42616: Trim off named anchor and save it to add later
       int32_t namedAnchorPos = path.FindChar('#');
-      nsAutoCString namedAnchor;
+      nsCAutoString namedAnchor;
       if (kNotFound != namedAnchorPos) {
         path.Right(namedAnchor, (path.Length() - namedAnchorPos));
         path.Truncate(namedAnchorPos);
@@ -359,7 +358,7 @@ nsFSURLEncoded::URLEncode(const nsAString& aStr, nsCString& aEncoded)
                                                    nsLinebreakConverter::eLinebreakNet);
   NS_ENSURE_TRUE(convertedBuf, NS_ERROR_OUT_OF_MEMORY);
 
-  nsAutoCString encodedBuf;
+  nsCAutoString encodedBuf;
   nsresult rv = EncodeVal(nsDependentString(convertedBuf), encodedBuf, false);
   nsMemory::Free(convertedBuf);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -379,7 +378,6 @@ nsFSMultipartFormData::nsFSMultipartFormData(const nsACString& aCharset,
 {
   mPostDataStream =
     do_CreateInstance("@mozilla.org/io/multiplex-input-stream;1");
-  mTotalLength = 0;
 
   mBoundary.AssignLiteral("---------------------------");
   mBoundary.AppendInt(rand());
@@ -393,7 +391,7 @@ nsFSMultipartFormData::~nsFSMultipartFormData()
 }
 
 nsIInputStream*
-nsFSMultipartFormData::GetSubmissionBody(uint64_t* aContentLength)
+nsFSMultipartFormData::GetSubmissionBody()
 {
   // Finish data
   mPostDataChunk += NS_LITERAL_CSTRING("--") + mBoundary
@@ -402,7 +400,6 @@ nsFSMultipartFormData::GetSubmissionBody(uint64_t* aContentLength)
   // Add final data input stream
   AddPostDataStream();
 
-  *aContentLength = mTotalLength;
   return mPostDataStream;
 }
 
@@ -411,7 +408,7 @@ nsFSMultipartFormData::AddNameValuePair(const nsAString& aName,
                                         const nsAString& aValue)
 {
   nsCString valueStr;
-  nsAutoCString encodedVal;
+  nsCAutoString encodedVal;
   nsresult rv = EncodeVal(aValue, encodedVal, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -420,7 +417,7 @@ nsFSMultipartFormData::AddNameValuePair(const nsAString& aName,
                                    nsLinebreakConverter::eLinebreakAny,
                                    nsLinebreakConverter::eLinebreakNet));
 
-  nsAutoCString nameStr;
+  nsCAutoString nameStr;
   rv = EncodeVal(aName, nameStr, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -443,7 +440,7 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
                                        nsIDOMBlob* aBlob)
 {
   // Encode the control name
-  nsAutoCString nameStr;
+  nsCAutoString nameStr;
   nsresult rv = EncodeVal(aName, nameStr, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -516,11 +513,6 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
     AddPostDataStream();
 
     mPostDataStream->AppendStream(fileStream);
-
-    uint64_t size;
-    nsresult rv = aBlob->GetSize(&size);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mTotalLength += size;
   }
 
   // CRLF after file
@@ -540,12 +532,11 @@ nsFSMultipartFormData::GetEncodedSubmission(nsIURI* aURI,
     = do_CreateInstance("@mozilla.org/network/mime-input-stream;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   GetContentType(contentType);
   mimeStream->AddHeader("Content-Type", contentType.get());
   mimeStream->SetAddContentLength(true);
-  uint64_t unused;
-  mimeStream->SetData(GetSubmissionBody(&unused));
+  mimeStream->SetData(GetSubmissionBody());
 
   *aPostDataStream = mimeStream.forget().get();
 
@@ -563,7 +554,6 @@ nsFSMultipartFormData::AddPostDataStream()
   NS_ASSERTION(postDataChunkStream, "Could not open a stream for POST!");
   if (postDataChunkStream) {
     mPostDataStream->AppendStream(postDataChunkStream);
-    mTotalLength += mPostDataChunk.Length();
   }
 
   mPostDataChunk.Truncate();
@@ -631,7 +621,7 @@ nsFSTextPlain::GetEncodedSubmission(nsIURI* aURI,
   bool isMailto = false;
   aURI->SchemeIs("mailto", &isMailto);
   if (isMailto) {
-    nsAutoCString path;
+    nsCAutoString path;
     rv = aURI->GetPath(path);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -687,7 +677,7 @@ nsEncodingFormSubmission::nsEncodingFormSubmission(const nsACString& aCharset,
                                                    nsIContent* aOriginatingElement)
   : nsFormSubmission(aCharset, aOriginatingElement)
 {
-  nsAutoCString charset(aCharset);
+  nsCAutoString charset(aCharset);
   // canonical name is passed so that we just have to check against
   // *our* canonical names listed in charsetaliases.properties
   if (charset.EqualsLiteral("ISO-8859-1")) {
@@ -827,7 +817,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
   }
 
   // Get charset
-  nsAutoCString charset;
+  nsCAutoString charset;
   GetSubmitCharset(aForm, charset);
 
   // We now have a canonical charset name, so we only have to check it

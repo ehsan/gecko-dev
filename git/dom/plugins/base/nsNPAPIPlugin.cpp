@@ -23,7 +23,6 @@
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Preferences.h"
-#include "nsPluginInstanceOwner.h"
 
 #include "nsPluginsDir.h"
 #include "nsPluginSafety.h"
@@ -95,9 +94,6 @@ using mozilla::plugins::PluginModuleParent;
 #ifdef XP_WIN
 #include <windows.h>
 #include "nsWindowsHelpers.h"
-#ifdef ACCESSIBILITY
-#include "mozilla/a11y/Compatibility.h"
-#endif
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -187,20 +183,12 @@ enum eNPPStreamTypeInternal {
 
 static NS_DEFINE_IID(kMemoryCID, NS_MEMORY_CID);
 
-PRIntervalTime NS_NotifyBeginPluginCall()
-{
-  nsNPAPIPluginInstance::BeginPluginCall();
-  return PR_IntervalNow();
-}
-
 // This function sends a notification using the observer service to any object
 // registered to listen to the "experimental-notify-plugin-call" subject.
 // Each "experimental-notify-plugin-call" notification carries with it the run
 // time value in milliseconds that the call took to execute.
 void NS_NotifyPluginCall(PRIntervalTime startTime) 
 {
-  nsNPAPIPluginInstance::EndPluginCall();
-
   PRIntervalTime endTime = PR_IntervalNow() - startTime;
   nsCOMPtr<nsIObserverService> notifyUIService =
     mozilla::services::GetObserverService();
@@ -255,6 +243,46 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
   host->PluginCrashed(this, pluginDumpID, browserDumpID);
 }
 
+#if defined(XP_MACOSX) && defined(__i386__)
+static int32_t OSXVersion()
+{
+  static int32_t gOSXVersion = 0x0;
+  if (gOSXVersion == 0x0) {
+    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
+    if (err != noErr) {
+      // This should probably be changed when our minimum version changes
+      NS_ERROR("Couldn't determine OS X version, assuming 10.5");
+      gOSXVersion = 0x00001050;
+    }
+  }
+  return gOSXVersion;
+}
+
+// Detects machines with Intel GMA9xx GPUs.
+// kCGLRendererIDMatchingMask and kCGLRendererIntel900ID are only defined in the 10.6 SDK.
+#define CGLRendererIDMatchingMask 0x00FE7F00
+#define CGLRendererIntel900ID 0x00024000
+static bool GMA9XXGraphics()
+{
+  bool hasIntelGMA9XX = false;
+  CGLRendererInfoObj renderer = 0;
+  GLint rendererCount = 0;
+  if (::CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) == kCGLNoError) {
+    for (GLint c = 0; c < rendererCount; c++) {
+      GLint rendProp = 0;
+      if (::CGLDescribeRenderer(renderer, c, kCGLRPRendererID, &rendProp) == kCGLNoError) {
+        if ((rendProp & CGLRendererIDMatchingMask) == CGLRendererIntel900ID) {
+          hasIntelGMA9XX = true;
+          break;
+        }
+      }
+    }
+    ::CGLDestroyRendererInfo(renderer);
+  }
+  return hasIntelGMA9XX;
+}
+#endif
+
 bool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 {
@@ -266,25 +294,39 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     return false;
   }
 
-#ifdef ACCESSIBILITY
-  // Certain assistive technologies don't want oop Flash, thus we have a special
-  // pref for them to disable oop Flash (refer to bug 785047 for details).
-  bool useA11yPref = false;
-#ifdef XP_WIN
-  useA11yPref =  a11y::Compatibility::IsJAWS();
-#endif
-#endif
-
 #ifdef XP_WIN
   // On Windows Vista+, we force Flash to run in OOPP mode because Adobe
   // doesn't test Flash in-process and there are known stability bugs.
   if (aPluginTag->mIsFlashPlugin && IsVistaOrLater()) {
-#ifdef ACCESSIBILITY
-    if (!useA11yPref)
-      return true;
-#else
     return true;
+  }
 #endif
+
+#if defined(XP_MACOSX) && defined(__i386__)
+  // Only allow on Mac OS X 10.6 or higher.
+  if (OSXVersion() < 0x00001060) {
+    return false;
+  }
+  // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
+  // which are not supported out of process. Also blacklist Flash 10.1 if this
+  // machine has an Intel GMA9XX GPU because Flash will negotiate Quickdraw graphics.
+  // Never blacklist Flash >= 10.2.
+  if (aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
+    // If the first '.' is before position 2 or the version 
+    // starts with 10.0 then we are dealing with Flash 10 or less.
+    if (aPluginTag->mVersion.FindChar('.') < 2) {
+      return false;
+    }
+    if (aPluginTag->mVersion.Length() >= 4) {
+      nsCString versionPrefix;
+      aPluginTag->mVersion.Left(versionPrefix, 4);
+      if (versionPrefix.EqualsASCII("10.0")) {
+        return false;
+      }
+      if (versionPrefix.EqualsASCII("10.1") && GMA9XXGraphics()) {
+        return false;
+      }
+    }
   }
 #endif
 
@@ -298,7 +340,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // of "dom.ipc.plugins.enabled"
   // The "filename.dll" part can contain shell wildcard pattern
 
-  nsAutoCString prefFile(aPluginTag->mFullPath.get());
+  nsCAutoString prefFile(aPluginTag->mFullPath.get());
   int32_t slashPos = prefFile.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return false;
@@ -307,19 +349,14 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 
 #ifdef XP_MACOSX
 #if defined(__i386__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.i386.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.i386.");
 #elif defined(__x86_64__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.x86_64.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.x86_64.");
 #elif defined(__ppc__)
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.ppc.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.ppc.");
 #endif
 #else
-  nsAutoCString prefGroupKey("dom.ipc.plugins.enabled.");
-#endif
-
-#ifdef ACCESSIBILITY
-  if (useA11yPref)
-    prefGroupKey.AssignLiteral("dom.ipc.plugins.enabled.a11y.");
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
 #endif
 
   // Java plugins include a number of different file names,
@@ -376,9 +413,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     Preferences::GetBool("dom.ipc.plugins.enabled.ppc", false);
 #endif
 #else
-#ifdef ACCESSIBILITY
-    useA11yPref ? Preferences::GetBool("dom.ipc.plugins.enabled.a11y", false) :
-#endif
     Preferences::GetBool("dom.ipc.plugins.enabled", false);
 #endif
   }
@@ -634,7 +668,8 @@ GetDocumentFromNPP(NPP npp)
 
   PluginDestructionGuard guard(inst);
 
-  nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  inst->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nullptr);
 
   nsCOMPtr<nsIDocument> doc;
@@ -1328,7 +1363,7 @@ _intfromidentifier(NPIdentifier id)
   }
 
   if (!NPIdentifierIsInt(id)) {
-    return INT32_MIN;
+    return PR_INT32_MIN;
   }
 
   return NPIdentifierToInt(id);
@@ -1529,7 +1564,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   nsIPrincipal *principal = doc->NodePrincipal();
 
-  nsAutoCString specStr;
+  nsCAutoString specStr;
   const char *spec;
 
   nsCOMPtr<nsIURI> uri;
@@ -1950,7 +1985,8 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    inst->GetOwner(getter_AddRefs(owner));
     NS_ENSURE_TRUE(owner, NPERR_NO_ERROR);
 
     if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {
@@ -2109,7 +2145,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
 #ifndef NP_NO_QUICKDRAW
   case NPNVsupportsQuickDrawBool: {
-    *(NPBool*)result = false;
+    *(NPBool*)result = true;
     
     return NPERR_NO_ERROR;
   }
@@ -2149,14 +2185,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
   case NPNVsupportsUpdatedCocoaTextInputBool: {
     *(NPBool*)result = true;
-    return NPERR_NO_ERROR;
-  }
-
-  case NPNVcontentsScaleFactor: {
-    nsNPAPIPluginInstance *inst =
-      (nsNPAPIPluginInstance *) (npp ? npp->ndata : nullptr);
-    double scaleFactor = inst ? inst->GetContentsScaleFactor() : 1.0;
-    *(double*)result = scaleFactor;
     return NPERR_NO_ERROR;
   }
 #endif
@@ -2263,7 +2291,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
       jfieldID field = env->GetStaticFieldID(cls, "mAppContext",
                                              "Lorg/mozilla/gecko/GeckoApp;");
       jobject ret = env->GetStaticObjectField(cls, field);
-      env->DeleteLocalRef(cls);
       int32_t* i  = reinterpret_cast<int32_t*>(result);
       *i = reinterpret_cast<int32_t>(ret);
       return NPERR_NO_ERROR;

@@ -8,7 +8,6 @@
 
 
 #include "SkTableMaskFilter.h"
-#include "SkFlattenableBuffers.h"
 
 SkTableMaskFilter::SkTableMaskFilter() {
     for (int i = 0; i < 256; i++) {
@@ -36,16 +35,16 @@ bool SkTableMaskFilter::filterMask(SkMask* dst, const SkMask& src,
     dst->fRowBytes = SkAlign4(dst->fBounds.width());
     dst->fFormat = SkMask::kA8_Format;
     dst->fImage = NULL;
-
+    
     if (src.fImage) {
         dst->fImage = SkMask::AllocImage(dst->computeImageSize());
-
+        
         const uint8_t* srcP = src.fImage;
         uint8_t* dstP = dst->fImage;
         const uint8_t* table = fTable;
         int dstWidth = dst->fBounds.width();
         int extraZeros = dst->fRowBytes - dstWidth;
-
+        
         for (int y = dst->fBounds.height() - 1; y >= 0; --y) {
             for (int x = dstWidth - 1; x >= 0; --x) {
                 dstP[x] = table[srcP[x]];
@@ -74,13 +73,12 @@ SkMask::Format SkTableMaskFilter::getFormat() {
 
 void SkTableMaskFilter::flatten(SkFlattenableWriteBuffer& wb) const {
     this->INHERITED::flatten(wb);
-    wb.writeByteArray(fTable, 256);
+    wb.writePad(fTable, 256);
 }
 
 SkTableMaskFilter::SkTableMaskFilter(SkFlattenableReadBuffer& rb)
         : INHERITED(rb) {
-    SkASSERT(256 == rb.getArrayCount());
-    rb.readByteArray(fTable);
+    rb.read(fTable, 256);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -91,7 +89,7 @@ void SkTableMaskFilter::MakeGammaTable(uint8_t table[256], SkScalar gamma) {
 
     float x = 0;
     for (int i = 0; i < 256; i++) {
-     // float ee = powf(x, g) * 255;
+        float ee = powf(x, g) * 255;
         table[i] = SkPin32(sk_float_round2int(powf(x, g) * 255), 0, 255);
         x += dx;
     }

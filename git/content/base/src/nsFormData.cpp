@@ -103,8 +103,8 @@ nsFormData::Append(const nsAString& aName, nsIVariant* aValue)
 // nsIXHRSendable
 
 NS_IMETHODIMP
-nsFormData::GetSendInfo(nsIInputStream** aBody, uint64_t* aContentLength,
-                        nsACString& aContentType, nsACString& aCharset)
+nsFormData::GetSendInfo(nsIInputStream** aBody, nsACString& aContentType,
+                        nsACString& aCharset)
 {
   nsFSMultipartFormData fs(NS_LITERAL_CSTRING("UTF-8"), nullptr);
   
@@ -119,8 +119,7 @@ nsFormData::GetSendInfo(nsIInputStream** aBody, uint64_t* aContentLength,
 
   fs.GetContentType(aContentType);
   aCharset.Truncate();
-  *aContentLength = 0;
-  NS_ADDREF(*aBody = fs.GetSubmissionBody(aContentLength));
+  NS_ADDREF(*aBody = fs.GetSubmissionBody());
 
   return NS_OK;
 }

@@ -8,7 +8,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMHTMLOptionElement.h"
-#include "nsContentList.h"
 
 
 class nsHTMLDataListElement : public nsGenericHTMLElement,

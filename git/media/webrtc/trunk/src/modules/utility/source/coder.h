@@ -52,6 +52,8 @@ protected:
 				   const RTPFragmentationHeader* fragmentation);
 
 private:
+    WebRtc_UWord32 _instanceID;
+
     AudioCodingModule* _acm;
 
     CodecInst _receiveCodec;

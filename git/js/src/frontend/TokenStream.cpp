@@ -32,7 +32,6 @@
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "vm/Keywords.h"
 #include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
 
@@ -46,11 +45,16 @@ using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
 
+#define JS_KEYWORD(keyword, type, op, version) \
+    const char js_##keyword##_str[] = #keyword;
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
+
 static const KeywordInfo keywords[] = {
-#define KEYWORD_INFO(keyword, name, type, op, version) \
+#define JS_KEYWORD(keyword, type, op, version) \
     {js_##keyword##_str, type, op, version},
-    FOR_EACH_JAVASCRIPT_KEYWORD(KEYWORD_INFO)
-#undef KEYWORD_INFO
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
 };
 
 const KeywordInfo *
@@ -214,9 +218,9 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
 TokenStream::~TokenStream()
 {
     if (flags & TSF_OWNFILENAME)
-        js_free((void *) filename);
+        cx->free_((void *) filename);
     if (sourceMap)
-        js_free(sourceMap);
+        cx->free_(sourceMap);
     if (originPrincipals)
         JS_DropPrincipals(cx->runtime, originPrincipals);
 }
@@ -437,19 +441,19 @@ CompileError::throwError()
 
 CompileError::~CompileError()
 {
-    js_free((void*)report.uclinebuf);
-    js_free((void*)report.linebuf);
-    js_free((void*)report.ucmessage);
-    js_free(message);
+    cx->free_((void*)report.uclinebuf);
+    cx->free_((void*)report.linebuf);
+    cx->free_((void*)report.ucmessage);
+    cx->free_(message);
     message = NULL;
 
     if (report.messageArgs) {
         if (hasCharArgs) {
             unsigned i = 0;
             while (report.messageArgs[i])
-                js_free((void*)report.messageArgs[i++]);
+                cx->free_((void*)report.messageArgs[i++]);
         }
-        js_free(report.messageArgs);
+        cx->free_(report.messageArgs);
     }
 
     PodZero(&report);
@@ -721,7 +725,7 @@ TokenStream::getXMLEntity()
     bytes = DeflateString(cx, bp + 1, (tb.end() - bp) - 1);
     if (bytes) {
         reportError(msg, bytes);
-        js_free(bytes);
+        cx->free_(bytes);
     }
     return false;
 }
@@ -1041,7 +1045,7 @@ TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
 
         JSAtom *data;
         if (contentIndex < 0) {
-            data = cx->names().empty;
+            data = cx->runtime->atomState.emptyAtom;
         } else {
             data = AtomizeChars(cx, tokenbuf.begin() + contentIndex,
                                 tokenbuf.length() - contentIndex);
@@ -1207,7 +1211,7 @@ TokenStream::getAtLine()
             if (c == EOF || c == '\n') {
                 if (i > 0) {
                     if (flags & TSF_OWNFILENAME)
-                        js_free((void *) filename);
+                        cx->free_((void *) filename);
                     filename = JS_strdup(cx, filenameBuf);
                     if (!filename)
                         return false;
@@ -1246,8 +1250,8 @@ TokenStream::getAtSourceMappingURL()
         size_t sourceMapLength = tokenbuf.length();
 
         if (sourceMap)
-            js_free(sourceMap);
-        sourceMap = cx->pod_malloc<jschar>(sourceMapLength + 1);
+            cx->free_(sourceMap);
+        sourceMap = static_cast<jschar *>(cx->malloc_(sizeof(jschar) * (sourceMapLength + 1)));
         if (!sourceMap)
             return false;
 
@@ -2310,8 +2314,6 @@ TokenKindToString(TokenKind tt)
       case TOK_MULASSIGN:       return "TOK_MULASSIGN";
       case TOK_DIVASSIGN:       return "TOK_DIVASSIGN";
       case TOK_MODASSIGN:       return "TOK_MODASSIGN";
-      case TOK_EXPORT:          return "TOK_EXPORT";
-      case TOK_IMPORT:          return "TOK_IMPORT";
       case TOK_LIMIT:           break;
     }
 

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
@@ -227,7 +226,7 @@ PlacesController.prototype = {
       }
       else
         host = NetUtil.newURI(this._view.selectedNode.uri).host;
-      ForgetAboutSite.removeDataFromDomain(host);
+      PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
       break;
     case "cmd_selectAll":
       this.selectAll();
@@ -1426,13 +1425,13 @@ let PlacesControllerDragHelper = {
       if (ip.isTag && ip.orientation == Ci.nsITreeView.DROP_ON &&
           dragged.type != PlacesUtils.TYPE_X_MOZ_URL &&
           (dragged.type != PlacesUtils.TYPE_X_MOZ_PLACE ||
-           (dragged.uri && dragged.uri.startsWith("place:")) ))
+           /^place:/.test(dragged.uri)))
         return false;
 
       // The following loop disallows the dropping of a folder on itself or
       // on any of its descendants.
       if (dragged.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER ||
-          (dragged.uri && dragged.uri.startsWith("place:")) ) {
+          /^place:/.test(dragged.uri)) {
         let parentId = ip.itemId;
         while (parentId != PlacesUtils.placesRootId) {
           if (dragged.concreteId == parentId || dragged.id == parentId)
@@ -1635,13 +1634,7 @@ function doGetPlacesControllerForCommand(aCommand)
 {
   // A context menu may be built for non-focusable views.  Thus, we first try
   // to look for a view associated with document.popupNode
-  let popupNode; 
-  try {
-    popupNode = document.popupNode;
-  } catch (e) {
-    // The document went away (bug 797307).
-    return null;
-  }
+  let popupNode = document.popupNode;
   if (popupNode) {
     let view = PlacesUIUtils.getViewForNode(popupNode);
     if (view && view._contextMenuShown)

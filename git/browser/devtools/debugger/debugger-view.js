@@ -6,7 +6,6 @@
 "use strict";
 
 const BREAKPOINT_LINE_TOOLTIP_MAX_SIZE = 1000; // chars
-const PANES_APPEARANCE_DELAY = 50; // ms
 const PROPERTY_VIEW_FLASH_DURATION = 400; // ms
 const GLOBAL_SEARCH_MATCH_FLASH_DURATION = 100; // ms
 const GLOBAL_SEARCH_URL_MAX_SIZE = 100; // chars
@@ -34,65 +33,12 @@ let DebuggerView = {
   cacheView: function DV_cacheView() {
     this._onTogglePanesButtonPressed = this._onTogglePanesButtonPressed.bind(this);
 
-    // Panes and view containers
     this._togglePanesButton = document.getElementById("toggle-panes");
     this._stackframesAndBreakpoints = document.getElementById("stackframes+breakpoints");
     this._stackframes = document.getElementById("stackframes");
     this._breakpoints = document.getElementById("breakpoints");
     this._variables = document.getElementById("variables");
-    this._scripts = document.getElementById("scripts");
     this._globalSearch = document.getElementById("globalsearch");
-    this._globalSearchSplitter = document.getElementById("globalsearch-splitter");
-
-    // Keys
-    this._fileSearchKey = document.getElementById("fileSearchKey");
-    this._lineSearchKey = document.getElementById("lineSearchKey");
-    this._tokenSearchKey = document.getElementById("tokenSearchKey");
-    this._globalSearchKey = document.getElementById("globalSearchKey");
-    this._resumeKey = document.getElementById("resumeKey");
-    this._stepOverKey = document.getElementById("stepOverKey");
-    this._stepInKey = document.getElementById("stepInKey");
-    this._stepOutKey = document.getElementById("stepOutKey");
-
-    // Buttons, textboxes etc.
-    this._resumeButton = document.getElementById("resume");
-    this._stepOverButton = document.getElementById("step-over");
-    this._stepInButton = document.getElementById("step-in");
-    this._stepOutButton = document.getElementById("step-out");
-    this._scriptsSearchbox = document.getElementById("scripts-search");
-    this._globalOperatorLabel = document.getElementById("global-operator-label");
-    this._globalOperatorButton = document.getElementById("global-operator-button");
-    this._tokenOperatorLabel = document.getElementById("token-operator-label");
-    this._tokenOperatorButton = document.getElementById("token-operator-button");
-    this._lineOperatorLabel = document.getElementById("line-operator-label");
-    this._lineOperatorButton = document.getElementById("line-operator-button");
-  },
-
-  /**
-   * Applies the correct key labels and tooltips across global view elements.
-   */
-  initializeKeys: function DV_initializeKeys() {
-    this._resumeButton.setAttribute("tooltiptext",
-      L10N.getFormatStr("pauseButtonTooltip", [LayoutHelpers.prettyKey(this._resumeKey)]));
-    this._stepOverButton.setAttribute("tooltiptext",
-      L10N.getFormatStr("stepOverTooltip", [LayoutHelpers.prettyKey(this._stepOverKey)]));
-    this._stepInButton.setAttribute("tooltiptext",
-      L10N.getFormatStr("stepInTooltip", [LayoutHelpers.prettyKey(this._stepInKey)]));
-    this._stepOutButton.setAttribute("tooltiptext",
-      L10N.getFormatStr("stepOutTooltip", [LayoutHelpers.prettyKey(this._stepOutKey)]));
-
-    this._scriptsSearchbox.setAttribute("placeholder",
-      L10N.getFormatStr("emptyFilterText", [LayoutHelpers.prettyKey(this._fileSearchKey)]));
-    this._globalOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelGlobal", [LayoutHelpers.prettyKey(this._globalSearchKey)]));
-    this._tokenOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelToken", [LayoutHelpers.prettyKey(this._tokenSearchKey)]));
-    this._lineOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelLine", [LayoutHelpers.prettyKey(this._lineSearchKey)]));
-
-    this._globalOperatorButton.setAttribute("label", SEARCH_GLOBAL_FLAG);
-    this._tokenOperatorButton.setAttribute("label", SEARCH_TOKEN_FLAG);
-    this._lineOperatorButton.setAttribute("label", SEARCH_LINE_FLAG);
   },
 
   /**
@@ -104,8 +50,8 @@ let DebuggerView = {
     this._stackframesAndBreakpoints.setAttribute("width", Prefs.stackframesWidth);
     this._variables.setAttribute("width", Prefs.variablesWidth);
 
-    this.toggleStackframesAndBreakpointsPane({ silent: true });
-    this.toggleVariablesPane({ silent: true });
+    this.showStackframesAndBreakpointsPane(Prefs.stackframesPaneVisible);
+    this.showVariablesPane(Prefs.variablesPaneVisible);
   },
 
   /**
@@ -146,11 +92,6 @@ let DebuggerView = {
     this._stackframesAndBreakpoints.parentNode.removeChild(this._stackframesAndBreakpoints);
     this._variables.parentNode.removeChild(this._variables);
     this._globalSearch.parentNode.removeChild(this._globalSearch);
-
-    // Delete all the cached global view elements.
-    for (let i in this) {
-      if (!(this[i] instanceof Function)) delete this[i];
-    }
   },
 
   /**
@@ -174,130 +115,65 @@ let DebuggerView = {
    * Called when the panes toggle button is clicked.
    */
   _onTogglePanesButtonPressed: function DV__onTogglePanesButtonPressed() {
-    this.toggleStackframesAndBreakpointsPane({
-      visible: !!this._togglePanesButton.getAttribute("stackframesAndBreakpointsHidden"),
-      animated: true
-    });
-    this.toggleVariablesPane({
-      visible: !!this._togglePanesButton.getAttribute("variablesHidden"),
-      animated: true
-    });
-    this._onPanesToggle();
+    this.showStackframesAndBreakpointsPane(
+      this._togglePanesButton.getAttribute("stackframesAndBreakpointsHidden"), true);
+
+    this.showVariablesPane(
+      this._togglePanesButton.getAttribute("variablesHidden"), true);
   },
 
   /**
    * Sets the close button hidden or visible. It's hidden by default.
    * @param boolean aVisibleFlag
    */
-  toggleCloseButton: function DV_toggleCloseButton(aVisibleFlag) {
+  showCloseButton: function DV_showCloseButton(aVisibleFlag) {
     document.getElementById("close").setAttribute("hidden", !aVisibleFlag);
   },
 
   /**
    * Sets the stackframes and breakpoints pane hidden or visible.
-   *
-   * @param object aFlags [optional]
-   *        An object containing some of the following booleans:
-   *        - visible: true if the pane should be shown, false for hidden
-   *        - animated: true to display an animation on toggle
-   *        - silent: true to not update any designated prefs
+   * @param boolean aVisibleFlag
+   * @param boolean aAnimatedFlag
    */
-  toggleStackframesAndBreakpointsPane:
-  function DV_toggleStackframesAndBreakpointsPane(aFlags = {}) {
-    if (aFlags.animated) {
+  showStackframesAndBreakpointsPane:
+  function DV_showStackframesAndBreakpointsPane(aVisibleFlag, aAnimatedFlag) {
+    if (aAnimatedFlag) {
       this._stackframesAndBreakpoints.setAttribute("animated", "");
     } else {
       this._stackframesAndBreakpoints.removeAttribute("animated");
     }
-    if (aFlags.visible) {
+    if (aVisibleFlag) {
       this._stackframesAndBreakpoints.style.marginLeft = "0";
       this._togglePanesButton.removeAttribute("stackframesAndBreakpointsHidden");
-      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("collapsePanes"));
     } else {
       let margin = parseInt(this._stackframesAndBreakpoints.getAttribute("width")) + 1;
       this._stackframesAndBreakpoints.style.marginLeft = -margin + "px";
       this._togglePanesButton.setAttribute("stackframesAndBreakpointsHidden", "true");
-      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("expandPanes"));
     }
-    if (!aFlags.silent) {
-      Prefs.stackframesPaneVisible = !!aFlags.visible;
-    }
+    Prefs.stackframesPaneVisible = aVisibleFlag;
   },
 
   /**
    * Sets the variable spane hidden or visible.
-   *
-   * @param object aFlags [optional]
-   *        An object containing some of the following booleans:
-   *        - visible: true if the pane should be shown, false for hidden
-   *        - animated: true to display an animation on toggle
-   *        - silent: true to not update any designated prefs
+   * @param boolean aVisibleFlag
+   * @param boolean aAnimatedFlag
    */
-  toggleVariablesPane:
-  function DV_toggleVariablesPane(aFlags = {}) {
-    if (aFlags.animated) {
+  showVariablesPane:
+  function DV_showVariablesPane(aVisibleFlag, aAnimatedFlag) {
+    if (aAnimatedFlag) {
       this._variables.setAttribute("animated", "");
     } else {
       this._variables.removeAttribute("animated");
     }
-    if (aFlags.visible) {
+    if (aVisibleFlag) {
       this._variables.style.marginRight = "0";
       this._togglePanesButton.removeAttribute("variablesHidden");
-      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("collapsePanes"));
     } else {
       let margin = parseInt(this._variables.getAttribute("width")) + 1;
       this._variables.style.marginRight = -margin + "px";
       this._togglePanesButton.setAttribute("variablesHidden", "true");
-      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("expandPanes"));
     }
-    if (!aFlags.silent) {
-      Prefs.variablesPaneVisible = !!aFlags.visible;
-    }
-  },
-
-  /**
-   * Shows the stackframes, breakpoints and variable panes if currently hidden
-   * and the preferences dictate otherwise.
-   */
-  showPanesIfAllowed: function DV_showPanesIfAllowed() {
-    // Try to keep animations as smooth as possible, so wait a few cycles.
-    window.setTimeout(function() {
-      let shown;
-
-      if (Prefs.stackframesPaneVisible &&
-          this._togglePanesButton.getAttribute("stackframesAndBreakpointsHidden")) {
-        this.toggleStackframesAndBreakpointsPane({
-          visible: true,
-          animated: true,
-          silent: true
-        });
-        shown = true;
-      }
-      if (Prefs.variablesPaneVisible &&
-          this._togglePanesButton.getAttribute("variablesHidden")) {
-        this.toggleVariablesPane({
-          visible: true,
-          animated: true,
-          silent: true
-        });
-        shown = true;
-      }
-      if (shown) {
-        this._onPanesToggle();
-      }
-    }.bind(this), PANES_APPEARANCE_DELAY);
-  },
-
-  /**
-   * Displaying the panes may have the effect of triggering scrollbars to
-   * appear in the source editor, which would render the currently highlighted
-   * line to appear behind them in some cases.
-   */
-  _onPanesToggle: function DV__onPanesToggle() {
-    document.addEventListener("transitionend", function onEvent() {
-      document.removeEventListener("transitionend", onEvent);
-      DebuggerController.StackFrames.updateEditorLocation();
-    });
+    Prefs.variablesPaneVisible = aVisibleFlag;
   },
 
   /**
@@ -308,28 +184,7 @@ let DebuggerView = {
   _stackframes: null,
   _breakpoints: null,
   _variables: null,
-  _scripts: null,
-  _globalSearch: null,
-  _globalSearchSplitter: null,
-  _fileSearchKey: null,
-  _lineSearchKey: null,
-  _tokenSearchKey: null,
-  _globalSearchKey: null,
-  _resumeKey: null,
-  _stepOverKey: null,
-  _stepInKey: null,
-  _stepOutKey: null,
-  _resumeButton: null,
-  _stepOverButton: null,
-  _stepInButton: null,
-  _stepOutButton: null,
-  _scriptsSearchbox: null,
-  _globalOperatorLabel: null,
-  _globalOperatorButton: null,
-  _tokenOperatorLabel: null,
-  _tokenOperatorButton: null,
-  _lineOperatorLabel: null,
-  _lineOperatorButton: null
+  _globalSearch: null
 };
 
 /**
@@ -390,7 +245,6 @@ function GlobalSearchView() {
   this._onLineClick = this._onLineClick.bind(this);
   this._onMatchClick = this._onMatchClick.bind(this);
   this._onResultsScroll = this._onResultsScroll.bind(this);
-  this._onFocusLost = this._onFocusLost.bind(this);
   this._startSearch = this._startSearch.bind(this);
 }
 
@@ -404,12 +258,6 @@ GlobalSearchView.prototype = {
     this._pane.hidden = value;
     this._splitter.hidden = value;
   },
-
-  /**
-   * True if the search results container is hidden.
-   * @return boolean
-   */
-  get hidden() this._pane.hidden,
 
   /**
    * Removes all elements from the search results container, leaving it empty.
@@ -468,7 +316,7 @@ GlobalSearchView.prototype = {
         continue;
       }
       DebuggerController.dispatchEvent("Debugger:LoadSource", {
-        script: DebuggerView.Scripts.getScriptByLocation(url).getUserData("sourceScript"),
+        url: url,
         options: {
           silent: true,
           callback: aFetchCallback
@@ -533,7 +381,7 @@ GlobalSearchView.prototype = {
 
     for (let [url, text] of this._scriptSources) {
       // Check if the search token is not found anywhere in the script source.
-      if (!text.toLowerCase().contains(lowerCaseToken)) {
+      if (text.toLowerCase().indexOf(lowerCaseToken) === -1) {
         continue;
       }
       let lines = text.split("\n");
@@ -547,7 +395,7 @@ GlobalSearchView.prototype = {
         let lowerCaseLine = line.toLowerCase();
 
         // Search is not case sensitive, and is tied to each line in the source.
-        if (!lowerCaseLine.contains(lowerCaseToken)) {
+        if (lowerCaseLine.indexOf(lowerCaseToken) === -1) {
           continue;
         }
 
@@ -828,20 +676,6 @@ GlobalSearchView.prototype = {
   },
 
   /**
-   * Focuses the previously found match in the source editor.
-   */
-  focusPrevMatch: function DVGS_focusPrevMatch() {
-    let matches = this._pane.querySelectorAll(".string[match=true]");
-    if (!matches.length) {
-      return;
-    }
-    if (--this._currentlyFocusedMatch < 0) {
-      this._currentlyFocusedMatch = matches.length - 1;
-    }
-    this._onMatchClick({ target: matches[this._currentlyFocusedMatch] });
-  },
-
-  /**
    * Called when a line in the search results container is clicked.
    */
   _onLineClick: function DVGS__onLineClick(e) {
@@ -872,13 +706,6 @@ GlobalSearchView.prototype = {
     let editor = DebuggerView.editor;
     let offset = editor.getCaretOffset();
     editor.setSelection(offset + range.start, offset + range.start + range.length);
-  },
-
-  /**
-   * Listener handling the searchbox blur event.
-   */
-  _onFocusLost: function DVGS__onFocusLost(e) {
-    this.hideAndEmpty();
   },
 
   /**
@@ -963,18 +790,15 @@ GlobalSearchView.prototype = {
    */
   _pane: null,
   _splitter: null,
-  _searchbox: null,
 
   /**
    * Initialization function, called when the debugger is initialized.
    */
-  initialize: function DVGS_initialize() {
-    this._pane = DebuggerView._globalSearch;
-    this._splitter = DebuggerView._globalSearchSplitter;
-    this._searchbox = DebuggerView._scriptsSearchbox;
+  initialize: function DVS_initialize() {
+    this._pane = document.getElementById("globalsearch");
+    this._splitter = document.getElementById("globalsearch-splitter");
 
     this._pane.addEventListener("scroll", this._onResultsScroll, false);
-    this._searchbox.addEventListener("blur", this._onFocusLost, false);
   },
 
   /**
@@ -982,12 +806,10 @@ GlobalSearchView.prototype = {
    */
   destroy: function DVS_destroy() {
     this._pane.removeEventListener("scroll", this._onResultsScroll, false);
-    this._searchbox.removeEventListener("blur", this._onFocusLost, false);
 
     this.hideAndEmpty();
     this._pane = null;
     this._splitter = null;
-    this._searchbox = null;
     this._scriptSources = null;
   }
 };
@@ -997,10 +819,8 @@ GlobalSearchView.prototype = {
  */
 function ScriptsView() {
   this._onScriptsChange = this._onScriptsChange.bind(this);
-  this._onScriptsSearchClick = this._onScriptsSearchClick.bind(this);
-  this._onScriptsSearchBlur = this._onScriptsSearchBlur.bind(this);
   this._onScriptsSearch = this._onScriptsSearch.bind(this);
-  this._onScriptsKeyPress = this._onScriptsKeyPress.bind(this);
+  this._onScriptsKeyUp = this._onScriptsKeyUp.bind(this);
 }
 
 ScriptsView.prototype = {
@@ -1348,10 +1168,6 @@ ScriptsView.prototype = {
     DebuggerController.SourceScripts.showScript(selectedItem.getUserData("sourceScript"));
   },
 
-  _prevSearchedFile: "",
-  _prevSearchedLine: 0,
-  _prevSearchedToken: "",
-
   /**
    * Performs a file search if necessary.
    *
@@ -1439,20 +1255,6 @@ ScriptsView.prototype = {
   },
 
   /**
-   * The focus listener for the scripts search box.
-   */
-  _onScriptsSearchClick: function DVS__onScriptsSearchClick() {
-    this._searchboxPanel.openPopup(this._searchbox);
-  },
-
-  /**
-   * The blur listener for the scripts search box.
-   */
-  _onScriptsSearchBlur: function DVS__onScriptsSearchBlur() {
-    this._searchboxPanel.hidePopup();
-  },
-
-  /**
    * The search listener for the scripts search box.
    */
   _onScriptsSearch: function DVS__onScriptsSearch() {
@@ -1460,8 +1262,6 @@ ScriptsView.prototype = {
     if (!this._scripts.itemCount) {
       return;
     }
-    this._searchboxPanel.hidePopup();
-
     let [file, line, token, isGlobal] = this.searchboxInfo;
 
     // If this is a global script search, schedule a search in all the sources,
@@ -1477,45 +1277,28 @@ ScriptsView.prototype = {
   },
 
   /**
-   * The keypress listener for the scripts search box.
+   * The keyup listener for the scripts search box.
    */
-  _onScriptsKeyPress: function DVS__onScriptsKeyPress(e) {
+  _onScriptsKeyUp: function DVS__onScriptsKeyUp(e) {
     if (e.keyCode === e.DOM_VK_ESCAPE) {
       DebuggerView.editor.focus();
       return;
     }
-    var action;
 
-    if (e.keyCode === e.DOM_VK_DOWN ||
-        e.keyCode === e.DOM_VK_RETURN ||
-        e.keyCode === e.DOM_VK_ENTER) {
-      action = 1;
-    } else if (e.keyCode === e.DOM_VK_UP) {
-      action = 2;
-    }
+    if (e.keyCode === e.DOM_VK_RETURN || e.keyCode === e.DOM_VK_ENTER) {
+      let token = this.searchboxInfo[2];
+      let isGlobal = this.searchboxInfo[3];
 
-    if (action) {
-      let [file, line, token, isGlobal] = this.searchboxInfo;
-
-      if (token.length) {
-        e.preventDefault();
-        e.stopPropagation();
-      } else {
+      if (!token.length) {
         return;
       }
       if (isGlobal) {
-        if (DebuggerView.GlobalSearch.hidden) {
-          DebuggerView.GlobalSearch.scheduleSearch();
-        } else {
-          DebuggerView.GlobalSearch[action === 1
-            ? "focusNextMatch"
-            : "focusPrevMatch"]();
-        }
+        DebuggerView.GlobalSearch.focusNextMatch();
         return;
       }
 
       let editor = DebuggerView.editor;
-      let offset = editor[action === 1 ? "findNext" : "findPrevious"](true);
+      let offset = editor.findNext(true);
       if (offset > -1) {
         editor.setSelection(offset, offset + token.length)
       }
@@ -1532,19 +1315,10 @@ ScriptsView.prototype = {
   },
 
   /**
-   * Called when the scripts path filter key sequence was pressed.
-   */
-  _onFileSearch: function DVS__onFileSearch() {
-    this._onSearch();
-    this._searchboxPanel.openPopup(this._searchbox);
-  },
-
-  /**
    * Called when the scripts token filter key sequence was pressed.
    */
   _onLineSearch: function DVS__onLineSearch() {
     this._onSearch(SEARCH_LINE_FLAG);
-    this._searchboxPanel.hidePopup();
   },
 
   /**
@@ -1552,7 +1326,6 @@ ScriptsView.prototype = {
    */
   _onTokenSearch: function DVS__onTokenSearch() {
     this._onSearch(SEARCH_TOKEN_FLAG);
-    this._searchboxPanel.hidePopup();
   },
 
   /**
@@ -1560,7 +1333,6 @@ ScriptsView.prototype = {
    */
   _onGlobalSearch: function DVS__onGlobalSearch() {
     this._onSearch(SEARCH_GLOBAL_FLAG);
-    this._searchboxPanel.hidePopup();
   },
 
   /**
@@ -1568,22 +1340,17 @@ ScriptsView.prototype = {
    */
   _scripts: null,
   _searchbox: null,
-  _searchboxPanel: null,
 
   /**
    * Initialization function, called when the debugger is initialized.
    */
   initialize: function DVS_initialize() {
-    this._scripts = DebuggerView._scripts;
+    this._scripts = document.getElementById("scripts");
     this._searchbox = document.getElementById("scripts-search");
-    this._searchboxPanel = document.getElementById("scripts-search-panel");
-
     this._scripts.addEventListener("select", this._onScriptsChange, false);
-    this._searchbox.addEventListener("click", this._onScriptsSearchClick, false);
-    this._searchbox.addEventListener("blur", this._onScriptsSearchBlur, false);
     this._searchbox.addEventListener("select", this._onScriptsSearch, false);
     this._searchbox.addEventListener("input", this._onScriptsSearch, false);
-    this._searchbox.addEventListener("keypress", this._onScriptsKeyPress, false);
+    this._searchbox.addEventListener("keyup", this._onScriptsKeyUp, false);
     this.commitScripts();
   },
 
@@ -1592,16 +1359,13 @@ ScriptsView.prototype = {
    */
   destroy: function DVS_destroy() {
     this._scripts.removeEventListener("select", this._onScriptsChange, false);
-    this._searchbox.removeEventListener("click", this._onScriptsSearchClick, false);
-    this._searchbox.removeEventListener("blur", this._onScriptsSearchBlur, false);
     this._searchbox.removeEventListener("select", this._onScriptsSearch, false);
     this._searchbox.removeEventListener("input", this._onScriptsSearch, false);
-    this._searchbox.removeEventListener("keypress", this._onScriptsKeyPress, false);
+    this._searchbox.removeEventListener("keyup", this._onScriptsKeyUp, false);
 
     this.empty();
     this._scripts = null;
     this._searchbox = null;
-    this._searchboxPanel = null;
   }
 };
 
@@ -1620,27 +1384,26 @@ function StackFramesView() {
 
 StackFramesView.prototype = {
 
- /**
-  * Sets the current frames state based on the debugger active thread state.
-  *
-  * @param string aState
-  *        Either "paused" or "attached".
-  */
-  updateState: function DVF_updateState(aState) {
-    let resume = DebuggerView._resumeButton;
-    let resumeKey = LayoutHelpers.prettyKey(DebuggerView._resumeKey);
+  /**
+   * Sets the current frames state based on the debugger active thread state.
+   *
+   * @param string aState
+   *        Either "paused" or "attached".
+   */
+   updateState: function DVF_updateState(aState) {
+     let resume = document.getElementById("resume");
 
-    // If we're paused, show a pause label and a resume label on the button.
-    if (aState == "paused") {
-      resume.setAttribute("tooltiptext", L10N.getFormatStr("resumeButtonTooltip", [resumeKey]));
-      resume.setAttribute("checked", true);
-    }
-    // If we're attached, do the opposite.
-    else if (aState == "attached") {
-      resume.setAttribute("tooltiptext", L10N.getFormatStr("pauseButtonTooltip", [resumeKey]));
-      resume.removeAttribute("checked");
-    }
-  },
+     // If we're paused, show a pause label and a resume label on the button.
+     if (aState == "paused") {
+       resume.setAttribute("tooltiptext", L10N.getStr("resumeTooltip"));
+       resume.setAttribute("checked", true);
+     }
+     // If we're attached, do the opposite.
+     else if (aState == "attached") {
+       resume.setAttribute("tooltiptext", L10N.getStr("pauseTooltip"));
+       resume.removeAttribute("checked");
+     }
+   },
 
   /**
    * Removes all elements from the stackframes container, leaving it empty.
@@ -1687,8 +1450,6 @@ StackFramesView.prototype = {
     if (document.getElementById("stackframe-" + aDepth)) {
       return null;
     }
-    // Stackframes are UI elements which benefit from visible panes.
-    DebuggerView.showPanesIfAllowed();
 
     let frame = document.createElement("box");
     let frameName = document.createElement("label");
@@ -1877,11 +1638,11 @@ StackFramesView.prototype = {
   initialize: function DVF_initialize() {
     let close = document.getElementById("close");
     let pauseOnExceptions = document.getElementById("pause-exceptions");
-    let resume = DebuggerView._resumeButton;
-    let stepOver = DebuggerView._stepOverButton;
-    let stepIn = DebuggerView._stepInButton;
-    let stepOut = DebuggerView._stepOutButton;
-    let frames = DebuggerView._stackframes;
+    let resume = document.getElementById("resume");
+    let stepOver = document.getElementById("step-over");
+    let stepIn = document.getElementById("step-in");
+    let stepOut = document.getElementById("step-out");
+    let frames = document.getElementById("stackframes");
 
     close.addEventListener("click", this._onCloseButtonClick, false);
     pauseOnExceptions.checked = DebuggerController.StackFrames.pauseOnExceptions;
@@ -1904,11 +1665,11 @@ StackFramesView.prototype = {
   destroy: function DVF_destroy() {
     let close = document.getElementById("close");
     let pauseOnExceptions = document.getElementById("pause-exceptions");
-    let resume = DebuggerView._resumeButton;
-    let stepOver = DebuggerView._stepOverButton;
-    let stepIn = DebuggerView._stepInButton;
-    let stepOut = DebuggerView._stepOutButton;
-    let frames = DebuggerView._stackframes;
+    let resume = document.getElementById("resume");
+    let stepOver = document.getElementById("step-over");
+    let stepIn = document.getElementById("step-in");
+    let stepOut = document.getElementById("step-out");
+    let frames = this._frames;
 
     close.removeEventListener("click", this._onCloseButtonClick, false);
     pauseOnExceptions.removeEventListener("click", this._onPauseExceptionsClick, false);
@@ -2447,7 +2208,7 @@ BreakpointsView.prototype = {
    * Initialization function, called when the debugger is initialized.
    */
   initialize: function DVB_initialize() {
-    let breakpoints = DebuggerView._breakpoints;
+    let breakpoints = document.getElementById("breakpoints");
     breakpoints.addEventListener("click", this._onBreakpointClick, false);
 
     this._breakpoints = breakpoints;
@@ -3553,7 +3314,7 @@ PropertiesView.prototype = {
    * Initialization function, called when the debugger is initialized.
    */
   initialize: function DVP_initialize() {
-    this._vars = DebuggerView._variables;
+    this._vars = document.getElementById("variables");
 
     this.emptyText();
     this.createHierarchyStore();

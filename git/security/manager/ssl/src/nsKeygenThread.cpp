@@ -111,7 +111,7 @@ nsresult nsKeygenThread::ConsumeResult(
   return rv;
 }
 
-static void nsKeygenThreadRunner(void *arg)
+static void PR_CALLBACK nsKeygenThreadRunner(void *arg)
 {
   PR_SetCurrentThreadName("Keygen");
   nsKeygenThread *self = static_cast<nsKeygenThread *>(arg);

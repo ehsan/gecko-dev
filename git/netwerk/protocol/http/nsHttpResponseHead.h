@@ -20,7 +20,7 @@ class nsHttpResponseHead
 public:
     nsHttpResponseHead() : mVersion(NS_HTTP_VERSION_1_1)
                          , mStatus(200)
-                         , mContentLength(UINT64_MAX)
+                         , mContentLength(LL_MAXUINT)
                          , mCacheControlNoStore(false)
                          , mCacheControlNoCache(false)
                          , mPragmaNoCache(false) {}

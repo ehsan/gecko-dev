@@ -254,7 +254,7 @@ int get_mar_file_info_fp(FILE *fp,
       return -1;
     }
 
-    /* Read the number of signatures field */
+    /* Read the offset to the index. */
     if (fread(numSignatures, sizeof(*numSignatures), 1, fp) != 1) {
       return -1;
     }

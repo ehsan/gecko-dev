@@ -11,9 +11,7 @@
 
 #include <stdlib.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /* Used by backtrace. */
 typedef struct stack_buffer_info {
@@ -56,8 +54,6 @@ void dhw_orig_free(void*);
 
 #endif /* defined(XP_WIN32) */
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* !defined(NSTRACEMALLOCCALLBACKS_H) */

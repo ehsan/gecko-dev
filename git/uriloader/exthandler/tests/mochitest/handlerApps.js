@@ -5,7 +5,7 @@
 // handlerApp.xhtml grabs this for verification purposes via window.opener
 var testURI = "webcal://127.0.0.1/rheeeeet.html";
 
-const Cc = SpecialPowers.Cc;
+const Cc = SpecialPowers.wrap(Components).classes;
 
 function test() {
 
@@ -18,7 +18,7 @@ function test() {
 
   // set up the web handler object
   var webHandler = Cc["@mozilla.org/uriloader/web-handler-app;1"].
-    createInstance(SpecialPowers.Ci.nsIWebHandlerApp);
+    createInstance(Components.interfaces.nsIWebHandlerApp);
   webHandler.name = "Test Web Handler App";
   webHandler.uriTemplate =
       "http://mochi.test:8888/tests/uriloader/exthandler/tests/mochitest/" + 
@@ -26,15 +26,15 @@ function test() {
   
   // set up the uri to test with
   var ioService = Cc["@mozilla.org/network/io-service;1"].
-    getService(SpecialPowers.Ci.nsIIOService);
+    getService(Components.interfaces.nsIIOService);
   var uri = ioService.newURI(testURI, null, null);
 
   // create a window, and launch the handler in it
   var newWindow = window.open("", "handlerWindow", "height=300,width=300");
   var windowContext = 
-    SpecialPowers.wrap(newWindow).QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor).
-    getInterface(SpecialPowers.Ci.nsIWebNavigation).
-    QueryInterface(SpecialPowers.Ci.nsIDocShell);
+    SpecialPowers.wrap(newWindow).QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+    getInterface(Components.interfaces.nsIWebNavigation).
+    QueryInterface(Components.interfaces.nsIDocShell);
  
   webHandler.launchWithURI(uri, windowContext); 
 
@@ -50,18 +50,18 @@ function test() {
 
   // set up the local handler object
   var localHandler = Cc["@mozilla.org/uriloader/local-handler-app;1"].
-    createInstance(SpecialPowers.Ci.nsILocalHandlerApp);
+    createInstance(Components.interfaces.nsILocalHandlerApp);
   localHandler.name = "Test Local Handler App";
   
   // get a local app that we know will be there and do something sane
   var osString = Cc["@mozilla.org/xre/app-info;1"].
-                 getService(SpecialPowers.Ci.nsIXULRuntime).OS;
+                 getService(Components.interfaces.nsIXULRuntime).OS;
 
   var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-               getService(SpecialPowers.Ci.nsIDirectoryServiceProvider);
+               getService(Components.interfaces.nsIDirectoryServiceProvider);
   if (osString == "WINNT") {
     var windowsDir = dirSvc.getFile("WinD", {});
-    var exe = windowsDir.clone().QueryInterface(SpecialPowers.Ci.nsILocalFile);
+    var exe = windowsDir.clone().QueryInterface(Components.interfaces.nsILocalFile);
     exe.appendRelativePath("SYSTEM32\\HOSTNAME.EXE");
 
   } else if (osString == "Darwin") { 
@@ -79,13 +79,13 @@ function test() {
 
       // assume a generic UNIX variant
       exe = Cc["@mozilla.org/file/local;1"].
-            createInstance(SpecialPowers.Ci.nsILocalFile);
+            createInstance(Components.interfaces.nsILocalFile);
       exe.initWithPath("/bin/echo");
     }
   } else {
     // assume a generic UNIX variant
     exe = Cc["@mozilla.org/file/local;1"].
-          createInstance(SpecialPowers.Ci.nsILocalFile);
+          createInstance(Components.interfaces.nsILocalFile);
     exe.initWithPath("/bin/echo");
   }
 
@@ -100,11 +100,11 @@ function test() {
   if (osString == "NOTDarwin") {
 
     var killall = Cc["@mozilla.org/file/local;1"].
-                  createInstance(SpecialPowers.Ci.nsILocalFile);
+                  createInstance(Components.interfaces.nsILocalFile);
     killall.initWithPath("/usr/bin/killall");
   
     var process = Cc["@mozilla.org/process/util;1"].
-                  createInstance(SpecialPowers.Ci.nsIProcess);
+                  createInstance(Components.interfaces.nsIProcess);
     process.init(killall);
     
     var args = ['iCal'];

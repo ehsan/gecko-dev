@@ -39,7 +39,7 @@ nsPlatformCharset::~nsPlatformCharset()
 nsresult
 nsPlatformCharset::MapToCharset(nsAString& inANSICodePage, nsACString& outCharset)
 {
-  nsAutoCString key;
+  nsCAutoString key;
   LossyCopyUTF16toASCII(inANSICodePage, key);
 
   nsresult rv = nsUConvPropertySearch::SearchPropertyValue(kWinCharsets,

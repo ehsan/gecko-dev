@@ -24,7 +24,6 @@
 
 #include "nsNodeInfoManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsContentList.h"
 
 const nscoord kSuggestedNotSet = -1;
 
@@ -58,7 +57,7 @@ nsGfxButtonControlFrame::GetType() const
 // We'll return true if type is NS_FORM_INPUT_BUTTON and our parent
 // is a file input.
 bool
-nsGfxButtonControlFrame::IsFileBrowseButton(int32_t type) const
+nsGfxButtonControlFrame::IsFileBrowseButton(int32_t type)
 {
   bool rv = false;
   if (NS_FORM_INPUT_BUTTON == type) {
@@ -143,7 +142,7 @@ nsGfxButtonControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) cons
     // This property is used by accessibility to get
     // the default label of the button.
     nsXPIDLString temp;
-    rv = GetDefaultLabel(temp);
+    rv = const_cast<nsGfxButtonControlFrame*>(this)->GetDefaultLabel(temp);
     aValue = temp;
   } else {
     aValue.Truncate();
@@ -162,7 +161,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLButtonControlFrame)
 // label from a string bundle as is done for all other UI strings.
 // See bug 16999 for further details.
 nsresult
-nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString) const
+nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString)
 {
   nsCOMPtr<nsIFormControl> form = do_QueryInterface(mContent);
   NS_ENSURE_TRUE(form, NS_ERROR_UNEXPECTED);
@@ -171,10 +170,10 @@ nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString) const
   const char *prop;
   if (type == NS_FORM_INPUT_RESET) {
     prop = "Reset";
-  }
+  } 
   else if (type == NS_FORM_INPUT_SUBMIT) {
     prop = "Submit";
-  }
+  } 
   else if (IsFileBrowseButton(type)) {
     prop = "Browse";
   }

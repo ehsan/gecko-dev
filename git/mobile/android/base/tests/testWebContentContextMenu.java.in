@@ -5,11 +5,7 @@ import @ANDROID_PACKAGE_NAME@.*;
 import android.app.Activity;
 import android.util.DisplayMetrics;
 
-/* Test the context menu on web content: Long click on a link,
- * verify that the context menu is shown and verify that some
- * of the menu actions work.
- */
-public class testWebContentContextMenu extends PixelTest {
+public class testWebContentContextMenu extends BaseTest {
     @Override
     protected int getTestType() {
         return TEST_MOCHITEST;
@@ -27,16 +23,15 @@ public class testWebContentContextMenu extends PixelTest {
 
         // Load the test page and check for 'Open Link'
         String url = getAbsoluteUrl("/robocop/robocop_big_link.html");
-        loadAndPaint(url);
+        loadUrl(url);
 
-        mAsserter.dumpLog("long-clicking at "+left+", "+top);
         mSolo.clickLongOnScreen(left, top);
 
-        mAsserter.ok(mSolo.waitForText("^Open Link in New Tab$"), "looking for context menu action", "found 'Open Link in New Tab'");
+        mAsserter.ok(mSolo.waitForText("Open"), "looking for context menu action", "found 'Open Link'");
 
         Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
-        mSolo.clickOnText("Open Link");
+        mSolo.clickOnText("Open");
 
         // Wait for the new tab and page to load
         tabEventExpecter.blockForEvent();
@@ -51,12 +46,12 @@ public class testWebContentContextMenu extends PixelTest {
         mAsserter.is(tabCountText, "2", "Number of tabs has increased");
 
         // Load the test page again and test for 'Share Link' and 'Bookmark Link'
-        loadAndPaint(url);
+        loadUrl(url);
 
         mSolo.clickLongOnScreen(left, top);
 
-        mAsserter.ok(mSolo.waitForText("^Share Link$"), "looking for context menu action", "found 'Share Link'");        
-        mAsserter.ok(mSolo.waitForText("^Bookmark Link$"), "looking for context menu action", "found 'Bookmark Link'");
+        mAsserter.ok(mSolo.waitForText("Share"), "looking for context menu action", "found 'Share Link'");        
+        mAsserter.ok(mSolo.waitForText("Bookmark"), "looking for context menu action", "found 'Bookmark Link'");
         mSolo.clickOnText("Bookmark");
         mAsserter.is(mSolo.waitForText("Bookmark added"), true, "Bookmark added verified");
 
@@ -67,7 +62,7 @@ public class testWebContentContextMenu extends PixelTest {
         // We know that the link test page points to robocop_blank_01.html, so lets
         // load it and see if the page is bookmarked
         url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
-        loadAndPaint(url);
+        loadUrl(url);
 
         // Pause briefly, to ensure that the bookmark addition, above, updates database tables and
         // completes before checking that the bookmark exists.
@@ -90,12 +85,12 @@ public class testWebContentContextMenu extends PixelTest {
 
         // Load the mailto test page again and test for allowed menu actions
         url = getAbsoluteUrl("/robocop/robocop_big_mailto.html");
-        loadAndPaint(url);
+        loadUrl(url);
 
         mSolo.clickLongOnScreen(left, top);
 
-        mAsserter.ok(mSolo.waitForText("Share"), "looking for context menu action", "found 'Share'");        
-        mAsserter.ok(!mSolo.waitForText("^Open Link in New Tab$", 0, 1000, false), "looking for context menu action", "did not find 'Open Link in New Tab'");        
-        mAsserter.ok(!mSolo.waitForText("^Bookmark Link$", 0, 1000, false), "looking for context menu action", "did not find 'Bookmark Link'");
+        mAsserter.ok(mSolo.waitForText("Share"), "looking for context menu action", "found 'Share Link'");        
+        mAsserter.ok(!mSolo.waitForText("Open", 0, 1000, false), "looking for context menu action", "did not find 'Open Link'");        
+        mAsserter.ok(!mSolo.waitForText("Bookmark", 0, 1000, false), "looking for context menu action", "did not find 'Bookmark Link'");
     }
 }

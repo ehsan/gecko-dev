@@ -354,39 +354,34 @@ var PlacesOrganizer = {
    * Open a file-picker and import the selected file into the bookmarks store
    */
   importFromFile: function PO_importFromFile() {
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult != Ci.nsIFilePicker.returnCancel && fp.fileURL) {
-        Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
-        BookmarkHTMLUtils.importFromURL(fp.fileURL.spec, false);
-      }
-    };
-
+    var fp = Cc["@mozilla.org/filepicker;1"].
+             createInstance(Ci.nsIFilePicker);
     fp.init(window, PlacesUIUtils.getString("SelectImport"),
             Ci.nsIFilePicker.modeOpen);
     fp.appendFilters(Ci.nsIFilePicker.filterHTML);
-    fp.open(fpCallback);
+    if (fp.show() != Ci.nsIFilePicker.returnCancel) {
+      if (fp.fileURL) {
+        Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
+        BookmarkHTMLUtils.importFromURL(fp.fileURL.spec, false);
+      }
+    }
   },
 
   /**
    * Allows simple exporting of bookmarks.
    */
   exportBookmarks: function PO_exportBookmarks() {
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult != Ci.nsIFilePicker.returnCancel) {
-        let exporter =
-          Cc["@mozilla.org/browser/places/import-export-service;1"].
-            getService(Ci.nsIPlacesImportExportService);
-        exporter.exportHTMLToFile(fp.file);
-      }
-    };
-
+    var fp = Cc["@mozilla.org/filepicker;1"].
+             createInstance(Ci.nsIFilePicker);
     fp.init(window, PlacesUIUtils.getString("EnterExport"),
             Ci.nsIFilePicker.modeSave);
     fp.appendFilters(Ci.nsIFilePicker.filterHTML);
     fp.defaultString = "bookmarks.html";
-    fp.open(fpCallback);
+    if (fp.show() != Ci.nsIFilePicker.returnCancel) {
+      var exporter = Cc["@mozilla.org/browser/places/import-export-service;1"].
+                     getService(Ci.nsIPlacesImportExportService);
+      exporter.exportHTMLToFile(fp.file);
+    }
   },
 
   /**
@@ -446,23 +441,20 @@ var PlacesOrganizer = {
    * Prompts for a file and restores bookmarks to those in the file.
    */
   onRestoreBookmarksFromFile: function PO_onRestoreBookmarksFromFile() {
-    let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-                 getService(Ci.nsIProperties);
-    let backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult != Ci.nsIFilePicker.returnCancel) {
-        this.restoreBookmarksFromFile(fp.file);
-      }
-    }.bind(this);
-
+    var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     fp.init(window, PlacesUIUtils.getString("bookmarksRestoreTitle"),
             Ci.nsIFilePicker.modeOpen);
     fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
                     PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
     fp.appendFilters(Ci.nsIFilePicker.filterAll);
+
+    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
     fp.displayDirectory = backupsDir;
-    fp.open(fpCallback);
+
+    if (fp.show() != Ci.nsIFilePicker.returnCancel)
+      this.restoreBookmarksFromFile(fp.file);
   },
 
   /**
@@ -506,23 +498,21 @@ var PlacesOrganizer = {
    * of those items.
    */
   backupBookmarks: function PO_backupBookmarks() {
-    let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-                 getService(Ci.nsIProperties);
-    let backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
-    let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult != Ci.nsIFilePicker.returnCancel) {
-        PlacesUtils.backups.saveBookmarksToJSONFile(fp.file);
-      }
-    };
-
+    var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     fp.init(window, PlacesUIUtils.getString("bookmarksBackupTitle"),
             Ci.nsIFilePicker.modeSave);
     fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
                     PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
-    fp.defaultString = PlacesUtils.backups.getFilenameForDate();
+
+    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
     fp.displayDirectory = backupsDir;
-    fp.open(fpCallback);
+
+    fp.defaultString = PlacesUtils.backups.getFilenameForDate();
+
+    if (fp.show() != Ci.nsIFilePicker.returnCancel)
+      PlacesUtils.backups.saveBookmarksToJSONFile(fp.file);
   },
 
   _paneDisabled: false,
@@ -866,11 +856,10 @@ var PlacesSearchBox = {
         // Make sure we're getting uri results.
         options.resultType = currentOptions.RESULT_TYPE_URI;
         options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-        options.includeHidden = true;
         content.load([query], options);
       }
       else {
-        content.applyFilter(filterString, null, true);
+        content.applyFilter(filterString);
       }
       break;
     case "downloads": {
@@ -881,7 +870,6 @@ var PlacesSearchBox = {
         // Make sure we're getting uri results.
         options.resultType = currentOptions.RESULT_TYPE_URI;
         options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-        options.includeHidden = true;
         content.load([query], options);
       break;
     }

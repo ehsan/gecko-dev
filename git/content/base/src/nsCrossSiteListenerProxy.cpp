@@ -294,14 +294,14 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
   nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, false);
   
-  nsAutoCString scheme, host, port;
+  nsCAutoString scheme, host, port;
   if (uri) {
     uri->GetScheme(scheme);
     uri->GetHost(host);
     port.AppendInt(NS_GetRealPort(uri));
   }
 
-  nsAutoCString cred;
+  nsCAutoString cred;
   if (aWithCredentials) {
     _retval.AssignLiteral("cred");
   }
@@ -309,7 +309,7 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
     _retval.AssignLiteral("nocred");
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -346,7 +346,9 @@ nsCORSListenerProxy::Shutdown()
 
 nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
                                          nsIPrincipal* aRequestingPrincipal,
-                                         bool aWithCredentials)
+                                         nsIChannel* aChannel,
+                                         bool aWithCredentials,
+                                         nsresult* aResult)
   : mOuterListener(aOuter),
     mRequestingPrincipal(aRequestingPrincipal),
     mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
@@ -354,13 +356,48 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
     mHasBeenCrossSite(false),
     mIsPreflight(false)
 {
+  aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
+  aChannel->SetNotificationCallbacks(this);
+
+  *aResult = UpdateChannel(aChannel);
+  if (NS_FAILED(*aResult)) {
+    mOuterListener = nullptr;
+    mRequestingPrincipal = nullptr;
+    mOuterNotificationCallbacks = nullptr;
+  }
 }
 
 nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
                                          nsIPrincipal* aRequestingPrincipal,
+                                         nsIChannel* aChannel,
+                                         bool aWithCredentials,
+                                         bool aAllowDataURI,
+                                         nsresult* aResult)
+  : mOuterListener(aOuter),
+    mRequestingPrincipal(aRequestingPrincipal),
+    mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
+    mRequestApproved(false),
+    mHasBeenCrossSite(false),
+    mIsPreflight(false)
+{
+  aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
+  aChannel->SetNotificationCallbacks(this);
+
+  *aResult = UpdateChannel(aChannel, aAllowDataURI);
+  if (NS_FAILED(*aResult)) {
+    mOuterListener = nullptr;
+    mRequestingPrincipal = nullptr;
+    mOuterNotificationCallbacks = nullptr;
+  }
+}
+
+nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
+                                         nsIPrincipal* aRequestingPrincipal,
+                                         nsIChannel* aChannel,
                                          bool aWithCredentials,
                                          const nsCString& aPreflightMethod,
-                                         const nsTArray<nsCString>& aPreflightHeaders)
+                                         const nsTArray<nsCString>& aPreflightHeaders,
+                                         nsresult* aResult)
   : mOuterListener(aOuter),
     mRequestingPrincipal(aRequestingPrincipal),
     mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
@@ -374,21 +411,16 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
     ToLowerCase(mPreflightHeaders[i]);
   }
   mPreflightHeaders.Sort();
-}
 
-nsresult
-nsCORSListenerProxy::Init(nsIChannel* aChannel, bool aAllowDataURI)
-{
   aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
   aChannel->SetNotificationCallbacks(this);
 
-  nsresult rv = UpdateChannel(aChannel, aAllowDataURI);
-  if (NS_FAILED(rv)) {
+  *aResult = UpdateChannel(aChannel);
+  if (NS_FAILED(*aResult)) {
     mOuterListener = nullptr;
     mRequestingPrincipal = nullptr;
     mOuterNotificationCallbacks = nullptr;
   }
-  return rv;
 }
 
 NS_IMETHODIMP
@@ -480,13 +512,13 @@ nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
   NS_ENSURE_TRUE(http, NS_ERROR_DOM_BAD_URI);
 
   // Check the Access-Control-Allow-Origin header
-  nsAutoCString allowedOriginHeader;
+  nsCAutoString allowedOriginHeader;
   rv = http->GetResponseHeader(
     NS_LITERAL_CSTRING("Access-Control-Allow-Origin"), allowedOriginHeader);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mWithCredentials || !allowedOriginHeader.EqualsLiteral("*")) {
-    nsAutoCString origin;
+    nsCAutoString origin;
     rv = nsContentUtils::GetASCIIOrigin(mRequestingPrincipal, origin);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -497,7 +529,7 @@ nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
 
   // Check Access-Control-Allow-Credentials header
   if (mWithCredentials) {
-    nsAutoCString allowCredentialsHeader;
+    nsCAutoString allowCredentialsHeader;
     rv = http->GetResponseHeader(
       NS_LITERAL_CSTRING("Access-Control-Allow-Credentials"), allowCredentialsHeader);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -515,7 +547,7 @@ nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
       return NS_ERROR_DOM_BAD_URI;
     }
 
-    nsAutoCString headerVal;
+    nsCAutoString headerVal;
     // The "Access-Control-Allow-Methods" header contains a comma separated
     // list of method names.
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Methods"),
@@ -582,7 +614,7 @@ NS_IMETHODIMP
 nsCORSListenerProxy::OnDataAvailable(nsIRequest* aRequest,
                                      nsISupports* aContext, 
                                      nsIInputStream* aInputStream,
-                                     uint64_t aOffset,
+                                     uint32_t aOffset,
                                      uint32_t aCount)
 {
   if (!mRequestApproved) {
@@ -726,7 +758,7 @@ nsCORSListenerProxy::UpdateChannel(nsIChannel* aChannel, bool aAllowDataURI)
   NS_ENSURE_TRUE(userpass.IsEmpty(), NS_ERROR_DOM_BAD_URI);
 
   // Add the Origin header
-  nsAutoCString origin;
+  nsCAutoString origin;
   rv = nsContentUtils::GetASCIIOrigin(mRequestingPrincipal, origin);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -744,7 +776,7 @@ nsCORSListenerProxy::UpdateChannel(nsIChannel* aChannel, bool aAllowDataURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!mPreflightHeaders.IsEmpty()) {
-      nsAutoCString headers;
+      nsCAutoString headers;
       for (uint32_t i = 0; i < mPreflightHeaders.Length(); ++i) {
         if (i != 0) {
           headers += ',';
@@ -821,7 +853,7 @@ nsCORSPreflightListener::AddResultToCache(nsIRequest *aRequest)
   NS_ASSERTION(http, "Request was not http");
 
   // The "Access-Control-Max-Age" header should return an age in seconds.
-  nsAutoCString headerVal;
+  nsCAutoString headerVal;
   http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Max-Age"),
                           headerVal);
   if (headerVal.IsEmpty()) {
@@ -974,7 +1006,7 @@ NS_IMETHODIMP
 nsCORSPreflightListener::OnDataAvailable(nsIRequest *aRequest,
                                          nsISupports *ctxt,
                                          nsIInputStream *inStr,
-                                         uint64_t sourceOffset,
+                                         uint32_t sourceOffset,
                                          uint32_t count)
 {
   uint32_t totalRead;
@@ -1012,7 +1044,7 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
 {
   *aPreflightChannel = nullptr;
 
-  nsAutoCString method;
+  nsCAutoString method;
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aRequestChannel));
   NS_ENSURE_TRUE(httpChannel, NS_ERROR_UNEXPECTED);
   httpChannel->GetRequestMethod(method);
@@ -1059,13 +1091,12 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
                                 method, aWithCredentials);
   NS_ENSURE_TRUE(preflightListener, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsCORSListenerProxy> corsListener =
+  preflightListener =
     new nsCORSListenerProxy(preflightListener, aPrincipal,
-                            aWithCredentials, method,
-                            aUnsafeHeaders);
-  rv = corsListener->Init(preflightChannel);
+                            preflightChannel, aWithCredentials,
+                            method, aUnsafeHeaders, &rv);
+  NS_ENSURE_TRUE(preflightListener, NS_ERROR_OUT_OF_MEMORY);
   NS_ENSURE_SUCCESS(rv, rv);
-  preflightListener = corsListener;
 
   // Start preflight
   rv = preflightChannel->AsyncOpen(preflightListener, nullptr);

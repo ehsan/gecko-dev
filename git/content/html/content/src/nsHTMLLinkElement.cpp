@@ -24,8 +24,6 @@
 #include "nsAsyncDOMEvent.h"
 
 #include "Link.h"
-
-using namespace mozilla;
 using namespace mozilla::dom;
 
 class nsHTMLLinkElement : public nsGenericHTMLElement,
@@ -69,10 +67,6 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
   void CreateAndDispatchEvent(nsIDocument* aDoc, const nsAString& aEventName);
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
@@ -104,7 +98,6 @@ protected:
                                  nsAString& aType,
                                  nsAString& aMedia,
                                  bool* aIsAlternate);
-  virtual CORSMode GetCORSMode() const;
 protected:
   virtual void GetItemValueText(nsAString& text);
   virtual void SetItemValueText(const nsAString& text);
@@ -193,7 +186,6 @@ NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Rel, rel)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Target, target)
 NS_IMPL_STRING_ATTR(nsHTMLLinkElement, Type, type)
-NS_IMPL_STRING_ATTR(nsHTMLLinkElement, CrossOrigin, crossorigin)
 
 void
 nsHTMLLinkElement::GetItemValueText(nsAString& aValue)
@@ -261,22 +253,6 @@ nsHTMLLinkElement::UnbindFromTree(bool aDeep, bool aNullParent)
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc);
-}
-
-bool
-nsHTMLLinkElement::ParseAttribute(int32_t aNamespaceID,
-                                  nsIAtom* aAttribute,
-                                  const nsAString& aValue,
-                                  nsAttrValue& aResult)
-{
-  if (aNamespaceID == kNameSpaceID_None &&
-      aAttribute == nsGkAtoms::crossorigin) {
-    ParseCORSValue(aValue, aResult);
-    return true;
-  }
-
-  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                              aResult);
 }
 
 void
@@ -478,12 +454,6 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aType.AssignLiteral("text/css");
 
   return;
-}
-
-CORSMode
-nsHTMLLinkElement::GetCORSMode() const
-{
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin)); 
 }
 
 nsEventStates

@@ -59,9 +59,18 @@ VCMGenericEncoder::InitEncode(const VideoCodec* settings,
 WebRtc_Word32
 VCMGenericEncoder::Encode(const VideoFrame& inputFrame,
                           const CodecSpecificInfo* codecSpecificInfo,
-                          const FrameType frameType) {
-  VideoFrameType videoFrameType = VCMEncodedFrame::ConvertFrameType(frameType);
-  return _encoder.Encode(inputFrame, codecSpecificInfo, videoFrameType);
+                          const FrameType frameType)
+{
+    RawImage rawImage(inputFrame.Buffer(),
+                      inputFrame.Length(),
+                      inputFrame.Size());
+    rawImage._width     = inputFrame.Width();
+    rawImage._height    = inputFrame.Height();
+    rawImage._timeStamp = inputFrame.TimeStamp();
+
+    VideoFrameType videoFrameType =
+        VCMEncodedFrame::ConvertFrameType(frameType);
+    return _encoder.Encode(rawImage, codecSpecificInfo, videoFrameType);
 }
 
 WebRtc_Word32
@@ -111,7 +120,7 @@ VCMGenericEncoder::SetPeriodicKeyFrames(bool enable)
 }
 
 WebRtc_Word32 VCMGenericEncoder::RequestFrame(const FrameType frameType) {
-  VideoFrame image;
+  RawImage image;
   VideoFrameType videoFrameType = VCMEncodedFrame::ConvertFrameType(frameType);
   return _encoder.Encode(image, NULL,  videoFrameType);
 }
@@ -141,10 +150,8 @@ _mediaOpt(NULL),
 _encodedBytes(0),
 _payloadType(0),
 _codecType(kVideoCodecUnknown),
-_internalSource(false)
-#ifdef DEBUG_ENCODER_BIT_STREAM
-, _bitStreamAfterEncoder(NULL)
-#endif
+_internalSource(false),
+_bitStreamAfterEncoder(NULL)
 {
 #ifdef DEBUG_ENCODER_BIT_STREAM
     _bitStreamAfterEncoder = fopen("encoderBitStream.bit", "wb");
@@ -200,7 +207,6 @@ VCMEncodedFrameCallback::Encoded(
             frameType,
             _payloadType,
             encodedImage._timeStamp,
-            encodedImage.capture_time_ms_,
             encodedImage._buffer,
             encodedBytes,
             *fragmentationHeader,

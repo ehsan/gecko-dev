@@ -161,7 +161,7 @@ SetJournalMode(nsCOMPtr<mozIStorageConnection>& aDBConn,
                              enum JournalMode aJournalMode)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  nsAutoCString journalMode;
+  nsCAutoString journalMode;
   switch (aJournalMode) {
     default:
       MOZ_ASSERT("Trying to set an unknown journal mode.");
@@ -181,7 +181,7 @@ SetJournalMode(nsCOMPtr<mozIStorageConnection>& aDBConn,
   }
 
   nsCOMPtr<mozIStorageStatement> statement;
-  nsAutoCString query(MOZ_STORAGE_UNIQUIFY_QUERY_STR
+  nsCAutoString query(MOZ_STORAGE_UNIQUIFY_QUERY_STR
 		      "PRAGMA journal_mode = ");
   query.Append(journalMode);
   aDBConn->CreateStatement(query, getter_AddRefs(statement));
@@ -340,6 +340,7 @@ Database::Database()
   , mMainThreadAsyncStatements(mMainConn)
   , mAsyncThreadStatements(mMainConn)
   , mDBPageSize(0)
+  , mCurrentJournalMode(JOURNAL_DELETE)
   , mDatabaseStatus(nsINavHistoryService::DATABASE_STATUS_OK)
   , mShuttingDown(false)
 {
@@ -363,6 +364,12 @@ Database::~Database()
 nsresult
 Database::Init()
 {
+#ifdef MOZ_ANDROID_HISTORY
+  // Currently places has deeply weaved it way throughout the gecko codebase.
+  // Here we disable all database creation and loading of places.
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<mozIStorageService> storage =
@@ -553,14 +560,14 @@ Database::InitSchema(bool* aDatabaseMigrated)
 
   // Be sure to set journal mode after page_size.  WAL would prevent the change
   // otherwise.
-  if (JOURNAL_WAL == SetJournalMode(mMainConn, JOURNAL_WAL)) {
+  if (NS_SUCCEEDED(SetJournalMode(mMainConn, JOURNAL_WAL))) {
     // Set the WAL journal size limit.  We want it to be small, since in
     // synchronous = NORMAL mode a crash could cause loss of all the
     // transactions in the journal.  For added safety we will also force
     // checkpointing at strategic moments.
     int32_t checkpointPages =
       static_cast<int32_t>(DATABASE_MAX_WAL_SIZE_IN_KIBIBYTES * 1024 / mDBPageSize);
-    nsAutoCString checkpointPragma("PRAGMA wal_autocheckpoint = ");
+    nsCAutoString checkpointPragma("PRAGMA wal_autocheckpoint = ");
     checkpointPragma.AppendInt(checkpointPages);
     rv = mMainConn->ExecuteSimpleSQL(checkpointPragma);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -584,7 +591,7 @@ Database::InitSchema(bool* aDatabaseMigrated)
   // Since exceeding the limit will cause a truncate, allow a slightly
   // larger limit than DATABASE_MAX_WAL_SIZE_IN_KIBIBYTES to reduce the number
   // of times it is needed.
-  nsAutoCString journalSizePragma("PRAGMA journal_size_limit = ");
+  nsCAutoString journalSizePragma("PRAGMA journal_size_limit = ");
   journalSizePragma.AppendInt(DATABASE_MAX_WAL_SIZE_IN_KIBIBYTES * 3);
   (void)mMainConn->ExecuteSimpleSQL(journalSizePragma);
 
@@ -1031,7 +1038,7 @@ Database::CheckAndUpdateGUIDs()
     int64_t itemId;
     rv = stmt->GetInt64(0, &itemId);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString guid;
+    nsCAutoString guid;
     rv = stmt->GetUTF8String(1, guid);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1105,7 +1112,7 @@ Database::CheckAndUpdateGUIDs()
     int64_t placeId;
     rv = stmt->GetInt64(0, &placeId);
     NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString guid;
+    nsCAutoString guid;
     rv = stmt->GetUTF8String(1, guid);
     NS_ENSURE_SUCCESS(rv, rv);
 

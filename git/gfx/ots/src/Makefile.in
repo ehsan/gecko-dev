@@ -76,7 +76,6 @@ CPPSRCS	= \
   gpos.cc \
   gsub.cc \
   graphite.cc \
-  svg.cc \
   $(NULL)
 
 EXPORTS = \

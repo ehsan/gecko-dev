@@ -6,7 +6,6 @@
 #ifndef nsFormControlFrame_h___
 #define nsFormControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsIFormControlFrame.h"
 #include "nsLeafFrame.h"
 
@@ -43,7 +42,7 @@ public:
     */
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsEventStatus* aEventStatus);
 
   virtual nscoord GetBaseline() const;
 
@@ -54,7 +53,7 @@ public:
   NS_IMETHOD Reflow(nsPresContext*      aCX,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&      aStatus);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
@@ -63,9 +62,9 @@ public:
   virtual void SetFocus(bool aOn = true, bool aRepaint = false);
 
   // nsIFormControlFrame
-  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
+  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
 
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const MOZ_OVERRIDE; 
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
   
   // AccessKey Helper function
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, bool aDoReg);
@@ -80,8 +79,8 @@ protected:
 
   virtual ~nsFormControlFrame();
 
-  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
 //
 //-------------------------------------------------------------------------------------

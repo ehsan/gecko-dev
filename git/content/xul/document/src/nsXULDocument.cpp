@@ -58,6 +58,7 @@
 #include "prlog.h"
 #include "rdf.h"
 #include "nsIFrame.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsXBLService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
@@ -427,7 +428,7 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         nsCOMPtr<nsIURI> uri;
         nsresult rv = aChannel->GetOriginalURI(getter_AddRefs(uri));
         if (NS_SUCCEEDED(rv)) {
-            nsAutoCString urlspec;
+            nsCAutoString urlspec;
             rv = uri->GetSpec(urlspec);
             if (NS_SUCCEEDED(rv)) {
                 PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -610,7 +611,7 @@ nsXULDocument::EndLoad()
     OnPrototypeLoadDone(true);
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_WARNING)) {
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         rv = uri->GetSpec(urlspec);
         if (NS_SUCCEEDED(rv)) {
             PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -1338,12 +1339,28 @@ nsXULDocument::Persist(const nsAString& aID,
     return NS_OK;
 }
 
+
+bool
+nsXULDocument::IsCapabilityEnabled(const char* aCapabilityLabel)
+{
+    nsresult rv;
+
+    // NodePrincipal is guarantied to be non-null
+    bool enabled = false;
+    rv = NodePrincipal()->IsCapabilityEnabled(aCapabilityLabel, nullptr, &enabled);
+    if (NS_FAILED(rv))
+        return false;
+ 
+    return enabled;
+}
+
+
 nsresult
 nsXULDocument::Persist(nsIContent* aElement, int32_t aNameSpaceID,
                        nsIAtom* aAttribute)
 {
     // For non-chrome documents, persistance is simply broken
-    if (!nsContentUtils::IsSystemPrincipal(NodePrincipal()))
+    if (!IsCapabilityEnabled("UniversalXPConnect"))
         return NS_ERROR_NOT_AVAILABLE;
 
     // First make sure we _have_ a local store to stuff the persisted
@@ -1423,7 +1440,7 @@ nsXULDocument::Persist(nsIContent* aElement, int32_t aNameSpaceID,
     // Add it to the persisted set for this document (if it's not
     // there already).
     {
-        nsAutoCString docurl;
+        nsCAutoString docurl;
         rv = mDocumentURI->GetSpec(docurl);
         if (NS_FAILED(rv)) return rv;
 
@@ -1976,7 +1993,7 @@ nsXULDocument::StartLayout(void)
 
         nsresult rv = NS_OK;
         nsRect r = cx->GetVisibleArea();
-        rv = shell->Initialize(r.width, r.height);
+        rv = shell->InitialReflow(r.width, r.height);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -2093,7 +2110,7 @@ nsresult
 nsXULDocument::ApplyPersistentAttributes()
 {
     // For non-chrome documents, persistance is simply broken
-    if (!nsContentUtils::IsSystemPrincipal(NodePrincipal()))
+    if (!IsCapabilityEnabled("UniversalXPConnect"))
         return NS_ERROR_NOT_AVAILABLE;
 
     // Add all of the 'persisted' attributes into the content
@@ -2114,7 +2131,7 @@ nsXULDocument::ApplyPersistentAttributesInternal()
 {
     nsCOMArray<nsIContent> elements;
 
-    nsAutoCString docurl;
+    nsCAutoString docurl;
     mDocumentURI->GetSpec(docurl);
 
     nsCOMPtr<nsIRDFResource> doc;
@@ -2341,7 +2358,7 @@ nsXULDocument::PrepareToWalk()
         if (PR_LOG_TEST(gXULLog, PR_LOG_ERROR)) {
             nsCOMPtr<nsIURI> url = mCurrentPrototype->GetURI();
 
-            nsAutoCString urlspec;
+            nsCAutoString urlspec;
             rv = url->GetSpec(urlspec);
             if (NS_FAILED(rv)) return rv;
 
@@ -2616,9 +2633,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_DEBUG)) {
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         aURI->GetSpec(urlspec);
-        nsAutoCString parentDoc;
+        nsCAutoString parentDoc;
         nsCOMPtr<nsIURI> uri;
         nsresult rv = mChannel->GetOriginalURI(getter_AddRefs(uri));
         if (NS_SUCCEEDED(rv))
@@ -2799,6 +2816,7 @@ FirePendingMergeNotification(nsIURI* aKey, nsCOMPtr<nsIObserver>& aObserver, voi
 nsresult
 nsXULDocument::ResumeWalk()
 {
+    NS_TIME_FUNCTION;
     // Walk the prototype and build the delegate content model. The
     // walk is performed in a top-down, left-to-right fashion. That
     // is, a parent is built before any of its children; a node is
@@ -3290,7 +3308,7 @@ nsXULDocument::ReportMissingOverlay(nsIURI* aURI)
 {
     NS_PRECONDITION(aURI, "Must have a URI");
     
-    nsAutoCString spec;
+    nsCAutoString spec;
     aURI->GetSpec(spec);
 
     NS_ConvertUTF8toUTF16 utfSpec(spec);
@@ -3409,7 +3427,7 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
             nsCOMPtr<nsIURI> uri;
             channel->GetURI(getter_AddRefs(uri));
             if (uri) {
-                nsAutoCString uriSpec;
+                nsCAutoString uriSpec;
                 uri->GetSpec(uriSpec);
                 printf("Failed to load %s\n", uriSpec.get());
             }
@@ -3463,7 +3481,9 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 
         aStatus = rv;
         if (NS_SUCCEEDED(rv)) {
-            rv = ExecuteScript(scriptProto);
+            if (nsScriptLoader::ShouldExecuteScript(this, channel)) {
+                rv = ExecuteScript(scriptProto);
+            }
 
             // If the XUL cache is enabled, save the script object there in
             // case different XUL documents source the same script.
@@ -3542,7 +3562,8 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
         doc->mNextSrcLoadWaiter = nullptr;
 
         // Execute only if we loaded and compiled successfully, then resume
-        if (NS_SUCCEEDED(aStatus) && scriptProto->mScriptObject.mObject) {
+        if (NS_SUCCEEDED(aStatus) && scriptProto->mScriptObject.mObject &&
+            nsScriptLoader::ShouldExecuteScript(doc, channel)) {
             doc->ExecuteScript(scriptProto);
         }
         doc->ResumeWalk();
@@ -3844,7 +3865,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsCOMPtr<nsIContent> target;
 
     nsIPresShell *shell = mDocument->GetShell();
-    bool notify = shell && shell->DidInitialize();
+    bool notify = shell && shell->DidInitialReflow();
 
     nsAutoString id;
     mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
@@ -3886,7 +3907,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULLog, PR_LOG_NOTICE)) {
-        nsAutoCString idC;
+        nsCAutoString idC;
         idC.AssignWithConversion(id);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
                ("xul: overlay resolved '%s'",
@@ -4057,15 +4078,15 @@ nsXULDocument::OverlayForwardReference::~OverlayForwardReference()
         nsAutoString id;
         mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
 
-        nsAutoCString idC;
+        nsCAutoString idC;
         idC.AssignWithConversion(id);
 
         nsIURI *protoURI = mDocument->mCurrentPrototype->GetURI();
-        nsAutoCString urlspec;
+        nsCAutoString urlspec;
         protoURI->GetSpec(urlspec);
 
         nsCOMPtr<nsIURI> docURI;
-        nsAutoCString parentDoc;
+        nsCAutoString parentDoc;
         nsresult rv = mDocument->mChannel->GetOriginalURI(getter_AddRefs(docURI));
         if (NS_SUCCEEDED(rv))
             docURI->GetSpec(parentDoc);
@@ -4114,7 +4135,7 @@ nsXULDocument::BroadcasterHookup::~BroadcasterHookup()
             attribute.AssignLiteral("*");
         }
 
-        nsAutoCString attributeC,broadcasteridC;
+        nsCAutoString attributeC,broadcasteridC;
         attributeC.AssignWithConversion(attribute);
         broadcasteridC.AssignWithConversion(broadcasterID);
         PR_LOG(gXULLog, PR_LOG_WARNING,
@@ -4327,7 +4348,7 @@ nsXULDocument::CheckBroadcasterHookup(Element* aElement,
         if (! content)
             return rv;
 
-        nsAutoCString attributeC,broadcasteridC;
+        nsCAutoString attributeC,broadcasteridC;
         attributeC.AssignWithConversion(attribute);
         broadcasteridC.AssignWithConversion(broadcasterID);
         PR_LOG(gXULLog, PR_LOG_NOTICE,
@@ -4479,7 +4500,7 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnDataAvailable(nsIRequest *request,
                                                            nsISupports* aContext,
                                                            nsIInputStream* aInStr,
-                                                           uint64_t aSourceOffset,
+                                                           uint32_t aSourceOffset,
                                                            uint32_t aCount)
 {
     NS_NOTREACHED("CachedChromeStream doesn't receive data");
@@ -4589,7 +4610,7 @@ nsXULDocument::IsDocumentRightToLeft()
     if (!reg)
         return false;
 
-    nsAutoCString package;
+    nsCAutoString package;
     bool isChrome;
     if (NS_SUCCEEDED(mDocumentURI->SchemeIs("chrome", &isChrome)) &&
         isChrome) {

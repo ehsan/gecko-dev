@@ -31,7 +31,6 @@ MOCHITEST_A11Y_FILES =\
 		test_textbox.xul \
 		test_tree.xul \
 		test_visibility.html \
-		test_visibility.xul \
 		z_frames.html \
 		z_frames_article.html \
 		z_frames_checkbox.html \

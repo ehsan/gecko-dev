@@ -26,13 +26,12 @@
         'audioproc_unittest_proto',
         '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-        '<(webrtc_root)/test/test.gyp:test_support',
-        '<(DEPTH)/testing/gtest.gyp:gtest',
+        '<(webrtc_root)/../test/test.gyp:test_support',
+        '<(webrtc_root)/../testing/gtest.gyp:gtest',
       ],
       'sources': [
         'aec/system_delay_unittest.cc',
         'test/unit_test.cc',
-        'utility/delay_estimator_unittest.cc',
       ],
     },
     {
@@ -59,7 +58,7 @@
             'audio_processing',
             'audioproc_debug_proto',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
           ],
           'sources': [ 'test/process_test.cc', ],
         },
@@ -69,7 +68,7 @@
           'dependencies': [
             'audioproc_debug_proto',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(DEPTH)/third_party/google-gflags/google-gflags.gyp:google-gflags',
+            '<(webrtc_root)/../third_party/google-gflags/google-gflags.gyp:google-gflags',
           ],
           'sources': [ 'test/unpack.cc', ],
         },

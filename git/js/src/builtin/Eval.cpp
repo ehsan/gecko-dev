@@ -203,12 +203,13 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
         thisv = ObjectValue(*thisobj);
     }
 
-    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
-    if (!stableStr)
+    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
+    if (!linearStr)
         return false;
+    const jschar *chars = linearStr->chars();
+    size_t length = linearStr->length();
 
-    const jschar *chars = stableStr->chars();
-    size_t length = stableStr->length();
+    SkipRoot skip(cx, &chars);
 
     // If the eval string starts with '(' or '[' and ends with ')' or ']', it may be JSON.
     // Try the JSON parser first because it's much faster.  If the eval string
@@ -254,7 +255,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
     if (evalType == DIRECT_EVAL && caller->isNonEvalFunctionFrame())
-        esg.lookupInEvalCache(stableStr, caller->fun(), staticLevel);
+        esg.lookupInEvalCache(linearStr, caller->fun(), staticLevel);
 
     if (!esg.foundScript()) {
         unsigned lineno;
@@ -271,7 +272,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
         JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller, options,
-                                                     chars, length, stableStr,
+                                                     chars, length, linearStr,
                                                      staticLevel);
         if (!compiled)
             return false;

@@ -21,8 +21,6 @@ class nsITreeView;
 namespace mozilla {
 namespace a11y {
 
-class ApplicationAccessible;
-
 /**
  * Return focus manager.
  */
@@ -38,11 +36,6 @@ enum EPlatformDisabledState {
  * Return the platform disabled state.
  */
 EPlatformDisabledState PlatformDisabledState();
-
-/**
- * Returns the application accessible.
- */
-ApplicationAccessible* ApplicationAcc();
 
 #ifdef MOZ_ACCESSIBILITY_ATK
 /**
@@ -236,8 +229,7 @@ private:
    */
   already_AddRefed<Accessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 DocAccessible* aDoc,
-                                 bool aIsLegalPartOfHTMLTable);
+                                 DocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.
@@ -260,11 +252,6 @@ private:
   static nsAccessibilityService* gAccessibilityService;
 
   /**
-   * Reference for application accessible instance.
-   */
-  static mozilla::a11y::ApplicationAccessible* gApplicationAccessible;
-
-  /**
    * Indicates whether accessibility service was shutdown.
    */
   static bool gIsShutdown;
@@ -280,7 +267,6 @@ private:
 
   friend nsAccessibilityService* GetAccService();
   friend mozilla::a11y::FocusManager* mozilla::a11y::FocusMgr();
-  friend mozilla::a11y::ApplicationAccessible* mozilla::a11y::ApplicationAcc();
 
   friend nsresult NS_GetAccessibilityService(nsIAccessibilityService** aResult);
 };

@@ -206,10 +206,10 @@ int WebRtcAec_CreateAec(aec_t **aecInst)
         return -1;
     }
 #endif
-    aec->delay_estimator = WebRtc_CreateDelayEstimator(PART_LEN1,
-                                                       kMaxDelayBlocks,
-                                                       kLookaheadBlocks);
-    if (aec->delay_estimator == NULL) {
+    if (WebRtc_CreateDelayEstimator(&aec->delay_estimator,
+                                    PART_LEN1,
+                                    kMaxDelayBlocks,
+                                    kLookaheadBlocks) == -1) {
       WebRtcAec_FreeAec(aec);
       aec = NULL;
       return -1;
@@ -686,8 +686,8 @@ static void ProcessBlock(aec_t* aec) {
         int16_t farend[PART_LEN];
         int16_t* farend_ptr = NULL;
         WebRtc_ReadBuffer(aec->far_time_buf, (void**) &farend_ptr, farend, 1);
-        (void)fwrite(farend_ptr, sizeof(int16_t), PART_LEN, aec->farFile);
-        (void)fwrite(nearend_ptr, sizeof(int16_t), PART_LEN, aec->nearFile);
+        fwrite(farend_ptr, sizeof(int16_t), PART_LEN, aec->farFile);
+        fwrite(nearend_ptr, sizeof(int16_t), PART_LEN, aec->nearFile);
     }
 #endif
 
@@ -771,7 +771,7 @@ static void ProcessBlock(aec_t* aec) {
     memcpy(aec->xfBuf[1] + aec->xfBufBlockPos * PART_LEN1, &xf_ptr[PART_LEN1],
            sizeof(float) * PART_LEN1);
 
-    memset(yf, 0, sizeof(yf));
+    memset(yf[0], 0, sizeof(float) * (PART_LEN1 * 2));
 
     // Filter far
     WebRtcAec_FilterFar(aec, yf);
@@ -844,8 +844,8 @@ static void ProcessBlock(aec_t* aec) {
                 WEBRTC_SPL_WORD16_MIN);
         }
 
-        (void)fwrite(eInt16, sizeof(int16_t), PART_LEN, aec->outLinearFile);
-        (void)fwrite(output, sizeof(int16_t), PART_LEN, aec->outFile);
+        fwrite(eInt16, sizeof(int16_t), PART_LEN, aec->outLinearFile);
+        fwrite(output, sizeof(int16_t), PART_LEN, aec->outFile);
     }
 #endif
 }

@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["Identity", "IdentityManager"];
+const EXPORTED_SYMBOLS = ["Identity", "IdentityManager"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
@@ -58,7 +58,7 @@ XPCOMUtils.defineLazyGetter(this, "Identity", function() {
  * authentication mechanisms, you'll probably want to redefine currentAuthState
  * and any other function that involves the built-in functionality.
  */
-this.IdentityManager = function IdentityManager() {
+function IdentityManager() {
   this._log = Log4Moz.repository.getLogger("Sync.Identity");
   this._log.Level = Log4Moz.Level[Svc.Prefs.get("log.logger.identity")];
 

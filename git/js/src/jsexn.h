@@ -17,7 +17,7 @@
  * Initialize the exception constructor/prototype hierarchy.
  */
 extern JSObject *
-js_InitExceptionClasses(JSContext *cx, js::HandleObject obj);
+js_InitExceptionClasses(JSContext *cx, JSObject *obj);
 
 /*
  * Given a JSErrorReport, check to see if there is an exception associated with
@@ -51,7 +51,7 @@ extern JSBool
 js_ReportUncaughtException(JSContext *cx);
 
 extern JSErrorReport *
-js_ErrorFromException(jsval exn);
+js_ErrorFromException(JSContext *cx, jsval exn);
 
 extern const JSErrorFormatString *
 js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,

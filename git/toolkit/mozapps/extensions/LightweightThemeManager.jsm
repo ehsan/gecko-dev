@@ -4,12 +4,11 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["LightweightThemeManager"];
+var EXPORTED_SYMBOLS = ["LightweightThemeManager"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -39,9 +38,6 @@ const PERSIST_FILES = {
   footerURL: "lightweighttheme-footer"
 };
 
-XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeImageOptimizer",
-  "resource://gre/modules/LightweightThemeImageOptimizer.jsm");
-
 __defineGetter__("_prefs", function () {
   delete this._prefs;
   return this._prefs = Services.prefs.getBranch("lightweightThemes.");
@@ -69,7 +65,7 @@ __defineSetter__("_maxUsedThemes", function(aVal) {
 var _themeIDBeingEnabled = null;
 var _themeIDBeingDisbled = null;
 
-this.LightweightThemeManager = {
+var LightweightThemeManager = {
   get usedThemes () {
     try {
       return JSON.parse(_prefs.getComplexValue("usedThemes",
@@ -231,12 +227,8 @@ this.LightweightThemeManager = {
       let usedThemes = _usedThemesExceptId(aData.id);
       usedThemes.unshift(aData);
       _updateUsedThemes(usedThemes);
-      if (PERSIST_ENABLED) {
-        LightweightThemeImageOptimizer.purge();
-        _persistImages(aData, function () {
-          _notifyWindows(this.currentThemeForDisplay);
-        }.bind(this));
-      }
+      if (PERSIST_ENABLED)
+        _persistImages(aData);
     }
 
     _prefs.setBoolPref("isThemeSelected", aData != null);
@@ -724,24 +716,17 @@ function _prefObserver(aSubject, aTopic, aData) {
   }
 }
 
-function _persistImages(aData, aCallback) {
+function _persistImages(aData) {
   function onSuccess(key) function () {
     let current = LightweightThemeManager.currentTheme;
-    if (current && current.id == aData.id) {
+    if (current && current.id == aData.id)
       _prefs.setBoolPref("persisted." + key, true);
-    }
-    if (--numFilesToPersist == 0 && aCallback) {
-      aCallback();
-    }
   };
 
-  let numFilesToPersist = 0;
   for (let key in PERSIST_FILES) {
     _prefs.setBoolPref("persisted." + key, false);
-    if (aData[key]) {
-      numFilesToPersist++;
+    if (aData[key])
       _persistImage(aData[key], PERSIST_FILES[key], onSuccess(key));
-    }
   }
 }
 
@@ -770,7 +755,7 @@ function _persistImage(sourceURL, localFileName, successCallback) {
 
   persist.progressListener = new _persistProgressListener(successCallback);
 
-  persist.saveURI(sourceURI, null, null, null, null, targetURI, null);
+  persist.saveURI(sourceURI, null, null, null, null, targetURI);
 }
 
 function _persistProgressListener(successCallback) {

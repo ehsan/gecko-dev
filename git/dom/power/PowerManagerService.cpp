@@ -6,32 +6,20 @@
 #include "mozilla/Hal.h"
 #include "mozilla/HalWakeLock.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include "nsIDOMWakeLockListener.h"
 #include "nsIDOMWindow.h"
-#include "nsIObserverService.h"
 #include "PowerManagerService.h"
 #include "WakeLock.h"
-
-// For _exit().
-#ifdef XP_WIN
-#include <process.h>
-#else
-#include <unistd.h>
-#endif
 
 namespace mozilla {
 namespace dom {
 namespace power {
 
-using namespace hal;
-
 NS_IMPL_ISUPPORTS1(PowerManagerService, nsIPowerManagerService)
 
 /* static */ StaticRefPtr<PowerManagerService> PowerManagerService::sSingleton;
 
-/* static */ already_AddRefed<PowerManagerService>
+/* static */ already_AddRefed<nsIPowerManagerService>
 PowerManagerService::GetInstance()
 {
   if (!sSingleton) {
@@ -40,48 +28,42 @@ PowerManagerService::GetInstance()
     ClearOnShutdown(&sSingleton);
   }
 
-  nsRefPtr<PowerManagerService> service = sSingleton.get();
+  nsCOMPtr<nsIPowerManagerService> service(do_QueryInterface(sSingleton));
   return service.forget();
 }
 
 void
 PowerManagerService::Init()
 {
-  RegisterWakeLockObserver(this);
-
-  // NB: default to *enabling* the watchdog even when the pref is
-  // absent, in case the profile might be damaged and we need to
-  // restart to repair it.
-  mWatchdogTimeoutSecs =
-    Preferences::GetInt("shutdown.watchdog.timeoutSecs", 5);
+  hal::RegisterWakeLockObserver(this);
 }
 
 PowerManagerService::~PowerManagerService()
 {
-  UnregisterWakeLockObserver(this);
+  hal::UnregisterWakeLockObserver(this);
 }
 
 void
-PowerManagerService::ComputeWakeLockState(const WakeLockInformation& aWakeLockInfo,
+PowerManagerService::ComputeWakeLockState(const hal::WakeLockInformation& aWakeLockInfo,
                                           nsAString &aState)
 {
-  WakeLockState state = hal::ComputeWakeLockState(aWakeLockInfo.numLocks(),
-                                                  aWakeLockInfo.numHidden());
+  hal::WakeLockState state = hal::ComputeWakeLockState(aWakeLockInfo.numLocks(),
+                                                       aWakeLockInfo.numHidden());
   switch (state) {
-  case WAKE_LOCK_STATE_UNLOCKED:
+  case hal::WAKE_LOCK_STATE_UNLOCKED:
     aState.AssignLiteral("unlocked");
     break;
-  case WAKE_LOCK_STATE_HIDDEN:
+  case hal::WAKE_LOCK_STATE_HIDDEN:
     aState.AssignLiteral("locked-background");
     break;
-  case WAKE_LOCK_STATE_VISIBLE:
+  case hal::WAKE_LOCK_STATE_VISIBLE:
     aState.AssignLiteral("locked-foreground");
     break;
   }
 }
 
 void
-PowerManagerService::Notify(const WakeLockInformation& aWakeLockInfo)
+PowerManagerService::Notify(const hal::WakeLockInformation& aWakeLockInfo)
 {
   nsAutoString state;
   ComputeWakeLockState(aWakeLockInfo, state);
@@ -98,51 +80,17 @@ PowerManagerService::Notify(const WakeLockInformation& aWakeLockInfo)
   }
 }
 
-void
-PowerManagerService::SyncProfile()
-{
-  nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService();
-  if (obsServ) {
-    NS_NAMED_LITERAL_STRING(context, "shutdown-persist");
-    obsServ->NotifyObservers(nullptr, "profile-change-net-teardown", context.get());
-    obsServ->NotifyObservers(nullptr, "profile-change-teardown", context.get());
-    obsServ->NotifyObservers(nullptr, "profile-before-change", context.get());
-  }
-}
-
 NS_IMETHODIMP
 PowerManagerService::Reboot()
 {
-  StartForceQuitWatchdog(eHalShutdownMode_Reboot, mWatchdogTimeoutSecs);
-  // To synchronize any unsaved user data before rebooting.
-  SyncProfile();
   hal::Reboot();
-  MOZ_NOT_REACHED();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 PowerManagerService::PowerOff()
 {
-  StartForceQuitWatchdog(eHalShutdownMode_PowerOff, mWatchdogTimeoutSecs);
-  // To synchronize any unsaved user data before powering off.
-  SyncProfile();
   hal::PowerOff();
-  MOZ_NOT_REACHED();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-PowerManagerService::Restart()
-{
-  // FIXME/bug 796826 this implementation is currently gonk-specific,
-  // because it relies on the Gonk to initialize the Gecko processes to
-  // restart B2G. It's better to do it here to have a real "restart".
-  StartForceQuitWatchdog(eHalShutdownMode_Restart, mWatchdogTimeoutSecs);
-  // To synchronize any unsaved user data before restarting.
-  SyncProfile();
-  _exit(0);
-  MOZ_NOT_REACHED();
   return NS_OK;
 }
 
@@ -166,8 +114,8 @@ PowerManagerService::RemoveWakeLockListener(nsIDOMMozWakeLockListener *aListener
 NS_IMETHODIMP
 PowerManagerService::GetWakeLockState(const nsAString &aTopic, nsAString &aState)
 {
-  WakeLockInformation info;
-  GetWakeLockInfo(aTopic, &info);
+  hal::WakeLockInformation info;
+  hal::GetWakeLockInfo(aTopic, &info);
 
   ComputeWakeLockState(info, aState);
 

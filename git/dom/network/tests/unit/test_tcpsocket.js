@@ -56,11 +56,6 @@ const ServerSocket = CC("@mozilla.org/network/server-socket;1",
       TCPSocket = new (CC("@mozilla.org/tcp-socket;1",
                      "nsIDOMTCPSocket"))();
 
-const gInChild = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
-                  .processType != Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-
-Cu.import("resource://gre/modules/Services.jsm");
-
 /**
  *
  * Helper functions
@@ -371,13 +366,7 @@ function badConnect() {
   sock.ondata = makeFailureCase('data');
   sock.onclose = makeFailureCase('close');
 
-  let success = makeSuccessCase('error');
-  sock.onerror = function(data) {
-    do_check_neq(data.data.message, '');
-    do_check_neq(data.data.fileName, '');
-    do_check_neq(data.data.lineNumber, 0);
-    success();
-  };
+  sock.onerror = makeSuccessCase('error');
 }
 
 /**
@@ -421,8 +410,6 @@ function drainTwice() {
 function cleanup() {
   do_print("Cleaning up");
   sock.close();
-  if (!gInChild)
-    Services.prefs.clearUserPref('dom.mozTCPSocket.enabled');
   run_next_test();
 }
 
@@ -486,15 +473,7 @@ add_test(bufferTwice);
 add_test(cleanup);
 
 function run_test() {
-  if (!gInChild)
-    Services.prefs.setBoolPref('dom.mozTCPSocket.enabled', true);
-  
   server = new TestServer();
 
   run_next_test();
-
-  do_timeout(10000, function() {
-    do_throw(
-      "The test should never take this long unless the system is hosed.");
-  });
 }

@@ -12,7 +12,6 @@
 #include "ImageContainer.h"
 #include "GonkIOSurfaceImage.h"
 #include "GrallocImages.h"
-#include "mozilla/layers/ShmemYCbCrImage.h"
 
 namespace mozilla {
 namespace layers {
@@ -67,7 +66,6 @@ void ImageContainerChild::SetIdleNow()
 
   SendFlush();
   ClearSharedImagePool();
-  mImageQueue.Clear();
 }
 
 void ImageContainerChild::DispatchSetIdle()
@@ -125,24 +123,29 @@ void ImageContainerChild::DestroySharedImage(const SharedImage& aImage)
 bool ImageContainerChild::CopyDataIntoSharedImage(Image* src, SharedImage* dest)
 {
   if ((src->GetFormat() == PLANAR_YCBCR) && 
-      (dest->type() == SharedImage::TYCbCrImage)) {
-    PlanarYCbCrImage *planarYCbCrImage = static_cast<PlanarYCbCrImage*>(src);
-    const PlanarYCbCrImage::Data *data =planarYCbCrImage->GetData();
+      (dest->type() == SharedImage::TYUVImage)) {
+    PlanarYCbCrImage *YCbCrImage = static_cast<PlanarYCbCrImage*>(src);
+    const PlanarYCbCrImage::Data *data = YCbCrImage->GetData();
     NS_ASSERTION(data, "Must be able to retrieve yuv data from image!");
-    YCbCrImage& yuv = dest->get_YCbCrImage();
+    YUVImage& yuv = dest->get_YUVImage();
 
-    ShmemYCbCrImage shmemImage(yuv.data(), yuv.offset());
+    nsRefPtr<gfxSharedImageSurface> surfY =
+      gfxSharedImageSurface::Open(yuv.Ydata());
+    nsRefPtr<gfxSharedImageSurface> surfU =
+      gfxSharedImageSurface::Open(yuv.Udata());
+    nsRefPtr<gfxSharedImageSurface> surfV =
+      gfxSharedImageSurface::Open(yuv.Vdata());
 
     for (int i = 0; i < data->mYSize.height; i++) {
-      memcpy(shmemImage.GetYData() + i * shmemImage.GetYStride(),
+      memcpy(surfY->Data() + i * surfY->Stride(),
              data->mYChannel + i * data->mYStride,
              data->mYSize.width);
     }
     for (int i = 0; i < data->mCbCrSize.height; i++) {
-      memcpy(shmemImage.GetCbData() + i * shmemImage.GetCbCrStride(),
+      memcpy(surfU->Data() + i * surfU->Stride(),
              data->mCbChannel + i * data->mCbCrStride,
              data->mCbCrSize.width);
-      memcpy(shmemImage.GetCrData() + i * shmemImage.GetCbCrStride(),
+      memcpy(surfV->Data() + i * surfV->Stride(),
              data->mCrChannel + i * data->mCbCrStride,
              data->mCbCrSize.width);
     }
@@ -156,52 +159,48 @@ SharedImage* ImageContainerChild::CreateSharedImageFromData(Image* image)
 {
   NS_ABORT_IF_FALSE(InImageBridgeChildThread(),
                   "Should be in ImageBridgeChild thread.");
+  
+  ++mActiveImageCount;
 
-  if (!image) {
-    return nullptr;
-  }
   if (image->GetFormat() == PLANAR_YCBCR ) {
-    PlanarYCbCrImage *planarYCbCrImage = static_cast<PlanarYCbCrImage*>(image);
-    const PlanarYCbCrImage::Data *data = planarYCbCrImage->GetData();
+    PlanarYCbCrImage *YCbCrImage = static_cast<PlanarYCbCrImage*>(image);
+    const PlanarYCbCrImage::Data *data = YCbCrImage->GetData();
     NS_ASSERTION(data, "Must be able to retrieve yuv data from image!");
-    if (!data) {
-      return nullptr;
-    }
-
-    SharedMemory::SharedMemoryType shmType = OptimalShmemType();
-    size_t size = ShmemYCbCrImage::ComputeMinBufferSize(data->mYSize,
-                                                        data->mCbCrSize);
-    Shmem shmem;
-    if (!AllocUnsafeShmem(size, shmType, &shmem)) {
-      return nullptr;
-    }
-
-    ShmemYCbCrImage::InitializeBufferInfo(shmem.get<uint8_t>(),
-                                          data->mYSize,
-                                          data->mCbCrSize);
-    ShmemYCbCrImage shmemImage(shmem);
-
-    if (!shmemImage.IsValid() || shmem.Size<uint8_t>() < size) {
-      DeallocShmem(shmem);
-      return nullptr;
+    
+    nsRefPtr<gfxSharedImageSurface> tempBufferY;
+    nsRefPtr<gfxSharedImageSurface> tempBufferU;
+    nsRefPtr<gfxSharedImageSurface> tempBufferV;
+    
+    if (!AllocateSharedBuffer(this, data->mYSize, gfxASurface::CONTENT_ALPHA,
+                              getter_AddRefs(tempBufferY)) ||
+        !AllocateSharedBuffer(this, data->mCbCrSize, gfxASurface::CONTENT_ALPHA,
+                              getter_AddRefs(tempBufferU)) ||
+        !AllocateSharedBuffer(this, data->mCbCrSize, gfxASurface::CONTENT_ALPHA,
+                              getter_AddRefs(tempBufferV))) {
+      NS_RUNTIMEABORT("creating SharedImage failed!");
     }
 
     for (int i = 0; i < data->mYSize.height; i++) {
-      memcpy(shmemImage.GetYData() + i * shmemImage.GetYStride(),
+      memcpy(tempBufferY->Data() + i * tempBufferY->Stride(),
              data->mYChannel + i * data->mYStride,
              data->mYSize.width);
     }
     for (int i = 0; i < data->mCbCrSize.height; i++) {
-      memcpy(shmemImage.GetCbData() + i * shmemImage.GetCbCrStride(),
+      memcpy(tempBufferU->Data() + i * tempBufferU->Stride(),
              data->mCbChannel + i * data->mCbCrStride,
              data->mCbCrSize.width);
-      memcpy(shmemImage.GetCrData() + i * shmemImage.GetCbCrStride(),
+      memcpy(tempBufferV->Data() + i * tempBufferV->Stride(),
              data->mCrChannel + i * data->mCbCrStride,
              data->mCbCrSize.width);
     }
 
-    ++mActiveImageCount;
-    SharedImage* result = new SharedImage(YCbCrImage(shmem, 0, data->GetPictureRect()));
+    SharedImage* result = new SharedImage( 
+              YUVImage(tempBufferY->GetShmem(),
+                       tempBufferU->GetShmem(),
+                       tempBufferV->GetShmem(),
+                       data->GetPictureRect()));
+    NS_ABORT_IF_FALSE(result->type() == SharedImage::TYUVImage,
+                      "SharedImage type not set correctly");
     return result;
 #ifdef MOZ_WIDGET_GONK
   } else if (image->GetFormat() == GONK_IO_SURFACE) {
@@ -214,7 +213,7 @@ SharedImage* ImageContainerChild::CreateSharedImageFromData(Image* image)
     return result;
 #endif
   } else {
-    NS_RUNTIMEABORT("TODO: Only YCbCrImage is supported here right now.");
+    NS_RUNTIMEABORT("TODO: Only YUVImage is supported here right now.");
   }
   return nullptr;
 }
@@ -230,7 +229,7 @@ bool ImageContainerChild::AddSharedImageToPool(SharedImage* img)
   if (mSharedImagePool.Length() >= POOL_MAX_SHARED_IMAGES) {
     return false;
   }
-  if (img->type() == SharedImage::TYCbCrImage) {
+  if (img->type() == SharedImage::TYUVImage) {
     mSharedImagePool.AppendElement(img);
     return true;
   }
@@ -243,22 +242,24 @@ SharedImageCompatibleWith(SharedImage* aSharedImage, Image* aImage)
   // TODO accept more image formats
   switch (aImage->GetFormat()) {
   case PLANAR_YCBCR: {
-    if (aSharedImage->type() != SharedImage::TYCbCrImage) {
+    if (aSharedImage->type() != SharedImage::TYUVImage) {
       return false;
     }
     const PlanarYCbCrImage::Data* data =
       static_cast<PlanarYCbCrImage*>(aImage)->GetData();
-    const YCbCrImage& yuv = aSharedImage->get_YCbCrImage();
+    const YUVImage& yuv = aSharedImage->get_YUVImage();
 
-    ShmemYCbCrImage shmImg(yuv.data(),yuv.offset());
-
-    if (shmImg.GetYSize() != data->mYSize) {
-      return false;
-    }
-    if (shmImg.GetCbCrSize() != data->mCbCrSize) {
+    nsRefPtr<gfxSharedImageSurface> surfY =
+      gfxSharedImageSurface::Open(yuv.Ydata());
+    if (surfY->GetSize() != data->mYSize) {
       return false;
     }
 
+    nsRefPtr<gfxSharedImageSurface> surfU =
+      gfxSharedImageSurface::Open(yuv.Udata());
+    if (surfU->GetSize() != data->mCbCrSize) {
+      return false;
+    }
     return true;
   }
   default:
@@ -280,7 +281,7 @@ ImageContainerChild::GetSharedImageFor(Image* aImage)
     // The cached image is stale, throw it out.
     DeallocSharedImageData(this, *img);
   }
-
+  
   return nullptr;
 }
 
@@ -355,8 +356,6 @@ void ImageContainerChild::SendImageAsync(ImageContainer* aContainer,
     SharedImage *img = ImageToSharedImage(aImage);
     if (img) {
       SendPublishImage(*img);
-    } else {
-      NS_WARNING("Failed to create a shared image!");
     }
     delete img;
     return;
@@ -376,7 +375,6 @@ void ImageContainerChild::DestroyNow()
                     "Incorrect state in the destruction sequence.");
 
   ClearSharedImagePool();
-  mImageQueue.Clear();
 
   // will decrease the refcount and, in most cases, delete the ImageContainerChild
   Send__delete__(this);

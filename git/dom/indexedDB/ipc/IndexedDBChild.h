@@ -39,10 +39,6 @@ class IndexedDBChild : public PIndexedDBChild
   IDBFactory* mFactory;
   nsCString mASCIIOrigin;
 
-#ifdef DEBUG
-  bool mDisconnected;
-#endif
-
 public:
   IndexedDBChild(const nsCString& aASCIIOrigin);
   virtual ~IndexedDBChild();
@@ -55,9 +51,6 @@ public:
 
   void
   SetFactory(IDBFactory* aFactory);
-
-  void
-  Disconnect();
 
 protected:
   virtual void
@@ -102,13 +95,9 @@ public:
   void
   SetRequest(IDBOpenDBRequest* aRequest);
 
-  void
-  Disconnect();
-
 protected:
   bool
-  EnsureDatabase(IDBOpenDBRequest* aRequest,
-                 const DatabaseInfoGuts& aDBInfo,
+  EnsureDatabase(IDBRequest* aRequest, const DatabaseInfoGuts& aDBInfo,
                  const InfallibleTArray<ObjectStoreInfoGuts>& aOSInfo);
 
   virtual void
@@ -128,9 +117,6 @@ protected:
   virtual bool
   RecvVersionChange(const uint64_t& aOldVersion, const uint64_t& aNewVersion)
                     MOZ_OVERRIDE;
-
-  virtual bool
-  RecvInvalidate() MOZ_OVERRIDE;
 
   virtual bool
   RecvPIndexedDBTransactionConstructor(PIndexedDBTransactionChild* aActor,
@@ -168,9 +154,6 @@ public:
     return mTransaction;
   }
 
-  void
-  Disconnect();
-
 protected:
   void
   FireCompleteEvent(nsresult aRv);
@@ -179,7 +162,7 @@ protected:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual bool
-  RecvComplete(const CompleteParams& aParams) MOZ_OVERRIDE;
+  RecvComplete(const nsresult& aRv) MOZ_OVERRIDE;
 
   virtual PIndexedDBObjectStoreChild*
   AllocPIndexedDBObjectStore(const ObjectStoreConstructorParams& aParams)
@@ -200,9 +183,6 @@ class IndexedDBObjectStoreChild : public PIndexedDBObjectStoreChild
 public:
   IndexedDBObjectStoreChild(IDBObjectStore* aObjectStore);
   virtual ~IndexedDBObjectStoreChild();
-
-  void
-  Disconnect();
 
 protected:
   virtual void
@@ -245,9 +225,6 @@ class IndexedDBIndexChild : public PIndexedDBIndexChild
 public:
   IndexedDBIndexChild(IDBIndex* aIndex);
   virtual ~IndexedDBIndexChild();
-
-  void
-  Disconnect();
 
 protected:
   virtual void
@@ -295,9 +272,6 @@ public:
     return mStrongCursor.forget();
   }
 
-  void
-  Disconnect();
-
 protected:
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
@@ -321,9 +295,6 @@ protected:
 public:
   IDBRequest*
   GetRequest() const;
-
-  void
-  Disconnect();
 
 protected:
   IndexedDBRequestChildBase(AsyncConnectionHelper* aHelper);

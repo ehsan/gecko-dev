@@ -12,7 +12,7 @@ nsSyncStreamListener::Init()
     return NS_NewPipe(getter_AddRefs(mPipeIn),
                       getter_AddRefs(mPipeOut),
                       nsIOService::gDefaultSegmentSize,
-                      UINT32_MAX, // no size limit
+                      PR_UINT32_MAX, // no size limit
                       false,
                       false);
 }
@@ -64,7 +64,7 @@ NS_IMETHODIMP
 nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
                                       nsISupports    *context,
                                       nsIInputStream *stream,
-                                      uint64_t        offset,
+                                      uint32_t        offset,
                                       uint32_t        count)
 {
     uint32_t bytesWritten;

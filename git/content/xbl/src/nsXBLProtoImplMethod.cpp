@@ -9,6 +9,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIScriptGlobalObject.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplMethod.h"
@@ -138,6 +139,7 @@ nsresult
 nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
                                     JSObject* aClassObject)
 {
+  NS_TIME_FUNCTION_MIN(5);
   NS_PRECONDITION(!IsCompiled(),
                   "Trying to compile an already-compiled method");
   NS_PRECONDITION(aClassObject,
@@ -191,7 +193,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
   // Now that we have a body and args, compile the function
   // and then define it.
   NS_ConvertUTF16toUTF8 cname(mName);
-  nsAutoCString functionUri(aClassStr);
+  nsCAutoString functionUri(aClassStr);
   int32_t hash = functionUri.RFindChar('#');
   if (hash != kNotFound) {
     functionUri.Truncate(hash);

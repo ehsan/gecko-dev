@@ -7,6 +7,7 @@
 #include "nsSVGDataParser.h"
 #include "nsSVGPathElement.h"
 #include "prdtoa.h"
+#include "nsSVGUtils.h"
 #include "nsIDOMSVGPathSeg.h"
 #include <stdlib.h>
 #include <math.h>
@@ -789,13 +790,13 @@ nsresult nsSVGPathDataParser::MatchEllipticalArcArg(float* x, float* y,
                                                     float* r1, float* r2, float* angle,
                                                     bool* largeArcFlag, bool* sweepFlag)
 {
-  ENSURE_MATCHED(MatchNumber(r1));
+  ENSURE_MATCHED(MatchNonNegativeNumber(r1));
 
   if (IsTokenCommaWspStarter()) {
     ENSURE_MATCHED(MatchCommaWsp());
   }
 
-  ENSURE_MATCHED(MatchNumber(r2));
+  ENSURE_MATCHED(MatchNonNegativeNumber(r2));
 
   if (IsTokenCommaWspStarter()) {
     ENSURE_MATCHED(MatchCommaWsp());
@@ -827,7 +828,7 @@ nsresult nsSVGPathDataParser::MatchEllipticalArcArg(float* x, float* y,
 
 bool nsSVGPathDataParser::IsTokenEllipticalArcArgStarter()
 {
-  return IsTokenNumberStarter();
+  return IsTokenNonNegativeNumberStarter();
 }
 
 
@@ -855,12 +856,6 @@ nsSVGArcConverter::nsSVGArcConverter(const gfxPoint &from,
                                      bool sweepFlag)
 {
   const double radPerDeg = M_PI/180.0;
-  mSegIndex = 0;
-
-  if (from == to) {
-    mNumSegs = 0;
-    return;
-  }
 
   // Convert to center parameterization as shown in
   // http://www.w3.org/TR/SVG/implnote.html
@@ -916,6 +911,7 @@ nsSVGArcConverter::nsSVGArcConverter(const gfxPoint &from,
   mT = 8.0/3.0 * sin(mDelta/4.0) * sin(mDelta/4.0) / sin(mDelta/2.0);
 
   mFrom = from;
+  mSegIndex = 0;
 }
 
 bool

@@ -41,8 +41,7 @@
 
 #include "sampler.h"
 #ifdef MOZ_ANDROID_HISTORY
-#include "nsNetUtil.h"
-#include "IHistory.h"
+#include "nsAndroidHistory.h"
 #endif
 
 #ifdef MOZ_LOGGING
@@ -199,7 +198,7 @@ nsAppShell::nsAppShell()
 nsAppShell::~nsAppShell()
 {
     gAppShell = nullptr;
-    sAfterPaintListener = nullptr;
+    delete sAfterPaintListener;
 
     if (sPowerManagerService) {
         sPowerManagerService->RemoveWakeLockListener(sWakeLockListener);
@@ -572,13 +571,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
     case AndroidGeckoEvent::VISITED: {
 #ifdef MOZ_ANDROID_HISTORY
-        nsCOMPtr<IHistory> history = services::GetHistoryService();
-        nsCOMPtr<nsIURI> visitedURI;
-        if (history &&
-            NS_SUCCEEDED(NS_NewURI(getter_AddRefs(visitedURI),
-                                   nsString(curEvent->Characters())))) {
-            history->NotifyVisited(visitedURI);
-        }
+        nsAndroidHistory::NotifyURIVisited(nsString(curEvent->Characters()));
 #endif
         break;
     }

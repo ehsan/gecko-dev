@@ -420,11 +420,6 @@ SpdySession2::NetworkRead(nsAHttpSegmentWriter *writer, char *buf,
 {
   NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
-  if (!count) {
-    *countWritten = 0;
-    return NS_OK;
-  }
-
   nsresult rv = writer->OnWriteSegment(buf, count, countWritten);
   if (NS_SUCCEEDED(rv) && *countWritten > 0)
     mLastReadEpoch = PR_IntervalNow();

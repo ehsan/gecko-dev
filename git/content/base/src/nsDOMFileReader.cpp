@@ -62,6 +62,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMFileReader,
                                                   FileIOObject)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFile)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannel)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(load)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(loadstart)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(loadend)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMFileReader,
@@ -69,6 +73,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMFileReader,
   tmp->mResultArrayBuffer = nullptr;
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFile)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(load)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(loadstart)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(loadend)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -89,13 +96,6 @@ NS_INTERFACE_MAP_END_INHERITING(FileIOObject)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMFileReader, FileIOObject)
 NS_IMPL_RELEASE_INHERITED(nsDOMFileReader, FileIOObject)
-
-NS_IMPL_EVENT_HANDLER(nsDOMFileReader, load)
-NS_IMPL_EVENT_HANDLER(nsDOMFileReader, loadend)
-NS_IMPL_EVENT_HANDLER(nsDOMFileReader, loadstart)
-NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, abort, FileIOObject)
-NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, progress, FileIOObject)
-NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 
 void
 nsDOMFileReader::RootResultArrayBuffer()
@@ -139,6 +139,13 @@ nsDOMFileReader::Init()
 
   return NS_OK;
 }
+
+NS_IMPL_EVENT_HANDLER(nsDOMFileReader, load)
+NS_IMPL_EVENT_HANDLER(nsDOMFileReader, loadstart)
+NS_IMPL_EVENT_HANDLER(nsDOMFileReader, loadend)
+NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, abort, FileIOObject)
+NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, progress, FileIOObject)
+NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 
 NS_IMETHODIMP
 nsDOMFileReader::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
@@ -286,7 +293,7 @@ nsresult
 nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
                                    nsISupports *aContext,
                                    nsIInputStream *aInputStream,
-                                   uint64_t aOffset,
+                                   uint32_t aOffset,
                                    uint32_t aCount)
 {
   if (mDataFormat == FILE_AS_BINARY) {
@@ -294,9 +301,6 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
     NS_ASSERTION(mResult.Length() == aOffset,
                  "unexpected mResult length");
     uint32_t oldLen = mResult.Length();
-    if (uint64_t(oldLen) + aCount > UINT32_MAX)
-      return NS_ERROR_OUT_OF_MEMORY;
-
     PRUnichar *buf = nullptr;
     mResult.GetMutableData(&buf, oldLen + aCount, fallible_t());
     NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
@@ -314,10 +318,6 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
   }
   else {
     //Update memory buffer to reflect the contents of the file
-    if (aOffset + aCount > UINT32_MAX) {
-      // PR_Realloc doesn't support over 4GB memory size even if 64-bit OS
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
     mFileData = (char *)PR_Realloc(mFileData, aOffset + aCount);
     NS_ENSURE_TRUE(mFileData, NS_ERROR_OUT_OF_MEMORY);
 
@@ -338,13 +338,6 @@ nsDOMFileReader::DoOnStopRequest(nsIRequest *aRequest,
                                  nsAString& aSuccessEvent,
                                  nsAString& aTerminationEvent)
 {
-  // Make sure we drop all the objects that could hold files open now.
-  nsCOMPtr<nsIChannel> channel;
-  mChannel.swap(channel);
-
-  nsCOMPtr<nsIDOMBlob> file;
-  mFile.swap(file);
-
   aSuccessEvent = NS_LITERAL_STRING(LOAD_STR);
   aTerminationEvent = NS_LITERAL_STRING(LOADEND_STR);
 
@@ -364,7 +357,7 @@ nsDOMFileReader::DoOnStopRequest(nsIRequest *aRequest,
       rv = GetAsText(mCharset, mFileData, mDataLen, mResult);
       break;
     case FILE_AS_DATAURL:
-      rv = GetAsDataURL(file, mFileData, mDataLen, mResult);
+      rv = GetAsDataURL(mFile, mFileData, mDataLen, mResult);
       break;
   }
   
@@ -410,17 +403,7 @@ nsDOMFileReader::ReadFileContent(JSContext* aCx,
     rv = NS_NewURI(getter_AddRefs(uri), urlHolder.mUrl);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsILoadGroup> loadGroup;
-    if (HasOrHasHadOwner()) {
-      NS_ENSURE_STATE(GetOwner());
-      nsIDocument* doc = GetOwner()->GetExtantDoc();
-      if (doc) {
-        loadGroup = doc->GetDocumentLoadGroup();
-      }
-    }
-
-    rv = NS_NewChannel(getter_AddRefs(mChannel), uri, nullptr, loadGroup,
-                       nullptr, nsIRequest::LOAD_BACKGROUND);
+    rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -454,7 +437,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
                            nsAString& aResult)
 {
   nsresult rv;
-  nsAutoCString charsetGuess;
+  nsCAutoString charsetGuess;
   if (!aCharset.IsEmpty()) {
     charsetGuess = aCharset;
   } else {
@@ -462,7 +445,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsAutoCString charset;
+  nsCAutoString charset;
   rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
   NS_ENSURE_SUCCESS(rv, rv);
 

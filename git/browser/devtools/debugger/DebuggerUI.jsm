@@ -11,7 +11,7 @@ const Cu = Components.utils;
 
 const DBG_XUL = "chrome://browser/content/debugger.xul";
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
-const CHROME_DEBUGGER_PROFILE_NAME = "_chrome-debugger-profile";
+const REMOTE_PROFILE_NAME = "_remote-debug";
 const TAB_SWITCH_NOTIFICATION = "debugger-tab-switch";
 
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
@@ -19,7 +19,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["DebuggerUI"];
+let EXPORTED_SYMBOLS = ["DebuggerUI"];
 
 /**
  * Provides a simple mechanism of managing debugger instances.
@@ -27,10 +27,10 @@ this.EXPORTED_SYMBOLS = ["DebuggerUI"];
  * @param nsIDOMWindow aWindow
  *        The chrome window for which the DebuggerUI instance is created.
  */
-this.DebuggerUI = function DebuggerUI(aWindow) {
+function DebuggerUI(aWindow) {
   this.chromeWindow = aWindow;
   this.listenToTabs();
-};
+}
 
 DebuggerUI.prototype = {
 
@@ -46,8 +46,8 @@ DebuggerUI.prototype = {
     tabs.addEventListener("TabSelect", bound_refreshCommand, true);
 
     win.addEventListener("unload", function onClose(aEvent) {
-      win.removeEventListener("unload", onClose, false);
       tabs.removeEventListener("TabSelect", bound_refreshCommand, true);
+      win.removeEventListener("unload", onClose, false);
     }, false);
   },
 
@@ -202,16 +202,8 @@ DebuggerUI.prototype = {
       label: L10N.getStr("confirmTabSwitch.buttonOpen"),
       accessKey: L10N.getStr("confirmTabSwitch.buttonOpen.accessKey"),
       callback: function DUI_notificationButtonOpen() {
-        let scriptDebugger = this.findDebugger();
-        let targetWindow = scriptDebugger.globalUI.chromeWindow;
-        scriptDebugger.close();
-        let self = this;
-        targetWindow.addEventListener("Debugger:Shutdown", function toggle() {
-          targetWindow.removeEventListener("Debugger:Shutdown", toggle, false);
-          Services.tm.currentThread.dispatch({ run: function() {
-            self.toggleDebugger();
-          }}, 0);
-        }, false);
+        this.findDebugger().close();
+        this.toggleDebugger();
       }.bind(this)
     }];
 
@@ -253,7 +245,7 @@ DebuggerPane.prototype = {
   _initServer: function DP__initServer() {
     if (!DebuggerServer.initialized) {
       // Always allow connections from nsIPipe transports.
-      DebuggerServer.init(function() true);
+      DebuggerServer.init(function () { return true; });
       DebuggerServer.addBrowserActors();
     }
   },
@@ -474,10 +466,37 @@ ChromeDebuggerProcess.prototype = {
    */
   _initServer: function RDP__initServer() {
     if (!DebuggerServer.initialized) {
-      DebuggerServer.init();
+      DebuggerServer.init(this._allowConnection);
       DebuggerServer.addBrowserActors();
     }
+    DebuggerServer.closeListener();
     DebuggerServer.openListener(DebuggerPreferences.remotePort);
+  },
+
+  /**
+   * Prompt the user to accept or decline the incoming connection.
+   *
+   * @return true if the connection should be permitted, false otherwise
+   */
+  _allowConnection: function RDP__allowConnection() {
+    let title = L10N.getStr("remoteIncomingPromptTitle");
+    let msg = L10N.getStr("remoteIncomingPromptMessage");
+    let disableButton = L10N.getStr("remoteIncomingPromptDisable");
+    let prompt = Services.prompt;
+    let flags = prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_OK +
+                prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
+                prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING +
+                prompt.BUTTON_POS_1_DEFAULT;
+    let result = prompt.confirmEx(null, title, msg, flags, null, null,
+                                  disableButton, null, { value: false });
+    if (result == 0) {
+      return true;
+    }
+    if (result == 2) {
+      DebuggerServer.closeListener();
+      Services.prefs.setBoolPref("devtools.debugger.remote-enabled", false);
+    }
+    return false;
   },
 
   /**
@@ -489,9 +508,9 @@ ChromeDebuggerProcess.prototype = {
 
     let dbgProfileName;
     try {
-      dbgProfileName = profileService.selectedProfile.name + CHROME_DEBUGGER_PROFILE_NAME;
+      dbgProfileName = profileService.selectedProfile.name + REMOTE_PROFILE_NAME;
     } catch(e) {
-      dbgProfileName = CHROME_DEBUGGER_PROFILE_NAME;
+      dbgProfileName = REMOTE_PROFILE_NAME;
       Cu.reportError(e);
     }
 

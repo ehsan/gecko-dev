@@ -106,7 +106,7 @@ NS_IMETHODIMP
 nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
                                        nsISupports *aContext,
                                        nsIInputStream *aInputStream,
-                                       uint64_t aSourceOffset,
+                                       uint32_t aSourceOffset,
                                        uint32_t aCount)
 {
   if (!mObserver) {

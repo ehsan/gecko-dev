@@ -127,55 +127,11 @@ js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
 
     /* Beware nameless destructuring formal. */
     if (!JSID_IS_ATOM(id))
-        return rt->atomState.empty;
+        return rt->atomState.emptyAtom;
     return JSID_TO_ATOM(id)->asPropertyName();
 }
 
 /*****************************************************************************/
-
-/*
- * Construct a bare-bones call object given a shape, type, and slots pointer.
- * The call object must be further initialized to be usable.
- */
-CallObject *
-CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
-{
-    gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
-    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
-    kind = gc::GetBackgroundAllocKind(kind);
-
-    JSObject *obj = JSObject::create(cx, kind, shape, type, slots);
-    if (!obj)
-        return NULL;
-    return &obj->asCall();
-}
-
-/*
- * Create a CallObject for a JSScript that is not initialized to any particular
- * callsite. This object can either be initialized (with an enclosing scope and
- * callee) or used as a template for jit compilation.
- */
-CallObject *
-CallObject::createTemplateObject(JSContext *cx, JSScript *script)
-{
-    RootedShape shape(cx, script->bindings.callObjShape());
-
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
-    if (!type)
-        return NULL;
-
-    HeapSlot *slots;
-    if (!PreallocateObjectDynamicSlots(cx, shape, &slots))
-        return NULL;
-
-    CallObject *callobj = CallObject::create(cx, shape, type, slots);
-    if (!callobj) {
-        js_free(slots);
-        return NULL;
-    }
-
-    return callobj;
-}
 
 /*
  * Construct a call object for the given bindings.  If this is a call object
@@ -186,13 +142,31 @@ CallObject::createTemplateObject(JSContext *cx, JSScript *script)
 CallObject *
 CallObject::create(JSContext *cx, JSScript *script, HandleObject enclosing, HandleFunction callee)
 {
-    CallObject *callobj = CallObject::createTemplateObject(cx, script);
-    if (!callobj)
+    RootedShape shape(cx, script->bindings.callObjShape());
+
+    gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
+    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
+    kind = gc::GetBackgroundAllocKind(kind);
+
+    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
+    if (!type)
         return NULL;
 
-    callobj->asScope().setEnclosingScope(enclosing);
-    callobj->initFixedSlot(CALLEE_SLOT, ObjectOrNullValue(callee));
-    return callobj;
+    HeapSlot *slots;
+    if (!PreallocateObjectDynamicSlots(cx, shape, &slots))
+        return NULL;
+
+    RootedObject obj(cx, JSObject::create(cx, kind, shape, type, slots));
+    if (!obj)
+        return NULL;
+
+    JS_ASSERT(enclosing->global() == obj->global());
+    if (!obj->asScope().setEnclosingScope(cx, enclosing))
+        return NULL;
+
+    obj->initFixedSlot(CALLEE_SLOT, ObjectOrNullValue(callee));
+
+    return &obj->asCall();
 }
 
 CallObject *
@@ -268,14 +242,13 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
 {
     assertSameCompartment(cx, fp);
 
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
+    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
     if (!type)
         return NULL;
 
     RootedShape emptyDeclEnvShape(cx);
     emptyDeclEnvShape = EmptyShape::getInitialShape(cx, &DeclEnvClass, NULL,
-                                                    &fp->global(), FINALIZE_KIND,
-                                                    BaseShape::DELEGATE);
+                                                    &fp->global(), FINALIZE_KIND);
     if (!emptyDeclEnvShape)
         return NULL;
 
@@ -283,7 +256,9 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
     if (!obj)
         return NULL;
 
-    obj->asScope().setEnclosingScope(fp->scopeChain());
+    if (!obj->asScope().setEnclosingScope(cx, fp->scopeChain()))
+        return NULL;
+
     Rooted<jsid> id(cx, AtomToId(fp->fun()->atom()));
     RootedValue value(cx, ObjectValue(fp->callee()));
     if (!DefineNativeProperty(cx, obj, id, value, NULL, NULL,
@@ -302,7 +277,7 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
     if (!type)
         return NULL;
 
-    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &WithClass, TaggedProto(proto),
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &WithClass, proto,
                                                       &enclosing->global(), FINALIZE_KIND));
     if (!shape)
         return NULL;
@@ -311,7 +286,9 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
     if (!obj)
         return NULL;
 
-    obj->asScope().setEnclosingScope(enclosing);
+    if (!obj->asScope().setEnclosingScope(cx, enclosing))
+        return NULL;
+
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
 
     JSObject *thisp = JSObject::thisObject(cx, proto);
@@ -505,7 +482,7 @@ with_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
 
 static JSBool
 with_Enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
-               MutableHandleValue statep, MutableHandleId idp)
+               Value *statep, jsid *idp)
 {
     RootedObject actual(cx, &obj->asWith().object());
     return JSObject::enumerate(cx, actual, enum_op, statep, idp);
@@ -573,6 +550,7 @@ Class js::WithClass = {
         with_Enumerate,
         with_TypeOf,
         with_ThisObject,
+        NULL,             /* clear */
     }
 };
 
@@ -622,8 +600,6 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Stac
             obj->asClonedBlock().setVar(i, *src);
     }
 
-    JS_ASSERT(obj->isDelegate());
-
     return &obj->asClonedBlock();
 }
 
@@ -641,17 +617,15 @@ ClonedBlockObject::copyUnaliasedValues(StackFrame *fp)
 StaticBlockObject *
 StaticBlockObject::create(JSContext *cx)
 {
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
+    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
     if (!type)
         return NULL;
 
-    RootedShape emptyBlockShape(cx);
-    emptyBlockShape = EmptyShape::getInitialShape(cx, &BlockClass, NULL, NULL, FINALIZE_KIND,
-                                                  BaseShape::DELEGATE);
-    if (!emptyBlockShape)
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &BlockClass, NULL, NULL, FINALIZE_KIND));
+    if (!shape)
         return NULL;
 
-    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, emptyBlockShape, type, NULL);
+    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, shape, type, NULL);
     if (!obj)
         return NULL;
 
@@ -741,7 +715,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope, Handl
          * properties to XDR, stored as id/shortid pairs.
          */
         for (unsigned i = 0; i < count; i++) {
-            RootedAtom atom(cx);
+            JSAtom *atom;
             if (!XDRAtom(xdr, &atom))
                 return false;
 
@@ -786,9 +760,10 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope, Handl
             JS_ASSERT(JSID_IS_ATOM(propid) || JSID_IS_INT(propid));
 
             /* The empty string indicates an int id. */
-            RootedAtom atom(cx, JSID_IS_ATOM(propid)
-                                ? JSID_TO_ATOM(propid)
-                                : cx->runtime->emptyString);
+            JSAtom *atom = JSID_IS_ATOM(propid)
+                           ? JSID_TO_ATOM(propid)
+                           : cx->runtime->emptyString;
+
             if (!XDRAtom(xdr, &atom))
                 return false;
 
@@ -1118,12 +1093,12 @@ class DebugScopeProxy : public BaseProxyHandler
         /* Handle unaliased formals, vars, and consts at function scope. */
         if (scope->isCall() && !scope->asCall().isForEval()) {
             CallObject &callobj = scope->asCall();
-            RootedScript script(cx, callobj.callee().script());
+            JSScript *script = callobj.callee().script();
             if (!script->ensureHasTypes(cx))
                 return false;
 
             Bindings &bindings = script->bindings;
-            BindingIter bi(script);
+            BindingIter bi(script->bindings);
             while (bi && NameToId(bi->name()) != id)
                 bi++;
             if (!bi)
@@ -1225,7 +1200,7 @@ class DebugScopeProxy : public BaseProxyHandler
 
     static bool isArguments(JSContext *cx, jsid id)
     {
-        return id == NameToId(cx->names().arguments);
+        return id == NameToId(cx->runtime->atomState.argumentsAtom);
     }
 
     static bool isFunctionScope(ScopeObject &scope)
@@ -1380,9 +1355,10 @@ class DebugScopeProxy : public BaseProxyHandler
     {
         ScopeObject &scope = proxy->asDebugScope().scope();
 
-        if (isMissingArgumentsBinding(scope)) {
-            if (!props.append(NameToId(cx->names().arguments)))
-                return false;
+        if (isMissingArgumentsBinding(scope) &&
+            !props.append(NameToId(cx->runtime->atomState.argumentsAtom)))
+        {
+            return false;
         }
 
         RootedObject rootedScope(cx, &scope);
@@ -1394,8 +1370,7 @@ class DebugScopeProxy : public BaseProxyHandler
          * they must be manually appended here.
          */
         if (scope.isCall() && !scope.asCall().isForEval()) {
-            RootedScript script(cx, scope.asCall().callee().script());
-            for (BindingIter bi(script); bi; bi++) {
+            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
                 if (!bi->aliased() && !props.append(NameToId(bi->name())))
                     return false;
             }
@@ -1433,8 +1408,7 @@ class DebugScopeProxy : public BaseProxyHandler
          * a manual search is necessary.
          */
         if (!found && scope.isCall() && !scope.asCall().isForEval()) {
-            RootedScript script(cx, scope.asCall().callee().script());
-            for (BindingIter bi(script); bi; bi++) {
+            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
                 if (!bi->aliased() && NameToId(bi->name()) == id) {
                     found = true;
                     break;

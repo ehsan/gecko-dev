@@ -21,7 +21,7 @@
 
 namespace js {
 
-static JS_ALWAYS_INLINE JSInlineString *
+static JS_ALWAYS_INLINE JSFixedString *
 NewShortString(JSContext *cx, const jschar *chars, size_t length)
 {
     SkipRoot skip(cx, &chars);
@@ -164,7 +164,7 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
 JS_ALWAYS_INLINE JSLinearString *
 JSDependentString::new_(JSContext *cx, JSLinearString *base_, const jschar *chars, size_t length)
 {
-    js::Rooted<JSLinearString*> base(cx, base_);
+    JS::Rooted<JSLinearString*> base(cx, base_);
 
     /* Try to avoid long chains of dependent strings. */
     while (base->isDependent())
@@ -211,32 +211,32 @@ JSFlatString::toPropertyName(JSContext *cx)
     return atom->asPropertyName();
 }
 
-JS_ALWAYS_INLINE JSAtom *
-JSFlatString::morphAtomizedStringIntoAtom()
-{
-    d.lengthAndFlags = buildLengthAndFlags(length(), ATOM_BIT);
-    return &asAtom();
-}
-
 JS_ALWAYS_INLINE void
-JSStableString::init(const jschar *chars, size_t length)
+JSFixedString::init(const jschar *chars, size_t length)
 {
     d.lengthAndFlags = buildLengthAndFlags(length, FIXED_FLAGS);
     d.u1.chars = chars;
 }
 
-JS_ALWAYS_INLINE JSStableString *
-JSStableString::new_(JSContext *cx, const jschar *chars, size_t length)
+JS_ALWAYS_INLINE JSFixedString *
+JSFixedString::new_(JSContext *cx, const jschar *chars, size_t length)
 {
     JS_ASSERT(chars[length] == jschar(0));
 
     if (!validateLength(cx, length))
         return NULL;
-    JSStableString *str = (JSStableString *)js_NewGCString(cx);
+    JSFixedString *str = (JSFixedString *)js_NewGCString(cx);
     if (!str)
         return NULL;
     str->init(chars, length);
     return str;
+}
+
+JS_ALWAYS_INLINE JSAtom *
+JSFixedString::morphAtomizedStringIntoAtom()
+{
+    d.lengthAndFlags = buildLengthAndFlags(length(), ATOM_BIT);
+    return &asAtom();
 }
 
 JS_ALWAYS_INLINE JSInlineString *
@@ -265,6 +265,15 @@ JS_ALWAYS_INLINE JSShortString *
 JSShortString::new_(JSContext *cx)
 {
     return js_NewGCShortString(cx);
+}
+
+JS_ALWAYS_INLINE void
+JSShortString::initAtOffsetInBuffer(const jschar *chars, size_t length)
+{
+    JS_ASSERT(lengthFits(length + (chars - d.inlineStorage)));
+    JS_ASSERT(chars >= d.inlineStorage && chars < d.inlineStorage + MAX_SHORT_LENGTH);
+    d.lengthAndFlags = buildLengthAndFlags(length, FIXED_FLAGS);
+    d.u1.chars = chars;
 }
 
 JS_ALWAYS_INLINE void
@@ -421,6 +430,10 @@ JSFlatString::finalize(js::FreeOp *fop)
 {
     JS_ASSERT(!isShort());
 
+    /*
+     * This check depends on the fact that 'chars' is only initialized to the
+     * beginning of inlineStorage. E.g., this is not the case for short strings.
+     */
     if (chars() != d.inlineStorage)
         fop->free_(const_cast<jschar *>(chars()));
 }
@@ -428,20 +441,17 @@ JSFlatString::finalize(js::FreeOp *fop)
 inline void
 JSShortString::finalize(js::FreeOp *fop)
 {
-    JS_ASSERT(isShort());
-
-    if (chars() != d.inlineStorage)
-        fop->free_(const_cast<jschar *>(chars()));
+    JS_ASSERT(JSString::isShort());
 }
 
 inline void
 JSAtom::finalize(js::FreeOp *fop)
 {
     JS_ASSERT(JSString::isAtom());
-    JS_ASSERT(JSString::isFlat());
-
-    if (chars() != d.inlineStorage)
-        fop->free_(const_cast<jschar *>(chars()));
+    if (getAllocKind() == js::gc::FINALIZE_STRING)
+        JSFlatString::finalize(fop);
+    else
+        JS_ASSERT(getAllocKind() == js::gc::FINALIZE_SHORT_STRING);
 }
 
 inline void

@@ -140,13 +140,10 @@ if (gtest_build_tests)
   ############################################################
   # C++ tests built with non-standard compiler flags.
 
-  # MSVC 7.1 does not support STL with exceptions disabled.
-  if (NOT MSVC OR MSVC_VERSION GREATER 1310)
-    cxx_library(gtest_no_exception "${cxx_no_exception}"
-      src/gtest-all.cc)
-    cxx_library(gtest_main_no_exception "${cxx_no_exception}"
-      src/gtest-all.cc src/gtest_main.cc)
-  endif()
+  cxx_library(gtest_no_exception "${cxx_no_exception}"
+    src/gtest-all.cc)
+  cxx_library(gtest_main_no_exception "${cxx_no_exception}"
+    src/gtest-all.cc src/gtest_main.cc)
   cxx_library(gtest_main_no_rtti "${cxx_no_rtti}"
     src/gtest-all.cc src/gtest_main.cc)
 
@@ -192,15 +189,11 @@ if (gtest_build_tests)
   cxx_executable(gtest_break_on_failure_unittest_ test gtest)
   py_test(gtest_break_on_failure_unittest)
 
-  # MSVC 7.1 does not support STL with exceptions disabled.
-  if (NOT MSVC OR MSVC_VERSION GREATER 1310)
-    cxx_executable_with_flags(
-      gtest_catch_exceptions_no_ex_test_
-      "${cxx_no_exception}"
-      gtest_main_no_exception
-      test/gtest_catch_exceptions_test_.cc)
-  endif()
-
+  cxx_executable_with_flags(
+    gtest_catch_exceptions_no_ex_test_
+    "${cxx_no_exception}"
+    gtest_main_no_exception
+    test/gtest_catch_exceptions_test_.cc)
   cxx_executable_with_flags(
     gtest_catch_exceptions_ex_test_
     "${cxx_exception}"
@@ -229,14 +222,11 @@ if (gtest_build_tests)
   cxx_executable(gtest_shuffle_test_ test gtest)
   py_test(gtest_shuffle_test)
 
-  # MSVC 7.1 does not support STL with exceptions disabled.
-  if (NOT MSVC OR MSVC_VERSION GREATER 1310)
-    cxx_executable(gtest_throw_on_failure_test_ test gtest_no_exception)
-    set_target_properties(gtest_throw_on_failure_test_
-      PROPERTIES
-      COMPILE_FLAGS "${cxx_no_exception}")
-    py_test(gtest_throw_on_failure_test)
-  endif()
+  cxx_executable(gtest_throw_on_failure_test_ test gtest_no_exception)
+  set_target_properties(gtest_throw_on_failure_test_
+    PROPERTIES
+    COMPILE_FLAGS "${cxx_no_exception}")
+  py_test(gtest_throw_on_failure_test)
 
   cxx_executable(gtest_uninitialized_test_ test gtest)
   py_test(gtest_uninitialized_test)

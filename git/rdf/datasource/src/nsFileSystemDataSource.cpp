@@ -1056,7 +1056,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         if (leafStr.IsEmpty())
             continue;
   
-        nsAutoCString           fullURI;
+        nsCAutoString           fullURI;
         fullURI.Assign(parentURI);
         if (fullURI.Last() != '/')
         {
@@ -1069,7 +1069,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         if (!escLeafStr)
             continue;
   
-        nsAutoCString           leaf(escLeafStr);
+        nsCAutoString           leaf(escLeafStr);
         NS_Free(escLeafStr);
         escLeafStr = nullptr;
 
@@ -1140,7 +1140,7 @@ FileSystemDataSource::GetLastMod(nsIRDFResource *source, nsIRDFDate **aResult)
     // convert from milliseconds to seconds
     PRTime      temp64, thousand;
     LL_I2L(thousand, PR_MSEC_PER_SEC);
-    temp64 = lastModDate * thousand;
+    LL_MUL(temp64, lastModDate, thousand);
 
     mRDFService->GetDateLiteral(temp64, aResult);
 
@@ -1326,7 +1326,7 @@ FileSystemDataSource::getIEFavoriteURL(nsIRDFResource *source, nsString aFileURL
     nsCOMPtr<nsILineInputStream> linereader = do_QueryInterface(strm, &rv);
 
     nsAutoString    line;
-    nsAutoCString   cLine;
+    nsCAutoString   cLine;
     while(NS_SUCCEEDED(rv))
     {
         bool    isEOF;

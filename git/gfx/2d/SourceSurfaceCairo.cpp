@@ -42,6 +42,7 @@ SourceSurfaceCairo::SourceSurfaceCairo(cairo_surface_t* aSurface,
 
 SourceSurfaceCairo::~SourceSurfaceCairo()
 {
+  MarkIndependent();
   cairo_surface_destroy(mSurface);
 }
 
@@ -107,6 +108,15 @@ SourceSurfaceCairo::DrawTargetWillChange()
     // Swap in this new surface.
     cairo_surface_destroy(mSurface);
     mSurface = surface;
+  }
+}
+
+void
+SourceSurfaceCairo::MarkIndependent()
+{
+  if (mDrawTarget) {
+    mDrawTarget->RemoveSnapshot(this);
+    mDrawTarget = nullptr;
   }
 }
 

@@ -36,7 +36,6 @@
 #include "nsAutoPtr.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "mozJSComponentLoader.h"
 
 #include "OSFileConstants.h"
 #include "nsIOSFileConstantsService.h"
@@ -608,7 +607,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
 
   nsCOMPtr<nsIXULRuntime> runtime = do_GetService(XULRUNTIME_SERVICE_CONTRACTID);
   if (runtime) {
-    nsAutoCString os;
+    nsCAutoString os;
     DebugOnly<nsresult> rv = runtime->GetOS(os);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
 
@@ -688,13 +687,11 @@ OSFileConstantsService::Init(JSContext *aCx)
     return rv;
   }
 
-  JSObject *targetObj = nullptr;
-
-  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  rv = loader->FindTargetObject(aCx, &targetObj);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!mozilla::DefineOSFileConstants(aCx, targetObj)) {
+  JSObject *global = JS_GetGlobalForScopeChain(aCx);
+  if (!global) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (!mozilla::DefineOSFileConstants(aCx, global)) {
     return NS_ERROR_FAILURE;
   }
 

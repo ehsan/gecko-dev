@@ -17,7 +17,6 @@
 
 #include "common_video/jpeg/include/jpeg.h"
 #include "common_video/jpeg/data_manager.h"
-#include "common_video/libyuv/include/webrtc_libyuv.h"
 
 extern "C" {
 #if defined(USE_SYSTEM_LIBJPEG)
@@ -82,21 +81,21 @@ JpegEncoder::SetFileName(const char* fileName)
 
 
 WebRtc_Word32
-JpegEncoder::Encode(const VideoFrame& inputImage)
+JpegEncoder::Encode(const RawImage& inputImage)
 {
-    if (inputImage.Buffer() == NULL || inputImage.Size() == 0)
+    if (inputImage._buffer == NULL || inputImage._size == 0)
     {
         return -1;
     }
-    if (inputImage.Width() < 1 || inputImage.Height() < 1)
+    if (inputImage._width < 1 || inputImage._height < 1)
     {
         return -1;
     }
 
     FILE* outFile = NULL;
 
-    const WebRtc_UWord32 width = inputImage.Width();
-    const WebRtc_UWord32 height = inputImage.Height();
+    const WebRtc_UWord32 width = inputImage._width;
+    const WebRtc_UWord32 height = inputImage._height;
 
     // Set error handler
     myErrorMgr      jerr;
@@ -141,15 +140,15 @@ JpegEncoder::Encode(const VideoFrame& inputImage)
     _cinfo->raw_data_in = TRUE;
 
     WebRtc_UWord32 height16 = (height + 15) & ~15;
-    WebRtc_UWord8* imgPtr = inputImage.Buffer();
+    WebRtc_UWord8* imgPtr = inputImage._buffer;
     WebRtc_UWord8* origImagePtr = NULL;
     if (height16 != height)
     {
         // Copy image to an adequate size buffer
-        WebRtc_UWord32 requiredSize = CalcBufferSize(kI420, width, height16);
+        WebRtc_UWord32 requiredSize = height16 * width * 3 >> 1;
         origImagePtr = new WebRtc_UWord8[requiredSize];
         memset(origImagePtr, 0, requiredSize);
-        memcpy(origImagePtr, inputImage.Buffer(), inputImage.Length());
+        memcpy(origImagePtr, inputImage._buffer, inputImage._length);
         imgPtr = origImagePtr;
     }
 
@@ -210,7 +209,7 @@ JpegDecoder::~JpegDecoder()
 
 WebRtc_Word32
 JpegDecoder::Decode(const EncodedImage& inputImage,
-                    VideoFrame& outputImage)
+                    RawImage& outputImage)
 {
 
     WebRtc_UWord8* tmpBuffer = NULL;
@@ -279,9 +278,20 @@ JpegDecoder::Decode(const EncodedImage& inputImage,
                                       2 * (uvStride * ((height16 + 1) >> 1));
     WebRtc_UWord32 requiredSize = width * height * 3 >> 1;
 
-    // Verify sufficient buffer size.
-    outputImage.VerifyAndAllocate(requiredSize);
-    WebRtc_UWord8* outPtr = outputImage.Buffer();
+    // verify sufficient buffer size
+    if (outputImage._buffer && outputImage._size < requiredSize)
+    {
+        delete [] outputImage._buffer;
+        outputImage._buffer = NULL;
+    }
+
+    if (outputImage._buffer == NULL)
+    {
+        outputImage._buffer = new WebRtc_UWord8[requiredSize];
+        outputImage._size = requiredSize;
+    }
+
+    WebRtc_UWord8* outPtr = outputImage._buffer;
 
     if (tmpRequiredSize > requiredSize)
     {
@@ -327,7 +337,7 @@ JpegDecoder::Decode(const EncodedImage& inputImage,
 
     if (tmpRequiredSize > requiredSize)
     {
-         WebRtc_UWord8* dstFramePtr = outputImage.Buffer();
+         WebRtc_UWord8* dstFramePtr = outputImage._buffer;
          WebRtc_UWord8* tmpPtr = outPtr;
 
          for (WebRtc_UWord32 p = 0; p < 3; p++)
@@ -352,10 +362,10 @@ JpegDecoder::Decode(const EncodedImage& inputImage,
         delete [] tmpBuffer;
     }
     // Setting output Image parameter
-    outputImage.SetWidth(width);
-    outputImage.SetHeight(height);
-    outputImage.SetLength(requiredSize);
-    outputImage.SetTimeStamp(inputImage._timeStamp);
+    outputImage._width = width;
+    outputImage._height =  height;
+    outputImage._length = requiredSize;
+    outputImage._timeStamp = inputImage._timeStamp;
 
     jpeg_finish_decompress(_cinfo);
     jpeg_destroy_decompress(_cinfo);

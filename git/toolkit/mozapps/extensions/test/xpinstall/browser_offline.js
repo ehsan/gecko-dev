@@ -1,5 +1,3 @@
-let proxyPrefValue;
-
 // ----------------------------------------------------------------------------
 // Tests that going offline cancels an in progress download.
 function test() {
@@ -19,10 +17,6 @@ function test() {
 
 function download_progress(addon, value, maxValue) {
   try {
-    // Tests always connect to localhost, and per bug 87717, localhost is now
-    // reachable in offline mode.  To avoid this, disable any proxy.
-    proxyPrefValue = Services.prefs.getIntPref("network.proxy.type");
-    Services.prefs.setIntPref("network.proxy.type", 0);
     Services.io.manageOfflineStatus = false;
     Services.io.offline = true;
   } catch (ex) {
@@ -50,7 +44,6 @@ function finish_test(count) {
 
   is(count, 0, "No add-ons should have been installed");
   try {
-    Services.prefs.setIntPref("network.proxy.type", proxyPrefValue);
     Services.io.offline = false;
   } catch (ex) {
   }

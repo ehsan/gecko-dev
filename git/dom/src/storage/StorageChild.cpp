@@ -83,21 +83,21 @@ StorageChild::InitRemote()
   ContentChild* child = ContentChild::GetSingleton();
   AddIPDLReference();
   child->SendPStorageConstructor(this, null_t());
-  SendInit(mUseDB, mSessionOnly, mInPrivateBrowsing, mScopeDBKey,
-           mQuotaDBKey, mStorageType);
+  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mInPrivateBrowsing, mDomain, mScopeDBKey,
+           mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
 }
 
 void
-StorageChild::InitAsSessionStorage(nsIPrincipal* aPrincipal, bool aPrivate)
+StorageChild::InitAsSessionStorage(nsIURI* aDomainURI, bool aPrivate)
 {
-  DOMStorageBase::InitAsSessionStorage(aPrincipal, aPrivate);
+  DOMStorageBase::InitAsSessionStorage(aDomainURI, aPrivate);
   InitRemote();
 }
 
 void
-StorageChild::InitAsLocalStorage(nsIPrincipal* aPrincipal, bool aPrivate)
+StorageChild::InitAsLocalStorage(nsIURI* aDomainURI, bool aCanUseChromePersist, bool aPrivate)
 {
-  DOMStorageBase::InitAsLocalStorage(aPrincipal, aPrivate);
+  DOMStorageBase::InitAsLocalStorage(aDomainURI, aCanUseChromePersist, aPrivate);
   InitRemote();
 }
 
@@ -196,6 +196,12 @@ StorageChild::Clear(bool aCallerSecure, int32_t* aOldCount)
   return NS_OK;
 }
 
+bool
+StorageChild::CanUseChromePersist()
+{
+  return mCanUseChromePersist;
+}
+
 nsresult
 StorageChild::GetDBValue(const nsAString& aKey, nsAString& aValue,
                          bool* aSecure)
@@ -233,8 +239,8 @@ StorageChild::CloneFrom(bool aCallerSecure, DOMStorageBase* aThat)
   StorageClone clone(nullptr, other, aCallerSecure);
   AddIPDLReference();
   child->SendPStorageConstructor(this, clone);
-  SendInit(mUseDB, mSessionOnly, mInPrivateBrowsing,
-           mScopeDBKey, mQuotaDBKey, mStorageType);
+  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mInPrivateBrowsing, mDomain,
+           mScopeDBKey, mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
   return NS_OK;
 }
 

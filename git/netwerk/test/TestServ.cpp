@@ -39,7 +39,7 @@ MySocketListener::OnSocketAccepted(nsIServerSocket *serv,
 {
     LOG(("MySocketListener::OnSocketAccepted [serv=%p trans=%p]\n", serv, trans));
 
-    nsAutoCString host;
+    nsCAutoString host;
     int32_t port;
 
     trans->GetHost(host);
@@ -127,7 +127,7 @@ main(int argc, char* argv[])
      */
 
     rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     {
         rv = MakeServer(atoi(argv[1]));
@@ -141,5 +141,5 @@ main(int argc, char* argv[])
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     NS_ShutdownXPCOM(nullptr);
-    return 0;
+    return rv;
 }

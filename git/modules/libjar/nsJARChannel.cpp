@@ -136,7 +136,7 @@ nsJARInputThunk::EnsureJarStream()
     rv = mJarStream->Available((uint64_t *) &avail);
     if (NS_FAILED(rv)) return rv;
 
-    mContentLength = avail < INT32_MAX ? (int32_t) avail : -1;
+    mContentLength = avail < PR_INT32_MAX ? (int32_t) avail : -1;
 
     return NS_OK;
 }
@@ -189,8 +189,7 @@ nsJARInputThunk::IsNonBlocking(bool *nonBlocking)
 
 
 nsJARChannel::nsJARChannel()
-    : mOpened(false)
-    , mAppURI(nullptr)
+    : mAppURI(nullptr)
     , mContentLength(-1)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
@@ -531,15 +530,7 @@ nsJARChannel::GetSecurityInfo(nsISupports **aSecurityInfo)
 NS_IMETHODIMP
 nsJARChannel::GetContentType(nsACString &result)
 {
-    // If the Jar file has not been open yet,
-    // We return application/x-unknown-content-type
-    if (!mOpened) {
-      result.Assign(UNKNOWN_CONTENT_TYPE);
-      return NS_OK;
-    }
-
     if (mContentType.IsEmpty()) {
-
         //
         // generate content type and set it
         //
@@ -611,19 +602,7 @@ nsJARChannel::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
-nsJARChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 nsJARChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsJARChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
 {
     return NS_ERROR_NOT_AVAILABLE;
 }
@@ -680,8 +659,6 @@ nsJARChannel::Open(nsIInputStream **stream)
     if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(*stream = mJarInput);
-
-    mOpened = true;
     return NS_OK;
 }
 
@@ -726,7 +703,6 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nullptr);
 
-    mOpened = true;
     return NS_OK;
 }
 
@@ -744,7 +720,7 @@ NS_IMETHODIMP
 nsJARChannel::SetAppURI(nsIURI *aURI) {
     NS_ENSURE_ARG_POINTER(aURI);
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     aURI->GetScheme(scheme);
     if (!scheme.EqualsLiteral("app")) {
         return NS_ERROR_INVALID_ARG;
@@ -803,13 +779,13 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             // We only want to run scripts if the server really intended to
             // send us a JAR file.  Check the server-supplied content type for
             // a JAR type.
-            nsAutoCString header;
+            nsCAutoString header;
             httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                            header);
-            nsAutoCString contentType;
-            nsAutoCString charset;
+            nsCAutoString contentType;
+            nsCAutoString charset;
             NS_ParseContentType(header, contentType, charset);
-            nsAutoCString channelContentType;
+            nsCAutoString channelContentType;
             channel->GetContentType(channelContentType);
             mIsUnsafe = !(contentType.Equals(channelContentType) &&
                           (contentType.EqualsLiteral("application/java-archive") ||
@@ -907,7 +883,7 @@ nsJARChannel::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
 NS_IMETHODIMP
 nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
                                nsIInputStream *stream,
-                               uint64_t offset, uint32_t count)
+                               uint32_t offset, uint32_t count)
 {
 #if defined(PR_LOGGING)
     LOG(("nsJARChannel::OnDataAvailable [this=%x %s]\n", this, mSpec.get()));
@@ -921,7 +897,7 @@ nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
     // nsITransportEventSink implementation.
     // XXX do the 64-bit stuff for real
     if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-        mProgressSink->OnProgress(this, nullptr, offset + count,
+        mProgressSink->OnProgress(this, nullptr, uint64_t(offset + count),
                                   uint64_t(mContentLength));
 
     return rv; // let the pump cancel on failure

@@ -134,6 +134,7 @@ void ViEAutoTest::ViEImageProcessStandardTest()
 
 void ViEAutoTest::ViEImageProcessExtendedTest()
 {
+    ViEImageProcessStandardTest();
 }
 
 void ViEAutoTest::ViEImageProcessAPITest()
@@ -230,7 +231,11 @@ void ViEAutoTest::ViEImageProcessAPITest()
         tbChannel.videoChannel, false));
     EXPECT_EQ(0, ViE.image_process->EnableColorEnhancement(
         tbChannel.videoChannel, true));
+    EXPECT_NE(0, ViE.image_process->EnableColorEnhancement(
+        tbChannel.videoChannel, true));
     EXPECT_EQ(0, ViE.image_process->EnableColorEnhancement(
+        tbChannel.videoChannel, false));
+    EXPECT_NE(0, ViE.image_process->EnableColorEnhancement(
         tbChannel.videoChannel, false));
     EXPECT_NE(0, ViE.image_process->EnableColorEnhancement(
         tbCapture.captureId, true));

@@ -6,6 +6,7 @@
 #include "nsFileControlFrame.h"
 
 #include "nsIContent.h"
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
@@ -52,7 +53,6 @@
 
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
-#include "nsContentList.h"
 
 namespace dom = mozilla::dom;
 

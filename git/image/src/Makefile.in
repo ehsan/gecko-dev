@@ -18,10 +18,6 @@ GRE_MODULE	= 1
 LIBXUL_LIBRARY  = 1
 
 
-EXPORTS		=  imgLoader.h \
-		   imgRequest.h \
-		   $(NULL)
-
 CPPSRCS		= \
 			Image.cpp \
 			Decoder.cpp \
@@ -47,7 +43,7 @@ LOCAL_INCLUDES += \
 			$(NULL)
 
 # Because VectorImage.cpp includes nsSVGUtils.h and nsSVGEffects.h
-LOCAL_INCLUDES += -I$(topsrcdir)/layout/svg
+LOCAL_INCLUDES += -I$(topsrcdir)/layout/svg/base/src
 
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

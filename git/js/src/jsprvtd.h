@@ -47,6 +47,7 @@ typedef uint8_t     jssrcnote;
 typedef uintptr_t   jsatomid;
 
 /* Struct typedefs. */
+typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSGCThing            JSGCThing;
 typedef struct JSGenerator          JSGenerator;
 typedef struct JSNativeEnumerator   JSNativeEnumerator;
@@ -79,6 +80,7 @@ class JSDependentString;
 class JSExtensibleString;
 class JSExternalString;
 class JSLinearString;
+class JSFixedString;
 class JSRope;
 class JSAtom;
 class JSWrapper;
@@ -176,8 +178,8 @@ namespace frontend {
 
 struct BytecodeEmitter;
 struct Definition;
-class FunctionBox;
-class ObjectBox;
+struct FunctionBox;
+struct ObjectBox;
 struct Token;
 struct TokenPos;
 struct TokenPtr;
@@ -215,15 +217,12 @@ typedef JS::Handle<JSAtom*>            HandleAtom;
 typedef JS::Handle<PropertyName*>      HandlePropertyName;
 
 typedef JS::MutableHandle<Shape*>      MutableHandleShape;
-typedef JS::MutableHandle<JSAtom*>     MutableHandleAtom;
 
-typedef JSAtom *                       RawAtom;
-
-typedef js::Rooted<Shape*>             RootedShape;
-typedef js::Rooted<BaseShape*>         RootedBaseShape;
-typedef js::Rooted<types::TypeObject*> RootedTypeObject;
-typedef js::Rooted<JSAtom*>            RootedAtom;
-typedef js::Rooted<PropertyName*>      RootedPropertyName;
+typedef JS::Rooted<Shape*>             RootedShape;
+typedef JS::Rooted<BaseShape*>         RootedBaseShape;
+typedef JS::Rooted<types::TypeObject*> RootedTypeObject;
+typedef JS::Rooted<JSAtom*>            RootedAtom;
+typedef JS::Rooted<PropertyName*>      RootedPropertyName;
 
 enum XDRMode {
     XDR_ENCODE,
@@ -298,7 +297,7 @@ typedef void
 /* called just before script destruction */
 typedef void
 (* JSDestroyScriptHook)(JSFreeOp *fop,
-                        JSRawScript script,
+                        JSScript  *script,
                         void      *callerdata);
 
 typedef void
@@ -370,7 +369,7 @@ typedef JSObject *
 
 /* Signature for class initialization ops. */
 typedef JSObject *
-(* JSClassInitializerOp)(JSContext *cx, JSHandleObject obj);
+(* JSClassInitializerOp)(JSContext *cx, JSObject *obj);
 
 /*
  * Hook that creates an iterator object for a given object. Returns the

@@ -4,11 +4,6 @@
 
 const TAB_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
 
-/**
- * Tests if the global search results trigger MatchFound and NoMatchFound events
- * properly, and triggers the expected UI behavior.
- */
-
 var gPane = null;
 var gTab = null;
 var gDebuggee = null;
@@ -144,6 +139,5 @@ registerCleanupFunction(function() {
   gDebugger = null;
   gEditor = null;
   gScripts = null;
-  gSearchView = null;
   gSearchBox = null;
 });

@@ -51,8 +51,6 @@
 */
 class SK_API SkWeakRefCnt : public SkRefCnt {
 public:
-    SK_DECLARE_INST_COUNT(SkWeakRefCnt)
-
     /** Default construct, initializing the reference counts to 1.
         The strong references collectively hold one weak reference. When the
         strong reference count goes to zero, the collectively held weak
@@ -152,8 +150,6 @@ private:
 
     /* Invariant: fWeakCnt = #weak + (fRefCnt > 0 ? 1 : 0) */
     mutable int32_t fWeakCnt;
-
-    typedef SkRefCnt INHERITED;
 };
 
 #endif

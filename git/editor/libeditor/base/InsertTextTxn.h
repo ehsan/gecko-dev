@@ -14,6 +14,7 @@
 #include "nsISupportsImpl.h"            // for NS_DECL_ISUPPORTS_INHERITED
 #include "nsString.h"                   // for nsString
 #include "nscore.h"                     // for NS_IMETHOD, nsAString
+#include "prtypes.h"                    // for uint32_t
 
 class nsIEditor;
 class nsITransaction;

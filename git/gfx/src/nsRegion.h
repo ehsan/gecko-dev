@@ -6,9 +6,9 @@
 #ifndef nsRegion_h__
 #define nsRegion_h__
 
+
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsString.h"
 
 class nsIntRegion;
 
@@ -198,8 +198,6 @@ public:
    * a rectangle of aRegion.
    */
   void SimpleSubtract (const nsRegion& aRegion);
-
-  nsCString ToString();
 
   /**
    * Initialize any static data associated with nsRegion.
@@ -463,8 +461,6 @@ public:
   {
     mImpl.SimpleSubtract (aRegion.mImpl);
   }
-
-  nsCString ToString() { return mImpl.ToString(); }
 
 private:
   nsRegion mImpl;

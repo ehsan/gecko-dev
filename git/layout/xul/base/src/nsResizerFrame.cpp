@@ -208,12 +208,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         nsCOMPtr<nsIScreenManager> sm(do_GetService("@mozilla.org/gfx/screenmanager;1"));
         if (sm) {
           nsIntRect frameRect = GetScreenRect();
-          // ScreenForRect requires display pixels, so scale from device pix
-          double scale;
-          window->GetUnscaledDevicePixelsPerCSSPixel(&scale);
-          sm->ScreenForRect(NSToIntRound(frameRect.x / scale),
-                            NSToIntRound(frameRect.y / scale), 1, 1,
-                            getter_AddRefs(screen));
+          sm->ScreenForRect(frameRect.x, frameRect.y, 1, 1, getter_AddRefs(screen));
           if (screen) {
             nsIntRect screenRect;
             screen->GetRect(&screenRect.x, &screenRect.y,
@@ -354,7 +349,7 @@ nsResizerFrame::GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWi
     if (!isChromeShell) {
       // don't allow resizers in content shells, except for the viewport
       // scrollbar which doesn't have a parent
-      nsIContent* nonNativeAnon = mContent->FindFirstNonChromeOnlyAccessContent();
+      nsIContent* nonNativeAnon = mContent->FindFirstNonNativeAnonymous();
       if (!nonNativeAnon || nonNativeAnon->GetParent()) {
         return nullptr;
       }
@@ -380,7 +375,7 @@ nsResizerFrame::GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWi
   if (elementid.EqualsLiteral("_parent")) {
     // return the parent, but skip over native anonymous content
     nsIContent* parent = mContent->GetParent();
-    return parent ? parent->FindFirstNonChromeOnlyAccessContent() : nullptr;
+    return parent ? parent->FindFirstNonNativeAnonymous() : nullptr;
   }
 
   return aPresShell->GetDocument()->GetElementById(elementid);

@@ -471,9 +471,7 @@ nsAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
 
     // search backwards for @
     const char *p = auth + authLen - 1;
-    for (; (*p != '@') && (p > auth); --p) {
-      continue;
-    }
+    for (; (*p != '@') && (p > auth); --p);
     if ( *p == '@' ) {
         // auth = <user-info@server-info>
         rv = ParseUserInfo(auth, p - auth,
@@ -574,7 +572,7 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
         SET_RESULT(hostname, 0, colon - serverinfo);
         if (port) {
             // XXX unfortunately ToInteger is not defined for substrings
-            nsAutoCString buf(colon+1, serverinfoLen - (colon + 1 - serverinfo));
+            nsCAutoString buf(colon+1, serverinfoLen - (colon + 1 - serverinfo));
             if (buf.Length() == 0) {
                 *port = -1;
             }

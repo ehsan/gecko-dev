@@ -15,7 +15,7 @@
 #include <qos.h>
 #endif
 
-#include "engine_configurations.h"  // NOLINT
+#include "engine_configurations.h"
 #include "system_wrappers/interface/trace.h"
 #include "video_engine/include/vie_errors.h"
 #include "video_engine/vie_channel.h"
@@ -72,8 +72,8 @@ ViENetworkImpl::~ViENetworkImpl() {
 }
 
 int ViENetworkImpl::SetLocalReceiver(const int video_channel,
-                                     const uint16_t rtp_port,
-                                     const uint16_t rtcp_port,
+                                     const unsigned short rtp_port,
+                                     const unsigned short rtcp_port,
                                      const char* ip_address) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
@@ -110,8 +110,8 @@ int ViENetworkImpl::SetLocalReceiver(const int video_channel,
 }
 
 int ViENetworkImpl::GetLocalReceiver(const int video_channel,
-                                     uint16_t& rtp_port,
-                                     uint16_t& rtcp_port,
+                                     unsigned short& rtp_port,
+                                     unsigned short& rtcp_port,
                                      char* ip_address) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
@@ -126,7 +126,7 @@ int ViENetworkImpl::GetLocalReceiver(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetLocalReceiver(&rtp_port, &rtcp_port, ip_address) != 0) {
+  if (vie_channel->GetLocalReceiver(rtp_port, rtcp_port, ip_address) != 0) {
     shared_data_->SetLastError(kViENetworkLocalReceiverNotSet);
     return -1;
   }
@@ -135,10 +135,10 @@ int ViENetworkImpl::GetLocalReceiver(const int video_channel,
 
 int ViENetworkImpl::SetSendDestination(const int video_channel,
                                        const char* ip_address,
-                                       const uint16_t rtp_port,
-                                       const uint16_t rtcp_port,
-                                       const uint16_t source_rtp_port,
-                                       const uint16_t source_rtcp_port) {
+                                       const unsigned short rtp_port,
+                                       const unsigned short rtcp_port,
+                                       const unsigned short source_rtp_port,
+                                       const unsigned short source_rtcp_port) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
                "%s(channel: %d, ip_address: %s, rtp_port: %u, rtcp_port: %u, "
@@ -180,10 +180,10 @@ int ViENetworkImpl::SetSendDestination(const int video_channel,
 
 int ViENetworkImpl::GetSendDestination(const int video_channel,
                                        char* ip_address,
-                                       uint16_t& rtp_port,
-                                       uint16_t& rtcp_port,
-                                       uint16_t& source_rtp_port,
-                                       uint16_t& source_rtcp_port) {
+                                       unsigned short& rtp_port,
+                                       unsigned short& rtcp_port,
+                                       unsigned short& source_rtp_port,
+                                       unsigned short& source_rtcp_port) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
                "%s(channel: %d)", __FUNCTION__, video_channel);
@@ -196,9 +196,9 @@ int ViENetworkImpl::GetSendDestination(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetSendDestination(ip_address, &rtp_port, &rtcp_port,
-                                      &source_rtp_port,
-                                      &source_rtcp_port) != 0) {
+  if (vie_channel->GetSendDestination(ip_address, rtp_port, rtcp_port,
+                                          source_rtp_port,
+                                          source_rtcp_port) != 0) {
     shared_data_->SetLastError(kViENetworkDestinationNotSet);
     return -1;
   }
@@ -233,7 +233,7 @@ int ViENetworkImpl::RegisterSendTransport(const int video_channel,
     shared_data_->SetLastError(kViENetworkAlreadySending);
     return -1;
   }
-  if (vie_channel->RegisterSendTransport(&transport) != 0) {
+  if (vie_channel->RegisterSendTransport(transport) != 0) {
     shared_data_->SetLastError(kViENetworkUnknownError);
     return -1;
   }
@@ -319,8 +319,8 @@ int ViENetworkImpl::ReceivedRTCPPacket(const int video_channel,
 }
 
 int ViENetworkImpl::GetSourceInfo(const int video_channel,
-                                  uint16_t& rtp_port,
-                                  uint16_t& rtcp_port, char* ip_address,
+                                  unsigned short& rtp_port,
+                                  unsigned short& rtcp_port, char* ip_address,
                                   unsigned int ip_address_length) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
@@ -334,7 +334,7 @@ int ViENetworkImpl::GetSourceInfo(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetSourceInfo(&rtp_port, &rtcp_port, ip_address,
+  if (vie_channel->GetSourceInfo(rtp_port, rtcp_port, ip_address,
                                  ip_address_length) != 0) {
     shared_data_->SetLastError(kViENetworkUnknownError);
     return -1;
@@ -384,8 +384,7 @@ int ViENetworkImpl::GetLocalIP(char ip_address[64], bool ipv6) {
       return -1;
     }
     // Convert 128-bit address to character string (a:b:c:d:e:f:g:h).
-    // TODO(mflodman) Change sprintf.
-    sprintf(local_ip_address,  // NOLINT
+    sprintf(local_ip_address,
             "%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:"
             "%.2x%.2x",
             local_ip[0], local_ip[1], local_ip[2], local_ip[3], local_ip[4],
@@ -402,14 +401,13 @@ int ViENetworkImpl::GetLocalIP(char ip_address[64], bool ipv6) {
       return -1;
     }
     // Convert 32-bit address to character string (x.y.z.w).
-    // TODO(mflodman) Change sprintf.
-    sprintf(local_ip_address, "%d.%d.%d.%d",  // NOLINT
+    sprintf(local_ip_address, "%d.%d.%d.%d",
             static_cast<int>((local_ip >> 24) & 0x0ff),
             static_cast<int>((local_ip >> 16) & 0x0ff),
             static_cast<int>((local_ip >> 8) & 0x0ff),
             static_cast<int>(local_ip & 0x0ff));
   }
-  strncpy(ip_address, local_ip_address, sizeof(local_ip_address));
+  strcpy(ip_address, local_ip_address);
   UdpTransport::Destroy(socket_transport);
   WEBRTC_TRACE(kTraceStateInfo, kTraceVideo, ViEId(shared_data_->instance_id()),
                "%s: local ip = %s", __FUNCTION__, local_ip_address);
@@ -459,8 +457,8 @@ bool ViENetworkImpl::IsIPv6Enabled(int video_channel) {
 }
 
 int ViENetworkImpl::SetSourceFilter(const int video_channel,
-                                    const uint16_t rtp_port,
-                                    const uint16_t rtcp_port,
+                                    const unsigned short rtp_port,
+                                    const unsigned short rtcp_port,
                                     const char* ip_address) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
@@ -483,8 +481,8 @@ int ViENetworkImpl::SetSourceFilter(const int video_channel,
 }
 
 int ViENetworkImpl::GetSourceFilter(const int video_channel,
-                                    uint16_t& rtp_port,
-                                    uint16_t& rtcp_port,
+                                    unsigned short& rtp_port,
+                                    unsigned short& rtcp_port,
                                     char* ip_address) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
@@ -498,7 +496,7 @@ int ViENetworkImpl::GetSourceFilter(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetSourceFilter(&rtp_port, &rtcp_port, ip_address) != 0) {
+  if (vie_channel->GetSourceFilter(rtp_port, rtcp_port, ip_address) != 0) {
     shared_data_->SetLastError(kViENetworkUnknownError);
     return -1;
   }
@@ -536,9 +534,8 @@ int ViENetworkImpl::SetSendToS(const int video_channel, const int DSCP,
   return 0;
 }
 
-int ViENetworkImpl::GetSendToS(const int video_channel,
-                               int& DSCP,  // NOLINT
-                               bool& use_set_sockOpt) {  // NOLINT
+int ViENetworkImpl::GetSendToS(const int video_channel, int& DSCP,
+                               bool& use_set_sockOpt) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
                "%s(channel: %d)", __FUNCTION__, video_channel);
@@ -551,7 +548,7 @@ int ViENetworkImpl::GetSendToS(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetToS(&DSCP, &use_set_sockOpt) != 0) {
+  if (vie_channel->GetToS((WebRtc_Word32&) DSCP, use_set_sockOpt) != 0) {
     shared_data_->SetLastError(kViENetworkUnknownError);
     return -1;
   }
@@ -629,10 +626,8 @@ int ViENetworkImpl::SetSendGQoS(const int video_channel, const bool enable,
 #endif
 }
 
-int ViENetworkImpl::GetSendGQoS(const int video_channel,
-                                bool& enabled,  // NOLINT
-                                int& service_type,  // NOLINT
-                                int& overrideDSCP) {  // NOLINT
+int ViENetworkImpl::GetSendGQoS(const int video_channel, bool& enabled,
+                                int& service_type, int& overrideDSCP) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
                ViEId(shared_data_->instance_id(), video_channel),
                "%s(channel: %d)", __FUNCTION__, video_channel);
@@ -645,7 +640,7 @@ int ViENetworkImpl::GetSendGQoS(const int video_channel,
     shared_data_->SetLastError(kViENetworkInvalidChannelId);
     return -1;
   }
-  if (vie_channel->GetSendGQoS(&enabled, &service_type, &overrideDSCP) != 0) {
+  if (vie_channel->GetSendGQoS(enabled, service_type, overrideDSCP) != 0) {
     shared_data_->SetLastError(kViENetworkUnknownError);
     return -1;
   }

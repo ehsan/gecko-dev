@@ -50,7 +50,7 @@ public:
 private:
     nsresult AssociateDocument(nsIDOMDocument *aDocument,
                                nsIApplicationCache *aApplicationCache);
-    void GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
+    nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
     nsresult Finish();
 
     void RefcountHitZero();
@@ -72,10 +72,9 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
 
-    nsCOMPtr<nsIObserverService> mObserverService;
+    nsCString mClientID;
 
-    uint32_t mAppID;
-    bool mInBrowser;
+    nsCOMPtr<nsIObserverService> mObserverService;
 
     /* Clients watching this update for changes */
     nsCOMArray<nsIWeakReference> mWeakObservers;

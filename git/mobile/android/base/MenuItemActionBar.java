@@ -25,7 +25,7 @@ public class MenuItemActionBar extends ImageButton
         int padding = size / 4;
         setPadding(padding, padding, padding, padding);
         setBackgroundResource(R.drawable.action_bar_button);
-        setScaleType(ImageView.ScaleType.FIT_CENTER);
+        setScaleType(ImageView.ScaleType.FIT_XY);
     }
 
     @Override
@@ -71,9 +71,5 @@ public class MenuItemActionBar extends ImageButton
 
     @Override
     public void setChecked(boolean checked) {
-    }
-
-    @Override
-    public void setSubMenuIndicator(boolean hasSubMenu) {
     }
 }

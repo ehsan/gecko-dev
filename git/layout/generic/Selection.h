@@ -67,14 +67,13 @@ public:
 
   nsresult      PostScrollSelectionIntoViewEvent(
                                         SelectionRegion aRegion,
-                                        int32_t aFlags,
+                                        bool aFirstAncestorOnly,
                                         nsIPresShell::ScrollAxis aVertical,
                                         nsIPresShell::ScrollAxis aHorizontal);
   enum {
     SCROLL_SYNCHRONOUS = 1<<1,
     SCROLL_FIRST_ANCESTOR_ONLY = 1<<2,
-    SCROLL_DO_FLUSH = 1<<3,
-    SCROLL_OVERFLOW_HIDDEN = 1<<5
+    SCROLL_DO_FLUSH = 1<<3
   };
   // aDoFlush only matters if aIsSynchronous is true.  If not, we'll just flush
   // when the scroll event fires so we make sure to scroll to the right place.
@@ -86,7 +85,7 @@ public:
                                int32_t aFlags = 0);
   nsresult      SubtractRange(RangeData* aRange, nsRange* aSubtract,
                               nsTArray<RangeData>* aOutput);
-  nsresult      AddItem(nsRange *aRange, int32_t* aOutIndex);
+  nsresult      AddItem(nsRange *aRange, int32_t* aOutIndex = nullptr);
   nsresult      RemoveItem(nsRange *aRange);
   nsresult      RemoveCollapsedRanges();
   nsresult      Clear(nsPresContext* aPresContext);
@@ -154,12 +153,12 @@ private:
                                  SelectionRegion aRegion,
                                  nsIPresShell::ScrollAxis aVertical,
                                  nsIPresShell::ScrollAxis aHorizontal,
-                                 int32_t aFlags)
+                                 bool aFirstAncestorOnly)
       : mSelection(aSelection),
         mRegion(aRegion),
         mVerticalScroll(aVertical),
         mHorizontalScroll(aHorizontal),
-        mFlags(aFlags) {
+        mFirstAncestorOnly(aFirstAncestorOnly) {
       NS_ASSERTION(aSelection, "null parameter");
     }
     void Revoke() { mSelection = nullptr; }
@@ -168,7 +167,7 @@ private:
     SelectionRegion mRegion;
     nsIPresShell::ScrollAxis mVerticalScroll;
     nsIPresShell::ScrollAxis mHorizontalScroll;
-    int32_t mFlags;
+    bool mFirstAncestorOnly;
   };
 
   void setAnchorFocusRange(int32_t aIndex); // pass in index into mRanges;

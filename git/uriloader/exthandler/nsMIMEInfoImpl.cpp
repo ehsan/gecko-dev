@@ -167,7 +167,7 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, bool *_retval)
 {
     if (!aMIMEInfo) return NS_ERROR_NULL_POINTER;
 
-    nsAutoCString type;
+    nsCAutoString type;
     nsresult rv = aMIMEInfo->GetMIMEType(type);
     if (NS_FAILED(rv)) return rv;
 
@@ -300,7 +300,7 @@ nsMIMEInfoBase::LaunchWithFile(nsIFile* aFile)
     rv = localHandler->GetExecutable(getter_AddRefs(executable));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString path;
+    nsCAutoString path;
     aFile->GetNativePath(path);
     return LaunchWithIProcess(executable, path);
   }
@@ -418,7 +418,7 @@ nsMIMEInfoImpl::LaunchDefaultWithFile(nsIFile* aFile)
   if (!mDefaultApplication)
     return NS_ERROR_FILE_NOT_FOUND;
 
-  nsAutoCString nativePath;
+  nsCAutoString nativePath;
   aFile->GetNativePath(nativePath);
   
   return LaunchWithIProcess(mDefaultApplication, nativePath);

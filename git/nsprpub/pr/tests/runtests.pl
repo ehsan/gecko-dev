@@ -313,7 +313,6 @@ $prog = shift;  # Program to test
 "primblok",
 "provider",
 "prpollml",
-"pushtop",
 "ranfile",
 "randseed",
 "reinit",

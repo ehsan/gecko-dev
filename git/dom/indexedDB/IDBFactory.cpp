@@ -54,7 +54,7 @@ namespace {
 struct ObjectStoreInfoMap
 {
   ObjectStoreInfoMap()
-  : id(INT64_MIN), info(nullptr) { }
+  : id(LL_MININT), info(nullptr) { }
 
   int64_t id;
   ObjectStoreInfo* info;
@@ -208,6 +208,11 @@ IDBFactory::Create(ContentParent* aContentParent,
   }
 #endif
 
+  nsCString origin;
+  nsresult rv =
+    IndexedDatabaseManager::GetASCIIOriginFromWindow(nullptr, origin);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIPrincipal> principal =
     do_CreateInstance("@mozilla.org/nullprincipal;1");
   NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
@@ -227,7 +232,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   NS_ASSERTION(xpc, "This should never be null!");
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> globalHolder;
-  nsresult rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
+  rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(globalHolder));
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSObject* global;
@@ -499,7 +504,6 @@ DOMCI_DATA(IDBFactory, IDBFactory)
 nsresult
 IDBFactory::OpenCommon(const nsAString& aName,
                        int64_t aVersion,
-                       const nsACString& aASCIIOrigin,
                        bool aDeleting,
                        JSContext* aCallingCx,
                        IDBOpenDBRequest** _retval)
@@ -523,14 +527,14 @@ IDBFactory::OpenCommon(const nsAString& aName,
   }
 
   nsRefPtr<IDBOpenDBRequest> request =
-    IDBOpenDBRequest::Create(this, window, scriptOwner, aCallingCx);
+    IDBOpenDBRequest::Create(window, scriptOwner, aCallingCx);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsresult rv;
 
   if (IndexedDatabaseManager::IsMainProcess()) {
     nsRefPtr<OpenDatabaseHelper> openHelper =
-      new OpenDatabaseHelper(request, aName, aASCIIOrigin, aVersion, aDeleting,
+      new OpenDatabaseHelper(request, aName, mASCIIOrigin, aVersion, aDeleting,
                              mContentParent, privilege);
 
     rv = openHelper->Init();
@@ -542,14 +546,13 @@ IDBFactory::OpenCommon(const nsAString& aName,
     IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
     NS_ASSERTION(mgr, "This should never be null!");
 
-    rv =
-      mgr->WaitForOpenAllowed(OriginOrPatternString::FromOrigin(aASCIIOrigin),
-                              openHelper->Id(), permissionHelper);
+    rv = 
+      mgr->WaitForOpenAllowed(mASCIIOrigin, openHelper->Id(), permissionHelper);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else if (aDeleting) {
     nsCOMPtr<nsIAtom> databaseId =
-      IndexedDatabaseManager::GetDatabaseId(aASCIIOrigin, aName);
+      IndexedDatabaseManager::GetDatabaseId(mASCIIOrigin, aName);
     NS_ENSURE_TRUE(databaseId, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     IndexedDBDeleteDatabaseRequestChild* actor =

@@ -24,7 +24,7 @@
 #include "mozilla/dom/Element.h"
 
 nsNativeTheme::nsNativeTheme()
-: mAnimatedContentTimeout(UINT32_MAX)
+: mAnimatedContentTimeout(PR_UINT32_MAX)
 {
 }
 
@@ -566,12 +566,12 @@ nsNativeTheme::Notify(nsITimer* aTimer)
   for (uint32_t index = 0; index < count; index++) {
     nsIFrame* frame = mAnimatedContentList[index]->GetPrimaryFrame();
     if (frame) {
-      frame->InvalidateFrame();
+      frame->InvalidateOverflowRect();
     }
   }
 
   mAnimatedContentList.Clear();
-  mAnimatedContentTimeout = UINT32_MAX;
+  mAnimatedContentTimeout = PR_UINT32_MAX;
   return NS_OK;
 }
 

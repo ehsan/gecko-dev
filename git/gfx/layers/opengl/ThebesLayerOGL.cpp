@@ -789,9 +789,7 @@ ThebesLayerOGL::SetVisibleRegion(const nsIntRegion &aRegion)
 void
 ThebesLayerOGL::InvalidateRegion(const nsIntRegion &aRegion)
 {
-  mInvalidRegion.Or(mInvalidRegion, aRegion);
-  mInvalidRegion.SimplifyOutward(10);
-  mValidRegion.Sub(mValidRegion, mInvalidRegion);
+  mValidRegion.Sub(mValidRegion, aRegion);
 }
 
 void
@@ -902,10 +900,6 @@ public:
   Swap(TextureImage* aNewBackBuffer,
        const nsIntRect& aRect, const nsIntPoint& aRotation,
        nsIntRect* aPrevRect, nsIntPoint* aPrevRotation);
-
-  nsIntPoint Rotation() {
-    return mBufferRotation;
-  }
 
 protected:
   virtual nsIntPoint GetOriginOffset() {
@@ -1106,17 +1100,6 @@ Layer*
 ShadowThebesLayerOGL::GetLayer()
 {
   return this;
-}
-
-LayerRenderState
-ShadowThebesLayerOGL::GetRenderState()
-{
-  if (!mBuffer || mDestroyed) {
-    return LayerRenderState();
-  }
-  uint32_t flags = (mBuffer->Rotation() != nsIntPoint()) ?
-                   LAYER_RENDER_STATE_BUFFER_ROTATION : 0;
-  return LayerRenderState(&mBufferDescriptor, flags);
 }
 
 bool

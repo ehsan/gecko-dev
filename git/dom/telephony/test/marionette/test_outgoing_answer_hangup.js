@@ -21,12 +21,7 @@ function verifyInitialState() {
   runEmulatorCmd("gsm list", function(result) {
     log("Initial call list: " + result);
     is(result[0], "OK");
-    if (result[0] == "OK") {
-      dial();
-    } else {
-      log("Call exists from a previous test, failing out.");
-      cleanUp();
-    }
+    dial();
   });
 }
 
@@ -43,18 +38,12 @@ function dial() {
   is(telephony.calls.length, 1);
   is(telephony.calls[0], outgoing);
 
-  outgoing.onalerting = function onalerting(event) {
-    log("Received 'onalerting' call event.");
-    is(outgoing, event.call);
-    is(outgoing.state, "alerting");
-
-    runEmulatorCmd("gsm list", function(result) {
-      log("Call list is now: " + result);
-      is(result[0], "outbound to  " + number + " : ringing");
-      is(result[1], "OK");
-      answer();
-    });
-  };
+  runEmulatorCmd("gsm list", function(result) {
+    log("Call list is now: " + result);
+    is(result[0], "outbound to  " + number + " : unknown");
+    is(result[1], "OK");
+    answer();
+  });
 }
 
 function answer() {

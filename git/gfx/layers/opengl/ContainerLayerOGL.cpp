@@ -5,7 +5,6 @@
 
 #include "ContainerLayerOGL.h"
 #include "gfxUtils.h"
-#include "gfxPlatform.h"
 
 namespace mozilla {
 namespace layers {
@@ -210,12 +209,10 @@ ContainerRender(Container* aContainer,
       // not safe.
       if (HasOpaqueAncestorLayer(aContainer) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-        mode = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering() ?
-		LayerManagerOGL::InitModeCopy :
-		LayerManagerOGL::InitModeClear;
+        mode = LayerManagerOGL::InitModeCopy;
         framebufferRect.x += transform.x0;
         framebufferRect.y += transform.y0;
-        aContainer->mSupportsComponentAlphaChildren = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering();
+        aContainer->mSupportsComponentAlphaChildren = true;
       }
     }
 
@@ -493,7 +490,6 @@ ShadowRefLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 void
 ShadowRefLayerOGL::CleanupResources()
 {
-  MOZ_ASSERT(!mFirstChild);
 }
 
 } /* layers */

@@ -9,6 +9,7 @@
 #include "nsSVGSwitchElement.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsStyleUtil.h"
+#include "nsSVGUtils.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;

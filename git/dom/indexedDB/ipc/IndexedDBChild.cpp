@@ -41,7 +41,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -86,7 +86,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
@@ -110,7 +110,7 @@ public:
                                             MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -159,9 +159,6 @@ public:
 
 IndexedDBChild::IndexedDBChild(const nsCString& aASCIIOrigin)
 : mFactory(nullptr), mASCIIOrigin(aASCIIOrigin)
-#ifdef DEBUG
-  , mDisconnected(false)
-#endif
 {
   MOZ_COUNT_CTOR(IndexedDBChild);
 }
@@ -180,21 +177,6 @@ IndexedDBChild::SetFactory(IDBFactory* aFactory)
 
   aFactory->SetActor(this);
   mFactory = aFactory;
-}
-
-void
-IndexedDBChild::Disconnect()
-{
-#ifdef DEBUG
-  MOZ_ASSERT(!mDisconnected);
-  mDisconnected = true;
-#endif
-
-  const InfallibleTArray<PIndexedDBDatabaseChild*>& databases =
-    ManagedPIndexedDBDatabaseChild();
-  for (uint32_t i = 0; i < databases.Length(); ++i) {
-    static_cast<IndexedDBDatabaseChild*>(databases[i])->Disconnect();
-  }
 }
 
 void
@@ -264,19 +246,9 @@ IndexedDBDatabaseChild::SetRequest(IDBOpenDBRequest* aRequest)
   mRequest = aRequest;
 }
 
-void
-IndexedDBDatabaseChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBTransactionChild*>& transactions =
-    ManagedPIndexedDBTransactionChild();
-  for (uint32_t i = 0; i < transactions.Length(); ++i) {
-    static_cast<IndexedDBTransactionChild*>(transactions[i])->Disconnect();
-  }
-}
-
 bool
 IndexedDBDatabaseChild::EnsureDatabase(
-                           IDBOpenDBRequest* aRequest,
+                           IDBRequest* aRequest,
                            const DatabaseInfoGuts& aDBInfo,
                            const InfallibleTArray<ObjectStoreInfoGuts>& aOSInfo)
 {
@@ -321,8 +293,8 @@ IndexedDBDatabaseChild::EnsureDatabase(
 
   if (!mDatabase) {
     nsRefPtr<IDBDatabase> database =
-      IDBDatabase::Create(aRequest, aRequest->Factory(), dbInfo.forget(),
-                          aDBInfo.origin, NULL, NULL);
+      IDBDatabase::Create(aRequest, dbInfo.forget(), aDBInfo.origin, NULL,
+                          NULL);
     if (!database) {
       NS_WARNING("Failed to create database!");
       return false;
@@ -463,15 +435,6 @@ IndexedDBDatabaseChild::RecvVersionChange(const uint64_t& aOldVersion,
 }
 
 bool
-IndexedDBDatabaseChild::RecvInvalidate()
-{
-  if (mDatabase) {
-    mDatabase->Invalidate();
-  }
-  return true;
-}
-
-bool
 IndexedDBDatabaseChild::RecvPIndexedDBTransactionConstructor(
                                              PIndexedDBTransactionChild* aActor,
                                              const TransactionParams& aParams)
@@ -581,16 +544,6 @@ IndexedDBTransactionChild::SetTransaction(IDBTransaction* aTransaction)
 }
 
 void
-IndexedDBTransactionChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBObjectStoreChild*>& objectStores =
-    ManagedPIndexedDBObjectStoreChild();
-  for (uint32_t i = 0; i < objectStores.Length(); ++i) {
-    static_cast<IndexedDBObjectStoreChild*>(objectStores[i])->Disconnect();
-  }
-}
-
-void
 IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
 {
   MOZ_ASSERT(mTransaction);
@@ -631,30 +584,9 @@ IndexedDBTransactionChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 bool
-IndexedDBTransactionChild::RecvComplete(const CompleteParams& aParams)
+IndexedDBTransactionChild::RecvComplete(const nsresult& aRv)
 {
-  MOZ_ASSERT(mTransaction);
-  MOZ_ASSERT(mStrongTransaction);
-
-  nsresult resultCode;
-
-  switch (aParams.type()) {
-    case CompleteParams::TCompleteResult:
-      resultCode = NS_OK;
-      break;
-    case CompleteParams::TAbortResult:
-      resultCode = aParams.get_AbortResult().errorCode();
-      if (NS_SUCCEEDED(resultCode)) {
-        resultCode = NS_ERROR_DOM_INDEXEDDB_ABORT_ERR;
-      }
-      break;
-
-    default:
-      MOZ_NOT_REACHED("Unknown union type!");
-      return false;
-  }
-
-  FireCompleteEvent(resultCode);
+  FireCompleteEvent(aRv);
   return true;
 }
 
@@ -690,28 +622,6 @@ IndexedDBObjectStoreChild::~IndexedDBObjectStoreChild()
 {
   MOZ_COUNT_DTOR(IndexedDBObjectStoreChild);
   MOZ_ASSERT(!mObjectStore);
-}
-
-void
-IndexedDBObjectStoreChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBIndexChild*>& indexes =
-    ManagedPIndexedDBIndexChild();
-  for (uint32_t i = 0; i < indexes.Length(); ++i) {
-    static_cast<IndexedDBIndexChild*>(indexes[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBCursorChild*>& cursors =
-    ManagedPIndexedDBCursorChild();
-  for (uint32_t i = 0; i < cursors.Length(); ++i) {
-    static_cast<IndexedDBCursorChild*>(cursors[i])->Disconnect();
-  }
 }
 
 void
@@ -818,22 +728,6 @@ IndexedDBIndexChild::~IndexedDBIndexChild()
 {
   MOZ_COUNT_DTOR(IndexedDBIndexChild);
   MOZ_ASSERT(!mIndex);
-}
-
-void
-IndexedDBIndexChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBCursorChild*>& cursors =
-    ManagedPIndexedDBCursorChild();
-  for (uint32_t i = 0; i < cursors.Length(); ++i) {
-    static_cast<IndexedDBCursorChild*>(cursors[i])->Disconnect();
-  }
 }
 
 void
@@ -959,16 +853,6 @@ IndexedDBCursorChild::SetCursor(IDBCursor* aCursor)
 }
 
 void
-IndexedDBCursorChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-}
-
-void
 IndexedDBCursorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mCursor) {
@@ -1012,24 +896,7 @@ IndexedDBRequestChildBase::~IndexedDBRequestChildBase()
 IDBRequest*
 IndexedDBRequestChildBase::GetRequest() const
 {
-  return mHelper ? mHelper->GetRequest() : nullptr;
-}
-
-void
-IndexedDBRequestChildBase::Disconnect()
-{
-  if (mHelper) {
-    IDBRequest* request = mHelper->GetRequest();
-
-    if (request->IsPending()) {
-      request->SetError(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      IDBTransaction* transaction = mHelper->GetTransaction();
-      if (transaction) {
-        transaction->OnRequestDisconnected();
-      }
-    }
-  }
+  return mHelper ? mHelper->GetRequest() : NULL;
 }
 
 bool
@@ -1280,8 +1147,8 @@ IPCOpenDatabaseHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-IPCOpenDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+IPCOpenDatabaseHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;
@@ -1309,8 +1176,8 @@ IPCSetVersionHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-IPCSetVersionHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+IPCSetVersionHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;
@@ -1347,8 +1214,8 @@ IPCDeleteDatabaseHelper::UnpackResponseFromParentProcess(
   return NS_ERROR_FAILURE;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-IPCDeleteDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+IPCDeleteDatabaseHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   MOZ_NOT_REACHED("Don't call me!");
   return Error;

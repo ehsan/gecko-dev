@@ -20,8 +20,6 @@ GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
 CPPSRCS = 				\
-	CryptoTask.cpp \
-	JARSignatureVerification.cpp \
 	nsCERTValInParamWrapper.cpp     \
 	nsNSSCleaner.cpp                \
 	nsCertOverrideService.cpp   \
@@ -74,7 +72,6 @@ CPPSRCS = 				\
   nsNSSCertificateFakeTransport.cpp \
   PSMRunnable.cpp \
   nsNSSVersion.cpp \
-  nsCertificatePrincipal.cpp \
   $(NULL)
 
 ifdef MOZ_XUL
@@ -93,10 +90,12 @@ DEFINES += \
   $(NULL)
 
 EXPORTS += \
-  CryptoTask.h \
   nsNSSShutDown.h \
-  ScopedNSSTypes.h \
   $(NULL)
+
+# Use local includes because they are inserted before INCLUDES
+# so that Mozilla's nss.h is used, not glibc's
+LOCAL_INCLUDES += $(NSS_CFLAGS)
 
 include $(topsrcdir)/config/rules.mk
 

@@ -128,7 +128,7 @@ private:
 
   static TimeDuration FromTicks(double aTicks) {
     // NOTE: this MUST be a >= test, because int64_t(double(INT64_MAX))
-    // overflows and gives INT64_MIN.
+    // overflows and gives LL_MININT.
     if (aTicks >= double(INT64_MAX))
       return TimeDuration::FromTicks(INT64_MAX);
 
@@ -198,16 +198,16 @@ public:
   TimeDuration operator-(const TimeStamp& aOther) const {
     MOZ_ASSERT(!IsNull(), "Cannot compute with a null value");
     MOZ_ASSERT(!aOther.IsNull(), "Cannot compute with aOther null value");
-    PR_STATIC_ASSERT(-INT64_MAX > INT64_MIN);
+    PR_STATIC_ASSERT(-LL_MAXINT > LL_MININT);
     int64_t ticks = int64_t(mValue - aOther.mValue);
     // Check for overflow.
     if (mValue > aOther.mValue) {
       if (ticks < 0) {
-        ticks = INT64_MAX;
+        ticks = LL_MAXINT;
       }
     } else {
       if (ticks > 0) {
-        ticks = INT64_MIN;
+        ticks = LL_MININT;
       }
     }
     return TimeDuration::FromTicks(ticks);

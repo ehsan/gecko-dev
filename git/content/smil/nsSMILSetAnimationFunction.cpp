@@ -88,7 +88,7 @@ nsSMILSetAnimationFunction::GetAttr(nsIAtom* aAttName,
                                     nsAString& aResult) const
 {
   if (IsDisallowedAttribute(aAttName))
-    return false;
+    return nullptr;
 
   return nsSMILAnimationFunction::GetAttr(aAttName, aResult);
 }

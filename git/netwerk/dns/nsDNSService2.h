@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsDNSService2_h__
-#define nsDNSService2_h__
-
 #include "nsPIDNSService.h"
 #include "nsIIDNService.h"
 #include "nsIObserver.h"
@@ -44,8 +41,5 @@ private:
     bool                      mDisableIPv6;
     bool                      mDisablePrefetch;
     bool                      mFirstTime;
-    bool                      mOffline;
     nsTHashtable<nsCStringHashKey> mLocalDomains;
 };
-
-#endif //nsDNSService2_h__

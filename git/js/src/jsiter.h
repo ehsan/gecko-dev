@@ -65,7 +65,7 @@ struct NativeIterator
 
     static NativeIterator *allocateIterator(JSContext *cx, uint32_t slength,
                                             const js::AutoIdVector &props);
-    void init(RawObject obj, unsigned flags, uint32_t slength, uint32_t key);
+    void init(JSObject *obj, unsigned flags, uint32_t slength, uint32_t key);
 
     void mark(JSTracer *trc);
 };
@@ -78,11 +78,9 @@ class PropertyIteratorObject : public JSObject
     inline NativeIterator *getNativeIterator() const;
     inline void setNativeIterator(js::NativeIterator *ni);
 
-    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
-
   private:
-    static void trace(JSTracer *trc, RawObject obj);
-    static void finalize(FreeOp *fop, RawObject obj);
+    static void trace(JSTracer *trc, JSObject *obj);
+    static void finalize(FreeOp *fop, JSObject *obj);
 };
 
 /*
@@ -118,9 +116,6 @@ VectorToIdArray(JSContext *cx, AutoIdVector &props, JSIdArray **idap);
 bool
 GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue vp);
 
-JSObject *
-GetIteratorObject(JSContext *cx, HandleObject obj, unsigned flags);
-
 bool
 VectorToKeyIterator(JSContext *cx, HandleObject obj, unsigned flags, AutoIdVector &props,
                     MutableHandleValue vp);
@@ -147,13 +142,13 @@ bool
 ValueToIterator(JSContext *cx, unsigned flags, MutableHandleValue vp);
 
 bool
-CloseIterator(JSContext *cx, HandleObject iterObj);
+CloseIterator(JSContext *cx, JSObject *iterObj);
 
 bool
-UnwindIteratorForException(JSContext *cx, js::HandleObject obj);
+UnwindIteratorForException(JSContext *cx, JSObject *obj);
 
 void
-UnwindIteratorForUncatchableException(JSContext *cx, RawObject obj);
+UnwindIteratorForUncatchableException(JSContext *cx, JSObject *obj);
 
 JSBool
 IteratorConstructor(JSContext *cx, unsigned argc, Value *vp);
@@ -174,11 +169,11 @@ js_SuppressDeletedElements(JSContext *cx, js::HandleObject obj, uint32_t begin, 
  * internally call iterobj.next() and then cache the value until its
  * picked up by IteratorNext(). The value is cached in the current context.
  */
-extern bool
+extern JSBool
 js_IteratorMore(JSContext *cx, js::HandleObject iterobj, js::MutableHandleValue rval);
 
-extern bool
-js_IteratorNext(JSContext *cx, js::HandleObject iterobj, js::MutableHandleValue rval);
+extern JSBool
+js_IteratorNext(JSContext *cx, JSObject *iterobj, js::MutableHandleValue rval);
 
 extern JSBool
 js_ThrowStopIteration(JSContext *cx);
@@ -315,6 +310,6 @@ GeneratorHasMarkableFrame(JSGenerator *gen);
 #endif
 
 extern JSObject *
-js_InitIteratorClasses(JSContext *cx, js::HandleObject obj);
+js_InitIteratorClasses(JSContext *cx, JSObject *obj);
 
 #endif /* jsiter_h___ */

@@ -781,8 +781,10 @@ nsUnknownContentTypeDialog.prototype = {
     // Don't update mime type preferences when the preferred action is set to
     // the internal handler -- this dialog is the result of the handler fallback
     // (e.g. Content-Disposition was set as attachment)
-    var discardUpdate = this.mLauncher.MIMEInfo.preferredAction == this.nsIMIMEInfo.handleInternally &&
-                        !this.dialogElement("rememberChoice").checked;
+    if (this.mLauncher.MIMEInfo.preferredAction == this.nsIMIMEInfo.handleInternally &&
+        !this.dialogElement("rememberChoice").checked) {
+      return false;
+    }
 
     var needUpdate = false;
     // If current selection differs from what's in the mime info object,
@@ -822,7 +824,7 @@ nsUnknownContentTypeDialog.prototype = {
     // Make sure mime info has updated setting for the "always ask" flag.
     this.mLauncher.MIMEInfo.alwaysAskBeforeHandling = !this.dialogElement("rememberChoice").checked;
 
-    return needUpdate && !discardUpdate;
+    return needUpdate;
   },
 
   // See if the user changed things, and if so, update the
@@ -1078,4 +1080,4 @@ nsUnknownContentTypeDialog.prototype = {
   }
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);

@@ -16,7 +16,9 @@ function test() {
       ok(pane, "toggleDebugger() should return a pane.");
       let frame = pane._frame;
 
-      wait_for_connect_and_resume(function() {
+      frame.addEventListener("Debugger:Loaded", function dbgLoaded() {
+        frame.removeEventListener("Debugger:Loaded", dbgLoaded, true);
+
         let cmd = document.getElementById("Tools:Debugger");
         is(cmd.getAttribute("checked"), "true", "<command Tools:Debugger> is checked.");
 
@@ -31,10 +33,10 @@ function test() {
         let pane = DebuggerUI.toggleDebugger();
 
         is(cmd.getAttribute("checked"), "false", "<command Tools:Debugger> is unchecked once closed.");
-      });
+      }, true);
 
-      window.addEventListener("Debugger:Shutdown", function dbgShutdown() {
-        window.removeEventListener("Debugger:Shutdown", dbgShutdown, true);
+      frame.addEventListener("Debugger:Unloaded", function dbgUnloaded() {
+        frame.removeEventListener("Debugger:Unloaded", dbgUnloaded, true);
           removeTab(tab1);
           removeTab(tab2);
 
@@ -43,3 +45,4 @@ function test() {
     });
   });
 }
+

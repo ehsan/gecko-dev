@@ -12,7 +12,6 @@
 #include "jsfriendapi.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
-#include "AudioChannelCommon.h"
 
 using namespace mozilla::dom;
 
@@ -127,7 +126,7 @@ nsHTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate)
   }
 
   mAudioStream = nsAudioStream::AllocateStream();
-  nsresult rv = mAudioStream->Init(aChannels, aRate, mAudioChannelType);
+  nsresult rv = mAudioStream->Init(aChannels, aRate);
   if (NS_FAILED(rv)) {
     mAudioStream->Shutdown();
     mAudioStream = nullptr;
@@ -180,7 +179,7 @@ nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32
   uint32_t writeLen = NS_MIN(mAudioStream->Available(), dataLength / mChannels);
 
   float* frames = JS_GetFloat32ArrayData(tsrc, aCx);
-#ifdef MOZ_SAMPLE_TYPE_S16
+#ifdef MOZ_SAMPLE_TYPE_S16LE
   // Convert the samples back to integers as we are using fixed point audio in
   // the nsAudioStream.
   nsAutoArrayPtr<short> shortsArray(new short[writeLen * mChannels]);
@@ -230,7 +229,7 @@ nsHTMLAudioElement::MozCurrentSampleOffset(uint64_t *aRetVal)
 
 nsresult nsHTMLAudioElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 {
-    nsAutoCString value(
+    nsCAutoString value(
 #ifdef MOZ_WEBM
       "audio/webm,"
 #endif

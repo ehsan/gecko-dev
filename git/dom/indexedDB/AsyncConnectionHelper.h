@@ -37,6 +37,15 @@ class HelperBase : public nsIRunnable
   friend class IDBRequest;
 
 public:
+  enum ChildProcessSendResult
+  {
+    Success_Sent = 0,
+    Success_NotSent,
+    Error
+  };
+
+  virtual ChildProcessSendResult
+  MaybeSendResponseToChildProcess(nsresult aResultCode) = 0;
 
   virtual nsresult GetResultCode() = 0;
 
@@ -107,17 +116,12 @@ public:
 
   static IDBTransaction* GetCurrentTransaction();
 
-  bool HasTransaction() const
-  {
-    return !!mTransaction;
-  }
-
-  IDBTransaction* GetTransaction() const
+  bool HasTransaction()
   {
     return mTransaction;
   }
 
-  nsISupports* GetSource() const
+  nsISupports* GetSource()
   {
     return mRequest ? mRequest->Source() : nullptr;
   }
@@ -126,25 +130,6 @@ public:
   {
     return mResultCode;
   }
-
-  enum ChildProcessSendResult
-  {
-    // The result was successfully sent to the child process
-    Success_Sent = 0,
-
-    // The result was not sent, because this is not an out-of-process request.
-    Success_NotSent,
-
-    // The result was not sent, because the actor has been disconnected
-    // (if the child process has shut down or crashed).
-    Success_ActorDisconnected,
-
-    // An error occurred.
-    Error
-  };
-
-  ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode);
 
   virtual nsresult OnParentProcessRequestComplete(
                                            const ResponseValue& aResponseValue);
@@ -221,14 +206,6 @@ protected:
    * This should only be called by AutoSetCurrentTransaction.
    */
   static void SetCurrentTransaction(IDBTransaction* aTransaction);
-
-  /**
-   * Allows the subclass to send its results to the child process.  Will only
-   * be called if all of the IPC infrastructure is available (there is an
-   * actor, the child is stil alive and hasn't begun shutting down).
-   */
-  virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) = 0;
 
 protected:
   nsRefPtr<IDBDatabase> mDatabase;

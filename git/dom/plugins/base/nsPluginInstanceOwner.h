@@ -20,6 +20,11 @@
 #include "nsWeakReference.h"
 #include "gfxRect.h"
 
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
+#endif
+
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
 #include <ApplicationServices/ApplicationServices.h>
@@ -44,6 +49,11 @@ class gfxXlibSurface;
 #define INCL_PM
 #define INCL_GPI
 #include <os2.h>
+#endif
+
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
 #endif
 
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
@@ -83,8 +93,8 @@ public:
   // nsIDOMEventListener interfaces 
   NS_DECL_NSIDOMEVENTLISTENER
   
-  nsresult ProcessMouseDown(nsIDOMEvent* aKeyEvent);
-  nsresult ProcessKeyPress(nsIDOMEvent* aKeyEvent);
+  nsresult MouseDown(nsIDOMEvent* aKeyEvent);
+  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
   nsresult Text(nsIDOMEvent* aTextEvent);
 #endif
@@ -129,7 +139,6 @@ public:
   
   NPDrawingModel GetDrawingModel();
   bool IsRemoteDrawingCoreAnimation();
-  nsresult ContentsScaleFactorChanged(double aContentsScaleFactor);
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
   void AddToCARefreshTimer();
@@ -297,6 +306,9 @@ private:
   
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
+#ifndef NP_NO_QUICKDRAW
+  NP_Port                                   mQDPluginPortCopy;
+#endif
   int32_t                                   mInCGPaintLevel;
   mozilla::RefPtr<MacIOSurface>             mIOSurface;
   mozilla::RefPtr<nsCARenderer>             mCARenderer;

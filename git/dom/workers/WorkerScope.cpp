@@ -12,7 +12,6 @@
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/FileReaderSyncBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/OSFileConstants.h"
@@ -839,13 +838,11 @@ private:
     }
 
     jsval message;
-    jsval transferable = JSVAL_VOID;
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v/v",
-                             &message, &transferable)) {
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &message)) {
       return false;
     }
 
-    return scope->mWorker->PostMessageToParent(aCx, message, transferable);
+    return scope->mWorker->PostMessageToParent(aCx, message);
   }
 };
 
@@ -856,8 +853,6 @@ MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
 // sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass DedicatedWorkerGlobalScope::sClass = {
   {
-    // We don't have to worry about Xray expando slots here because we'll never
-    // have an Xray wrapper to a worker global scope.
     "DedicatedWorkerGlobalScope",
     JSCLASS_DOM_GLOBAL | JSCLASS_IS_DOMJSCLASS | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(3) | JSCLASS_NEW_RESOLVE,
@@ -870,7 +865,8 @@ DOMJSClass DedicatedWorkerGlobalScope::sClass = {
       prototypes::id::_ID_Count },
     false,
     &sNativePropertyHooks
-  }
+  },
+  -1
 };
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
@@ -980,6 +976,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   // Init other classes we care about.
   if (!events::InitClasses(aCx, global, false) ||
       !file::InitClasses(aCx, global) ||
+      !filereadersync::InitClass(aCx, global) ||
       !exceptions::InitClasses(aCx, global) ||
       !location::InitClass(aCx, global) ||
       !imagedata::InitClass(aCx, global) ||
@@ -992,8 +989,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   // double-calling CreateInterfaceObjects when we actually create an
   // object which has these protos, which breaks things like
   // instanceof.
-  if (!FileReaderSyncBinding_workers::GetProtoObject(aCx, global, global) ||
-      !XMLHttpRequestBinding_workers::GetProtoObject(aCx, global, global) ||
+  if (!XMLHttpRequestBinding_workers::GetProtoObject(aCx, global, global) ||
       !XMLHttpRequestUploadBinding_workers::GetProtoObject(aCx, global, global)) {
     return NULL;
   }

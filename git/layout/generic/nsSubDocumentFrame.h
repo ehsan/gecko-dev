@@ -6,7 +6,6 @@
 #ifndef NSSUBDOCUMENTFRAME_H_
 #define NSSUBDOCUMENTFRAME_H_
 
-#include "mozilla/Attributes.h"
 #include "nsLeafFrame.h"
 #include "nsIReflowCallback.h"
 #include "nsFrameLoader.h"
@@ -24,7 +23,6 @@ public:
   nsSubDocumentFrame(nsStyleContext* aContext);
 
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
@@ -64,11 +62,11 @@ public:
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -91,8 +89,8 @@ public:
   nsIFrame* GetSubdocumentRootFrame();
 
   // nsIReflowCallback
-  virtual bool ReflowFinished() MOZ_OVERRIDE;
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
+  virtual bool ReflowFinished();
+  virtual void ReflowCallbackCanceled();
 
   bool ShouldClipSubdocument()
   {
@@ -116,8 +114,8 @@ protected:
 
   bool IsInline() { return mIsInline; }
 
-  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
   virtual int GetSkipSides() const;
 
@@ -135,12 +133,6 @@ protected:
    * says it should be called ObtainDocShell because of it's side effects.
    */
   nsIFrame* ObtainIntrinsicSizeFrame();
-
-  /**
-   * Return true if pointer event hit-testing should be allowed to target
-   * content in the subdocument.
-   */
-  bool PassPointerEventsToChildren();
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsIView* mInnerView;

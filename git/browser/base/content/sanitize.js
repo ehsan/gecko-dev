@@ -85,8 +85,8 @@ Sanitizer.prototype = {
           cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
-        var imageCache = Cc["@mozilla.org/image/tools;1"].
-                         getService(Ci.imgITools).getImgCacheForDocument(null);
+        var imageCache = Cc["@mozilla.org/image/cache;1"].
+                         getService(Ci.imgICache);
         try {
           imageCache.clearCache(false); // true=chrome, false=content
         } catch(er) {}

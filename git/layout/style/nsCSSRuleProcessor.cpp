@@ -42,7 +42,6 @@
 #include "nsStyleUtil.h"
 #include "nsQuickSort.h"
 #include "nsAttrValue.h"
-#include "nsAttrValueInlines.h"
 #include "nsAttrName.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"

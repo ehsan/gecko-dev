@@ -17,43 +17,34 @@ GRE_MODULE     = 1
 
 FORCE_STATIC_LIB = 1
 
-ifneq ($(OS_ARCH),Darwin)
-# osx_corewlan.mm has warnings I don't understand.
-FAIL_ON_WARNINGS := 1
-endif
-
 XPIDLSRCS = \
   nsIWifiAccessPoint.idl \
   nsIWifiListener.idl \
   nsIWifiMonitor.idl \
   $(NULL)
 
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-CPPSRCS += nsWifiMonitorGonk.cpp
-else
-CPPSRCS += nsWifiMonitor.cpp
-endif
-
-CPPSRCS += nsWifiAccessPoint.cpp
+CPPSRCS = \
+  nsWifiMonitor.cpp \
+  nsWifiAccessPoint.cpp \
+  $(NULL)
 
 ifeq ($(OS_ARCH),Darwin)
 CPPSRCS += nsWifiScannerMac.cpp
 CMMSRCS = osx_corewlan.mm
-endif
-
+else
 ifneq (,$(filter WINNT,$(OS_ARCH)))
 CPPSRCS += nsWifiScannerWin.cpp
-endif
-
+else
+ifeq ($(OS_ARCH),Linux)
+CPPSRCS += nsWifiScannerUnix.cpp
+else
 ifeq ($(OS_ARCH),SunOS)
 CPPSRCS += nsWifiScannerSolaris.cpp
 OS_INCLUDES += $(GLIB_CFLAGS)
-endif
-
-ifdef MOZ_ENABLE_DBUS
-CPPSRCS += nsWifiScannerDBus.cpp
-OS_INCLUDES += $(MOZ_DBUS_GLIB_CFLAGS)
-endif
+endif # solaris
+endif # linux
+endif # windows
+endif # mac
 
 include $(topsrcdir)/config/rules.mk
 

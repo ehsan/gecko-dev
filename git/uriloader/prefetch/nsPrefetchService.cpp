@@ -28,8 +28,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
 #include "nsIDOMNode.h"
-#include "nsINode.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
@@ -60,7 +58,7 @@ PRTimeToSeconds(PRTime t_usec)
     PRTime usec_per_sec;
     uint32_t t_sec;
     LL_I2L(usec_per_sec, PR_USEC_PER_SEC);
-    t_usec /= usec_per_sec;
+    LL_DIV(t_usec, t_usec, usec_per_sec);
     LL_L2I(t_sec, t_usec);
     return t_sec;
 }
@@ -181,16 +179,9 @@ nsPrefetchNode::nsPrefetchNode(nsPrefetchService *aService,
 nsresult
 nsPrefetchNode::OpenChannel()
 {
-    nsCOMPtr<nsINode> source = do_QueryReferent(mSource);
-    if (!source) {
-        // Don't attempt to prefetch if we don't have a source node
-        // (which should never happen).
-        return NS_ERROR_FAILURE;
-    }
-    nsCOMPtr<nsILoadGroup> loadGroup = source->OwnerDoc()->GetDocumentLoadGroup();
     nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                                 mURI,
-                                nullptr, loadGroup, this,
+                                nullptr, nullptr, this,
                                 nsIRequest::LOAD_BACKGROUND |
                                 nsICachingChannel::LOAD_ONLY_IF_MODIFIED);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -290,13 +281,13 @@ NS_IMETHODIMP
 nsPrefetchNode::OnDataAvailable(nsIRequest *aRequest,
                                 nsISupports *aContext,
                                 nsIInputStream *aStream,
-                                uint64_t aOffset,
+                                uint32_t aOffset,
                                 uint32_t aCount)
 {
     uint32_t bytesRead = 0;
     aStream->ReadSegments(NS_DiscardSegment, nullptr, aCount, &bytesRead);
     mBytesRead += bytesRead;
-    LOG(("prefetched %u bytes [offset=%llu]\n", bytesRead, aOffset));
+    LOG(("prefetched %u bytes [offset=%u]\n", bytesRead, aOffset));
     return NS_OK;
 }
 
@@ -465,7 +456,7 @@ nsPrefetchService::ProcessNextURI()
 
 #if defined(PR_LOGGING)
         if (LOG_ENABLED()) {
-            nsAutoCString spec;
+            nsCAutoString spec;
             mCurrentNode->mURI->GetSpec(spec);
             LOG(("ProcessNextURI [%s]\n", spec.get()));
         }
@@ -651,7 +642,7 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
 
 #if defined(PR_LOGGING)
     if (LOG_ENABLED()) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         aURI->GetSpec(spec);
         LOG(("PrefetchURI [%s]\n", spec.get()));
     }
@@ -700,7 +691,7 @@ nsPrefetchService::Prefetch(nsIURI *aURI,
     if (!aExplicit) {
         nsCOMPtr<nsIURL> url(do_QueryInterface(aURI, &rv));
         if (NS_FAILED(rv)) return rv;
-        nsAutoCString query;
+        nsCAutoString query;
         rv = url->GetQuery(query);
         if (NS_FAILED(rv) || !query.IsEmpty()) {
             LOG(("rejected: URL has a query string\n"));
@@ -796,7 +787,7 @@ nsPrefetchNode::GetSource(nsIDOMNode **aSource)
 NS_IMETHODIMP
 nsPrefetchNode::GetUri(nsAString &aURI)
 {
-    nsAutoCString spec;
+    nsCAutoString spec;
     nsresult rv = mURI->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -844,6 +835,15 @@ nsPrefetchNode::GetStatus(uint16_t *aStatus)
     uint32_t httpStatus;
     rv = httpChannel->GetResponseStatus(&httpStatus);
     if (rv == NS_ERROR_NOT_AVAILABLE) {
+        // Someone's calling this before we got a response... Check our
+        // ReadyState.  If we're at RECEIVING or LOADED, then this means the
+        // connection errored before we got any data; return a somewhat
+        // sensible error code in that case.
+        if (mState >= nsIDOMLoadStatus::RECEIVING) {
+            *aStatus = NS_ERROR_NOT_AVAILABLE;
+            return NS_OK;
+        }
+
         *aStatus = 0;
         return NS_OK;
     }
