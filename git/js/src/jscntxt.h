@@ -1160,6 +1160,15 @@ typedef struct JSResolvingEntry {
 
 extern const JSDebugHooks js_NullDebugHooks;  /* defined in jsdbgapi.cpp */
 
+/*
+ * Wraps a stack frame which has been temporarily popped from its call stack
+ * and needs to be GC-reachable. See JSContext::{push,pop}GCReachableFrame.
+ */
+struct JSGCReachableFrame {
+    JSGCReachableFrame  *next;
+    JSStackFrame        *frame;
+};
+
 namespace js {
 class AutoGCRooter;
 }
@@ -1281,6 +1290,19 @@ struct JSContext
     /* Client opaque pointers. */
     void                *data;
     void                *data2;
+
+    /* Linked list of frames temporarily popped from their chain. */
+    JSGCReachableFrame  *reachableFrames;
+
+    void pushGCReachableFrame(JSGCReachableFrame &gcrf, JSStackFrame *f) {
+        gcrf.next = reachableFrames;
+        gcrf.frame = f;
+        reachableFrames = &gcrf;
+    }
+
+    void popGCReachableFrame() {
+        reachableFrames = reachableFrames->next;
+    }
 
   private:
 #ifdef __GNUC__
@@ -1645,8 +1667,7 @@ class AutoGCRooter {
         NAMESPACES =   -9, /* js::AutoNamespaceArray */
         XML =         -10, /* js::AutoXMLRooter */
         OBJECT =      -11, /* js::AutoObjectRooter */
-        ID =          -12, /* js::AutoIdRooter */
-        VECTOR =      -13  /* js::AutoValueVector */
+        ID =          -12  /* js::AutoIdRooter */
     };
 };
 
@@ -2380,52 +2401,6 @@ ContextAllocPolicy::reportAllocOverflow() const
 {
     js_ReportAllocationOverflow(cx);
 }
-
-class AutoValueVector : private AutoGCRooter
-{
-  public:
-    explicit AutoValueVector(JSContext *cx
-                             JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, VECTOR), vector(cx)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    size_t length() const { return vector.length(); }
-
-    bool push(jsval v) { return vector.append(v); }
-    bool push(JSString *str) { return push(STRING_TO_JSVAL(str)); }
-    bool push(JSObject *obj) { return push(OBJECT_TO_JSVAL(obj)); }
-    bool push(jsdouble *dp) { return push(DOUBLE_TO_JSVAL(dp)); }
-
-    void pop() { vector.popBack(); }
-
-    bool resize(size_t newLength) {
-        size_t oldLength = vector.length();
-        if (!vector.resize(newLength))
-            return false;
-        JS_STATIC_ASSERT(JSVAL_NULL == 0);
-        if (newLength > oldLength)
-            PodZero(vector.begin(), newLength - oldLength);
-        return true;
-    }
-
-    bool reserve(size_t newLength) {
-        return vector.reserve(newLength);
-    }
-
-    jsval & operator[](size_t i) { return vector[i]; }
-    jsval operator[](size_t i) const { return vector[i]; }
-
-    const jsval * buffer() const { return vector.begin(); }
-    jsval * buffer() { return vector.begin(); }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-
-  private:
-    Vector<jsval, 8> vector;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
 
 }
 

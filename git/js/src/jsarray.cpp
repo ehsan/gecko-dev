@@ -1723,8 +1723,8 @@ InitArrayElements(JSContext *cx, JSObject *obj, jsuint start, jsuint count, jsva
 }
 
 static JSBool
-InitArrayObject(JSContext *cx, JSObject *obj, jsuint length, const jsval *vector,
-                bool holey = false)
+InitArrayObject(JSContext *cx, JSObject *obj, jsuint length, jsval *vector,
+                JSBool holey = JS_FALSE)
 {
     JS_ASSERT(obj->isArray());
 
@@ -3329,7 +3329,7 @@ JSBool
 js_Array(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     jsuint length;
-    const jsval *vector;
+    jsval *vector;
 
     /* If called without new, replace obj with a new Array object. */
     if (!JS_IsConstructing(cx)) {
@@ -3431,7 +3431,7 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
 }
 
 JSObject *
-js_NewArrayObject(JSContext *cx, jsuint length, const jsval *vector, bool holey)
+js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
 {
     JSObject *obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
     if (!obj)
