@@ -111,7 +111,6 @@ class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
 class nsISHEntry;
-class nsDOMNavigationTiming;
 
 namespace mozilla {
 namespace css {
@@ -1519,10 +1518,6 @@ public:
   virtual nsresult SetImageLockingState(PRBool aLocked) = 0;
 
   virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
-
-  virtual nsDOMNavigationTiming* GetNavigationTiming() const = 0;
-
-  virtual nsresult SetNavigationTiming(nsDOMNavigationTiming* aTiming) = 0;
 
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) = 0;
 
