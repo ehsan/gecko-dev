@@ -552,6 +552,8 @@ StackFramesView.prototype = {
        resume.setAttribute("tooltiptext", L10N.getStr("pauseTooltip"));
        resume.removeAttribute("checked");
      }
+
+     DebuggerView.Scripts.clearSearch();
    },
 
   /**
