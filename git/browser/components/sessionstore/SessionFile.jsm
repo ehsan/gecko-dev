@@ -194,6 +194,11 @@ let SessionFileInternal = {
     }
   },
 
+  /**
+   * |true| once we have decided to stop receiving write instructiosn
+   */
+  _isClosed: false,
+
   read: Task.async(function* () {
     let result;
     let noFilesFound = true;
@@ -265,16 +270,15 @@ let SessionFileInternal = {
   },
 
   write: function (aData) {
-    if (RunState.isClosed) {
+    if (this._isClosed) {
       return Promise.reject(new Error("SessionFile is closed"));
     }
 
     let isFinalWrite = false;
-    if (RunState.isClosing) {
+    if (RunState.isQuitting) {
       // If shutdown has started, we will want to stop receiving
       // write instructions.
-      isFinalWrite = true;
-      RunState.setClosed();
+      isFinalWrite = this._isClosed = true;
     }
 
     let refObj = {};

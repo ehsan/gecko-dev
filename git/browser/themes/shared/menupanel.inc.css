@@ -1,15 +1,10 @@
 /* Menu panel and palette styles */
 /* Note that this file isn't used for HiDPI on OS X. */
 
-:root {
-  --menupanel-list-style-image: url(chrome://browser/skin/menuPanel.png);
-  --menupanel-small-list-style-image: url(chrome://browser/skin/menuPanel-small.png);
-}
-
 toolbaritem[sdkstylewidget="true"] > toolbarbutton,
 :-moz-any(@primaryToolbarButtons@)[cui-areatype="menu-panel"],
 toolbarpaletteitem[place="palette"] > :-moz-any(@primaryToolbarButtons@) {
-  list-style-image: var(--menupanel-list-style-image);
+  list-style-image: url(chrome://browser/skin/menuPanel.png);
 }
 
 #home-button[cui-areatype="menu-panel"],
@@ -212,7 +207,7 @@ toolbarpaletteitem[place="palette"] > #loop-call-button > .toolbarbutton-badge-c
 #zoom-controls@inAnyPanel@ > toolbarbutton,
 toolbarpaletteitem[place="palette"] > #edit-controls > toolbarbutton,
 toolbarpaletteitem[place="palette"] > #zoom-controls > toolbarbutton {
-  list-style-image: var(--menupanel-small-list-style-image);
+  list-style-image: url(chrome://browser/skin/menuPanel-small.png);
 }
 
 #edit-controls@inAnyPanel@ > #cut-button,

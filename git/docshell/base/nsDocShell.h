@@ -970,7 +970,7 @@ private:
         delete mPayload;
       }
 
-      nsCString mName;
+      const char* mName;
       ProfilerMarkerTracing* mPayload;
       DOMHighResTimeStamp mTime;
     };

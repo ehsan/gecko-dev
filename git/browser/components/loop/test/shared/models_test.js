@@ -151,20 +151,11 @@ describe("loop.shared.models", function() {
           model = new sharedModels.ConversationModel(fakeSessionData, {
             sdk: fakeSDK
           });
-          model.set({
-            publishedStream: true,
-            subscribedStream: true
-          });
           model.startSession();
         });
 
         it("should start a session", function() {
           sinon.assert.calledOnce(fakeSDK.initSession);
-        });
-
-        it("should reset the stream flags", function() {
-          expect(model.get("publishedStream")).eql(false);
-          expect(model.get("subscribedStream")).eql(false);
         });
 
         it("should call connect", function() {
@@ -230,7 +221,7 @@ describe("loop.shared.models", function() {
 
               model.startSession();
 
-              sinon.assert.called(model.trigger);
+              sinon.assert.calledOnce(model.trigger);
               sinon.assert.calledWithExactly(model.trigger,
                           "session:connection-error", sinon.match.object);
             });
@@ -317,7 +308,6 @@ describe("loop.shared.models", function() {
           model = new sharedModels.ConversationModel(fakeSessionData, {
             sdk: fakeSDK
           });
-          model.set("ongoing", true);
           model.startSession();
         });
 
@@ -337,18 +327,6 @@ describe("loop.shared.models", function() {
           model.endSession();
 
           expect(model.get("ongoing")).eql(false);
-        });
-
-        it("should set the streams to unpublished", function() {
-          model.set({
-            publishedStream: true,
-            subscribedStream: true
-          });
-
-          model.endSession();
-
-          expect(model.get("publishedStream")).eql(false);
-          expect(model.get("subscribedStream")).eql(false);
         });
 
         it("should stop listening to session events once the session is " +

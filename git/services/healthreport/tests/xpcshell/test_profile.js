@@ -24,14 +24,9 @@ function MockProfileMetadataProvider(name="MockProfileMetadataProvider") {
 }
 MockProfileMetadataProvider.prototype = {
   __proto__: ProfileMetadataProvider.prototype,
-  includeProfileReset: false,
 
-  getProfileDays: function getProfileDays() {
-    let result = {profileCreation: 1234};
-    if (this.includeProfileReset) {
-      result.profileReset = 5678;
-    }
-    return Promise.resolve(result);
+  getProfileCreationDays: function getProfileCreationDays() {
+    return Promise.resolve(1234);
   },
 };
 
@@ -64,7 +59,7 @@ add_test(function use_os_file() {
 });
 
 function getAccessor() {
-  let acc = new ProfileTimesAccessor();
+  let acc = new ProfileCreationTimeAccessor();
   print("Profile is " + acc.profilePath);
   return acc;
 }
@@ -102,7 +97,7 @@ add_task(function test_time_accessor_creates_file() {
   let existing = {abc: "123", easy: "abc"};
   let expected;
 
-  let created = yield acc.computeAndPersistCreated(existing, "test2.json")
+  let created = yield acc.computeAndPersistTimes(existing, "test2.json")
   let upper = Date.now() + 1000;
   print(lower + " < " + created + " <= " + upper);
   do_check_true(lower < created);
@@ -130,15 +125,6 @@ add_task(function test_time_accessor_all() {
   do_check_eq(expected, again);
 });
 
-add_task(function* test_time_reset() {
-  let lower = profile_creation_lower;
-  let acc = getAccessor();
-  let testTime = 100000;
-  yield acc.recordProfileReset(testTime);
-  let reset = yield acc.reset;
-  Assert.equal(reset, testTime);
-});
-
 add_test(function test_constructor() {
   let provider = new ProfileMetadataProvider("named");
   run_next_test();
@@ -149,8 +135,8 @@ add_test(function test_profile_files() {
 
   function onSuccess(answer) {
     let now = Date.now() / MILLISECONDS_PER_DAY;
-    print("Got " + answer.profileCreation + ", versus now = " + now);
-    Assert.ok(answer.profileCreation < now);
+    print("Got " + answer + ", versus now = " + now);
+    do_check_true(answer < now);
     run_next_test();
   }
 
@@ -158,99 +144,52 @@ add_test(function test_profile_files() {
     do_throw("Directory iteration failed: " + ex);
   }
 
-  provider.getProfileDays().then(onSuccess, onFailure);
+  provider.getProfileCreationDays().then(onSuccess, onFailure);
 });
 
 // A generic test helper. We use this with both real
 // and mock providers in these tests.
-function test_collect_constant(provider, expectReset) {
-  return Task.spawn(function* () {
+function test_collect_constant(provider) {
+  return Task.spawn(function () {
     yield provider.collectConstantData();
 
-    let m = provider.getMeasurement("age", 2);
-    Assert.notEqual(m, null);
+    let m = provider.getMeasurement("age", 1);
+    do_check_neq(m, null);
     let values = yield m.getValues();
-    Assert.ok(values.singular.has("profileCreation"));
-    let createValue = values.singular.get("profileCreation")[1];
-    let resetValue;
-    if (expectReset) {
-      Assert.equal(values.singular.size, 2);
-      Assert.ok(values.singular.has("profileReset"));
-      resetValue = values.singular.get("profileReset")[1];
-    } else {
-      Assert.equal(values.singular.size, 1);
-      Assert.ok(!values.singular.has("profileReset"));
-    }
-    return [createValue, resetValue];
+    do_check_eq(values.singular.size, 1);
+    do_check_true(values.singular.has("profileCreation"));
+
+    throw new Task.Result(values.singular.get("profileCreation")[1]);
   });
 }
 
-add_task(function* test_collect_constant_mock_no_reset() {
+add_task(function test_collect_constant_mock() {
   let storage = yield Metrics.Storage("collect_constant_mock");
   let provider = new MockProfileMetadataProvider();
   yield provider.init(storage);
 
-  let v = yield test_collect_constant(provider, false);
-  Assert.equal(v.length, 2);
-  Assert.equal(v[0], 1234);
-  Assert.equal(v[1], undefined);
+  let v = yield test_collect_constant(provider);
+  do_check_eq(v, 1234);
 
   yield storage.close();
 });
 
-add_task(function* test_collect_constant_mock_with_reset() {
-  let storage = yield Metrics.Storage("collect_constant_mock");
-  let provider = new MockProfileMetadataProvider();
-  provider.includeProfileReset = true;
-  yield provider.init(storage);
-
-  let v = yield test_collect_constant(provider, true);
-  Assert.equal(v.length, 2);
-  Assert.equal(v[0], 1234);
-  Assert.equal(v[1], 5678);
-
-  yield storage.close();
-});
-
-add_task(function* test_collect_constant_real_no_reset() {
+add_task(function test_collect_constant_real() {
   let provider = new ProfileMetadataProvider();
   let storage = yield Metrics.Storage("collect_constant_real");
   yield provider.init(storage);
 
-  let vals = yield test_collect_constant(provider, false);
-  let created = vals[0];
-  let reset = vals[1];
-  Assert.equal(reset, undefined);
+  let v = yield test_collect_constant(provider);
 
-  let ms = created * MILLISECONDS_PER_DAY;
+  let ms = v * MILLISECONDS_PER_DAY;
   let lower = profile_creation_lower;
   let upper = Date.now() + 1000;
-  print("Day:   " + created);
+  print("Day:   " + v);
   print("msec:  " + ms);
   print("Lower: " + lower);
   print("Upper: " + upper);
-  Assert.ok(lower <= ms);
-  Assert.ok(upper >= ms);
-
-  yield storage.close();
-});
-
-add_task(function* test_collect_constant_real_with_reset() {
-  let now = Date.now();
-  let acc = getAccessor();
-  yield acc.writeTimes({created: now-MILLISECONDS_PER_DAY, // yesterday
-                        reset: Date.now()}); // today
-
-  let provider = new ProfileMetadataProvider();
-  let storage = yield Metrics.Storage("collect_constant_real");
-  yield provider.init(storage);
-
-  let [created, reset] = yield test_collect_constant(provider, true);
-  // we've already tested truncate() works as expected, so here just check
-  // we got values.
-  Assert.ok(created);
-  Assert.ok(reset);
-  Assert.ok(created <= reset);
+  do_check_true(lower <= ms);
+  do_check_true(upper >= ms);
 
   yield storage.close();
 });

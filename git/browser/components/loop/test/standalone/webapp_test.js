@@ -34,6 +34,8 @@ describe("loop.webapp", function() {
 
     beforeEach(function() {
       sandbox.stub(React, "renderComponent");
+      sandbox.stub(sharedUtils.Helper.prototype,
+                   "locationHash").returns("#call/fake-Token");
       loop.config.feedbackApiUrl = "http://fake.invalid";
       conversationSetStub =
         sandbox.stub(sharedModels.ConversationModel.prototype, "set");
@@ -50,33 +52,12 @@ describe("loop.webapp", function() {
       }));
     });
 
-    it("should set the loopToken on the conversation for old-style call urls",
-      function() {
-        sandbox.stub(sharedUtils.Helper.prototype,
-          "locationData").returns({
-            hash: "#call/fake-Token",
-            pathname: "/"
-          });
+    it("should set the loopToken on the conversation", function() {
+      loop.webapp.init();
 
-        loop.webapp.init();
-
-        sinon.assert.called(conversationSetStub);
-        sinon.assert.calledWithExactly(conversationSetStub, {loopToken: "fake-Token"});
-      });
-
-    it("should set the loopToken on the conversation for new-style call urls",
-      function() {
-        sandbox.stub(sharedUtils.Helper.prototype,
-          "locationData").returns({
-            hash: "",
-            pathname: "/c/abc123-_Tes"
-          });
-
-        loop.webapp.init();
-
-        sinon.assert.called(conversationSetStub);
-        sinon.assert.calledWithExactly(conversationSetStub, {loopToken: "abc123-_Tes"});
-      });
+       sinon.assert.called(conversationSetStub);
+       sinon.assert.calledWithExactly(conversationSetStub, "loopToken", "fake-Token");
+    });
   });
 
   describe("OutgoingConversationView", function() {
