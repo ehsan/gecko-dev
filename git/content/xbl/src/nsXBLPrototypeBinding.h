@@ -74,12 +74,7 @@ public:
   void SetBindingElement(nsIContent* aElement);
 
   nsIURI* BindingURI() const { return mBindingURI; }
-  nsIURI* AlternateBindingURI() const { return mAlternateBindingURI; }
   nsIURI* DocURI() const { return mXBLDocInfoWeak->DocumentURI(); }
-
-  // Checks if aURI refers to this binding by comparing to both possible
-  // binding URIs.
-  PRBool CompareBindingURI(nsIURI* aURI) const;
 
   nsresult GetAllowScripts(PRBool* aResult);
 
@@ -200,8 +195,7 @@ public:
   // binding's handlers, properties, etc are all set.
   nsresult Init(const nsACString& aRef,
                 nsIXBLDocumentInfo* aInfo,
-                nsIContent* aElement,
-                PRBool aFirstBinding = PR_FALSE);
+                nsIContent* aElement);
 
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
@@ -262,7 +256,6 @@ protected:
 // MEMBER VARIABLES
 protected:
   nsCOMPtr<nsIURI> mBindingURI;
-  nsCOMPtr<nsIURI> mAlternateBindingURI; // Alternate id-less URI that is only non-null on the first binding.
   nsCOMPtr<nsIContent> mBinding; // Strong. We own a ref to our content element in the binding doc.
   nsAutoPtr<nsXBLPrototypeHandler> mPrototypeHandler; // Strong. DocInfo owns us, and we own the handlers.
   

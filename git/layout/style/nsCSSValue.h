@@ -235,16 +235,6 @@ public:
     return mValue.mFloat;
   }
 
-  float GetAngleValue() const
-  {
-    NS_ASSERTION(eCSSUnit_Degree <= mUnit &&
-                 mUnit <= eCSSUnit_Radian, "not an angle value");
-    return mValue.mFloat;
-  }
-
-  // Converts any angle to radians.
-  double GetAngleValueInRadians() const;
-
   nsAString& GetStringValue(nsAString& aBuffer) const
   {
     NS_ASSERTION(UnitHasStringValue(), "not a string value");
@@ -464,7 +454,7 @@ protected:
 
 struct nsCSSValueGradientStop {
 public:
-  nsCSSValueGradientStop() NS_HIDDEN;
+  nsCSSValueGradientStop(const nsCSSValue& aLocation, const nsCSSValue& aColor) NS_HIDDEN;
   // needed to keep bloat logs happy when we use the nsTArray in nsCSSValueGradient
   nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther) NS_HIDDEN;
   ~nsCSSValueGradientStop() NS_HIDDEN;
@@ -485,32 +475,33 @@ public:
 };
 
 struct nsCSSValueGradient {
-  nsCSSValueGradient(PRBool aIsRadial,
-                     PRBool aIsRepeating) NS_HIDDEN;
+  nsCSSValueGradient(PRBool aIsRadial, const nsCSSValue& aStartX, const nsCSSValue& aStartY,
+           const nsCSSValue& aStartRadius, const nsCSSValue& aEndX, const nsCSSValue& aEndY,
+           const nsCSSValue& aEndRadius) NS_HIDDEN;
 
   // true if gradient is radial, false if it is linear
   PRPackedBool mIsRadial;
-  PRPackedBool mIsRepeating;
-  // line position and angle
-  nsCSSValue mBgPosX;
-  nsCSSValue mBgPosY;
-  nsCSSValue mAngle;
+  nsCSSValue mStartX;
+  nsCSSValue mStartY;
+
+  nsCSSValue mEndX;
+  nsCSSValue mEndY;
 
   // Only meaningful if mIsRadial is true
-  nsCSSValue mRadialShape;
-  nsCSSValue mRadialSize;
+  nsCSSValue mStartRadius;
+  nsCSSValue mEndRadius;
 
   nsTArray<nsCSSValueGradientStop> mStops;
 
   PRBool operator==(const nsCSSValueGradient& aOther) const
   {
     if (mIsRadial != aOther.mIsRadial ||
-        mIsRepeating != aOther.mIsRepeating ||
-        mBgPosX != aOther.mBgPosX ||
-        mBgPosY != aOther.mBgPosY ||
-        mAngle != aOther.mAngle ||
-        mRadialShape != aOther.mRadialShape ||
-        mRadialSize != aOther.mRadialSize)
+        mStartX != aOther.mStartX ||
+        mStartY != aOther.mStartY ||
+        mStartRadius != aOther.mStartRadius ||
+        mEndX != aOther.mEndX ||
+        mEndY != aOther.mEndY ||
+        mEndRadius != aOther.mEndRadius)
       return PR_FALSE;
 
     if (mStops.Length() != aOther.mStops.Length())

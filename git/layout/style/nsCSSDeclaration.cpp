@@ -441,74 +441,42 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
   else if (eCSSUnit_Gradient == unit) {
     nsCSSValueGradient* gradient = aValue.GetGradientValue();
 
-    if (gradient->mIsRepeating) {
-      if (gradient->mIsRadial)
-        aResult.AppendLiteral("-moz-repeating-radial-gradient(");
-      else
-        aResult.AppendLiteral("-moz-repeating-linear-gradient(");
-    } else {
-      if (gradient->mIsRadial)
-        aResult.AppendLiteral("-moz-radial-gradient(");
-      else
-        aResult.AppendLiteral("-moz-linear-gradient(");
-    }
+    if (gradient->mIsRadial)
+      aResult.AppendLiteral("-moz-radial-gradient(");
+    else
+      aResult.AppendLiteral("-moz-linear-gradient(");
 
-    if (gradient->mBgPosX.GetUnit() != eCSSUnit_None ||
-        gradient->mBgPosY.GetUnit() != eCSSUnit_None ||
-        gradient->mAngle.GetUnit() != eCSSUnit_None) {
-      if (gradient->mBgPosX.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(eCSSProperty_background_position,
-                               gradient->mBgPosX, aResult);
-        aResult.AppendLiteral(" ");
-      }
-      if (gradient->mBgPosY.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(eCSSProperty_background_position,
-                               gradient->mBgPosY, aResult);
-        aResult.AppendLiteral(" ");
-      }
-      if (gradient->mAngle.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(aProperty, gradient->mAngle, aResult);
-      }
+    AppendCSSValueToString(eCSSProperty_background_position,
+                           gradient->mStartX, aResult);
+    aResult.AppendLiteral(" ");
+
+    AppendCSSValueToString(eCSSProperty_background_position,
+                           gradient->mStartY, aResult);
+    aResult.AppendLiteral(", ");
+
+    if (gradient->mIsRadial) {
+      AppendCSSValueToString(aProperty, gradient->mStartRadius, aResult);
       aResult.AppendLiteral(", ");
     }
 
-    if (gradient->mIsRadial &&
-        (gradient->mRadialShape.GetUnit() != eCSSUnit_None ||
-         gradient->mRadialSize.GetUnit() != eCSSUnit_None)) {
-      if (gradient->mRadialShape.GetUnit() != eCSSUnit_None) {
-        NS_ASSERTION(gradient->mRadialShape.GetUnit() == eCSSUnit_Enumerated,
-                     "bad unit for radial gradient shape");
-        PRInt32 intValue = gradient->mRadialShape.GetIntValue();
-        NS_ASSERTION(intValue != NS_STYLE_GRADIENT_SHAPE_LINEAR,
-                     "radial gradient with linear shape?!");
-        AppendASCIItoUTF16(nsCSSProps::ValueToKeyword(intValue,
-                               nsCSSProps::kRadialGradientShapeKTable),
-                           aResult);
-        aResult.AppendLiteral(" ");
-      }
+    AppendCSSValueToString(eCSSProperty_background_position,
+                           gradient->mEndX, aResult);
+    aResult.AppendLiteral(" ");
 
-      if (gradient->mRadialSize.GetUnit() != eCSSUnit_None) {
-        NS_ASSERTION(gradient->mRadialSize.GetUnit() == eCSSUnit_Enumerated,
-                     "bad unit for radial gradient size");
-        PRInt32 intValue = gradient->mRadialSize.GetIntValue();
-        AppendASCIItoUTF16(nsCSSProps::ValueToKeyword(intValue,
-                               nsCSSProps::kRadialGradientSizeKTable),
-                           aResult);
-      }
+    AppendCSSValueToString(eCSSProperty_background_position,
+                           gradient->mEndY, aResult);
+
+    if (gradient->mIsRadial) {
       aResult.AppendLiteral(", ");
+      AppendCSSValueToString(aProperty, gradient->mEndRadius, aResult);
     }
 
-    for (PRUint32 i = 0 ;;) {
+    for (PRUint32 i = 0; i < gradient->mStops.Length(); i++) {
+      aResult.AppendLiteral(", color-stop(");
+      AppendCSSValueToString(aProperty, gradient->mStops[i].mLocation, aResult);
+      aResult.AppendLiteral(", ");
       AppendCSSValueToString(aProperty, gradient->mStops[i].mColor, aResult);
-      if (gradient->mStops[i].mLocation.GetUnit() != eCSSUnit_None) {
-        aResult.AppendLiteral(" ");
-        AppendCSSValueToString(aProperty, gradient->mStops[i].mLocation,
-                               aResult);
-      }
-      if (++i == gradient->mStops.Length()) {
-        break;
-      }
-      aResult.AppendLiteral(", ");
+      aResult.AppendLiteral(")");
     }
 
     aResult.AppendLiteral(")");

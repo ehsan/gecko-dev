@@ -262,7 +262,8 @@ pref("browser.download.useDownloadDir", true);
 
 #ifdef WINCE
 pref("browser.download.folderList", 2);
-pref("browser.download.dir", "\\Storage Card");
+// Bug 499807: use Hard Disk filesystem because Desktop is short on space.
+pref("browser.download.dir", "\\Hard Disk");
 #else
 pref("browser.download.folderList", 1);
 #endif
@@ -752,11 +753,7 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
-#ifdef WINCE
-pref("browser.sessionstore.resume_from_crash", false);
-#else
 pref("browser.sessionstore.resume_from_crash", true);
-#endif
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds

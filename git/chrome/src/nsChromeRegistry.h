@@ -62,7 +62,6 @@ class nsICSSLoader;
 class nsICSSStyleSheet;
 class nsIDOMWindowInternal;
 class nsILocalFile;
-class nsIPrefBranch;
 class nsIRDFDataSource;
 class nsIRDFResource;
 class nsIRDFService;
@@ -96,7 +95,7 @@ public:
   NS_DECL_NSIOBSERVER
 
   // nsChromeRegistry methods:
-  nsChromeRegistry() : mInitialized(PR_FALSE), mProfileLoaded(PR_FALSE) {
+  nsChromeRegistry() : mInitialized(PR_FALSE) {
     mPackagesHash.ops = nsnull;
   }
   ~nsChromeRegistry();
@@ -117,8 +116,6 @@ protected:
   void FlushAllCaches();
 
 private:
-  nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
-
   static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow,
                                 nsICSSLoader* aCSSLoader);
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
@@ -248,7 +245,6 @@ public:
 
 private:
   PRBool mInitialized;
-  PRBool mProfileLoaded;
 
   // Hash of package names ("global") to PackageEntry objects
   PLDHashTable mPackagesHash;

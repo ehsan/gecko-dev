@@ -279,12 +279,9 @@ function onLoadPageInfo()
   gStrings.mediaLink = gBundle.getString("mediaLink");
   gStrings.mediaInput = gBundle.getString("mediaInput");
 
-  var args = "arguments" in window &&
-             window.arguments.length >= 1 &&
-             window.arguments[0];
-
-  if (args && args.doc) {
-    gDocument = args.doc;
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].doc) {
+    gDocument = window.arguments[0].doc;
     gWindow = gDocument.defaultView;
   }
   else {
@@ -300,13 +297,18 @@ function onLoadPageInfo()
   imageTree.view = gImageView;
 
   // set gImageElement if present
-  gImageElement = args && args.imageElement;
+  if ("arguments" in window && window.arguments.length >= 1 &&
+      window.arguments[0].imageElement)
+    gImageElement = window.arguments[0].imageElement;
 
   // build the content
   loadPageInfo();
 
   /* Select the requested tab, if the name is specified */
-  var initialTab = (args && args.initialTab) || "generalTab";
+  var initialTab = "generalTab";
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].initialTab)
+    initialTab = window.arguments[0].initialTab;
   var radioGroup = document.getElementById("viewGroup");
   initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
   radioGroup.selectedItem = initialTab;

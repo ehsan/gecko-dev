@@ -1180,16 +1180,8 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
         // If the clipping frame is moving, then it isn't clipping any
         // non-moving content (see ApplyAbsPosClipping), so we don't need
         // to do anything special, but we should not restrict aClipRect.
-        nsIFrame* clipFrame = clipItem->GetClippingFrame();
-        if (!aBuilder->IsMovingFrame(clipFrame)) {
-          nscoord appUnitsPerDevPixel = clipFrame->PresContext()->AppUnitsPerDevPixel();
-          // We know the nsDisplayClip will snap because we're in a context
-          // where pixels can be blitted and we don't traverse down through
-          // an nsDisplayTransform.
-          nsRect snappedClip =
-            clipItem->GetClipRect().ToNearestPixels(appUnitsPerDevPixel).
-            ToAppUnits(appUnitsPerDevPixel);
-          clip.IntersectRect(clip, snappedClip);
+        if (!aBuilder->IsMovingFrame(clipItem->GetClippingFrame())) {
+          clip.IntersectRect(clip, clipItem->GetClipRect());
 
           // Invalidate the translation of the source area that was clipped out
           nsRegion clippedOutSource;
@@ -1413,7 +1405,7 @@ static void
 AddBoxesForFrame(nsIFrame* aFrame,
                  nsLayoutUtils::BoxCallback* aCallback)
 {
-  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudo();
+  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudoType();
 
   if (pseudoType == nsCSSAnonBoxes::tableOuter) {
     AddBoxesForFrame(aFrame->GetFirstChild(nsnull), aCallback);

@@ -71,7 +71,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 // Implementation
 
 nsSVGAElement::nsSVGAElement(nsINodeInfo *aNodeInfo)
-  : nsSVGAElementBase(aNodeInfo)
+  : nsSVGAElementBase(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -124,13 +125,13 @@ nsSVGAElement::GetTarget(nsIDOMSVGAnimatedString * *aTarget)
 nsLinkState
 nsSVGAElement::GetLinkState() const
 {
-  return Link::GetLinkState();
+  return mLinkState;
 }
 
 void
 nsSVGAElement::SetLinkState(nsLinkState aState)
 {
-  Link::SetLinkState(aState);
+  mLinkState = aState;
 }
 
 already_AddRefed<nsIURI>

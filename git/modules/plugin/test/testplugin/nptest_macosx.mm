@@ -269,7 +269,6 @@ pluginDraw(InstanceData* instanceData)
 
     // restore the cgcontext gstate
     CGContextRestoreGState(cgContext);
-    break;
   }
   case DM_SOLID_COLOR: {
     // save the cgcontext gstate
@@ -292,8 +291,6 @@ pluginDraw(InstanceData* instanceData)
     break;
   }
   }
-
-  ++instanceData->paintCount;
 }
 
 int16_t

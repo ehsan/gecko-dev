@@ -1062,22 +1062,22 @@ public:
   static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the first inline in it.
+   * Return whether aFrame is an inline frame in the first part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   }
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the last inline in it.
+   * Return whether aFrame is an inline frame in the last part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   }
 

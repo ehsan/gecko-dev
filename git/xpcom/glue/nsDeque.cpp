@@ -169,7 +169,10 @@ nsDeque& nsDeque::Erase() {
  * If the deque actually overflows, there's very little we can do.
  * Perhaps this function should return PRBool/nsresult indicating success/failure.
  *
- * @return  whether growing succeeded
+ * @return  capacity of the deque
+ *          If the deque did not grow,
+ *          and you knew its capacity beforehand,
+ *          then this would be a way to indicate the failure.
  */
 PRBool nsDeque::GrowCapacity() {
   PRInt32 theNewSize=mCapacity<<2;

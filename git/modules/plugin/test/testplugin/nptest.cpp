@@ -83,7 +83,6 @@ static bool stopWatchingInstanceCount(NPObject* npobj, const NPVariant* args, ui
 static bool unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -108,7 +107,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "unscheduleAllTimers",
   "getLastMouseX",
   "getLastMouseY",
-  "getPaintCount",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
@@ -134,7 +132,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   unscheduleAllTimers,
   getLastMouseX,
   getLastMouseY,
-  getPaintCount,
   getError,
   doInternalConsistencyCheck,
   setColor,
@@ -582,7 +579,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
 
   instanceData->lastReportedPrivateModeState = false;
   instanceData->lastMouseX = instanceData->lastMouseY = -1;
-  instanceData->paintCount = 0;
 
   // do platform-specific initialization
   NPError err = pluginInstanceInit(instanceData);
@@ -1752,18 +1748,6 @@ getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVaria
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   INT32_TO_NPVARIANT(id->lastMouseY, *result);
-  return true;
-}
-
-static bool
-getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->paintCount, *result);
   return true;
 }
 

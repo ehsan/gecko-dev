@@ -1323,9 +1323,7 @@ gfxWindowsFontGroup::FamilyListToArrayList(const nsString& aFamilies,
     for (PRUint32 i = 0; i < len; ++i) {
         const nsString& str = fonts[i];
         nsRefPtr<FontEntry> fe = gfxWindowsPlatform::GetPlatform()->FindFontEntry(str, mStyle);
-        if (fe) {
-            list->AppendElement(fe);
-        }
+        list->AppendElement(fe);
     }
 }
 

@@ -69,8 +69,12 @@
 
 .search-go-button {
   padding: 1px;
-  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
+  list-style-image: url("chrome://global/skin/icons/Search-glass.png");
   cursor: pointer;
+}
+
+.search-go-button:-moz-locale-dir(rtl) {
+  -moz-transform: scaleX(-1);
 }
 
 menuitem[cmd="cmd_clearhistory"] {

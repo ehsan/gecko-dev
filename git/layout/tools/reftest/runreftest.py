@@ -173,10 +173,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
                                utilityPath = options.utilityPath,
                                xrePath=options.xrePath,
                                debuggerInfo=debuggerInfo,
-                               symbolsPath=options.symbolsPath,
-                               # give the JS harness 30 seconds to deal
-                               # with its own timeouts
-                               timeout=options.timeout + 30.0)
+                               symbolsPath=options.symbolsPath)
     processLeakLog(leakLogFile, options.leakThreshold)
     automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:

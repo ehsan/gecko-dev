@@ -1011,9 +1011,6 @@ public:
   void MaybeEndOutermostXBLUpdate();
 
   virtual void MaybePreLoadImage(nsIURI* uri);
-
-  virtual nsISupports* GetCurrentContentSink();
-
 protected:
   friend class nsNodeUtils;
   void RegisterNamedItems(nsIContent *aContent);

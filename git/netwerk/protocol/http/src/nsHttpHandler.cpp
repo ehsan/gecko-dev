@@ -579,6 +579,10 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mSecurity;
     mUserAgent.AppendLiteral("; ");
     mUserAgent += mOscpu;
+    if (!mDeviceType.IsEmpty()) {
+        mUserAgent.AppendLiteral("; ");
+        mUserAgent += mDeviceType;
+    }
     if (!mLanguage.IsEmpty()) {
         mUserAgent.AppendLiteral("; ");
         mUserAgent += mLanguage;

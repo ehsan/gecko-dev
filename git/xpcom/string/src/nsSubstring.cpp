@@ -51,7 +51,6 @@
 #include "nsDependentString.h"
 #include "nsMemory.h"
 #include "pratom.h"
-#include "prprf.h"
 
 // ---------------------------------------------------------------------------
 

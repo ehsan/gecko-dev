@@ -96,7 +96,6 @@ typedef struct InstanceData {
   uint32_t timerID2;
   int32_t lastMouseX;
   int32_t lastMouseY;
-  int32_t paintCount;
   int32_t writeCount;
   int32_t writeReadyCount;
   TestFunction testFunction;

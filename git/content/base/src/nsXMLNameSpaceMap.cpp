@@ -63,20 +63,18 @@ class nsDefaultComparator <nsNameSpaceEntry, PRInt32> {
 
 
 /* static */ nsXMLNameSpaceMap*
-nsXMLNameSpaceMap::Create(PRBool aForXML)
+nsXMLNameSpaceMap::Create()
 {
   nsXMLNameSpaceMap *map = new nsXMLNameSpaceMap();
   NS_ENSURE_TRUE(map, nsnull);
 
-  if (aForXML) {
-    nsresult rv = map->AddPrefix(nsGkAtoms::xmlns,
-                                 kNameSpaceID_XMLNS);
-    rv |= map->AddPrefix(nsGkAtoms::xml, kNameSpaceID_XML);
+  nsresult rv = map->AddPrefix(nsGkAtoms::xmlns,
+                               kNameSpaceID_XMLNS);
+  rv |= map->AddPrefix(nsGkAtoms::xml, kNameSpaceID_XML);
 
-    if (NS_FAILED(rv)) {
-      delete map;
-      map = nsnull;
-    }
+  if (NS_FAILED(rv)) {
+    delete map;
+    map = nsnull;
   }
 
   return map;

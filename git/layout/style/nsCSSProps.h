@@ -280,8 +280,6 @@ public:
   static const PRInt32 kPitchKTable[];
   static const PRInt32 kPointerEventsKTable[];
   static const PRInt32 kPositionKTable[];
-  static const PRInt32 kRadialGradientShapeKTable[];
-  static const PRInt32 kRadialGradientSizeKTable[];
   static const PRInt32 kSpeakKTable[];
   static const PRInt32 kSpeakHeaderKTable[];
   static const PRInt32 kSpeakNumeralKTable[];

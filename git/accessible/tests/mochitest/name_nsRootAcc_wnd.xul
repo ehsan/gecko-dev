@@ -21,10 +21,7 @@
       isBusy: false,
       setOverLink: function (link, b) {
       }
-    };
-    var gFindBar = {
-      hidden: true
-    };
+    }
 
     ////////////////////////////////////////////////////////////////////////////
     // Invoker implementation.
@@ -77,7 +74,7 @@
 
     const Ci = Components.interfaces;
 
-    function doTest()
+    function onload()
     {
       var tabBrowser = document.getElementById("content");
       tabBrowser.loadURI("about:");
@@ -88,8 +85,6 @@
       gQueue.onFinish = function() { window.close(); }
       gQueue.invoke();
     }
-
-    gOpenerWnd.addA11yLoadEvent(doTest);
   ]]>
   </script>
 

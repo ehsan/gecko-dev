@@ -728,7 +728,7 @@ nsStyleAnimation::ComputeValue(nsCSSProperty aProperty,
   nsStyleSet* styleSet = styleContext->PresContext()->StyleSet();
   nsRefPtr<nsStyleContext> tmpStyleContext =
     styleSet->ResolveStyleForRules(styleContext->GetParent(),
-                                   styleContext->GetPseudo(),
+                                   styleContext->GetPseudoType(),
                                    styleContext->GetRuleNode(), ruleArray);
 
   // Extract computed value of our property from the temporary style rule

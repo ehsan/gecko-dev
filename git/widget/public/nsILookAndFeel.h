@@ -371,15 +371,6 @@ public:
     return PRUnichar('*');
   }
 
-  virtual PRBool GetEchoPassword()
-  {
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    return PR_TRUE;
-#else
-    return PR_FALSE;
-#endif
-  }
-
   NS_IMETHOD LookAndFeelChanged() = 0;
 
 

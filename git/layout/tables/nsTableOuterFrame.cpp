@@ -134,7 +134,7 @@ nsTableCaptionFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
     if (innerFrame) {
       *aProviderFrame =
         nsFrame::CorrectStyleParentFrame(innerFrame,
-                                         GetStyleContext()->GetPseudo());
+                                         GetStyleContext()->GetPseudoType());
       *aIsChild = PR_FALSE;
       return NS_OK;
     }

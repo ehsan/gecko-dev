@@ -488,6 +488,10 @@ function cleanUpItemForPalette(aItem, aWrapper)
 
   if (aItem.localName == "toolbaritem" && aItem.firstChild) {
     aItem.firstChild.removeAttribute("observes");
+
+    // So the throbber doesn't throb in the dialog,
+    // cute as that may be...
+    aItem.firstChild.removeAttribute("busy");
   }
 }
 

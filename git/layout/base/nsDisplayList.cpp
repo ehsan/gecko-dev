@@ -324,8 +324,7 @@ nsDisplayList::ComputeVisibility(nsDisplayListBuilder* aBuilder,
   nsAutoTArray<nsDisplayItem*, 512> elements;
   FlattenTo(&elements);
 
-  // Accumulate the bounds of all moving content we find in this list.
-  // For speed, we store only a bounding box, not a region.
+  // Accumulate the bounds of all moving content we find in this list
   nsRect movingContentAccumulatedBounds;
   // Store an overapproximation of the visible regions for the moving
   // content in this list
@@ -346,13 +345,7 @@ nsDisplayList::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
     nsIFrame* f = item->GetUnderlyingFrame();
     PRBool isMoving = f && aBuilder->IsMovingFrame(f);
-    // Record bounds of moving visible items in movingContentAccumulatedBounds.
-    // We do not need to add items that are uniform across the entire visible
-    // area, since they have no visible movement.
-    if (isMoving &&
-        !(item->IsUniform(aBuilder) &&
-          bounds.Contains(aVisibleRegion->GetBounds()) &&
-          bounds.Contains(aVisibleRegionBeforeMove->GetBounds()))) {
+    if (isMoving) {
       if (movingContentAccumulatedBounds.IsEmpty()) {
         // *aVisibleRegion can only shrink during this loop, so storing
         // the first one we see is a sound overapproximation

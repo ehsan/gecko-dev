@@ -566,7 +566,7 @@ nsXBLContentSink::ConstructBinding()
     if (!mBinding)
       return NS_ERROR_OUT_OF_MEMORY;
       
-    rv = mBinding->Init(cid, mDocInfo, binding, !mFoundFirstBinding);
+    rv = mBinding->Init(cid, mDocInfo, binding);
     if (NS_SUCCEEDED(rv) &&
         NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
       if (!mFoundFirstBinding) {
