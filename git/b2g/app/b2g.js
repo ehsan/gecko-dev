@@ -993,7 +993,5 @@ pref("services.sync.fxaccounts.enabled", true);
 pref("identity.fxaccounts.enabled", true);
 #endif
 
-pref("services.mobileid.server.uri", "http://msisdn.dev.mozaws.net");
-
 // Enable mapped array buffer
 pref("dom.mapped_arraybuffer.enabled", true);

@@ -21,6 +21,9 @@ loader.lazyGetter(this, "gDevTools", () => {
 loader.lazyGetter(this, "DOMUtils", () => {
   return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils)
 });
+loader.lazyGetter(this, "prettifyCSS", () => {
+  return require("resource:///modules/devtools/StyleSheetEditor.jsm").prettifyCSS;
+});
 
 const CSSRule = Ci.nsIDOMCSSRule;
 
@@ -364,7 +367,7 @@ let UsageReportActor = protocol.ActorClass({
         shortUrl: rule.url.split("/").slice(-1),
         start: { line: rule.line, column: rule.column },
         selectorText: ruleData.selectorText,
-        formattedCssText: CssLogic.prettifyCSS(ruleData.cssText)
+        formattedCssText: prettifyCSS(ruleData.cssText)
       };
     }
 
@@ -754,13 +757,11 @@ const knownFronts = new WeakMap();
 
 /**
  * Create a UsageReportFront only when needed (returns a promise)
- * For notes on target.makeRemote(), see
- * https://bugzilla.mozilla.org/show_bug.cgi?id=1016330#c7
  */
 const getUsage = exports.getUsage = function(target) {
   return target.makeRemote().then(() => {
     let front = knownFronts.get(target.client)
-    if (front == null && target.form.usageReportActor != null) {
+    if (front == null) {
       front = new UsageReportFront(target.client, target.form);
       knownFronts.set(target.client, front);
     }
