@@ -193,10 +193,9 @@ public:
     unsigned                maxCallDepth;
     TypeMap                 stackTypeMap;
     unsigned                mismatchCount;
-    Queue<nanojit::Fragment*> dependentTrees;
-
+    
     TreeInfo(nanojit::Fragment* _fragment) { 
-        fragment = _fragment;
+        fragment = _fragment; 
     }
 };
 
@@ -229,8 +228,6 @@ class TraceRecorder {
     nanojit::LIns*          rval_ins;
     nanojit::LIns*          inner_sp_ins;
     nanojit::SideExit       exit;
-    bool                    trashTree;
-    jsbytecode*             lastLoopEdge;
     
     bool isGlobal(jsval* p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;

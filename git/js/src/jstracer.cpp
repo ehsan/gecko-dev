@@ -79,6 +79,9 @@
 /* Max number of type mismatchs before we trash the tree. */
 #define MAX_MISMATCH 5
 
+/* Max number of loop edges to follow. */
+#define MAX_OUTERLINE 0
+
 /* Max native stack size. */
 #define MAX_NATIVE_STACK_SLOTS 1024
 
@@ -657,9 +660,6 @@ mergeTypeMaps(uint8** partial, unsigned* plength, uint8* complete, unsigned clen
     *plength = clength;
 }
 
-static void
-js_TrashTree(JSContext* cx, Fragment* f);
-
 TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor, Fragment* _fragment,
         TreeInfo* ti, unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap,
         GuardRecord* innermostNestedGuard)
@@ -677,8 +677,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor, Fragment* _fra
     this->loopEdgeCount = 0;
     JS_ASSERT(!_anchor || _anchor->calldepth == _fragment->calldepth);
     this->atoms = cx->fp->script->atomMap.vector;
-    this->trashTree = false;
-    this->lastLoopEdge = NULL;
+
     
     debug_only_v(printf("recording starting from %s:%u@%u\n", cx->fp->script->filename,
                         js_PCToLineNumber(cx, cx->fp->script, cx->fp->regs->pc),
@@ -724,8 +723,6 @@ TraceRecorder::~TraceRecorder()
         JS_ASSERT(!fragment->root->vmprivate);
         delete treeInfo;
     }
-    if (trashTree)
-        js_TrashTree(cx, fragment->root);
 #ifdef DEBUG
     delete verbose_filter;
 #endif
@@ -753,15 +750,11 @@ TraceRecorder::getCallDepth() const
 }
 
 
-/* Determine whether we should unroll a loop (only do so at most once for every loop). */
+/* Determine whether we should outerline along a loop edge. */
 bool
 TraceRecorder::trackLoopEdges()
 {
-    jsbytecode* pc = cx->fp->regs->pc;
-    if (pc == lastLoopEdge)
-        return false;
-    lastLoopEdge = pc;
-    return true;
+    return loopEdgeCount++ < MAX_OUTERLINE;
 }
 
 /* Determine the offset in the native global frame for a jsval we track */
@@ -1307,6 +1300,9 @@ struct FrameInfo {
     };
 };
 
+static void
+js_TrashTree(JSContext* cx, Fragment* f);
+
 /* Promote slots if necessary to match the called tree' type map and report error if thats
    impossible. */
 bool
@@ -1343,9 +1339,8 @@ TraceRecorder::adjustCallerTypes(Fragment* f)
         }
         ++m;
     );
-    JS_ASSERT(f == f->root);
     if (!ok)
-        trashTree = true;
+        js_TrashTree(cx, f);
     return ok;
 }
 
@@ -1498,8 +1493,8 @@ TraceRecorder::verifyTypeStability()
         }
         ++m
     );
-    if (recompile) 
-        trashTree = true;
+    if (recompile)
+        js_TrashTree(cx, fragment);
     return !recompile;
 }
 
@@ -1629,8 +1624,6 @@ TraceRecorder::emitTreeCall(Fragment* inner, GuardRecord* lr)
     /* Guard that we come out of the inner tree along the same side exit we came out when
        we called the inner tree at recording time. */
     guard(true, lir->ins2(LIR_eq, ret, lir->insImmPtr(lr)), NESTED_EXIT);
-    /* Register us as a dependent tree of the inner tree. */
-    ((TreeInfo*)inner->vmprivate)->dependentTrees.addUnique(fragment->root);
 }
 
 int
@@ -1720,21 +1713,14 @@ static void
 js_TrashTree(JSContext* cx, Fragment* f)
 {
     JS_ASSERT((!f->code()) == (!f->vmprivate));
-    JS_ASSERT(f == f->root);
     if (!f->code())
         return;
     AUDIT(treesTrashed);
     debug_only_v(printf("Trashing tree info.\n");)
     Fragmento* fragmento = JS_TRACE_MONITOR(cx).fragmento;
-    TreeInfo* ti = (TreeInfo*)f->vmprivate;
+    delete (TreeInfo*)f->vmprivate;
     f->vmprivate = NULL;
     f->releaseCode(fragmento);
-    Fragment** data = ti->dependentTrees.data();
-    unsigned length = ti->dependentTrees.length();
-    for (unsigned n = 0; n < length; ++n)
-        js_TrashTree(cx, data[n]);
-    delete ti;
-    JS_ASSERT(!f->code() && !f->vmprivate);
 }
 
 static unsigned
@@ -2120,10 +2106,9 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
             JS_ASSERT(lr->guard->oprnd1()->oprnd2()->isconstp());
             lr = (GuardRecord*)lr->guard->oprnd1()->oprnd2()->constvalp();
         } while (lr->exit->exitType == NESTED_EXIT);
-        
+
         /* We restored the nested frames, now we just need to deal with the innermost guard. */
         lr = state.nestedExit;
-        JS_ASSERT(lr);
     }
 
     /* sp_adj and ip_adj are relative to the tree we exit out of, not the tree we
@@ -3078,12 +3063,12 @@ TraceRecorder::box_jsval(jsval v, LIns*& v_ins)
     }
     switch (JSVAL_TAG(v)) {
       case JSVAL_BOOLEAN:
-        v_ins = lir->ins2i(LIR_pior, lir->ins2i(LIR_pilsh, v_ins, JSVAL_TAGBITS), JSVAL_BOOLEAN);
+        v_ins = lir->ins2i(LIR_or, lir->ins2i(LIR_pilsh, v_ins, JSVAL_TAGBITS), JSVAL_BOOLEAN);
         return true;
       case JSVAL_OBJECT:
         return true;
       case JSVAL_STRING:
-        v_ins = lir->ins2(LIR_pior, v_ins, INS_CONST(JSVAL_STRING));
+        v_ins = lir->ins2(LIR_or, v_ins, INS_CONST(JSVAL_STRING));
         return true;
     }
     return false;
@@ -3095,11 +3080,11 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins)
     if (isNumber(v)) {
         // JSVAL_IS_NUMBER(v)
         guard(false,
-              lir->ins_eq0(lir->ins2(LIR_pior,
-                                     lir->ins2(LIR_piand, v_ins, INS_CONST(JSVAL_INT)),
+              lir->ins_eq0(lir->ins2(LIR_or,
+                                     lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_INT)),
                                      lir->ins2i(LIR_eq,
                                                 lir->ins2(LIR_piand, v_ins,
-                                                          INS_CONST(JSVAL_TAGMASK)),
+                                                          INS_CONSTPTR(JSVAL_TAGMASK)),
                                                 JSVAL_DOUBLE))),
               MISMATCH_EXIT);
         v_ins = lir->insCall(F_UnboxDouble, &v_ins);
@@ -3109,7 +3094,7 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins)
       case JSVAL_BOOLEAN:
         guard(true,
               lir->ins2i(LIR_eq,
-                         lir->ins2(LIR_piand, v_ins, INS_CONST(JSVAL_TAGMASK)),
+                         lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_TAGMASK)),
                          JSVAL_BOOLEAN),
               MISMATCH_EXIT);
          v_ins = lir->ins2i(LIR_ush, v_ins, JSVAL_TAGBITS);
@@ -3117,17 +3102,17 @@ TraceRecorder::unbox_jsval(jsval v, LIns*& v_ins)
        case JSVAL_OBJECT:
         guard(true,
               lir->ins2i(LIR_eq,
-                         lir->ins2(LIR_piand, v_ins, INS_CONST(JSVAL_TAGMASK)),
+                         lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_TAGMASK)),
                          JSVAL_OBJECT),
               MISMATCH_EXIT);
         return true;
       case JSVAL_STRING:
         guard(true,
               lir->ins2i(LIR_eq,
-                        lir->ins2(LIR_piand, v_ins, INS_CONST(JSVAL_TAGMASK)),
+                        lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(JSVAL_TAGMASK)),
                         JSVAL_STRING),
               MISMATCH_EXIT);
-        v_ins = lir->ins2(LIR_piand, v_ins, INS_CONST(~JSVAL_TAGMASK));
+        v_ins = lir->ins2(LIR_piand, v_ins, INS_CONSTPTR(~JSVAL_TAGMASK));
         return true;
     }
     return false;
@@ -3155,7 +3140,7 @@ TraceRecorder::guardClass(JSObject* obj, LIns* obj_ins, JSClass* clasp)
         return false;
 
     LIns* class_ins = stobj_get_fslot(obj_ins, JSSLOT_CLASS);
-    class_ins = lir->ins2(LIR_piand, class_ins, lir->insImm(~3));
+    class_ins = lir->ins2(LIR_piand, class_ins, lir->insImmPtr((void*)~3));
 
     char namebuf[32];
     JS_snprintf(namebuf, sizeof namebuf, "guard(class is %s)", clasp->name);
