@@ -120,13 +120,7 @@ DAVCollection.prototype = {
     this._log.debug(op + " request for " + (path? path : 'root folder'));
 
     if (!path || path[0] != '/')
-      // if it's a relative path, (no slash), prepend default prefix
       path = this._defaultPrefix + path;
-    else
-      path = path.slice(1); // if absolute path, remove leading slash
-    // path at this point should have no leading slash.
-    dump("DefaultPrefix is " + this._defaultPrefix + "\n");
-    dump(" In _makeRequest, after fixing the path, it is " + path +"\n");
 
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
@@ -419,7 +413,8 @@ DAVCollection.prototype = {
     // really have much of an option if unlock fails.  The only thing
     // to do is wait for it to time out (and hope it didn't really
     // fail)
-    delete DAVLocks['default'];
+    if (DAVLocks['default'])
+      delete DAVLocks['default'];
 
     let resp = yield this.UNLOCK("lock", self.cb);
 

@@ -469,9 +469,6 @@ BookmarksSharingManager.prototype = {
     dump( "in _updateOutgoingShare.  serverPath is " + serverPath +"\n");
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
     keyringFile.pushFilter(new JsonFilter());
-    // TODO  request for share/a317b645-2c2f-6946-aea0-d728509091d4/keyring
-    // fails with a 404 even though THE FILE IS THERE.  Maybe it's not prepending this
-    // with /user/jono like it should be???   put debugging info into DAV.GET?
     keyringFile.get(self.cb);
     let keys = yield;
 
@@ -482,7 +479,10 @@ BookmarksSharingManager.prototype = {
     let bulkIV = keys.bulkIV;
 
     // Get the json-wrapped contents of everything in the folder:
-    let json = this._engine._store._wrapMountOutgoing(folderId);
+    // TODO what exactly does wrapMount expect?  is folderId OK?
+    let json = this._engine._store._wrapMount( folderId, myUserName );
+    /* TODO what does wrapMount do with this username?  Should I be passing
+       in my own or that of the person I share with? */
 
     // Encrypt it with the symkey and put it into the shared-bookmark file.
     let bmkFile = new Resource(serverPath + "/" + SHARED_BOOKMARK_FILE_NAME);
@@ -598,7 +598,8 @@ BookmarksSharingManager.prototype = {
     let myUserName = ID.get('WeaveID').username;
     // The folder has an annotation specifying the server path to the
     // directory:
-    let serverPath = mountData.serverPath;
+    let serverPath = this._annoSvc.getItemAnnotation(mountData.node,
+                                                     SERVER_PATH_ANNO);
     // From that directory, get the keyring file, and from it, the symmetric
     // key that we'll use to encrypt.
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
@@ -607,7 +608,6 @@ BookmarksSharingManager.prototype = {
 
     // Decrypt the contents of the bookmark file with the symmetric key:
     let bmkFile = new Resource(serverPath + "/" + SHARED_BOOKMARK_FILE_NAME);
-    bmkFile.pushFilter( new JsonFilter() );
     bmkFile.get(self.cb);
     let cyphertext = yield;
     let tmpIdentity = {
@@ -627,15 +627,10 @@ BookmarksSharingManager.prototype = {
         json[guid].parentGUID = mountData.rootGUID;
     }
 
-    // TODO check what the inputs to detectUpdates should be.  Should I be
-    // passing in the current subtree of mountData.node?  Do I need to wipe
-    // that subtree before calling diff?  I'm trying to create a diff
-    // here between json and nothing so as to come up with the createCommands
-    // needed to create all the bookmarks.
     /* Create diff between the json from server and the current contents;
        then apply the diff. */
     this._log.trace("Got bookmarks from " + user + ", comparing with local copy");
-    this._engine._core.detectUpdates(self.cb, json, {});
+    this._engine._core.detectUpdates(self.cb, mountData.snapshot, snap.data);
     let diff = yield;
 
     // FIXME: should make sure all GUIDs here live under the mountpoint
@@ -1235,25 +1230,27 @@ BookmarksStore.prototype = {
     return this.__wrap(node, items, null, null, rootName);
   },
 
-  _wrapMountOutgoing: function BStore__wrapById( itemId ) {
+  _wrapMount: function BStore__wrapMount(node, id) {
     if (node.type != node.RESULT_TYPE_FOLDER)
       throw "Trying to wrap a non-folder mounted share";
-    let node = this._getNode(itemId);
-    let GUID = this._bms.getItemGUID(itemId);
-    let snapshot = {};
+
+    let GUID = this._bms.getItemGUID(node.itemId);
+    let ret = {rootGUID: GUID, userid: id, snapshot: {}, folderNode: node};
+
     node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
     node.containerOpen = true;
     for (var i = 0; i < node.childCount; i++) {
-      this.__wrap(node.getChild(i), snapshot, GUID, i);
+      this.__wrap(node.getChild(i), ret.snapshot, GUID, i);
     }
 
     // remove any share mountpoints
-    for (let guid in snapshot) {
+    for (let guid in ret.snapshot) {
       // TODO decide what to do with this...
       if (ret.snapshot[guid].type == "incoming-share")
-        delete snapshot[guid];
+        delete ret.snapshot[guid];
     }
-    return snapshot;
+
+    return ret;
   },
 
   findIncomingShares: function BStore_findIncomingShares() {
@@ -1264,12 +1261,8 @@ BookmarksStore.prototype = {
     for (let i = 0; i < a.length; i++) {
       /* The value of the incoming-shared annotation is the id of the
        person who has shared it with us.  Get that value: */
-      let userId = this._ans.getItemAnnotation(a[i], INCOMING_SHARED_ANNO);
-      let node = this._getNode(a[i]);
-      let GUID = this._bms.getItemGUID(a[i]);
-      let path = this._ans.getItemAnnotation(a[i], SERVER_PATH_ANNO);
-      let dat = {rootGUID: GUID, userid: userId, serverPath: path, node: node};
-      ret.push(dat);
+      let id = this._ans.getItemAnnotation(a[i], INCOMING_SHARED_ANNO);
+      ret.push(this._wrapMount(this._getNode(a[i]), id));
     }
     return ret;
   },
