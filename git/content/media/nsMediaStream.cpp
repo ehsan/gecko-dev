@@ -35,11 +35,9 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "nsMediaStream.h"
-
 #include "mozilla/Mutex.h"
 #include "nsDebug.h"
+#include "nsMediaStream.h"
 #include "nsMediaDecoder.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
@@ -60,7 +58,6 @@
 #include "nsURILoader.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Util.h" // for DebugOnly
-#include "nsContentUtils.h"
 
 #define HTTP_OK_CODE 200
 #define HTTP_PARTIAL_RESPONSE_CODE 206

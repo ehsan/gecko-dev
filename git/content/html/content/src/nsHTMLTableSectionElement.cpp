@@ -45,7 +45,6 @@
 #include "nsRuleData.h"
 #include "nsDOMError.h"
 #include "nsIDocument.h"
-#include "nsContentUtils.h"
 
 // you will see the phrases "rowgroup" and "section" used interchangably
 

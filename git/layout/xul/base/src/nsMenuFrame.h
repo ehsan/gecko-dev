@@ -53,6 +53,7 @@
 #include "nsMenuParent.h"
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
+#include "nsIDOMText.h"
 #include "nsIContent.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);

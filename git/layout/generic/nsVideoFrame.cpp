@@ -58,7 +58,6 @@
 #include "nsIImageLoadingContent.h"
 #include "nsDisplayList.h"
 #include "nsCSSRendering.h"
-#include "nsContentUtils.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"

@@ -66,7 +66,6 @@
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
 #include "nsEventListenerManager.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 

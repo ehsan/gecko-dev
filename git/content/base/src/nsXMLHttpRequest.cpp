@@ -1348,12 +1348,6 @@ nsXMLHttpRequest::GetCurrentHttpChannel()
   return httpChannel;
 }
 
-bool
-nsXMLHttpRequest::IsSystemXHR()
-{
-  return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
-}
-
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {

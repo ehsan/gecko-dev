@@ -105,6 +105,7 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMText.h"
 #include "nsIDOMSVGImageElement.h"
 #include "nsIDOMSVGScriptElement.h"
 #ifdef MOZ_MEDIA

@@ -38,8 +38,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLElement.h"
 
-#include "nsContentUtils.h"
-
 using namespace mozilla::dom;
 
 class nsHTMLElement : public nsGenericHTMLElement,
