@@ -367,6 +367,7 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mView(nullptr)
 , mParentView(nullptr)
 , mParentWidget(nullptr)
+, mViewTearDownLock("ChildViewTearDown")
 , mEffectsLock("WidgetEffects")
 , mShowsResizeIndicator(false)
 , mHasRoundedBottomCorners(false)
@@ -573,6 +574,10 @@ nsChildView::GetXULWindowWidget()
 NS_IMETHODIMP nsChildView::Destroy()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Make sure that no composition is in progress while disconnecting
+  // ourselves from the view.
+  MutexAutoLock lock(mViewTearDownLock);
 
   if (mOnDestroyCalled)
     return NS_OK;
@@ -1963,18 +1968,6 @@ nsChildView::CreateCompositor()
 {
   nsBaseWidget::CreateCompositor();
   if (mCompositorChild) {
-    LayerManagerComposite *manager =
-      compositor::GetLayerManager(mCompositorParent);
-    Compositor *compositor = manager->GetCompositor();
-
-    ClientLayerManager *clientManager = static_cast<ClientLayerManager*>(GetLayerManager());
-    if (clientManager->GetCompositorBackendType() == LAYERS_OPENGL) {
-      CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
-
-      NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
-
-      [(ChildView *)mView setGLContext:glContext];
-    }
     [(ChildView *)mView setUsingOMTCompositor:true];
   }
 }
@@ -2038,15 +2031,38 @@ nsChildView::CleanupWindowEffects()
   mTitlebarImage = nullptr;
 }
 
-void
+bool
 nsChildView::PreRender(LayerManager* aManager)
+{
+  nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
+  if (!manager) {
+    return true;
+  }
+
+  // The lock makes sure that we don't attempt to tear down the view while
+  // compositing. That would make us unable to call postRender on it when the
+  // composition is done, thus keeping the GL context locked forever.
+  mViewTearDownLock.Lock();
+
+  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
+
+  if (![(ChildView*)mView preRender:glContext]) {
+    mViewTearDownLock.Unlock();
+    return false;
+  }
+  return true;
+}
+
+void
+nsChildView::PostRender(LayerManager* aManager)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (!manager) {
     return;
   }
   NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
-  [(ChildView*)mView preRender:glContext];
+  [(ChildView*)mView postRender:glContext];
+  mViewTearDownLock.Unlock();
 }
 
 void
@@ -2436,7 +2452,9 @@ nsChildView::CleanupRemoteDrawing()
 void
 nsChildView::DoRemoteComposition(const nsIntRect& aRenderRect)
 {
-  [(ChildView*)mView preRender:mGLPresenter->GetNSOpenGLContext()];
+  if (![(ChildView*)mView preRender:mGLPresenter->GetNSOpenGLContext()]) {
+    return;
+  }
   mGLPresenter->BeginFrame(aRenderRect.Size());
 
   // Draw the result from the basic compositor.
@@ -2447,6 +2465,8 @@ nsChildView::DoRemoteComposition(const nsIntRect& aRenderRect)
   DrawWindowOverlay(mGLPresenter, aRenderRect);
 
   mGLPresenter->EndFrame();
+
+  [(ChildView*)mView postRender:mGLPresenter->GetNSOpenGLContext()];
 }
 
 #ifdef ACCESSIBILITY
@@ -2862,7 +2882,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   [mGLContext clearDrawable];
-  [mGLContext setView:self];
+  [self updateGLContext];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2877,16 +2897,35 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
--(void)preRender:(NSOpenGLContext *)aGLContext
+- (bool)preRender:(NSOpenGLContext *)aGLContext
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  if (![self window] ||
+      ([[self window] isKindOfClass:[BaseWindow class]] &&
+       ![(BaseWindow*)[self window] isVisibleOrBeingShown])) {
+    // Before the window is shown, our GL context's front FBO is not
+    // framebuffer complete, so we refuse to render.
+    return false;
+  }
 
   if (!mGLContext) {
     [self setGLContext:aGLContext];
+    [self updateGLContext];
   }
 
-  [aGLContext setView:self];
-  [aGLContext update];
+  CGLLockContext((CGLContextObj)[aGLContext CGLContextObj]);
+
+  return true;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+}
+
+- (void)postRender:(NSOpenGLContext *)aGLContext
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  CGLUnlockContext((CGLContextObj)[aGLContext CGLContextObj]);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3220,33 +3259,19 @@ NSEvent* gLastDragMouseDownEvent = nil;
   return [[self window] isMovableByWindowBackground];
 }
 
-- (void)lockFocus
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  [super lockFocus];
-
-  if (mGLContext) {
-    if ([mGLContext view] != self) {
-      [mGLContext setView:self];
-    }
-
-    [mGLContext makeCurrentContext];
-  }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
--(void)update
+-(void)updateGLContext
 {
   if (mGLContext) {
+    CGLLockContext((CGLContextObj)[mGLContext CGLContextObj]);
+    [mGLContext setView:self];
     [mGLContext update];
+    CGLUnlockContext((CGLContextObj)[mGLContext CGLContextObj]);
   }
 }
 
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification
+- (void)_surfaceNeedsUpdate:(NSNotification*)notification
 {
-   [self update];
+   [self updateGLContext];
 }
 
 - (BOOL)wantsBestResolutionOpenGLSurface
@@ -3460,7 +3485,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild || ![self window])
     return NO;
 
-  return mGLContext || [self isUsingMainThreadOpenGL];
+  return mGLContext || mUsingOMTCompositor || [self isUsingMainThreadOpenGL];
 }
 
 - (void)drawUsingOpenGL
@@ -3483,10 +3508,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     if (!mGLContext) {
       [self setGLContext:glContext];
+      [self updateGLContext];
     }
-
-    [glContext setView:self];
-    [glContext update];
   }
 
   mGeckoChild->PaintWindow(region);
