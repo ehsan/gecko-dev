@@ -127,8 +127,6 @@ public:
     void SetDeviceOffset(const gfxPoint& offset);
     gfxPoint GetDeviceOffset() const;
 
-    virtual PRBool GetRotateForLandscape() { return PR_FALSE; }
-
     void Flush() const;
     void MarkDirty();
     void MarkDirty(const gfxRect& r);

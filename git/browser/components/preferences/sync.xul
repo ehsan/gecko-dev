@@ -101,12 +101,12 @@
                   <menuitem label="&viewQuota.label;"
                             oncommand="gSyncPane.openQuotaDialog();"/>
                   <menuseparator/>
-                  <menuitem label="&changePassword2.label;"
+                  <menuitem label="&changePassword.label;"
                             oncommand="gSyncUtils.changePassword();"/>
                   <menuitem label="&mySyncKey.label;"
                             oncommand="gSyncUtils.resetPassphrase();"/>
                   <menuseparator/>
-                  <menuitem label="&resetSync2.label;"
+                  <menuitem label="&resetSync.label;"
                             oncommand="gSyncPane.resetSync();"/>
                 </menupopup>
               </button>
@@ -172,7 +172,7 @@
             <hbox>
               <label class="text-link"
                      onclick="gSyncPane.startOver(true); return false;"
-                     value="&unlinkDevice.label;"/>
+                     value="&deactivateDevice.label;"/>
             </hbox>
           </groupbox>
           <hbox id="tosPP" pack="center">
@@ -197,7 +197,7 @@
           </hbox>
           <label class="text-link"
                  onclick="gSyncPane.startOver(true); return false;"
-                 value="&unlinkDevice.label;"/>
+                 value="&deactivateDevice.label;"/>
         </vbox>
       </deck>
   </prefpane>

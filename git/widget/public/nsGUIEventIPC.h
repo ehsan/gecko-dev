@@ -345,7 +345,6 @@ struct ParamTraits<nsQueryContentEvent>
     WriteParam(aMsg, aParam.mReply.mPageHeight);
     WriteParam(aMsg, aParam.mReply.mPageWidth);
     WriteParam(aMsg, aParam.mReply.mComputedScrollAmount);
-    WriteParam(aMsg, aParam.mReply.mComputedScrollAction);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -365,8 +364,7 @@ struct ParamTraits<nsQueryContentEvent>
            ReadParam(aMsg, aIter, &aResult->mReply.mLineHeight) &&
            ReadParam(aMsg, aIter, &aResult->mReply.mPageHeight) &&
            ReadParam(aMsg, aIter, &aResult->mReply.mPageWidth) &&
-           ReadParam(aMsg, aIter, &aResult->mReply.mComputedScrollAmount) &&
-           ReadParam(aMsg, aIter, &aResult->mReply.mComputedScrollAction);
+           ReadParam(aMsg, aIter, &aResult->mReply.mComputedScrollAmount);
   }
 };
 

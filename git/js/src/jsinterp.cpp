@@ -1091,8 +1091,10 @@ LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *result
     }
 
     double l, r;
-    if (!ToNumber(cx, lvalue, &l) || !ToNumber(cx, rvalue, &r))
+    if (!ValueToNumber(cx, lvalue, &l) ||
+        !ValueToNumber(cx, rvalue, &r)) {
         return false;
+    }
     *result = JSDOUBLE_COMPARE(l, ==, r, false);
     return true;
 }
@@ -1385,7 +1387,7 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, Value *vp, Value *vp2)
 {
     if (cs->format & JOF_POST) {
         double d;
-        if (!ToNumber(cx, *vp, &d))
+        if (!ValueToNumber(cx, *vp, &d))
             return JS_FALSE;
         vp->setNumber(d);
         (cs->format & JOF_INC) ? ++d : --d;
@@ -1394,7 +1396,7 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, Value *vp, Value *vp2)
     }
 
     double d;
-    if (!ToNumber(cx, *vp, &d))
+    if (!ValueToNumber(cx, *vp, &d))
         return JS_FALSE;
     (cs->format & JOF_INC) ? ++d : --d;
     vp->setNumber(d);
@@ -2968,8 +2970,10 @@ END_CASE(JSOP_CASEX)
                 cond = result OP 0;                                           \
             } else {                                                          \
                 double l, r;                                                  \
-                if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))       \
+                if (!ValueToNumber(cx, lval, &l) ||                           \
+                    !ValueToNumber(cx, rval, &r)) {                           \
                     goto error;                                               \
+                }                                                             \
                 cond = JSDOUBLE_COMPARE(l, OP, r, false);                     \
             }                                                                 \
         }                                                                     \
@@ -3087,7 +3091,7 @@ BEGIN_CASE(JSOP_ADD)
             regs.sp--;
         } else {
             double l, r;
-            if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
+            if (!ValueToNumber(cx, lval, &l) || !ValueToNumber(cx, rval, &r))
                 goto error;
             l += r;
             regs.sp[-2].setNumber(l);
@@ -3100,8 +3104,8 @@ END_CASE(JSOP_ADD)
 #define BINARY_OP(OP)                                                         \
     JS_BEGIN_MACRO                                                            \
         double d1, d2;                                                        \
-        if (!ToNumber(cx, regs.sp[-2], &d1) ||                                \
-            !ToNumber(cx, regs.sp[-1], &d2)) {                                \
+        if (!ValueToNumber(cx, regs.sp[-2], &d1) ||                           \
+            !ValueToNumber(cx, regs.sp[-1], &d2)) {                           \
             goto error;                                                       \
         }                                                                     \
         double d = d1 OP d2;                                                  \
@@ -3122,8 +3126,10 @@ END_CASE(JSOP_MUL)
 BEGIN_CASE(JSOP_DIV)
 {
     double d1, d2;
-    if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+        !ValueToNumber(cx, regs.sp[-1], &d2)) {
         goto error;
+    }
     regs.sp--;
     if (d2 == 0) {
         const Value *vp;
@@ -3159,8 +3165,10 @@ BEGIN_CASE(JSOP_MOD)
         regs.sp[-1].setInt32(mod);
     } else {
         double d1, d2;
-        if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+        if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+            !ValueToNumber(cx, regs.sp[-1], &d2)) {
             goto error;
+        }
         regs.sp--;
         if (d2 == 0) {
             regs.sp[-1].setDouble(js_NaN);
@@ -3205,7 +3213,7 @@ BEGIN_CASE(JSOP_NEG)
         regs.sp[-1].setInt32(i);
     } else {
         double d;
-        if (!ToNumber(cx, regs.sp[-1], &d))
+        if (!ValueToNumber(cx, regs.sp[-1], &d))
             goto error;
         d = -d;
         regs.sp[-1].setDouble(d);
@@ -3214,7 +3222,7 @@ BEGIN_CASE(JSOP_NEG)
 END_CASE(JSOP_NEG)
 
 BEGIN_CASE(JSOP_POS)
-    if (!ToNumber(cx, &regs.sp[-1]))
+    if (!ValueToNumber(cx, &regs.sp[-1]))
         goto error;
 END_CASE(JSOP_POS)
 

@@ -259,27 +259,30 @@ extern bool
 GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base,
                  const jschar **endp, jsdouble *dp);
 
-/* ES5 9.3 ToNumber. */
+/*
+ * Convert a value to a number, returning the converted value in 'out' if the
+ * conversion succeeds.
+ */
 JS_ALWAYS_INLINE bool
-ToNumber(JSContext *cx, const Value &v, double *out)
+ValueToNumber(JSContext *cx, const js::Value &v, double *out)
 {
     if (v.isNumber()) {
         *out = v.toNumber();
         return true;
     }
-    extern bool ToNumberSlow(JSContext *cx, js::Value v, double *dp);
-    return ToNumberSlow(cx, v, out);
+    extern bool ValueToNumberSlow(JSContext *, js::Value, double *);
+    return ValueToNumberSlow(cx, v, out);
 }
 
-/* ES5 9.3 ToNumber, overwriting *vp with the appropriate number value. */
+/* Convert a value to a number, replacing 'vp' with the converted value. */
 JS_ALWAYS_INLINE bool
-ToNumber(JSContext *cx, Value *vp)
+ValueToNumber(JSContext *cx, js::Value *vp)
 {
     if (vp->isNumber())
         return true;
     double d;
-    extern bool ToNumberSlow(JSContext *cx, js::Value v, double *dp);
-    if (!ToNumberSlow(cx, *vp, &d))
+    extern bool ValueToNumberSlow(JSContext *, js::Value, double *);
+    if (!ValueToNumberSlow(cx, *vp, &d))
         return false;
     vp->setNumber(d);
     return true;
@@ -640,8 +643,8 @@ ToInteger(JSContext *cx, const js::Value &v, jsdouble *dp)
     if (v.isDouble()) {
         *dp = v.toDouble();
     } else {
-        extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
-        if (!ToNumberSlow(cx, v, dp))
+        extern bool ValueToNumberSlow(JSContext *cx, js::Value v, double *dp);
+        if (!ValueToNumberSlow(cx, v, dp))
             return false;
     }
     *dp = js_DoubleToInteger(*dp);

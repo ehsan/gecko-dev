@@ -112,6 +112,7 @@
 #include "nsIObjectLoadingContent.h"
 #include "nsContentErrors.h"
 #include "nsIPrincipal.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsStyleUtil.h"
 #include "nsBox.h"
 #include "nsTArray.h"
@@ -210,6 +211,10 @@ nsIFrame*
 NS_NewSVGLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 #include "nsIDocument.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMDocumentXBL.h"
 #include "nsIScrollable.h"
 #include "nsINodeInfo.h"
 #include "prenv.h"

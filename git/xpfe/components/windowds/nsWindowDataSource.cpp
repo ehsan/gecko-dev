@@ -333,7 +333,7 @@ findWindow(nsHashKey* aKey, void *aData, void* aClosure)
 
 NS_IMETHODIMP
 nsWindowDataSource::GetWindowForResource(const char *aResourceString,
-                                         nsIDOMWindow** aResult)
+                                         nsIDOMWindowInternal** aResult)
 {
     nsCOMPtr<nsIRDFResource> windowResource;
     gRDFService->GetResource(nsDependentCString(aResourceString),
@@ -345,12 +345,13 @@ nsWindowDataSource::GetWindowForResource(const char *aResourceString,
     if (closure.resultWindow) {
 
         // this sucks, we have to jump through docshell to go from
-        // nsIXULWindow -> nsIDOMWindow
+        // nsIXULWindow -> nsIDOMWindowInternal
         nsCOMPtr<nsIDocShell> docShell;
         closure.resultWindow->GetDocShell(getter_AddRefs(docShell));
 
         if (docShell) {
-            nsCOMPtr<nsIDOMWindow> result = do_GetInterface(docShell);
+            nsCOMPtr<nsIDOMWindowInternal> result =
+                do_GetInterface(docShell);
         
             *aResult = result;
             NS_IF_ADDREF(*aResult);

@@ -1051,14 +1051,34 @@ WeaveSvc.prototype = {
   },
 
   _autoConnect: function _autoConnect() {
-    if (this._checkSetup() == STATUS_OK && !this._checkSync()) {
+    let isLocked = Utils.mpLocked();
+    if (isLocked) {
+      // There's no reason to back off if we're locked: we'll just try to login
+      // during sync. Clear our timer, see if we should go ahead and sync, then
+      // just return.
+      this._log.trace("Autoconnect skipped: master password still locked.");
+
+      if (this._autoTimer)
+        this._autoTimer.clear();
+
+      SyncScheduler.checkSyncStatus();
+
+      return;
+    }
+
+    let reason = this._checkSync([kSyncNotLoggedIn, kFirstSyncChoiceNotMade]);
+
+    // Can't autoconnect if we're missing these values.
+    if (!reason) {
+      if (!this.username || !this.password || !this.passphrase)
+        return;
+
       Utils.nextTick(this.sync, this);
     }
 
     // Once _autoConnect is called we no longer need _autoTimer.
-    if (this._autoTimer) {
+    if (this._autoTimer)
       this._autoTimer.clear();
-    }
   },
 
   persistLogin: function persistLogin() {
@@ -1372,6 +1392,8 @@ WeaveSvc.prototype = {
     else if ((Status.login == MASTER_PASSWORD_LOCKED) &&
              Utils.mpLocked())
       reason = kSyncMasterPasswordLocked;
+    else if (!this._loggedIn)
+      reason = kSyncNotLoggedIn;
     else if (Svc.Prefs.get("firstSync") == "notReady")
       reason = kFirstSyncChoiceNotMade;
 

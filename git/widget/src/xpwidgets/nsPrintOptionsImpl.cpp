@@ -47,6 +47,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIWindowWatcher.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsISupportsArray.h"
 #include "prprf.h"
 
@@ -159,8 +160,9 @@ nsPrintOptions::ShowPrintSetupDialog(nsIPrintSettings *aPS)
       do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMWindow> parent;
-  wwatch->GetActiveWindow(getter_AddRefs(parent));
+  nsCOMPtr<nsIDOMWindow> active;
+  wwatch->GetActiveWindow(getter_AddRefs(active));
+  nsCOMPtr<nsIDOMWindowInternal> parent = do_QueryInterface(active);
   // null |parent| is non-fatal
 
   nsCOMPtr<nsIDOMWindow> newWindow;

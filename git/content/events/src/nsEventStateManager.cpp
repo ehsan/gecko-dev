@@ -65,7 +65,19 @@
 #include "nsIComboboxControlFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLLabelElement.h"
+#include "nsIDOMHTMLSelectElement.h"
+#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMHTMLButtonElement.h"
+#include "nsIDOMHTMLObjectElement.h"
+#include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMHTMLMapElement.h"
+#include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMXULControlElement.h"
+#include "nsIDOMXULTextboxElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsIBaseWindow.h"
 #include "nsIView.h"
@@ -73,6 +85,7 @@
 #include "nsISelection.h"
 #include "nsFrameSelection.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
 #include "nsIEnumerator.h"
@@ -103,6 +116,7 @@
 #include "nsDOMDragEvent.h"
 #include "nsIDOMNSEditableElement.h"
 
+#include "nsIDOMRange.h"
 #include "nsCaret.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
@@ -204,7 +218,7 @@ PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
   if (cv)
     cv->GetDOMDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  nsCOMPtr<nsIDOMWindow> domwin = doc ? doc->GetWindow() : nsnull;
+  nsCOMPtr<nsIDOMWindowInternal> domwin = doc ? doc->GetWindow() : nsnull;
   nsIURI* uri = doc ? doc->GetDocumentURI() : nsnull;
 
   printf("DS %p  Type %s  Cnt %d  Doc %p  DW %p  EM %p%c",
@@ -1198,7 +1212,42 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
       nsMouseScrollEvent* msEvent = static_cast<nsMouseScrollEvent*>(aEvent);
 
-      msEvent->delta = ComputeWheelDeltaFor(msEvent);
+      PRBool useSysNumLines = UseSystemScrollSettingFor(msEvent);
+      PRInt32 action = GetWheelActionFor(msEvent);
+
+      if (!useSysNumLines) {
+        // If the scroll event's delta isn't to our liking, we can
+        // override it with the "numlines" parameter.  There are two
+        // things we can do:
+        //
+        // (1) Pick a different number.  Instead of scrolling 3
+        //     lines ("delta" in Gtk2), we would scroll 1 line.
+        // (2) Swap directions.  Instead of scrolling down, scroll up.
+        //
+        // For the first item, the magnitude of the parameter is
+        // used instead of the magnitude of the delta.  For the
+        // second item, if the parameter is negative we swap
+        // directions.
+
+        PRInt32 numLines = GetScrollLinesFor(msEvent);
+
+        PRBool swapDirs = (numLines < 0);
+        PRInt32 userSize = swapDirs ? -numLines : numLines;
+
+        PRBool deltaUp = (msEvent->delta < 0);
+        if (swapDirs) {
+          deltaUp = !deltaUp;
+        }
+
+        msEvent->delta = deltaUp ? -userSize : userSize;
+      }
+      if ((useSysNumLines &&
+           (msEvent->scrollFlags & nsMouseScrollEvent::kIsFullPage)) ||
+          action == MOUSE_SCROLL_PAGE) {
+          msEvent->delta = (msEvent->delta > 0)
+            ? PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_DOWN)
+            : PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_UP);
+      }
     }
     break;
   case NS_MOUSE_PIXEL_SCROLL:
@@ -2372,7 +2421,7 @@ nsEventStateManager::GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv)
   nsCOMPtr<nsPIDOMWindow> ourWindow = do_QueryInterface(focusedWindow);
   if(!ourWindow) return NS_ERROR_FAILURE;
 
-  nsIDOMWindow *rootWindow = ourWindow->GetPrivateRoot();
+  nsIDOMWindowInternal *rootWindow = ourWindow->GetPrivateRoot();
   if(!rootWindow) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMWindow> contentWindow;
@@ -2586,45 +2635,6 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 }
 
 PRInt32
-nsEventStateManager::ComputeWheelDeltaFor(nsMouseScrollEvent* aMouseEvent)
-{
-  PRInt32 delta = aMouseEvent->delta;
-  PRBool useSysNumLines = UseSystemScrollSettingFor(aMouseEvent);
-  if (!useSysNumLines) {
-    // If the scroll event's delta isn't to our liking, we can
-    // override it with the "numlines" parameter.  There are two
-    // things we can do:
-    //
-    // (1) Pick a different number.  Instead of scrolling 3
-    //     lines ("delta" in Gtk2), we would scroll 1 line.
-    // (2) Swap directions.  Instead of scrolling down, scroll up.
-    //
-    // For the first item, the magnitude of the parameter is
-    // used instead of the magnitude of the delta.  For the
-    // second item, if the parameter is negative we swap
-    // directions.
-
-    PRInt32 numLines = GetScrollLinesFor(aMouseEvent);
-
-    PRBool swapDirs = (numLines < 0);
-    PRInt32 userSize = swapDirs ? -numLines : numLines;
-
-    PRBool deltaUp = (delta < 0);
-    if (swapDirs) {
-      deltaUp = !deltaUp;
-    }
-    delta = deltaUp ? -userSize : userSize;
-  }
-
-  if (ComputeWheelActionFor(aMouseEvent, useSysNumLines) == MOUSE_SCROLL_PAGE) {
-    delta = (delta > 0) ? PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_DOWN) :
-                          PRInt32(nsIDOMNSUIEvent::SCROLL_PAGE_UP);
-  }
-
-  return delta;
-}
-
-PRInt32
 nsEventStateManager::ComputeWheelActionFor(nsMouseScrollEvent* aMouseEvent,
                                            PRBool aUseSystemSettings)
 {
@@ -2808,21 +2818,6 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
       // Returns computed numLines to widget which is needed to compute the
       // pixel scrolling amout for high resolution scrolling.
       aQueryEvent->mReply.mComputedScrollAmount = numLines;
-
-      switch (aScrollQuantity) {
-        case nsIScrollableFrame::LINES:
-          aQueryEvent->mReply.mComputedScrollAction =
-            nsQueryContentEvent::SCROLL_ACTION_LINE;
-          break;
-        case nsIScrollableFrame::PAGES:
-          aQueryEvent->mReply.mComputedScrollAction =
-            nsQueryContentEvent::SCROLL_ACTION_PAGE;
-          break;
-        default:
-          aQueryEvent->mReply.mComputedScrollAction =
-            nsQueryContentEvent::SCROLL_ACTION_NONE;
-          break;
-      }
 
       aQueryEvent->mSucceeded = PR_TRUE;
       return NS_OK;
@@ -4772,41 +4767,35 @@ void
 nsEventStateManager::DoQueryScrollTargetInfo(nsQueryContentEvent* aEvent,
                                              nsIFrame* aTargetFrame)
 {
-  // Don't modify the test event which in mInput.
-  nsMouseScrollEvent msEvent(
-    NS_IS_TRUSTED_EVENT(aEvent->mInput.mMouseScrollEvent),
-    aEvent->mInput.mMouseScrollEvent->message,
-    aEvent->mInput.mMouseScrollEvent->widget);
+  nsMouseScrollEvent* msEvent = aEvent->mInput.mMouseScrollEvent;
 
-  msEvent.isShift = aEvent->mInput.mMouseScrollEvent->isShift;
-  msEvent.isControl = aEvent->mInput.mMouseScrollEvent->isControl;
-  msEvent.isAlt = aEvent->mInput.mMouseScrollEvent->isAlt;
-  msEvent.isMeta = aEvent->mInput.mMouseScrollEvent->isMeta;
-
-  msEvent.scrollFlags = aEvent->mInput.mMouseScrollEvent->scrollFlags;
-  msEvent.delta = ComputeWheelDeltaFor(aEvent->mInput.mMouseScrollEvent);
-  msEvent.scrollOverflow = aEvent->mInput.mMouseScrollEvent->scrollOverflow;
-
-  PRBool useSystemSettings = UseSystemScrollSettingFor(&msEvent);
+  // Don't use high resolution scrolling when user customize the scrolling
+  // speed.
+  if (!UseSystemScrollSettingFor(msEvent)) {
+    return;
+  }
 
   nsIScrollableFrame::ScrollUnit unit;
   PRBool allowOverrideSystemSettings;
-  switch (ComputeWheelActionFor(&msEvent, useSystemSettings)) {
+  switch (ComputeWheelActionFor(msEvent, PR_TRUE)) {
     case MOUSE_SCROLL_N_LINES:
       unit = nsIScrollableFrame::LINES;
-      allowOverrideSystemSettings = useSystemSettings;
+      allowOverrideSystemSettings = PR_TRUE;
       break;
     case MOUSE_SCROLL_PAGE:
       unit = nsIScrollableFrame::PAGES;
       allowOverrideSystemSettings = PR_FALSE;
       break;
+    case MOUSE_SCROLL_PIXELS:
+      unit = nsIScrollableFrame::DEVICE_PIXELS;
+      allowOverrideSystemSettings = PR_FALSE;
     default:
       // Don't use high resolution scrolling when the action doesn't scroll
       // contents.
       return;
   }
 
-  DoScrollText(aTargetFrame, &msEvent, unit,
+  DoScrollText(aTargetFrame, msEvent, unit,
                allowOverrideSystemSettings, aEvent);
 }
 

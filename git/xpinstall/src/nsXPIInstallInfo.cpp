@@ -40,7 +40,7 @@
 
 NS_IMPL_ISUPPORTS1(nsXPIInstallInfo, nsIXPIInstallInfo)
 
-nsXPIInstallInfo::nsXPIInstallInfo(nsIDOMWindow *aOriginatingWindow,
+nsXPIInstallInfo::nsXPIInstallInfo(nsIDOMWindowInternal *aOriginatingWindow,
                                    nsIURI *aOriginatingURI,
                                    nsXPITriggerInfo *aTriggerInfo,
                                    PRUint32 aChromeType)
@@ -69,9 +69,9 @@ nsXPIInstallInfo::SetTriggerInfo(nsXPITriggerInfo * aTriggerInfo)
     return NS_OK;
 }
 
-/* readonly attribute nsIDOMWindow originatingWindow; */
+/* readonly attribute nsIDOMWindowInternal originatingWindow; */
 NS_IMETHODIMP
-nsXPIInstallInfo::GetOriginatingWindow(nsIDOMWindow * *aOriginatingWindow)
+nsXPIInstallInfo::GetOriginatingWindow(nsIDOMWindowInternal * *aOriginatingWindow)
 {
     NS_IF_ADDREF(*aOriginatingWindow = mOriginatingWindow);
     return NS_OK;

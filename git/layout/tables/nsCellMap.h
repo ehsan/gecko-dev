@@ -311,7 +311,7 @@ public:
     */
   ~nsCellMap();
 
-  static void Init();
+  static nsresult Init();
   static void Shutdown();
 
   nsCellMap* GetNextSibling() const;
