@@ -13,15 +13,13 @@
 
 BEGIN_TELEPHONY_NAMESPACE
 
-class TelephonyIPCProvider;
-
 class TelephonyChild : public PTelephonyChild
 {
 public:
-  TelephonyChild(TelephonyIPCProvider* aProvider);
+  TelephonyChild(nsITelephonyListener* aListener);
 
 protected:
-  virtual ~TelephonyChild();
+  virtual ~TelephonyChild() {}
 
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
@@ -57,7 +55,7 @@ protected:
                                  const uint16_t& aNotification) MOZ_OVERRIDE;
 
 private:
-  nsRefPtr<TelephonyIPCProvider> mProvider;
+  nsCOMPtr<nsITelephonyListener> mListener;
 };
 
 class TelephonyRequestChild : public PTelephonyRequestChild
