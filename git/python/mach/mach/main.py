@@ -122,11 +122,7 @@ To see more help for a specific command, run:
         self.log_manager.register_structured_logger(self.logger)
 
     def run(self, argv):
-        """Runs mach with arguments provided from the command line.
-
-        Returns the integer exit code that should be used. 0 means success. All
-        other values indicate failure.
-        """
+        """Runs mach with arguments provided from the command line."""
 
         # If no encoding is defined, we default to UTF-8 because without this
         # Python 2.7 will assume the default encoding of ASCII. This will blow
@@ -147,10 +143,7 @@ To see more help for a specific command, run:
             if sys.stderr.encoding is None:
                 sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
 
-            return self._run(argv)
-        except KeyboardInterrupt:
-            print('mach interrupted by signal or user action. Stopping.')
-            return 1
+            self._run(argv)
         finally:
             sys.stdin = orig_stdin
             sys.stdout = orig_stdout
@@ -206,14 +199,7 @@ To see more help for a specific command, run:
         else:
             raise Exception('Dispatch configuration error in module.')
 
-        result = fn(**stripped)
-
-        if not result:
-            result = 0
-
-        assert isinstance(result, int)
-
-        return result
+        fn(**stripped)
 
     def log(self, level, action, params, format_str):
         """Helper method to record a structured log event."""

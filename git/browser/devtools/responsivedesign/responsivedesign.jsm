@@ -9,7 +9,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/FloatingScrollbars.jsm");
 
 var EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
 
@@ -160,8 +159,6 @@ function ResponsiveUI(aWindow, aTab)
       this.rotate();
     }
   } catch(e) {}
-
-  switchToFloatingScrollbars(this.tab);
 }
 
 ResponsiveUI.prototype = {
@@ -182,7 +179,6 @@ ResponsiveUI.prototype = {
   close: function RUI_unload() {
     if (this.closing)
       return;
-    switchToNativeScrollbars(this.tab);
     this.closing = true;
 
     this.unCheckMenus();

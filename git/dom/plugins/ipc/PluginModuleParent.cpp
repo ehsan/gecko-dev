@@ -1455,10 +1455,8 @@ PluginModuleParent::InitializeInjector()
 void
 PluginModuleParent::OnCrash(DWORD processID)
 {
-    if (!mShutdown) {
-        GetIPCChannel()->CloseWithError();
-        KillProcess(OtherProcess(), 1, false);
-    }
+    GetIPCChannel()->CloseWithError();
+    KillProcess(OtherProcess(), 1, false);
 }
 
 #endif // MOZ_CRASHREPORTER_INJECTOR
