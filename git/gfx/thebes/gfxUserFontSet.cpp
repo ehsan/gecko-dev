@@ -795,9 +795,7 @@ gfxUserFontSet::UserFontCache::ForgetFont(gfxFontEntry *aFontEntry)
     }
 
     gfxUserFontData *data = aFontEntry->mUserFontData;
-    if (data) {
-        sUserFonts->RemoveEntry(Key(data->mURI, data->mPrincipal, aFontEntry));
-    }
+    sUserFonts->RemoveEntry(Key(data->mURI, data->mPrincipal, aFontEntry));
 }
 
 gfxFontEntry*

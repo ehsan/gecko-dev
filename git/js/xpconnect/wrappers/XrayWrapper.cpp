@@ -593,11 +593,12 @@ holder_set(JSContext *cx, JSHandleObject wrapper_, JSHandleId id, JSBool strict,
 class AutoSetWrapperNotShadowing
 {
 public:
-    AutoSetWrapperNotShadowing(ResolvingId *resolvingId MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoSetWrapperNotShadowing(JSObject *wrapper MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        MOZ_ASSERT(resolvingId);
-        mResolvingId = resolvingId;
+        MOZ_ASSERT(wrapper);
+        mResolvingId = ResolvingId::getResolvingIdFromWrapper(wrapper);
+        MOZ_ASSERT(mResolvingId);
         mResolvingId->mXrayShadowing = true;
     }
 
@@ -627,26 +628,12 @@ XPCWrappedNativeXrayTraits::resolveDOMCollectionProperty(JSContext *cx, JSObject
         return true;
 
     XPCWrappedNative *wn = getWN(wrapper);
-    if (!wn) {
-        // This should NEVER happen, but let's be extra careful here
-        // because of the reported crashes (Bug 832091).
-        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
-        return false;
-    }
     if (!NATIVE_HAS_FLAG(wn, WantNewResolve))
         return true;
 
-    ResolvingId *resolvingId = ResolvingId::getResolvingIdFromWrapper(wrapper);
-    if (!resolvingId) {
-        // This should NEVER happen, but let's be extra careful here
-        // becaue of the reported crashes (Bug 832091).
-        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
-        return false;
-    }
-
     // Setting the current ResolvingId in non-shadowing mode. So for this id
     // Xray won't ignore DOM specific collection properties temporarily.
-    AutoSetWrapperNotShadowing asw(resolvingId);
+    AutoSetWrapperNotShadowing asw(wrapper);
 
     bool retval = true;
     JSObject *pobj = NULL;
@@ -779,13 +766,10 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, JSObject *wrapp
     XPCNativeInterface *iface;
     XPCNativeMember *member;
     XPCWrappedNative *wn = getWN(wrapper);
-
-    if (ccx.GetWrapper() != wn || !wn->IsValid()) {
-        // Something is wrong. If the wrapper is not even valid let's not risk
-        // calling resolveDOMCollectionProperty.
-        return true;
-    } else if (!(iface = ccx.GetInterface()) ||
-               !(member = ccx.GetMember())) {
+    if (ccx.GetWrapper() != wn ||
+        !wn->IsValid()  ||
+        !(iface = ccx.GetInterface()) ||
+        !(member = ccx.GetMember())) {
         /* Not found */
         return resolveDOMCollectionProperty(cx, wrapper, holder, id, desc, flags);
     }

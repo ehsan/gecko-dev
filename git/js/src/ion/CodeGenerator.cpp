@@ -1246,10 +1246,11 @@ CodeGenerator::emitParCallToUncompiledScript(Register calleeReg)
 bool
 CodeGenerator::visitCallKnown(LCallKnown *call)
 {
+    JSContext *cx = GetIonContext()->cx;
     Register calleereg = ToRegister(call->getFunction());
     Register objreg    = ToRegister(call->getTempObject());
     uint32_t unusedStack = StackOffsetOfPassedArg(call->argslot());
-    RawFunction target = call->getSingleTarget();
+    RootedFunction target(cx, call->getSingleTarget());
     ExecutionMode executionMode = gen->info().executionMode();
     Label end, uncompiled;
 
@@ -1260,10 +1261,13 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
 
     masm.checkStackAlignment();
 
+    // Make sure the function has a JSScript
+    if (target->isInterpretedLazy() && !target->getOrCreateScript(cx))
+        return false;
+
     // If the function is known to be uncompilable, just emit the call to
     // Invoke in sequential mode, else mark as cannot compile.
-    JS_ASSERT(call->mir()->hasRootedScript());
-    RawScript targetScript(target->nonLazyScript());
+    RootedScript targetScript(cx, target->nonLazyScript());
     if (GetIonScript(targetScript, executionMode) == ION_DISABLED_SCRIPT) {
         if (executionMode == ParallelExecution)
             return false;
