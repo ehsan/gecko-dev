@@ -109,7 +109,6 @@ let PageThumbs = {
    * @param aCallback The function to be called when finished (optional).
    */
   captureAndStore: function PageThumbs_captureAndStore(aBrowser, aCallback) {
-    let url = aBrowser.currentURI.spec;
     this.capture(aBrowser.contentWindow, function (aInputStream) {
       let telemetryStoreTime = new Date();
 
@@ -124,7 +123,7 @@ let PageThumbs = {
       }
 
       // Get a writeable cache entry.
-      PageThumbsCache.getWriteEntry(url, function (aEntry) {
+      PageThumbsCache.getWriteEntry(aBrowser.currentURI.spec, function (aEntry) {
         if (!aEntry) {
           finish(false);
           return;
