@@ -7,7 +7,6 @@
 #define mozilla_dom_shadowroot_h__
 
 #include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/StyleSheetList.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsTHashtable.h"
@@ -53,7 +52,7 @@ public:
   void RemoveSheet(nsCSSStyleSheet* aSheet);
   bool ApplyAuthorStyles();
   void SetApplyAuthorStyles(bool aApplyAuthorStyles);
-  StyleSheetList* StyleSheets();
+  nsIDOMStyleSheetList* StyleSheets();
   HTMLShadowElement* GetShadowElement() { return mShadowElement; }
 
   /**
@@ -170,22 +169,17 @@ protected:
   bool mInsertionPointChanged;
 };
 
-class ShadowRootStyleSheetList : public StyleSheetList
+class ShadowRootStyleSheetList : public nsIDOMStyleSheetList
 {
 public:
   ShadowRootStyleSheetList(ShadowRoot* aShadowRoot);
   virtual ~ShadowRootStyleSheetList();
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ShadowRootStyleSheetList, StyleSheetList)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(ShadowRootStyleSheetList)
 
-  virtual nsINode* GetParentObject() const MOZ_OVERRIDE
-  {
-    return mShadowRoot;
-  }
-
-  virtual uint32_t Length() MOZ_OVERRIDE;
-  virtual nsCSSStyleSheet* IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
+  // nsIDOMStyleSheetList
+  NS_DECL_NSIDOMSTYLESHEETLIST
 
 protected:
   nsRefPtr<ShadowRoot> mShadowRoot;

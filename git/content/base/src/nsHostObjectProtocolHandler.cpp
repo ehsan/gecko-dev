@@ -94,14 +94,13 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
     }
 
     for (uint32_t i = 0; i < maxFrames && frame; ++i) {
-      nsString fileNameUTF16;
+      nsCString fileName;
       int32_t lineNumber = 0;
 
-      frame->GetFilename(fileNameUTF16);
+      frame->GetFilename(fileName);
       frame->GetLineNumber(&lineNumber);
 
-      if (!fileNameUTF16.IsEmpty()) {
-        NS_ConvertUTF16toUTF8 fileName(fileNameUTF16);
+      if (!fileName.IsEmpty()) {
         stack += "js(";
         if (!origin.IsEmpty()) {
           // Make the file name root-relative for conciseness if possible.

@@ -6,11 +6,8 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/Tools.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/layers/TextureHost.h"
-#include "mozilla/RefPtr.h"
 #include "gfx2DGlue.h"
 #include "gfxImageSurface.h"
 #include "gfxTypes.h"
@@ -18,7 +15,6 @@
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
 /*
@@ -80,44 +76,6 @@ void AssertSurfacesEqual(gfxImageSurface* surface1,
   }
 }
 
-void AssertSurfacesEqual(SourceSurface* surface1,
-                         SourceSurface* surface2)
-{
-  ASSERT_EQ(surface1->GetSize(), surface2->GetSize());
-  ASSERT_EQ(surface1->GetFormat(), surface2->GetFormat());
-
-  RefPtr<DataSourceSurface> dataSurface1 = surface1->GetDataSurface();
-  RefPtr<DataSourceSurface> dataSurface2 = surface2->GetDataSurface();
-  DataSourceSurface::MappedSurface map1;
-  DataSourceSurface::MappedSurface map2;
-  if (!dataSurface1->Map(DataSourceSurface::READ, &map1)) {
-    return;
-  }
-  if (!dataSurface2->Map(DataSourceSurface::READ, &map2)) {
-    dataSurface1->Unmap();
-    return;
-  }
-  uint8_t* data1 = map1.mData;
-  uint8_t* data2 = map2.mData;
-  int stride1 = map1.mStride;
-  int stride2 = map2.mStride;
-  int bpp = BytesPerPixel(surface1->GetFormat());
-  int width = surface1->GetSize().width;
-  int height = surface1->GetSize().height;
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      for (int b = 0; b < bpp; ++b) {
-        ASSERT_EQ(data1[y*stride1 + x*bpp + b],
-                  data2[y*stride2 + x*bpp + b]);
-      }
-    }
-  }
-
-  dataSurface1->Unmap();
-  dataSurface2->Unmap();
-}
-
 // Same as above, for YCbCr surfaces
 void AssertYCbCrSurfacesEqual(PlanarYCbCrData* surface1,
                               PlanarYCbCrData* surface2)
@@ -154,16 +112,12 @@ void TestTextureClientSurface(TextureClient* texture, gfxImageSurface* surface) 
 
   ASSERT_TRUE(texture->Lock(OPEN_READ_WRITE));
   // client painting
-  RefPtr<DrawTarget> dt = texture->GetAsDrawTarget();
-  RefPtr<SourceSurface> source =
-    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, surface);
-  dt->CopySurface(source, IntRect(IntPoint(), source->GetSize()), IntPoint());
+  client->UpdateSurface(surface);
 
-  RefPtr<SourceSurface> snapshot = dt->Snapshot();
+  nsRefPtr<gfxASurface> aSurface = client->GetAsSurface();
+  nsRefPtr<gfxImageSurface> clientSurface = aSurface->GetAsImageSurface();
 
-  AssertSurfacesEqual(snapshot, source);
-
-  dt = nullptr; // drop reference before calling Unlock()
+  AssertSurfacesEqual(surface, clientSurface);
   texture->Unlock();
 
   // client serialization

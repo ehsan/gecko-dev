@@ -88,7 +88,7 @@ namespace jit {
  * Logging something is done in 3 stages.
  * 1) Get the tracelogger of the current thread.
  *     - TraceLoggerForMainThread(JSRuntime *)
- *     - TraceLoggerForCurrentThread(); // Should NOT be used for the mainthread.
+ *     - TraceLoggerForThread(PR_GetCurrentThread());
  * 2) Optionally create a textId for the text that needs to get logged. This
  *    step takes some time, so try to do this beforehand, outside the hot
  *    path and don't do unnecessary repetitions, since it will criple
@@ -385,20 +385,16 @@ class TraceLogger
 class TraceLogging
 {
 #ifdef JS_TRACE_LOGGING
-#ifdef JS_THREADSAFE
     typedef HashMap<PRThread *,
                     TraceLogger *,
                     PointerHasher<PRThread *, 3>,
                     SystemAllocPolicy> ThreadLoggerHashMap;
-#endif // JS_THREADSAFE
     typedef Vector<TraceLogger *, 1, js::SystemAllocPolicy > MainThreadLoggers;
 
     bool initialized;
     bool enabled;
     bool enabledTextIds[TraceLogger::LAST];
-#ifdef JS_THREADSAFE
     ThreadLoggerHashMap threadLoggers;
-#endif // JS_THREADSAFE
     MainThreadLoggers mainThreadLoggers;
     uint32_t loggerId;
     FILE *out;
@@ -407,16 +403,14 @@ class TraceLogging
     uint64_t startupTime;
 #ifdef JS_THREADSAFE
     PRLock *lock;
-#endif // JS_THREADSAFE
+#endif
 
     TraceLogging();
     ~TraceLogging();
 
     TraceLogger *forMainThread(JSRuntime *runtime);
     TraceLogger *forMainThread(jit::CompileRuntime *runtime);
-#ifdef JS_THREADSAFE
     TraceLogger *forThread(PRThread *thread);
-#endif // JS_THREADSAFE
 
     bool isTextIdEnabled(uint32_t textId) {
         if (textId < TraceLogger::LAST)
@@ -434,7 +428,7 @@ class TraceLogging
 #ifdef JS_TRACE_LOGGING
 TraceLogger *TraceLoggerForMainThread(JSRuntime *runtime);
 TraceLogger *TraceLoggerForMainThread(jit::CompileRuntime *runtime);
-TraceLogger *TraceLoggerForCurrentThread();
+TraceLogger *TraceLoggerForThread(PRThread *thread);
 #else
 inline TraceLogger *TraceLoggerForMainThread(JSRuntime *runtime) {
     return nullptr;
@@ -442,7 +436,7 @@ inline TraceLogger *TraceLoggerForMainThread(JSRuntime *runtime) {
 inline TraceLogger *TraceLoggerForMainThread(jit::CompileRuntime *runtime) {
     return nullptr;
 };
-inline TraceLogger *TraceLoggerForCurrentThread() {
+inline TraceLogger *TraceLoggerForThread(PRThread *thread) {
     return nullptr;
 };
 #endif
@@ -560,12 +554,12 @@ class AutoTraceLoggingLock
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef JS_THREADSAFE
         PR_Lock(logging->lock);
-#endif // JS_THREADSAFE
+#endif
     }
     ~AutoTraceLoggingLock() {
 #ifdef JS_THREADSAFE
         PR_Unlock(logging->lock);
-#endif // JS_THREADSAFE
+#endif
     }
   private:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER

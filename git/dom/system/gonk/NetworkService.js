@@ -34,13 +34,7 @@ const WIFI_CTRL_INTERFACE = "wl0.1";
 
 const MANUAL_PROXY_CONFIGURATION = 1;
 
-let DEBUG = false;
-
-// Read debug setting from pref.
-try {
-  let debugPref = Services.prefs.getBoolPref("network.debugging.enabled");
-  DEBUG = DEBUG || debugPref;
-} catch (e) {}
+const DEBUG = false;
 
 function netdResponseType(code) {
   return Math.floor(code / 100) * 100;

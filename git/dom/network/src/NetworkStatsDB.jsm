@@ -16,7 +16,7 @@ Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.importGlobalProperties(["indexedDB"]);
 
 const DB_NAME = "net_stats";
-const DB_VERSION = 8;
+const DB_VERSION = 7;
 const DEPRECATED_STORE_NAME = "net_stats";
 const STATS_STORE_NAME = "net_stats_store";
 const ALARMS_STORE_NAME = "net_alarm";
@@ -309,14 +309,6 @@ NetworkStatsDB.prototype = {
             }
           }, this);
         };
-      } else if (currVersion == 7) {
-        // Create index for 'ServiceType' in order to make it retrievable.
-        let statsStore = aTransaction.objectStore(STATS_STORE_NAME);
-        statsStore.createIndex("serviceType", "serviceType", { unique: false });
-
-        if (DEBUG) {
-          debug("Create index of 'serviceType' for version 8");
-        }
       }
     }
   },
@@ -842,7 +834,7 @@ NetworkStatsDB.prototype = {
   },
 
   getAvailableServiceTypes: function getAvailableServiceTypes(aResultCb) {
-    this.dbNewTxn(STATS_STORE_NAME, "readonly", function(aTxn, aStore) {
+    this.dbNewTxn("readonly", function(aTxn, aStore) {
       if (!aTxn.result) {
         aTxn.result = [];
       }
@@ -850,7 +842,7 @@ NetworkStatsDB.prototype = {
       let request = aStore.index("serviceType").openKeyCursor(null, "nextunique");
       request.onsuccess = function onsuccess(event) {
         let cursor = event.target.result;
-        if (cursor && cursor.key != "") {
+        if (cursor) {
           aTxn.result.push({ serviceType: cursor.key });
           cursor.continue();
           return;

@@ -75,6 +75,7 @@ static const char* USB_CONFIG_DELIMIT = ",";
 static const char* NETD_MESSAGE_DELIMIT = " ";
 
 static const uint32_t BUF_SIZE = 1024;
+static const uint32_t MAX_SSID_SIZE = 33;
 
 static uint32_t SDK_VERSION;
 
@@ -264,6 +265,28 @@ static void split(char* str, const char* sep, nsTArray<nsString>& result)
     result.AppendElement(NS_ConvertUTF8toUTF16(s));
     s = strtok(nullptr, sep);
   }
+}
+
+/**
+ * Helper function to do string search and replace.
+ */
+static void replace(const char* src,
+                    const char* strold,
+                    const char* strnew,
+                    char* dst)
+{
+  const char *p, *q;
+  char *r;
+  uint32_t oldlen = strlen(strold);
+  uint32_t newlen = strlen(strnew);
+
+  for (p = src, r = dst; (q = strstr(p, strold)) != nullptr; p = q + oldlen) {
+    strncpy(r, p, q - p);
+    r +=  q - p;
+    strncpy(r, strnew, newlen);
+    r += newlen;
+  }
+  strcpy(r, p);
 }
 
 /**
@@ -517,31 +540,31 @@ void NetworkUtils::setAccessPoint(CommandChain* aChain,
                                   NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-  nsCString ssid(GET_CHAR(mSsid));
-  nsCString key(GET_CHAR(mKey));
+  char ssid[MAX_SSID_SIZE];
+  char key[MAX_COMMAND_SIZE];
 
-  escapeQuote(ssid);
-  escapeQuote(key);
+  escapeQuote(GET_CHAR(mSsid), ssid);
+  escapeQuote(GET_CHAR(mKey), key);
 
   if (SDK_VERSION >= 19) {
     snprintf(command, MAX_COMMAND_SIZE - 1, "softap set %s \"%s\" broadcast 6 %s \"%s\"",
                      GET_CHAR(mIfname),
-                     ssid.get(),
+                     ssid,
                      GET_CHAR(mSecurity),
-                     key.get());
+                     key);
   } else if (SDK_VERSION >= 16) {
     snprintf(command, MAX_COMMAND_SIZE - 1, "softap set %s \"%s\" %s \"%s\"",
                      GET_CHAR(mIfname),
-                     ssid.get(),
+                     ssid,
                      GET_CHAR(mSecurity),
-                     key.get());
+                     key);
   } else {
     snprintf(command, MAX_COMMAND_SIZE - 1, "softap set %s %s \"%s\" %s \"%s\" 6 0 8",
                      GET_CHAR(mIfname),
                      GET_CHAR(mWifictrlinterfacename),
-                     ssid.get(),
+                     ssid,
                      GET_CHAR(mSecurity),
-                     key.get());
+                     key);
   }
 
   doCommand(command, aChain, aCallback);
@@ -1547,10 +1570,10 @@ bool NetworkUtils::setUSBTethering(NetworkParams& aOptions)
   return true;
 }
 
-void NetworkUtils::escapeQuote(nsCString& aString)
+void NetworkUtils::escapeQuote(const char* src, char* dst)
 {
-  aString.ReplaceSubstring("\\", "\\\\");
-  aString.ReplaceSubstring("\"", "\\\"");
+  replace(src, "\\", "\\\\", dst);
+  replace(src, "\"", "\\\"", dst);
 }
 
 void NetworkUtils::checkUsbRndisState(NetworkParams& aOptions)

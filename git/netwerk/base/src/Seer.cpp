@@ -2320,12 +2320,6 @@ Seer::GetDBFileSize()
 {
   MOZ_ASSERT(!NS_IsMainThread(), "GetDBFileSize called on main thread!");
 
-  nsresult rv = EnsureInitStorage();
-  if (NS_FAILED(rv)) {
-    SEER_LOG(("GetDBFileSize called without db available!"));
-    return 0;
-  }
-
   CommitTransaction();
 
   nsCOMPtr<mozIStorageStatement> countStmt = mStatements.GetCachedStatement(
@@ -2335,7 +2329,7 @@ Seer::GetDBFileSize()
   }
   mozStorageStatementScoper scopedCount(countStmt);
   bool hasRows;
-  rv = countStmt->ExecuteStep(&hasRows);
+  nsresult rv = countStmt->ExecuteStep(&hasRows);
   if (NS_FAILED(rv) || !hasRows) {
     return 0;
   }
