@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,13 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Places Unit Test Code.
  *
- * The Initial Developer of the Original Code is Jan Varga
- * Portions created by the Initial Developer are Copyright (C) 2004
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Saint Wesonga <wesongathedeveloper@yahoo.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,30 +36,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMXULElement.idl"
-#include "nsIDOMElement.idl"
+var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
 
-interface nsITreeColumns;
-interface nsITreeView;
-interface nsIDOMXULTextBoxElement;
+function testThrowsOnDeletedItemId(aItemId) {
+  try {
+    bmsvc.getItemGUID(aItemId);
+    do_throw("getItemGUID should throw when called for a deleted item id");
+  } catch (e) {
+    do_check_eq(e.result, Cr.NS_ERROR_ILLEGAL_VALUE);
+  }
+}
 
-/**
- * @status UNDER_DEVELOPMENT
- */
+function run_test() {
+  var folderId = bmsvc.createFolder(bmsvc.placesRoot, "test folder",
+                                    bmsvc.DEFAULT_INDEX);
+  var bookmarkId = bmsvc.insertBookmark(folderId, uri("http://foo.tld.com/"),
+                                        bmsvc.DEFAULT_INDEX, "a title");
+  var separatorId = bmsvc.insertSeparator(folderId, bmsvc.DEFAULT_INDEX);
 
-[scriptable, uuid(2f7d124f-eb51-4baa-baba-eeed051b4da0)]
-interface nsIDOMXULTreeElement : nsIDOMXULElement
-{
+  bmsvc.removeItem(folderId);
 
-  readonly attribute nsITreeColumns columns;
-
-  attribute nsITreeView view;
-
-  readonly attribute nsIDOMElement body;
-
-  attribute boolean editable;
-
-  // For editable trees only.
-  readonly attribute nsIDOMXULTextBoxElement inputField;
-
-};
+  // getItemGUID should throw when called for a deleted item id
+  [folderId, bookmarkId, separatorId].forEach(testThrowsOnDeletedItemId);
+}

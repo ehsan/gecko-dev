@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,13 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is JavaScript Engine testing utilities.
  *
- * The Initial Developer of the Original Code is Jan Varga
- * Portions created by the Initial Developer are Copyright (C) 2004
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
+ * Contributor(s): Dave Mandelin
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,30 +35,33 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMXULElement.idl"
-#include "nsIDOMElement.idl"
+var gTestfile = 'regress-440926.js';
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 440926;
+var summary = 'Correctly match regexps with special "i" characters';
+var actual = '';
+var expect = 'iI#,iI#;iI#,iI#';
 
-interface nsITreeColumns;
-interface nsITreeView;
-interface nsIDOMXULTextBoxElement;
 
-/**
- * @status UNDER_DEVELOPMENT
- */
+//-----------------------------------------------------------------------------
+test();
+//-----------------------------------------------------------------------------
 
-[scriptable, uuid(2f7d124f-eb51-4baa-baba-eeed051b4da0)]
-interface nsIDOMXULTreeElement : nsIDOMXULElement
+function test()
 {
+  enterFunc ('test');
+  printBugNumber(BUGNUMBER);
+  printStatus (summary);
 
-  readonly attribute nsITreeColumns columns;
+  actual += 'iI\u0130'.replace(/[\u0130]/gi, '#');
+  actual += ',' + 'iI\u0130'.replace(/\u0130/gi, '#');
 
-  attribute nsITreeView view;
+  jit(true);
+  actual += ';' + 'iI\u0130'.replace(/[\u0130]/gi, '#');
+  actual += ',' + 'iI\u0130'.replace(/\u0130/gi, '#');
+  jit(false);
 
-  readonly attribute nsIDOMElement body;
+  reportCompare(expect, actual, summary);
 
-  attribute boolean editable;
-
-  // For editable trees only.
-  readonly attribute nsIDOMXULTextBoxElement inputField;
-
-};
+  exitFunc ('test');
+}
