@@ -241,12 +241,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,
   virtual mozilla::dom::EventTarget* GetTargetForEventTargetChain() { \
     return _to GetTargetForEventTargetChain(); \
   } \
-  virtual nsresult WillHandleEvent( \
-                     mozilla::EventChainPostVisitor & aVisitor) { \
+  virtual nsresult WillHandleEvent(nsEventChainPostVisitor & aVisitor) { \
     return _to WillHandleEvent(aVisitor); \
   } \
-  virtual nsresult PostHandleEvent( \
-                     mozilla::EventChainPostVisitor & aVisitor) { \
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor & aVisitor) { \
     return _to PostHandleEvent(aVisitor); \
   } \
   virtual nsresult DispatchDOMEvent(mozilla::WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent, nsPresContext* aPresContext, nsEventStatus* aEventStatus) { \

@@ -12,8 +12,6 @@ import org.mozilla.gecko.home.HomeConfig.ItemHandler;
 import org.mozilla.gecko.home.HomeConfig.ViewConfig;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
-import org.mozilla.gecko.home.PanelLayout.FilterManager;
-import org.mozilla.gecko.home.PanelLayout.OnItemOpenListener;
 import org.mozilla.gecko.home.PanelLayout.PanelView;
 
 import android.content.Context;
@@ -29,24 +27,18 @@ public class PanelListView extends HomeListView
 
     private final PanelViewAdapter mAdapter;
     private final ViewConfig mViewConfig;
-    private final PanelViewItemHandler mItemHandler;
+    private final PanelViewUrlHandler mUrlHandler;
 
     public PanelListView(Context context, ViewConfig viewConfig) {
         super(context);
 
         mViewConfig = viewConfig;
-        mItemHandler = new PanelViewItemHandler(viewConfig);
+        mUrlHandler = new PanelViewUrlHandler(viewConfig);
 
-        mAdapter = new PanelViewAdapter(context, viewConfig);
+        mAdapter = new PanelViewAdapter(context, viewConfig.getItemType());
         setAdapter(mAdapter);
 
         setOnItemClickListener(new PanelListItemClickListener());
-    }
-
-    @Override
-    public void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        mItemHandler.setOnItemOpenListener(null);
     }
 
     @Override
@@ -56,20 +48,15 @@ public class PanelListView extends HomeListView
     }
 
     @Override
-    public void setOnItemOpenListener(OnItemOpenListener listener) {
-        mItemHandler.setOnItemOpenListener(listener);
-    }
-
-    @Override
-    public void setFilterManager(FilterManager filterManager) {
-        mAdapter.setFilterManager(filterManager);
-        mItemHandler.setFilterManager(filterManager);
+    public void setOnUrlOpenListener(OnUrlOpenListener listener) {
+        super.setOnUrlOpenListener(listener);
+        mUrlHandler.setOnUrlOpenListener(listener);
     }
 
     private class PanelListItemClickListener implements AdapterView.OnItemClickListener {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            mItemHandler.openItemAtPosition(mAdapter.getCursor(), position);
+            mUrlHandler.openUrlAtPosition(mAdapter.getCursor(), position);
         }
     }
 }

@@ -49,7 +49,6 @@ class nsXULPrototypeNode;
 typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
 
 namespace mozilla {
-class EventChainPreVisitor;
 class EventListenerManager;
 namespace css {
 class StyleRule;
@@ -375,8 +374,7 @@ public:
                                                        mozilla::dom::Element)
 
     // nsINode
-    virtual nsresult PreHandleEvent(
-                       mozilla::EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+    virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
     // nsIContent
     virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,

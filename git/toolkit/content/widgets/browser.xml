@@ -851,12 +851,9 @@
           let data = aMessage.data;
           switch (aMessage.name) {
             case "Autoscroll:Start": {
-              if (!this.autoscrollEnabled) {
-                return false;
-              }
               let pos = this.mapScreenCoordinatesFromContent(data.screenX, data.screenY);
               this.startScroll(data.scrolldir, pos.x, pos.y);
-              return true;
+              break;
             }
             case "Autoscroll:Cancel":
               this._autoScrollPopup.hidePopup();

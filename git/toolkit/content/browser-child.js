@@ -234,12 +234,6 @@ addEventListener("DOMTitleChanged", function (aEvent) {
   }
 }, false);
 
-addEventListener("DOMWindowClose", function (aEvent) {
-  if (!aEvent.isTrusted)
-    return;
-  sendAsyncMessage("DOMWindowClose");
-}, false);
-
 addEventListener("ImageContentLoaded", function (aEvent) {
   if (content.document instanceof Ci.nsIImageDocument) {
     let req = content.document.imageRequest;

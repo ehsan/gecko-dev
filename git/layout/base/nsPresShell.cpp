@@ -24,7 +24,6 @@
 #include "prlog.h"
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/IMEStateManager.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/TabChild.h"
@@ -105,6 +104,7 @@
 #include "nsIObjectFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsNetUtil.h"
+#include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "nsStyleSheetService.h"
 #include "gfxImageSurface.h"
@@ -444,12 +444,12 @@ public:
   PresShell* mShell;
 };
 
-class MOZ_STACK_CLASS nsPresShellEventCB : public EventDispatchingCallback
+class MOZ_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
 {
 public:
   nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
 
-  virtual void HandleEvent(EventChainPostVisitor& aVisitor) MOZ_OVERRIDE
+  virtual void HandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE
   {
     if (aVisitor.mPresContext && aVisitor.mEvent->eventStructType != NS_EVENT) {
       if (aVisitor.mEvent->message == NS_MOUSE_BUTTON_DOWN ||
@@ -2053,7 +2053,7 @@ PresShell::FireResizeEvent()
   if (window) {
     nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
     mInResize = true;
-    EventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
+    nsEventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
     mInResize = false;
   }
 }
@@ -7257,8 +7257,8 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent, nsEventStatus* aStatus)
               IMEStateManager::DispatchCompositionEvent(eventTarget,
                 mPresContext, aEvent, aStatus, eventCBPtr);
             } else {
-              EventDispatcher::Dispatch(eventTarget, mPresContext,
-                                        aEvent, nullptr, aStatus, eventCBPtr);
+              nsEventDispatcher::Dispatch(eventTarget, mPresContext,
+                                          aEvent, nullptr, aStatus, eventCBPtr);
             }
           }
         }
@@ -7345,8 +7345,8 @@ PresShell::DispatchTouchEvent(WidgetEvent* aEvent,
     nsPresContext *context = presShell->GetPresContext();
 
     tmpStatus = nsEventStatus_eIgnore;
-    EventDispatcher::Dispatch(targetPtr, context,
-                              &newEvent, nullptr, &tmpStatus, aEventCB);
+    nsEventDispatcher::Dispatch(targetPtr, context,
+                                &newEvent, nullptr, &tmpStatus, aEventCB);
     if (nsEventStatus_eConsumeNoDefault == tmpStatus ||
         newEvent.mFlags.mMultipleActionsPrevented) {
       preventDefault = true;
@@ -7395,8 +7395,8 @@ PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent,
   if (container) {
 
     // Dispatch event to content
-    rv = EventDispatcher::Dispatch(aTargetContent, mPresContext, aEvent,
-                                   nullptr, aStatus);
+    rv = nsEventDispatcher::Dispatch(aTargetContent, mPresContext, aEvent, nullptr,
+                                     aStatus);
   }
 
   PopCurrentEventInfo();
@@ -7414,8 +7414,8 @@ PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent,
   PushCurrentEventInfo(nullptr, aTargetContent);
   nsCOMPtr<nsISupports> container = mPresContext->GetContainerWeak();
   if (container) {
-    rv = EventDispatcher::DispatchDOMEvent(aTargetContent, nullptr, aEvent,
-                                           mPresContext, aStatus);
+    rv = nsEventDispatcher::DispatchDOMEvent(aTargetContent, nullptr, aEvent,
+                                             mPresContext, aStatus);
   }
 
   PopCurrentEventInfo();

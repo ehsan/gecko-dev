@@ -41,6 +41,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
+#include "nsEventDispatcher.h"
 #include "nsDisplayList.h"
 #include "ImageLayers.h"
 #include "ImageContainer.h"
@@ -48,7 +49,6 @@
 #include "nsContentUtils.h"
 
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
 
 #define ONLOAD_CALLED_TOO_EARLY 1
 
@@ -85,7 +85,7 @@ nsImageBoxFrameEvent::Run()
   WidgetEvent event(true, mMessage);
 
   event.mFlags.mBubbles = false;
-  EventDispatcher::Dispatch(mContent, pres_context, &event, nullptr, &status);
+  nsEventDispatcher::Dispatch(mContent, pres_context, &event, nullptr, &status);
   return NS_OK;
 }
 

@@ -23,11 +23,11 @@
 #include "nsIDOMEvent.h"
 #include "nsIDocument.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
 #include "nsUnicharUtils.h"
 #include "nsLayoutUtils.h"
+#include "nsEventDispatcher.h"
 #include "nsPresState.h"
 #include "nsError.h"
 #include "nsFocusManager.h"
@@ -187,7 +187,7 @@ HTMLButtonElement::IsDisabledForEvents(uint32_t aMessage)
 }
 
 nsresult
-HTMLButtonElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = false;
   if (IsDisabledForEvents(aVisitor.mEvent->message)) {
@@ -219,7 +219,7 @@ HTMLButtonElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-HTMLButtonElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   nsresult rv = NS_OK;
   if (!aVisitor.mPresContext) {
@@ -278,9 +278,9 @@ HTMLButtonElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
                                    NS_MOUSE_CLICK, nullptr,
                                    WidgetMouseEvent::eReal);
             event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
-            EventDispatcher::Dispatch(static_cast<nsIContent*>(this),
-                                      aVisitor.mPresContext, &event, nullptr,
-                                      &status);
+            nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
+                                        aVisitor.mPresContext, &event, nullptr,
+                                        &status);
             aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
           }
         }

@@ -8070,6 +8070,9 @@ MaybeCloneFunctionAtCallsite(JSContext *cx, MutableHandleValue callee, HandleScr
     if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite())
         return true;
 
+    if (!cx->typeInferenceEnabled())
+        return true;
+
     fun = CloneFunctionAtCallsite(cx, fun, script, pc);
     if (!fun)
         return false;
@@ -8105,7 +8108,9 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub, uint3
 
     // Compute construcing and useNewType flags.
     bool constructing = (op == JSOP_NEW);
-    bool newType = types::UseNewType(cx, script, pc);
+    bool newType = false;
+    if (cx->typeInferenceEnabled())
+        newType = types::UseNewType(cx, script, pc);
 
     // Try attaching a call stub.
     if (!TryAttachCallStub(cx, stub, script, pc, op, argc, vp, constructing, newType))

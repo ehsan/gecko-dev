@@ -24,8 +24,7 @@ public:
 
   GrallocTextureSourceOGL(CompositorOGL* aCompositor,
                           android::GraphicBuffer* aGraphicBuffer,
-                          gfx::SurfaceFormat aFormat,
-                          TextureFlags aFlags);
+                          gfx::SurfaceFormat aFormat);
 
   virtual ~GrallocTextureSourceOGL();
 
@@ -72,7 +71,6 @@ protected:
   GLuint mTexture;
   gfx::SurfaceFormat mFormat;
   bool mNeedsReset;
-  TextureFlags mFlags;
 };
 
 class GrallocTextureHostOGL : public TextureHost

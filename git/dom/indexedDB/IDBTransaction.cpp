@@ -15,7 +15,7 @@
 #include "mozilla/storage.h"
 #include "nsDOMClassInfoID.h"
 #include "mozilla/dom/DOMStringList.h"
-#include "mozilla/EventDispatcher.h"
+#include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
@@ -36,7 +36,6 @@
 
 #define SAVEPOINT_NAME "savepoint"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::quota::QuotaManager;
@@ -723,7 +722,7 @@ IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
 }
 
 nsresult
-IDBTransaction::PreHandleEvent(EventChainPreVisitor& aVisitor)
+IDBTransaction::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
   aVisitor.mParentTarget = mDatabase;

@@ -53,7 +53,7 @@ function test() {
 
     instance.setSize(500, 500);
 
-    openView("computedview", onInspectorUIOpen);
+    openComputedView(onInspectorUIOpen);
   }
 
   function onInspectorUIOpen(aInspector, aComputedView) {

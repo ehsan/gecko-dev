@@ -1038,6 +1038,9 @@ ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
             RuntimeOptionsRef(cx).toggleIon()
                                  .toggleAsmJS();
             break;
+        case 'n':
+            RuntimeOptionsRef(cx).toggleTypeInference();
+            break;
         }
     }
 }
@@ -1165,6 +1168,7 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
         case 's':
         case 'm':
         case 'I':
+        case 'n':
             // These options are processed in ProcessArgsForCompartment.
             break;
         case 'p':

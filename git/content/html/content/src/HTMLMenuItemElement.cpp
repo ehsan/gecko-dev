@@ -6,10 +6,10 @@
 #include "mozilla/dom/HTMLMenuItemElement.h"
 
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLMenuItemElementBinding.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentUtils.h"
+#include "nsEventDispatcher.h"
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(MenuItem)
@@ -251,7 +251,7 @@ HTMLMenuItemElement::SetChecked(bool aChecked)
 }
 
 nsresult
-HTMLMenuItemElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK) {
 
@@ -286,7 +286,7 @@ HTMLMenuItemElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-HTMLMenuItemElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   // Check to see if the event was cancelled.
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&

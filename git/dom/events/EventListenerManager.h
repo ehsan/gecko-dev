@@ -16,6 +16,8 @@
 #include "nsIJSEventListener.h"
 #include "nsTObserverArray.h"
 
+class ELMCreationDetector;
+class nsEventTargetChainItem;
 class nsIDOMEvent;
 class nsIEventListenerInfo;
 class nsIScriptContext;
@@ -27,7 +29,6 @@ template<class T> class nsCOMArray;
 
 namespace mozilla {
 
-class ELMCreationDetector;
 class EventListenerManager;
 
 namespace dom {
@@ -559,7 +560,7 @@ protected:
   dom::EventTarget* mTarget;  // WEAK
   nsCOMPtr<nsIAtom> mNoListenerForEventAtom;
 
-  friend class ELMCreationDetector;
+  friend class ::ELMCreationDetector;
   static uint32_t sMainThreadCreatedCount;
 };
 

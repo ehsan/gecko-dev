@@ -5,8 +5,9 @@
 "use strict";
 
 const {Cc, Ci, Cu} = require("chrome");
-const {Promise: promise} = require("resource://gre/modules/Promise.jsm");
-const EventEmitter = require("devtools/toolkit/event-emitter");
+
+var promise = require("sdk/core/promise");
+var EventEmitter = require("devtools/toolkit/event-emitter");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",

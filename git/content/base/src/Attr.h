@@ -23,7 +23,6 @@
 #include "nsIDocument.h"
 
 namespace mozilla {
-class EventChainPreVisitor;
 namespace dom {
 
 // Attribute helper class used to wrap up an attribute with a dom
@@ -52,7 +51,7 @@ public:
   // nsIDOMAttr interface
   NS_DECL_NSIDOMATTR
 
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
   // nsIAttribute interface
   void SetMap(nsDOMAttributeMap *aMap) MOZ_OVERRIDE;

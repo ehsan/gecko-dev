@@ -674,9 +674,10 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
                                  mValue.mURL->mReferrer,
                                  mValue.mURL->mOriginPrincipal,
                                  aDocument);
-
-  nsCSSValue* writable = const_cast<nsCSSValue*>(this);
-  writable->SetImageValue(image);
+  if (image) {
+    nsCSSValue* writable = const_cast<nsCSSValue*>(this);
+    writable->SetImageValue(image);
+  }
 }
 
 nscolor nsCSSValue::GetColorValue() const

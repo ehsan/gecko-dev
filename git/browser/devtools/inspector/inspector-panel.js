@@ -470,8 +470,9 @@ InspectorPanel.prototype = {
    */
   destroy: function InspectorPanel__destroy() {
     if (this._panelDestroyer) {
-      return this._panelDestroyer;
+      return this._panelDestroyer.promise;
     }
+    this._panelDestroyer = promise.defer();
 
     if (this.walker) {
       this.walker.off("new-root", this.onNewRoot);
@@ -505,7 +506,7 @@ InspectorPanel.prototype = {
     this.selection.off("before-new-node", this.onBeforeNewSelection);
     this.selection.off("before-new-node-front", this.onBeforeNewSelection);
     this.selection.off("detached-front", this.onDetached);
-    this._panelDestroyer = this._destroyMarkup();
+    this._destroyMarkup();
     this.panelWin.inspector = null;
     this.target = null;
     this.panelDoc = null;
@@ -516,7 +517,8 @@ InspectorPanel.prototype = {
     this.nodemenu = null;
     this._toolbox = null;
 
-    return this._panelDestroyer;
+    this._panelDestroyer.resolve(null);
+    return this._panelDestroyer.promise;
   },
 
   /**
@@ -641,18 +643,14 @@ InspectorPanel.prototype = {
   },
 
   _destroyMarkup: function InspectorPanel__destroyMarkup() {
-    let destroyPromise;
-
     if (this._boundMarkupFrameLoad) {
       this._markupFrame.removeEventListener("load", this._boundMarkupFrameLoad, true);
       this._boundMarkupFrameLoad = null;
     }
 
     if (this.markup) {
-      destroyPromise = this.markup.destroy();
+      this.markup.destroy();
       this.markup = null;
-    } else {
-      destroyPromise = promise.resolve();
     }
 
     if (this._markupFrame) {
@@ -661,8 +659,6 @@ InspectorPanel.prototype = {
     }
 
     this._markupBox = null;
-
-    return destroyPromise;
   },
 
   /**

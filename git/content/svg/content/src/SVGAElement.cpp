@@ -6,7 +6,6 @@
 #include "mozilla/dom/SVGAElement.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/SVGAElementBinding.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
@@ -77,7 +76,7 @@ SVGAElement::Href()
 // nsINode methods
 
 nsresult
-SVGAElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+SVGAElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   nsresult rv = Element::PreHandleEvent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -86,7 +85,7 @@ SVGAElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-SVGAElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+SVGAElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return PostHandleEventForLinks(aVisitor);
 }

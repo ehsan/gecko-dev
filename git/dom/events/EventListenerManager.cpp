@@ -7,7 +7,6 @@
 #undef CreateEvent
 
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #ifdef MOZ_B2G
 #include "mozilla/Hal.h"
@@ -25,6 +24,7 @@
 #include "nsContentUtils.h"
 #include "nsDOMCID.h"
 #include "nsError.h"
+#include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsIContentSecurityPolicy.h"
@@ -962,7 +962,7 @@ EventListenerManager::HandleEventSubType(Listener* aListener,
     if (mIsMainThreadELM) {
       nsContentUtils::EnterMicroTask();
     }
-    // nsIDOMEvent::currentTarget is set in EventDispatcher.
+    // nsIDOMEvent::currentTarget is set in nsEventDispatcher.
     if (listenerHolder.HasWebIDLCallback()) {
       ErrorResult rv;
       listenerHolder.GetWebIDLCallback()->
@@ -1019,8 +1019,8 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
           // This is tiny bit slow, but happens only once per event.
           nsCOMPtr<EventTarget> et =
             do_QueryInterface(aEvent->originalTarget);
-          EventDispatcher::CreateEvent(et, aPresContext,
-                                       aEvent, EmptyString(), aDOMEvent);
+          nsEventDispatcher::CreateEvent(et, aPresContext,
+                                         aEvent, EmptyString(), aDOMEvent);
         }
         if (*aDOMEvent) {
           if (!aEvent->currentTarget) {

@@ -15,7 +15,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/CORSMode.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/Likely.h"
@@ -40,6 +39,7 @@
 #include "nsDOMMutationObserver.h"
 #include "nsDOMString.h"
 #include "nsDOMTokenList.h"
+#include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsFrameManager.h"
@@ -1133,7 +1133,7 @@ nsINode::RemoveEventListener(const nsAString& aType,
 NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsINode)
 
 nsresult
-nsINode::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsINode::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   // This is only here so that we can use the NS_DECL_NSIDOMTARGET macro
   NS_ABORT();
@@ -1162,13 +1162,14 @@ nsINode::DispatchEvent(nsIDOMEvent *aEvent, bool* aRetVal)
 
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =
-    EventDispatcher::DispatchDOMEvent(this, nullptr, aEvent, context, &status);
+    nsEventDispatcher::DispatchDOMEvent(this, nullptr, aEvent, context,
+                                        &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
 
 nsresult
-nsINode::PostHandleEvent(EventChainPostVisitor& /*aVisitor*/)
+nsINode::PostHandleEvent(nsEventChainPostVisitor& /*aVisitor*/)
 {
   return NS_OK;
 }
@@ -1179,8 +1180,8 @@ nsINode::DispatchDOMEvent(WidgetEvent* aEvent,
                           nsPresContext* aPresContext,
                           nsEventStatus* aEventStatus)
 {
-  return EventDispatcher::DispatchDOMEvent(this, aEvent, aDOMEvent,
-                                           aPresContext, aEventStatus);
+  return nsEventDispatcher::DispatchDOMEvent(this, aEvent, aDOMEvent,
+                                             aPresContext, aEventStatus);
 }
 
 EventListenerManager*

@@ -18,7 +18,6 @@
 #include "mozilla/dom/FragmentOrElement.h"
 
 #include "mozilla/AsyncEventDispatcher.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
@@ -92,6 +91,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
+#include "nsEventDispatcher.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIControllers.h"
 #include "nsView.h"
@@ -703,7 +703,7 @@ FindChromeAccessOnlySubtreeOwner(nsIContent* aContent)
 }
 
 nsresult
-nsIContent::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   //FIXME! Document how this event retargeting works, Bug 329124.
   aVisitor.mCanHandle = true;

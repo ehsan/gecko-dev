@@ -22,9 +22,9 @@
 #define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
 
 class nsPIDOMWindow;
+class nsEventChainPostVisitor;
 
 namespace mozilla {
-class EventChainPostVisitor;
 namespace dom {
 class TabContext;
 namespace quota {
@@ -132,7 +132,7 @@ public:
 
   static nsresult
   FireWindowOnError(nsPIDOMWindow* aOwner,
-                    EventChainPostVisitor& aVisitor);
+                    nsEventChainPostVisitor& aVisitor);
 
   static bool
   TabContextMayAccessOrigin(const mozilla::dom::TabContext& aContext,

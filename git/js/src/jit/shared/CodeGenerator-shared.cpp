@@ -180,10 +180,17 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
                     alloc = RValueAllocation::Double(reg);
             } else {
                 MConstant *constant = mir->toConstant();
-                uint32_t index;
-                if (!graph.addConstantToPool(constant->value(), &index))
-                    return false;
-                alloc = RValueAllocation::ConstantPool(index);
+                const Value &v = constant->value();
+
+                // Don't bother with the constant pool for smallish integers.
+                if (v.isInt32() && v.toInt32() >= -32 && v.toInt32() <= 32) {
+                    alloc = RValueAllocation::Int32(v.toInt32());
+                } else {
+                    uint32_t index;
+                    if (!graph.addConstantToPool(constant->value(), &index))
+                        return false;
+                    alloc = RValueAllocation::ConstantPool(index);
+                }
             }
             break;
           }

@@ -7,7 +7,6 @@
 #include "mozilla/dom/HTMLAnchorElement.h"
 
 #include "mozilla/dom/HTMLAnchorElementBinding.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
@@ -245,13 +244,13 @@ HTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
 }
 
 nsresult
-HTMLAnchorElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLAnchorElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   return PreHandleEventForAnchors(aVisitor);
 }
 
 nsresult
-HTMLAnchorElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+HTMLAnchorElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return PostHandleEventForAnchors(aVisitor);
 }

@@ -14,10 +14,6 @@ nsresult NS_NewSVGAElement(nsIContent **aResult,
                            already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
-
-class EventChainPostVisitor;
-class EventChainPreVisitor;
-
 namespace dom {
 
 typedef SVGGraphicsElement SVGAElementBase;
@@ -37,9 +33,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SVGAElement, SVGAElementBase)
 
   // nsINode interface methods
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult PostHandleEvent(
-                     EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // nsIContent

@@ -18,7 +18,7 @@
 #include "nsRuleWalker.h"
 #include "nsCSSPropertySet.h"
 #include "nsStyleAnimation.h"
-#include "mozilla/EventDispatcher.h"
+#include "nsEventDispatcher.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
@@ -981,7 +981,7 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
 
   for (uint32_t i = 0, i_end = events.Length(); i < i_end; ++i) {
     TransitionEventInfo &info = events[i];
-    EventDispatcher::Dispatch(info.mElement, mPresContext, &info.mEvent);
+    nsEventDispatcher::Dispatch(info.mElement, mPresContext, &info.mEvent);
 
     if (!mPresContext) {
       break;

@@ -50,7 +50,6 @@
 #include "nsIDOMMutationEvent.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/InternalMutationEvent.h"
 #include "mozilla/MouseEvents.h"
@@ -92,6 +91,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
+#include "nsEventDispatcher.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIControllers.h"
 #include "nsView.h"
@@ -2317,7 +2317,7 @@ Element::Describe(nsAString& aOutDescription) const
 }
 
 bool
-Element::CheckHandleEventForLinksPrecondition(EventChainVisitor& aVisitor,
+Element::CheckHandleEventForLinksPrecondition(nsEventChainVisitor& aVisitor,
                                               nsIURI** aURI) const
 {
   if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
@@ -2335,7 +2335,7 @@ Element::CheckHandleEventForLinksPrecondition(EventChainVisitor& aVisitor,
 }
 
 nsresult
-Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
+Element::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
 {
   // Optimisation: return early if this event doesn't interest us.
   // IMPORTANT: this switch and the switch below it must be kept in sync!
@@ -2396,7 +2396,7 @@ Element::PreHandleEventForLinks(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
+Element::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
 {
   // Optimisation: return early if this event doesn't interest us.
   // IMPORTANT: this switch and the switch below it must be kept in sync!

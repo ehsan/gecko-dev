@@ -15,10 +15,6 @@
 class nsIDOMEvent;
 class nsPIDOMWindow;
 
-namespace mozilla {
-class EventChainPreVisitor;
-} // namespace mozilla
-
 BEGIN_WORKERS_NAMESPACE
 
 class SharedWorker;
@@ -83,7 +79,7 @@ public:
   WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   virtual nsresult
-  PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
 #ifdef DEBUG
   void

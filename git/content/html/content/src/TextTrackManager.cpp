@@ -112,14 +112,13 @@ TextTrackManager::TextTracks() const
 already_AddRefed<TextTrack>
 TextTrackManager::AddTextTrack(TextTrackKind aKind, const nsAString& aLabel,
                                const nsAString& aLanguage,
-                               TextTrackMode aMode,
                                TextTrackSource aTextTrackSource)
 {
   if (!mMediaElement) {
     return nullptr;
   }
   nsRefPtr<TextTrack> ttrack =
-    mTextTracks->AddTextTrack(aKind, aLabel, aLanguage, aMode, aTextTrackSource,
+    mTextTracks->AddTextTrack(aKind, aLabel, aLanguage, aTextTrackSource,
                               CompareTextTracks(mMediaElement));
   ttrack->SetReadyState(HTMLTrackElement::READY_STATE_LOADED);
   AddCues(ttrack);

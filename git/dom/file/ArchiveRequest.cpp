@@ -6,12 +6,10 @@
 
 #include "ArchiveRequest.h"
 
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/ArchiveRequestBinding.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
-
-using namespace mozilla;
+#include "nsEventDispatcher.h"
 
 USING_FILE_NAMESPACE
 
@@ -68,7 +66,7 @@ ArchiveRequest::~ArchiveRequest()
 }
 
 nsresult
-ArchiveRequest::PreHandleEvent(EventChainPreVisitor& aVisitor)
+ArchiveRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
   aVisitor.mParentTarget = nullptr;

@@ -13,6 +13,7 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/storage.h"
+#include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
 

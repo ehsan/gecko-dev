@@ -14,10 +14,6 @@
 
 class nsIDOMLockedFile;
 
-namespace mozilla {
-class EventChainPreVisitor;
-} // namespace mozilla
-
 BEGIN_FILE_NAMESPACE
 
 class FileHelper;
@@ -35,7 +31,7 @@ public:
 
   // nsIDOMEventTarget
   virtual nsresult
-  PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
   void
   OnProgress(uint64_t aProgress, uint64_t aProgressMax)

@@ -6,16 +6,14 @@
 
 #include "FileRequest.h"
 
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/FileRequestBinding.h"
 #include "nsCxPusher.h"
+#include "nsEventDispatcher.h"
 #include "nsError.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsDOMClassInfoID.h"
 #include "FileHelper.h"
 #include "LockedFile.h"
-
-using namespace mozilla;
 
 USING_FILE_NAMESPACE
 
@@ -45,7 +43,7 @@ FileRequest::Create(nsPIDOMWindow* aOwner, LockedFile* aLockedFile,
 }
 
 nsresult
-FileRequest::PreHandleEvent(EventChainPreVisitor& aVisitor)
+FileRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 

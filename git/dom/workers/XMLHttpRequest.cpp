@@ -19,6 +19,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
 

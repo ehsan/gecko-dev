@@ -22,7 +22,6 @@
 #include "nsContentUtils.h"
 #include "nsIURI.h"
 
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/ElementBinding.h"
 
 using namespace mozilla;
@@ -898,7 +897,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
 }
 
 nsresult
-nsMathMLElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsMathMLElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   nsresult rv = Element::PreHandleEvent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -907,7 +906,7 @@ nsMathMLElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-nsMathMLElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
+nsMathMLElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return PostHandleEventForLinks(aVisitor);
 }

@@ -14,6 +14,7 @@
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsPIDOMWindow.h"
+#include "nsEventDispatcher.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
 #include "mozilla/MouseEvents.h"

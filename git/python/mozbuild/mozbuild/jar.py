@@ -212,7 +212,7 @@ class JarMaker(object):
                         continue
                     myregister[l] = None
                 mf.seek(0)
-            for k in sorted(myregister.iterkeys()):
+            for k in myregister.iterkeys():
                 mf.write(k + os.linesep)
             mf.close()
         finally:

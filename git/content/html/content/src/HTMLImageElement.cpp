@@ -36,7 +36,7 @@
 #include "nsRuleData.h"
 
 #include "nsIDOMHTMLMapElement.h"
-#include "mozilla/EventDispatcher.h"
+#include "nsEventDispatcher.h"
 
 #include "nsLayoutUtils.h"
 
@@ -341,7 +341,7 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 
 
 nsresult
-HTMLImageElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   // If we are a map and get a mouse click, don't let it be handled by
   // the Generic Element as this could cause a click event to fire
