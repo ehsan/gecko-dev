@@ -72,7 +72,8 @@ parent:
   //
   // NB: this message will result in animations, transforms, effects,
   // and so forth being interpolated.  That's what we want to happen.
-  sync MakeSnapshot(SurfaceDescriptor inSnapshot, nsIntRect dirtyRect);
+  sync MakeSnapshot(SurfaceDescriptor inSnapshot)
+    returns (SurfaceDescriptor outSnapshot);
 
   // Make sure any pending composites are started immediately and
   // block until they are completed.

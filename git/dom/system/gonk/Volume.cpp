@@ -78,7 +78,9 @@ Volume::SetIsSharing(bool aIsSharing)
   mIsSharing = aIsSharing;
   LOG("Volume %s: IsSharing set to %d state %s",
       NameStr(), (int)mIsSharing, StateStr(mState));
-  mEventObserverList.Broadcast(this);
+  if (mIsSharing) {
+    mEventObserverList.Broadcast(this);
+  }
 }
 
 void

@@ -98,20 +98,8 @@ const DELIVERY_STATUS_NOT_APPLICABLE = "not-applicable";
 const PREF_SEND_RETRY_COUNT =
   Services.prefs.getIntPref("dom.mms.sendRetryCount");
 
-const PREF_SEND_RETRY_INTERVAL = (function () {
-  let intervals =
-    Services.prefs.getCharPref("dom.mms.sendRetryInterval").split(",");
-  for (let i = 0; i < PREF_SEND_RETRY_COUNT; ++i) {
-    intervals[i] = parseInt(intervals[i], 10);
-    // If one of the intervals isn't valid (e.g., 0 or NaN),
-    // assign a 1-minute interval to it as a default.
-    if (!intervals[i]) {
-      intervals[i] = 60000;
-    }
-  }
-  intervals.length = PREF_SEND_RETRY_COUNT;
-  return intervals;
-})();
+const PREF_SEND_RETRY_INTERVAL =
+  Services.prefs.getIntPref("dom.mms.sendRetryInterval");
 
 const PREF_RETRIEVAL_RETRY_COUNT =
   Services.prefs.getIntPref("dom.mms.retrievalRetryCount");
@@ -1278,12 +1266,14 @@ SendTransaction.prototype = Object.create(CancellableTransaction.prototype, {
               MMS.MMS_PDU_ERROR_PERMANENT_FAILURE == mmsStatus) &&
             this.retryCount < PREF_SEND_RETRY_COUNT) {
           if (DEBUG) {
-            debug("Fail to send. Will retry after: " + PREF_SEND_RETRY_INTERVAL[this.retryCount]);
+            debug("Fail to send. Will retry after: " + PREF_SEND_RETRY_INTERVAL);
           }
 
           if (this.timer == null) {
             this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
           }
+
+          this.retryCount++;
 
           // the input stream may be read in the previous failure request so
           // we have to re-compose it.
@@ -1293,9 +1283,8 @@ SendTransaction.prototype = Object.create(CancellableTransaction.prototype, {
           }
 
           this.timer.initWithCallback(this.send.bind(this, retryCallback),
-                                      PREF_SEND_RETRY_INTERVAL[this.retryCount],
+                                      PREF_SEND_RETRY_INTERVAL,
                                       Ci.nsITimer.TYPE_ONE_SHOT);
-          this.retryCount++;
           return;
         }
 
@@ -1966,7 +1955,8 @@ MmsService.prototype = {
       .setMessageReadStatusByEnvelopeId(envelopeId, address, readStatus,
                                         (function(aRv, aDomMessage) {
       if (!Components.isSuccessCode(aRv)) {
-        if (DEBUG) debug("Failed to update read status: " + aRv);
+        // Notifying observers the read status is error.
+        Services.obs.notifyObservers(aDomMessage, kSmsReadSuccessObserverTopic, null);
         return;
       }
 
@@ -2181,7 +2171,7 @@ MmsService.prototype = {
       // If the messsage has been deleted (because the sending process is
       // cancelled), we don't need to reset the its delievery state/status.
       if (aErrorCode == Ci.nsIMobileMessageCallback.NOT_FOUND_ERROR) {
-        aRequest.notifySendMessageFailed(aErrorCode, aDomMessage);
+        aRequest.notifySendMessageFailed(aErrorCode);
         Services.obs.notifyObservers(aDomMessage, kSmsFailedObserverTopic, null);
         return;
       }
@@ -2198,7 +2188,7 @@ MmsService.prototype = {
         // TODO bug 832140 handle !Components.isSuccessCode(aRv)
         if (!isSentSuccess) {
           if (DEBUG) debug("Sending MMS failed.");
-          aRequest.notifySendMessageFailed(aErrorCode, aDomMessage);
+          aRequest.notifySendMessageFailed(aErrorCode);
           Services.obs.notifyObservers(aDomMessage, kSmsFailedObserverTopic, null);
           return;
         }
@@ -2224,8 +2214,7 @@ MmsService.prototype = {
       if (!Components.isSuccessCode(aRv)) {
         if (DEBUG) debug("Error! Fail to save sending message! rv = " + aRv);
         aRequest.notifySendMessageFailed(
-          gMobileMessageDatabaseService.translateCrErrorToMessageCallbackError(aRv),
-          aDomMessage);
+          gMobileMessageDatabaseService.translateCrErrorToMessageCallbackError(aRv));
         Services.obs.notifyObservers(aDomMessage, kSmsFailedObserverTopic, null);
         return;
       }

@@ -118,13 +118,12 @@ NfcContentHelper.prototype = {
     if (sessionToken == null) {
       throw Components.Exception("No session token!",
                                   Cr.NS_ERROR_UNEXPECTED);
-      return false;
+      return;
     }
     // Report session to Nfc.js only.
-    let val = cpmm.sendSyncMessage("NFC:SetSessionToken", {
-      sessionToken: sessionToken
+    cpmm.sendAsyncMessage("NFC:SetSessionToken", {
+      sessionToken: sessionToken,
     });
-    return (val[0] === NFC.NFC_SUCCESS);
   },
 
   // NFCTag interface

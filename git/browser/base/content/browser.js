@@ -784,8 +784,7 @@ var gBrowserInit = {
     gPageStyleMenu.init();
     LanguageDetectionListener.init();
 
-    let mm = window.getGroupMessageManager("browsers");
-    mm.loadFrameScript("chrome://browser/content/content.js", true);
+    messageManager.loadFrameScript("chrome://browser/content/content.js", true);
 
     // initialize observers and listeners
     // and give C++ access to gBrowser
@@ -1128,6 +1127,18 @@ var gBrowserInit = {
         Cu.reportError(ex);
       }
     }, 10000);
+
+    // Load the Login Manager data from disk off the main thread, some time
+    // after startup.  If the data is required before the timeout, for example
+    // because a restored page contains a password field, it will be loaded on
+    // the main thread, and this initialization request will be ignored.
+    setTimeout(function() {
+      try {
+        Services.logins;
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
+    }, 3000);
 
     // The object handling the downloads indicator is also initialized here in the
     // delayed startup function, but the actual indicator element is not loaded

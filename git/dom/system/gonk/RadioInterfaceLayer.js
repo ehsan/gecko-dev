@@ -4039,8 +4039,7 @@ RadioInterface.prototype = {
       if (!Components.isSuccessCode(rv)) {
         if (DEBUG) this.debug("Error! Fail to save sending message! rv = " + rv);
         request.notifySendMessageFailed(
-          gMobileMessageDatabaseService.translateCrErrorToMessageCallbackError(rv),
-          domMessage);
+          gMobileMessageDatabaseService.translateCrErrorToMessageCallbackError(rv));
         Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
         return;
       }
@@ -4066,7 +4065,7 @@ RadioInterface.prototype = {
       }
       if (errorCode) {
         if (silent) {
-          request.notifySendMessageFailed(errorCode, domMessage);
+          request.notifySendMessageFailed(errorCode);
           return;
         }
 
@@ -4078,7 +4077,7 @@ RadioInterface.prototype = {
                                          null,
                                          function notifyResult(rv, domMessage) {
           // TODO bug 832140 handle !Components.isSuccessCode(rv)
-          request.notifySendMessageFailed(errorCode, domMessage);
+          request.notifySendMessageFailed(errorCode);
           Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
         });
         return;
@@ -4108,25 +4107,7 @@ RadioInterface.prototype = {
           }
 
           if (context.silent) {
-            // There is no way to modify nsIDOMMozSmsMessage attributes as they
-            // are read only so we just create a new sms instance to send along
-            // with the notification.
-            let sms = context.sms;
-            context.request.notifySendMessageFailed(
-              error,
-              gMobileMessageService.createSmsMessage(sms.id,
-                                                     sms.threadId,
-                                                     sms.iccId,
-                                                     DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                                     RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                                     sms.sender,
-                                                     sms.receiver,
-                                                     sms.body,
-                                                     sms.messageClass,
-                                                     sms.timestamp,
-                                                     0,
-                                                     0,
-                                                     sms.read));
+            context.request.notifySendMessageFailed(error);
             return false;
           }
 
@@ -4138,7 +4119,7 @@ RadioInterface.prototype = {
                                            null,
                                            function notifyResult(rv, domMessage) {
             // TODO bug 832140 handle !Components.isSuccessCode(rv)
-            context.request.notifySendMessageFailed(error, domMessage);
+            context.request.notifySendMessageFailed(error);
             Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
           });
           return false;
