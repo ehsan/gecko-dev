@@ -37,7 +37,7 @@ function test() {
   }
 
   function onUIOpen() {
-    instance = gBrowser.selectedTab.__responsiveUI;
+    instance = gBrowser.selectedTab.responsiveUI;
     ok(instance, "instance of the module is attached to the tab.");
 
     instance.stack.setAttribute("notransition", "true");
