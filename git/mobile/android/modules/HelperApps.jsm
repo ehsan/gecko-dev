@@ -35,35 +35,23 @@ App.prototype = {
 }
 
 var HelperApps =  {
-  get defaultBrowsers() {
-    delete this.defaultBrowsers;
-    this.defaultBrowsers = this._getHandlers("http://www.example.com", {
-      filterBrowsers: false,
-      filterHtml: false
-    });
-    return this.defaultBrowsers;
+  get defaultHttpHandlers() {
+    delete this.defaultHttpHandlers;
+    this.defaultHttpHandlers = this.getAppsForProtocol("http");
+    return this.defaultHttpHandlers;
   },
 
-  // Finds handlers that have registered for text/html pages or urls ending in html. Some apps, like
-  // the Samsung Video player will only appear for these urls, while some Browsers (like Link Bubble)
-  // won't register here because of the text/html mime type.
   get defaultHtmlHandlers() {
     delete this.defaultHtmlHandlers;
-    return this.defaultHtmlHandlers = this._getHandlers("http://www.example.com/index.html", {
-      filterBrowsers: false,
+    this.defaultHtmlHandlers = {};
+    let handlers = this.getAppsForUri(Services.io.newURI("http://www.example.com/index.html", null, null), {
       filterHtml: false
     });
-  },
 
-  _getHandlers: function(url, options) {
-    let values = {};
-
-    let handlers = this.getAppsForUri(Services.io.newURI(url, null, null), options);
     handlers.forEach(function(app) {
-      values[app.name] = app;
+      this.defaultHtmlHandlers[app.name] = app;
     }, this);
-
-    return values;
+    return this.defaultHtmlHandlers;
   },
 
   get protoSvc() {
@@ -98,8 +86,8 @@ var HelperApps =  {
     return results;
   },
 
-  getAppsForUri: function getAppsForUri(uri, flags = { }, callback) {
-    flags.filterBrowsers = "filterBrowsers" in flags ? flags.filterBrowsers : true;
+  getAppsForUri: function getAppsForUri(uri, flags = { filterHttp: true, filterHtml: true }, callback) {
+    flags.filterHttp = "filterHttp" in flags ? flags.filterHttp : true;
     flags.filterHtml = "filterHtml" in flags ? flags.filterHtml : true;
 
     // Query for apps that can/can't handle the mimetype
@@ -112,15 +100,12 @@ var HelperApps =  {
 
       apps = this._parseApps(d.apps);
 
-      if (flags.filterBrowsers) {
-        apps = apps.filter((app) => {
-          return app.name && !this.defaultBrowsers[app.name];
-        });
+      if (flags.filterHttp) {
+        apps = apps.filter(function(app) {
+          return app.name && !this.defaultHttpHandlers[app.name];
+        }, this);
       }
 
-      // Some apps will register for html files (the Samsung Video player) but should be shown
-      // for non-HTML files (like videos). This filters them only if the page has an htm of html
-      // file extension.
       if (flags.filterHtml) {
         // Matches from the first '.' to the end of the string, '?', or '#'
         let ext = /\.([^\?#]*)/.exec(uri.path);

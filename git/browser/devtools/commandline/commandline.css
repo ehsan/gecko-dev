@@ -17,35 +17,15 @@
   content: '\bb';
 }
 
-.gcli-menu-template {
-  white-space: nowrap;
-  width: 290px;
-  display: flex;
-}
-
-.gcli-menu-names {
-  white-space: nowrap;
-  flex-grow: 0;
-  flex-shrink: 0;
-}
-
-.gcli-menu-descs {
-  flex-grow: 1;
-  flex-shrink: 1;
-}
-
-.gcli-menu-name,
-.gcli-menu-desc {
-  white-space: nowrap;
-}
-
-.gcli-menu-name {
-  -moz-padding-end: 10px;
-}
-
-.gcli-menu-desc {
-  text-overflow: ellipsis;
+.gcli-menu-option {
   overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gcli-menu-template {
+  border-collapse: collapse;
+  width: 100%;
 }
 
 .gcli-menu-name,

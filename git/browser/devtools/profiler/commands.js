@@ -2,115 +2,147 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+const { Cu } = require("chrome");
+module.exports = [];
 
-const gcli = require('gcli/index');
+var gcli = require('gcli/index');
 
 loader.lazyGetter(this, "gDevTools",
   () => Cu.import("resource:///modules/devtools/gDevTools.jsm", {}).gDevTools);
 
+var { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 
-module.exports.items = [
-{
+/*
+ * 'profiler' command. Doesn't do anything.
+ */
+gcli.addCommand({
   name: "profiler",
   description: gcli.lookup("profilerDesc"),
   manual: gcli.lookup("profilerManual")
-},
-{
+});
+
+/*
+ * 'profiler open' command
+ */
+gcli.addCommand({
   name: "profiler open",
   description: gcli.lookup("profilerOpenDesc"),
+  params: [],
+
   exec: function (args, context) {
     return gDevTools.showToolbox(context.environment.target, "jsprofiler")
       .then(function () null);
   }
-},
-{
+});
+
+/*
+ * 'profiler close' command
+ */
+gcli.addCommand({
   name: "profiler close",
   description: gcli.lookup("profilerCloseDesc"),
+  params: [],
+
   exec: function (args, context) {
-    let toolbox = gDevTools.getToolbox(context.environment.target);
-    let panel = (toolbox == null) ? null : toolbox.getPanel(id);
-    if (panel == null)
+    if (!getPanel(context, "jsprofiler"))
       return;
 
     return gDevTools.closeToolbox(context.environment.target)
       .then(function () null);
   }
-},
-{
+});
+
+/*
+ * 'profiler start' command
+ */
+gcli.addCommand({
   name: "profiler start",
   description: gcli.lookup("profilerStartDesc"),
   returnType: "string",
+  params: [],
+
   exec: function (args, context) {
-    let target = context.environment.target
-    return gDevTools.showToolbox(target, "jsprofiler").then(toolbox => {
-      let panel = toolbox.getCurrentPanel();
+    function start() {
+      let panel = getPanel(context, "jsprofiler");
 
       if (panel.recordingProfile)
         throw gcli.lookup("profilerAlreadyStarted2");
 
       panel.toggleRecording();
       return gcli.lookup("profilerStarted2");
-    });
+    }
+
+    return gDevTools.showToolbox(context.environment.target, "jsprofiler")
+      .then(start);
   }
-},
-{
+});
+
+/*
+ * 'profiler stop' command
+ */
+gcli.addCommand({
   name: "profiler stop",
   description: gcli.lookup("profilerStopDesc"),
   returnType: "string",
+  params: [],
+
   exec: function (args, context) {
-    let target = context.environment.target
-    return gDevTools.showToolbox(target, "jsprofiler").then(toolbox => {
-      let panel = toolbox.getCurrentPanel();
+    function stop() {
+      let panel = getPanel(context, "jsprofiler");
 
       if (!panel.recordingProfile)
         throw gcli.lookup("profilerNotStarted3");
 
       panel.toggleRecording();
       return gcli.lookup("profilerStopped");
-    });
+    }
+
+    return gDevTools.showToolbox(context.environment.target, "jsprofiler")
+      .then(stop);
   }
-},
-{
+});
+
+/*
+ * 'profiler list' command
+ */
+gcli.addCommand({
   name: "profiler list",
   description: gcli.lookup("profilerListDesc"),
-  returnType: "profileList",
-  exec: function (args, context) {
-    let toolbox = gDevTools.getToolbox(context.environment.target);
-    let panel = (toolbox == null) ? null : toolbox.getPanel("jsprofiler");
+  returnType: "dom",
+  params: [],
 
-    if (panel == null) {
+  exec: function (args, context) {
+    let panel = getPanel(context, "jsprofiler");
+
+    if (!panel) {
       throw gcli.lookup("profilerNotReady");
     }
 
-    let profileList = [];
-    for ([ uid, profile ] of panel.profiles) {
-      profileList.push({ name: profile.name, started: profile.isStarted });
+    let doc = panel.document;
+    let div = createXHTMLElement(doc, "div");
+    let ol = createXHTMLElement(doc, "ol");
+
+    for ([ uid, profile] of panel.profiles) {
+      let li = createXHTMLElement(doc, "li");
+      li.textContent = profile.name;
+      if (profile.isStarted) {
+        li.textContent += " *";
+      }
+      ol.appendChild(li);
     }
-    return profileList;
+
+    div.appendChild(ol);
+    return div;
   }
-},
-{
-  item: "converter",
-  from: "profileList",
-  to: "view",
-  exec: function(profileList, context) {
-    return {
-      html: "<div>" +
-            "  <ol>" +
-            "    <li forEach='profile of ${profiles}'>${profile.name}</li>" +
-            "      ${profile.name} ${profile.started ? '*' : ''}" +
-            "    </li>" +
-            "  </ol>" +
-            "</div>",
-      data: { profiles: profileList.profiles },
-      options: { allowEval: true }
-    };
-  },
-},
-{
+});
+
+/*
+ * 'profiler show' command
+ */
+gcli.addCommand({
   name: "profiler show",
   description: gcli.lookup("profilerShowDesc"),
+
   params: [
     {
       name: "name",
@@ -120,8 +152,7 @@ module.exports.items = [
   ],
 
   exec: function (args, context) {
-    let toolbox = gDevTools.getToolbox(context.environment.target);
-    let panel = (toolbox == null) ? null : toolbox.getPanel(id);
+    let panel = getPanel(context, "jsprofiler");
 
     if (!panel) {
       throw gcli.lookup("profilerNotReady");
@@ -134,4 +165,17 @@ module.exports.items = [
 
     panel.sidebar.selectedItem = panel.sidebar.getItemByProfile(profile);
   }
-}];
+});
+
+function getPanel(context, id) {
+  if (context == null) {
+    return undefined;
+  }
+
+  let toolbox = gDevTools.getToolbox(context.environment.target);
+  return toolbox == null ? undefined : toolbox.getPanel(id);
+}
+
+function createXHTMLElement(document, tagname) {
+  return document.createElementNS("http://www.w3.org/1999/xhtml", tagname);
+}

@@ -2,18 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+this.EXPORTED_SYMBOLS = [ ];
 
-const gcli = require("gcli/index");
+const { devtools } = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
+const gcli = devtools.require("gcli/index");
 
-exports.items = [{
+/**
+ * 'scratchpad' command
+ */
+gcli.addCommand({
   name: "scratchpad",
   buttonId: "command-button-scratchpad",
   buttonClass: "command-button command-button-invertable",
   tooltipText: gcli.lookup("scratchpadOpenTooltip"),
   hidden: true,
   exec: function(args, context) {
-    let Scratchpad = context.environment.chromeWindow.Scratchpad;
-    Scratchpad.ScratchpadManager.openScratchpad();
+    let chromeWindow = context.environment.chromeDocument.defaultView;
+    chromeWindow.Scratchpad.ScratchpadManager.openScratchpad();
   }
-}];
+});
