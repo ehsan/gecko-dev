@@ -387,7 +387,8 @@ CodeGeneratorX64::visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins)
 
     Label rejoin;
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
-    if (mir->needsBoundsCheck()) {
+    MOZ_ASSERT(mir->needsBoundsCheck());
+    {
         maybeCmpOffset = masm.cmplWithPatch(ToRegister(ptr), Imm32(0)).offset();
         Label goahead;
         masm.j(Assembler::LessThan, &goahead);
@@ -424,7 +425,8 @@ CodeGeneratorX64::visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins)
 
     Label rejoin;
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
-    if (mir->needsBoundsCheck()) {
+    MOZ_ASSERT(mir->needsBoundsCheck());
+    {
         maybeCmpOffset = masm.cmplWithPatch(ToRegister(ptr), Imm32(0)).offset();
         Label goahead;
         masm.j(Assembler::LessThan, &goahead);

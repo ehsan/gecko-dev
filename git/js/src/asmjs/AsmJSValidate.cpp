@@ -2814,7 +2814,8 @@ class FunctionCompiler
         if (inDeadCode())
             return nullptr;
 
-        bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
+        // The code generator requires explicit bounds checking for compareExchange.
+        bool needsBoundsCheck = true;
         MAsmJSCompareExchangeHeap *cas =
             MAsmJSCompareExchangeHeap::New(alloc(), vt, ptr, oldv, newv, needsBoundsCheck);
         curBlock_->add(cas);
@@ -2827,7 +2828,8 @@ class FunctionCompiler
         if (inDeadCode())
             return nullptr;
 
-        bool needsBoundsCheck = chk == NEEDS_BOUNDS_CHECK;
+        // The code generator requires explicit bounds checking for the binops.
+        bool needsBoundsCheck = true;
         MAsmJSAtomicBinopHeap *binop =
             MAsmJSAtomicBinopHeap::New(alloc(), op, vt, ptr, v, needsBoundsCheck);
         curBlock_->add(binop);

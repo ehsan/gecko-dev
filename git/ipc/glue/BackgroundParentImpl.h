@@ -33,11 +33,14 @@ protected:
   DeallocPBackgroundTestParent(PBackgroundTestParent* aActor) MOZ_OVERRIDE;
 
   virtual PBackgroundIDBFactoryParent*
-  AllocPBackgroundIDBFactoryParent() MOZ_OVERRIDE;
+  AllocPBackgroundIDBFactoryParent(const OptionalWindowId& aOptionalWindowId)
+                                   MOZ_OVERRIDE;
 
   virtual bool
-  RecvPBackgroundIDBFactoryConstructor(PBackgroundIDBFactoryParent* aActor)
-                                       MOZ_OVERRIDE;
+  RecvPBackgroundIDBFactoryConstructor(
+                                      PBackgroundIDBFactoryParent* aActor,
+                                      const OptionalWindowId& aOptionalWindowId)
+                                      MOZ_OVERRIDE;
 
   virtual bool
   DeallocPBackgroundIDBFactoryParent(PBackgroundIDBFactoryParent* aActor)

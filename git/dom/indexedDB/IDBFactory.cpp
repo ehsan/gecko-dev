@@ -593,9 +593,18 @@ IDBFactory::BackgroundActorCreated(PBackgroundChild* aBackgroundActor)
 
     MOZ_ASSERT(NS_IsMainThread(), "Fix this windowId stuff for workers!");
 
+    OptionalWindowId windowId;
+    if (mWindow && IndexedDatabaseManager::IsMainProcess()) {
+      MOZ_ASSERT(mWindow->IsInnerWindow());
+      windowId = mWindow->WindowID();
+    } else {
+      windowId = void_t();
+    }
+
     mBackgroundActor =
       static_cast<BackgroundFactoryChild*>(
-        aBackgroundActor->SendPBackgroundIDBFactoryConstructor(actor));
+        aBackgroundActor->SendPBackgroundIDBFactoryConstructor(actor,
+                                                               windowId));
   }
 
   if (NS_WARN_IF(!mBackgroundActor)) {
