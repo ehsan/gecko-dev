@@ -487,12 +487,6 @@ this.PermissionsTable =  { geolocation: {
                              certified: ALLOW_ACTION,
                              access: ["read", "write"],
                              additional: ["settings-api"]
-                           },
-                           "engineering-mode": {
-                             app: DENY_ACTION,
-                             trusted: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
                            }
                          };
 

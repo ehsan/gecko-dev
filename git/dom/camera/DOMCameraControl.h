@@ -96,8 +96,6 @@ public:
   void SetOnPreviewStateChange(dom::CameraPreviewStateChange* aCb);
   dom::CameraAutoFocusMovingCallback* GetOnAutoFocusMoving();
   void SetOnAutoFocusMoving(dom::CameraAutoFocusMovingCallback* aCb);
-  dom::CameraAutoFocusCallback* GetOnAutoFocusCompleted();
-  void SetOnAutoFocusCompleted(dom::CameraAutoFocusCallback* aCb);
   dom::CameraFaceDetectionCallback* GetOnFacesDetected();
   void SetOnFacesDetected(dom::CameraFaceDetectionCallback* aCb);
 
@@ -210,7 +208,6 @@ protected:
   nsRefPtr<dom::CameraRecorderStateChange>      mOnRecorderStateChangeCb;
   nsRefPtr<dom::CameraPreviewStateChange>       mOnPreviewStateChangeCb;
   nsRefPtr<dom::CameraAutoFocusMovingCallback>  mOnAutoFocusMovingCb;
-  nsRefPtr<dom::CameraAutoFocusCallback>        mOnAutoFocusCompletedCb;
   nsRefPtr<dom::CameraFaceDetectionCallback>    mOnFacesDetectedCb;
 
   // Camera event listener; we only need this weak reference so that

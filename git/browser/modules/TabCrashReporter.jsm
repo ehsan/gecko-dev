@@ -96,6 +96,7 @@ this.TabCrashReporter = {
       return;
 
     let url = browser.currentURI.spec;
+    browser.getTabBrowser().updateBrowserRemotenessByURL(browser, url);
     browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE, null, null, null);
   },
 

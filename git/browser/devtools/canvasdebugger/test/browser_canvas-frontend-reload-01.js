@@ -6,7 +6,7 @@
  */
 
 function ifTestingSupported() {
-  let { target, panel } = yield initCanvasDebuggerFrontend(SIMPLE_CANVAS_URL);
+  let [target, debuggee, panel] = yield initCanavsDebuggerFrontend(SIMPLE_CANVAS_URL);
   let { window, $, EVENTS } = panel.panelWin;
 
   let reset = once(window, EVENTS.UI_RESET);

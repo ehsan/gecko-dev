@@ -80,6 +80,7 @@
 #include "UnitTransforms.h"
 #include "ClientLayerManager.h"
 #include "LayersLogging.h"
+#include "nsIWebBrowserChrome3.h"
 
 #include "nsColorPickerProxy.h"
 

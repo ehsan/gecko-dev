@@ -53,10 +53,10 @@ protected:
 
 private:
     enum {
-        kWhatStart = 1,
-        kWhatStop,
-        kWhatRead,
-        kWhatSendSR,
+        kWhatStart  = 'strt',
+        kWhatStop   = 'stop',
+        kWhatRead   = 'read',
+        kWhatSendSR = 'sr  ',
     };
 
     enum {

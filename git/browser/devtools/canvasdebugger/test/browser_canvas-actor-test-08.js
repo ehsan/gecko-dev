@@ -7,7 +7,7 @@
  */
 
 function ifTestingSupported() {
-  let { target, front } = yield initCanvasDebuggerBackend(SIMPLE_BITMASKS_URL);
+  let [target, debuggee, front] = yield initCanavsDebuggerBackend(SIMPLE_BITMASKS_URL);
 
   let navigated = once(target, "navigate");
 
