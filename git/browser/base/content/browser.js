@@ -139,9 +139,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
 XPCOMUtils.defineLazyModuleGetter(this, "gBrowserNewTabPreloader",
   "resource:///modules/BrowserNewTabPreloader.jsm", "BrowserNewTabPreloader");
 
-XPCOMUtils.defineLazyModuleGetter(this, "gCustomizationTabPreloader",
-  "resource:///modules/CustomizationTabPreloader.jsm", "CustomizationTabPreloader");
-
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 

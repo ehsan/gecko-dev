@@ -59,7 +59,7 @@ add_task(function() {
          "Widget should be in navbar in other window.");
     }
   }
-  yield promiseWindowClosed(otherWin);
+  otherWin.close();
 });
 
 add_task(function asyncCleanup() {

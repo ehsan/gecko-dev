@@ -20,8 +20,7 @@ dictionary NetworkCommandOptions
   DOMString dns2_str;                 // for "setDNS", "setDefaultRouteAndDNS".
   DOMString oldIfname;                // for "setDefaultRouteAndDNS".
   DOMString gateway_str;              // for "setDefaultRouteAndDNS".
-  DOMString gateway;                  // for "addHostRoute", "removeHostRoute",
-                                      //     "removeDefaultRoute".
+  DOMString gateway;                  // for "addHostRoute", "removeHostRoute".
   sequence<DOMString> hostnames;      // for "addHostRoute", "removeHostRoute".
   DOMString mode;                     // for "setWifiOperationMode".
   boolean report;                     // for "setWifiOperationMode".

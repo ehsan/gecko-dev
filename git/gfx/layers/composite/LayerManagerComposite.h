@@ -363,9 +363,9 @@ public:
     mLayerComposited = value;
   }
 
-  void SetClearRect(const nsIntRect& aRect)
+  void SetClearFB(bool value)
   {
-    mClearRect = aRect;
+    mClearFB = value;
   }
 
   // These getters can be used anytime.
@@ -375,7 +375,7 @@ public:
   const gfx::Matrix4x4& GetShadowTransform() { return mShadowTransform; }
   bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
   bool HasLayerBeenComposited() { return mLayerComposited; }
-  nsIntRect GetClearRect() { return mClearRect; }
+  bool GetClearFB() { return mClearFB; }
 
 protected:
   gfx::Matrix4x4 mShadowTransform;
@@ -388,7 +388,7 @@ protected:
   bool mShadowTransformSetByAnimation;
   bool mDestroyed;
   bool mLayerComposited;
-  nsIntRect mClearRect;
+  bool mClearFB;
 };
 
 

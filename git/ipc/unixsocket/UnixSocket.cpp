@@ -5,12 +5,34 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "UnixSocket.h"
+
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
+
+#include <sys/socket.h>
+
+#include "base/eintr_wrapper.h"
+#include "base/message_loop.h"
+
 #include "mozilla/ipc/UnixSocketWatcher.h"
+#include "mozilla/Monitor.h"
+#include "mozilla/FileUtils.h"
+#include "nsString.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include <fcntl.h>
 
 static const size_t MAX_READ_SIZE = 1 << 16;
+
+#undef CHROMIUM_LOG
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define CHROMIUM_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "I/O", args);
+#else
+#define IODEBUG true
+#define CHROMIUM_LOG(args...) if (IODEBUG) printf(args);
+#endif
 
 namespace mozilla {
 namespace ipc {
@@ -102,6 +124,13 @@ public:
    */
   void Listen();
 
+  /**
+   * Set up flags on whatever our current file descriptor is.
+   *
+   * @return true if successful, false otherwise
+   */
+  bool SetSocketFlags(int aFd);
+
   void GetSocketAddr(nsAString& aAddrStr)
   {
     if (!mConnector) {
@@ -127,8 +156,6 @@ public:
   void OnSocketCanSendWithoutBlocking() MOZ_OVERRIDE;
 
 private:
-  // Set up flags on whatever our current file descriptor is.
-  static bool SetSocketFlags(int aFd);
 
   void FireSocketError();
 
@@ -188,26 +215,7 @@ private:
   T* mInstance;
 };
 
-class UnixSocketImplRunnable : public nsRunnable
-{
-public:
-  UnixSocketImpl* GetImpl() const
-  {
-    return mImpl;
-  }
-protected:
-  UnixSocketImplRunnable(UnixSocketImpl* aImpl)
-  : mImpl(aImpl)
-  {
-    MOZ_ASSERT(aImpl);
-  }
-  virtual ~UnixSocketImplRunnable()
-  { }
-private:
-  UnixSocketImpl* mImpl;
-};
-
-class OnSocketEventRunnable : public UnixSocketImplRunnable
+class OnSocketEventTask : public nsRunnable
 {
 public:
   enum SocketEvent {
@@ -216,82 +224,109 @@ public:
     DISCONNECT
   };
 
-  OnSocketEventRunnable(UnixSocketImpl* aImpl, SocketEvent e)
-  : UnixSocketImplRunnable(aImpl)
-  , mEvent(e)
+  OnSocketEventTask(UnixSocketImpl* aImpl, SocketEvent e) :
+    mImpl(aImpl),
+    mEvent(e)
   {
+    MOZ_ASSERT(aImpl);
     MOZ_ASSERT(!NS_IsMainThread());
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-
-    UnixSocketImpl* impl = GetImpl();
-
-    if (impl->IsShutdownOnMainThread()) {
+    if (mImpl->IsShutdownOnMainThread()) {
       NS_WARNING("CloseSocket has already been called!");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
       return NS_OK;
     }
     if (mEvent == CONNECT_SUCCESS) {
-      impl->mConsumer->NotifySuccess();
+      mImpl->mConsumer->NotifySuccess();
     } else if (mEvent == CONNECT_ERROR) {
-      impl->mConsumer->NotifyError();
+      mImpl->mConsumer->NotifyError();
     } else if (mEvent == DISCONNECT) {
-      impl->mConsumer->NotifyDisconnect();
+      mImpl->mConsumer->NotifyDisconnect();
     }
     return NS_OK;
   }
 private:
+  UnixSocketImpl* mImpl;
   SocketEvent mEvent;
 };
 
-class SocketReceiveRunnable : public UnixSocketImplRunnable
+class SocketReceiveTask : public nsRunnable
 {
 public:
-  SocketReceiveRunnable(UnixSocketImpl* aImpl, UnixSocketRawData* aData)
-  : UnixSocketImplRunnable(aImpl)
-  , mRawData(aData)
+  SocketReceiveTask(UnixSocketImpl* aImpl, UnixSocketRawData* aData) :
+    mImpl(aImpl),
+    mRawData(aData)
   {
+    MOZ_ASSERT(aImpl);
     MOZ_ASSERT(aData);
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-
-    UnixSocketImpl* impl = GetImpl();
-
-    if (impl->IsShutdownOnMainThread()) {
+    if (mImpl->IsShutdownOnMainThread()) {
       NS_WARNING("mConsumer is null, aborting receive!");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
       return NS_OK;
     }
 
-    MOZ_ASSERT(impl->mConsumer);
-    impl->mConsumer->ReceiveSocketData(mRawData);
+    MOZ_ASSERT(mImpl->mConsumer);
+    mImpl->mConsumer->ReceiveSocketData(mRawData);
     return NS_OK;
   }
 private:
+  UnixSocketImpl* mImpl;
   nsAutoPtr<UnixSocketRawData> mRawData;
 };
 
-class RequestClosingSocketRunnable : public UnixSocketImplRunnable
+class SocketSendTask : public Task
 {
 public:
-  RequestClosingSocketRunnable(UnixSocketImpl* aImpl)
-  : UnixSocketImplRunnable(aImpl)
-  { }
+  SocketSendTask(UnixSocketConsumer* aConsumer, UnixSocketImpl* aImpl,
+                 UnixSocketRawData* aData)
+    : mConsumer(aConsumer),
+      mImpl(aImpl),
+      mData(aData)
+  {
+    MOZ_ASSERT(aConsumer);
+    MOZ_ASSERT(aImpl);
+    MOZ_ASSERT(aData);
+  }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  void
+  Run()
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+    MOZ_ASSERT(!mImpl->IsShutdownOnIOThread());
+
+    mImpl->QueueWriteData(mData);
+  }
+
+private:
+  nsRefPtr<UnixSocketConsumer> mConsumer;
+  UnixSocketImpl* mImpl;
+  UnixSocketRawData* mData;
+};
+
+class RequestClosingSocketTask : public nsRunnable
+{
+public:
+  RequestClosingSocketTask(UnixSocketImpl* aImpl) : mImpl(aImpl)
+  {
+    MOZ_ASSERT(aImpl);
+  }
+
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    UnixSocketImpl* impl = GetImpl();
-    if (impl->IsShutdownOnMainThread()) {
+    if (mImpl->IsShutdownOnMainThread()) {
       NS_WARNING("CloseSocket has already been called!");
       // Since we've already explicitly closed and the close happened before
       // this, this isn't really an error. Since we've warned, return OK.
@@ -300,143 +335,99 @@ public:
 
     // Start from here, same handling flow as calling CloseSocket() from
     // upper layer
-    impl->mConsumer->CloseSocket();
+    mImpl->mConsumer->CloseSocket();
     return NS_OK;
-  }
-};
-
-class UnixSocketImplTask : public CancelableTask
-{
-public:
-  UnixSocketImpl* GetImpl() const
-  {
-    return mImpl;
-  }
-  void Cancel() MOZ_OVERRIDE
-  {
-    mImpl = nullptr;
-  }
-  bool IsCanceled() const
-  {
-    return !mImpl;
-  }
-protected:
-  UnixSocketImplTask(UnixSocketImpl* aImpl)
-  : mImpl(aImpl)
-  {
-    MOZ_ASSERT(mImpl);
   }
 private:
   UnixSocketImpl* mImpl;
 };
 
-class SocketSendTask : public UnixSocketImplTask
+class SocketListenTask : public CancelableTask
 {
+  virtual void Run();
+
+  UnixSocketImpl* mImpl;
 public:
-  SocketSendTask(UnixSocketImpl* aImpl,
-                 UnixSocketConsumer* aConsumer,
-                 UnixSocketRawData* aData)
-  : UnixSocketImplTask(aImpl)
-  , mConsumer(aConsumer)
-  , mData(aData)
-  {
-    MOZ_ASSERT(aConsumer);
-    MOZ_ASSERT(aData);
-  }
-  void Run() MOZ_OVERRIDE
+  SocketListenTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
+
+  virtual void Cancel()
   {
     MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!IsCanceled());
-
-    UnixSocketImpl* impl = GetImpl();
-    MOZ_ASSERT(!impl->IsShutdownOnIOThread());
-
-    impl->QueueWriteData(mData);
-  }
-private:
-  nsRefPtr<UnixSocketConsumer> mConsumer;
-  UnixSocketRawData* mData;
-};
-
-class SocketListenTask : public UnixSocketImplTask
-{
-public:
-  SocketListenTask(UnixSocketImpl* aImpl)
-  : UnixSocketImplTask(aImpl)
-  { }
-
-  void Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    if (!IsCanceled()) {
-      GetImpl()->Listen();
-    }
+    mImpl = nullptr;
   }
 };
 
-class SocketConnectTask : public UnixSocketImplTask
+void SocketListenTask::Run()
 {
-public:
-  SocketConnectTask(UnixSocketImpl* aImpl)
-  : UnixSocketImplTask(aImpl)
-  { }
+  MOZ_ASSERT(!NS_IsMainThread());
 
-  void Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!IsCanceled());
-    GetImpl()->Connect();
+  if (mImpl) {
+    mImpl->Listen();
   }
+}
+
+class SocketConnectTask : public Task {
+  virtual void Run();
+
+  UnixSocketImpl* mImpl;
+public:
+  SocketConnectTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
 };
 
-class SocketDelayedConnectTask : public UnixSocketImplTask
+void SocketConnectTask::Run()
 {
-public:
-  SocketDelayedConnectTask(UnixSocketImpl* aImpl)
-  : UnixSocketImplTask(aImpl)
-  { }
+  MOZ_ASSERT(!NS_IsMainThread());
+  mImpl->Connect();
+}
 
-  void Run() MOZ_OVERRIDE
+class SocketDelayedConnectTask : public CancelableTask {
+  virtual void Run();
+
+  UnixSocketImpl* mImpl;
+public:
+  SocketDelayedConnectTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
+
+  virtual void Cancel()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    if (IsCanceled()) {
-      return;
-    }
-    UnixSocketImpl* impl = GetImpl();
-    if (impl->IsShutdownOnMainThread()) {
-      return;
-    }
-    impl->ClearDelayedConnectTask();
-    XRE_GetIOMessageLoop()->PostTask(FROM_HERE, new SocketConnectTask(impl));
+    mImpl = nullptr;
   }
 };
 
-class ShutdownSocketTask : public UnixSocketImplTask
+void SocketDelayedConnectTask::Run()
 {
-public:
-  ShutdownSocketTask(UnixSocketImpl* aImpl)
-  : UnixSocketImplTask(aImpl)
-  { }
-
-  void Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    MOZ_ASSERT(!IsCanceled());
-
-    UnixSocketImpl* impl = GetImpl();
-
-    // At this point, there should be no new events on the IO thread after this
-    // one with the possible exception of a SocketListenTask that
-    // ShutdownOnIOThread will cancel for us. We are now fully shut down, so we
-    // can send a message to the main thread that will delete impl safely knowing
-    // that no more tasks reference it.
-    impl->ShutdownOnIOThread();
-
-    nsRefPtr<nsIRunnable> r(new DeleteInstanceRunnable<UnixSocketImpl>(impl));
-    nsresult rv = NS_DispatchToMainThread(r);
-    NS_ENSURE_SUCCESS_VOID(rv);
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mImpl || mImpl->IsShutdownOnMainThread()) {
+    return;
   }
+  mImpl->ClearDelayedConnectTask();
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE, new SocketConnectTask(mImpl));
+}
+
+class ShutdownSocketTask : public Task {
+  virtual void Run();
+
+  UnixSocketImpl* mImpl;
+
+public:
+  ShutdownSocketTask(UnixSocketImpl* aImpl) : mImpl(aImpl) { }
 };
+
+void ShutdownSocketTask::Run()
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  // At this point, there should be no new events on the IO thread after this
+  // one with the possible exception of a SocketListenTask that
+  // ShutdownOnIOThread will cancel for us. We are now fully shut down, so we
+  // can send a message to the main thread that will delete mImpl safely knowing
+  // that no more tasks reference it.
+  mImpl->ShutdownOnIOThread();
+
+  nsRefPtr<nsIRunnable> t(new DeleteInstanceRunnable<UnixSocketImpl>(mImpl));
+  nsresult rv = NS_DispatchToMainThread(t);
+  NS_ENSURE_SUCCESS_VOID(rv);
+}
 
 void
 UnixSocketImpl::FireSocketError()
@@ -447,9 +438,9 @@ UnixSocketImpl::FireSocketError()
   Close();
 
   // Tell the main thread we've errored
-  nsRefPtr<OnSocketEventRunnable> r =
-    new OnSocketEventRunnable(this, OnSocketEventRunnable::CONNECT_ERROR);
-  NS_DispatchToMainThread(r);
+  nsRefPtr<OnSocketEventTask> t =
+    new OnSocketEventTask(this, OnSocketEventTask::CONNECT_ERROR);
+  NS_DispatchToMainThread(t);
 }
 
 void
@@ -473,12 +464,13 @@ UnixSocketImpl::Listen()
       FireSocketError();
       return;
     }
-    if (!SetSocketFlags(fd)) {
+    SetFd(fd);
+
+    if (!SetSocketFlags(GetFd())) {
       NS_WARNING("Cannot set socket flags!");
       FireSocketError();
       return;
     }
-    SetFd(fd);
 
     // calls OnListening on success, or OnError otherwise
     nsresult rv = UnixSocketWatcher::Listen(
@@ -497,11 +489,6 @@ UnixSocketImpl::Connect()
     int fd = mConnector->Create();
     if (fd < 0) {
       NS_WARNING("Cannot create socket fd!");
-      FireSocketError();
-      return;
-    }
-    if (!SetSocketFlags(fd)) {
-      NS_WARNING("Cannot set socket flags!");
       FireSocketError();
       return;
     }
@@ -525,27 +512,16 @@ UnixSocketImpl::SetSocketFlags(int aFd)
 {
   // Set socket addr to be reused even if kernel is still waiting to close
   int n = 1;
-  if (setsockopt(aFd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n)) < 0) {
-    return false;
-  }
+  setsockopt(aFd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
 
   // Set close-on-exec bit.
-  int flags = TEMP_FAILURE_RETRY(fcntl(aFd, F_GETFD));
+  int flags = fcntl(aFd, F_GETFD);
   if (-1 == flags) {
-    return false;
-  }
-  flags |= FD_CLOEXEC;
-  if (-1 == TEMP_FAILURE_RETRY(fcntl(aFd, F_SETFD, flags))) {
     return false;
   }
 
-  // Set non-blocking status flag.
-  flags = TEMP_FAILURE_RETRY(fcntl(aFd, F_GETFL));
-  if (-1 == flags) {
-    return false;
-  }
-  flags |= O_NONBLOCK;
-  if (-1 == TEMP_FAILURE_RETRY(fcntl(aFd, F_SETFL, flags))) {
+  flags |= FD_CLOEXEC;
+  if (-1 == fcntl(aFd, F_SETFD, flags)) {
     return false;
   }
 
@@ -565,14 +541,14 @@ UnixSocketImpl::OnAccepted(int aFd)
 
   RemoveWatchers(READ_WATCHER|WRITE_WATCHER);
   Close();
-  if (!SetSocketFlags(aFd)) {
+  SetSocket(aFd, SOCKET_IS_CONNECTED);
+  if (!SetSocketFlags(GetFd())) {
     return;
   }
-  SetSocket(aFd, SOCKET_IS_CONNECTED);
 
-  nsRefPtr<OnSocketEventRunnable> r =
-    new OnSocketEventRunnable(this, OnSocketEventRunnable::CONNECT_SUCCESS);
-  NS_DispatchToMainThread(r);
+  nsRefPtr<OnSocketEventTask> t =
+    new OnSocketEventTask(this, OnSocketEventTask::CONNECT_SUCCESS);
+  NS_DispatchToMainThread(t);
 
   AddWatchers(READ_WATCHER, true);
   if (!mOutgoingQ.IsEmpty()) {
@@ -598,9 +574,9 @@ UnixSocketImpl::OnConnected()
     return;
   }
 
-  nsRefPtr<OnSocketEventRunnable> r =
-    new OnSocketEventRunnable(this, OnSocketEventRunnable::CONNECT_SUCCESS);
-  NS_DispatchToMainThread(r);
+  nsRefPtr<OnSocketEventTask> t =
+    new OnSocketEventTask(this, OnSocketEventTask::CONNECT_SUCCESS);
+  NS_DispatchToMainThread(t);
 
   AddWatchers(READ_WATCHER, true);
   if (!mOutgoingQ.IsEmpty()) {
@@ -661,16 +637,15 @@ UnixSocketImpl::OnSocketCanReceiveWithoutBlocking()
       // We're done with our descriptors. Ensure that spurious events don't
       // cause us to end up back here.
       RemoveWatchers(READ_WATCHER|WRITE_WATCHER);
-      nsRefPtr<RequestClosingSocketRunnable> r =
-        new RequestClosingSocketRunnable(this);
-      NS_DispatchToMainThread(r);
+      nsRefPtr<RequestClosingSocketTask> t = new RequestClosingSocketTask(this);
+      NS_DispatchToMainThread(t);
       return;
     }
 
     incoming->mSize = ret;
-    nsRefPtr<SocketReceiveRunnable> r =
-      new SocketReceiveRunnable(this, incoming.forget());
-    NS_DispatchToMainThread(r);
+    nsRefPtr<SocketReceiveTask> t =
+      new SocketReceiveTask(this, incoming.forget());
+    NS_DispatchToMainThread(t);
 
     // If ret is less than MAX_READ_SIZE, there's no
     // more data in the socket for us to read now.
@@ -744,7 +719,7 @@ UnixSocketConsumer::SendSocketData(UnixSocketRawData* aData)
 
   MOZ_ASSERT(!mImpl->IsShutdownOnMainThread());
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new SocketSendTask(mImpl, this, aData));
+                                   new SocketSendTask(this, mImpl, aData));
   return true;
 }
 
@@ -763,7 +738,7 @@ UnixSocketConsumer::SendSocketData(const nsACString& aStr)
   UnixSocketRawData* d = new UnixSocketRawData(aStr.BeginReading(),
                                                aStr.Length());
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new SocketSendTask(mImpl, this, d));
+                                   new SocketSendTask(this, mImpl, d));
   return true;
 }
 

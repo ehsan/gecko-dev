@@ -94,7 +94,20 @@ function configureFxAccountIdentity() {
     // uid will be set to the username.
   };
 
-  let MockInternal = {};
+  let MockInternal = {
+    signedInUser: {
+      version: DATA_FORMAT_VERSION,
+      accountData: user
+    },
+    getCertificate: function(data, keyPair, mustBeValidUntil) {
+      this.cert = {
+        validUntil: Date.now() + CERT_LIFETIME,
+        cert: "certificate",
+      };
+      return Promise.resolve(this.cert.cert);
+    },
+  };
+
   let mockTSC = { // TokenServerClient
     getTokenFromBrowserIDAssertion: function(uri, assertion, cb) {
       token.uid = "username";
@@ -104,19 +117,6 @@ function configureFxAccountIdentity() {
 
   let authService = Weave.Service.identity;
   authService._fxaService = new FxAccounts(MockInternal);
-
-  authService._fxaService.internal.currentAccountState.signedInUser = {
-    version: DATA_FORMAT_VERSION,
-    accountData: user
-  }
-  authService._fxaService.internal.currentAccountState.getCertificate = function(data, keyPair, mustBeValidUntil) {
-    this.cert = {
-      validUntil: authService._fxaService.internal.now() + CERT_LIFETIME,
-      cert: "certificate",
-    };
-    return Promise.resolve(this.cert.cert);
-  };
-
   authService._tokenServerClient = mockTSC;
   // Set the "account" of the browserId manager to be the "email" of the
   // logged in user of the mockFXA service.
