@@ -23,7 +23,7 @@
 #include "nsIDOMElement.h"
 #include "prmem.h"
 #include "nsIContent.h"
-#include "nsPluginInstanceOwner.h"
+#include "nsIPluginInstanceOwner.h"
 #include "mozilla/HashFunctions.h"
 
 #define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
@@ -322,7 +322,8 @@ GetJSContext(NPP npp)
   nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   NS_ENSURE_TRUE(inst, nullptr);
 
-  nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  inst->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nullptr);
 
   nsCOMPtr<nsIDocument> doc;

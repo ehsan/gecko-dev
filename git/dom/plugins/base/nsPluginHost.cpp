@@ -611,7 +611,8 @@ nsresult nsPluginHost::GetURLWithHeaders(nsNPAPIPluginInstance* pluginInst,
     return rv;
 
   if (target) {
-    nsRefPtr<nsPluginInstanceOwner> owner = pluginInst->GetOwner();
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    rv = pluginInst->GetOwner(getter_AddRefs(owner));
     if (owner) {
       if ((0 == PL_strcmp(target, "newwindow")) ||
           (0 == PL_strcmp(target, "_new")))
@@ -699,7 +700,8 @@ nsresult nsPluginHost::PostURL(nsISupports* pluginInst,
   }
 
   if (target) {
-    nsRefPtr<nsPluginInstanceOwner> owner = instance->GetOwner();
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    rv = instance->GetOwner(getter_AddRefs(owner));
     if (owner) {
       if ((0 == PL_strcmp(target, "newwindow")) ||
           (0 == PL_strcmp(target, "_new"))) {
@@ -1156,7 +1158,7 @@ nsPluginHost::TagForPlugin(nsNPAPIPlugin* aPlugin)
 
 nsresult nsPluginHost::SetUpPluginInstance(const char *aMimeType,
                                            nsIURI *aURL,
-                                           nsPluginInstanceOwner *aOwner)
+                                           nsIPluginInstanceOwner *aOwner)
 {
   NS_ENSURE_ARG_POINTER(aOwner);
 
@@ -1190,7 +1192,7 @@ nsresult nsPluginHost::SetUpPluginInstance(const char *aMimeType,
 nsresult
 nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
                                      nsIURI *aURL,
-                                     nsPluginInstanceOwner *aOwner)
+                                     nsIPluginInstanceOwner *aOwner)
 {
 #ifdef PLUGIN_LOGGING
   nsAutoCString urlSpec;
@@ -3068,7 +3070,8 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   // get the full URL of the document that the plugin is embedded
   //   in to create an absolute url in case aURL is relative
   nsCOMPtr<nsIDocument> doc;
-  nsRefPtr<nsPluginInstanceOwner> owner = aInstance->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  aInstance->GetOwner(getter_AddRefs(owner));
   if (owner) {
     rv = owner->GetDocument(getter_AddRefs(doc));
     if (NS_SUCCEEDED(rv) && doc) {
@@ -3084,9 +3087,10 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   if (NS_FAILED(rv))
     return rv;
 
+  nsCOMPtr<nsIPluginTagInfo> pti = do_QueryInterface(owner);
   nsCOMPtr<nsIDOMElement> element;
-  if (owner)
-    owner->GetDOMElement(getter_AddRefs(element));
+  if (pti)
+    pti->GetDOMElement(getter_AddRefs(element));
 
   int16_t shouldLoad = nsIContentPolicy::ACCEPT;
   rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_OBJECT_SUBREQUEST,
@@ -3190,7 +3194,8 @@ nsPluginHost::DoURLLoadSecurityCheck(nsNPAPIPluginInstance *aInstance,
     return NS_OK;
 
   // get the URL of the document that loaded the plugin
-  nsRefPtr<nsPluginInstanceOwner> owner = aInstance->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  aInstance->GetOwner(getter_AddRefs(owner));
   if (!owner)
     return NS_ERROR_FAILURE;
 
@@ -3438,7 +3443,8 @@ nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInsta
   if (mDontShowBadPluginMessage)
     return NS_OK;
 
-  nsRefPtr<nsPluginInstanceOwner> owner = aInstance->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  aInstance->GetOwner(getter_AddRefs(owner));
 
   nsCOMPtr<nsIPrompt> prompt;
   GetPrompt(owner, getter_AddRefs(prompt));
@@ -4070,7 +4076,8 @@ nsPluginHost::DestroyRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag
       // removing duplicates. These will be reframed (embedded) or reloaded (full-page) later
       // to kickstart our instances.
       if (aReloadDocs) {
-        nsRefPtr<nsPluginInstanceOwner> owner = instance->GetOwner();
+        nsCOMPtr<nsIPluginInstanceOwner> owner;
+        instance->GetOwner(getter_AddRefs(owner));
         if (owner) {
           nsCOMPtr<nsIDocument> doc;
           owner->GetDocument(getter_AddRefs(doc));

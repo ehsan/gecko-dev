@@ -23,7 +23,6 @@
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Preferences.h"
-#include "nsPluginInstanceOwner.h"
 
 #include "nsPluginsDir.h"
 #include "nsPluginSafety.h"
@@ -625,7 +624,8 @@ GetDocumentFromNPP(NPP npp)
 
   PluginDestructionGuard guard(inst);
 
-  nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  inst->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nullptr);
 
   nsCOMPtr<nsIDocument> doc;
@@ -1941,7 +1941,8 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    inst->GetOwner(getter_AddRefs(owner));
     NS_ENSURE_TRUE(owner, NPERR_NO_ERROR);
 
     if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {

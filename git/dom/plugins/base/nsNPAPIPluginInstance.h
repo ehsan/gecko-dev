@@ -34,7 +34,6 @@ class nsPluginStreamListenerPeer; // browser-initiated stream class
 class nsNPAPIPluginStreamListener; // plugin-initiated stream class
 class nsIPluginInstanceOwner;
 class nsIOutputStream;
-class nsPluginInstanceOwner;
 
 #if defined(OS_WIN)
 const NPDrawingModel kDefaultDrawingModel = NPDrawingModelSyncWin;
@@ -68,7 +67,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  nsresult Initialize(nsNPAPIPlugin *aPlugin, nsPluginInstanceOwner* aOwner, const char* aMIMEType);
+  nsresult Initialize(nsNPAPIPlugin *aPlugin, nsIPluginInstanceOwner* aOwner, const char* aMIMEType);
   nsresult Start();
   nsresult Stop();
   nsresult SetWindow(NPWindow* window);
@@ -98,9 +97,10 @@ public:
   nsresult InvalidateRegion(NPRegion invalidRegion);
   nsresult GetMIMEType(const char* *result);
   nsresult GetJSContext(JSContext* *outContext);
-  nsPluginInstanceOwner* GetOwner();
-  void SetOwner(nsPluginInstanceOwner *aOwner);
+  nsresult GetOwner(nsIPluginInstanceOwner **aOwner);
+  nsresult SetOwner(nsIPluginInstanceOwner *aOwner);
   nsresult ShowStatus(const char* message);
+  nsresult InvalidateOwner();
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
   nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
 #endif
@@ -335,7 +335,7 @@ private:
 
   // Weak pointer to the owner. The owner nulls this out (by calling
   // InvalidateOwner()) when it's no longer our owner.
-  nsPluginInstanceOwner *mOwner;
+  nsIPluginInstanceOwner *mOwner;
 
   nsTArray<nsNPAPITimer*> mTimers;
 
