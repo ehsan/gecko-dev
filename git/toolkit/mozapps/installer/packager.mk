@@ -104,9 +104,6 @@ endif
 ifeq ($(_MSC_VER),1600)
 JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
 endif
-ifeq ($(_MSC_VER),1700)
-JSSHELL_BINS += $(DIST)/bin/msvcr110.dll
-endif
 else
 JSSHELL_BINS += \
   $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
