@@ -171,9 +171,12 @@ Request::Constructor(const GlobalObject& aGlobal,
   requestHeaders->Clear();
 
   if (request->Mode() == RequestMode::No_cors) {
-    if (!request->HasSimpleMethod()) {
-      nsAutoCString method;
-      request->GetMethod(method);
+    nsCString method;
+    request->GetMethod(method);
+    ToLowerCase(method);
+    if (!method.EqualsASCII("get") &&
+        !method.EqualsASCII("head") &&
+        !method.EqualsASCII("post")) {
       NS_ConvertUTF8toUTF16 label(method);
       aRv.ThrowTypeError(MSG_INVALID_REQUEST_METHOD, &label);
       return nullptr;

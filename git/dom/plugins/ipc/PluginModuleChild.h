@@ -30,6 +30,7 @@
 
 #include "mozilla/plugins/PPluginModuleChild.h"
 #include "mozilla/plugins/PluginInstanceChild.h"
+#include "mozilla/plugins/PluginIdentifierChild.h"
 #include "mozilla/plugins/PluginMessageUtils.h"
 
 // NOTE: stolen from nsNPAPIPlugin.h
@@ -75,6 +76,20 @@ protected:
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv) MOZ_OVERRIDE;
     virtual bool AnswerNP_Initialize(NPError* rv) MOZ_OVERRIDE;
+
+    virtual PPluginIdentifierChild*
+    AllocPPluginIdentifierChild(const nsCString& aString,
+                                const int32_t& aInt,
+                                const bool& aTemporary) MOZ_OVERRIDE;
+
+    virtual bool
+    RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
+                                     const nsCString& aString,
+                                     const int32_t& aInt,
+                                     const bool& aTemporary) MOZ_OVERRIDE;
+
+    virtual bool
+    DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor) MOZ_OVERRIDE;
 
     virtual PPluginInstanceChild*
     AllocPPluginInstanceChild(const nsCString& aMimeType,
@@ -372,6 +387,12 @@ private:
      * final release/dealloc, whether or not an actor is currently associated with the object.
      */
     nsTHashtable<NPObjectData> mObjectMap;
+
+    friend class PluginIdentifierChild;
+    friend class PluginIdentifierChildString;
+    friend class PluginIdentifierChildInt;
+    nsDataHashtable<nsCStringHashKey, PluginIdentifierChildString*> mStringIdentifiers;
+    nsDataHashtable<nsUint32HashKey, PluginIdentifierChildInt*> mIntIdentifiers;
 
 public: // called by PluginInstanceChild
     /**

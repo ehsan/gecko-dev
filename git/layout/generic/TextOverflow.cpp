@@ -212,7 +212,7 @@ nsDisplayTextOverflowMarker::Paint(nsDisplayListBuilder* aBuilder,
   nsLayoutUtils::PaintTextShadow(mFrame, aCtx, mRect, mVisibleRect,
                                  foregroundColor, PaintTextShadowCallback,
                                  (void*)this);
-  aCtx->ThebesContext()->SetColor(foregroundColor);
+  aCtx->SetColor(foregroundColor);
   PaintTextToContext(aCtx, nsPoint(0, 0));
 }
 

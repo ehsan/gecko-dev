@@ -3062,16 +3062,12 @@ nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
   PROFILER_LABEL("nsDisplayBoxShadowInner", "Paint",
     js::ProfileEntry::Category::GRAPHICS);
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  gfxContext* gfx = aCtx->ThebesContext();
-  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-
   for (uint32_t i = 0; i < rects.Length(); ++i) {
-    gfx->Save();
-    gfx->Clip(NSRectToRect(rects[i], appUnitsPerDevPixel, *drawTarget));
+    aCtx->ThebesContext()->Save();
+    aCtx->IntersectClip(rects[i]);
     nsCSSRendering::PaintBoxShadowInner(presContext, *aCtx, mFrame,
                                         borderRect, rects[i]);
-    gfx->Restore();
+    aCtx->ThebesContext()->Restore();
   }
 }
 

@@ -860,7 +860,7 @@ Console::Method(JSContext* aCx, MethodName aMethodName,
     loadContext->GetUsePrivateBrowsing(&callData->mPrivate);
   }
 
-  uint32_t maxDepth = ShouldIncludeStackTrace(aMethodName) ?
+  uint32_t maxDepth = ShouldIncludeStackrace(aMethodName) ?
                       DEFAULT_MAX_STACKTRACE_DEPTH : 1;
   nsCOMPtr<nsIStackFrame> stack = CreateStack(aCx, maxDepth);
 
@@ -1133,7 +1133,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
     return;
   }
 
-  if (ShouldIncludeStackTrace(aData->mMethodName)) {
+  if (ShouldIncludeStackrace(aData->mMethodName)) {
     // Now define the "stacktrace" property on eventObj.  There are two cases
     // here.  Either we came from a worker and have a reified stack, or we want
     // to define a getter that will lazily reify the stack.
@@ -1642,7 +1642,7 @@ Console::ClearConsoleData()
 }
 
 bool
-Console::ShouldIncludeStackTrace(MethodName aMethodName)
+Console::ShouldIncludeStackrace(MethodName aMethodName)
 {
   switch (aMethodName) {
     case MethodError:

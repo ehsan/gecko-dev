@@ -195,7 +195,7 @@ private:
   ClearConsoleData();
 
   bool
-  ShouldIncludeStackTrace(MethodName aMethodName);
+  ShouldIncludeStackrace(MethodName aMethodName);
 
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsITimer> mTimer;

@@ -131,8 +131,6 @@ public:
 
   void AbortAsyncShutdown();
 
-  bool HasAccessedStorage() const;
-
 private:
   ~GMPParent();
   nsRefPtr<GeckoMediaPluginService> mService;
@@ -194,7 +192,6 @@ private:
 
   bool mAsyncShutdownRequired;
   bool mAsyncShutdownInProgress;
-  bool mHasAccessedStorage;
 };
 
 } // namespace gmp

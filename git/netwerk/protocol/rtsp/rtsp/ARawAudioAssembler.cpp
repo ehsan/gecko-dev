@@ -87,7 +87,7 @@ ARTPAssembler::AssemblyStatus ARawAudioAssembler::addPacket(
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
 
-        LOGW("raw audio packet too short.");
+        LOGV("raw audio packet too short.");
 
         return MALFORMED_PACKET;
     }
@@ -120,25 +120,22 @@ bool ARawAudioAssembler::Supports(const char *desc) {
 }
 
 // static
-bool ARawAudioAssembler::MakeFormat(
+void ARawAudioAssembler::MakeFormat(
         const char *desc, const sp<MetaData> &format) {
     if (!strncmp(desc, "PCMU/", 5)) {
         format->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_G711_MLAW);
     } else if (!strncmp(desc, "PCMA/", 5)) {
         format->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_G711_ALAW);
     } else {
-        return false;
+        TRESPASS();
     }
 
     int32_t sampleRate, numChannels;
-    if (!ASessionDescription::ParseFormatDesc(
-                desc, &sampleRate, &numChannels)) {
-        return false;
-    }
+    ASessionDescription::ParseFormatDesc(
+            desc, &sampleRate, &numChannels);
 
     format->setInt32(kKeySampleRate, sampleRate);
     format->setInt32(kKeyChannelCount, numChannels);
-    return true;
 }
 
 }  // namespace android

@@ -17,6 +17,7 @@
 #include "vm/Shape-inl.h"
 
 using namespace js;
+using mozilla::PodZero;
 
 /* static */ Shape *
 js::ErrorObject::assignInitialShape(ExclusiveContext *cx, Handle<ErrorObject*> obj)
@@ -115,6 +116,7 @@ js::ErrorObject::getOrCreateErrorReport(JSContext *cx)
     // We build an error report on the stack and then use CopyErrorReport to do
     // the nitty-gritty malloc stuff.
     JSErrorReport report;
+    PodZero(&report);
 
     // Type.
     JSExnType type_ = type();

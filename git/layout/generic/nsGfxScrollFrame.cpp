@@ -906,7 +906,8 @@ nsHTMLScrollFrame::AccessibleType()
   // Create an accessible regardless of focusable state because the state can be
   // changed during frame life cycle without any notifications to accessibility.
   if (mContent->IsRootOfNativeAnonymousSubtree() ||
-      GetScrollbarStyles().IsHiddenInBothDirections()) {
+      GetScrollbarStyles() ==
+        ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) ) {
     return a11y::eNoType;
   }
 
@@ -1786,18 +1787,10 @@ ScrollFrameHelper::AsyncScroll::InitTimingFunction(nsSMILKeySpline& aTimingFunct
   aTimingFunction.Init(dt, dxy, 1 - kStopDecelerationWeighting, 1);
 }
 
-bool
-ScrollFrameHelper::IsSmoothScrollingEnabled()
+static bool
+IsSmoothScrollingEnabled()
 {
-  if (!Preferences::GetBool(SMOOTH_SCROLL_PREF_NAME, false)) {
-    return false;
-  }
-  if (gfxPrefs::ScrollBehaviorEnabled()) {
-    ScrollbarStyles styles = GetScrollbarStylesFromFrame();
-    return styles.mScrollBehavior != NS_STYLE_SCROLL_BEHAVIOR_INSTANT;
-  } else {
-    return true;
-  }
+  return Preferences::GetBool(SMOOTH_SCROLL_PREF_NAME, false);
 }
 
 class ScrollFrameActivityTracker MOZ_FINAL : public nsExpirationTracker<ScrollFrameHelper,4> {
@@ -3003,18 +2996,12 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // metadata about this scroll box to the compositor process.
     nsDisplayScrollInfoLayer* layerItem = new (aBuilder) nsDisplayScrollInfoLayer(
       aBuilder, mScrolledFrame, mOuter);
-    if (BuildScrollContainerLayers()) {
-      // We process display items from bottom to top, so if we need to flatten after
-      // the scroll layer items have been processed we need to be on the top.
-      nsDisplayList* positionedDescendants = scrolledContent.PositionedDescendants();
-      if (!positionedDescendants->IsEmpty()) {
-        layerItem->SetOverrideZIndex(MaxZIndexInList(positionedDescendants, aBuilder));
-        positionedDescendants->AppendNewToTop(layerItem);
-      } else {
-        aLists.Outlines()->AppendNewToTop(layerItem);
-      }
+    nsDisplayList* positionedDescendants = scrolledContent.PositionedDescendants();
+    if (!positionedDescendants->IsEmpty()) {
+      layerItem->SetOverrideZIndex(MaxZIndexInList(positionedDescendants, aBuilder));
+      positionedDescendants->AppendNewToTop(layerItem);
     } else {
-      scrolledContent.BorderBackground()->AppendNewToBottom(layerItem);
+      aLists.Outlines()->AppendNewToTop(layerItem);
     }
   }
   // Now display overlay scrollbars and the resizer, if we have one.
@@ -3081,17 +3068,15 @@ ScrollFrameHelper::GetScrollbarStylesFromFrame() const
   nsPresContext* presContext = mOuter->PresContext();
   if (!presContext->IsDynamic() &&
       !(mIsRoot && presContext->HasPaginatedScrolling())) {
-    return ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN,
-                           NS_STYLE_SCROLL_BEHAVIOR_AUTO);
+    return ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN);
   }
 
   if (!mIsRoot) {
     const nsStyleDisplay* disp = mOuter->StyleDisplay();
-    return ScrollbarStyles(disp->mOverflowX, disp->mOverflowY,
-                           disp->mScrollBehavior);
+    return ScrollbarStyles(disp->mOverflowX, disp->mOverflowY);
   }
 
-  ScrollbarStyles result = presContext->GetViewportScrollbarStylesOverride();
+  ScrollbarStyles result = presContext->GetViewportOverflowOverride();
   nsCOMPtr<nsISupports> container = presContext->GetContainerWeak();
   nsCOMPtr<nsIScrollable> scrollable = do_QueryInterface(container);
   if (scrollable) {

@@ -51,9 +51,7 @@ public:
   void
   GetUrl(DOMString& aUrl) const
   {
-    nsCString url;
-    mInternalResponse->GetUrl(url);
-    aUrl.AsAString() = NS_ConvertUTF8toUTF16(url);
+    aUrl.AsAString() = NS_ConvertUTF8toUTF16(mInternalResponse->GetUrl());
   }
 
   uint16_t

@@ -201,15 +201,12 @@ bool ASessionDescription::getFormatType(
     getFormat(index, &format);
 
     const char *lastSpacePos = strrchr(format.c_str(), ' ');
-    if (!lastSpacePos) {
-        return false;
-    }
+    CHECK(lastSpacePos != NULL);
 
     char *end;
     unsigned long x = strtoul(lastSpacePos + 1, &end, 10);
-    if (end <= lastSpacePos + 1 || *end != '\0') {
-        return false;
-    }
+    CHECK_GT(end, lastSpacePos + 1);
+    CHECK_EQ(*end, '\0');
 
     *PT = x;
 
@@ -247,15 +244,13 @@ bool ASessionDescription::getDimensions(
     const char *s = value.c_str();
     char *end;
     *width = strtoul(s, &end, 10);
-    if (end <= s || *end != '-') {
-        return false;
-    }
+    CHECK_GT(end, s);
+    CHECK_EQ(*end, '-');
 
     s = end + 1;
     *height = strtoul(s, &end, 10);
-    if (end <= s || *end != '\0') {
-        return false;
-    }
+    CHECK_GT(end, s);
+    CHECK_EQ(*end, '\0');
 
     return true;
 }
@@ -263,9 +258,7 @@ bool ASessionDescription::getDimensions(
 bool ASessionDescription::getDurationUs(int64_t *durationUs) const {
     *durationUs = 0;
 
-    if (!mIsValid) {
-        return false;
-    }
+    CHECK(mIsValid);
 
     AString value;
     if (!findAttribute(0, "a=range", &value)) {
@@ -287,22 +280,16 @@ bool ASessionDescription::getDurationUs(int64_t *durationUs) const {
 }
 
 // static
-bool ASessionDescription::ParseFormatDesc(
+void ASessionDescription::ParseFormatDesc(
         const char *desc, int32_t *timescale, int32_t *numChannels) {
     const char *slash1 = strchr(desc, '/');
-    if (!slash1) {
-        return false;
-    }
+    CHECK(slash1 != NULL);
 
     const char *s = slash1 + 1;
     char *end;
     unsigned long x = strtoul(s, &end, 10);
-    if (end <= s) {
-        return false;
-    }
-    if (*end != '\0' && *end != '/') {
-        return false;
-    }
+    CHECK_GT(end, s);
+    CHECK(*end == '\0' || *end == '/');
 
     *timescale = x;
     *numChannels = 1;
@@ -310,13 +297,11 @@ bool ASessionDescription::ParseFormatDesc(
     if (*end == '/') {
         s = end + 1;
         unsigned long x = strtoul(s, &end, 10);
-        if (end <= s || *end != '\0') {
-            return false;
-        }
+        CHECK_GT(end, s);
+        CHECK_EQ(*end, '\0');
 
         *numChannels = x;
     }
-    return true;
 }
 
 // static
