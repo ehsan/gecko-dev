@@ -769,8 +769,7 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
   nsISVGChildFrame* svg = do_QueryFrame(aFrame);
   if (!svg)
     return nsnull;
-  *aRect = (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) ?
-             nsRect(0, 0, 0, 0) : svg->GetCoveredRegion();
+  *aRect = svg->GetCoveredRegion();
   return GetOuterSVGFrame(aFrame);
 }
 

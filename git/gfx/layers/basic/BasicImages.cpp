@@ -291,8 +291,8 @@ class BasicImageContainer : public ImageContainer {
 public:
   typedef gfxASurface::gfxImageFormat gfxImageFormat;
 
-  BasicImageContainer() :
-    ImageContainer(nsnull), mMonitor("BasicImageContainer"),
+  BasicImageContainer(BasicLayerManager* aManager) :
+    ImageContainer(aManager), mMonitor("BasicImageContainer"),
     mScaleHint(-1, -1),
     mOffscreenFormat(gfxASurface::ImageFormatUnknown)
   {}
@@ -305,7 +305,6 @@ public:
   virtual PRBool SetLayerManager(LayerManager *aManager);
   virtual void SetScaleHint(const gfxIntSize& aScaleHint);
   void SetOffscreenFormat(gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_BASIC; }
 
 protected:
   Monitor mMonitor;
@@ -401,13 +400,15 @@ BasicImageContainer::SetLayerManager(LayerManager *aManager)
     return PR_FALSE;
   }
 
+  // for basic layers, we can just swap; no magic needed.
+  mManager = aManager;
   return PR_TRUE;
 }
 
 already_AddRefed<ImageContainer>
 BasicLayerManager::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new BasicImageContainer();
+  nsRefPtr<ImageContainer> container = new BasicImageContainer(this);
   static_cast<BasicImageContainer*>(container.get())->
     SetOffscreenFormat(gfxPlatform::GetPlatform()->GetOffscreenFormat());
   return container.forget();

@@ -49,7 +49,7 @@ namespace layers {
 class THEBES_API ImageContainerD3D9 : public ImageContainer
 {
 public:
-  ImageContainerD3D9(IDirect3DDevice9 *aDevice);
+  ImageContainerD3D9(LayerManagerD3D9 *aManager);
   virtual ~ImageContainerD3D9() {}
 
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
@@ -65,17 +65,10 @@ public:
 
   virtual PRBool SetLayerManager(LayerManager *aManager);
 
-  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_D3D9; }
-
-  IDirect3DDevice9 *device() { return mDevice; }
-  void SetDevice(IDirect3DDevice9 *aDevice) { mDevice = aDevice; }
-
 private:
   typedef mozilla::Mutex Mutex;
 
   nsRefPtr<Image> mActiveImage;
-
-  nsRefPtr<IDirect3DDevice9> mDevice;
 
   Mutex mActiveImageLock;
 };

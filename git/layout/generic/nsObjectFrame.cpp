@@ -1722,11 +1722,7 @@ nsObjectFrame::GetImageContainer()
     return nsnull;
   }
 
-  // XXX - in the future image containers will be manager independent and
-  // we can remove the manager equals check and only check the backend type.
-  if (mImageContainer && 
-      (!mImageContainer->Manager() || mImageContainer->Manager() == manager) &&
-      mImageContainer->GetBackendType() == manager->GetBackendType()) {
+  if (mImageContainer && mImageContainer->Manager() == manager) {
     return mImageContainer;
   }
 
