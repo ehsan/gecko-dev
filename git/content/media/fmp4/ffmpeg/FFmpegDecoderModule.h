@@ -8,41 +8,41 @@
 #define __FFmpegDecoderModule_h__
 
 #include "PlatformDecoderModule.h"
-#include "FFmpegAACDecoder.h"
-#include "FFmpegH264Decoder.h"
 
 namespace mozilla
 {
 
-template <int V>
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* GetFFmpegDecoderLog();
+#define FFMPEG_LOG(...) PR_LOG(GetFFmpegDecoderLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#else
+#define FFMPEG_LOG(...)
+#endif
+
 class FFmpegDecoderModule : public PlatformDecoderModule
 {
 public:
-  static PlatformDecoderModule* Create() { return new FFmpegDecoderModule(); }
+  FFmpegDecoderModule();
+  virtual ~FFmpegDecoderModule();
 
-  FFmpegDecoderModule() {}
-  virtual ~FFmpegDecoderModule() {}
+  static bool Link();
 
-  virtual nsresult Shutdown() MOZ_OVERRIDE { return NS_OK; }
+  virtual nsresult Shutdown() MOZ_OVERRIDE;
 
   virtual MediaDataDecoder* CreateH264Decoder(
     const mp4_demuxer::VideoDecoderConfig& aConfig,
     mozilla::layers::LayersBackend aLayersBackend,
     mozilla::layers::ImageContainer* aImageContainer,
-    MediaTaskQueue* aVideoTaskQueue, MediaDataDecoderCallback* aCallback)
-    MOZ_OVERRIDE
-  {
-    return new FFmpegH264Decoder<V>(aVideoTaskQueue, aCallback, aConfig,
-                                    aImageContainer);
-  }
+    MediaTaskQueue* aVideoTaskQueue,
+    MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   virtual MediaDataDecoder* CreateAACDecoder(
     const mp4_demuxer::AudioDecoderConfig& aConfig,
-    MediaTaskQueue* aAudioTaskQueue, MediaDataDecoderCallback* aCallback)
-    MOZ_OVERRIDE
-  {
-    return new FFmpegAACDecoder<V>(aAudioTaskQueue, aCallback, aConfig);
-  }
+    MediaTaskQueue* aAudioTaskQueue,
+    MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
+
+private:
+  static bool sFFmpegLinkDone;
 };
 
 } // namespace mozilla

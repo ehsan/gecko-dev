@@ -883,7 +883,7 @@ SaveStack(JSContext *cx, unsigned argc, jsval *vp)
     Rooted<JSObject*> stack(cx);
     if (!JS::CaptureCurrentStack(cx, &stack))
         return false;
-    args.rval().setObjectOrNull(stack);
+    args.rval().setObject(*stack);
     return true;
 }
 

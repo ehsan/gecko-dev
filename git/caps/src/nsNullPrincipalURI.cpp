@@ -6,7 +6,6 @@
 
 #include "nsNullPrincipalURI.h"
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 
 #include "nsNetUtil.h"
@@ -21,7 +20,7 @@ nsNullPrincipalURI::nsNullPrincipalURI(const nsCString &aSpec)
   int32_t dividerPosition = aSpec.FindChar(':');
   NS_ASSERTION(dividerPosition != -1, "Malformed URI!");
 
-  mozilla::DebugOnly<int32_t> n = aSpec.Left(mScheme, dividerPosition);
+  int32_t n = aSpec.Left(mScheme, dividerPosition);
   NS_ASSERTION(n == dividerPosition, "Storing the scheme failed!");
 
   int32_t count = aSpec.Length() - dividerPosition - 1;

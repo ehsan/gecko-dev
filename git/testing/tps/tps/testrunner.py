@@ -14,7 +14,6 @@ import traceback
 from mozhttpd import MozHttpd
 import mozinfo
 from mozprofile import Profile
-import mozversion
 
 from .firefoxrunner import TPSFirefoxRunner
 from .phase import TPSTestPhase
@@ -295,7 +294,7 @@ class TPSTestRunner(object):
         logstr = "\n%s | %s%s\n" % (result[0], testname, (' | %s' % result[1] if result[1] else ''))
 
         try:
-            repoinfo = mozversion.get_version(self.binary)
+            repoinfo = self.firefoxRunner.runner.get_repositoryInfo()
         except:
             repoinfo = {}
         apprepo = repoinfo.get('application_repository', '')

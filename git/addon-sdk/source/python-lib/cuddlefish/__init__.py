@@ -791,6 +791,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     extra_environment = {}
     if command == "test":
         # This should be contained in the test runner package.
+        # maybe just do: target_cfg.main = 'test-harness/run-tests'
         harness_options['main'] = 'sdk/test/runner'
         harness_options['mainPath'] = 'sdk/test/runner'
     else:

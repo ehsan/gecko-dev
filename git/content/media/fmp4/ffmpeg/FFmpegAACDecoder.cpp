@@ -16,16 +16,17 @@ typedef mp4_demuxer::MP4Sample MP4Sample;
 namespace mozilla
 {
 
-FFmpegAACDecoder<LIBAV_VER>::FFmpegAACDecoder(
+FFmpegAACDecoder::FFmpegAACDecoder(
   MediaTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
-  const mp4_demuxer::AudioDecoderConfig& aConfig)
-  : FFmpegDataDecoder(aTaskQueue, AV_CODEC_ID_AAC), mCallback(aCallback)
+  const mp4_demuxer::AudioDecoderConfig &aConfig)
+  : FFmpegDataDecoder(aTaskQueue, AV_CODEC_ID_AAC)
+  , mCallback(aCallback)
 {
   MOZ_COUNT_CTOR(FFmpegAACDecoder);
 }
 
 nsresult
-FFmpegAACDecoder<LIBAV_VER>::Init()
+FFmpegAACDecoder::Init()
 {
   nsresult rv = FFmpegDataDecoder::Init();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -63,7 +64,7 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumSamples)
 }
 
 void
-FFmpegAACDecoder<LIBAV_VER>::DecodePacket(MP4Sample* aSample)
+FFmpegAACDecoder::DecodePacket(MP4Sample* aSample)
 {
   nsAutoPtr<AVFrame> frame(avcodec_alloc_frame());
   avcodec_get_frame_defaults(frame);
@@ -105,7 +106,7 @@ FFmpegAACDecoder<LIBAV_VER>::DecodePacket(MP4Sample* aSample)
 }
 
 nsresult
-FFmpegAACDecoder<LIBAV_VER>::Input(MP4Sample* aSample)
+FFmpegAACDecoder::Input(MP4Sample* aSample)
 {
   mTaskQueue->Dispatch(NS_NewRunnableMethodWithArg<nsAutoPtr<MP4Sample> >(
     this, &FFmpegAACDecoder::DecodePacket, nsAutoPtr<MP4Sample>(aSample)));
@@ -114,14 +115,13 @@ FFmpegAACDecoder<LIBAV_VER>::Input(MP4Sample* aSample)
 }
 
 nsresult
-FFmpegAACDecoder<LIBAV_VER>::Drain()
+FFmpegAACDecoder::Drain()
 {
   // AAC is never delayed; nothing to do here.
   return NS_OK;
 }
 
-FFmpegAACDecoder<LIBAV_VER>::~FFmpegAACDecoder()
-{
+FFmpegAACDecoder::~FFmpegAACDecoder() {
   MOZ_COUNT_DTOR(FFmpegAACDecoder);
 }
 

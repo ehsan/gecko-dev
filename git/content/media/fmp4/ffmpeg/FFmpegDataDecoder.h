@@ -7,20 +7,15 @@
 #ifndef __FFmpegDataDecoder_h__
 #define __FFmpegDataDecoder_h__
 
-#include "PlatformDecoderModule.h"
-#include "FFmpegLibs.h"
+#include "FFmpegDecoderModule.h"
+#include "FFmpegRuntimeLinker.h"
+#include "FFmpegCompat.h"
 #include "mozilla/Vector.h"
 
 namespace mozilla
 {
 
-template <int V>
 class FFmpegDataDecoder : public MediaDataDecoder
-{
-};
-
-template <>
-class FFmpegDataDecoder<LIBAV_VER> : public MediaDataDecoder
 {
 public:
   FFmpegDataDecoder(MediaTaskQueue* aTaskQueue, AVCodecID aCodecID);

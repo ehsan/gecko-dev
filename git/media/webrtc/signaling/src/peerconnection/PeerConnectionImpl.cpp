@@ -1226,7 +1226,13 @@ PeerConnectionImpl::SetLocalDescription(int32_t aAction, const char* aSDP)
   STAMP_TIMECARD(tc, "Set Local Description");
 
 #ifdef MOZILLA_INTERNAL_API
-  bool isolated = mMedia->AnyLocalStreamHasPeerIdentity();
+  nsIDocument* doc = GetWindow()->GetExtantDoc();
+  bool isolated = true;
+  if (doc) {
+    isolated = mMedia->AnyLocalStreamIsolated(doc->NodePrincipal());
+  } else {
+    CSFLogInfo(logTag, "%s - no document, failing safe", __FUNCTION__);
+  }
   mPrivacyRequested = mPrivacyRequested || isolated;
 #endif
 

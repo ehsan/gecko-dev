@@ -106,7 +106,6 @@ class SavedStacks {
     bool     initialized() const { return frames.initialized(); }
     bool     saveCurrentStack(JSContext *cx, MutableHandleSavedFrame frame);
     void     sweep(JSRuntime *rt);
-    void     trace(JSTracer *trc);
     uint32_t count();
     void     clear();
 
@@ -140,47 +139,9 @@ class SavedStacks {
               column(column)
         { }
 
-        PreBarrieredAtom source;
-        size_t           line;
-        size_t           column;
-    };
-
-    class MOZ_STACK_CLASS AutoLocationValueRooter : public JS::CustomAutoRooter
-    {
-      public:
-        AutoLocationValueRooter(JSContext *cx)
-            : JS::CustomAutoRooter(cx),
-              value() {}
-
-        void set(LocationValue &loc) {
-            value = loc;
-        }
-
-        LocationValue &get() {
-            return value;
-        }
-
-      private:
-        virtual void trace(JSTracer *trc) {
-            if (value.source)
-                gc::MarkString(trc, &value.source, "SavedStacks::LocationValue::source");
-        }
-
-        SavedStacks::LocationValue value;
-    };
-
-    class MOZ_STACK_CLASS MutableHandleLocationValue
-    {
-      public:
-        inline MOZ_IMPLICIT MutableHandleLocationValue(AutoLocationValueRooter *location)
-            : location(location) {}
-
-        void set(LocationValue &loc) {
-            location->set(loc);
-        }
-
-      private:
-        AutoLocationValueRooter *location;
+        ReadBarrieredAtom source;
+        size_t            line;
+        size_t            column;
     };
 
     struct PCLocationHasher : public DefaultHasher<PCKey> {
@@ -202,8 +163,7 @@ class SavedStacks {
     PCLocationMap pcLocationMap;
 
     void sweepPCLocationMap();
-    bool getLocation(JSContext *cx, JSScript *script, jsbytecode *pc,
-                     MutableHandleLocationValue locationp);
+    bool getLocation(JSContext *cx, JSScript *script, jsbytecode *pc, LocationValue *locationp);
 };
 
 bool SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata);

@@ -76,11 +76,10 @@ replace_malloc_init_funcs()
 }
 #  elif defined(MOZ_WIDGET_ANDROID)
 #    include <dlfcn.h>
-#    include <stdlib.h>
 static void
 replace_malloc_init_funcs()
 {
-  const char *replace_malloc_lib = getenv("MOZ_REPLACE_MALLOC_LIB");
+  char *replace_malloc_lib = getenv("MOZ_REPLACE_MALLOC_LIB");
   if (replace_malloc_lib && *replace_malloc_lib) {
     void *handle = dlopen(replace_malloc_lib, RTLD_LAZY);
     if (handle) {

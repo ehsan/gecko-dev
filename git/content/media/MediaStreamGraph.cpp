@@ -942,7 +942,7 @@ MediaStreamGraphImpl::PlayAudio(MediaStream* aStream,
       if (end >= aTo) {
         toWrite = ticksNeeded;
       } else {
-        toWrite = TimeToTicksRoundDown(mSampleRate, end - t);
+        toWrite = TimeToTicksRoundDown(mSampleRate, end - aFrom);
       }
       ticksNeeded -= toWrite;
 

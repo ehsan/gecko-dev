@@ -21,6 +21,8 @@
 
 #define MOZ_PERSONAL_DICT_NAME "persdict.dat"
 
+const int kMaxWordLen=256;
+
 /**
  * This is the most braindead implementation of a personal dictionary possible.
  * There is not much complexity needed, though.  It could be made much faster,
@@ -31,6 +33,7 @@
  * TODO:
  * Implement the suggestion record.
  */
+
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(mozPersonalDictionary)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(mozPersonalDictionary)
@@ -387,3 +390,4 @@ NS_IMETHODIMP mozPersonalDictionary::Observe(nsISupports *aSubject, const char *
 
   return NS_OK;
 }
+
