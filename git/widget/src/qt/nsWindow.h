@@ -230,10 +230,6 @@ protected:
     // shouldn't be automatically set to 0,0 for first show.
     PRBool              mPlaced;
 
-    // Remember the last sizemode so that we can restore it when
-    // leaving fullscreen
-    nsSizeMode         mLastSizeMode;
-
     /**
      * Event handlers (proxied from the actual qwidget).
      * They follow normal Qt widget semantics.

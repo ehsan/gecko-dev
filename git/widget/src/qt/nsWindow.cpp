@@ -482,13 +482,14 @@ nsWindow::SetSizeMode(PRInt32 aMode)
     case nsSizeMode_Minimized:
         mWidget->showMinimized();
         break;
-    case nsSizeMode_Fullscreen:
-        mWidget->showFullScreen();
-        break;
-
     default:
         // nsSizeMode_Normal, really.
-        mWidget->showNormal();
+        mWidget->showNormal ();
+        // KILLME
+        //if (mSizeState == nsSizeMode_Minimized)
+        //    gtk_window_deiconify(GTK_WINDOW(mWidget));
+        //else if (mSizeState == nsSizeMode_Maximized)
+        //    gtk_window_unmaximize(GTK_WINDOW(mWidget));
         break;
     }
 
@@ -1831,32 +1832,7 @@ void nsWindow::QWidgetDestroyed()
 NS_IMETHODIMP
 nsWindow::MakeFullScreen(PRBool aFullScreen)
 {
-    if (aFullScreen) {
-        if (mSizeMode != nsSizeMode_Fullscreen)
-            mLastSizeMode = mSizeMode;
-        
-        mSizeMode = nsSizeMode_Fullscreen;
-        mWidget->showFullScreen();
-    }
-    else {
-        mSizeMode = mLastSizeMode;
-
-        switch (mSizeMode) {
-        case nsSizeMode_Maximized:
-            mWidget->showMaximized();
-            break;
-        case nsSizeMode_Minimized:
-            mWidget->showMinimized();
-            break;
-        case nsSizeMode_Normal:
-            mWidget->showNormal();
-            break;
-        }
-    }
-    
-    NS_ASSERTION(mLastSizeMode != nsSizeMode_Fullscreen,
-                 "mLastSizeMode should never be fullscreen");
-    return NS_OK;
+    return nsBaseWidget::MakeFullScreen(aFullScreen);
 }
 
 NS_IMETHODIMP

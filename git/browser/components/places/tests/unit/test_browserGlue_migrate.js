@@ -15,7 +15,7 @@
  *
  * The Original Code is Places Unit Test code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corp.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -43,6 +43,8 @@
  */
 
 const PREF_SMART_BOOKMARKS_VERSION = "browser.places.smartBookmarksVersion";
+
+const TOPIC_PLACES_INIT_COMPLETE = "places-init-complete";
 
 function run_test() {
   // Create our bookmarks.html copying bookmarks.glue.html to the profile
@@ -77,8 +79,13 @@ function run_test() {
                     bs.DEFAULT_INDEX, "migrated");
 
   // Initialize nsBrowserGlue.
-  let bg = Cc["@mozilla.org/browser/browserglue;1"].
-           getService(Ci.nsIBrowserGlue);
+  Cc["@mozilla.org/browser/browserglue;1"].getService(Ci.nsIBrowserGlue);
+
+  // Places initialization has already happened, so we need to simulate
+  // it. This will force browserGlue::_initPlaces().
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  os.notifyObservers(null, TOPIC_PLACES_INIT_COMPLETE, null);
 
   // Import could take some time, usually less than 1s, but to be sure we will
   // check after 3s.
@@ -97,8 +104,6 @@ function continue_test() {
   // Check that we have not imported any new bookmark.
   do_check_eq(bs.getIdForItemAt(bs.bookmarksMenuFolder, 1), -1);
   do_check_eq(bs.getIdForItemAt(bs.toolbarFolder, 0), -1);
-
-  remove_bookmarks_html();
 
   do_test_finished();
 }
