@@ -47,7 +47,6 @@ const PREF_UPDATE_NAGTIMER_RESTART  = "app.update.nagTimer.restart";
 const PREF_APP_UPDATE_LOG_BRANCH    = "app.update.log.";
 const PREF_UPDATE_TEST_LOOP         = "app.update.test.loop";
 const PREF_UPDATE_NEVER_BRANCH      = "app.update.never.";
-const PREF_AUTO_UPDATE_ENABLED      = "app.update.enabled";
 
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
@@ -585,13 +584,7 @@ var gCheckingPage = {
             "Could not select an appropriate update, either because there " +
             "were none, or |selectUpdate| failed.");
         var checking = document.getElementById("checking");
-        
-        // is auto update enabled?
-        
-        if (getPref("getBoolPref", PREF_AUTO_UPDATE_ENABLED, true))
-          checking.setAttribute("next", "noupdatesautoenabled");
-        else
-          checking.setAttribute("next", "noupdatesautodisabled");
+        checking.setAttribute("next", "noupdatesfound");
       }
       gUpdates.wiz.canAdvance = true;
       gUpdates.wiz.advance();

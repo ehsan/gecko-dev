@@ -752,39 +752,39 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
 
 #pragma mark -
 
-nsTransparencyMode nsChildView::GetTransparencyMode()
+NS_IMETHODIMP nsChildView::GetHasTransparentBackground(PRBool& aTransparent)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  return [mView isOpaque] ? eTransparencyOpaque : eTransparencyTransparent;
+  aTransparent = ![mView isOpaque];
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-  return eTransparencyOpaque;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 // This is called by nsContainerFrame on the root widget for all window types
-// except popup windows (when nsCocoaWindow::SetTransparencyMode is used instead).
-void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
+// except popup windows (when nsCocoaWindow::SetHasTransparentBackground is used instead).
+NS_IMETHODIMP nsChildView::SetHasTransparentBackground(PRBool aTransparent)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  BOOL isTransparent = aMode == eTransparencyTransparent;
   BOOL currentTransparency = ![[mView nativeWindow] isOpaque];
-  if (isTransparent != currentTransparency) {
+  if (aTransparent != currentTransparency) {
     // Find out if this is a window we created by seeing if the delegate is WindowDelegate. If it is,
     // tell the nsCocoaWindow to set its background to transparent.
     id windowDelegate = [[mView nativeWindow] delegate];
     if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
       nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
       if (widget) {
-        widget->MakeBackgroundTransparent(aMode);
-        [(ChildView*)mView setTransparent:isTransparent];
+        widget->MakeBackgroundTransparent(aTransparent);
+        [(ChildView*)mView setTransparent:aTransparent];
       }
     }
   }
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -1155,29 +1155,6 @@ NS_IMETHODIMP nsChildView::BeginResizingChildren(void)
 NS_IMETHODIMP nsChildView::EndResizingChildren(void)
 {
   return NS_OK;
-}
-
-
-static const PRInt32 resizeIndicatorWidth = 15;
-static const PRInt32 resizeIndicatorHeight = 15;
-PRBool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
-{
-  NSView *topLevelView = mView, *superView = nil;
-  while (superView = [topLevelView superview])
-    topLevelView = superView;
-
-  if (![[topLevelView window] showsResizeIndicator])
-    return PR_FALSE;
-
-  if (aResizerRect) {
-    NSSize bounds = [topLevelView bounds].size;
-    NSPoint corner = NSMakePoint(bounds.width, [topLevelView isFlipped] ? bounds.height : 0);
-    corner = [topLevelView convertPoint:corner toView:mView];
-    aResizerRect->SetRect(NSToIntRound(corner.x) - resizeIndicatorWidth,
-                          NSToIntRound(corner.y) - resizeIndicatorHeight,
-                          resizeIndicatorWidth, resizeIndicatorHeight);
-  }
-  return PR_TRUE;
 }
 
 
@@ -5236,27 +5213,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     }
   }
 
-  // We need to initialize the TSMDocument *before* interpretKeyEvents when
-  // IME is enabled.
-  if (!isKeyEquiv && nsTSMManager::IsIMEEnabled()) {
-    // We need to get actual focused view. E.g., the view is in bookmark dialog
-    // that is <panel> element. Then, the key events are processed the parent
-    // window's view that has native focus.
-    nsQueryContentEvent textContent(PR_TRUE, NS_QUERY_TEXT_CONTENT,
-                                    mGeckoChild);
-    textContent.InitForQueryTextContent(0, 0);
-    mGeckoChild->DispatchWindowEvent(textContent);
-    NSView<mozView>* focusedView = self;
-    if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
-      NSView<mozView>* view =
-        static_cast<NSView<mozView>*>(textContent.mReply.mFocusedWidget->
-                                      GetNativeData(NS_NATIVE_WIDGET));
-      if (view)
-        focusedView = view;
-    }
-    nsTSMManager::InitTSMDocument(focusedView);
-  }
-
   // Let Cocoa interpret the key events, caching IsComposing first.
   // We don't do it if this came from performKeyEquivalent because
   // interpretKeyEvents isn't set up to handle those key combinations.
@@ -6095,52 +6051,12 @@ nsTSMManager::GetIMEOpenState()
 
 
 void
-nsTSMManager::InitTSMDocument(NSView<mozView>* aViewForCaret)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  sDocumentID = ::TSMGetActiveDocument();
-  if (!sDocumentID)
-    return;
-
-  // We need to set the focused window level to TSMDocument. Then, the popup
-  // windows of IME (E.g., a candidate list window) will be over the focused
-  // view. See http://developer.apple.com/technotes/tn2005/tn2128.html#TNTAG1
-  NSInteger TSMLevel, windowLevel;
-  UInt32 size = sizeof(TSMLevel);
-
-  OSStatus err =
-    ::TSMGetDocumentProperty(sDocumentID, kTSMDocumentWindowLevelPropertyTag,
-                             size, &size, &TSMLevel);
-  windowLevel = [[aViewForCaret window] level];
-
-  // Chinese IMEs on 10.5 don't work fine if the level is NSNormalWindowLevel,
-  // then, we need to increment the value.
-  if (windowLevel == NSNormalWindowLevel)
-    windowLevel++;
-
-  if (err == noErr && TSMLevel >= windowLevel)
-    return;
-  ::TSMSetDocumentProperty(sDocumentID, kTSMDocumentWindowLevelPropertyTag,
-                           sizeof(windowLevel), &windowLevel);
-
-  // ATOK (Japanese IME) updates the window level at activating,
-  // we need to notify the change with this hack.
-  ::DeactivateTSMDocument(sDocumentID);
-  ::ActivateTSMDocument(sDocumentID);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-
-void
 nsTSMManager::StartComposing(NSView<mozView>* aComposingView)
 {
   if (sComposingView && sComposingView != sComposingView)
     CommitIME();
   sComposingView = aComposingView;
-  NS_ASSERTION(::TSMGetActiveDocument() == sDocumentID,
-               "We didn't initialize the TSMDocument");
+  sDocumentID = ::TSMGetActiveDocument();
 }
 
 
@@ -6167,6 +6083,7 @@ nsTSMManager::EndComposing()
     [sComposingString release];
     sComposingString = nsnull;
   }
+  sDocumentID = nsnull;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

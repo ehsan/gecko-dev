@@ -621,7 +621,7 @@ gfxContext::GetClipExtents()
 void
 gfxContext::SetColor(const gfxRGBA& c)
 {
-    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+    if (gfxPlatform::IsCMSEnabled()) {
         cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBTransform();
         if (transform) {
 #ifdef IS_LITTLE_ENDIAN

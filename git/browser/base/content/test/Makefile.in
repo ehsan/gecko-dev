@@ -59,9 +59,6 @@ _BROWSER_FILES = browser_bug321000.js \
                  autodiscovery.html \
                  moz.png \
                  browser_getshortcutoruri.js \
-                 browser_page_style_menu.js \
-                 page_style_sample.html \
-                 browser_ctrlTab.js \
     $(NULL)
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))

@@ -70,9 +70,6 @@
 #include "nsIEventStateManager.h"
 #include "nsListControlFrame.h"
 #include "nsIBaseWindow.h"
-#include "nsThemeConstants.h"
-#include "nsCSSFrameConstructor.h"
-#include "nsThemeConstants.h"
 
 #ifdef NS_DEBUG
 #undef NOISY
@@ -498,15 +495,7 @@ SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
 
     if (aView->HasWidget() && aView == rootView &&
         IsTopLevelWidget(aPresContext)) {
-      // The issue here is that the CSS 'background' propagates from the root
-      // element's frame (rootFrame) to the real root frame (nsViewportFrame),
-      // so we need to call GetFrameTransparency on that. But -moz-appearance
-      // does not propagate so we need to check that directly on rootFrame.
-      nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame);
-      nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-      if(rootFrame && NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance)
-        mode = eTransparencyGlass;
-      aView->GetWidget()->SetTransparencyMode(mode);
+      aView->GetWidget()->SetHasTransparentBackground(nsLayoutUtils::FrameHasTransparency(aFrame));
     }
   }
 }
