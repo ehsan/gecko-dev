@@ -13,7 +13,6 @@
 #include "nsJSEnvironment.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/EventTarget.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace dom {
@@ -40,9 +39,9 @@ public:
       SetIsDOMBinding();
       mTarget = aTarget;
       mIdentifier = aIdentifier;
-      mPagePoint = CSSIntPoint(aPageX, aPageY);
+      mPagePoint = nsIntPoint(aPageX, aPageY);
       mScreenPoint = nsIntPoint(aScreenX, aScreenY);
-      mClientPoint = CSSIntPoint(aClientX, aClientY);
+      mClientPoint = nsIntPoint(aClientX, aClientY);
       mRefPoint = nsIntPoint(0, 0);
       mPointsInitialized = true;
       mRadius.x = aRadiusX;
@@ -62,9 +61,9 @@ public:
     {
       SetIsDOMBinding();
       mIdentifier = aIdentifier;
-      mPagePoint = CSSIntPoint(0, 0);
+      mPagePoint = nsIntPoint(0, 0);
       mScreenPoint = nsIntPoint(0, 0);
-      mClientPoint = CSSIntPoint(0, 0);
+      mClientPoint = nsIntPoint(0, 0);
       mRefPoint = aPoint;
       mPointsInitialized = false;
       mRadius = aRadius;
@@ -106,8 +105,8 @@ public:
   float Force() const { return mForce; }
 
   int32_t mIdentifier;
-  CSSIntPoint mPagePoint;
-  CSSIntPoint mClientPoint;
+  nsIntPoint mPagePoint;
+  nsIntPoint mClientPoint;
   nsIntPoint mScreenPoint;
   nsIntPoint mRadius;
   float mRotationAngle;

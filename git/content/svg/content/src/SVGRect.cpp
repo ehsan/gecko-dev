@@ -5,7 +5,10 @@
 
 #include "mozilla/dom/SVGRect.h"
 #include "nsContentUtils.h"
+#include "nsDOMClassInfoID.h"
 #include "nsSVGElement.h"
+
+DOMCI_DATA(SVGRect, mozilla::dom::SVGRect)
 
 namespace mozilla {
 namespace dom {

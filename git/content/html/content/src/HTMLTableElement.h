@@ -93,9 +93,6 @@ public:
   already_AddRefed<nsGenericHTMLElement> CreateTFoot();
 
   nsIHTMLCollection* TBodies();
-
-  already_AddRefed<nsGenericHTMLElement> CreateTBody();
-
   nsIHTMLCollection* Rows();
 
   already_AddRefed<nsGenericHTMLElement> InsertRow(int32_t aIndex,

@@ -6,9 +6,9 @@
 
 #include "mozilla/dom/HTMLAreaElement.h"
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/HTMLAreaElementBinding.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/dom/HTMLAreaElementBinding.h"
+#include "base/compiler_specific.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
@@ -16,8 +16,8 @@ namespace mozilla {
 namespace dom {
 
 HTMLAreaElement::HTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
-  , Link(MOZ_THIS_IN_INITIALIZER_LIST())
+  : nsGenericHTMLElement(aNodeInfo),
+    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
 {
   SetIsDOMBinding();
 }

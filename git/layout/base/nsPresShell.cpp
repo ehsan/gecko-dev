@@ -198,7 +198,7 @@ CapturingContentInfo nsIPresShell::gCaptureInfo =
   { false /* mAllowed */, false /* mPointerLock */, false /* mRetargetToElement */,
     false /* mPreventDrag */, nullptr /* mContent */ };
 nsIContent* nsIPresShell::gKeyDownTarget;
-nsRefPtrHashtable<nsUint32HashKey, dom::Touch> nsIPresShell::gCaptureTouchList;
+nsInterfaceHashtable<nsUint32HashKey, nsIDOMTouch> nsIPresShell::gCaptureTouchList;
 bool nsIPresShell::gPreventMouseEvents = false;
 
 // convert a color value to a string, in the CSS format #RRGGBB
@@ -5862,11 +5862,11 @@ PresShell::RecordMouseLocation(nsGUIEvent* aEvent)
 }
 
 static void
-EvictTouchPoint(nsRefPtr<dom::Touch>& aTouch)
+EvictTouchPoint(nsCOMPtr<nsIDOMTouch>& aTouch)
 {
   nsIWidget *widget = nullptr;
   // is there an easier/better way to dig out the widget?
-  nsCOMPtr<nsINode> node(do_QueryInterface(aTouch->mTarget));
+  nsCOMPtr<nsINode> node(do_QueryInterface(aTouch->GetTarget()));
   if (!node) {
     return;
   }
@@ -5899,21 +5899,21 @@ EvictTouchPoint(nsRefPtr<dom::Touch>& aTouch)
 }
 
 static PLDHashOperator
-AppendToTouchList(const uint32_t& aKey, nsRefPtr<dom::Touch>& aData, void *aTouchList)
+AppendToTouchList(const uint32_t& aKey, nsCOMPtr<nsIDOMTouch>& aData, void *aTouchList)
 {
-  nsTArray< nsRefPtr<dom::Touch> >* touches =
-    static_cast<nsTArray< nsRefPtr<dom::Touch> >*>(aTouchList);
+  nsTArray<nsCOMPtr<nsIDOMTouch> > *touches = static_cast<nsTArray<nsCOMPtr<nsIDOMTouch> > *>(aTouchList);
   aData->mChanged = false;
   touches->AppendElement(aData);
   return PL_DHASH_NEXT;
 }
 
 static PLDHashOperator
-FindAnyTarget(const uint32_t& aKey, nsRefPtr<dom::Touch>& aData,
+FindAnyTarget(const uint32_t& aKey, nsCOMPtr<nsIDOMTouch>& aData,
               void* aAnyTarget)
 {
   if (aData) {
-    dom::EventTarget* target = aData->Target();
+    nsCOMPtr<nsIDOMEventTarget> target;
+    aData->GetTarget(getter_AddRefs(target));
     if (target) {
       nsCOMPtr<nsIContent>* content =
         static_cast<nsCOMPtr<nsIContent>*>(aAnyTarget);
@@ -6133,7 +6133,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         // the start of a new touch session and evict any old touches in the
         // queue
         if (touchEvent->touches.Length() == 1) {
-          nsTArray< nsRefPtr<dom::Touch> > touches;
+          nsTArray<nsCOMPtr<nsIDOMTouch> > touches;
           gCaptureTouchList.Enumerate(&AppendToTouchList, (void *)&touches);
           for (uint32_t i = 0; i < touches.Length(); ++i) {
             EvictTouchPoint(touches[i]);
@@ -6152,10 +6152,12 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         // Add any new touches to the queue
         for (int32_t i = touchEvent->touches.Length(); i; ) {
           --i;
-          dom::Touch* touch = touchEvent->touches[i];
+          nsIDOMTouch *touch = touchEvent->touches[i];
+          Touch *domtouch = static_cast<Touch*>(touch);
           touch->mMessage = aEvent->message;
 
-          int32_t id = touch->Identifier();
+          int32_t id = 0;
+          touch->GetIdentifier(&id);
           if (!gCaptureTouchList.Get(id, nullptr)) {
             // This event is a new touch. Mark it as a changedTouch and
             // add it to the queue.
@@ -6175,7 +6177,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
               while (anyTarget && !anyTarget->IsElement()) {
                 anyTarget = anyTarget->GetParent();
               }
-              touch->SetTarget(anyTarget);
+              domtouch->SetTarget(anyTarget);
               gCaptureTouchList.Put(id, touch);
             } else {
               nsIFrame* newTargetFrame = nullptr;
@@ -6215,11 +6217,13 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
             // This touch is an old touch, we need to ensure that is not
             // marked as changed and set its target correctly
             touch->mChanged = false;
-            int32_t id = touch->Identifier();
+            int32_t id;
+            touch->GetIdentifier(&id);
 
-            nsRefPtr<dom::Touch> oldTouch = gCaptureTouchList.GetWeak(id);
+            nsCOMPtr<nsIDOMTouch> oldTouch;
+            gCaptureTouchList.Get(id, getter_AddRefs(oldTouch));
             if (oldTouch) {
-              touch->SetTarget(oldTouch->mTarget);
+              domtouch->SetTarget(oldTouch->GetTarget());
               gCaptureTouchList.Put(id, touch);
             }
           }
@@ -6282,21 +6286,24 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       case NS_TOUCH_END: {
         // get the correct shell to dispatch to
         nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
-        nsTArray< nsRefPtr<dom::Touch> >& touches = touchEvent->touches;
+        nsTArray<nsCOMPtr<nsIDOMTouch> >  &touches = touchEvent->touches;
         for (uint32_t i = 0; i < touches.Length(); ++i) {
-          dom::Touch* touch = touches[i];
+          nsIDOMTouch *touch = touches[i];
           if (!touch) {
             break;
           }
   
-          nsRefPtr<dom::Touch> oldTouch =
-            gCaptureTouchList.GetWeak(touch->Identifier());
+          int32_t id;
+          touch->GetIdentifier(&id);
+          nsCOMPtr<nsIDOMTouch> oldTouch;
+          gCaptureTouchList.Get(id, getter_AddRefs(oldTouch));
           if (!oldTouch) {
             break;
           }
   
-          nsCOMPtr<nsIContent> content =
-            do_QueryInterface(oldTouch->Target());
+          nsCOMPtr<nsIDOMEventTarget> targetPtr;
+          oldTouch->GetTarget(getter_AddRefs(targetPtr));
+          nsCOMPtr<nsIContent> content = do_QueryInterface(targetPtr);
           if (!content) {
             break;
           }
@@ -6674,24 +6681,28 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         // Remove the changed touches
         // need to make sure we only remove touches that are ending here
         nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
-        nsTArray< nsRefPtr<dom::Touch> >& touches = touchEvent->touches;
+        nsTArray<nsCOMPtr<nsIDOMTouch> >  &touches = touchEvent->touches;
         for (uint32_t i = 0; i < touches.Length(); ++i) {
-          dom::Touch* touch = touches[i];
+          nsIDOMTouch *touch = touches[i];
+          Touch *domtouch = static_cast<Touch*>(touch);
           if (!touch) {
             continue;
           }
           touch->mMessage = aEvent->message;
           touch->mChanged = true;
+          nsCOMPtr<nsIDOMTouch> oldTouch;
 
-          int32_t id = touch->Identifier();
-          nsRefPtr<dom::Touch> oldTouch = gCaptureTouchList.GetWeak(id);
+          int32_t id;
+          touch->GetIdentifier(&id);
+
+          gCaptureTouchList.Get(id, getter_AddRefs(oldTouch));
           if (!oldTouch) {
             continue;
           }
-          nsCOMPtr<EventTarget> targetPtr = oldTouch->mTarget;
+          nsCOMPtr<EventTarget> targetPtr = oldTouch->GetTarget();
 
           mCurrentEventContent = do_QueryInterface(targetPtr);
-          touch->SetTarget(targetPtr);
+          domtouch->SetTarget(targetPtr);
           gCaptureTouchList.Remove(id);
         }
         // add any touches left in the touch list, but ensure changed=false
@@ -6701,33 +6712,36 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
       case NS_TOUCH_MOVE: {
         // Check for touches that changed. Mark them add to queue
         nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
-        nsTArray< nsRefPtr<dom::Touch> >& touches = touchEvent->touches;
+        nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
         bool haveChanged = false;
         for (int32_t i = touches.Length(); i; ) {
           --i;
-          dom::Touch* touch = touches[i];
+          nsIDOMTouch *touch = touches[i];
+          Touch *domtouch = static_cast<Touch*>(touch);
           if (!touch) {
             continue;
           }
-          int32_t id = touch->Identifier();
+          int32_t id;
+          touch->GetIdentifier(&id);
           touch->mMessage = aEvent->message;
 
-          nsRefPtr<dom::Touch> oldTouch = gCaptureTouchList.GetWeak(id);
+          nsCOMPtr<nsIDOMTouch> oldTouch;
+          gCaptureTouchList.Get(id, getter_AddRefs(oldTouch));
           if (!oldTouch) {
             touches.RemoveElementAt(i);
             continue;
           }
-          if (touch->Equals(oldTouch)) {
+          if(domtouch->Equals(oldTouch)) {
             touch->mChanged = true;
             haveChanged = true;
           }
 
-          nsCOMPtr<dom::EventTarget> targetPtr = oldTouch->mTarget;
+          nsCOMPtr<EventTarget> targetPtr = oldTouch->GetTarget();
           if (!targetPtr) {
             touches.RemoveElementAt(i);
             continue;
           }
-          touch->SetTarget(targetPtr);
+          domtouch->SetTarget(targetPtr);
 
           gCaptureTouchList.Put(id, touch);
           // if we're moving from touchstart to touchmove for this touch

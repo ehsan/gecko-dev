@@ -12,12 +12,10 @@
 #include "nsLayoutUtils.h"
 #include "nsEvent.h"
 #include "mozilla/dom/UIEventBinding.h"
-#include "Units.h"
 
 class nsDOMUIEvent : public nsDOMEvent,
                      public nsIDOMUIEvent
 {
-  typedef mozilla::CSSIntPoint CSSIntPoint;
 public:
   nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
                nsPresContext* aPresContext, nsGUIEvent* aEvent);
@@ -57,9 +55,9 @@ public:
                       nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
   }
 
-  static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,
-                                          nsEvent* aEvent,
-                                          CSSIntPoint* aDefaultClientPoint)
+  static nsIntPoint CalculateClientPoint(nsPresContext* aPresContext,
+                                         nsEvent* aEvent,
+                                         nsIntPoint* aDefaultClientPoint)
   {
     if (!aEvent ||
         (aEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -68,24 +66,23 @@ public:
          aEvent->eventStructType != NS_DRAG_EVENT &&
          aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
         !aPresContext ||
-        !static_cast<nsGUIEvent*>(aEvent)->widget) {
-      return aDefaultClientPoint
-             ? *aDefaultClientPoint
-             : CSSIntPoint(0, 0);
+        !((nsGUIEvent*)aEvent)->widget) {
+      return (nullptr == aDefaultClientPoint ? nsIntPoint(0, 0) :
+        nsIntPoint(aDefaultClientPoint->x, aDefaultClientPoint->y));
     }
 
+    nsPoint pt(0, 0);
     nsIPresShell* shell = aPresContext->GetPresShell();
     if (!shell) {
-      return CSSIntPoint(0, 0);
+      return nsIntPoint(0, 0);
     }
     nsIFrame* rootFrame = shell->GetRootFrame();
-    if (!rootFrame) {
-      return CSSIntPoint(0, 0);
+    if (rootFrame) {
+      pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
     }
-    nsPoint pt =
-      nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
 
-    return CSSIntPoint::FromAppUnitsRounded(pt);
+    return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                      nsPresContext::AppUnitsToIntCSSPixels(pt.y));
   }
 
   static already_AddRefed<nsDOMUIEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
@@ -144,18 +141,19 @@ public:
 
 protected:
   // Internal helper functions
+  nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
   nsIntPoint GetLayerPoint() const;
 
   nsCOMPtr<nsIDOMWindow> mView;
   int32_t mDetail;
-  CSSIntPoint mClientPoint;
+  nsIntPoint mClientPoint;
   // Screenpoint is mEvent->refPoint.
   nsIntPoint mLayerPoint;
-  CSSIntPoint mPagePoint;
+  nsIntPoint mPagePoint;
   nsIntPoint mMovementPoint;
   bool mIsPointerLocked;
-  CSSIntPoint mLastClientPoint;
+  nsIntPoint mLastClientPoint;
 
   typedef mozilla::widget::Modifiers Modifiers;
   static Modifiers ComputeModifierState(const nsAString& aModifiersList);
