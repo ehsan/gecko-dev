@@ -12,7 +12,6 @@
 #endif
 #include "nsIChannel.h"
 #include "nsIURI.h"
-#include "nsIStreamingProtocolController.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
@@ -183,7 +182,6 @@ inline MediaByteRange::MediaByteRange(TimestampedMediaByteRange& aByteRange)
   NS_ASSERTION(mStart < mEnd, "Range should end after start!");
 }
 
-class RtspMediaResource;
 
 /**
  * Provides a thread-safe, seek/read interface to resources
@@ -393,18 +391,6 @@ public:
   // nsIChannel when the MediaResource is created. Safe to call from
   // any thread.
   virtual const nsCString& GetContentType() const = 0;
-
-  // Get the RtspMediaResource pointer if this MediaResource really is a
-  // RtspMediaResource. For calling Rtsp specific functions.
-  virtual RtspMediaResource* GetRtspPointer() {
-    return nullptr;
-  }
-
-  // Return true if the stream is a live stream
-  virtual bool IsRealTime() {
-    return false;
-  }
-
 protected:
   virtual ~MediaResource() {};
 };

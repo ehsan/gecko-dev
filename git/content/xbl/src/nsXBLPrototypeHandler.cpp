@@ -299,7 +299,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   // been compiled, above.
   JSAutoCompartment ac(cx, scopeObject);
   JS::Rooted<JSObject*> genericHandler(cx, handler.get());
-  bool ok = JS_WrapObject(cx, &genericHandler);
+  bool ok = JS_WrapObject(cx, genericHandler.address());
   NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   MOZ_ASSERT(!js::IsCrossCompartmentWrapper(genericHandler));
 
@@ -317,7 +317,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
 
   // Now, wrap the bound handler into the content compartment and use it.
   JSAutoCompartment ac2(cx, globalObject);
-  if (!JS_WrapObject(cx, &bound)) {
+  if (!JS_WrapObject(cx, bound.address())) {
     return NS_ERROR_FAILURE;
   }
 
@@ -393,7 +393,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   // Wrap the handler into the content scope, since we're about to stash it
   // on the DOM window and such.
   JSAutoCompartment ac2(cx, globalObject);
-  bool ok = JS_WrapObject(cx, &handlerFun);
+  bool ok = JS_WrapObject(cx, handlerFun.address());
   NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   aHandler.set(handlerFun);
   NS_ENSURE_TRUE(aHandler, NS_ERROR_FAILURE);

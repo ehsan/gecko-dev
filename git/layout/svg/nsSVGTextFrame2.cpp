@@ -4637,8 +4637,8 @@ nsSVGTextFrame2::GetTextPathPathFrame(nsIFrame* aTextPathFrame)
   return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
 }
 
-already_AddRefed<gfxPath>
-nsSVGTextFrame2::GetTextPath(nsIFrame* aTextPathFrame)
+already_AddRefed<gfxFlattenedPath>
+nsSVGTextFrame2::GetFlattenedTextPath(nsIFrame* aTextPathFrame)
 {
   nsIFrame *path = GetTextPathPathFrame(aTextPathFrame);
 
@@ -4646,7 +4646,7 @@ nsSVGTextFrame2::GetTextPath(nsIFrame* aTextPathFrame)
     nsSVGPathGeometryElement *element =
       static_cast<nsSVGPathGeometryElement*>(path->GetContent());
 
-    return element->GetPath(element->PrependLocalTransformsTo(gfxMatrix()));
+    return element->GetFlattenedPath(element->PrependLocalTransformsTo(gfxMatrix()));
   }
   return nullptr;
 }
@@ -4671,7 +4671,7 @@ nsSVGTextFrame2::GetStartOffset(nsIFrame* aTextPathFrame)
     &tp->mLengthAttributes[dom::SVGTextPathElement::STARTOFFSET];
 
   if (length->IsPercentage()) {
-    nsRefPtr<gfxPath> data = GetTextPath(aTextPathFrame);
+    nsRefPtr<gfxFlattenedPath> data = GetFlattenedTextPath(aTextPathFrame);
     return data ?
              length->GetAnimValInSpecifiedUnits() * data->GetLength() / 100.0 :
              0.0;
@@ -4694,7 +4694,7 @@ nsSVGTextFrame2::DoTextPathLayout()
     }
 
     // Get the path itself.
-    nsRefPtr<gfxPath> data = GetTextPath(textPathFrame);
+    nsRefPtr<gfxFlattenedPath> data = GetFlattenedTextPath(textPathFrame);
     if (!data) {
       it.AdvancePastCurrentTextPathFrame();
       continue;

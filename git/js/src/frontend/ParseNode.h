@@ -131,7 +131,6 @@ class UpvarCookie
     F(LET) \
     F(SEQ) \
     F(FORIN) \
-    F(FOROF) \
     F(FORHEAD) \
     F(ARGSBODY) \
     F(SPREAD) \
@@ -253,8 +252,8 @@ enum ParseNodeKind
  *                          pn_val: constant value if lookup or table switch
  * PNK_WHILE    binary      pn_left: cond, pn_right: body
  * PNK_DOWHILE  binary      pn_left: body, pn_right: cond
- * PNK_FOR      binary      pn_left: either PNK_FORIN (for-in statement),
- *                            PNK_FOROF (for-of) or PNK_FORHEAD (for(;;))
+ * PNK_FOR      binary      pn_left: either PNK_FORIN (for-in statement) or
+ *                            PNK_FORHEAD (for(;;) statement)
  *                          pn_right: body
  * PNK_FORIN    ternary     pn_kid1:  PNK_VAR to left of 'in', or nullptr
  *                            its pn_xflags may have PNX_POPVAR
@@ -263,13 +262,6 @@ enum ParseNodeKind
  *                            to left of 'in'; if pn_kid1, then this
  *                            is a clone of pn_kid1->pn_head
  *                          pn_kid3: object expr to right of 'in'
- * PNK_FOROF    ternary     pn_kid1:  PNK_VAR to left of 'of', or nullptr
- *                            its pn_xflags may have PNX_POPVAR
- *                            bit set
- *                          pn_kid2: PNK_NAME or destructuring expr
- *                            to left of 'of'; if pn_kid1, then this
- *                            is a clone of pn_kid1->pn_head
- *                          pn_kid3: expr to right of 'of'
  * PNK_FORHEAD  ternary     pn_kid1:  init expr before first ';' or nullptr
  *                          pn_kid2:  cond expr before second ';' or nullptr
  *                          pn_kid3:  update expr after second ';' or nullptr

@@ -35,7 +35,6 @@ IPDL_SOURCES = [
     'NeckoChannelParams.ipdlh',
     'PNecko.ipdl',
     'PRemoteOpenFile.ipdl',
-    'PRtspController.ipdl',
 ]
 
 FAIL_ON_WARNINGS = True

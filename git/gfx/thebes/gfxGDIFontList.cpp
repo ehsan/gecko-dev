@@ -414,11 +414,11 @@ GDIFontEntry::CreateFontEntry(const nsAString& aName,
 }
 
 void
-GDIFontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                     FontListSizes* aSizes) const
+GDIFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 /***************************************************************
@@ -888,10 +888,10 @@ gfxGDIFontList::ResolveFontName(const nsAString& aFontName, nsAString& aResolved
 }
 
 void
-gfxGDIFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes* aSizes) const
+gfxGDIFontList::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                    FontListSizes*    aSizes) const
 {
-    gfxPlatformFontList::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxPlatformFontList::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontListSize +=
         mFontSubstitutes.SizeOfExcludingThis(SizeOfFamilyNameEntryExcludingThis,
                                              aMallocSizeOf);
@@ -904,9 +904,9 @@ gfxGDIFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxGDIFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                       FontListSizes* aSizes) const
+gfxGDIFontList::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                    FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

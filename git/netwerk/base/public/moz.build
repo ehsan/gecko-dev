@@ -95,8 +95,6 @@ XPIDL_SOURCES += [
     'nsIStreamListenerTee.idl',
     'nsIStreamLoader.idl',
     'nsIStreamTransportService.idl',
-    'nsIStreamingProtocolController.idl',
-    'nsIStreamingProtocolService.idl',
     'nsISyncStreamListener.idl',
     'nsISystemProxySettings.idl',
     'nsIThreadRetargetableRequest.idl',

@@ -416,16 +416,15 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
 }
 
 bool
-CpowIdHolder::ToObject(JSContext *cx, JS::MutableHandleObject objp)
+CpowIdHolder::ToObject(JSContext *cx, JSObject **objp)
 {
     return js_->Unwrap(cx, cpows_, objp);
 }
 
 bool
-JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows,
-                         JS::MutableHandleObject objp)
+JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows, JSObject **objp)
 {
-    objp.set(nullptr);
+    *objp = nullptr;
 
     if (!aCpows.Length())
         return true;
@@ -455,7 +454,7 @@ JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpow
         }
     }
 
-    objp.set(obj);
+    *objp = obj;
     return true;
 }
 

@@ -12,9 +12,6 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "mozilla/net/FTPChannelParent.h"
 #include "mozilla/net/WebSocketChannelParent.h"
-#ifdef MOZ_RTSP
-#include "mozilla/net/RtspControllerParent.h"
-#endif
 #include "mozilla/net/RemoteOpenFileParent.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/TabParent.h"
@@ -303,28 +300,6 @@ NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
 {
   WebSocketChannelParent* p = static_cast<WebSocketChannelParent*>(actor);
   p->Release();
-  return true;
-}
-
-PRtspControllerParent*
-NeckoParent::AllocPRtspControllerParent()
-{
-#ifdef MOZ_RTSP
-  RtspControllerParent* p = new RtspControllerParent();
-  p->AddRef();
-  return p;
-#else
-  return nullptr;
-#endif
-}
-
-bool
-NeckoParent::DeallocPRtspControllerParent(PRtspControllerParent* actor)
-{
-#ifdef MOZ_RTSP
-  RtspControllerParent* p = static_cast<RtspControllerParent*>(actor);
-  p->Release();
-#endif
   return true;
 }
 

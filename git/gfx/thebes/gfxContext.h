@@ -131,12 +131,12 @@ public:
     /**
      * Copies the current path and returns the copy.
      */
-    already_AddRefed<gfxPath> CopyPath();
+    already_AddRefed<gfxPath> CopyPath() const;
 
     /**
      * Appends the given path to the current path.
      */
-    void SetPath(gfxPath* path);
+    void AppendPath(gfxPath* path);
 
     /**
      * Moves the pen to a new point without drawing a line.
@@ -646,6 +646,11 @@ public:
     gfxRect GetUserStrokeExtent();
 
     /**
+     ** Obtaining a "flattened" path - path converted to all line segments
+     **/
+    already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
+
+    /**
      ** Flags
      **/
 
@@ -881,7 +886,8 @@ public:
     void Restore()
     {
         if (mPath) {
-            mContext->SetPath(mPath);
+            mContext->NewPath();
+            mContext->AppendPath(mPath);
             mPath = nullptr;
         }
     }

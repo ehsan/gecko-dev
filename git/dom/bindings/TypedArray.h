@@ -92,7 +92,7 @@ public:
 
   inline bool WrapIntoNewCompartment(JSContext* cx)
   {
-    return JS_WrapObject(cx, JS::MutableHandleObject::fromMarkedLocation(&mObj));
+    return JS_WrapObject(cx, &mObj);
   }
 
 protected:

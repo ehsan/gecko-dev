@@ -215,7 +215,7 @@ XPCWrappedNativeScope::GetComponentsJSObject()
     // The call to wrap() here is necessary even though the object is same-
     // compartment, because it applies our security wrapper.
     JS::RootedObject obj(cx, wrapper->GetFlatJSObject());
-    if (!JS_WrapObject(cx, &obj))
+    if (!JS_WrapObject(cx, obj.address()))
         return nullptr;
     return obj;
 }

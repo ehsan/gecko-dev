@@ -76,10 +76,10 @@ SVGMotionSMILPathUtils::PathGenerator::
   return true;
 }
 
-already_AddRefed<gfxPath>
+already_AddRefed<gfxFlattenedPath>
 SVGMotionSMILPathUtils::PathGenerator::GetResultingPath()
 {
-  return mGfxContext.CopyPath();
+  return mGfxContext.GetFlattenedPath();
 }
 
 //----------------------------------------------------------------------

@@ -76,8 +76,10 @@ endif
 # Don't use STL wrappers when compiling Google code.
 STL_FLAGS =
 
-# Skip most Mozilla-specific include locations.
-INCLUDES = -I. $(LOCAL_INCLUDES) -I$(DEPTH)/dist/include
+# Skip Mozilla-specific include locations.
+# Specific GYP files can add them back by adding
+# $(DIST)/include to their includes.
+INCLUDES = -I. $(LOCAL_INCLUDES)
 
 # Ensure that subdirs for sources get created before compiling
 ifdef OBJS

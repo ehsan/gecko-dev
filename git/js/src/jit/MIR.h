@@ -1977,13 +1977,13 @@ class MGetDynamicName
     }
 };
 
-// Bailout if the input string contains 'arguments' or 'eval'.
-class MFilterArgumentsOrEval
+// Bailout if the input string contains 'arguments'
+class MFilterArguments
   : public MAryInstruction<1>,
     public StringPolicy<0>
 {
   protected:
-    MFilterArgumentsOrEval(MDefinition *string)
+    MFilterArguments(MDefinition *string)
     {
         setOperand(0, string);
         setGuard();
@@ -1991,10 +1991,11 @@ class MFilterArgumentsOrEval
     }
 
   public:
-    INSTRUCTION_HEADER(FilterArgumentsOrEval)
+    INSTRUCTION_HEADER(FilterArguments)
 
-    static MFilterArgumentsOrEval *New(MDefinition *string) {
-        return new MFilterArgumentsOrEval(string);
+    static MFilterArguments *
+    New(MDefinition *string) {
+        return new MFilterArguments(string);
     }
 
     MDefinition *getString() const {
@@ -3971,8 +3972,12 @@ class MConcatPar
   public:
     INSTRUCTION_HEADER(ConcatPar)
 
+    static MConcatPar *New(MDefinition *slice, MDefinition *left, MDefinition *right) {
+        return new MConcatPar(slice, left, right);
+    }
+
     static MConcatPar *New(MDefinition *slice, MConcat *concat) {
-        return new MConcatPar(slice, concat->lhs(), concat->rhs());
+        return New(slice, concat->lhs(), concat->rhs());
     }
 
     MDefinition *forkJoinSlice() const {
@@ -4548,13 +4553,6 @@ struct LambdaFunctionInfo
         singletonType(fun->hasSingletonType()),
         useNewTypeForClone(types::UseNewTypeForClone(fun))
     {}
-
-    LambdaFunctionInfo(const LambdaFunctionInfo &info)
-      : fun((JSFunction *) info.fun), flags(info.flags),
-        scriptOrLazyScript(info.scriptOrLazyScript),
-        singletonType(info.singletonType),
-        useNewTypeForClone(info.useNewTypeForClone)
-    {}
 };
 
 class MLambda
@@ -4595,11 +4593,11 @@ class MLambdaPar
     LambdaFunctionInfo info_;
 
     MLambdaPar(MDefinition *slice, MDefinition *scopeChain, JSFunction *fun,
-               types::TemporaryTypeSet *resultTypes, const LambdaFunctionInfo &info)
-      : MBinaryInstruction(slice, scopeChain), info_(info)
+               types::TemporaryTypeSet *resultTypes)
+      : MBinaryInstruction(slice, scopeChain), info_(fun)
     {
-        JS_ASSERT(!info_.singletonType);
-        JS_ASSERT(!info_.useNewTypeForClone);
+        JS_ASSERT(!fun->hasSingletonType());
+        JS_ASSERT(!types::UseNewTypeForClone(fun));
         setResultType(MIRType_Object);
         setResultTypeSet(resultTypes);
     }
@@ -4607,9 +4605,13 @@ class MLambdaPar
   public:
     INSTRUCTION_HEADER(LambdaPar);
 
+    static MLambdaPar *New(MDefinition *slice, MDefinition *scopeChain, JSFunction *fun) {
+        return new MLambdaPar(slice, scopeChain, fun, MakeSingletonTypeSet(fun));
+    }
+
     static MLambdaPar *New(MDefinition *slice, MLambda *lambda) {
         return new MLambdaPar(slice, lambda->scopeChain(), lambda->info().fun,
-                              lambda->resultTypeSet(), lambda->info());
+                              lambda->resultTypeSet());
     }
 
     MDefinition *forkJoinSlice() const {
@@ -7914,6 +7916,11 @@ class MRestPar
   public:
     INSTRUCTION_HEADER(RestPar);
 
+    static MRestPar *New(MDefinition *slice, MDefinition *numActuals, unsigned numFormals,
+                         JSObject *templateObject) {
+        return new MRestPar(slice, numActuals, numFormals, templateObject,
+                            MakeSingletonTypeSet(templateObject));
+    }
     static MRestPar *New(MDefinition *slice, MRest *rest) {
         return new MRestPar(slice, rest->numActuals(), rest->numFormals(),
                             rest->templateObject(), rest->resultTypeSet());
@@ -8209,8 +8216,14 @@ class MNewCallObjectPar : public MBinaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObjectPar);
 
+    static MNewCallObjectPar *New(MDefinition *slice, JSObject *templateObj,
+                                  MDefinition *slots)
+    {
+        return new MNewCallObjectPar(slice, templateObj, slots);
+    }
+
     static MNewCallObjectPar *New(MDefinition *slice, MNewCallObject *callObj) {
-        return new MNewCallObjectPar(slice, callObj->templateObject(), callObj->slots());
+        return New(slice, callObj->templateObject(), callObj->slots());
     }
 
     MDefinition *forkJoinSlice() const {

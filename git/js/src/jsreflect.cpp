@@ -1546,10 +1546,8 @@ class ASTSerializer
     }
 
     bool forInit(ParseNode *pn, MutableHandleValue dst);
-    bool forIn(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
-               MutableHandleValue dst);
-    bool forOf(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
-               MutableHandleValue dst);
+    bool forOfOrIn(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
+                   MutableHandleValue dst);
     bool statement(ParseNode *pn, MutableHandleValue dst);
     bool blockStatement(ParseNode *pn, MutableHandleValue dst);
     bool switchStatement(ParseNode *pn, MutableHandleValue dst);
@@ -2020,24 +2018,17 @@ ASTSerializer::forInit(ParseNode *pn, MutableHandleValue dst)
 }
 
 bool
-ASTSerializer::forOf(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
-                         MutableHandleValue dst)
-{
-    RootedValue expr(cx);
-
-    return expression(head->pn_kid3, &expr) &&
-        builder.forOfStatement(var, expr, stmt, &loop->pn_pos, dst);
-}
-
-bool
-ASTSerializer::forIn(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
+ASTSerializer::forOfOrIn(ParseNode *loop, ParseNode *head, HandleValue var, HandleValue stmt,
                          MutableHandleValue dst)
 {
     RootedValue expr(cx);
     bool isForEach = loop->pn_iflags & JSITER_FOREACH;
+    bool isForOf = loop->pn_iflags & JSITER_FOR_OF;
+    JS_ASSERT(!isForOf || !isForEach);
 
     return expression(head->pn_kid3, &expr) &&
-        builder.forInStatement(var, expr, stmt, isForEach, &loop->pn_pos, dst);
+        (isForOf ? builder.forOfStatement(var, expr, stmt, &loop->pn_pos, dst) :
+         builder.forInStatement(var, expr, stmt, isForEach, &loop->pn_pos, dst));
 }
 
 bool
@@ -2148,17 +2139,7 @@ ASTSerializer::statement(ParseNode *pn, MutableHandleValue dst)
                     : head->pn_kid1->isKind(PNK_LEXICALSCOPE)
                     ? variableDeclaration(head->pn_kid1->pn_expr, true, &var)
                     : variableDeclaration(head->pn_kid1, false, &var)) &&
-                forIn(pn, head, var, stmt, dst);
-        }
-
-        if (head->isKind(PNK_FOROF)) {
-            RootedValue var(cx);
-            return (!head->pn_kid1
-                    ? pattern(head->pn_kid2, nullptr, &var)
-                    : head->pn_kid1->isKind(PNK_LEXICALSCOPE)
-                    ? variableDeclaration(head->pn_kid1->pn_expr, true, &var)
-                    : variableDeclaration(head->pn_kid1, false, &var)) &&
-                forOf(pn, head, var, stmt, dst);
+                forOfOrIn(pn, head, var, stmt, dst);
         }
 
         RootedValue init(cx), test(cx), update(cx);
@@ -2188,7 +2169,7 @@ ASTSerializer::statement(ParseNode *pn, MutableHandleValue dst)
 
         RootedValue stmt(cx);
 
-        return statement(loop->pn_right, &stmt) && forIn(loop, head, var, stmt, dst);
+        return statement(loop->pn_right, &stmt) && forOfOrIn(loop, head, var, stmt, dst);
       }
 
       case PNK_BREAK:
@@ -2281,10 +2262,10 @@ ASTSerializer::comprehensionBlock(ParseNode *pn, MutableHandleValue dst)
 
     ParseNode *in = pn->pn_left;
 
-    LOCAL_ASSERT(in && (in->isKind(PNK_FORIN) || in->isKind(PNK_FOROF)));
+    LOCAL_ASSERT(in && in->isKind(PNK_FORIN));
 
     bool isForEach = pn->pn_iflags & JSITER_FOREACH;
-    bool isForOf = in->isKind(PNK_FOROF);
+    bool isForOf = pn->pn_iflags & JSITER_FOR_OF;
 
     RootedValue patt(cx), src(cx);
     return pattern(in->pn_kid2, nullptr, &patt) &&
