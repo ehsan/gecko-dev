@@ -1080,10 +1080,15 @@ nsWindow::EventIsInsideWindow(UINT Msg, nsWindow* aWindow)
 {
   RECT r;
 
-#ifndef WINCE
   if (Msg == WM_ACTIVATEAPP)
+#ifndef WINCE
     // don't care about activation/deactivation
     return PR_FALSE;
+#else
+    // but on Windows CE we do care about
+    // activation/deactivation because there doesn't exist
+    // cancelable Mouse Activation events
+    return TRUE;
 #endif
 
   ::GetWindowRect(aWindow->mWnd, &r);
@@ -5803,8 +5808,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #else
   if (aDC) {
 #endif
-
-#ifndef WINCE
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
     paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, paintRect.right, paintRect.bottom);
@@ -5819,19 +5822,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
         ::OffsetRgn(paintRgn, pt.x, pt.y);
       }
     }
-#else
-  // GetRandomRgn is not supported on windows mobile.
-
-    RECT paintRect;
-    paintRect = ps.rcPaint;
-    paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, paintRect.right, paintRect.bottom);
-
-    // Now shift the region to accommodate the client area verses the
-    // "desktop" area
-    POINT pt = {0,0};
-    ::MapWindowPoints(NULL, mWnd, &pt, 1);
-    ::OffsetRgn(paintRgn, pt.x, pt.y);
-#endif
   }
 
   nsCOMPtr<nsIRegion> paintRgnWin;
@@ -8070,8 +8060,6 @@ void nsWindow::SetTransparencyMode(nsTransparencyMode aMode)
 
 void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
 {
-#ifndef WINCE
-
   if (aMode == mTransparencyMode)
     return;
 
@@ -8109,7 +8097,6 @@ void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
     margins.cxLeftWidth = -1;
   if(nsUXThemeData::sHaveCompositor)
     nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
-#endif
 }
 
 void nsWindow::SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode)
@@ -8124,7 +8111,6 @@ void nsWindow::SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode)
 
 nsresult nsWindow::UpdateTranslucentWindow()
 {
-#ifndef WINCE
   if (mBounds.IsEmpty())
     return NS_OK;
 
@@ -8140,9 +8126,8 @@ nsresult nsWindow::UpdateTranslucentWindow()
   // perform the alpha blend
   if (!::UpdateLayeredWindow(hWnd, NULL, (POINT*)&winRect, &winSize, mMemoryDC, &srcPos, 0, &bf, ULW_ALPHA))
     return NS_ERROR_FAILURE;
-#endif
 
   return NS_OK;
 }
 
-#endif //MOZ_XUL
+#endif

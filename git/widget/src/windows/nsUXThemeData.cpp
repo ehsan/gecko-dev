@@ -44,10 +44,10 @@
 #include "nsUXThemeConstants.h"
 #include "nsUXThemeData.h"
 
-const PRUnichar
-nsUXThemeData::kThemeLibraryName[] = L"uxtheme.dll";
-const PRUnichar
-nsUXThemeData::kDwmLibraryName[] = L"dwmapi.dll";
+const char
+nsUXThemeData::kThemeLibraryName[] = "uxtheme.dll";
+const char
+nsUXThemeData::kDwmLibraryName[] = "dwmapi.dll";
 
 HANDLE
 nsUXThemeData::sThemes[eUXNumClasses];
@@ -96,7 +96,7 @@ nsUXThemeData::Initialize()
 {
   ::ZeroMemory(sThemes, sizeof(sThemes));
   NS_ASSERTION(!sThemeDLL, "nsUXThemeData being initialized twice!");
-  sThemeDLL = ::LoadLibraryW(kThemeLibraryName);
+  sThemeDLL = ::LoadLibrary(kThemeLibraryName);
   if (sThemeDLL) {
     openTheme = (OpenThemeDataPtr)GetProcAddress(sThemeDLL, "OpenThemeData");
     closeTheme = (CloseThemeDataPtr)GetProcAddress(sThemeDLL, "CloseThemeData");
@@ -111,7 +111,7 @@ nsUXThemeData::Initialize()
     getCurrentThemeName = (GetCurrentThemeNamePtr)GetProcAddress(sThemeDLL, "GetCurrentThemeName");
     getThemeSysColor = (GetThemeSysColorPtr)GetProcAddress(sThemeDLL, "GetThemeSysColor");
   }
-  sDwmDLL = ::LoadLibraryW(kDwmLibraryName);
+  sDwmDLL = ::LoadLibrary(kDwmLibraryName);
   if(sDwmDLL) {
     dwmExtendFrameIntoClientAreaPtr = (DwmExtendFrameIntoClientAreaProc)::GetProcAddress(sDwmDLL, "DwmExtendFrameIntoClientArea");
     dwmIsCompositionEnabledPtr = (DwmIsCompositionEnabledProc)::GetProcAddress(sDwmDLL, "DwmIsCompositionEnabled");

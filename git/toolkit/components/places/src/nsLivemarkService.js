@@ -26,7 +26,6 @@
  *   Robert Sayre <sayrer@gmail.com> (JS port)
  *   Phil Ringnalda <philringnalda@gmail.com>
  *   Marco Bonardo <mak77@bonardo.net>
- *   Takeshi Ichimaru <ayakawa.m@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the
  * terms of either the GNU General Public License Version 2 or later
@@ -78,12 +77,6 @@ const SEC_FLAGS = Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL;
 
 // Expire livemarks after 1 hour by default
 var gExpiration = 3600000;
-
-// Number of livemarks that are read at once
-var gLimitCount = 1;
-
-// Interval when livemarks are loaded
-var gDelayTime  = 3;
 
 // Expire livemarks after 10 minutes on error
 const ERROR_EXPIRATION = 600000;
@@ -143,18 +136,6 @@ function LivemarkService() {
     // Reset global expiration variable to reflect hidden pref (in ms)
     // with a lower limit of 1 minute (60000 ms)
     gExpiration = Math.max(livemarkRefresh * 1000, 60000);
-  }
-  catch (ex) { }
-
-  try {
-    gLimitCount = prefs.getIntPref("browser.bookmarks.livemark_refresh_limit_count");
-    if ( gLimitCount < 1 ) gLimitCount = 1;
-  }
-  catch (ex) { }
-
-  try {
-    gDelayTime = prefs.getIntPref("browser.bookmarks.livemark_refresh_delay_time");
-    if ( gDelayTime < 1 ) gDelayTime = 1;
   }
   catch (ex) { }
 
@@ -219,18 +200,10 @@ LivemarkService.prototype = {
     // we do a first check of the livemarks here, next checks will be on timer
     // browser start => 5s => this.start() => check => refresh_time => check
     this._checkAllLivemarks();
-  },
-
-  stopUpdateLivemarks: function LS_stopUpdateLivemarks() {
-    for (var livemark in this._livemarks) {
-      if (livemark.loadGroup)
-        livemark.loadGroup.cancel(Components.results.NS_BINDING_ABORTED);
-    }
-    // kill timer
-    if (this._updateTimer) {
-      this._updateTimer.cancel();
-      this._updateTimer = null;
-    }
+    // the refresh time is calculated from the expiration time, but with a cap
+    var refresh_time = Math.min(Math.floor(gExpiration / 4), MAX_REFRESH_TIME);
+    this._updateTimer = new G_Alarm(BindToObject(this._checkAllLivemarks, this),
+                                    refresh_time, true /* repeat */);
   },
 
   _pushLivemark: function LS__pushLivemark(aFolderId, aFeedURI) {
@@ -250,34 +223,22 @@ LivemarkService.prototype = {
     // remove bookmarks observer
     this._bms.removeObserver(this);
 
-    // stop to update livemarks
-    this.stopUpdateLivemarks();
+    for (var livemark in this._livemarks) {
+      if (livemark.loadGroup)
+        livemark.loadGroup.cancel(Components.results.NS_BINDING_ABORTED);
+    }
+
+    // kill timer
+    if (this._updateTimer) {
+      this._updateTimer.cancel();
+      this._updateTimer = null;
+    }
   },
 
-  // We try to distribute the load of the livemark update.
-  // load gLimitCount Livemarks per gDelayTime sec.
-  _nextUpdateStartIndex : 0,
   _checkAllLivemarks: function LS__checkAllLivemarks() {
-    var startNo = this._nextUpdateStartIndex;
-    var count = 0;
-    for (var i = startNo; (i < this._livemarks.length) && (count < gLimitCount); ++i ) {
-      // check if livemarks are expired, update if needed
-      try {
-        if (this._updateLivemarkChildren(i, false)) count++;
-      }
-      catch (ex) { }
-      this._nextUpdateStartIndex = i+1;
-    }
-    if ( this._nextUpdateStartIndex >= this._livemarks.length ) {
-      // all livemarks are checked, sleeping until next period
-      this._nextUpdateStartIndex = 0;
-      var refresh_time = Math.min(Math.floor(gExpiration / 4), MAX_REFRESH_TIME);
-      this._updateTimer = new G_Alarm(BindToObject(this._checkAllLivemarks, this),
-                                      refresh_time);
-    } else {
-      // wait gDelayTime sec.
-      this._updateTimer = new G_Alarm(BindToObject(this._checkAllLivemarks, this),
-                                      gDelayTime*1000);
+    // check if livemarks are expired, update if needed
+    for (var i = 0; i < this._livemarks.length; ++i) {
+      this._updateLivemarkChildren(i, false);
     }
   },
 
