@@ -363,7 +363,7 @@ function next_test() {
     observer.runCount = -1;
 
     let test = tests.shift();
-    promiseClearHistory().then(test);
+    waitForClearHistory(test);
   }
   else {
     Services.obs.removeObserver(observer, PlacesUtils.TOPIC_FEEDBACK_UPDATED);

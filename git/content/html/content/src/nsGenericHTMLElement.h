@@ -69,6 +69,10 @@ public:
   // From nsGenericElement
   nsresult CopyInnerTo(nsGenericElement* aDest);
 
+  // Implementation for nsIDOMElement
+  NS_METHOD SetAttribute(const nsAString& aName,
+                         const nsAString& aValue);
+
   // WebIDL HTMLElement
   virtual void Click();
   virtual int32_t TabIndexDefault()

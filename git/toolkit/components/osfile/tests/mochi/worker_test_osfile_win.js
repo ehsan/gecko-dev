@@ -38,17 +38,14 @@ function isnot(a, b, description) {
   let outcome = a != b; // Need to decide outcome here, as not everything can be serialized
   send({kind: "isnot", outcome: outcome, description: description, a:""+a, b:""+b});
 }
-function info(description) {
-  send({kind: "info", description:description});
-}
 
 function test_init() {
-  info("Starting test_init");
+  ok(true, "Starting test_init");
   importScripts("resource://gre/modules/osfile.jsm");
 }
 
 function test_OpenClose() {
-  info("Starting test_OpenClose");
+  ok(true, "Starting test_OpenClose");
   is(typeof OS.Win.File.CreateFile, "function", "OS.Win.File.CreateFile is a function");
   is(OS.Win.File.CloseHandle(OS.Constants.Win.INVALID_HANDLE_VALUE), true, "CloseHandle returns true given the invalid handle");
   is(OS.Win.File.FindClose(OS.Constants.Win.INVALID_HANDLE_VALUE), true, "FindClose returns true given the invalid handle");
@@ -63,7 +60,7 @@ function test_OpenClose() {
     OS.Constants.Win.OPEN_EXISTING,
     0,
     null);
-  info("test_OpenClose: Passed open");
+  ok(true, "test_OpenClose: Passed open");
   isnot(file, OS.Constants.Win.INVALID_HANDLE_VALUE, "test_OpenClose: file opened");
   let result = OS.Win.File.CloseHandle(file);
   isnot(result, 0, "test_OpenClose: close succeeded");
@@ -82,7 +79,7 @@ function test_OpenClose() {
 
 function test_CreateFile()
 {
-  info("Starting test_CreateFile");
+  ok(true, "Starting test_CreateFile");
   let file = OS.Win.File.CreateFile(
     "test.tmp",
     OS.Constants.Win.GENERIC_READ | OS.Constants.Win.GENERIC_WRITE,
@@ -106,7 +103,7 @@ function test_GetCurrentDirectory()
 
 function test_ReadWrite()
 {
-  info("Starting test_ReadWrite");
+  ok(true, "Starting test_ReadWrite");
   let output_name = "osfile_copy.tmp";
   // Copy file
   let input = OS.Win.File.CreateFile(
@@ -156,7 +153,7 @@ function test_ReadWrite()
       bytes_left -= bytes_written;
     }
   }
-  info("test_ReadWrite: copy complete");
+  ok(true, "test_ReadWrite: copy complete");
 
   // Compare files
   result = OS.Win.File.SetFilePointer(input, 0, null, OS.Constants.Win.FILE_BEGIN);
@@ -204,19 +201,19 @@ function test_ReadWrite()
       }
     }
   }
-  info("test_ReadWrite test complete");
+  ok(true, "test_ReadWrite test complete");
   result = OS.Win.File.CloseHandle(input);
   isnot(result, 0, "test_ReadWrite: inpout close succeeded");
   result = OS.Win.File.CloseHandle(output);
   isnot(result, 0, "test_ReadWrite: outpout close succeeded");
   result = OS.Win.File.DeleteFile(output_name);
   isnot(result, 0, "test_ReadWrite: output remove succeeded");
-  info("test_ReadWrite cleanup complete");
+  ok(true, "test_ReadWrite cleanup complete");
 }
 
 function test_path()
 {
-  info("test_path: starting");
+  ok(true, "test_path: starting");
   is(OS.Win.Path.basename("a\\b"), "b", "basename of a\\b");
   is(OS.Win.Path.basename("a\\b\\"), "", "basename of a\\b\\");
   is(OS.Win.Path.basename("abc"), "abc", "basename of abc");
@@ -272,5 +269,5 @@ function test_path()
   is(OS.Win.Path.join("c:\\tmp", "c:\\foo", "bar"), "c:\\foo\\bar", "join c:\\tmp,c:\\foo,bar");
   is(OS.Win.Path.join("c:\\tmp", "c:foo", "bar"), "c:foo\\bar", "join c:\\tmp,c:foo,bar");
 
-  info("test_path: complete");
+  ok(true, "test_path: complete");
 }

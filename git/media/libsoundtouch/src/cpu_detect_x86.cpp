@@ -11,10 +11,10 @@
 ///
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Last changed  : $Date$
+// Last changed  : $Date: 2012-04-01 13:00:09 -0700 (Sun, 01 Apr 2012) $
 // File revision : $Revision: 4 $
 //
-// $Id$
+// $Id: cpu_detect_x86.cpp 138 2012-04-01 20:00:09Z oparviai $
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -46,8 +46,10 @@
     #if defined(__GNUC__)
         // gcc and clang
         #include "cpuid.h"
-    #elif defined(_M_IX86)
-        // windows non-gcc
+    #endif
+
+    #if defined(_M_IX86)
+        // windows
         #include <intrin.h>
     #endif
     // If we still don't have the macros, define them (Windows, MacOS)

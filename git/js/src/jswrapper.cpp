@@ -1164,7 +1164,7 @@ JS_FRIEND_API(bool)
 js::RecomputeWrappers(JSContext *cx, const CompartmentFilter &sourceFilter,
                       const CompartmentFilter &targetFilter)
 {
-    AutoMaybeTouchDeadCompartments agc(cx);
+    AutoTransplantGC agc(cx);
 
     AutoWrapperVector toRecompute(cx);
 

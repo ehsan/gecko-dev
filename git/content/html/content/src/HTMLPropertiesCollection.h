@@ -19,9 +19,8 @@
 #include "nsINodeList.h"
 #include "nsIHTMLCollection.h"
 #include "nsHashKeys.h"
-#include "nsRefPtrHashtable.h"
+#include "nsGenericHTMLElement.h"
 
-class nsGenericHTMLElement;
 class nsXPCClassInfo;
 class nsIDocument;
 class nsINode;
@@ -57,7 +56,6 @@ public:
   HTMLPropertiesCollection(nsGenericHTMLElement* aRoot);
   virtual ~HTMLPropertiesCollection();
 
-  using nsWrapperCache::GetWrapper;
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap);
 

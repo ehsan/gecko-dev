@@ -452,8 +452,8 @@ nsNode3Tearoff::LookupNamespaceURI(const nsAString& aNamespacePrefix,
   return NS_OK;
 }
 
-nsIHTMLCollection*
-FragmentOrElement::Children()
+nsContentList*
+FragmentOrElement::GetChildrenList()
 {
   FragmentOrElement::nsDOMSlots *slots = DOMSlots();
 

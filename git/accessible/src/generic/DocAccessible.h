@@ -428,6 +428,12 @@ protected:
   void ARIAActiveDescendantChanged(nsIContent* aElm);
 
   /**
+   * Process the event when the queue of pending events is untwisted. Fire
+   * accessible events as result of the processing.
+   */
+  void ProcessPendingEvent(AccEvent* aEvent);
+
+  /**
    * Update the accessible tree for inserted content.
    */
   void ProcessContentInserted(Accessible* aContainer,
@@ -458,8 +464,7 @@ protected:
     eAlertAccessible = 2
   };
 
-  uint32_t UpdateTreeInternal(Accessible* aChild, bool aIsInsert,
-                              AccReorderEvent* aReorderEvent);
+  uint32_t UpdateTreeInternal(Accessible* aChild, bool aIsInsert);
 
   /**
    * Create accessible tree.

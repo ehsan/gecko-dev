@@ -95,7 +95,7 @@ function run_next_test() {
   }
 
   let test = tests.shift();
-  promiseClearHistory().then(function() {
+  waitForClearHistory(function() {
     remove_all_bookmarks();
     do_execute_soon(test);
   });

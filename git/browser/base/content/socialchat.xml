@@ -50,6 +50,17 @@
         </setter>
       </property>
 
+      <method name="init">
+        <parameter name="aProvider"/>
+        <parameter name="aURL"/>
+        <parameter name="aCallback"/>
+        <body><![CDATA[
+          this._callback = aCallback;
+          this.setAttribute("origin", aProvider.origin);
+          this.setAttribute("src", aURL);
+        ]]></body>
+      </method>
+
       <method name="close">
         <body><![CDATA[
           this.parentNode.remove(this);
@@ -365,9 +376,7 @@
             cb.setAttribute("minimized", "true");
           this.selectedChat = cb;
           this.insertBefore(cb, this.firstChild);
-          cb._callback = aCallback;
-          cb.setAttribute("origin", aProvider.origin);
-          cb.setAttribute("src", aURL);
+          cb.init(aProvider, aURL, aCallback);
           this.chatboxForURL.set(aURL, Cu.getWeakReference(cb));
           this.resize();
         ]]></body>

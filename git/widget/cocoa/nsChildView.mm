@@ -1660,7 +1660,8 @@ NS_IMETHODIMP nsChildView::OnIMEFocusChange(bool aFocus)
 {
   NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
   mTextInputHandler->OnFocusChangeInGecko(aFocus);
-  return NS_OK;
+  // XXX Return NS_ERROR_NOT_IMPLEMENTED, see bug 496360.
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NSView<mozView>* nsChildView::GetEditorView()

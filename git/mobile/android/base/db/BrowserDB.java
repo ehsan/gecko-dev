@@ -78,9 +78,7 @@ public class BrowserDB {
 
         public Cursor getFaviconsForUrls(ContentResolver cr, List<String> urls);
 
-        public String getFaviconUrlForHistoryUrl(ContentResolver cr, String url);
-
-        public void updateFaviconForUrl(ContentResolver cr, String pageUri, Bitmap favicon, String faviconUri);
+        public void updateFaviconForUrl(ContentResolver cr, String uri, Bitmap favicon);
 
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
 
@@ -140,9 +138,6 @@ public class BrowserDB {
     }
 
     public static void expireHistory(ContentResolver cr, ExpirePriority priority) {
-        if (sDb == null)
-            return;
-
         if (priority == null)
             priority = ExpirePriority.NORMAL;
         sDb.expireHistory(cr, priority);
@@ -204,12 +199,8 @@ public class BrowserDB {
         return sDb.getFaviconsForUrls(cr, urls);
     }
 
-    public static String getFaviconUrlForHistoryUrl(ContentResolver cr, String url) {
-        return sDb.getFaviconUrlForHistoryUrl(cr, url);
-    }
-
-    public static void updateFaviconForUrl(ContentResolver cr, String pageUri, Bitmap favicon, String faviconUri) {
-        sDb.updateFaviconForUrl(cr, pageUri, favicon, faviconUri);
+    public static void updateFaviconForUrl(ContentResolver cr, String uri, Bitmap favicon) {
+        sDb.updateFaviconForUrl(cr, uri, favicon);
     }
 
     public static void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail) {

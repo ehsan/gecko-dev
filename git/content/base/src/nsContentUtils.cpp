@@ -45,7 +45,6 @@
 #include "nsIParser.h"
 #include "nsIFragmentContentSink.h"
 #include "nsIContentSink.h"
-#include "nsContentList.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLElement.h"
@@ -6298,6 +6297,8 @@ nsContentUtils::AllocClassMatchingInfo(nsINode* aRootNode,
     eIgnoreCase : eCaseMatters;
   return info;
 }
+
+// static
 
 #ifdef DEBUG
 class DebugWrapperTraversalCallback : public nsCycleCollectionTraversalCallback

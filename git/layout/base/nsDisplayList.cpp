@@ -1128,7 +1128,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   aBuilder->SetIsCompositingCheap(temp);
   layerBuilder->DidEndTransaction();
 
-  nsIntRegion invalid;
+  nsIntRect invalid;
   if (props) {
     invalid = props->ComputeDifferences(root, computeInvalidFunc);
   } else if (widgetTransaction) {
@@ -1138,13 +1138,12 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   if (view) {
     if (props) {
       if (!invalid.IsEmpty()) {
-        nsIntRect bounds = invalid.GetBounds();
-        nsRect rect(presContext->DevPixelsToAppUnits(bounds.x),
-                    presContext->DevPixelsToAppUnits(bounds.y),
-                    presContext->DevPixelsToAppUnits(bounds.width),
-                    presContext->DevPixelsToAppUnits(bounds.height));
+        nsRect rect(presContext->DevPixelsToAppUnits(invalid.x),
+                    presContext->DevPixelsToAppUnits(invalid.y),
+                    presContext->DevPixelsToAppUnits(invalid.width),
+                    presContext->DevPixelsToAppUnits(invalid.height));
         view->GetViewManager()->InvalidateViewNoSuppression(view, rect);
-        presContext->NotifyInvalidation(bounds, 0);
+        presContext->NotifyInvalidation(invalid, 0);
       }
     } else {
       view->GetViewManager()->InvalidateView(view);

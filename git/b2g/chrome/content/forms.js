@@ -24,7 +24,6 @@ XPCOMUtils.defineLazyGetter(this, "domWindowUtils", function () {
 });
 
 const FOCUS_CHANGE_DELAY = 20;
-const RESIZE_SCROLL_DELAY = 20;
 
 let HTMLInputElement = Ci.nsIDOMHTMLInputElement;
 let HTMLTextAreaElement = Ci.nsIDOMHTMLTextAreaElement;
@@ -51,8 +50,7 @@ let FormAssistant = {
   isKeyboardOpened: false,
   selectionStart: 0,
   selectionEnd: 0,
-  blurTimeout: null,
-  scrollIntoViewTimeout: null,
+
   _focusedElement: null,
 
   get focusedElement() {
@@ -135,20 +133,8 @@ let FormAssistant = {
         if (!this.isKeyboardOpened)
           return;
 
-        if (this.scrollIntoViewTimeout) {
-          content.clearTimeout(this.scrollIntoViewTimeout);
-          this.scrollIntoViewTimeout = null;
-        }
-
-        // We may receive multiple resize events in quick succession, so wait
-        // a bit before scrolling the input element into view.
         if (this.focusedElement) {
-          this.scrollIntoViewTimeout = content.setTimeout(function () {
-            this.scrollIntoViewTimeout = null;
-            if (this.focusedElement) {
-              this.focusedElement.scrollIntoView(false);
-            }
-          }.bind(this), RESIZE_SCROLL_DELAY);
+          this.focusedElement.scrollIntoView(false);
         }
         break;
     }

@@ -48,7 +48,7 @@ function test() {
       is(historyObserver.visitCount[aURI], 1,
          "onVisit has been received right number of times for " + aURI);
     }
-    promiseClearHistory().then(finish);
+    waitForClearHistory(finish);
   }
 
   var loadCount = 0;

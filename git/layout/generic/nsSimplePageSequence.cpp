@@ -520,7 +520,7 @@ GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<nsHTMLCanvasEl
       // If there is a canvasFrame, try to get actual canvas element.
       if (canvasFrame) {
         nsHTMLCanvasElement* canvas =
-          nsHTMLCanvasElement::FromContentOrNull(canvasFrame->GetContent());
+          nsHTMLCanvasElement::FromContent(canvasFrame->GetContent());
         nsCOMPtr<nsIPrintCallback> printCallback;
         if (canvas &&
             NS_SUCCEEDED(canvas->GetMozPrintCallback(getter_AddRefs(printCallback))) &&

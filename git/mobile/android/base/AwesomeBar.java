@@ -367,20 +367,12 @@ public class AwesomeBar extends GeckoActivity {
 
     private void openUserEnteredAndFinish(String url) {
         int index = url.indexOf(' ');
-        String keywordUrl = null;
-        String keywordSearch = null;
-
-        if (index == -1) {
-            keywordUrl = BrowserDB.getUrlForKeyword(mResolver, url);
-            keywordSearch = "";
-        } else {
-            keywordUrl = BrowserDB.getUrlForKeyword(mResolver, url.substring(0, index));
-            keywordSearch = url.substring(index + 1);
-        }
-
-        if (keywordUrl != null) {
-            String search = URLEncoder.encode(keywordSearch);
-            url = keywordUrl.replace("%s", search);
+        if (index != -1) {
+            String keywordUrl = BrowserDB.getUrlForKeyword(mResolver, url.substring(0, index));
+            if (keywordUrl != null && keywordUrl.contains("%s")) {
+                String search = URLEncoder.encode(url.substring(index + 1));
+                url = keywordUrl.replace("%s", search);
+            }
         }
 
         Intent resultIntent = new Intent();

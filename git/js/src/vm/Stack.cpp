@@ -660,6 +660,7 @@ StackSpace::mark(JSTracer *trc)
          * which gets marked in reverse order.
          */
         Value *slotsEnd = nextSegEnd;
+        jsbytecode *pc = seg->maybepc();
         for (StackFrame *fp = seg->maybefp(); (Value *)fp > (Value *)seg; fp = fp->prev()) {
             /* Mark from fp->slots() to slotsEnd. */
             markFrame(trc, fp, slotsEnd);
@@ -668,7 +669,7 @@ StackSpace::mark(JSTracer *trc)
             slotsEnd = (Value *)fp;
 
             InlinedSite *site;
-            fp->prevpc(&site);
+            pc = fp->prevpc(&site);
             JS_ASSERT_IF(fp->prev(), !site);
         }
         gc::MarkValueRootRange(trc, seg->slotsBegin(), slotsEnd, "vm_stack");

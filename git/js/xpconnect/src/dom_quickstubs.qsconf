@@ -655,7 +655,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollTop': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ScrollTop();',
+        'code': '    int32_t result = self->GetScrollTop();',
         'canFail': False
         },
     'nsIDOMElement_SetScrollTop': {
@@ -664,7 +664,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollLeft': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ScrollLeft();',
+        'code': '    int32_t result = self->GetScrollLeft();',
         'canFail': False
         },
     'nsIDOMElement_SetScrollLeft': {
@@ -673,17 +673,17 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollHeight': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ScrollHeight();',
+        'code': '    int32_t result = self->GetScrollHeight();',
         'canFail': False
         },
     'nsIDOMElement_GetScrollWidth': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ScrollWidth();',
+        'code': '    int32_t result = self->GetScrollWidth();',
         'canFail': False
         },
     'nsIDOMElement_GetClientTop': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ClientTop();',
+        'code': '    int32_t result = self->GetClientTop();',
         'canFail': False
         },
     'nsIDOMElement_SetClientTop': {
@@ -692,7 +692,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetClientLeft': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ClientLeft();',
+        'code': '    int32_t result = self->GetClientLeft();',
         'canFail': False
         },
     'nsIDOMElement_SetClientLeft': {
@@ -701,12 +701,12 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetClientHeight': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ClientHeight();',
+        'code': '    int32_t result = self->GetClientHeight();',
         'canFail': False
         },
     'nsIDOMElement_GetClientWidth': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->ClientWidth();',
+        'code': '    int32_t result = self->GetClientWidth();',
         'canFail': False
         },
     'nsIDOMElement_GetFirstElementChild': {
@@ -731,8 +731,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetClassList': {
         'thisType': 'nsGenericElement',
-        'code': '    nsDOMTokenList *result = self->ClassList();',
-        'canFail': False
+        'code': '    nsDOMTokenList *result = self->GetClassList(&rv);'
         },
     'nsIDOMElement_SetCapture': {
         'thisType': 'nsGenericElement',
@@ -744,22 +743,15 @@ customMethodCalls = {
         },
     'nsIDOMElement_MozMatchesSelector': {
         'thisType': 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    bool result = self->MozMatchesSelector(arg0, error);\n'
-                '    rv = error.ErrorCode();'
+        'code': '    bool result = self->MozMatchesSelector(arg0, &rv);',
         },
     'nsIDOMNodeSelector_QuerySelector': {
         'thisType': 'nsINode',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    nsIContent* result = '
-                'self->QuerySelector(arg0, error);\n'
-                '    rv = error.ErrorCode();'
+        'code': '    nsIContent* result = '
+                'self->QuerySelector(arg0, &rv);'
         },
     'nsIDOMNodeSelector_QuerySelectorAll': {
-        'thisType': 'nsINode',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    nsCOMPtr<nsINodeList> result = self->QuerySelectorAll(arg0, error);\n'
-                '    rv = error.ErrorCode();'
+        'thisType': 'nsINode'
         },
     'nsIDOMNode_Normalize': {
         'thisType': 'nsINode',
@@ -964,78 +956,6 @@ customMethodCalls = {
     'nsIDOMElement_SetOnmouseleave' : {
         'thisType' : 'nsGenericElement',
         'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMElement_RemoveAttributeNS' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->RemoveAttributeNS(arg0, arg1, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMElement_RemoveAttribute' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->RemoveAttribute(arg0, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMElement_GetAttribute' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    nsString result;\n'
-                '    self->GetAttribute(arg0, result);',
-        'canFail': False
-        },
-    'nsIDOMElement_GetAttributeNS' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    nsString result;\n'
-                '    self->GetAttributeNS(arg0, arg1, result);',
-        'canFail': False
-        },
-    'nsIDOMElement_SetAttribute' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->SetAttribute(arg0, arg1, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMElement_SetAttributeNS' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->SetAttributeNS(arg0, arg1, arg2, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMElement_HasAttribute' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    bool result = self->HasAttribute(arg0);',
-        'canFail': False
-        },
-    'nsIDOMElement_HasAttributeNS' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    bool result = self->HasAttributeNS(arg0, arg1);',
-        'canFail': False
-        },
-    'nsIDOMElement_GetElementsByTagName' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    nsCOMPtr<nsIHTMLCollection> result = self->GetElementsByTagName(arg0);',
-        'canFail': False
-        },
-    'nsIDOMElement_GetClientRects' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    nsRefPtr<nsClientRectList> result = self->GetClientRects(error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMElement_GetBoundingClientRect' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    nsRefPtr<nsClientRect> result = self->GetBoundingClientRect();',
-        'canFail': False
-        },
-    'nsIDOMElement_GetChildElementCount' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    uint32_t result = self->ChildElementCount();',
-        'canFail': False
-        },
-    'nsIDOMElement_GetChildElements' : {
-        'thisType' : 'nsGenericElement',
-        'code': '    nsIHTMLCollection* result = self->Children();',
-        'canFail': False
         },
     'nsIDOMWindow_GetOnmouseenter' : {
         'thisType' : 'nsIDOMWindow',

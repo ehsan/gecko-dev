@@ -63,33 +63,39 @@ public class HistoryTab extends AwesomeBarTab {
         return TAG;
     }
 
-    public ListView getView() {
+    public TabContentFactory getFactory() {
+        return new TabContentFactory() {
+            public View createTabContent(String tag) {
+                final ExpandableListView list = (ExpandableListView)getListView();
+                list.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
+                    public boolean onChildClick(ExpandableListView parent, View view,
+                                                 int groupPosition, int childPosition, long id) {
+                        return handleItemClick(groupPosition, childPosition);
+                    }
+                });
+
+                // This is to disallow collapsing the expandable groups in the
+                // history expandable list view to mimic simpler sections. We should
+                // Remove this if we decide to allow expanding/collapsing groups.
+                list.setOnGroupClickListener(new ExpandableListView.OnGroupClickListener() {
+                     public boolean onGroupClick(ExpandableListView parent, View v, int groupPosition, long id) {
+                        return true;
+                    }
+                });
+                return list;
+            }
+       };
+    }
+
+    public ListView getListView() {
         if (mView == null) {
-            mView = LayoutInflater.from(mContext).inflate(R.layout.awesomebar_expandable_list, null);
+            mView = (ExpandableListView) (LayoutInflater.from(mContext).inflate(R.layout.awesomebar_expandable_list, null));
             ((Activity)mContext).registerForContextMenu(mView);
             mView.setTag(TAG);
-
-            ExpandableListView list = (ExpandableListView)mView;
-            list.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
-                public boolean onChildClick(ExpandableListView parent, View view,
-                                             int groupPosition, int childPosition, long id) {
-                    return handleItemClick(groupPosition, childPosition);
-                }
-            });
-
-            // This is to disallow collapsing the expandable groups in the
-            // history expandable list view to mimic simpler sections. We should
-            // Remove this if we decide to allow expanding/collapsing groups.
-            list.setOnGroupClickListener(new ExpandableListView.OnGroupClickListener() {
-                 public boolean onGroupClick(ExpandableListView parent, View v, int groupPosition, long id) {
-                    return true;
-                }
-            });
-
             mView.setOnTouchListener(mListListener);
 
             // We need to add the header before we set the adapter, hence make it null
-            list.setAdapter(getCursorAdapter());
+            ((ExpandableListView)mView).setAdapter(getCursorAdapter());
             HistoryQueryTask task = new HistoryQueryTask();
             task.execute();
         }
@@ -105,7 +111,7 @@ public class HistoryTab extends AwesomeBarTab {
         // If the soft keyboard is visible in the bookmarks or history tab, the user
         // must have explictly brought it up, so we should try hiding it instead of
         // exiting the activity or going up a bookmarks folder level.
-        View view = getView();
+        ListView view = getListView();
         if (hideSoftInput(view))
             return true;
 
@@ -354,7 +360,7 @@ public class HistoryTab extends AwesomeBarTab {
                 BrowserDB.registerHistoryObserver(getContentResolver(), mContentObserver);
             }
 
-            final ExpandableListView historyList = (ExpandableListView)getView();
+            final ExpandableListView historyList = (ExpandableListView)getListView();
 
             // Hack: force this to the main thread, even though it should already be on it
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {

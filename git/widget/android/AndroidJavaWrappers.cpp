@@ -907,10 +907,9 @@ jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
     metrics->GetZoom(&zoom);
 
     jobject jobj = env->NewObject(AndroidGeckoLayerClient::jViewportClass, AndroidGeckoLayerClient::jViewportCtor,
+                                  x, y, width, height,
                                   pageLeft, pageTop, pageRight, pageBottom,
-                                  cssPageLeft, cssPageTop, cssPageRight, cssPageBottom,
-                                  x, y, x + width, y + height,
-                                  zoom);
+                                  cssPageLeft, cssPageTop, cssPageRight, cssPageBottom, zoom);
     return jobj;
 }
 

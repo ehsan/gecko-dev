@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.background.announcements.AnnouncementsConstants;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONArray;
@@ -171,7 +170,7 @@ public class GeckoPreferences
      */
     public static void broadcastAnnouncementsPref(final Context context, final boolean value) {
         broadcastPrefAction(context,
-                            AnnouncementsConstants.ACTION_ANNOUNCEMENTS_PREF,
+                            GeckoApp.ACTION_ANNOUNCEMENTS_PREF,
                             PREFS_ANNOUNCEMENTS_ENABLED,
                             value);
     }
@@ -181,8 +180,10 @@ public class GeckoPreferences
      * <code>PREFS_ANNOUNCEMENTS_ENABLED</code> pref.
      */
     public static void broadcastAnnouncementsPref(final Context context) {
-        final boolean value = getBooleanPref(context, PREFS_ANNOUNCEMENTS_ENABLED, true);
-        broadcastAnnouncementsPref(context, value);
+        broadcastPrefAction(context,
+                            GeckoApp.ACTION_ANNOUNCEMENTS_PREF,
+                            PREFS_ANNOUNCEMENTS_ENABLED,
+                            getBooleanPref(context, PREFS_ANNOUNCEMENTS_ENABLED, true));
     }
 
     /**

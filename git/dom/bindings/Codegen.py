@@ -1027,8 +1027,11 @@ class PropertyDefiner:
                 return "s" + self.name
         return "nullptr"
     def usedForXrays(self):
-        # No Xrays in workers.
-        return not self.descriptor.workers
+        # We only need Xrays for methods, attributes and constants, but in
+        # workers there are no Xrays.
+        return (self.name is "Methods" or self.name is "Attributes" or
+                self.name is "UnforgeableAttributes" or
+                self.name is "Constants") and not self.descriptor.workers
 
     def __str__(self):
         # We only need to generate id arrays for things that will end
@@ -1361,11 +1364,14 @@ class CGNativeProperties(CGList):
             for array in properties.arrayNames():
                 propertyArray = getattr(properties, array)
                 if check(propertyArray):
-                    if propertyArray.usedForXrays():
-                        ids = "%(name)s_ids"
+                    if descriptor.workers:
+                        props = "%(name)s, nullptr, %(name)s_specs"
                     else:
-                        ids = "nullptr"
-                    props = "%(name)s, " + ids + ", %(name)s_specs"
+                        if propertyArray.usedForXrays():
+                            ids = "%(name)s_ids"
+                        else:
+                            ids = "nullptr"
+                        props = "%(name)s, " + ids + ", %(name)s_specs"
                     props = (props %
                              { 'name': propertyArray.variableName(chrome) })
                 else:
@@ -1374,15 +1380,10 @@ class CGNativeProperties(CGList):
             return CGWrapper(CGIndenter(CGList(nativeProps, ",\n")),
                              pre="static const NativeProperties %s = {\n" % name,
                              post="\n};")
-
-        nativeProperties = []
-        if properties.hasNonChromeOnly():
-            nativeProperties.append(
-                generateNativeProperties("sNativeProperties", False))
-        if properties.hasChromeOnly():
-            nativeProperties.append(
-                generateNativeProperties("sChromeOnlyNativeProperties", True))
-        CGList.__init__(self, nativeProperties, "\n\n")
+        
+        regular = generateNativeProperties("sNativeProperties", False)
+        chrome = generateNativeProperties("sChromeOnlyNativeProperties", True)
+        CGList.__init__(self, [regular, chrome], "\n\n")
 
     def declare(self):
         return ""
@@ -5440,7 +5441,6 @@ class CGProxyIndexedPresenceChecker(CGProxyIndexedGetter):
     """
     def __init__(self, descriptor):
         CGProxyIndexedGetter.__init__(self, descriptor)
-        self.cgRoot.append(CGGeneric("(void)result;"))
 
 class CGProxyIndexedSetter(CGProxyIndexedOperation):
     """
@@ -5494,7 +5494,6 @@ class CGProxyNamedPresenceChecker(CGProxyNamedGetter):
     """
     def __init__(self, descriptor):
         CGProxyNamedGetter.__init__(self, descriptor)
-        self.cgRoot.append(CGGeneric("(void)result;"))
 
 class CGProxyNamedSetter(CGProxyNamedOperation):
     """

@@ -148,8 +148,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent_, uint32_t nfixed, const Sta
         if (kid->matches(child))
             shape = kid;
     } else if (kidp->isHash()) {
-        if (KidsHash::Ptr p = kidp->toHash()->lookup(child))
-            shape = *p;
+        shape = *kidp->toHash()->lookup(child);
     } else {
         /* If kidp->isNull(), we always insert. */
     }

@@ -142,7 +142,7 @@ function run_next_test() {
   else {
     clearMaxPages();
     bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-    promiseClearHistory().then(do_test_finished);
+    waitForClearHistory(do_test_finished);
   }
 }
 
@@ -153,5 +153,5 @@ function check_result() {
 
   // Clean up.
   bs.removeFolderChildren(bs.unfiledBookmarksFolder);
-  promiseClearHistory().then(run_next_test);
+  waitForClearHistory(run_next_test);
 }

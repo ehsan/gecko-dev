@@ -87,15 +87,11 @@ public:
   virtual void PerformAccesskey(bool aKeyCausesActivation,
                                 bool aIsTrustedEvent);
 
-  // nsGenericElement specializations:
-  using nsXMLElement::GetAttribute;
-  using nsXMLElement::RemoveAttribute;
-  using nsXMLElement::HasAttribute;
-  virtual void GetAttribute(const nsAString& aName,
-                            nsString& aReturn) MOZ_OVERRIDE;
-  virtual void RemoveAttribute(const nsAString& aName,
-                               mozilla::ErrorResult& aError) MOZ_OVERRIDE;
-  virtual bool HasAttribute(const nsAString& aName) const MOZ_OVERRIDE;
+  // nsIDOMElement specializations:
+  NS_IMETHOD GetAttribute(const nsAString& aName,
+                          nsAString& aReturn);
+  NS_IMETHOD RemoveAttribute(const nsAString& aName);
+  NS_IMETHOD HasAttribute(const nsAString& aName, bool* aReturn);
   
   // nsIClassInfo interface
   NS_DECL_NSICLASSINFO

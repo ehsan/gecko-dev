@@ -15,7 +15,6 @@
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDOMNode.h"
-#include "mozilla/ErrorResult.h"
 
 class nsIAtom;
 class nsDOMAttribute;
@@ -139,7 +138,7 @@ public:
   uint32_t Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
 
   nsDOMAttribute* GetItemAt(uint32_t aIndex, nsresult *rv);
-  nsDOMAttribute* GetNamedItem(const nsAString& aAttrName);
+  nsDOMAttribute* GetNamedItem(const nsAString& aAttrName, nsresult *rv);
 
   static nsDOMAttributeMap* FromSupports(nsISupports* aSupports)
   {
@@ -160,16 +159,6 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
 
-  nsDOMAttribute* GetNamedItemNS(const nsAString& aNamespaceURI,
-                                 const nsAString& aLocalName,
-                                 mozilla::ErrorResult& aError);
-
-  already_AddRefed<nsDOMAttribute> SetNamedItemNS(nsIDOMNode *aNode,
-                                                  mozilla::ErrorResult& aError)
-  {
-    return SetNamedItemInternal(aNode, true, aError);
-  }
-
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
@@ -184,22 +173,26 @@ private:
    * SetNamedItem() (aWithNS = false) and SetNamedItemNS() (aWithNS =
    * true) implementation.
    */
-  already_AddRefed<nsDOMAttribute>
-    SetNamedItemInternal(nsIDOMNode *aNode,
-                         bool aWithNS,
-                         mozilla::ErrorResult& aError);
+  nsresult SetNamedItemInternal(nsIDOMNode *aNode,
+                                nsIDOMNode **aReturn,
+                                bool aWithNS);
 
-  already_AddRefed<nsINodeInfo>
-  GetAttrNodeInfo(const nsAString& aNamespaceURI,
-                  const nsAString& aLocalName,
-                  mozilla::ErrorResult& aError);
+  /**
+   * GetNamedItemNS() implementation taking |aRemove| for GetAttribute(),
+   * which is used by RemoveNamedItemNS().
+   */
+  nsresult GetNamedItemNSInternal(const nsAString& aNamespaceURI,
+                                  const nsAString& aLocalName,
+                                  nsIDOMNode** aReturn,
+                                  bool aRemove = false);
 
   nsDOMAttribute* GetAttribute(nsINodeInfo* aNodeInfo, bool aNsAware);
 
   /**
    * Remove an attribute, returns the removed node.
    */
-  already_AddRefed<nsDOMAttribute> RemoveAttribute(nsINodeInfo* aNodeInfo);
+  nsresult RemoveAttribute(nsINodeInfo*     aNodeInfo,
+                           nsIDOMNode**     aReturn);
 };
 
 

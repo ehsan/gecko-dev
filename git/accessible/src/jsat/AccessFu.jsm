@@ -301,10 +301,6 @@ var Output = {
     }
   },
 
-  Haptic: function Haptic(aDetails, aBrowser) {
-    this.chromeWin.navigator.vibrate(aDetails.pattern);
-  },
-
   _adjustBounds: function(aJsonBounds, aBrowser) {
     let bounds = new Rect(aJsonBounds.left, aJsonBounds.top,
                           aJsonBounds.right - aJsonBounds.left,

@@ -282,7 +282,7 @@ function run_test() {
   add_visits_to_database();
 
   // Frecency and hidden are updated asynchronously, wait for them.
-  promiseAsyncUpdates().then(continue_test);
+  waitForAsyncUpdates(continue_test);
  }
 
  function continue_test() {
@@ -300,5 +300,5 @@ function run_test() {
            check_results_callback);
 
   remove_all_bookmarks();
-  promiseClearHistory().then(do_test_finished);
+  waitForClearHistory(do_test_finished);
 }

@@ -60,6 +60,5 @@
     macro(Set,                   38,     js_InitSetClass) \
     macro(DataView,              39,     js_InitTypedArrayClasses) \
     macro(ParallelArray,         40,     js_InitParallelArrayClass) \
-    macro(Intl,                  41,     js_InitIntlClass) \
 
 #endif /* jsprototypes_h___ */

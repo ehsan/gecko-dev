@@ -73,8 +73,7 @@ AutoCompleteInput.prototype = {
 
 function ensure_results(uris, searchTerm)
 {
-  promiseAsyncUpdates().then(function () ensure_results_internal(uris,
-                                                                 searchTerm));
+  waitForAsyncUpdates(ensure_results_internal, this, arguments);
 }
 
 function ensure_results_internal(uris, searchTerm)
@@ -278,7 +277,7 @@ function next_test() {
   if (tests.length) {
     remove_all_bookmarks();
     let test = tests.shift();
-    promiseClearHistory().then(test);
+    waitForClearHistory(test);
   }
   else
     do_test_finished();

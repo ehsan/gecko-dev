@@ -42,9 +42,6 @@ function test() {
     case "ok":
       SimpleTest.ok(msg.data.condition, msg.data.description);
       return;
-    case "info":
-      SimpleTest.info(msg.data.description);
-      return;
     case "finish":
       SimpleTest.finish();
       return;

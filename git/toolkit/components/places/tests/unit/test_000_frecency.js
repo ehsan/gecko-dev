@@ -209,7 +209,7 @@ AutoCompleteInput.prototype = {
 
 function run_test() {
   do_test_pending();
-  promiseAsyncUpdates().then(continue_test);
+  waitForAsyncUpdates(continue_test);
 }
 
 function continue_test() {

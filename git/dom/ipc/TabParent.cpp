@@ -519,20 +519,22 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
                               uint32_t* aSeqno)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    aPreference->mWantUpdates = false;
-    aPreference->mWantHints = false;
+  if (!widget)
     return true;
-  }
 
   *aSeqno = mIMESeqno;
   mIMETabParent = aFocus ? this : nullptr;
   mIMESelectionAnchor = 0;
   mIMESelectionFocus = 0;
-  widget->OnIMEFocusChange(aFocus);
+  nsresult rv = widget->OnIMEFocusChange(aFocus);
 
   if (aFocus) {
-    *aPreference = widget->GetIMEUpdatePreference();
+    if (NS_SUCCEEDED(rv)) {
+      *aPreference = widget->GetIMEUpdatePreference();
+    } else {
+      aPreference->mWantUpdates = false;
+      aPreference->mWantHints = false;
+    }
   } else {
     mIMECacheText.Truncate(0);
   }

@@ -5894,25 +5894,20 @@ let GsmPDUHelper = {
 
     // Type-of-Address
     let toa = this.readHexOctet();
-    let addr = "";
 
-    if ((toa & 0xF0) == PDU_TOA_ALPHANUMERIC) {
-      addr = this.readSeptetsToString(Math.floor(len * 4 / 7), 0,
-          PDU_NL_IDENTIFIER_DEFAULT , PDU_NL_IDENTIFIER_DEFAULT );
-      return addr;
-    }
-    addr = this.readSwappedNibbleBcdString(len / 2);
+    // Address-Value
+    let addr = this.readSwappedNibbleBcdString(len / 2);
     if (addr.length <= 0) {
       if (DEBUG) debug("PDU error: no number provided");
       return null;
     }
-    if ((toa & 0xF0) == (PDU_TOA_INTERNATIONAL)) {
+    if ((toa >> 4) == (PDU_TOA_INTERNATIONAL >> 4)) {
       addr = '+' + addr;
     }
 
     return addr;
   },
-
+  
   /**
    * Read Alpha Identifier.
    *

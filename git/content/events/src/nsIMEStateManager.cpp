@@ -739,11 +739,13 @@ nsTextStateManager::nsTextStateManager(nsIWidget* aWidget,
                          false, false))->RunDOMEventWhenSafe();
   }
 
-  mWidget->OnIMEFocusChange(true);
-
-  if (mWidget->GetIMEUpdatePreference().mWantUpdates) {
-    ObserveEditableNode();
+  nsresult rv = mWidget->OnIMEFocusChange(true);
+  if (rv == NS_ERROR_NOT_IMPLEMENTED) {
+    return;
   }
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  ObserveEditableNode();
 }
 
 void

@@ -208,16 +208,13 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
 
   // Seekable streams have an extra addref when they are created which must
   // be matched here.
-  if (NP_SEEK == mStreamType && mStreamStarted)
+  if (NP_SEEK == mStreamType)
     NS_RELEASE_THIS();
-
-  if (mStreamListenerPeer) {
-    mStreamListenerPeer->CancelRequests(NS_BINDING_ABORTED);
-    mStreamListenerPeer = nullptr;
-  }
-
+  
   if (!mInst || !mInst->CanFireNotifications())
     return rv;
+  
+  mStreamListenerPeer = nullptr;
   
   PluginDestructionGuard guard(mInst);
 
@@ -283,7 +280,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 nsresult
 nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPeer)
 {
-  if (!mInst || !mInst->CanFireNotifications() || mStreamCleanedUp)
+  if (!mInst || !mInst->CanFireNotifications())
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(mInst);

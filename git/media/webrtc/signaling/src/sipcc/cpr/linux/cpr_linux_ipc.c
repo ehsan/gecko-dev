@@ -39,9 +39,6 @@
 #include <sys/msg.h>
 #include <sys/ipc.h>
 #include "plat_api.h"
-#include "CSFLog.h"
-
-static const char *logTag = "cpr_linux_ipc";
 
 #define STATIC static
 
@@ -243,7 +240,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
      * Find a unique key
      */
     key = ftok("/proc/self", key_id++);
-    CSFLogDebug(logTag, "key = %x\n", key);
+    printf("key = %x\n", key);
 
     if (key == -1) {
         CPR_ERROR("%s: Key generation failed: %d\n", fname, errno);
@@ -257,7 +254,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
     msgq->queueId = msgget(key, (IPC_EXCL | IPC_CREAT | 0666));
     if (msgq->queueId == -1) {
         if (errno == EEXIST) {
-            CSFLogDebug(logTag, "Q exists so first remove it and then create again\n");
+            printf("Q exists so first remove it and then create again\n");
                 /* Remove message queue */
             msgq->queueId = msgget(key, (IPC_CREAT | 0666));
             if (msgctl(msgq->queueId, IPC_RMID, &buf) == -1) {
@@ -270,7 +267,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
             msgq->queueId = msgget(key, (IPC_CREAT | 0666));
         }
     } else {
-        CSFLogDebug(logTag, "there was no preexisting q..\n");
+        printf("there was no preexisting q..\n");
 
     }
 
@@ -285,7 +282,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
         cpr_free(msgq);
         return NULL;
     }
-    CSFLogDebug(logTag, "create message q with id=%x\n", msgq->queueId);
+    printf("create message q with id=%x\n", msgq->queueId);
 
     /* flush the q before ?? */
 
@@ -350,7 +347,7 @@ cprDestroyMessageQueue (cprMsgQueue_t msgQueue)
     cpr_msg_queue_t *msgq;
     void *msg;
     struct msqid_ds buf;
-    CSFLogDebug(logTag, "Destroy message Q called..\n");
+    printf("Destroy message Q called..\n");
 
 
     msgq = (cpr_msg_queue_t *) msgQueue;

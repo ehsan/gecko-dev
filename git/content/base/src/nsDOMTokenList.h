@@ -9,17 +9,13 @@
 #ifndef nsDOMTokenList_h___
 #define nsDOMTokenList_h___
 
+#include "nsGenericElement.h"
 #include "nsIDOMDOMTokenList.h"
-#include "nsCOMPtr.h"
-#include "nsDOMString.h"
-#include "nsWrapperCache.h"
 
 namespace mozilla {
 class ErrorResult;
 }
 class nsAttrValue;
-class nsGenericElement;
-class nsIAtom;
 
 // nsISupports must be on the primary inheritance chain 
 // because nsDOMSettableTokenList is traversed by nsGenericElement.
@@ -38,9 +34,16 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap);
 
-  nsGenericElement* GetParentObject()
+  nsINode *GetParentObject()
   {
     return mElement;
+  }
+
+  const nsAttrValue* GetParsedAttr() {
+    if (!mElement) {
+      return nullptr;
+    }
+    return mElement->GetAttrInfo(kNameSpaceID_None, mAttrAtom).mValue;
   }
 
   uint32_t Length();
@@ -65,7 +68,6 @@ protected:
   nsresult CheckToken(const nsAString& aStr);
   void AddInternal(const nsAttrValue* aAttr, const nsAString& aToken);
   void RemoveInternal(const nsAttrValue* aAttr, const nsAString& aToken);
-  inline const nsAttrValue* GetParsedAttr();
 
   nsGenericElement* mElement;
   nsCOMPtr<nsIAtom> mAttrAtom;

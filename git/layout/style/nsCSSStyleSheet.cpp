@@ -1029,6 +1029,7 @@ nsCSSStyleSheet::nsCSSStyleSheet(CORSMode aCORSMode)
   : mTitle(), 
     mParent(nullptr),
     mOwnerRule(nullptr),
+    mRuleCollection(nullptr),
     mDocument(nullptr),
     mOwningNode(nullptr),
     mDisabled(false),
@@ -1047,6 +1048,7 @@ nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
   : mTitle(aCopy.mTitle),
     mParent(aParentToUse),
     mOwnerRule(aOwnerRuleToUse),
+    mRuleCollection(nullptr), // re-created lazily
     mDocument(aDocumentToUse),
     mOwningNode(aOwningNodeToUse),
     mDisabled(aCopy.mDisabled),
@@ -1099,7 +1101,7 @@ nsCSSStyleSheet::DropRuleCollection()
 {
   if (mRuleCollection) {
     mRuleCollection->DropReference();
-    mRuleCollection = nullptr;
+    NS_RELEASE(mRuleCollection);
   }
 }
 
@@ -1202,7 +1204,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSStyleSheet)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMedia)
   // We do not traverse mNext; our parent will handle that.  See
   // comments in Unlink for why.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRuleCollection)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mRuleCollection)
   tmp->TraverseInner(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -1856,9 +1858,14 @@ nsCSSStyleSheet::GetCssRules(nsIDOMCSSRuleList** aCssRules)
   // OK, security check passed, so get the rule collection
   if (nullptr == mRuleCollection) {
     mRuleCollection = new CSSRuleListImpl(this);
+    if (nullptr == mRuleCollection) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    NS_ADDREF(mRuleCollection);
   }
 
-  NS_ADDREF(*aCssRules = mRuleCollection);
+  *aCssRules = mRuleCollection;
+  NS_ADDREF(mRuleCollection);
 
   return NS_OK;
 }

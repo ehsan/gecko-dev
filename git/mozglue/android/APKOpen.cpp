@@ -643,8 +643,7 @@ extractBuf(const char * path, Zip *zip)
   if (!zip->GetStream(path, &s))
     return NULL;
 
-  // allocate space for a trailing null byte
-  void * buf = malloc(s.GetUncompressedSize() + 1);
+  void * buf = malloc(s.GetUncompressedSize());
   if (buf == (void *)-1) {
     __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't alloc decompression buffer for %s", path);
     return NULL;
@@ -653,9 +652,6 @@ extractBuf(const char * path, Zip *zip)
     extractLib(s, buf);
   else
     memcpy(buf, s.GetBuffer(), s.GetUncompressedSize());
-
-  // null terminate it
-  ((unsigned char*) buf)[s.GetUncompressedSize()] = 0;
 
   return buf;
 }
