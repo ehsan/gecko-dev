@@ -732,8 +732,6 @@ OpenDatabaseHelper::Run()
       DispatchSuccessEvent();
     }
 
-    ReleaseMainThreadObjects();
-
     return NS_OK;
   }
 
@@ -901,17 +899,6 @@ OpenDatabaseHelper::DispatchErrorEvent()
 
   bool dummy;
   mOpenDBRequest->DispatchEvent(event, &dummy);
-}
-
-void
-OpenDatabaseHelper::ReleaseMainThreadObjects()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  mOpenDBRequest = nsnull;
-  mDatabase = nsnull;
-
-  HelperBase::ReleaseMainThreadObjects();
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(SetVersionHelper, AsyncConnectionHelper);
