@@ -56,10 +56,9 @@ let AboutReader = function(mm, win) {
   doc.addEventListener("visibilitychange", this, false);
 
   this._setupStyleDropdown();
-  this._setupButton("close-button", this._onReaderClose.bind(this), "aboutReader.toolbar.close");
-  this._setupButton("toggle-button", this._onReaderToggle.bind(this), "aboutReader.toolbar.addToReadingList");
-  this._setupButton("share-button", this._onShare.bind(this), "aboutReader.toolbar.share");
-  this._setupButton("list-button", this._onList.bind(this), "aboutReader.toolbar.openReadingList");
+  this._setupButton("close-button", this._onReaderClose.bind(this));
+  this._setupButton("toggle-button", this._onReaderToggle.bind(this));
+  this._setupButton("share-button", this._onShare.bind(this));
 
   let colorSchemeValues = JSON.parse(Services.prefs.getCharPref("reader.color_scheme.values"));
   let colorSchemeOptions = colorSchemeValues.map((value) => {
@@ -222,14 +221,12 @@ AboutReader.prototype = {
   },
 
   _updateToggleButton: function Reader_updateToggleButton() {
-    let button = this._doc.getElementById("toggle-button");
+    let classes = this._doc.getElementById("toggle-button").classList;
 
     if (this._isReadingListItem == 1) {
-      button.classList.add("on");
-      button.setAttribute("title", gStrings.GetStringFromName("aboutReader.toolbar.removeFromReadingList"));
+      classes.add("on");
     } else {
-      button.classList.remove("on");
-      button.setAttribute("title", gStrings.GetStringFromName("aboutReader.toolbar.addToReadingList"));
+      classes.remove("on");
     }
   },
 
@@ -282,10 +279,6 @@ AboutReader.prototype = {
       title: this._article.title
     });
     UITelemetry.addEvent("share.1", "list", null);
-  },
-
-  _onList: function() {
-    // To be implemented (bug 1132665)
   },
 
   _setFontSize: function Reader_setFontSize(newFontSize) {
@@ -684,9 +677,8 @@ AboutReader.prototype = {
     }
   },
 
-  _setupButton: function Reader_setupButton(id, callback, titleEntity) {
+  _setupButton: function Reader_setupButton(id, callback) {
     let button = this._doc.getElementById(id);
-    button.setAttribute("title", gStrings.GetStringFromName(titleEntity));
 
     button.addEventListener("click", function(aEvent) {
       if (!aEvent.isTrusted)
@@ -736,7 +728,6 @@ AboutReader.prototype = {
       win.setTimeout(updatePopupPosition, 0);
     }, true);
 
-    dropdownToggle.setAttribute("title", gStrings.GetStringFromName("aboutReader.toolbar.typeControls"));
     dropdownToggle.addEventListener("click", event => {
       if (!event.isTrusted)
         return;
