@@ -277,7 +277,7 @@ RecordedDrawingEvent::RecordToStream(ostream &aStream) const
 }
 
 ReferencePtr
-RecordedDrawingEvent::GetObjectRef() const
+RecordedDrawingEvent::GetObject() const
 {
   return mDT;
 }

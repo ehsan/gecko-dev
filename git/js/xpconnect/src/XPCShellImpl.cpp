@@ -946,10 +946,8 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
         DoBeginRequest(cx);
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
-        JS::CompileOptions options(cx);
-        options.setFileAndLine("typein", startline)
-               .setPrincipals(gJSPrincipals);
-        script = JS_CompileScript(cx, obj, buffer, strlen(buffer), options);
+        script = JS_CompileScriptForPrincipals(cx, obj, gJSPrincipals, buffer,
+                                               strlen(buffer), "typein", startline);
         if (script) {
             JSErrorReporter older;
 
@@ -1025,7 +1023,8 @@ ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
             ContextOptionsRef(cx).toggleExtraWarnings();
             break;
         case 'I':
-            ContextOptionsRef(cx).toggleIon()
+            ContextOptionsRef(cx).toggleCompileAndGo()
+                                 .toggleIon()
                                  .toggleAsmJS();
             break;
         case 'n':

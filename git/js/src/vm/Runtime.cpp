@@ -168,6 +168,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcNextFullGCTime(0),
     gcLastGCTime(0),
     gcJitReleaseTime(0),
+    gcMode(JSGC_MODE_GLOBAL),
     gcAllocationThreshold(30 * 1024 * 1024),
     gcHighFrequencyGC(false),
     gcHighFrequencyTimeThreshold(1000),
@@ -293,8 +294,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 {
     liveRuntimesCount++;
 
-    setGCMode(JSGC_MODE_GLOBAL);
-
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
 
@@ -356,7 +355,7 @@ JSRuntime::init(uint32_t maxbytes)
     if (!js_InitGC(this, maxbytes))
         return false;
 
-    if (!gcMarker.init(gcMode()))
+    if (!gcMarker.init())
         return false;
 
     const char *size = getenv("JSGC_MARK_STACK_LIMIT");

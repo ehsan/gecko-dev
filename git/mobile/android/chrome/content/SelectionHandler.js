@@ -17,7 +17,6 @@ var SelectionHandler = {
   _cache: null,
   _activeType: 0, // TYPE_NONE
   _ignoreSelectionChanges: false, // True while user drags text selection handles
-  _ignoreCompositionChanges: false, // Persist caret during IME composition updates
 
   // The window that holds the selection (can be a sub-frame)
   get _contentWindow() {
@@ -109,9 +108,6 @@ var SelectionHandler = {
           this._ignoreSelectionChanges = true;
           this._moveSelection(data.handleType == this.HANDLE_TYPE_START, data.x, data.y);
         } else if (this._activeType == this.TYPE_CURSOR) {
-          // Ignore IMM composition notifications when caret movement starts
-          this._ignoreCompositionChanges = true;
-
           // Send a click event to the text box, which positions the caret
           this._sendMouseEvents(data.x, data.y);
 
@@ -137,10 +133,6 @@ var SelectionHandler = {
           }
           // Act on selectionChange notifications after handle movement ends
           this._ignoreSelectionChanges = false;
-
-        } else if (this._activeType == this.TYPE_CURSOR) {
-          // Act on IMM composition notifications after caret movement ends
-          this._ignoreCompositionChanges = false;
         }
         this._positionHandles();
         break;
@@ -166,8 +158,7 @@ var SelectionHandler = {
         break;
 
       case "compositionend":
-        // compositionend messages normally terminate caret display
-        if (this._activeType == this.TYPE_CURSOR && !this._ignoreCompositionChanges) {
+        if (this._activeType == this.TYPE_CURSOR) {
           this._deactivate();
         }
         break;
@@ -539,7 +530,6 @@ var SelectionHandler = {
     this._isRTL = false;
     this._cache = null;
     this._ignoreSelectionChanges = false;
-    this._ignoreCompositionChanges = false;
   },
 
   _getViewOffset: function sh_getViewOffset() {

@@ -300,8 +300,10 @@ SharedTextureSourceOGL::SharedTextureSourceOGL(CompositorOGL* aCompositor,
                                                GLenum aTarget,
                                                GLenum aWrapMode,
                                                SharedTextureShareType aShareType,
-                                               gfx::IntSize aSize)
-  : mSize(aSize)
+                                               gfx::IntSize aSize,
+                                               const gfx3DMatrix& aTexTransform)
+  : mTextureTransform(aTexTransform)
+  , mSize(aSize)
   , mCompositor(aCompositor)
   , mSharedHandle(aHandle)
   , mFormat(aFormat)
@@ -355,18 +357,6 @@ SharedTextureSourceOGL::gl() const
   return mCompositor ? mCompositor->gl() : nullptr;
 }
 
-gfx3DMatrix
-SharedTextureSourceOGL::GetTextureTransform()
-{
-  GLContext::SharedHandleDetails handleDetails;
-  if (!gl()->GetSharedHandleDetails(mShareType, mSharedHandle, handleDetails)) {
-    NS_WARNING("Could not get shared handle details");
-    return gfx3DMatrix();
-  }
-
-  return handleDetails.mTextureTransform;
-}
-
 SharedTextureHostOGL::SharedTextureHostOGL(uint64_t aID,
                                            TextureFlags aFlags,
                                            gl::SharedTextureShareType aShareType,
@@ -416,7 +406,8 @@ SharedTextureHostOGL::Lock()
                                                 handleDetails.mTarget,
                                                 wrapMode,
                                                 mShareType,
-                                                mSize);
+                                                mSize,
+                                                handleDetails.mTextureTransform);
   }
   return true;
 }

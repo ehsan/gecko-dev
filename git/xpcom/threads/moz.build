@@ -33,7 +33,7 @@ EXPORTS.mozilla += [
     'SyncRunnable.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'HangMonitor.cpp',
     'LazyIdleThread.cpp',
     'nsEnvironment.cpp',

@@ -359,12 +359,6 @@ let CustomizableUIInternal = {
 
     this.beginBatchUpdate();
 
-    // Restore nav-bar visibility since it may have been hidden
-    // through a migration path (bug 938980) or an add-on.
-    if (aArea == CustomizableUI.AREA_NAVBAR) {
-      aAreaNode.collapsed = false;
-    }
-
     let currentNode = container.firstChild;
     let placementsToRemove = new Set();
     for (let id of aPlacements) {
@@ -1084,23 +1078,19 @@ let CustomizableUIInternal = {
   /*
    * If people put things in the panel which need more than single-click interaction,
    * we don't want to close it. Right now we check for text inputs and menu buttons.
-   * We also check for being outside of any toolbaritem/toolbarbutton, ie on a blank
-   * part of the menu.
+   * Anything else we should take care of?
    */
   _isOnInteractiveElement: function(aEvent) {
     let target = aEvent.originalTarget;
-    let panel = this._getPanelForNode(aEvent.currentTarget);
+    let panel = aEvent.currentTarget;
     let inInput = false;
     let inMenu = false;
-    let inItem = false;
-    while (!inInput && !inMenu && !inItem && target != panel) {
-      let tagName = target.localName;
-      inInput = tagName == "input";
+    while (!inInput && !inMenu && target != aEvent.currentTarget) {
+      inInput = target.localName == "input";
       inMenu = target.type == "menu";
-      inItem = tagName == "toolbaritem" || tagName == "toolbarbutton";
       target = target.parentNode;
     }
-    return inMenu || inInput || !inItem;
+    return inMenu || inInput;
   },
 
   hidePanelForNode: function(aNode) {
@@ -2080,12 +2070,6 @@ this.CustomizableUI = {
   },
   onWidgetDrag: function(aWidgetId, aArea) {
     CustomizableUIInternal.notifyListeners("onWidgetDrag", aWidgetId, aArea);
-  },
-  notifyStartCustomizing: function(aWindow) {
-    CustomizableUIInternal.notifyListeners("onCustomizeStart", aWindow);
-  },
-  notifyEndCustomizing: function(aWindow) {
-    CustomizableUIInternal.notifyListeners("onCustomizeEnd", aWindow);
   },
   isAreaOverflowable: function(aAreaId) {
     let area = gAreas.get(aAreaId);

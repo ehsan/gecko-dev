@@ -93,6 +93,15 @@
          Type.intn_t(Const.OSFILE_SIZEOF_GID_T).withName("gid_t");
 
        /**
+        * A file size (st_size in struct stat)
+        */
+       if (OS.Constants.Sys.Name == "NetBSD") {
+         Type.stat_size_t = Type.off_t.withName("stat_size_t");
+       } else {
+         Type.stat_size_t = Type.size_t.withName("stat_size_t");
+       }
+
+       /**
         * Type |time_t|
         */
        Type.time_t =
@@ -165,7 +174,7 @@
          }
 
          stat.add_field_at(Const.OSFILE_OFFSETOF_STAT_ST_SIZE,
-                        "st_size", Type.off_t.implementation);
+                        "st_size", Type.stat_size_t.implementation);
          Type.stat = stat.getType();
        }
 
