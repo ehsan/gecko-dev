@@ -90,7 +90,6 @@ js_GenerateShape(JSRuntime *rt)
 #ifdef JS_THREADSAFE
         AutoLockGC lockIf(rt);
 #endif
-        GCREASON(SHAPE);
         TriggerGC(rt);
     }
     return shape;
@@ -191,14 +190,8 @@ Shape::hashify(JSRuntime *rt)
     PropertyTable *table = rt->new_<PropertyTable>(entryCount());
     if (!table)
         return false;
-
-    if (!table->init(rt, this)) {
-        rt->free_(table);
-        return false;
-    }
-
     setTable(table);
-    return true;
+    return getTable()->init(rt, this);
 }
 
 #ifdef DEBUG

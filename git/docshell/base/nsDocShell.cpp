@@ -10676,9 +10676,7 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
   if (NS_FAILED(rv)) return rv;
 
   PRInt32 buttonPressed;
-  // The actual value here is irrelevant, but we can't pass an invalid
-  // PRBool through XPConnect.
-  PRBool checkState = PR_FALSE;
+  PRBool checkState;
   rv = prompter->
          ConfirmEx(nsnull, msgString.get(),
                    (nsIPrompt::BUTTON_POS_0 * nsIPrompt::BUTTON_TITLE_IS_STRING) +

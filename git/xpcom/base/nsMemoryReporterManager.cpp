@@ -398,27 +398,24 @@ nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter *reporter)
 
 NS_IMPL_ISUPPORTS1(nsMemoryReporter, nsIMemoryReporter)
 
-nsMemoryReporter::nsMemoryReporter(nsCString& process,
+nsMemoryReporter::nsMemoryReporter(nsCString& prefix,
                                    nsCString& path,
                                    PRInt32 kind,
                                    nsCString& desc,
                                    PRInt64 memoryUsed)
-: mProcess(process)
-, mPath(path)
-, mKind(kind)
+: mKind(kind)
 , mDesc(desc)
 , mMemoryUsed(memoryUsed)
 {
+  if (!prefix.IsEmpty()) {
+      mPath.Append(prefix);
+      mPath.Append(NS_LITERAL_CSTRING(":"));
+  }
+  mPath.Append(path);
 }
 
 nsMemoryReporter::~nsMemoryReporter()
 {
-}
-
-NS_IMETHODIMP nsMemoryReporter::GetProcess(char **aProcess)
-{
-    *aProcess = strdup(mProcess.get());
-    return NS_OK;
 }
 
 NS_IMETHODIMP nsMemoryReporter::GetPath(char **aPath)

@@ -45,9 +45,6 @@ var expect = '';
 printBugNumber(BUGNUMBER);
 START(summary);
 
-expectExitCode(0);
-expectExitCode(5);
-
 function stringOfLength(n)
 {
     if (n == 0) {

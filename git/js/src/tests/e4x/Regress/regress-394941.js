@@ -40,10 +40,7 @@
 var summary = 'Infinite recursion should throw catchable exception';
 var BUGNUMBER = 394941;
 var actual = '';
-var expect = /InternalError: too much recursion/;
-
-expectExitCode(0);
-expectExitCode(5);
+var expect = /InternalError: (script stack space quota is exhausted|too much recursion)/;
 
 /*
  * use the reportMatch so that the test will pass on 1.8 

@@ -182,7 +182,7 @@ public:
 protected:
   // nsAccessible
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull) const;
+                                           nsresult *aError = nsnull);
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
 
   // nsXULTreeGridCellAccessible

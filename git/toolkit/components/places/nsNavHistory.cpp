@@ -135,8 +135,11 @@ using namespace mozilla::places;
 // Out of this cache, SQLite will use at most the size of the database file.
 #define DATABASE_DEFAULT_CACHE_TO_MEMORY_PERCENTAGE 6
 
-// If the physical memory size is not available, use MEMSIZE_FALLBACK_BYTES
-// instead.  Must stay in sync with the code in nsPlacesExpiration.js.
+// PR_GetPhysicalMemorySize sometimes returns garbage (bug 660036).  If the
+// return value is greater than MEMSIZE_MAX_BYTES, assume it is garbage and
+// use MEMSIZE_FALLBACK_BYTES instead.  Must stay in sync with the code in
+// nsPlacesExpiration.js.
+#define MEMSIZE_MAX_BYTES 137438953472LL // 128 G
 #define MEMSIZE_FALLBACK_BYTES 268435456 // 256 M
 
 // Maximum size for the WAL file.  It should be small enough since in case of
@@ -730,14 +733,14 @@ nsNavHistory::InitDB()
   if (cachePercentage < 0)
     cachePercentage = 0;
 
-  static PRUint64 physMem = PR_GetPhysicalMemorySize();
-  if (physMem == 0)
+  static PRInt64 physMem = PR_GetPhysicalMemorySize();
+  if (physMem <= 0 || physMem > MEMSIZE_MAX_BYTES)
     physMem = MEMSIZE_FALLBACK_BYTES;
 
-  PRUint64 cacheSize = physMem * cachePercentage / 100;
+  PRInt64 cacheSize = physMem * cachePercentage / 100;
 
   // Compute number of cached pages, this will be our cache size.
-  PRUint64 cachePages = cacheSize / mDBPageSize;
+  PRInt64 cachePages = cacheSize / mDBPageSize;
   nsCAutoString cacheSizePragma("PRAGMA cache_size = ");
   cacheSizePragma.AppendInt(cachePages);
   rv = mDBConn->ExecuteSimpleSQL(cacheSizePragma);
