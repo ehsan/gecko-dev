@@ -1089,7 +1089,8 @@ var gCachedAddons = {};
 
 var gSearchView = {
   node: null,
-  _filter: null,
+  _localFilter: null,
+  _remoteFilter: null,
   _sorters: null,
   _listBox: null,
   _emptyNotice: null,
@@ -1098,7 +1099,8 @@ var gSearchView = {
 
   initialize: function() {
     this.node = document.getElementById("search-view");
-    this._filter = document.getElementById("search-filter-radiogroup");
+    this._localFilter = document.getElementById("search-filter-local");
+    this._remoteFilter = document.getElementById("search-filter-remote");
     this._sorters = document.getElementById("search-sorters");
     this._sorters.handler = this;
     this._listBox = document.getElementById("search-list");
@@ -1114,10 +1116,15 @@ var gSearchView = {
       }
     }, false);
 
-    this._filter.addEventListener("command", function() self.updateView(), false);
+    this._localFilter.addEventListener("command", function() self.updateView(), false);
+    this._remoteFilter.addEventListener("command", function() self.updateView(), false);
   },
 
   shutdown: function() {
+    // Force persist of checked state. See bug 15232
+    this._localFilter.setAttribute("checked", !!this._localFilter.checked);
+    this._remoteFilter.setAttribute("checked", !!this._remoteFilter.checked);
+
     if (AddonRepository.isSearching)
       AddonRepository.cancelSearch();
   },
@@ -1223,9 +1230,10 @@ var gSearchView = {
   },
 
   updateView: function() {
-    var showLocal = this._filter.value == "local";
+    var showLocal = this._localFilter.checked;
+    var showRemote = this._remoteFilter.checked;
     this._listBox.setAttribute("local", showLocal);
-    this._listBox.setAttribute("remote", !showLocal);
+    this._listBox.setAttribute("remote", showRemote);
 
     gHeader.isSearching = this.isSearching;
     if (!this.isSearching) {
@@ -1233,7 +1241,7 @@ var gSearchView = {
       var results = this._listBox.getElementsByTagName("richlistitem");
       for (let i = 0; i < results.length; i++) {
         var isRemote = (results[i].getAttribute("remote") == "true");
-        if ((isRemote && !showLocal) || (!isRemote && showLocal)) {
+        if ((isRemote && showRemote) || (!isRemote && showLocal)) {
           isEmpty = false;
           break;
         }

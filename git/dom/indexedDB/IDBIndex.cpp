@@ -319,14 +319,12 @@ IDBIndex::Get(nsIVariant* aKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetHelper> helper =
-    new GetHelper(transaction, request, key, mId, mUnique, mAutoIncrement);
+    new GetHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
+                  mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -348,14 +346,11 @@ IDBIndex::GetObject(nsIVariant* aKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetObjectHelper> helper =
-    new GetObjectHelper(transaction, request, key, mId, mUnique,
+    new GetObjectHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
                         mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -384,15 +379,12 @@ IDBIndex::GetAll(nsIVariant* aKey,
     aLimit = PR_UINT32_MAX;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllHelper> helper =
-    new GetAllHelper(transaction, request, key, mId, mUnique, mAutoIncrement,
-                     aLimit);
+    new GetAllHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
+                     mAutoIncrement, aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -420,15 +412,12 @@ IDBIndex::GetAllObjects(nsIVariant* aKey,
     aLimit = PR_UINT32_MAX;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllObjectsHelper> helper =
-    new GetAllObjectsHelper(transaction, request, key, mId, mUnique,
-                            mAutoIncrement, aLimit);
+    new GetAllObjectsHelper(mObjectStore->Transaction(), request, key, mId,
+                            mUnique, mAutoIncrement, aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -488,16 +477,13 @@ IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenCursorHelper> helper =
-    new OpenCursorHelper(transaction, request, this, mId, mUnique,
-                         mAutoIncrement, leftKey, rightKey, keyRangeFlags,
-                         aDirection, aPreload);
+    new OpenCursorHelper(mObjectStore->Transaction(), request, this, mId,
+                         mUnique, mAutoIncrement, leftKey, rightKey,
+                         keyRangeFlags, aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -558,16 +544,13 @@ IDBIndex::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  IDBTransaction* transaction = mObjectStore->Transaction();
-
-  nsRefPtr<IDBRequest> request =
-    GenerateRequest(transaction->ScriptContext(), transaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenObjectCursorHelper> helper =
-    new OpenObjectCursorHelper(transaction, request, this, mId, mUnique,
-                               mAutoIncrement, leftKey, rightKey, keyRangeFlags,
-                               aDirection, aPreload);
+    new OpenObjectCursorHelper(mObjectStore->Transaction(), request, this, mId,
+                               mUnique, mAutoIncrement, leftKey, rightKey,
+                               keyRangeFlags, aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);

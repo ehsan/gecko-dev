@@ -143,9 +143,11 @@ inline PRBool HaveFixedSize(const nsHTMLReflowState& aReflowState)
   // see bug 156731
   const nsStyleCoord &height = aReflowState.mStylePosition->mHeight;
   const nsStyleCoord &width = aReflowState.mStylePosition->mWidth;
-  return ((height.HasPercent() &&
+  return (((eStyleUnit_Percent == height.GetUnit() ||
+            (height.IsCalcUnit() && height.CalcHasPercent())) &&
            NS_UNCONSTRAINEDSIZE == aReflowState.ComputedHeight()) ||
-          (width.HasPercent() &&
+          ((eStyleUnit_Percent == width.GetUnit() ||
+            (width.IsCalcUnit() && width.CalcHasPercent())) &&
            (NS_UNCONSTRAINEDSIZE == aReflowState.ComputedWidth() ||
             0 == aReflowState.ComputedWidth())))
           ? PR_FALSE

@@ -221,10 +221,7 @@ public class SUTAgentAndroid extends Activity
     				}
         		}
         	else
-        		{
         		sUniqueID = ba.getAddress();
-        		sUniqueID.toLowerCase();
-        		}
         	}
 
         if (sUniqueID == null)

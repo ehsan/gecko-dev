@@ -364,7 +364,6 @@ NS_IMETHODIMP
 IDBDatabase::CreateObjectStore(const nsAString& aName,
                                const nsAString& aKeyPath,
                                PRBool aAutoIncrement,
-                               JSContext* aCx,
                                nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -389,6 +388,9 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
+  nsRefPtr<IDBRequest> request = GenerateWriteRequest();
+  NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+
   nsTArray<nsString> objectStores;
   nsString* name = objectStores.AppendElement(aName);
   if (!name) {
@@ -397,13 +399,8 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(aCx, this, objectStores,
-                           nsIIDBTransaction::READ_WRITE,
+    IDBTransaction::Create(this, objectStores, nsIIDBTransaction::READ_WRITE,
                            kDefaultDatabaseTimeoutSeconds);
-
-  nsRefPtr<IDBRequest> request =
-    GenerateWriteRequest(transaction->ScriptContext(), transaction->Owner());
-  NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<CreateObjectStoreHelper> helper =
     new CreateObjectStoreHelper(transaction, request, aName, keyPath,
@@ -417,7 +414,6 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
 
 NS_IMETHODIMP
 IDBDatabase::RemoveObjectStore(const nsAString& aName,
-                               JSContext* aCx,
                                nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -443,14 +439,12 @@ IDBDatabase::RemoveObjectStore(const nsAString& aName,
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(aCx, this, storesToOpen,
-                           nsIIDBTransaction::READ_WRITE,
+    IDBTransaction::Create(this, storesToOpen, nsIIDBTransaction::READ_WRITE,
                            kDefaultDatabaseTimeoutSeconds);
   NS_ENSURE_TRUE(transaction, NS_ERROR_FAILURE);
 
-  nsRefPtr<IDBRequest> request =
-    GenerateWriteRequest(transaction->ScriptContext(), transaction->Owner());
-  NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+
+  nsRefPtr<IDBRequest> request = GenerateWriteRequest();
 
   nsRefPtr<RemoveObjectStoreHelper> helper =
     new RemoveObjectStoreHelper(transaction, request, aName);
@@ -463,7 +457,6 @@ IDBDatabase::RemoveObjectStore(const nsAString& aName,
 
 NS_IMETHODIMP
 IDBDatabase::SetVersion(const nsAString& aVersion,
-                        JSContext* aCx,
                         nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -474,16 +467,14 @@ IDBDatabase::SetVersion(const nsAString& aVersion,
     return NS_ERROR_UNEXPECTED;
   }
 
+  nsRefPtr<IDBRequest> request = GenerateWriteRequest();
+
   // Lock the whole database
   nsTArray<nsString> storesToOpen;
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(aCx, this, storesToOpen, IDBTransaction::FULL_LOCK,
+    IDBTransaction::Create(this, storesToOpen, IDBTransaction::FULL_LOCK,
                            kDefaultDatabaseTimeoutSeconds);
   NS_ENSURE_TRUE(transaction, NS_ERROR_FAILURE);
-
-  nsRefPtr<IDBRequest> request =
-    GenerateWriteRequest(transaction->ScriptContext(), transaction->Owner());
-  NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<SetVersionHelper> helper =
     new SetVersionHelper(transaction, request, aVersion);
@@ -498,7 +489,6 @@ NS_IMETHODIMP
 IDBDatabase::Transaction(nsIVariant* aStoreNames,
                          PRUint16 aMode,
                          PRUint32 aTimeout,
-                         JSContext* aCx,
                          PRUint8 aOptionalArgCount,
                          nsIIDBTransaction** _retval)
 {
@@ -623,7 +613,7 @@ IDBDatabase::Transaction(nsIVariant* aStoreNames,
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(aCx, this, storesToOpen, aMode,
+    IDBTransaction::Create(this, storesToOpen, aMode,
                            kDefaultDatabaseTimeoutSeconds);
   NS_ENSURE_TRUE(transaction, NS_ERROR_FAILURE);
 
@@ -634,7 +624,6 @@ IDBDatabase::Transaction(nsIVariant* aStoreNames,
 NS_IMETHODIMP
 IDBDatabase::ObjectStore(const nsAString& aName,
                          PRUint16 aMode,
-                         JSContext* aCx,
                          PRUint8 aOptionalArgCount,
                          nsIIDBObjectStore** _retval)
 {
@@ -672,7 +661,7 @@ IDBDatabase::ObjectStore(const nsAString& aName,
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(aCx, this, storesToOpen, aMode,
+    IDBTransaction::Create(this, storesToOpen, aMode,
                            kDefaultDatabaseTimeoutSeconds);
   NS_ENSURE_TRUE(transaction, NS_ERROR_FAILURE);
 

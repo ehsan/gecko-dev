@@ -3,7 +3,10 @@
   <!-- Test: if button is not disabled and invalid, it is candidate for
              constraint validation and should be affected
              by :invalid pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    button { background-color: red; }
+    button:invalid { background-color: green; }
+  </style>
   <script>
     function onLoadHandler()
     {
@@ -14,6 +17,6 @@
     }
   </script>
   <body onload="onLoadHandler();">
-    <button class='invalid' id='b' disabled></button>
+    <button id='b' disabled></button>
   </body>
 </html>

@@ -1152,7 +1152,7 @@ public:
   void SetHasRenderingObservers(bool aValue)
     { mNodeHasRenderingObservers = aValue; }
 
-  // Optimized way to get classinfo.
+  // Optimized way to get classinfo. May return null.
   virtual nsXPCClassInfo* GetClassInfo() = 0;
 protected:
 

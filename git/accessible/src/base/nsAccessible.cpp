@@ -48,7 +48,6 @@
 #include "nsDocAccessible.h"
 #include "nsEventShell.h"
 
-#include "nsAccEvent.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsRelUtils.h"
@@ -1241,7 +1240,7 @@ nsAccessible::GetXULName(nsAString& aLabel)
 }
 
 nsresult
-nsAccessible::HandleAccEvent(AccEvent* aEvent)
+nsAccessible::HandleAccEvent(nsAccEvent *aEvent)
 {
   NS_ENSURE_ARG_POINTER(aEvent);
 
@@ -1249,20 +1248,7 @@ nsAccessible::HandleAccEvent(AccEvent* aEvent)
     mozilla::services::GetObserverService();
   NS_ENSURE_TRUE(obsService, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsISimpleEnumerator> observers;
-  obsService->EnumerateObservers(NS_ACCESSIBLE_EVENT_TOPIC,
-                                 getter_AddRefs(observers));
-
-  NS_ENSURE_STATE(observers);
-
-  PRBool hasObservers = PR_FALSE;
-  observers->HasMoreElements(&hasObservers);
-  if (hasObservers) {
-    nsRefPtr<nsAccEvent> evnt(aEvent->CreateXPCOMObject());
-    return obsService->NotifyObservers(evnt, NS_ACCESSIBLE_EVENT_TOPIC, nsnull);
-  }
-
-  return NS_OK;
+  return obsService->NotifyObservers(aEvent, NS_ACCESSIBLE_EVENT_TOPIC, nsnull);
 }
 
 NS_IMETHODIMP

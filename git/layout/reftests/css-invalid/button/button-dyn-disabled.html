@@ -2,7 +2,10 @@
 <html class="reftest-wait">
   <!-- Test: if button is disabled and invalid, it is barred from constraint
              validation and should not be affected by :invalid pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    button { background-color: green; }
+    button:invalid { background-color: red; }
+  </style>
   <script>
     function onLoadHandler()
     {
@@ -13,6 +16,6 @@
     }
   </script>
   <body onload="onLoadHandler();">
-    <button class='notinvalid' id='b'></button>
+    <button id='b'></button>
   </body>
 </html>

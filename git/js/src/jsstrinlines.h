@@ -76,7 +76,8 @@ JSString::intString(jsint i)
 }
 
 inline
-JSRopeBuilder::JSRopeBuilder(JSContext *cx)
-  : cx(cx), mStr(cx->runtime->emptyString) {}
+JSRopeBuilder::JSRopeBuilder(JSContext *cx) {
+    mStr = cx->runtime->emptyString;
+}
 
 #endif /* jsstrinlines_h___ */

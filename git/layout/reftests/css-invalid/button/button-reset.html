@@ -2,8 +2,11 @@
 <html class="reftest-wait">
   <!-- Test: if button is of the reset type, it is barred from constraint
              validation and should not be affected by :invalid pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    button { background-color: green; }
+    button:invalid { background-color: red; }
+  </style>
   <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
-    <button class='notinvalid' id='b' type='reset'></button>
+    <button id='b' type='reset'></button>
   </body>
 </html>

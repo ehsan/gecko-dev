@@ -233,7 +233,7 @@ NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Prompt, prompt)
 NS_IMETHODIMP
 nsHTMLSharedElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  NS_IF_ADDREF(*aForm = FindAncestorForm());
+  NS_IF_ADDREF(*aForm = FindForm());
 
   return NS_OK;
 }

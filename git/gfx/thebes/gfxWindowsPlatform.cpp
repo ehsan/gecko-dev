@@ -198,11 +198,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
-    /* 
-     * Initialize COM 
-     */ 
-    CoInitialize(NULL); 
-
     mScreenDC = GetDC(NULL);
 
 #ifdef MOZ_FT2_FONTS
@@ -361,12 +356,6 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 	cairo_release_device(mD2DDevice);
     }
 #endif
-
-    /* 
-     * Uninitialize COM 
-     */ 
-    CoUninitialize(); 
-
 }
 
 gfxPlatformFontList*

@@ -42,16 +42,12 @@ Tests.startUnit = function () {
 Tests.setup = function(gl) {
   var tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  var texCubeMap = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_CUBE_MAP, texCubeMap);
   return [gl]
 }
 
-Tests.teardown = function(gl,tex, texCubeMap) {
+Tests.teardown = function(gl,tex) {
   gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
   gl.deleteTexture(tex);
-  gl.deleteTexture(texCubeMap);
 }
 
 Tests.testTexImage2D = function(gl) {
@@ -77,9 +73,7 @@ Tests.testRoundtrip = function(gl) {
     var sh = new Filter(gl, 'identity-flip-vert', 'identity-frag');
     gl.clearColor(1.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    var buf = new Uint8Array(4);
-    gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE, buf);
-    assertEquals([255,0,0,255], [buf[0], buf[1], buf[2], buf[3]]);
+    assertEquals([255,0,0,255], gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE).data);
     // red texture
     gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0,0,16,16,0);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -89,11 +83,9 @@ Tests.testRoundtrip = function(gl) {
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     // blue framebuffer
-    gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE, buf);
-    assertEquals([0,0,255,255], [buf[0], buf[1], buf[2], buf[3]]);
+    assertEquals([0,0,255,255], gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE).data);
     sh.apply(); // paint it with texture
-    gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE, buf);
-    assertEquals([255,0,0,255], [buf[0], buf[1], buf[2], buf[3]]);
+    assertEquals([255,0,0,255], gl.readPixels(0,0,1,1,gl.RGBA, gl.UNSIGNED_BYTE).data);
     sh.destroy();
 }
 
@@ -102,6 +94,7 @@ Tests.endUnit = function(gl) {
 
 </script>
 <script id="identity-flip-vert" type="x-shader/x-vertex">
+#version 120
 attribute vec3 Vertex;
 attribute vec2 Tex;
 
@@ -113,9 +106,8 @@ void main()
 }
 </script>
 <script id="identity-frag" type="x-shader/x-fragment">
-#ifdef GL_ES
-precision highp float;
-#endif
+#version 120
+
 uniform sampler2D Texture;
 
 varying vec4 texCoord0;

@@ -24,14 +24,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=548523
 
 /** Test for Bug 548523 **/
 
-var manager = new MediaTestManager;
-
-manager.onFinished = function() {
-  is(gotLoadEvent, true, "Should not have delayed the load event indefinitely");
-};
+var videos = [];
 
 var test = getPlayableVideo(gSeekTests);
-var gTest = test;
 var bogusSrc = "bogus.duh";
 var bogusType = "video/bogus";
 var gotLoadEvent = false;
@@ -44,10 +39,16 @@ function log(m) {
   l.innerHTML += m;
 }
 
-function maybeFinish(v, n) {
+function maybeFinish(n) {
   log(n + ",");
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  setTimeout(
+  function() {
+    if (!finished && AllFinished(videos)) {
+      finished = true;
+      is(gotLoadEvent, true, "Should not have delayed the load event indefinitely");
+      SimpleTest.finish();
+    }
+  }, 0);
 }
 
 function filename(uri) {
@@ -70,7 +71,7 @@ var tests = [
       is(v.readyState, v.HAVE_NOTHING, "(1) ReadyState must be HAVE_NOTHING");
       is(v.networkState, v.NETWORK_IDLE, "(1) NetworkState must be NETWORK_IDLE");
       v._finished = true;
-      maybeFinish(v, 1);
+      maybeFinish(1);
     },
     
     setup:
@@ -97,7 +98,7 @@ var tests = [
       ok(v.readyState >= v.HAVE_CURRENT_DATA, "(2) ReadyState must be >= HAVE_CURRENT_DATA");
       is(v.networkState, v.NETWORK_IDLE, "(2) NetworkState must be NETWORK_IDLE");
       v._finished = true;
-      maybeFinish(v, 2);
+      maybeFinish(2);
     },
     
     setup:
@@ -122,7 +123,7 @@ var tests = [
       is(v._gotLoadStart, true, "(3) Must get loadstart.");
       is(v._gotLoadedMetaData, true, "(3) Must get loadedmetadata.");
       v._finished = true;
-      maybeFinish(v, 3);
+      maybeFinish(3);
     },
     
     setup:
@@ -157,7 +158,7 @@ var tests = [
     function(e) {
       ok(true, "(4) Got playback ended");
       e.target._finished = true;
-      maybeFinish(e.target, 4);
+      maybeFinish(4);
     },
       
     setup:
@@ -186,7 +187,7 @@ var tests = [
       is(v.readyState, v.HAVE_NOTHING, "(5) ReadyState must be HAVE_NOTHING");
       is(v.networkState, v.NETWORK_IDLE, "(5) NetworkState must be NETWORK_IDLE");
       v._finished = true;
-      maybeFinish(v, 5);
+      maybeFinish(5);
     },
       
     setup:
@@ -213,7 +214,7 @@ var tests = [
       is(v.readyState, v.HAVE_NOTHING, "(6) ReadyState must be HAVE_NOTHING");
       is(v.networkState, v.NETWORK_IDLE, "(6) NetworkState must be NETWORK_IDLE");
       v._finished = true;
-      maybeFinish(v, 6);
+      maybeFinish(6);
     },
       
     setup:
@@ -251,9 +252,8 @@ var tests = [
     ended:
     function(e) {
       ok(true, "(7) Got playback ended");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 7);
+      e.target._finished = true;
+      maybeFinish(7);
     },
       
     setup:
@@ -286,7 +286,7 @@ var tests = [
       ok(v.readyState >= v.HAVE_CURRENT_DATA, "(8) ReadyState must be >= HAVE_CURRENT_DATA on suspend.");
       is(v.networkState, v.NETWORK_IDLE, "(8) NetworkState must be NETWORK_IDLE when load is halted");
       v._finished = true;
-      maybeFinish(v, 8);
+      maybeFinish(8);
     },
     
     setup:
@@ -313,7 +313,7 @@ var tests = [
       is(v._gotLoadStart, true, "(9) Must get loadstart.");
       is(v._gotLoadedMetaData, true, "(9) Must get loadedmetadata.");
       v._finished = true;
-      maybeFinish(v, 9);
+      maybeFinish(9);
     },
     
     setup:
@@ -337,7 +337,7 @@ var tests = [
       var v = e.target;
       is(v._gotLoadedMetaData, true, "(10) Must get loadedmetadata.");
       v._finished = true;
-      maybeFinish(v, 10);
+      maybeFinish(10);
     },
     
     setup:
@@ -361,7 +361,7 @@ var tests = [
       ok(v.readyState >= v.HAVE_CURRENT_DATA, "(11) ReadyState must be >= HAVE_CURRENT_DATA.");
       is(v.networkState, v.NETWORK_IDLE, "(11) NetworkState must be NETWORK_IDLE.");
       v._finished = true;
-      maybeFinish(v, 11);
+      maybeFinish(11);
     },
 
     setup:
@@ -385,7 +385,7 @@ var tests = [
       is(v._gotLoadedMetaData, true, "(12) Must get loadedmetadata.");
       is(v._gotLoadStart, true, "(12) Must get loadstart.");
       v._finished = true;
-      maybeFinish(v, 12);
+      maybeFinish(12);
     },
 
     setup:
@@ -414,7 +414,7 @@ var tests = [
       ok(v.readyState >= v.HAVE_CURRENT_DATA, "(13) ReadyState must be >= HAVE_CURRENT_DATA.");
       is(v.networkState, v.NETWORK_IDLE, "(13) NetworkState must be NETWORK_IDLE.");
       v._finished = true;
-      maybeFinish(v, 13);
+      maybeFinish(13);
     },
 
     setup:
@@ -446,9 +446,8 @@ var tests = [
     ended:
     function(e) {
       ok(true, "(14) Got playback ended");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 14);
+      e.target._finished = true;
+      maybeFinish(14);
     },
 
     setup:
@@ -471,9 +470,8 @@ var tests = [
     ended:
     function(e) {
       ok(true, "(15) Got playback ended.");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 15);
+      e.target._finished = true;
+      maybeFinish(15);
     },
     
     setup:
@@ -495,9 +493,8 @@ var tests = [
     ended:
     function(e) {
       ok(true, "(16) Got playback ended.");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 16);
+      e.target._finished = true;
+      maybeFinish(16);
     },
     
     setup:
@@ -515,9 +512,8 @@ var tests = [
     ended:
     function(e) {
       ok(true, "(17) Got playback ended.");
-      var v = e.target;
-      v._finished = true;
-      maybeFinish(v, 17);
+      e.target._finished = true;
+      maybeFinish(17);
     },
     
     setup:
@@ -532,14 +528,21 @@ var tests = [
   },
 ];
 
-function startTest(test, token) {
-  var v = document.createElement("video");
-  v.token = token;
-  test.setup(v);
-  manager.started(token);
+if (test) {
+  for (var i=0; i<tests.length; i++) {
+    var t = tests[i];
+    var v = document.createElement("video");
+    videos.push(v);
+    t.setup(v);
+  }
 }
 
-manager.runTests(tests, startTest);
+if (test && videos.length == 0) {
+  todo(false, "No types or tests supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
+
 
 </script>
 </pre>

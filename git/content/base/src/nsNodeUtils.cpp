@@ -105,26 +105,26 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 }
 
 void
-nsNodeUtils::AttributeWillChange(Element* aElement,
+nsNodeUtils::AttributeWillChange(nsIContent* aContent,
                                  PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  PRInt32 aModType)
 {
-  nsIDocument* doc = aElement->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aElement,
-                             (doc, aElement, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aContent,
+                             (doc, aContent, aNameSpaceID, aAttribute,
                               aModType));
 }
 
 void
-nsNodeUtils::AttributeChanged(Element* aElement,
+nsNodeUtils::AttributeChanged(nsIContent* aContent,
                               PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  nsIDocument* doc = aElement->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aElement,
-                             (doc, aElement, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aContent,
+                             (doc, aContent, aNameSpaceID, aAttribute,
                               aModType));
 }
 
@@ -511,11 +511,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
           if (elm->MayHavePaintEventListener()) {
             window->SetHasPaintEventListeners();
           }
-#ifdef MOZ_MEDIA
-          if (elm->MayHaveAudioAvailableEventListener()) {
-            window->SetHasAudioAvailableEventListeners();
-          }
-#endif
         }
       }
     }

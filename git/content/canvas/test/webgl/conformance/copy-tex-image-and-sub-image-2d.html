@@ -22,11 +22,14 @@ void main()
 </script>
 
 <script id="fshader" type="x-shader/x-fragment">
-#ifdef GL_ES
-precision mediump float;
-#endif
 uniform sampler2D tex;
+// Workaround for non-compliant WebGL implementations (FIXME)
+#if defined(GL_ES)
+varying mediump vec2 texCoord;
+#else
 varying vec2 texCoord;
+#endif
+
 void main()
 {
     gl_FragColor = texture2D(tex, texCoord);
@@ -61,14 +64,14 @@ function runTestIteration(antialias)
 
     var textureLoc = gl.getUniformLocation(gl.program, "tex");
 
-    var vertices = new Float32Array([
+    var vertices = new WebGLFloatArray([
          1.0,  1.0, 0.0,
         -1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var texCoords = new Float32Array([
+    var texCoords = new WebGLFloatArray([
         1.0, 1.0,
         0.0, 1.0,
         0.0, 0.0,
@@ -106,9 +109,9 @@ function runTestIteration(antialias)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-    glErrorShouldBe(gl, gl.NO_ERROR);
+    shouldBe("gl.getError()", "gl.NO_ERROR");
     gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, 2, 2, 0);
-    glErrorShouldBe(gl, gl.NO_ERROR);
+    shouldBe("gl.getError()", "gl.NO_ERROR");
 
     // Green canvas
     gl.clearColor(0, 1, 0, 1);
@@ -140,9 +143,9 @@ function runTestIteration(antialias)
     gl.clearColor(0, 1, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    glErrorShouldBe(gl, gl.NO_ERROR);
+    shouldBe("gl.getError()", "gl.NO_ERROR");
     gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, 2, 2);
-    glErrorShouldBe(gl, gl.NO_ERROR);
+    shouldBe("gl.getError()", "gl.NO_ERROR");
 
     // Blue canvas
     gl.clearColor(0, 0, 1, 1);

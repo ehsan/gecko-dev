@@ -67,7 +67,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 class nsAHttpConnection;
-class AutoRedirectVetoNotifier;
 
 using namespace mozilla::net;
 
@@ -217,16 +216,7 @@ private:
     nsresult ResolveProxy();
 
     // cache specific methods
-    nsresult OpenCacheEntry();
-    nsresult OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
-                                          nsCacheAccessMode aAccess,
-                                          nsresult aResult,
-                                          PRBool aSync);
-    nsresult OpenNormalCacheEntry(PRBool aSync);
-    nsresult OnNormalCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
-                                         nsCacheAccessMode aAccess,
-                                         nsresult aResult,
-                                         PRBool aSync);
+    nsresult OpenCacheEntry(PRBool offline, PRBool *delayed);
     nsresult OpenOfflineCacheEntryForWriting();
     nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
     nsresult UpdateExpirationTime();
@@ -244,7 +234,6 @@ private:
     nsresult InstallOfflineCacheListener();
     void     MaybeInvalidateCacheEntryForSubsequentGet();
     nsCacheStoragePolicy DetermineStoragePolicy();
-    nsresult DetermineCacheAccess(nsCacheAccessMode *_retval);
     void     AsyncOnExamineCachedResponse();
 
     // Handle the bogus Content-Encoding Apache sometimes sends
@@ -257,18 +246,6 @@ private:
 
     nsresult DoAuthRetry(nsAHttpConnection *);
     PRBool   MustValidateBasedOnQueryUrl();
-
-    void     HandleAsyncRedirectChannelToHttps();
-    nsresult AsyncRedirectChannelToHttps();
-    nsresult ContinueAsyncRedirectChannelToHttps(nsresult rv);
-
-    /**
-     * A function that takes care of reading STS headers and enforcing STS 
-     * load rules.  After a secure channel is erected, STS requires the channel
-     * to be trusted or any STS header data on the channel is ignored.
-     * This is called from ProcessResponse.
-     */
-    nsresult ProcessSTSHeader();
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;
@@ -286,11 +263,6 @@ private:
     nsCacheAccessMode                 mCacheAccess;
     PRUint32                          mPostID;
     PRUint32                          mRequestTime;
-
-    typedef nsresult (nsHttpChannel:: *nsOnCacheEntryAvailableCallback)(
-        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult, PRBool);
-    nsOnCacheEntryAvailableCallback   mOnCacheEntryAvailableCallback;
-    PRBool                            mAsyncCacheOpen;
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
@@ -316,7 +288,6 @@ private:
     // cache entry.
     nsCString                         mFallbackKey;
 
-    friend class AutoRedirectVetoNotifier;
     nsCOMPtr<nsIURI>                  mRedirectURI;
     nsCOMPtr<nsIChannel>              mRedirectChannel;
     PRUint32                          mRedirectType;

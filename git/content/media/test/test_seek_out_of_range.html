@@ -11,7 +11,7 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-var manager = new MediaTestManager;
+var videos = [];
 
 // Test if the ended event works correctly.
 
@@ -33,8 +33,8 @@ function playbackEnded(e) {
   ok(v.ended, "Checking ended set after seeking to EOF and playing for " + v._name);
   ok(!v._finished, "Should only hit the end once for " + v._name);
   v._finished = true;
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  if (AllFinished(videos))
+    SimpleTest.finish();
 }
 
 function endSeek(e) {
@@ -51,11 +51,12 @@ function playing(e) {
   e.target._played = true;
 }
 
-function initTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
+  var test = gSmallTests[i];
   var type = /^video/.test(test.type) ? "video" : "audio";
   var v = document.createElement(type);
-  v.token = token;
-  manager.started(token);
+  if (!v.canPlayType(test.type))
+    continue;
   v.src = test.name;
   v._name = test.name;
   v._finished = false;
@@ -68,9 +69,14 @@ function initTest(test, token) {
   v.addEventListener("seeked", endSeek, false);
   v.addEventListener("ended", playbackEnded, false);
   document.body.appendChild(v);
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, initTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
 
 </script>
 </pre>

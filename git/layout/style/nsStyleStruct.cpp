@@ -1150,7 +1150,8 @@ nsChangeHint nsStylePosition::MaxDifference()
 nsStylePosition::WidthCoordDependsOnContainer(const nsStyleCoord &aCoord)
 {
   return aCoord.GetUnit() == eStyleUnit_Auto ||
-         aCoord.HasPercent() ||
+         aCoord.GetUnit() == eStyleUnit_Percent ||
+         (aCoord.IsCalcUnit() && aCoord.CalcHasPercent()) ||
          (aCoord.GetUnit() == eStyleUnit_Enumerated &&
           (aCoord.GetIntValue() == NS_STYLE_WIDTH_FIT_CONTENT ||
            aCoord.GetIntValue() == NS_STYLE_WIDTH_AVAILABLE));

@@ -208,10 +208,12 @@ function get_actual_results() {
  *         How the results are sorted (e.g. "name")
  * @param  aLocalExpected
  *         Boolean representing if local results are expected
+ * @param  aRemoteExpected
+ *         Boolean representing if remote results are expected
  * @return A pair: [array of results with an expected order,
  *                  array of results with unknown order]
  */
-function get_expected_results(aSortBy, aLocalExpected) {
+function get_expected_results(aSortBy, aLocalExpected, aRemoteExpected) {
   var expectedOrder = null, unknownOrder = null;
   switch (aSortBy) {
     case "relevancescore":
@@ -244,7 +246,7 @@ function get_expected_results(aSortBy, aLocalExpected) {
     if (aId.indexOf("addon") == 0 || aId.indexOf("install") == 0)
       return aLocalExpected;
     if (aId.indexOf("remote") == 0)
-      return !aLocalExpected;
+      return aRemoteExpected;
 
     return false;
   }
@@ -263,19 +265,21 @@ function get_expected_results(aSortBy, aLocalExpected) {
  *         How the results are sorted (e.g. "name")
  * @param  aReverseOrder
  *         Boolean representing if the results are in reverse default order
- * @param  aShowLocal
- *         Boolean representing if local results are being shown
+ * @param  aFilterLocal
+ *         Boolean representing if local results should be filtered out or not
+ * @param  aFilterRemote
+ *         Boolean representing if remote results should be filtered out or not
  */
-function check_results(aQuery, aSortBy, aReverseOrder, aShowLocal) {
-  var localFilterSelected = gManagerWindow.document.getElementById("search-filter-local").selected;
-  var remoteFilterSelected = gManagerWindow.document.getElementById("search-filter-remote").selected;
-  is(localFilterSelected, aShowLocal, "Local filter should be selected if showing local items");
-  is(remoteFilterSelected, !aShowLocal, "Remote filter should be selected if showing remote items");
+function check_results(aQuery, aSortBy, aReverseOrder, aFilterLocal, aFilterRemote) {
+  var localFilterChecked = gManagerWindow.document.getElementById("search-filter-local").checked;
+  var remoteFilterChecked = gManagerWindow.document.getElementById("search-filter-remote").checked;
+  is(localFilterChecked, !aFilterLocal, "Local filter should be checked if showing local items");
+  is(remoteFilterChecked, !aFilterRemote, "Remote filter should be checked if showing remote items");
 
   // Get expected order assuming default order
   var expectedOrder = [], unknownOrder = [];
   if (aQuery == QUERY)
-    [expectedOrder, unknownOrder] = get_expected_results(aSortBy, aShowLocal);
+    [expectedOrder, unknownOrder] = get_expected_results(aSortBy, !aFilterLocal, !aFilterRemote);
 
   // Get actual order of results
   var actualResults = get_actual_results();
@@ -326,13 +330,23 @@ function check_filtered_results(aQuery, aSortBy, aReverseOrder) {
   var list = gManagerWindow.document.getElementById("search-list");
   list.ensureElementIsVisible(localFilter);
 
-  // Check with showing local add-ons
-  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
-  check_results(aQuery, aSortBy, aReverseOrder, true);
+  // Check with no filtering
+  check_results(aQuery, aSortBy, aReverseOrder, false, false);
 
-  // Check with showing remote add-ons
+  // Check with filtering out local add-ons
+  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
+  check_results(aQuery, aSortBy, aReverseOrder, true, false);
+
+  // Check with filtering out both local and remote add-ons
   EventUtils.synthesizeMouse(remoteFilter, 2, 2, { }, gManagerWindow);
-  check_results(aQuery, aSortBy, aReverseOrder, false);
+  check_results(aQuery, aSortBy, aReverseOrder, true, true);
+
+  // Check with filtering out remote add-ons
+  EventUtils.synthesizeMouse(localFilter, 2, 2, { }, gManagerWindow);
+  check_results(aQuery, aSortBy, aReverseOrder, false, true);
+
+  // Set back to no filtering
+  EventUtils.synthesizeMouse(remoteFilter, 2, 2, { }, gManagerWindow);
 }
 
 /*
@@ -403,7 +417,7 @@ add_test(function() {
 // only remote items have install buttons showing
 add_test(function() {
   search(QUERY, false, function() {
-    check_filtered_results(QUERY, "relevancescore", false);
+    check_results(QUERY, "relevancescore", false);
 
     var list = gManagerWindow.document.getElementById("search-list");
     var results = get_actual_results();
@@ -493,7 +507,7 @@ add_test(function() {
 // Tests that searching for the empty string does nothing when in search view
 add_test(function() {
   search("", true, function() {
-    check_filtered_results(QUERY, "dateUpdated", true);
+    check_results(QUERY, "dateUpdated", true);
     run_next_test();
   });
 });
@@ -511,7 +525,7 @@ add_test(function() {
 // and the last sort is still used
 add_test(function() {
   search(QUERY, true, function() {
-    check_filtered_results(QUERY, "dateUpdated", true);
+    check_results(QUERY, "dateUpdated", true);
     run_next_test();
   });
 });
