@@ -2606,14 +2606,15 @@ GetRequestBody(nsIXHRSendable* aSendable, nsIInputStream** aResult,
 }
 
 static nsresult
-GetRequestBody(ArrayBuffer* aArrayBuffer, JSContext *aCx, nsIInputStream** aResult,
+GetRequestBody(JSObject* aArrayBuffer, JSContext *aCx, nsIInputStream** aResult,
                nsACString& aContentType, nsACString& aCharset)
 {
+  NS_ASSERTION(JS_IsArrayBufferObject(aArrayBuffer, aCx), "Not an ArrayBuffer!");
   aContentType.SetIsVoid(true);
   aCharset.Truncate();
 
-  PRInt32 length = aArrayBuffer->mLength;
-  char* data = reinterpret_cast<char*>(aArrayBuffer->mData);
+  PRInt32 length = JS_GetArrayBufferByteLength(aArrayBuffer, aCx);
+  char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(aArrayBuffer, aCx));
 
   nsCOMPtr<nsIInputStream> stream;
   nsresult rv = NS_NewByteInputStream(getter_AddRefs(stream), data, length,
@@ -2678,8 +2679,7 @@ GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
         (JS_IsArrayBufferObject(obj, aCx))) {
-      ArrayBuffer buf(aCx, obj);
-      return GetRequestBody(&buf, aCx, aResult, aContentType, aCharset);
+      return GetRequestBody(obj, aCx, aResult, aContentType, aCharset);
     }
   }
   else if (dataType == nsIDataType::VTYPE_VOID ||

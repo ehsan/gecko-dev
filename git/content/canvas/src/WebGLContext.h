@@ -44,7 +44,6 @@
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingUtils.h"
 
 /* 
  * Minimum value constants defined in 6.2 State Tables of OpenGL ES - 2.0.25
@@ -914,82 +913,74 @@ public:
     void Uniform1iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform1iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform1iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform1iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform1iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform1iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform2iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform2iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform2iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform2iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform2iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform2iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform3iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform3iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform3iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform3iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform3iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform3iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
     
     void Uniform4iv(WebGLUniformLocation* location, dom::Int32Array& arr) {
         Uniform4iv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform4iv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLint>& arr) {
+    void Uniform4iv(WebGLUniformLocation* location, nsTArray<WebGLint>& arr) {
         Uniform4iv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform4iv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLint* data);
+                         WebGLint* data);
 
     void Uniform1fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform1fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform1fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform1fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform1fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform1fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void Uniform2fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform2fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform2fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform2fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform2fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform2fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void Uniform3fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform3fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform3fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform3fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform3fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform3fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
     
     void Uniform4fv(WebGLUniformLocation* location, dom::Float32Array& arr) {
         Uniform4fv_base(location, arr.mLength, arr.mData);
     }
-    void Uniform4fv(WebGLUniformLocation* location,
-                    const dom::Sequence<WebGLfloat>& arr) {
+    void Uniform4fv(WebGLUniformLocation* location, nsTArray<WebGLfloat>& arr) {
         Uniform4fv_base(location, arr.Length(), arr.Elements());
     }
     void Uniform4fv_base(WebGLUniformLocation* location, uint32_t arrayLength,
-                         const WebGLfloat* data);
+                         WebGLfloat* data);
 
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -998,13 +989,13 @@ public:
     }
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix2fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix2fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1013,13 +1004,13 @@ public:
     }
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix3fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix3fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
@@ -1028,13 +1019,13 @@ public:
     }
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
-                          const dom::Sequence<float> &value) {
+                          nsTArray<float> &value) {
         UniformMatrix4fv_base(location, transpose, value.Length(),
                               value.Elements());
     }
     void UniformMatrix4fv_base(WebGLUniformLocation* location,
                                WebGLboolean transpose, uint32_t arrayLength,
-                               const float* data);
+                               float* data);
 
     void UseProgram(WebGLProgram *prog);
     void ValidateProgram(WebGLProgram *prog);
@@ -1049,38 +1040,38 @@ public:
     void VertexAttrib1fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib1fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib1fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib1fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib1fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib1fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib2fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib2fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib2fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib2fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib2fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib2fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib3fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib3fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib3fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib3fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib3fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib3fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
 
     void VertexAttrib4fv(WebGLuint idx, dom::Float32Array &arr) {
         VertexAttrib4fv_base(idx, arr.mLength, arr.mData);
     }
-    void VertexAttrib4fv(WebGLuint idx, const dom::Sequence<WebGLfloat>& arr) {
+    void VertexAttrib4fv(WebGLuint idx, nsTArray<WebGLfloat>& arr) {
         VertexAttrib4fv_base(idx, arr.Length(), arr.Elements());
     }
     void VertexAttrib4fv_base(WebGLuint idx, uint32_t arrayLength,
-                              const WebGLfloat* ptr);
+                              WebGLfloat* ptr);
     
     void VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type,
                              WebGLboolean normalized, WebGLsizei stride,

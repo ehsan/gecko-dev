@@ -583,9 +583,6 @@ class IDLType(IDLObject):
     def __eq__(self, other):
         return other and self.name == other.name and self.builtin == other.builtin
 
-    def __ne__(self, other):
-        return not self == other
-
     def __str__(self):
         return str(self.name)
 
@@ -612,27 +609,6 @@ class IDLType(IDLObject):
 
     def isArrayBuffer(self):
         return False
-
-    def isArrayBufferView(self):
-        return False
-
-    def isTypedArray(self):
-        return False
-
-    def isGeckoInterface(self):
-        """ Returns a boolean indicating whether this type is an 'interface'
-            type that is implemented in Gecko. At the moment, this returns
-            true for all interface types that are not types from the TypedArray
-            spec."""
-        return self.isInterface() and not self.isSpiderMonkeyInterface()
-
-    def isSpiderMonkeyInterface(self):
-        """ Returns a boolean indicating whether this type is an 'interface'
-            type that is implemented in Spidermonkey.  At the moment, this
-            only returns true for the types from the TypedArray spec. """
-        return self.isInterface() and (self.isArrayBuffer() or \
-                                       self.isArrayBufferView() or \
-                                       self.isTypedArray())
 
     def isDictionary(self):
         return False
@@ -753,12 +729,6 @@ class IDLNullableType(IDLType):
 
     def isArrayBuffer(self):
         return self.inner.isArrayBuffer()
-
-    def isArrayBufferView(self):
-        return self.inner.isArrayBufferView()
-
-    def isTypedArray(self):
-        return self.inner.isTypedArray()
 
     def isDictionary(self):
         return self.inner.isDictionary()
@@ -970,15 +940,6 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
     def isDictionary(self):
         return self.inner.isDictionary()
 
-    def isArrayBuffer(self):
-        return self.inner.isArrayBuffer()
-
-    def isArrayBufferView(self):
-        return self.inner.isArrayBufferView()
-
-    def isTypedArray(self):
-        return self.inner.isTypedArray()
-
     def isInterface(self):
         return self.inner.isInterface()
 
@@ -999,16 +960,14 @@ class IDLWrapperType(IDLType):
     def __init__(self, location, inner):
         IDLType.__init__(self, location, inner.identifier.name)
         self.inner = inner
-        self._identifier = inner.identifier
+        self.name = inner.identifier
         self.builtin = False
 
     def __eq__(self, other):
-        return isinstance(other, IDLWrapperType) and \
-               self._identifier == other._identifier and \
-               self.builtin == other.builtin
+        return other and self.name == other.name and self.builtin == other.builtin
 
     def __str__(self):
-        return str(self.name) + " (Wrapper)"
+        return str(self.name.name) + " (Wrapper)"
 
     def nullable(self):
         return False
@@ -1095,17 +1054,7 @@ class IDLBuiltinType(IDLType):
         'date',
         'void',
         # Funny stuff
-        'ArrayBuffer',
-        'ArrayBufferView',
-        'Int8Array',
-        'Uint8Array',
-        'Uint8ClampedArray',
-        'Int16Array',
-        'Uint16Array',
-        'Int32Array',
-        'Uint32Array',
-        'Float32Array',
-        'Float64Array'
+        'ArrayBuffer'
         )
 
     TagLookup = {
@@ -1125,17 +1074,7 @@ class IDLBuiltinType(IDLType):
             Types.object: IDLType.Tags.object,
             Types.date: IDLType.Tags.date,
             Types.void: IDLType.Tags.void,
-            Types.ArrayBuffer: IDLType.Tags.interface,
-            Types.ArrayBufferView: IDLType.Tags.interface,
-            Types.Int8Array: IDLType.Tags.interface,
-            Types.Uint8Array: IDLType.Tags.interface,
-            Types.Uint8ClampedArray: IDLType.Tags.interface,
-            Types.Int16Array: IDLType.Tags.interface,
-            Types.Uint16Array: IDLType.Tags.interface,
-            Types.Int32Array: IDLType.Tags.interface,
-            Types.Uint32Array: IDLType.Tags.interface,
-            Types.Float32Array: IDLType.Tags.interface,
-            Types.Float64Array: IDLType.Tags.interface
+            Types.ArrayBuffer: IDLType.Tags.interface
         }
 
     def __init__(self, location, name, type):
@@ -1155,20 +1094,11 @@ class IDLBuiltinType(IDLType):
     def isArrayBuffer(self):
         return self._typeTag == IDLBuiltinType.Types.ArrayBuffer
 
-    def isArrayBufferView(self):
-        return self._typeTag == IDLBuiltinType.Types.ArrayBufferView
-
-    def isTypedArray(self):
-        return self._typeTag >= IDLBuiltinType.Types.Int8Array and \
-               self._typeTag <= IDLBuiltinType.Types.Float64Array
-
     def isInterface(self):
-        # TypedArray things are interface types per the TypedArray spec,
+        # ArrayBuffers are interface types per the TypedArray spec,
         # but we handle them as builtins because SpiderMonkey implements
-        # all of it internally.
-        return self.isArrayBuffer() or \
-               self.isArrayBufferView() or \
-               self.isTypedArray()
+        # ArrayBuffers.
+        return self._typeTag == IDLBuiltinType.Types.ArrayBuffer
 
     def isFloat(self):
         return self._typeTag == IDLBuiltinType.Types.float or \
@@ -1196,24 +1126,12 @@ class IDLBuiltinType(IDLType):
         if self.isVoid():
             return not other.isVoid()
         # Not much else we could be!
-        assert self.isSpiderMonkeyInterface()
+        assert self.isArrayBuffer()
         # Like interfaces, but we know we're not a callback
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isCallback() or other.isDictionary() or
                 other.isSequence() or other.isArray() or other.isDate() or
-                (other.isInterface() and (
-                 # ArrayBuffer is distinguishable from everything
-                 # that's not an ArrayBuffer
-                 (self.isArrayBuffer() and not other.isArrayBuffer()) or
-                 # ArrayBufferView is distinguishable from everything
-                 # that's not an ArrayBufferView or typed array.
-                 (self.isArrayBufferView() and not other.isArrayBufferView() and
-                  not other.isTypedArray()) or
-                 # Typed arrays are distinguishable from everything
-                 # except ArrayBufferView and the same type of typed
-                 # array
-                 (self.isTypedArray() and not other.isArrayBufferView() and not
-                  (other.isTypedArray() and other.name == self.name)))))
+                (other.isInterface() and not other.isArrayBuffer()))
 
 BuiltinTypes = {
       IDLBuiltinType.Types.byte:
@@ -1266,37 +1184,7 @@ BuiltinTypes = {
                          IDLBuiltinType.Types.void),
       IDLBuiltinType.Types.ArrayBuffer:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "ArrayBuffer",
-                         IDLBuiltinType.Types.ArrayBuffer),
-      IDLBuiltinType.Types.ArrayBufferView:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "ArrayBufferView",
-                         IDLBuiltinType.Types.ArrayBufferView),
-      IDLBuiltinType.Types.Int8Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Int8Array",
-                         IDLBuiltinType.Types.Int8Array),
-      IDLBuiltinType.Types.Uint8Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Uint8Array",
-                         IDLBuiltinType.Types.Uint8Array),
-      IDLBuiltinType.Types.Uint8ClampedArray:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Uint8ClampedArray",
-                         IDLBuiltinType.Types.Uint8ClampedArray),
-      IDLBuiltinType.Types.Int16Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Int16Array",
-                         IDLBuiltinType.Types.Int16Array),
-      IDLBuiltinType.Types.Uint16Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Uint16Array",
-                         IDLBuiltinType.Types.Uint16Array),
-      IDLBuiltinType.Types.Int32Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Int32Array",
-                         IDLBuiltinType.Types.Int32Array),
-      IDLBuiltinType.Types.Uint32Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Uint32Array",
-                         IDLBuiltinType.Types.Uint32Array),
-      IDLBuiltinType.Types.Float32Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Float32Array",
-                         IDLBuiltinType.Types.Float32Array),
-      IDLBuiltinType.Types.Float64Array:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "Float64Array",
-                         IDLBuiltinType.Types.Float64Array)
+                         IDLBuiltinType.Types.ArrayBuffer)
     }
 
 
@@ -2912,7 +2800,6 @@ class Parser(Tokenizer):
                                 outputdir=outputdir,
                                 tabmodule='webidlyacc')
         self._globalScope = IDLScope(BuiltinLocation("<Global Scope>"), None, None)
-        self._installBuiltins(self._globalScope)
         self._productions = []
 
         self._filename = "<builtin>"
@@ -2920,17 +2807,6 @@ class Parser(Tokenizer):
         self._filename = None
 
         self.parser.parse(lexer=self.lexer)
-
-    def _installBuiltins(self, scope):
-        assert isinstance(scope, IDLScope)
-
-        # xrange omits the last value.
-        for x in xrange(IDLBuiltinType.Types.ArrayBuffer, IDLBuiltinType.Types.Float64Array + 1):
-            builtin = BuiltinTypes[x]
-            name = builtin.name
-
-            typedef = IDLTypedefType(BuiltinLocation("<builtin type>"), builtin, name)
-            typedef.resolve(scope)
 
     def parse(self, t, filename=None):
         self.lexer.input(t)

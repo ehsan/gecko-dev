@@ -668,6 +668,10 @@ XPCWrappedNativeScope::FindInJSObjectScope(JSContext* cx, JSObject* obj,
     JSAutoEnterCompartment ac;
     ac.enterAndIgnoreErrors(cx, obj);
 
+#ifdef DEBUG
+    JSObject *startingObj = obj;
+#endif
+
     obj = JS_GetGlobalForObject(cx, obj);
 
     if (js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL) {

@@ -95,10 +95,9 @@ UnwrapDOMObject(JSObject* obj, const js::Class* clasp)
 // Some callers don't want to set an exception when unwrappin fails
 // (for example, overload resolution uses unwrapping to tell what sort
 // of thing it's looking at).
-// U must be something that a T* can be assigned to (e.g. T* or an nsRefPtr<T>).
-template <prototypes::ID PrototypeID, class T, typename U>
+template <prototypes::ID PrototypeID, class T>
 inline nsresult
-UnwrapObject(JSContext* cx, JSObject* obj, U& value)
+UnwrapObject(JSContext* cx, JSObject* obj, T** value)
 {
   /* First check to see whether we have a DOM object */
   JSClass* clasp = js::GetObjectJSClass(obj);
@@ -129,7 +128,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
   DOMJSClass* domClass = DOMJSClass::FromJSClass(clasp);
   if (domClass->mInterfaceChain[PrototypeTraits<PrototypeID>::Depth] ==
       PrototypeID) {
-    value = UnwrapDOMObject<T>(obj, clasp);
+    *value = UnwrapDOMObject<T>(obj, clasp);
     return NS_OK;
   }
 
@@ -189,10 +188,9 @@ IsPlatformObject(JSContext* cx, JSObject* obj)
     JS_IsArrayBufferObject(obj, cx);
 }
 
-// U must be something that a T* can be assigned to (e.g. T* or an nsRefPtr<T>).
-template <class T, typename U>
+template <class T>
 inline nsresult
-UnwrapObject(JSContext* cx, JSObject* obj, U& value)
+UnwrapObject(JSContext* cx, JSObject* obj, T* *value)
 {
   return UnwrapObject<static_cast<prototypes::ID>(
            PrototypeIDMap<T>::PrototypeID)>(cx, obj, value);
@@ -744,15 +742,6 @@ ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
   result.Rebind(chars, len);
   return true;
 }
-
-// Class for representing sequences in arguments.  We use an auto array that can
-// hold 16 elements, to avoid having to allocate in common cases.  This needs to
-// be fallible because web content controls the length of the array, and can
-// easily try to create very large lengths.
-template<typename T>
-class Sequence : public AutoFallibleTArray<T, 16>
-{
-};
 
 } // namespace dom
 } // namespace mozilla

@@ -33,7 +33,6 @@
 #endif
 
 using namespace mozilla;
-using namespace xpc;
 
 /***************************************************************************/
 
@@ -226,7 +225,8 @@ CompartmentDestroyedCallback(JSFreeOp *fop, JSCompartment *compartment)
 
     // Get the current compartment private into an AutoPtr (which will do the
     // cleanup for us), and null out the private (which may already be null).
-    nsAutoPtr<CompartmentPrivate> priv(GetCompartmentPrivate(compartment));
+    nsAutoPtr<xpc::CompartmentPrivate>
+      priv(static_cast<xpc::CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment)));
     JS_SetCompartmentPrivate(compartment, nsnull);
 
     // JSD creates compartments in our runtime without going through our creation
@@ -387,7 +387,8 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
     // Trace compartments.
     XPCCompartmentSet &set = GetCompartmentSet();
     for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
-        CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
+        xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
+            JS_GetCompartmentPrivate(r.front());
         if (priv->expandoMap)
             priv->expandoMap->Enumerate(TraceExpandos, trc);
         if (priv->domExpandoMap)
@@ -537,7 +538,8 @@ XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionTraversalCallback &cb)
     // Suspect wrapped natives with expando objects.
     XPCCompartmentSet &set = GetCompartmentSet();
     for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
-        CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
+        xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
+            JS_GetCompartmentPrivate(r.front());
         if (priv->expandoMap)
             priv->expandoMap->EnumerateRead(SuspectExpandos, &closure);
         if (priv->domExpandoMap)
@@ -673,7 +675,8 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status)
             // Sweep compartments.
             XPCCompartmentSet &set = self->GetCompartmentSet();
             for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
-                CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
+                xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
+                    JS_GetCompartmentPrivate(r.front());
                 if (priv->waiverWrapperMap)
                     priv->waiverWrapperMap->Sweep();
                 if (priv->expandoMap)
@@ -1170,7 +1173,8 @@ GetCompartmentName(JSCompartment *c, nsCString &name)
         // script location, append the compartment's location to allow
         // differentiation of multiple compartments owned by the same principal
         // (e.g. components owned by the system or null principal).
-        CompartmentPrivate *compartmentPrivate = GetCompartmentPrivate(c);
+        xpc::CompartmentPrivate *compartmentPrivate =
+            static_cast<xpc::CompartmentPrivate*>(JS_GetCompartmentPrivate(c));
         if (compartmentPrivate) {
             const nsACString& location = compartmentPrivate->GetLocation();
             if (!location.IsEmpty() && !location.Equals(name)) {
