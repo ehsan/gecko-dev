@@ -232,7 +232,9 @@ class ConfigEnvironment(object):
         # Empty line to avoid failures when last line in Makefile.in ends
         # with a backslash.
         pp.handleLine('\n')
-        pp.handleLine('include $(topsrcdir)/config/recurse.mk\n')
+        pp.handleLine('ifndef INCLUDED_RULES_MK\n')
+        pp.handleLine('include $(topsrcdir)/config/rules.mk\n')
+        pp.handleLine('endif\n')
         return pp.out.close()
 
     def _get_preprocessor(self, path, extra):

@@ -282,6 +282,7 @@ nsIdentifierMapEntry::AddContentChangeCallback(nsIDocument::IDTargetObserver aCa
     mChangeCallbacks = new nsTHashtable<ChangeCallbackEntry>;
     if (!mChangeCallbacks)
       return;
+    mChangeCallbacks->Init();
   }
 
   ChangeCallback cc = { aCallback, aData, aForImage };
@@ -696,6 +697,8 @@ nsOnloadBlocker::SetLoadFlags(nsLoadFlags aLoadFlags)
 nsExternalResourceMap::nsExternalResourceMap()
   : mHaveShutDown(false)
 {
+  mMap.Init();
+  mPendingLoads.Init();
 }
 
 nsIDocument*
@@ -1391,6 +1394,8 @@ nsDocument::nsDocument(const char* aContentType)
 
   // Start out mLastStyleSheetSet as null, per spec
   SetDOMStringToNull(mLastStyleSheetSet);
+
+  mLinksToUpdate.Init();
 }
 
 static PLDHashOperator
@@ -1431,9 +1436,6 @@ nsDocument::~nsDocument()
     }
 
     if (!isAboutScheme) {
-      // Record the page load
-      uint32_t pageLoaded = 1;
-      Accumulate(Telemetry::MIXED_CONTENT_UNBLOCK_COUNTER, pageLoaded);
       // Record the mixed content status of the docshell in Telemetry
       enum {
         NO_MIXED_CONTENT = 0, // There is no Mixed Content on the page
@@ -1932,6 +1934,11 @@ nsDocument::Init()
     Preferences::AddUintVarCache(&sOnloadDecodeLimit, "image.onload.decode.limit", 0);
   }
 
+  mIdentifierMap.Init();
+  mStyledLinks.Init();
+  mRadioGroups.Init();
+  mCustomPrototypes.Init();
+
   // Force initialization.
   nsINode::nsSlots* slots = Slots();
 
@@ -1972,6 +1979,9 @@ nsDocument::Init()
   MOZ_ASSERT(mScopeObject);
 
   mScriptLoader = new nsScriptLoader(this);
+
+  mImageTracker.Init();
+  mPlugins.Init();
 
   mozilla::HoldJSObjects(this);
 
@@ -6134,7 +6144,8 @@ nsDocument::GetBoxObjectFor(Element* aElement, ErrorResult& aRv)
   }
 
   if (!mBoxObjectTable) {
-    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>(12);
+    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
+    mBoxObjectTable->Init(12);
   } else {
     nsCOMPtr<nsPIBoxObject> boxObject = mBoxObjectTable->Get(aElement);
     if (boxObject) {
@@ -8752,6 +8763,7 @@ nsIDocument::RegisterFreezableElement(nsIContent* aContent)
     mFreezableElements = new nsTHashtable<nsPtrHashKey<nsIContent> >();
     if (!mFreezableElements)
       return;
+    mFreezableElements->Init();
   }
   mFreezableElements->PutEntry(aContent);
 }

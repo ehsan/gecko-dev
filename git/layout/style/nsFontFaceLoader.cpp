@@ -288,6 +288,7 @@ nsUserFontSet::nsUserFontSet(nsPresContext *aContext)
   : mPresContext(aContext)
 {
   NS_ASSERTION(mPresContext, "null context passed to nsUserFontSet");
+  mLoaders.Init();
 }
 
 nsUserFontSet::~nsUserFontSet()

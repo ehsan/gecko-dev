@@ -199,19 +199,15 @@ ExpireRecentBookmarksByParent(nsTHashtable<BookmarkKeyClass>* hashTable,
 } // Anonymous namespace.
 
 
-nsNavBookmarks::nsNavBookmarks()
-  : mItemCount(0)
-  , mRoot(0)
-  , mMenuRoot(0)
-  , mTagsRoot(0)
-  , mUnfiledRoot(0)
-  , mToolbarRoot(0)
-  , mCanNotify(false)
-  , mCacheObservers("bookmark-observers")
-  , mBatching(false)
-  , mBookmarkToKeywordHash(BOOKMARKS_TO_KEYWORDS_INITIAL_CACHE_SIZE)
-  , mRecentBookmarksCache(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE)
-  , mUncachableBookmarks(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE)
+nsNavBookmarks::nsNavBookmarks() : mItemCount(0)
+                                 , mRoot(0)
+                                 , mMenuRoot(0)
+                                 , mTagsRoot(0)
+                                 , mUnfiledRoot(0)
+                                 , mToolbarRoot(0)
+                                 , mCanNotify(false)
+                                 , mCacheObservers("bookmark-observers")
+                                 , mBatching(false)
 {
   NS_ASSERTION(!gBookmarksService,
                "Attempting to create two instances of the service!");
@@ -242,6 +238,9 @@ nsNavBookmarks::Init()
 {
   mDB = Database::GetDatabase();
   NS_ENSURE_STATE(mDB);
+
+  mRecentBookmarksCache.Init(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE);
+  mUncachableBookmarks.Init(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE);
 
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os) {
@@ -2325,6 +2324,7 @@ nsNavBookmarks::GetItemIndex(int64_t aItemId, int32_t* _index)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP
 nsNavBookmarks::SetItemIndex(int64_t aItemId, int32_t aNewIndex)
 {
@@ -2605,6 +2605,11 @@ nsNavBookmarks::GetURIForKeyword(const nsAString& aUserCasedKeyword,
 
 nsresult
 nsNavBookmarks::EnsureKeywordsHash() {
+  if (mBookmarkToKeywordHash.IsInitialized())
+    return NS_OK;
+
+  mBookmarkToKeywordHash.Init(BOOKMARKS_TO_KEYWORDS_INITIAL_CACHE_SIZE);
+
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = mDB->MainConn()->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT b.id, k.keyword "

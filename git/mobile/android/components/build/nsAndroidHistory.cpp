@@ -29,6 +29,7 @@ nsAndroidHistory::GetSingleton()
 
 nsAndroidHistory::nsAndroidHistory()
 {
+  mListeners.Init();
 }
 
 NS_IMETHODIMP

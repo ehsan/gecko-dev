@@ -8,7 +8,11 @@
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
 #include <limits>
+#include "nsNetUtil.h"
+#include "AudioStream.h"
+#include "mozilla/dom/HTMLVideoElement.h"
 #include "nsIObserver.h"
+#include "nsIObserverService.h"
 #include "nsTArray.h"
 #include "VideoUtils.h"
 #include "MediaDecoderStateMachine.h"
@@ -18,9 +22,6 @@
 #include "MediaResource.h"
 #include "nsError.h"
 #include "mozilla/Preferences.h"
-#include "nsIMemoryReporter.h"
-#include "nsComponentManagerUtils.h"
-#include "nsITimer.h"
 #include <algorithm>
 
 #ifdef MOZ_WMF
@@ -73,7 +74,7 @@ class MediaMemoryTracker
 
   DecodersArray mDecoders;
 
-  nsCOMPtr<nsIMemoryMultiReporter> mReporter;
+  nsCOMPtr<nsIMemoryReporter> mReporter;
 
 public:
   static void AddMediaDecoder(MediaDecoder* aDecoder)
@@ -1724,7 +1725,7 @@ MediaDecoder::IsWMFEnabled()
 }
 #endif
 
-class MediaReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class MediaReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
   NS_DECL_ISUPPORTS
@@ -1735,7 +1736,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback* aCb,
+  NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCb,
                             nsISupports* aClosure)
   {
     int64_t video, audio;
@@ -1761,7 +1762,7 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(MediaReporter, nsIMemoryMultiReporter)
+NS_IMPL_ISUPPORTS1(MediaReporter, nsIMemoryReporter)
 
 MediaDecoderOwner*
 MediaDecoder::GetOwner()
@@ -1773,12 +1774,12 @@ MediaDecoder::GetOwner()
 MediaMemoryTracker::MediaMemoryTracker()
   : mReporter(new MediaReporter())
 {
-  NS_RegisterMemoryMultiReporter(mReporter);
+  NS_RegisterMemoryReporter(mReporter);
 }
 
 MediaMemoryTracker::~MediaMemoryTracker()
 {
-  NS_UnregisterMemoryMultiReporter(mReporter);
+  NS_UnregisterMemoryReporter(mReporter);
 }
 
 } // namespace mozilla

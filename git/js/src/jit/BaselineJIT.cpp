@@ -100,7 +100,7 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
         IonContext ictx(cx, NULL);
         JitActivation activation(cx, data.constructing);
         JSAutoResolveFlags rf(cx, RESOLVE_INFER);
-        AutoFlushInhibitor afi(cx->runtime()->ionRuntime());
+        AutoFlushInhibitor afi(cx->compartment()->ionCompartment());
 
         if (data.osrFrame)
             data.osrFrame->setRunningInJit();
@@ -723,9 +723,8 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
 
     SrcNoteLineScanner scanner(script->notes(), script->lineno);
 
-    JSRuntime *rt = script->runtimeFromMainThread();
-    IonContext ictx(rt, script->compartment(), NULL);
-    AutoFlushCache afc("DebugTraps", rt->ionRuntime());
+    IonContext ictx(script->runtimeFromMainThread(), script->compartment(), NULL);
+    AutoFlushCache afc("DebugTraps");
 
     for (uint32_t i = 0; i < numPCMappingIndexEntries(); i++) {
         PCMappingIndexEntry &entry = pcMappingIndexEntry(i);

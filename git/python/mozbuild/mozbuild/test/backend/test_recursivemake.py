@@ -58,7 +58,9 @@ class TestRecursiveMakeBackend(BackendTester):
             '',
             'FOO := foo',
             '',
-            'include $(topsrcdir)/config/recurse.mk',
+            'ifndef INCLUDED_RULES_MK',
+            'include $(topsrcdir)/config/rules.mk',
+            'endif',
         ])
 
     def test_missing_makefile_in(self):
@@ -69,7 +71,7 @@ class TestRecursiveMakeBackend(BackendTester):
         self.assertTrue(os.path.exists(p))
 
         lines = [l.strip() for l in open(p, 'rt').readlines()]
-        self.assertEqual(len(lines), 9)
+        self.assertEqual(len(lines), 11)
 
         self.assertTrue(lines[0].startswith('# THIS FILE WAS AUTOMATICALLY'))
 
@@ -384,21 +386,6 @@ class TestRecursiveMakeBackend(BackendTester):
             "IPDLDIRS := %s/bar %s/foo" % (topsrcdir, topsrcdir),
         ]
         self.assertEqual(lines, expected)
-
-    def test_local_includes(self):
-        """Test that LOCAL_INCLUDES are written to backend.mk correctly."""
-        env = self._consume('local_includes', RecursiveMakeBackend)
-
-        backend_path = os.path.join(env.topobjdir, 'backend.mk')
-        lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
-
-        expected = [
-            'LOCAL_INCLUDES += -I$(topsrcdir)/bar/baz',
-            'LOCAL_INCLUDES += -I$(srcdir)/foo',
-        ]
-
-        found = [str for str in lines if str.startswith('LOCAL_INCLUDES')]
-        self.assertEqual(found, expected)
 
 if __name__ == '__main__':
     main()

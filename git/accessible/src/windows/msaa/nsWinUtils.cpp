@@ -30,7 +30,7 @@ const PRUnichar* kPropNameTabContent = L"AccessibleTabWindow";
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg,
                                    WPARAM wParam, LPARAM lParam);
 
-nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible>* nsWinUtils::sHWNDCache = nullptr;
+nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible> nsWinUtils::sHWNDCache;
 
 already_AddRefed<nsIDOMCSSStyleDeclaration>
 nsWinUtils::GetComputedStyleDeclaration(nsIContent* aContent)
@@ -60,7 +60,7 @@ nsWinUtils::MaybeStartWindowEmulation()
       Compatibility::IsDolphin() ||
       Preferences::GetBool("browser.tabs.remote")) {
     RegisterNativeWindow(kClassNameTabContent);
-    sHWNDCache = new nsRefPtrHashtable<nsPtrHashKey<void>, DocAccessible>(4);
+    sHWNDCache.Init(4);
     return true;
   }
 
@@ -79,7 +79,7 @@ nsWinUtils::ShutdownWindowEmulation()
 bool
 nsWinUtils::IsWindowEmulationStarted()
 {
-  return sHWNDCache != nullptr;
+  return sHWNDCache.IsInitialized();
 }
 
 void
@@ -145,7 +145,7 @@ WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
       if (lParam == OBJID_CLIENT) {
         DocAccessible* document =
-          nsWinUtils::sHWNDCache->GetWeak(static_cast<void*>(hWnd));
+          nsWinUtils::sHWNDCache.GetWeak(static_cast<void*>(hWnd));
         if (document) {
           IAccessible* msaaAccessible = nullptr;
           document->GetNativeInterface((void**)&msaaAccessible); // does an addref

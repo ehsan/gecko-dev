@@ -37,6 +37,8 @@ NativeKeyBindings::Init(NativeKeyBindingsType aType)
   PR_LOG(gNativeKeyBindingsLog, PR_LOG_ALWAYS,
     ("%p NativeKeyBindings::Init", this));
 
+  mSelectorToCommand.Init();
+
   // Many selectors have a one-to-one mapping to a Gecko command. Those mappings
   // are registered in mSelectorToCommand.
 

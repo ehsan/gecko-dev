@@ -125,6 +125,7 @@ static ContentMap* sContentMap = nullptr;
 static ContentMap& GetContentMap() {
   if (!sContentMap) {
     sContentMap = new ContentMap();
+    sContentMap->Init();
   }
   return *sContentMap;
 }

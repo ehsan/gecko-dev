@@ -10,6 +10,7 @@
 
 nsFontFaceList::nsFontFaceList()
 {
+  mFontFaces.Init();
 }
 
 nsFontFaceList::~nsFontFaceList()

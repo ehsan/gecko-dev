@@ -81,8 +81,6 @@ protected:
   int mCr;
 };
 
-class SineWaveGenerator;
-
 class MediaEngineDefaultAudioSource : public nsITimerCallback,
                                       public MediaEngineAudioSource
 {
@@ -119,7 +117,6 @@ protected:
   nsCOMPtr<nsITimer> mTimer;
 
   SourceMediaStream* mSource;
-  nsRefPtr<SineWaveGenerator> mSineGenerator;
 };
 
 

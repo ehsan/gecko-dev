@@ -719,9 +719,9 @@ protected:
      */
     PLDHashTable* mBroadcasterMap;
 
-    nsAutoPtr<nsInterfaceHashtable<nsURIHashKey,nsIObserver> > mOverlayLoadObservers;
-    nsAutoPtr<nsInterfaceHashtable<nsURIHashKey,nsIObserver> > mPendingOverlayLoadNotifications;
-
+    nsInterfaceHashtable<nsURIHashKey,nsIObserver> mOverlayLoadObservers;
+    nsInterfaceHashtable<nsURIHashKey,nsIObserver> mPendingOverlayLoadNotifications;
+    
     bool mInitialLayoutComplete;
 
     class nsDelayedBroadcastUpdate

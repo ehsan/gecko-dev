@@ -87,7 +87,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/DirectionalityUtils.h"
 #include "nsRadioVisitor.h"
-#include "nsTextEditorState.h"
 
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Util.h" // DebugOnly
@@ -1539,13 +1538,6 @@ HTMLInputElement::IsValueEmpty() const
   GetValueInternal(value);
 
   return value.IsEmpty();
-}
-
-void
-HTMLInputElement::ClearFiles(bool aSetValueChanged)
-{
-  nsTArray<nsCOMPtr<nsIDOMFile> > files;
-  SetFiles(files, aSetValueChanged);
 }
 
 static Decimal StringToDecimal(nsAString& aValue)

@@ -8,6 +8,7 @@
 # include <valgrind/memcheck.h>
 #endif
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsprf.h"

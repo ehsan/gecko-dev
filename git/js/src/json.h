@@ -7,6 +7,7 @@
 #ifndef json_h
 #define json_h
 
+#include "jsapi.h"
 #include "NamespaceImports.h"
 
 #include "js/RootingAPI.h"

@@ -109,6 +109,7 @@ nsCheapSet<EntryType>::Put(const KeyType aVal)
   case ONE:
     {
       nsTHashtable<EntryType> *table = new nsTHashtable<EntryType>();
+      table->Init();
       EntryType *entry = GetSingleEntry();
       table->PutEntry(entry->GetKey());
       entry->~EntryType();

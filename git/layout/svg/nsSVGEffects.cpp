@@ -422,6 +422,7 @@ GetEffectPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
     static_cast<nsSVGEffects::URIObserverHashtable*>(props.Get(aProperty));
   if (!hashtable) {
     hashtable = new nsSVGEffects::URIObserverHashtable();
+    hashtable->Init();
     props.Set(aProperty, hashtable);
   }
   nsSVGRenderingObserver* prop =

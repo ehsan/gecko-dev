@@ -17,6 +17,7 @@ NS_IMPL_ISUPPORTS1(nsLanguageAtomService, nsILanguageAtomService)
 
 nsLanguageAtomService::nsLanguageAtomService()
 {
+  mLangToGroup.Init();
 }
 
 nsresult

@@ -78,6 +78,7 @@ nsNativeModuleLoader::Init()
 {
     MOZ_ASSERT(NS_IsMainThread(), "Startup not on main thread?");
     LOG(PR_LOG_DEBUG, ("nsNativeModuleLoader::Init()"));
+    mLibraries.Init();
     return NS_OK;
 }
 

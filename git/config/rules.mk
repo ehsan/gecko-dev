@@ -21,7 +21,6 @@ INCLUDED_RULES_MK = 1
 # present. If they are, this is a violation of the separation of
 # responsibility between Makefile.in and mozbuild files.
 _MOZBUILD_EXTERNAL_VARIABLES := \
-  CMMSRCS \
   CPP_UNIT_TESTS \
   DIRS \
   EXTRA_PP_COMPONENTS \
@@ -436,10 +435,7 @@ endif
 
 ifdef MACH
 ifndef NO_BUILDSTATUS_MESSAGES
-define BUILDSTATUS
-@echo "BUILDSTATUS $1"
-
-endef
+BUILDSTATUS=@echo "BUILDSTATUS $1"
 endif
 endif
 
@@ -460,6 +456,7 @@ $(call SUBMAKE,$(4),$(3),$(5))
 $(call BUILDSTATUS,TIERDIR_FINISH $(1) $(2) $(3))
 
 endef # Ths empty line is important.
+
 
 ifneq (,$(strip $(DIRS)))
 LOOP_OVER_DIRS = \
@@ -690,11 +687,12 @@ SUBMAKEFILES += $(addsuffix /Makefile, $(DIRS) $(TOOL_DIRS) $(PARALLEL_DIRS))
 # of something else. Makefiles which use this var *must* provide a sensible
 # default rule before including rules.mk
 ifndef SUPPRESS_DEFAULT_RULES
+ifndef TIERS
 default all::
 	$(MAKE) export
-	$(MAKE) compile
 	$(MAKE) libs
 	$(MAKE) tools
+endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
 ifeq ($(findstring s,$(filter-out --%, $(MAKEFLAGS))),)
@@ -718,6 +716,35 @@ ifneq (,$(DIRS)$(TOOL_DIRS)$(PARALLEL_DIRS))
 	$(LOOP_OVER_TOOL_DIRS)
 endif
 
+#########################
+# Tier traversal handling
+#########################
+define CREATE_SUBTIER_TRAVERSAL_RULE
+PARALLEL_DIRS_$(1) = $$(addsuffix _$(1),$$(PARALLEL_DIRS))
+
+.PHONY: $(1) $$(PARALLEL_DIRS_$(1))
+
+ifdef PARALLEL_DIRS
+$(1):: $$(PARALLEL_DIRS_$(1))
+
+$$(PARALLEL_DIRS_$(1)): %_$(1): %/Makefile
+	+@$$(call SUBMAKE,$(1),$$*)
+endif
+
+endef
+
+$(foreach subtier,export libs tools,$(eval $(call CREATE_SUBTIER_TRAVERSAL_RULE,$(subtier))))
+
+export:: $(SUBMAKEFILES)
+	$(LOOP_OVER_DIRS)
+	$(LOOP_OVER_TOOL_DIRS)
+
+
+tools:: $(SUBMAKEFILES)
+	$(LOOP_OVER_DIRS)
+	$(foreach dir,$(TOOL_DIRS),$(call SUBMAKE,libs,$(dir)))
+
+
 ifneq (,$(filter-out %.$(LIB_SUFFIX),$(SHARED_LIBRARY_LIBS)))
 $(error SHARED_LIBRARY_LIBS must contain .$(LIB_SUFFIX) files only)
 endif
@@ -731,8 +758,6 @@ GLOBAL_DEPS += Makefile.in
 endif
 
 ##############################################
-compile:: $(OBJS) $(HOST_OBJS)
-
 include $(topsrcdir)/config/makefiles/target_libs.mk
 
 ##############################################

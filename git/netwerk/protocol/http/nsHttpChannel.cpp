@@ -1005,14 +1005,8 @@ nsHttpChannel::CallOnStartRequest()
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
-    nsresult rv;
-    if (mListener) {
-        nsresult rv = mListener->OnStartRequest(this, mListenerContext);
-        if (NS_FAILED(rv))
-            return rv;
-    } else {
-        NS_WARNING("OnStartRequest skipped because of null listener");
-    }
+    nsresult rv = mListener->OnStartRequest(this, mListenerContext);
+    if (NS_FAILED(rv)) return rv;
 
     // install stream converter if required
     rv = ApplyContentConversions();
@@ -5200,11 +5194,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
             MOZ_ASSERT(NS_FAILED(status), "should have a failure code here");
             // NOTE: since we have a failure status, we can ignore the return
             // value from onStartRequest.
-            if (mListener) {
-                mListener->OnStartRequest(this, mListenerContext);
-            } else {
-                NS_WARNING("OnStartRequest skipped because of null listener");
-            }
+            mListener->OnStartRequest(this, mListenerContext);
         }
 
         // if this transaction has been replaced, then bail.

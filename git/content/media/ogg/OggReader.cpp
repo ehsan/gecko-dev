@@ -23,7 +23,6 @@ extern "C" {
 #include "mozilla/TimeStamp.h"
 #include "VorbisUtils.h"
 #include "MediaMetadataManager.h"
-#include "nsISeekableStream.h"
 
 namespace mozilla {
 
@@ -1877,6 +1876,7 @@ nsresult OggReader::GetBuffered(TimeRanges* aBuffered, int64_t aStartTime)
 OggCodecStore::OggCodecStore()
 : mMonitor("CodecStore")
 {
+  mCodecStates.Init();
 }
 
 void OggCodecStore::Add(uint32_t serial, OggCodecState* codecState)

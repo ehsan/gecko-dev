@@ -437,8 +437,7 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(uint32_t aMaxbytes,
                                                  JSUseHelperThreads aUseHelperThreads)
   : mGCThingCycleCollectorGlobal(sGCThingCycleCollectorGlobal),
     mJSZoneCycleCollectorGlobal(sJSZoneCycleCollectorGlobal),
-    mJSRuntime(nullptr),
-    mJSHolders(512)
+    mJSRuntime(nullptr)
 #ifdef DEBUG
   , mObjectToUnlink(nullptr)
 #endif
@@ -455,7 +454,11 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(uint32_t aMaxbytes,
   JS_SetGCCallback(mJSRuntime, GCCallback, this);
   JS_SetContextCallback(mJSRuntime, ContextCallback, this);
 
+  mJSHolders.Init(512);
+
   nsCycleCollector_registerJSRuntime(this);
+
+  mDeferredFinalizerTable.Init();
 }
 
 CycleCollectedJSRuntime::~CycleCollectedJSRuntime()

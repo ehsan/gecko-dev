@@ -67,6 +67,8 @@ FileManager::Init(nsIFile* aDirectory,
   NS_ASSERTION(aDirectory, "Null directory!");
   NS_ASSERTION(aConnection, "Null connection!");
 
+  mFileInfos.Init();
+
   bool exists;
   nsresult rv = aDirectory->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, rv);

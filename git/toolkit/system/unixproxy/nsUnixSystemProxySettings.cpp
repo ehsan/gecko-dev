@@ -25,10 +25,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISYSTEMPROXYSETTINGS
 
-  nsUnixSystemProxySettings()
-    : mSchemeProxySettings(5)
-  {
-  }
+  nsUnixSystemProxySettings() {}
   nsresult Init();
 
 private:
@@ -58,6 +55,7 @@ nsUnixSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
 nsresult
 nsUnixSystemProxySettings::Init()
 {
+  mSchemeProxySettings.Init(5);
   mGSettings = do_GetService(NS_GSETTINGSSERVICE_CONTRACTID);
   if (mGSettings) {
     mGSettings->GetCollectionForSchema(NS_LITERAL_CSTRING("org.gnome.system.proxy"),

@@ -68,7 +68,8 @@ static const struct PropItems {
 nsresult
 nsSystemInfo::Init()
 {
-    nsresult rv;
+    nsresult rv = nsHashPropertyBag::Init();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     static const struct {
       PRSysInfo cmd;

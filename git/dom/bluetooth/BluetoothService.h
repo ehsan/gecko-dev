@@ -311,6 +311,7 @@ protected:
   BluetoothService()
   : mEnabled(false)
   {
+    mBluetoothSignalObserverTable.Init();
   }
 
   virtual ~BluetoothService();

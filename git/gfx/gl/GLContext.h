@@ -2314,6 +2314,7 @@ protected:
         mNeedsTextureSizeChecks(false),
         mWorkAroundDriverBugs(true)
     {
+        mUserData.Init();
         mOwningThread = NS_GetCurrentThread();
 
         mTexBlit_UseDrawNotCopy = Preferences::GetBool("gl.blit-draw-not-copy", false);
@@ -3393,12 +3394,12 @@ public:
 #endif
 };
 
-class GfxTexturesReporter MOZ_FINAL : public MemoryReporterBase
+class GfxTexturesReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
     GfxTexturesReporter()
-      : MemoryReporterBase("gfx-textures", KIND_OTHER, UNITS_BYTES,
-                           "Memory used for storing GL textures.")
+      : MemoryUniReporter("gfx-textures", KIND_OTHER, UNITS_BYTES,
+                          "Memory used for storing GL textures.")
     {
 #ifdef DEBUG
         // There must be only one instance of this class, due to |sAmount|

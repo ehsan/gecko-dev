@@ -72,6 +72,10 @@ void
 ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
                                      nsIFrame* aFrame)
 {
+  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
+             mFrameToRequestMap.IsInitialized() &&
+             mImages.IsInitialized());
+
   nsCOMPtr<imgINotificationObserver> observer;
   aRequest->GetNotificationObserver(getter_AddRefs(observer));
   if (!observer) {
@@ -167,6 +171,10 @@ ImageLoader::DisassociateRequestFromFrame(imgIRequest* aRequest,
 {
   FrameSet* frameSet = nullptr;
   RequestSet* requestSet = nullptr;
+
+  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
+             mFrameToRequestMap.IsInitialized() &&
+             mImages.IsInitialized());
 
 #ifdef DEBUG
   {

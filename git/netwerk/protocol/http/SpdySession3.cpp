@@ -76,6 +76,8 @@ SpdySession3::SpdySession3(nsAHttpTransaction *aHttpTransaction,
   LOG3(("SpdySession3::SpdySession3 %p transaction 1 = %p serial=0x%X\n",
         this, aHttpTransaction, mSerial));
 
+  mStreamIDHash.Init();
+  mStreamTransactionHash.Init();
   mConnection = aHttpTransaction->Connection();
   mInputFrameBuffer = new char[mInputFrameBufferSize];
   mOutputQueueBuffer = new char[mOutputQueueSize];
