@@ -28,16 +28,14 @@ RecordingModel.prototype = {
   _recording: false,
   _profilerStartTime: 0,
   _timelineStartTime: 0,
-  _memoryStartTime: 0,
 
   // Serializable fields, necessary and sufficient for import and export.
   _label: "",
   _duration: 0,
   _markers: null,
   _frames: null,
-  _memory: null,
   _ticks: null,
-  _allocations: null,
+  _memory: null,
   _profile: null,
 
   /**
@@ -56,7 +54,6 @@ RecordingModel.prototype = {
     this._frames = recordingData.frames;
     this._memory = recordingData.memory;
     this._ticks = recordingData.ticks;
-    this._allocations = recordingData.allocations;
     this._profile = recordingData.profile;
   }),
 
@@ -75,7 +72,8 @@ RecordingModel.prototype = {
    * Starts recording with the PerformanceFront.
    *
    * @param object options
-   *        @see PerformanceFront.prototype.startRecording
+   *        An options object to pass to the timeline front. Supported
+   *        properties are `withTicks` and `withMemory`.
    */
   startRecording: Task.async(function *(options = {}) {
     // Times must come from the actor in order to be self-consistent.
@@ -87,24 +85,19 @@ RecordingModel.prototype = {
     let info = yield this._front.startRecording(options);
     this._profilerStartTime = info.profilerStartTime;
     this._timelineStartTime = info.timelineStartTime;
-    this._memoryStartTime = info.memoryStartTime;
     this._recording = true;
 
     this._markers = [];
     this._frames = [];
     this._memory = [];
     this._ticks = [];
-    this._allocations = { sites: [], timestamps: [], frames: [], counts: [] };
   }),
 
   /**
    * Stops recording with the PerformanceFront.
-   *
-   * @param object options
-   *        @see RecordingModel.prototype.startRecording
    */
-  stopRecording: Task.async(function *(options) {
-    let info = yield this._front.stopRecording(options);
+  stopRecording: Task.async(function *() {
+    let info = yield this._front.stopRecording();
     this._profile = info.profile;
     this._duration = info.profilerEndTime - this._profilerStartTime;
     this._recording = false;
@@ -176,14 +169,6 @@ RecordingModel.prototype = {
   },
 
   /**
-   * Gets the memory allocations data in this recording.
-   * @return array
-   */
-  getAllocations: function() {
-    return this._allocations;
-  },
-
-  /**
    * Gets the profiler data in this recording.
    * @return array
    */
@@ -201,9 +186,8 @@ RecordingModel.prototype = {
     let frames = this.getFrames();
     let memory = this.getMemory();
     let ticks = this.getTicks();
-    let allocations = this.getAllocations();
     let profile = this.getProfile();
-    return { label, duration, markers, frames, memory, ticks, allocations, profile };
+    return { label, duration, markers, frames, memory, ticks, profile };
   },
 
   /**
@@ -225,50 +209,35 @@ RecordingModel.prototype = {
     }
 
     switch (eventName) {
-      // Accumulate timeline markers into an array. Furthermore, the timestamps
-      // do not have a zero epoch, so offset all of them by the start time.
-      case "markers": {
+      // Accumulate markers into an array. Furthermore, timestamps do not
+      // have a zero epoch, so offset all of them by the timeline's start time.
+      case "markers":
         let [markers] = data;
         RecordingUtils.offsetMarkerTimes(markers, this._timelineStartTime);
         Array.prototype.push.apply(this._markers, markers);
         break;
-      }
+
       // Accumulate stack frames into an array.
-      case "frames": {
+      case "frames":
         let [, frames] = data;
         Array.prototype.push.apply(this._frames, frames);
         break;
-      }
-      // Accumulate memory measurements into an array. Furthermore, the timestamp
-      // does not have a zero epoch, so offset it by the actor's start time.
-      case "memory": {
+
+      // Accumulate memory measurements into an array. Furthermore, the
+      // timestamp does not have a zero epoch, so offset it.
+      case "memory":
         let [currentTime, measurement] = data;
         this._memory.push({
           delta: currentTime - this._timelineStartTime,
           value: measurement.total / 1024 / 1024
         });
         break;
-      }
+
       // Save the accumulated refresh driver ticks.
-      case "ticks": {
+      case "ticks":
         let [, timestamps] = data;
         this._ticks = timestamps;
         break;
-      }
-      // Accumulate allocation sites into an array. Furthermore, the timestamps
-      // do not have a zero epoch, and are microseconds instead of milliseconds,
-      // so offset all of them by the start time, also converting from µs to ms.
-      case "allocations": {
-        let [{ sites, timestamps, frames, counts }] = data;
-        let timeOffset = this._memoryStartTime * 1000;
-        let timeScale = 1000;
-        RecordingUtils.offsetAndScaleTimestamps(timestamps, timeOffset, timeScale);
-        Array.prototype.push.apply(this._allocations.sites, sites);
-        Array.prototype.push.apply(this._allocations.timestamps, timestamps);
-        Array.prototype.push.apply(this._allocations.frames, frames);
-        Array.prototype.push.apply(this._allocations.counts, counts);
-        break;
-      }
     }
   }
 };

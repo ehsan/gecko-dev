@@ -27,7 +27,6 @@
 #include "DecodePool.h"
 #include "Orientation.h"
 #include "nsIObserver.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
@@ -133,16 +132,11 @@ class Decoder;
 class FrameAnimator;
 class SourceBuffer;
 
-/**
- * Given a set of imgIContainer FLAG_* flags, returns those flags that can
- * affect the output of decoders.
- */
-inline MOZ_CONSTEXPR uint32_t
-DecodeFlags(uint32_t aFlags)
-{
-  return aFlags & (imgIContainer::FLAG_DECODE_NO_PREMULTIPLY_ALPHA |
-                   imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION);
-}
+enum class DecodeStrategy : uint8_t {
+  ASYNC,
+  SYNC_FOR_SMALL_IMAGES,
+  SYNC_IF_POSSIBLE
+};
 
 class RasterImage MOZ_FINAL : public ImageResource
                             , public nsIProperties
@@ -223,7 +217,7 @@ public:
    */
   void NotifyProgress(Progress aProgress,
                       const nsIntRect& aInvalidRect = nsIntRect(),
-                      uint32_t aFlags = DECODE_FLAGS_DEFAULT);
+                      uint32_t aFlags = 0);
 
   /**
    * Records telemetry and does final teardown of the provided decoder.
@@ -296,16 +290,19 @@ private:
                                     uint32_t aFlags);
 
   TemporaryRef<gfx::SourceSurface> CopyFrame(uint32_t aWhichFrame,
-                                             uint32_t aFlags);
+                                             uint32_t aFlags,
+                                             bool aShouldSyncNotify = true);
   TemporaryRef<gfx::SourceSurface> GetFrameInternal(uint32_t aWhichFrame,
-                                                    uint32_t aFlags);
+                                                    uint32_t aFlags,
+                                                    bool aShouldSyncNotify = true);
 
   DrawableFrameRef LookupFrameInternal(uint32_t aFrameNum,
                                        const gfx::IntSize& aSize,
                                        uint32_t aFlags);
   DrawableFrameRef LookupFrame(uint32_t aFrameNum,
                                const nsIntSize& aSize,
-                               uint32_t aFlags);
+                               uint32_t aFlags,
+                               bool aShouldSyncNotify = true);
   uint32_t GetCurrentFrameIndex() const;
   uint32_t GetRequestedFrameIndex(uint32_t aWhichFrame) const;
 
@@ -331,11 +328,13 @@ private:
 
   /**
    * Creates and runs a decoder, either synchronously or asynchronously
-   * according to @aFlags. Passes the provided target size @aSize and decode
+   * according to @aStrategy. Passes the provided target size @aSize and decode
    * flags @aFlags to CreateDecoder. If a size decode is desired, pass Nothing
    * for @aSize.
    */
-  NS_IMETHOD Decode(const Maybe<nsIntSize>& aSize, uint32_t aFlags);
+  NS_IMETHOD Decode(DecodeStrategy aStrategy,
+                    const Maybe<nsIntSize>& aSize,
+                    uint32_t aFlags);
 
   /**
    * Creates a new decoder with a target size of @aSize and decode flags
@@ -344,6 +343,9 @@ private:
    */
   already_AddRefed<Decoder> CreateDecoder(const Maybe<nsIntSize>& aSize,
                                           uint32_t aFlags);
+
+  void WantDecodedFrames(const nsIntSize& aSize, uint32_t aFlags,
+                         bool aShouldSyncNotify);
 
 private: // data
   nsIntSize                  mSize;

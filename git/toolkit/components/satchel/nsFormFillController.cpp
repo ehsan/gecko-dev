@@ -619,12 +619,6 @@ nsFormFillController::GetInPrivateContext(bool *aInPrivateContext)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsFormFillController::GetNoRollupOnCaretMove(bool *aNoRollupOnCaretMove)
-{
-  *aNoRollupOnCaretMove = false;
-  return NS_OK;
-}
 
 ////////////////////////////////////////////////////////////////////////
 //// nsIAutoCompleteSearch

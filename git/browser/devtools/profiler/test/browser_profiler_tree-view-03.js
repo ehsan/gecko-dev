@@ -55,19 +55,19 @@ function test() {
   is($$name(6).getAttribute("value"), "F",
     "The .A.E.F node's function cell displays the correct name.");
 
-  is($$duration(0).getAttribute("value"), "15 ms",
+  is($$duration(0).getAttribute("value"), "15",
     "The root node's function cell displays the correct duration.");
-  is($$duration(1).getAttribute("value"), "15 ms",
+  is($$duration(1).getAttribute("value"), "15",
     "The .A node's function cell displays the correct duration.");
-  is($$duration(2).getAttribute("value"), "8 ms",
+  is($$duration(2).getAttribute("value"), "8",
     "The .A.B node's function cell displays the correct duration.");
-  is($$duration(3).getAttribute("value"), "3 ms",
+  is($$duration(3).getAttribute("value"), "3",
     "The .A.B.D node's function cell displays the correct duration.");
-  is($$duration(4).getAttribute("value"), "5 ms",
+  is($$duration(4).getAttribute("value"), "5",
     "The .A.B.C node's function cell displays the correct duration.");
-  is($$duration(5).getAttribute("value"), "7 ms",
+  is($$duration(5).getAttribute("value"), "7",
     "The .A.E node's function cell displays the correct duration.");
-  is($$duration(6).getAttribute("value"), "7 ms",
+  is($$duration(6).getAttribute("value"), "7",
     "The .A.E.F node's function cell displays the correct duration.");
 
   finish();

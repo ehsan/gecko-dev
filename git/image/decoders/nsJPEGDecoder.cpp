@@ -158,7 +158,7 @@ void
 nsJPEGDecoder::InitInternal()
 {
   mCMSMode = gfxPlatform::GetCMSMode();
-  if (GetDecodeFlags() & imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION) {
+  if ((mDecodeFlags & DECODER_NO_COLORSPACE_CONVERSION) != 0) {
     mCMSMode = eCMSMode_Off;
   }
 

@@ -551,8 +551,8 @@ js::proxy_innerObject(JSObject *obj)
 }
 
 bool
-js::proxy_LookupProperty(JSContext *cx, HandleObject obj, HandleId id,
-                         MutableHandleObject objp, MutableHandleShape propp)
+js::proxy_LookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
+                        MutableHandleObject objp, MutableHandleShape propp)
 {
     bool found;
     if (!Proxy::has(cx, obj, id, &found))
@@ -569,8 +569,26 @@ js::proxy_LookupProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
-js::proxy_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                         PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+js::proxy_LookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                         MutableHandleObject objp, MutableHandleShape propp)
+{
+    RootedId id(cx, NameToId(name));
+    return proxy_LookupGeneric(cx, obj, id, objp, propp);
+}
+
+bool
+js::proxy_LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
+                        MutableHandleObject objp, MutableHandleShape propp)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return proxy_LookupGeneric(cx, obj, id, objp, propp);
+}
+
+bool
+js::proxy_DefineGeneric(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
+                        PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     Rooted<PropertyDescriptor> desc(cx);
     desc.object().set(obj);
@@ -582,17 +600,71 @@ js::proxy_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
 }
 
 bool
-js::proxy_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
-                      MutableHandleValue vp)
+js::proxy_DefineProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
+                         PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+{
+    Rooted<jsid> id(cx, NameToId(name));
+    return proxy_DefineGeneric(cx, obj, id, value, getter, setter, attrs);
+}
+
+bool
+js::proxy_DefineElement(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
+                        PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return proxy_DefineGeneric(cx, obj, id, value, getter, setter, attrs);
+}
+
+bool
+js::proxy_GetGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
+                     MutableHandleValue vp)
 {
     return Proxy::get(cx, obj, receiver, id, vp);
 }
 
 bool
-js::proxy_SetProperty(JSContext *cx, HandleObject obj, HandleId id,
-                      MutableHandleValue vp, bool strict)
+js::proxy_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name,
+                      MutableHandleValue vp)
+{
+    Rooted<jsid> id(cx, NameToId(name));
+    return proxy_GetGeneric(cx, obj, receiver, id, vp);
+}
+
+bool
+js::proxy_GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index,
+                     MutableHandleValue vp)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return proxy_GetGeneric(cx, obj, receiver, id, vp);
+}
+
+bool
+js::proxy_SetGeneric(JSContext *cx, HandleObject obj, HandleId id,
+                     MutableHandleValue vp, bool strict)
 {
     return Proxy::set(cx, obj, obj, id, strict, vp);
+}
+
+bool
+js::proxy_SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                      MutableHandleValue vp, bool strict)
+{
+    Rooted<jsid> id(cx, NameToId(name));
+    return proxy_SetGeneric(cx, obj, id, vp, strict);
+}
+
+bool
+js::proxy_SetElement(JSContext *cx, HandleObject obj, uint32_t index,
+                     MutableHandleValue vp, bool strict)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return proxy_SetGeneric(cx, obj, id, vp, strict);
 }
 
 bool
@@ -603,7 +675,7 @@ js::proxy_GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
-js::proxy_SetPropertyAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
+js::proxy_SetGenericAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
     /* Lookup the current property descriptor so we have setter/getter/value. */
     Rooted<PropertyDescriptor> desc(cx);
@@ -614,7 +686,7 @@ js::proxy_SetPropertyAttributes(JSContext *cx, HandleObject obj, HandleId id, un
 }
 
 bool
-js::proxy_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
+js::proxy_DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     bool deleted;
     if (!Proxy::delete_(cx, obj, id, &deleted))

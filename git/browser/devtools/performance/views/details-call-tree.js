@@ -6,7 +6,7 @@
 /**
  * CallTree view containing profiler call tree, controlled by DetailsView.
  */
-let JsCallTreeView = Heritage.extend(DetailsSubview, {
+let CallTreeView = Heritage.extend(DetailsSubview, {
   rangeChangeDebounceTime: 50, // ms
 
   /**
@@ -43,7 +43,7 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
     let profile = recording.getProfile();
     let threadNode = this._prepareCallTree(profile, interval, options);
     this._populateCallTree(threadNode, options);
-    this.emit(EVENTS.JS_CALL_TREE_RENDERED);
+    this.emit(EVENTS.CALL_TREE_RENDERED);
   },
 
   /**
@@ -94,12 +94,9 @@ let JsCallTreeView = Heritage.extend(DetailsSubview, {
     root.on("link", this._onLink);
 
     // Clear out other call trees.
-    let container = $("#js-calltree-view > .call-tree-cells-container");
+    let container = $(".call-tree-cells-container");
     container.innerHTML = "";
     root.attachTo(container);
-
-    // Profiler data does not contain memory allocations information.
-    root.toggleAllocations(false);
 
     // When platform data isn't shown, hide the cateogry labels, since they're
     // only available for C++ frames.

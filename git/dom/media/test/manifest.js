@@ -96,10 +96,6 @@ var gTrackTests = [
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
-var gClosingConnectionsTest = [
-  { name:"seek.ogv", type:"video/ogg", duration:3.966 }
-];
-
 // Used by any media recorder test. Need one test file per decoder backend
 // currently supported by the media encoder.
 var gMediaRecorderTests = [

@@ -131,7 +131,7 @@ function convertLegacyData (legacyData) {
   let { profilerData, ticksData, recordingDuration } = legacyData;
 
   // The `profilerData` and `ticksData` stay, but the previously unrecorded
-  // fields just are empty arrays or objects.
+  // fields just are empty arrays.
   let data = {
     label: profilerData.profilerLabel,
     duration: recordingDuration,
@@ -139,7 +139,6 @@ function convertLegacyData (legacyData) {
     frames: [],
     memory: [],
     ticks: ticksData,
-    allocations: { sites: [], timestamps: [], frames: [], counts: [] },
     profile: profilerData.profile
   };
 

@@ -359,20 +359,14 @@ MediaKeys::OnCDMCreated(PromiseId aId, const nsACString& aNodeId)
 }
 
 already_AddRefed<MediaKeySession>
-MediaKeys::CreateSession(JSContext* aCx,
-                         SessionType aSessionType,
+MediaKeys::CreateSession(SessionType aSessionType,
                          ErrorResult& aRv)
 {
-  nsRefPtr<MediaKeySession> session = new MediaKeySession(aCx,
-                                                          GetParentObject(),
+  nsRefPtr<MediaKeySession> session = new MediaKeySession(GetParentObject(),
                                                           this,
                                                           mKeySystem,
                                                           aSessionType,
                                                           aRv);
-
-  if (aRv.Failed()) {
-    return nullptr;
-  }
 
   // Add session to the set of sessions awaiting their sessionId being ready.
   mPendingSessions.Put(session->Token(), session);
