@@ -252,9 +252,7 @@ class MochiRemote(Mochitest):
         else:
             self.log.warning("Unable to retrieve log file (%s) from remote device" % self.remoteLog)
         self._dm.removeDir(self.remoteProfile)
-        blobberUploadDir = os.environ.get('MOZ_UPLOAD_DIR', None)
-        if blobberUploadDir:
-            self._dm.getDirectory(self.remoteNSPR, blobberUploadDir)
+        self._dm.getDirectory(self.remoteNSPR, os.environ["MOZ_UPLOAD_DIR"])
         Mochitest.cleanup(self, options)
 
     def findPath(self, paths, filename = None):

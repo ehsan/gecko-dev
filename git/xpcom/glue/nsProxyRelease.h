@@ -61,7 +61,7 @@ NS_ProxyRelease(nsIEventTarget* aTarget, nsRefPtr<T>& aDoomed,
  *        true, then an event will always be posted to the target thread for
  *        asynchronous release.
  */
-nsresult
+NS_COM_GLUE nsresult
 NS_ProxyRelease(nsIEventTarget* aTarget, nsISupports* aDoomed,
                 bool aAlwaysProxy = false);
 

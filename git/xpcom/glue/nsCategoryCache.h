@@ -22,7 +22,7 @@
 
 #include "nsXPCOM.h"
 
-class nsCategoryObserver MOZ_FINAL : public nsIObserver
+class NS_COM_GLUE nsCategoryObserver MOZ_FINAL : public nsIObserver
 {
   ~nsCategoryObserver();
 

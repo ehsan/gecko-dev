@@ -44,7 +44,6 @@ class AsyncPanZoomController;
 class CompositorParent;
 class APZPaintLogHelper;
 class OverscrollHandoffChain;
-class LayerMetricsWrapper;
 
 /**
  * ****************** NOTE ON LOCK ORDERING IN APZ **************************
@@ -379,13 +378,13 @@ private:
   void UpdateZoomConstraintsRecursively(AsyncPanZoomController* aApzc,
                                         const ZoomConstraints& aConstraints);
 
-  AsyncPanZoomController* PrepareAPZCForLayer(const LayerMetricsWrapper& aLayer,
+  AsyncPanZoomController* PrepareAPZCForLayer(const Layer* aLayer,
                                               const FrameMetrics& aMetrics,
                                               uint64_t aLayersId,
                                               const gfx::Matrix4x4& aAncestorTransform,
                                               const nsIntRegion& aObscured,
                                               AsyncPanZoomController*& aOutParent,
-                                              AsyncPanZoomController* aNextSibling,
+                                              AsyncPanZoomController*& aOutNextSibling,
                                               TreeBuildingState& aState);
 
   /**
@@ -398,8 +397,7 @@ private:
    * code.
    */
   AsyncPanZoomController* UpdatePanZoomControllerTree(TreeBuildingState& aState,
-                                                      const LayerMetricsWrapper& aLayer,
-                                                      uint64_t aLayersId,
+                                                      Layer* aLayer, uint64_t aLayersId,
                                                       const gfx::Matrix4x4& aAncestorTransform,
                                                       AsyncPanZoomController* aParent,
                                                       AsyncPanZoomController* aNextSibling,

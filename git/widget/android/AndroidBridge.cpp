@@ -1161,14 +1161,9 @@ AndroidBridge::CreateMessageList(const dom::mobilemessage::SmsFilterData& aFilte
         env->DeleteLocalRef(elem);
     }
 
-    int64_t startDate = aFilter.hasStartDate() ? aFilter.startDate() : -1;
-    int64_t endDate = aFilter.hasEndDate() ? aFilter.endDate() : -1;
-    GeckoAppShell::CreateMessageListWrapper(startDate, endDate,
-                                            numbers, aFilter.numbers().Length(),
-                                            aFilter.delivery(),
-                                            aFilter.hasRead(), aFilter.read(),
-                                            aFilter.threadId(),
-                                            aReverse, requestId);
+    mozilla::widget::android::GeckoAppShell::CreateMessageListWrapper(aFilter.startDate(),
+                             aFilter.endDate(), numbers, aFilter.numbers().Length(),
+                             aFilter.delivery(), aReverse, requestId);
 }
 
 void

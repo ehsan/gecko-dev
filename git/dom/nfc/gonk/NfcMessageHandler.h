@@ -39,7 +39,6 @@ private:
   bool InitializeNotification(const android::Parcel& aParcel, EventOptions& aOptions);
   bool TechDiscoveredNotification(const android::Parcel& aParcel, EventOptions& aOptions);
   bool TechLostNotification(const android::Parcel& aParcel, EventOptions& aOptions);
-  bool HCIEventTransactionNotification(const android::Parcel& aParcel, EventOptions& aOptions);
 
   bool ReadNDEFMessage(const android::Parcel& aParcel, EventOptions& aOptions);
   bool WriteNDEFMessage(android::Parcel& aParcel, const CommandOptions& aOptions);

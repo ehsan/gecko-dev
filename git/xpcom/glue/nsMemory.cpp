@@ -15,7 +15,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // nsMemory static helper routines
 
-nsresult
+NS_COM_GLUE nsresult
 nsMemory::HeapMinimize(bool aImmediate)
 {
   nsCOMPtr<nsIMemory> mem;
@@ -27,7 +27,7 @@ nsMemory::HeapMinimize(bool aImmediate)
   return mem->HeapMinimize(aImmediate);
 }
 
-void*
+NS_COM_GLUE void*
 nsMemory::Clone(const void* aPtr, size_t aSize)
 {
   void* newPtr = NS_Alloc(aSize);
@@ -37,7 +37,7 @@ nsMemory::Clone(const void* aPtr, size_t aSize)
   return newPtr;
 }
 
-nsIMemory*
+NS_COM_GLUE nsIMemory*
 nsMemory::GetGlobalMemoryService()
 {
   nsIMemory* mem;

@@ -28,7 +28,6 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLMeterElement.h"
 #include "nsLookAndFeel.h"
-#include "VibrancyManager.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -45,8 +44,6 @@ using mozilla::dom::HTMLMeterElement;
 // private Quartz routines needed here
 extern "C" {
   CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
-  typedef CFTypeRef CUIRendererRef;
-  void CUIDraw(CUIRendererRef r, CGRect rect, CGContextRef ctx, CFDictionaryRef options, CFDictionaryRef* result);
 }
 
 // Workaround for NSCell control tint drawing
@@ -825,60 +822,6 @@ static void DrawCellWithSnapping(NSCell *cell,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-@interface NSWindow(CoreUIRendererPrivate)
-+ (CUIRendererRef)coreUIRenderer;
-@end
-
-static void
-RenderWithCoreUILegacy(CGRect aRect, CGContextRef cgContext, NSDictionary* aOptions)
-{
-  if (aRect.size.width * aRect.size.height <= BITMAP_MAX_AREA) {
-    CUIRendererRef renderer = [NSWindow respondsToSelector:@selector(coreUIRenderer)]
-      ? [NSWindow coreUIRenderer] : nil;
-    CUIDraw(renderer, aRect, cgContext, (CFDictionaryRef)aOptions, NULL);
-  }
-}
-
-static id
-GetAquaAppearance()
-{
-  // We only need NSAppearance on 10.10 and up.
-  if (nsCocoaFeatures::OnYosemiteOrLater()) {
-    Class NSAppearanceClass = NSClassFromString(@"NSAppearance");
-    if (NSAppearanceClass &&
-        [NSAppearanceClass respondsToSelector:@selector(appearanceNamed:)]) {
-      return [NSAppearanceClass performSelector:@selector(appearanceNamed:)
-                                     withObject:@"NSAppearanceNameAqua"];
-    }
-  }
-  return nil;
-}
-
-@interface NSObject(NSAppearanceCoreUIRendering)
-- (void)_drawInRect:(CGRect)rect context:(CGContextRef)cgContext options:(id)options;
-@end
-
-static void
-RenderWithCoreUI(CGRect aRect, CGContextRef cgContext, NSDictionary* aOptions)
-{
-  static id appearance = GetAquaAppearance();
-
-  if (aRect.size.width * aRect.size.height > BITMAP_MAX_AREA) {
-    return;
-  }
-
-  if (appearance && [appearance respondsToSelector:@selector(_drawInRect:context:options:)]) {
-    // Render through NSAppearance on Mac OS 10.10 and up. This will call
-    // CUIDraw with a CoreUI renderer that will give us the correct 10.10
-    // style. Calling CUIDraw directly with [NSWindow coreUIRenderer] still
-    // renders 10.9-style widgets on 10.10.
-    [appearance _drawInRect:aRect context:cgContext options:aOptions];
-  } else {
-    // 10.9 and below
-    RenderWithCoreUILegacy(aRect, cgContext, aOptions);
-  }
-}
-
 static float VerticalAlignFactor(nsIFrame *aFrame)
 {
   if (!aFrame)
@@ -1071,9 +1014,9 @@ nsNativeThemeCocoa::DrawMenuIcon(CGContextRef cgContext, const CGRect& aRect,
     [values insertObject:[NSNumber numberWithBool:YES] atIndex:1];
   }
 
-  RenderWithCoreUI(drawRect, cgContext,
-                  [NSDictionary dictionaryWithObjects:values
-                                              forKeys:keys]);
+  CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
+          (CFDictionaryRef)[NSDictionary dictionaryWithObjects:values
+                            forKeys:keys], nil);
 
 #if DRAW_IN_FRAME_DEBUG
   CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
@@ -1897,13 +1840,16 @@ nsNativeThemeCocoa::DrawSegment(CGContextRef cgContext, const HIRect& inBoxRect,
   nsIFrame* left = GetAdjacentSiblingFrameWithSameAppearance(aFrame, isRTL);
   nsIFrame* right = GetAdjacentSiblingFrameWithSameAppearance(aFrame, !isRTL);
   CGRect drawRect = SeparatorAdjustedRect(inBoxRect, left, aFrame, right);
+  if (drawRect.size.width * drawRect.size.height > CUIDRAW_MAX_AREA) {
+    return;
+  }
   BOOL drawLeftSeparator = SeparatorResponsibility(left, aFrame) == aFrame;
   BOOL drawRightSeparator = SeparatorResponsibility(aFrame, right) == aFrame;
   NSControlSize controlSize = FindControlSize(drawRect.size.height, aSettings.heights, 4.0f);
 
-  RenderWithCoreUI(drawRect, cgContext, [NSDictionary dictionaryWithObjectsAndKeys:
+  CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
+          (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
             aSettings.widgetName, @"widget",
-            (isActive ? @"kCUIPresentationStateActiveKey" : @"kCUIPresentationStateInactive"), @"kCUIPresentationStateKey",
             ToolbarButtonPosition(!left, !right), @"kCUIPositionKey",
             [NSNumber numberWithBool:drawLeftSeparator], @"kCUISegmentLeadingSeparatorKey",
             [NSNumber numberWithBool:drawRightSeparator], @"kCUISegmentTrailingSeparatorKey",
@@ -1913,7 +1859,8 @@ nsNativeThemeCocoa::DrawSegment(CGContextRef cgContext, const HIRect& inBoxRect,
             CUIControlSizeForCocoaSize(controlSize), @"size",
             [NSNumber numberWithBool:YES], @"is.flipped",
             @"up", @"direction",
-            nil]);
+            nil],
+          nil);
 }
 
 static inline UInt8
@@ -2088,25 +2035,28 @@ ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* a
 // So we draw square corners.
 static void
 DrawNativeTitlebarToolbarWithSquareCorners(CGContextRef aContext, const CGRect& aRect,
-                                           CGFloat aUnifiedHeight, BOOL aIsMain, BOOL aIsFlipped)
+                                           CGFloat aUnifiedHeight, BOOL aIsMain)
 {
   // We extend the draw rect horizontally and clip away the rounded corners.
   const CGFloat extendHorizontal = 10;
   CGRect drawRect = CGRectInset(aRect, -extendHorizontal, 0);
-  CGContextSaveGState(aContext);
-  CGContextClipToRect(aContext, aRect);
+  if (drawRect.size.width * drawRect.size.height <= CUIDRAW_MAX_AREA) {
+    CGContextSaveGState(aContext);
+    CGContextClipToRect(aContext, aRect);
 
-  RenderWithCoreUI(drawRect, aContext,
-          [NSDictionary dictionaryWithObjectsAndKeys:
-            @"kCUIWidgetWindowFrame", @"widget",
-            @"regularwin", @"windowtype",
-            (aIsMain ? @"normal" : @"inactive"), @"state",
-            [NSNumber numberWithDouble:aUnifiedHeight], @"kCUIWindowFrameUnifiedTitleBarHeightKey",
-            [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawTitleSeparatorKey",
-            [NSNumber numberWithBool:aIsFlipped], @"is.flipped",
-            nil]);
+    CUIDraw([NSWindow coreUIRenderer], drawRect, aContext,
+            (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
+              @"kCUIWidgetWindowFrame", @"widget",
+              @"regularwin", @"windowtype",
+              (aIsMain ? @"normal" : @"inactive"), @"state",
+              [NSNumber numberWithDouble:aUnifiedHeight], @"kCUIWindowFrameUnifiedTitleBarHeightKey",
+              [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawTitleSeparatorKey",
+              [NSNumber numberWithBool:YES], @"is.flipped",
+              nil],
+            nil);
 
-  CGContextRestoreGState(aContext);
+    CGContextRestoreGState(aContext);
+  }
 }
 
 void
@@ -2124,7 +2074,7 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
   CGFloat titlebarHeight = unifiedHeight - inBoxRect.size.height;
   CGRect drawRect = CGRectMake(inBoxRect.origin.x, inBoxRect.origin.y - titlebarHeight,
                                inBoxRect.size.width, inBoxRect.size.height + titlebarHeight);
-  DrawNativeTitlebarToolbarWithSquareCorners(cgContext, drawRect, unifiedHeight, isMain, YES);
+  DrawNativeTitlebarToolbarWithSquareCorners(cgContext, drawRect, unifiedHeight, isMain);
 
   CGContextRestoreGState(cgContext);
 
@@ -2150,15 +2100,18 @@ nsNativeThemeCocoa::DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRec
   const int extendUpwards = 40;
   drawRect.origin.y -= extendUpwards;
   drawRect.size.height += extendUpwards;
-  RenderWithCoreUI(drawRect, cgContext,
-          [NSDictionary dictionaryWithObjectsAndKeys:
-            @"kCUIWidgetWindowFrame", @"widget",
-            @"regularwin", @"windowtype",
-            (IsActive(aFrame, YES) ? @"normal" : @"inactive"), @"state",
-            [NSNumber numberWithInt:inBoxRect.size.height], @"kCUIWindowFrameBottomBarHeightKey",
-            [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawBottomBarSeparatorKey",
-            [NSNumber numberWithBool:YES], @"is.flipped",
-            nil]);
+  if (drawRect.size.width * drawRect.size.height <= CUIDRAW_MAX_AREA) {
+    CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
+            (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
+              @"kCUIWidgetWindowFrame", @"widget",
+              @"regularwin", @"windowtype",
+              (IsActive(aFrame, YES) ? @"normal" : @"inactive"), @"state",
+              [NSNumber numberWithInt:inBoxRect.size.height], @"kCUIWindowFrameBottomBarHeightKey",
+              [NSNumber numberWithBool:YES], @"kCUIWindowFrameDrawBottomBarSeparatorKey",
+              [NSNumber numberWithBool:YES], @"is.flipped",
+              nil],
+            nil);
+  }
 
   CGContextRestoreGState(cgContext);
 
@@ -2167,10 +2120,10 @@ nsNativeThemeCocoa::DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRec
 
 void
 nsNativeThemeCocoa::DrawNativeTitlebar(CGContextRef aContext, CGRect aTitlebarRect,
-                                       CGFloat aUnifiedHeight, BOOL aIsMain, BOOL aIsFlipped)
+                                       CGFloat aUnifiedHeight, BOOL aIsMain)
 {
   CGFloat unifiedHeight = std::max(aUnifiedHeight, aTitlebarRect.size.height);
-  DrawNativeTitlebarToolbarWithSquareCorners(aContext, aTitlebarRect, unifiedHeight, aIsMain, aIsFlipped);
+  DrawNativeTitlebarToolbarWithSquareCorners(aContext, aTitlebarRect, unifiedHeight, aIsMain);
 }
 
 static void
@@ -2494,7 +2447,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       BOOL isMain = [win isMainWindow];
       float unifiedToolbarHeight = [win isKindOfClass:[ToolbarWindow class]] ?
         [(ToolbarWindow*)win unifiedToolbarHeight] : macRect.size.height;
-      DrawNativeTitlebar(cgContext, macRect, unifiedToolbarHeight, isMain, YES);
+      DrawNativeTitlebar(cgContext, macRect, unifiedToolbarHeight, isMain);
     }
       break;
 
@@ -2680,10 +2633,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
           }
         }
         const BOOL isOnTopOfDarkBackground = IsDarkBackground(aFrame);
-        // Scrollbar thumbs have a too high minimum width when rendered through
-        // NSAppearance on 10.10, so we call RenderWithCoreUILegacy here.
-        RenderWithCoreUILegacy(macRect, cgContext,
-                [NSDictionary dictionaryWithObjectsAndKeys:
+        CUIDraw([NSWindow coreUIRenderer], macRect, cgContext,
+                (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
                   (isOverlay ? @"kCUIWidgetOverlayScrollBar" : @"scrollbar"), @"widget",
                   @"regular", @"size",
                   (isRolledOver ? @"rollover" : @"normal"), @"state",
@@ -2692,7 +2643,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
                   [NSNumber numberWithBool:YES], @"indiconly",
                   [NSNumber numberWithBool:YES], @"kCUIThumbProportionKey",
                   [NSNumber numberWithBool:YES], @"is.flipped",
-                  nil]);
+                  nil],
+                nil);
       }
       break;
     case NS_THEME_SCROLLBAR_BUTTON_UP:
@@ -2730,8 +2682,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
             }
           }
           const BOOL isOnTopOfDarkBackground = IsDarkBackground(aFrame);
-          RenderWithCoreUILegacy(macRect, cgContext,
-                  [NSDictionary dictionaryWithObjectsAndKeys:
+          CUIDraw([NSWindow coreUIRenderer], macRect, cgContext,
+                  (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
                     (isOverlay ? @"kCUIWidgetOverlayScrollBar" : @"scrollbar"), @"widget",
                     @"regular", @"size",
                     (isHorizontal ? @"kCUIOrientHorizontal" : @"kCUIOrientVertical"), @"kCUIOrientationKey",
@@ -2739,7 +2691,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
                     [NSNumber numberWithBool:YES], @"noindicator",
                     [NSNumber numberWithBool:YES], @"kCUIThumbProportionKey",
                     [NSNumber numberWithBool:YES], @"is.flipped",
-                    nil]);
+                    nil],
+                  nil);
         }
       }
       break;
@@ -3531,10 +3484,6 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     }
     case NS_THEME_FOCUS_OUTLINE:
       return true;
-
-    case NS_THEME_MAC_VIBRANCY_LIGHT:
-    case NS_THEME_MAC_VIBRANCY_DARK:
-      return VibrancyManager::SystemSupportsVibrancy();
   }
 
   return false;
@@ -3606,18 +3555,6 @@ nsNativeThemeCocoa::WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
       return false;
     default:
       return true;
-  }
-}
-
-bool
-nsNativeThemeCocoa::NeedToClearBackgroundBehindWidget(uint8_t aWidgetType)
-{
-  switch (aWidgetType) {
-    case NS_THEME_MAC_VIBRANCY_LIGHT:
-    case NS_THEME_MAC_VIBRANCY_DARK:
-      return true;
-    default:
-      return false;
   }
 }
 

@@ -27,7 +27,6 @@ dictionary RTCStats {
 
 dictionary RTCRTPStreamStats : RTCStats {
   DOMString ssrc;
-  DOMString mediaType;
   DOMString remoteId;
   boolean isRemote = false;
   DOMString mediaTrackId;

@@ -26,8 +26,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil", "resource://gre/modules/NetUt
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
 
 function XULStore() {
-  if (!Services.appinfo.inSafeMode)
-    this.load();
+  this.init();
 }
 
 XULStore.prototype = {
@@ -59,8 +58,9 @@ XULStore.prototype = {
   _needsSaving: false,
   _saveAllowed: true,
   _writeTimer: Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer),
+  _writeTimerInitialized: false,
 
-  load: function () {
+  init: function () {
     Services.obs.addObserver(this, "profile-before-change", true);
 
     this._storeFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
@@ -74,8 +74,8 @@ XULStore.prototype = {
   },
 
   observe: function(subject, topic, data) {
-    this.writeFile();
     if (topic == "profile-before-change") {
+      this.writeFile();
       this._saveAllowed = false;
     }
   },
@@ -182,12 +182,18 @@ XULStore.prototype = {
   }),
 
   markAsChanged: function() {
-    if (this._needsSaving || !this._storeFile)
+    this._needsSaving = true;
+    if (this._writeTimerInitialized)
       return;
 
+    let callback = () => {
+      this._writeTimerInitialized = false;
+      this.writeFile();
+    };
+
     // Don't write the file more than once every 30 seconds.
-    this._needsSaving = true;
-    this._writeTimer.init(this, WRITE_DELAY_MS, Ci.nsITimer.TYPE_ONE_SHOT);
+    this._writeTimerInitialized = true;
+    this._writeTimer.initWithCallback(callback, WRITE_DELAY_MS, Ci.nsITimer.TYPE_ONE_SHOT);
   },
 
   /* ---------- interface implementation ---------- */

@@ -43,13 +43,14 @@
 
 namespace mozilla {
 
-int32_t CompareVersions(const char* aStrA, const char* aStrB);
+int32_t NS_COM_GLUE CompareVersions(const char* aStrA, const char* aStrB);
 
 #ifdef XP_WIN
-int32_t CompareVersions(const char16_t* aStrA, const char16_t* aStrB);
+int32_t NS_COM_GLUE CompareVersions(const char16_t* aStrA,
+                                    const char16_t* aStrB);
 #endif
 
-struct Version
+struct NS_COM_GLUE Version
 {
   explicit Version(const char* aVersionString)
   {
@@ -120,7 +121,7 @@ private:
 };
 
 #ifdef XP_WIN
-struct VersionW
+struct NS_COM_GLUE VersionW
 {
   VersionW(const char16_t* aVersionStringW)
   {

@@ -78,7 +78,6 @@ class AsyncPanZoomController;
 class ClientLayerManager;
 class CommonLayerAttributes;
 class Layer;
-class LayerMetricsWrapper;
 class ThebesLayer;
 class ContainerLayer;
 class ImageLayer;
@@ -337,20 +336,10 @@ public:
 
   /**
    * Does a breadth-first search from the root layer to find the first
-   * scrollable layer, and returns its ViewID. Note that there may be
-   * other layers in the tree which share the same ViewID.
+   * scrollable layer.
    * Can be called any time.
    */
-  FrameMetrics::ViewID GetRootScrollableLayerId();
-
-  /**
-   * Does a breadth-first search from the root layer to find the first
-   * scrollable layer, and returns all the layers that have that ViewID
-   * as the first scrollable metrics in their ancestor chain. If no
-   * scrollable layers are found it just returns the root of the tree if
-   * there is one.
-   */
-  void GetRootScrollableLayers(nsTArray<Layer*>& aArray);
+  Layer* GetPrimaryScrollableLayer();
 
   /**
    * Returns a list of all descendant layers for which
@@ -829,44 +818,29 @@ public:
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the (sub)document metrics used to render the Layer subtree
-   * rooted at this. Note that a layer may have multiple FrameMetrics
-   * objects; calling this function will remove all of them and replace
-   * them with the provided FrameMetrics. See the documentation for
-   * SetFrameMetrics(const nsTArray<FrameMetrics>&) for more details.
+   * rooted at this.
    */
   void SetFrameMetrics(const FrameMetrics& aFrameMetrics)
   {
-    if (mFrameMetrics.Length() != 1 || mFrameMetrics[0] != aFrameMetrics) {
+    if (mFrameMetrics != aFrameMetrics) {
       MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) FrameMetrics", this));
-      mFrameMetrics.ReplaceElementsAt(0, mFrameMetrics.Length(), aFrameMetrics);
-      FrameMetricsChanged();
+      mFrameMetrics = aFrameMetrics;
       Mutated();
     }
   }
 
   /**
    * CONSTRUCTION PHASE ONLY
-   * Set the (sub)document metrics used to render the Layer subtree
-   * rooted at this. There might be multiple metrics on this layer
-   * because the layer may, for example, be contained inside multiple
-   * nested scrolling subdocuments. In general a Layer having multiple
-   * FrameMetrics objects is conceptually equivalent to having a stack
-   * of ContainerLayers that have been flattened into this Layer.
-   * See the documentation in LayerMetricsWrapper.h for a more detailed
-   * explanation of this conceptual equivalence.
-   *
-   * Note also that there is actually a many-to-many relationship between
-   * Layers and FrameMetrics, because multiple Layers may have identical
-   * FrameMetrics objects. This happens when those layers belong to the
-   * same scrolling subdocument and therefore end up with the same async
-   * transform when they are scrolled by the APZ code.
+   * Set the ViewID of the ContainerLayer to which overscroll should be handed
+   * off. A value of NULL_SCROLL_ID means that the default handoff-parent-finding
+   * behaviour should be used (i.e. walk up the layer tree to find the next
+   * scrollable ancestor layer).
    */
-  void SetFrameMetrics(const nsTArray<FrameMetrics>& aMetricsArray)
+  void SetScrollHandoffParentId(FrameMetrics::ViewID aScrollParentId)
   {
-    if (mFrameMetrics != aMetricsArray) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) FrameMetrics", this));
-      mFrameMetrics = aMetricsArray;
-      FrameMetricsChanged();
+    if (mScrollHandoffParentId != aScrollParentId) {
+      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ScrollHandoffParentId", this));
+      mScrollHandoffParentId = aScrollParentId;
       Mutated();
     }
   }
@@ -1199,11 +1173,8 @@ public:
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nullptr; }
   uint32_t GetContentFlags() { return mContentFlags; }
   const nsIntRegion& GetVisibleRegion() const { return mVisibleRegion; }
-  const FrameMetrics& GetFrameMetrics(uint32_t aIndex) const;
-  uint32_t GetFrameMetricsCount() const { return mFrameMetrics.Length(); }
-  const nsTArray<FrameMetrics>& GetAllFrameMetrics() { return mFrameMetrics; }
-  bool HasScrollableFrameMetrics() const;
-  bool IsScrollInfoLayer() const;
+  const FrameMetrics& GetFrameMetrics() const { return mFrameMetrics; }
+  FrameMetrics::ViewID GetScrollHandoffParentId() const { return mScrollHandoffParentId; }
   const EventRegions& GetEventRegions() const { return mEventRegions; }
   ContainerLayer* GetParent() { return mParent; }
   Layer* GetNextSibling() { return mNextSibling; }
@@ -1503,16 +1474,9 @@ public:
 
   // These functions allow attaching an AsyncPanZoomController to this layer,
   // and can be used anytime.
-  // A layer has an APZC at index aIndex only-if GetFrameMetrics(aIndex).IsScrollable();
-  // attempting to get an APZC for a non-scrollable metrics will return null.
-  // The aIndex for these functions must be less than GetFrameMetricsCount().
-  void SetAsyncPanZoomController(uint32_t aIndex, AsyncPanZoomController *controller);
-  AsyncPanZoomController* GetAsyncPanZoomController(uint32_t aIndex) const;
-  // The FrameMetricsChanged function is used internally to ensure the APZC array length
-  // matches the frame metrics array length.
-private:
-  void FrameMetricsChanged();
-public:
+  // A layer has an APZC only-if GetFrameMetrics().IsScrollable()
+  void SetAsyncPanZoomController(AsyncPanZoomController *controller);
+  AsyncPanZoomController* GetAsyncPanZoomController() const;
 
   void ApplyPendingUpdatesForThisTransaction();
 
@@ -1616,7 +1580,8 @@ protected:
   nsRefPtr<Layer> mMaskLayer;
   gfx::UserData mUserData;
   nsIntRegion mVisibleRegion;
-  nsTArray<FrameMetrics> mFrameMetrics;
+  FrameMetrics mFrameMetrics;
+  FrameMetrics::ViewID mScrollHandoffParentId;
   EventRegions mEventRegions;
   gfx::Matrix4x4 mTransform;
   // A mutation of |mTransform| that we've queued to be applied at the
@@ -1636,7 +1601,7 @@ protected:
   nsIntRect mClipRect;
   nsIntRect mTileSourceRect;
   nsIntRegion mInvalidRegion;
-  nsTArray<nsRefPtr<AsyncPanZoomController> > mApzcs;
+  nsRefPtr<AsyncPanZoomController> mAPZC;
   uint32_t mContentFlags;
   bool mUseClipRect;
   bool mUseTileSourceRect;

@@ -19,10 +19,10 @@
 #include <new>
 
 // helper function for nsTHashtable::Clear()
-PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
-                                       PLDHashEntryHdr* aEntry,
-                                       uint32_t aOrdinal,
-                                       void* aUserArg);
+NS_COM_GLUE PLDHashOperator PL_DHashStubEnumRemove(PLDHashTable* aTable,
+                                                   PLDHashEntryHdr* aEntry,
+                                                   uint32_t aOrdinal,
+                                                   void* aUserArg);
 
 
 /**

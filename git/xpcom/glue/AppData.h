@@ -16,7 +16,7 @@ namespace mozilla {
 
 // Like nsXREAppData, but releases all strong refs/allocated memory
 // in the destructor.
-class ScopedAppData : public nsXREAppData
+class NS_COM_GLUE ScopedAppData : public nsXREAppData
 {
 public:
   ScopedAppData()

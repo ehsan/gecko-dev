@@ -737,22 +737,22 @@ public class GeckoSmsManager
   }
 
   @Override
-  public void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, String aDelivery, boolean aHasRead, boolean aRead, long aThreadId, boolean aReverse, int aRequestId) {
+  public void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, int aDeliveryState, boolean aReverse, int aRequestId) {
     class CreateMessageListRunnable implements Runnable {
       private long     mStartDate;
       private long     mEndDate;
       private String[] mNumbers;
       private int      mNumbersCount;
-      private String   mDelivery;
+      private int      mDeliveryState;
       private boolean  mReverse;
       private int      mRequestId;
 
-      CreateMessageListRunnable(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, String aDelivery, boolean aHasRead, boolean aRead, long aThreadId, boolean aReverse, int aRequestId) {
+      CreateMessageListRunnable(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, int aDeliveryState, boolean aReverse, int aRequestId) {
         mStartDate = aStartDate;
         mEndDate = aEndDate;
         mNumbers = aNumbers;
         mNumbersCount = aNumbersCount;
-        mDelivery = aDelivery;
+        mDeliveryState = aDeliveryState;
         mReverse = aReverse;
         mRequestId = aRequestId;
       }
@@ -766,11 +766,11 @@ public class GeckoSmsManager
           // TODO: should use the |selectionArgs| argument in |ContentResolver.query()|.
           ArrayList<String> restrictions = new ArrayList<String>();
 
-          if (mStartDate >= 0) {
+          if (mStartDate != 0) {
             restrictions.add("date >= " + mStartDate);
           }
 
-          if (mEndDate >= 0) {
+          if (mEndDate != 0) {
             restrictions.add("date <= " + mEndDate);
           }
 
@@ -785,11 +785,11 @@ public class GeckoSmsManager
             restrictions.add(numberRestriction);
           }
 
-          if (mDelivery == null) {
+          if (mDeliveryState == kDeliveryStateUnknown) {
             restrictions.add("type IN ('" + kSmsTypeSentbox + "', '" + kSmsTypeInbox + "')");
-          } else if (mDelivery == "sent") {
+          } else if (mDeliveryState == kDeliveryStateSent) {
             restrictions.add("type = " + kSmsTypeSentbox);
-          } else if (mDelivery == "received") {
+          } else if (mDeliveryState == kDeliveryStateReceived) {
             restrictions.add("type = " + kSmsTypeInbox);
           } else {
             throw new UnexpectedDeliveryStateException();
@@ -853,7 +853,7 @@ public class GeckoSmsManager
       }
     }
 
-    if (!SmsIOThread.getInstance().execute(new CreateMessageListRunnable(aStartDate, aEndDate, aNumbers, aNumbersCount, aDelivery, aHasRead, aRead, aThreadId, aReverse, aRequestId))) {
+    if (!SmsIOThread.getInstance().execute(new CreateMessageListRunnable(aStartDate, aEndDate, aNumbers, aNumbersCount, aDeliveryState, aReverse, aRequestId))) {
       Log.e("GeckoSmsManager", "Failed to add CreateMessageListRunnable to the SmsIOThread");
       notifyReadingMessageListFailed(kUnknownError, aRequestId);
     }

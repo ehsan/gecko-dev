@@ -27,7 +27,6 @@
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite
-#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/LayersMessages.h"  // for TransformFunction, etc
 #include "nsAString.h"
 #include "nsCSSValue.h"                 // for nsCSSValue::Array, etc
@@ -48,51 +47,16 @@ FILEOrDefault(FILE* aFile)
 
 typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
-const FrameMetrics FrameMetrics::sNullMetrics;
 
 using namespace mozilla::gfx;
 
 //--------------------------------------------------
 // LayerManager
-FrameMetrics::ViewID
-LayerManager::GetRootScrollableLayerId()
+Layer*
+LayerManager::GetPrimaryScrollableLayer()
 {
   if (!mRoot) {
-    return FrameMetrics::NULL_SCROLL_ID;
-  }
-
-  nsTArray<LayerMetricsWrapper> queue;
-  queue.AppendElement(LayerMetricsWrapper(mRoot));
-  while (queue.Length()) {
-    LayerMetricsWrapper layer = queue[0];
-    queue.RemoveElementAt(0);
-
-    const FrameMetrics& frameMetrics = layer.Metrics();
-    if (frameMetrics.IsScrollable()) {
-      return frameMetrics.GetScrollId();
-    }
-
-    LayerMetricsWrapper child = layer.GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child.GetNextSibling();
-    }
-  }
-
-  return FrameMetrics::NULL_SCROLL_ID;
-}
-
-void
-LayerManager::GetRootScrollableLayers(nsTArray<Layer*>& aArray)
-{
-  if (!mRoot) {
-    return;
-  }
-
-  FrameMetrics::ViewID rootScrollableId = GetRootScrollableLayerId();
-  if (rootScrollableId == FrameMetrics::NULL_SCROLL_ID) {
-    aArray.AppendElement(mRoot);
-    return;
+    return nullptr;
   }
 
   nsTArray<Layer*> queue;
@@ -101,15 +65,21 @@ LayerManager::GetRootScrollableLayers(nsTArray<Layer*>& aArray)
     Layer* layer = queue[0];
     queue.RemoveElementAt(0);
 
-    if (LayerMetricsWrapper::TopmostScrollableMetrics(layer).GetScrollId() == rootScrollableId) {
-      aArray.AppendElement(layer);
-      continue;
+    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return layer;
     }
 
-    for (Layer* child = layer->GetFirstChild(); child; child = child->GetNextSibling()) {
-      queue.AppendElement(child);
+    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
+      Layer* child = containerLayer->GetFirstChild();
+      while (child) {
+        queue.AppendElement(child);
+        child = child->GetNextSibling();
+      }
     }
   }
+
+  return mRoot;
 }
 
 void
@@ -125,13 +95,18 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
     Layer* layer = queue.LastElement();
     queue.RemoveElementAt(queue.Length() - 1);
 
-    if (layer->HasScrollableFrameMetrics()) {
+    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
       aArray.AppendElement(layer);
       continue;
     }
 
-    for (Layer* child = layer->GetFirstChild(); child; child = child->GetNextSibling()) {
-      queue.AppendElement(child);
+    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
+      Layer* child = containerLayer->GetFirstChild();
+      while (child) {
+        queue.AppendElement(child);
+        child = child->GetNextSibling();
+      }
     }
   }
 }
@@ -195,6 +170,7 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mPrevSibling(nullptr),
   mImplData(aImplData),
   mMaskLayer(nullptr),
+  mScrollHandoffParentId(FrameMetrics::NULL_SCROLL_ID),
   mPostXScale(1.0f),
   mPostYScale(1.0f),
   mOpacity(1.0),
@@ -473,28 +449,20 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
 }
 
 void
-Layer::SetAsyncPanZoomController(uint32_t aIndex, AsyncPanZoomController *controller)
+Layer::SetAsyncPanZoomController(AsyncPanZoomController *controller)
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
-  mApzcs[aIndex] = controller;
+  mAPZC = controller;
 }
 
 AsyncPanZoomController*
-Layer::GetAsyncPanZoomController(uint32_t aIndex) const
+Layer::GetAsyncPanZoomController() const
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
 #ifdef DEBUG
-  if (mApzcs[aIndex]) {
-    MOZ_ASSERT(GetFrameMetrics(aIndex).IsScrollable());
+  if (mAPZC) {
+    MOZ_ASSERT(GetFrameMetrics().IsScrollable());
   }
 #endif
-  return mApzcs[aIndex];
-}
-
-void
-Layer::FrameMetricsChanged()
-{
-  mApzcs.SetLength(GetFrameMetricsCount());
+  return mAPZC;
 }
 
 void
@@ -693,33 +661,6 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
     scissor = RenderTargetPixel::FromUntyped(tmp);
   }
   return currentClip.Intersect(scissor);
-}
-
-const FrameMetrics&
-Layer::GetFrameMetrics(uint32_t aIndex) const
-{
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
-  return mFrameMetrics[aIndex];
-}
-
-bool
-Layer::HasScrollableFrameMetrics() const
-{
-  for (uint32_t i = 0; i < GetFrameMetricsCount(); i++) {
-    if (GetFrameMetrics(i).IsScrollable()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool
-Layer::IsScrollInfoLayer() const
-{
-  // A scrollable container layer with no children
-  return AsContainerLayer()
-      && HasScrollableFrameMetrics()
-      && !GetFirstChild();
 }
 
 const Matrix4x4
@@ -1520,11 +1461,11 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   if (mMaskLayer) {
     aStream << nsPrintfCString(" [mMaskLayer=%p]", mMaskLayer.get()).get();
   }
-  for (uint32_t i = 0; i < mFrameMetrics.Length(); i++) {
-    if (!mFrameMetrics[i].IsDefault()) {
-      aStream << nsPrintfCString(" [metrics%d=", i).get();
-      AppendToString(aStream, mFrameMetrics[i], "", "]");
-    }
+  if (!mFrameMetrics.IsDefault()) {
+    AppendToString(aStream, mFrameMetrics, " [metrics=", "]");
+  }
+  if (mScrollHandoffParentId != FrameMetrics::NULL_SCROLL_ID) {
+    aStream << nsPrintfCString(" [scrollParent=%llu]", mScrollHandoffParentId).get();
   }
 }
 

@@ -28,6 +28,7 @@
 
 #include "nsDebug.h" // for |NS_ABORT_IF_FALSE|, |NS_ASSERTION|
 #include "nsISupportsUtils.h" // for |nsresult|, |NS_ADDREF|, |NS_GET_TEMPLATE_IID| et al
+#include "nscore.h" // for |NS_COM_GLUE|
 
 #include "nsCycleCollectionNoteChild.h"
 
@@ -288,7 +289,7 @@ public:
  * often enough that the codesize savings are big enough to warrant the
  * specialcasing.
  */
-class MOZ_STACK_CLASS nsQueryInterface MOZ_FINAL
+class NS_COM_GLUE MOZ_STACK_CLASS nsQueryInterface MOZ_FINAL
 {
 public:
   explicit
@@ -300,7 +301,7 @@ private:
   nsISupports* mRawPtr;
 };
 
-class nsQueryInterfaceWithError
+class NS_COM_GLUE nsQueryInterfaceWithError
 {
 public:
   nsQueryInterfaceWithError(nsISupports* aRawPtr, nsresult* aError)
@@ -349,7 +350,7 @@ do_QueryInterface(already_AddRefed<T>&, nsresult*)
 
 ////////////////////////////////////////////////////////////////////////////
 // Using servicemanager with COMPtrs
-class nsGetServiceByCID
+class NS_COM_GLUE nsGetServiceByCID
 {
 public:
   explicit nsGetServiceByCID(const nsCID& aCID) : mCID(aCID) {}
@@ -360,7 +361,7 @@ private:
   const nsCID& mCID;
 };
 
-class nsGetServiceByCIDWithError
+class NS_COM_GLUE nsGetServiceByCIDWithError
 {
 public:
   nsGetServiceByCIDWithError(const nsCID& aCID, nsresult* aErrorPtr)
@@ -376,7 +377,7 @@ private:
   nsresult* mErrorPtr;
 };
 
-class nsGetServiceByContractID
+class NS_COM_GLUE nsGetServiceByContractID
 {
 public:
   explicit nsGetServiceByContractID(const char* aContractID)
@@ -390,7 +391,7 @@ private:
   const char* mContractID;
 };
 
-class nsGetServiceByContractIDWithError
+class NS_COM_GLUE nsGetServiceByContractIDWithError
 {
 public:
   nsGetServiceByContractIDWithError(const char* aContractID, nsresult* aErrorPtr)
@@ -420,7 +421,7 @@ class nsCOMPtr_base
 public:
   explicit nsCOMPtr_base(nsISupports* aRawPtr = 0) : mRawPtr(aRawPtr) {}
 
-  NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base()
+  NS_COM_GLUE NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base()
   {
     NSCAP_LOG_RELEASE(this, mRawPtr);
     if (mRawPtr) {
@@ -428,24 +429,24 @@ public:
     }
   }
 
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_with_AddRef(nsISupports*);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_qi(const nsQueryInterface, const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_qi_with_error(const nsQueryInterfaceWithError&, const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_gs_cid(const nsGetServiceByCID, const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_gs_cid_with_error(const nsGetServiceByCIDWithError&, const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_gs_contractid(const nsGetServiceByContractID, const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_gs_contractid_with_error(const nsGetServiceByContractIDWithError&,
                                        const nsIID&);
-  void NS_FASTCALL
+  NS_COM_GLUE void NS_FASTCALL
   assign_from_helper(const nsCOMPtr_helper&, const nsIID&);
-  void** NS_FASTCALL
+  NS_COM_GLUE void** NS_FASTCALL
   begin_assignment();
 
 protected:

@@ -189,10 +189,6 @@ public:
     MOZ_ASSERT(mMediaStream);
   }
 
-  DOMMediaStream* GetMediaStream() const {
-    return mMediaStream;
-  }
-
   // This method exists for stats and the unittests.
   // It allows visibility into the pipelines and flows.
   const std::map<mozilla::TrackID, mozilla::RefPtr<mozilla::MediaPipeline>>&
@@ -218,6 +214,9 @@ public:
                         PeerConnectionMedia *aParent)
       : SourceStreamInfo(aMediaStream, aParent) {}
 
+  DOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
   // Returns the mPipelines index for the track or -1.
 #if 0
   int HasTrack(DOMMediaStream* aStream, mozilla::TrackID aTrack);
@@ -263,6 +262,9 @@ class RemoteSourceStreamInfo : public SourceStreamInfo {
     : SourceStreamInfo(aMediaStream, aParent),
       mTrackTypeHints(0) {}
 
+  DOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
   void StorePipeline(int aTrack, bool aIsVideo,
                      mozilla::RefPtr<mozilla::MediaPipelineReceive> aPipeline);
 

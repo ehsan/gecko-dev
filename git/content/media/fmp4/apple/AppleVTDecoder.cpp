@@ -145,8 +145,7 @@ AppleVTDecoder::Drain()
 // Context object to hold a copy of sample metadata.
 class FrameRef {
 public:
-  Microseconds decode_timestamp;
-  Microseconds composition_timestamp;
+  Microseconds timestamp;
   Microseconds duration;
   int64_t byte_offset;
   bool is_sync_point;
@@ -154,8 +153,7 @@ public:
   explicit FrameRef(mp4_demuxer::MP4Sample* aSample)
   {
     MOZ_ASSERT(aSample);
-    decode_timestamp = aSample->decode_timestamp;
-    composition_timestamp = aSample->composition_timestamp;
+    timestamp = aSample->composition_timestamp;
     duration = aSample->duration;
     byte_offset = aSample->byte_offset;
     is_sync_point = aSample->is_sync_point;
@@ -182,10 +180,9 @@ PlatformCallback(void* decompressionOutputRefCon,
   nsAutoPtr<FrameRef> frameRef =
     nsAutoPtr<FrameRef>(static_cast<FrameRef*>(sourceFrameRefCon));
 
-  LOG("mp4 output frame %lld dts %lld pts %lld duration %lld us%s",
+  LOG("mp4 output frame %lld pts %lld duration %lld us%s",
     frameRef->byte_offset,
-    frameRef->decode_timestamp,
-    frameRef->composition_timestamp,
+    frameRef->timestamp,
     frameRef->duration,
     frameRef->is_sync_point ? " keyframe" : ""
   );
@@ -305,11 +302,11 @@ AppleVTDecoder::OutputFrame(CVPixelBufferRef aImage,
                       mImageContainer,
                       nullptr,
                       aFrameRef->byte_offset,
-                      aFrameRef->composition_timestamp,
+                      aFrameRef->timestamp,
                       aFrameRef->duration,
                       buffer,
                       aFrameRef->is_sync_point,
-                      aFrameRef->decode_timestamp,
+                      aFrameRef->timestamp,
                       visible);
   // Unlock the returned image data.
   CVPixelBufferUnlockBaseAddress(aImage, kCVPixelBufferLock_ReadOnly);
@@ -323,21 +320,10 @@ AppleVTDecoder::OutputFrame(CVPixelBufferRef aImage,
   // Frames come out in DTS order but we need to output them
   // in composition order.
   mReorderQueue.Push(data.forget());
-  // Assume a frame with a PTS <= current DTS is ready.
-  while (mReorderQueue.Length() > 0) {
+  if (mReorderQueue.Length() > 2) {
     VideoData* readyData = mReorderQueue.Pop();
-    if (readyData->mTime <= aFrameRef->decode_timestamp) {
-      LOG("returning queued frame with pts %lld", readyData->mTime);
-      mCallback->Output(readyData);
-    } else {
-      LOG("requeued frame with pts %lld > %lld",
-          readyData->mTime, aFrameRef->decode_timestamp);
-      mReorderQueue.Push(readyData);
-      break;
-    }
+    mCallback->Output(readyData);
   }
-  LOG("%llu decoded frames queued",
-      static_cast<unsigned long long>(mReorderQueue.Length()));
 
   return NS_OK;
 }
@@ -351,8 +337,8 @@ TimingInfoFromSample(mp4_demuxer::MP4Sample* aSample)
   timestamp.duration = CMTimeMake(aSample->duration, USECS_PER_S);
   timestamp.presentationTimeStamp =
     CMTimeMake(aSample->composition_timestamp, USECS_PER_S);
-  timestamp.decodeTimeStamp =
-    CMTimeMake(aSample->decode_timestamp, USECS_PER_S);
+  // No DTS value available from libstagefright.
+  timestamp.decodeTimeStamp = CMTimeMake(0, USECS_PER_S);
 
   return timestamp;
 }
