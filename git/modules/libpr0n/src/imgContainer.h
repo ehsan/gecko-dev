@@ -61,6 +61,7 @@
 #include "nsITimer.h"
 #include "nsWeakReference.h"
 #include "nsTArray.h"
+#include "nsIStringStream.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 
@@ -334,6 +335,7 @@ private: // data
   nsCOMPtr<imgIDecoder>          mDecoder;
   nsRefPtr<imgDecodeWorker>      mWorker;
   PRUint32                       mBytesDecoded;
+  nsCOMPtr<nsIStringInputStream> mDecoderInput;
   PRUint32                       mDecoderFlags;
   PRBool                         mWorkerPending;
   PRBool                         mInDecoder;

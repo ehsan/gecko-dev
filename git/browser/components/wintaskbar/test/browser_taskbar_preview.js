@@ -11,15 +11,13 @@ function test() {
   if (!isWin7OrHigher)
     return;
 
-  const ENABLE_PREF_NAME = "browser.taskbar.previews.enable";
-
   let temp = {};
   Cu.import("resource://gre/modules/WindowsPreviewPerTab.jsm", temp);
   let AeroPeek = temp.AeroPeek;
 
   waitForExplicitFinish();
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, true);
+  gPrefService.setBoolPref("aeropeek.enable", true);
 
   is(1, AeroPeek.windows.length, "Got the expected number of windows");
 
@@ -34,13 +32,13 @@ function test() {
   for each (let preview in AeroPeek.previews)
     ok(preview.visible, "Preview is shown as expected");
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, false);
+  gPrefService.setBoolPref("aeropeek.enable", false);
   checkPreviews(4, "Previews are unchanged when disabling");
 
   for each (let preview in AeroPeek.previews)
     ok(!preview.visible, "Preview is not shown as expected after disabling");
 
-  gPrefService.setBoolPref(ENABLE_PREF_NAME, true);
+  gPrefService.setBoolPref("aeropeek.enable", true);
   checkPreviews(4, "Previews are unchanged when re-enabling");
   for each (let preview in AeroPeek.previews)
     ok(preview.visible, "Preview is shown as expected after re-enabling");
@@ -94,7 +92,7 @@ function test() {
   getPreviewForTab(gBrowser.mTabs[1]).controller.onClose();
   checkPreviews(1);
 
-  gPrefService.clearUserPref(ENABLE_PREF_NAME);
+  gPrefService.clearUserPref("aeropeek.enable");
 
   finish();
 

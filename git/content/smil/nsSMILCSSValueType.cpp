@@ -63,11 +63,10 @@ struct ValueWrapper {
 
 // Helper "zero" values of various types
 // -------------------------------------
-static const nsStyleCoord sZeroCoord(0, nsStyleCoord::CoordConstructor);
+static const nsStyleCoord sZeroCoord(0);
 static const nsStyleCoord sZeroPercent(0.0f, eStyleUnit_Percent);
 static const nsStyleCoord sZeroFactor(0.0f,  eStyleUnit_Factor);
-static const nsStyleCoord sZeroColor(NS_RGB(0,0,0),
-                                     nsStyleCoord::ColorConstructor);
+static const nsStyleCoord sZeroColor(NS_RGB(0,0,0));
 
 // Helper Methods
 // --------------

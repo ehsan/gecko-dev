@@ -37,6 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// Enable syncing for this test
+start_sync();
+
 // Get services.
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
          getService(Ci.nsINavHistoryService);
@@ -221,7 +224,7 @@ let syncObserver = {
     do_check_false(stmt.executeStep());
     stmt.finalize();
 
-    do_test_finished();
+    finish_test();
   }
 }
 os.addObserver(syncObserver, kSyncFinished, false);

@@ -46,7 +46,6 @@ function test() {
     "browser/components/sessionstore/test/browser/browser_456342_sample.xhtml";
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     gBrowser.removeTab(tab);
     
     let ss = Cc["@mozilla.org/browser/sessionstore;1"]

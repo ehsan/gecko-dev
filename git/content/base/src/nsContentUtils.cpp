@@ -167,7 +167,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsHtml5Module.h"
 #include "nsPresContext.h"
 #include "nsLayoutStatics.h"
-#include "nsISystemSoundService.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -3019,18 +3018,6 @@ nsContentUtils::IsChromeDoc(nsIDocument *aDocument)
 }
 
 PRBool
-nsContentUtils::IsChildOfSameType(nsIDocument* aDoc)
-{
-  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
-  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
-  if (docShellAsItem) {
-    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
-  }
-  return sameTypeParent != nsnull;
-}
-
-PRBool
 nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
                                              nsIURI *aURI,
                                              nsACString& aScriptURI)
@@ -5173,16 +5160,3 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 
   return rv;
 }
-
-// static
-nsresult
-nsContentUtils::PlayEventSound(PRUint32 aEventID)
-{
-  nsresult rv;
-  nsCOMPtr<nsISystemSoundService> sysSound =
-    do_GetService("@mozilla.org/systemsoundservice;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(sysSound, NS_ERROR_FAILURE);
-  return sysSound->PlayEventSound(aEventID);
-}
-

@@ -504,7 +504,8 @@ GetMemberInfo(JSObject *obj,
     *ifaceName = "Unknown";
 
     NS_ASSERTION(IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) ||
-                 STOBJ_GET_CLASS(obj) == &XPC_WN_Tearoff_JSClass,
+                 STOBJ_GET_CLASS(obj) == &XPC_WN_Tearoff_JSClass ||
+                 IS_SLIM_WRAPPER(obj),
                  "obj must be a wrapper");
     XPCWrappedNativeProto *proto;
     if(IS_SLIM_WRAPPER(obj))
@@ -704,15 +705,10 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
             behavior = undefinedBehavior;
         }
 
-        // If pval is null, that means the argument was optional and
-        // not passed; turn those into void strings if they're
-        // supposed to be stringified.
-        if (behavior != eStringify || !pval)
+        if (behavior != eStringify)
         {
-            // Here behavior == eStringify implies !pval, so both eNull and
-            // eStringify should end up with void strings.
             (new(mBuf) implementation_type(
-                traits::sEmptyBuffer, PRUint32(0)))->SetIsVoid(behavior != eEmpty);
+                traits::sEmptyBuffer, PRUint32(0)))->SetIsVoid(behavior == eNull);
             mValid = JS_TRUE;
             return;
         }
@@ -826,7 +822,7 @@ xpc_qsUnwrapThisImpl(JSContext *cx,
     }
 
     JSObject *cur = obj;
-    XPCWrappedNativeTearOff *tearoff = nsnull;
+    XPCWrappedNativeTearOff *tearoff;
     XPCWrappedNative *wrapper =
         XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj, callee, &cur,
                                                      &tearoff);
@@ -836,7 +832,7 @@ xpc_qsUnwrapThisImpl(JSContext *cx,
         if(NS_SUCCEEDED(rv))
         {
             if(lccx)
-                lccx->SetWrapper(wrapper, tearoff);
+                lccx->SetWrapper(cur, wrapper, tearoff);
             
             return JS_TRUE;
         }
@@ -850,7 +846,7 @@ xpc_qsUnwrapThisImpl(JSContext *cx,
                                   cur, iid, ppThis, pThisRef, vp)))
         {
             if(lccx)
-                lccx->SetWrapper(cur);
+                lccx->SetWrapper(cur, nsnull, nsnull);
 
             return JS_TRUE;
         }
@@ -904,6 +900,15 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
     }
     JSObject *src = JSVAL_TO_OBJECT(v);
 
+    if(IS_SLIM_WRAPPER(src))
+    {
+        nsISupports *iface = static_cast<nsISupports*>(xpc_GetJSPrivate(src));
+        if(NS_FAILED(getNative(iface, GetOffsetsFromSlimWrapper(src),
+                               src, iid, ppArg, ppArgRef, vp)))
+            return NS_ERROR_XPC_BAD_CONVERT_JS;
+        return NS_OK;
+    }
+
     JSObject *inner = nsnull;
     if(XPCWrapper::IsSecurityWrapper(src))
     {
@@ -913,24 +918,14 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
     }
 
     // From XPCConvert::JSObject2NativeInterface
-    JSObject* obj2;
     XPCWrappedNative* wrappedNative =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, inner ? inner : src,
-                                                     nsnull, &obj2);
+        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, inner ? inner : src);
     nsISupports *iface;
     if(wrappedNative)
     {
         iface = wrappedNative->GetIdentityObject();
         if(NS_FAILED(getNativeFromWrapper(wrappedNative, iid, ppArg, ppArgRef,
                                           vp)))
-            return NS_ERROR_XPC_BAD_CONVERT_JS;
-        return NS_OK;
-    }
-    if(obj2)
-    {
-        iface = static_cast<nsISupports*>(xpc_GetJSPrivate(obj2));
-        if(NS_FAILED(getNative(iface, GetOffsetsFromSlimWrapper(obj2),
-                               obj2, iid, ppArg, ppArgRef, vp)))
             return NS_ERROR_XPC_BAD_CONVERT_JS;
         return NS_OK;
     }

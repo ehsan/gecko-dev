@@ -4641,10 +4641,6 @@ PresShell::UnsuppressAndInvalidate()
     nsRect rect(nsPoint(0, 0), rootFrame->GetSize());
     rootFrame->Invalidate(rect);
 
-    if (mCaretEnabled && mCaret) {
-      mCaret->CheckCaretDrawingState();
-    }
-
     mPresContext->RootPresContext()->UpdatePluginGeometry(rootFrame);
   }
 

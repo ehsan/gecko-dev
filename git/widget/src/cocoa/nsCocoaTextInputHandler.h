@@ -66,8 +66,6 @@ class nsChildView;
 class nsTISInputSource
 {
 public:
-  static nsTISInputSource& CurrentKeyboardLayout();
-
   nsTISInputSource()
   {
     mInputSourceList = nsnull;
@@ -174,26 +172,10 @@ public:
     return GetStringProperty(kTISPropertyInputSourceType, aType);
   }
 
-  PRBool IsForRTLLanguage();
-  PRBool IsInitializedByCurrentKeyboardLayout();
-
-  enum {
-    // 40 is an actual result of the ::LMGetKbdType() when we connect an
-    // unknown keyboard and set the keyboard type to ANSI manually on the
-    // set up dialog.
-    eKbdType_ANSI = 40
-  };
-
-  PRBool TranslateToString(UInt32 aKeyCode, UInt32 aModifiers, UInt32 aKbdType,
-                           nsAString &aStr);
-
   void Select();
-  void Clear();
 
 protected:
-  static PRBool UCKeyTranslateToString(const UCKeyboardLayout* aHandle,
-                                       UInt32 aKeyCode, UInt32 aModifiers,
-                                       UInt32 aKbType, nsAString &aStr);
+  void Clear();
 
   PRBool GetBoolProperty(const CFStringRef aKey);
   PRBool GetStringProperty(const CFStringRef aKey, CFStringRef &aStr);
@@ -201,8 +183,6 @@ protected:
 
   TISInputSourceRef mInputSource;
   CFArrayRef mInputSourceList;
-  const UCKeyboardLayout* mUCKeyboardLayout;
-  PRInt8 mIsRTL;
 };
 
 /**

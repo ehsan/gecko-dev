@@ -763,16 +763,15 @@ nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
   nsCOMPtr<nsIPluginInstance> pluginInstance ;
   aFrame->GetPluginInstance(*getter_AddRefs(pluginInstance));
   if (pluginInstance) {
-    // Note: pluginPort will be null if windowless.
     HWND pluginPort = nsnull;
     aFrame->GetPluginPort(&pluginPort);
-
-    *aAccessible =
-      new nsHTMLWin32ObjectOwnerAccessible(node, weakShell, pluginPort);
-    NS_ENSURE_TRUE(*aAccessible, NS_ERROR_OUT_OF_MEMORY);
-
-    NS_ADDREF(*aAccessible);
-    return NS_OK;
+    if (pluginPort) {
+      *aAccessible = new nsHTMLWin32ObjectOwnerAccessible(node, weakShell, pluginPort);
+      if (*aAccessible) {
+        NS_ADDREF(*aAccessible);
+        return NS_OK;
+      }
+    }
   }
 #endif
 

@@ -40,8 +40,6 @@
 
 #include "nsBidiKeyboard.h"
 #include "nsObjCExceptions.h"
-#include "nsCocoaUtils.h"
-#include "nsCocoaTextInputHandler.h"
 
 #import <Carbon/Carbon.h>
 
@@ -59,9 +57,11 @@ NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-#ifdef NS_LEOPARD_AND_LATER
-  *aIsRTL = nsTISInputSource::CurrentKeyboardLayout().IsForRTLLanguage();
-  return NS_OK;
+#ifdef __LP64__
+  // There isn't a way to determine this in 64-bit Mac OS X because any keyboard
+  // layout could generate any unicode characters. Apple simply doesn't consider
+  // this to be a valid question.
+  return NS_ERROR_FAILURE;
 #else  
   *aIsRTL = PR_FALSE;
   nsresult rv = NS_ERROR_FAILURE;

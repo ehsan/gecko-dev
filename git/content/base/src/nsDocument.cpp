@@ -312,11 +312,6 @@ nsIdentifierMapEntry::~nsIdentifierMapEntry()
   if (mNameContentList && mNameContentList != NAME_NOT_VALID) {
     NS_RELEASE(mNameContentList);
   }
-
-  for (PRInt32 i = 0; i < mIdContentList.Count(); ++i) {
-    nsIContent* content = static_cast<nsIContent*>(mIdContentList[i]);
-    NS_RELEASE(content);
-  }
 }
 
 void
@@ -330,12 +325,6 @@ nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback, "mIdentifierMap mDocAllList");
   aCallback->NoteXPCOMChild(static_cast<nsIDOMNodeList*>(mDocAllList));
-
-  for (PRInt32 i = 0; i < mIdContentList.Count(); ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
-                                       "mIdentifierMap mIdContentList element");
-    aCallback->NoteXPCOMChild(static_cast<nsIContent*>(mIdContentList[i]));
-  }
 }
 
 void
@@ -441,7 +430,6 @@ nsIdentifierMapEntry::AddIdContent(nsIContent* aContent)
   if (mIdContentList.Count() == 0) {
     if (!mIdContentList.AppendElement(aContent))
       return PR_FALSE;
-    NS_ADDREF(aContent);
     NS_ASSERTION(currentContent == nsnull, "How did that happen?");
     FireChangeCallbacks(nsnull, aContent);
     return PR_TRUE;
@@ -474,7 +462,6 @@ nsIdentifierMapEntry::AddIdContent(nsIContent* aContent)
 
   if (!mIdContentList.InsertElementAt(aContent, start))
     return PR_FALSE;
-  NS_ADDREF(aContent);
   if (start == 0) {
     nsIContent* oldContent =
       static_cast<nsIContent*>(mIdContentList.SafeElementAt(1));
@@ -499,9 +486,6 @@ nsIdentifierMapEntry::RemoveIdContent(nsIContent* aContent)
     FireChangeCallbacks(currentContent,
                         static_cast<nsIContent*>(mIdContentList.SafeElementAt(0)));
   }
-  // Make sure the release happens after the check above, since it'll
-  // null out aContent.
-  NS_RELEASE(aContent);
   return mIdContentList.Count() == 0 && !mNameContentList && !mChangeCallbacks;
 }
 
@@ -2405,6 +2389,11 @@ nsDocument::ContentAppended(nsIDocument* aDocument,
 {
   NS_ASSERTION(aDocument == this, "unexpected doc");
 
+  if (aContainer->GetBindingParent()) {
+    // Anonymous node; bail out
+    return;
+  }
+
   for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
        !iter.IsDone();
        iter.Next()) {
@@ -2422,6 +2411,11 @@ nsDocument::ContentInserted(nsIDocument* aDocument,
 
   NS_ABORT_IF_FALSE(aContent, "Null content!");
 
+  if (aContent->GetBindingParent()) {
+    // Anonymous node; bail out
+    return;
+  }
+
   RegisterNamedItems(aContent);
 }
 
@@ -2435,6 +2429,11 @@ nsDocument::ContentRemoved(nsIDocument* aDocument,
 
   NS_ABORT_IF_FALSE(aChild, "Null content!");
 
+  if (aChild->GetBindingParent()) {
+    // Anonymous node; bail out
+    return;
+  }
+
   UnregisterNamedItems(aChild);
 }
 
@@ -2445,6 +2444,11 @@ nsDocument::AttributeWillChange(nsIDocument* aDocument,
 {
   NS_ABORT_IF_FALSE(aContent, "Null content!");
   NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
+
+  if (aContent->GetBindingParent()) {
+    // Anonymous node; bail out
+    return;
+  }
 
   if (aNameSpaceID != kNameSpaceID_None)
     return;
@@ -2465,6 +2469,11 @@ nsDocument::AttributeChanged(nsIDocument* aDocument,
 
   NS_ABORT_IF_FALSE(aContent, "Null content!");
   NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
+
+  if (aContent->GetBindingParent()) {
+    // Anonymous node; bail out
+    return;
+  }
 
   if (aNameSpaceID != kNameSpaceID_None)
     return;
@@ -6958,10 +6967,6 @@ nsDocument::Destroy()
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
   nsContentUtils::ReleaseWrapper(static_cast<nsINode*>(this), this);
-
-  // Try really really hard to make sure we don't leak things through
-  // mIdentifierMap
-  mIdentifierMap.Clear();
 }
 
 void

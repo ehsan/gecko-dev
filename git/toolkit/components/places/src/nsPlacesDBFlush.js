@@ -48,10 +48,8 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-const kXPComShutdown = "xpcom-shutdown";
+const kQuitApplication = "quit-application";
 const kSyncFinished = "places-sync-finished";
-const kDebugStopSync = "places-debug-stop-sync";
-const kDebugStartSync = "places-debug-start-sync";
 
 const kSyncPrefName = "places.syncDBTableIntervalInSecs";
 const kDefaultSyncInterval = 120;
@@ -109,9 +107,7 @@ function nsPlacesDBFlush()
   // Register observers
   this._os = Cc["@mozilla.org/observer-service;1"].
              getService(Ci.nsIObserverService);
-  this._os.addObserver(this, kXPComShutdown, false);
-  this._os.addObserver(this, kDebugStopSync, false);
-  this._os.addObserver(this, kDebugStartSync, false);
+  this._os.addObserver(this, kQuitApplication, false);
 
   let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2)) {
     pb2.addObserver(kSyncPrefName, this, false);
@@ -149,53 +145,35 @@ nsPlacesDBFlush.prototype = {
 
   observe: function DBFlush_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == kXPComShutdown) {
-      this._os.removeObserver(this, kXPComShutdown);
-      this._os.removeObserver(this, kDebugStopSync);
-      this._os.removeObserver(this, kDebugStartSync);
-
+    if (aTopic == kQuitApplication) {
+      this._os.removeObserver(this, kQuitApplication);
       let (pb2 = this._prefs.QueryInterface(Ci.nsIPrefBranch2)) {
         pb2.removeObserver(kSyncPrefName, this);
         pb2.removeObserver(kExpireDaysPrefName, this);
       }
-
-      if (this._timer) {
-        this._timer.cancel();
-        this._timer = null;
-      }
-
+      this._timer.cancel();
+      this._timer = null;
       // Other components could still make changes to history at this point,
       // for example to clear private data on shutdown, so here we dispatch
       // an event to the main thread so that we will sync after
-      // xpcom-shutdown ensuring all data have been saved.
+      // quit-application ensuring all data have been saved.
       let tm = Cc["@mozilla.org/thread-manager;1"].
           getService(Ci.nsIThreadManager);
       tm.mainThread.dispatch({
         _self: this,
         run: function() {
-          // Flush any remaining change to disk tables.
+          let pip = Cc["@mozilla.org/browser/nav-history-service;1"].
+                    getService(Ci.nsPIPlacesDatabase);
+          pip.commitPendingChanges();
           this._self._flushWithQueries([kQuerySyncPlacesId, kQuerySyncHistoryVisitsId]);
-
-          // Ensure we won't act anymore as a category observer, so we stop
-          // being notified.
-          // This should not be needed but due to bug 522353 we leak in tests
-          // if we don't manually remove the entries.
-          // WARNING: These changes must NOT be persistent!
-          let catMan = Cc["@mozilla.org/categorymanager;1"].
-                       getService(Ci.nsICategoryManager);
-          catMan.deleteCategoryEntry("bookmark-observers",
-                                     this._self.classDescription,
-                                     false); // Only for this session!
-          catMan.deleteCategoryEntry("history-observers",
-                                     this._self.classDescription,
-                                     false); // Only for this session!
-
           // Close the database connection, this was the last sync and we can't
           // ensure database coherence from now on.
+          pip.finalizeInternalStatements();
           this._self._finalizeInternalStatements();
           this._self._db.close();
         }
       }, Ci.nsIThread.DISPATCH_NORMAL);
+
     }
     else if (aTopic == "nsPref:changed" && aData == kSyncPrefName) {
       // Get the new pref value, and then update our timer
@@ -216,13 +194,6 @@ nsPlacesDBFlush.prototype = {
       this._expireDays = this._prefs.getIntPref(kExpireDaysPrefName);
       if (this._expireDays <= 0)
         this._expireDays = kDefaultExpireDays;
-    }
-    else if (aTopic == kDebugStopSync) {
-      this._syncStopped = true;
-    }
-    else if (aTopic == kDebugStartSync) {
-      if (_syncStopped in this)
-        delete this._syncStopped;
     }
   },
 
@@ -367,7 +338,7 @@ nsPlacesDBFlush.prototype = {
   _flushWithQueries: function DBFlush_flushWithQueries(aQueryNames)
   {
     // No need to do extra work if we are in batch mode
-    if (this._inBatchMode || this._syncStopped)
+    if (this._inBatchMode)
       return;
 
     let statements = [];

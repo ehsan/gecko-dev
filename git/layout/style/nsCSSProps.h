@@ -69,10 +69,6 @@
  * Types of animatable values.
  */
 enum nsStyleAnimType {
-  // requires a custom implementation in
-  // nsStyleAnimation::ExtractComputedValue
-  eStyleAnimType_Custom,
-
   // nsStyleCoord with animatable values
   eStyleAnimType_Coord,
 

@@ -237,9 +237,9 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
       rv == NS_ERROR_FAILURE)
     return rv;
 
-  if (item->IsDirectory())
+  if (item->isDirectory)
   {
-    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->Mode());
+    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->mode);
     //XXX Do this in nsZipArchive?  It would be nice to keep extraction
     //XXX code completely there, but that would require a way to get a
     //XXX PRDir from localFile.
@@ -247,7 +247,7 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   else
   {
     PRFileDesc* fd;
-    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->Mode(), &fd);
+    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->mode, &fd);
     if (NS_FAILED(rv)) return rv;
 
     // ExtractFile also closes the fd handle and resolves the symlink if needed
@@ -259,7 +259,7 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   }
   if (NS_FAILED(rv)) return rv;
 
-  PRTime prtime = GetModTime(item->Date(), item->Time());
+  PRTime prtime = GetModTime(item->date, item->time);
   // nsIFile needs milliseconds, while prtime is in microseconds.
   PRTime conversion = LL_ZERO;
   PRTime newTime = LL_ZERO;
@@ -336,7 +336,7 @@ nsJAR::GetInputStreamWithSpec(const nsACString& aJarDirSpec,
   NS_ADDREF(*result = jis);
 
   nsresult rv = NS_OK;
-  if (!item || item->IsDirectory()) {
+  if (!item || item->isDirectory) {
     rv = jis->InitDirectory(this, aJarDirSpec, aEntryName);
   } else {
     rv = jis->InitFile(this, item);
@@ -894,9 +894,9 @@ NS_IMETHODIMP
 nsJAREnumerator::HasMore(PRBool* aResult)
 {
     // try to get the next element
-    if (!mName) {
+    if (!mCurr) {
         NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
-        nsresult rv = mFind->FindNext( &mName, &mNameLen );
+        nsresult rv = mFind->FindNext( &mCurr );
         if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
             *aResult = PR_FALSE;                    // No more matches available
             return NS_OK;
@@ -915,14 +915,14 @@ NS_IMETHODIMP
 nsJAREnumerator::GetNext(nsACString& aResult)
 {
     // check if the current item is "stale"
-    if (!mName) {
+    if (!mCurr) {
         PRBool   bMore;
         nsresult rv = HasMore(&bMore);
         if (NS_FAILED(rv) || !bMore)
             return NS_ERROR_FAILURE; // no error translation
     }
-    aResult.Assign(mName, mNameLen);
-    mName = 0; // we just gave this one away
+    aResult = mCurr;
+    mCurr = 0; // we just gave this one away
     return NS_OK;
 }
 
@@ -930,13 +930,13 @@ nsJAREnumerator::GetNext(nsACString& aResult)
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARItem, nsIZipEntry)
 
 nsJARItem::nsJARItem(nsZipItem* aZipItem)
-    : mSize(aZipItem->Size()),
-      mRealsize(aZipItem->RealSize()),
-      mCrc32(aZipItem->CRC32()),
-      mDate(aZipItem->Date()),
-      mTime(aZipItem->Time()),
-      mCompression(aZipItem->Compression()),
-      mIsDirectory(aZipItem->IsDirectory()),
+    : mSize(aZipItem->size),
+      mRealsize(aZipItem->realsize),
+      mCrc32(aZipItem->crc32),
+      mDate(aZipItem->date),
+      mTime(aZipItem->time),
+      mCompression(aZipItem->compression),
+      mIsDirectory(aZipItem->isDirectory),
       mIsSynthetic(aZipItem->isSynthetic)
 {
 }

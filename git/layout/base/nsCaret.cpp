@@ -91,7 +91,6 @@ nsCaret::nsCaret()
 , mBlinkRate(500)
 , mVisible(PR_FALSE)
 , mDrawn(PR_FALSE)
-, mPendingDraw(PR_FALSE)
 , mReadOnly(PR_FALSE)
 , mShowDuringSelection(PR_FALSE)
 , mIgnoreUserModify(PR_TRUE)
@@ -962,19 +961,11 @@ void nsCaret::GetViewForRendering(nsIFrame *caretFrame,
   *outRenderingView = returnView;
 }
 
-nsresult nsCaret::CheckCaretDrawingState()
+nsresult nsCaret::CheckCaretDrawingState() 
 {
-  if (mDrawn) {
-    // The caret is drawn; if it shouldn't be, erase it.
-    if (!mVisible || !MustDrawCaret(PR_TRUE))
-      EraseCaret();
-  }
-  else
-  {
-    // The caret is not drawn; if it should be, draw it.
-    if (mPendingDraw && (mVisible && MustDrawCaret(PR_TRUE)))
-      DrawCaret(PR_TRUE);
-  }
+  // If the caret's drawn when it shouldn't be, erase it.
+  if (mDrawn && (!mVisible || !MustDrawCaret(PR_TRUE)))
+    EraseCaret();
   return NS_OK;
 }
 
@@ -992,14 +983,22 @@ nsresult nsCaret::CheckCaretDrawingState()
 ----------------------------------------------------------------------------- */
 PRBool nsCaret::MustDrawCaret(PRBool aIgnoreDrawnState)
 {
+  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
+  if (presShell) {
+    PRBool isPaintingSuppressed;
+    presShell->IsPaintingSuppressed(&isPaintingSuppressed);
+    if (isPaintingSuppressed)
+      return PR_FALSE;
+  }
+
   if (!aIgnoreDrawnState && mDrawn)
     return PR_TRUE;
 
   nsCOMPtr<nsISelection> domSelection = do_QueryReferent(mDomSelectionWeak);
   if (!domSelection)
     return PR_FALSE;
-
   PRBool isCollapsed;
+
   if (NS_FAILED(domSelection->GetIsCollapsed(&isCollapsed)))
     return PR_FALSE;
 
@@ -1060,29 +1059,18 @@ PRBool nsCaret::IsMenuPopupHidingCaret()
   return PR_FALSE;
 }
 
+/*-----------------------------------------------------------------------------
+
+  DrawCaret
+    
+----------------------------------------------------------------------------- */
+
 void nsCaret::DrawCaret(PRBool aInvalidate)
 {
-  // Do we need to draw the caret at all?
+  // do we need to draw the caret at all?
   if (!MustDrawCaret(PR_FALSE))
     return;
   
-  // Can we draw the caret now?
-  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-  NS_ENSURE_TRUE(presShell, /**/);
-  {
-    PRBool isPaintingSuppressed;
-    presShell->IsPaintingSuppressed(&isPaintingSuppressed);
-    if (isPaintingSuppressed)
-    {
-      if (!mDrawn)
-        mPendingDraw = PR_TRUE;
-
-      // PresShell::UnsuppressAndInvalidate() will call CheckCaretDrawingState()
-      // to get us drawn.
-      return;
-    }
-  }
-
   nsCOMPtr<nsIDOMNode> node;
   PRInt32 offset;
   nsFrameSelection::HINT hint;
@@ -1114,9 +1102,7 @@ void nsCaret::DrawCaret(PRBool aInvalidate)
     nsCOMPtr<nsFrameSelection> frameSelection = GetFrameSelection();
     if (!frameSelection)
       return;
-
     bidiLevel = frameSelection->GetCaretBidiLevel();
-    mPendingDraw = PR_FALSE;
   }
   else
   {

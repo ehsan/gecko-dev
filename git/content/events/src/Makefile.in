@@ -74,7 +74,6 @@ CPPSRCS		= \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
 		nsContentEventHandler.cpp \
-		nsEventListenerService.cpp \
 		nsDOMProgressEvent.cpp \
 		nsDOMDataTransfer.cpp \
 		nsDOMNotifyPaintEvent.cpp \
@@ -100,9 +99,3 @@ LOCAL_INCLUDES	= \
              $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
-
-ifdef MOZ_JSDEBUGGER
-DEFINES += -DMOZ_JSDEBUGGER
-endif
-
-

@@ -1264,12 +1264,6 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
     return NS_ERROR_FAILURE;
   }
 
-  float duration = aOriginal->GetDuration();
-  if (duration >= 0) {
-    mDecoder->SetDuration(PRInt64(NS_round(duration * 1000)));
-    mDecoder->SetSeekable(aOriginal->GetSeekable());
-  }
-
   nsMediaStream* stream = originalStream->CloneData(mDecoder);
   if (!stream) {
     mDecoder = nsnull;
@@ -1392,10 +1386,9 @@ void nsHTMLMediaElement::FirstFrameLoaded(PRBool aResourceFullyLoaded)
 void nsHTMLMediaElement::ResourceLoaded()
 {
   mBegun = PR_FALSE;
-  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_IDLE;
+  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADED;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  // The download has stopped
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("suspend"));
+  DispatchAsyncProgressEvent(NS_LITERAL_STRING("load"));
 }
 
 void nsHTMLMediaElement::NetworkError()
@@ -1793,7 +1786,7 @@ already_AddRefed<nsIURI> nsHTMLMediaElement::GetNextSource()
     rv = mSourcePointer->GetStartOffset(&startOffset);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
-    if (PRUint32(startOffset) == GetChildCount())
+    if (startOffset == GetChildCount())
       return nsnull; // No more children.
 
     // Advance the range to the next child.

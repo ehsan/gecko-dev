@@ -46,11 +46,8 @@ class nsIAtom;
 class nsPresContext;
 class nsCSSValue;
 
-struct nsMediaFeature;
 typedef nsresult
-(* nsMediaFeatureValueGetter)(nsPresContext* aPresContext,
-                              const nsMediaFeature* aFeature,
-                              nsCSSValue& aResult);
+(* nsMediaFeatureValueGetter)(nsPresContext* aPresContext, nsCSSValue& aResult);
 
 struct nsMediaFeature {
     nsIAtom **mName; // extra indirection to point to nsGkAtoms members
@@ -76,18 +73,8 @@ struct nsMediaFeature {
     };
     ValueType mValueType;
 
-    union {
-      // In static arrays, it's the first member that's initialized.  We
-      // need that to be void* so we can initialize both other types.
-      // This member should never be accessed by name.
-      const void* mInitializer_;
-      // If mValueType == eEnumerated:  const PRInt32*: keyword table in
-      //   the same format as the keyword tables in nsCSSProps.
-      const PRInt32* mKeywordTable;
-      // If mGetter == GetSystemMetric (which implies mValueType ==
-      //   eBoolInteger): nsIAtom * const *, for the system metric.
-      nsIAtom * const * mMetric;
-    } mData;
+    // The same format as the keyword tables in nsCSSProps.
+    const PRInt32* mKeywordTable;
 
     // A function that returns the current value for this feature for a
     // given presentation.  If it returns eCSSUnit_Null, the feature is

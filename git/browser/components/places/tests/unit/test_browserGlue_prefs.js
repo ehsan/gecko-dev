@@ -205,16 +205,15 @@ tests.push({
     do_check_false(ps.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
     do_check_false(ps.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
 
-    do_test_finished();
+    finish_test();
   }
 });
 
 //------------------------------------------------------------------------------
 
 function finish_test() {
-  // Clean up database from all bookmarks.
-  remove_all_bookmarks();
-
+  // Simulate application closing to remove the idle observer and avoid leaks.
+  os.notifyObservers(null, "quit-application-granted", null);
   do_test_finished();
 }
 
@@ -223,13 +222,16 @@ function next_test() {
   // Clean up database from all bookmarks.
   remove_all_bookmarks();
 
+  // Simulate application closing to remove the idle observer and avoid leaks.
+  os.notifyObservers(null, "quit-application-granted", null);
+
   // nsBrowserGlue stops observing topics after first notification,
   // so we add back the observer to test additional runs.
   os.addObserver(bg, TOPIC_PLACES_INIT_COMPLETE, false);
 
   // Execute next test.
   let test = tests.shift();
-  print("\nTEST " + (++testIndex) + ": " + test.description);
+  dump("\nTEST " + (++testIndex) + ": " + test.description);
   test.exec();
 }
 

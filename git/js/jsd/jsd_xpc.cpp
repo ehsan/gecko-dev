@@ -2938,13 +2938,7 @@ jsdService::WrapValue(jsdIValue **_rval)
     if (NS_FAILED(rv))
         return rv;
 
-    return WrapJSValue(argv[0], _rval);
-}
-
-NS_IMETHODIMP
-jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
-{
-    JSDValue *jsdv = JSD_NewValue(mCx, value);
+    JSDValue *jsdv = JSD_NewValue (mCx, argv[0]);
     if (!jsdv)
         return NS_ERROR_FAILURE;
     

@@ -433,7 +433,7 @@ protected:
   /**
    * Finalize all internal statements.
    */
-  NS_HIDDEN_(nsresult) FinalizeStatements();
+  nsresult FinalizeStatements();
 
   /**
    * Analyzes the database and VACUUM it, if needed.
@@ -443,12 +443,6 @@ protected:
    * Decays frecency and inputhistory values.
    */
   NS_HIDDEN_(nsresult) VacuumDatabase();
-
-  /**
-   * Finalizes all Places internal statements, allowing to safely close the
-   * database connection.
-   */
-  NS_HIDDEN_(nsresult) FinalizeInternalStatements();
 
   // nsICharsetResolver
   NS_DECL_NSICHARSETRESOLVER
@@ -586,7 +580,7 @@ protected:
   nsresult StartLazyTimer();
   nsresult AddLazyMessage(const LazyMessage& aMessage);
   static void LazyTimerCallback(nsITimer* aTimer, void* aClosure);
-  NS_HIDDEN_(void) CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
+  void CommitLazyMessages();
 #endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
