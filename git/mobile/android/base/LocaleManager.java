@@ -123,35 +123,6 @@ public class LocaleManager {
         }
     }
 
-    /**
-     * Gecko uses locale codes like "es-ES", whereas a Java {@link Locale}
-     * stringifies as "es_ES".
-     *
-     * This method approximates the Java 7 method <code>Locale#toLanguageTag()</code>.
-     *
-     * @return a locale string suitable for passing to Gecko.
-     */
-    public static String getLanguageTag(final Locale locale) {
-        // If this were Java 7:
-        // return locale.toLanguageTag();
-
-        String language = locale.getLanguage();  // Can, but should never be, an empty string.
-        // Modernize certain language codes.
-        if (language.equals("iw")) {
-            language = "he";
-        } else if (language.equals("in")) {
-            language = "id";
-        } else if (language.equals("ji")) {
-            language = "yi";
-        }
-
-        String country = locale.getCountry();    // Can be an empty string.
-        if (country.equals("")) {
-            return language;
-        }
-        return language + "-" + country;
-    }
-
     public static Locale getCurrentLocale() {
         if (currentLocale != null) {
             return currentLocale;
@@ -165,13 +136,9 @@ public class LocaleManager {
     }
 
     /**
-     * Updates the Java locale and the Android configuration.
-     *
-     * Returns the persisted locale if it differed.
-     *
-     * Does not notify Gecko.
+     * Returns the persisted locale if it differed from the current.
      */
-    private static String updateLocale(String localeCode) {
+    public static String updateLocale(String localeCode) {
         // Fast path.
         final Locale defaultLocale = Locale.getDefault();
         if (defaultLocale.toString().equals(localeCode)) {
@@ -194,13 +161,11 @@ public class LocaleManager {
         config.locale = locale;
         res.updateConfiguration(config, res.getDisplayMetrics());
 
-        return locale.toString();
-    }
-
-    public static void notifyGeckoOfLocaleChange(Locale locale) {
         // Tell Gecko.
-        GeckoEvent ev = GeckoEvent.createBroadcastEvent("Locale:Changed", getLanguageTag(locale));
+        GeckoEvent ev = GeckoEvent.createBroadcastEvent("Locale:Changed", locale.toString());
         GeckoAppShell.sendEventToGecko(ev);
+
+        return locale.toString();
     }
 
     private static String getPrefName() {
@@ -233,30 +198,18 @@ public class LocaleManager {
             return null;
         }
 
-        // Note that we don't tell Gecko about this. We notify Gecko when the
-        // locale is set, not when we update Java.
         updateLocale(localeCode);
-
         final long t2 = android.os.SystemClock.uptimeMillis();
         Log.i(LOG_TAG, "Locale read and update took: " + (t2 - t1) + "ms.");
         return localeCode;
     }
 
     /**
-     * Returns the set locale if it changed.
-     *
-     * Always persists and notifies Gecko.
+     * Returns the set locale if it changed. Always persists.
      */
     public static String setSelectedLocale(String localeCode) {
         final String resultant = updateLocale(localeCode);
-
-        // We always persist and notify Gecko, even if nothing seemed to
-        // change. This might happen if you're picking a locale that's the same
-        // as the current OS locale. The OS locale might change next time we
-        // launch, and we need the Gecko pref and persisted locale to have been
-        // set by the time that happens.
         persistLocale(localeCode);
-        notifyGeckoOfLocaleChange(getCurrentLocale());
         return resultant;
     }
 }
