@@ -89,7 +89,6 @@
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/XULDocumentBinding.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/LoadInfo.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
 #include "nsJSUtils.h"
@@ -2830,10 +2829,7 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
             // that the overlay's JSObjects etc end up being created
             // with the right principal and in the correct
             // compartment.
-            nsCOMPtr<nsILoadInfo> loadInfo =
-                new LoadInfo(NodePrincipal(), LoadInfo::eInheritPrincipal,
-                             LoadInfo::eNotSandboxed);
-            channel->SetLoadInfo(loadInfo);
+            channel->SetOwner(NodePrincipal());
 
             rv = channel->AsyncOpen(listener, nullptr);
         }

@@ -13,7 +13,6 @@
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
-#include "mozilla/LoadInfo.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsDOMBlobBuilder.h"
 #include "nsIDOMDocument.h"
@@ -1974,10 +1973,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     documentPrincipal = mPrincipal;
   }
 
-  nsCOMPtr<nsILoadInfo> loadInfo =
-    new LoadInfo(documentPrincipal, LoadInfo::eInheritPrincipal,
-                 LoadInfo::eNotSandboxed);
-  channel->SetLoadInfo(loadInfo);
+  channel->SetOwner(documentPrincipal);
 
   nsresult status;
   request->GetStatus(&status);

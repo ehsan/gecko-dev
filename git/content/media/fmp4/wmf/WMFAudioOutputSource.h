@@ -15,10 +15,10 @@
 
 namespace mozilla {
 
-class WMFAudioMFTManager : public MFTManager {
+class WMFAudioOutputSource : public WMFOutputSource {
 public:
-  WMFAudioMFTManager(const mp4_demuxer::AudioDecoderConfig& aConfig);
-  ~WMFAudioMFTManager();
+  WMFAudioOutputSource(const mp4_demuxer::AudioDecoderConfig& aConfig);
+  ~WMFAudioOutputSource();
 
   virtual TemporaryRef<MFTDecoder> Init() MOZ_OVERRIDE;
 

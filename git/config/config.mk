@@ -64,7 +64,6 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   RESOURCE_FILES \
   SDK_HEADERS \
   SIMPLE_PROGRAMS \
-  SONAME \
   TEST_DIRS \
   TIERS \
   TOOL_DIRS \
@@ -149,7 +148,6 @@ CHECK_VARS := \
  XPI_PKGNAME \
  INSTALL_EXTENSION_ID \
  SHARED_LIBRARY_NAME \
- SONAME \
  STATIC_LIBRARY_NAME \
  $(NULL)
 
@@ -197,6 +195,11 @@ endif
 
 CONFIG_TOOLS	= $(MOZ_BUILD_ROOT)/config
 AUTOCONF_TOOLS	= $(topsrcdir)/build/autoconf
+
+# Disable MOZ_PSEUDO_DERECURSE on PGO builds until it's fixed.
+ifneq (,$(MOZ_PROFILE_USE)$(MOZ_PROFILE_GENERATE))
+MOZ_PSEUDO_DERECURSE :=
+endif
 
 #
 # Strip off the excessively long version numbers on these platforms,

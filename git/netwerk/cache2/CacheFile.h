@@ -145,8 +145,8 @@ private:
 
   int64_t  BytesFromChunk(uint32_t aIndex);
 
-  nsresult RemoveInput(CacheFileInputStream *aInput, nsresult aStatus);
-  nsresult RemoveOutput(CacheFileOutputStream *aOutput, nsresult aStatus);
+  nsresult RemoveInput(CacheFileInputStream *aInput);
+  nsresult RemoveOutput(CacheFileOutputStream *aOutput);
   nsresult NotifyChunkListener(CacheFileChunkListener *aCallback,
                                nsIEventTarget *aTarget,
                                nsresult aResult,
@@ -192,7 +192,6 @@ private:
   bool           mReady;
   bool           mMemoryOnly;
   bool           mOpenAsMemoryOnly;
-  bool           mPriority;
   bool           mDataAccessed;
   bool           mDataIsDirty;
   bool           mWritingMetadata;

@@ -37,10 +37,8 @@ function loadWebapp(manifest, parameters, onLoad) {
   registerCleanupFunction(function() {
     // We load DOMApplicationRegistry into a local scope to avoid appearing
     // to leak it.
-    let { DOMApplicationRegistry } = Cu.import("resource://gre/modules/Webapps.jsm", {});
-
-    return new Promise(function(resolve, reject) {
-      DOMApplicationRegistry.uninstall(url.spec, resolve, reject);
-    });
+    let scope = {};
+    Cu.import("resource://gre/modules/Webapps.jsm", scope);
+    scope.DOMApplicationRegistry.uninstall(url.spec);
   });
 }

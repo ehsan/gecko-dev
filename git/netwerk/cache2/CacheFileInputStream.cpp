@@ -28,7 +28,7 @@ CacheFileInputStream::Release()
   }
 
   if (count == 1) {
-    mFile->RemoveInput(this, mStatus);
+    mFile->RemoveInput(this);
   }
 
   return count;
@@ -153,15 +153,13 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
     int64_t canRead;
     const char *buf;
     CanRead(&canRead, &buf);
-    if (NS_FAILED(mStatus)) {
-      return mStatus;
-    }
 
     if (canRead < 0) {
       // file was truncated ???
       MOZ_ASSERT(false, "SetEOF is currenty not implemented?!");
       rv = NS_OK;
-    } else if (canRead > 0) {
+    }
+    else if (canRead > 0) {
       uint32_t toRead = std::min(static_cast<uint32_t>(canRead), aCount);
 
       // We need to release the lock to avoid lock re-entering unless the
@@ -201,7 +199,8 @@ CacheFileInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
       }
 
       rv = NS_OK;
-    } else {
+    }
+    else {
       if (mFile->mOutput)
         rv = NS_BASE_STREAM_WOULD_BLOCK;
       else {
@@ -543,14 +542,7 @@ CacheFileInputStream::CanRead(int64_t *aCanRead, const char **aBuf)
 
   uint32_t chunkOffset = mPos - (mPos / kChunkSize) * kChunkSize;
   *aCanRead = mChunk->DataSize() - chunkOffset;
-  if (*aCanRead > 0) {
-    *aBuf = mChunk->BufForReading() + chunkOffset;
-  } else {
-    *aBuf = nullptr;
-    if (NS_FAILED(mChunk->GetStatus())) {
-      CloseWithStatusLocked(mChunk->GetStatus());
-    }
-  }
+  *aBuf = mChunk->BufForReading() + chunkOffset;
 
   LOG(("CacheFileInputStream::CanRead() [this=%p, canRead=%lld]",
        this, *aCanRead));
@@ -611,12 +603,6 @@ CacheFileInputStream::MaybeNotifyListener()
   int64_t canRead;
   const char *buf;
   CanRead(&canRead, &buf);
-  if (NS_FAILED(mStatus)) {
-    // CanRead() called CloseWithStatusLocked() which called
-    // MaybeNotifyListener() so the listener was already notified. Stop here.
-    MOZ_ASSERT(!mCallback);
-    return;
-  }
 
   if (canRead > 0) {
     if (!(mCallbackFlags & WAIT_CLOSURE_ONLY))

@@ -18,6 +18,7 @@
 #endif
 #include "nsINSSErrorsService.h"
 #include "nsNSSCallbacks.h"
+#include "ScopedNSSTypes.h"
 #include "SharedCertVerifier.h"
 #include "nsNSSHelper.h"
 #include "nsClientAuthRemember.h"

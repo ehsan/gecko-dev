@@ -21,12 +21,12 @@ PRLogModuleInfo* GetDemuxerLog();
 
 namespace mozilla {
 
-WMFMediaDataDecoder::WMFMediaDataDecoder(MFTManager* aMFTManager,
+WMFMediaDataDecoder::WMFMediaDataDecoder(WMFOutputSource* aSource,
                                          MediaTaskQueue* aTaskQueue,
                                          MediaDataDecoderCallback* aCallback)
   : mTaskQueue(aTaskQueue)
   , mCallback(aCallback)
-  , mMFTManager(aMFTManager)
+  , mSource(aSource)
 {
   MOZ_COUNT_CTOR(WMFMediaDataDecoder);
 }
@@ -39,7 +39,7 @@ WMFMediaDataDecoder::~WMFMediaDataDecoder()
 nsresult
 WMFMediaDataDecoder::Init()
 {
-  mDecoder = mMFTManager->Init();
+  mDecoder = mSource->Init();
   NS_ENSURE_TRUE(mDecoder, NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -67,9 +67,9 @@ WMFMediaDataDecoder::Input(mp4_demuxer::MP4Sample* aSample)
 void
 WMFMediaDataDecoder::ProcessDecode(mp4_demuxer::MP4Sample* aSample)
 {
-  HRESULT hr = mMFTManager->Input(aSample);
+  HRESULT hr = mSource->Input(aSample);
   if (FAILED(hr)) {
-    NS_WARNING("MFTManager rejected sample");
+    NS_WARNING("WMFOutputSource rejected sample");
     mCallback->Error();
     return;
   }
@@ -84,7 +84,7 @@ WMFMediaDataDecoder::ProcessOutput()
 {
   nsAutoPtr<MediaData> output;
   HRESULT hr = S_OK;
-  while (SUCCEEDED(hr = mMFTManager->Output(mLastStreamOffset, output)) &&
+  while (SUCCEEDED(hr = mSource->Output(mLastStreamOffset, output)) &&
          output) {
     mCallback->Output(output.forget());
   }

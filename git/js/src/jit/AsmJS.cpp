@@ -722,19 +722,19 @@ bool operator!=(const Signature &lhs, const Signature &rhs)
 // Typed array utilities
 
 static Type
-TypedArrayLoadType(Scalar::Type viewType)
+TypedArrayLoadType(ArrayBufferView::ViewType viewType)
 {
     switch (viewType) {
-      case Scalar::Int8:
-      case Scalar::Int16:
-      case Scalar::Int32:
-      case Scalar::Uint8:
-      case Scalar::Uint16:
-      case Scalar::Uint32:
+      case ArrayBufferView::TYPE_INT8:
+      case ArrayBufferView::TYPE_INT16:
+      case ArrayBufferView::TYPE_INT32:
+      case ArrayBufferView::TYPE_UINT8:
+      case ArrayBufferView::TYPE_UINT16:
+      case ArrayBufferView::TYPE_UINT32:
         return Type::Intish;
-      case Scalar::Float32:
+      case ArrayBufferView::TYPE_FLOAT32:
         return Type::MaybeFloat;
-      case Scalar::Float64:
+      case ArrayBufferView::TYPE_FLOAT64:
         return Type::MaybeDouble;
       default:;
     }
@@ -878,7 +878,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             uint32_t funcIndex_;
             uint32_t funcPtrTableIndex_;
             uint32_t ffiIndex_;
-            Scalar::Type viewType_;
+            ArrayBufferView::ViewType viewType_;
             AsmJSMathBuiltinFunction mathBuiltinFunc_;
         } u;
 
@@ -918,7 +918,7 @@ class MOZ_STACK_CLASS ModuleCompiler
             JS_ASSERT(which_ == FFI);
             return u.ffiIndex_;
         }
-        Scalar::Type viewType() const {
+        ArrayBufferView::ViewType viewType() const {
             JS_ASSERT(which_ == ArrayView);
             return u.viewType_;
         }
@@ -1348,7 +1348,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         global->u.ffiIndex_ = index;
         return globals_.putNew(varName, global);
     }
-    bool addArrayView(PropertyName *varName, Scalar::Type vt, PropertyName *fieldName) {
+    bool addArrayView(PropertyName *varName, ArrayBufferView::ViewType vt, PropertyName *fieldName) {
         Global *global = moduleLifo_.new_<Global>(Global::ArrayView);
         if (!global)
             return false;
@@ -2119,7 +2119,7 @@ class FunctionCompiler
         curBlock_->setSlot(info().localSlot(local.slot), def);
     }
 
-    MDefinition *loadHeap(Scalar::Type vt, MDefinition *ptr, NeedsBoundsCheck chk)
+    MDefinition *loadHeap(ArrayBufferView::ViewType vt, MDefinition *ptr, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return nullptr;
@@ -2130,7 +2130,7 @@ class FunctionCompiler
         return load;
     }
 
-    void storeHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
+    void storeHeap(ArrayBufferView::ViewType vt, MDefinition *ptr, MDefinition *v, NeedsBoundsCheck chk)
     {
         if (inDeadCode())
             return;
@@ -2994,23 +2994,23 @@ CheckNewArrayView(ModuleCompiler &m, PropertyName *varName, ParseNode *newExpr)
         return m.failName(bufArg, "argument to array view constructor must be '%s'", bufferName);
 
     JSAtomState &names = m.cx()->names();
-    Scalar::Type type;
+    ArrayBufferView::ViewType type;
     if (field == names.Int8Array)
-        type = Scalar::Int8;
+        type = ArrayBufferView::TYPE_INT8;
     else if (field == names.Uint8Array)
-        type = Scalar::Uint8;
+        type = ArrayBufferView::TYPE_UINT8;
     else if (field == names.Int16Array)
-        type = Scalar::Int16;
+        type = ArrayBufferView::TYPE_INT16;
     else if (field == names.Uint16Array)
-        type = Scalar::Uint16;
+        type = ArrayBufferView::TYPE_UINT16;
     else if (field == names.Int32Array)
-        type = Scalar::Int32;
+        type = ArrayBufferView::TYPE_INT32;
     else if (field == names.Uint32Array)
-        type = Scalar::Uint32;
+        type = ArrayBufferView::TYPE_UINT32;
     else if (field == names.Float32Array)
-        type = Scalar::Float32;
+        type = ArrayBufferView::TYPE_FLOAT32;
     else if (field == names.Float64Array)
-        type = Scalar::Float64;
+        type = ArrayBufferView::TYPE_FLOAT64;
     else
         return m.fail(ctorExpr, "could not match typed array name");
 
@@ -3356,7 +3356,7 @@ FoldMaskedArrayIndex(FunctionCompiler &f, ParseNode **indexExpr, int32_t *mask,
 }
 
 static bool
-CheckArrayAccess(FunctionCompiler &f, ParseNode *elem, Scalar::Type *viewType,
+CheckArrayAccess(FunctionCompiler &f, ParseNode *elem, ArrayBufferView::ViewType *viewType,
                  MDefinition **def, NeedsBoundsCheck *needsBoundsCheck)
 {
     ParseNode *viewName = ElemBase(elem);
@@ -3461,7 +3461,7 @@ CheckArrayAccess(FunctionCompiler &f, ParseNode *elem, Scalar::Type *viewType,
 static bool
 CheckLoadArray(FunctionCompiler &f, ParseNode *elem, MDefinition **def, Type *type)
 {
-    Scalar::Type viewType;
+    ArrayBufferView::ViewType viewType;
     MDefinition *pointerDef;
     NeedsBoundsCheck needsBoundsCheck;
     if (!CheckArrayAccess(f, elem, &viewType, &pointerDef, &needsBoundsCheck))
@@ -3475,7 +3475,7 @@ CheckLoadArray(FunctionCompiler &f, ParseNode *elem, MDefinition **def, Type *ty
 static bool
 CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition **def, Type *type)
 {
-    Scalar::Type viewType;
+    ArrayBufferView::ViewType viewType;
     MDefinition *pointerDef;
     NeedsBoundsCheck needsBoundsCheck;
     if (!CheckArrayAccess(f, lhs, &viewType, &pointerDef, &needsBoundsCheck))
@@ -3487,22 +3487,22 @@ CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
         return false;
 
     switch (viewType) {
-      case Scalar::Int8:
-      case Scalar::Int16:
-      case Scalar::Int32:
-      case Scalar::Uint8:
-      case Scalar::Uint16:
-      case Scalar::Uint32:
+      case ArrayBufferView::TYPE_INT8:
+      case ArrayBufferView::TYPE_INT16:
+      case ArrayBufferView::TYPE_INT32:
+      case ArrayBufferView::TYPE_UINT8:
+      case ArrayBufferView::TYPE_UINT16:
+      case ArrayBufferView::TYPE_UINT32:
         if (!rhsType.isIntish())
             return f.failf(lhs, "%s is not a subtype of intish", rhsType.toChars());
         break;
-      case Scalar::Float32:
+      case ArrayBufferView::TYPE_FLOAT32:
         if (rhsType.isMaybeDouble())
             rhsDef = f.unary<MToFloat32>(rhsDef);
         else if (!rhsType.isFloatish())
             return f.failf(lhs, "%s is not a subtype of double? or floatish", rhsType.toChars());
         break;
-      case Scalar::Float64:
+      case ArrayBufferView::TYPE_FLOAT64:
         if (rhsType.isMaybeFloat())
             rhsDef = f.unary<MToDouble>(rhsDef);
         else if (!rhsType.isMaybeDouble())
@@ -6752,7 +6752,7 @@ GenerateInterruptExit(ModuleCompiler &m, Label *throwLabel)
 
     // Pop resumePC into PC. Clobber HeapReg to make the jump and restore it
     // during jump delay slot.
-    JS_ASSERT(Imm16::IsInSignedRange(AsmJSModule::heapGlobalDataOffset()));
+    JS_ASSERT(Imm16::isInSignedRange(AsmJSModule::heapGlobalDataOffset()));
     masm.pop(HeapReg);
     masm.as_jr(HeapReg);
     masm.loadPtr(Address(GlobalReg, AsmJSModule::heapGlobalDataOffset()), HeapReg);

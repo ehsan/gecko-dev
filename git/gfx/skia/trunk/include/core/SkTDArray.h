@@ -12,7 +12,7 @@
 
 #include "SkTypes.h"
 
-template <typename T> class SkTDArray {
+template <typename T> class SK_API SkTDArray {
 public:
     SkTDArray() {
         fReserve = fCount = 0;

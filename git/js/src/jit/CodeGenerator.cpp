@@ -6723,7 +6723,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         ionScript->setHasUncompiledCallTarget();
 
     invalidateEpilogueData_.fixup(&masm);
-    Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),
+    Assembler::patchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),
                                        ImmPtr(ionScript),
                                        ImmPtr((void*)-1));
 
@@ -6745,7 +6745,7 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
 
     for (size_t i = 0; i < ionScriptLabels_.length(); i++) {
         ionScriptLabels_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, ionScriptLabels_[i]),
+        Assembler::patchDataWithValueCheck(CodeLocationLabel(code, ionScriptLabels_[i]),
                                            ImmPtr(ionScript),
                                            ImmPtr((void*)-1));
     }
@@ -6783,14 +6783,14 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
     for (uint32_t i = 0; i < patchableTraceLoggers_.length(); i++) {
         patchableTraceLoggers_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
+        Assembler::patchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
                                            ImmPtr(logger),
                                            ImmPtr(nullptr));
     }
     uint32_t scriptId = TraceLogCreateTextId(logger, script);
     for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
         patchableTLScripts_[i].fixup(&masm);
-        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
+        Assembler::patchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
                                            ImmPtr((void *) uintptr_t(scriptId)),
                                            ImmPtr((void *)0));
     }
@@ -7870,8 +7870,8 @@ CodeGenerator::visitLoadTypedArrayElement(LLoadTypedArrayElement *lir)
     Register temp = lir->temp()->isBogusTemp() ? InvalidReg : ToRegister(lir->temp());
     AnyRegister out = ToAnyRegister(lir->output());
 
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
+    int arrayType = lir->mir()->arrayType();
+    int width = TypedArrayObject::slotWidth(arrayType);
 
     Label fail;
     if (lir->index()->isConstant()) {
@@ -7909,8 +7909,8 @@ CodeGenerator::visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir)
     masm.bind(&inbounds);
     masm.loadPtr(Address(object, TypedArrayObject::dataOffset()), scratch);
 
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
+    int arrayType = lir->mir()->arrayType();
+    int width = TypedArrayObject::slotWidth(arrayType);
 
     Label fail;
     if (key.isConstant()) {
@@ -7932,9 +7932,11 @@ CodeGenerator::visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir)
 
 template <typename T>
 static inline void
-StoreToTypedArray(MacroAssembler &masm, Scalar::Type arrayType, const LAllocation *value, const T &dest)
+StoreToTypedArray(MacroAssembler &masm, int arrayType, const LAllocation *value, const T &dest)
 {
-    if (arrayType == Scalar::Float32 || arrayType == Scalar::Float64) {
+    if (arrayType == ScalarTypeDescr::TYPE_FLOAT32 ||
+        arrayType == ScalarTypeDescr::TYPE_FLOAT64)
+    {
         masm.storeToTypedFloatArray(arrayType, ToFloatRegister(value), dest);
     } else {
         if (value->isConstant())
@@ -7950,8 +7952,8 @@ CodeGenerator::visitStoreTypedArrayElement(LStoreTypedArrayElement *lir)
     Register elements = ToRegister(lir->elements());
     const LAllocation *value = lir->value();
 
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
+    int arrayType = lir->mir()->arrayType();
+    int width = TypedArrayObject::slotWidth(arrayType);
 
     if (lir->index()->isConstant()) {
         Address dest(elements, ToInt32(lir->index()) * width);
@@ -7970,8 +7972,8 @@ CodeGenerator::visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole *lir)
     Register elements = ToRegister(lir->elements());
     const LAllocation *value = lir->value();
 
-    Scalar::Type arrayType = lir->mir()->arrayType();
-    int width = Scalar::byteSize(arrayType);
+    int arrayType = lir->mir()->arrayType();
+    int width = TypedArrayObject::slotWidth(arrayType);
 
     bool guardLength = true;
     if (lir->index()->isConstant() && lir->length()->isConstant()) {

@@ -7,7 +7,6 @@
 if CONFIG['MOZ_B2G_BT']:
     SOURCES += [
         'BluetoothAdapter.cpp',
-        'BluetoothClassOfDevice.cpp',
         'BluetoothDevice.cpp',
         'BluetoothDiscoveryHandle.cpp',
         'BluetoothHidManager.cpp',
@@ -94,7 +93,6 @@ EXPORTS.mozilla.dom.bluetooth.ipc += [
 
 EXPORTS.mozilla.dom.bluetooth += [
     'BluetoothAdapter.h',
-    'BluetoothClassOfDevice.h',
     'BluetoothCommon.h',
     'BluetoothDevice.h',
     'BluetoothDiscoveryHandle.h',

@@ -204,7 +204,7 @@ this.FxAccountsManager = {
         }
       );
     }
-    return Promise.reject(reason);
+    return rejection;
   },
 
   _getAssertion: function(aAudience) {

@@ -429,13 +429,25 @@ private:
    * Mutation observer used to watch for text positioning attribute changes
    * on descendent text content elements (like <tspan>s).
    */
-  class MutationObserver MOZ_FINAL : public nsStubMutationObserver {
+  class MutationObserver : public nsStubMutationObserver {
   public:
-    MutationObserver(SVGTextFrame* aFrame)
-      : mFrame(aFrame)
+    MutationObserver()
+      : mFrame(nullptr)
     {
-      MOZ_ASSERT(mFrame, "MutationObserver needs a non-null frame");
-      mFrame->GetContent()->AddMutationObserver(this);
+    }
+
+    void StartObserving(SVGTextFrame* aFrame)
+    {
+      NS_ASSERTION(!mFrame, "should not be observing yet!");
+      mFrame = aFrame;
+      aFrame->GetContent()->AddMutationObserver(this);
+    }
+
+    virtual ~MutationObserver()
+    {
+      if (mFrame) {
+        mFrame->GetContent()->RemoveMutationObserver(this);
+      }
     }
 
     // nsISupports
@@ -449,12 +461,7 @@ private:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   private:
-    ~MutationObserver()
-    {
-      mFrame->GetContent()->RemoveMutationObserver(this);
-    }
-
-    SVGTextFrame* const mFrame;
+    SVGTextFrame* mFrame;
   };
 
   /**
@@ -630,7 +637,7 @@ private:
   /**
    * The MutationObserver we have registered for the <text> element subtree.
    */
-  nsRefPtr<MutationObserver> mMutationObserver;
+  MutationObserver mMutationObserver;
 
   /**
    * Cached canvasTM value.
@@ -689,5 +696,13 @@ private:
    */
   float mLengthAdjustScaleFactor;
 };
+
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<SVGTextFrame::MutationObserver>
+{
+  static const bool value = true;
+};
+}
 
 #endif

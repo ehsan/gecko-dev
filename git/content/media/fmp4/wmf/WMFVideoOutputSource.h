@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(WMFVideoMFTManager_h_)
-#define WMFVideoMFTManager_h_
+#if !defined(WMFVideoOutputSource_h_)
+#define WMFVideoOutputSource_h_
 
 #include "WMF.h"
 #include "MP4Reader.h"
@@ -18,13 +18,13 @@ namespace mozilla {
 
 class DXVA2Manager;
 
-class WMFVideoMFTManager : public MFTManager {
+class WMFVideoOutputSource : public WMFOutputSource {
 public:
-  WMFVideoMFTManager(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                     mozilla::layers::LayersBackend aLayersBackend,
-                     mozilla::layers::ImageContainer* aImageContainer,
-                     bool aDXVAEnabled);
-  ~WMFVideoMFTManager();
+  WMFVideoOutputSource(const mp4_demuxer::VideoDecoderConfig& aConfig,
+                       mozilla::layers::LayersBackend aLayersBackend,
+                       mozilla::layers::ImageContainer* aImageContainer,
+                       bool aDXVAEnabled);
+  ~WMFVideoOutputSource();
 
   virtual TemporaryRef<MFTDecoder> Init() MOZ_OVERRIDE;
 
@@ -69,4 +69,4 @@ private:
 
 } // namespace mozilla
 
-#endif // WMFVideoMFTManager_h_
+#endif // WMFVideoOutputSource_h_

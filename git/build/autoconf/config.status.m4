@@ -209,3 +209,5 @@ MOZ_RUN_CONFIG_STATUS()],
 define([AC_CONFIG_HEADER],
 [m4_fatal([Use CONFIGURE_DEFINE_FILES in moz.build files to produce header files.])
 ])
+
+AC_SUBST([MOZ_PSEUDO_DERECURSE])

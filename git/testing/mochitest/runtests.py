@@ -1402,7 +1402,7 @@ class Mochitest(MochitestUtilsMixin):
       if options.bisectChunk:
         testsToRun = bisect.pre_test(options, testsToRun, status)
 
-      result = self.doTests(options, onLaunch, testsToRun)
+      self.doTests(options, onLaunch, testsToRun)
       if options.bisectChunk:
         status = bisect.post_test(options, self.expectedError, self.result)
       else:
@@ -1415,8 +1415,9 @@ class Mochitest(MochitestUtilsMixin):
     # Also we need to make sure that we do not print the summary in between running tests via --run-by-dir.
     if options.bisectChunk and options.bisectChunk in self.result:
       bisect.print_summary()
+      return -1
 
-    return result
+    return 0
 
   def runTests(self, options, onLaunch=None):
     """ Prepare, configure, run tests and cleanup """
@@ -1424,7 +1425,8 @@ class Mochitest(MochitestUtilsMixin):
     self.setTestRoot(options)
 
     if not options.runByDir:
-      return self.runMochitests(options, onLaunch)
+      self.runMochitests(options, onLaunch)
+      return 0
 
     # code for --run-by-dir
     dirs = self.getDirectories(options)
@@ -1449,7 +1451,9 @@ class Mochitest(MochitestUtilsMixin):
       # If we are using --run-by-dir, we should not use the profile path (if) provided
       # by the user, since we need to create a new directory for each run. We would face problems
       # if we use the directory provided by the user.
-      result = self.runMochitests(options, onLaunch)
+      runResult = self.runMochitests(options, onLaunch)
+      if runResult == -1:
+        return 0
 
     # printing total number of tests
     if options.browserChrome:
@@ -1465,8 +1469,6 @@ class Mochitest(MochitestUtilsMixin):
       print "2 INFO Failed:  %s" % self.countfail
       print "3 INFO Todo:    %s" % self.counttodo
       print "4 INFO SimpleTest FINISHED"
-
-    return result
 
   def doTests(self, options, onLaunch=None, testsToFilter = None):
     # A call to initializeLooping method is required in case of --run-by-dir or --bisect-chunk

@@ -5,8 +5,6 @@
 
 #include "mozilla/Attributes.h"
 
-#ifndef _MSC_VER // Not supported by clang-cl yet
-
 // When running with AddressSanitizer, we need to explicitely set some
 // options specific to our codebase to prevent errors during runtime.
 // 
@@ -24,5 +22,3 @@ extern "C" MOZ_ASAN_BLACKLIST
 const char* __asan_default_options() {
     return "allow_user_segv_handler=1:alloc_dealloc_mismatch=0";
 }
-
-#endif
