@@ -1716,8 +1716,7 @@ IsScrollbarThumbLayerized(nsIFrame* aThumbFrame)
 }
 
 nsIFrame*
-nsLayoutUtils::GetAnimatedGeometryRootForFrame(nsDisplayListBuilder* aBuilder,
-                                               nsIFrame* aFrame,
+nsLayoutUtils::GetAnimatedGeometryRootForFrame(nsIFrame* aFrame,
                                                const nsIFrame* aStopAtAncestor)
 {
   nsIFrame* f = aFrame;
@@ -1751,7 +1750,7 @@ nsLayoutUtils::GetAnimatedGeometryRootForFrame(nsDisplayListBuilder* aBuilder,
     }
     if (parentType == nsGkAtoms::scrollFrame) {
       nsIScrollableFrame* sf = do_QueryFrame(parent);
-      if (sf->IsScrollingActive(aBuilder) && sf->GetScrolledFrame() == f) {
+      if (sf->IsScrollingActive() && sf->GetScrolledFrame() == f) {
         // If we found a sticky frame inside this active scroll frame,
         // then use that. Otherwise use the scroll frame.
         if (stickyFrame) {
@@ -1781,7 +1780,7 @@ nsLayoutUtils::GetAnimatedGeometryRootFor(nsDisplayItem* aItem,
     nsDisplayScrollLayer* scrollLayerItem =
       static_cast<nsDisplayScrollLayer*>(aItem);
     nsIFrame* scrolledFrame = scrollLayerItem->GetScrolledFrame();
-    return GetAnimatedGeometryRootForFrame(aBuilder, scrolledFrame,
+    return GetAnimatedGeometryRootForFrame(scrolledFrame,
         aBuilder->FindReferenceFrameFor(scrolledFrame));
   }
   if (aItem->ShouldFixToViewport(aManager)) {
@@ -1792,10 +1791,10 @@ nsLayoutUtils::GetAnimatedGeometryRootFor(nsDisplayItem* aItem,
     nsIFrame* viewportFrame =
       nsLayoutUtils::GetClosestFrameOfType(f, nsGkAtoms::viewportFrame);
     NS_ASSERTION(viewportFrame, "no viewport???");
-    return GetAnimatedGeometryRootForFrame(aBuilder, viewportFrame,
+    return GetAnimatedGeometryRootForFrame(viewportFrame,
         aBuilder->FindReferenceFrameFor(viewportFrame));
   }
-  return GetAnimatedGeometryRootForFrame(aBuilder, f, aItem->ReferenceFrame());
+  return GetAnimatedGeometryRootForFrame(f, aItem->ReferenceFrame());
 }
 
 // static
@@ -2861,8 +2860,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
   bool usingDisplayPort = false;
   nsRect displayport;
-  if (rootScrollFrame && !aFrame->GetParent() &&
-      (aFlags & (PAINT_WIDGET_LAYERS | PAINT_TO_WINDOW))) {
+  if (rootScrollFrame && !aFrame->GetParent()) {
     nsRect displayportBase(
         nsPoint(0,0),
         nsLayoutUtils::CalculateCompositionSizeForFrame(rootScrollFrame));
@@ -7049,8 +7047,8 @@ Rect NSRectToRect(const nsRect& aRect, double aAppUnitsPerPixel)
               Float(aRect.height / aAppUnitsPerPixel));
 }
 
-Rect NSRectToSnappedRect(const nsRect& aRect, double aAppUnitsPerPixel,
-                         const gfx::DrawTarget& aSnapDT)
+Rect NSRectToRect(const nsRect& aRect, double aAppUnitsPerPixel,
+                  const gfx::DrawTarget& aSnapDT)
 {
   // Note that by making aAppUnitsPerPixel a double we're doing floating-point
   // division using a larger type and avoiding rounding error.

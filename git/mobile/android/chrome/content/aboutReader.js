@@ -33,8 +33,8 @@ let AboutReader = function(doc, win) {
   this._winRef = Cu.getWeakReference(win);
 
   Services.obs.addObserver(this, "Reader:FaviconReturn", false);
-  Services.obs.addObserver(this, "Reader:Added", false);
-  Services.obs.addObserver(this, "Reader:Removed", false);
+  Services.obs.addObserver(this, "Reader:Add", false);
+  Services.obs.addObserver(this, "Reader:Remove", false);
   Services.obs.addObserver(this, "Reader:ListStatusReturn", false);
   Services.obs.addObserver(this, "Gesture:DoubleTap", false);
 
@@ -190,9 +190,10 @@ AboutReader.prototype = {
         break;
       }
 
-      case "Reader:Added": {
+      case "Reader:Add": {
         // Page can be added by long-press pageAction, or by tap on banner icon.
-        if (aData == this._article.url) {
+        let args = JSON.parse(aData);
+        if (args.url == this._article.url) {
           if (this._isReadingListItem != 1) {
             this._isReadingListItem = 1;
             this._updateToggleButton();
@@ -200,9 +201,9 @@ AboutReader.prototype = {
         }
         break;
       }
-
-      case "Reader:Removed": {
-        if (aData == this._article.url) {
+      case "Reader:Remove": {
+        let args = JSON.parse(aData);
+        if (args.url == this._article.url) {
           if (this._isReadingListItem != 0) {
             this._isReadingListItem = 0;
             this._updateToggleButton();
@@ -279,8 +280,8 @@ AboutReader.prototype = {
         break;
 
       case "unload":
-        Services.obs.removeObserver(this, "Reader:Added");
-        Services.obs.removeObserver(this, "Reader:Removed");
+        Services.obs.removeObserver(this, "Reader:Add");
+        Services.obs.removeObserver(this, "Reader:Remove");
         Services.obs.removeObserver(this, "Reader:ListStatusReturn");
         Services.obs.removeObserver(this, "Gesture:DoubleTap");
         break;
@@ -319,9 +320,14 @@ AboutReader.prototype = {
     if (!this._article)
       return;
 
-    if (this._isReadingListItem == 0) {
+    this._isReadingListItem = (this._isReadingListItem == 1) ? 0 : 1;
+    this._updateToggleButton();
+
+    if (this._isReadingListItem == 1) {
       let uptime = UITelemetry.uptimeMillis();
       gChromeWin.Reader.storeArticleInCache(this._article, function(success) {
+        dump("Reader:Add (in reader) success=" + success);
+
         let result = gChromeWin.Reader.READER_ADD_FAILED;
         if (success) {
           result = gChromeWin.Reader.READER_ADD_SUCCESS;
@@ -329,9 +335,10 @@ AboutReader.prototype = {
         }
 
         let json = JSON.stringify({ fromAboutReader: true, url: this._article.url });
+        Services.obs.notifyObservers(null, "Reader:Add", json);
 
         Messaging.sendRequest({
-          type: "Reader:AddToList",
+          type: "Reader:Added",
           result: result,
           title: this._article.title,
           url: this._article.url,
@@ -340,10 +347,11 @@ AboutReader.prototype = {
         });
       }.bind(this));
     } else {
-      Messaging.sendRequest({
-        type: "Reader:RemoveFromList",
-        url: this._article.url
-      });
+      // In addition to removing the article from the cache (handled in
+      // browser.js), sending this message will cause the toggle button to be
+      // updated (handled in this file).
+      let json = JSON.stringify({ url: this._article.url, notify: true });
+      Services.obs.notifyObservers(null, "Reader:Remove", json);
 
       UITelemetry.addEvent("unsave.1", "button", null, "reader");
     }

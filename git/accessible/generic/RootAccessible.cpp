@@ -25,6 +25,7 @@
 
 #include "mozilla/dom/Element.h"
 
+#include "nsIAccessibleRelation.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
 #include "mozilla/dom/Event.h"
@@ -52,7 +53,7 @@ using namespace mozilla::dom;
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED0(RootAccessible, DocAccessible)
+NS_IMPL_ISUPPORTS_INHERITED(RootAccessible, DocAccessible, nsIAccessibleDocument)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor/destructor
@@ -476,6 +477,7 @@ RootAccessible::Shutdown()
   DocAccessibleWrap::Shutdown();
 }
 
+// nsIAccessible method
 Relation
 RootAccessible::RelationByType(RelationType aType)
 {

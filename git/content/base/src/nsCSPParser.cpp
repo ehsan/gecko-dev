@@ -822,6 +822,13 @@ nsCSPParser::directive()
     return;
   }
 
+  if (mCurDir.Length() < 2) {
+    const char16_t* params[] = { mCurToken.get() };
+    logWarningErrorToConsole(nsIScriptError::warningFlag, "failedToParseUnrecognizedSource",
+                             params, ArrayLength(params));
+    return;
+  }
+
   // Try to create a new CSPDirective
   nsCSPDirective* cspDir = directiveName();
   if (!cspDir) {
@@ -833,11 +840,13 @@ nsCSPParser::directive()
   nsTArray<nsCSPBaseSrc*> srcs;
   directiveValue(srcs);
 
-  // If we can not parse any srcs; we let the source expression be the empty set ('none')
-  // see, http://www.w3.org/TR/CSP11/#source-list-parsing
+  // If we can not parse any srcs; it's not worth having a directive; delete and return
   if (srcs.Length() == 0) {
-    nsCSPKeywordSrc *keyword = new nsCSPKeywordSrc(CSP_NONE);
-    srcs.AppendElement(keyword);
+    const char16_t* params[] = { mCurToken.get() };
+    logWarningErrorToConsole(nsIScriptError::warningFlag, "failedToParseUnrecognizedSource",
+                             params, ArrayLength(params));
+    delete cspDir;
+    return;
   }
 
   // Add the newly created srcs to the directive and add the directive to the policy

@@ -19,13 +19,21 @@ namespace a11y {
  * Represents accessible for XUL tree in the case when it has multiple columns.
  */
 class XULTreeGridAccessible : public XULTreeAccessible,
+                              public xpcAccessibleTable,
+                              public nsIAccessibleTable,
                               public TableAccessible
 {
 public:
   XULTreeGridAccessible(nsIContent* aContent, DocAccessible* aDoc,
                         nsTreeBodyFrame* aTreeFrame) :
-    XULTreeAccessible(aContent, aDoc, aTreeFrame)
+    XULTreeAccessible(aContent, aDoc, aTreeFrame), xpcAccessibleTable(this)
     { mGenericTypes |= eTable; }
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessibleTable
+  NS_FORWARD_NSIACCESSIBLETABLE(xpcAccessibleTable::)
 
   // TableAccessible
   virtual uint32_t ColCount();
@@ -47,6 +55,7 @@ public:
   virtual Accessible* AsAccessible() { return this; }
 
   // Accessible
+  virtual void Shutdown();
   virtual TableAccessible* AsTable() { return this; }
   virtual a11y::role NativeRole() MOZ_OVERRIDE;
 
@@ -116,7 +125,9 @@ protected:
 }
 
 class XULTreeGridCellAccessible : public LeafAccessible,
-                                  public TableCellAccessible
+                                  public nsIAccessibleTableCell,
+                                  public TableCellAccessible,
+                                  public xpcAccessibleTableCell
 {
 public:
 
@@ -130,8 +141,12 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULTreeGridCellAccessible,
                                            LeafAccessible)
 
+  // nsIAccessibleTableCell
+  NS_FORWARD_NSIACCESSIBLETABLECELL(xpcAccessibleTableCell::)
+
   // Accessible
   virtual TableCellAccessible* AsTableCell() { return this; }
+  virtual void Shutdown();
   virtual nsIntRect Bounds() const MOZ_OVERRIDE;
   virtual ENameValueFlag Name(nsString& aName);
   virtual Accessible* FocusedChild();

@@ -5680,49 +5680,26 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     RootedId id(cx, NameToId(name));
 
-    // The property must be found, and it must be found as a normal data property.
-    RootedShape shape(cx);
-    RootedNativeObject current(cx, global);
-    while (true) {
-        shape = current->lookup(cx, id);
-        if (shape)
-            break;
-        JSObject *proto = current->getProto();
-        if (!proto || !proto->is<NativeObject>())
-            return true;
-        current = &proto->as<NativeObject>();
-    }
-
     // Instantiate this global property, for use during Ion compilation.
     if (IsIonEnabled(cx))
-        types::EnsureTrackPropertyTypes(cx, current, id);
+        types::EnsureTrackPropertyTypes(cx, global, NameToId(name));
+
+    // The property must be found, and it must be found as a normal data property.
+    RootedShape shape(cx, global->lookup(cx, id));
+    if (!shape)
+        return true;
 
     if (shape->hasDefaultGetter() && shape->hasSlot()) {
+
+        MOZ_ASSERT(shape->slot() >= global->numFixedSlots());
+        uint32_t slot = shape->slot() - global->numFixedSlots();
 
         // TODO: if there's a previous stub discard it, or just update its Shape + slot?
 
         ICStub *monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
-        ICStub *newStub;
-        if (current == global) {
-            MOZ_ASSERT(shape->slot() >= current->numFixedSlots());
-            uint32_t slot = shape->slot() - current->numFixedSlots();
-
-            JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName) stub");
-            ICGetName_Global::Compiler compiler(cx, monitorStub, current->lastProperty(), slot);
-            newStub = compiler.getStub(compiler.getStubSpace(script));
-        } else {
-            bool isFixedSlot;
-            uint32_t offset;
-            GetFixedOrDynamicSlotOffset(current, shape->slot(), &isFixedSlot, &offset);
-            if (!IsCacheableGetPropReadSlot(global, current, shape))
-                return true;
-
-            JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName prototype) stub");
-            ICGetPropNativeCompiler compiler(cx, ICStub::GetProp_NativePrototype, false, monitorStub,
-                                             global, current, name, isFixedSlot, offset,
-                                             /* inputDefinitelyObject = */ true);
-            newStub = compiler.getStub(compiler.getStubSpace(script));
-        }
+        JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName) stub");
+        ICGetName_Global::Compiler compiler(cx, monitorStub, global->lastProperty(), slot);
+        ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
 
@@ -5734,25 +5711,15 @@ TryAttachGlobalNameStub(JSContext *cx, HandleScript script, jsbytecode *pc,
     // changes we need to make sure IonBuilder::getPropTryCommonGetter (which
     // requires a Baseline stub) handles non-outerized this objects correctly.
     bool isScripted;
-    if (IsCacheableGetPropCall(cx, global, current, shape, &isScripted) && !isScripted)
+    if (IsCacheableGetPropCall(cx, global, global, shape, &isScripted) && !isScripted)
     {
         ICStub *monitorStub = stub->fallbackMonitorStub()->firstMonitorStub();
+        JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName/NativeGetter) stub");
         RootedFunction getter(cx, &shape->getterObject()->as<JSFunction>());
-        ICStub *newStub;
-        if (current == global) {
-            JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName/NativeGetter) stub");
-            ICGetProp_CallNative::Compiler compiler(cx, monitorStub, current,
-                                                    getter, script->pcToOffset(pc),
-                                                    /* inputDefinitelyObject = */ true);
-            newStub = compiler.getStub(compiler.getStubSpace(script));
-        } else {
-            JitSpew(JitSpew_BaselineIC, "  Generating GetName(GlobalName prototype/NativeGetter) stub");
-            ICGetProp_CallNativePrototype::Compiler compiler(cx, monitorStub, global, current,
-                                                             getter, script->pcToOffset(pc),
-                                                             /* inputDefinitelyObject = */ true);
-            newStub = compiler.getStub(compiler.getStubSpace(script));
-        }
-
+        ICGetProp_CallNative::Compiler compiler(cx, monitorStub, global,
+                                                getter, script->pcToOffset(pc),
+                                                /* inputDefinitelyObject = */ true);
+        ICStub *newStub = compiler.getStub(compiler.getStubSpace(script));
         if (!newStub)
             return false;
 
@@ -6816,22 +6783,15 @@ bool
 ICGetPropNativeCompiler::generateStubCode(MacroAssembler &masm)
 {
     Label failure;
-    GeneralRegisterSet regs(availableGeneralRegs(0));
-    Register objReg = InvalidReg;
+    GeneralRegisterSet regs(availableGeneralRegs(1));
 
-    if (inputDefinitelyObject_) {
-        objReg = R0.scratchReg();
-    } else {
-        regs.take(R0);
-        // Guard input is an object and unbox.
-        masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-        objReg = masm.extractObject(R0, ExtractTemp0);
-    }
-    regs.takeUnchecked(objReg);
+    // Guard input is an object.
+    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
 
     Register scratch = regs.takeAnyExcluding(BaselineTailCallReg);
 
-    // Shape guard.
+    // Unbox and shape guard.
+    Register objReg = masm.extractObject(R0, ExtractTemp0);
     masm.loadPtr(Address(BaselineStubReg, ICGetPropNativeStub::offsetOfShape()), scratch);
     masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
@@ -7147,23 +7107,14 @@ bool
 ICGetProp_CallNativePrototype::Compiler::generateStubCode(MacroAssembler &masm)
 {
     Label failure;
-
-    GeneralRegisterSet regs(availableGeneralRegs(0));
-    Register objReg = InvalidReg;
-
-    if (inputDefinitelyObject_) {
-        objReg = R0.scratchReg();
-    } else {
-        regs.take(R0);
-        // Guard input is an object and unbox.
-        masm.branchTestObject(Assembler::NotEqual, R0, &failure);
-        objReg = masm.extractObject(R0, ExtractTemp0);
-    }
-    regs.takeUnchecked(objReg);
-
+    GeneralRegisterSet regs(availableGeneralRegs(1));
     Register scratch = regs.takeAnyExcluding(BaselineTailCallReg);
 
-    // Shape guard.
+    // Guard input is an object.
+    masm.branchTestObject(Assembler::NotEqual, R0, &failure);
+
+    // Unbox and shape guard.
+    Register objReg = masm.extractObject(R0, ExtractTemp0);
     masm.loadPtr(Address(BaselineStubReg, ICGetProp_CallNativePrototype::offsetOfReceiverShape()), scratch);
     masm.branchTestObjShape(Assembler::NotEqual, objReg, scratch, &failure);
 
@@ -7184,10 +7135,8 @@ ICGetProp_CallNativePrototype::Compiler::generateStubCode(MacroAssembler &masm)
     masm.push(objReg);
     masm.push(callee);
 
-    if (!inputDefinitelyObject_)
-        regs.add(R0);
-    else
-        regs.add(objReg);
+    // Don't to preserve R0 anymore.
+    regs.add(R0);
 
     // If needed, update SPS Profiler frame entry.
     emitProfilingUpdate(masm, regs, ICGetProp_CallNativePrototype::offsetOfPCOffset());

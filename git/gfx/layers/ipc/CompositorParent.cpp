@@ -792,6 +792,26 @@ CompositorParent::CompositeCallback(TimeStamp aScheduleTime)
   CompositeToTarget(nullptr);
 }
 
+// Go down the composite layer tree, setting properties to match their
+// content-side counterparts.
+static void
+SetShadowProperties(Layer* aLayer)
+{
+  // FIXME: Bug 717688 -- Do these updates in LayerTransactionParent::RecvUpdate.
+  LayerComposite* layerComposite = aLayer->AsLayerComposite();
+  // Set the layerComposite's base transform to the layer's base transform.
+  layerComposite->SetShadowTransform(aLayer->GetBaseTransform());
+  layerComposite->SetShadowTransformSetByAnimation(false);
+  layerComposite->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
+  layerComposite->SetShadowClipRect(aLayer->GetClipRect());
+  layerComposite->SetShadowOpacity(aLayer->GetOpacity());
+
+  for (Layer* child = aLayer->GetFirstChild();
+      child; child = child->GetNextSibling()) {
+    SetShadowProperties(child);
+  }
+}
+
 void
 CompositorParent::CompositeToTarget(DrawTarget* aTarget, const nsIntRect* aRect)
 {
@@ -817,6 +837,7 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const nsIntRect* aRect)
   }
 
   AutoResolveRefLayers resolve(mCompositionManager);
+  SetShadowProperties(mLayerManager->GetRoot());
 
   if (aTarget) {
     mLayerManager->BeginTransactionWithDrawTarget(aTarget, *aRect);
@@ -904,26 +925,6 @@ CompositorParent::CanComposite()
          !mPaused;
 }
 
-// Go down the composite layer tree, setting properties to match their
-// content-side counterparts.
-static void
-SetShadowProperties(Layer* aLayer)
-{
-  // FIXME: Bug 717688 -- Do these updates in LayerTransactionParent::RecvUpdate.
-  LayerComposite* layerComposite = aLayer->AsLayerComposite();
-  // Set the layerComposite's base transform to the layer's base transform.
-  layerComposite->SetShadowTransform(aLayer->GetBaseTransform());
-  layerComposite->SetShadowTransformSetByAnimation(false);
-  layerComposite->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
-  layerComposite->SetShadowClipRect(aLayer->GetClipRect());
-  layerComposite->SetShadowOpacity(aLayer->GetOpacity());
-
-  for (Layer* child = aLayer->GetFirstChild();
-      child; child = child->GetNextSibling()) {
-    SetShadowProperties(child);
-  }
-}
-
 void
 CompositorParent::ScheduleRotationOnCompositorThread(const TargetConfig& aTargetConfig,
                                                      bool aIsFirstPaint)
@@ -971,9 +972,6 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
   MOZ_ASSERT(aTransactionId > mPendingTransaction);
   mPendingTransaction = aTransactionId;
 
-  if (root) {
-    SetShadowProperties(root);
-  }
   if (aScheduleComposite) {
     ScheduleComposition();
     if (mPaused) {
@@ -991,6 +989,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                               mCompositorVsyncObserver->NeedsComposite()));
     if (needTestComposite) {
       AutoResolveRefLayers resolve(mCompositionManager);
+      SetShadowProperties(mLayerManager->GetRoot());
       bool requestNextFrame =
         mCompositionManager->TransformShadowTree(mTestTime);
       if (!requestNextFrame) {
@@ -1027,6 +1026,7 @@ CompositorParent::SetTestSampleTime(LayerTransactionParent* aLayerTree,
   // Update but only if we were already scheduled to animate
   if (testComposite) {
     AutoResolveRefLayers resolve(mCompositionManager);
+    SetShadowProperties(mLayerManager->GetRoot());
     bool requestNextFrame = mCompositionManager->TransformShadowTree(aTime);
     if (!requestNextFrame) {
       CancelCurrentCompositeTask();
@@ -1589,9 +1589,6 @@ CrossProcessCompositorParent::ShadowLayersUpdated(
   state->mParent->ScheduleRotationOnCompositorThread(aTargetConfig, aIsFirstPaint);
 
   Layer* shadowRoot = aLayerTree->GetRoot();
-  if (shadowRoot) {
-    SetShadowProperties(shadowRoot);
-  }
   UpdateIndirectTree(id, shadowRoot, aTargetConfig);
 
   state->mParent->NotifyShadowTreeTransaction(id, aIsFirstPaint, aScheduleComposite,

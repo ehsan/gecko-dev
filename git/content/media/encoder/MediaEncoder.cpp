@@ -10,7 +10,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/StaticPtr.h"
 
-#include"GeckoProfiler.h"
 #include "OggWriter.h"
 #ifdef MOZ_OPUS
 #include "OpusTrackEncoder.h"
@@ -88,9 +87,6 @@ MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes)
     gMediaEncoderLog = PR_NewLogModule("MediaEncoder");
   }
 #endif
-  PROFILER_LABEL("MediaEncoder", "CreateEncoder",
-    js::ProfileEntry::Category::OTHER);
-
   nsAutoPtr<ContainerWriter> writer;
   nsAutoPtr<AudioTrackEncoder> audioEncoder;
   nsAutoPtr<VideoTrackEncoder> videoEncoder;
@@ -190,8 +186,6 @@ MediaEncoder::GetEncodedData(nsTArray<nsTArray<uint8_t> >* aOutputBufs,
   MOZ_ASSERT(!NS_IsMainThread());
 
   aMIMEType = mMIMEType;
-  PROFILER_LABEL("MediaEncoder", "GetEncodedData",
-    js::ProfileEntry::Category::OTHER);
 
   bool reloop = true;
   while (reloop) {
@@ -282,10 +276,6 @@ MediaEncoder::WriteEncodedDataToMuxer(TrackEncoder *aTrackEncoder)
   if (aTrackEncoder->IsEncodingComplete()) {
     return NS_OK;
   }
-
-  PROFILER_LABEL("MediaEncoder", "WriteEncodedDataToMuxer",
-    js::ProfileEntry::Category::OTHER);
-
   EncodedFrameContainer encodedVideoData;
   nsresult rv = aTrackEncoder->GetEncodedTrack(encodedVideoData);
   if (NS_FAILED(rv)) {
@@ -310,10 +300,6 @@ MediaEncoder::CopyMetadataToMuxer(TrackEncoder *aTrackEncoder)
   if (aTrackEncoder == nullptr) {
     return NS_OK;
   }
-
-  PROFILER_LABEL("MediaEncoder", "CopyMetadataToMuxer",
-    js::ProfileEntry::Category::OTHER);
-
   nsRefPtr<TrackMetadataBase> meta = aTrackEncoder->GetMetadata();
   if (meta == nullptr) {
     LOG(PR_LOG_ERROR, ("Error! metadata = null"));

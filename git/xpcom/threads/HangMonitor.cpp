@@ -589,9 +589,6 @@ void
 RegisterAnnotator(Annotator& aAnnotator)
 {
 #ifdef REPORT_CHROME_HANGS
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
   MonitorAutoLock lock(*gMonitor);
   MOZ_ASSERT(gAnnotators);
   gAnnotators->insert(&aAnnotator);
@@ -602,9 +599,6 @@ void
 UnregisterAnnotator(Annotator& aAnnotator)
 {
 #ifdef REPORT_CHROME_HANGS
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
-    return;
-  }
   MonitorAutoLock lock(*gMonitor);
   MOZ_ASSERT(gAnnotators);
   gAnnotators->erase(&aAnnotator);

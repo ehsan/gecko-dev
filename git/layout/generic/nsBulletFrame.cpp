@@ -335,8 +335,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                   padding.top + aPt.y,
                   mRect.width - (padding.left + padding.right),
                   mRect.height - (padding.top + padding.bottom));
-      Rect devPxRect =
-        NSRectToSnappedRect(rect, appUnitsPerDevPixel, *drawTarget);
+      Rect devPxRect = NSRectToRect(rect, appUnitsPerDevPixel, *drawTarget);
       RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
       AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
       RefPtr<Path> ellipse = builder->Finish();
@@ -365,8 +364,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                       pc->RoundAppUnitsToNearestDevPixels(rect.height));
       snapRect.MoveBy((rect.width - snapRect.width) / 2,
                       (rect.height - snapRect.height) / 2);
-      Rect devPxRect =
-        NSRectToSnappedRect(snapRect, appUnitsPerDevPixel, *drawTarget);
+      Rect devPxRect = NSRectToRect(snapRect, appUnitsPerDevPixel, *drawTarget);
       drawTarget->FillRect(devPxRect, color);
     }
     break;

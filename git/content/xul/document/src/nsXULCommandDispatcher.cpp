@@ -60,6 +60,8 @@ nsXULCommandDispatcher::~nsXULCommandDispatcher()
 
 // QueryInterface implementation for nsXULCommandDispatcher
 
+DOMCI_DATA(XULCommandDispatcher, nsXULCommandDispatcher)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsIDOMXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)

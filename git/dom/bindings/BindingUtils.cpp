@@ -818,8 +818,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   // Get the object. It might be a security wrapper, in which case we do a checked
   // unwrap.
   JS::Rooted<JSObject*> origObj(cx, &thisv.toObject());
-  JS::Rooted<JSObject*> obj(cx, js::CheckedUnwrap(origObj,
-                                                  /* stopAtOuter = */ false));
+  JSObject* obj = js::CheckedUnwrap(origObj, /* stopAtOuter = */ false);
   if (!obj) {
       JS_ReportError(cx, "Permission denied to access object");
       return false;
@@ -827,8 +826,12 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
 
   // Switch this to UnwrapDOMObjectToISupports once our global objects are
   // using new bindings.
-  nsCOMPtr<nsISupports> native;
-  UnwrapArg<nsISupports>(cx, obj, getter_AddRefs(native));
+  JS::Rooted<JS::Value> val(cx, JS::ObjectValue(*obj));
+  nsISupports* native = nullptr;
+  nsCOMPtr<nsISupports> nativeRef;
+  xpc_qsUnwrapArg<nsISupports>(cx, val, &native,
+                               static_cast<nsISupports**>(getter_AddRefs(nativeRef)),
+                               &val);
   if (!native) {
     return Throw(cx, NS_ERROR_FAILURE);
   }
@@ -841,9 +844,10 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
     return Throw(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
 
-  nsCOMPtr<nsIJSID> iid;
-  obj = &args[0].toObject();
-  if (NS_FAILED(UnwrapArg<nsIJSID>(cx, obj, getter_AddRefs(iid)))) {
+  nsIJSID* iid;
+  SelfRef iidRef;
+  if (NS_FAILED(xpc_qsUnwrapArg<nsIJSID>(cx, args[0], &iid, &iidRef.ptr,
+                                         args[0]))) {
     return Throw(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
   MOZ_ASSERT(iid);
@@ -1863,44 +1867,24 @@ GlobalObject::GetAsSupports() const
     return mGlobalObject;
   }
 
-  MOZ_ASSERT(!js::IsWrapper(mGlobalJSObject));
-
-  // Most of our globals are DOM objects.  Try that first.  Note that this
-  // assumes that either the first nsISupports in the object is the canonical
-  // one or that we don't care about the canonical nsISupports here.
-  mGlobalObject = UnwrapDOMObjectToISupports(mGlobalJSObject);
-  if (mGlobalObject) {
+  if (!NS_IsMainThread()) {
+    mGlobalObject = UnwrapDOMObjectToISupports(mGlobalJSObject);
     return mGlobalObject;
   }
 
-  MOZ_ASSERT(NS_IsMainThread(), "All our worker globals are DOM objects");
+  JS::Rooted<JS::Value> val(mCx, JS::ObjectValue(*mGlobalJSObject));
 
-  // Remove everything below here once all our global objects are using new
-  // bindings.  If that ever happens; it would need to include Sandbox and
-  // BackstagePass.
-
-  // See whether mGlobalJSObject is an XPCWrappedNative.  This will redo the
-  // IsWrapper bit above and the UnwrapDOMObjectToISupports in the case when
-  // we're not actually an XPCWrappedNative, but this should be a rare-ish case
-  // anyway.
-  mGlobalObject = xpc::UnwrapReflectorToISupports(mGlobalJSObject);
-  if (mGlobalObject) {
-    return mGlobalObject;
+  // Switch this to UnwrapDOMObjectToISupports once our global objects are
+  // using new bindings.
+  nsresult rv = xpc_qsUnwrapArg<nsISupports>(mCx, val, &mGlobalObject,
+                                             static_cast<nsISupports**>(getter_AddRefs(mGlobalObjectRef)),
+                                             &val);
+  if (NS_FAILED(rv)) {
+    mGlobalObject = nullptr;
+    Throw(mCx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
 
-  // And now a final hack.  Sandbox is not a reflector, but it does have an
-  // nsIGlobalObject hanging out in its private slot.  Handle that case here,
-  // (though again, this will do the useless UnwrapDOMObjectToISupports if we
-  // got here for something that is somehow not a DOM object, not an
-  // XPCWrappedNative _and_ not a Sandbox).
-  if (XPCConvert::GetISupportsFromJSObject(mGlobalJSObject, &mGlobalObject)) {
-    return mGlobalObject;
-  }
-
-  MOZ_ASSERT(!mGlobalObject);
-
-  Throw(mCx, NS_ERROR_XPC_BAD_CONVERT_JS);
-  return nullptr;
+  return mGlobalObject;
 }
 
 bool

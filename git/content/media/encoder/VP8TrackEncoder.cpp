@@ -11,7 +11,6 @@
 #include "prsystem.h"
 #include "WebMWriter.h"
 #include "libyuv.h"
-#include "GeckoProfiler.h"
 
 namespace mozilla {
 
@@ -147,8 +146,6 @@ VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, int32_t aDisplayWidth,
 already_AddRefed<TrackMetadataBase>
 VP8TrackEncoder::GetMetadata()
 {
-  PROFILER_LABEL("VP8TrackEncoder", "GetMetadata",
-    js::ProfileEntry::Category::OTHER);
   {
     // Wait if mEncoder is not initialized.
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -450,8 +447,6 @@ VP8TrackEncoder::CalculateEncodedDuration(TrackTicks aDurationCopied)
 nsresult
 VP8TrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 {
-  PROFILER_LABEL("VP8TrackEncoder", "GetEncodedTrack",
-    js::ProfileEntry::Category::OTHER);
   {
     // Move all the samples from mRawSegment to mSourceSegment. We only hold
     // the monitor in this block.

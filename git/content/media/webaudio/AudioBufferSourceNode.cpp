@@ -104,8 +104,8 @@ public:
     switch (aIndex) {
     case AudioBufferSourceNode::START:
       MOZ_ASSERT(!mStart, "Another START?");
-      mStart =
-        mSource->FractionalTicksFromDestinationTime(mDestination, aParam);
+      mStart = mSource->TimeFromDestinationTime(mDestination, aParam) *
+        mSource->SampleRate();
       // Round to nearest
       mBeginProcessing = mStart + 0.5;
       break;

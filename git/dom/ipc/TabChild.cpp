@@ -81,7 +81,6 @@
 #include "ClientLayerManager.h"
 #include "LayersLogging.h"
 #include "nsIOService.h"
-#include "nsDOMClassInfoID.h"
 
 #include "nsColorPickerProxy.h"
 

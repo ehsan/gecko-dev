@@ -57,6 +57,8 @@ XULSliderAccessible::NativelyUnavailable() const
                                nsGkAtoms::_true, eCaseMatters);
 }
 
+// nsIAccessible
+
 void
 XULSliderAccessible::Value(nsString& aValue)
 {

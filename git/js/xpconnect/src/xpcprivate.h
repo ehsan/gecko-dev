@@ -1648,24 +1648,27 @@ public:
 // We maintain the invariant that every JSClass for which ext.isWrappedNative
 // is true is a contained in an instance of this struct, and can thus be cast
 // to it.
-//
-// XXXbz Do we still need this struct at all?
 struct XPCWrappedNativeJSClass
 {
     js::Class base;
+    uint32_t interfacesBitmap;
 };
 
 class XPCNativeScriptableShared
 {
 public:
     const XPCNativeScriptableFlags& GetFlags() const {return mFlags;}
+    uint32_t                        GetInterfacesBitmap() const
+        {return mJSClass.interfacesBitmap;}
     const JSClass*                  GetJSClass()
         {return Jsvalify(&mJSClass.base);}
 
-    XPCNativeScriptableShared(uint32_t aFlags, char* aName)
+    XPCNativeScriptableShared(uint32_t aFlags, char* aName,
+                              uint32_t interfacesBitmap)
         : mFlags(aFlags)
         {memset(&mJSClass, 0, sizeof(mJSClass));
          mJSClass.base.name = aName;  // take ownership
+         mJSClass.interfacesBitmap = interfacesBitmap;
          MOZ_COUNT_CTOR(XPCNativeScriptableShared);}
 
     ~XPCNativeScriptableShared()
@@ -1702,6 +1705,9 @@ public:
 
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mShared->GetFlags();}
+
+    uint32_t
+    GetInterfacesBitmap() const {return mShared->GetInterfacesBitmap();}
 
     const JSClass*
     GetJSClass()          {return mShared->GetJSClass();}
@@ -1753,14 +1759,17 @@ class MOZ_STACK_CLASS XPCNativeScriptableCreateInfo
 public:
 
     explicit XPCNativeScriptableCreateInfo(const XPCNativeScriptableInfo& si)
-        : mCallback(si.GetCallback()), mFlags(si.GetFlags()) {}
+        : mCallback(si.GetCallback()), mFlags(si.GetFlags()),
+          mInterfacesBitmap(si.GetInterfacesBitmap()) {}
 
     XPCNativeScriptableCreateInfo(already_AddRefed<nsIXPCScriptable>&& callback,
-                                  XPCNativeScriptableFlags flags)
-        : mCallback(callback), mFlags(flags) {}
+                                  XPCNativeScriptableFlags flags,
+                                  uint32_t interfacesBitmap)
+        : mCallback(callback), mFlags(flags),
+          mInterfacesBitmap(interfacesBitmap) {}
 
     XPCNativeScriptableCreateInfo()
-        : mFlags(0) {}
+        : mFlags(0), mInterfacesBitmap(0) {}
 
 
     nsIXPCScriptable*
@@ -1769,6 +1778,9 @@ public:
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mFlags;}
 
+    uint32_t
+    GetInterfacesBitmap() const     {return mInterfacesBitmap;}
+
     void
     SetCallback(already_AddRefed<nsIXPCScriptable>&& callback)
         {mCallback = callback;}
@@ -1776,9 +1788,14 @@ public:
     void
     SetFlags(const XPCNativeScriptableFlags& flags)  {mFlags = flags;}
 
+    void
+    SetInterfacesBitmap(uint32_t interfacesBitmap)
+        {mInterfacesBitmap = interfacesBitmap;}
+
 private:
     nsCOMPtr<nsIXPCScriptable>  mCallback;
     XPCNativeScriptableFlags    mFlags;
+    uint32_t                    mInterfacesBitmap;
 };
 
 /***********************************************/
