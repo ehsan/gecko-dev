@@ -52,7 +52,6 @@ function PasswordEngine() {
 }
 PasswordEngine.prototype = {
   get name() { return "passwords"; },
-  get displayName() { return "Saved Passwords"; },
   get logName() { return "PasswordEngine"; },
   get serverPrefix() { return "user-data/passwords/"; },
 

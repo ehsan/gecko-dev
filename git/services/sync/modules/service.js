@@ -53,16 +53,16 @@ const Cu = Components.utils;
 // we'll sync it, reset its threshold to the initial value, rinse, and repeat.
 
 // How long we wait between sync checks.
-const SCHEDULED_SYNC_INTERVAL = 60 * 1000 * 5; // five minutes
+const SCHEDULED_SYNC_INTERVAL = 60 * 1000; // one minute
 
 // INITIAL_THRESHOLD represents the value an engine's score has to exceed
 // in order for us to sync it the first time we start up (and the first time
 // we do a sync check after having synced the engine or reset the threshold).
-const INITIAL_THRESHOLD = 75;
+const INITIAL_THRESHOLD = 100;
 
 // THRESHOLD_DECREMENT_STEP is the amount by which we decrement an engine's
 // threshold each time we do a sync check and don't sync that engine.
-const THRESHOLD_DECREMENT_STEP = 25;
+const THRESHOLD_DECREMENT_STEP = 5;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/log4moz.js");
@@ -146,8 +146,6 @@ WeaveSvc.prototype = {
   _lock: Wrap.lock,
   _localLock: Wrap.localLock,
   _osPrefix: "weave:service:",
-  _cancelRequested: false,
-  _isQuitting: false,
   _loggedIn: false,
   _syncInProgress: false,
 
@@ -175,9 +173,6 @@ WeaveSvc.prototype = {
     return this.__json;
   },
 
-  // object for caching public and private keys
-  _keyPair: {},
-
   // Timer object for automagically syncing
   _scheduleTimer: null,
 
@@ -204,13 +199,6 @@ WeaveSvc.prototype = {
   get userPath() { return ID.get('WeaveID').username; },
 
   get isLoggedIn() this._loggedIn,
-
-  get isQuitting() this._isQuitting,
-  set isQuitting(value) { this._isQuitting = value; },
-
-  get cancelRequested() this._cancelRequested,
-  set cancelRequested(value) { this._cancelRequested = value; },
-
   get enabled() Utils.prefs.getBoolPref("enabled"),
 
   get schedule() {
@@ -276,7 +264,7 @@ WeaveSvc.prototype = {
 
   _onSchedule: function WeaveSvc__onSchedule() {
     if (this.enabled) {
-      if (DAV.locked) {
+      if (!DAV.allowLock) {
         this._log.info("Skipping scheduled sync; local operation in progress")
       } else {
         this._log.info("Running scheduled sync");
@@ -412,33 +400,23 @@ WeaveSvc.prototype = {
 
     // XXX this kind of replaces _keyCheck
     // seems like key generation should only happen during setup?
+    DAV.GET("private/privkey", self.cb);
+    let privkeyResp = yield;
+    Utils.ensureStatus(privkeyResp.status,
+                       "Could not get private key from server", statuses);
 
-    if (!(this._keyPair['private'] && this._keyPair['public'])) {
-      this._log.info("Fetching keypair from server.");
+    DAV.GET("public/pubkey", self.cb);
+    let pubkeyResp = yield;
+    Utils.ensureStatus(pubkeyResp.status,
+                       "Could not get public key from server", statuses);
 
-      DAV.GET("private/privkey", self.cb);
-      let privkeyResp = yield;
-      Utils.ensureStatus(privkeyResp.status,
-                         "Could not get private key from server", statuses);
-
-      DAV.GET("public/pubkey", self.cb);
-      let pubkeyResp = yield;
-      Utils.ensureStatus(pubkeyResp.status,
-                         "Could not get public key from server", statuses);
-
-      if (privkeyResp.status == 404 || pubkeyResp.status == 404) {
-        yield this._generateKeys.async(this, self.cb);
-        return;
-      }
-
-      this._keyPair['private'] = this._json.decode(privkeyResp.responseText);
-      this._keyPair['public'] = this._json.decode(pubkeyResp.responseText);
-    } else {
-      this._log.info("Using cached keypair");
+    if (privkeyResp.status == 404 || pubkeyResp.status == 404) {
+      yield this._generateKeys.async(this, self.cb);
+      return;
     }
 
-    let privkeyData = this._keyPair['private']
-    let pubkeyData  = this._keyPair['public'];
+    let privkeyData = this._json.decode(privkeyResp.responseText);
+    let pubkeyData  = this._json.decode(pubkeyResp.responseText);
 
     if (!privkeyData || !pubkeyData)
       throw "Bad keypair JSON";
@@ -526,17 +504,10 @@ WeaveSvc.prototype = {
   },
 
   _onQuitApplication: function WeaveSvc__onQuitApplication() {
-    if (!this.enabled || !this._loggedIn)
+    if (!this.enabled ||
+        !Utils.prefs.getBoolPref("syncOnQuit.enabled") ||
+        !this._loggedIn)
       return;
-
-    // Don't quit on exit if this is a forced restart due to application update
-    // or extension install.
-    var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                                        getService(Ci.nsIPrefBranch);
-    if(prefBranch.getBoolPref("browser.sessionstore.resume_session_once"))
-      return;
-
-    this.isQuitting = true;
 
     let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
@@ -545,8 +516,8 @@ WeaveSvc.prototype = {
     // until the sync finishes and the window closes.
     let window = ww.openWindow(null,
                                "chrome://weave/content/status.xul",
-                               "Weave:Status",
-                               "chrome,centerscreen,modal,close=0",
+                               "Weave:status",
+                               "chrome,centerscreen,modal",
                                null);
   },
 
@@ -621,6 +592,8 @@ WeaveSvc.prototype = {
 
     yield this._verifyLogin.async(this, self.cb, this.username,
                                   this.password);
+    yield this._versionCheck.async(this, self.cb);
+    yield this._getKeypair.async(this, self.cb);
 
     this._setSchedule(this.schedule);
 
@@ -632,7 +605,6 @@ WeaveSvc.prototype = {
     this._log.info("Logging out");
     this._disableSchedule();
     this._loggedIn = false;
-    this._keyPair = {};
     ID.get('WeaveID').setTempPassword(null); // clear cached password
     ID.get('WeaveCryptoID').setTempPassword(null); // and passphrase
     this._os.notifyObservers(null, "weave:service:logout:success", "");
@@ -660,7 +632,6 @@ WeaveSvc.prototype = {
   _serverWipe: function WeaveSvc__serverWipe() {
     let self = yield;
 
-    this._keyPair = {};
     DAV.listFiles.async(DAV, self.cb);
     let names = yield;
 
@@ -687,19 +658,10 @@ WeaveSvc.prototype = {
 
     let engines = Engines.getAll();
     for (let i = 0; i < engines.length; i++) {
-      if (this.cancelRequested)
-        continue;
-
       if (!engines[i].enabled)
         continue;
-
       yield this._notify(engines[i].name + "-engine:sync",
                          this._syncEngine, engines[i]).async(this, self.cb);
-    }
-
-    if (this._syncError) {
-      this._syncError = false;
-      throw "Some engines did not sync correctly";
     }
   },
 
@@ -754,11 +716,6 @@ WeaveSvc.prototype = {
           this._syncThresholds[engine.name] = 1;
       }
     }
-
-    if (this._syncError) {
-      this._syncError = false;
-      throw "Some engines did not sync correctly";
-    }
   },
 
   _syncEngine: function WeaveSvc__syncEngine(engine) {
@@ -769,7 +726,6 @@ WeaveSvc.prototype = {
     } catch(e) {
       this._log.error(Utils.exceptionStr(e));
       this._log.error(Utils.stackTrace(e));
-      this._syncError = true;
     }
   },
 
@@ -884,4 +840,5 @@ WeaveSvc.prototype = {
     }
     self.done(ret);
   }
+
 };

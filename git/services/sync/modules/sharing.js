@@ -61,6 +61,8 @@ Api.prototype = {
     let self = yield;
     let id = ID.get(this._dav.identity);
 
+    this._dav.defaultPrefix = "";
+
     let cmd = {"version" : 1,
                "directory" : path,
                "share_to_users" : users};

@@ -90,13 +90,6 @@ BookmarksSharingManager.prototype = {
     return this.__bms;
   },
 
-  __myUsername: null,
-  get _myUsername() {
-    if (!this.__myUsername)
-      this.__myUsername = ID.get('WeaveID').username;
-    return this.__myUsername;
-  },
-
   _init: function SharingManager__init(engine) {
     this._engine = engine;
     this._log = Log4Moz.Service.getLogger("Bookmark Share");
@@ -116,7 +109,7 @@ BookmarksSharingManager.prototype = {
 
     /* Username/password for XMPP are the same as the ones for Weave,
         so read them from the weave identity: */
-    let clientName = this._myUsername;
+    let clientName = ID.get('WeaveID').username;
     let clientPassword = ID.get('WeaveID').password;
 
     let transport = new HTTPPollingTransport( serverUrl, false, 15000 );
@@ -187,7 +180,7 @@ BookmarksSharingManager.prototype = {
 	// This is what happens when they click the Accept button:
 	bmkSharing._log.info("Accepted bookmark share from " + user);
 	bmkSharing._createIncomingShare(user, serverPath, folderName);
-	bmkSharing.updateAllIncomingShares();
+	bmkSharing._updateAllIncomingShares();
 	return false;
       }
     );
@@ -210,19 +203,6 @@ BookmarksSharingManager.prototype = {
     Notifications.add(notification);
   },
 
-  _sendXmppNotification: function BmkSharing__sendXmpp(recipient, cmd, path, name) {
-    // Send an xmpp message to the share-ee
-    if ( this._xmppClient ) {
-      if ( this._xmppClient._connectionStatus == this._xmppClient.CONNECTED ) {
-	let msgText = "share " + path + " " + name;
-	this._log.debug( "Sending XMPP message: " + msgText );
-	this._xmppClient.sendMessage( recipient, msgText );
-      } else {
-	this._log.warn( "No XMPP connection for share notification." );
-      }
-    }
-  },
-
   _share: function BmkSharing__share( folderId, username ) {
     // Return true if success, false if failure.
     let ret = false;
@@ -237,6 +217,7 @@ BookmarksSharingManager.prototype = {
     this._createOutgoingShare.async( this, self.cb,
 				     folderId, folderName, username );
     let serverPath = yield;
+    dump("in _share: annotated with serverPath = " + serverPath + "\n");
     this._updateOutgoingShare.async( this, self.cb, folderId );
     yield;
 
@@ -247,15 +228,21 @@ BookmarksSharingManager.prototype = {
                                     username,
                                     0,
                                     this._annoSvc.EXPIRE_NEVER);
+    // Send an xmpp message to the share-ee
+    if ( this._xmppClient ) {
+      // TODO include my username here:  /user/myusername/ + serverPath
+      if ( this._xmppClient._connectionStatus == this._xmppClient.CONNECTED ) {
+	let msgText = "share " + serverPath + " " + folderName;
+	this._log.debug( "Sending XMPP message: " + msgText );
+	this._xmppClient.sendMessage( username, msgText );
+      } else {
+	this._log.warn( "No XMPP connection for share notification." );
+      }
+    }
+
     /* LONGTERM TODO: in the future when we allow sharing one folder
        with many people, the value of the annotation can be a whole list
        of usernames instead of just one. */
-
-    // The serverPath is relative; prepend it with /user/myusername/ to make
-    // it absolute.
-    let abspath = "/user/" + this._myUsername + "/" + serverPath;
-    this._sendXmppNotification( username, "share", abspath, folderName);
-
 
     this._log.info("Shared " + folderName +" with " + username);
     ret = true;
@@ -264,13 +251,15 @@ BookmarksSharingManager.prototype = {
 
   _stopSharing: function BmkSharing__stopSharing( folderId, username ) {
     let self = yield;
+    dump("folderId is " + folderId + "\n");
     let folderName = this._bms.getItemTitle(folderId);
-    let serverPath = "";
 
     if (this._annoSvc.itemHasAnnotation(folderId, SERVER_PATH_ANNO)){
-      serverPath = this._annoSvc.getItemAnnotation(folderId, SERVER_PATH_ANNO);
+      let serverPath = this._annoSvc.getItemAnnotation(folderId,
+                                                       SERVER_PATH_ANNO);
     } else {
       this._log.warn("The folder you are de-sharing has no path annotation.");
+      let serverPath = "";
     }
 
     /* LONGTERM TODO: when we move to being able to share one folder with
@@ -282,9 +271,16 @@ BookmarksSharingManager.prototype = {
     this._stopOutgoingShare.async(this, self.cb, folderId);
     yield;
 
-    // Send message to the share-ee, so they can stop their incoming share
-    let abspath = "/user/" + this._myUsername + "/" + serverPath;
-    this._sendXmppNotification( username, "stop", abspath, folderName );
+    // Send message to the share-ee, so they can stop their incoming share:
+    if ( this._xmppClient ) {
+      if ( this._xmppClient._connectionStatus == this._xmppClient.CONNECTED ) {
+	let msgText = "stop " + serverPath + " " + folderName;
+	this._log.debug( "Sending XMPP message: " + msgText );
+	this._xmppClient.sendMessage( username, msgText );
+      } else {
+	this._log.warn( "No XMPP connection for share notification." );
+      }
+    }
 
     this._log.info("Stopped sharing " + folderName + "with " + username);
     self.done( true );
@@ -303,9 +299,12 @@ BookmarksSharingManager.prototype = {
        server contents.) */
     let self = yield;
     let mounts = this._engine._store.findIncomingShares();
+
+      /* TODO ensure that old contents of incoming shares have been
+       * properly clobbered.
+       */
     for (let i = 0; i < mounts.length; i++) {
       try {
-	this._log.trace("Update incoming share from " + mounts[i].serverPath);
         this._updateIncomingShare.async(this, self.cb, mounts[i]);
         yield;
       } catch (e) {
@@ -365,11 +364,19 @@ BookmarksSharingManager.prototype = {
     let userPubKey = yield;
     userPubKey = userPubKey.pubkey;
 
+    /* 2008-07-03 15:49:41
+     * Async.Generator	ERROR	Exception: Component returned failure
+     * code: 0x80070057 (NS_ERROR_ILLEGAL_VALUE) [IWeaveCrypto.wrapSymmetricKey]
+     *  (JS frame :: file:///Users/jonathandicarlo/weave/modules/crypto.js :: Crypto_wrapKey :: line 216)
+     */
+
     /* Create the keyring, containing the sym key encrypted with each
        of our public keys: */
+    dump( "Calling crypto to wrap sym key with my public key.\n" );
     Crypto.wrapKey.async(Crypto, self.cb, bulkKey, {realm : "tmpWrapID",
 						    pubkey: idRSA.pubkey} );
     let encryptedForMe = yield;
+    dump( "Calling crypto to wrap sym key with sharee's public key.\n" );
     Crypto.wrapKey.async(Crypto, self.cb, bulkKey, {realm : "tmpWrapID",
 						    pubkey: userPubKey} );
     let encryptedForYou = yield;
@@ -402,6 +409,7 @@ BookmarksSharingManager.prototype = {
      directory, or false if it failed.*/
 
     let self = yield;
+    let myUserName = ID.get('WeaveID').username;
     this._log.debug("Turning folder " + folderName + " into outgoing share"
 		     + " with " + username);
 
@@ -411,6 +419,7 @@ BookmarksSharingManager.prototype = {
 
     /* Create the directory on the server if it does not exist already. */
     let serverPath = "share/" + folderGuid;
+    dump( "Trying to create " + serverPath + "\n");
     let ret = yield DAV.MKCOL(serverPath, self.cb);
 
     if (!ret) {
@@ -429,8 +438,7 @@ BookmarksSharingManager.prototype = {
 
     let encryptionTurnedOn = true;
     if (encryptionTurnedOn) {
-      yield this._createKeyChain.async(this, self.cb, serverPath,
-				       this._myUsername, username);
+      yield this._createKeyChain.async(this, self.cb, serverPath, myUserName, username);
     }
 
     // Call Atul's js api for setting htaccess:
@@ -449,18 +457,16 @@ BookmarksSharingManager.prototype = {
        To be called asynchronously.
        TODO: error handling*/
     let self = yield;
-    // The folder should have an annotation specifying the server path to
-    // the directory:
-    if (!this._annoSvc.itemHasAnnotation(folderId, SERVER_PATH_ANNO)) {
-      this._log.warn("Outgoing share is invalid and can't be synced.");
-      return;
-    }
+    let myUserName = ID.get('WeaveID').username;
+    // The folder has an annotation specifying the server path to the
+    // directory:
     let serverPath = this._annoSvc.getItemAnnotation(folderId,
                                                      SERVER_PATH_ANNO);
     // TODO the above can throw an exception if the expected anotation isn't
     // there.
     // From that directory, get the keyring file, and from it, the symmetric
     // key that we'll use to encrypt.
+    dump( "in _updateOutgoingShare.  serverPath is " + serverPath +"\n");
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
     keyringFile.pushFilter(new JsonFilter());
     keyringFile.get(self.cb);
@@ -469,14 +475,14 @@ BookmarksSharingManager.prototype = {
     // Unwrap (decrypt) the key with the user's private key.
     let idRSA = ID.get('WeaveCryptoID');
     let bulkKey = yield Crypto.unwrapKey.async(Crypto, self.cb,
-                           keys.ring[this._myUsername], idRSA);
+                           keys.ring[myUserName], idRSA);
     let bulkIV = keys.bulkIV;
 
     // Get the json-wrapped contents of everything in the folder:
-    let wrapMount = this._engine._store._wrapMountOutgoing(folderId);
-    let jsonService = Components.classes["@mozilla.org/dom/json;1"]
-                 .createInstance(Components.interfaces.nsIJSON);
-    let json = jsonService.encode( wrapMount );
+    // TODO what exactly does wrapMount expect?  is folderId OK?
+    let json = this._engine._store._wrapMount( folderId, myUserName );
+    /* TODO what does wrapMount do with this username?  Should I be passing
+       in my own or that of the person I share with? */
 
     // Encrypt it with the symkey and put it into the shared-bookmark file.
     let bmkFile = new Resource(serverPath + "/" + SHARED_BOOKMARK_FILE_NAME);
@@ -487,7 +493,8 @@ BookmarksSharingManager.prototype = {
                       };
     Crypto.encryptData.async( Crypto, self.cb, json, tmpIdentity );
     let cyphertext = yield;
-    yield bmkFile.put( self.cb, cyphertext );
+    bmkFile.put( self.cb, cyphertext );
+    yield;
     self.done();
   },
 
@@ -530,8 +537,6 @@ BookmarksSharingManager.prototype = {
 
     /* Get the toolbar "Shared Folders" folder (identified by its annotation).
        If it doesn't already exist, create it: */
-    dump( "I'm in _createIncomingShare.  user= " + user + "path = " +
-	  serverPath + ", title= " + title + "\n" );
     let root;
     let a = this._annoSvc.getItemsWithAnnotation(INCOMING_SHARE_ROOT_ANNO,
                                                  {});
@@ -585,73 +590,48 @@ BookmarksSharingManager.prototype = {
        mountData is an object that's expected to have member data:
        userid: weave id of the user sharing the folder with us,
        rootGUID: guid in our bookmark store of the share mount point,
-       node: the bookmark menu node for the share mount point folder */
+       node: the bookmark menu node for the share mount point folder,
+       snapshot: the json-wrapped current contents of the share. */
 
-    // TODO error handling (see what Resource can throw or return...)
-    /* TODO tons of symmetry between this and _updateOutgoingShare, can
-       probably factor the symkey decryption stuff into a common helper
-       function. */
     let self = yield;
     let user = mountData.userid;
+    let myUserName = ID.get('WeaveID').username;
     // The folder has an annotation specifying the server path to the
     // directory:
-    let serverPath = mountData.serverPath;
+    let serverPath = this._annoSvc.getItemAnnotation(mountData.node,
+                                                     SERVER_PATH_ANNO);
     // From that directory, get the keyring file, and from it, the symmetric
-    // key that we'll use to decrypt.
-    this._log.trace("UpdateIncomingShare: getting keyring file.");
+    // key that we'll use to encrypt.
     let keyringFile = new Resource(serverPath + "/" + KEYRING_FILE_NAME);
-    keyringFile.pushFilter(new JsonFilter());
-    let keys = yield keyringFile.get(self.cb);
-
-    // Unwrap (decrypt) the key with the user's private key.
-    this._log.trace("UpdateIncomingShare: decrypting sym key.");
-    let idRSA = ID.get('WeaveCryptoID');
-    let bulkKey = yield Crypto.unwrapKey.async(Crypto, self.cb,
-                           keys.ring[this._myUsername], idRSA);
-    let bulkIV = keys.bulkIV;
+    keyringFile.get(self.cb);
+    let keys = yield;
 
     // Decrypt the contents of the bookmark file with the symmetric key:
-    this._log.trace("UpdateIncomingShare: getting encrypted bookmark file.");
     let bmkFile = new Resource(serverPath + "/" + SHARED_BOOKMARK_FILE_NAME);
-    let cyphertext = yield bmkFile.get(self.cb);
+    bmkFile.get(self.cb);
+    let cyphertext = yield;
     let tmpIdentity = {
                         realm   : "temp ID",
-			bulkKey : bulkKey,
-                        bulkIV  : bulkIV
+                        bulkKey : keys.ring[myUserName],
+                        bulkIV  : keys.bulkIV
                       };
-    this._log.trace("UpdateIncomingShare: Decrypting.");
     Crypto.decryptData.async( Crypto, self.cb, cyphertext, tmpIdentity );
     let json = yield;
-    // decrypting that gets us JSON, turn it into an object:
-    this._log.trace("UpdateIncomingShare: De-JSON-izing.");
-    let jsonService = Components.classes["@mozilla.org/dom/json;1"]
-                 .createInstance(Components.interfaces.nsIJSON);
-    let serverContents = jsonService.decode( json );
+    // TODO error handling (see what Resource can throw or return...)
 
     // prune tree / get what we want
-    this._log.trace("UpdateIncomingShare: Pruning.");
-    for (let guid in serverContents) {
-      if (serverContents[guid].type != "bookmark")
-        delete serverContents[guid];
+    for (let guid in json) {
+      if (json[guid].type != "bookmark")
+        delete json[guid];
       else
-        serverContents[guid].parentGUID = mountData.rootGUID;
+        json[guid].parentGUID = mountData.rootGUID;
     }
 
-    /* Wipe old local contents of the folder, starting from the node: */
-    this._log.trace("Wiping local contents of incoming share...");
-    this._bms.removeFolderChildren( mountData.node );
-
-    /* Create diff FROM current contents (i.e. nothing) TO the incoming
-     * data from serverContents.  Then apply the diff. */
+    /* Create diff between the json from server and the current contents;
+       then apply the diff. */
     this._log.trace("Got bookmarks from " + user + ", comparing with local copy");
-    this._engine._core.detectUpdates(self.cb, {}, serverContents);
+    this._engine._core.detectUpdates(self.cb, mountData.snapshot, snap.data);
     let diff = yield;
-
-    /* LONGTERM TODO: The createCommands that are executed in applyCommands
-     * will fail badly if the GUID of the incoming item collides with a
-     * GUID of a bookmark already in my store.  (This happened to me a lot
-     * during testing, obviously, since I was sharing bookmarks with myself).
-     * Need to think about the right way to handle this. */
 
     // FIXME: should make sure all GUIDs here live under the mountpoint
     this._log.trace("Applying changes to folder from " + user);
@@ -687,7 +667,6 @@ function BookmarksEngine(pbeId) {
 }
 BookmarksEngine.prototype = {
   get name() { return "bookmarks"; },
-  get displayName() { return "Bookmarks"; },
   get logName() { return "BmkEngine"; },
   get serverPrefix() { return "user-data/bookmarks/"; },
 
@@ -741,6 +720,7 @@ BookmarksEngine.prototype = {
 
   _stopSharing: function BmkEngine__stopSharing(guid, username) {
     let self = yield;
+    dump( "BookmarkEnginge._stopSharing: guid=" + guid + ", username = " + username + "\n");
     this._sharing._stopSharing.async( this._sharing, self.cb, guid, username);
     yield;
     self.done();
@@ -914,7 +894,6 @@ BookmarksStore.prototype = {
       parentId = this._bms.bookmarksMenuFolder;
     }
 
-    dump( "Processing createCommand for a " + command.data.type + " type.\n");
     switch (command.data.type) {
     case "query":
     case "bookmark":
@@ -1177,12 +1156,12 @@ BookmarksStore.prototype = {
         node.containerOpen = true;
 	// If folder is an outgoing share, wrap its annotations:
 	if (this._ans.itemHasAnnotation(node.itemId, OUTGOING_SHARED_ANNO)) {
+	  item.serverPathAnno = this._ans.getItemAnnotation(node.itemId,
+                                                      SERVER_PATH_ANNO);
 	  item.outgoingSharedAnno = this._ans.getItemAnnotation(node.itemId,
                                                       OUTGOING_SHARED_ANNO);
-	}
-	if (this._ans.itemHasAnnotation(node.itemId, SERVER_PATH_ANNO)) {
-	  item.serverPathAnno = this._ans.getItemAnnotation(node.itemId,
-							    SERVER_PATH_ANNO);
+	  // TODO this can throw an error if SERVER_PATH_ANNO doesn't exist
+	  // (which it always should)
 	}
 
         for (var i = 0; i < node.childCount; i++) {
@@ -1251,26 +1230,27 @@ BookmarksStore.prototype = {
     return this.__wrap(node, items, null, null, rootName);
   },
 
-  _wrapMountOutgoing: function BStore__wrapById( itemId ) {
-    let node = this._getNode(itemId);
+  _wrapMount: function BStore__wrapMount(node, id) {
     if (node.type != node.RESULT_TYPE_FOLDER)
       throw "Trying to wrap a non-folder mounted share";
 
-    let GUID = this._bms.getItemGUID(itemId);
-    let snapshot = {};
+    let GUID = this._bms.getItemGUID(node.itemId);
+    let ret = {rootGUID: GUID, userid: id, snapshot: {}, folderNode: node};
+
     node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
     node.containerOpen = true;
     for (var i = 0; i < node.childCount; i++) {
-      this.__wrap(node.getChild(i), snapshot, GUID, i);
+      this.__wrap(node.getChild(i), ret.snapshot, GUID, i);
     }
 
     // remove any share mountpoints
-    for (let guid in snapshot) {
+    for (let guid in ret.snapshot) {
       // TODO decide what to do with this...
-      if (snapshot[guid].type == "incoming-share")
-        delete snapshot[guid];
+      if (ret.snapshot[guid].type == "incoming-share")
+        delete ret.snapshot[guid];
     }
-    return snapshot;
+
+    return ret;
   },
 
   findIncomingShares: function BStore_findIncomingShares() {
@@ -1281,12 +1261,8 @@ BookmarksStore.prototype = {
     for (let i = 0; i < a.length; i++) {
       /* The value of the incoming-shared annotation is the id of the
        person who has shared it with us.  Get that value: */
-      let userId = this._ans.getItemAnnotation(a[i], INCOMING_SHARED_ANNO);
-      let node = this._getNode(a[i]);
-      let GUID = this._bms.getItemGUID(a[i]);
-      let path = this._ans.getItemAnnotation(a[i], SERVER_PATH_ANNO);
-      let dat = {rootGUID: GUID, userid: userId, serverPath: path, node: node};
-      ret.push(dat);
+      let id = this._ans.getItemAnnotation(a[i], INCOMING_SHARED_ANNO);
+      ret.push(this._wrapMount(this._getNode(a[i]), id));
     }
     return ret;
   },
