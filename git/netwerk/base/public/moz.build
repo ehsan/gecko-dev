@@ -108,7 +108,6 @@ XPIDL_SOURCES += [
     'nsIUploadChannel.idl',
     'nsIUploadChannel2.idl',
     'nsPISocketTransportService.idl',
-    'nsPILoadGroupInternal.idl',
 ]
 
 if CONFIG['MOZ_TOOLKIT_SEARCH']:

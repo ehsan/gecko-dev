@@ -362,11 +362,11 @@ XrayTraits::expandoObjectMatchesConsumer(JSContext *cx,
 JSObject *
 XrayTraits::getExpandoObjectInternal(JSContext *cx, HandleObject target,
                                      nsIPrincipal *origin,
-                                     JSObject *exclusiveGlobalArg)
+                                     JSObject *exclusiveGlobal_)
 {
     // The expando object lives in the compartment of the target, so all our
     // work needs to happen there.
-    RootedObject exclusiveGlobal(cx, exclusiveGlobalArg);
+    RootedObject exclusiveGlobal(cx, exclusiveGlobal_);
     JSAutoCompartment ac(cx, target);
     if (!JS_WrapObject(cx, exclusiveGlobal.address()))
         return NULL;
@@ -477,10 +477,10 @@ XrayTraits::cloneExpandoChain(JSContext *cx, HandleObject dst, HandleObject src)
 }
 
 namespace XrayUtils {
-bool CloneExpandoChain(JSContext *cx, JSObject *dstArg, JSObject *srcArg)
+bool CloneExpandoChain(JSContext *cx, JSObject *dst_, JSObject *src_)
 {
-    RootedObject dst(cx, dstArg);
-    RootedObject src(cx, srcArg);
+    RootedObject dst(cx, dst_);
+    RootedObject src(cx, src_);
     return GetXrayTraits(src)->cloneExpandoChain(cx, dst, src);
 }
 }

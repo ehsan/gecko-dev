@@ -1030,13 +1030,8 @@ NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
 NS_METHOD nsBaseWidget::MoveClient(double aX, double aY)
 {
   nsIntPoint clientOffset(GetClientOffset());
-
-  // GetClientOffset returns device pixels; scale back to display pixels
-  // if that's what this widget uses for the Move/Resize APIs
-  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
-  aX -= clientOffset.x * scale;
-  aY -= clientOffset.y * scale;
-
+  aX -= clientOffset.x;
+  aY -= clientOffset.y;
   return Move(aX, aY);
 }
 
@@ -1049,12 +1044,8 @@ NS_METHOD nsBaseWidget::ResizeClient(double aWidth,
 
   nsIntRect clientBounds;
   GetClientBounds(clientBounds);
-
-  // GetClientBounds and mBounds are device pixels; scale back to display pixels
-  // if that's what this widget uses for the Move/Resize APIs
-  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
-  aWidth = mBounds.width * scale + (aWidth - clientBounds.width * scale);
-  aHeight = mBounds.height * scale + (aHeight - clientBounds.height * scale);
+  aWidth = mBounds.width + (aWidth - clientBounds.width);
+  aHeight = mBounds.height + (aHeight - clientBounds.height);
 
   return Resize(aWidth, aHeight, aRepaint);
 }
@@ -1070,14 +1061,12 @@ NS_METHOD nsBaseWidget::ResizeClient(double aX,
 
   nsIntRect clientBounds;
   GetClientBounds(clientBounds);
-
-  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
-  aWidth = mBounds.width * scale + (aWidth - clientBounds.width * scale);
-  aHeight = mBounds.height * scale + (aHeight - clientBounds.height * scale);
+  aWidth = mBounds.width + (aWidth - clientBounds.width);
+  aHeight = mBounds.height + (aHeight - clientBounds.height);
 
   nsIntPoint clientOffset(GetClientOffset());
-  aX -= clientOffset.x * scale;
-  aY -= clientOffset.y * scale;
+  aX -= clientOffset.x;
+  aY -= clientOffset.y;
 
   return Resize(aX, aY, aWidth, aHeight, aRepaint);
 }

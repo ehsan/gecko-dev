@@ -1,9 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu, manager: Cm} = Components;
-
-Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://services-common/preferences.js");
 
 function run_test() {
   run_next_test();

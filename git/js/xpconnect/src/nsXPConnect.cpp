@@ -43,7 +43,6 @@
 
 using namespace mozilla::dom;
 using namespace xpc;
-using namespace JS;
 
 NS_IMPL_THREADSAFE_ISUPPORTS7(nsXPConnect,
                               nsIXPConnect,
@@ -932,7 +931,7 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
 {
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aGlobalJSObj, "bad param");
-    RootedObject globalJSObj(aJSContext, aGlobalJSObj);
+    JS::RootedObject globalJSObj(aJSContext, aGlobalJSObj);
 
     // Nest frame chain save/restore in request created by XPCCallContext.
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
@@ -1039,8 +1038,8 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
     MOZ_ASSERT(principal);
 
-    RootedObject global(cx,
-                        JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal), zoneSpec));
+    JS::RootedObject global(cx,
+                            JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal), zoneSpec));
     if (!global)
         return nullptr;
     JSAutoCompartment ac(cx, global);
@@ -1102,7 +1101,7 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Grab a copy of the global and enter its compartment.
-    RootedObject global(ccx, wrappedGlobal->GetFlatJSObject());
+    JSObject *global = wrappedGlobal->GetFlatJSObject();
     MOZ_ASSERT(!js::GetObjectParent(global));
     JSAutoCompartment ac(ccx, global);
 
@@ -1138,7 +1137,7 @@ xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph)
     if (!cache)
         return NS_OK;
 
-    RootedObject obj(cx, cache->GetWrapper());
+    JS::RootedObject obj(cx, cache->GetWrapper());
     if (!obj || !IS_SLIM_WRAPPER(obj))
         return NS_OK;
     NS_ENSURE_STATE(MorphSlimWrapper(cx, obj));
@@ -1147,7 +1146,7 @@ xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph)
 
 static nsresult
 NativeInterface2JSObject(XPCLazyCallContext & lccx,
-                         HandleObject aScope,
+                         JSObject * aScope,
                          nsISupports *aCOMObj,
                          nsWrapperCache *aCache,
                          const nsIID * aIID,
@@ -1176,17 +1175,16 @@ NativeInterface2JSObject(XPCLazyCallContext & lccx,
 /* nsIXPConnectJSObjectHolder wrapNative (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
 NS_IMETHODIMP
 nsXPConnect::WrapNative(JSContext * aJSContext,
-                        JSObject * aScopeArg,
+                        JSObject * aScope,
                         nsISupports *aCOMObj,
                         const nsIID & aIID,
                         nsIXPConnectJSObjectHolder **aHolder)
 {
     NS_ASSERTION(aHolder, "bad param");
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aScopeArg, "bad param");
+    NS_ASSERTION(aScope, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
 
-    RootedObject aScope(aJSContext, aScopeArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1200,7 +1198,7 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
 /* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out jsval aVal, out nsIXPConnectJSObjectHolder aHolder); */
 NS_IMETHODIMP
 nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
-                               JSObject * aScopeArg,
+                               JSObject * aScope,
                                nsISupports *aCOMObj,
                                nsWrapperCache *aCache,
                                const nsIID * aIID,
@@ -1209,13 +1207,12 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
                                nsIXPConnectJSObjectHolder **aHolder)
 {
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aScopeArg, "bad param");
+    NS_ASSERTION(aScope, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
 
     if (aHolder)
         *aHolder = nullptr;
 
-    RootedObject aScope(aJSContext, aScopeArg);
     XPCLazyCallContext lccx(NATIVE_CALLER, aJSContext);
 
     return NativeInterface2JSObject(lccx, aScope, aCOMObj, aCache, aIID,
@@ -1225,17 +1222,16 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
 /* void wrapJS (in JSContextPtr aJSContext, in JSObjectPtr aJSObj, in nsIIDRef aIID, [iid_is (aIID), retval] out nsQIResult result); */
 NS_IMETHODIMP
 nsXPConnect::WrapJS(JSContext * aJSContext,
-                    JSObject * aJSObjArg,
+                    JSObject * aJSObj,
                     const nsIID & aIID,
                     void * *result)
 {
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aJSObjArg, "bad param");
+    NS_ASSERTION(aJSObj, "bad param");
     NS_ASSERTION(result, "bad param");
 
     *result = nullptr;
 
-    RootedObject aJSObj(aJSContext, aJSObjArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1272,18 +1268,17 @@ nsXPConnect::JSValToVariant(JSContext *cx,
 NS_IMETHODIMP
 nsXPConnect::WrapJSAggregatedToNative(nsISupports *aOuter,
                                       JSContext * aJSContext,
-                                      JSObject * aJSObjArg,
+                                      JSObject * aJSObj,
                                       const nsIID & aIID,
                                       void * *result)
 {
     NS_ASSERTION(aOuter, "bad param");
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aJSObjArg, "bad param");
+    NS_ASSERTION(aJSObj, "bad param");
     NS_ASSERTION(result, "bad param");
 
     *result = nullptr;
 
-    RootedObject aJSObj(aJSContext, aJSObjArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1298,14 +1293,13 @@ nsXPConnect::WrapJSAggregatedToNative(nsISupports *aOuter,
 /* nsIXPConnectWrappedNative getWrappedNativeOfJSObject (in JSContextPtr aJSContext, in JSObjectPtr aJSObj); */
 NS_IMETHODIMP
 nsXPConnect::GetWrappedNativeOfJSObject(JSContext * aJSContext,
-                                        JSObject * aJSObjArg,
+                                        JSObject * aJSObj,
                                         nsIXPConnectWrappedNative **_retval)
 {
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aJSObjArg, "bad param");
+    NS_ASSERTION(aJSObj, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
-    RootedObject aJSObj(aJSContext, aJSObjArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1360,19 +1354,18 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
 /* nsIXPConnectWrappedNative getWrappedNativeOfNativeObject (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDRef aIID); */
 NS_IMETHODIMP
 nsXPConnect::GetWrappedNativeOfNativeObject(JSContext * aJSContext,
-                                            JSObject * aScopeArg,
+                                            JSObject * aScope,
                                             nsISupports *aCOMObj,
                                             const nsIID & aIID,
                                             nsIXPConnectWrappedNative **_retval)
 {
     NS_ASSERTION(aJSContext, "bad param");
-    NS_ASSERTION(aScopeArg, "bad param");
+    NS_ASSERTION(aScope, "bad param");
     NS_ASSERTION(aCOMObj, "bad param");
     NS_ASSERTION(_retval, "bad param");
 
     *_retval = nullptr;
 
-    RootedObject aScope(aJSContext, aScopeArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1402,12 +1395,10 @@ nsXPConnect::GetWrappedNativeOfNativeObject(JSContext * aJSContext,
  *                                    in nsISupports aCOMObj); */
 NS_IMETHODIMP
 nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
-                                          JSObject * aScopeArg,
-                                          JSObject * aNewParentArg,
+                                          JSObject * aScope,
+                                          JSObject * aNewParent,
                                           nsISupports *aCOMObj)
 {
-    RootedObject aScope(aJSContext, aScopeArg);
-    RootedObject aNewParent(aJSContext, aNewParentArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1417,7 +1408,7 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
     if (!scope || !scope2)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    RootedObject newParent(ccx, aNewParent);
+    JS::RootedObject newParent(ccx, aNewParent);
     return XPCWrappedNative::
         ReparentWrapperIfFound(ccx, scope, scope2, newParent,
                                aCOMObj);
@@ -1440,9 +1431,8 @@ MoveableWrapperFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 /* void rescueOrphansInScope(in JSContextPtr aJSContext, in JSObjectPtr  aScope); */
 NS_IMETHODIMP
-nsXPConnect::RescueOrphansInScope(JSContext *aJSContext, JSObject *aScopeArg)
+nsXPConnect::RescueOrphansInScope(JSContext *aJSContext, JSObject *aScope)
 {
-    RootedObject aScope(aJSContext, aScopeArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1651,11 +1641,11 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
 
     *_retval = nullptr;
 
-    RootedValue rval(cx, JSVAL_VOID);
-    AUTO_MARK_JSVAL(ccx, rval.address());
+    jsval rval = JSVAL_VOID;
+    AUTO_MARK_JSVAL(ccx, &rval);
 
     SandboxOptions options(cx);
-    nsresult rv = xpc_CreateSandboxObject(cx, rval.address(), principal, options);
+    nsresult rv = xpc_CreateSandboxObject(cx, &rval, principal, options);
     NS_ASSERTION(NS_FAILED(rv) || !JSVAL_IS_PRIMITIVE(rval),
                  "Bad return value from xpc_CreateSandboxObject()!");
 
@@ -1677,8 +1667,8 @@ nsXPConnect::EvalInSandboxObject(const nsAString& source, const char *filename,
     if (!sandboxArg)
         return NS_ERROR_INVALID_ARG;
 
-    RootedObject sandbox(cx, sandboxArg);
-    RootedValue rval(cx);
+    JS::RootedObject sandbox(cx, sandboxArg);
+    JS::RootedValue rval(cx);
     nsresult rv = xpc_EvalInSandbox(cx, sandbox, source, filename ? filename :
                                     "x-bogus://XPConnect/Sandbox", 1, JSVERSION_DEFAULT,
                                     returnStringOnly, &rval);
@@ -1690,11 +1680,10 @@ nsXPConnect::EvalInSandboxObject(const nsAString& source, const char *filename,
 /* nsIXPConnectJSObjectHolder getWrappedNativePrototype (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsIClassInfo aClassInfo); */
 NS_IMETHODIMP
 nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext,
-                                       JSObject * aScopeArg,
+                                       JSObject * aScope,
                                        nsIClassInfo *aClassInfo,
                                        nsIXPConnectJSObjectHolder **_retval)
 {
-    RootedObject aScope(aJSContext, aScopeArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
@@ -1878,15 +1867,13 @@ nsXPConnect::DebugDumpEvalInJSStackFrame(uint32_t aFrameNumber, const char *aSou
 
 /* jsval variantToJS (in JSContextPtr ctx, in JSObjectPtr scope, in nsIVariant value); */
 NS_IMETHODIMP
-nsXPConnect::VariantToJS(JSContext* ctx, JSObject* scopeArg, nsIVariant* value,
-                         jsval* _retval)
+nsXPConnect::VariantToJS(JSContext* ctx, JSObject* scope, nsIVariant* value, jsval* _retval)
 {
     NS_PRECONDITION(ctx, "bad param");
-    NS_PRECONDITION(scopeArg, "bad param");
+    NS_PRECONDITION(scope, "bad param");
     NS_PRECONDITION(value, "bad param");
     NS_PRECONDITION(_retval, "bad param");
 
-    RootedObject scope(ctx, scopeArg);
     XPCCallContext ccx(NATIVE_CALLER, ctx);
     if (!ccx.IsValid())
         return NS_ERROR_FAILURE;
@@ -2214,10 +2201,9 @@ nsXPConnect::GetPrincipal(JSObject* obj, bool allowShortCircuit) const
 }
 
 NS_IMETHODIMP
-nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObjectArg,
+nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObject,
                         nsIXPConnectJSObjectHolder **aHolder)
 {
-    RootedObject aObject(aJSContext, aObjectArg);
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     XPCJSObjectHolder* objHolder = XPCJSObjectHolder::newHolder(ccx, aObject);
     if (!objHolder)
@@ -2481,7 +2467,7 @@ const uint8_t HAS_ORIGIN_PRINCIPALS_FLAG        = 2;
 
 static nsresult
 WriteScriptOrFunction(nsIObjectOutputStream *stream, JSContext *cx,
-                      JSScript *script, HandleObject functionObj)
+                      JSScript *script, JSObject *functionObj)
 {
     // Exactly one of script or functionObj must be given
     MOZ_ASSERT(!script != !functionObj);
@@ -2606,7 +2592,7 @@ ReadScriptOrFunction(nsIObjectInputStream *stream, JSContext *cx,
 NS_IMETHODIMP
 nsXPConnect::WriteScript(nsIObjectOutputStream *stream, JSContext *cx, JSScript *script)
 {
-    return WriteScriptOrFunction(stream, cx, script, NullPtr());
+    return WriteScriptOrFunction(stream, cx, script, nullptr);
 }
 
 NS_IMETHODIMP
@@ -2616,9 +2602,8 @@ nsXPConnect::ReadScript(nsIObjectInputStream *stream, JSContext *cx, JSScript **
 }
 
 NS_IMETHODIMP
-nsXPConnect::WriteFunction(nsIObjectOutputStream *stream, JSContext *cx, JSObject *functionObjArg)
+nsXPConnect::WriteFunction(nsIObjectOutputStream *stream, JSContext *cx, JSObject *functionObj)
 {
-    RootedObject functionObj(cx, functionObjArg);
     return WriteScriptOrFunction(stream, cx, nullptr, functionObj);
 }
 

@@ -126,38 +126,20 @@ let ActiveProviders = {
 function migrateSettings() {
   let activeProviders;
   try {
+    // we don't care what the value is, if it is set, we've already migrated
     activeProviders = Services.prefs.getCharPref("social.activeProviders");
   } catch(e) {
-    // not set, we'll check if we need to migrate older prefs
+    // do nothing
   }
   if (activeProviders) {
     // migration from fx21 to fx22 or later
     // ensure any *builtin* provider in activeproviders is in user level prefs
     for (let origin in ActiveProviders._providers) {
-      let prefname;
-      try {
-        prefname = getPrefnameFromOrigin(origin);
-      } catch(e) {
-        // Our preference is missing or bad, remove from ActiveProviders and
-        // continue. This is primarily an error-case and should only be
-        // reached by either messing with preferences or hitting the one or
-        // two days of nightly that ran into it, so we'll flush right away.
-        ActiveProviders.delete(origin);
-        ActiveProviders.flush();
-        continue;
-      }
+      let prefname = getPrefnameFromOrigin(origin);
       if (!Services.prefs.prefHasUserValue(prefname)) {
         // if we've got an active *builtin* provider, ensure that the pref
         // is set at a user-level as that will signify *installed* status.
-        let manifest;
-        try {
-          manifest = JSON.parse(Services.prefs.getComplexValue(prefname, Ci.nsISupportsString).data);
-        } catch(e) {
-          // see comment in the delete/flush code above.
-          ActiveProviders.delete(origin);
-          ActiveProviders.flush();
-          continue;
-        }
+        let manifest = JSON.parse(Services.prefs.getComplexValue(prefname, Ci.nsISupportsString).data);
         // our default manifests have been updated with the builtin flags as of
         // fx22, delete it so we can set the user-pref
         delete manifest.builtin;
@@ -185,13 +167,7 @@ function migrateSettings() {
   let prefs = manifestPrefs.getChildList("", []);
   for (let pref of prefs) {
     try {
-      let manifest;
-      try {
-        manifest = JSON.parse(manifestPrefs.getComplexValue(pref, Ci.nsISupportsString).data);
-      } catch(e) {
-        // bad or missing preference, we wont update this one.
-        continue;
-      }
+      let manifest = JSON.parse(manifestPrefs.getComplexValue(pref, Ci.nsISupportsString).data);
       if (manifest && typeof(manifest) == "object" && manifest.origin) {
         // our default manifests have been updated with the builtin flags as of
         // fx22, delete it so we can set the user-pref
@@ -220,14 +196,7 @@ function initService() {
     Services.obs.removeObserver(xpcomShutdown, "xpcom-shutdown");
   }, "xpcom-shutdown", false);
 
-  try {
-    migrateSettings();
-  } catch(e) {
-    // no matter what, if migration fails we do not want to render social
-    // unusable. Worst case scenario is that, when upgrading Firefox, previously
-    // enabled providers are not migrated.
-    Cu.reportError("Error migrating social settings: " + e);
-  }
+  migrateSettings();
   // Initialize the MozSocialAPI
   if (SocialServiceInternal.enabled)
     MozSocialAPI.enabled = true;

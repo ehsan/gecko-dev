@@ -800,14 +800,14 @@ class ParallelGetPropertyIC : public DispatchIonCache
 
     // A set of all objects that are stubbed. Used to detect duplicates in
     // parallel execution.
-    ShapeSet *stubbedShapes_;
+    ObjectSet *stubbedObjects_;
 
    public:
     ParallelGetPropertyIC(Register object, PropertyName *name, TypedOrValueRegister output)
       : object_(object),
         name_(name),
         output_(output),
-        stubbedShapes_(NULL)
+        stubbedObjects_(NULL)
     {
     }
 
@@ -827,10 +827,10 @@ class ParallelGetPropertyIC : public DispatchIonCache
         return output_;
     }
 
-    bool initStubbedShapes(JSContext *cx);
-    ShapeSet *stubbedShapes() const {
-        JS_ASSERT_IF(stubbedShapes_, stubbedShapes_->initialized());
-        return stubbedShapes_;
+    bool initStubbedObjects(JSContext *cx);
+    ObjectSet *stubbedObjects() const {
+        JS_ASSERT_IF(stubbedObjects_, stubbedObjects_->initialized());
+        return stubbedObjects_;
     }
 
     bool canAttachReadSlot(LockedJSContext &cx, JSObject *obj, MutableHandleObject holder,

@@ -378,7 +378,7 @@ TypeSet::intersectionEmpty(TypeSet *other)
     if (unknown() || other->unknown())
         return false;
 
-    if (unknownObject() && other->unknownObject())
+    if (unknownObject() && unknownObject())
         return false;
 
     if (unknownObject() && other->getObjectCount() > 0)
@@ -392,14 +392,12 @@ TypeSet::intersectionEmpty(TypeSet *other)
         return false;
 
     // Test if there are object that are in both TypeSets
-    if (!unknownObject()) {
-        for (unsigned i = 0; i < getObjectCount(); i++) {
-            TypeObjectKey *obj = getObject(i);
-            if (!obj)
-                continue;
-            if (other->hasType(Type::ObjectType(obj)))
-                return false;
-        }
+    for (unsigned i = 0; i < getObjectCount(); i++) {
+        TypeObjectKey *obj = getObject(i);
+        if (!obj)
+            continue;
+        if (other->hasType(Type::ObjectType(obj)))
+            return false;
     }
 
     return true;

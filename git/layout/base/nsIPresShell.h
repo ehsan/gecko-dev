@@ -228,7 +228,7 @@ public:
 #ifdef DEBUG
     mPresArenaAllocCount--;
 #endif
-    if (!mIsDestroying)
+    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
       mFrameArena.FreeByFrameID(aID, aPtr);
   }
 
@@ -253,7 +253,7 @@ public:
 #ifdef DEBUG
     mPresArenaAllocCount--;
 #endif
-    if (!mIsDestroying)
+    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
       mFrameArena.FreeByObjectID(aID, aPtr);
   }
 
@@ -279,7 +279,7 @@ public:
 #ifdef DEBUG
     mPresArenaAllocCount--;
 #endif
-    if (!mIsDestroying)
+    if (PRESARENA_MUST_FREE_DURING_DESTROY || !mIsDestroying)
       mFrameArena.FreeBySize(aSize, aPtr);
   }
 

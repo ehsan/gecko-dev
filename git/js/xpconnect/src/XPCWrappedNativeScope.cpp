@@ -268,9 +268,9 @@ XPCWrappedNativeScope::EnsureXBLScope(JSContext *cx)
 }
 
 namespace xpc {
-JSObject *GetXBLScope(JSContext *cx, JSObject *contentScopeArg)
+JSObject *GetXBLScope(JSContext *cx, JSObject *contentScope_)
 {
-    JS::RootedObject contentScope(cx, contentScopeArg);
+    JS::RootedObject contentScope(cx, contentScope_);
     JSAutoCompartment ac(cx, contentScope);
     JSObject *scope = EnsureCompartmentPrivate(contentScope)->scope->EnsureXBLScope(cx);
     NS_ENSURE_TRUE(scope, nullptr); // See bug 858642.

@@ -715,9 +715,9 @@ XPC_WN_NoHelper_Resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 }
 
 static JSObject *
-XPC_WN_OuterObject(JSContext *cx, JSHandleObject objArg)
+XPC_WN_OuterObject(JSContext *cx, JSHandleObject obj_)
 {
-    JSObject *obj = objArg;
+    JSObject *obj = obj_;
 
     XPCWrappedNative *wrapper =
         static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));

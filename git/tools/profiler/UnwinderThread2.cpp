@@ -866,10 +866,6 @@ static void* unwind_thr_fn(void* exit_nowV)
   */
   int* exit_now = (int*)exit_nowV;
   int ms_to_sleep_if_empty = 1;
-
-  const int longest_sleep_ms = 1000;
-  bool show_sleep_message = true;
-
   while (1) {
 
     if (*exit_now != 0) break;
@@ -893,21 +889,15 @@ static void* unwind_thr_fn(void* exit_nowV)
       MOZ_ASSERT(oldest_seqNo == ~0ULL);
       spinLock_release(&g_spinLock);
       if (ms_to_sleep_if_empty > 100 && LOGLEVEL >= 2) {
-        if (show_sleep_message)
-          LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
-        /* If we've already shown the message for the longest sleep,
-           don't show it again, until the next round of sleeping
-           starts. */
-        if (ms_to_sleep_if_empty == longest_sleep_ms)
-          show_sleep_message = false;
+        LOGF("BPUnw: unwinder: sleep for %d ms", ms_to_sleep_if_empty);
       }
       sleep_ms(ms_to_sleep_if_empty);
       if (ms_to_sleep_if_empty < 20) {
         ms_to_sleep_if_empty += 2;
       } else {
         ms_to_sleep_if_empty = (15 * ms_to_sleep_if_empty) / 10;
-        if (ms_to_sleep_if_empty > longest_sleep_ms)
-          ms_to_sleep_if_empty = longest_sleep_ms;
+        if (ms_to_sleep_if_empty > 1000)
+          ms_to_sleep_if_empty = 1000;
       }
       continue;
     }
@@ -1256,7 +1246,6 @@ static void* unwind_thr_fn(void* exit_nowV)
     buff->state = S_EMPTY;
     spinLock_release(&g_spinLock);
     ms_to_sleep_if_empty = 1;
-    show_sleep_message = true;
   }
   return NULL;
 }

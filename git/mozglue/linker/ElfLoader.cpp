@@ -181,7 +181,7 @@ LeafName(const char *path)
 LibHandle::~LibHandle()
 {
   free(path);
-  if (mappable && mappable->GetKind() != Mappable::MAPPABLE_EXTRACT_FILE)
+  if (mappable->GetKind() != Mappable::MAPPABLE_EXTRACT_FILE)
     delete mappable;
 }
 

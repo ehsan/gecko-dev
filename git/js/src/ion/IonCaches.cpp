@@ -1306,24 +1306,24 @@ void
 ParallelGetPropertyIC::reset()
 {
     DispatchIonCache::reset();
-    if (stubbedShapes_)
-        stubbedShapes_->clear();
+    if (stubbedObjects_)
+        stubbedObjects_->clear();
 }
 
 void
 ParallelGetPropertyIC::destroy()
 {
-    if (stubbedShapes_)
-        js_delete(stubbedShapes_);
+    if (stubbedObjects_)
+        js_delete(stubbedObjects_);
 }
 
 bool
-ParallelGetPropertyIC::initStubbedShapes(JSContext *cx)
+ParallelGetPropertyIC::initStubbedObjects(JSContext *cx)
 {
     JS_ASSERT(isAllocated());
-    if (!stubbedShapes_) {
-        stubbedShapes_ = cx->new_<ShapeSet>(cx);
-        return stubbedShapes_ && stubbedShapes_->init();
+    if (!stubbedObjects_) {
+        stubbedObjects_ = cx->new_<ObjectSet>(cx);
+        return stubbedObjects_ && stubbedObjects_->init();
     }
     return true;
 }
@@ -1425,12 +1425,12 @@ ParallelGetPropertyIC::update(ForkJoinSlice *slice, size_t cacheIndex,
         if (cache.canAttachStub()) {
             // Check if we have already stubbed the current object to avoid
             // attaching a duplicate stub.
-            if (!cache.initStubbedShapes(cx))
+            if (!cache.initStubbedObjects(cx))
                 return TP_FATAL;
-            ShapeSet::AddPtr p = cache.stubbedShapes()->lookupForAdd(obj->lastProperty());
+            ObjectSet::AddPtr p = cache.stubbedObjects()->lookupForAdd(obj);
             if (p)
                 return TP_SUCCESS;
-            if (!cache.stubbedShapes()->add(p, obj->lastProperty()))
+            if (!cache.stubbedObjects()->add(p, obj))
                 return TP_FATAL;
 
             // See note about the stub limit in GetPropertyCache.
