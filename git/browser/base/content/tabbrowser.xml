@@ -1250,8 +1250,10 @@
       <parameter name="aAll"/>
       <body>
         <![CDATA[
-          var tabsToClose = (aAll ? this.tabs.length : this.visibleTabs.length - 1)
-                            - gBrowser._numPinnedTabs;
+          var tabsToClose = this.tabs.length;
+
+          if (!aAll)
+            tabsToClose = this.visibleTabs.length - (1 + this._numPinnedTabs);
           if (tabsToClose <= 1)
             return true;
 
@@ -1398,7 +1400,8 @@
 
             var closeWindow = false;
             var newTab = false;
-            if (this.tabs.length - this._removingTabs.length == 1) {
+            if (this.tabs.length - this._removingTabs.length == 1 && 
+                (!TabView || !TabView.isVisible())) {
               closeWindow = aCloseWindowWithLastTab != null ? aCloseWindowWithLastTab :
                             !window.toolbar.visible ||
                               this.tabContainer._closeWindowWithLastTab;
