@@ -39,6 +39,7 @@
 
 #ifdef MOZ_IPC
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/ContentParent.h"
 #include "nsXULAppAPI.h"
 #endif
 
@@ -159,6 +160,18 @@ public:
   static nsresult Start(nsIURI* aURI)
   {
     NS_PRECONDITION(aURI, "Null URI");
+
+#ifdef MOZ_IPC
+  // If we are a content process, always remote the request to the
+  // parent process.
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    mozilla::dom::ContentChild * cpc = 
+      mozilla::dom::ContentChild::GetSingleton();
+    NS_ASSERTION(cpc, "Content Protocol is NULL!");
+    (void)cpc->SendStartVisitedQuery(IPC::URI(aURI));
+    return NS_OK;
+  }
+#endif
 
     nsNavHistory* navHist = nsNavHistory::GetHistoryService();
     NS_ENSURE_TRUE(navHist, NS_ERROR_FAILURE);
@@ -961,6 +974,15 @@ History::NotifyVisited(nsIURI* aURI)
 {
   NS_ASSERTION(aURI, "Ruh-roh!  A NULL URI was passed to us!");
 
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    mozilla::dom::ContentParent* cpp = 
+      mozilla::dom::ContentParent::GetSingleton();
+    NS_ASSERTION(cpp, "Content Protocol is NULL!");
+    (void)cpp->SendNotifyVisited(IPC::URI(aURI));
+  }
+#endif
+
   // If the hash table has not been initialized, then we have nothing to notify
   // about.
   if (!mObservers.IsInitialized()) {
@@ -1057,16 +1079,6 @@ History::VisitURI(nsIURI* aURI,
     return NS_OK;
   }
 
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    mozilla::dom::ContentChild * cpc = 
-      mozilla::dom::ContentChild::GetSingleton();
-    NS_ASSERTION(cpc, "Content Protocol is NULL!");
-    (void)cpc->SendVisitURI(IPC::URI(aURI), IPC::URI(aLastVisitedURI), aFlags);
-    return NS_OK;
-  } 
-#endif /* MOZ_IPC */
-
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1150,7 +1162,14 @@ History::RegisterVisitedCallback(nsIURI* aURI,
                                  Link* aLink)
 {
   NS_ASSERTION(aURI, "Must pass a non-null URI!");
-  NS_ASSERTION(aLink, "Must pass a non-null Link object!");
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    NS_PRECONDITION(aLink, "Must pass a non-null URI!");
+  }
+#else
+  NS_PRECONDITION(aLink, "Must pass a non-null URI!");
+#endif
+
 
   // First, ensure that our hash table is setup.
   if (!mObservers.IsInitialized()) {
@@ -1173,7 +1192,7 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     // Links wanting to know about this URI.  Therefore, we should query the
     // database now.
     nsresult rv = VisitedQuery::Start(aURI);
-    if (NS_FAILED(rv)) {
+    if (NS_FAILED(rv) || !aLink) {
       // Remove our array from the hashtable so we don't keep it around.
       mObservers.RemoveEntry(aURI);
       return rv;
