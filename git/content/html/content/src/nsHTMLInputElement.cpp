@@ -129,7 +129,6 @@ static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 #define BF_PARSER_CREATING 7
 #define BF_IN_INTERNAL_ACTIVATE 8
 #define BF_CHECKED_IS_TOGGLED 9
-#define BF_INDETERMINATE 10
 
 #define GET_BOOLBIT(bitfield, field) (((bitfield) & (0x01 << (field))) \
                                         ? PR_TRUE : PR_FALSE)
@@ -141,10 +140,8 @@ static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 #define NS_OUTER_ACTIVATE_EVENT   (1 << 9)
 #define NS_ORIGINAL_CHECKED_VALUE (1 << 10)
 #define NS_NO_CONTENT_DISPATCH    (1 << 11)
-#define NS_ORIGINAL_INDETERMINATE_VALUE (1 << 12)
 #define NS_CONTROL_TYPE(bits)  ((bits) & ~( \
-  NS_OUTER_ACTIVATE_EVENT | NS_ORIGINAL_CHECKED_VALUE | NS_NO_CONTENT_DISPATCH | \
-  NS_ORIGINAL_INDETERMINATE_VALUE))
+  NS_OUTER_ACTIVATE_EVENT | NS_ORIGINAL_CHECKED_VALUE | NS_NO_CONTENT_DISPATCH))
 
 static const char kWhitespace[] = "\n\r\t\b";
 
@@ -754,26 +751,6 @@ NS_IMETHODIMP
 nsHTMLInputElement::SetDefaultValue(const nsAString& aValue)
 {
   return SetAttrHelper(nsGkAtoms::value, aValue);
-}
-
-NS_IMETHODIMP
-nsHTMLInputElement::GetIndeterminate(PRBool* aValue)
-{
-  *aValue = GET_BOOLBIT(mBitField, BF_INDETERMINATE);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLInputElement::SetIndeterminate(PRBool aValue)
-{
-  SET_BOOLBIT(mBitField, BF_INDETERMINATE, aValue);
-
-  // Repaint the frame
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame)
-    frame->InvalidateOverflowRect();
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1552,12 +1529,6 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     switch(mType) {
       case NS_FORM_INPUT_CHECKBOX:
         {
-          if (GET_BOOLBIT(mBitField, BF_INDETERMINATE)) {
-            // indeterminate is always set to FALSE when the checkbox is toggled
-            SET_BOOLBIT(mBitField, BF_INDETERMINATE, PR_FALSE);
-            aVisitor.mItemFlags |= NS_ORIGINAL_INDETERMINATE_VALUE;
-          }
-
           GetChecked(&originalCheckedValue);
           DoSetChecked(!originalCheckedValue);
           SET_BOOLBIT(mBitField, BF_CHECKED_IS_TOGGLED, PR_TRUE);
@@ -1708,9 +1679,6 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           DoSetChecked(PR_FALSE);
         }
       } else if (oldType == NS_FORM_INPUT_CHECKBOX) {
-        PRBool originalIndeterminateValue =
-          !!(aVisitor.mItemFlags & NS_ORIGINAL_INDETERMINATE_VALUE);
-        SET_BOOLBIT(mBitField, BF_INDETERMINATE, originalIndeterminateValue);
         DoSetChecked(originalCheckedValue);
       }
     } else {

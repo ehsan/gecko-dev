@@ -46,7 +46,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsIDOMNSHTMLInputElement.h"
 
 static void
 PaintCheckMark(nsIRenderingContext& aRenderingContext,
@@ -73,18 +72,6 @@ PaintCheckMark(nsIRenderingContext& aRenderingContext,
   }
 
   aRenderingContext.FillPolygon(paintPolygon, checkNumPoints);
-}
-
-static void
-PaintIndeterminateMark(nsIRenderingContext& aRenderingContext,
-                       const nsRect& aRect)
-{
-  // Drawing a thin horizontal line in the middle of the rect.
-  nsRect fillRect = aRect;
-  fillRect.height /= 4;
-  fillRect.y += (aRect.height - fillRect.height) / 2;
-
-  aRenderingContext.FillRect(fillRect);
 }
 
 //------------------------------------------------------------
@@ -222,10 +209,7 @@ nsGfxCheckboxControlFrame::PaintCheckBox(nsIRenderingContext& aRenderingContext,
   const nsStyleColor* color = GetStyleColor();
   aRenderingContext.SetColor(color->mColor);
 
-  if (IsIndeterminate())
-    PaintIndeterminateMark(aRenderingContext, checkRect);
-  else
-    PaintCheckMark(aRenderingContext, checkRect);
+  PaintCheckMark(aRenderingContext, checkRect);
 }
 
 //------------------------------------------------------------
@@ -238,7 +222,7 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
   
   // Get current checked state through content model.
-  if ((!IsChecked() && !IsIndeterminate()) || !IsVisibleForPainting(aBuilder))
+  if (!GetCheckboxState() || !IsVisibleForPainting(aBuilder))
     return NS_OK;   // we're not checked or not visible, nothing to paint.
     
   if (IsThemed())
@@ -287,19 +271,10 @@ nsGfxCheckboxControlFrame::PaintCheckBoxFromStyle(
 
 //------------------------------------------------------------
 PRBool
-nsGfxCheckboxControlFrame::IsChecked()
+nsGfxCheckboxControlFrame::GetCheckboxState ( )
 {
   nsCOMPtr<nsIDOMHTMLInputElement> elem(do_QueryInterface(mContent));
   PRBool retval = PR_FALSE;
   elem->GetChecked(&retval);
-  return retval;
-}
-
-PRBool
-nsGfxCheckboxControlFrame::IsIndeterminate()
-{
-  nsCOMPtr<nsIDOMNSHTMLInputElement> elem(do_QueryInterface(mContent));
-  PRBool retval = PR_FALSE;
-  elem->GetIndeterminate(&retval);
   return retval;
 }

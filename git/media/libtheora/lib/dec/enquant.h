@@ -11,36 +11,33 @@
  ********************************************************************
 
   function:
-    last mod: $Id: quant.h 14059 2007-10-28 23:43:27Z xiphmont $
+    last mod: $Id: enquant.h 13884 2007-09-22 08:38:10Z giles $
 
  ********************************************************************/
 
-#if !defined(_quant_H)
-# define _quant_H (1)
-# include "theora/codec.h"
-# include "ocintrin.h"
+#if !defined(_enquant_H)
+# define _enquant_H (1)
+# include "quant.h"
 
-typedef ogg_uint16_t   oc_quant_table[64];
-typedef oc_quant_table oc_quant_tables[64];
-
-
-
-/*Maximum scaled quantizer value.*/
-#define OC_QUANT_MAX          (1024<<2)
+/*The amount to scale the forward quantizer value by.*/
+#define OC_FQUANT_SCALE ((ogg_uint32_t)1<<OC_FQUANT_SHIFT)
+/*The amount to add to the scaled forward quantizer for rounding.*/
+#define OC_FQUANT_ROUND (1<<OC_FQUANT_SHIFT-1)
+/*The amount to shift the resulting product by.*/
+#define OC_FQUANT_SHIFT (16)
 
 
 
-/*Minimum scaled DC coefficient frame quantizer value for intra and inter
-   modes.*/
-extern unsigned OC_DC_QUANT_MIN[2];
-/*Minimum scaled AC coefficient frame quantizer value for intra and inter
-   modes.*/
-extern unsigned OC_AC_QUANT_MIN[2];
+/*The default quantization parameters used by VP3.1.*/
+extern const th_quant_info TH_VP31_QUANT_INFO;
+/*Our default quantization parameters.*/
+extern const th_quant_info OC_DEF_QUANT_INFO[4];
 
 
 
-void oc_dequant_tables_init(oc_quant_table *_dequant[2][3],
-			    int _pp_dc_scale[64],
-			    const th_quant_info *_qinfo);
+void oc_quant_params_pack(oggpack_buffer *_opb,
+ const th_quant_info *_qinfo);
+void oc_enquant_tables_init(oc_quant_table *_dequant[2][3],
+ oc_quant_table *_enquant[2][3],const th_quant_info *_qinfo);
 
 #endif
