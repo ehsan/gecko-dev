@@ -3188,7 +3188,7 @@ HTMLInputElement::Select()
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
 
-  nsRefPtr<nsPresContext> presContext = GetPresContext(eForComposedDoc);
+  nsRefPtr<nsPresContext> presContext = GetPresContext();
   if (state == eInactiveWindow) {
     if (fm)
       fm->SetFocus(this, nsIFocusManager::FLAG_NOSCROLL);
@@ -3961,8 +3961,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
               fm->GetLastFocusMethod(document->GetWindow(), &lastFocusMethod);
               if (lastFocusMethod &
                   (nsIFocusManager::FLAG_BYKEY | nsIFocusManager::FLAG_BYMOVEFOCUS)) {
-                nsRefPtr<nsPresContext> presContext =
-                  GetPresContext(eForComposedDoc);
+                nsRefPtr<nsPresContext> presContext = GetPresContext();
                 if (DispatchSelectEvent(presContext)) {
                   SelectAll(presContext);
                 }

@@ -219,29 +219,24 @@ nsProgressFrame::AttributeChanged(int32_t  aNameSpaceID,
   return nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
 }
 
-LogicalSize
+nsSize
 nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                 WritingMode aWM,
-                                 const LogicalSize& aCBSize,
-                                 nscoord aAvailableISize,
-                                 const LogicalSize& aMargin,
-                                 const LogicalSize& aBorder,
-                                 const LogicalSize& aPadding,
-                                 bool aShrinkWrap)
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, bool aShrinkWrap)
 {
-  const WritingMode wm = GetWritingMode();
-  LogicalSize autoSize(wm);
-  autoSize.BSize(wm) = autoSize.ISize(wm) =
+  nsSize autoSize;
+  autoSize.height = autoSize.width =
     NSToCoordRound(StyleFont()->mFont.size *
                    nsLayoutUtils::FontSizeInflationFor(this)); // 1em
 
   if (StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL) {
-    autoSize.Height(wm) *= 10; // 10em
+    autoSize.height *= 10; // 10em
   } else {
-    autoSize.Width(wm) *= 10; // 10em
+    autoSize.width *= 10; // 10em
   }
 
-  return autoSize.ConvertTo(aWM, wm);
+  return autoSize;
 }
 
 nscoord

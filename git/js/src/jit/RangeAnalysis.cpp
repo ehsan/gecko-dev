@@ -1229,12 +1229,6 @@ MCeil::computeRange(TempAllocator &alloc)
 }
 
 void
-MClz::computeRange(TempAllocator &alloc)
-{
-    setRange(Range::NewUInt32Range(alloc, 0, 32));
-}
-
-void
 MMinMax::computeRange(TempAllocator &alloc)
 {
     if (specialization_ != MIRType_Int32 && specialization_ != MIRType_Double)
@@ -2671,14 +2665,6 @@ MLoadElementHole::collectRangeInfoPreTrunc()
     Range indexRange(index());
     if (indexRange.isFiniteNonNegative())
         needsNegativeIntCheck_ = false;
-}
-
-void
-MClz::collectRangeInfoPreTrunc()
-{
-    Range inputRange(input());
-    if (!inputRange.canBeZero())
-        operandIsNeverZero_ = true;
 }
 
 void

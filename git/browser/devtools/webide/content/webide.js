@@ -246,11 +246,8 @@ let UI = {
       this.unbusy();
     }, (e) => {
       this.cancelBusyTimeout();
-      let operationCanceled = e && e.canceled;
-      if (!operationCanceled) {
-        UI.reportError("error_operationFail", operationDescription);
-        console.error(e);
-      }
+      UI.reportError("error_operationFail", operationDescription);
+      console.error(e);
       this.unbusy();
     });
     return promise;

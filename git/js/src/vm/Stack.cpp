@@ -250,7 +250,7 @@ InterpreterFrame::prologue(JSContext *cx)
     if (fun()->isHeavyweight() && !initFunctionScopeObjects(cx))
         return false;
 
-    if (isConstructing() && functionThis().isPrimitive()) {
+    if (isConstructing()) {
         RootedObject callee(cx, &this->callee());
         JSObject *obj = CreateThisForFunction(cx, callee,
                                               useNewType() ? SingletonObject : GenericObject);

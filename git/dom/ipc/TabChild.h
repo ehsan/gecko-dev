@@ -368,8 +368,6 @@ public:
                                   const InfallibleTArray<CpowEntry>& aCpows,
                                   const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
-    virtual bool RecvAppOfflineStatus(const uint32_t& aId, const bool& aOffline) MOZ_OVERRIDE;
-
     virtual PDocumentRendererChild*
     AllocPDocumentRendererChild(const nsRect& documentRect, const gfx::Matrix& transform,
                                 const nsString& bgcolor,
@@ -511,8 +509,6 @@ private:
 
     nsresult Init();
 
-    class DelayedFireSingleTapEvent;
-    class DelayedFireContextMenuEvent;
 
     // Notify others that our TabContext has been updated.  (At the moment, this
     // sets the appropriate app-id and is-browser flags on our docshell.)
@@ -575,7 +571,7 @@ private:
     // A timer task that fires if the tap-hold timeout is exceeded by
     // the touch we're tracking.  That is, if touchend or a touchmove
     // that exceeds the gesture threshold doesn't happen.
-    nsCOMPtr<nsITimer> mTapHoldTimer;
+    CancelableTask* mTapHoldTimer;
     // Whether we have already received a FileDescriptor for the app package.
     bool mAppPackageFileDescriptorRecved;
     // At present only 1 of these is really expected.
@@ -598,7 +594,6 @@ private:
     nsRefPtr<ActiveElementManager> mActiveElementManager;
     bool mHasValidInnerSize;
     uint64_t mUniqueId;
-    bool mDestroyed;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

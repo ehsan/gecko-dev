@@ -90,12 +90,7 @@ function createBookmarkItem (data) {
   if (data.index === -1)
     data.index = bmsrv.getItemIndex(data.id);
 
-  try {
-    data.updated = bmsrv.getItemLastModified(data.id);
-  }
-  catch (e) {
-    console.exception(e);
-  }
+  data.updated = bmsrv.getItemLastModified(data.id);
 
   return tag(data, true).then(() => data);
 }
@@ -199,24 +194,34 @@ exports.getChildren = getChildren;
  * Hook into host
  */
 
-let reqStream = filter(request, (data) => /sdk-places-bookmarks/.test(data.event));
-on(reqStream, 'data', ({ event, id, data }) => {
+let reqStream = filter(request, function (data) /sdk-places-bookmarks/.test(data.event));
+on(reqStream, 'data', function ({event, id, data}) {
   if (!EVENT_MAP[event]) return;
 
-  let resData = { id: id, event: event };
+  let resData = {
+    id: id,
+    event: event
+  };
 
-  promised(EVENT_MAP[event])(data).
-  then(res => resData.data = res, e => resData.error = e).
-  then(() => emit(response, 'data', resData));
+  promised(EVENT_MAP[event])(data).then(res => {
+    resData.data = res;
+    respond(resData);
+  }, reason => {
+    resData.error = reason;
+    respond(resData);
+  });
 });
+
+function respond (data) {
+  emit(response, 'data', data);
+}
 
 function tag (data, isNew) {
   // If a new item, we can skip checking what other tags
   // are on the item
   if (data.type !== 'bookmark') {
     return resolve();
-  }
-  else if (!isNew) {
+  } else if (!isNew) {
     return send('sdk-places-tags-get-tags-by-url', { url: data.url })
       .then(tags => {
         return send('sdk-places-tags-untag', {

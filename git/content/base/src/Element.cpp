@@ -1650,7 +1650,7 @@ Element::ShouldBlur(nsIContent *aContent)
 {
   // Determine if the current element is focused, if it is not focused
   // then we should not try to blur
-  nsIDocument* document = aContent->GetComposedDoc();
+  nsIDocument *document = aContent->GetDocument();
   if (!document)
     return false;
 

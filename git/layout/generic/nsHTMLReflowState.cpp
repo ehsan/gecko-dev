@@ -1454,24 +1454,28 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
   {
     AutoMaybeDisableFontInflation an(frame);
 
-    WritingMode wm = GetWritingMode();
-    LogicalSize size =
-      frame->ComputeSize(rendContext, wm,
-                         LogicalSize(wm, nsSize(containingBlockWidth,
-                                containingBlockHeight)),
+    nsSize size =
+      frame->ComputeSize(rendContext,
+                         nsSize(containingBlockWidth,
+                                containingBlockHeight),
                          containingBlockWidth, // XXX or mAvailableWidth?
-                         ComputedLogicalMargin().Size(wm) +
-                           ComputedLogicalOffsets().Size(wm),
-                         ComputedLogicalBorderPadding().Size(wm) -
-                           ComputedLogicalPadding().Size(wm),
-                         ComputedLogicalPadding().Size(wm),
+                         nsSize(ComputedPhysicalMargin().LeftRight() +
+                                  ComputedPhysicalOffsets().LeftRight(),
+                                ComputedPhysicalMargin().TopBottom() +
+                                  ComputedPhysicalOffsets().TopBottom()),
+                         nsSize(ComputedPhysicalBorderPadding().LeftRight() -
+                                  ComputedPhysicalPadding().LeftRight(),
+                                ComputedPhysicalBorderPadding().TopBottom() -
+                                  ComputedPhysicalPadding().TopBottom()),
+                         nsSize(ComputedPhysicalPadding().LeftRight(),
+                                ComputedPhysicalPadding().TopBottom()),
                          computeSizeFlags);
-    ComputedISize() = size.ISize(wm);
-    ComputedBSize() = size.BSize(wm);
+    ComputedWidth() = size.width;
+    ComputedHeight() = size.height;
   }
-  NS_ASSERTION(ComputedISize() >= 0, "Bogus inline-size");
-  NS_ASSERTION(ComputedBSize() == NS_UNCONSTRAINEDSIZE ||
-               ComputedBSize() >= 0, "Bogus block-size");
+  NS_ASSERTION(ComputedWidth() >= 0, "Bogus width");
+  NS_ASSERTION(ComputedHeight() == NS_UNCONSTRAINEDSIZE ||
+               ComputedHeight() >= 0, "Bogus height");
 
   // XXX Now that we have ComputeSize, can we condense many of the
   // branches off of widthIsAuto?
@@ -2129,23 +2133,26 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                    "'mIsFlexContainerMeasuringHeight' shouldn't be set");
       }
 
-      WritingMode wm = GetWritingMode();
-      LogicalSize size =
-        frame->ComputeSize(rendContext, wm,
-                           LogicalSize(wm, nsSize(aContainingBlockWidth,
-                                                  aContainingBlockHeight)),
+      nsSize size =
+        frame->ComputeSize(rendContext,
+                           nsSize(aContainingBlockWidth,
+                                  aContainingBlockHeight),
                            AvailableWidth(),
-                           ComputedLogicalMargin().Size(wm),
-                           ComputedLogicalBorderPadding().Size(wm) -
-                             ComputedLogicalPadding().Size(wm),
-                           ComputedLogicalPadding().Size(wm),
+                           nsSize(ComputedPhysicalMargin().LeftRight(),
+                                  ComputedPhysicalMargin().TopBottom()),
+                           nsSize(ComputedPhysicalBorderPadding().LeftRight() -
+                                    ComputedPhysicalPadding().LeftRight(),
+                                  ComputedPhysicalBorderPadding().TopBottom() -
+                                    ComputedPhysicalPadding().TopBottom()),
+                           nsSize(ComputedPhysicalPadding().LeftRight(),
+                                  ComputedPhysicalPadding().TopBottom()),
                            computeSizeFlags);
 
-      ComputedISize() = size.ISize(wm);
-      ComputedBSize() = size.BSize(wm);
-      NS_ASSERTION(ComputedISize() >= 0, "Bogus inline-size");
-      NS_ASSERTION(ComputedBSize() == NS_UNCONSTRAINEDSIZE ||
-                   ComputedBSize() >= 0, "Bogus block-size");
+      ComputedWidth() = size.width;
+      ComputedHeight() = size.height;
+      NS_ASSERTION(ComputedWidth() >= 0, "Bogus width");
+      NS_ASSERTION(ComputedHeight() == NS_UNCONSTRAINEDSIZE ||
+                   ComputedHeight() >= 0, "Bogus height");
 
       // Exclude inline tables and flex items from the block margin calculations
       if (isBlock &&

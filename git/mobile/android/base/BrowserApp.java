@@ -71,7 +71,7 @@ import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.PrefUtils;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.widget.ButtonToast;
 import org.mozilla.gecko.widget.GeckoActionProvider;
 
@@ -439,9 +439,9 @@ public class BrowserApp extends GeckoApp
     }
 
     private void handleReaderFaviconRequest(final String url) {
-        (new UIAsyncTask.WithoutParams<String>(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, String>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public String doInBackground() {
+            public String doInBackground(Void... params) {
                 return Favicons.getFaviconURLForPageURL(url);
             }
 
@@ -2847,9 +2847,9 @@ public class BrowserApp extends GeckoApp
             return;
         }
 
-        (new UIAsyncTask.WithoutParams<Boolean>(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, Boolean>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public synchronized Boolean doInBackground() {
+            public synchronized Boolean doInBackground(Void... params) {
                 // Check to see how many times the app has been launched.
                 SharedPreferences settings = getPreferences(Activity.MODE_PRIVATE);
                 String keyName = getPackageName() + ".feedback_launch_count";
@@ -2891,9 +2891,9 @@ public class BrowserApp extends GeckoApp
     }
 
     private void getLastUrl() {
-        (new UIAsyncTask.WithoutParams<String>(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, String>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public synchronized String doInBackground() {
+            public synchronized String doInBackground(Void... params) {
                 // Get the most recent URL stored in browser history.
                 String url = "";
                 Cursor c = null;

@@ -216,7 +216,7 @@ HTMLLabelElement::PerformAccesskey(bool aKeyCausesActivation,
     if (element)
       element->PerformAccesskey(aKeyCausesActivation, aIsTrustedEvent);
   } else {
-    nsPresContext *presContext = GetPresContext(eForUncomposedDoc);
+    nsPresContext *presContext = GetPresContext();
     if (!presContext)
       return;
 

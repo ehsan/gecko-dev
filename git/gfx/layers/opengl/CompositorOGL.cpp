@@ -42,7 +42,7 @@
 #include "TiledLayerBuffer.h"           // for TiledLayerComposer
 #include "HeapCopyOfStackArray.h"
 
-#if MOZ_WIDGET_ANDROID
+#if MOZ_ANDROID_OMTC
 #include "TexturePoolOGL.h"
 #endif
 
@@ -750,7 +750,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   mPixelsPerFrame = width * height;
   mPixelsFilled = 0;
 
-#if MOZ_WIDGET_ANDROID
+#if MOZ_ANDROID_OMTC
   TexturePoolOGL::Fill(gl());
 #endif
 
@@ -786,7 +786,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   // If the Android compositor is being used, this clear will be done in
   // DrawWindowUnderlay. Make sure the bits used here match up with those used
   // in mobile/android/base/gfx/LayerRenderer.java
-#ifndef MOZ_WIDGET_ANDROID
+#ifndef MOZ_ANDROID_OMTC
   mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 #endif

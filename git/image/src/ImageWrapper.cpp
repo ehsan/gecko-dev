@@ -222,15 +222,18 @@ ImageWrapper::GetImageContainer(LayerManager* aManager, ImageContainer** _retval
 
 NS_IMETHODIMP
 ImageWrapper::Draw(gfxContext* aContext,
-                   const nsIntSize& aSize,
-                   const ImageRegion& aRegion,
-                   uint32_t aWhichFrame,
                    GraphicsFilter aFilter,
-                   const Maybe<SVGImageContext>& aSVGContext,
+                   const gfxMatrix& aUserSpaceToImageSpace,
+                   const gfxRect& aFill,
+                   const nsIntRect& aSubimage,
+                   const nsIntSize& aViewportSize,
+                   const SVGImageContext* aSVGContext,
+                   uint32_t aWhichFrame,
                    uint32_t aFlags)
 {
-  return mInnerImage->Draw(aContext, aSize, aRegion, aWhichFrame,
-                           aFilter, aSVGContext, aFlags);
+  return mInnerImage->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill,
+                           aSubimage, aViewportSize, aSVGContext, aWhichFrame,
+                           aFlags);
 }
 
 NS_IMETHODIMP

@@ -204,21 +204,19 @@ Decoder::AllocateFrame()
   MOZ_ASSERT(NS_IsMainThread());
 
   nsresult rv;
-  nsRefPtr<imgFrame> frame;
+  imgFrame* frame = nullptr;
   if (mNewFrameData.mPaletteDepth) {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
                             mNewFrameData.mPaletteDepth,
                             &mImageData, &mImageDataLength,
-                            &mColormap, &mColormapSize,
-                            getter_AddRefs(frame));
+                            &mColormap, &mColormapSize, &frame);
   } else {
     rv = mImage.EnsureFrame(mNewFrameData.mFrameNum, mNewFrameData.mOffsetX,
                             mNewFrameData.mOffsetY, mNewFrameData.mWidth,
                             mNewFrameData.mHeight, mNewFrameData.mFormat,
-                            &mImageData, &mImageDataLength,
-                            getter_AddRefs(frame));
+                            &mImageData, &mImageDataLength, &frame);
   }
 
   if (NS_SUCCEEDED(rv)) {

@@ -35,14 +35,11 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
                                 nsTArray<WebMTimeDataOffset>& aMapping,
                                 ReentrantMonitor& aReentrantMonitor)
 {
-  static const uint32_t SEGMENT_ID = 0x18538067;
-  static const uint32_t SEGINFO_ID = 0x1549a966;
-  static const uint32_t CLUSTER_ID = 0x1f43b675;
-  static const uint32_t TIMECODESCALE_ID = 0x2ad7b1;
+  static const unsigned char CLUSTER_ID[] = { 0x1f, 0x43, 0xb6, 0x75 };
   static const unsigned char TIMECODE_ID = 0xe7;
+  static const unsigned char BLOCKGROUP_ID = 0xa0;
   static const unsigned char BLOCK_ID = 0xa1;
   static const unsigned char SIMPLEBLOCK_ID = 0xa3;
-  static const uint32_t BLOCK_TIMECODE_LENGTH = 2;
 
   const unsigned char* p = aBuffer;
 
@@ -52,87 +49,86 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
   // called with new data.
   while (p < aBuffer + aLength) {
     switch (mState) {
-    case READ_ELEMENT_ID:
-      mVIntRaw = true;
-      mState = READ_VINT;
-      mNextState = READ_ELEMENT_SIZE;
-      break;
-    case READ_ELEMENT_SIZE:
-      mVIntRaw = false;
-      mElement.mID = mVInt;
-      mState = READ_VINT;
-      mNextState = PARSE_ELEMENT;
-      break;
-    case PARSE_ELEMENT:
-      mElement.mSize = mVInt;
-      switch (mElement.mID.mValue) {
-      case SEGMENT_ID:
-        mState = READ_ELEMENT_ID;
-        break;
-      case SEGINFO_ID:
-        mGotTimecodeScale = true;
-        mState = READ_ELEMENT_ID;
-        break;
-      case TIMECODE_ID:
-        mVInt = VInt();
-        mVIntLeft = mElement.mSize.mValue;
-        mState = READ_VINT_REST;
-        mNextState = READ_CLUSTER_TIMECODE;
-        break;
-      case TIMECODESCALE_ID:
-        mVInt = VInt();
-        mVIntLeft = mElement.mSize.mValue;
-        mState = READ_VINT_REST;
-        mNextState = READ_TIMECODESCALE;
-        break;
-      case CLUSTER_ID:
-        mClusterOffset = mCurrentOffset + (p - aBuffer) -
-                        (mElement.mID.mLength + mElement.mSize.mLength);
-        mState = READ_ELEMENT_ID;
-        break;
-      case SIMPLEBLOCK_ID:
-        /* FALLTHROUGH */
-      case BLOCK_ID:
-        mBlockSize = mElement.mSize.mValue;
-        mBlockTimecode = 0;
-        mBlockTimecodeLength = BLOCK_TIMECODE_LENGTH;
-        mBlockOffset = mCurrentOffset + (p - aBuffer) -
-                       (mElement.mID.mLength + mElement.mSize.mLength);
+    case CLUSTER_SYNC:
+      if (*p++ == CLUSTER_ID[mClusterIDPos]) {
+        mClusterIDPos += 1;
+      } else {
+        mClusterIDPos = 0;
+      }
+      // Cluster ID found, it's likely this is a valid sync point.  If this
+      // is a spurious match, the later parse steps will encounter an error
+      // and return to CLUSTER_SYNC.
+      if (mClusterIDPos == sizeof(CLUSTER_ID)) {
+        mClusterIDPos = 0;
+        mClusterOffset = mCurrentOffset + (p - aBuffer) - sizeof(CLUSTER_ID);
         mState = READ_VINT;
-        mNextState = READ_BLOCK_TIMECODE;
-        break;
-      default:
-        mSkipBytes = mElement.mSize.mValue;
-        mState = SKIP_DATA;
-        mNextState = READ_ELEMENT_ID;
-        break;
+        mNextState = TIMECODE_SYNC;
       }
       break;
     case READ_VINT: {
       unsigned char c = *p++;
       uint32_t mask;
-      mVInt.mLength = VIntLength(c, &mask);
-      mVIntLeft = mVInt.mLength - 1;
-      mVInt.mValue = mVIntRaw ? c : c & ~mask;
+      mVIntLength = VIntLength(c, &mask);
+      mVIntLeft = mVIntLength - 1;
+      mVInt = c & ~mask;
       mState = READ_VINT_REST;
       break;
     }
     case READ_VINT_REST:
       if (mVIntLeft) {
-        mVInt.mValue <<= 8;
-        mVInt.mValue |= *p++;
+        mVInt <<= 8;
+        mVInt |= *p++;
         mVIntLeft -= 1;
       } else {
         mState = mNextState;
       }
       break;
-    case READ_TIMECODESCALE:
-      mTimecodeScale = mVInt.mValue;
-      mState = READ_ELEMENT_ID;
+    case TIMECODE_SYNC:
+      if (*p++ != TIMECODE_ID) {
+        p -= 1;
+        mState = CLUSTER_SYNC;
+        break;
+      }
+      mClusterTimecode = 0;
+      mState = READ_VINT;
+      mNextState = READ_CLUSTER_TIMECODE;
       break;
     case READ_CLUSTER_TIMECODE:
-      mClusterTimecode = mVInt.mValue;
-      mState = READ_ELEMENT_ID;
+      if (mVInt) {
+        mClusterTimecode <<= 8;
+        mClusterTimecode |= *p++;
+        mVInt -= 1;
+      } else {
+        mState = ANY_BLOCK_SYNC;
+      }
+      break;
+    case ANY_BLOCK_SYNC: {
+      unsigned char c = *p++;
+      if (c == BLOCKGROUP_ID) {
+        mState = READ_VINT;
+        mNextState = ANY_BLOCK_SYNC;
+      } else if (c == SIMPLEBLOCK_ID || c == BLOCK_ID) {
+        mBlockOffset = mCurrentOffset + (p - aBuffer) - 1;
+        mState = READ_VINT;
+        mNextState = READ_BLOCK;
+      } else {
+        uint32_t length = VIntLength(c, nullptr);
+        if (length == 4) {
+          p -= 1;
+          mState = CLUSTER_SYNC;
+        } else {
+          mState = READ_VINT;
+          mNextState = SKIP_ELEMENT;
+        }
+      }
+      break;
+    }
+    case READ_BLOCK:
+      mBlockSize = mVInt;
+      mBlockTimecode = 0;
+      mBlockTimecodeLength = 2;
+      mState = READ_VINT;
+      mNextState = READ_BLOCK_TIMECODE;
       break;
     case READ_BLOCK_TIMECODE:
       if (mBlockTimecodeLength) {
@@ -144,27 +140,24 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
         // duplicate WebMTimeDataOffset entries.
         {
           ReentrantMonitorAutoEnter mon(aReentrantMonitor);
-          int64_t endOffset = mBlockOffset + mBlockSize +
-                              mElement.mID.mLength + mElement.mSize.mLength;
-          uint32_t idx = aMapping.IndexOfFirstElementGt(endOffset);
-          if (idx == 0 || aMapping[idx - 1] != endOffset) {
+          uint32_t idx = aMapping.IndexOfFirstElementGt(mBlockOffset);
+          if (idx == 0 || !(aMapping[idx - 1] == mBlockOffset)) {
             // Don't insert invalid negative timecodes.
-            if (mBlockTimecode >= 0 || mClusterTimecode >= uint16_t(abs(mBlockTimecode))) {
-              MOZ_ASSERT(mGotTimecodeScale);
-              uint64_t absTimecode = mClusterTimecode + mBlockTimecode;
-              absTimecode *= mTimecodeScale;
-              WebMTimeDataOffset entry(endOffset, absTimecode, mClusterOffset);
+            if (mBlockOffset > 0 || mClusterTimecode > uint16_t(abs(mBlockOffset))) {
+              WebMTimeDataOffset entry(mBlockOffset,
+                                       mClusterTimecode + mBlockTimecode,
+                                       mClusterOffset);
               aMapping.InsertElementAt(idx, entry);
             }
           }
         }
 
         // Skip rest of block header and the block's payload.
-        mBlockSize -= mVInt.mLength;
-        mBlockSize -= BLOCK_TIMECODE_LENGTH;
+        mBlockSize -= mVIntLength;
+        mBlockSize -= 2;
         mSkipBytes = uint32_t(mBlockSize);
         mState = SKIP_DATA;
-        mNextState = READ_ELEMENT_ID;
+        mNextState = ANY_BLOCK_SYNC;
       }
       break;
     case SKIP_DATA:
@@ -177,6 +170,11 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
         mState = mNextState;
       }
       break;
+    case SKIP_ELEMENT:
+      mSkipBytes = uint32_t(mVInt);
+      mState = SKIP_DATA;
+      mNextState = ANY_BLOCK_SYNC;
+      break;
     }
   }
 
@@ -184,29 +182,19 @@ void WebMBufferedParser::Append(const unsigned char* aBuffer, uint32_t aLength,
   mCurrentOffset += aLength;
 }
 
-struct SyncOffsetComparator {
-  bool Equals(const WebMTimeDataOffset& a, const int64_t& b) const {
-    return a.mSyncOffset == b;
-  }
-
-  bool LessThan(const WebMTimeDataOffset& a, const int64_t& b) const {
-    return a.mSyncOffset < b;
-  }
-};
-
 bool WebMBufferedState::CalculateBufferedForRange(int64_t aStartOffset, int64_t aEndOffset,
                                                   uint64_t* aStartTime, uint64_t* aEndTime)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   // Find the first WebMTimeDataOffset at or after aStartOffset.
-  uint32_t start = mTimeMapping.IndexOfFirstElementGt(aStartOffset - 1, SyncOffsetComparator());
+  uint32_t start = mTimeMapping.IndexOfFirstElementGt(aStartOffset - 1);
   if (start == mTimeMapping.Length()) {
     return false;
   }
 
   // Find the first WebMTimeDataOffset at or before aEndOffset.
-  uint32_t end = mTimeMapping.IndexOfFirstElementGt(aEndOffset);
+  uint32_t end = mTimeMapping.IndexOfFirstElementGt(aEndOffset - 1);
   if (end > 0) {
     end -= 1;
   }
@@ -216,25 +204,29 @@ bool WebMBufferedState::CalculateBufferedForRange(int64_t aStartOffset, int64_t 
     return false;
   }
 
-  NS_ASSERTION(mTimeMapping[start].mSyncOffset >= aStartOffset &&
-               mTimeMapping[end].mEndOffset <= aEndOffset,
+  NS_ASSERTION(mTimeMapping[start].mOffset >= aStartOffset &&
+               mTimeMapping[end].mOffset <= aEndOffset,
                "Computed time range must lie within data range.");
   if (start > 0) {
-    NS_ASSERTION(mTimeMapping[start - 1].mSyncOffset < aStartOffset,
+    NS_ASSERTION(mTimeMapping[start - 1].mOffset <= aStartOffset,
                  "Must have found least WebMTimeDataOffset for start");
   }
   if (end < mTimeMapping.Length() - 1) {
-    NS_ASSERTION(mTimeMapping[end + 1].mEndOffset > aEndOffset,
+    NS_ASSERTION(mTimeMapping[end + 1].mOffset >= aEndOffset,
                  "Must have found greatest WebMTimeDataOffset for end");
   }
 
-  uint64_t frameDuration = mTimeMapping[end].mTimecode - mTimeMapping[end - 1].mTimecode;
+  // The timestamp of the first media sample, in ns. We must subtract this
+  // from the ranges' start and end timestamps, so that those timestamps are
+  // normalized in the range [0,duration].
+
   *aStartTime = mTimeMapping[start].mTimecode;
-  *aEndTime = mTimeMapping[end].mTimecode + frameDuration;
+  *aEndTime = mTimeMapping[end].mTimecode;
+  *aEndTime += mTimeMapping[end].mTimecode - mTimeMapping[end - 1].mTimecode;
   return true;
 }
 
-bool WebMBufferedState::GetOffsetForTime(uint64_t aTime, int64_t* aOffset)
+bool WebMBufferedState::GetOffsetForTime(uint64_t aTime, int64_t* aOffset, enum OffsetType aType)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   WebMTimeDataOffset result(0, 0, 0);
@@ -246,7 +238,7 @@ bool WebMBufferedState::GetOffsetForTime(uint64_t aTime, int64_t* aOffset)
     }
   }
 
-  *aOffset = result.mSyncOffset;
+  *aOffset = aType == CLUSTER_START ? result.mSyncOffset : result.mOffset;
   return true;
 }
 
@@ -273,9 +265,6 @@ void WebMBufferedState::NotifyDataArrived(const char* aBuffer, uint32_t aLength,
       aLength -= uint32_t(adjust);
     } else {
       mRangeParsers.InsertElementAt(idx, WebMBufferedParser(aOffset));
-      if (idx != 0) {
-        mRangeParsers[idx].SetTimecodeScale(mRangeParsers[0].GetTimecodeScale());
-      }
     }
   }
 

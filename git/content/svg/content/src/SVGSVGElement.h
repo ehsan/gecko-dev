@@ -401,12 +401,11 @@ private:
 class MOZ_STACK_CLASS AutoSVGRenderingState
 {
 public:
-  AutoSVGRenderingState(const Maybe<SVGImageContext>& aSVGContext,
+  AutoSVGRenderingState(const SVGImageContext* aSVGContext,
                         float aFrameTime,
                         dom::SVGSVGElement* aRootElem
                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mHaveOverrides(aSVGContext.isSome() &&
-                     aSVGContext->GetPreserveAspectRatio().isSome())
+    : mHaveOverrides(!!aSVGContext)
     , mRootElem(aRootElem)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -416,7 +415,7 @@ public:
       // XXXdholbert We should technically be overriding the helper doc's clip
       // and overflow properties here, too. See bug 272288 comment 36.
       mRootElem->SetImageOverridePreserveAspectRatio(
-          *aSVGContext->GetPreserveAspectRatio());
+          aSVGContext->GetPreserveAspectRatio());
     }
 
     mOriginalTime = mRootElem->GetCurrentTime();

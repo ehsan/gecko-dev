@@ -75,7 +75,8 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
               return bailoutCmp32(c, lhs.toReg(), rhs, snapshot);
         if (lhs.getTag() == Operand::MEM)
               return bailoutCmp32(c, lhs.toAddress(), rhs, snapshot);
-        MOZ_CRASH("Invalid operand tag.");
+        MOZ_ASSUME_UNREACHABLE("Invalid operand tag.");
+        return false;
     }
     template<typename T>
     bool bailoutTest32(Assembler::Condition c, Register lhs, T rhs, LSnapshot *snapshot) {

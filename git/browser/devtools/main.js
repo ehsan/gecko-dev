@@ -233,10 +233,8 @@ Tools.canvasDebugger = {
   label: l10n("ToolboxCanvasDebugger.label", canvasDebuggerStrings),
   panelLabel: l10n("ToolboxCanvasDebugger.panelLabel", canvasDebuggerStrings),
   tooltip: l10n("ToolboxCanvasDebugger.tooltip", canvasDebuggerStrings),
-  // Hide the Canvas Debugger in the Add-on Debugger and Browser Toolbox
-  // (bug 1047520).
   isTargetSupported: function(target) {
-    return !target.isAddon && !target.chrome;
+    return !target.isAddon;
   },
   build: function (iframeWindow, toolbox) {
     let panel = new CanvasDebuggerPanel(iframeWindow, toolbox);

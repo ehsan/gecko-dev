@@ -883,30 +883,23 @@ nsContainerFrame::DoInlineIntrinsicISize(nsRenderingContext *aRenderingContext,
   }
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsContainerFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                  WritingMode aWM,
-                                  const LogicalSize& aCBSize,
-                                  nscoord aAvailableISize,
-                                  const LogicalSize& aMargin,
-                                  const LogicalSize& aBorder,
-                                  const LogicalSize& aPadding,
-                                  bool aShrinkWrap)
+                                  nsSize aCBSize, nscoord aAvailableWidth,
+                                  nsSize aMargin, nsSize aBorder,
+                                  nsSize aPadding, bool aShrinkWrap)
 {
-  LogicalSize result(aWM, 0xdeadbeef, NS_UNCONSTRAINEDSIZE);
-  nscoord availBased = aAvailableISize - aMargin.ISize(aWM) -
-                       aBorder.ISize(aWM) - aPadding.ISize(aWM);
+  nsSize result(0xdeadbeef, NS_UNCONSTRAINEDSIZE);
+  nscoord availBased = aAvailableWidth - aMargin.width - aBorder.width -
+                       aPadding.width;
   // replaced elements always shrink-wrap
   if (aShrinkWrap || IsFrameOfType(eReplaced)) {
     // don't bother setting it if the result won't be used
-    const nsStyleCoord& inlineStyleCoord =
-      aWM.IsVertical() ? StylePosition()->mHeight : StylePosition()->mWidth;
-    if (inlineStyleCoord.GetUnit() == eStyleUnit_Auto) {
-      result.ISize(aWM) = ShrinkWidthToFit(aRenderingContext, availBased);
+    if (StylePosition()->mWidth.GetUnit() == eStyleUnit_Auto) {
+      result.width = ShrinkWidthToFit(aRenderingContext, availBased);
     }
   } else {
-    result.ISize(aWM) = availBased;
+    result.width = availBased;
   }
   return result;
 }

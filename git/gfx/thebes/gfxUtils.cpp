@@ -14,7 +14,6 @@
 #include "mozilla/Base64.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/DataSurfaceHelpers.h"
-#include "mozilla/Maybe.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/Vector.h"
 #include "nsComponentManagerUtils.h"
@@ -28,7 +27,6 @@
 #include "ycbcr_to_rgb565.h"
 #include "GeckoProfiler.h"
 #include "ImageContainer.h"
-#include "ImageRegion.h"
 #include "gfx2DGlue.h"
 #include "gfxPrefs.h"
 
@@ -37,7 +35,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::image;
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
@@ -370,19 +367,28 @@ OptimalFillOperator()
 static already_AddRefed<gfxDrawable>
 CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
                                  gfxContext* aContext,
-                                 const ImageRegion& aRegion,
+                                 const gfxMatrix& aUserSpaceToImageSpace,
+                                 const gfxRect& aSourceRect,
+                                 const gfxRect& aSubimage,
                                  const SurfaceFormat aFormat)
 {
     PROFILER_LABEL("gfxUtils", "CreateSamplingRestricedDrawable",
       js::ProfileEntry::Category::GRAPHICS);
 
-    gfxRect clipExtents = aContext->GetClipExtents();
-
+    gfxRect userSpaceClipExtents = aContext->GetClipExtents();
+    // This isn't optimal --- if aContext has a rotation then GetClipExtents
+    // will have to do a bounding-box computation, and TransformBounds might
+    // too, so we could get a better result if we computed image space clip
+    // extents in one go --- but it doesn't really matter and this is easier
+    // to understand.
+    gfxRect imageSpaceClipExtents =
+        aUserSpaceToImageSpace.TransformBounds(userSpaceClipExtents);
     // Inflate by one pixel because bilinear filtering will sample at most
     // one pixel beyond the computed image pixel coordinate.
-    clipExtents.Inflate(1.0);
+    imageSpaceClipExtents.Inflate(1.0);
 
-    gfxRect needed = aRegion.IntersectAndRestrict(clipExtents);
+    gfxRect needed = imageSpaceClipExtents.Intersect(aSourceRect);
+    needed = needed.Intersect(aSubimage);
     needed.RoundOut();
 
     // if 'needed' is empty, nothing will be drawn since aFill
@@ -477,17 +483,19 @@ private:
 };
 
 static gfxMatrix
-DeviceToImageTransform(gfxContext* aContext)
+DeviceToImageTransform(gfxContext* aContext,
+                       const gfxMatrix& aUserSpaceToImageSpace)
 {
     gfxFloat deviceX, deviceY;
     nsRefPtr<gfxASurface> currentTarget =
         aContext->CurrentSurface(&deviceX, &deviceY);
-    gfxMatrix deviceToUser = aContext->CurrentMatrix();
+    gfxMatrix currentMatrix = aContext->CurrentMatrix();
+    gfxMatrix deviceToUser = currentMatrix;
     if (!deviceToUser.Invert()) {
         return gfxMatrix(0, 0, 0, 0, 0, 0); // singular
     }
     deviceToUser.Translate(-gfxPoint(-deviceX, -deviceY));
-    return deviceToUser;
+    return deviceToUser * aUserSpaceToImageSpace;
 }
 
 /* These heuristics are based on Source/WebCore/platform/graphics/skia/ImageSkia.cpp:computeResamplingMode() */
@@ -558,36 +566,37 @@ static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
 #endif
 
 /* static */ void
-gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
-                           gfxDrawable*        aDrawable,
-                           const gfxSize&      aImageSize,
-                           const ImageRegion&  aRegion,
+gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
+                           gfxDrawable*     aDrawable,
+                           const gfxMatrix& aUserSpaceToImageSpace,
+                           const gfxRect&   aSubimage,
+                           const gfxRect&   aSourceRect,
+                           const gfxRect&   aImageRect,
+                           const gfxRect&   aFill,
                            const SurfaceFormat aFormat,
-                           GraphicsFilter      aFilter,
-                           uint32_t            aImageFlags)
+                           GraphicsFilter aFilter,
+                           uint32_t         aImageFlags)
 {
     PROFILER_LABEL("gfxUtils", "DrawPixelSnapped",
       js::ProfileEntry::Category::GRAPHICS);
 
-    gfxRect imageRect(gfxPoint(0, 0), aImageSize);
-    gfxRect region(aRegion.Rect());
-
-    bool doTile = !imageRect.Contains(region) &&
+    bool doTile = !aImageRect.Contains(aSourceRect) &&
                   !(aImageFlags & imgIContainer::FLAG_CLAMP);
 
     nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
-    gfxMatrix deviceSpaceToImageSpace = DeviceToImageTransform(aContext);
+    gfxMatrix deviceSpaceToImageSpace =
+        DeviceToImageTransform(aContext, aUserSpaceToImageSpace);
 
     AutoCairoPixmanBugWorkaround workaround(aContext, deviceSpaceToImageSpace,
-                                            region, currentTarget);
+                                            aFill, currentTarget);
     if (!workaround.Succeeded())
         return;
 
     nsRefPtr<gfxDrawable> drawable = aDrawable;
 
-    aFilter = ReduceResamplingFilter(aFilter,
-                                     imageRect.Width(), imageRect.Height(),
-                                     region.Width(), region.Height());
+    aFilter = ReduceResamplingFilter(aFilter, aImageRect.Width(), aImageRect.Height(), aSourceRect.Width(), aSourceRect.Height());
+
+    gfxMatrix userSpaceToImageSpace = aUserSpaceToImageSpace;
 
     // On Mobile, we don't ever want to do this; it has the potential for
     // allocating very large temporary surfaces, especially since we'll
@@ -598,11 +607,13 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
     // translations, then we assume no resampling will occur so there's
     // nothing to do.
     // XXX if only we had source-clipping in cairo!
-    if (aContext->CurrentMatrix().HasNonIntegerTranslation()) {
-        if (doTile || !aRegion.RestrictionContains(imageRect)) {
+    if (aContext->CurrentMatrix().HasNonIntegerTranslation() ||
+        aUserSpaceToImageSpace.HasNonIntegerTranslation()) {
+        if (doTile || !aSubimage.Contains(aImageRect)) {
             nsRefPtr<gfxDrawable> restrictedDrawable =
               CreateSamplingRestrictedDrawable(aDrawable, aContext,
-                                               aRegion, aFormat);
+                                               aUserSpaceToImageSpace, aSourceRect,
+                                               aSubimage, aFormat);
             if (restrictedDrawable) {
                 drawable.swap(restrictedDrawable);
             }
@@ -614,7 +625,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
     }
 #endif
 
-    drawable->Draw(aContext, aRegion.Rect(), doTile, aFilter);
+    drawable->Draw(aContext, aFill, doTile, aFilter, userSpaceToImageSpace);
 }
 
 /* static */ int

@@ -6324,7 +6324,8 @@ var ViewportHandler = {
 
     scale = this.clamp(scale, kViewportMinScale, kViewportMaxScale);
     minScale = this.clamp(minScale, kViewportMinScale, kViewportMaxScale);
-    maxScale = this.clamp(maxScale, (isNaN(minScale) ? kViewportMinScale : minScale), kViewportMaxScale);
+    maxScale = this.clamp(maxScale, minScale, kViewportMaxScale);
+
     if (autoSize) {
       // If initial scale is 1.0 and width is not set, assume width=device-width
       autoSize = (widthStr == "device-width" ||
@@ -8274,8 +8275,10 @@ var Tabs = {
     // If the tab was last touched more than browser.tabs.expireTime seconds ago,
     // zombify it.
     if (lruTab) {
-      if (Date.now() - lruTab.lastTouchedAt > expireTimeMs) {
+      let tabAgeMs = Date.now() - lruTab.lastTouchedAt;
+      if (tabAgeMs > expireTimeMs) {
         MemoryObserver.zombify(lruTab);
+        Telemetry.addData("FENNEC_TAB_EXPIRED", tabAgeMs / 1000);
         return true;
       }
     }

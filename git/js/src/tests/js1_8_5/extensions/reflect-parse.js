@@ -650,9 +650,6 @@ testParamPatternCombinations(function(n) ("{a" + n + ":x" + n + "," + "b" + n + 
 testParamPatternCombinations(function(n) ("[x" + n + "," + "y" + n + "," + "z" + n + "]"),
                              function(n) (arrPatt([ident("x" + n), ident("y" + n), ident("z" + n)])));
 
-testParamPatternCombinations(function(n) ("[a" + n + ", ..." + "b" + n + "]"),
-                             function(n) (arrPatt([ident("a" + n), spread(ident("b" + n))])));
-
 
 // destructuring variable declarations
 
@@ -688,10 +685,6 @@ testVarPatternCombinations(function (n) ("{a" + n + ":x" + n + "," + "b" + n + "
 
 testVarPatternCombinations(function(n) ("[x" + n + "," + "y" + n + "," + "z" + n + "] = 0"),
                            function(n) ({ id: arrPatt([ident("x" + n), ident("y" + n), ident("z" + n)]),
-                                          init: lit(0) }));
-
-testVarPatternCombinations(function(n) ("[a" + n + ", ..." + "b" + n + "] = 0"),
-                           function(n) ({ id: arrPatt([ident("a" + n), spread(ident("b" + n))]),
                                           init: lit(0) }));
 
 // destructuring assignment

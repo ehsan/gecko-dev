@@ -43,7 +43,6 @@
 #include "nsTArray.h"
 
 #include "ImageEncoder.h"
-#include "ImageRegion.h"
 
 #include "gfxContext.h"
 #include "gfxASurface.h"
@@ -98,7 +97,6 @@
 #include "GLContext.h"
 #include "GLContextProvider.h"
 #include "SVGContentUtils.h"
-#include "SVGImageContext.h"
 #include "nsIScreenManager.h"
 
 #undef free // apparently defined by some windows header, clashing with a free()
@@ -128,7 +126,6 @@ using namespace mozilla;
 using namespace mozilla::CanvasUtils;
 using namespace mozilla::css;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 
@@ -3434,10 +3431,8 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
                   DrawSurfaceOptions(filter),
                   DrawOptions(CurrentState().globalAlpha, UsedOperation()));
   } else {
-    DrawDirectlyToCanvas(drawInfo, &bounds,
-                         mgfx::Rect(dx, dy, dw, dh),
-                         mgfx::Rect(sx, sy, sw, sh),
-                         imgSize);
+    DrawDirectlyToCanvas(drawInfo, &bounds, dx, dy, dw, dh,
+                         sx, sy, sw, sh, imgSize);
   }
 
   RedrawUser(gfxRect(dx, dy, dw, dh));
@@ -3446,48 +3441,40 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
 void
 CanvasRenderingContext2D::DrawDirectlyToCanvas(
                           const nsLayoutUtils::DirectDrawInfo& image,
-                          mgfx::Rect* bounds,
-                          mgfx::Rect dest,
-                          mgfx::Rect src,
-                          gfxIntSize imgSize)
+                          mgfx::Rect* bounds, double dx, double dy,
+                          double dw, double dh, double sx, double sy,
+                          double sw, double sh, gfxIntSize imgSize)
 {
-  MOZ_ASSERT(src.width > 0 && src.height > 0,
-             "Need positive source width and height");
-
   gfxMatrix contextMatrix;
+
   AdjustedTarget tempTarget(this, bounds->IsEmpty() ? nullptr: bounds);
 
-  // Get any existing transforms on the context, including transformations used
-  // for context shadow.
+  // get any already existing transforms on the context. Include transformations used for context shadow
   if (tempTarget) {
     Matrix matrix = tempTarget->GetTransform();
     contextMatrix = gfxMatrix(matrix._11, matrix._12, matrix._21,
                               matrix._22, matrix._31, matrix._32);
   }
-  gfxSize contextScale(contextMatrix.ScaleFactors(true));
 
-  // Scale the dest rect to include the context scale.
-  dest.Scale(contextScale.width, contextScale.height);
-
-  // Scale the image size to the dest rect, and adjust the source rect to match.
-  gfxSize scale(dest.width / src.width, dest.height / src.height);
-  nsIntSize scaledImageSize(std::ceil(imgSize.width * scale.width),
-                            std::ceil(imgSize.height * scale.height));
-  src.Scale(scale.width, scale.height);
+  gfxMatrix transformMatrix;
+  transformMatrix.Translate(gfxPoint(sx, sy));
+  if (dw > 0 && dh > 0) {
+    transformMatrix.Scale(sw/dw, sh/dh);
+  }
+  transformMatrix.Translate(gfxPoint(-dx, -dy));
 
   nsRefPtr<gfxContext> context = new gfxContext(tempTarget);
   context->SetMatrix(contextMatrix);
-  context->Scale(1.0 / contextScale.width, 1.0 / contextScale.height);
-  context->Translate(gfxPoint(dest.x - src.x, dest.y - src.y));
 
-  // FLAG_CLAMP is added for increased performance, since we never tile here.
+  // FLAG_CLAMP is added for increased performance
   uint32_t modifiedFlags = image.mDrawingFlags | imgIContainer::FLAG_CLAMP;
 
   nsresult rv = image.mImgContainer->
-    Draw(context, scaledImageSize,
-         ImageRegion::Create(gfxRect(src.x, src.y, src.width, src.height)),
-         image.mWhichFrame, GraphicsFilter::FILTER_GOOD,
-         Nothing(), modifiedFlags);
+    Draw(context, GraphicsFilter::FILTER_GOOD, transformMatrix,
+         gfxRect(gfxPoint(dx, dy), gfxIntSize(dw, dh)),
+         nsIntRect(nsIntPoint(0, 0), gfxIntSize(imgSize.width, imgSize.height)),
+         gfxIntSize(imgSize.width, imgSize.height), nullptr, image.mWhichFrame,
+         modifiedFlags);
 
   NS_ENSURE_SUCCESS_VOID(rv);
 }

@@ -4045,22 +4045,16 @@ nsFrame::GetIntrinsicRatio()
   return nsSize(0, 0);
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                     WritingMode aWM,
-                     const LogicalSize& aCBSize,
-                     nscoord aAvailableISize,
-                     const LogicalSize& aMargin,
-                     const LogicalSize& aBorder,
-                     const LogicalSize& aPadding,
+                     nsSize aCBSize, nscoord aAvailableWidth,
+                     nsSize aMargin, nsSize aBorder, nsSize aPadding,
                      uint32_t aFlags)
 {
-  LogicalSize result = ComputeAutoSize(aRenderingContext, aWM,
-                                       aCBSize, aAvailableISize,
-                                       aMargin, aBorder, aPadding,
-                                       aFlags & eShrinkWrap);
-  LogicalSize boxSizingAdjust(aWM);
+  nsSize result = ComputeAutoSize(aRenderingContext, aCBSize, aAvailableWidth,
+                                  aMargin, aBorder, aPadding,
+                                  aFlags & eShrinkWrap);
+  nsSize boxSizingAdjust(0,0);
   const nsStylePosition *stylePos = StylePosition();
 
   switch (stylePos->mBoxSizing) {
@@ -4070,22 +4064,13 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     case NS_STYLE_BOX_SIZING_PADDING:
       boxSizingAdjust += aPadding;
   }
-  nscoord boxSizingToMarginEdgeISize =
-    aMargin.ISize(aWM) + aBorder.ISize(aWM) + aPadding.ISize(aWM) -
-    boxSizingAdjust.ISize(aWM);
-
-  const nsStyleCoord* inlineStyleCoord;
-  const nsStyleCoord* blockStyleCoord;
-  if (aWM.IsVertical()) {
-    inlineStyleCoord = &(stylePos->mHeight);
-    blockStyleCoord = &(stylePos->mWidth);
-  } else {
-    inlineStyleCoord = &(stylePos->mWidth);
-    blockStyleCoord = &(stylePos->mHeight);
-  }
+  nscoord boxSizingToMarginEdgeWidth =
+    aMargin.width + aBorder.width + aPadding.width - boxSizingAdjust.width;
+  const nsStyleCoord* widthStyleCoord = &(stylePos->mWidth);
+  const nsStyleCoord* heightStyleCoord = &(stylePos->mHeight);
 
   bool isFlexItem = IsFlexItem();
-  bool isInlineFlexItem = false;
+  bool isHorizontalFlexItem = false;
  
   if (isFlexItem) {
     // Flex items use their "flex-basis" property in place of their main-size
@@ -4093,47 +4078,47 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     // "flex-basis:main-size", in which case they use their main-size property
     // after all.
     uint32_t flexDirection = GetParent()->StylePosition()->mFlexDirection;
-    isInlineFlexItem =
+    isHorizontalFlexItem =
       flexDirection == NS_STYLE_FLEX_DIRECTION_ROW ||
       flexDirection == NS_STYLE_FLEX_DIRECTION_ROW_REVERSE;
 
     // NOTE: The logic here should match the similar chunk for determining
-    // inlineStyleCoord and blockStyleCoord in
+    // widthStyleCoord and heightStyleCoord in
     // nsLayoutUtils::ComputeSizeWithIntrinsicDimensions().
     const nsStyleCoord* flexBasis = &(stylePos->mFlexBasis);
-    if (!nsStyleUtil::IsFlexBasisMainSize(*flexBasis, isInlineFlexItem)) {
-      (isInlineFlexItem ?
-       inlineStyleCoord : blockStyleCoord) = flexBasis;
+    if (!nsStyleUtil::IsFlexBasisMainSize(*flexBasis, isHorizontalFlexItem)) {
+      (isHorizontalFlexItem ?
+       widthStyleCoord : heightStyleCoord) = flexBasis;
     }
   }
 
-  // Compute inline-axis size
+  // Compute width
 
-  if (inlineStyleCoord->GetUnit() != eStyleUnit_Auto) {
-    result.ISize(aWM) =
+  if (widthStyleCoord->GetUnit() != eStyleUnit_Auto) {
+    result.width =
       nsLayoutUtils::ComputeWidthValue(aRenderingContext, this,
-        aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM), boxSizingToMarginEdgeISize,
-        *inlineStyleCoord);
+        aCBSize.width, boxSizingAdjust.width, boxSizingToMarginEdgeWidth,
+        *widthStyleCoord);
   }
 
   // Flex items ignore their min & max sizing properties in their
   // flex container's main-axis.  (Those properties get applied later in
   // the flexbox algorithm.)
   if (stylePos->mMaxWidth.GetUnit() != eStyleUnit_None &&
-      !(isFlexItem && isInlineFlexItem)) {
-    nscoord maxISize =
+      !(isFlexItem && isHorizontalFlexItem)) {
+    nscoord maxWidth =
       nsLayoutUtils::ComputeWidthValue(aRenderingContext, this,
-        aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM), boxSizingToMarginEdgeISize,
+        aCBSize.width, boxSizingAdjust.width, boxSizingToMarginEdgeWidth,
         stylePos->mMaxWidth);
-    result.ISize(aWM) = std::min(maxISize, result.ISize(aWM));
+    result.width = std::min(maxWidth, result.width);
   }
 
-  nscoord minISize;
+  nscoord minWidth;
   if (stylePos->mMinWidth.GetUnit() != eStyleUnit_Auto &&
-      !(isFlexItem && isInlineFlexItem)) {
-    minISize =
+      !(isFlexItem && isHorizontalFlexItem)) {
+    minWidth =
       nsLayoutUtils::ComputeWidthValue(aRenderingContext, this,
-        aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM), boxSizingToMarginEdgeISize,
+        aCBSize.width, boxSizingAdjust.width, boxSizingToMarginEdgeWidth,
         stylePos->mMinWidth);
   } else {
     // Treat "min-width: auto" as 0.
@@ -4141,39 +4126,39 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     // flex items. However, we don't need to worry about that here, because
     // flex items' min-sizes are intentionally ignored until the flex
     // container explicitly considers them during space distribution.
-    minISize = 0;
+    minWidth = 0;
   }
-  result.ISize(aWM) = std::max(minISize, result.ISize(aWM));
+  result.width = std::max(minWidth, result.width);
 
-  // Compute block-axis size
+  // Compute height
   // (but not if we're auto-height or if we recieved the "eUseAutoHeight"
   // flag -- then, we'll just stick with the height that we already calculated
   // in the initial ComputeAutoSize() call.)
-  if (!nsLayoutUtils::IsAutoHeight(*blockStyleCoord, aCBSize.BSize(aWM)) &&
+  if (!nsLayoutUtils::IsAutoHeight(*heightStyleCoord, aCBSize.height) &&
       !(aFlags & nsIFrame::eUseAutoHeight)) {
-    result.BSize(aWM) =
-      nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
-                                        boxSizingAdjust.BSize(aWM),
-                                        *blockStyleCoord);
+    result.height =
+      nsLayoutUtils::ComputeHeightValue(aCBSize.height, 
+                                        boxSizingAdjust.height,
+                                        *heightStyleCoord);
   }
 
-  if (result.BSize(aWM) != NS_UNCONSTRAINEDSIZE) {
-    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMaxHeight, aCBSize.BSize(aWM)) &&
-        !(isFlexItem && !isInlineFlexItem)) {
-      nscoord maxBSize =
-        nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
-                                          boxSizingAdjust.BSize(aWM),
+  if (result.height != NS_UNCONSTRAINEDSIZE) {
+    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMaxHeight, aCBSize.height) &&
+        !(isFlexItem && !isHorizontalFlexItem)) {
+      nscoord maxHeight =
+        nsLayoutUtils::ComputeHeightValue(aCBSize.height, 
+                                          boxSizingAdjust.height,
                                           stylePos->mMaxHeight);
-      result.BSize(aWM) = std::min(maxBSize, result.BSize(aWM));
+      result.height = std::min(maxHeight, result.height);
     }
 
-    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMinHeight, aCBSize.BSize(aWM)) &&
-        !(isFlexItem && !isInlineFlexItem)) {
-      nscoord minBSize =
-        nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
-                                          boxSizingAdjust.BSize(aWM),
+    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMinHeight, aCBSize.height) &&
+        !(isFlexItem && !isHorizontalFlexItem)) {
+      nscoord minHeight =
+        nsLayoutUtils::ComputeHeightValue(aCBSize.height, 
+                                          boxSizingAdjust.height, 
                                           stylePos->mMinHeight);
-      result.BSize(aWM) = std::max(minBSize, result.BSize(aWM));
+      result.height = std::max(minHeight, result.height);
     }
   }
 
@@ -4186,25 +4171,22 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
       GetMinimumWidgetSize(presContext, this, disp->mAppearance,
                            &widget, &canOverride);
 
-    // Dimensions from themed widgets are applied physically...
     nsSize size;
     size.width = presContext->DevPixelsToAppUnits(widget.width);
     size.height = presContext->DevPixelsToAppUnits(widget.height);
 
     // GMWS() returns border-box; we need content-box
-    size.width -= aBorder.Width(aWM) + aPadding.Width(aWM);
-    size.height -= aBorder.Height(aWM) + aPadding.Height(aWM);
+    size.width -= aBorder.width + aPadding.width;
+    size.height -= aBorder.height + aPadding.height;
 
-    if (size.height > result.Height(aWM) || !canOverride) {
-      result.Height(aWM) = size.height;
-    }
-    if (size.width > result.Width(aWM) || !canOverride) {
-      result.Width(aWM) = size.width;
-    }
+    if (size.height > result.height || !canOverride)
+      result.height = size.height;
+    if (size.width > result.width || !canOverride)
+      result.width = size.width;
   }
 
-  result.ISize(aWM) = std::max(0, result.ISize(aWM));
-  result.BSize(aWM) = std::max(0, result.BSize(aWM));
+  result.width = std::max(0, result.width);
+  result.height = std::max(0, result.height);
 
   return result;
 }
@@ -4246,27 +4228,20 @@ nsIFrame::GetPrefWidthTightBounds(nsRenderingContext* aContext,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                         WritingMode aWM,
-                         const mozilla::LogicalSize& aCBSize,
-                         nscoord aAvailableISize,
-                         const mozilla::LogicalSize& aMargin,
-                         const mozilla::LogicalSize& aBorder,
-                         const mozilla::LogicalSize& aPadding,
+                         nsSize aCBSize, nscoord aAvailableWidth,
+                         nsSize aMargin, nsSize aBorder, nsSize aPadding,
                          bool aShrinkWrap)
 {
   // Use basic shrink-wrapping as a default implementation.
-  LogicalSize result(aWM, 0xdeadbeef, NS_UNCONSTRAINEDSIZE);
+  nsSize result(0xdeadbeef, NS_UNCONSTRAINEDSIZE);
 
   // don't bother setting it if the result won't be used
-  const nsStyleCoord& inlineStyleCoord =
-    aWM.IsVertical() ? StylePosition()->mHeight : StylePosition()->mWidth;
-  if (inlineStyleCoord.GetUnit() == eStyleUnit_Auto) {
-    nscoord availBased = aAvailableISize - aMargin.ISize(aWM) -
-                         aBorder.ISize(aWM) - aPadding.ISize(aWM);
-    result.ISize(aWM) = ShrinkWidthToFit(aRenderingContext, availBased);
+  if (StylePosition()->mWidth.GetUnit() == eStyleUnit_Auto) {
+    nscoord availBased = aAvailableWidth - aMargin.width - aBorder.width -
+                         aPadding.width;
+    result.width = ShrinkWidthToFit(aRenderingContext, availBased);
   }
   return result;
 }
@@ -8369,15 +8344,19 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
         computedHeight = std::max(computedHeight, 0);
         reflowState.SetComputedHeight(computedHeight);
       } else {
+        nsSize availSize = logicalSize.GetPhysicalSize(wm);
         reflowState.SetComputedHeight(
-          ComputeSize(aRenderingContext, wm,
-                      logicalSize,
-                      logicalSize.ISize(wm),
-                      reflowState.ComputedLogicalMargin().Size(wm),
-                      reflowState.ComputedLogicalBorderPadding().Size(wm) -
-                        reflowState.ComputedLogicalPadding().Size(wm),
-                      reflowState.ComputedLogicalPadding().Size(wm),
-                      false).Height(wm));
+          ComputeSize(aRenderingContext, availSize, availSize.width,
+                      nsSize(reflowState.ComputedPhysicalMargin().LeftRight(),
+                             reflowState.ComputedPhysicalMargin().TopBottom()),
+                      nsSize(reflowState.ComputedPhysicalBorderPadding().LeftRight() -
+                               reflowState.ComputedPhysicalPadding().LeftRight(),
+                             reflowState.ComputedPhysicalBorderPadding().TopBottom() -
+                               reflowState.ComputedPhysicalPadding().TopBottom()),
+                      nsSize(reflowState.ComputedPhysicalPadding().LeftRight(),
+                               reflowState.ComputedPhysicalPadding().TopBottom()),
+                      false).height
+          );
       }
     }
 

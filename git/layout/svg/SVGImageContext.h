@@ -6,38 +6,28 @@
 #ifndef MOZILLA_SVGCONTEXT_H_
 #define MOZILLA_SVGCONTEXT_H_
 
-#include "mozilla/Maybe.h"
 #include "SVGPreserveAspectRatio.h"
 
 namespace mozilla {
 
 // SVG image-specific rendering context. For imgIContainer::Draw.
-// Used to pass information such as
-//  - viewport information from CSS, and
-//  - overridden attributes from an SVG <image> element
-// to the image's internal SVG document when it's drawn.
+// Used to pass information about overridden attributes from an SVG <image>
+// element to the image's internal SVG document when it's drawn.
 class SVGImageContext
 {
 public:
   SVGImageContext() { }
 
-  SVGImageContext(nsIntSize aViewportSize,
-                  Maybe<SVGPreserveAspectRatio> aPreserveAspectRatio)
-    : mViewportSize(aViewportSize)
-    , mPreserveAspectRatio(aPreserveAspectRatio)
+  SVGImageContext(SVGPreserveAspectRatio aPreserveAspectRatio)
+    : mPreserveAspectRatio(aPreserveAspectRatio)
   { }
 
-  const nsIntSize& GetViewportSize() const {
-    return mViewportSize;
-  }
-
-  const Maybe<SVGPreserveAspectRatio>& GetPreserveAspectRatio() const {
+  const SVGPreserveAspectRatio& GetPreserveAspectRatio() const {
     return mPreserveAspectRatio;
   }
 
   bool operator==(const SVGImageContext& aOther) const {
-    return mViewportSize == aOther.mViewportSize &&
-           mPreserveAspectRatio == aOther.mPreserveAspectRatio;
+    return mPreserveAspectRatio == aOther.mPreserveAspectRatio;
   }
 
   bool operator!=(const SVGImageContext& aOther) const {
@@ -45,18 +35,11 @@ public:
   }
 
   uint32_t Hash() const {
-    return HashGeneric(mViewportSize.width,
-                       mViewportSize.height,
-                       mPreserveAspectRatio.map(HashPAR).valueOr(0));
+    return mPreserveAspectRatio.Hash();
   }
 
 private:
-  static uint32_t HashPAR(const SVGPreserveAspectRatio& aPAR) {
-    return aPAR.Hash();
-  }
-
-  nsIntSize                     mViewportSize;
-  Maybe<SVGPreserveAspectRatio> mPreserveAspectRatio;
+  SVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
 } // namespace mozilla

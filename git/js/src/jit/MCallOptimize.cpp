@@ -54,8 +54,6 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSFunction *target)
         return inlineMathFloor(callInfo);
     if (native == js::math_ceil)
         return inlineMathCeil(callInfo);
-    if (native == js::math_clz32)
-        return inlineMathClz32(callInfo);
     if (native == js::math_round)
         return inlineMathRound(callInfo);
     if (native == js::math_sqrt)
@@ -791,31 +789,6 @@ IonBuilder::inlineMathCeil(CallInfo &callInfo)
     }
 
     return InliningStatus_NotInlined;
-}
-
-IonBuilder::InliningStatus
-IonBuilder::inlineMathClz32(CallInfo &callInfo)
-{
-    if (callInfo.constructing())
-        return InliningStatus_NotInlined;
-
-    if (callInfo.argc() != 1)
-        return InliningStatus_NotInlined;
-
-    MIRType returnType = getInlineReturnType();
-    if (returnType != MIRType_Int32)
-        return InliningStatus_NotInlined;
-
-    if (!IsNumberType(callInfo.getArg(0)->type()))
-        return InliningStatus_NotInlined;
-
-    callInfo.setImplicitlyUsedUnchecked();
-
-    MClz *ins = MClz::New(alloc(), callInfo.getArg(0));
-    current->add(ins);
-    current->push(ins);
-    return InliningStatus_Inlined;
-
 }
 
 IonBuilder::InliningStatus

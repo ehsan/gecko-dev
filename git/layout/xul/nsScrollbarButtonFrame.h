@@ -67,6 +67,7 @@ public:
 protected:
   virtual void MouseClicked(nsPresContext* aPresContext,
                             mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
+  void DoButtonAction(bool aSmoothScroll);
 
   void StartRepeat() {
     nsRepeatService::GetInstance()->Start(Notify, this);
@@ -79,6 +80,7 @@ protected:
     static_cast<nsScrollbarButtonFrame*>(aData)->Notify();
   }
   
+  int32_t mIncrement;  
   bool mCursorOnThis;
 };
 

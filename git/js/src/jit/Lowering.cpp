@@ -1297,15 +1297,6 @@ LIRGenerator::visitAbs(MAbs *ins)
 }
 
 bool
-LIRGenerator::visitClz(MClz *ins)
-{
-    MDefinition *num = ins->num();
-
-    LClzI *lir = new(alloc()) LClzI(useRegisterAtStart(num));
-    return define(lir, ins);
-}
-
-bool
 LIRGenerator::visitSqrt(MSqrt *ins)
 {
     MDefinition *num = ins->input();
@@ -1741,7 +1732,7 @@ bool
 LIRGenerator::visitToDouble(MToDouble *convert)
 {
     MDefinition *opd = convert->input();
-    mozilla::DebugOnly<MToFPInstruction::ConversionKind> conversion = convert->conversion();
+    mozilla::DebugOnly<MToDouble::ConversionKind> conversion = convert->conversion();
 
     switch (opd->type()) {
       case MIRType_Value:
@@ -1753,16 +1744,15 @@ LIRGenerator::visitToDouble(MToDouble *convert)
       }
 
       case MIRType_Null:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly &&
-                  conversion != MToFPInstruction::NonNullNonStringPrimitives);
+        JS_ASSERT(conversion != MToDouble::NumbersOnly && conversion != MToDouble::NonNullNonStringPrimitives);
         return lowerConstantDouble(0, convert);
 
       case MIRType_Undefined:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly);
+        JS_ASSERT(conversion != MToDouble::NumbersOnly);
         return lowerConstantDouble(GenericNaN(), convert);
 
       case MIRType_Boolean:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly);
+        JS_ASSERT(conversion != MToDouble::NumbersOnly);
         /* FALLTHROUGH */
 
       case MIRType_Int32:
@@ -1803,16 +1793,15 @@ LIRGenerator::visitToFloat32(MToFloat32 *convert)
       }
 
       case MIRType_Null:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly &&
-                  conversion != MToFPInstruction::NonNullNonStringPrimitives);
+        JS_ASSERT(conversion != MToFloat32::NonStringPrimitives);
         return lowerConstantFloat32(0, convert);
 
       case MIRType_Undefined:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly);
+        JS_ASSERT(conversion != MToFloat32::NumbersOnly);
         return lowerConstantFloat32(GenericNaN(), convert);
 
       case MIRType_Boolean:
-        JS_ASSERT(conversion != MToFPInstruction::NumbersOnly);
+        JS_ASSERT(conversion != MToFloat32::NumbersOnly);
         /* FALLTHROUGH */
 
       case MIRType_Int32:
@@ -1856,15 +1845,10 @@ LIRGenerator::visitToInt32(MToInt32 *convert)
       }
 
       case MIRType_Null:
-        JS_ASSERT(convert->conversion() == MacroAssembler::IntConversion_Any);
         return define(new(alloc()) LInteger(0), convert);
 
-      case MIRType_Boolean:
-        JS_ASSERT(convert->conversion() == MacroAssembler::IntConversion_Any ||
-                  convert->conversion() == MacroAssembler::IntConversion_NumbersOrBoolsOnly);
-        return redefine(convert, opd);
-
       case MIRType_Int32:
+      case MIRType_Boolean:
         return redefine(convert, opd);
 
       case MIRType_Float32:

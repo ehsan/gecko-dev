@@ -112,16 +112,13 @@
 
 // XXX This file creates unused typedefs as a way of doing static assertions,
 // both via COMPILE_ASSERT and via direct typedefs like
-// 'type_must_be_complete'. These trigger a GCC warning (enabled by -Wall in
-// GCC 4.8 and above) which we disable here, just for this file, for GCC > 4.8.
+// 'type_must_be_complete'. These trigger a GCC warning, which we disable here.
 // This can be removed if & when this file (and COMPILE_ASSERT) stops using
 // these typedefs.
-#if defined(__GNUC__)
-#if !defined(__clang__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-local-typedefs"
-#endif // not clang, and version >= 4.8
-#endif // GCC or clang
+#endif // defined(__GNUC__) && !defined(__clang__)
 
 namespace webrtc {
 
@@ -726,10 +723,8 @@ void swap(scoped_ptr_malloc<T,FF>& a, scoped_ptr_malloc<T,FF>& b) {
 }  // namespace webrtc
 
 // Pop off 'ignored "-Wunused-local-typedefs"':
-#if defined(__GNUC__)
-#if !defined(__clang__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
-#endif // not clang, and version >= 4.8
-#endif // GCC or clang
+#endif // defined(__GNUC__) && !defined(__clang__)
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_SCOPED_PTR_H_
