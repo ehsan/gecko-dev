@@ -363,22 +363,19 @@ this.Download.prototype = {
 
     // This function propagates progress from the DownloadSaver object, unless
     // it comes in late from a download attempt that was replaced by a new one.
-    // If the cancellation process for the download has started, then the update
-    // is ignored.
     function DS_setProgressBytes(aCurrentBytes, aTotalBytes, aHasPartialData)
     {
-      if (this._currentAttempt == currentAttempt) {
+      if (this._currentAttempt == currentAttempt || !this._currentAttempt) {
         this._setBytes(aCurrentBytes, aTotalBytes, aHasPartialData);
       }
     }
 
     // This function propagates download properties from the DownloadSaver
     // object, unless it comes in late from a download attempt that was
-    // replaced by a new one.  If the cancellation process for the download has
-    // started, then the update is ignored.
+    // replaced by a new one.
     function DS_setProperties(aOptions)
     {
-      if (this._currentAttempt != currentAttempt) {
+      if (this._currentAttempt && this._currentAttempt != currentAttempt) {
         return;
       }
 
@@ -2056,16 +2053,10 @@ this.DownloadLegacySaver.prototype = {
             Cu.reportError(e2);
           }
         }
-        // In case the operation failed, ensure we stop downloading data.  Since
-        // we never re-enter this function, deferCanceled is always available.
-        this.deferCanceled.resolve();
         throw ex;
       } finally {
-        // We don't need the reference to the request anymore.  We must also set
-        // deferCanceled to null in order to free any indirect references it
-        // may hold to the request.
+        // We don't need the reference to the request anymore.
         this.request = null;
-        this.deferCanceled = null;
         // Allow the download to restart through a DownloadCopySaver.
         this.firstExecutionFinished = true;
       }
@@ -2082,12 +2073,8 @@ this.DownloadLegacySaver.prototype = {
       return this.copySaver.cancel.apply(this.copySaver, arguments);
     }
 
-    // If the download hasn't stopped already, resolve deferCanceled so that the
-    // operation is canceled as soon as a cancellation handler is registered.
-    // Note that the handler might not have been registered yet.
-    if (this.deferCanceled) {
-      this.deferCanceled.resolve();
-    }
+    // Cancel the operation as soon as the object is connected.
+    this.deferCanceled.resolve();
   },
 
   /**
