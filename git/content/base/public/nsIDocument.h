@@ -1997,8 +1997,7 @@ public:
   }
   already_AddRefed<nsContentList>
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
-                           const nsAString& aLocalName,
-                           mozilla::ErrorResult& aResult);
+                           const nsAString& aLocalName);
   already_AddRefed<nsContentList>
     GetElementsByClassName(const nsAString& aClasses);
   // GetElementById defined above
