@@ -55,9 +55,6 @@ include config.mk
 #NS_USE_NATIVE = 1
 
 DEFINES += -DJS_TRACER
-ifndef NANOJIT_ARCH
-$(error NANOJIT_ARCH not defined in config/$(OS_CONFIG).mk, can't build with JIT) #'
-endif
 
 ifdef NARCISSUS
 DEFINES += -DNARCISSUS
@@ -84,7 +81,7 @@ ifdef JS_HAS_FILE_OBJECT
 DEFINES += -DJS_HAS_FILE_OBJECT
 endif
 
-DEFINES += -DFEATURE_NANOJIT
+DEFINES += -DFEATURE_NANOJIT -DAVMPLUS_IA32 -DTRACEMONKEY
 
 #
 # XCFLAGS may be set in the environment or on the gmake command line
@@ -189,11 +186,13 @@ JS_HFILES =		\
 	jsxml.h		\
 	nanojit/Assembler.h     \
 	nanojit/LIR.h		\
-	nanojit/Native$(NANOJIT_ARCH).h	\
+	nanojit/NativeARM.h	\
+	nanojit/Nativei386.h	\
 	nanojit/avmplus.h	\
 	nanojit/vm_fops.h	\
 	nanojit/Fragmento.h	\
 	nanojit/Native.h	\
+	nanojit/NativeThumb.h	\
 	nanojit/RegAlloc.h	\
 	nanojit/nanojit.h	\
 	nanojit/TraceTreeDrawer.h \
@@ -269,14 +268,12 @@ JS_CPPFILES =		\
 	nanojit/Assembler.cpp  \
 	nanojit/Fragmento.cpp  \
 	nanojit/LIR.cpp        \
-	nanojit/Native$(NANOJIT_ARCH).cpp \
+	nanojit/Nativei386.cpp \
 	nanojit/RegAlloc.cpp   \
 	nanojit/avmplus.cpp    \
+	nanojit/Tests.cpp      \
+	nanojit/TraceTreeDrawer.cpp \
 	$(NULL)
-
-ifdef DEBUG
-JS_CPPFILES += nanojit/TraceTreeDrawer.cpp
-endif
 
 ifdef JS_LIVECONNECT
 DIRS      += liveconnect

@@ -71,7 +71,7 @@ class Tracker {
     struct Page {
         struct Page*    next;
         jsuword         base;
-        T               map[1];
+        T               map[0];
     };
     struct Page* pagelist;
 
@@ -91,7 +91,7 @@ struct VMFragmentInfo {
     unsigned                entryNativeFrameSlots;
     unsigned                maxNativeFrameSlots;
     size_t                  nativeStackBase;
-    uint8                   typeMap[1];
+    uint8                   typeMap[0];
 };
 
 extern struct nanojit::CallInfo builtins[];
