@@ -275,50 +275,49 @@ SetStatus(nsILocalFile *statusFile, const char *status)
 }
 
 static PRBool
-CopyFileIntoUpdateDir(nsIFile *parentDir, const char *leafName, nsIFile *updateDir)
-{
-  nsDependentCString leaf(leafName);
-  nsCOMPtr<nsIFile> file;
-
-  // Make sure there is not an existing file in the target location.
-  nsresult rv = updateDir->Clone(getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return PR_FALSE;
-  rv = file->AppendNative(leaf);
-  if (NS_FAILED(rv))
-    return PR_FALSE;
-  file->Remove(PR_FALSE);
-
-  // Now, copy into the target location.
-  rv = parentDir->Clone(getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return PR_FALSE;
-  rv = file->AppendNative(leaf);
-  if (NS_FAILED(rv))
-    return PR_FALSE;
-  rv = file->CopyToNative(updateDir, EmptyCString());
-  if (NS_FAILED(rv))
-    return PR_FALSE;
-
-  return PR_TRUE;
-}
-
-static PRBool
 CopyUpdaterIntoUpdateDir(nsIFile *greDir, nsIFile *appDir, nsIFile *updateDir,
                          nsCOMPtr<nsIFile> &updater)
 {
-  // Copy the updater application from the GRE and the updater ini from the app
+  // We have to move the updater binary and its resource file.
+  const char *filesToMove[] = {
 #if defined(XP_MACOSX)
-  if (!CopyFileIntoUpdateDir(greDir, kUpdaterApp, updateDir))
-    return PR_FALSE;
+    kUpdaterApp,
 #else
-  if (!CopyFileIntoUpdateDir(greDir, kUpdaterBin, updateDir))
-    return PR_FALSE;
+    kUpdaterINI,
+    kUpdaterBin,
 #endif
-  CopyFileIntoUpdateDir(appDir, kUpdaterINI, updateDir);
+    nsnull
+  };
 
+  nsresult rv;
+
+  for (const char **leafName = filesToMove; *leafName; ++leafName) {
+    nsDependentCString leaf(*leafName);
+    nsCOMPtr<nsIFile> file;
+
+    // Make sure there is not an existing file in the target location.
+    rv = updateDir->Clone(getter_AddRefs(file));
+    if (NS_FAILED(rv))
+      return PR_FALSE;
+    rv = file->AppendNative(leaf);
+    if (NS_FAILED(rv))
+      return PR_FALSE;
+    file->Remove(PR_FALSE);
+
+    // Now, copy into the target location.
+    rv = greDir->Clone(getter_AddRefs(file));
+    if (NS_FAILED(rv))
+      return PR_FALSE;
+    rv = file->AppendNative(leaf);
+    if (NS_FAILED(rv))
+      return PR_FALSE;
+    rv = file->CopyToNative(updateDir, EmptyCString());
+    if (*leafName != kUpdaterINI && NS_FAILED(rv))
+      return PR_FALSE;
+  }
+  
   // Finally, return the location of the updater binary.
-  nsresult rv = updateDir->Clone(getter_AddRefs(updater));
+  rv = updateDir->Clone(getter_AddRefs(updater));
   if (NS_FAILED(rv))
     return PR_FALSE;
 #if defined(XP_MACOSX)

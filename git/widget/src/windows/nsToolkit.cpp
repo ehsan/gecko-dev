@@ -278,8 +278,7 @@ nsToolkit::Startup(HMODULE hModule)
 void
 nsToolkit::Shutdown()
 {
-    // Crashes on certain XP machines/profiles - see bug 448104 for details
-    //nsUXThemeData::Teardown();
+    nsUXThemeData::Teardown();
     //VERIFY(::UnregisterClass("nsToolkitClass", nsToolkit::mDllInstance));
     ::UnregisterClassW(L"nsToolkitClass", nsToolkit::mDllInstance);
 }
