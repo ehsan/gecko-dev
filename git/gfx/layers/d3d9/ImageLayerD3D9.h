@@ -19,7 +19,7 @@ class ImageLayerD3D9 : public ImageLayer,
 {
 public:
   ImageLayerD3D9(LayerManagerD3D9 *aManager)
-    : ImageLayer(aManager, nullptr)
+    : ImageLayer(aManager, NULL)
     , LayerD3D9(aManager)
   {
     mImplData = static_cast<LayerD3D9*>(this);

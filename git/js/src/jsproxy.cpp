@@ -13,10 +13,8 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsprvtd.h"
-#include "jswrapper.h"
 
 #include "gc/Marking.h"
-#include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -3005,7 +3003,7 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
     ProxyObject *proxy = &obj->as<ProxyObject>();
 
 #ifdef DEBUG
-    if (!trc->runtime->gcDisableStrictProxyCheckingCount && proxy->is<WrapperObject>()) {
+    if (!trc->runtime->gcDisableStrictProxyCheckingCount && proxy->isWrapper()) {
         JSObject *referent = &proxy->private_().toObject();
         if (referent->compartment() != proxy->compartment()) {
             /*
@@ -3028,7 +3026,7 @@ ProxyObject::trace(JSTracer *trc, JSObject *obj)
      * The GC can use the second reserved slot to link the cross compartment
      * wrappers into a linked list, in which case we don't want to trace it.
      */
-    if (!proxy->is<CrossCompartmentWrapperObject>())
+    if (!IsCrossCompartmentWrapper(proxy))
         MarkSlot(trc, proxy->slotOfExtra(1), "extra1");
 }
 

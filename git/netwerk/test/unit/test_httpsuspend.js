@@ -8,10 +8,6 @@ const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserv.identity.primaryPort;
-});
-
 const MIN_TIME_DIFFERENCE = 3000;
 const RESUME_DELAY = 5000;
 
@@ -69,9 +65,9 @@ var httpserv = null;
 function run_test() {
   httpserv = new HttpServer();
   httpserv.registerPathHandler("/woo", data);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
-  var chan = makeChan(URL + "/woo");
+  var chan = makeChan("http://localhost:4444/woo");
   chan.QueryInterface(Ci.nsIRequest);
   chan.asyncOpen(listener, null);
 

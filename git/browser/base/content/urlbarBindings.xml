@@ -1600,8 +1600,7 @@
             return;
           }
 
-          let host = gPluginHandler._getHostFromPrincipal(this.notification.browser.contentWindow.document.nodePrincipal);
-          this._setupDescription("pluginActivateMultiple.message", null, host);
+          this._setupDescription("pluginActivateMultiple.message");
 
           var showBox = document.getAnonymousElementByAttribute(this, "anonid", "plugin-notification-showbox");
 
@@ -1764,6 +1763,9 @@
             span.removeChild(span.lastChild);
           }
 
+          if (!host) {
+            host = this.notification.browser.currentURI.host;
+          }
           var args = ["__host__", this._brandShortName];
           if (pluginName) {
             args.unshift(pluginName);

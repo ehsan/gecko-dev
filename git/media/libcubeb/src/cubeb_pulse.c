@@ -13,10 +13,6 @@
 #include "cubeb/cubeb.h"
 #include "cubeb-internal.h"
 
-#ifdef DISABLE_LIBPULSE_DLOPEN
-#define WRAP(x) x
-#else
-#define WRAP(x) cubeb_##x
 #define MAKE_TYPEDEF(x) static typeof(x) * cubeb_##x
 MAKE_TYPEDEF(pa_channel_map_init_auto);
 MAKE_TYPEDEF(pa_context_connect);
@@ -59,7 +55,7 @@ MAKE_TYPEDEF(pa_threaded_mainloop_unlock);
 MAKE_TYPEDEF(pa_threaded_mainloop_wait);
 MAKE_TYPEDEF(pa_usec_to_bytes);
 #undef MAKE_TYPEDEF
-#endif
+#define WRAP(x) cubeb_##x
 
 static struct cubeb_ops const pulse_ops;
 
@@ -274,12 +270,11 @@ static void pulse_destroy(cubeb * ctx);
 /*static*/ int
 pulse_init(cubeb ** context, char const * context_name)
 {
-  void * libpulse = NULL;
+  void * libpulse;
   cubeb * ctx;
 
   *context = NULL;
 
-#ifndef DISABLE_LIBPULSE_DLOPEN
   libpulse = dlopen("libpulse.so.0", RTLD_LAZY);
   if (!libpulse) {
     return CUBEB_ERROR;
@@ -333,7 +328,6 @@ pulse_init(cubeb ** context, char const * context_name)
   LOAD(pa_threaded_mainloop_wait);
   LOAD(pa_usec_to_bytes);
 #undef LOAD
-#endif
 
   ctx = calloc(1, sizeof(*ctx));
   assert(ctx);
@@ -406,9 +400,7 @@ pulse_destroy(cubeb * ctx)
     WRAP(pa_threaded_mainloop_free)(ctx->mainloop);
   }
 
-  if (ctx->libpulse) {
-    dlclose(ctx->libpulse);
-  }
+  dlclose(ctx->libpulse);
   if (ctx->default_sink_info) {
     free(ctx->default_sink_info);
   }

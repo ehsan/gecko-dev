@@ -31,11 +31,12 @@ namespace js {
 #ifdef JS_CRASH_DIAGNOSTICS
 class CompartmentChecker
 {
+    ExclusiveContext *context;
     JSCompartment *compartment;
 
   public:
     explicit CompartmentChecker(ExclusiveContext *cx)
-      : compartment(cx->compartment_)
+      : context(cx), compartment(cx->compartment_)
     {}
 
     /*

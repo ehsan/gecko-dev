@@ -486,8 +486,8 @@ private:
   DBusThread* mConnection;
 };
 
-static StaticRefPtr<DBusThread> gDBusThread;
-static StaticRefPtr<nsIThread>  gDBusServiceThread;
+static StaticAutoPtr<DBusThread> gDBusThread;
+static StaticRefPtr<nsIThread>   gDBusServiceThread;
 
 // Startup/Shutdown utility functions
 
@@ -497,7 +497,7 @@ StartDBus()
   MOZ_ASSERT(!NS_IsMainThread());
   NS_ENSURE_TRUE(!gDBusThread, true);
 
-  nsRefPtr<DBusThread> dbusThread(new DBusThread());
+  nsAutoPtr<DBusThread> dbusThread(new DBusThread());
 
   bool eventLoopStarted = dbusThread->Initialize();
   NS_ENSURE_TRUE(eventLoopStarted, false);
@@ -521,7 +521,7 @@ StartDBus()
   rv = gDBusServiceThread->Dispatch(pollTask, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, false);
 
-  gDBusThread = dbusThread;
+  gDBusThread = dbusThread.forget();
 
   return true;
 }

@@ -30,8 +30,6 @@ WebGLContext::BindVertexArray(WebGLVertexArray *array)
         return;
     }
 
-    InvalidateCachedMinInUseAttribArrayLength();
-
     MakeContextCurrent();
 
     if (array) {

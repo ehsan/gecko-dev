@@ -20,7 +20,7 @@ class CanvasLayerD3D10 : public CanvasLayer,
 {
 public:
   CanvasLayerD3D10(LayerManagerD3D10 *aManager)
-    : CanvasLayer(aManager, nullptr)
+    : CanvasLayer(aManager, NULL)
     , LayerD3D10(aManager)
     , mDataIsPremultiplied(false)
     , mNeedsYFlip(false)
