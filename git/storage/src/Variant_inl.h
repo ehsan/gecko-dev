@@ -253,7 +253,7 @@ Variant_base::GetAsWStringWithSize(PRUint32 *,
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsJSVal(JS::Value *)
+Variant_base::GetAsJSVal(jsval *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }

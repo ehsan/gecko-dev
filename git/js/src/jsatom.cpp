@@ -365,11 +365,10 @@ js_InitCommonAtoms(JSContext *cx)
     JSAtomState *state = &cx->runtime->atomState;
     JSAtom **atoms = state->commonAtomsStart();
     for (size_t i = 0; i < JS_ARRAY_LENGTH(js_common_atom_names); i++, atoms++) {
-        JSAtom *atom = js_Atomize(cx, js_common_atom_names[i], strlen(js_common_atom_names[i]),
-                                  InternAtom);
-        if (!atom)
+        *atoms = js_Atomize(cx, js_common_atom_names[i], strlen(js_common_atom_names[i]),
+                            InternAtom);
+        if (!*atoms)
             return false;
-        *atoms = atom->asPropertyName();
     }
 
     state->clearLazyAtoms();

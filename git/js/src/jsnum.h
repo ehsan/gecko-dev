@@ -44,6 +44,7 @@
 #ifdef WIN32
 #include <float.h>
 #endif
+#include "jsvalue.h"
 
 #include "jsstdint.h"
 #include "jsobj.h"

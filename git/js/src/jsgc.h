@@ -1150,7 +1150,7 @@ struct WrapperHasher
     typedef Value Lookup;
 
     static HashNumber hash(Value key) {
-        uint64 bits = key.asRawBits();
+        uint64 bits = JSVAL_BITS(Jsvalify(key));
         return (uint32)bits ^ (uint32)(bits >> 32);
     }
 

@@ -541,34 +541,17 @@ JSCompartment::sweep(JSContext *cx, uint32 releaseInterval)
         traceMonitor()->sweep(cx);
 #endif
 
-#ifdef JS_METHODJIT
+# if defined JS_METHODJIT && defined JS_POLYIC
     /*
-     * Purge PICs in the compartment, along with native call stubs for
-     * compartments which do not have such stubs on the stack. PICs can
-     * reference shapes and type data, and native call stubs are disassociated
-     * from the PIC or MIC they were generated for.
+     * Purge all PICs in the compartment. These can reference type data and
+     * need to know which types are pending collection.
      */
-    bool canPurgeNativeCalls = true;
-    VMFrame *f = hasJaegerCompartment() ? jaegerCompartment()->activeFrame() : NULL;
-    for (; f; f = f->previous) {
-        if (f->stubRejoin)
-            canPurgeNativeCalls = false;
-    }
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        if (script->hasJITCode()) {
-#ifdef JS_POLYIC
+        if (script->hasJITCode())
             mjit::ic::PurgePICs(cx, script);
-#endif
-            if (canPurgeNativeCalls) {
-                if (script->jitNormal)
-                    script->jitNormal->purgeNativeCallStubs();
-                if (script->jitCtor)
-                    script->jitCtor->purgeNativeCallStubs();
-            }
-        }
     }
-#endif
+# endif
 
     bool discardScripts = !active && (releaseInterval != 0 || hasDebugModeCodeToDrop);
 

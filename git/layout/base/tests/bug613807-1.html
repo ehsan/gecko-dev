@@ -48,10 +48,9 @@
     const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
 
     // start composition
-    synthesizeComposition({ type: "compositionstart" });
+    synthesizeComposition(true);
 
     // input raw characters
-    synthesizeComposition({ type: "compositionupdate", data: "\u306D" });
     synthesizeText(
       { composition:
         { string: "\u306D",
@@ -61,7 +60,6 @@
         },
         caret: { start: 1, length: 0 }
       });
-    synthesizeComposition({ type: "compositionupdate", data: "\u306D\u3053" });
     synthesizeText(
       { composition:
         { string: "\u306D\u3053",
@@ -73,7 +71,6 @@
       });
 
     // convert
-    synthesizeComposition({ type: "compositionupdate", data: "\u732B" });
     synthesizeText(
       { composition:
         { string: "\u732B",
@@ -96,7 +93,7 @@
       });
 
     // end composition
-    synthesizeComposition({ type: "compositionend", data: "\u732B" });
+    synthesizeComposition(false);
 
     document.body.clientWidth;
 

@@ -56,7 +56,7 @@ AddonManager.addAddonListener(EnableListener);
 function initialize() {
   // About URIs don't implement nsIURL so we have to find the query string
   // manually
-  let spec = document.location.href;
+  let spec = document.documentURIObject.spec;
   let pos = spec.indexOf("?");
   let query = "";
   if (pos >= 0)

@@ -207,8 +207,7 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
                 uint32 slot;
                 if (shape->previous() == obj->lastProperty() &&
                     entry->vshape() == cx->runtime->protoHazardShape &&
-                    shape->hasDefaultSetter() &&
-                    obj->getClass()->addProperty == JS_PropertyStub) {
+                    shape->hasDefaultSetter()) {
                     slot = shape->slot;
                     JS_ASSERT(slot == obj->slotSpan());
 
@@ -384,7 +383,7 @@ NameOp(VMFrame &f, JSObject *obj, bool callname)
 
         /* Take the slow path if prop was not found in a native object. */
         if (!obj->isNative() || !obj2->isNative()) {
-            if (!obj->getGeneric(cx, id, &rval))
+            if (!obj->getProperty(cx, id, &rval))
                 return NULL;
         } else {
             shape = (Shape *)prop;
@@ -500,7 +499,7 @@ stubs::GetElem(VMFrame &f)
         }
     }
 
-    if (!obj->getGeneric(cx, id, &rval))
+    if (!obj->getProperty(cx, id, &rval))
         THROW();
     copyFrom = &rval;
 
@@ -810,7 +809,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
     do {
         /* Steps 5d, 5f. */
         if (!prop || pobj != parent) {
-            if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
+            if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                 THROW();
             break;
         }
@@ -820,7 +819,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
         Shape *shape = reinterpret_cast<Shape *>(prop);
         if (parent->isGlobal()) {
             if (shape->configurable()) {
-                if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
+                if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                     THROW();
                 break;
             }
@@ -957,7 +956,7 @@ StubEqualityOp(VMFrame &f)
         } else if (lval.isObject()) {
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
             l->assertSpecialEqualitySynced();
-            if (JSEqualityOp eq = l->getClass()->ext.equality) {
+            if (EqualityOp eq = l->getClass()->ext.equality) {
                 if (!eq(cx, l, &rval, &cond))
                     return false;
                 cond = cond == EQ;
@@ -1194,8 +1193,10 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
     if (handler || !f.cx->compartment->getDebuggees().empty()) {
         JSTrapStatus st = JSTRAP_CONTINUE;
         Value rval;
-        if (handler)
-            st = handler(f.cx, f.script(), pc, &rval, f.cx->debugHooks->debuggerHandlerData);
+        if (handler) {
+            st = handler(f.cx, f.script(), pc, Jsvalify(&rval),
+                         f.cx->debugHooks->debuggerHandlerData);
+        }
         if (st == JSTRAP_CONTINUE)
             st = Debugger::onDebuggerStatement(f.cx, &rval);
 
@@ -1253,7 +1254,8 @@ stubs::Trap(VMFrame &f, uint32 trapTypes)
          */
         JSInterruptHook hook = f.cx->debugHooks->interruptHook;
         if (hook)
-            result = hook(f.cx, f.script(), f.pc(), &rval, f.cx->debugHooks->interruptHookData);
+            result = hook(f.cx, f.script(), f.pc(), Jsvalify(&rval),
+                          f.cx->debugHooks->interruptHookData);
 
         if (result == JSTRAP_CONTINUE)
             result = Debugger::onSingleStep(f.cx, &rval);
@@ -1602,7 +1604,7 @@ InlineGetProp(VMFrame &f)
                     ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
                     : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
                     &rval)
-                : !obj->getGeneric(cx, id, &rval)) {
+                : !obj->getProperty(cx, id, &rval)) {
             return false;
         }
     } while(0);
@@ -1628,7 +1630,7 @@ stubs::GetPropNoCache(VMFrame &f, JSAtom *atom)
     if (!obj)
         THROW();
 
-    if (!obj->getGeneric(cx, ATOM_TO_JSID(atom), vp))
+    if (!obj->getProperty(cx, ATOM_TO_JSID(atom), vp))
         THROW();
 
     /* Don't check for undefined, this is only used for 'prototype'. See ic::GetProp. */
@@ -1861,7 +1863,7 @@ JSString * JS_FASTCALL
 stubs::TypeOf(VMFrame &f)
 {
     const Value &ref = f.regs.sp[-1];
-    JSType type = JS_TypeOfValue(f.cx, ref);
+    JSType type = JS_TypeOfValue(f.cx, Jsvalify(ref));
     JSAtom *atom = f.cx->runtime->atomState.typeAtoms[type];
     return atom;
 }
@@ -2305,7 +2307,7 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 
     /* Bind a variable only if it's not yet defined. */
     if (shouldDefine && 
-        !DefineNativeProperty(cx, obj, id, UndefinedValue(), JS_PropertyStub, JS_StrictPropertyStub,
+        !DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
                               attrs, 0, 0)) {
         THROW();
     }
@@ -2320,7 +2322,7 @@ stubs::SetConst(VMFrame &f, JSAtom *atom)
     const Value &ref = f.regs.sp[-1];
 
     if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), ref,
-                             JS_PropertyStub, JS_StrictPropertyStub,
+                             PropertyStub, StrictPropertyStub,
                              JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         THROW();
     }

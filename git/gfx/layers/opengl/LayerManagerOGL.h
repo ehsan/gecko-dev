@@ -499,9 +499,7 @@ private:
         , fps(0)
         , initialized(false)
         , fcount(0)
-      {
-        last = TimeStamp::Now();
-      }
+      {}
       void DrawFPS(GLContext*, CopyProgram*);
   } mFPS;
 

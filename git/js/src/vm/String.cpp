@@ -325,7 +325,7 @@ JSStringFinalizeOp JSExternalString::str_finalizers[JSExternalString::TYPE_LIMIT
 };
 
 bool
-JSFlatString::isIndex(uint32 *indexp) const
+JSFlatString::isElement(uint32 *indexp) const
 {
     const jschar *s = charsZ();
     jschar ch = *s;

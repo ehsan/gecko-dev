@@ -431,11 +431,11 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             AutoValueRooter tvr(cx);
             if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return false;
-            return bytes->encode(cx, tvr.value().toString());
+            return bytes->encode(cx, JSVAL_TO_STRING(Jsvalify(tvr.value())));
         }
     }
 
-    return !!js_ValueToPrintable(cx, v, bytes, true);
+    return !!js_ValueToPrintable(cx, Valueify(v), bytes, true);
 }
 
 JS_FRIEND_API(uintN)
@@ -519,7 +519,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         index = js_GetIndexFromBytecode(cx, script, pc, 0);
         if (type == JOF_ATOM) {
             if (op == JSOP_DOUBLE) {
-                v = script->getConst(index);
+                v = Jsvalify(script->getConst(index));
             } else {
                 JS_GET_SCRIPT_ATOM(script, pc, index, atom);
                 v = STRING_TO_JSVAL(atom);
@@ -537,6 +537,17 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
             }
             v = OBJECT_TO_JSVAL(obj);
         }
+        {
+            JSAutoByteString bytes;
+            if (!ToDisassemblySource(cx, v, &bytes))
+                return 0;
+            Sprint(sp, " %s", bytes.ptr());
+        }
+        break;
+
+      case JOF_GLOBAL:
+        atom = script->getGlobalAtom(GET_SLOTNO(pc));
+        v = STRING_TO_JSVAL(atom);
         {
             JSAutoByteString bytes;
             if (!ToDisassemblySource(cx, v, &bytes))
@@ -601,7 +612,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
             pc2 += jmplen;
 
             JSAutoByteString bytes;
-            if (!ToDisassemblySource(cx, script->getConst(constIndex), &bytes))
+            if (!ToDisassemblySource(cx, Jsvalify(script->getConst(constIndex)), &bytes))
                 return 0;
             Sprint(sp, "\n\t%s: %d", bytes.ptr(), intN(off));
             npairs--;
@@ -1369,7 +1380,7 @@ DecompileSwitch(SprintStack *ss, TableEntry *table, uintN tableLength,
                         return JS_FALSE;
                     str = NULL;
                 } else {
-                    str = js_ValueToString(cx, key);
+                    str = js_ValueToString(cx, Valueify(key));
                     if (!str)
                         return JS_FALSE;
                 }
@@ -4005,6 +4016,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 #endif
                 goto do_name;
 
+              case JSOP_CALLGLOBAL:
+              case JSOP_GETGLOBAL:
+                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
+                goto do_name;
+
               case JSOP_CALLNAME:
               case JSOP_NAME:
               case JSOP_GETGNAME:
@@ -4239,7 +4255,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_REGEXP:
                 GET_REGEXP_FROM_BYTECODE(jp->script, pc, 0, obj);
-                if (!js_regexp_toString(cx, obj, &val))
+                if (!js_regexp_toString(cx, obj, Valueify(&val)))
                     return NULL;
                 str = JSVAL_TO_STRING(val);
                 goto sprint_string;
@@ -4348,7 +4364,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     pc2 += INDEX_LEN;
                     off2 = GetJumpOffset(pc, pc2);
                     pc2 += jmplen;
-                    table[k].key = jp->script->getConst(constIndex);
+                    table[k].key = Jsvalify(jp->script->getConst(constIndex));
                     table[k].offset = off2;
                 }
 
@@ -5088,12 +5104,14 @@ js_DecompileFunction(JSPrinter *jp)
 }
 
 char *
-js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
+js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
                            JSString *fallback)
 {
     StackFrame *fp;
     JSScript *script;
     jsbytecode *pc;
+
+    Value v = Valueify(v_in);
 
     JS_ASSERT(spindex < 0 ||
               spindex == JSDVG_IGNORE_STACK ||

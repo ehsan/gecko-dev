@@ -1389,20 +1389,15 @@ void nsBuiltinDecoderStateMachine::DecodeSeek()
 // Runnable to dispose of the decoder and state machine on the main thread.
 class nsDecoderDisposeEvent : public nsRunnable {
 public:
-  nsDecoderDisposeEvent(already_AddRefed<nsBuiltinDecoder> aDecoder,
-                        already_AddRefed<nsBuiltinDecoderStateMachine> aStateMachine)
-    : mDecoder(aDecoder), mStateMachine(aStateMachine) {}
+  nsDecoderDisposeEvent(already_AddRefed<nsBuiltinDecoder> aDecoder)
+    : mDecoder(aDecoder) {}
   NS_IMETHOD Run() {
     NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
-    mStateMachine->ReleaseDecoder();
-    mDecoder->ReleaseStateMachine();
-    mStateMachine = nsnull;
     mDecoder = nsnull;
     return NS_OK;
   }
 private:
   nsRefPtr<nsBuiltinDecoder> mDecoder;
-  nsCOMPtr<nsBuiltinDecoderStateMachine> mStateMachine;
 };
 
 // Runnable which dispatches an event to the main thread to dispose of the
@@ -1411,17 +1406,15 @@ private:
 // finished running.
 class nsDispatchDisposeEvent : public nsRunnable {
 public:
-  nsDispatchDisposeEvent(nsBuiltinDecoder* aDecoder,
-                         nsBuiltinDecoderStateMachine* aStateMachine)
-    : mDecoder(aDecoder), mStateMachine(aStateMachine) {}
+  nsDispatchDisposeEvent(already_AddRefed<nsBuiltinDecoder> aDecoder)
+    : mDecoder(aDecoder) {}
   NS_IMETHOD Run() {
-    NS_DispatchToMainThread(new nsDecoderDisposeEvent(mDecoder.forget(),
-                                                      mStateMachine.forget()));
+    NS_DispatchToMainThread(new nsDecoderDisposeEvent(mDecoder.forget()),
+                            NS_DISPATCH_NORMAL);
     return NS_OK;
   }
 private:
   nsRefPtr<nsBuiltinDecoder> mDecoder;
-  nsCOMPtr<nsBuiltinDecoderStateMachine> mStateMachine;
 };
 
 nsresult nsBuiltinDecoderStateMachine::RunStateMachine()
@@ -1439,7 +1432,7 @@ nsresult nsBuiltinDecoderStateMachine::RunStateMachine()
       StopAudioThread();
       StopDecodeThread();
       NS_ASSERTION(mState == DECODER_STATE_SHUTDOWN,
-                   "How did we escape from the shutdown state?");
+                   "How did we escape from the shutdown state???");
       // We must daisy-chain these events to destroy the decoder. We must
       // destroy the decoder on the main thread, but we can't destroy the
       // decoder while this thread holds the decoder monitor. We can't
@@ -1453,7 +1446,8 @@ nsresult nsBuiltinDecoderStateMachine::RunStateMachine()
       // finished and released its monitor/references. That event then will
       // dispatch an event to the main thread to release the decoder and
       // state machine.
-      NS_DispatchToCurrentThread(new nsDispatchDisposeEvent(mDecoder, this));
+      NS_DispatchToCurrentThread(
+        new nsDispatchDisposeEvent(mDecoder.forget()));
       return NS_OK;
     }
 
