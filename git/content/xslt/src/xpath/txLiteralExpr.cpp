@@ -103,7 +103,7 @@ txLiteralExpr::toString(nsAString& aStr)
         }
         case txAExprResult::NUMBER:
         {
-            txDouble::toString(mValue->numberValue(), aStr);
+            Double::toString(mValue->numberValue(), aStr);
             return;
         }
         case txAExprResult::STRING:

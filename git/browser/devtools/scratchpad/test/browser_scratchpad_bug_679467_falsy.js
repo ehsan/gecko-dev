@@ -30,6 +30,9 @@ function testFalsy(sp)
   sp.setBrowserContext();
   verifyFalsies(sp);
 
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
+  gBrowser.removeCurrentTab();
   finish();
 }
 

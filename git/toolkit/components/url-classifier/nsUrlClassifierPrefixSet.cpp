@@ -127,7 +127,7 @@ NS_IMETHODIMP
 nsPrefixSetReporter::GetAmount(PRInt64 * aAmount)
 {
   PRUint32 size;
-  nsresult rv = mParent->SizeOfIncludingThis(&size);
+  nsresult rv = mParent->SizeOfIncludingThis(true, &size);
   *aAmount = size;
   return rv;
 }
@@ -327,11 +327,15 @@ nsUrlClassifierPrefixSet::Contains(PRUint32 aPrefix, bool * aFound)
 }
 
 NS_IMETHODIMP
-nsUrlClassifierPrefixSet::SizeOfIncludingThis(PRUint32 * aSize)
+nsUrlClassifierPrefixSet::SizeOfIncludingThis(bool aCountMe, PRUint32 * aSize)
 {
   MutexAutoLock lock(mPrefixSetLock);
-  size_t usable = moz_malloc_usable_size(this);
-  *aSize = (PRUint32)(usable ? usable : sizeof(*this));
+  if (aCountMe) {
+    size_t usable = moz_malloc_usable_size(this);
+    *aSize = (PRUint32)(usable ? usable : sizeof(*this));
+  } else {
+    *aSize = 0;
+  }
   *aSize += mDeltas.SizeOf();
   *aSize += mIndexPrefixes.SizeOf();
   *aSize += mIndexStarts.SizeOf();

@@ -346,7 +346,7 @@ RasterImage::AdvanceFrame(TimeStamp aTime, nsIntRect* aDirtyRect)
 
       // If animation mode is "loop once", it's time to stop animating
       if (mAnimationMode == kLoopOnceAnimMode || mLoopCount == 0) {
-        mAnimationFinished = true;
+        mAnimationFinished = PR_TRUE;
         EvaluateAnimation();
       }
 
@@ -383,7 +383,7 @@ RasterImage::AdvanceFrame(TimeStamp aTime, nsIntRect* aDirtyRect)
   }
 
   if (!(timeout > 0)) {
-    mAnimationFinished = true;
+    mAnimationFinished = PR_TRUE;
     EvaluateAnimation();
   }
 
@@ -404,13 +404,13 @@ RasterImage::AdvanceFrame(TimeStamp aTime, nsIntRect* aDirtyRect)
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("RasterImage::AdvanceFrame(): Compositing of frame failed");
-      nextFrame->SetCompositingFailed(true);
+      nextFrame->SetCompositingFailed(PR_TRUE);
       mAnim->currentAnimationFrameIndex = nextFrameIndex;
       mAnim->currentAnimationFrameTime = aTime;
       return false;
     }
 
-    nextFrame->SetCompositingFailed(false);
+    nextFrame->SetCompositingFailed(PR_FALSE);
   }
 
   // Set currentAnimationFrameIndex at the last possible moment

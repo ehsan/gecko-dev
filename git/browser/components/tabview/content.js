@@ -36,7 +36,7 @@
 
 "use strict";
 
-let Cu = Components.utils;
+const Cu = Components.utils;
 
 Cu.import("resource:///modules/tabview/utils.jsm");
 

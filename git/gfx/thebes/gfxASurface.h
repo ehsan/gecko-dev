@@ -229,7 +229,7 @@ public:
 
     virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
     /**
      * Debug functions to encode the current image as a PNG and export it.
      */

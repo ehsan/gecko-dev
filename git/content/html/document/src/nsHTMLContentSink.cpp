@@ -2644,16 +2644,18 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
       nsAutoString relVal;
       element->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
       if (!relVal.IsEmpty()) {
-        PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
-        bool hasPrefetch = linkTypes & PREFETCH;
-        if (hasPrefetch || (linkTypes & NEXT)) {
+        // XXX seems overkill to generate this string array
+        nsAutoTArray<nsString, 4> linkTypes;
+        nsStyleLinkElement::ParseLinkTypes(relVal, linkTypes);
+        bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+        if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
             PrefetchHref(hrefVal, element, hasPrefetch);
           }
         }
-        if (linkTypes & DNS_PREFETCH) {
+        if (linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
@@ -2798,18 +2800,20 @@ HTMLContentSink::ProcessSCRIPTEndTag(nsGenericHTMLElement *content,
   mHTMLDocument->ScriptLoading(sele);
 
   // Now tell the script that it's ready to go. This may execute the script
-  // or return true, or neither if the script doesn't need executing.
-  bool block = sele->AttemptToExecute();
+  // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
+  // need executing.
+  nsresult rv = content->DoneAddingChildren(true);
 
   // If the act of insertion evaluated the script, we're fine.
   // Else, block the parser till the script has loaded.
-  if (block) {
+  if (rv == NS_ERROR_HTMLPARSER_BLOCK) {
     // If this append fails we'll never unblock the parser, but the UI will
     // still remain responsive. There are other ways to deal with this, but
     // the end result is always that the page gets botched, so there is no
     // real point in making it more complicated.
     mScriptElements.AppendObject(sele);
-  } else {
+  }
+  else {
     // This may have already happened if the script executed, but in case
     // it didn't then remove the element so that it doesn't get stuck forever.
     mHTMLDocument->ScriptExecuted(sele);
@@ -2818,10 +2822,10 @@ HTMLContentSink::ProcessSCRIPTEndTag(nsGenericHTMLElement *content,
   // If the parser got blocked, make sure to return the appropriate rv.
   // I'm not sure if this is actually needed or not.
   if (mParser && !mParser->IsParserEnabled()) {
-    block = true;
+    rv = NS_ERROR_HTMLPARSER_BLOCK;
   }
 
-  return block ? NS_ERROR_HTMLPARSER_BLOCK : NS_OK;
+  return rv;
 }
 
 // 3 ways to load a style sheet: inline, style src=, link tag

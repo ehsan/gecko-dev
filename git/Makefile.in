@@ -166,11 +166,7 @@ SYMBOL_INDEX_NAME = \
 buildsymbols:
 ifdef MOZ_CRASHREPORTER
 ifdef USE_ELF_HACK
-    ifeq (mobile,$(MOZ_BUILD_APP))
-		$(MAKE) -C mobile/xul/installer elfhack
-    else
-		$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
-    endif
+	$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
 endif
 	echo building symbol store
 	$(RM) -r $(DIST)/crashreporter-symbols

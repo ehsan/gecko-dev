@@ -1266,7 +1266,7 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
   return breakType;
 }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
 #include <stdio.h>
 
 static bool gDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
@@ -1351,7 +1351,7 @@ nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
   builder.LeavePresShell(aFrame, target);
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   if (gDumpEventList) {
     fprintf(stdout, "Event handling --- (%d,%d):\n", aRect.x, aRect.y);
     nsFrame::PrintDisplayList(&builder, list);
@@ -1661,7 +1661,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     willFlushRetainedLayers = true;
   }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stdout, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
             dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
@@ -1713,7 +1713,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     }
   }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stdout, "Painting --- after optimization:\n");
     nsFrame::PrintDisplayList(&builder, list);

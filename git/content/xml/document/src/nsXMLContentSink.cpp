@@ -497,7 +497,8 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   nsCOMPtr<nsIContent> content;
-  rv = NS_NewElement(getter_AddRefs(content), ni.forget(), aFromParser);
+  rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
+                     ni.forget(), aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -585,24 +586,29 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     return NS_OK;
   }
 
+  nsresult rv = NS_OK;
+
   if (nodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
       || nodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)
     ) {
     mConstrainSize = true; 
-    nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
 
     if (mPreventScriptExecution) {
+      nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
+      NS_ASSERTION(sele, "script did QI correctly!");
       sele->PreventExecution();
-      return NS_OK;
+      return rv;
     }
 
     // Now tell the script that it's ready to go. This may execute the script
-    // or return true, or neither if the script doesn't need executing.
-    bool block = sele->AttemptToExecute();
+    // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
+    // need executing.
+    rv = aContent->DoneAddingChildren(true);
 
     // If the act of insertion evaluated the script, we're fine.
     // Else, block the parser till the script has loaded.
-    if (block) {
+    if (rv == NS_ERROR_HTMLPARSER_BLOCK) {
+      nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
       mScriptElements.AppendObject(sele);
     }
 
@@ -611,13 +617,12 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     if (mParser && !mParser->IsParserEnabled()) {
       // XXX The HTML sink doesn't call BlockParser here, why do we?
       mParser->BlockParser();
-      block = true;
+      rv = NS_ERROR_HTMLPARSER_BLOCK;
     }
 
-    return block ? NS_ERROR_HTMLPARSER_BLOCK : NS_OK;
+    return rv;
   }
   
-  nsresult rv = NS_OK;
   if (nodeInfo->Equals(nsGkAtoms::meta, kNameSpaceID_XHTML) &&
            // Need to check here to make sure this meta tag does not set
            // mPrettyPrintXML to false when we have a special root!
@@ -646,16 +651,18 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       nsAutoString relVal;
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
       if (!relVal.IsEmpty()) {
-        PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
-        bool hasPrefetch = linkTypes & PREFETCH;
-        if (hasPrefetch || (linkTypes & NEXT)) {
+        // XXX seems overkill to generate this string array
+        nsAutoTArray<nsString, 4> linkTypes;
+        nsStyleLinkElement::ParseLinkTypes(relVal, linkTypes);
+        bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+        if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
           nsAutoString hrefVal;
           aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
             PrefetchHref(hrefVal, aContent, hasPrefetch);
           }
         }
-        if (linkTypes & DNS_PREFETCH) {
+        if (linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
           nsAutoString hrefVal;
           aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {

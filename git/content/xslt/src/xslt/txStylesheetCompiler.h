@@ -60,7 +60,7 @@ class txPushNewContext;
 class txStylesheetCompiler;
 class txInScopeVariable;
 
-class txElementContext : public txObject
+class txElementContext : public TxObject
 {
 public:
     txElementContext(const nsAString& aBaseURI);
@@ -122,8 +122,8 @@ public:
     void popSorter();
     nsresult pushChooseGotoList();
     void popChooseGotoList();
-    nsresult pushObject(txObject* aObject);
-    txObject* popObject();
+    nsresult pushObject(TxObject* aObject);
+    TxObject* popObject();
     nsresult pushPtr(void* aPtr);
     void* popPtr();
 

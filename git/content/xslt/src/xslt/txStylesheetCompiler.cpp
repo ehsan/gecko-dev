@@ -688,15 +688,15 @@ txStylesheetCompilerState::popChooseGotoList()
 }
 
 nsresult
-txStylesheetCompilerState::pushObject(txObject* aObject)
+txStylesheetCompilerState::pushObject(TxObject* aObject)
 {
     return mObjectStack.push(aObject);
 }
 
-txObject*
+TxObject*
 txStylesheetCompilerState::popObject()
 {
-    return static_cast<txObject*>(mObjectStack.pop());
+    return static_cast<TxObject*>(mObjectStack.pop());
 }
 
 nsresult

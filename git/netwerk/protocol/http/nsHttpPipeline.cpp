@@ -166,8 +166,7 @@ nsHttpPipeline::OnHeadersAvailable(nsAHttpTransaction *trans,
 nsresult
 nsHttpPipeline::ResumeSend()
 {
-    if (mConnection)
-        return mConnection->ResumeSend();
+    NS_NOTREACHED("nsHttpPipeline::ResumeSend");
     return NS_ERROR_UNEXPECTED;
 }
 
@@ -412,17 +411,7 @@ nsHttpPipeline::OnTransportStatus(nsITransport* transport,
 bool
 nsHttpPipeline::IsDone()
 {
-    bool done = true;
-    
-    PRUint32 i, count = mRequestQ.Length();
-    for (i = 0; done && (i < count); i++)
-        done = Request(i)->IsDone();
-
-    count = mResponseQ.Length();
-    for (i = 0; done && (i < count); i++)
-        done = Response(i)->IsDone();
-    
-    return done;
+    return (mRequestQ.Length() == 0) && (mResponseQ.Length() == 0);
 }
 
 nsresult

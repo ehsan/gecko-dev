@@ -1888,9 +1888,9 @@ nsSMILTimedElement::ActiveTimeToSimpleTime(nsSMILTime aActiveTime,
 {
   nsSMILTime result;
 
-  NS_ABORT_IF_FALSE(mSimpleDur.IsResolved(),
+  NS_ASSERTION(mSimpleDur.IsResolved(),
       "Unresolved simple duration in ActiveTimeToSimpleTime");
-  NS_ABORT_IF_FALSE(aActiveTime >= 0, "Expecting non-negative active time");
+  NS_ASSERTION(aActiveTime >= 0, "Expecting non-negative active time");
   // Note that a negative aActiveTime will give us a negative value for
   // aRepeatIteration, which is bad because aRepeatIteration is unsigned
 

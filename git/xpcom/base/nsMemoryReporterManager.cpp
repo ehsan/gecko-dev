@@ -64,7 +64,7 @@ extern void jemalloc_stats(jemalloc_stats_t* stats)
 #  endif  // XP_LINUX
 #endif  // MOZ_MEMORY
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -120,52 +120,6 @@ static PRInt64 GetVsize()
 static PRInt64 GetResident()
 {
     return GetProcSelfStatmField(1);
-}
-
-#elif defined(SOLARIS)
-
-#include <procfs.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-static void XMappingIter(PRInt64& Vsize, PRInt64& Resident)
-{
-    int mapfd = open("/proc/self/xmap", O_RDONLY);
-    struct stat st;
-    prxmap_t *prmapp;
-    if (mapfd >= 0) {
-        if (!fstat(mapfd, &st)) {
-            int nmap = st.st_size / sizeof(prxmap_t);
-            prmapp = (prxmap_t*)malloc((nmap + 1) * sizeof(prxmap_t));
-            int n = read(mapfd, prmapp, (nmap + 1) * sizeof(prxmap_t));
-            if (n > 0) {
-                Vsize = 0;
-                Resident = 0;
-                for (int i = 0; i < n / sizeof(prxmap_t); i++) {
-                    Vsize += prmapp[i].pr_size;
-                    Resident += prmapp[i].pr_rss * prmapp[i].pr_pagesize;
-                }
-            }
-            free(prmapp);
-        }
-        close(mapfd);
-    }
-}
-
-static PRInt64 GetVsize()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Vsize;
-}
-
-static PRInt64 GetResident()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Resident;
 }
 
 #elif defined(XP_MACOSX)
@@ -270,7 +224,7 @@ static PRInt64 GetResident()
 
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
 NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "vsize",
     KIND_OTHER,
@@ -285,7 +239,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "measure of the memory resources used by the process.")
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 NS_MEMORY_REPORTER_IMPLEMENT(PageFaultsSoft,
     "page-faults-soft",
     KIND_OTHER,
@@ -359,7 +313,7 @@ static PRInt64 GetHeapCommitted()
     return (PRInt64) stats.committed;
 }
 
-static PRInt64 GetHeapCommittedFragmentation()
+static PRInt64 GetHeapCommittedUnallocatedFraction()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
@@ -385,11 +339,11 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapCommitted,
     "memory and is unable to decommit it because a small part of that block is "
     "currently in use.")
 
-NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedFragmentation,
-    "heap-committed-fragmentation",
+NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedUnallocatedFraction,
+    "heap-committed-unallocated-fraction",
     KIND_OTHER,
     UNITS_PERCENTAGE,
-    GetHeapCommittedFragmentation,
+    GetHeapCommittedUnallocatedFraction,
     "Fraction of committed bytes which do not correspond to an active "
     "allocation; i.e., 1 - (heap-allocated / heap-committed).  Although the "
     "allocator will waste some space under any circumstances, a large value here "
@@ -503,11 +457,11 @@ nsMemoryReporterManager::Init()
     REGISTER(HeapUnallocated);
     REGISTER(Resident);
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
     REGISTER(Vsize);
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
     REGISTER(PageFaultsSoft);
     REGISTER(PageFaultsHard);
 #endif
@@ -518,7 +472,7 @@ nsMemoryReporterManager::Init()
 
 #if defined(HAVE_JEMALLOC_STATS)
     REGISTER(HeapCommitted);
-    REGISTER(HeapCommittedFragmentation);
+    REGISTER(HeapCommittedUnallocatedFraction);
     REGISTER(HeapDirty);
 #elif defined(XP_MACOSX) && !defined(MOZ_MEMORY)
     REGISTER(HeapZone0Committed);

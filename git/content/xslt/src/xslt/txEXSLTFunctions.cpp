@@ -611,7 +611,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             if (nodes->isEmpty()) {
                 return aContext->recycler()->
-                    getNumberResult(txDouble::NaN, aResult);
+                    getNumberResult(Double::NaN, aResult);
             }
 
             bool findMax = mType == MAX;
@@ -622,9 +622,9 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
-                double val = txDouble::toDouble(str);
-                if (txDouble::isNaN(val)) {
-                    res = txDouble::NaN;
+                double val = Double::toDouble(str);
+                if (Double::isNaN(val)) {
+                    res = Double::NaN;
                     break;
                 }
 
@@ -661,8 +661,8 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
                 txXPathNodeUtils::appendNodeValue(node, str);
-                double val = txDouble::toDouble(str);
-                if (txDouble::isNaN(val)) {
+                double val = Double::toDouble(str);
+                if (Double::isNaN(val)) {
                     resultSet->clear();
                     break;
                 }

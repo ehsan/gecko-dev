@@ -136,12 +136,13 @@ void
 mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 {
     AndroidGeckoEvent::InitGeckoEventClass(jEnv);
+    AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(jEnv);
     AndroidPoint::InitPointClass(jEnv);
     AndroidLocation::InitLocationClass(jEnv);
     AndroidAddress::InitAddressClass(jEnv);
     AndroidRect::InitRectClass(jEnv);
+
     AndroidGeckoSoftwareLayerClient::InitGeckoSoftwareLayerClientClass(jEnv);
-    AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(jEnv);
 }
 
 void
@@ -183,7 +184,6 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
 void
 AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(JNIEnv *jEnv)
 {
-#ifndef MOZ_JAVA_COMPOSITOR
     initInit();
 
     jGeckoSurfaceViewClass = getClassGlobalRef("org/mozilla/gecko/GeckoSurfaceView");
@@ -196,7 +196,6 @@ AndroidGeckoSurfaceView::InitGeckoSurfaceViewClass(JNIEnv *jEnv)
     jDraw2DBufferMethod = getMethod("draw2D", "(Ljava/nio/ByteBuffer;I)V");
     jGetSurfaceMethod = getMethod("getSurface", "()Landroid/view/Surface;");
     jGetHolderMethod = getMethod("getHolder", "()Landroid/view/SurfaceHolder;");
-#endif
 }
 
 void
@@ -325,7 +324,7 @@ AndroidGeckoSoftwareLayerClient::InitGeckoSoftwareLayerClientClass(JNIEnv *jEnv)
     jLockBufferMethod = getMethod("lockBuffer", "()Ljava/nio/ByteBuffer;");
     jUnlockBufferMethod = getMethod("unlockBuffer", "()V");
     jBeginDrawingMethod = getMethod("beginDrawing", "()V");
-    jEndDrawingMethod = getMethod("endDrawing", "(IIIILjava/lang/String;)V");
+    jEndDrawingMethod = getMethod("endDrawing", "(IIII)V");
 #endif
 }
 
@@ -592,13 +591,6 @@ AndroidGeckoSoftwareLayerClient::LockBuffer()
     return JNI()->CallObjectMethod(wrapped_obj, jLockBufferMethod);
 }
 
-unsigned char *
-AndroidGeckoSoftwareLayerClient::LockBufferBits()
-{
-    AndroidBridge::AutoLocalJNIFrame(1);
-    return reinterpret_cast<unsigned char *>(JNI()->GetDirectBufferAddress(LockBuffer()));
-}
-
 void
 AndroidGeckoSoftwareLayerClient::UnlockBuffer()
 {
@@ -616,13 +608,12 @@ AndroidGeckoSoftwareLayerClient::BeginDrawing()
 }
 
 void
-AndroidGeckoSoftwareLayerClient::EndDrawing(const nsIntRect &aRect, const nsAString &aMetadata)
+AndroidGeckoSoftwareLayerClient::EndDrawing(const nsIntRect &aRect)
 {
     NS_ASSERTION(!isNull(), "EndDrawing() called on null software layer client!");
     AndroidBridge::AutoLocalJNIFrame(1);
-    jstring jMetadata = JNI()->NewString(nsPromiseFlatString(aMetadata).get(), aMetadata.Length());
     return JNI()->CallVoidMethod(wrapped_obj, jEndDrawingMethod, aRect.x, aRect.y, aRect.width,
-                                 aRect.height, jMetadata);
+                                 aRect.height);
 }
 
 jobject

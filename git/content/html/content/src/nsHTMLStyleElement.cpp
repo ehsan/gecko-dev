@@ -170,24 +170,36 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLStyleElement)
 NS_IMETHODIMP
 nsHTMLStyleElement::GetDisabled(bool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetStyleSheet());
-  if (!ss) {
+  nsresult result = NS_OK;
+  
+  if (GetStyleSheet()) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+
+    if (ss) {
+      result = ss->GetDisabled(aDisabled);
+    }
+  }
+  else {
     *aDisabled = false;
-    return NS_OK;
   }
 
-  return ss->GetDisabled(aDisabled);
+  return result;
 }
 
 NS_IMETHODIMP 
 nsHTMLStyleElement::SetDisabled(bool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetStyleSheet());
-  if (!ss) {
-    return NS_OK;
+  nsresult result = NS_OK;
+  
+  if (GetStyleSheet()) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+
+    if (ss) {
+      result = ss->SetDisabled(aDisabled);
+    }
   }
 
-  return ss->SetDisabled(aDisabled);
+  return result;
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLStyleElement, Media, media)
@@ -355,4 +367,6 @@ nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   // If we get here we assume that we're loading a css file, so set the
   // type to 'text/css'
   aType.AssignLiteral("text/css");
+
+  return;
 }

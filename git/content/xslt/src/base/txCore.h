@@ -106,4 +106,10 @@ public:
     static double toDouble(const nsAString& aStr);
 };
 
+// XXX These should go away eventually.
+#define TxObject txObject
+typedef txDouble Double;
+
+// XXX
+
 #endif

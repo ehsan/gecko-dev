@@ -33,9 +33,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZILLA_GFX_BLUR_H_
-#define MOZILLA_GFX_BLUR_H_
-
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/Point.h"
 
@@ -181,5 +178,3 @@ private:
 
 }
 }
-
-#endif /* MOZILLA_GFX_BLUR_H_ */

@@ -79,6 +79,12 @@ XPCOMUtils.defineLazyGetter(this, "gcli", function () {
   return obj.gcli;
 });
 
+XPCOMUtils.defineLazyGetter(this, "StyleInspector", function () {
+  var obj = {};
+  Cu.import("resource:///modules/devtools/StyleInspector.jsm", obj);
+  return obj.StyleInspector;
+});
+
 XPCOMUtils.defineLazyGetter(this, "CssRuleView", function() {
   let tmp = {};
   Cu.import("resource:///modules/devtools/CssRuleView.jsm", tmp);
@@ -1854,6 +1860,10 @@ HUD_SERVICE.prototype =
     for (let i = 0; i < panels.length; i++) {
       panels[i].hidePopup();
     }
+    panels = popupset.querySelectorAll("panel[hudToolId=" + aHUDId + "]");
+    for (let i = 0; i < panels.length; i++) {
+      panels[i].hidePopup();
+    }
 
     let id = ConsoleUtils.supString(aHUDId);
     Services.obs.notifyObservers(id, "web-console-destroyed", null);
@@ -3559,7 +3569,7 @@ HeadsUpDisplay.prototype = {
       }
       else {
         this.gcliterm = new GcliTerm(aWindow, this.hudId, this.chromeDocument,
-                                     this.console, this.hintNode, this.consoleWrap);
+                                     this.console, this.hintNode);
         aParentNode.appendChild(this.gcliterm.element);
       }
     }
@@ -3657,19 +3667,21 @@ HeadsUpDisplay.prototype = {
     consoleFilterToolbar.setAttribute("id", "viewGroup");
     this.consoleFilterToolbar = consoleFilterToolbar;
 
+    let hintSpacerNode = this.makeXULNode("box");
+    hintSpacerNode.setAttribute("flex", 1);
+
     this.hintNode = this.makeXULNode("div");
     this.hintNode.setAttribute("class", "gcliterm-hint-node");
 
     let hintParentNode = this.makeXULNode("vbox");
     hintParentNode.setAttribute("flex", "0");
     hintParentNode.setAttribute("class", "gcliterm-hint-parent");
-    hintParentNode.setAttribute("pack", "end");
+    hintParentNode.appendChild(hintSpacerNode);
     hintParentNode.appendChild(this.hintNode);
     hintParentNode.hidden = true;
 
     let hbox = this.makeXULNode("hbox");
     hbox.setAttribute("flex", "1");
-    hbox.setAttribute("class", "gcliterm-display");
 
     this.outputNode = this.makeXULNode("richlistbox");
     this.outputNode.setAttribute("class", "hud-output-node");
@@ -4586,6 +4598,40 @@ function JSTermHelper(aJSTerm)
     propPanel.panel.setAttribute("hudId", aJSTerm.hudId);
   };
 
+  /**
+   * Inspects the passed aNode in the style inspector.
+   *
+   * @param object aNode
+   *        aNode to inspect.
+   * @returns void
+   */
+  aJSTerm.sandbox.inspectstyle = function JSTH_inspectstyle(aNode)
+  {
+    let errstr = null;
+    aJSTerm.helperEvaluated = true;
+
+    if (!Services.prefs.getBoolPref("devtools.styleinspector.enabled")) {
+      errstr = HUDService.getStr("inspectStyle.styleInspectorNotEnabled");
+    } else if (!aNode) {
+      errstr = HUDService.getStr("inspectStyle.nullObjectPassed");
+    } else if (!(aNode instanceof Ci.nsIDOMNode)) {
+      errstr = HUDService.getStr("inspectStyle.mustBeDomNode");
+    } else if (!(aNode.style instanceof Ci.nsIDOMCSSStyleDeclaration)) {
+      errstr = HUDService.getStr("inspectStyle.nodeHasNoStyleProps");
+    }
+
+    if (!errstr) {
+      let chromeWin = HUDService.getHudReferenceById(aJSTerm.hudId).chromeWindow;
+      let styleInspector = new StyleInspector(chromeWin);
+      styleInspector.createPanel(false, function() {
+        styleInspector.panel.setAttribute("hudToolId", aJSTerm.hudId);
+        styleInspector.open(aNode);
+      });
+    } else {
+      aJSTerm.writeOutput(errstr + "\n", CATEGORY_OUTPUT, SEVERITY_ERROR);
+    }
+  };
+
   aJSTerm.sandbox.inspectrules = function JSTH_inspectrules(aNode)
   {
     aJSTerm.helperEvaluated = true;
@@ -5127,7 +5173,6 @@ JSTerm.prototype = {
     }
 
     hud.HUDBox.lastTimestamp = 0;
-    hud.groupDepth = 0;
   },
 
   /**
@@ -6949,7 +6994,7 @@ let commandExports = undefined;
  *        The node to which we add GCLI's hints.
  * @constructor
  */
-function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConsoleWrap)
+function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
 {
   this.context = Cu.getWeakReference(aContentWindow);
   this.hudId = aHudId;
@@ -6975,7 +7020,7 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConso
     completeElement: this.completeNode,
     inputBackgroundElement: this.inputStack,
     hintElement: this.hintNode,
-    consoleWrap: aConsoleWrap,
+    completionPrompt: "",
     gcliTerm: this
   };
 
@@ -6993,15 +7038,7 @@ GcliTerm.prototype = {
    */
   hide: function GcliTerm_hide()
   {
-    let permaHint = false;
-    try {
-      permaHint = Services.prefs.getBoolPref("devtools.gcli.permaHint");
-    }
-    catch (ex) {}
-
-    if (!permaHint) {
-      this.hintNode.parentNode.hidden = true;
-    }
+    this.hintNode.parentNode.hidden = true;
   },
 
   /**

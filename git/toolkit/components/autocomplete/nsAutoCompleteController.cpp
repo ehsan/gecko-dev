@@ -81,6 +81,7 @@ nsAutoCompleteController::nsAutoCompleteController() :
   mPopupClosedByCompositionStart(false),
   mIsIMEComposing(false),
   mIgnoreHandleText(false),
+  mIsOpen(false),
   mSearchStatus(nsAutoCompleteController::STATUS_NONE),
   mRowCount(0),
   mSearchesOngoing(0),
@@ -130,7 +131,8 @@ nsAutoCompleteController::SetInput(nsIAutoCompleteInput *aInput)
     // Stop all searches in case they are async.
     StopSearch();
     ClearResults();
-    ClosePopup();
+    if (mIsOpen)
+      ClosePopup();
     mSearches.Clear();
   }
 
@@ -970,6 +972,7 @@ nsAutoCompleteController::OpenPopup()
   mInput->GetMinResultsForPopup(&minResults);
 
   if (mRowCount >= minResults) {
+    mIsOpen = true;
     return mInput->SetPopupOpen(true);
   }
 
@@ -992,6 +995,7 @@ nsAutoCompleteController::ClosePopup()
   mInput->GetPopup(getter_AddRefs(popup));
   NS_ENSURE_TRUE(popup != nsnull, NS_ERROR_FAILURE);
   popup->SetSelectedIndex(-1);
+  mIsOpen = false;
   return mInput->SetPopupOpen(false);
 }
 
@@ -1302,11 +1306,10 @@ nsAutoCompleteController::ProcessResult(PRInt32 aSearchIndex, nsIAutoCompleteRes
   // Make sure the popup is open, if necessary, since we now have at least one
   // search result ready to display. Don't force the popup closed if we might
   // get results in the future to avoid unnecessarily canceling searches.
-  if (mRowCount) {
+  if (mRowCount)
     OpenPopup();
-  } else if (mSearchesOngoing == 0) {
+  else if (result != nsIAutoCompleteResult::RESULT_NOMATCH_ONGOING)
     ClosePopup();
-  }
 
   if (mSearchesOngoing == 0) {
     // If this is the last search to return, cleanup

@@ -53,8 +53,6 @@
 #include "WrapperFactory.h"
 #include "dombindings.h"
 
-#include "mozilla/Util.h"
-
 bool
 xpc_OkToHandOutWrapper(nsWrapperCache *cache)
 {
@@ -862,8 +860,6 @@ XPCWrappedNative::~XPCWrappedNative()
     Destroy();
 }
 
-static const PRWord WRAPPER_WORD_POISON = 0xa8a8a8a8;
-
 void
 XPCWrappedNative::Destroy()
 {
@@ -903,20 +899,9 @@ XPCWrappedNative::Destroy()
         }
     }
 
-    /*
-     * The only time GetRuntime() will be NULL is if Destroy is called a second
-     * time on a wrapped native. Since we already unregistered the pointer the
-     * first time, there's no need to unregister again. Unregistration is safe
-     * the first time because mWrapperWord isn't used afterwards.
-     */
-    if (XPCJSRuntime *rt = GetRuntime()) {
-        JS_UnregisterReferenceRT(rt->GetJSRuntime(), (void **) &mWrapperWord);
-        mWrapperWord = WRAPPER_WORD_POISON;
-    } else {
-        MOZ_ASSERT(mWrapperWord == WRAPPER_WORD_POISON);
-    }
-
     mMaybeScope = nsnull;
+
+    JS_UnregisterReference((void **) &mWrapperWord);
 }
 
 void
@@ -2278,7 +2263,7 @@ CallMethodHelper::~CallMethodHelper()
                 // Clean up the array contents if necessary.
                 if (dp->DoesValNeedCleanup()) {
                     // We need some basic information to properly destroy the array.
-                    JSUint32 array_count = 0;
+                    JSUint32 array_count;
                     nsXPTType datum_type;
                     if (!GetArraySizeFromParam(i, &array_count) ||
                         !NS_SUCCEEDED(mIFaceInfo->GetTypeForParam(mVTableIndex,
@@ -2413,7 +2398,7 @@ CallMethodHelper::GatherAndConvertResults()
         nsXPTCVariant* dp = GetDispatchParam(i);
         jsval v = JSVAL_NULL;
         AUTO_MARK_JSVAL(mCallContext, &v);
-        JSUint32 array_count = 0;
+        JSUint32 array_count;
         nsXPTType datum_type;
         bool isArray = type.IsArray();
         bool isSizedString = isArray ?
@@ -2738,7 +2723,7 @@ CallMethodHelper::ConvertDependentParams()
             continue;
 
         nsXPTType datum_type;
-        JSUint32 array_count = 0;
+        JSUint32 array_count;
         bool isArray = type.IsArray();
 
         bool isSizedString = isArray ?

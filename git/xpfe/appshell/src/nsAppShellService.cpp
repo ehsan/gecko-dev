@@ -75,7 +75,6 @@
 #include "nsIChromeRegistry.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/StartupTimeline.h"
 
 using namespace mozilla;
 
@@ -157,6 +156,8 @@ nsAppShellService::DestroyHiddenWindow()
   return NS_OK;
 }
 
+PRTime gCreateTopLevelWindowTimestamp = 0;
+
 /*
  * Create a new top level window and display the given URL within it...
  */
@@ -171,7 +172,8 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
 {
   nsresult rv;
 
-  StartupTimeline::RecordOnce(StartupTimeline::CREATE_TOP_LEVEL_WINDOW);
+  if (!gCreateTopLevelWindowTimestamp)
+    gCreateTopLevelWindowTimestamp = PR_Now();
 
   nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,

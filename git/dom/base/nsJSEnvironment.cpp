@@ -1196,19 +1196,16 @@ nsJSContext::GetCCRefcnt()
 
 nsresult
 nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
-                                     JSObject* aScopeObject,
+                                     void *aScopeObject,
                                      nsIPrincipal *aPrincipal,
                                      const char *aURL,
                                      PRUint32 aLineNo,
                                      PRUint32 aVersion,
-                                     JS::Value* aRetValue,
+                                     void* aRetValue,
                                      bool* aIsUndefined)
 {
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
                            __LINE__, aURL, aLineNo);
-
-  NS_ABORT_IF_FALSE(aScopeObject,
-    "Shouldn't call EvaluateStringWithValue with null scope object.");
 
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
@@ -1220,12 +1217,15 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     return NS_OK;
   }
 
+  nsresult rv;
+  if (!aScopeObject)
+    aScopeObject = ::JS_GetGlobalObject(mContext);
+
   // Safety first: get an object representing the script's principals, i.e.,
   // the entities who signed this script, or the fully-qualified-domain-name
   // or "codebase" from which it was loaded.
   JSPrincipals *jsprin;
   nsIPrincipal *principal = aPrincipal;
-  nsresult rv;
   if (!aPrincipal) {
     nsIScriptGlobalObject *global = GetGlobalObject();
     if (!global)
@@ -1277,7 +1277,7 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     JSAutoRequest ar(mContext);
 
     JSAutoEnterCompartment ac;
-    if (!ac.enter(mContext, aScopeObject)) {
+    if (!ac.enter(mContext, (JSObject *)aScopeObject)) {
       JSPRINCIPALS_DROP(mContext, jsprin);
       stack->Pop(nsnull);
       return NS_ERROR_FAILURE;
@@ -1286,9 +1286,9 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     ++mExecuteDepth;
 
     ok = ::JS_EvaluateUCScriptForPrincipalsVersion(mContext,
-                                                   aScopeObject,
+                                                   (JSObject *)aScopeObject,
                                                    jsprin,
-                                                   static_cast<const jschar*>(PromiseFlatString(aScript).get()),
+                                                   (jschar*)PromiseFlatString(aScript).get(),
                                                    aScript.Length(),
                                                    aURL,
                                                    aLineNo,
@@ -1315,7 +1315,7 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
       *aIsUndefined = JSVAL_IS_VOID(val);
     }
 
-    *aRetValue = val;
+    *static_cast<jsval*>(aRetValue) = val;
     // XXX - nsScriptObjectHolder should be used once this method moves to
     // the new world order. However, use of 'jsval' appears to make this
     // tricky...
@@ -1545,6 +1545,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
 nsresult
 nsJSContext::CompileScript(const PRUnichar* aText,
                            PRInt32 aTextLength,
+                           void *aScopeObject,
                            nsIPrincipal *aPrincipal,
                            const char *aURL,
                            PRUint32 aLineNo,
@@ -1553,9 +1554,11 @@ nsJSContext::CompileScript(const PRUnichar* aText,
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
+  nsresult rv;
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
-  JSObject* scopeObject = ::JS_GetGlobalObject(mContext);
+  if (!aScopeObject)
+    aScopeObject = ::JS_GetGlobalObject(mContext);
 
   JSPrincipals *jsprin;
   aPrincipal->GetJSPrincipals(mContext, &jsprin);
@@ -1563,7 +1566,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
 
   bool ok = false;
 
-  nsresult rv = sSecurityManager->CanExecuteScripts(mContext, aPrincipal, &ok);
+  rv = sSecurityManager->CanExecuteScripts(mContext, aPrincipal, &ok);
   if (NS_FAILED(rv)) {
     JSPRINCIPALS_DROP(mContext, jsprin);
     return NS_ERROR_FAILURE;
@@ -1579,9 +1582,9 @@ nsJSContext::CompileScript(const PRUnichar* aText,
 
     JSScript* script =
         ::JS_CompileUCScriptForPrincipalsVersion(mContext,
-                                                 scopeObject,
+                                                 (JSObject *)aScopeObject,
                                                  jsprin,
-                                                 static_cast<const jschar*>(aText),
+                                                 (jschar*) aText,
                                                  aTextLength,
                                                  aURL,
                                                  aLineNo,
@@ -3509,11 +3512,15 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(nsJSRuntime)
 NS_IMPL_RELEASE(nsJSRuntime)
 
-already_AddRefed<nsIScriptContext>
-nsJSRuntime::CreateContext()
+nsresult
+nsJSRuntime::CreateContext(nsIScriptContext **aContext)
 {
-  nsCOMPtr<nsIScriptContext> scriptContext = new nsJSContext(sRuntime);
-  return scriptContext.forget();
+  nsCOMPtr<nsIScriptContext> scriptContext;
+
+  *aContext = new nsJSContext(sRuntime);
+  NS_ENSURE_TRUE(*aContext, NS_ERROR_OUT_OF_MEMORY);
+  NS_ADDREF(*aContext);
+  return NS_OK;
 }
 
 nsresult

@@ -162,7 +162,7 @@ public:
     unsigned char *LockBufferBits();
     void UnlockBuffer();
     void BeginDrawing();
-    void EndDrawing(const nsIntRect &aRect, const nsAString &aMetadata);
+    void EndDrawing(const nsIntRect &aRect);
 
 private:
     static jclass jGeckoSoftwareLayerClientClass;

@@ -48,7 +48,6 @@
 #include "nsGUIEvent.h"
 #include "nsIDOMTimeEvent.h"
 #include "nsString.h"
-#include <limits>
 
 using namespace mozilla::dom;
 
@@ -183,9 +182,8 @@ nsSMILTimeValueSpec::HandleNewInterval(nsSMILInterval& aInterval,
     ConvertBetweenTimeContainers(baseInstance.Time(), aSrcContainer);
 
   // Apply offset
-  if (!ApplyOffset(newTime)) {
-    NS_WARNING("New time overflows nsSMILTime, ignoring");
-    return;
+  if (newTime.IsDefinite()) {
+    newTime.SetMillis(newTime.GetMillis() + mParams.mOffset.GetMillis());
   }
 
   // Create the instance time and register it with the interval
@@ -220,9 +218,9 @@ nsSMILTimeValueSpec::HandleChangedInstanceTime(
     ConvertBetweenTimeContainers(aBaseTime.Time(), aSrcContainer);
 
   // Apply offset
-  if (!ApplyOffset(updatedTime)) {
-    NS_WARNING("Updated time overflows nsSMILTime, ignoring");
-    return;
+  if (updatedTime.IsDefinite()) {
+    updatedTime.SetMillis(updatedTime.GetMillis() +
+                          mParams.mOffset.GetMillis());
   }
 
   // The timed element that owns the instance time does the updating so it can
@@ -341,7 +339,7 @@ nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
   nsEventListenerManager* elm = GetEventListenerManager(aTarget);
   if (!elm)
     return;
-
+  
   elm->AddEventListenerByType(mEventListener,
                               nsDependentAtomString(mParams.mEventSymbol),
                               NS_EVENT_FLAG_BUBBLE |
@@ -409,11 +407,7 @@ nsSMILTimeValueSpec::HandleEvent(nsIDOMEvent* aEvent)
     return;
 
   nsSMILTime currentTime = container->GetCurrentTime();
-  nsSMILTimeValue newTime(currentTime);
-  if (!ApplyOffset(newTime)) {
-    NS_WARNING("New time generated from event overflows nsSMILTime, ignoring");
-    return;
-  }
+  nsSMILTimeValue newTime(currentTime + mParams.mOffset.GetMillis());
 
   nsRefPtr<nsSMILInstanceTime> newInstance =
     new nsSMILInstanceTime(newTime, nsSMILInstanceTime::SOURCE_EVENT);
@@ -540,22 +534,4 @@ nsSMILTimeValueSpec::ConvertBetweenTimeContainers(
     "ContainerToParentTime gave us an unresolved or indefinite time");
 
   return dstContainer->ParentToContainerTime(docTime.GetMillis());
-}
-
-bool
-nsSMILTimeValueSpec::ApplyOffset(nsSMILTimeValue& aTime) const
-{
-  // indefinite + offset = indefinite. Likewise for unresolved times.
-  if (!aTime.IsDefinite()) {
-    return true;
-  }
-
-  double resultAsDouble =
-    (double)aTime.GetMillis() + mParams.mOffset.GetMillis();
-  if (resultAsDouble > std::numeric_limits<nsSMILTime>::max() ||
-      resultAsDouble < std::numeric_limits<nsSMILTime>::min()) {
-    return false;
-  }
-  aTime.SetMillis(aTime.GetMillis() + mParams.mOffset.GetMillis());
-  return true;
 }

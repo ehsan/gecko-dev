@@ -48,7 +48,6 @@ gfxAlphaBoxBlur::gfxAlphaBoxBlur()
 
 gfxAlphaBoxBlur::~gfxAlphaBoxBlur()
 {
-  delete mBlur;
 }
 
 gfxContext*

@@ -681,7 +681,7 @@ public:
     void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
     PRInt32 GetFlags() const { return mFlags; }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
     /**
      * Debug functions to encode the current surface as a PNG and export it.
      */

@@ -7740,13 +7740,7 @@ nsTextFrame::IsEmpty()
 NS_IMETHODIMP
 nsTextFrame::GetFrameName(nsAString& aResult) const
 {
-  MakeFrameName(NS_LITERAL_STRING("Text"), aResult);
-  PRInt32 totalContentLength;
-  nsCAutoString tmp;
-  ToCString(tmp, &totalContentLength);
-  tmp.SetLength(NS_MIN(tmp.Length(), 50u));
-  aResult += NS_LITERAL_STRING("\"") + NS_ConvertASCIItoUTF16(tmp) + NS_LITERAL_STRING("\"");
-  return NS_OK;
+  return MakeFrameName(NS_LITERAL_STRING("Text"), aResult);
 }
 
 NS_IMETHODIMP_(nsFrameState)
@@ -7768,8 +7762,12 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [run=%p]", static_cast<void*>(mTextRun));
 
+  PRInt32 totalContentLength;
+  nsCAutoString tmp;
+  ToCString(tmp, &totalContentLength);
+
   // Output the first/last content offset and prev/next in flow info
-  bool isComplete = GetContentEnd() == GetContent()->TextLength();
+  bool isComplete = GetContentEnd() == totalContentLength;
   fprintf(out, "[%d,%d,%c] ", 
           GetContentOffset(), GetContentLength(),
           isComplete ? 'T':'F');
@@ -7813,7 +7811,20 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
     fprintf(out, " pst=%s",
             NS_LossyConvertUTF16toASCII(atomString).get());
   }
-  fputs("\n", out);
+  fputs("<\n", out);
+
+  // Output the text
+  aIndent++;
+
+  IndentBy(out, aIndent);
+  fputs("\"", out);
+  fputs(tmp.get(), out);
+  fputs("\"\n", out);
+
+  aIndent--;
+  IndentBy(out, aIndent);
+  fputs(">\n", out);
+
   return NS_OK;
 }
 #endif

@@ -55,7 +55,6 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
     nsISupports *native = castNativeFromWrapper(cx, obj, callee, _bit,        \
                                                 pThisRef, pThisVal, lccx,     \
                                                 &rv);                         \
-    *ppThis = NULL;  /* avoids uninitialized warnings in callers */           \
     if (failureFatal && !native)                                              \
         return xpc_qsThrow(cx, rv);                                           \
     *ppThis = static_cast<_interface*>(static_cast<_base*>(native));          \

@@ -345,16 +345,18 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
     nsAutoString relVal;
     aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
     if (!relVal.IsEmpty()) {
-      PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
-      bool hasPrefetch = linkTypes & PREFETCH;
-      if (hasPrefetch || (linkTypes & NEXT)) {
+      // XXX seems overkill to generate this string array
+      nsAutoTArray<nsString, 4> linkTypes;
+      nsStyleLinkElement::ParseLinkTypes(relVal, linkTypes);
+      bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+      if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
         nsAutoString hrefVal;
         aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
         if (!hrefVal.IsEmpty()) {
           PrefetchHref(hrefVal, aElement, hasPrefetch);
         }
       }
-      if (linkTypes & DNS_PREFETCH) {
+      if (linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
         nsAutoString hrefVal;
         aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
         if (!hrefVal.IsEmpty()) {
@@ -735,16 +737,20 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
     return;
   }
   
-  if (mPreventScriptExecution) {
-    sele->PreventExecution();
-  }
   if (mFragmentMode) {
+    if (mPreventScriptExecution) {
+      sele->PreventExecution();
+    }
     return;
   }
 
   if (sele->GetScriptDeferred() || sele->GetScriptAsync()) {
-    DebugOnly<bool> block = sele->AttemptToExecute();
-    NS_ASSERTION(!block, "Defer or async script tried to block.");
+    #ifdef DEBUG
+    nsresult rv = 
+    #endif
+    aScriptElement->DoneAddingChildren(true); // scripts ignore the argument
+    NS_ASSERTION(rv != NS_ERROR_HTMLPARSER_BLOCK, 
+                 "Defer or async script tried to block.");
     return;
   }
   
@@ -761,12 +767,13 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
 
   // Copied from nsXMLContentSink
   // Now tell the script that it's ready to go. This may execute the script
-  // or return true, or neither if the script doesn't need executing.
-  bool block = sele->AttemptToExecute();
+  // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
+  // need executing.
+  nsresult rv = aScriptElement->DoneAddingChildren(true);
 
   // If the act of insertion evaluated the script, we're fine.
   // Else, block the parser till the script has loaded.
-  if (block) {
+  if (rv == NS_ERROR_HTMLPARSER_BLOCK) {
     mScriptElements.AppendObject(sele);
     if (mParser) {
       mParser->BlockParser();

@@ -287,27 +287,16 @@ nsDOMStorageManager::Initialize()
   if (!os)
     return NS_OK;
 
-  nsresult rv;
-  rv = os->AddObserver(gStorageManager, "cookie-changed", false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "offline-app-removed", false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC,
-                       false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "profile-after-change", false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "perm-changed", false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "browser:purge-domain-data", false);
-  NS_ENSURE_SUCCESS(rv, rv);
+  os->AddObserver(gStorageManager, "cookie-changed", false);
+  os->AddObserver(gStorageManager, "offline-app-removed", false);
+  os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
+  os->AddObserver(gStorageManager, "profile-after-change", false);
+  os->AddObserver(gStorageManager, "perm-changed", false);
+  os->AddObserver(gStorageManager, "browser:purge-domain-data", false);
   // Used for temporary table flushing
-  rv = os->AddObserver(gStorageManager, "profile-before-change", false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, false);
-  NS_ENSURE_SUCCESS(rv, rv);
+  os->AddObserver(gStorageManager, "profile-before-change", false);
+  os->AddObserver(gStorageManager, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+  os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, false);
 
   return NS_OK;
 }

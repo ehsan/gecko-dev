@@ -98,12 +98,7 @@ public:
     return nsGkAtoms::d;
   }
 
-  /**
-   * Gets the ratio of the actual path length to the content author's estimated
-   * length (as provided by the <path> element's 'pathLength' attribute). This
-   * is used to scale stroke dashing, and to scale offsets along a textPath.
-   */
-  gfxFloat GetPathLengthScale();
+  gfxFloat GetScale();
 
 protected:
 

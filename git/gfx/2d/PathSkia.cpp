@@ -196,14 +196,8 @@ Rect
 PathSkia::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                            const Matrix &aTransform) const
 {
-  SkPaint paint;
-  StrokeOptionsToPaint(paint, aStrokeOptions);
-  
-  SkPath result;
-  paint.getFillPath(mPath, &result);
-
-  Rect bounds = SkRectToRect(result.getBounds());
-  return aTransform.TransformBounds(bounds);
+  NS_ASSERTION(false, "GetStrokedBounds not supported yet!");
+  return Rect(0, 0, 0, 0);
 }
 
 }

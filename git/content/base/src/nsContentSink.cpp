@@ -819,7 +819,9 @@ nsContentSink::ProcessLink(nsIContent* aElement,
                            const nsSubstring& aRel, const nsSubstring& aTitle,
                            const nsSubstring& aType, const nsSubstring& aMedia)
 {
-  PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(aRel);
+  // XXX seems overkill to generate this string array
+  nsTArray<nsString> linkTypes;
+  nsStyleLinkElement::ParseLinkTypes(aRel, linkTypes);
 
   // The link relation may apply to a different resource, specified
   // in the anchor parameter. For the link relations supported so far,
@@ -829,22 +831,22 @@ nsContentSink::ProcessLink(nsIContent* aElement,
     return NS_OK;
   }
   
-  bool hasPrefetch = linkTypes & PREFETCH;
+  bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
   // prefetch href if relation is "next" or "prefetch"
-  if (hasPrefetch || (linkTypes & NEXT)) {
+  if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
     PrefetchHref(aHref, aElement, hasPrefetch);
   }
 
-  if (!aHref.IsEmpty() && (linkTypes & DNS_PREFETCH)) {
+  if ((!aHref.IsEmpty()) && linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
     PrefetchDNS(aHref);
   }
 
   // is it a stylesheet link?
-  if (!(linkTypes & STYLESHEET)) {
+  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
     return NS_OK;
   }
 
-  bool isAlternate = linkTypes & ALTERNATE;
+  bool isAlternate = linkTypes.Contains(NS_LITERAL_STRING("alternate"));
   return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }

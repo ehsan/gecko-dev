@@ -1447,9 +1447,7 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   return nsContentUtils::CreateDocument(aNamespaceURI, aQualifiedName, aDoctype,
                                         mDocumentURI, mBaseURI,
                                         mOwner->NodePrincipal(),
-                                        scriptHandlingObject,
-                                        DocumentFlavorLegacyGuess,
-                                        aReturn);
+                                        scriptHandlingObject, false, aReturn);
 }
 
 NS_IMETHODIMP
@@ -1481,8 +1479,7 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
   rv = nsContentUtils::CreateDocument(EmptyString(), EmptyString(),
                                       doctype, mDocumentURI, mBaseURI,
                                       mOwner->NodePrincipal(),
-                                      scriptHandlingObject,
-                                      DocumentFlavorLegacyGuess,
+                                      scriptHandlingObject, false,
                                       getter_AddRefs(document));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(document);
@@ -1785,38 +1782,31 @@ IdentifierMapEntryTraverse(nsIdentifierMapEntry *aEntry, void *aArg)
 }
 
 static const char* kNSURIs[] = {
-  "([none])",
-  "(xmlns)",
-  "(xml)",
-  "(xhtml)",
-  "(XLink)",
-  "(XSLT)",
-  "(XBL)",
-  "(MathML)",
-  "(RDF)",
-  "(XUL)"
+  " ([none])",
+  " (xmlns)",
+  " (xml)",
+  " (xhtml)",
+  " (XLink)",
+  " (XSLT)",
+  " (XBL)",
+  " (MathML)",
+  " (RDF)",
+  " (XUL)"
 };
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
-    nsCAutoString loadedAsData;
-    if (tmp->IsLoadedAsData()) {
-      loadedAsData.AssignLiteral("data");
-    } else {
-      loadedAsData.AssignLiteral("normal");
-    }
     PRUint32 nsid = tmp->GetDefaultNamespaceID();
     nsCAutoString uri;
     if (tmp->mDocumentURI)
       tmp->mDocumentURI->GetSpec(uri);
     if (nsid < ArrayLength(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsDocument %s %s %s",
-                  loadedAsData.get(), kNSURIs[nsid], uri.get());
+      PR_snprintf(name, sizeof(name), "nsDocument%s %s", kNSURIs[nsid],
+                  uri.get());
     }
     else {
-      PR_snprintf(name, sizeof(name), "nsDocument %s %s",
-                  loadedAsData.get(), uri.get());
+      PR_snprintf(name, sizeof(name), "nsDocument %s", uri.get());
     }
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsDocument), name);
   }
@@ -1964,8 +1954,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   if (tmp->mAnimationController) {
     tmp->mAnimationController->Unlink();
   }
-
-  tmp->mPendingTitleChangeEvent.Revoke();
   
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -4431,7 +4419,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewElement(aReturn, nodeInfo.forget(), NOT_FROM_PARSER);
+  PRInt32 ns = nodeInfo->NamespaceID();
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -6762,7 +6752,8 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+  return NS_NewElement(aResult, aNamespaceID, nodeInfo.forget(),
+                       NOT_FROM_PARSER);
 }
 
 bool
@@ -8438,7 +8429,7 @@ nsIDocument::SizeOf() const
 }
 
 static void
-DispatchFullScreenChange(nsIDocument* aTarget)
+DispatchFullScreenChange(nsINode* aTarget)
 {
   nsRefPtr<nsPLDOMEvent> e =
     new nsPLDOMEvent(aTarget,
@@ -8662,7 +8653,7 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   // element, and the full-screen-ancestor styles on ancestors of the element
   // in this document.
   if (SetFullScreenState(aElement, true)) {
-    DispatchFullScreenChange(aElement->OwnerDoc());
+    DispatchFullScreenChange(aElement);
   }
 
   // Propagate up the document hierarchy, setting the full-screen element as
@@ -8675,7 +8666,7 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   while ((parent = child->GetParentDocument())) {
     Element* element = parent->FindContentForSubDocument(child)->AsElement();
     if (::SetFullScreenState(parent, element, true)) {
-      DispatchFullScreenChange(element->OwnerDoc());
+      DispatchFullScreenChange(element);
     }
     child = parent;
   }

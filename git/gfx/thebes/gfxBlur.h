@@ -140,7 +140,7 @@ protected:
      /**
       * The object that actually does the blurring for us.
       */
-    mozilla::gfx::AlphaBoxBlur *mBlur;
+    nsAutoPtr<mozilla::gfx::AlphaBoxBlur> mBlur;
 };
 
 #endif /* GFX_BLUR_H */

@@ -272,7 +272,7 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
         XPCCompartmentMap &map = self->GetCompartmentMap();
 #ifdef DEBUG
         {
-            JSCompartment *current = NULL;
+            JSCompartment *current = NULL;  // init to shut GCC up
             NS_ASSERTION(map.Get(key, &current), "no compartment?");
             NS_ASSERTION(current == compartment, "compartment mismatch");
         }
@@ -2023,8 +2023,8 @@ public:
                                data.gcHeapUnusedPercentage,
                                "Fraction of the garbage-collected JavaScript heap that is unused. "
                                "Computed as ('js-gc-heap-chunk-clean-unused' + "
-                               "'js-gc-heap-chunk-dirty-unused' + 'js-gc-heap-decommitted' + "
-                               "'js-gc-heap-arena-unused') / 'js-gc-heap'.",
+                               "'js-gc-heap-chunk-dirty-unused' + 'js-gc-heap-arena-unused') / "
+                               "'js-gc-heap'.",
                                callback, closure);
 
         ReportMemoryBytes(NS_LITERAL_CSTRING("js-total-objects"),
