@@ -73,7 +73,7 @@ BluetoothReplyRunnable::Run()
   }
 
   if (NS_FAILED(rv)) {
-    BT_WARNING("Could not fire DOMRequest!");
+    NS_WARNING("Could not fire DOMRequest!");
   }
 
   ReleaseMembers();

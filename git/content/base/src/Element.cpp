@@ -1405,7 +1405,7 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
                             nsInputEvent* aSourceEvent,
                             nsIContent* aTarget,
                             bool aFullDispatch,
-                            const EventFlags* aExtraEventFlags,
+                            const widget::EventFlags* aExtraEventFlags,
                             nsEventStatus* aStatus)
 {
   NS_PRECONDITION(aTarget, "Must have target");
@@ -1712,6 +1712,10 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
 
   UpdateState(aNotify);
 
+  if (aNotify) {
+    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType);
+  }
+
   if (aCallAfterSetAttr) {
     rv = AfterSetAttr(aNamespaceID, aName, &aValueForAfterSetAttr, aNotify);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1720,10 +1724,6 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
       OnSetDirAttr(this, &aValueForAfterSetAttr,
                    hadValidDir, hadDirAuto, aNotify);
     }
-  }
-
-  if (aNotify) {
-    nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, aModType);
   }
 
   if (aFireMutation) {

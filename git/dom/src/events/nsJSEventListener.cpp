@@ -273,7 +273,7 @@ NS_NewJSEventListener(nsIScriptContext* aContext, JSObject* aScopeObject,
 {
   MOZ_ASSERT(aContext || aHandler.HasEventHandler(),
              "Must have a handler if we don't have an nsIScriptContext");
-  NS_ENSURE_ARG(aEventType || !NS_IsMainThread());
+  NS_ENSURE_ARG(aEventType);
   nsJSEventListener* it =
     new nsJSEventListener(aContext, aScopeObject, aTarget, aEventType,
                           aHandler);

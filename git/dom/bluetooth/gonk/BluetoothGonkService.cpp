@@ -99,11 +99,10 @@ StartStopGonkBluetooth(bool aShouldEnable)
       // if isEnabled < 0, this means we brought up the firmware, but something
       // went wrong with bluetoothd. Post a warning message, but try to proceed
       // with firmware unloading if that was requested, so we can retry later.
-      BT_WARNING("Bluetooth firmware up, but cannot connect to HCI socket! "
-        "Check bluetoothd and try stopping/starting bluetooth again.");
+      NS_WARNING("Bluetooth firmware up, but cannot connect to HCI socket! Check bluetoothd and try stopping/starting bluetooth again.");
       // Just disable now, return an error.
       if (sBluedroidFunctions.bt_disable() != 0) {
-        BT_WARNING("Problem shutting down bluetooth after error in bringup!");
+        NS_WARNING("Problem shutting down bluetooth after error in bringup!");
       }
       return NS_ERROR_FAILURE;
     }
@@ -111,7 +110,7 @@ StartStopGonkBluetooth(bool aShouldEnable)
     result = (sBluedroidFunctions.bt_disable() == 0) ? true : false;
   }
   if (!result) {
-    BT_WARNING("Could not set gonk bluetooth firmware!");
+    NS_WARNING("Could not set gonk bluetooth firmware!");
     return NS_ERROR_FAILURE;
   }
   

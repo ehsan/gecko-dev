@@ -764,7 +764,7 @@ public:
                                      nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      bool aFullDispatch,
-                                     const EventFlags* aFlags,
+                                     const widget::EventFlags* aFlags,
                                      nsEventStatus* aStatus);
 
   /**

@@ -601,8 +601,10 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_WHEEL_EVENT:
     {
-      WheelEvent* oldWheelEvent = static_cast<WheelEvent*>(mEvent);
-      WheelEvent* wheelEvent = new WheelEvent(false, msg, nullptr);
+      widget::WheelEvent* oldWheelEvent =
+        static_cast<widget::WheelEvent*>(mEvent);
+      widget::WheelEvent* wheelEvent =
+        new widget::WheelEvent(false, msg, nullptr);
       wheelEvent->AssignWheelEventData(*oldWheelEvent, true);
       newEvent = wheelEvent;
       break;

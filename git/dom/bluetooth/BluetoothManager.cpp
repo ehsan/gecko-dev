@@ -48,7 +48,7 @@ public:
 
     const BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
     if (v.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-      BT_WARNING("Not a BluetoothNamedValue array!");
+      NS_WARNING("Not a BluetoothNamedValue array!");
       SetError(NS_LITERAL_STRING("BluetoothReplyTypeError"));
       return false;
     }
@@ -61,7 +61,7 @@ public:
     nsresult rv;
     nsIScriptContext* sc = mManagerPtr->GetContextForEventHandlers(&rv);
     if (!sc) {
-      BT_WARNING("Cannot create script context!");
+      NS_WARNING("Cannot create script context!");
       SetError(NS_LITERAL_STRING("BluetoothScriptContextError"));
       return false;
     }
@@ -71,7 +71,7 @@ public:
     JS::Rooted<JSObject*> global(cx, sc->GetWindowProxy());
     rv = nsContentUtils::WrapNative(cx, global, adapter, aValue);
     if (NS_FAILED(rv)) {
-      BT_WARNING("Cannot create native object!");
+      NS_WARNING("Cannot create native object!");
       SetError(NS_LITERAL_STRING("BluetoothNativeObjectError"));
       return false;
     }
@@ -120,7 +120,7 @@ BluetoothManager::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling manager property: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(name));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
 #endif
 }
 
@@ -197,7 +197,7 @@ BluetoothManager::CheckPermission(nsPIDOMWindow* aWindow)
 void
 BluetoothManager::Notify(const BluetoothSignal& aData)
 {
-  BT_LOGD("[M] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
+  BT_LOG("[M] %s: %s", __FUNCTION__, NS_ConvertUTF16toUTF8(aData.name()).get());
 
   if (aData.name().EqualsLiteral("AdapterAdded")) {
     DispatchTrustedEvent(NS_LITERAL_STRING("adapteradded"));
@@ -210,7 +210,7 @@ BluetoothManager::Notify(const BluetoothSignal& aData)
     nsCString warningMsg;
     warningMsg.AssignLiteral("Not handling manager signal: ");
     warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
-    BT_WARNING(warningMsg.get());
+    NS_WARNING(warningMsg.get());
 #endif
   }
 }

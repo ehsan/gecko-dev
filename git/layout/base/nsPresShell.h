@@ -337,10 +337,6 @@ public:
 
   virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
 
-  virtual void RemoveImageFromVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
-
-  virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
-
 protected:
   virtual ~PresShell();
 
@@ -716,7 +712,7 @@ protected:
   static void MarkImagesInListVisible(const nsDisplayList& aList);
 
   // A list of images that are visible or almost visible.
-  nsTHashtable< nsRefPtrHashKey<nsIImageLoadingContent> > mVisibleImages;
+  nsTArray< nsCOMPtr<nsIImageLoadingContent > > mVisibleImages;
 
 #ifdef DEBUG
   // The reflow root under which we're currently reflowing.  Null when

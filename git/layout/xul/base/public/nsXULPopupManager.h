@@ -736,7 +736,7 @@ protected:
   nsIntPoint mCachedMousePoint;
 
   // cached modifiers
-  mozilla::Modifiers mCachedModifiers;
+  mozilla::widget::Modifiers mCachedModifiers;
 
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;

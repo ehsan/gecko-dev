@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Pref="dom.telephony.enabled"]
 interface TelephonyCall : EventTarget {
   readonly attribute DOMString number;
 

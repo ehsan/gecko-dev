@@ -255,7 +255,7 @@ struct DeltaValues
   {
   }
 
-  explicit DeltaValues(WheelEvent* aEvent) :
+  explicit DeltaValues(widget::WheelEvent* aEvent) :
     deltaX(aEvent->deltaX), deltaY(aEvent->deltaY)
   {
   }
@@ -268,17 +268,17 @@ class nsMouseWheelTransaction {
 public:
   static nsIFrame* GetTargetFrame() { return sTargetFrame; }
   static void BeginTransaction(nsIFrame* aTargetFrame,
-                               WheelEvent* aEvent);
+                               widget::WheelEvent* aEvent);
   // Be careful, UpdateTransaction may fire a DOM event, therefore, the target
   // frame might be destroyed in the event handler.
-  static bool UpdateTransaction(WheelEvent* aEvent);
+  static bool UpdateTransaction(widget::WheelEvent* aEvent);
   static void EndTransaction();
   static void OnEvent(nsEvent* aEvent);
   static void Shutdown();
   static uint32_t GetTimeoutTime();
 
 
-  static DeltaValues AccelerateWheelDelta(WheelEvent* aEvent,
+  static DeltaValues AccelerateWheelDelta(widget::WheelEvent* aEvent,
                                           bool aAllowScrollSpeedOverride);
 
   enum {
@@ -292,7 +292,7 @@ protected:
   static uint32_t GetIgnoreMoveDelayTime();
   static int32_t GetAccelerationStart();
   static int32_t GetAccelerationFactor();
-  static DeltaValues OverrideSystemScrollSpeed(WheelEvent* aEvent);
+  static DeltaValues OverrideSystemScrollSpeed(widget::WheelEvent* aEvent);
   static double ComputeAcceleratedWheelDelta(double aDelta, int32_t aFactor);
 
   static nsWeakFrame sTargetFrame;
@@ -341,7 +341,7 @@ CanScrollOn(nsIScrollableFrame* aScrollFrame, double aDeltaX, double aDeltaY)
 
 void
 nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
-                                          WheelEvent* aEvent)
+                                          widget::WheelEvent* aEvent)
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
   sTargetFrame = aTargetFrame;
@@ -353,7 +353,7 @@ nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
 }
 
 bool
-nsMouseWheelTransaction::UpdateTransaction(WheelEvent* aEvent)
+nsMouseWheelTransaction::UpdateTransaction(widget::WheelEvent* aEvent)
 {
   nsIScrollableFrame* sf = GetTargetFrame()->GetScrollTargetFrame();
   NS_ENSURE_TRUE(sf, false);
@@ -538,7 +538,7 @@ nsMouseWheelTransaction::GetIgnoreMoveDelayTime()
 }
 
 DeltaValues
-nsMouseWheelTransaction::AccelerateWheelDelta(WheelEvent* aEvent,
+nsMouseWheelTransaction::AccelerateWheelDelta(widget::WheelEvent* aEvent,
                                               bool aAllowScrollSpeedOverride)
 {
   DeltaValues result(aEvent);
@@ -589,7 +589,7 @@ nsMouseWheelTransaction::GetAccelerationFactor()
 }
 
 DeltaValues
-nsMouseWheelTransaction::OverrideSystemScrollSpeed(WheelEvent* aEvent)
+nsMouseWheelTransaction::OverrideSystemScrollSpeed(widget::WheelEvent* aEvent)
 {
   MOZ_ASSERT(sTargetFrame, "We don't have mouse scrolling transaction");
   MOZ_ASSERT(aEvent->deltaMode == nsIDOMWheelEvent::DOM_DELTA_LINE);
@@ -972,7 +972,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       if (content)
         mCurrentTargetContent = content;
 
-      WheelEvent* wheelEvent = static_cast<WheelEvent*>(aEvent);
+      widget::WheelEvent* wheelEvent = static_cast<widget::WheelEvent*>(aEvent);
       WheelPrefs::GetInstance()->ApplyUserPrefsToDelta(wheelEvent);
 
       // If we won't dispatch a DOM event for this event, nothing to do anymore.
@@ -1388,7 +1388,7 @@ nsEventStateManager::DispatchCrossProcessEvent(nsEvent* aEvent,
     return remote->SendRealKeyEvent(*keyEvent);
   }
   case NS_WHEEL_EVENT: {
-    WheelEvent* wheelEvent = static_cast<WheelEvent*>(aEvent);
+    widget::WheelEvent* wheelEvent = static_cast<widget::WheelEvent*>(aEvent);
     return remote->SendMouseWheelEvent(*wheelEvent);
   }
   case NS_TOUCH_EVENT: {
@@ -2011,7 +2011,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
   // occurred, and aSelectionTarget is the node to use when a selection is used
   bool canDrag;
   nsCOMPtr<nsIContent> dragDataNode;
-  bool wasAlt = (mGestureModifiers & MODIFIER_ALT) != 0;
+  bool wasAlt = (mGestureModifiers & widget::MODIFIER_ALT) != 0;
   nsresult rv = nsContentAreaDragDrop::GetDragData(window, mGestureDownContent,
                                                    aSelectionTarget, wasAlt,
                                                    aDataTransfer, &canDrag, aSelection,
@@ -2331,7 +2331,7 @@ GetParentFrameToScroll(nsIFrame* aFrame)
 
 void
 nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
-                                                     WheelEvent* aEvent,
+                                                     widget::WheelEvent* aEvent,
                                                      nsEventStatus* aStatus)
 {
   MOZ_ASSERT(aEvent);
@@ -2456,7 +2456,7 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
 
 void
 nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
-                                         WheelEvent* aEvent,
+                                         widget::WheelEvent* aEvent,
                                          nsEventStatus* aStatus,
                                          int32_t aDelta,
                                          DeltaDirection aDeltaDirection)
@@ -2491,7 +2491,7 @@ nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
 
 void
 nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
-                                          WheelEvent* aEvent,
+                                          widget::WheelEvent* aEvent,
                                           nsEventStatus* aStatus,
                                           int32_t aPixelDelta,
                                           DeltaDirection aDeltaDirection)
@@ -2527,7 +2527,7 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 
 nsIScrollableFrame*
 nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
-                                         WheelEvent* aEvent,
+                                         widget::WheelEvent* aEvent,
                                          ComputeScrollTargetOptions aOptions)
 {
   if (aOptions & PREFER_MOUSE_WHEEL_TRANSACTION) {
@@ -2615,7 +2615,7 @@ nsEventStateManager::ComputeScrollTarget(nsIFrame* aTargetFrame,
 
 nsSize
 nsEventStateManager::GetScrollAmount(nsPresContext* aPresContext,
-                                     WheelEvent* aEvent,
+                                     widget::WheelEvent* aEvent,
                                      nsIScrollableFrame* aScrollableFrame)
 {
   MOZ_ASSERT(aPresContext);
@@ -2646,7 +2646,7 @@ nsEventStateManager::GetScrollAmount(nsPresContext* aPresContext,
 
 void
 nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
-                                  WheelEvent* aEvent)
+                                  widget::WheelEvent* aEvent)
 {
   MOZ_ASSERT(aScrollableFrame);
   MOZ_ASSERT(aEvent);
@@ -2733,20 +2733,20 @@ nsEventStateManager::DoScrollText(nsIScrollableFrame* aScrollableFrame,
 
   nsIScrollableFrame::ScrollMode mode;
   switch (aEvent->scrollType) {
-    case WheelEvent::SCROLL_DEFAULT:
+    case widget::WheelEvent::SCROLL_DEFAULT:
       if (isDeltaModePixel) {
         mode = nsIScrollableFrame::NORMAL;
       } else {
         mode = nsIScrollableFrame::SMOOTH;
       }
       break;
-    case WheelEvent::SCROLL_SYNCHRONOUSLY:
+    case widget::WheelEvent::SCROLL_SYNCHRONOUSLY:
       mode = nsIScrollableFrame::INSTANT;
       break;
-    case WheelEvent::SCROLL_ASYNCHRONOUSELY:
+    case widget::WheelEvent::SCROLL_ASYNCHRONOUSELY:
       mode = nsIScrollableFrame::NORMAL;
       break;
-    case WheelEvent::SCROLL_SMOOTHLY:
+    case widget::WheelEvent::SCROLL_SMOOTHLY:
       mode = nsIScrollableFrame::SMOOTH;
       break;
     default:
@@ -3159,7 +3159,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         break;
       }
 
-      WheelEvent* wheelEvent = static_cast<WheelEvent*>(aEvent);
+      widget::WheelEvent* wheelEvent = static_cast<widget::WheelEvent*>(aEvent);
       switch (WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent)) {
         case WheelPrefs::ACTION_SCROLL: {
           if (!wheelEvent->deltaX && !wheelEvent->deltaY) {
@@ -5086,7 +5086,7 @@ void
 nsEventStateManager::DeltaAccumulator::InitLineOrPageDelta(
                                          nsIFrame* aTargetFrame,
                                          nsEventStateManager* aESM,
-                                         WheelEvent* aEvent)
+                                         widget::WheelEvent* aEvent)
 {
   MOZ_ASSERT(aESM);
   MOZ_ASSERT(aEvent);
@@ -5189,7 +5189,7 @@ nsEventStateManager::DeltaAccumulator::Reset()
 
 nsIntPoint
 nsEventStateManager::DeltaAccumulator::ComputeScrollAmountForDefaultAction(
-                       WheelEvent* aEvent,
+                       widget::WheelEvent* aEvent,
                        const nsIntSize& aScrollAmountInDevPixels)
 {
   MOZ_ASSERT(aEvent);
@@ -5273,29 +5273,29 @@ nsEventStateManager::WheelPrefs::Reset()
 }
 
 nsEventStateManager::WheelPrefs::Index
-nsEventStateManager::WheelPrefs::GetIndexFor(WheelEvent* aEvent)
+nsEventStateManager::WheelPrefs::GetIndexFor(widget::WheelEvent* aEvent)
 {
   if (!aEvent) {
     return INDEX_DEFAULT;
   }
 
-  Modifiers modifiers =
-    (aEvent->modifiers & (MODIFIER_ALT |
-                          MODIFIER_CONTROL |
-                          MODIFIER_META |
-                          MODIFIER_SHIFT |
-                          MODIFIER_OS));
+  widget::Modifiers modifiers =
+    (aEvent->modifiers & (widget::MODIFIER_ALT |
+                          widget::MODIFIER_CONTROL |
+                          widget::MODIFIER_META |
+                          widget::MODIFIER_SHIFT |
+                          widget::MODIFIER_OS));
 
   switch (modifiers) {
-    case MODIFIER_ALT:
+    case widget::MODIFIER_ALT:
       return INDEX_ALT;
-    case MODIFIER_CONTROL:
+    case widget::MODIFIER_CONTROL:
       return INDEX_CONTROL;
-    case MODIFIER_META:
+    case widget::MODIFIER_META:
       return INDEX_META;
-    case MODIFIER_SHIFT:
+    case widget::MODIFIER_SHIFT:
       return INDEX_SHIFT;
-    case MODIFIER_OS:
+    case widget::MODIFIER_OS:
       return INDEX_OS;
     default:
       // If two or more modifier keys are pressed, we should use default
@@ -5384,7 +5384,8 @@ nsEventStateManager::WheelPrefs::Init(
 }
 
 void
-nsEventStateManager::WheelPrefs::ApplyUserPrefsToDelta(WheelEvent* aEvent)
+nsEventStateManager::WheelPrefs::ApplyUserPrefsToDelta(
+                                   widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);
@@ -5411,7 +5412,7 @@ nsEventStateManager::WheelPrefs::ApplyUserPrefsToDelta(WheelEvent* aEvent)
 
 void
 nsEventStateManager::WheelPrefs::CancelApplyingUserPrefsFromOverflowDelta(
-                                                   WheelEvent* aEvent)
+                                                   widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);
@@ -5431,7 +5432,7 @@ nsEventStateManager::WheelPrefs::CancelApplyingUserPrefsFromOverflowDelta(
 }
 
 nsEventStateManager::WheelPrefs::Action
-nsEventStateManager::WheelPrefs::ComputeActionFor(WheelEvent* aEvent)
+nsEventStateManager::WheelPrefs::ComputeActionFor(widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);
@@ -5457,7 +5458,7 @@ nsEventStateManager::WheelPrefs::ComputeActionFor(WheelEvent* aEvent)
 
 bool
 nsEventStateManager::WheelPrefs::NeedToComputeLineOrPageDelta(
-                                   WheelEvent* aEvent)
+                                   widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);
@@ -5468,7 +5469,7 @@ nsEventStateManager::WheelPrefs::NeedToComputeLineOrPageDelta(
 
 bool
 nsEventStateManager::WheelPrefs::IsOverOnePageScrollAllowedX(
-                                   WheelEvent* aEvent)
+                                   widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);
@@ -5478,7 +5479,7 @@ nsEventStateManager::WheelPrefs::IsOverOnePageScrollAllowedX(
 
 bool
 nsEventStateManager::WheelPrefs::IsOverOnePageScrollAllowedY(
-                                   WheelEvent* aEvent)
+                                   widget::WheelEvent* aEvent)
 {
   Index index = GetIndexFor(aEvent);
   Init(index);

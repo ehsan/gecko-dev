@@ -17,7 +17,6 @@
 #include "nsDisplayList.h"
 #include "imgIContainer.h"
 #include "mozilla/Attributes.h"
-#include "nsIReflowCallback.h"
 
 class nsImageMap;
 class nsIURI;
@@ -58,8 +57,7 @@ private:
 
 #define ImageFrameSuper nsSplittableFrame
 
-class nsImageFrame : public ImageFrameSuper,
-                     public nsIReflowCallback {
+class nsImageFrame : public ImageFrameSuper {
 public:
   typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::layers::ImageLayer ImageLayer;
@@ -168,11 +166,6 @@ public:
                                  InlineMinWidthData *aData);
 
   void DisconnectMap();
-
-  // nsIReflowCallback
-  virtual bool ReflowFinished() MOZ_OVERRIDE;
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
-
 protected:
   virtual ~nsImageFrame();
 
@@ -291,7 +284,6 @@ private:
 
   bool mDisplayingIcon;
   bool mFirstFrameComplete;
-  bool mReflowCallbackPosted;
 
   static nsIIOService* sIOService;
   
