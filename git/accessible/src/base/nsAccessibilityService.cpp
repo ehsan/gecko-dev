@@ -643,9 +643,6 @@ nsAccessibilityService::GetAccessibleFor(nsIDOMNode *aNode,
     return NS_OK;
 
   nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
-  if (!node)
-    return NS_ERROR_INVALID_ARG;
-
   NS_IF_ADDREF(*aAccessible = GetAccessible(node));
   return NS_OK;
 }
@@ -815,13 +812,6 @@ nsAccessibilityService::GetAccessibleFromCache(nsIDOMNode* aNode,
                                                nsIAccessible** aAccessible)
 {
   NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
-  if (!aNode)
-    return NS_OK;
-
-  nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
-  if (!node)
-    return NS_ERROR_INVALID_ARG;
 
   // Search for an accessible in each of our per document accessible object
   // caches. If we don't find it, and the given node is itself a document, check
@@ -829,6 +819,7 @@ nsAccessibilityService::GetAccessibleFromCache(nsIDOMNode* aNode,
   // document accessibles are not stored in the document cache, however an
   // "unofficially" shutdown document (i.e. not from nsAccDocManager) can still
   // exist in the document cache.
+  nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
   nsAccessible* accessible = FindAccessibleInCache(node);
   if (!accessible) {
     nsCOMPtr<nsIDocument> document(do_QueryInterface(node));

@@ -871,6 +871,7 @@ Debugger::onTrap(JSContext *cx, Value *vp)
             return JSTRAP_ERROR;
     }
 
+    Value frame = UndefinedValue();
     for (Breakpoint **p = triggered.begin(); p != triggered.end(); p++) {
         Breakpoint *bp = *p;
 
