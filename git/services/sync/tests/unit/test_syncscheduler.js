@@ -46,34 +46,6 @@ function setUp() {
   return serverKeys.upload(Service.cryptoKeysURL);
 }
 
-function cleanUpAndGo(server) {
-  Utils.nextTick(function () {
-    Service.startOver();
-    if (server) {
-      server.stop(run_next_test);
-    } else {
-      run_next_test();
-    }
-  });
-}
-
-let timer;
-function waitForZeroTimer(callback) {
-  // First wait >100ms (nsITimers can take up to that much time to fire, so
-  // we can account for the timer in delayedAutoconnect) and then two event
-  // loop ticks (to account for the Utils.nextTick() in autoConnect).
-  let ticks = 2;
-  function wait() {
-    if (ticks) {
-      ticks -= 1;
-      Utils.nextTick(wait);
-      return;
-    }
-    callback();
-  }
-  timer = Utils.namedTimer(wait, 150, {}, "timer");
-}
-
 function run_test() {
   initTestLogging("Trace");
 
@@ -90,26 +62,6 @@ add_test(function test_prefAttributes() {
   const THRESHOLD = 3142;
   const SCORE = 2718;
   const TIMESTAMP1 = 1275493471649;
-
-  _("The 'nextSync' attribute stores a millisecond timestamp rounded down to the nearest second.");
-  do_check_eq(SyncScheduler.nextSync, 0);
-  SyncScheduler.nextSync = TIMESTAMP1;
-  do_check_eq(SyncScheduler.nextSync, Math.floor(TIMESTAMP1 / 1000) * 1000);
-
-  _("'syncInterval' defaults to singleDeviceInterval.");
-  do_check_eq(Svc.Prefs.get('syncInterval'), undefined);
-  do_check_eq(SyncScheduler.syncInterval, SyncScheduler.singleDeviceInterval);
-
-  _("'syncInterval' corresponds to a preference setting.");
-  SyncScheduler.syncInterval = INTERVAL;
-  do_check_eq(SyncScheduler.syncInterval, INTERVAL);
-  do_check_eq(Svc.Prefs.get('syncInterval'), INTERVAL);
-
-  _("'syncThreshold' corresponds to preference, defaults to SINGLE_USER_THRESHOLD");
-  do_check_eq(Svc.Prefs.get('syncThreshold'), undefined);
-  do_check_eq(SyncScheduler.syncThreshold, SINGLE_USER_THRESHOLD);
-  SyncScheduler.syncThreshold = THRESHOLD;
-  do_check_eq(SyncScheduler.syncThreshold, THRESHOLD);
 
   _("'globalScore' corresponds to preference, defaults to zero.");
   do_check_eq(Svc.Prefs.get('globalScore'), undefined);
@@ -171,7 +123,10 @@ add_test(function test_updateClientMode() {
   do_check_false(SyncScheduler.numClients > 1);
   do_check_false(SyncScheduler.idle);
 
-  cleanUpAndGo();
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
+  run_next_test();
 });
 
 add_test(function test_masterpassword_locked_retry_interval() {
@@ -207,7 +162,8 @@ add_test(function test_masterpassword_locked_retry_interval() {
   Service.verifyLogin = Service._verifyLogin;
   SyncScheduler.scheduleAtInterval = SyncScheduler._scheduleAtInterval;
 
-  cleanUpAndGo(server);
+  Service.startOver();
+  server.stop(run_next_test);
 });
 
 add_test(function test_calculateBackoff() {
@@ -227,23 +183,14 @@ add_test(function test_calculateBackoff() {
   
   do_check_eq(backoffInterval, MAXIMUM_BACKOFF_INTERVAL + 10);
 
-  cleanUpAndGo();
+  Status.backoffInterval = 0;
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
+  run_next_test();
 });
 
-add_test(function test_scheduleNextSync_nowOrPast() {
-  Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
-    Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-    cleanUpAndGo(server);
-  });
-
-  let server = sync_httpd_setup();
-  setUp();
-
-  // We're late for a sync...
-  SyncScheduler.scheduleNextSync(-1);
-});
-
-add_test(function test_scheduleNextSync_future_noBackoff() {
+add_test(function test_scheduleNextSync_noBackoff() {
   _("scheduleNextSync() uses the current syncInterval if no interval is provided.");
   // Test backoffInterval is 0 as expected.
   do_check_eq(Status.backoffInterval, 0);
@@ -289,14 +236,15 @@ add_test(function test_scheduleNextSync_future_noBackoff() {
   do_check_true(SyncScheduler.nextSync <= Date.now() + 1);
   do_check_eq(SyncScheduler.syncTimer.delay, 1);
 
-  cleanUpAndGo();
+  SyncScheduler.syncTimer.clear();
+  Service.startOver();
+  run_next_test();
 });
 
-add_test(function test_scheduleNextSync_future_backoff() {
+add_test(function test_scheduleNextSync_backoff() {
  _("scheduleNextSync() will honour backoff in all scheduling requests.");
-  // Let's take a backoff interval that's bigger than the default sync interval.
-  const BACKOFF = 7337;
-  Status.backoffInterval = SyncScheduler.syncInterval + BACKOFF;
+  Status.backoffInterval = 7337000;
+  do_check_true(Status.backoffInterval > SyncScheduler.syncInterval);
 
   _("Test setting sync interval when nextSync == 0");
   SyncScheduler.nextSync = 0;
@@ -334,12 +282,14 @@ add_test(function test_scheduleNextSync_future_backoff() {
   do_check_true(SyncScheduler.nextSync <= Date.now() + requestedInterval);
   do_check_eq(SyncScheduler.syncTimer.delay, requestedInterval);
 
-  // Request a sync at the smallest possible interval (0 triggers now).
+  // Request a sync at the smallest possible number.
   SyncScheduler.scheduleNextSync(1);
   do_check_true(SyncScheduler.nextSync <= Date.now() + Status.backoffInterval);
   do_check_eq(SyncScheduler.syncTimer.delay, Status.backoffInterval);
 
-  cleanUpAndGo();
+  SyncScheduler.syncTimer.clear();
+  Service.startOver();
+  run_next_test();
 });
 
 add_test(function test_handleSyncError() {
@@ -397,7 +347,8 @@ add_test(function test_handleSyncError() {
   do_check_true(Status.enforceBackoff);
   SyncScheduler.syncTimer.clear();
 
-  cleanUpAndGo(server);
+  Service.startOver();
+  server.stop(run_next_test);
 });
 
 add_test(function test_client_sync_finish_updateClientMode() {
@@ -431,47 +382,21 @@ add_test(function test_client_sync_finish_updateClientMode() {
   do_check_false(SyncScheduler.numClients > 1);
   do_check_false(SyncScheduler.idle);
 
-  cleanUpAndGo(server);
+  Service.startOver();
+  server.stop(run_next_test);
 });
 
-add_test(function test_autoconnect_nextSync_past() {
-  // nextSync will be 0 by default, so it's way in the past.
-
+add_test(function test_autoconnect() {
   Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
     Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-    cleanUpAndGo(server);
+
+    Service.startOver();
+    server.stop(run_next_test);
   });
 
   let server = sync_httpd_setup();
   setUp();
 
-  SyncScheduler.delayedAutoConnect(0);
-});
-
-add_test(function test_autoconnect_nextSync_future() {
-  let previousSync = Date.now() + SyncScheduler.syncInterval / 2;
-  SyncScheduler.nextSync = previousSync;
-  // nextSync rounds to the nearest second.
-  let expectedSync = SyncScheduler.nextSync;
-  let expectedInterval = expectedSync - Date.now() - 1000;
-
-  // Ensure we don't actually try to sync (or log in for that matter).
-  function onLoginStart() {
-    do_throw("Should not get here!");
-  }
-  Svc.Obs.add("weave:service:login:start", onLoginStart);
-
-  waitForZeroTimer(function () {
-    do_check_eq(SyncScheduler.nextSync, expectedSync);
-    do_check_true(SyncScheduler.syncTimer.delay >= expectedInterval);
-
-    Svc.Obs.remove("weave:service:login:start", onLoginStart);
-    cleanUpAndGo();
-  });
-
-  Service.username = "johndoe";
-  Service.password = "ilovejane";
-  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   SyncScheduler.delayedAutoConnect(0);
 });
 
@@ -486,7 +411,6 @@ add_test(function test_autoconnect_mp_locked() {
   let origPP = Service.__lookupGetter__("passphrase");
   delete Service.passphrase;
   Service.__defineGetter__("passphrase", function() {
-    _("Faking Master Password entry cancelation.");
     throw "User canceled Master Password entry";
   });
 
@@ -501,13 +425,15 @@ add_test(function test_autoconnect_mp_locked() {
       delete Service.passphrase;
       Service.__defineGetter__("passphrase", origPP);
 
-      cleanUpAndGo(server);
+      Service.startOver();
+      server.stop(run_next_test);
     });
   });
 
   SyncScheduler.delayedAutoConnect(0);
 });
 
+let timer;
 add_test(function test_no_autoconnect_during_wizard() {
   let server = sync_httpd_setup();
   setUp();
@@ -521,10 +447,22 @@ add_test(function test_no_autoconnect_during_wizard() {
   }
   Svc.Obs.add("weave:service:login:start", onLoginStart);
 
-  waitForZeroTimer(function () {
+  // First wait >100ms (nsITimers can take up to that much time to fire, so
+  // we can account for the timer in delayedAutoconnect) and then two event
+  // loop ticks (to account for the Utils.nextTick() in autoConnect).
+  let ticks = 2;
+  function wait() {
+    if (ticks) {
+      ticks -= 1;
+      Utils.nextTick(wait);
+      return;
+    }
     Svc.Obs.remove("weave:service:login:start", onLoginStart);
-    cleanUpAndGo(server);
-  });
+
+    Service.startOver();
+    server.stop(run_next_test);    
+  }
+  timer = Utils.namedTimer(wait, 150, {}, "timer");
 
   SyncScheduler.delayedAutoConnect(0);
 });
@@ -538,14 +476,25 @@ add_test(function test_no_autoconnect_status_not_ok() {
   }
   Svc.Obs.add("weave:service:login:start", onLoginStart);
 
-  waitForZeroTimer(function () {
+  // First wait >100ms (nsITimers can take up to that much time to fire, so
+  // we can account for the timer in delayedAutoconnect) and then two event
+  // loop ticks (to account for the Utils.nextTick() in autoConnect).
+  let ticks = 2;
+  function wait() {
+    if (ticks) {
+      ticks -= 1;
+      Utils.nextTick(wait);
+      return;
+    }
     Svc.Obs.remove("weave:service:login:start", onLoginStart);
 
     do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_USERNAME);
-
-    cleanUpAndGo(server);
-  });
+    
+    Service.startOver();
+    server.stop(run_next_test); 
+  }
+  timer = Utils.namedTimer(wait, 150, {}, "timer");
 
   SyncScheduler.delayedAutoConnect(0);
 });
@@ -553,7 +502,9 @@ add_test(function test_no_autoconnect_status_not_ok() {
 add_test(function test_autoconnectDelay_pref() {
   Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
     Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-    cleanUpAndGo(server);
+
+    Service.startOver();
+    server.stop(run_next_test);
   });
 
   Svc.Prefs.set("autoconnectDelay", 1);
@@ -585,7 +536,8 @@ add_test(function test_idle_adjustSyncInterval() {
   do_check_eq(SyncScheduler.idle, true);
   do_check_eq(SyncScheduler.syncInterval, SyncScheduler.idleInterval);
 
-  cleanUpAndGo();
+  SyncScheduler.setDefaults();
+  run_next_test();
 });
 
 add_test(function test_back_triggersSync() {
@@ -602,7 +554,9 @@ add_test(function test_back_triggersSync() {
   // succeed. We just want to ensure that it was attempted.
   Svc.Obs.add("weave:service:login:error", function onLoginError() {
     Svc.Obs.remove("weave:service:login:error", onLoginError);
-    cleanUpAndGo();
+    SyncScheduler.syncTimer.clear();
+    SyncScheduler.setDefaults();    
+    run_next_test();
   });
 
   // Send a 'back' event to trigger sync soonish.
@@ -614,8 +568,7 @@ add_test(function test_back_triggersSync_observesBackoff() {
   do_check_false(SyncScheduler.idle);
 
   // Set up: Set backoff, define 2 clients and put the system in idle.
-  const BACKOFF = 7337;
-  Status.backoffInterval = SyncScheduler.idleInterval + BACKOFF;
+  Status.backoffInterval = 7337000;
   SyncScheduler.numClients = 2;
   SyncScheduler.observe(null, "idle", Svc.Prefs.get("scheduler.idleTime"));
   do_check_eq(SyncScheduler.idle, true);
@@ -631,7 +584,9 @@ add_test(function test_back_triggersSync_observesBackoff() {
     do_check_true(SyncScheduler.nextSync <= Date.now() + Status.backoffInterval);
     do_check_eq(SyncScheduler.syncTimer.delay, Status.backoffInterval);
 
-    cleanUpAndGo();
+    SyncScheduler.syncTimer.clear();
+    SyncScheduler.setDefaults();
+    run_next_test();
   }, IDLE_OBSERVER_BACK_DELAY * 1.5, {}, "timer");
 
   // Send a 'back' event to try to trigger sync soonish.
@@ -660,7 +615,8 @@ add_test(function test_back_debouncing() {
 
   timer = Utils.namedTimer(function () {
     Svc.Obs.remove("weave:service:login:start", onLoginStart);
-    cleanUpAndGo();
+    SyncScheduler.setDefaults();
+    run_next_test();
   }, IDLE_OBSERVER_BACK_DELAY * 1.5, {}, "timer");
 });
 
@@ -716,7 +672,8 @@ add_test(function test_sync_X_Weave_Backoff() {
   do_check_true(SyncScheduler.nextSync >= Date.now() + minimumExpectedDelay);
   do_check_true(SyncScheduler.syncTimer.delay >= minimumExpectedDelay);
 
-  cleanUpAndGo(server);
+  Service.startOver();
+  server.stop(run_next_test);
 });
 
 add_test(function test_sync_503_Retry_After() {
@@ -775,5 +732,6 @@ add_test(function test_sync_503_Retry_After() {
   do_check_true(SyncScheduler.nextSync >= Date.now() + minimumExpectedDelay);
   do_check_true(SyncScheduler.syncTimer.delay >= minimumExpectedDelay);
 
-  cleanUpAndGo(server);
+  Service.startOver();
+  server.stop(run_next_test);
 });

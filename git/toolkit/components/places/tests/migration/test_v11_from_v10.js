@@ -2,8 +2,8 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * This file tests migration invariants from schema version 10 to the current
- * schema version.
+ * This file tests migration invariants from schema version 10 to schema version
+ * 11.
  */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,7 +296,7 @@ function test_final_state()
   do_check_true(db.indexExists("moz_bookmarks_guid_uniqueindex"));
   do_check_true(db.indexExists("moz_places_guid_uniqueindex"));
 
-  do_check_eq(db.schemaVersion, CURRENT_SCHEMA_VERSION);
+  do_check_eq(db.schemaVersion, 11);
 
   db.close();
   run_next_test();
