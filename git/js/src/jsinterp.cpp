@@ -2620,10 +2620,10 @@ js_Interpret(JSContext *cx)
 
 #ifdef JS_TRACER
 
-#define MONITOR_BRANCH(oldpc)                                                 \
+#define MONITOR_BRANCH()                                                      \
     JS_BEGIN_MACRO                                                            \
         if (TRACING_ENABLED(cx)) {                                            \
-            ENABLE_TRACER(js_MonitorLoopEdge(cx, oldpc, inlineCallCount));    \
+            ENABLE_TRACER(js_MonitorLoopEdge(cx, inlineCallCount));           \
             fp = cx->fp;                                                      \
             script = fp->script;                                              \
             atoms = script->atomMap.vector;                                   \
@@ -2636,7 +2636,7 @@ js_Interpret(JSContext *cx)
 
 #else /* !JS_TRACER */
 
-#define MONITOR_BRANCH(oldpc) ((void) 0)
+#define MONITOR_BRANCH() ((void) 0)
 
 #endif /* !JS_TRACER */
 
@@ -2657,7 +2657,7 @@ js_Interpret(JSContext *cx)
         regs.pc += n;                                                         \
         if (n <= 0) {                                                         \
             CHECK_BRANCH();                                                   \
-            MONITOR_BRANCH(regs.pc - n);                                      \
+            MONITOR_BRANCH();                                                 \
         }                                                                     \
         op = (JSOp) *regs.pc;                                                 \
         DO_OP();                                                              \
@@ -3239,7 +3239,7 @@ js_Interpret(JSContext *cx)
                 rval = JSVAL_FALSE;
 #ifdef JS_TRACER
                 if (TRACE_RECORDER(cx)) {
-                    js_AbortRecording(cx, regs.pc, "Untraceable for-in loop");
+                    js_AbortRecording(cx, "Untraceable for-in loop");
                     ENABLE_TRACER(0);
                 }
 #endif
@@ -4627,7 +4627,7 @@ js_Interpret(JSContext *cx)
                 }
 #ifdef JS_TRACER
                 if (!entry && TRACE_RECORDER(cx)) {
-                    js_AbortRecording(cx, NULL, "SetPropUncached");
+                    js_AbortRecording(cx, "SetPropUncached");
                     ENABLE_TRACER(0);
                 }
 #endif
@@ -6958,7 +6958,7 @@ js_Interpret(JSContext *cx)
             }
 
             switch (tn->kind) {
-              case JSTRY_CATCH:
+              case JSTN_CATCH:
                 JS_ASSERT(*regs.pc == JSOP_ENTERBLOCK);
 
 #if JS_HAS_GENERATORS
@@ -6975,7 +6975,7 @@ js_Interpret(JSContext *cx)
                 len = 0;
                 DO_NEXT_OP(len);
 
-              case JSTRY_FINALLY:
+              case JSTN_FINALLY:
                 /*
                  * Push (true, exception) pair for finally to indicate that
                  * [retsub] should rethrow the exception.
@@ -6986,7 +6986,7 @@ js_Interpret(JSContext *cx)
                 len = 0;
                 DO_NEXT_OP(len);
 
-              case JSTRY_ITER:
+              case JSTN_ITER:
                 /*
                  * This is similar to JSOP_ENDITER in the interpreter loop
                  * except the code now uses a reserved stack slot to save and
@@ -7049,7 +7049,7 @@ js_Interpret(JSContext *cx)
     JS_ASSERT(fp->regs == &regs);
 #ifdef JS_TRACER
     if (TRACE_RECORDER(cx))
-        js_AbortRecording(cx, regs.pc, "recording out of js_Interpret");
+        js_AbortRecording(cx, "recording out of js_Interpret");
 #endif
     if (JS_UNLIKELY(fp->flags & JSFRAME_YIELDING)) {
         JSGenerator *gen;
