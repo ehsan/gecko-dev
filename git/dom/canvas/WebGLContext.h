@@ -254,9 +254,7 @@ public:
     void ErrorInvalidOperation(const char* fmt = 0, ...);
     void ErrorInvalidValue(const char* fmt = 0, ...);
     void ErrorInvalidFramebufferOperation(const char* fmt = 0, ...);
-    void ErrorInvalidEnumInfo(const char* info, GLenum enumValue);
-    void ErrorInvalidEnumInfo(const char* info, const char* funcName,
-                              GLenum enumValue);
+    void ErrorInvalidEnumInfo(const char* info, GLenum enumvalue);
     void ErrorOutOfMemory(const char* fmt = 0, ...);
 
     const char* ErrorName(GLenum error);
@@ -533,11 +531,6 @@ public:
                     ErrorResult& rv);
     void RenderbufferStorage(GLenum target, GLenum internalFormat,
                              GLsizei width, GLsizei height);
-protected:
-    void RenderbufferStorage_base(const char* funcName, GLenum target,
-                                  GLsizei samples, GLenum internalformat,
-                                  GLsizei width, GLsizei height);
-public:
     void SampleCoverage(GLclampf value, WebGLboolean invert);
     void Scissor(GLint x, GLint y, GLsizei width, GLsizei height);
     void ShaderSource(WebGLShader* shader, const nsAString& source);
@@ -1153,9 +1146,8 @@ protected:
     int32_t mGLMaxVertexUniformVectors;
     int32_t mGLMaxColorAttachments;
     int32_t mGLMaxDrawBuffers;
-    uint32_t  mGLMaxTransformFeedbackSeparateAttribs;
+    GLuint  mGLMaxTransformFeedbackSeparateAttribs;
     GLuint  mGLMaxUniformBufferBindings;
-    GLsizei mGLMaxSamples;
 
 public:
     GLuint MaxVertexAttribs() const {
@@ -1429,10 +1421,6 @@ protected:
     RefPtr<const webgl::LinkedProgramInfo> mActiveProgramLinkInfo;
 
     uint32_t mMaxFramebufferColorAttachments;
-
-    GLenum LastColorAttachment() const {
-        return LOCAL_GL_COLOR_ATTACHMENT0 + mMaxFramebufferColorAttachments - 1;
-    }
 
     bool ValidateFramebufferTarget(GLenum target, const char* const info);
 

@@ -11,7 +11,6 @@
 #include "nsAppShell.h"
 #include "nsAppShellSingleton.h"
 #include "mozilla/ModuleUtils.h"
-#include "mozilla/WidgetUtils.h"
 #include "nsIServiceManager.h"
 #include "nsIdleServiceWin.h"
 #include "nsLookAndFeel.h"
@@ -56,6 +55,8 @@
 #include "nsPrintOptionsWin.h"
 #include "nsPrintSession.h"
 #endif
+
+#include "mozilla/Module.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -288,9 +289,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
 static void
 nsWidgetWindowsModuleDtor()
 {
-  // Shutdown all XP level widget classes.
-  WidgetUtils::Shutdown();
-
   KeyboardLayout::Shutdown();
   MouseScrollHandler::Shutdown();
   nsLookAndFeel::Shutdown();

@@ -37,31 +37,21 @@ CheckValidity(Input encodedValidity, Time time)
   Reader validity(encodedValidity);
   Time notBefore(Time::uninitialized);
   if (der::TimeChoice(validity, notBefore) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
+    return Result::ERROR_EXPIRED_CERTIFICATE;
   }
-
-  Time notAfter(Time::uninitialized);
-  if (der::TimeChoice(validity, notAfter) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
-  }
-
-  if (der::End(validity) != Success) {
-    return Result::ERROR_INVALID_DER_TIME;
-  }
-
-  if (notBefore > notAfter) {
-    return Result::ERROR_INVALID_DER_TIME;
-  }
-
   if (time < notBefore) {
     return Result::ERROR_NOT_YET_VALID_CERTIFICATE;
   }
 
+  Time notAfter(Time::uninitialized);
+  if (der::TimeChoice(validity, notAfter) != Success) {
+    return Result::ERROR_EXPIRED_CERTIFICATE;
+  }
   if (time > notAfter) {
     return Result::ERROR_EXPIRED_CERTIFICATE;
   }
 
-  return Success;
+  return der::End(validity);
 }
 
 // 4.1.2.7 Subject Public Key Info

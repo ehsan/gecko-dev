@@ -597,10 +597,6 @@ GetModifiersName(Modifiers aModifiers)
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_FN;
   }
-  if (aModifiers & MODIFIER_FNLOCK) {
-    ADD_SEPARATOR_IF_NECESSARY(names);
-    names += NS_DOM_KEYNAME_FNLOCK;
-  }
   if (aModifiers & MODIFIER_META) {
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_META;
@@ -616,10 +612,6 @@ GetModifiersName(Modifiers aModifiers)
   if (aModifiers & MODIFIER_SHIFT) {
     ADD_SEPARATOR_IF_NECESSARY(names);
     names += NS_DOM_KEYNAME_SHIFT;
-  }
-  if (aModifiers & MODIFIER_SYMBOL) {
-    ADD_SEPARATOR_IF_NECESSARY(names);
-    names += NS_DOM_KEYNAME_SYMBOL;
   }
   if (aModifiers & MODIFIER_SYMBOLLOCK) {
     ADD_SEPARATOR_IF_NECESSARY(names);

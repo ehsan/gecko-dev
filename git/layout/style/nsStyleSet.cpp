@@ -1378,14 +1378,12 @@ static const CascadeLevel gCascadeLevels[] = {
   { nsStyleSet::eSVGAttrAnimationSheet, false, false, eRestyle_SVGAttrAnimations },
   { nsStyleSet::eDocSheet,              false, false, nsRestyleHint(0) },
   { nsStyleSet::eScopedDocSheet,        false, false, nsRestyleHint(0) },
-  { nsStyleSet::eStyleAttrSheet,        false, true,  eRestyle_StyleAttribute |
-                                                      eRestyle_StyleAttribute_Animations },
+  { nsStyleSet::eStyleAttrSheet,        false, true,  eRestyle_StyleAttribute },
   { nsStyleSet::eOverrideSheet,         false, false, nsRestyleHint(0) },
   { nsStyleSet::eAnimationSheet,        false, false, eRestyle_CSSAnimations },
   { nsStyleSet::eScopedDocSheet,        true,  false, nsRestyleHint(0) },
   { nsStyleSet::eDocSheet,              true,  false, nsRestyleHint(0) },
-  { nsStyleSet::eStyleAttrSheet,        true,  false, eRestyle_StyleAttribute |
-                                                      eRestyle_StyleAttribute_Animations },
+  { nsStyleSet::eStyleAttrSheet,        true,  false, eRestyle_StyleAttribute },
   { nsStyleSet::eOverrideSheet,         true,  false, nsRestyleHint(0) },
   { nsStyleSet::eUserSheet,             true,  false, nsRestyleHint(0) },
   { nsStyleSet::eAgentSheet,            true,  false, nsRestyleHint(0) },
@@ -1407,14 +1405,16 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
                 nsCSSPseudoElements::PseudoElementSupportsUserActionState(aPseudoType))),
              "should have aPseudoElement only for certain pseudo elements");
 
-  MOZ_ASSERT(!(aReplacements & ~(eRestyle_CSSTransitions |
-                                 eRestyle_CSSAnimations |
-                                 eRestyle_SVGAttrAnimations |
-                                 eRestyle_StyleAttribute |
-                                 eRestyle_StyleAttribute_Animations |
-                                 eRestyle_Force |
-                                 eRestyle_ForceDescendants)),
-             "unexpected replacement bits");
+  NS_ABORT_IF_FALSE(!(aReplacements & ~(eRestyle_CSSTransitions |
+                                        eRestyle_CSSAnimations |
+                                        eRestyle_SVGAttrAnimations |
+                                        eRestyle_StyleAttribute |
+                                        eRestyle_Force |
+                                        eRestyle_ForceDescendants)),
+                    // FIXME: Once bug 979133 lands we'll have a better
+                    // way to print these.
+                    nsPrintfCString("unexpected replacement bits 0x%" PRIX32,
+                                    uint32_t(aReplacements)).get());
 
   // FIXME (perf): This should probably not rebuild the whole path, but
   // only the path from the last change in the rule tree, like
@@ -1452,8 +1452,8 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
                         level->mCheckForImportantRules && doReplace);
 
     if (doReplace) {
-      switch (level->mLevel) {
-        case nsStyleSet::eAnimationSheet: {
+      switch (level->mLevelReplacementHint) {
+        case eRestyle_CSSAnimations: {
           if (aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
               aPseudoType == nsCSSPseudoElements::ePseudo_before ||
               aPseudoType == nsCSSPseudoElements::ePseudo_after) {
@@ -1465,7 +1465,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
           }
           break;
         }
-        case nsStyleSet::eTransitionSheet: {
+        case eRestyle_CSSTransitions: {
           if (aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
               aPseudoType == nsCSSPseudoElements::ePseudo_before ||
               aPseudoType == nsCSSPseudoElements::ePseudo_after) {
@@ -1477,7 +1477,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
           }
           break;
         }
-        case nsStyleSet::eSVGAttrAnimationSheet: {
+        case eRestyle_SVGAttrAnimations: {
           SVGAttrAnimationRuleProcessor* ruleProcessor =
             static_cast<SVGAttrAnimationRuleProcessor*>(
               mRuleProcessors[eSVGAttrAnimationSheet].get());
@@ -1487,7 +1487,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
           }
           break;
         }
-        case nsStyleSet::eStyleAttrSheet: {
+        case eRestyle_StyleAttribute: {
           if (!level->mIsImportant) {
             // First time through, we handle the non-!important rule.
             nsHTMLCSSStyleSheet* ruleProcessor =

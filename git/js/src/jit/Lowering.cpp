@@ -3066,11 +3066,6 @@ LIRGenerator::visitGetNameCache(MGetNameCache *ins)
 {
     MOZ_ASSERT(ins->scopeObj()->type() == MIRType_Object);
 
-    // Set the performs-call flag so that we don't omit the overrecursed check.
-    // This is necessary because the cache can attach a scripted getter stub
-    // that calls this script recursively.
-    gen->setPerformsCall();
-
     LGetNameCache *lir = new(alloc()) LGetNameCache(useRegister(ins->scopeObj()));
     defineBox(lir, ins);
     assignSafepoint(lir, ins);
@@ -3088,14 +3083,6 @@ void
 LIRGenerator::visitGetPropertyCache(MGetPropertyCache *ins)
 {
     MOZ_ASSERT(ins->object()->type() == MIRType_Object);
-
-    if (ins->monitoredResult()) {
-        // Set the performs-call flag so that we don't omit the overrecursed
-        // check. This is necessary because the cache can attach a scripted
-        // getter stub that calls this script recursively.
-        gen->setPerformsCall();
-    }
-
     if (ins->type() == MIRType_Value) {
         LGetPropertyCacheV *lir = new(alloc()) LGetPropertyCacheV(useRegister(ins->object()));
         defineBox(lir, ins);
@@ -3325,11 +3312,6 @@ LIRGenerator::visitSetPropertyCache(MSetPropertyCache *ins)
 {
     LUse obj = useRegisterAtStart(ins->object());
     LDefinition slots = tempCopy(ins->object(), 0);
-
-    // Set the performs-call flag so that we don't omit the overrecursed check.
-    // This is necessary because the cache can attach a scripted setter stub
-    // that calls this script recursively.
-    gen->setPerformsCall();
 
     LInstruction *lir;
     if (ins->value()->type() == MIRType_Value) {

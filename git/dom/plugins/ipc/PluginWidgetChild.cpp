@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/plugins/PluginWidgetChild.h"
-#include "mozilla/plugins/PluginWidgetParent.h"
 #include "PluginWidgetProxy.h"
 #include "mozilla/DebugOnly.h"
 #include "nsDebug.h"
@@ -12,9 +11,6 @@
 #include "mozilla/plugins/PluginInstanceParent.h"
 using mozilla::plugins::PluginInstanceParent;
 #endif
-
-#define PWLOG(...)
-// #define PWLOG(...) printf_stderr(__VA_ARGS__)
 
 namespace mozilla {
 namespace plugins {
@@ -30,43 +26,35 @@ PluginWidgetChild::~PluginWidgetChild()
   MOZ_COUNT_DTOR(PluginWidgetChild);
 }
 
-// Called by the proxy widget when it is destroyed by layout. Only gets
-// called once.
-void
-PluginWidgetChild::ProxyShutdown()
-{
-  PWLOG("PluginWidgetChild::ProxyShutdown()\n");
-  if (mWidget) {
-    SendDestroy();
-    mWidget = nullptr;
-  }
-}
+/*
+ * Tear down scenarios
+ * layout (plugin content unloading):
+ *  - PluginWidgetProxy nsIWidget Destroy()
+ *  - PluginWidgetProxy->PluginWidgetChild->SendDestroy()
+ *  - PluginWidgetParent::RecvDestroy(), sends async Destroyed() to PluginWidgetChild
+ *  - PluginWidgetChild::RecvDestroyed() calls Send__delete__()
+ *  - PluginWidgetParent::ActorDestroy() called in response to __delete__.
+ * PBrowser teardown (tab closing):
+ *  - PluginWidgetParent::ParentDestroy() called by TabParent::Destroy()
+ *  - PluginWidgetParent::ActorDestroy()
+ *  - PluginWidgetParent::~PluginWidgetParent() in response to PBrowserParent::DeallocSubtree()
+ *  - PluginWidgetChild::ActorDestroy() from PPluginWidgetChild::DestroySubtree
+ *  - ~PluginWidgetChild() in response to PBrowserChild::DeallocSubtree()
+ **/
 
 void
-PluginWidgetChild::KillWidget()
+PluginWidgetChild::ActorDestroy(ActorDestroyReason aWhy)
 {
-  PWLOG("PluginWidgetChild::KillWidget()\n");
   if (mWidget) {
     mWidget->ChannelDestroyed();
   }
   mWidget = nullptr;
 }
 
-void
-PluginWidgetChild::ActorDestroy(ActorDestroyReason aWhy)
-{
-  PWLOG("PluginWidgetChild::ActorDestroy()\n");
-  KillWidget();
-}
-
 bool
-PluginWidgetChild::RecvParentShutdown(const uint16_t& aType)
+PluginWidgetChild::RecvParentShutdown()
 {
-  PWLOG("PluginWidgetChild::RecvParentShutdown()\n");
-  KillWidget();
-  if (aType == PluginWidgetParent::CONTENT) {
-    Send__delete__(this);
-  }
+  Send__delete__(this);
   return true;
 }
 

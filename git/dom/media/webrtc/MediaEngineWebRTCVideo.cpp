@@ -408,7 +408,8 @@ MediaEngineWebRTCVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     mSources.AppendElement(aStream);
   }
 
-  aStream->AddTrack(aID, 0, new VideoSegment(), SourceMediaStream::ADDTRACK_QUEUED);
+  aStream->AddTrack(aID, 0, new VideoSegment());
+  aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 
   if (mState == kStarted) {
     return NS_OK;

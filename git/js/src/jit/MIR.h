@@ -3012,6 +3012,8 @@ class MSimdBox
     bool congruentTo(const MDefinition *ins) const MOZ_OVERRIDE {
         if (congruentIfOperandsEqual(ins)) {
             MOZ_ASSERT(ins->toSimdBox()->initialHeap() == initialHeap());
+            // The template object is likely to be different, but represents the
+            // same kind of objects as the MIRTypes are identical.
             return true;
         }
 

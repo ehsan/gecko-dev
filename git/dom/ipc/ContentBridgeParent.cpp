@@ -9,6 +9,7 @@
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "nsXULAppAPI.h"
 
+using namespace base;
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
 

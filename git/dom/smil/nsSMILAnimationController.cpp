@@ -832,7 +832,7 @@ nsSMILAnimationController::AddStyleUpdate(AnimationElementPtrKey* aKey,
   // Element::GetSMILOverrideStyleRule (via nsSMILCSSProperty objects),
   // and mIsCSS false means the rules are nsSMILMappedAttribute objects
   // returned from nsSVGElement::GetAnimatedContentStyleRule.
-  nsRestyleHint rshint = key.mIsCSS ? eRestyle_StyleAttribute_Animations
+  nsRestyleHint rshint = key.mIsCSS ? eRestyle_StyleAttribute
                                     : eRestyle_SVGAttrAnimations;
   restyleTracker->AddPendingRestyle(key.mElement, rshint, nsChangeHint(0));
 

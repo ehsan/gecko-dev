@@ -275,11 +275,7 @@ NS_IMPL_RELEASE_INHERITED(XULTreeGridRowAccessible,
 void
 XULTreeGridRowAccessible::Shutdown()
 {
-  if (!mDoc->IsDefunct()) {
-    mAccessibleCache.Enumerate(UnbindCacheEntryFromDocument<XULTreeGridCellAccessible>,
-                               nullptr);
-  }
-
+  ClearCache(mAccessibleCache);
   XULTreeItemAccessibleBase::Shutdown();
 }
 

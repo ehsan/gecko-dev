@@ -831,15 +831,8 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
                    nsChangeHint_UpdateParentOverflow |
                    nsChangeHint_UpdateSubtreeOverflow))) {
         if (hint & nsChangeHint_UpdateSubtreeOverflow) {
-          for (nsIFrame *cont = frame; cont; cont =
-                 nsLayoutUtils::GetNextContinuationOrIBSplitSibling(cont)) {
-            AddSubtreeToOverflowTracker(cont);
-          }
-          // The work we just did in AddSubtreeToOverflowTracker
-          // subsumes some of the other hints:
-          hint = NS_SubtractHint(hint,
-                   NS_CombineHint(nsChangeHint_UpdateOverflow,
-                                  nsChangeHint_UpdatePostTransformOverflow));
+          // FIXME (bug 1133392): Continuations?
+          AddSubtreeToOverflowTracker(frame);
         }
         if (hint & nsChangeHint_ChildrenOnlyTransform) {
           // The overflow areas of the child frames need to be updated:
@@ -873,13 +866,15 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         if (!(frame->GetStateBits() &
               (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN))) {
           if (hint & (nsChangeHint_UpdateOverflow |
+                      nsChangeHint_UpdateSubtreeOverflow |
                       nsChangeHint_UpdatePostTransformOverflow)) {
             OverflowChangedTracker::ChangeKind changeKind;
             // If we have both nsChangeHint_UpdateOverflow and
             // nsChangeHint_UpdatePostTransformOverflow,
             // CHILDREN_CHANGED is selected as it is
             // strictly stronger.
-            if (hint & nsChangeHint_UpdateOverflow) {
+            if (hint & (nsChangeHint_UpdateOverflow |
+                        nsChangeHint_UpdateSubtreeOverflow)) {
               changeKind = OverflowChangedTracker::CHILDREN_CHANGED;
             } else {
               changeKind = OverflowChangedTracker::TRANSFORM_CHANGED;
@@ -1803,10 +1798,14 @@ RestyleManager::PostRestyleEvent(Element* aElement,
   mPendingRestyles.AddPendingRestyle(aElement, aRestyleHint, aMinChangeHint);
 
   // Set mHavePendingNonAnimationRestyles for any restyle that could
-  // possibly contain non-animation styles (i.e., those that require us
-  // to do an animation-only style flush before processing style changes
-  // to ensure correct initialization of CSS transitions).
-  if (aRestyleHint & ~eRestyle_AllHintsWithAnimations) {
+  // possibly contain non-animation styles.  Unfortunately there's one
+  // level of the cascade and associated change hint
+  // (eRestyle_StyleAttribute) where we don't fully distinguish.
+  // FIXME (bug 1133439): We could at least distinguish by having two
+  // separate eRestyle_StyleAttribute hints, one for animations and one
+  // for other things.
+  if (aRestyleHint & ~(eRestyle_CSSTransitions | eRestyle_CSSAnimations |
+                       eRestyle_SVGAttrAnimations)) {
     mHavePendingNonAnimationRestyles = true;
   }
 

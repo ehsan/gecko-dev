@@ -104,8 +104,8 @@ class FullParseHandler
         return dn;
     }
 
-    ParseNode *newObjectLiteralPropertyName(JSAtom *atom, const TokenPos &pos) {
-        return new_<NullaryNode>(PNK_OBJECT_PROPERTY_NAME, JSOP_NOP, pos, atom);
+    ParseNode *newIdentifier(JSAtom *atom, const TokenPos &pos) {
+        return new_<NullaryNode>(PNK_NAME, JSOP_NOP, pos, atom);
     }
 
     ParseNode *newNumber(double value, DecimalPoint decimalPoint, const TokenPos &pos) {
@@ -137,7 +137,8 @@ class FullParseHandler
         if (!propExpr)
             return null();
 
-        addArrayElement(callSite, propExpr);
+        if (!addArrayElement(callSite, propExpr))
+            return null();
 
         return callSite;
     }
@@ -145,8 +146,10 @@ class FullParseHandler
     bool addToCallSiteObject(ParseNode *callSiteObj, ParseNode *rawNode, ParseNode *cookedNode) {
         MOZ_ASSERT(callSiteObj->isKind(PNK_CALLSITEOBJ));
 
-        addArrayElement(callSiteObj, cookedNode);
-        addArrayElement(callSiteObj->pn_head, rawNode);
+        if (!addArrayElement(callSiteObj, cookedNode))
+            return false;
+        if (!addArrayElement(callSiteObj->pn_head, rawNode))
+            return false;
 
         /*
          * We don't know when the last noSubstTemplate will come in, and we
@@ -267,10 +270,11 @@ class FullParseHandler
         return true;
     }
 
-    void addArrayElement(ParseNode *literal, ParseNode *element) {
+    bool addArrayElement(ParseNode *literal, ParseNode *element) {
         if (!element->isConstant())
             literal->pn_xflags |= PNX_NONCONST;
         literal->append(element);
+        return true;
     }
 
     ParseNode *newObjectLiteral(uint32_t begin) {
@@ -293,46 +297,25 @@ class FullParseHandler
         return true;
     }
 
-    bool addPropertyDefinition(ParseNode *literal, ParseNode *key, ParseNode *val) {
-        MOZ_ASSERT(literal->isKind(PNK_OBJECT));
+    bool addPropertyDefinition(ParseNode *literal, ParseNode *name, ParseNode *expr,
+                               bool isShorthand = false) {
         MOZ_ASSERT(literal->isArity(PN_LIST));
-        MOZ_ASSERT(key->isKind(PNK_NUMBER) ||
-                   key->isKind(PNK_OBJECT_PROPERTY_NAME) ||
-                   key->isKind(PNK_STRING) ||
-                   key->isKind(PNK_COMPUTED_NAME));
-
-        ParseNode *propdef = newBinary(PNK_COLON, key, val, JSOP_INITPROP);
+        ParseNode *propdef = newBinary(isShorthand ? PNK_SHORTHAND : PNK_COLON, name, expr,
+                                       JSOP_INITPROP);
+        if (isShorthand)
+            literal->pn_xflags |= PNX_NONCONST;
         if (!propdef)
             return false;
         literal->append(propdef);
         return true;
     }
 
-    bool addShorthand(ParseNode *literal, ParseNode *name, ParseNode *expr) {
-        MOZ_ASSERT(literal->isKind(PNK_OBJECT));
-        MOZ_ASSERT(literal->isArity(PN_LIST));
-        MOZ_ASSERT(name->isKind(PNK_OBJECT_PROPERTY_NAME));
-        MOZ_ASSERT(expr->isKind(PNK_NAME));
-        MOZ_ASSERT(name->pn_atom == expr->pn_atom);
-
-        setListFlag(literal, PNX_NONCONST);
-        ParseNode *propdef = newBinary(PNK_SHORTHAND, name, expr, JSOP_INITPROP);
-        if (!propdef)
-            return false;
-        literal->append(propdef);
-        return true;
-    }
-
-    bool addMethodDefinition(ParseNode *literal, ParseNode *key, ParseNode *fn, JSOp op)
+    bool addMethodDefinition(ParseNode *literal, ParseNode *name, ParseNode *fn, JSOp op)
     {
         MOZ_ASSERT(literal->isArity(PN_LIST));
-        MOZ_ASSERT(key->isKind(PNK_NUMBER) ||
-                   key->isKind(PNK_OBJECT_PROPERTY_NAME) ||
-                   key->isKind(PNK_STRING) ||
-                   key->isKind(PNK_COMPUTED_NAME));
         literal->pn_xflags |= PNX_NONCONST;
 
-        ParseNode *propdef = newBinary(PNK_COLON, key, fn, op);
+        ParseNode *propdef = newBinary(PNK_COLON, name, fn, op);
         if (!propdef)
             return false;
         literal->append(propdef);

@@ -200,11 +200,7 @@ NoSuchMethod(JSContext *cx, unsigned argc, Value *vp)
     bool ok = Invoke(cx, args);
     vp[0] = args.rval();
 
-    if (JSScript *script = cx->currentScript()) {
-        const char *filename = script->filename();
-        cx->compartment()->addTelemetry(filename, JSCompartment::DeprecatedNoSuchMethod);
-    }
-
+    cx->compartment()->addTelemetry(JSCompartment::DeprecatedNoSuchMethod);
     return ok;
 }
 

@@ -28,18 +28,18 @@ function test() {
         history.removeSHistoryListener(listener);
         historyListenerRemoved = true;
 
-        executeSoon(function () { BrowserReload(); });
+        executeSoon(function () BrowserReload());
       }
 
       return true;
     },
 
-    OnHistoryReload: () => true,
-    OnHistoryGoBack: () => true,
-    OnHistoryGoForward: () => true,
-    OnHistoryGotoIndex: () => true,
-    OnHistoryPurge: () => true,
-    OnHistoryReplaceEntry: () => true,
+    OnHistoryReload: function () true,
+    OnHistoryGoBack: function () true,
+    OnHistoryGoForward: function () true,
+    OnHistoryGotoIndex: function () true,
+    OnHistoryPurge: function () true,
+    OnHistoryReplaceEntry: function () true,
 
     QueryInterface: XPCOMUtils.generateQI([Ci.nsISHistoryListener,
                                            Ci.nsISupportsWeakReference])

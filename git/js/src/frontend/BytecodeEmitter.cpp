@@ -143,7 +143,6 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent,
     yieldOffsetList(sc->context),
     typesetCount(0),
     hasSingletons(false),
-    hasTryFinally(false),
     emittingForInit(false),
     emittingRunOnceLambda(false),
     insideEval(insideEval),
@@ -1702,6 +1701,8 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     MOZ_ASSERT(pn->isKind(PNK_NAME));
 
+    MOZ_ASSERT_IF(pn->isKind(PNK_FUNCTION), pn->isBound());
+
     /* Don't attempt if 'pn' is already bound or deoptimized or a function. */
     if (pn->isBound() || pn->isDeoptimized())
         return true;
@@ -3121,51 +3122,37 @@ frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNo
     if (!EmitTree(cx, bce, body))
         return false;
 
-    if (bce->sc->isFunctionBox()) {
-        if (bce->sc->asFunctionBox()->isGenerator()) {
-            // If we fall off the end of a generator, do a final yield.
-            if (bce->sc->asFunctionBox()->isStarGenerator() && !EmitPrepareIteratorResult(cx, bce))
-                return false;
+    // If we fall off the end of a generator, do a final yield.
+    if (bce->sc->isFunctionBox() && bce->sc->asFunctionBox()->isGenerator()) {
+        if (bce->sc->asFunctionBox()->isStarGenerator() && !EmitPrepareIteratorResult(cx, bce))
+            return false;
 
-            if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
-                return false;
+        if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
+            return false;
 
-            if (bce->sc->asFunctionBox()->isStarGenerator() &&
-                !EmitFinishIteratorResult(cx, bce, true))
-            {
-                return false;
-            }
+        if (bce->sc->asFunctionBox()->isStarGenerator() && !EmitFinishIteratorResult(cx, bce, true))
+            return false;
 
-            if (Emit1(cx, bce, JSOP_SETRVAL) < 0)
-                return false;
+        if (Emit1(cx, bce, JSOP_SETRVAL) < 0)
+            return false;
 
-            ScopeCoordinate sc;
-            // We know that .generator is on the top scope chain node, as we are
-            // at the function end.
-            sc.setHops(0);
-            MOZ_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().dotGenerator, &sc));
-            if (!EmitAliasedVarOp(cx, JSOP_GETALIASEDVAR, sc, DontCheckLexical, bce))
-                return false;
+        ScopeCoordinate sc;
+        // We know that .generator is on the top scope chain node, as we are
+        // at the function end.
+        sc.setHops(0);
+        MOZ_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().dotGenerator, &sc));
+        if (!EmitAliasedVarOp(cx, JSOP_GETALIASEDVAR, sc, DontCheckLexical, bce))
+            return false;
 
-            // No need to check for finally blocks, etc as in EmitReturn.
-            if (!EmitYieldOp(cx, bce, JSOP_FINALYIELDRVAL))
-                return false;
-        } else {
-            // Non-generator functions just return |undefined|. The JSOP_RETRVAL
-            // emitted below will do that, except if the script has a finally
-            // block: there can be a non-undefined value in the return value
-            // slot. We just emit an explicit return in this case.
-            if (bce->hasTryFinally) {
-                if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
-                    return false;
-                if (Emit1(cx, bce, JSOP_RETURN) < 0)
-                    return false;
-            }
-        }
+        // No need to check for finally blocks, etc as in EmitReturn.
+        if (!EmitYieldOp(cx, bce, JSOP_FINALYIELDRVAL))
+            return false;
     }
 
-    // Always end the script with a JSOP_RETRVAL. Some other parts of the codebase
-    // depend on this opcode, e.g. InterpreterRegs::setToEndOfScript.
+    /*
+     * Always end the script with a JSOP_RETRVAL. Some other parts of the codebase
+     * depend on this opcode, e.g. js_InternalInterpret.
+     */
     if (Emit1(cx, bce, JSOP_RETRVAL) < 0)
         return false;
 
@@ -3705,7 +3692,7 @@ EmitDestructuringOpsObjectHelper(ExclusiveContext *cx, BytecodeEmitter *bce, Par
             if (key->isKind(PNK_NUMBER)) {
                 if (!EmitNumberOp(cx, key->pn_dval, bce))              // ... OBJ OBJ KEY
                     return false;
-            } else if (key->isKind(PNK_OBJECT_PROPERTY_NAME) || key->isKind(PNK_STRING)) {
+            } else if (key->isKind(PNK_NAME) || key->isKind(PNK_STRING)) {
                 PropertyName *name = key->pn_atom->asPropertyName();
 
                 // The parser already checked for atoms representing indexes and
@@ -4338,7 +4325,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
             if (pnid->isKind(PNK_NUMBER)) {
                 idvalue = NumberValue(pnid->pn_dval);
             } else {
-                MOZ_ASSERT(pnid->isKind(PNK_OBJECT_PROPERTY_NAME) || pnid->isKind(PNK_STRING));
+                MOZ_ASSERT(pnid->isKind(PNK_NAME) || pnid->isKind(PNK_STRING));
                 MOZ_ASSERT(pnid->pn_atom != cx->names().proto);
                 idvalue = StringValue(pnid->pn_atom);
             }
@@ -4673,7 +4660,6 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         {
             return false;
         }
-        bce->hasTryFinally = true;
         MOZ_ASSERT(bce->stackDepth == depth);
     }
     if (!PopStatementBCE(cx, bce))
@@ -6612,7 +6598,7 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (!EmitNumberOp(cx, key->pn_dval, bce))
                 return false;
             isIndex = true;
-        } else if (key->isKind(PNK_OBJECT_PROPERTY_NAME) || key->isKind(PNK_STRING)) {
+        } else if (key->isKind(PNK_NAME) || key->isKind(PNK_STRING)) {
             // The parser already checked for atoms representing indexes and
             // used PNK_NUMBER instead, but also watch for ids which TI treats
             // as indexes for simpliciation of downstream analysis.
@@ -6652,7 +6638,7 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (Emit1(cx, bce, op) < 0)
                 return false;
         } else {
-            MOZ_ASSERT(key->isKind(PNK_OBJECT_PROPERTY_NAME) || key->isKind(PNK_STRING));
+            MOZ_ASSERT(key->isKind(PNK_NAME) || key->isKind(PNK_STRING));
 
             jsatomid index;
             if (!bce->makeAtomIndex(key->pn_atom, &index))

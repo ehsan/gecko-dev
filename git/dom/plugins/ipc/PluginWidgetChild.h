@@ -21,15 +21,7 @@ public:
 
   virtual bool RecvUpdateWindow(const uintptr_t& aChildId) MOZ_OVERRIDE;
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
-  virtual bool RecvParentShutdown(const uint16_t& aType) MOZ_OVERRIDE;
-
-  void SetWidget(mozilla::widget::PluginWidgetProxy* aWidget) {
-    mWidget = aWidget;
-  }
-  void ProxyShutdown();
-
-private:
-  void KillWidget();
+  virtual bool RecvParentShutdown() MOZ_OVERRIDE;
 
   mozilla::widget::PluginWidgetProxy* mWidget;
 };

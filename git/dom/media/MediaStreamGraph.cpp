@@ -2275,12 +2275,10 @@ SourceMediaStream::SetPullEnabled(bool aEnabled)
 
 void
 SourceMediaStream::AddTrackInternal(TrackID aID, TrackRate aRate, StreamTime aStart,
-                                    MediaSegment* aSegment, uint32_t aFlags)
+                                    MediaSegment* aSegment)
 {
   MutexAutoLock lock(mMutex);
-  nsTArray<TrackData> *track_data = (aFlags & ADDTRACK_QUEUED) ?
-                                    &mPendingTracks : &mUpdateTracks;
-  TrackData* data = track_data->AppendElement();
+  TrackData* data = mUpdateTracks.AppendElement();
   data->mID = aID;
   data->mInputRate = aRate;
   data->mStart = aStart;
@@ -2288,16 +2286,6 @@ SourceMediaStream::AddTrackInternal(TrackID aID, TrackRate aRate, StreamTime aSt
   data->mCommands = TRACK_CREATE;
   data->mData = aSegment;
   data->mHaveEnough = false;
-  if (!(aFlags & ADDTRACK_QUEUED) && GraphImpl()) {
-    GraphImpl()->EnsureNextIteration();
-  }
-}
-
-void
-SourceMediaStream::FinishAddTracks()
-{
-  MutexAutoLock lock(mMutex);
-  mUpdateTracks.MoveElementsFrom(mPendingTracks);
   if (GraphImpl()) {
     GraphImpl()->EnsureNextIteration();
   }
@@ -2527,7 +2515,6 @@ SourceMediaStream::EndAllTrackAndFinish()
     SourceMediaStream::TrackData* data = &mUpdateTracks[i];
     data->mCommands |= TRACK_END;
   }
-  mPendingTracks.Clear();
   FinishWithLockHeld();
   // we will call NotifyEvent() to let GetUserMedia know
 }

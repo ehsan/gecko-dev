@@ -41,23 +41,8 @@ static NS_DEFINE_CID(kWidgetCID, NS_CHILD_CID);
   }                                                           \
 }
 
-/*
- * Tear down scenarios
- * layout (plugin content unloading):
- *  - PluginWidgetProxy::Destroy() calls PluginWidgetChild::ProxyShutdown(), calls SendDestroy()
- *  - PluginWidgetParent::RecvDestroy(), sends async ParentShutdown(CONTENT)
- *  - PluginWidgetChild::RecvParentShutdown(CONTENT), calls Send__delete__()
- *  - PluginWidgetParent::ActorDestroy() called in response to __delete__
- * PBrowser teardown (tab closing):
- *  - PluginWidgetParent::ParentDestroy() called by TabParent::Destroy(), sends async ParentShutdown(TAB_CLOSURE)
- *  - PluginWidgetChild::RecvParentShutdown(TAB_CLOSURE) (PluginWidgetProxy disabled)
- *  - PluginWidgetParent::ActorDestroy()
- *  - PluginWidgetParent::~PluginWidgetParent() in response to PBrowserParent::DeallocSubtree()
- *  - PluginWidgetChild::ActorDestroy() from PPluginWidgetChild::DestroySubtree
- *  - ~PluginWidgetChild() in response to PBrowserChild::DeallocSubtree()
- **/
-
-PluginWidgetParent::PluginWidgetParent()
+PluginWidgetParent::PluginWidgetParent() :
+  mActorDestroyed(false)
 {
   PWLOG("PluginWidgetParent::PluginWidgetParent()\n");
   MOZ_COUNT_CTOR(PluginWidgetParent);
@@ -192,40 +177,41 @@ PluginWidgetParent::RecvCreate(nsresult* aResult)
 }
 
 void
-PluginWidgetParent::Shutdown(ShutdownType aType)
-{
-  if (mWidget) {
-    mWidget->UnregisterPluginWindowForRemoteUpdates();
-    DebugOnly<nsresult> rv = mWidget->Destroy();
-    NS_ASSERTION(NS_SUCCEEDED(rv), "widget destroy failure");
-    mWidget = nullptr;
-    unused << SendParentShutdown(aType);
-  }
-}
-
-void
 PluginWidgetParent::ActorDestroy(ActorDestroyReason aWhy)
 {
+  mActorDestroyed = true;
   PWLOG("PluginWidgetParent::ActorDestroy()\n");
 }
 
 // Called by TabParent's Destroy() in response to an early tear down (Early
 // in that this is happening before layout in the child has had a chance
-// to destroy the child widget.) when the tab is closing.
+// to destroy the child widget.) when the tab is closing. We will not receive
+// RecvDestroy here.
 void
 PluginWidgetParent::ParentDestroy()
 {
+  if (mActorDestroyed || !mWidget) {
+    return;
+  }
   PWLOG("PluginWidgetParent::ParentDestroy()\n");
-  Shutdown(TAB_CLOSURE);
+  mWidget->UnregisterPluginWindowForRemoteUpdates();
+  DebugOnly<nsresult> rv = mWidget->Destroy();
+  NS_ASSERTION(NS_SUCCEEDED(rv), "widget destroy failure");
+  mWidget = nullptr;
+  mActorDestroyed = true;
+  return;
 }
 
 // Called by the child when a plugin is torn down within a tab
-// normally. Messages back via ParentShutdown().
+// normally.
 bool
 PluginWidgetParent::RecvDestroy()
 {
-  PWLOG("PluginWidgetParent::RecvDestroy()\n");
-  Shutdown(CONTENT);
+  bool destroyed = mActorDestroyed;
+  ParentDestroy();
+  if (!destroyed) {
+    unused << SendParentShutdown();
+  }
   return true;
 }
 

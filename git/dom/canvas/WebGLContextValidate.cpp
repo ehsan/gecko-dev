@@ -1286,11 +1286,25 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
     GLenum fboFormat = mOptions.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB;
 
     if (mBoundReadFramebuffer) {
-        TexInternalFormat srcFormat;
-        if (!mBoundReadFramebuffer->ValidateForRead(InfoFrom(func, dims), &srcFormat))
+        if (!mBoundReadFramebuffer->CheckAndInitializeAttachments()) {
+            ErrorInvalidFramebufferOperation("%s: Incomplete framebuffer.",
+                                             InfoFrom(func, dims));
             return false;
+        }
 
-        fboFormat = srcFormat.get();
+        GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
+        if (!mBoundReadFramebuffer->HasCompletePlanes(readPlaneBits)) {
+            ErrorInvalidOperation("%s: Read source attachment doesn't have the"
+                                  " correct color/depth/stencil type.",
+                                  InfoFrom(func, dims));
+            return false;
+        }
+
+        // Get the correct format for the framebuffer, as it's not the default one.
+        const WebGLFramebuffer::Attachment& color0 =
+            mBoundReadFramebuffer->GetAttachment(LOCAL_GL_COLOR_ATTACHMENT0);
+
+        fboFormat = mBoundReadFramebuffer->GetFormatForAttachment(color0);
     }
 
     // Make sure the format of the framebuffer is a superset of the format
@@ -1804,16 +1818,12 @@ WebGLContext::InitAndValidateGL()
         mGLMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
         mGLMaxTextureImageUnits = MINVALUE_GL_MAX_TEXTURE_IMAGE_UNITS;
         mGLMaxVertexTextureImageUnits = MINVALUE_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
-        mGLMaxSamples = 1;
     } else {
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
-
-        if (!gl->GetPotentialInteger(LOCAL_GL_MAX_SAMPLES, (GLint*)&mGLMaxSamples))
-            mGLMaxSamples = 1;
     }
 
     // Calculate log2 of mGLMaxTextureSize and mGLMaxCubeMapTextureSize

@@ -1970,28 +1970,33 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         return rv.Throw(NS_ERROR_OUT_OF_MEMORY);
     }
 
-    MakeContextCurrent();
-
-    bool isSourceTypeFloat;
-    if (mBoundReadFramebuffer) {
-        TexInternalFormat srcFormat;
-        if (!mBoundReadFramebuffer->ValidateForRead("readPixels", &srcFormat))
-            return;
-
-        MOZ_ASSERT(srcFormat != LOCAL_GL_NONE);
-        TexType type = TypeFromInternalFormat(srcFormat);
-        isSourceTypeFloat = (type == LOCAL_GL_FLOAT ||
-                             type == LOCAL_GL_HALF_FLOAT);
-    } else {
-        ClearBackbufferIfNeeded();
-
-        isSourceTypeFloat = false;
+    bool isSourceTypeFloat = false;
+    if (mBoundReadFramebuffer &&
+        mBoundReadFramebuffer->ColorAttachmentCount() &&
+        mBoundReadFramebuffer->ColorAttachment(0).IsDefined())
+    {
+        isSourceTypeFloat = mBoundReadFramebuffer->ColorAttachment(0).IsReadableFloat();
     }
 
     if (isReadTypeFloat != isSourceTypeFloat)
         return ErrorInvalidOperation("readPixels: Invalid type floatness");
 
     // Check the format and type params to assure they are an acceptable pair (as per spec)
+    MakeContextCurrent();
+
+    if (mBoundReadFramebuffer) {
+        // prevent readback of arbitrary video memory through uninitialized renderbuffers!
+        if (!mBoundReadFramebuffer->CheckAndInitializeAttachments())
+            return ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
+
+        GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
+        if (!mBoundReadFramebuffer->HasCompletePlanes(readPlaneBits)) {
+            return ErrorInvalidOperation("readPixels: Read source attachment doesn't have the"
+                                         " correct color/depth/stencil type.");
+        }
+    } else {
+      ClearBackbufferIfNeeded();
+    }
 
     bool isFormatAndTypeValid = false;
 
@@ -2123,154 +2128,93 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 }
 
 void
-WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
-                                       GLsizei samples,
-                                       GLenum internalFormat, GLsizei width,
-                                       GLsizei height)
+WebGLContext::RenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width, GLsizei height)
 {
     if (IsContextLost())
         return;
 
-    if (!mBoundRenderbuffer) {
-        ErrorInvalidOperation("%s: Called on renderbuffer 0.", funcName);
-        return;
-    }
+    if (!mBoundRenderbuffer)
+        return ErrorInvalidOperation("renderbufferStorage called on renderbuffer 0");
 
-    if (target != LOCAL_GL_RENDERBUFFER) {
-        ErrorInvalidEnumInfo("`target`", funcName, target);
-        return;
-    }
+    if (target != LOCAL_GL_RENDERBUFFER)
+        return ErrorInvalidEnumInfo("renderbufferStorage: target", target);
 
-    if (samples < 0 || samples > mGLMaxSamples) {
-        ErrorInvalidValue("%s: `samples` is out of the valid range.", funcName);
-        return;
-    }
+    if (width < 0 || height < 0)
+        return ErrorInvalidValue("renderbufferStorage: width and height must be >= 0");
 
-    if (width < 0 || height < 0) {
-        ErrorInvalidValue("%s: Width and height must be >= 0.", funcName);
-        return;
-    }
-
-    if (width > mGLMaxRenderbufferSize || height > mGLMaxRenderbufferSize) {
-        ErrorInvalidValue("%s: Width or height exceeds maximum renderbuffer"
-                          " size.", funcName);
-        return;
-    }
-
-    bool isFormatValid = false;
-    switch (internalFormat) {
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGB5_A1:
-    case LOCAL_GL_RGB565:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_STENCIL_INDEX8:
-    case LOCAL_GL_DEPTH_STENCIL:
-        isFormatValid = true;
-        break;
-
-    case LOCAL_GL_SRGB8_ALPHA8_EXT:
-        if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
-            isFormatValid = true;
-        break;
-
-    case LOCAL_GL_RGB16F:
-    case LOCAL_GL_RGBA16F:
-        if (IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float) &&
-            IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float))
-        {
-            isFormatValid = true;
-        }
-        break;
-
-    case LOCAL_GL_RGB32F:
-    case LOCAL_GL_RGBA32F:
-        if (IsExtensionEnabled(WebGLExtensionID::OES_texture_float) &&
-            IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
-        {
-            isFormatValid = true;
-        }
-        break;
-
-    default:
-        break;
-    }
-
-    if (!isFormatValid) {
-        ErrorInvalidEnumInfo("`internalFormat`", funcName, internalFormat);
-        return;
-    }
+    if (width > mGLMaxRenderbufferSize || height > mGLMaxRenderbufferSize)
+        return ErrorInvalidValue("renderbufferStorage: width or height exceeds maximum renderbuffer size");
 
     // certain OpenGL ES renderbuffer formats may not exist on desktop OpenGL
-    GLenum internalFormatForGL = internalFormat;
+    GLenum internalformatForGL = internalformat;
 
-    switch (internalFormat) {
+    switch (internalformat) {
     case LOCAL_GL_RGBA4:
     case LOCAL_GL_RGB5_A1:
         // 16-bit RGBA formats are not supported on desktop GL
-        if (!gl->IsGLES())
-            internalFormatForGL = LOCAL_GL_RGBA8;
+        if (!gl->IsGLES()) internalformatForGL = LOCAL_GL_RGBA8;
         break;
-
     case LOCAL_GL_RGB565:
         // the RGB565 format is not supported on desktop GL
-        if (!gl->IsGLES())
-            internalFormatForGL = LOCAL_GL_RGB8;
+        if (!gl->IsGLES()) internalformatForGL = LOCAL_GL_RGB8;
         break;
-
     case LOCAL_GL_DEPTH_COMPONENT16:
         if (!gl->IsGLES() || gl->IsExtensionSupported(gl::GLContext::OES_depth24))
-            internalFormatForGL = LOCAL_GL_DEPTH_COMPONENT24;
+            internalformatForGL = LOCAL_GL_DEPTH_COMPONENT24;
         else if (gl->IsExtensionSupported(gl::GLContext::OES_packed_depth_stencil))
-            internalFormatForGL = LOCAL_GL_DEPTH24_STENCIL8;
+            internalformatForGL = LOCAL_GL_DEPTH24_STENCIL8;
         break;
-
+    case LOCAL_GL_STENCIL_INDEX8:
+        break;
     case LOCAL_GL_DEPTH_STENCIL:
         // We emulate this in WebGLRenderbuffer if we don't have the requisite extension.
-        internalFormatForGL = LOCAL_GL_DEPTH24_STENCIL8;
+        internalformatForGL = LOCAL_GL_DEPTH24_STENCIL8;
         break;
-
-    default:
+    case LOCAL_GL_SRGB8_ALPHA8_EXT:
+        break;
+    case LOCAL_GL_RGB16F:
+    case LOCAL_GL_RGBA16F: {
+        bool hasExtensions = IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float) &&
+                             IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float);
+        if (!hasExtensions)
+            return ErrorInvalidEnumInfo("renderbufferStorage: internalformat", internalformat);
         break;
     }
-
-    // Validation complete.
+    case LOCAL_GL_RGB32F:
+    case LOCAL_GL_RGBA32F: {
+        bool hasExtensions = IsExtensionEnabled(WebGLExtensionID::OES_texture_float) &&
+                             IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float);
+        if (!hasExtensions)
+            return ErrorInvalidEnumInfo("renderbufferStorage: internalformat", internalformat);
+        break;
+    }
+    default:
+        return ErrorInvalidEnumInfo("renderbufferStorage: internalformat", internalformat);
+    }
 
     MakeContextCurrent();
 
-    bool willRealloc = samples != mBoundRenderbuffer->Samples() ||
-                       internalFormat != mBoundRenderbuffer->InternalFormat() ||
-                       width != mBoundRenderbuffer->Width() ||
-                       height != mBoundRenderbuffer->Height();
-
-    if (willRealloc) {
+    bool sizeChanges = width != mBoundRenderbuffer->Width() ||
+                       height != mBoundRenderbuffer->Height() ||
+                       internalformat != mBoundRenderbuffer->InternalFormat();
+    if (sizeChanges) {
         // Invalidate framebuffer status cache
         mBoundRenderbuffer->NotifyFBsStatusChanged();
         GetAndFlushUnderlyingGLErrors();
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormatForGL,
-                                                width, height);
+        mBoundRenderbuffer->RenderbufferStorage(internalformatForGL, width, height);
         GLenum error = GetAndFlushUnderlyingGLErrors();
         if (error) {
-            GenerateWarning("%s generated error %s", funcName,
-                            ErrorName(error));
+            GenerateWarning("renderbufferStorage generated error %s", ErrorName(error));
             return;
         }
     } else {
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormatForGL,
-                                                width, height);
+        mBoundRenderbuffer->RenderbufferStorage(internalformatForGL, width, height);
     }
 
-    mBoundRenderbuffer->SetSamples(samples);
-    mBoundRenderbuffer->SetInternalFormat(internalFormat);
-    mBoundRenderbuffer->SetInternalFormatForGL(internalFormatForGL);
+    mBoundRenderbuffer->SetInternalFormat(internalformat);
+    mBoundRenderbuffer->SetInternalFormatForGL(internalformatForGL);
     mBoundRenderbuffer->setDimensions(width, height);
     mBoundRenderbuffer->SetImageDataStatus(WebGLImageDataStatus::UninitializedImageData);
-}
-
-void
-WebGLContext::RenderbufferStorage(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height)
-{
-    RenderbufferStorage_base("renderbufferStorage", target, 0,
-                             internalFormat, width, height);
 }
 
 void
