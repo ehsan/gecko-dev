@@ -153,7 +153,6 @@ private:
   gfx::IntSize mDescriptorSize;
   gfx::SurfaceFormat mFormat;
   EGLImage mEGLImage;
-  bool mIsOpaque;
 };
 
 } // namespace layers

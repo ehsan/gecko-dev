@@ -1769,7 +1769,11 @@ GetFontGroupForFrame(nsIFrame* aFrame, float aFontSizeInflation,
 static already_AddRefed<gfxContext>
 CreateReferenceThebesContext(nsTextFrame* aTextFrame)
 {
-  return aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
+  nsRefPtr<nsRenderingContext> tmp =
+    aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
+
+  nsRefPtr<gfxContext> ctx = tmp->ThebesContext();
+  return ctx.forget();
 }
 
 /**

@@ -34,16 +34,27 @@
 
 .expander-up,
 .expander-down {
-  margin: 0 4px 1px 8px;
+  -moz-appearance: none;
+  margin: 0;
+  margin-left: 8px;
   padding: 0;
+  min-width: 0;
 }
 
 .expander-up {
-  -moz-appearance: -moz-mac-disclosure-button-open;
+  list-style-image: url("chrome://browser/skin/places/expander-open.png");
 }
 
 .expander-down {
-  -moz-appearance: -moz-mac-disclosure-button-closed;
+  list-style-image: url("chrome://browser/skin/places/expander-closed.png");
+}
+
+.expander-down:hover:active {
+  list-style-image: url("chrome://browser/skin/places/expander-closed-active.png");
+}
+
+.expander-up:hover:active {
+  list-style-image: url("chrome://browser/skin/places/expander-open-active.png");
 }
 
 #editBookmarkPanelContent {

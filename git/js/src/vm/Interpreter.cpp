@@ -3626,7 +3626,7 @@ js::Lambda(JSContext *cx, HandleFunction fun, HandleObject parent)
     if (!clone)
         return nullptr;
 
-    MOZ_ASSERT(fun->global() == clone->global());
+    MOZ_ASSERT(clone->global() == clone->global());
     return clone;
 }
 
@@ -3642,7 +3642,7 @@ js::LambdaArrow(JSContext *cx, HandleFunction fun, HandleObject parent, HandleVa
     MOZ_ASSERT(clone->as<JSFunction>().isArrow());
     clone->as<JSFunction>().setExtendedSlot(0, thisv);
 
-    MOZ_ASSERT(fun->global() == clone->global());
+    MOZ_ASSERT(clone->global() == clone->global());
     return clone;
 }
 
@@ -4071,7 +4071,7 @@ js::ReportUninitializedLexical(JSContext *cx, HandleScript script, jsbytecode *p
 
         // First search for a name among body-level lets.
         for (BindingIter bi(script); bi; bi++) {
-            if (bi->kind() != Binding::ARGUMENT && !bi->aliased() && bi.frameIndex() == slot) {
+            if (bi->kind() != Binding::ARGUMENT && bi.frameIndex() == slot) {
                 name = bi->name();
                 break;
             }

@@ -244,8 +244,7 @@ typedef enum JSWhyMagic
     JS_OPTIMIZED_OUT,            /* optimized out slot */
     JS_UNINITIALIZED_LEXICAL,    /* uninitialized lexical bindings that produce ReferenceError
                                   * on touch. */
-    JS_GENERIC_MAGIC,            /* for local use */
-    JS_WHY_MAGIC_COUNT
+    JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
 
 #if defined(IS_LITTLE_ENDIAN)

@@ -5558,7 +5558,7 @@ nsDisplaySVGEffects::PaintAsLayer(nsDisplayListBuilder* aBuilder,
                                   nsRenderingContext* aCtx,
                                   LayerManager* aManager)
 {
-  nsSVGIntegrationUtils::PaintFramesWithEffects(*aCtx->ThebesContext(), mFrame,
+  nsSVGIntegrationUtils::PaintFramesWithEffects(aCtx, mFrame,
                                                 mVisibleRect,
                                                 aBuilder, aManager);
 }

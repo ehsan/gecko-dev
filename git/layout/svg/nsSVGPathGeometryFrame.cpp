@@ -111,7 +111,7 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
 
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
-  static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(*aCtx->ThebesContext(), tm);
+  static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, tm);
 }
 
 //----------------------------------------------------------------------
@@ -240,23 +240,25 @@ nsSVGPathGeometryFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 // nsISVGChildFrame methods
 
 nsresult
-nsSVGPathGeometryFrame::PaintSVG(gfxContext& aContext,
+nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
                                  const gfxMatrix& aTransform,
                                  const nsIntRect* aDirtyRect)
 {
   if (!StyleVisibility()->IsVisible())
     return NS_OK;
 
+  gfxContext* gfx = aContext->ThebesContext();
+
   // Matrix to the geometry's user space:
   gfxMatrix newMatrix =
-    aContext.CurrentMatrix().PreMultiply(aTransform).NudgeToIntegers();
+    gfx->CurrentMatrix().PreMultiply(aTransform).NudgeToIntegers();
   if (newMatrix.IsSingular()) {
     return NS_OK;
   }
 
   uint32_t paintOrder = StyleSVG()->mPaintOrder;
   if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    Render(&aContext, eRenderFill | eRenderStroke, newMatrix);
+    Render(gfx, eRenderFill | eRenderStroke, newMatrix);
     PaintMarkers(aContext, aTransform);
   } else {
     while (paintOrder) {
@@ -264,10 +266,10 @@ nsSVGPathGeometryFrame::PaintSVG(gfxContext& aContext,
         paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
       switch (component) {
         case NS_STYLE_PAINT_ORDER_FILL:
-          Render(&aContext, eRenderFill, newMatrix);
+          Render(gfx, eRenderFill, newMatrix);
           break;
         case NS_STYLE_PAINT_ORDER_STROKE:
-          Render(&aContext, eRenderStroke, newMatrix);
+          Render(gfx, eRenderStroke, newMatrix);
           break;
         case NS_STYLE_PAINT_ORDER_MARKERS:
           PaintMarkers(aContext, aTransform);
@@ -803,11 +805,11 @@ nsSVGPathGeometryFrame::Render(gfxContext* aContext,
 }
 
 void
-nsSVGPathGeometryFrame::PaintMarkers(gfxContext& aContext,
+nsSVGPathGeometryFrame::PaintMarkers(nsRenderingContext* aContext,
                                      const gfxMatrix& aTransform)
 {
   gfxTextContextPaint *contextPaint =
-    (gfxTextContextPaint*)aContext.GetDrawTarget()->GetUserData(&gfxTextContextPaint::sUserDataKey);
+    (gfxTextContextPaint*)aContext->GetDrawTarget()->GetUserData(&gfxTextContextPaint::sUserDataKey);
 
   if (static_cast<nsSVGPathGeometryElement*>(mContent)->IsMarkable()) {
     MarkerProperties properties = GetMarkerProperties(this);

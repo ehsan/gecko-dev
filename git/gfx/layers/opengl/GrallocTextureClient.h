@@ -37,6 +37,10 @@ namespace layers {
 class GrallocTextureClientOGL : public BufferTextureClient
 {
 public:
+  GrallocTextureClientOGL(MaybeMagicGrallocBufferHandle buffer,
+                          gfx::IntSize aSize,
+                          gfx::BackendType aMoz2dBackend,
+                          TextureFlags aFlags = TextureFlags::DEFAULT);
   GrallocTextureClientOGL(ISurfaceAllocator* aAllocator,
                           gfx::SurfaceFormat aFormat,
                           gfx::BackendType aMoz2dBackend,
@@ -91,8 +95,6 @@ public:
 
   bool AllocateGralloc(gfx::IntSize aYSize, uint32_t aAndroidFormat, uint32_t aUsage);
 
-  void SetIsOpaque(bool aIsOpaque) { mIsOpaque = aIsOpaque; }
-
   virtual bool Allocate(uint32_t aSize) MOZ_OVERRIDE;
 
   virtual size_t GetBufferSize() const MOZ_OVERRIDE;
@@ -145,8 +147,6 @@ protected:
   gfx::IntSize mSize;
 
   android::MediaBuffer* mMediaBuffer;
-
-  bool mIsOpaque;
 };
 
 } // namespace layers

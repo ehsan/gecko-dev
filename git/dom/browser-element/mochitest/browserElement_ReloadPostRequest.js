@@ -75,7 +75,7 @@ function pageLoadDone() {
 
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
 
   isPostRequestSubmitted = false;
   iframe.src = 'file_post_request.html';

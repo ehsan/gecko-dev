@@ -71,6 +71,7 @@ private:
   uint64_t mDuration;
   nsString mDescription;
   nsString mRating;
+  bool mIsInterrupting;
   nsTArray<nsString> mAudioLanguages;
   nsTArray<nsString> mSubtitleLanguages;
 };

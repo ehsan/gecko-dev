@@ -705,10 +705,13 @@ Parser<ParseHandler>::parse(JSObject *chain)
 
     Node pn = statements();
     if (pn) {
-        TokenKind tt;
-        if (!tokenStream.getToken(&tt))
+        bool matched;
+        if (!tokenStream.matchToken(&matched, TOK_EOF))
             return null();
-        if (tt != TOK_EOF) {
+        if (!matched) {
+            TokenKind tt;
+            if (!tokenStream.peekToken(&tt))
+                return null();
             report(ParseError, false, null(), JSMSG_GARBAGE_AFTER_INPUT,
                    "script", TokenKindToDesc(tt));
             return null();
@@ -827,10 +830,13 @@ Parser<FullParseHandler>::standaloneFunctionBody(HandleFunction fun, const AutoN
     if (!pn)
         return null();
 
-    TokenKind tt;
-    if (!tokenStream.getToken(&tt))
+    bool matched;
+    if (!tokenStream.matchToken(&matched, TOK_EOF))
         return null();
-    if (tt != TOK_EOF) {
+    if (!matched) {
+        TokenKind tt;
+        if (!tokenStream.peekToken(&tt))
+            return null();
         report(ParseError, false, null(), JSMSG_GARBAGE_AFTER_INPUT,
                "function body", TokenKindToDesc(tt));
         return null();

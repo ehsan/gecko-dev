@@ -26,14 +26,9 @@ class nsIDOMNode;
 class nsIDocumentEncoder;
 class nsIEditRules;
 class nsIOutputStream;
+class nsISelection;
 class nsISelectionController;
 class nsITransferable;
-
-namespace mozilla {
-namespace dom {
-class Selection;
-}
-}
 
 /**
  * The text editor implementation.
@@ -121,7 +116,7 @@ public:
   NS_IMETHOD EndOperation();
 
   /** make the given selection span the entire document */
-  virtual nsresult SelectEntireDocument(mozilla::dom::Selection* aSelection);
+  NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
 
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
 
@@ -154,7 +149,7 @@ public:
    * If done, also update aAction to what's actually left to do after the
    * extension.
    */
-  nsresult ExtendSelectionForDelete(mozilla::dom::Selection* aSelection,
+  nsresult ExtendSelectionForDelete(nsISelection* aSelection,
                                     nsIEditor::EDirection *aAction);
 
   // Return true if the data is safe to insert as the source and destination

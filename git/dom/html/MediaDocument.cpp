@@ -278,15 +278,9 @@ MediaDocument::StartLayout()
 }
 
 void
-MediaDocument::GetFileName(nsAString& aResult, nsIChannel* aChannel)
+MediaDocument::GetFileName(nsAString& aResult)
 {
   aResult.Truncate();
-
-  if (aChannel) {
-    aChannel->GetContentDispositionFilename(aResult);
-    if (!aResult.IsEmpty())
-      return;
-  }
 
   nsCOMPtr<nsIURL> url = do_QueryInterface(mDocumentURI);
   if (!url)
@@ -345,13 +339,12 @@ MediaDocument::LinkStylesheet(const nsAString& aStylesheet)
 
 void 
 MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
-                                     nsIChannel* aChannel,
                                      const char* const* aFormatNames,
                                      int32_t aWidth, int32_t aHeight,
                                      const nsAString& aStatus)
 {
   nsXPIDLString fileStr;
-  GetFileName(fileStr, aChannel);
+  GetFileName(fileStr);
 
   NS_ConvertASCIItoUTF16 typeStr(aTypeStr);
   nsXPIDLString title;

@@ -16,7 +16,7 @@ MacIOSurfaceTextureHostOGL::MacIOSurfaceTextureHostOGL(TextureFlags aFlags,
 {
   mSurface = MacIOSurface::LookupSurface(aDescriptor.surface(),
                                          aDescriptor.scaleFactor(),
-                                         !aDescriptor.isOpaque());
+                                         aDescriptor.hasAlpha());
 }
 
 bool

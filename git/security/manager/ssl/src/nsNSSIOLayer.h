@@ -173,12 +173,6 @@ private:
   nsCOMPtr<nsIX509Cert> mClientCert;
 };
 
-enum StrongCipherStatus {
-  StrongCipherStatusUnknown,
-  StrongCiphersWorked,
-  StrongCiphersFailed
-};
-
 class nsSSLIOLayerHelpers
 {
 public:
@@ -209,7 +203,6 @@ private:
     uint16_t tolerant;
     uint16_t intolerant;
     PRErrorCode intoleranceReason;
-    StrongCipherStatus strongCipherStatus;
 
     void AssertInvariant() const
     {
@@ -223,11 +216,9 @@ public:
   bool rememberIntolerantAtVersion(const nsACString& hostname, int16_t port,
                                    uint16_t intolerant, uint16_t minVersion,
                                    PRErrorCode intoleranceReason);
-  bool rememberStrongCiphersFailed(const nsACString& hostName, int16_t port);
   void forgetIntolerance(const nsACString& hostname, int16_t port);
   void adjustForTLSIntolerance(const nsACString& hostname, int16_t port,
-                               /*in/out*/ SSLVersionRange& range,
-                               /*out*/ StrongCipherStatus& strongCipherStatus);
+                               /*in/out*/ SSLVersionRange& range);
   PRErrorCode getIntoleranceReason(const nsACString& hostname, int16_t port);
 
   void setRenegoUnrestrictedSites(const nsCString& str);

@@ -1609,7 +1609,7 @@ GCMarker::saveValueRanges()
             NativeObject *obj = arr->obj;
             MOZ_ASSERT(obj->isNative());
 
-            HeapSlot *vp = obj->getDenseElementsAllowCopyOnWrite();
+            HeapSlot *vp = obj->getDenseElements();
             if (arr->end == vp + obj->getDenseInitializedLength()) {
                 MOZ_ASSERT(arr->start >= vp);
                 arr->index = arr->start - vp;
@@ -1647,7 +1647,7 @@ GCMarker::restoreValueArray(NativeObject *obj, void **vpp, void **endp)
             return false;
 
         uint32_t initlen = obj->getDenseInitializedLength();
-        HeapSlot *vp = obj->getDenseElementsAllowCopyOnWrite();
+        HeapSlot *vp = obj->getDenseElements();
         if (start < initlen) {
             *vpp = vp + start;
             *endp = vp + initlen;

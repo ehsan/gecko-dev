@@ -2352,6 +2352,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
         thingToIgnore = args[4];
     }
 
+
     FILE *dumpFile = stdout;
     if (fileName.length()) {
         dumpFile = fopen(fileName.ptr(), "w");
@@ -2456,12 +2457,7 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
         parent = JS_GetParent(&args.callee());
     }
 
-    // Should it worry us that we might be getting with wrappers
-    // around with wrappers here?
-    JS::AutoObjectVector scopeChain(cx);
-    if (!parent->is<GlobalObject>() && !scopeChain.append(parent))
-        return false;
-    JSObject *clone = JS::CloneFunctionObject(cx, funobj, scopeChain);
+    JSObject *clone = JS_CloneFunctionObject(cx, funobj, parent);
     if (!clone)
         return false;
     args.rval().setObject(*clone);
@@ -2913,6 +2909,7 @@ static const JSClass resolver_class = {
     JS_ConvertStub
 };
 
+
 static bool
 Resolver(JSContext *cx, unsigned argc, jsval *vp)
 {
@@ -3242,7 +3239,6 @@ SetInterruptCallback(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-#ifdef DEBUG
 static bool
 StackDump(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -3263,7 +3259,7 @@ StackDump(JSContext *cx, unsigned argc, Value *vp)
     args.rval().setUndefined();
     return true;
 }
-#endif
+
 
 static bool
 Elapsed(JSContext *cx, unsigned argc, jsval *vp)

@@ -6,13 +6,10 @@
 #include "DisplayItemClip.h"
 
 #include "gfxContext.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "nsPresContext.h"
 #include "nsCSSRendering.h"
 #include "nsLayoutUtils.h"
 #include "nsRegion.h"
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -89,7 +86,7 @@ DisplayItemClip::ApplyTo(gfxContext* aContext,
 {
   int32_t A2D = aPresContext->AppUnitsPerDevPixel();
   ApplyRectTo(aContext, A2D);
-  ApplyRoundedRectClipsTo(aContext, A2D, aBegin, aEnd);
+  ApplyRoundedRectsTo(aContext, A2D, aBegin, aEnd);
 }
 
 void
@@ -102,18 +99,15 @@ DisplayItemClip::ApplyRectTo(gfxContext* aContext, int32_t A2D) const
 }
 
 void
-DisplayItemClip::ApplyRoundedRectClipsTo(gfxContext* aContext,
-                                         int32_t A2D,
-                                         uint32_t aBegin, uint32_t aEnd) const
+DisplayItemClip::ApplyRoundedRectsTo(gfxContext* aContext,
+                                     int32_t A2D,
+                                     uint32_t aBegin, uint32_t aEnd) const
 {
-  DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
-
   aEnd = std::min<uint32_t>(aEnd, mRoundedClipRects.Length());
 
   for (uint32_t i = aBegin; i < aEnd; ++i) {
-    RefPtr<Path> roundedRect =
-      MakeRoundedRectPath(aDrawTarget, A2D, mRoundedClipRects[i]);
-    aContext->Clip(roundedRect);
+    AddRoundedRectPathTo(aContext, A2D, mRoundedClipRects[i]);
+    aContext->Clip();
   }
 }
 
@@ -122,8 +116,6 @@ DisplayItemClip::DrawRoundedRectsTo(gfxContext* aContext,
                                     int32_t A2D,
                                     uint32_t aBegin, uint32_t aEnd) const
 {
-  DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
-
   aEnd = std::min<uint32_t>(aEnd, mRoundedClipRects.Length());
 
   if (aEnd - aBegin == 0)
@@ -131,24 +123,25 @@ DisplayItemClip::DrawRoundedRectsTo(gfxContext* aContext,
 
   // If there is just one rounded rect we can just fill it, if there are more then we
   // must clip the rest to get the intersection of clips
-  ApplyRoundedRectClipsTo(aContext, A2D, aBegin, aEnd - 1);
-  RefPtr<Path> roundedRect =
-    MakeRoundedRectPath(aDrawTarget, A2D, mRoundedClipRects[aEnd - 1]);
-  aContext->SetPath(roundedRect);
+  ApplyRoundedRectsTo(aContext, A2D, aBegin, aEnd - 1);
+  AddRoundedRectPathTo(aContext, A2D, mRoundedClipRects[aEnd - 1]);
   aContext->Fill();
 }
 
-TemporaryRef<Path>
-DisplayItemClip::MakeRoundedRectPath(DrawTarget& aDrawTarget,
-                                     int32_t A2D,
-                                     const RoundedRect &aRoundRect) const
+void
+DisplayItemClip::AddRoundedRectPathTo(gfxContext* aContext,
+                                      int32_t A2D,
+                                      const RoundedRect &aRoundRect) const
 {
-  RectCornerRadii pixelRadii;
+  gfxCornerSizes pixelRadii;
   nsCSSRendering::ComputePixelRadii(aRoundRect.mRadii, A2D, &pixelRadii);
 
-  Rect rect = NSRectToSnappedRect(aRoundRect.mRect, A2D, aDrawTarget);
+  gfxRect clip = nsLayoutUtils::RectToGfxRect(aRoundRect.mRect, A2D);
+  clip.Round();
+  clip.Condition();
 
-  return MakePathForRoundedRect(aDrawTarget, rect, pixelRadii);
+  aContext->NewPath();
+  aContext->RoundedRectangle(clip, pixelRadii);
 }
 
 nsRect
@@ -292,7 +285,7 @@ DisplayItemClip::IsRectAffectedByClip(const nsIntRect& aRect,
 
     nsIntRect pixelRect = rr.mRect.ToNearestPixels(A2D);
 
-    RectCornerRadii pixelRadii;
+    gfxCornerSizes pixelRadii;
     nsCSSRendering::ComputePixelRadii(rr.mRadii, A2D, &pixelRadii);
 
     nsIntRegion rgn = nsLayoutUtils::RoundedRectIntersectIntRect(pixelRect, pixelRadii, unscaled);

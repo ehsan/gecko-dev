@@ -112,13 +112,13 @@ mozilla::pkix::Time YMDHMS(int16_t year, int16_t month, int16_t day,
 
 ByteString TLV(uint8_t tag, const ByteString& value);
 
-ByteString CN(const ByteString&, uint8_t encodingTag = 0x0c /*UTF8String*/);
+ByteString CN(const ByteString&);
 
 inline ByteString
-CN(const char* value, uint8_t encodingTag = 0x0c /*UTF8String*/)
+CN(const char* value)
 {
   return CN(ByteString(reinterpret_cast<const uint8_t*>(value),
-                       std::strlen(value)), encodingTag);
+                       std::strlen(value)));
 }
 
 ByteString OU(const ByteString&);

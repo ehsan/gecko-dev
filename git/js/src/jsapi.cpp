@@ -3869,14 +3869,18 @@ CreateScopeObjectsForScopeChain(JSContext *cx, AutoObjectVector &scopeChain,
     return true;
 }
 
-static JSObject *
-CloneFunctionObject(JSContext *cx, HandleObject funobj, HandleObject dynamicScope)
+JS_PUBLIC_API(JSObject *)
+JS_CloneFunctionObject(JSContext *cx, HandleObject funobj, HandleObject parentArg)
 {
+    RootedObject parent(cx, parentArg);
+
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, dynamicScope);
-    MOZ_ASSERT(dynamicScope);
+    assertSameCompartment(cx, parent);
     // Note that funobj can be in a different compartment.
+
+    if (!parent)
+        parent = cx->global();
 
     if (!funobj->is<JSFunction>()) {
         AutoCompartment ac(cx, funobj);
@@ -3896,7 +3900,7 @@ CloneFunctionObject(JSContext *cx, HandleObject funobj, HandleObject dynamicScop
      * script, we cannot clone it without breaking the compiler's assumptions.
      */
     if (fun->isInterpreted() && (fun->nonLazyScript()->enclosingStaticScope() ||
-        (fun->nonLazyScript()->compileAndGo() && !dynamicScope->is<GlobalObject>())))
+        (fun->nonLazyScript()->compileAndGo() && !parent->is<GlobalObject>())))
     {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_CLONE_FUNOBJ_SCOPE);
         return nullptr;
@@ -3912,29 +3916,8 @@ CloneFunctionObject(JSContext *cx, HandleObject funobj, HandleObject dynamicScop
         return nullptr;
     }
 
-    return CloneFunctionObject(cx, fun, dynamicScope, fun->getAllocKind());
+    return CloneFunctionObject(cx, fun, parent, fun->getAllocKind());
 }
-
-namespace JS {
-
-JS_PUBLIC_API(JSObject *)
-CloneFunctionObject(JSContext *cx, JS::Handle<JSObject*> funobj)
-{
-    return CloneFunctionObject(cx, funobj, cx->global());
-}
-
-extern JS_PUBLIC_API(JSObject *)
-CloneFunctionObject(JSContext *cx, HandleObject funobj, AutoObjectVector &scopeChain)
-{
-    RootedObject dynamicScope(cx);
-    RootedObject unusedStaticScope(cx);
-    if (!CreateScopeObjectsForScopeChain(cx, scopeChain, &dynamicScope, &unusedStaticScope))
-        return nullptr;
-
-    return CloneFunctionObject(cx, funobj, dynamicScope);
-}
-
-} // namespace JS
 
 JS_PUBLIC_API(JSObject *)
 JS_GetFunctionObject(JSFunction *fun)
@@ -4587,26 +4570,16 @@ JS_GetFunctionScript(JSContext *cx, HandleFunction fun)
     return fun->nonLazyScript();
 }
 
-/*
- * enclosingStaticScope is a static enclosing scope, if any (e.g. a
- * StaticWithObject).  If the enclosing scope is the global scope, this must be
- * null.
- *
- * enclosingDynamicScope is a dynamic scope to use, if it's not the global.
- */
-static bool
-CompileFunction(JSContext *cx, const ReadOnlyCompileOptions &options,
-                const char *name, unsigned nargs, const char *const *argnames,
-                SourceBufferHolder &srcBuf,
-                HandleObject enclosingDynamicScope,
-                HandleObject enclosingStaticScope,
-                MutableHandleFunction fun)
+JS_PUBLIC_API(bool)
+JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
+                    const char *name, unsigned nargs, const char *const *argnames,
+                    SourceBufferHolder &srcBuf, MutableHandleFunction fun,
+                    HandleObject enclosingStaticScope)
 {
     MOZ_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, enclosingDynamicScope);
-    assertSameCompartment(cx, enclosingStaticScope);
+    assertSameCompartment(cx, obj);
     RootedAtom funAtom(cx);
     AutoLastFrameCheck lfc(cx);
 
@@ -4623,7 +4596,7 @@ CompileFunction(JSContext *cx, const ReadOnlyCompileOptions &options,
             return false;
     }
 
-    fun.set(NewFunction(cx, NullPtr(), nullptr, 0, JSFunction::INTERPRETED, enclosingDynamicScope,
+    fun.set(NewFunction(cx, NullPtr(), nullptr, 0, JSFunction::INTERPRETED, obj,
                         funAtom, JSFunction::FinalizeKind, TenuredObject));
     if (!fun)
         return false;
@@ -4632,38 +4605,29 @@ CompileFunction(JSContext *cx, const ReadOnlyCompileOptions &options,
                                        enclosingStaticScope))
         return false;
 
+    if (obj && funAtom && options.defineOnScope) {
+        Rooted<jsid> id(cx, AtomToId(funAtom));
+        RootedValue value(cx, ObjectValue(*fun));
+        if (!JSObject::defineGeneric(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE))
+            return false;
+    }
+
     return true;
 }
 
 JS_PUBLIC_API(bool)
-JS::CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
-                    const ReadOnlyCompileOptions &options,
+JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
                     const char *name, unsigned nargs, const char *const *argnames,
-                    SourceBufferHolder &srcBuf, MutableHandleFunction fun)
-{
-    RootedObject dynamicScopeObj(cx);
-    RootedObject staticScopeObj(cx);
-    if (!CreateScopeObjectsForScopeChain(cx, scopeChain, &dynamicScopeObj, &staticScopeObj))
-        return false;
-
-    return CompileFunction(cx, options, name, nargs, argnames,
-                           srcBuf, dynamicScopeObj, staticScopeObj, fun);
-}
-
-JS_PUBLIC_API(bool)
-JS::CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
-                    const ReadOnlyCompileOptions &options,
-                    const char *name, unsigned nargs, const char *const *argnames,
-                    const char16_t *chars, size_t length, MutableHandleFunction fun)
+                    const char16_t *chars, size_t length, MutableHandleFunction fun,
+                    HandleObject enclosingStaticScope)
 {
     SourceBufferHolder srcBuf(chars, length, SourceBufferHolder::NoOwnership);
-    return CompileFunction(cx, scopeChain, options, name, nargs, argnames,
-                           srcBuf, fun);
+    return JS::CompileFunction(cx, obj, options, name, nargs, argnames, srcBuf,
+                               fun, enclosingStaticScope);
 }
 
 JS_PUBLIC_API(bool)
-JS::CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
-                    const ReadOnlyCompileOptions &options,
+JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
                     const char *name, unsigned nargs, const char *const *argnames,
                     const char *bytes, size_t length, MutableHandleFunction fun)
 {
@@ -4675,8 +4639,40 @@ JS::CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
     if (!chars)
         return false;
 
-    return CompileFunction(cx, scopeChain, options, name, nargs, argnames,
-                           chars.get(), length, fun);
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars.get(), length, fun);
+}
+
+JS_PUBLIC_API(bool)
+JS::CompileFunction(JSContext *cx, AutoObjectVector &scopeChain,
+                    const ReadOnlyCompileOptions &options,
+                    const char *name, unsigned nargs, const char *const *argnames,
+                    const char16_t *chars, size_t length, MutableHandleFunction fun)
+{
+    RootedObject dynamicScopeObj(cx);
+    RootedObject staticScopeObj(cx);
+    if (!CreateScopeObjectsForScopeChain(cx, scopeChain, &dynamicScopeObj, &staticScopeObj))
+        return false;
+
+    return JS::CompileFunction(cx, dynamicScopeObj, options, name, nargs,
+                               argnames, chars, length, fun, staticScopeObj);
+}
+
+JS_PUBLIC_API(bool)
+JS_CompileUCFunction(JSContext *cx, JS::HandleObject obj, const char *name,
+                     unsigned nargs, const char *const *argnames,
+                     const char16_t *chars, size_t length,
+                     const CompileOptions &options, MutableHandleFunction fun)
+{
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars, length, fun);
+}
+
+JS_PUBLIC_API(bool)
+JS_CompileFunction(JSContext *cx, JS::HandleObject obj, const char *name,
+                   unsigned nargs, const char *const *argnames,
+                   const char *ascii, size_t length,
+                   const JS::CompileOptions &options, MutableHandleFunction fun)
+{
+    return CompileFunction(cx, obj, options, name, nargs, argnames, ascii, length, fun);
 }
 
 JS_PUBLIC_API(JSString *)

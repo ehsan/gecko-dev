@@ -246,7 +246,6 @@ GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
   , mDescriptorSize(aDescriptor.size())
   , mFormat(gfx::SurfaceFormat::UNKNOWN)
   , mEGLImage(EGL_NO_IMAGE)
-  , mIsOpaque(aDescriptor.isOpaque())
 {
   android::GraphicBuffer* graphicBuffer = GetGraphicBufferFromDesc(mGrallocHandle).get();
   MOZ_ASSERT(graphicBuffer);
@@ -363,9 +362,6 @@ GrallocTextureHostOGL::GetRenderState()
 
   if (graphicBuffer) {
     LayerRenderStateFlags flags = LayerRenderStateFlags::LAYER_RENDER_STATE_DEFAULT;
-    if (mIsOpaque) {
-      flags |= LayerRenderStateFlags::OPAQUE;
-    }
     if (mFlags & TextureFlags::NEEDS_Y_FLIP) {
       flags |= LayerRenderStateFlags::Y_FLIPPED;
     }

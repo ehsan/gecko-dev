@@ -677,14 +677,6 @@ gfxContext::Clip(const gfxRect& rect)
 }
 
 void
-gfxContext::Clip(Path* aPath)
-{
-  mDT->PushClip(aPath);
-  AzureState::PushedClip clip = { aPath, Rect(), mTransform };
-  CurrentState().pushedClips.AppendElement(clip);
-}
-
-void
 gfxContext::Clip()
 {
   if (mPathIsRect) {
@@ -1080,7 +1072,7 @@ gfxContext::PopGroupToSource()
 
 void
 gfxContext::RoundedRectangle(const gfxRect& rect,
-                             const RectCornerRadii& corners,
+                             const gfxCornerSizes& corners,
                              bool draw_clockwise)
 {
     //
@@ -1154,7 +1146,11 @@ gfxContext::RoundedRectangle(const gfxRect& rect,
     // appropriate multiplier from the list before using.
 
   EnsurePathBuilder();
-  AppendRoundedRectToPath(mPathBuilder, ToRect(rect), corners, draw_clockwise);
+  RectCornerRadii radii(ToSize(corners[NS_CORNER_TOP_LEFT]),
+                        ToSize(corners[NS_CORNER_TOP_RIGHT]),
+                        ToSize(corners[NS_CORNER_BOTTOM_RIGHT]),
+                        ToSize(corners[NS_CORNER_BOTTOM_LEFT]));
+  AppendRoundedRectToPath(mPathBuilder, ToRect(rect), radii, draw_clockwise);
 }
 
 #ifdef MOZ_DUMP_PAINTING

@@ -12,6 +12,7 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
+#include "jit/CompileInfo.h"
 #include "jit/CompileWrappers.h"
 #include "jit/JitOptions.h"
 

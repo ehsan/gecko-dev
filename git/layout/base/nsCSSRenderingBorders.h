@@ -9,7 +9,6 @@
 
 #include "gfxRect.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/RefPtr.h"
 #include "nsColor.h"
 #include "nsCOMPtr.h"
@@ -56,7 +55,7 @@ class GradientStops;
  *
  * borderStyles -- one border style enum per side
  * borderWidths -- one border width per side
- * borderRadii -- a RectCornerRadii struct describing the w/h for each rounded corner.
+ * borderRadii -- a gfxCornerSizes struct describing the w/h for each rounded corner.
  *    If the corner doesn't have a border radius, 0,0 should be given for it.
  * borderColors -- one nscolor per side
  * compositeColors -- a pointer to an array of composite color structs, or
@@ -77,20 +76,17 @@ typedef enum {
 } BorderColorStyle;
 
 struct nsCSSBorderRenderer {
-  typedef mozilla::gfx::Float Float;
-  typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
-
   nsCSSBorderRenderer(int32_t aAppUnitsPerPixel,
                       gfxContext* aDestContext,
                       gfxRect& aOuterRect,
                       const uint8_t* aBorderStyles,
                       const gfxFloat* aBorderWidths,
-                      RectCornerRadii& aBorderRadii,
+                      gfxCornerSizes& aBorderRadii,
                       const nscolor* aBorderColors,
                       nsBorderColors* const* aCompositeColors,
                       nscolor aBackgroundColor);
 
-  RectCornerRadii mBorderCornerDimensions;
+  gfxCornerSizes mBorderCornerDimensions;
 
   // destination context
   gfxContext* mContext;
@@ -104,7 +100,7 @@ struct nsCSSBorderRenderer {
   const gfxFloat* mBorderWidths;
   uint8_t* mSanitizedStyles;
   gfxFloat* mSanitizedWidths;
-  RectCornerRadii mBorderRadii;
+  gfxCornerSizes mBorderRadii;
 
   // colors
   const nscolor* mBorderColors;
@@ -164,8 +160,8 @@ struct nsCSSBorderRenderer {
   // clip is needed if we can render the entire border in 1 or 2 passes.
   void FillSolidBorder(const gfxRect& aOuterRect,
                        const gfxRect& aInnerRect,
-                       const RectCornerRadii& aBorderRadii,
-                       const Float *aBorderSizes,
+                       const gfxCornerSizes& aBorderRadii,
+                       const gfxFloat *aBorderSizes,
                        int aSides,
                        const gfxRGBA& aColor);
 
@@ -215,17 +211,17 @@ struct nsCSSBorderRenderer {
   void DrawBorders ();
 
   // utility function used for background painting as well as borders
-  static void ComputeInnerRadii(const RectCornerRadii& aRadii,
-                                const Float* aBorderSizes,
-                                RectCornerRadii* aInnerRadiiRet);
+  static void ComputeInnerRadii(const gfxCornerSizes& aRadii,
+                                const gfxFloat *aBorderSizes,
+                                gfxCornerSizes *aInnerRadiiRet);
 
   // Given aRadii as the border radii for a rectangle, compute the
   // appropriate radii for another rectangle *outside* that rectangle
   // by increasing the radii, except keeping sharp corners sharp.
   // Used for spread box-shadows
-  static void ComputeOuterRadii(const RectCornerRadii& aRadii,
-                                const Float* aBorderSizes,
-                                RectCornerRadii* aOuterRadiiRet);
+  static void ComputeOuterRadii(const gfxCornerSizes& aRadii,
+                                const gfxFloat *aBorderSizes,
+                                gfxCornerSizes *aOuterRadiiRet);
 };
 
 namespace mozilla {
