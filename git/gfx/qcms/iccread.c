@@ -765,10 +765,8 @@ qcms_profile* qcms_profile_from_file(FILE *file)
 
 	/* read the rest profile */
 	read_length = fread((unsigned char*)data + sizeof(length_be), 1, remaining_length, file);
-	if (read_length != remaining_length) {
-		free(data);
+	if (read_length != remaining_length)
 		return INVALID_PROFILE;
-	}
 
 	profile = qcms_profile_from_memory(data, length);
 	free(data);

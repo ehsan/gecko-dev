@@ -535,9 +535,8 @@ var PlacesUIUtils = {
 
     if (typeof(aKeyword) == "string") {
       info.keyword = aKeyword;
-      // Hide the Tags field if we are adding a keyword.
+      // hide the Tags field if we are adding a keyword
       info.hiddenRows.push("tags");
-      // Keyword related params.
       if (typeof(aPostData) == "string")
         info.postData = aPostData;
       if (typeof(aCharSet) == "string")

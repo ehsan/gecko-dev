@@ -907,7 +907,7 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
   }
   else if (kind == kEventMenuOpening || kind == kEventMenuClosed) {
     if (kind == kEventMenuOpening && gRollupListener && gRollupWidget) {
-      gRollupListener->Rollup(nsnull, nsnull);
+      gRollupListener->Rollup(nsnull);
       return userCanceledErr;
     }
     MenuRef menuRef;
