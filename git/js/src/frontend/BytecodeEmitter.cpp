@@ -1144,8 +1144,12 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
         // The only statements within a lazy function which can push lexical
         // scopes are try/catch blocks. Use generic ops in this case.
         for (StmtInfoBCE *stmt = bce->topStmt; stmt; stmt = stmt->down) {
-            if (stmt->type == STMT_CATCH)
+            switch (stmt->type) {
+              case STMT_TRY:
+              case STMT_FINALLY:
                 return true;
+              default:;
+            }
         }
 
         size_t hops = 0;
@@ -4806,7 +4810,7 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             // Inherit most things (principals, version, etc) from the parent.
             Rooted<JSScript*> parent(cx, bce->script);
-            CompileOptions options(cx, bce->parser->options());
+            CompileOptions options(bce->parser->options());
             options.setPrincipals(parent->principals())
                    .setOriginPrincipals(parent->originPrincipals())
                    .setCompileAndGo(parent->compileAndGo)

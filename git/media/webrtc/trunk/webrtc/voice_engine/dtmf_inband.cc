@@ -10,8 +10,7 @@
 
 #include "webrtc/voice_engine/dtmf_inband.h"
 
-#include <assert.h>
-
+#include <cassert>
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/trace.h"
 

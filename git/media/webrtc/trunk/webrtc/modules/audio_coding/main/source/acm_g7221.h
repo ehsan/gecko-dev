@@ -24,8 +24,6 @@ struct G722_1_Inst_t_;
 
 namespace webrtc {
 
-namespace acm1 {
-
 class ACMG722_1: public ACMGenericCodec {
  public:
   explicit ACMG722_1(int16_t codec_id);
@@ -78,8 +76,6 @@ class ACMG722_1: public ACMGenericCodec {
   G722_1_24_decinst_t_* decoder_inst24_ptr_;
   G722_1_32_decinst_t_* decoder_inst32_ptr_;
 };
-
-}  // namespace acm1
 
 }  // namespace webrtc
 

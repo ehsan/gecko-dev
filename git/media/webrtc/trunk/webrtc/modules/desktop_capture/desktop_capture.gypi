@@ -53,11 +53,9 @@
         "win/scoped_thread_desktop.cc",
         "win/scoped_thread_desktop.h",
         "window_capturer.h",
+        "window_capturer_linux.cc",
         "window_capturer_mac.cc",
         "window_capturer_win.cc",
-        "window_capturer_x11.cc",
-        "x11/x_error_trap.cc",
-        "x11/x_error_trap.h",
         "x11/x_server_pixel_buffer.cc",
         "x11/x_server_pixel_buffer.h",
       ],
@@ -71,18 +69,15 @@
           'link_settings': {
             'libraries': [
               '-lX11',
-              '-lXcomposite',
               '-lXdamage',
               '-lXext',
               '-lXfixes',
-              '-lXrender',
             ],
           },
         }],
         ['OS!="win" and OS!="mac" and use_x11==0', {
           'sources': [
             "screen_capturer_null.cc",
-            "window_capturer_null.cc",
           ],
         }],
         ['OS=="mac"', {

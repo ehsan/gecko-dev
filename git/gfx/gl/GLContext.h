@@ -2429,7 +2429,6 @@ public:
       NativeGLContext,
       NativeImageSurface,
       NativeThebesSurface,
-      NativeCGLContext,
       NativeDataTypeMax
     };
 

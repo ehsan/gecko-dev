@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/codecs/test/packet_manipulator.h"
+#include "modules/video_coding/codecs/test/packet_manipulator.h"
 
 #include <queue>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/modules/video_coding/codecs/interface/video_codec_interface.h"
-#include "webrtc/modules/video_coding/codecs/test/predictive_packet_manipulator.h"
-#include "webrtc/test/testsupport/unittest_utils.h"
-#include "webrtc/typedefs.h"
+#include "gtest/gtest.h"
+#include "modules/video_coding/codecs/interface/video_codec_interface.h"
+#include "modules/video_coding/codecs/test/predictive_packet_manipulator.h"
+#include "testsupport/unittest_utils.h"
+#include "typedefs.h"
 
 namespace webrtc {
 namespace test {

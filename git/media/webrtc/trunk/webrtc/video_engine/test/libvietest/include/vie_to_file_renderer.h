@@ -11,9 +11,8 @@
 #ifndef WEBRTC_VIDEO_ENGINE_TEST_LIBVIETEST_INCLUDE_VIE_TO_FILE_RENDERER_H_
 #define WEBRTC_VIDEO_ENGINE_TEST_LIBVIETEST_INCLUDE_VIE_TO_FILE_RENDERER_H_
 
-#include <stdio.h>
-#include <string.h>
-
+#include <cstdio>
+#include <cstring>
 #include <list>
 #include <string>
 
@@ -55,15 +54,12 @@ class ViEToFileRenderer: public webrtc::ExternalRenderer {
 
   // Implementation of ExternalRenderer:
   int FrameSizeChange(unsigned int width, unsigned int height,
-                      unsigned int number_of_streams) OVERRIDE;
+                      unsigned int number_of_streams);
 
   int DeliverFrame(unsigned char* buffer,
                    int buffer_size,
                    uint32_t time_stamp,
-                   int64_t render_time,
-                   void* handle) OVERRIDE;
-
-  bool IsTextureSupported() OVERRIDE;
+                   int64_t render_time);
 
   const std::string GetFullOutputPath() const;
 
@@ -74,7 +70,7 @@ class ViEToFileRenderer: public webrtc::ExternalRenderer {
   void ForgetOutputFile();
   bool ProcessRenderQueue();
 
-  FILE* output_file_;
+  std::FILE* output_file_;
   std::string output_path_;
   std::string output_filename_;
   webrtc::scoped_ptr<webrtc::ThreadWrapper> thread_;

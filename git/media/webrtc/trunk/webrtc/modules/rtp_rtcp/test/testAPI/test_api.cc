@@ -33,10 +33,6 @@ class RtpRtcpAPITest : public ::testing::Test {
     configuration.audio = true;
     configuration.clock = &fake_clock;
     module = RtpRtcp::CreateRtpRtcp(configuration);
-    rtp_payload_registry_.reset(new RTPPayloadRegistry(
-            test_id, RTPPayloadStrategy::CreateStrategy(true)));
-    rtp_receiver_.reset(RtpReceiver::CreateAudioReceiver(
-        test_id, &fake_clock, NULL, NULL, NULL, rtp_payload_registry_.get()));
   }
 
   virtual void TearDown() {
@@ -44,8 +40,6 @@ class RtpRtcpAPITest : public ::testing::Test {
   }
 
   int test_id;
-  scoped_ptr<RTPPayloadRegistry> rtp_payload_registry_;
-  scoped_ptr<RtpReceiver> rtp_receiver_;
   RtpRtcp* module;
   uint32_t test_ssrc;
   uint32_t test_timestamp;
@@ -109,12 +103,12 @@ TEST_F(RtpRtcpAPITest, RTCP) {
   EXPECT_EQ(0, module->SetTMMBRStatus(false));
   EXPECT_FALSE(module->TMMBR());
 
-  EXPECT_EQ(kNackOff, rtp_receiver_->NACK());
-  rtp_receiver_->SetNACKStatus(kNackRtcp);
-  EXPECT_EQ(kNackRtcp, rtp_receiver_->NACK());
+  EXPECT_EQ(kNackOff, module->NACK());
+  EXPECT_EQ(0, module->SetNACKStatus(kNackRtcp, 450));
+  EXPECT_EQ(kNackRtcp, module->NACK());
 }
 
-TEST_F(RtpRtcpAPITest, RtxSender) {
+TEST_F(RtpRtcpAPITest, RTXSender) {
   unsigned int ssrc = 0;
   RtxMode rtx_mode = kRtxOff;
   const int kRtxPayloadType = 119;
@@ -135,23 +129,22 @@ TEST_F(RtpRtcpAPITest, RtxSender) {
   EXPECT_EQ(0, module->SetRTXSendStatus(kRtxRetransmitted, false, 1));
   EXPECT_EQ(0, module->RTXSendStatus(&rtx_mode, &ssrc, &payload_type));
   EXPECT_EQ(kRtxRetransmitted, rtx_mode);
-  EXPECT_EQ(kRtxPayloadType, payload_type);
+  EXPECT_EQ(kRtxPayloadType ,payload_type);
 }
 
-TEST_F(RtpRtcpAPITest, RtxReceiver) {
-  const uint32_t kRtxSsrc = 1;
+TEST_F(RtpRtcpAPITest, RTXReceiver) {
+  bool enable = false;
+  unsigned int ssrc = 0;
   const int kRtxPayloadType = 119;
-  rtp_payload_registry_->SetRtxStatus(true, kRtxSsrc);
-  rtp_payload_registry_->SetRtxPayloadType(kRtxPayloadType);
-  EXPECT_TRUE(rtp_payload_registry_->RtxEnabled());
-  RTPHeader rtx_header;
-  rtx_header.ssrc = kRtxSsrc;
-  rtx_header.payloadType = kRtxPayloadType;
-  EXPECT_TRUE(rtp_payload_registry_->IsRtx(rtx_header));
-  rtx_header.ssrc = 0;
-  EXPECT_FALSE(rtp_payload_registry_->IsRtx(rtx_header));
-  rtp_payload_registry_->SetRtxStatus(false, kRtxSsrc);
-  EXPECT_FALSE(rtp_payload_registry_->RtxEnabled());
-  rtx_header.ssrc = kRtxSsrc;
-  EXPECT_FALSE(rtp_payload_registry_->IsRtx(rtx_header));
+  int payload_type = -1;
+  EXPECT_EQ(0, module->SetRTXReceiveStatus(true, 1));
+  module->SetRtxReceivePayloadType(kRtxPayloadType);
+  EXPECT_EQ(0, module->RTXReceiveStatus(&enable, &ssrc, &payload_type));
+  EXPECT_TRUE(enable);
+  EXPECT_EQ(1u, ssrc);
+  EXPECT_EQ(kRtxPayloadType ,payload_type);
+  EXPECT_EQ(0, module->SetRTXReceiveStatus(false, 0));
+  EXPECT_EQ(0, module->RTXReceiveStatus(&enable, &ssrc, &payload_type));
+  EXPECT_FALSE(enable);
+  EXPECT_EQ(kRtxPayloadType ,payload_type);
 }

@@ -27,6 +27,9 @@ class RemoteBitrateEstimatorSingleStream : public RemoteBitrateEstimator {
                                      Clock* clock);
   virtual ~RemoteBitrateEstimatorSingleStream() {}
 
+  virtual void IncomingRtcp(unsigned int ssrc, uint32_t ntp_secs,
+                            uint32_t ntp_frac, uint32_t rtp_timestamp) {}
+
   // Called for each incoming packet. If this is a new SSRC, a new
   // BitrateControl will be created. Updates the incoming payload bitrate
   // estimate and the over-use detector. If an over-use is detected the
@@ -34,24 +37,24 @@ class RemoteBitrateEstimatorSingleStream : public RemoteBitrateEstimator {
   // packet size excluding headers.
   virtual void IncomingPacket(int64_t arrival_time_ms,
                               int payload_size,
-                              const RTPHeader& header) OVERRIDE;
+                              const RTPHeader& header);
 
   // Triggers a new estimate calculation.
   // Implements the Module interface.
-  virtual int32_t Process() OVERRIDE;
-  virtual int32_t TimeUntilNextProcess() OVERRIDE;
+  virtual int32_t Process();
+  virtual int32_t TimeUntilNextProcess();
   // Set the current round-trip time experienced by the stream.
   // Implements the StatsObserver interface.
-  virtual void OnRttUpdate(uint32_t rtt) OVERRIDE;
+  virtual void OnRttUpdate(uint32_t rtt);
 
   // Removes all data for |ssrc|.
-  virtual void RemoveStream(unsigned int ssrc) OVERRIDE;
+  virtual void RemoveStream(unsigned int ssrc);
 
   // Returns true if a valid estimate exists and sets |bitrate_bps| to the
   // estimated payload bitrate in bits per second. |ssrcs| is the list of ssrcs
   // currently being received and of which the bitrate estimate is based upon.
   virtual bool LatestEstimate(std::vector<unsigned int>* ssrcs,
-                              unsigned int* bitrate_bps) const OVERRIDE;
+                              unsigned int* bitrate_bps) const;
 
  private:
   typedef std::map<unsigned int, OveruseDetector> SsrcOveruseDetectorMap;

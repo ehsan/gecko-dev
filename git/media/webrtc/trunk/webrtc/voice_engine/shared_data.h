@@ -22,7 +22,6 @@
 class ProcessThread;
 
 namespace webrtc {
-class Config;
 class CriticalSectionWrapper;
 
 namespace voe {
@@ -80,11 +79,11 @@ protected:
 
     AudioDeviceModule::AudioLayer _audioDeviceLayer;
 
-    SharedData(const Config& config);
+    SharedData();
     virtual ~SharedData();
 };
 
-}  // namespace voe
+} //  namespace voe
 
-}  // namespace webrtc
+} //  namespace webrtc
 #endif // WEBRTC_VOICE_ENGINE_SHARED_DATA_H

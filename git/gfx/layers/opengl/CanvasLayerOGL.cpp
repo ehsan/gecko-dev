@@ -103,8 +103,9 @@ MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
   aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
 
   RefPtr<MacIOSurface> ioSurface = MacIOSurface::IOSurfaceContextGetSurface((CGContextRef)aCGIOSurfaceContext);
+  void *nativeCtx = aGL->GetNativeData(GLContext::NativeGLContext);
 
-  ioSurface->CGLTexImageIOSurface2D(static_cast<CGLContextObj>(aGL->GetNativeData(GLContext::NativeCGLContext)));
+  ioSurface->CGLTexImageIOSurface2D(nativeCtx);
 
   aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 

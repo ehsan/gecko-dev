@@ -250,16 +250,7 @@ struct Zone : public JS::shadow::Zone,
      * gcMaxMallocBytes down to zero. This counter should be used only when it's
      * not possible to know the size of a free.
      */
-    mozilla::Atomic<ptrdiff_t, mozilla::ReleaseAcquire> gcMallocBytes;
-
-    /*
-     * Whether a GC has been triggered as a result of gcMallocBytes falling
-     * below zero.
-     *
-     * This should be a bool, but Atomic only supports 32-bit and pointer-sized
-     * types.
-     */
-    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> gcMallocGCTriggered;
+    ptrdiff_t                    gcMallocBytes;
 
     /* This compartment's gray roots. */
     js::Vector<js::GrayRoot, 0, js::SystemAllocPolicy> gcGrayRoots;
@@ -287,8 +278,10 @@ struct Zone : public JS::shadow::Zone,
          * Note: this code may be run from worker threads.  We
          * tolerate any thread races when updating gcMallocBytes.
          */
-        gcMallocBytes -= ptrdiff_t(nbytes);
-        if (JS_UNLIKELY(isTooMuchMalloc()))
+        ptrdiff_t oldCount = gcMallocBytes;
+        ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
+        gcMallocBytes = newCount;
+        if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
             onTooMuchMalloc();
     }
 

@@ -7,8 +7,10 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+
 #include "webrtc/video_engine/test/common/video_renderer.h"
 
+// TODO(pbos): Windows renderer
 // TODO(pbos): Android renderer
 
 #include "webrtc/typedefs.h"
@@ -21,16 +23,14 @@ class NullRenderer : public VideoRenderer {
                            int time_to_render_ms) OVERRIDE {}
 };
 
-VideoRenderer* VideoRenderer::Create(const char* window_title,
-                                     size_t width,
+VideoRenderer* VideoRenderer::Create(const char* window_title, size_t width,
                                      size_t height) {
   VideoRenderer* renderer = CreatePlatformRenderer(window_title, width, height);
   if (renderer != NULL) {
     // TODO(mflodman) Add a warning log.
     return renderer;
   }
-
   return new NullRenderer();
 }
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc

@@ -128,18 +128,18 @@ void get_time(WindowsHelpTimer* help_timer, FILETIME& current_time) {
 class RealTimeClock : public Clock {
   // Return a timestamp in milliseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMilliseconds() OVERRIDE {
+  virtual int64_t TimeInMilliseconds() {
     return TickTime::MillisecondTimestamp();
   }
 
   // Return a timestamp in microseconds relative to some arbitrary source; the
   // source is fixed for this clock.
-  virtual int64_t TimeInMicroseconds() OVERRIDE {
+  virtual int64_t TimeInMicroseconds() {
     return TickTime::MicrosecondTimestamp();
   }
 
   // Retrieve an NTP absolute timestamp in seconds and fractions of a second.
-  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions) OVERRIDE {
+  virtual void CurrentNtp(uint32_t& seconds, uint32_t& fractions) {
     timeval tv = CurrentTimeVal();
     double microseconds_in_seconds;
     Adjust(tv, &seconds, &microseconds_in_seconds);
@@ -148,7 +148,7 @@ class RealTimeClock : public Clock {
   }
 
   // Retrieve an NTP absolute timestamp in milliseconds.
-  virtual int64_t CurrentNtpInMilliseconds() OVERRIDE {
+  virtual int64_t CurrentNtpInMilliseconds() {
     timeval tv = CurrentTimeVal();
     uint32_t seconds;
     double microseconds_in_seconds;
@@ -184,7 +184,7 @@ class WindowsRealTimeClock : public RealTimeClock {
   virtual ~WindowsRealTimeClock() {}
 
  protected:
-  virtual timeval CurrentTimeVal() const OVERRIDE {
+  timeval CurrentTimeVal() const {
     const uint64_t FILETIME_1970 = 0x019db1ded53e8000;
 
     FILETIME StartTime;
@@ -217,7 +217,7 @@ class UnixRealTimeClock : public RealTimeClock {
   virtual ~UnixRealTimeClock() {}
 
  protected:
-  virtual timeval CurrentTimeVal() const OVERRIDE {
+  timeval CurrentTimeVal() const {
     struct timeval tv;
     struct timezone tz;
     tz.tz_minuteswest = 0;

@@ -8,18 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
-#include <ctype.h>
 #include <stdio.h>
+#include <ctype.h>
+#include <cassert>
 #include <string.h>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/modules/audio_device/test/func_test_manager.h"
-#include "webrtc/system_wrappers/interface/sleep.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "func_test_manager.h"
+#include "gtest/gtest.h"
+#include "system_wrappers/interface/sleep.h"
+#include "testsupport/fileutils.h"
 
-#include "webrtc/modules/audio_device/audio_device_config.h"
-#include "webrtc/modules/audio_device/audio_device_impl.h"
+#include "modules/audio_device/audio_device_config.h"
+#include "modules/audio_device/audio_device_impl.h"
 
 #ifndef __GNUC__
 // Disable warning message ('sprintf': name was marked as #pragma deprecated)
@@ -437,7 +437,7 @@ int32_t AudioTransportImpl::NeedMorePlayData(
             }
             _audioList.PopFront();
         }
-    }  // if (_fullDuplex)
+    } // if (_fullDuplex)
 
     if (_playFromFile && _playFile.Open())
     {
@@ -469,7 +469,7 @@ int32_t AudioTransportImpl::NeedMorePlayData(
                 audio16++;
             }
         }
-    }  // if (_playFromFile && _playFile.Open())
+    } // if (_playFromFile && _playFile.Open())
 
     _playCount++;
 
@@ -544,24 +544,11 @@ int32_t AudioTransportImpl::NeedMorePlayData(
         {
             TEST_LOG("++");
         }
-    }  // if (_playCount % 100 == 0)
+    } // if (_playCount % 100 == 0)
 
     nSamplesOut = nSamples;
 
     return 0;
-}
-
-int AudioTransportImpl::OnDataAvailable(const int voe_channels[],
-                                        int number_of_voe_channels,
-                                        const int16_t* audio_data,
-                                        int sample_rate,
-                                        int number_of_channels,
-                                        int number_of_frames,
-                                        int audio_delay_milliseconds,
-                                        int current_volume,
-                                        bool key_pressed,
-                                        bool need_audio_processing) {
-  return 0;
 }
 
 FuncTestManager::FuncTestManager() :
@@ -887,7 +874,7 @@ int32_t FuncTestManager::TestAudioLayerSelection()
                 TEST_LOG("\nActiveAudioLayer: kWindowsCoreAudio <=> "
                     "switch was possible\n \n");
         }
-    }  // if (tryWinWave || tryWinCore)
+    } // if (tryWinWave || tryWinCore)
 
     PRINT_TEST_RESULTS;
 
@@ -2467,7 +2454,7 @@ int32_t FuncTestManager::TestDeviceRemoval()
 
             loopCount++;
         }
-    }  // loopCount
+    } // loopCount
 
     EXPECT_EQ(0, audioDevice->Terminate());
     EXPECT_FALSE(audioDevice->Initialized());
@@ -2736,6 +2723,6 @@ int32_t FuncTestManager::TestAdvancedMBAPI()
     return 0;
 }
 
-}  // namespace webrtc
+} // namespace webrtc
 
 // EOF

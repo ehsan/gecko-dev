@@ -38,7 +38,6 @@ using webrtc::EchoCancellation;
 using webrtc::GainControl;
 using webrtc::NoiseSuppression;
 using webrtc::scoped_array;
-using webrtc::scoped_ptr;
 using webrtc::TickInterval;
 using webrtc::TickTime;
 using webrtc::VoiceDetection;
@@ -168,8 +167,8 @@ void void_main(int argc, char* argv[]) {
     printf("Try `process_test --help' for more information.\n\n");
   }
 
-  scoped_ptr<AudioProcessing> apm(AudioProcessing::Create(0));
-  ASSERT_TRUE(apm.get() != NULL);
+  AudioProcessing* apm = AudioProcessing::Create(0);
+  ASSERT_TRUE(apm != NULL);
 
   const char* pb_filename = NULL;
   const char* far_filename = NULL;
@@ -1058,6 +1057,9 @@ void void_main(int argc, char* argv[]) {
       printf("Warning: no capture frames\n");
     }
   }
+
+  AudioProcessing::Destroy(apm);
+  apm = NULL;
 }
 }  // namespace
 

@@ -15,6 +15,8 @@ namespace webrtc {
 
 class I420VideoFrame;
 
+namespace newapi {
+
 class VideoRenderer {
  public:
   // This function should return as soon as possible and not block until it's
@@ -26,6 +28,7 @@ class VideoRenderer {
  protected:
   virtual ~VideoRenderer() {}
 };
+}  // namespace newapi
 }  // namespace webrtc
 
 #endif  // WEBRTC_VIDEO_ENGINE_NEW_INCLUDE_VIDEO_RENDERER_H_

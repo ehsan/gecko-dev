@@ -16,10 +16,9 @@
 #ifndef WEBRTC_VIDEO_ENGINE_MAIN_TEST_AUTOTEST_INTERFACE_VIE_AUTOTEST_DEFINES_H_
 #define WEBRTC_VIDEO_ENGINE_MAIN_TEST_AUTOTEST_INTERFACE_VIE_AUTOTEST_DEFINES_H_
 
-#include <assert.h>
+#include <cassert>
 #include <stdarg.h>
 #include <stdio.h>
-
 #include <string>
 
 #include "testing/gtest/include/gtest/gtest.h"

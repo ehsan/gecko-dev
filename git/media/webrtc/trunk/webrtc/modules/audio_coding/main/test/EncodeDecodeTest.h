@@ -48,6 +48,7 @@ class Sender {
   void Teardown();
   void Run();
   bool Add10MsData();
+  bool Process();
 
   //for auto_test and logging
   uint8_t testMode;

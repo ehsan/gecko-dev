@@ -245,7 +245,7 @@ CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script);
  * alive until the compilation finishes.
  */
 bool
-StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
+StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
                           const jschar *chars, size_t length, HandleObject scopeChain,
                           JS::OffThreadCompileCallback callback, void *callbackData);
 
@@ -391,7 +391,7 @@ struct AsmJSParallelTask
 struct ParseTask
 {
     ExclusiveContext *cx;
-    OwningCompileOptions options;
+    CompileOptions options;
     const jschar *chars;
     size_t length;
     LifoAlloc alloc;
@@ -414,10 +414,9 @@ struct ParseTask
     // when finishing the script.
     Vector<frontend::CompileError *> errors;
 
-    ParseTask(ExclusiveContext *cx, JSContext *initCx,
+    ParseTask(ExclusiveContext *cx, const CompileOptions &options,
               const jschar *chars, size_t length, JSObject *scopeChain,
               JS::OffThreadCompileCallback callback, void *callbackData);
-    bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
 
     ~ParseTask();
 };

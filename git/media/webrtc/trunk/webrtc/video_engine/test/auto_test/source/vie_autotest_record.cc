@@ -23,6 +23,7 @@
 #include "webrtc/video_engine/include/vie_base.h"
 #include "webrtc/video_engine/include/vie_capture.h"
 #include "webrtc/video_engine/include/vie_codec.h"
+#include "webrtc/video_engine/include/vie_file.h"
 #include "webrtc/video_engine/include/vie_network.h"
 #include "webrtc/video_engine/include/vie_render.h"
 #include "webrtc/video_engine/include/vie_rtp_rtcp.h"
@@ -427,10 +428,12 @@ int VideoEngineSampleRecordCode(void* window1, void* window2) {
     return -1;
   }
 
+  // Get file interface (video recording)
+  webrtc::ViEFile* vie_file = webrtc::ViEFile::GetInterface(ptrViE);
   //  Engine started
 
   voe_apm->StartDebugRecording(audio_filename.c_str());
-  ptrViECodec->StartDebugRecording(videoChannel, video_filename.c_str());
+  vie_file->StartDebugRecording(videoChannel, video_filename.c_str());
   ptrViERtpRtcp->StartRTPDump(videoChannel,
                               video_rtp_filename.c_str(), webrtc::kRtpOutgoing);
   ptrVoERtpRtcp->StartRTPDump(audio_channel,
@@ -458,7 +461,7 @@ int VideoEngineSampleRecordCode(void* window1, void* window2) {
   ptrViERtpRtcp->StopRTPDump(videoChannel, webrtc::kRtpOutgoing);
   ptrVoERtpRtcp->StopRTPDump(audio_channel, webrtc::kRtpOutgoing);
   voe_apm->StopDebugRecording();
-  ptrViECodec->StopDebugRecording(videoChannel);
+  vie_file->StopDebugRecording(videoChannel);
   if (enable_labeling == 1)
     timing.close();
 

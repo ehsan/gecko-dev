@@ -99,6 +99,10 @@ Editor.modes = {
   fs:   { name: "x-shader/x-fragment" }
 };
 
+function ctrl(k) {
+  return (Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") + k;
+}
+
 /**
  * A very thin wrapper around CodeMirror. Provides a number
  * of helper methods to make our use of CodeMirror easier and
@@ -138,26 +142,17 @@ function Editor(config) {
     theme: "mozilla"
   };
 
-  // Additional shortcuts.
-  this.config.extraKeys[Editor.keyFor("jumpToLine")] = (cm) => this.jumpToLine();
-  this.config.extraKeys[Editor.keyFor("toggleComment")] = "toggleComment";
-
-  // Disable ctrl-[ and ctrl-] because toolbox uses those shortcuts.
-  this.config.extraKeys[Editor.keyFor("indentLess")] = false;
-  this.config.extraKeys[Editor.keyFor("indentMore")] = false;
-
   // Overwrite default config with user-provided, if needed.
-  Object.keys(config).forEach((k) => {
-    if (k != "extraKeys")
-      return this.config[k] = config[k];
+  Object.keys(config).forEach((k) => this.config[k] = config[k]);
 
-    if (!config.extraKeys)
-      return;
+  // Additional shortcuts.
+  this.config.extraKeys[ctrl("J")] = (cm) => this.jumpToLine();
+  this.config.extraKeys[ctrl("/")] = "toggleComment";
 
-    Object.keys(config.extraKeys).forEach((key) => {
-      this.config.extraKeys[key] = config.extraKeys[key];
-    });
-  });
+  // Disable ctrl-[ and ctrl-] because toolbox uses those
+  // shortcuts.
+  this.config.extraKeys[ctrl("[")] = false;
+  this.config.extraKeys[ctrl("]")] = false;
 
   // Overwrite default tab behavior. If something is selected,
   // indent those lines. If nothing is selected and we're
@@ -670,27 +665,6 @@ CM_MAPPING.forEach(function (name) {
     return cm[name].apply(cm, args);
   };
 });
-
-// Static methods on the Editor object itself.
-
-/**
- * Returns a string representation of a shortcut 'key' with
- * a OS specific modifier. Cmd- for Macs, Ctrl- for other
- * platforms. Useful with extraKeys configuration option.
- */
-Editor.accel = function (key) {
-  return (Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") + key;
-};
-
-/**
- * Returns a string representation of a shortcut for a
- * specified command 'cmd'. Cmd- for macs, Ctrl- for other
- * platforms. Useful when overwriting or disabling default
- * shortcuts.
- */
-Editor.keyFor = function (cmd) {
-  return Editor.accel(L10N.GetStringFromName(cmd + ".commandkey"));
-};
 
 // Since Gecko already provide complete and up to date list of CSS property
 // names, values and color names, we compute them so that they can replace

@@ -88,8 +88,6 @@
         'timestamp_map.cc',
         'timing.cc',
         'video_coding_impl.cc',
-        'video_sender.cc',
-        'video_receiver.cc',
       ], # source
       # TODO(jschuh): Bug 1348: fix size_t to int truncations.
       'msvs_disabled_warnings': [ 4267, ],

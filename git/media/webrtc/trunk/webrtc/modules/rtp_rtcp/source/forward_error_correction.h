@@ -43,11 +43,16 @@ class ForwardErrorCorrection {
     virtual ~Packet() {}
 
     // Add a reference.
-    virtual int32_t AddRef();
+    virtual int32_t AddRef() { return ++ref_count_; }
 
     // Release a reference. Will delete the object if the reference count
     // reaches zero.
-    virtual int32_t Release();
+    virtual int32_t Release() {
+      int32_t ref_count;
+      ref_count = --ref_count_;
+      if (ref_count == 0) delete this;
+      return ref_count;
+    }
 
     uint16_t length;               // Length of packet in bytes.
     uint8_t data[IP_PACKET_SIZE];  // Packet data.
@@ -85,9 +90,6 @@ class ForwardErrorCorrection {
   // TODO(holmer): Refactor into a proper class.
   class ReceivedPacket : public SortablePacket {
    public:
-    ReceivedPacket();
-    ~ReceivedPacket();
-
     uint32_t ssrc;  // SSRC of the current frame. Must be set for FEC
                     // packets, but not required for media packets.
     bool is_fec;    // Set to true if this is an FEC packet and false
@@ -100,9 +102,6 @@ class ForwardErrorCorrection {
   // TODO(holmer): Refactor into a proper class.
   class RecoveredPacket : public SortablePacket {
    public:
-    RecoveredPacket();
-    ~RecoveredPacket();
-
     bool was_recovered;  // Will be true if this packet was recovered by
                          // the FEC. Otherwise it was a media packet passed in
                          // through the received packet list.
@@ -309,5 +308,5 @@ class ForwardErrorCorrection {
   FecPacketList fec_packet_list_;
   bool fec_packet_received_;
 };
-}  // namespace webrtc
+}       // namespace webrtc
 #endif  // WEBRTC_MODULES_RTP_RTCP_SOURCE_FORWARD_ERROR_CORRECTION_H_

@@ -10,7 +10,7 @@
 
 #include "webrtc/system_wrappers/source/trace_win.h"
 
-#include <assert.h>
+#include <cassert>
 #include <stdarg.h>
 
 #include "Mmsystem.h"

@@ -703,10 +703,6 @@ struct IntrinsicBase
 template<typename T, MemoryOrdering Order>
 struct IntrinsicMemoryOps : public IntrinsicBase<T>
 {
-    typedef typename IntrinsicBase<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::Primitives Primitives;
-    typedef typename IntrinsicBase<T>::PrimType PrimType;
-    typedef typename IntrinsicBase<T>::Cast Cast;
     static ValueType load(const ValueType& ptr) {
       Barrier<Order>::beforeLoad();
       ValueType val = ptr;
@@ -741,9 +737,6 @@ struct IntrinsicMemoryOps : public IntrinsicBase<T>
 template<typename T>
 struct IntrinsicApplyHelper : public IntrinsicBase<T>
 {
-    typedef typename IntrinsicBase<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::PrimType PrimType;
-    typedef typename IntrinsicBase<T>::Cast Cast;
     typedef PrimType (*BinaryOp)(PrimType*, PrimType);
     typedef PrimType (*UnaryOp)(PrimType*);
 
@@ -763,8 +756,6 @@ struct IntrinsicApplyHelper : public IntrinsicBase<T>
 template<typename T>
 struct IntrinsicAddSub : public IntrinsicApplyHelper<T>
 {
-    typedef typename IntrinsicApplyHelper<T>::ValueType ValueType;
-    typedef typename IntrinsicBase<T>::Primitives Primitives;
     static ValueType add(ValueType& ptr, ValueType val) {
       return applyBinaryFunction(&Primitives::add, ptr, val);
     }
@@ -776,7 +767,6 @@ struct IntrinsicAddSub : public IntrinsicApplyHelper<T>
 template<typename T>
 struct IntrinsicAddSub<T*> : public IntrinsicApplyHelper<T*>
 {
-    typedef typename IntrinsicApplyHelper<T*>::ValueType ValueType;
     static ValueType add(ValueType& ptr, ptrdiff_t amount) {
       return applyBinaryFunction(&Primitives::add, ptr,
                                  (ValueType)(amount * sizeof(ValueType)));
@@ -790,7 +780,6 @@ struct IntrinsicAddSub<T*> : public IntrinsicApplyHelper<T*>
 template<typename T>
 struct IntrinsicIncDec : public IntrinsicAddSub<T>
 {
-    typedef typename IntrinsicAddSub<T>::ValueType ValueType;
     static ValueType inc(ValueType& ptr) { return add(ptr, 1); }
     static ValueType dec(ValueType& ptr) { return sub(ptr, 1); }
 };
@@ -799,7 +788,6 @@ template<typename T, MemoryOrdering Order>
 struct AtomicIntrinsics : public IntrinsicMemoryOps<T, Order>,
                           public IntrinsicIncDec<T>
 {
-    typedef typename IntrinsicIncDec<T>::ValueType ValueType;
     static ValueType or_(ValueType& ptr, T val) {
       return applyBinaryFunction(&Primitives::or_, ptr, val);
     }
@@ -815,7 +803,6 @@ template<typename T, MemoryOrdering Order>
 struct AtomicIntrinsics<T*, Order> : public IntrinsicMemoryOps<T*, Order>,
                                      public IntrinsicIncDec<T*>
 {
-    typedef typename IntrinsicMemoryOps<T*, Order>::ValueType ValueType;
 };
 
 } // namespace detail

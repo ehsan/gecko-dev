@@ -174,29 +174,31 @@ static const JSClass workerGlobalClass = {
     JS_ConvertStub,   nullptr
 };
 
-ParseTask::ParseTask(ExclusiveContext *cx, JSContext *initCx,
+ParseTask::ParseTask(ExclusiveContext *cx, const CompileOptions &options,
                      const jschar *chars, size_t length, JSObject *scopeChain,
                      JS::OffThreadCompileCallback callback, void *callbackData)
-  : cx(cx), options(initCx), chars(chars), length(length),
+  : cx(cx), options(options), chars(chars), length(length),
     alloc(JSRuntime::TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE), scopeChain(scopeChain),
     callback(callback), callbackData(callbackData), script(nullptr), errors(cx)
 {
     JSRuntime *rt = scopeChain->runtimeFromMainThread();
 
+    if (options.principals())
+        JS_HoldPrincipals(options.principals());
+    if (options.originPrincipals())
+        JS_HoldPrincipals(options.originPrincipals());
     if (!AddObjectRoot(rt, &this->scopeChain, "ParseTask::scopeChain"))
         MOZ_CRASH();
-}
-
-bool
-ParseTask::init(JSContext *cx, const ReadOnlyCompileOptions &options)
-{
-    return this->options.copy(cx, options);
 }
 
 ParseTask::~ParseTask()
 {
     JSRuntime *rt = scopeChain->runtimeFromMainThread();
 
+    if (options.principals())
+        JS_DropPrincipals(rt, options.principals());
+    if (options.originPrincipals())
+        JS_DropPrincipals(rt, options.originPrincipals());
     JS_RemoveObjectRootRT(rt, &scopeChain);
 
     // ParseTask takes over ownership of its input exclusive context.
@@ -207,7 +209,7 @@ ParseTask::~ParseTask()
 }
 
 bool
-js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
+js::StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
                               const jschar *chars, size_t length, HandleObject scopeChain,
                               JS::OffThreadCompileCallback callback, void *callbackData)
 {
@@ -265,9 +267,9 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
     workercx->enterCompartment(global->compartment());
 
     ScopedJSDeletePtr<ParseTask> task(
-        cx->new_<ParseTask>(workercx.get(), cx, chars, length,
+        cx->new_<ParseTask>(workercx.get(), options, chars, length,
                             scopeChain, callback, callbackData));
-    if (!task || !task->init(cx, options))
+    if (!task)
         return false;
 
     workercx.forget();
@@ -1053,7 +1055,7 @@ js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
 }
 
 bool
-js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
+js::StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
                               const jschar *chars, size_t length, HandleObject scopeChain,
                               JS::OffThreadCompileCallback callback, void *callbackData)
 {

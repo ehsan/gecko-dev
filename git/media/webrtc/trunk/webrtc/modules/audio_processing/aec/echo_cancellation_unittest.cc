@@ -12,8 +12,8 @@
 
 #include "webrtc/modules/audio_processing/aec/include/echo_cancellation.h"
 
-#include <stdlib.h>
-#include <time.h>
+#include <cstdlib>
+#include <ctime>
 
 extern "C" {
 #include "webrtc/modules/audio_processing/aec/aec_core.h"
