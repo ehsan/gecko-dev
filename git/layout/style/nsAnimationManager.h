@@ -93,17 +93,8 @@ struct ElementAnimation
   virtual bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
   bool IsRunningAt(mozilla::TimeStamp aTime) const;
 
-  // Return the duration, at aTime (or, if paused, mPauseStart), since
-  // the *end* of the delay period.  May be negative.
-  mozilla::TimeDuration ElapsedDurationAt(mozilla::TimeStamp aTime) const {
-    NS_ABORT_IF_FALSE(!IsPaused() || aTime >= mPauseStart,
-                      "if paused, aTime must be at least mPauseStart");
-    return (IsPaused() ? mPauseStart : aTime) - mStartTime - mDelay;
-  }
-
-  mozilla::TimeStamp mStartTime; // the beginning of the delay period
+  mozilla::TimeStamp mStartTime; // with delay taken into account
   mozilla::TimeStamp mPauseStart;
-  mozilla::TimeDuration mDelay;
   mozilla::TimeDuration mIterationDuration;
 
   enum {
@@ -141,8 +132,9 @@ struct ElementAnimations MOZ_FINAL
   // run (because it is not currently active and has no fill behavior), but
   // only does so if aAnimation is non-null; with a null aAnimation it is an
   // error to give aCurrentTime < aStartTime, and fill-forwards is assumed.
-  static double GetPositionInIteration(TimeDuration aElapsedDuration,
-                                       TimeDuration aIterationDuration,
+  static double GetPositionInIteration(TimeStamp aStartTime,
+                                       TimeStamp aCurrentTime,
+                                       TimeDuration aDuration,
                                        double aIterationCount,
                                        uint32_t aDirection,
                                        bool aIsForElement = true,

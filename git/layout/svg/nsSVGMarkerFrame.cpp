@@ -14,8 +14,6 @@
 #include "nsSVGPathGeometryElement.h"
 #include "nsSVGPathGeometryFrame.h"
 
-using namespace mozilla::dom;
-
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -202,7 +200,7 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 }
 
 void
-nsSVGMarkerFrame::SetParentCoordCtxProvider(SVGSVGElement *aContext)
+nsSVGMarkerFrame::SetParentCoordCtxProvider(nsSVGSVGElement *aContext)
 {
   nsSVGMarkerElement *marker = static_cast<nsSVGMarkerElement*>(mContent);
   marker->SetParentCoordCtxProvider(aContext);
@@ -219,7 +217,7 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
   mFrame->mInUse = true;
   mFrame->mMarkedFrame = aMarkedFrame;
 
-  SVGSVGElement *ctx =
+  nsSVGSVGElement *ctx =
     static_cast<nsSVGElement*>(aMarkedFrame->GetContent())->GetCtx();
   mFrame->SetParentCoordCtxProvider(ctx);
 }

@@ -87,11 +87,6 @@
 #include "AudioStream.h"
 #endif
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsVolumeService.h"
-using namespace mozilla::system;
-#endif
-
 #include "nsError.h"
 
 #include "nsCycleCollector.h"
@@ -265,7 +260,7 @@ nsLayoutStatics::Initialize()
 
   InitProcessPriorityManager();
 
-  nsPermissionManager::AppClearDataObserverInit();
+  nsPermissionManager::AppUninstallObserverInit();
   nsCookieService::AppClearDataObserverInit();
   nsApplicationCacheService::AppClearDataObserverInit();
 
@@ -352,10 +347,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_WMF
   WMFDecoder::UnloadDLLs();
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-  nsVolumeService::Shutdown();
 #endif
 
   nsCORSListenerProxy::Shutdown();

@@ -200,7 +200,7 @@ JSObject::deleteProperty(JSContext *cx, js::HandleObject obj,
 JSObject::deleteElement(JSContext *cx, js::HandleObject obj,
                         uint32_t index, js::MutableHandleValue rval, bool strict)
 {
-    js::RootedId id(cx);
+    jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
@@ -261,13 +261,14 @@ JSObject::enclosingScope()
 inline bool
 JSObject::isFixedSlot(size_t slot)
 {
+    JS_ASSERT(!isDenseArray());
     return slot < numFixedSlots();
 }
 
 inline size_t
 JSObject::dynamicSlotIndex(size_t slot)
 {
-    JS_ASSERT(slot >= numFixedSlots());
+    JS_ASSERT(!isDenseArray() && slot >= numFixedSlots());
     return slot - numFixedSlots();
 }
 
@@ -353,7 +354,8 @@ JSObject::prepareSlotRangeForOverwrite(size_t start, size_t end)
 inline void
 JSObject::prepareElementRangeForOverwrite(size_t start, size_t end)
 {
-    JS_ASSERT(end <= getDenseInitializedLength());
+    JS_ASSERT(isDenseArray());
+    JS_ASSERT(end <= getDenseArrayInitializedLength());
     for (size_t i = start; i < end; i++)
         elements[i].js::HeapSlot::~HeapSlot();
 }
@@ -387,34 +389,34 @@ JSObject::setArrayLength(JSContext *cx, js::HandleObject obj, uint32_t length)
 }
 
 inline void
-JSObject::setArrayLengthInt32(uint32_t length)
+JSObject::setDenseArrayLength(uint32_t length)
 {
-    /* Variant of setArrayLength for use on arrays where the length cannot overflow int32_t. */
-    JS_ASSERT(isArray());
+    /* Variant of setArrayLength for use on dense arrays where the length cannot overflow int32_t. */
+    JS_ASSERT(isDenseArray());
     JS_ASSERT(length <= INT32_MAX);
     getElementsHeader()->length = length;
 }
 
 inline void
-JSObject::setDenseInitializedLength(uint32_t length)
+JSObject::setDenseArrayInitializedLength(uint32_t length)
 {
-    JS_ASSERT(isNative());
-    JS_ASSERT(length <= getDenseCapacity());
+    JS_ASSERT(isDenseArray());
+    JS_ASSERT(length <= getDenseArrayCapacity());
     prepareElementRangeForOverwrite(length, getElementsHeader()->initializedLength);
     getElementsHeader()->initializedLength = length;
 }
 
 inline uint32_t
-JSObject::getDenseCapacity()
+JSObject::getDenseArrayCapacity()
 {
-    JS_ASSERT(isNative());
+    JS_ASSERT(isDenseArray());
     return getElementsHeader()->capacity;
 }
 
 inline bool
 JSObject::ensureElements(JSContext *cx, uint32_t capacity)
 {
-    if (capacity > getDenseCapacity())
+    if (capacity > getDenseArrayCapacity())
         return growElements(cx, capacity);
     return true;
 }
@@ -428,75 +430,58 @@ JSObject::setDynamicElements(js::ObjectElements *header)
 }
 
 inline void
-JSObject::setDenseElement(unsigned idx, const js::Value &val)
+JSObject::setDenseArrayElement(unsigned idx, const js::Value &val)
 {
-    JS_ASSERT(isNative() && idx < getDenseInitializedLength());
-    elements[idx].set(this, js::HeapSlot::Element, idx, val);
+    JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
+    elements[idx].set(this, idx, val);
 }
 
 inline void
-JSObject::initDenseElement(unsigned idx, const js::Value &val)
+JSObject::initDenseArrayElement(unsigned idx, const js::Value &val)
 {
-    JS_ASSERT(isNative() && idx < getDenseInitializedLength());
-    elements[idx].init(this, js::HeapSlot::Element, idx, val);
+    JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
+    elements[idx].init(this, idx, val);
 }
 
 /* static */ inline void
-JSObject::setDenseElementWithType(JSContext *cx, js::HandleObject obj, unsigned idx,
-                                  const js::Value &val)
+JSObject::setDenseArrayElementWithType(JSContext *cx, js::HandleObject obj, unsigned idx,
+                                       const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, obj, JSID_VOID, val);
-    obj->setDenseElement(idx, val);
+    obj->setDenseArrayElement(idx, val);
 }
 
 /* static */ inline void
-JSObject::initDenseElementWithType(JSContext *cx, js::HandleObject obj, unsigned idx,
-                                   const js::Value &val)
+JSObject::initDenseArrayElementWithType(JSContext *cx, js::HandleObject obj, unsigned idx,
+                                        const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, obj, JSID_VOID, val);
-    obj->initDenseElement(idx, val);
-}
-
-/* static */ inline void
-JSObject::setDenseElementHole(JSContext *cx, js::HandleObject obj, unsigned idx)
-{
-    js::types::MarkTypeObjectFlags(cx, obj, js::types::OBJECT_FLAG_NON_PACKED_ARRAY);
-    obj->setDenseElement(idx, js::MagicValue(JS_ELEMENTS_HOLE));
-}
-
-/* static */ inline void
-JSObject::removeDenseElementForSparseIndex(JSContext *cx, js::HandleObject obj, unsigned idx)
-{
-    js::types::MarkTypeObjectFlags(cx, obj,
-                                   js::types::OBJECT_FLAG_NON_PACKED_ARRAY |
-                                   js::types::OBJECT_FLAG_NON_DENSE_ARRAY);
-    if (obj->containsDenseElement(idx))
-        obj->setDenseElement(idx, js::MagicValue(JS_ELEMENTS_HOLE));
+    obj->initDenseArrayElement(idx, val);
 }
 
 inline void
-JSObject::copyDenseElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::copyDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
 {
-    JS_ASSERT(dstStart + count <= getDenseCapacity());
+    JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].set(comp, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        elements[dstStart + i].set(comp, this, dstStart + i, src[i]);
 }
 
 inline void
-JSObject::initDenseElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::initDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
 {
-    JS_ASSERT(dstStart + count <= getDenseCapacity());
+    JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].init(comp, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        elements[dstStart + i].init(comp, this, dstStart + i, src[i]);
 }
 
 inline void
-JSObject::moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned count)
 {
-    JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JS_ASSERT(srcStart + count <= getDenseInitializedLength());
+    JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
+    JS_ASSERT(srcStart + count <= getDenseArrayInitializedLength());
 
     /*
      * Using memmove here would skip write barriers. Also, we need to consider
@@ -516,12 +501,12 @@ JSObject::moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count
             js::HeapSlot *dst = elements + dstStart;
             js::HeapSlot *src = elements + srcStart;
             for (unsigned i = 0; i < count; i++, dst++, src++)
-                dst->set(comp, this, js::HeapSlot::Element, dst - elements, *src);
+                dst->set(comp, this, dst - elements, *src);
         } else {
             js::HeapSlot *dst = elements + dstStart + count - 1;
             js::HeapSlot *src = elements + srcStart + count - 1;
             for (unsigned i = 0; i < count; i++, dst--, src--)
-                dst->set(comp, this, js::HeapSlot::Element, dst - elements, *src);
+                dst->set(comp, this, dst - elements, *src);
         }
     } else {
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
@@ -530,110 +515,21 @@ JSObject::moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count
 }
 
 inline void
-JSObject::moveDenseElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count)
 {
     JS_ASSERT(!compartment()->needsBarrier());
 
-    JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JS_ASSERT(srcStart + count <= getDenseCapacity());
+    JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
+    JS_ASSERT(srcStart + count <= getDenseArrayCapacity());
 
     memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
 }
 
-inline void
-JSObject::markDenseElementsNotPacked(JSContext *cx)
+inline bool
+JSObject::denseArrayHasInlineSlots() const
 {
-    JS_ASSERT(isNative());
-    MarkTypeObjectFlags(cx, this, js::types::OBJECT_FLAG_NON_PACKED_ARRAY);
-}
-
-inline void
-JSObject::ensureDenseInitializedLength(JSContext *cx, uint32_t index, uint32_t extra)
-{
-    /*
-     * Ensure that the array's contents have been initialized up to index, and
-     * mark the elements through 'index + extra' as initialized in preparation
-     * for a write.
-     */
-    JS_ASSERT(index + extra <= getDenseCapacity());
-    uint32_t &initlen = getElementsHeader()->initializedLength;
-    if (initlen < index)
-        markDenseElementsNotPacked(cx);
-
-    if (initlen < index + extra) {
-        JSCompartment *comp = compartment();
-        size_t offset = initlen;
-        for (js::HeapSlot *sp = elements + initlen;
-             sp != elements + (index + extra);
-             sp++, offset++)
-            sp->init(comp, this, js::HeapSlot::Element, offset, js::MagicValue(JS_ELEMENTS_HOLE));
-        initlen = index + extra;
-    }
-}
-
-inline JSObject::EnsureDenseResult
-JSObject::ensureDenseElements(JSContext *cx, unsigned index, unsigned extra)
-{
-    JS_ASSERT(isNative());
-
-    unsigned currentCapacity = getDenseCapacity();
-
-    unsigned requiredCapacity;
-    if (extra == 1) {
-        /* Optimize for the common case. */
-        if (index < currentCapacity) {
-            ensureDenseInitializedLength(cx, index, 1);
-            return ED_OK;
-        }
-        requiredCapacity = index + 1;
-        if (requiredCapacity == 0) {
-            /* Overflow. */
-            return ED_SPARSE;
-        }
-    } else {
-        requiredCapacity = index + extra;
-        if (requiredCapacity < index) {
-            /* Overflow. */
-            return ED_SPARSE;
-        }
-        if (requiredCapacity <= currentCapacity) {
-            ensureDenseInitializedLength(cx, index, extra);
-            return ED_OK;
-        }
-    }
-
-    /*
-     * Don't grow elements for non-extensible objects or watched objects. Dense
-     * elements can be added/written with no extensible or watchpoint checks as
-     * long as there is capacity for them.
-     */
-    if (!isExtensible() || watched()) {
-        JS_ASSERT(currentCapacity == 0);
-        return ED_SPARSE;
-    }
-
-    /*
-     * Don't grow elements for objects which already have sparse indexes.
-     * This avoids needing to count non-hole elements in willBeSparseElements
-     * every time a new index is added.
-     */
-    if (isIndexed())
-        return ED_SPARSE;
-
-    /*
-     * We use the extra argument also as a hint about number of non-hole
-     * elements to be inserted.
-     */
-    if (requiredCapacity > MIN_SPARSE_INDEX &&
-        willBeSparseElements(requiredCapacity, extra)) {
-        return ED_SPARSE;
-    }
-
-    if (!growElements(cx, requiredCapacity))
-        return ED_FAILED;
-
-    ensureDenseInitializedLength(cx, index, extra);
-    return ED_OK;
+    JS_ASSERT(isDenseArray());
+    return elements == fixedElements();
 }
 
 namespace js {
@@ -892,7 +788,6 @@ inline bool JSObject::hasSpecialEquality() const
     return !!getClass()->ext.equality;
 }
 
-inline bool JSObject::isArray() const { return hasClass(&js::ArrayClass); }
 inline bool JSObject::isArguments() const { return isNormalArguments() || isStrictArguments(); }
 inline bool JSObject::isArrayBuffer() const { return hasClass(&js::ArrayBufferClass); }
 inline bool JSObject::isBlock() const { return hasClass(&js::BlockClass); }
@@ -963,7 +858,6 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind,
      * make sure their presence is consistent with the shape.
      */
     JS_ASSERT(shape && type);
-    JS_ASSERT(shape->getObjectClass() != &js::ArrayClass);
     JS_ASSERT(!!dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan()) == !!slots);
     JS_ASSERT(js::gc::GetGCKindSlots(kind, shape->getObjectClass()) == shape->numFixedSlots());
     JS_ASSERT(cx->compartment == type->compartment());
@@ -989,18 +883,17 @@ JSObject::create(JSContext *cx, js::gc::AllocKind kind,
 }
 
 /* static */ inline JSObject *
-JSObject::createArray(JSContext *cx, js::gc::AllocKind kind,
-                      js::HandleShape shape, js::HandleTypeObject type,
-                      uint32_t length)
+JSObject::createDenseArray(JSContext *cx, js::gc::AllocKind kind,
+                           js::HandleShape shape, js::HandleTypeObject type,
+                           uint32_t length)
 {
     JS_ASSERT(shape && type);
     JS_ASSERT(shape->getObjectClass() == &js::ArrayClass);
     JS_ASSERT(cx->compartment == type->compartment());
 
     /*
-     * Arrays use their fixed slots to store elements, and must have enough
-     * space for the elements header and also be marked as having no space for
-     * named properties stored in those fixed slots.
+     * Dense arrays are non-native, and never have properties to store.
+     * The number of fixed slots in the shape of such objects is zero.
      */
     JS_ASSERT(shape->numFixedSlots() == 0);
 
@@ -1218,7 +1111,7 @@ JSObject::getElement(JSContext *cx, js::HandleObject obj, js::HandleObject recei
         return op(cx, obj, receiver, index, vp);
 
     js::RootedId id(cx);
-    if (!js::IndexToId(cx, index, &id))
+    if (!js::IndexToId(cx, index, id.address()))
         return false;
     return getGeneric(cx, obj, receiver, id, vp);
 }
@@ -1238,7 +1131,7 @@ JSObject::getElementIfPresent(JSContext *cx, js::HandleObject obj, js::HandleObj
      * doing index-to-id conversions, we can use those here.
      */
     js::RootedId id(cx);
-    if (!js::IndexToId(cx, index, &id))
+    if (!js::IndexToId(cx, index, id.address()))
         return false;
 
     js::RootedObject obj2(cx);
@@ -1284,7 +1177,7 @@ JSObject::getElementAttributes(JSContext *cx, js::HandleObject obj,
                                uint32_t index, unsigned *attrsp)
 {
     js::RootedId id(cx);
-    if (!js::IndexToId(cx, index, &id))
+    if (!js::IndexToId(cx, index, id.address()))
         return false;
     return getGenericAttributes(cx, obj, id, attrsp);
 }
@@ -1738,15 +1631,14 @@ IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx)
 }
 
 static JS_ALWAYS_INLINE bool
-ValueIsSpecial(JSObject *obj, MutableHandleValue propval, MutableHandle<SpecialId> sidp,
-               JSContext *cx)
+ValueIsSpecial(JSObject *obj, MutableHandleValue propval, SpecialId *sidp, JSContext *cx)
 {
 #if JS_HAS_XML_SUPPORT
     if (!propval.isObject())
         return false;
 
     if (obj->isXML()) {
-        sidp.set(SpecialId(propval.toObject()));
+        *sidp = SpecialId(propval.toObject());
         return true;
     }
 

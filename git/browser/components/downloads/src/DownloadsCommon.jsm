@@ -437,7 +437,7 @@ this.DownloadsCommon = {
       }
 
       if (showAlert) {
-        let name = aFile.leafName;
+        let name = this.dataItem.target;
         let message =
           DownloadsCommon.strings.fileExecutableSecurityWarning(name, name);
         let title =
@@ -773,11 +773,6 @@ DownloadsDataCtor.prototype = {
   ensurePersistentDataLoaded:
   function DD_ensurePersistentDataLoaded(aActiveOnly)
   {
-    if (this == PrivateDownloadsData) {
-      Cu.reportError("ensurePersistentDataLoaded should not be called on PrivateDownloadsData");
-      return;
-    }
-
     if (this._pendingStatement) {
       // We are already in the process of reloading all downloads.
       return;
@@ -792,7 +787,9 @@ DownloadsDataCtor.prototype = {
 
         // Reload the list using the Download Manager service.  The list is
         // returned in no particular order.
-        let downloads = Services.downloads.activeDownloads;
+        let downloads = this._isPrivate ?
+                          Services.downloads.activePrivateDownloads :
+                          Services.downloads.activeDownloads;
         while (downloads.hasMoreElements()) {
           let download = downloads.getNext().QueryInterface(Ci.nsIDownload);
           this._getOrAddDataItem(download, true);
@@ -810,7 +807,9 @@ DownloadsDataCtor.prototype = {
         // columns are read in the _initFromDataRow method of DownloadsDataItem.
         // Order by descending download identifier so that the most recent
         // downloads are notified first to the listening views.
-        let dbConnection = Services.downloads.DBConnection;
+        let dbConnection = this._isPrivate ?
+                             Services.downloads.privateDBConnection :
+                             Services.downloads.DBConnection;
         let statement = dbConnection.createAsyncStatement(
           "SELECT guid, target, name, source, referrer, state, "
         +        "startTime, endTime, currBytes, maxBytes "
@@ -941,7 +940,7 @@ DownloadsDataCtor.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsIDownloadProgressListener
 
-  onDownloadStateChange: function DD_onDownloadStateChange(aOldState, aDownload)
+  onDownloadStateChange: function DD_onDownloadStateChange(aState, aDownload)
   {
 #ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
     if (aDownload.isPrivate != this._isPrivate) {
@@ -954,15 +953,13 @@ DownloadsDataCtor.prototype = {
     // When a new download is added, it may have the same identifier of a
     // download that we previously deleted during this session, and we also
     // want to provide a visible indication that the download started.
-    let isNew = aOldState == nsIDM.DOWNLOAD_NOTSTARTED ||
-                aOldState == nsIDM.DOWNLOAD_QUEUED;
+    let isNew = aState == nsIDM.DOWNLOAD_NOTSTARTED ||
+                aState == nsIDM.DOWNLOAD_QUEUED;
 
     let dataItem = this._getOrAddDataItem(aDownload, isNew);
     if (!dataItem) {
       return;
     }
-
-    let wasInProgress = dataItem.inProgress;
 
     dataItem.state = aDownload.state;
     dataItem.referrer = aDownload.referrer && aDownload.referrer.spec;
@@ -970,10 +967,6 @@ DownloadsDataCtor.prototype = {
     dataItem.startTime = Math.round(aDownload.startTime / 1000);
     dataItem.currBytes = aDownload.amountTransferred;
     dataItem.maxBytes = aDownload.size;
-
-    if (wasInProgress && !dataItem.inProgress) {
-      dataItem.endTime = Date.now();
-    }
 
     // When a download is retried, we create a different download object from
     // the database with the same ID as before. This means that the nsIDownload
@@ -987,7 +980,7 @@ DownloadsDataCtor.prototype = {
     }
 
     this._views.forEach(
-      function (view) view.getViewItem(dataItem).onStateChange(aOldState)
+      function (view) view.getViewItem(dataItem).onStateChange()
     );
 
     if (isNew && !dataItem.newDownloadNotified) {
@@ -1735,7 +1728,7 @@ DownloadsIndicatorDataCtor.prototype = {
     let data = this._isPrivate ? PrivateDownloadsIndicatorData
                                : DownloadsIndicatorData;
     return Object.freeze({
-      onStateChange: function DIVI_onStateChange(aOldState)
+      onStateChange: function DIVI_onStateChange()
       {
         if (aDataItem.state == nsIDM.DOWNLOAD_FINISHED ||
             aDataItem.state == nsIDM.DOWNLOAD_FAILED) {
@@ -2010,7 +2003,7 @@ DownloadsSummaryData.prototype = {
   {
     let self = this;
     return Object.freeze({
-      onStateChange: function DIVI_onStateChange(aOldState)
+      onStateChange: function DIVI_onStateChange()
       {
         // Since the state of a download changed, reset the estimated time left.
         self._lastRawTimeLeft = -1;

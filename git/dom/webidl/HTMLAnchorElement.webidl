@@ -45,10 +45,11 @@ interface HTMLAnchorElement : HTMLElement {
            attribute DOMString pathname;
            attribute DOMString search;
            attribute DOMString hash;
-};
+/*};
 
 // http://www.whatwg.org/specs/web-apps/current-work/#other-elements,-attributes-and-apis
 partial interface HTMLAnchorElement {
+*/
            [SetterThrows]
            attribute DOMString coords;
            [SetterThrows]

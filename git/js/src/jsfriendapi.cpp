@@ -389,9 +389,9 @@ js::GetOutermostEnclosingFunctionOfScriptedCaller(JSContext *cx)
     if (!fp->isFunctionFrame())
         return NULL;
 
-    RootedFunction scriptedCaller(cx, fp->fun());
+    JSFunction *scriptedCaller = fp->fun();
     RootedScript outermost(cx, scriptedCaller->nonLazyScript());
-    for (StaticScopeIter i(cx, scriptedCaller); !i.done(); i++) {
+    for (StaticScopeIter i(scriptedCaller); !i.done(); i++) {
         if (i.type() == StaticScopeIter::FUNCTION)
             outermost = i.funScript();
     }
@@ -989,16 +989,4 @@ JS_FRIEND_API(void)
 js::SetCTypesActivityCallback(JSRuntime *rt, CTypesActivityCallback cb)
 {
     rt->ctypesActivityCallback = cb;
-}
-
-js::AutoCTypesActivityCallback::AutoCTypesActivityCallback(JSContext *cx,
-                                                           js::CTypesActivityType beginType,
-                                                           js::CTypesActivityType endType
-                                                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
-  : cx(cx), callback(cx->runtime->ctypesActivityCallback), beginType(beginType), endType(endType)
-{
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-
-    if (callback)
-        callback(cx, beginType);
 }

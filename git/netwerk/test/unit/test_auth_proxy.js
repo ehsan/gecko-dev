@@ -165,9 +165,7 @@ var listener = {
 
   onStartRequest: function test_onStartR(request, ctx) {
     try {
-      // Proxy auth cancellation return failures to avoid spoofing
-      if (!Components.isSuccessCode(request.status) &&
-          (this.expectedCode != 407))
+      if (!Components.isSuccessCode(request.status))
         do_throw("Channel should have a success code!");
 
       if (!(request instanceof Ci.nsIHttpChannel))

@@ -669,8 +669,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             /* Code the nested function's enclosing scope. */
             uint32_t funEnclosingScopeIndex = 0;
             if (mode == XDR_ENCODE) {
-                RootedObject staticScope(cx, (*objp)->toFunction()->nonLazyScript()->enclosingStaticScope());
-                StaticScopeIter ssi(cx, staticScope);
+                StaticScopeIter ssi((*objp)->toFunction()->nonLazyScript()->enclosingStaticScope());
                 if (ssi.done() || ssi.type() == StaticScopeIter::FUNCTION) {
                     JS_ASSERT(ssi.done() == !fun);
                     funEnclosingScopeIndex = UINT32_MAX;
@@ -946,13 +945,6 @@ SourceCompressorThread::finish()
         PR_DestroyLock(lock);
 }
 
-const jschar *
-SourceCompressorThread::currentChars() const
-{
-    JS_ASSERT(tok);
-    return tok->chars;
-}
-
 bool
 SourceCompressorThread::internalCompress()
 {
@@ -1059,7 +1051,6 @@ SourceCompressorThread::compress(SourceCompressionToken *sct)
     JS_ASSERT(!tok);
     stop = false;
     PR_Lock(lock);
-    sct->ss->ready_ = false;
     tok = sct;
     state = COMPRESSING;
     PR_NotifyCondVar(wakeup);
@@ -1079,7 +1070,9 @@ SourceCompressorThread::waitOnCompression(SourceCompressionToken *userTok)
     PR_Unlock(lock);
 
     JS_ASSERT(!saveTok->ss->ready());
+#ifdef DEBUG
     saveTok->ss->ready_ = true;
+#endif
 
     // Update memory accounting.
     if (!saveTok->oom)
@@ -1190,14 +1183,10 @@ SourceDataCache::purge()
 JSFlatString *
 ScriptSource::substring(JSContext *cx, uint32_t start, uint32_t stop)
 {
+    JS_ASSERT(ready());
     const jschar *chars;
 #if USE_ZLIB
     Rooted<JSStableString *> cached(cx, NULL);
-#ifdef JS_THREADSAFE
-    if (!ready()) {
-        chars = cx->runtime->sourceCompressorThread.currentChars();
-    } else
-#endif
     if (compressed()) {
         cached = cx->runtime->sourceDataCache.lookup(this);
         if (!cached) {
@@ -1240,6 +1229,9 @@ ScriptSource::setSourceCopy(JSContext *cx, StableCharPtr src, uint32_t length,
 
 #ifdef JS_THREADSAFE
     if (tok && cx->runtime->useHelperThreads()) {
+#ifdef DEBUG
+        ready_ = false;
+#endif
         tok->ss = this;
         tok->chars = src.get();
         cx->runtime->sourceCompressorThread.compress(tok);
@@ -1295,7 +1287,9 @@ ScriptSource::destroy(JSRuntime *rt)
     JS_ASSERT(ready());
     adjustDataSize(0);
     js_free(sourceMap_);
+#ifdef DEBUG
     ready_ = false;
+#endif
     js_free(this);
 }
 
@@ -1379,8 +1373,10 @@ ScriptSource::performXDR(XDRState<mode> *xdr)
         sourceMap_[sourceMapLen] = '\0';
     }
 
+#ifdef DEBUG
     if (mode == XDR_DECODE)
         ready_ = true;
+#endif
 
     return true;
 }
@@ -2222,8 +2218,8 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
                 clone = CloneStaticBlockObject(cx, enclosingScope, innerBlock);
             } else if (obj->isFunction()) {
                 RootedFunction innerFun(cx, obj->toFunction());
-                RootedObject staticScope(cx, innerFun->nonLazyScript()->enclosingStaticScope());
-                StaticScopeIter ssi(cx, staticScope);
+
+                StaticScopeIter ssi(innerFun->nonLazyScript()->enclosingStaticScope());
                 RootedObject enclosingScope(cx);
                 if (!ssi.done() && ssi.type() == StaticScopeIter::BLOCK)
                     enclosingScope = objects[FindBlockIndex(src, ssi.block())];

@@ -970,7 +970,7 @@ CodeGenerator::visitCallGetIntrinsicValue(LCallGetIntrinsicValue *lir)
     return callVM(GetIntrinsicValueInfo, lir);
 }
 
-typedef bool (*InvokeFunctionFn)(JSContext *, HandleFunction, uint32_t, Value *, Value *);
+typedef bool (*InvokeFunctionFn)(JSContext *, JSFunction *, uint32_t, Value *, Value *);
 static const VMFunction InvokeFunctionInfo = FunctionInfo<InvokeFunctionFn>(InvokeFunction);
 
 bool
@@ -1106,7 +1106,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     Register calleereg = ToRegister(call->getFunction());
     Register objreg    = ToRegister(call->getTempObject());
     uint32_t unusedStack = StackOffsetOfPassedArg(call->argslot());
-    RootedFunction target(cx, call->getSingleTarget());
+    JSFunction *target = call->getSingleTarget();
     Label end, invoke;
 
     // Native single targets are handled by LCallNative.
@@ -1117,7 +1117,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     masm.checkStackAlignment();
 
     // Make sure the function has a JSScript
-    if (target->isInterpretedLazy() && !JSFunction::getOrCreateScript(cx, target))
+    if (target->isInterpretedLazy() && !target->getOrCreateScript(cx))
         return false;
 
     // If the function is known to be uncompilable, only emit the call to InvokeFunction.
@@ -3363,13 +3363,6 @@ CodeGenerator::visitIteratorStart(LIteratorStart *lir)
     masm.loadObjProto(temp1, temp1);
     masm.branchTestPtr(Assembler::NonZero, temp1, temp1, ool->entry());
 
-    // Ensure the object does not have any elements. The presence of dense
-    // elements is not captured by the shape tests above.
-    masm.branchPtr(Assembler::NotEqual,
-                   Address(obj, JSObject::offsetOfElements()),
-                   ImmWord(js::emptyObjectElements),
-                   ool->entry());
-
     // Write barrier for stores to the iterator. We only need to take a write
     // barrier if NativeIterator::obj is actually going to change.
     {
@@ -3596,8 +3589,8 @@ CodeGenerator::link()
       IonScript::New(cx, graph.totalSlotCount(), scriptFrameSize, snapshots_.size(),
                      bailouts_.length(), graph.numConstants(),
                      safepointIndices_.length(), osiIndices_.length(),
-                     cacheList_.length(), safepoints_.size(),
-                     graph.mir().numScripts());
+                     cacheList_.length(), barrierOffsets_.length(),
+                     safepoints_.size(), graph.mir().numScripts());
     SetIonScript(script, executionMode, ionScript);
 
     if (!ionScript)
@@ -3630,6 +3623,8 @@ CodeGenerator::link()
         ionScript->copyOsiIndices(&osiIndices_[0], masm);
     if (cacheList_.length())
         ionScript->copyCacheEntries(&cacheList_[0], masm);
+    if (barrierOffsets_.length())
+        ionScript->copyPrebarrierEntries(&barrierOffsets_[0], masm);
     if (safepoints_.size())
         ionScript->copySafepoints(&safepoints_);
 

@@ -21,12 +21,7 @@ class nsIPresShell;
 class nsRenderingContext;
 class nsStyleContext;
 class nsSVGPathGeometryFrame;
-
-namespace mozilla {
-namespace dom {
-class SVGSVGElement;
-}
-}
+class nsSVGSVGElement;
 
 struct nsSVGMark;
 
@@ -115,7 +110,7 @@ private:
   };
 
   // nsSVGMarkerFrame methods:
-  void SetParentCoordCtxProvider(mozilla::dom::SVGSVGElement *aContext);
+  void SetParentCoordCtxProvider(nsSVGSVGElement *aContext);
 
   // recursion prevention flag
   bool mInUse;

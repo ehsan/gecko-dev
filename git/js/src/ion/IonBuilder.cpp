@@ -35,7 +35,6 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
     backgroundCodegen_(NULL),
     recompileInfo(cx->compartment->types.compiledInfo),
     cx(cx),
-    abortReason_(AbortReason_Disable),
     loopDepth_(loopDepth),
     callerResumePoint_(NULL),
     callerBuilder_(NULL),
@@ -347,7 +346,6 @@ IonBuilder::build()
         return false;
 
     JS_ASSERT(loopDepth_ == 0);
-    abortReason_ = AbortReason_NoAbort;
     return true;
 }
 
@@ -853,7 +851,7 @@ IonBuilder::inspectOpcode(JSOp op)
         return pushConstant(UndefinedValue());
 
       case JSOP_HOLE:
-        return pushConstant(MagicValue(JS_ELEMENTS_HOLE));
+        return pushConstant(MagicValue(JS_ARRAY_HOLE));
 
       case JSOP_FALSE:
         return pushConstant(BooleanValue(false));
@@ -2912,16 +2910,8 @@ IonBuilder::jsop_call_inline(HandleFunction callee, uint32_t argc, bool construc
     }
 
     // Build the graph.
-    if (!inlineBuilder.buildInline(this, inlineResumePoint, thisDefn, argv)) {
-        JS_ASSERT(calleeScript->hasAnalysis());
-
-        // Inlining the callee failed. Disable inlining the function
-        if (inlineBuilder.abortReason_ == AbortReason_Disable)
-            calleeScript->analysis()->setIonUninlineable();
-
-        abortReason_ = AbortReason_Inlining;
+    if (!inlineBuilder.buildInline(this, inlineResumePoint, thisDefn, argv))
         return false;
-    }
 
     MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
 
@@ -6270,13 +6260,6 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, HandleId id, types::StackTypeS
         return true;
     }
 
-    // Don't call the getter with a primitive value.
-    if (unaryTypes.inTypes->getKnownTypeTag() != JSVAL_TYPE_OBJECT) {
-        MGuardObject *guardObj = MGuardObject::New(obj);
-        current->add(guardObj);
-        obj = guardObj;
-    }
-
     // Spoof stack to expected state for call.
     pushConstant(ObjectValue(*commonGetter));
 
@@ -6428,13 +6411,6 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
             current->push(value);
 
             return resumeAfter(set);
-        }
-
-        // Don't call the setter with a primitive value.
-        if (types->getKnownTypeTag() != JSVAL_TYPE_OBJECT) {
-            MGuardObject *guardObj = MGuardObject::New(obj);
-            current->add(guardObj);
-            obj = guardObj;
         }
 
         // Dummy up the stack, as in getprop
@@ -6710,7 +6686,7 @@ IonBuilder::jsop_getaliasedvar(ScopeCoordinate sc)
 
     MDefinition *obj = walkScopeChain(sc.hops);
 
-    RootedShape shape(cx, ScopeCoordinateToStaticScopeShape(cx, script(), pc));
+    RootedShape shape(cx, ScopeCoordinateToStaticScope(script(), pc).scopeShape());
 
     MInstruction *load;
     if (shape->numFixedSlots() <= sc.slot) {
@@ -6744,7 +6720,7 @@ IonBuilder::jsop_setaliasedvar(ScopeCoordinate sc)
     MDefinition *rval = current->peek(-1);
     MDefinition *obj = walkScopeChain(sc.hops);
 
-    RootedShape shape(cx, ScopeCoordinateToStaticScopeShape(cx, script(), pc));
+    RootedShape shape(cx, ScopeCoordinateToStaticScope(script(), pc).scopeShape());
 
     MInstruction *store;
     if (shape->numFixedSlots() <= sc.slot) {

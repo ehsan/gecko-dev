@@ -989,7 +989,7 @@ var BrowserApp = {
     });
   },
 
-  getFocusedInput: function(aBrowser, aOnlyInputElements = false) {
+  scrollToFocusedInput: function(aBrowser) {
     let doc = aBrowser.contentDocument;
     if (!doc)
       return;
@@ -1000,13 +1000,9 @@ var BrowserApp = {
       focused = doc.activeElement;
     }
 
-    if (focused instanceof HTMLInputElement && focused.mozIsTextField(false))
-      return focused;
-
-    if (aOnlyInputElements)
-      return null;
-
-    if  (focused instanceof HTMLTextAreaElement || focused.isContentEditable) {
+    if ((focused instanceof HTMLInputElement && focused.mozIsTextField(false))
+        || (focused instanceof HTMLTextAreaElement)
+        || (focused.isContentEditable)) {
 
       if (focused instanceof HTMLBodyElement) {
         // we are putting focus into a contentEditable frame. scroll the frame into
@@ -1014,16 +1010,53 @@ var BrowserApp = {
         // results in a better user experience
         focused = focused.ownerDocument.defaultView.frameElement;
       }
-      return focused;
-    }
-    return null;
-  },
 
-  scrollToFocusedInput: function(aBrowser, aAllowZoom = true) {
-    let focused = this.getFocusedInput(aBrowser);
-    if (focused) {
-      // _zoomToElement will handle not sending any message if this input is already mostly filling the screen
-      BrowserEventHandler._zoomToElement(focused, -1, false, aAllowZoom);
+      let tab = BrowserApp.getTabForBrowser(aBrowser);
+      let win = aBrowser.contentWindow;
+
+      // tell gecko to scroll the field into view. this will scroll any nested scrollable elements
+      // as well as the browser's content window, and modify the scrollX and scrollY on the content window.
+      focused.scrollIntoView(false);
+
+      // As Gecko isn't aware of the zoom level we're drawing with, the element may not entirely be in view
+      // yet. Check for that, and scroll some extra to compensate, if necessary.
+      let focusedRect = focused.getBoundingClientRect();
+      let visibleContentWidth = gScreenWidth / tab._zoom;
+      let visibleContentHeight = gScreenHeight / tab._zoom;
+
+      let positionChanged = false;
+      let scrollX = win.scrollX;
+      let scrollY = win.scrollY;
+
+      if (focusedRect.right >= visibleContentWidth && focusedRect.left > 0) {
+        // the element is too far off the right side, so we need to scroll to the right more
+        scrollX += Math.min(focusedRect.left, focusedRect.right - visibleContentWidth);
+        positionChanged = true;
+      } else if (focusedRect.left < 0) {
+        // the element is too far off the left side, so we need to scroll to the left more
+        scrollX += focusedRect.left;
+        positionChanged = true;
+      }
+      if (focusedRect.bottom >= visibleContentHeight && focusedRect.top > 0) {
+        // the element is too far down, so we need to scroll down more
+        scrollY += Math.min(focusedRect.top, focusedRect.bottom - visibleContentHeight);
+        positionChanged = true;
+      } else if (focusedRect.top < 0) {
+        // the element is too far up, so we need to scroll up more
+        scrollY += focusedRect.top;
+        positionChanged = true;
+      }
+
+      if (positionChanged)
+        win.scrollTo(scrollX, scrollY);
+
+      // update userScrollPos so that we don't send a duplicate viewport update by triggering
+      // our scroll listener
+      tab.userScrollPos.x = win.scrollX;
+      tab.userScrollPos.y = win.scrollY;
+
+      // finally, let java know where we ended up
+      tab.sendViewportUpdate();
     }
   },
 
@@ -1116,9 +1149,7 @@ var BrowserApp = {
         break;
 
       case "ScrollTo:FocusedInput":
-        // these messages come from a change in the viewable area and not user interaction
-        // we allow scrolling to the selected input, but not zooming the page
-        this.scrollToFocusedInput(browser, false);
+        this.scrollToFocusedInput(browser);
         break;
 
       case "Sanitize:ClearData":
@@ -1525,7 +1556,7 @@ var NativeWindow = {
     _addHTMLContextMenuItems: function cm_addContextMenuItems(aMenu, aParent) {
       for (let i = 0; i < aMenu.childNodes.length; i++) {
         let item = aMenu.childNodes[i];
-        if (!item.label)
+        if (!item.label || item.hasAttribute("hidden"))
           continue;
 
         let id = this._contextId++;
@@ -1547,9 +1578,6 @@ var NativeWindow = {
           }).bind(this),
 
           getValue: function(aElt) {
-            if (item.hasAttribute("hidden"))
-              return null;
-
             return {
               icon: item.icon,
               label: item.label,
@@ -1618,6 +1646,9 @@ var NativeWindow = {
           }
         }
 
+        // if we reach a link or a text node, stop digging up through the node hierarchy
+        if (this.linkOpenableContext.matches(element) || this.textContext.matches(element))
+          break;
         element = element.parentNode;
       }
 
@@ -1672,15 +1703,8 @@ var NativeWindow = {
       // convert this.menuitems object to an array for sending to native code
       let itemArray = [];
       for (let i = 0; i < this.menuitems.length; i++) {
-        let val = this.menuitems[i].getValue(aTarget);
-
-        // hidden menu items will return null from getValue
-        if (val)
-          itemArray.push(val);
+        itemArray.push(this.menuitems[i].getValue(aTarget));
       }
-
-      if (itemArray.length == 0)
-        return;
 
       let msg = {
         gecko: {
@@ -1850,10 +1874,6 @@ var SelectionHandler = {
         break;
       }
       case "Tab:Selected":
-        if (this._activeType == this.TYPE_CURSOR) {
-          this.hideThumb();
-        }
-        // fall through
       case "Window:Resize": {
         if (this._activeType == this.TYPE_SELECTION) {
           // Knowing when the page is done drawing is hard, so let's just cancel
@@ -3113,13 +3133,8 @@ Tab.prototype = {
     let viewportHeight = gScreenHeight / zoom;
     let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument,
                                                    viewportWidth, viewportHeight);
-
-    // Make sure the aspect ratio of the screen is maintained when setting
-    // the clamping scroll-port size.
-    let factor = Math.min(viewportWidth / gScreenWidth, pageWidth / gScreenWidth,
-                          viewportHeight / gScreenHeight, pageHeight / gScreenHeight);
-    let scrollPortWidth = gScreenWidth * factor;
-    let scrollPortHeight = gScreenHeight * factor;
+    let scrollPortWidth = Math.min(viewportWidth, pageWidth);
+    let scrollPortHeight = Math.min(viewportHeight, pageHeight);
 
     let win = this.browser.contentWindow;
     win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).
@@ -4060,9 +4075,6 @@ var BrowserEventHandler = {
             if ((element instanceof HTMLInputElement && element.mozIsTextField(false)) ||
                 (element instanceof HTMLTextAreaElement))
                SelectionHandler.showThumb(element);
-
-            // scrollToFocusedInput does its own checks to find out if an element should be zoomed into
-            BrowserApp.scrollToFocusedInput(BrowserApp.selectedBrowser);
           } catch(e) {
             Cu.reportError(e);
           }
@@ -4107,6 +4119,12 @@ var BrowserEventHandler = {
     const maxDifference = 20;
     const maxZoomAllowed = 4; // keep this in sync with mobile/android/base/ui/PanZoomController.MAX_ZOOM
 
+    if (Math.abs(aViewport.zoom - maxZoomAllowed) < 1e-6) {
+      // we're already at the max zoom, so even if the block isn't taking up most of the viewport we can't
+      // zoom in any more. return true so that we zoom out
+      return true;
+    }
+
     let vRect = new Rect(aViewport.cssX, aViewport.cssY, aViewport.cssWidth, aViewport.cssHeight);
     let overlap = vRect.intersect(aRect);
     let overlapArea = overlap.width * overlap.height;
@@ -4114,12 +4132,6 @@ var BrowserEventHandler = {
     let showing = overlapArea / (aRect.width * availHeight);
     let dw = (aRect.width - vRect.width);
     let dx = (aRect.x - vRect.x);
-
-    if (Math.abs(aViewport.zoom - maxZoomAllowed) < 1e-6 && overlap.width / aRect.width > 0.9) {
-      // we're already at the max zoom and the block is not spilling off the side of the screen so that even
-      // if the block isn't taking up most of the viewport we can't pan/zoom in any more. return true so that we zoom out
-      return true;
-    }
 
     return (showing > 0.9 &&
             dx > minDifference && dx < maxDifference &&
@@ -4149,14 +4161,14 @@ var BrowserEventHandler = {
   /* Zoom to an element, optionally keeping a particular part of it
    * in view if it is really tall.
    */
-  _zoomToElement: function(aElement, aClickY = -1, aCanZoomOut = true, aCanZoomIn = true) {
+  _zoomToElement: function(aElement, aClickY = -1) {
     const margin = 15;
     let rect = ElementTouchHelper.getBoundingContentRect(aElement);
 
     let viewport = BrowserApp.selectedTab.getViewport();
-    let bRect = new Rect(aCanZoomIn ? Math.max(viewport.cssPageLeft, rect.x - margin) : viewport.cssLeft,
+    let bRect = new Rect(Math.max(viewport.cssPageLeft, rect.x - margin),
                          rect.y,
-                         aCanZoomIn ? rect.w + 2 * margin : viewport.cssWidth,
+                         rect.w + 2 * margin,
                          rect.h);
     // constrict the rect to the screen's right edge
     bRect.width = Math.min(bRect.width, viewport.cssPageRight - bRect.x);
@@ -4164,8 +4176,7 @@ var BrowserEventHandler = {
     // if the rect is already taking up most of the visible area and is stretching the
     // width of the page, then we want to zoom out instead.
     if (this._isRectZoomedIn(bRect, viewport)) {
-      if (aCanZoomOut)
-        this._zoomOut();
+      this._zoomOut();
       return;
     }
 
@@ -4833,7 +4844,6 @@ var FormAssistant = {
     Services.obs.addObserver(this, "FormAssist:Blocklisted", false);
     Services.obs.addObserver(this, "FormAssist:Hidden", false);
     Services.obs.addObserver(this, "invalidformsubmit", false);
-    Services.obs.addObserver(this, "PanZoom:StateChange", false);
 
     // We need to use a capturing listener for focus events
     BrowserApp.deck.addEventListener("focus", this, true);
@@ -4847,7 +4857,6 @@ var FormAssistant = {
     Services.obs.removeObserver(this, "FormAssist:Blocklisted");
     Services.obs.removeObserver(this, "FormAssist:Hidden");
     Services.obs.removeObserver(this, "invalidformsubmit");
-    Services.obs.removeObserver(this, "PanZoom:StateChange");
 
     BrowserApp.deck.removeEventListener("focus", this);
     BrowserApp.deck.removeEventListener("click", this);
@@ -4857,24 +4866,6 @@ var FormAssistant = {
 
   observe: function(aSubject, aTopic, aData) {
     switch (aTopic) {
-      case "PanZoom:StateChange":
-        // If the user is just touching the screen and we haven't entered a pan or zoom state yet do nothing
-        if (aData == "TOUCHING" || aData == "WAITING_LISTENERS")
-          break;
-        if (aData == "NOTHING") {
-          // only look for input elements, not contentEditable or multiline text areas
-          let focused = BrowserApp.getFocusedInput(BrowserApp.selectedBrowser, true);
-          if (!focused)
-            break;
-
-          if (this._showValidationMessage(focused))
-            break;
-          this._showAutoCompleteSuggestions(focused);
-        } else {
-          // temporarily hide the form assist popup while we're panning or zooming the page
-          this._hideFormAssistPopup();
-        }
-        break;
       case "FormAssist:AutoComplete":
         if (!this._currentInputElement)
           break;
@@ -4939,9 +4930,9 @@ var FormAssistant = {
         // only be available if an invalid form was submitted)
         if (this._showValidationMessage(currentElement))
           break;
-        if (!this._showAutoCompleteSuggestions(currentElement))
-          this._hideFormAssistPopup();
+        this._showAutoCompleteSuggestions(currentElement);
         break;
+
       case "input":
         currentElement = aEvent.target;
 

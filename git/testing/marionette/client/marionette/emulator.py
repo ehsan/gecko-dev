@@ -338,10 +338,7 @@ waitFor(
         # setup DNS fix for networking
         self._run_adb(['shell', 'setprop', 'net.dns1', '10.0.2.3'])
 
-    def setup(self, marionette, gecko_path=None, load_early=False, busybox=None):
-        if busybox:
-            self.install_busybox(busybox)
-
+    def setup(self, marionette, gecko_path=None, load_early=False):
         if gecko_path:
             if load_early:
                 # Inject prefs into the profile now, since we have to restart
@@ -377,6 +374,8 @@ waitFor(
         # gecko in order to avoid an adb bug in which adb will sometimes
         # hang indefinitely while copying large files to the system
         # partition.
+        push_attempts = 10
+
         print 'installing gecko binaries...'
 
         # see bug 809437 for the path that lead to this madness
@@ -385,7 +384,18 @@ waitFor(
             self._run_adb(['remount'])
             self.dm.removeDir('/data/local/b2g')
             self.dm.mkDir('/data/local/b2g')
-            self.dm.pushDir(gecko_path, '/data/local/b2g', retryLimit=10)
+            for root, dirs, files in os.walk(gecko_path):
+                for filename in files:
+                    rel_path = os.path.relpath(os.path.join(root, filename), gecko_path)
+                    data_local_file = os.path.join('/data/local/b2g', rel_path)
+                    for retry in range(1, push_attempts + 1):
+                        print 'pushing', data_local_file, '(attempt %s of %s)' % (retry, push_attempts)
+                        try:
+                            self.dm.pushFile(os.path.join(root, filename), data_local_file)
+                            break
+                        except DMError:
+                            if retry == push_attempts:
+                                raise
 
             self.dm.shellCheckOutput(['stop', 'b2g'])
 
@@ -394,11 +404,15 @@ waitFor(
                     rel_path = os.path.relpath(os.path.join(root, filename), gecko_path)
                     data_local_file = os.path.join('/data/local/b2g', rel_path)
                     system_b2g_file = os.path.join('/system/b2g', rel_path)
-
                     print 'copying', data_local_file, 'to', system_b2g_file
-                    self.dm.shellCheckOutput(['dd',
-                                              'if=%s' % data_local_file,
-                                              'of=%s' % system_b2g_file])
+                    try:
+                        self.dm.shellCheckOutput(['dd',
+                                                  'if=%s' % data_local_file,
+                                                  'of=%s' % system_b2g_file])
+                    except DMError:
+                        if retry == push_attempts:
+                            raise
+
             self.restart_b2g()
 
         except (DMError, MarionetteException):

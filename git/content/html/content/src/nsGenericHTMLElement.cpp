@@ -233,8 +233,9 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
 
   NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
   {
-    NS_ADDREF(*aStyle = mElement->Style());
-    return NS_OK;
+    mozilla::ErrorResult rv;
+    NS_IF_ADDREF(*aStyle = mElement->GetStyle(rv));
+    return rv.ErrorCode();
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
@@ -1867,6 +1868,16 @@ nsresult
 nsGenericHTMLElement::SetAttrHelper(nsIAtom* aAttr, const nsAString& aValue)
 {
   return SetAttr(kNameSpaceID_None, aAttr, aValue, true);
+}
+
+nsresult
+nsGenericHTMLElement::SetBoolAttr(nsIAtom* aAttr, bool aValue)
+{
+  if (aValue) {
+    return SetAttr(kNameSpaceID_None, aAttr, EmptyString(), true);
+  }
+
+  return UnsetAttr(kNameSpaceID_None, aAttr, true);
 }
 
 int32_t

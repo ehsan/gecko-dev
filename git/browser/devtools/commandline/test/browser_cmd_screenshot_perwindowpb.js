@@ -11,15 +11,6 @@ let FileUtils = Cu.import("resource://gre/modules/FileUtils.jsm", {}).FileUtils;
 function test() {
   waitForExplicitFinish();
 
-  let windowsToClose = [];
-  Services.prefs.setIntPref("browser.startup.page", 0);
-  registerCleanupFunction(function() {
-    Services.prefs.clearUserPref("browser.startup.page");
-    windowsToClose.forEach(function(win) {
-      win.close();
-    });
-  });
-
   function testOnWindow(aPrivate, aCallback) {
     let win = OpenBrowserWindow({private: aPrivate});
     win.addEventListener("load", function onLoad() {
@@ -29,25 +20,29 @@ function test() {
   };
 
   testOnWindow(false, function(win) {
-    info("Testing on public window");
-    windowsToClose.push(win);
     DeveloperToolbarTestPW.test(win, TEST_URI, [ testInput, testCapture ], null, function() {
+      win.close();
       testOnWindow(true, function(win) {
-        info("Testing on private window");
-        windowsToClose.push(win);
-        DeveloperToolbarTestPW.test(win, TEST_URI, [ testInput, testCapture ], null, finish);
+        executeSoon(function() {
+          DeveloperToolbarTestPW.test(win, TEST_URI, [ testInput, testCapture ], null, function() {
+            win.close();
+            finish();
+          });
+        })
       });
     });
   });
+
 }
 
-function testInput(aWindow, aCallback) {
+function testInput(aWindow) {
   helpers_perwindowpb.setInput('screenshot');
   helpers_perwindowpb.check({
     input:  'screenshot',
     markup: 'VVVVVVVVVV',
     status: 'VALID',
-    args: { }
+    args: {
+    }
   });
 
   helpers_perwindowpb.setInput('screenshot abc.png');
@@ -90,11 +85,9 @@ function testInput(aWindow, aCallback) {
       selector: { value: aWindow.content.document.getElementById("testImage")},
     }
   });
-
-  aCallback();
 }
 
-function testCapture(aWindow, aCallback) {
+function testCapture(aWindow) {
   function checkTemporaryFile() {
     // Create a temporary file.
     let gFile = FileUtils.getFile("TmpD", ["TestScreenshotFile.png"]);
@@ -104,13 +97,6 @@ function testCapture(aWindow, aCallback) {
     }
     else {
       return false;
-    }
-  }
-
-  let captureTest = 3;
-  function captureTestFinish() {
-    if (captureTest == 0) {
-      aCallback();
     }
   }
 
@@ -151,8 +137,6 @@ function testCapture(aWindow, aCallback) {
 
   executeSoon(function() {
     ok(checkTemporaryFile(), "Screenshot got created");
-    captureTest--;
-    captureTestFinish();
   });
 
   DeveloperToolbarTestPW.exec(aWindow, {
@@ -169,7 +153,6 @@ function testCapture(aWindow, aCallback) {
   });
 
   ok(checkClipboard(), "Screenshot got created and copied");
-  captureTest--;
 
   DeveloperToolbarTestPW.exec(aWindow, {
     typed: "screenshot --clipboard",
@@ -185,6 +168,4 @@ function testCapture(aWindow, aCallback) {
   });
 
   ok(checkClipboard(), "Screenshot present in clipboard");
-  captureTest--;
-  captureTestFinish();
 }

@@ -15,6 +15,8 @@
 namespace mozilla {
 namespace image {
 
+extern const char* SVG_MIMETYPE;
+
 class ImageFactory
 {
 public:

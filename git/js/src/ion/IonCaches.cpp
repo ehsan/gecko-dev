@@ -542,7 +542,7 @@ struct GetNativePropertyStub
             masm.movePtr(StackPointer, argVpReg);
 
             // push canonical jsid from shape instead of propertyname.
-            RootedId propId(cx);
+            jsid propId;
             if (!shape->getUserId(cx, &propId))
                 return false;
             masm.Push(propId, scratchReg);
@@ -707,9 +707,9 @@ IonCacheGetProperty::attachCallGetter(JSContext *cx, IonScript *ion, JSObject *o
 }
 
 bool
-IonCacheGetProperty::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
+IonCacheGetProperty::attachDenseArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 {
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
     JS_ASSERT(!idempotent());
 
     Label failures;
@@ -717,7 +717,7 @@ IonCacheGetProperty::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *
 
     // Guard object is a dense array.
     RootedObject globalObj(cx, &script->global());
-    RootedShape shape(cx, obj->lastProperty());
+    RootedShape shape(cx, GetDenseArrayShape(cx, globalObj));
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object(), shape, &failures);
@@ -741,7 +741,7 @@ IonCacheGetProperty::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *
     if (output().hasValue())
         masm.tagValue(JSVAL_TYPE_INT32, outReg, output().valueReg());
 
-    u.getprop.hasArrayLengthStub = true;
+    u.getprop.hasDenseArrayLengthStub = true;
     incrementStubCount();
 
     /* Success. */
@@ -921,8 +921,6 @@ TryAttachNativeGetPropStub(JSContext *cx, IonScript *ion,
 
         if (readSlot)
             return cache.attachReadSlot(cx, ion, obj, holder, shape);
-        else if (obj->isArray() && !cache.hasArrayLengthStub() && cx->names().length == name)
-            return cache.attachArrayLength(cx, ion, obj);
         else
             return cache.attachCallGetter(cx, ion, obj, holder, shape, safepointIndex, returnAddr);
     }
@@ -969,6 +967,10 @@ js::ion::GetPropertyCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Mu
             // The next execution should cause an invalidation because the type
             // does not fit.
             isCacheable = false;
+        } else if (obj->isDenseArray() && !cache.hasDenseArrayLengthStub()) {
+            isCacheable = true;
+            if (!cache.attachDenseArrayLength(cx, ion, obj))
+                return false;
         } else if (obj->isTypedArray() && !cache.hasTypedArrayLengthStub()) {
             isCacheable = true;
             if (!cache.attachTypedArrayLength(cx, ion, obj))
@@ -1203,7 +1205,7 @@ IonCacheSetProperty::attachSetterCall(JSContext *cx, IonScript *ion,
     masm.move32(Imm32(strict() ? 1 : 0), argStrictReg);
 
     // push canonical jsid from shape instead of propertyname.
-    RootedId propId(cx);
+    jsid propId;
     if (!shape->getUserId(cx, &propId))
         return false;
     masm.Push(propId, argIdReg);
@@ -1608,17 +1610,17 @@ IonCacheGetElement::attachGetProp(JSContext *cx, IonScript *ion, HandleObject ob
 }
 
 bool
-IonCacheGetElement::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval)
+IonCacheGetElement::attachDenseArray(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval)
 {
-    JS_ASSERT(obj->isNative());
+    JS_ASSERT(obj->isDenseArray());
     JS_ASSERT(idval.isInt32());
 
     Label failures;
     MacroAssembler masm;
 
-    // Guard object's shape.
+    // Guard object is a dense array.
     RootedObject globalObj(cx, &script->global());
-    RootedShape shape(cx, obj->lastProperty());
+    RootedShape shape(cx, GetDenseArrayShape(cx, globalObj));
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object(), shape, &failures);
@@ -1681,7 +1683,7 @@ IonCacheGetElement::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *
     PatchJump(exitJump, cacheLabel());
     updateLastJump(exitJump);
 
-    setHasDenseStub();
+    setHasDenseArrayStub();
     IonSpew(IonSpew_InlineCaches, "Generated GETELEM dense array stub at %p", code->raw());
 
     return true;
@@ -1701,7 +1703,7 @@ js::ion::GetElementCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Han
     AutoDetectInvalidation adi(cx, res.address(), ion);
 
     RootedId id(cx);
-    if (!FetchElementId(cx, obj, idval, &id, res))
+    if (!FetchElementId(cx, obj, idval, id.address(), res))
         return false;
 
     if (cache.stubCount() < MAX_STUBS) {
@@ -1713,11 +1715,11 @@ js::ion::GetElementCache(JSContext *cx, size_t cacheIndex, HandleObject obj, Han
                 if (!cache.attachGetProp(cx, ion, obj, idval, JSID_TO_ATOM(id)->asPropertyName()))
                     return false;
             }
-        } else if (!cache.hasDenseStub() && obj->isNative() && idval.isInt32()) {
+        } else if (!cache.hasDenseArrayStub() && obj->isDenseArray() && idval.isInt32()) {
             // Generate at most one dense array stub.
             cache.incrementStubCount();
 
-            if (!cache.attachDenseElement(cx, ion, obj, idval))
+            if (!cache.attachDenseArray(cx, ion, obj, idval))
                 return false;
         }
     }

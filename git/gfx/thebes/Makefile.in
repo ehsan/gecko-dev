@@ -394,7 +394,8 @@ gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
 endif
 endif
 
-PremultiplyTables.h: $(srcdir)/genTables.py
+.PHONY: CONSTANT_TABLES
+CONSTANT_TABLES:
 	$(PYTHON) $(srcdir)/genTables.py
 
-gfxUtils.$(OBJ_SUFFIX): PremultiplyTables.h
+gfxUtils.$(OBJ_SUFFIX): CONSTANT_TABLES

@@ -18,17 +18,14 @@ class nsIContent;
 class nsIFrame;
 class nsIPresShell;
 class nsStyleContext;
+class nsSVGLinearGradientElement;
+class nsSVGRadialGradientElement;
 
 struct gfxRect;
 
 namespace mozilla {
 class SVGAnimatedTransformList;
-
-namespace dom {
-class SVGLinearGradientElement;
-class SVGRadialGradientElement;
-} // namespace dom
-} // namespace mozilla
+}
 
 typedef nsSVGPaintServerFrame nsSVGGradientFrameBase;
 
@@ -105,10 +102,10 @@ protected:
 
   // Gradient-type-specific lookups since the length values differ between
   // linear and radial gradients
-  virtual mozilla::dom::SVGLinearGradientElement * GetLinearGradientWithLength(
-    uint32_t aIndex, mozilla::dom::SVGLinearGradientElement* aDefault);
-  virtual mozilla::dom::SVGRadialGradientElement * GetRadialGradientWithLength(
-    uint32_t aIndex, mozilla::dom::SVGRadialGradientElement* aDefault);
+  virtual nsSVGLinearGradientElement * GetLinearGradientWithLength(
+    uint32_t aIndex, nsSVGLinearGradientElement* aDefault);
+  virtual nsSVGRadialGradientElement * GetRadialGradientWithLength(
+    uint32_t aIndex, nsSVGRadialGradientElement* aDefault);
 
   // The frame our gradient is (currently) being applied to
   nsIFrame*                              mSource;
@@ -163,8 +160,8 @@ public:
 
 protected:
   float GetLengthValue(uint32_t aIndex);
-  virtual mozilla::dom::SVGLinearGradientElement* GetLinearGradientWithLength(
-    uint32_t aIndex, mozilla::dom::SVGLinearGradientElement* aDefault);
+  virtual nsSVGLinearGradientElement * GetLinearGradientWithLength(
+    uint32_t aIndex, nsSVGLinearGradientElement* aDefault);
   virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };
@@ -210,9 +207,9 @@ protected:
   float GetLengthValue(uint32_t aIndex);
   float GetLengthValue(uint32_t aIndex, float aDefaultValue);
   float GetLengthValueFromElement(uint32_t aIndex,
-                                  mozilla::dom::SVGRadialGradientElement& aElement);
-  virtual mozilla::dom::SVGRadialGradientElement* GetRadialGradientWithLength(
-    uint32_t aIndex, mozilla::dom::SVGRadialGradientElement* aDefault);
+                                  nsSVGRadialGradientElement& aElement);
+  virtual nsSVGRadialGradientElement * GetRadialGradientWithLength(
+    uint32_t aIndex, nsSVGRadialGradientElement* aDefault);
   virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };

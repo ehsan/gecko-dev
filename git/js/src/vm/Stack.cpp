@@ -233,11 +233,10 @@ StackFrame::copyRawFrameSlots(AutoValueVector *vec)
 }
 
 static inline void
-AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *scope)
+AssertDynamicScopeMatchesStaticScope(JSScript *script, JSObject *scope)
 {
 #ifdef DEBUG
-    RootedObject enclosingScope(cx, script->enclosingStaticScope());
-    for (StaticScopeIter i(cx, enclosingScope); !i.done(); i++) {
+    for (StaticScopeIter i(script->enclosingStaticScope()); !i.done(); i++) {
         if (i.hasDynamicScopeObject()) {
             /*
              * 'with' does not participate in the static scope of the script,
@@ -306,7 +305,7 @@ StackFrame::prologue(JSContext *cx, bool newType)
     }
 
     JS_ASSERT(isNonEvalFunctionFrame());
-    AssertDynamicScopeMatchesStaticScope(cx, script, scopeChain());
+    AssertDynamicScopeMatchesStaticScope(script, scopeChain());
 
     if (fun()->isHeavyweight() && !initFunctionScopeObjects(cx))
         return false;
@@ -368,7 +367,7 @@ StackFrame::epilogue(JSContext *cx)
     if (fun()->isHeavyweight())
         JS_ASSERT_IF(hasCallObj(), scopeChain()->asCall().callee().nonLazyScript() == script);
     else
-        AssertDynamicScopeMatchesStaticScope(cx, script, scopeChain());
+        AssertDynamicScopeMatchesStaticScope(script, scopeChain());
 
     if (cx->compartment->debugMode())
         DebugScopes::onPopCall(this, cx);

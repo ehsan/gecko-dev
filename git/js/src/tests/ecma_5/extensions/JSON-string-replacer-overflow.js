@@ -1,4 +1,3 @@
-// |reftest| skip-if(!xulRuntime.shell&&xulRuntime.OS=="WINNT"&&!isDebugBuild) -- intermittent failures bug 816033
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 

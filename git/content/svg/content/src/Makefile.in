@@ -36,6 +36,7 @@ CPPSRCS		= \
 		DOMSVGTransformList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsDOMSVGEvent.cpp \
+		nsSVGAElement.cpp \
 		nsSVGAngle.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGClass.cpp \
@@ -47,6 +48,7 @@ CPPSRCS		= \
 		nsSVGFeatures.cpp \
 		nsSVGFilterElement.cpp \
 		nsSVGFilters.cpp \
+		nsSVGGradientElement.cpp \
 		nsSVGInteger.cpp \
 		nsSVGIntegerPair.cpp \
 		nsSVGLength2.cpp \
@@ -61,11 +63,12 @@ CPPSRCS		= \
 		nsSVGPolyElement.cpp \
 		nsSVGString.cpp \
 		nsSVGRect.cpp \
+		nsSVGSVGElement.cpp \
 		nsSVGSymbolElement.cpp \
 		nsSVGUnknownElement.cpp \
 		nsSVGUseElement.cpp \
 		nsSVGViewBox.cpp \
-		SVGAElement.cpp \
+		nsSVGViewElement.cpp \
 		SVGAltGlyphElement.cpp \
 		SVGAngle.cpp \
 		SVGAnimatedAngle.cpp \
@@ -89,7 +92,6 @@ CPPSRCS		= \
 		SVGForeignObjectElement.cpp \
 		SVGFragmentIdentifier.cpp \
 		SVGGElement.cpp \
-		SVGGradientElement.cpp \
 		SVGGraphicsElement.cpp \
 		SVGImageElement.cpp \
 		SVGIntegerPairSMILType.cpp \
@@ -122,7 +124,6 @@ CPPSRCS		= \
 		SVGStopElement.cpp \
 		SVGStringList.cpp \
 		SVGStyleElement.cpp \
-		SVGSVGElement.cpp \
 		SVGSwitchElement.cpp \
 		SVGTextContentElement.cpp \
 		SVGTextElement.cpp \
@@ -136,7 +137,6 @@ CPPSRCS		= \
 		SVGTransformListSMILType.cpp \
 		SVGTSpanElement.cpp \
 		SVGViewBoxSMILType.cpp \
-		SVGViewElement.cpp \
 		$(NULL)
 
 include $(topsrcdir)/config/config.mk
@@ -153,7 +153,6 @@ EXPORTS =  			\
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-	SVGAElement.h \
 	SVGAltGlyphElement.h \
 	SVGAngle.h \
 	SVGAnimatedAngle.h \
@@ -168,7 +167,6 @@ EXPORTS_mozilla/dom = \
 	SVGEllipseElement.h \
 	SVGForeignObjectElement.h \
 	SVGGElement.h \
-	SVGGradientElement.h \
 	SVGGraphicsElement.h \
 	SVGImageElement.h \
 	SVGLineElement.h \
@@ -182,7 +180,6 @@ EXPORTS_mozilla/dom = \
 	SVGSetElement.h \
 	SVGStopElement.h \
 	SVGStyleElement.h \
-	SVGSVGElement.h \
 	SVGSwitchElement.h \
 	SVGTextContentElement.h \
 	SVGTextElement.h \
@@ -191,7 +188,6 @@ EXPORTS_mozilla/dom = \
 	SVGTitleElement.h \
 	SVGTransformableElement.h \
 	SVGTSpanElement.h \
-	SVGViewElement.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -12,7 +12,6 @@ else: # assume windows
   libprefix = ""
   libsuffix = ".dll"
 
-plc   = cdll.LoadLibrary(libprefix + "plc4"   + libsuffix)
 nspr  = cdll.LoadLibrary(libprefix + "nspr4"  + libsuffix)
 nss   = cdll.LoadLibrary(libprefix + "nss3"   + libsuffix)
 smime = cdll.LoadLibrary(libprefix + "smime3" + libsuffix)
@@ -65,7 +64,7 @@ nss.PK11_SetPasswordFunc.argtypes = [PK11PasswordFunc]
 nss.PK11_SetPasswordFunc.restype = None
 def SetPasswordContext(password):
   def callback(slot, retry, arg):
-    return plc.PL_strdup(password)
+    return password
   wincx = PK11PasswordFunc(callback)
   nss.PK11_SetPasswordFunc(wincx)
   return wincx

@@ -48,6 +48,8 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.EnumSet;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 abstract public class BrowserApp extends GeckoApp
                                  implements TabsPanel.TabsLayoutChangeListener,
@@ -498,7 +500,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     public void addPrivateTab() {
-        Tabs.getInstance().loadUrl("about:privatebrowsing", Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
+        Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
     }
 
     public void showNormalTabs() {

@@ -100,15 +100,9 @@ stubs::Name(VMFrame &f)
 }
 
 void JS_FASTCALL
-stubs::IntrinsicName(VMFrame &f, PropertyName *nameArg)
+stubs::IntrinsicName(VMFrame &f, PropertyName *name)
 {
     RootedValue rval(f.cx);
-
-    // PropertyNames are atoms and will never be allocated from the nursery,
-    // and the ones passed to this stub are referenced by the script so it will
-    // root them. The compacting GC will discard methodjit code.
-    SkipRoot skip(f.cx, &nameArg);
-    HandlePropertyName name = HandlePropertyName::fromMarkedLocation(&nameArg);
     if (!f.cx->global().get()->getIntrinsicValue(f.cx, name, &rval))
         THROW();
     f.regs.sp[0] = rval;
@@ -142,7 +136,7 @@ stubs::SetElem(VMFrame &f)
     if (!obj)
         THROW();
 
-    if (!FetchElementId(f.cx, obj, idval, &id,
+    if (!FetchElementId(f.cx, obj, idval, id.address(),
                         MutableHandleValue::fromMarkedLocation(&regs.sp[-2])))
     {
         THROW();
@@ -150,18 +144,28 @@ stubs::SetElem(VMFrame &f)
 
     TypeScript::MonitorAssign(cx, obj, id);
 
-    if (obj->isArray() && JSID_IS_INT(id)) {
-        uint32_t length = obj->getDenseInitializedLength();
-        int32_t i = JSID_TO_INT(id);
-        if ((uint32_t)i >= length) {
-            if (f.script()->hasAnalysis())
-                f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
+    do {
+        if (obj->isDenseArray() && JSID_IS_INT(id)) {
+            uint32_t length = obj->getDenseArrayInitializedLength();
+            int32_t i = JSID_TO_INT(id);
+            if ((uint32_t)i < length) {
+                if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+                    if (js_PrototypeHasIndexedProperties(obj))
+                        break;
+                    if ((uint32_t)i >= obj->getArrayLength())
+                        JSObject::setArrayLength(cx, obj, i + 1);
+                }
+                JSObject::setDenseArrayElementWithType(cx, obj, i, rval);
+                goto end_setelem;
+            } else {
+                if (f.script()->hasAnalysis())
+                    f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
+            }
         }
-    }
-
+    } while (0);
     if (!JSObject::setGeneric(cx, obj, obj, id, &rval, strict))
         THROW();
-
+  end_setelem:
     /* :FIXME: Moving the assigned object into the lowest stack slot
      * is a temporary hack. What we actually want is an implementation
      * of popAfterSet() that allows popping more than one value;
@@ -183,7 +187,7 @@ stubs::ToId(VMFrame &f)
         THROW();
 
     RootedId id(f.cx);
-    if (!FetchElementId(f.cx, obj, idval, &id, idval))
+    if (!FetchElementId(f.cx, obj, idval, id.address(), idval))
         THROW();
 
     if (!idval.isInt32()) {
@@ -835,10 +839,7 @@ stubs::TriggerIonCompile(VMFrame &f)
             osrPC = NULL;
 
         RootedFunction scriptFunction(f.cx, script->function());
-        ion::MethodStatus compileStatus =
-            ion::TestIonCompile(f.cx, script, scriptFunction, osrPC, f.fp()->isConstructing());
-
-        if (compileStatus != ion::Method_Compiled) {
+        if (!ion::TestIonCompile(f.cx, script, scriptFunction, osrPC, f.fp()->isConstructing())) {
             if (f.cx->isExceptionPending())
                 THROW();
         }
@@ -1482,7 +1483,7 @@ stubs::In(VMFrame &f)
 
     RootedObject obj(cx, &rref.toObject());
     RootedId id(cx);
-    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], &id,
+    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], id.address(),
                         MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2])))
     {
         THROWV(JS_FALSE);

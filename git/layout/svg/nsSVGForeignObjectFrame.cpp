@@ -10,6 +10,7 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGForeignObjectElem.h"
 #include "nsINameSpaceManager.h"
 #include "nsLayoutUtils.h"
 #include "nsRegion.h"
@@ -57,8 +58,10 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                               nsIFrame*   aParent,
                               nsIFrame*   aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::foreignObject),
-               "Content is not an SVG foreignObject!");
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject = do_QueryInterface(aContent);
+  NS_ASSERTION(foreignObject, "Content is not an SVG foreignObject!");
+#endif
 
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits(aParent->GetStateBits() &

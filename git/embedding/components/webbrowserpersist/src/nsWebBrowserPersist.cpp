@@ -73,6 +73,8 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMSVGImageElement.h"
+#include "nsIDOMSVGScriptElement.h"
 #ifdef MOZ_MEDIA
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLMediaElement.h"
@@ -2698,12 +2700,6 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-    if (!content)
-    {
-        return NS_OK;
-    }
-
     // Test the node to see if it's an image, frame, iframe, css, js
     nsCOMPtr<nsIDOMHTMLImageElement> nodeAsImage = do_QueryInterface(aNode);
     if (nodeAsImage)
@@ -2712,7 +2708,8 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
-    if (content->IsSVG(nsGkAtoms::img))
+    nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNode);
+    if (nodeAsSVGImage)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
@@ -2768,7 +2765,8 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
-    if (content->IsSVG(nsGkAtoms::script))
+    nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNode);
+    if (nodeAsSVGScript)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
@@ -2993,12 +2991,6 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         }
     }
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aNodeIn);
-    if (!content)
-    {
-        return NS_OK;
-    }
-
     // Fix up href and file links in the elements
 
     nsCOMPtr<nsIDOMHTMLAnchorElement> nodeAsAnchor = do_QueryInterface(aNodeIn);
@@ -3111,7 +3103,8 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
     }
 #endif // MOZ_MEDIA
 
-    if (content->IsSVG(nsGkAtoms::img))
+    nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNodeIn);
+    if (nodeAsSVGImage)
     {
         rv = GetNodeToFixup(aNodeIn, aNodeOut);
         if (NS_SUCCEEDED(rv) && *aNodeOut)
@@ -3139,7 +3132,8 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         return rv;
     }
 
-    if (content->IsSVG(nsGkAtoms::script))
+    nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNodeIn);
+    if (nodeAsSVGScript)
     {
         rv = GetNodeToFixup(aNodeIn, aNodeOut);
         if (NS_SUCCEEDED(rv) && *aNodeOut)
@@ -3271,7 +3265,6 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
                 case NS_FORM_INPUT_URL:
                 case NS_FORM_INPUT_NUMBER:
                 case NS_FORM_INPUT_DATE:
-                case NS_FORM_INPUT_TIME:
                     nodeAsInput->GetValue(valueStr);
                     // Avoid superfluous value="" serialization
                     if (valueStr.IsEmpty())

@@ -125,7 +125,7 @@ protected:
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
 
-  void SetParentCoordCtxProvider(mozilla::dom::SVGSVGElement *aContext);
+  void SetParentCoordCtxProvider(nsSVGSVGElement *aContext);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual AngleAttributesInfo GetAngleInfo();
@@ -152,7 +152,7 @@ protected:
   // derived properties (from 'orient') handled separately
   nsSVGOrientType                        mOrientType;
 
-  mozilla::dom::SVGSVGElement                       *mCoordCtx;
+  nsSVGSVGElement                       *mCoordCtx;
   nsAutoPtr<gfxMatrix>                   mViewBoxToViewportTransform;
 };
 

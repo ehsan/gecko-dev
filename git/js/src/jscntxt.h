@@ -1220,16 +1220,6 @@ struct JSRuntime : js::RuntimeFriendFields
         return 0;
 #endif
     }
-
-  private:
-    /*
-     * Used to ensure that compartments created at the same time get different
-     * random number sequences. See js::InitRandom.
-     */
-    uint64_t rngNonce;
-
-  public:
-    uint64_t nextRNGNonce() { return rngNonce++; }
 };
 
 /* Common macros to access thread-local caches in JSRuntime. */
@@ -1592,6 +1582,9 @@ struct JSContext : js::ContextFriendFields,
 
     /* Stored here to avoid passing it around as a parameter. */
     unsigned               resolveFlags;
+
+    /* Random number generator state, used by jsmath.cpp. */
+    int64_t             rngSeed;
 
     /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
     js::Value           iterValue;
@@ -2182,17 +2175,6 @@ class AutoValueArray : public AutoGCRooter
 
     RawValue *start() { return start_; }
     unsigned length() const { return length_; }
-
-    MutableHandleValue handleAt(unsigned i)
-    {
-        JS_ASSERT(i < length_);
-        return MutableHandleValue::fromMarkedLocation(&start_[i]);
-    }
-    HandleValue handleAt(unsigned i) const
-    {
-        JS_ASSERT(i < length_);
-        return HandleValue::fromMarkedLocation(&start_[i]);
-    }
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

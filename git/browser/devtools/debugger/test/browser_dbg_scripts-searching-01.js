@@ -20,8 +20,6 @@ function test()
   let scriptShown = false;
   let framesAdded = false;
 
-  requestLongerTimeout(2);
-
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;

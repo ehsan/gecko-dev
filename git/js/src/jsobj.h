@@ -28,8 +28,6 @@
 #include "vm/ObjectImpl.h"
 #include "vm/String.h"
 
-ForwardDeclareJS(Object);
-
 namespace JS {
 struct ObjectsExtraSizes;
 }
@@ -224,6 +222,7 @@ extern Class ProxyClass;
 extern Class RegExpClass;
 extern Class RegExpStaticsClass;
 extern Class SetIteratorClass;
+extern Class SlowArrayClass;
 extern Class StopIterationClass;
 extern Class StringClass;
 extern Class StrictArgumentsObjectClass;
@@ -296,12 +295,12 @@ struct JSObject : public js::ObjectImpl
                                    js::HandleTypeObject type,
                                    js::HeapSlot *slots);
 
-    /* Make an array object with the specified initial state. */
-    static inline JSObject *createArray(JSContext *cx,
-                                        js::gc::AllocKind kind,
-                                        js::HandleShape shape,
-                                        js::HandleTypeObject type,
-                                        uint32_t length);
+    /* Make a dense array object with the specified initial state. */
+    static inline JSObject *createDenseArray(JSContext *cx,
+                                             js::gc::AllocKind kind,
+                                             js::HandleShape shape,
+                                             js::HandleTypeObject type,
+                                             uint32_t length);
 
     /*
      * Remove the last property of an object, provided that it is safe to do so
@@ -364,10 +363,7 @@ struct JSObject : public js::ObjectImpl
 
     bool shadowingShapeChange(JSContext *cx, const js::Shape &shape);
 
-    /*
-     * Whether there may be indexed properties on this object, excluding any in
-     * the object's elements.
-     */
+    /* Whether there may be indexed properties on this object. */
     inline bool isIndexed() const;
 
     inline uint32_t propertyCount() const;
@@ -575,52 +571,58 @@ struct JSObject : public js::ObjectImpl
     void shrinkElements(JSContext *cx, unsigned cap);
     inline void setDynamicElements(js::ObjectElements *header);
 
-    inline uint32_t getDenseCapacity();
-    inline void setDenseInitializedLength(uint32_t length);
-    inline void ensureDenseInitializedLength(JSContext *cx, unsigned index, unsigned extra);
-    inline void setDenseElement(unsigned idx, const js::Value &val);
-    inline void initDenseElement(unsigned idx, const js::Value &val);
-    static inline void setDenseElementWithType(JSContext *cx, js::HandleObject obj,
-                                               unsigned idx, const js::Value &val);
-    static inline void initDenseElementWithType(JSContext *cx, js::HandleObject obj,
-                                                unsigned idx, const js::Value &val);
-    static inline void setDenseElementHole(JSContext *cx, js::HandleObject obj, unsigned idx);
-    static inline void removeDenseElementForSparseIndex(JSContext *cx, js::HandleObject obj,
-                                                        unsigned idx);
-    inline void copyDenseElements(unsigned dstStart, const js::Value *src, unsigned count);
-    inline void initDenseElements(unsigned dstStart, const js::Value *src, unsigned count);
-    inline void moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count);
-    inline void moveDenseElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count);
-
-    /* Packed information for this object's elements. */
-    inline void markDenseElementsNotPacked(JSContext *cx);
-
     /*
-     * ensureDenseElements ensures that the object can hold at least
-     * index + extra elements. It returns ED_OK on success, ED_FAILED on
-     * failure to grow the array, ED_SPARSE when the object is too sparse to
-     * grow (this includes the case of index + extra overflow). In the last
-     * two cases the object is kept intact.
+     * Array-specific getters and setters (for both dense and slow arrays).
      */
-    enum EnsureDenseResult { ED_OK, ED_FAILED, ED_SPARSE };
-    inline EnsureDenseResult ensureDenseElements(JSContext *cx, unsigned index, unsigned extra);
 
-    /* Convert a single dense element to a sparse property. */
-    static bool sparsifyDenseElement(JSContext *cx, js::HandleObject obj, unsigned index);
+    bool allocateSlowArrayElements(JSContext *cx);
 
-    /* Convert all dense elements to sparse properties. */
-    static bool sparsifyDenseElements(JSContext *cx, js::HandleObject obj);
-
-    /*
-     * Check if after growing the object's elements will be too sparse.
-     * newElementsHint is an estimated number of elements to be added.
-     */
-    bool willBeSparseElements(unsigned requiredCapacity, unsigned newElementsHint);
-
-    /* Array specific accessors. */
     inline uint32_t getArrayLength() const;
     static inline void setArrayLength(JSContext *cx, js::HandleObject obj, uint32_t length);
-    inline void setArrayLengthInt32(uint32_t length);
+
+    inline uint32_t getDenseArrayCapacity();
+    inline void setDenseArrayLength(uint32_t length);
+    inline void setDenseArrayInitializedLength(uint32_t length);
+    inline void ensureDenseArrayInitializedLength(JSContext *cx, unsigned index, unsigned extra);
+    inline void setDenseArrayElement(unsigned idx, const js::Value &val);
+    inline void initDenseArrayElement(unsigned idx, const js::Value &val);
+    static inline void setDenseArrayElementWithType(JSContext *cx, js::HandleObject obj,
+                                                    unsigned idx, const js::Value &val);
+    static inline void initDenseArrayElementWithType(JSContext *cx, js::HandleObject obj,
+                                                     unsigned idx, const js::Value &val);
+    inline void copyDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count);
+    inline void initDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count);
+    inline void moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned count);
+    inline void moveDenseArrayElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count);
+    inline bool denseArrayHasInlineSlots() const;
+
+    /* Packed information for this array. */
+    inline void markDenseArrayNotPacked(JSContext *cx);
+
+    /*
+     * ensureDenseArrayElements ensures that the dense array can hold at least
+     * index + extra elements. It returns ED_OK on success, ED_FAILED on
+     * failure to grow the array, ED_SPARSE when the array is too sparse to
+     * grow (this includes the case of index + extra overflow). In the last
+     * two cases the array is kept intact.
+     */
+    enum EnsureDenseResult { ED_OK, ED_FAILED, ED_SPARSE };
+    inline EnsureDenseResult ensureDenseArrayElements(JSContext *cx, unsigned index, unsigned extra);
+
+    /*
+     * Check if after growing the dense array will be too sparse.
+     * newElementsHint is an estimated number of elements to be added.
+     */
+    bool willBeSparseDenseArray(unsigned requiredCapacity, unsigned newElementsHint);
+
+    static bool makeDenseArraySlow(JSContext *cx, js::HandleObject obj);
+
+    /*
+     * If this array object has a data property with index i, set *vp to its
+     * value and return true. If not, do vp->setMagic(JS_ARRAY_HOLE) and return
+     * true. On OOM, report it and return false.
+     */
+    bool arrayGetOwnDataElement(JSContext *cx, size_t i, js::Value *vp);
 
   public:
     /*
@@ -957,7 +959,6 @@ struct JSObject : public js::ObjectImpl
      */
 
     /* Direct subtypes of JSObject: */
-    inline bool isArray() const;
     inline bool isArguments() const;
     inline bool isArrayBuffer() const;
     inline bool isDataView() const;
@@ -1293,7 +1294,7 @@ js_NativeGet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> pob
 
 extern JSBool
 js_NativeSet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> receiver,
-             js::Handle<js::Shape*> shape, bool added, bool strict, js::MutableHandleValue vp);
+             js::Handle<js::Shape*> shape, bool added, bool strict, js::Value *vp);
 
 namespace js {
 
@@ -1311,10 +1312,10 @@ bool
 GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, PropertyDescriptor *desc);
 
 bool
-GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp);
+GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, Value *vp);
 
 bool
-NewPropertyDescriptorObject(JSContext *cx, const PropertyDescriptor *desc, MutableHandleValue vp);
+NewPropertyDescriptorObject(JSContext *cx, const PropertyDescriptor *desc, Value *vp);
 
 extern JSBool
 GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, MutableHandleValue vp);

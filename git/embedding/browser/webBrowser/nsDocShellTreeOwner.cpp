@@ -33,7 +33,7 @@
 #include "nsIDOMElement.h"
 #include "Link.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/SVGTitleElement.h"
+#include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIFormControl.h"
@@ -1028,10 +1028,8 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
 {
   NS_ENSURE_ARG_POINTER(aNode);
   NS_ENSURE_ARG_POINTER(aText);
-
+    
   nsString outText;
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
 
   bool lookingForSVGTitle = true;
   bool found = false;
@@ -1089,12 +1087,16 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                 lookingForSVGTitle = UseSVGTitle(currElement);
               }
               if (lookingForSVGTitle) {
-                nsINodeList* childNodes = node->ChildNodes();
-                uint32_t childNodeCount = childNodes->Length();
+                nsCOMPtr<nsIDOMNodeList>childNodes;
+                aNode->GetChildNodes(getter_AddRefs(childNodes));
+                uint32_t childNodeCount;
+                childNodes->GetLength(&childNodeCount);
                 for (uint32_t i = 0; i < childNodeCount; i++) {
-                  nsIContent* child = childNodes->Item(i);
-                  if (child->IsSVG(nsGkAtoms::title)) {
-                    static_cast<dom::SVGTitleElement*>(child)->GetTextContent(outText);
+                  nsCOMPtr<nsIDOMNode>childNode;
+                  childNodes->Item(i, getter_AddRefs(childNode));
+                  nsCOMPtr<nsIDOMSVGTitleElement> titleElement(do_QueryInterface(childNode));
+                  if (titleElement) {
+                    titleElement->GetTextContent(outText);
                     if ( outText.Length() )
                       found = true;
                     break;
@@ -1106,7 +1108,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
         }
       }
     }
-
+    
     // not found here, walk up to the parent and keep trying
     if ( !found ) {
       nsCOMPtr<nsIDOMNode> temp ( current );

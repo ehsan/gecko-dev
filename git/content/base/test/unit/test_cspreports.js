@@ -77,7 +77,7 @@ function makeTest(id, expectedJSON, callback) {
   csp.scanRequestData(selfchan);
 
   // Load up the policy
-  csp.refinePolicy(policy, selfuri, false);
+  csp.refinePolicy(policy, selfuri);
 
   // prime the report server
   var handler = makeReportHandler("/test" + id, "Test " + id, expectedJSON);

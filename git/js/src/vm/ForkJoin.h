@@ -155,7 +155,7 @@ struct ForkJoinSlice
 
 #ifdef JS_THREADSAFE
     // Initialized by Initialize()
-    static unsigned ThreadPrivateIndex;
+    static PRUintn ThreadPrivateIndex;
 #endif
 
     ForkJoinShared *const shared;

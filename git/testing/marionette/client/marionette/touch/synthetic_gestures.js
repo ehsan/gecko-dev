@@ -298,9 +298,7 @@ var SyntheticGestures = (function() {
 
     var c = coordinates(target, x, y);
 
-    touch(target, t || 50, [c.x0, c.x0], [c.y0, c.y0],  function() {
-      mousetap(target, then, x, y, t, true);
-    });
+    touch(target, t || 50, [c.x0, c.x0], [c.y0, c.y0], then);
   }
 
   // Dispatch a dbltap gesture. The arguments are like those to tap()
@@ -433,7 +431,7 @@ var SyntheticGestures = (function() {
   // This is a low-level function that the higher-level mouse gesture
   // utilities are built on. Most testing code will not need to call it.
   //
-  function drag(doc, duration, xt, yt, then, detail, button, sendClick) {
+  function drag(doc, duration, xt, yt, then, detail, button) {
     var win = doc.defaultView;
     detail = detail || 1;
     button = button || 0;
@@ -508,12 +506,8 @@ var SyntheticGestures = (function() {
       // Otherwise, schedule the next move event
       if (last) {
         mouseEvent('mouseup', lastX, lastY);
-        if (sendClick) {
-          mouseEvent('click', clientX, clientY);
-        }
-        if (then) {
+        if (then)
           setTimeout(then, 0);
-        }
       }
       else {
         setTimeout(nextEvent, EVENT_INTERVAL);
@@ -523,14 +517,14 @@ var SyntheticGestures = (function() {
 
   // Send a mousedown/mouseup pair
   // XXX: will the browser automatically follow this with a click event?
-  function mousetap(target, then, x, y, t, sendClick) {
+  function mousetap(target, then, x, y, t) {
     if (x == null)
       x = '50%';
     if (y == null)
       y = '50%';
     var c = coordinates(target, x, y);
 
-    drag(target.ownerDocument, t || 50, [c.x0, c.x0], [c.y0, c.y0], then, null, null, sendClick);
+    drag(target.ownerDocument, t || 50, [c.x0, c.x0], [c.y0, c.y0], then);
   }
 
   // Dispatch a dbltap gesture. The arguments are like those to tap()
@@ -586,7 +580,7 @@ var SyntheticGestures = (function() {
   }
 
   return {
-    touchSupported: true,
+    touchSupported: false,
     tap: tap,
     mousetap: mousetap,
     dbltap: dbltap,

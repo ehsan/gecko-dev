@@ -106,32 +106,47 @@ js::ObjectImpl::isExtensible() const
     return !lastProperty()->hasObjectFlag(BaseShape::NOT_EXTENSIBLE);
 }
 
-inline uint32_t
-js::ObjectImpl::getDenseInitializedLength()
+inline bool
+js::ObjectImpl::isDenseArray() const
 {
-    MOZ_ASSERT(isNative());
+    bool result = hasClass(&ArrayClass);
+    MOZ_ASSERT_IF(result, elements != emptyObjectElements);
+    return result;
+}
+
+inline bool
+js::ObjectImpl::isSlowArray() const
+{
+    bool result = hasClass(&SlowArrayClass);
+    MOZ_ASSERT_IF(result, elements != emptyObjectElements);
+    return result;
+}
+
+inline bool
+js::ObjectImpl::isArray() const
+{
+    return isSlowArray() || isDenseArray();
+}
+
+inline uint32_t
+js::ObjectImpl::getDenseArrayInitializedLength()
+{
+    MOZ_ASSERT(isDenseArray());
     return getElementsHeader()->initializedLength;
 }
 
 inline js::HeapSlotArray
-js::ObjectImpl::getDenseElements()
+js::ObjectImpl::getDenseArrayElements()
 {
-    MOZ_ASSERT(isNative());
+    MOZ_ASSERT(isDenseArray());
     return HeapSlotArray(elements);
 }
 
 inline const js::Value &
-js::ObjectImpl::getDenseElement(uint32_t idx)
+js::ObjectImpl::getDenseArrayElement(uint32_t idx)
 {
-    MOZ_ASSERT(isNative() && idx < getDenseInitializedLength());
+    MOZ_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
     return elements[idx];
-}
-
-inline bool
-js::ObjectImpl::containsDenseElement(uint32_t idx)
-{
-    MOZ_ASSERT(isNative());
-    return idx < getDenseInitializedLength() && !elements[idx].isMagic(JS_ELEMENTS_HOLE);
 }
 
 inline void
@@ -139,6 +154,7 @@ js::ObjectImpl::getSlotRangeUnchecked(uint32_t start, uint32_t length,
                                       HeapSlot **fixedStart, HeapSlot **fixedEnd,
                                       HeapSlot **slotsStart, HeapSlot **slotsEnd)
 {
+    MOZ_ASSERT(!isDenseArray());
     MOZ_ASSERT(start + length >= start);
 
     uint32_t fixed = numFixedSlots();
@@ -174,6 +190,8 @@ inline void
 js::ObjectImpl::invalidateSlotRange(uint32_t start, uint32_t length)
 {
 #ifdef DEBUG
+    MOZ_ASSERT(!isDenseArray());
+
     HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
     getSlotRange(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
     Debug_SetSlotRangeToCrashOnTouch(fixedStart, fixedEnd);
@@ -194,9 +212,9 @@ js::ObjectImpl::initializeSlotRange(uint32_t start, uint32_t length)
     JSCompartment *comp = compartment();
     uint32_t offset = start;
     for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->init(comp, this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
+        sp->init(comp, this->asObjectPtr(), offset++, UndefinedValue());
     for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->init(comp, this->asObjectPtr(), HeapSlot::Slot, offset++, UndefinedValue());
+        sp->init(comp, this->asObjectPtr(), offset++, UndefinedValue());
 }
 
 inline bool
@@ -244,7 +262,7 @@ js::ObjectImpl::setSlot(uint32_t slot, const js::Value &value)
 {
     MOZ_ASSERT(slotInRange(slot));
     MOZ_ASSERT(IsValueInCompartment(value, compartment()));
-    getSlotRef(slot).set(this->asObjectPtr(), HeapSlot::Slot, slot, value);
+    getSlotRef(slot).set(this->asObjectPtr(), slot, value);
 }
 
 inline void
@@ -252,7 +270,7 @@ js::ObjectImpl::setCrossCompartmentSlot(uint32_t slot, const js::Value &value)
 {
     MOZ_ASSERT(slotInRange(slot));
     if (value.isMarkable())
-        getSlotRef(slot).setCrossCompartment(this->asObjectPtr(), HeapSlot::Slot, slot, value,
+        getSlotRef(slot).setCrossCompartment(this->asObjectPtr(), slot, value,
                                              ValueCompartment(value));
     else
         setSlot(slot, value);
@@ -261,7 +279,7 @@ js::ObjectImpl::setCrossCompartmentSlot(uint32_t slot, const js::Value &value)
 inline void
 js::ObjectImpl::initSlot(uint32_t slot, const js::Value &value)
 {
-    MOZ_ASSERT(getSlot(slot).isUndefined());
+    MOZ_ASSERT(getSlot(slot).isUndefined() || getSlot(slot).isMagic(JS_ARRAY_HOLE));
     MOZ_ASSERT(slotInRange(slot));
     MOZ_ASSERT(IsValueInCompartment(value, compartment()));
     initSlotUnchecked(slot, value);
@@ -270,10 +288,10 @@ js::ObjectImpl::initSlot(uint32_t slot, const js::Value &value)
 inline void
 js::ObjectImpl::initCrossCompartmentSlot(uint32_t slot, const js::Value &value)
 {
-    MOZ_ASSERT(getSlot(slot).isUndefined());
+    MOZ_ASSERT(getSlot(slot).isUndefined() || getSlot(slot).isMagic(JS_ARRAY_HOLE));
     MOZ_ASSERT(slotInRange(slot));
     if (value.isMarkable())
-        getSlotRef(slot).init(ValueCompartment(value), this->asObjectPtr(), HeapSlot::Slot, slot, value);
+        getSlotRef(slot).init(ValueCompartment(value), this->asObjectPtr(), slot, value);
     else
         initSlot(slot, value);
 }
@@ -281,21 +299,21 @@ js::ObjectImpl::initCrossCompartmentSlot(uint32_t slot, const js::Value &value)
 inline void
 js::ObjectImpl::initSlotUnchecked(uint32_t slot, const js::Value &value)
 {
-    getSlotAddressUnchecked(slot)->init(this->asObjectPtr(), HeapSlot::Slot, slot, value);
+    getSlotAddressUnchecked(slot)->init(this->asObjectPtr(), slot, value);
 }
 
 inline void
 js::ObjectImpl::setFixedSlot(uint32_t slot, const js::Value &value)
 {
     MOZ_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].set(this->asObjectPtr(), HeapSlot::Slot, slot, value);
+    fixedSlots()[slot].set(this->asObjectPtr(), slot, value);
 }
 
 inline void
 js::ObjectImpl::initFixedSlot(uint32_t slot, const js::Value &value)
 {
     MOZ_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].init(this->asObjectPtr(), HeapSlot::Slot, slot, value);
+    fixedSlots()[slot].init(this->asObjectPtr(), slot, value);
 }
 
 inline uint32_t

@@ -282,7 +282,6 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
           specific.get_ContainerLayerAttributes();
         containerLayer->SetFrameMetrics(attrs.metrics());
         containerLayer->SetPreScale(attrs.preXScale(), attrs.preYScale());
-        containerLayer->SetInheritedScale(attrs.inheritedXScale(), attrs.inheritedYScale());
         break;
       }
       case Specific::TColorLayerAttributes:

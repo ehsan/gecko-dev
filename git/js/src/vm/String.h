@@ -18,19 +18,17 @@
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
-#include "gc/Root.h"
 
-ForwardDeclareJS(String);
+class JSString;
 class JSDependentString;
 class JSUndependedString;
 class JSExtensibleString;
 class JSExternalString;
-ForwardDeclareJS(LinearString);
+class JSLinearString;
 class JSStableString;
 class JSInlineString;
 class JSRope;
-ForwardDeclareJS(FlatString);
-ForwardDeclareJS(Atom);
+class JSAtom;
 
 namespace js {
 

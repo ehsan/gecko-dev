@@ -44,7 +44,6 @@ public:
      , mExpireType(aExpireType)
      , mExpireTime(aExpireTime)
      , mNonSessionPermission(aPermission)
-     , mNonSessionExpireType(aExpireType)
     {}
 
     int64_t  mID;
@@ -53,7 +52,6 @@ public:
     uint32_t mExpireType;
     int64_t  mExpireTime;
     uint32_t mNonSessionPermission;
-    uint32_t mNonSessionExpireType;
   };
 
   /**
@@ -202,7 +200,7 @@ public:
    * That way, we can prevent have nsPermissionManager created at startup just
    * to be able to clear data when an application is uninstalled.
    */
-  static void AppClearDataObserverInit();
+  static void AppUninstallObserverInit();
 
 private:
   int32_t GetTypeIndex(const char *aTypeString,
@@ -217,8 +215,7 @@ private:
   nsresult CommonTestPermission(nsIPrincipal* aPrincipal,
                                 const char *aType,
                                 uint32_t   *aPermission,
-                                bool        aExactHostMatch,
-                                bool        aIncludingSession);
+                                bool        aExactHostMatch);
 
   nsresult InitDB(bool aRemoveFile);
   nsresult CreateTable();

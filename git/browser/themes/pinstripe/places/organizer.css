@@ -287,19 +287,3 @@
 .editBMPanel_rowLabel {
   text-align: end;
 }
-
-/**
- * Downloads pane
- */
-
-#placesToolbar > #clearDownloadsButton {
-  list-style-image: none;
-}
-
-#clearDownloadsButton > .toolbarbutton-icon {
-  display: none;
-}
-
-#clearDownloadsButton > .toolbarbutton-text {
-  display: inline;
-}

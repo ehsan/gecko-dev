@@ -11,7 +11,6 @@
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 #include "nsIWidget.h"
-#include "nsWindowBase.h"
 #include "mozilla/Attributes.h"
 
 #include <msctf.h>
@@ -23,9 +22,6 @@ struct ITfDisplayAttributeMgr;
 struct ITfCategoryMgr;
 class nsWindow;
 class nsTextEvent;
-#ifdef MOZ_METRO
-class MetroWidget;
-#endif
 
 // It doesn't work well when we notify TSF of text change
 // during a mutation observer call because things get broken.
@@ -104,9 +100,8 @@ public:
     sTsfTextStore->SetInputContextInternal(aContext.mIMEState.mEnabled);
   }
 
-  static nsresult OnFocusChange(bool aGotFocus,
-                                nsWindowBase* aFocusedWidget,
-                                IMEState::Enabled aIMEEnabled);
+  static nsresult OnFocusChange(bool, nsWindow*, IMEState::Enabled);
+
   static nsresult OnTextChange(uint32_t aStart,
                                uint32_t aOldEnd,
                                uint32_t aNewEnd)
@@ -159,8 +154,7 @@ protected:
   nsTextStore();
   ~nsTextStore();
 
-  bool     Create(nsWindowBase* aWidget,
-                  IMEState::Enabled aIMEEnabled);
+  bool     Create(nsWindow*, IMEState::Enabled);
   bool     Destroy(void);
 
   bool     IsReadLock(DWORD aLock) const
@@ -198,8 +192,6 @@ protected:
   HRESULT  SaveTextEvent(const nsTextEvent* aEvent);
   nsresult OnCompositionTimer();
 
-  // Holds the pointer to our current win32 or metro widget
-  nsRefPtr<nsWindowBase>       mWidget;
   // Document manager for the currently focused editor
   nsRefPtr<ITfDocumentMgr>     mDocumentMgr;
   // Edit cookie associated with the current editing context
@@ -210,6 +202,8 @@ protected:
   nsRefPtr<ITextStoreACPSink>  mSink;
   // TS_AS_* mask of what events to notify
   DWORD                        mSinkMask;
+  // Window containing the focused editor
+  nsWindow*                    mWindow;
   // 0 if not locked, otherwise TS_LF_* indicating the current lock
   DWORD                        mLock;
   // 0 if no lock is queued, otherwise TS_LF_* indicating the queue lock

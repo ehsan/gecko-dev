@@ -101,7 +101,7 @@ RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> 
         return build(source, newFlags);
     }
 
-    RegExpGuard g(cx);
+    RegExpGuard g;
     if (!other->getShared(cx, &g))
         return NULL;
 
@@ -403,12 +403,6 @@ RegExpShared::~RegExpShared()
 #endif
     if (bytecode)
         js_delete<BytecodePattern>(bytecode);
-}
-
-void
-RegExpShared::trace(JSTracer *trc)
-{
-    MarkString(trc, &source, "regexpshared source");
 }
 
 void

@@ -42,7 +42,8 @@ public:
   void SetBaseValue(const SVGPreserveAspectRatio &aValue,
                     nsSVGElement *aSVGElement);
   nsresult SetBaseAlign(uint16_t aAlign, nsSVGElement *aSVGElement) {
-    if (aAlign < SVG_ALIGN_MIN_VALID || aAlign > SVG_ALIGN_MAX_VALID) {
+    if (aAlign < SVG_PRESERVEASPECTRATIO_NONE ||
+        aAlign > SVG_PRESERVEASPECTRATIO_XMAXYMAX) {
       return NS_ERROR_FAILURE;
     }
     SetBaseValue(SVGPreserveAspectRatio(
@@ -52,8 +53,8 @@ public:
     return NS_OK;
   }
   nsresult SetBaseMeetOrSlice(uint16_t aMeetOrSlice, nsSVGElement *aSVGElement) {
-    if (aMeetOrSlice < SVG_MEETORSLICE_MIN_VALID ||
-        aMeetOrSlice > SVG_MEETORSLICE_MAX_VALID) {
+    if (aMeetOrSlice < SVG_MEETORSLICE_MEET ||
+        aMeetOrSlice > SVG_MEETORSLICE_SLICE) {
       return NS_ERROR_FAILURE;
     }
     SetBaseValue(SVGPreserveAspectRatio(

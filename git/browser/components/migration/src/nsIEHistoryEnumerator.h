@@ -7,12 +7,11 @@
 
 #include <urlhist.h>
 
-#include "mozilla/Attributes.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIWritablePropertyBag2.h"
 #include "nsAutoPtr.h"
 
-class nsIEHistoryEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsIEHistoryEnumerator : public nsISimpleEnumerator
 {
 public:
   NS_DECL_ISUPPORTS

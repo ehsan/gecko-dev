@@ -17,7 +17,6 @@
 
 #include "gc/Barrier.h"
 
-ForwardDeclareJS(Atom);
 ForwardDeclareJS(Script);
 
 namespace js { class FunctionExtended; }
@@ -166,7 +165,7 @@ class JSFunction : public JSObject
     inline void initAtom(JSAtom *atom);
     JSAtom *displayAtom() const { return atom_; }
 
-    inline void setGuessedAtom(js::UnrootedAtom atom);
+    inline void setGuessedAtom(JSAtom *atom);
 
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };
@@ -182,26 +181,25 @@ class JSFunction : public JSObject
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
     static inline size_t offsetOfAtom() { return offsetof(JSFunction, atom_); }
 
-    static js::UnrootedScript getOrCreateScript(JSContext *cx, JS::HandleFunction fun) {
-        JS_ASSERT(fun->isInterpreted());
-        if (fun->isInterpretedLazy()) {
+    js::UnrootedScript getOrCreateScript(JSContext *cx) {
+        JS_ASSERT(isInterpreted());
+        if (isInterpretedLazy()) {
+            js::RootedFunction self(cx, this);
             js::MaybeCheckStackRoots(cx);
-            if (!fun->initializeLazyScript(cx))
+            if (!initializeLazyScript(cx))
                 return js::UnrootedScript(NULL);
         }
-        JS_ASSERT(fun->hasScript());
-        return fun->u.i.script_;
+        JS_ASSERT(hasScript());
+        return JS::HandleScript::fromMarkedLocation(&u.i.script_);
     }
 
-    static bool maybeGetOrCreateScript(JSContext *cx, js::HandleFunction fun,
-                                       js::MutableHandle<JSScript*> script)
-    {
-        if (fun->isNative()) {
+    bool maybeGetOrCreateScript(JSContext *cx, js::MutableHandle<JSScript*> script) {
+        if (isNative()) {
             script.set(NULL);
             return true;
         }
-        script.set(getOrCreateScript(cx, fun));
-        return fun->hasScript();
+        script.set(getOrCreateScript(cx));
+        return hasScript();
     }
 
     js::UnrootedScript nonLazyScript() const {

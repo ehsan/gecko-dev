@@ -7,7 +7,6 @@
 #include <ras.h>
 #include <wininet.h>
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Util.h"
 #include "nsISystemProxySettings.h"
 #include "nsIServiceManager.h"
@@ -17,7 +16,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIURI.h"
 
-class nsWindowsSystemProxySettings MOZ_FINAL : public nsISystemProxySettings
+class nsWindowsSystemProxySettings : public nsISystemProxySettings
 {
 public:
     NS_DECL_ISUPPORTS

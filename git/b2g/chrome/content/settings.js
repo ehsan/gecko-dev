@@ -203,11 +203,15 @@ SettingsListener.observe('devtools.debugger.remote-enabled', false, function(val
   Services.prefs.setBoolPref('devtools.debugger.remote-enabled', value);
   // This preference is consulted during startup
   Services.prefs.savePrefFile(null);
-  value ? RemoteDebugger.start() : RemoteDebugger.stop();
+  value ? startDebugger() : stopDebugger();
 });
 
 SettingsListener.observe('debug.log-animations.enabled', false, function(value) {
   Services.prefs.setBoolPref('layers.offmainthreadcomposition.log-animations', value);
+});
+
+SettingsListener.observe('debug.dev-mode', false, function(value) {
+  Services.prefs.setBoolPref('dom.mozApps.dev_mode', value);
 });
 
 // =================== Privacy ====================

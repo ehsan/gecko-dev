@@ -56,11 +56,11 @@ namespace js {
  */
 class StaticScopeIter
 {
-    RootedObject obj;
+    JSObject *obj;
     bool onNamedLambda;
 
   public:
-    explicit StaticScopeIter(JSContext *cx, HandleObject obj);
+    explicit StaticScopeIter(JSObject *obj);
 
     bool done() const;
     void operator++(int);
@@ -97,15 +97,15 @@ struct ScopeCoordinate
 };
 
 /*
- * Return a shape representing the static scope containing the variable
+ * Return a scope iterator pointing at the static scope containing the variable
  * accessed by the ALIASEDVAR op at 'pc'.
  */
-extern UnrootedShape
-ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc);
+extern StaticScopeIter
+ScopeCoordinateToStaticScope(JSScript *script, jsbytecode *pc);
 
 /* Return the name being accessed by the given ALIASEDVAR op. */
 extern PropertyName *
-ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc);
+ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc);
 
 /*****************************************************************************/
 

@@ -1272,7 +1272,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    RootedFunction callee(cx);
+    JSFunction *callee = NULL;
 
     if (type.isSingleObject()) {
         RootedObject obj(cx, type.singleObject());
@@ -1348,7 +1348,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    RootedScript calleeScript(cx, JSFunction::getOrCreateScript(cx, callee));
+    RootedScript calleeScript(cx, callee->getOrCreateScript(cx));
     if (!calleeScript)
         return;
     if (!calleeScript->ensureHasTypes(cx))
@@ -1397,8 +1397,6 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
 void
 TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
 {
-    AssertCanGC();
-
     if (type.isUnknown() || type.isAnyObject()) {
         /*
          * The callee is unknown, make sure the call is monitored so we pick up
@@ -1412,7 +1410,7 @@ TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
     }
 
     /* Ignore calls to natives, these will be handled by TypeConstraintCall. */
-    RootedFunction callee(cx);
+    JSFunction *callee = NULL;
 
     if (type.isSingleObject()) {
         RootedObject object(cx, type.singleObject());
@@ -1429,7 +1427,7 @@ TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    if (!(JSFunction::getOrCreateScript(cx, callee) && callee->nonLazyScript()->ensureHasTypes(cx)))
+    if (!(callee->getOrCreateScript(cx) && callee->nonLazyScript()->ensureHasTypes(cx)))
         return;
 
     TypeSet *thisTypes = TypeScript::ThisTypes(callee->nonLazyScript());
@@ -2970,16 +2968,16 @@ TypeCompartment::fixArrayType(JSContext *cx, HandleObject obj)
      * If the array is heterogenous, keep the existing type object, which has
      * unknown properties.
      */
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
 
-    unsigned len = obj->getDenseInitializedLength();
+    unsigned len = obj->getDenseArrayInitializedLength();
     if (len == 0)
         return;
 
-    Type type = GetValueTypeForTable(cx, obj->getDenseElement(0));
+    Type type = GetValueTypeForTable(cx, obj->getDenseArrayElement(0));
 
     for (unsigned i = 1; i < len; i++) {
-        Type ntype = GetValueTypeForTable(cx, obj->getDenseElement(i));
+        Type ntype = GetValueTypeForTable(cx, obj->getDenseArrayElement(i));
         if (ntype != type) {
             if (NumberTypes(type, ntype))
                 type = Type::DoubleType();
@@ -3250,10 +3248,11 @@ TypeObject::addProperty(JSContext *cx, jsid id, Property **pprop)
 
     if (singleton) {
         /*
-         * Fill the property in with any type the object already has in an own
-         * property. We are only interested in plain native properties and
-         * dense elements which don't go through a barrier when read by the VM
-         * or jitcode.
+         * Fill the property in with any type the object already has in an
+         * own property. We are only interested in plain native properties
+         * which don't go through a barrier when read by the VM or jitcode.
+         * We don't need to handle arrays or other JIT'ed non-natives as
+         * these are not (yet) singletons.
          */
 
         RootedObject rSingleton(cx, singleton);
@@ -3264,16 +3263,6 @@ TypeObject::addProperty(JSContext *cx, jsid id, Property **pprop)
                 if (JSID_IS_VOID(MakeTypeId(cx, shape->propid())))
                     UpdatePropertyType(cx, &base->types, rSingleton, shape, true);
                 shape = shape->previous();
-            }
-
-            /* Also get values of any dense elements in the object. */
-            for (size_t i = 0; i < singleton->getDenseInitializedLength(); i++) {
-                const Value &value = singleton->getDenseElement(i);
-                if (!value.isMagic(JS_ELEMENTS_HOLE)) {
-                    Type type = GetValueType(cx, value);
-                    base->types.setOwnProperty(cx, false);
-                    base->types.addType(cx, type);
-                }
             }
         } else if (!JSID_IS_EMPTY(id) && singleton->isNative()) {
             UnrootedShape shape = singleton->nativeLookup(cx, id);
@@ -3612,11 +3601,9 @@ TypeObject::clearNewScript(JSContext *cx)
 void
 TypeObject::print()
 {
-    TaggedProto tagged(proto);
     printf("%s : %s",
            TypeObjectString(this),
-           tagged.isObject() ? TypeString(Type::ObjectType(proto))
-                            : (tagged.isLazy() ? "(lazy)" : "(null)"));
+           proto ? TypeString(Type::ObjectType(proto)) : "(null)");
 
     if (unknownProperties()) {
         printf(" unknown");
@@ -5764,8 +5751,7 @@ JSObject::makeLazyType(JSContext *cx)
     RootedObject self(cx, this);
     /* De-lazification of functions can GC, so we need to do it up here. */
     if (self->isFunction() && self->toFunction()->isInterpretedLazy()) {
-        RootedFunction fun(cx, self->toFunction());
-        if (!JSFunction::getOrCreateScript(cx, fun))
+        if (!self->toFunction()->getOrCreateScript(cx))
             return NULL;
     }
     JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(getClass());
@@ -5818,14 +5804,11 @@ JSObject::makeLazyType(JSContext *cx)
      * looking at the class prototype key.
      */
 
+    if (self->isSlowArray())
+        type->flags |= OBJECT_FLAG_NON_DENSE_ARRAY | OBJECT_FLAG_NON_PACKED_ARRAY;
+
     if (IsTypedArrayProtoClass(self->getClass()))
         type->flags |= OBJECT_FLAG_NON_TYPED_ARRAY;
-
-    /* Don't track whether singletons are packed. */
-    type->flags |= OBJECT_FLAG_NON_PACKED_ARRAY;
-
-    if (self->isArray() && (self->isIndexed() || self->getArrayLength() > INT32_MAX))
-        type->flags |= OBJECT_FLAG_NON_DENSE_ARRAY;
 
     self->type_ = type;
 
@@ -5955,18 +5938,6 @@ JSCompartment::getNewType(JSContext *cx, TaggedProto proto_, JSFunction *fun_, b
         if (obj->isXML() && !type->unknownProperties())
             type->flags |= OBJECT_FLAG_UNKNOWN_MASK;
 #endif
-
-        if (obj->isRegExp()) {
-            AddTypeProperty(cx, type, "source", types::Type::StringType());
-            AddTypeProperty(cx, type, "global", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "ignoreCase", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "multiline", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "sticky", types::Type::BooleanType());
-            AddTypeProperty(cx, type, "lastIndex", types::Type::Int32Type());
-        }
-
-        if (obj->isString())
-            AddTypeProperty(cx, type, "length", Type::Int32Type());
     }
 
     /*

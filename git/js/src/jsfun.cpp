@@ -91,7 +91,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
      * check any calls that were inlined.
      */
     if (fun->isInterpreted()) {
-        JSFunction::getOrCreateScript(cx, fun)->uninlineable = true;
+        fun->getOrCreateScript(cx)->uninlineable = true;
         MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
     }
 
@@ -99,7 +99,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
     vp.setNull();
 
     /* Find fun's top-most activation record. */
-    NonBuiltinScriptFrameIter iter(cx);
+    StackIter iter(cx);
     for (; !iter.done(); ++iter) {
         if (!iter.isFunctionFrame() || iter.isEvalFrame())
             continue;
@@ -341,7 +341,7 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             PropertyOp getter;
             StrictPropertyOp setter;
             unsigned attrs = JSPROP_PERMANENT;
-            if (fun->isInterpretedLazy() && !JSFunction::getOrCreateScript(cx, fun))
+            if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
                 return false;
             if (fun->isInterpreted() ? fun->strict() : fun->isBoundFunction()) {
                 JSObject *throwTypeError = fun->global().getThrowTypeError();
@@ -1479,7 +1479,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
     if (fun->isInterpreted()) {
         if (fun->isInterpretedLazy()) {
             AutoCompartment ac(cx, fun);
-            if (!JSFunction::getOrCreateScript(cx, fun))
+            if (!fun->getOrCreateScript(cx))
                 return NULL;
         }
         clone->initScript(fun->nonLazyScript());

@@ -20,12 +20,7 @@
 class nsIFrame;
 class nsISMILAnimationElement;
 class nsSMILValue;
-
-namespace mozilla {
-namespace dom {
-class SVGSVGElement;
-}
-}
+class nsSVGSVGElement;
 
 class nsSVGLength2
 {
@@ -72,9 +67,9 @@ public:
   float GetAnimValInSpecifiedUnits() const { return mAnimVal; }
   float GetBaseValInSpecifiedUnits() const { return mBaseVal; }
 
-  float GetBaseValue(mozilla::dom::SVGSVGElement* aCtx) const
+  float GetBaseValue(nsSVGSVGElement* aCtx) const
     { return mBaseVal / GetUnitScaleFactor(aCtx, mSpecifiedUnitType); }
-  float GetAnimValue(mozilla::dom::SVGSVGElement* aCtx) const
+  float GetAnimValue(nsSVGSVGElement* aCtx) const
     { return mAnimVal / GetUnitScaleFactor(aCtx, mSpecifiedUnitType); }
 
   bool HasBaseVal() const {
@@ -115,14 +110,14 @@ private:
     { return SVGContentUtils::GetFontXHeight(aFrame); }
   float GetUnitScaleFactor(nsIFrame *aFrame, uint8_t aUnitType) const;
 
-  float GetMMPerPixel(mozilla::dom::SVGSVGElement *aCtx) const;
-  float GetAxisLength(mozilla::dom::SVGSVGElement *aCtx) const;
+  float GetMMPerPixel(nsSVGSVGElement *aCtx) const;
+  float GetAxisLength(nsSVGSVGElement *aCtx) const;
   static float GetEmLength(nsSVGElement *aSVGElement)
     { return SVGContentUtils::GetFontSize(aSVGElement); }
   static float GetExLength(nsSVGElement *aSVGElement)
     { return SVGContentUtils::GetFontXHeight(aSVGElement); }
   float GetUnitScaleFactor(nsSVGElement *aSVGElement, uint8_t aUnitType) const;
-  float GetUnitScaleFactor(mozilla::dom::SVGSVGElement *aCtx, uint8_t aUnitType) const;
+  float GetUnitScaleFactor(nsSVGSVGElement *aCtx, uint8_t aUnitType) const;
 
   // SetBaseValue and SetAnimValue set the value in user units
   void SetBaseValue(float aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);

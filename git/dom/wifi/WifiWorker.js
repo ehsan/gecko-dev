@@ -2427,11 +2427,7 @@ WifiWorker.prototype = {
       return;
     }
 
-    let sent = false;
     let callback = (function (networks) {
-      if (sent)
-        return;
-      sent = true;
       this._sendMessage(message, networks !== null, networks, msg);
     }).bind(this);
     this.waitForScan(callback);
@@ -2442,12 +2438,10 @@ WifiWorker.prototype = {
         return;
 
       // Avoid sending multiple responses.
-      if (sent)
-        return;
+      this.wantScanResults.splice(this.wantScanResults.indexOf(callback), 1);
 
       // Otherwise, let the client know that it failed, it's responsible for
       // trying again in a few seconds.
-      sent = true;
       this._sendMessage(message, false, "ScanFailed", msg);
     }).bind(this));
   },

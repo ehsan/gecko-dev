@@ -89,11 +89,3 @@
 #fileExport {
   list-style-image: url("moz-icon://stock/gtk-save-as?size=menu");
 }
-
-/**
- * Downloads pane
- */
-
-#clearDownloadsButton > .toolbarbutton-icon {
-  display: none;
-}

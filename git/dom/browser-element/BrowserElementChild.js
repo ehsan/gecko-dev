@@ -124,7 +124,6 @@ BrowserElementChild.prototype = {
     addMsgListener("purge-history", this._recvPurgeHistory);
     addMsgListener("get-screenshot", this._recvGetScreenshot);
     addMsgListener("set-visible", this._recvSetVisible);
-    addMsgListener("get-visible", this._recvVisible);
     addMsgListener("send-mouse-event", this._recvSendMouseEvent);
     addMsgListener("send-touch-event", this._recvSendTouchEvent);
     addMsgListener("get-can-go-back", this._recvCanGoBack);
@@ -616,13 +615,6 @@ BrowserElementChild.prototype = {
     debug("Received setVisible message: (" + data.json.visible + ")");
     this._forcedVisible = data.json.visible;
     this._updateDocShellVisibility();
-  },
-
-  _recvVisible: function(data) {
-    sendAsyncMsg('got-visible', {
-      id: data.json.id,
-      successRv: docShell.isActive
-    });
   },
 
   /**

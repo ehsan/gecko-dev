@@ -7,6 +7,8 @@
 #include "nsSVGTSpanFrame.h"
 
 // Keep others in (case-insensitive) order:
+#include "nsIDOMSVGTSpanElement.h"
+#include "nsIDOMSVGAltGlyphElement.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
 
@@ -58,9 +60,9 @@ nsSVGTSpanFrame::Init(nsIContent* aContent,
                  "trying to construct an SVGTSpanFrame for an invalid "
                  "container");
 
-    NS_ASSERTION(aContent->IsSVG() && (aContent->Tag() == nsGkAtoms::altGlyph ||
-                                       aContent->Tag() == nsGkAtoms::tspan),
-                 "Content is not an SVG tspan or altGlyph");
+    nsCOMPtr<nsIDOMSVGTSpanElement> tspan = do_QueryInterface(aContent);
+    nsCOMPtr<nsIDOMSVGAltGlyphElement> altGlyph = do_QueryInterface(aContent);
+    NS_ASSERTION(tspan || altGlyph, "Content is not an SVG tspan or altGlyph");
   }
 
   return nsSVGTSpanFrameBase::Init(aContent, aParent, aPrevInFlow);

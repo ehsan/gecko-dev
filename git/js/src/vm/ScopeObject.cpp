@@ -23,8 +23,8 @@ using namespace js::types;
 
 /*****************************************************************************/
 
-StaticScopeIter::StaticScopeIter(JSContext *cx, HandleObject objArg)
-  : obj(cx, objArg), onNamedLambda(false)
+StaticScopeIter::StaticScopeIter(JSObject *obj)
+  : obj(obj), onNamedLambda(false)
 {
     JS_ASSERT_IF(obj, obj->isStaticBlock() || obj->isFunction());
 }
@@ -32,7 +32,7 @@ StaticScopeIter::StaticScopeIter(JSContext *cx, HandleObject objArg)
 bool
 StaticScopeIter::done() const
 {
-    return !obj;
+    return obj == NULL;
 }
 
 void
@@ -92,20 +92,20 @@ StaticScopeIter::funScript() const
 
 /*****************************************************************************/
 
-UnrootedShape
-js::ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc)
+StaticScopeIter
+js::ScopeCoordinateToStaticScope(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && pc < script->code + script->length);
     JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
 
     uint32_t blockIndex = GET_UINT32_INDEX(pc + 2 * sizeof(uint16_t));
-    RootedObject innermostStaticScope(cx, NULL);
+    JSObject *innermostStaticScope;
     if (blockIndex == UINT32_MAX)
         innermostStaticScope = script->function();
     else
         innermostStaticScope = &script->getObject(blockIndex)->asStaticBlock();
 
-    StaticScopeIter ssi(cx, innermostStaticScope);
+    StaticScopeIter ssi(innermostStaticScope);
     ScopeCoordinate sc(pc);
     while (true) {
         if (ssi.hasDynamicScopeObject()) {
@@ -115,13 +115,13 @@ js::ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecod
         }
         ssi++;
     }
-    return ssi.scopeShape();
+    return ssi;
 }
 
 PropertyName *
-js::ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc)
+js::ScopeCoordinateName(JSRuntime *rt, JSScript *script, jsbytecode *pc)
 {
-    Shape::Range r = ScopeCoordinateToStaticScopeShape(cx, script, pc)->all();
+    Shape::Range r = ScopeCoordinateToStaticScope(script, pc).scopeShape()->all();
     ScopeCoordinate sc(pc);
     while (r.front().slot() != sc.slot)
         r.popFront();
@@ -129,7 +129,7 @@ js::ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc)
 
     /* Beware nameless destructuring formal. */
     if (!JSID_IS_ATOM(id))
-        return cx->runtime->atomState.empty;
+        return rt->atomState.empty;
     return JSID_TO_ATOM(id)->asPropertyName();
 }
 
@@ -376,7 +376,7 @@ with_LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
                    MutableHandleObject objp, MutableHandleShape propp)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return with_LookupGeneric(cx, obj, id, objp, propp);
 }
@@ -410,7 +410,7 @@ with_GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t
                 MutableHandleValue vp)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return with_GetGeneric(cx, obj, receiver, id, vp);
 }
@@ -427,7 +427,7 @@ static JSBool
 with_SetGeneric(JSContext *cx, HandleObject obj, HandleId id,
                 MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
+    Rooted<JSObject*> actual(cx, &obj->asWith().object());
     return JSObject::setGeneric(cx, actual, actual, id, vp, strict);
 }
 
@@ -435,7 +435,7 @@ static JSBool
 with_SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
                  MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
+    Rooted<JSObject*> actual(cx, &obj->asWith().object());
     return JSObject::setProperty(cx, actual, actual, name, vp, strict);
 }
 
@@ -443,7 +443,7 @@ static JSBool
 with_SetElement(JSContext *cx, HandleObject obj, uint32_t index,
                 MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
+    Rooted<JSObject*> actual(cx, &obj->asWith().object());
     return JSObject::setElement(cx, actual, actual, index, vp, strict);
 }
 
@@ -451,7 +451,7 @@ static JSBool
 with_SetSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
                 MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->asWith().object());
+    Rooted<JSObject*> actual(cx, &obj->asWith().object());
     return JSObject::setSpecial(cx, actual, actual, sid, vp, strict);
 }
 
@@ -1176,9 +1176,9 @@ class DebugScopeProxy : public BaseProxyHandler
                         maybefp->unaliasedVar(i) = *vp;
                 } else if (JSObject *snapshot = debugScope->maybeSnapshot()) {
                     if (action == GET)
-                        *vp = snapshot->getDenseElement(bindings.numArgs() + i);
+                        *vp = snapshot->getDenseArrayElement(bindings.numArgs() + i);
                     else
-                        snapshot->setDenseElement(bindings.numArgs() + i, *vp);
+                        snapshot->setDenseArrayElement(bindings.numArgs() + i, *vp);
                 } else {
                     /* The unaliased value has been lost to the debugger. */
                     if (action == GET)
@@ -1208,9 +1208,9 @@ class DebugScopeProxy : public BaseProxyHandler
                     }
                 } else if (JSObject *snapshot = debugScope->maybeSnapshot()) {
                     if (action == GET)
-                        *vp = snapshot->getDenseElement(i);
+                        *vp = snapshot->getDenseArrayElement(i);
                     else
-                        snapshot->setDenseElement(i, *vp);
+                        snapshot->setDenseArrayElement(i, *vp);
                 } else {
                     /* The unaliased value has been lost to the debugger. */
                     if (action == GET)

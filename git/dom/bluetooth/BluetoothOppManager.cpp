@@ -161,23 +161,6 @@ private:
   uint32_t mAvailablePacketSize;
 };
 
-class CloseSocketTask : public Task
-{
-public:
-  void Run() MOZ_OVERRIDE
-  {
-    if (!sInstance) {
-      NS_WARNING("BluetoothOppManager no longer exists, cannot close socket!");
-      return;
-    }
-
-    if (sInstance->GetConnectionStatus() ==
-          SocketConnectionStatus::SOCKET_CONNECTED) {
-      sInstance->CloseSocket();
-    }
-  }
-};
-
 BluetoothOppManager::BluetoothOppManager() : mConnected(false)
                                            , mConnectionId(1)
                                            , mRemoteObexVersion(0)
@@ -805,10 +788,8 @@ BluetoothOppManager::ClientDataHandler(UnixSocketRawData* aMessage)
   } else if (mLastCommand == ObexRequestCode::Disconnect) {
     AfterOppDisconnected();
     // Most devices will directly terminate connection after receiving
-    // Disconnect request, so we make a delay here. If the socket hasn't been
-    // disconnected, we will close it.
-    MessageLoop::current()->
-      PostDelayedTask(FROM_HERE, new CloseSocketTask(), 1000);
+    // Disconnect request.
+    // CloseSocket();
   } else if (mLastCommand == ObexRequestCode::Connect) {
     MOZ_ASSERT(!sFileName.IsEmpty());
     MOZ_ASSERT(mBlob);
@@ -1027,12 +1008,6 @@ BluetoothOppManager::SendAbortRequest()
   UnixSocketRawData* s = new UnixSocketRawData(index);
   memcpy(s->mData, req, s->mSize);
   SendSocketData(s);
-}
-
-bool
-BluetoothOppManager::IsTransferring()
-{
-  return (mConnected && !mSendTransferCompleteFlag);
 }
 
 void
@@ -1304,7 +1279,7 @@ BluetoothOppManager::OnDisconnect()
 
         nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
         if (obs) {
-          obs->NotifyObservers(mDsFile, "file-watcher-notify", data.get());
+          obs->NotifyObservers(mDsFile, "file-watcher-update", data.get());
         }
       }
     }

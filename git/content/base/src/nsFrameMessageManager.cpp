@@ -7,7 +7,7 @@
 
 #include "nsFrameMessageManager.h"
 
-#include "AppProcessChecker.h"
+#include "AppProcessPermissions.h"
 #include "ContentChild.h"
 #include "ContentParent.h"
 #include "nsContentUtils.h"
@@ -107,8 +107,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIFrameScriptLoader,
                                      mChrome && !mIsProcessManager)
 
-  /* Message senders in the chrome process support nsIProcessChecker. */
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIProcessChecker,
+  /* Message senders in the chrome process support nsIPermissionChecker. */
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIPermissionChecker,
                                      mChrome && !mIsBroadcaster)
 
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(ChromeMessageBroadcaster,
@@ -423,14 +423,12 @@ nsFrameMessageManager::Atob(const nsAString& aAsciiString,
   return NS_OK;
 }
 
-// nsIProcessChecker
+// nsIPermissionChecker
 
-nsresult
-nsFrameMessageManager::AssertProcessInternal(ProcessCheckerType aType,
-                                             const nsAString& aCapability,
-                                             bool* aValid)
+NS_IMETHODIMP
+nsFrameMessageManager::AssertPermission(const nsAString& aPermission, bool* aHasPermission)
 {
-  *aValid = false;
+  *aHasPermission = false;
 
   // This API is only supported for message senders in the chrome process.
   if (!mChrome || mIsBroadcaster) {
@@ -439,35 +437,8 @@ nsFrameMessageManager::AssertProcessInternal(ProcessCheckerType aType,
   if (!mCallback) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  switch (aType) {
-    case PROCESS_CHECKER_PERMISSION:
-      *aValid = mCallback->CheckPermission(aCapability);
-      break;
-    case PROCESS_CHECKER_MANIFEST_URL:
-      *aValid = mCallback->CheckManifestURL(aCapability);
-      break;
-    default:
-      break;
-  }
+  *aHasPermission = mCallback->CheckPermission(aPermission);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::AssertPermission(const nsAString& aPermission,
-                                        bool* aHasPermission)
-{
-  return AssertProcessInternal(PROCESS_CHECKER_PERMISSION,
-                               aPermission,
-                               aHasPermission);
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::AssertContainApp(const nsAString& aManifestURL,
-                                        bool* aHasManifestURL)
-{
-  return AssertProcessInternal(PROCESS_CHECKER_MANIFEST_URL,
-                               aManifestURL,
-                               aHasManifestURL);
 }
 
 class MMListenerRemover
@@ -1129,11 +1100,6 @@ public:
     return true;
   }
 
-  bool CheckManifestURL(const nsAString& aManifestURL)
-  {
-    // In a single-process scenario, the child always has all capabilities.
-    return true;
-  }
 };
 
 

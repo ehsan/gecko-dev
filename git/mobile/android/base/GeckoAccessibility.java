@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.gfx.LayerView;
 
 import android.view.accessibility.*;
@@ -29,9 +30,9 @@ public class GeckoAccessibility {
     private static final int VIRTUAL_CURSOR_POSITION = 2;
     private static final int VIRTUAL_CURSOR_NEXT = 3;
 
-    private static boolean sEnabled = false;
-    private static JSONObject sEventMessage = null;
-    private static AccessibilityNodeInfo sVirtualCursorNode = null;
+    private static boolean mEnabled = false;
+    private static JSONObject mEventMessage = null;
+    private static AccessibilityNodeInfo mVirtualCursorNode = null;
 
     private static final HashSet<String> sServiceWhitelist =
         new HashSet<String>(Arrays.asList(new String[] {
@@ -45,7 +46,7 @@ public class GeckoAccessibility {
         GeckoAppShell.getHandler().post(new Runnable() {
                 public void run() {
                     JSONObject ret = new JSONObject();
-                    sEnabled = false;
+                    mEnabled = false;
                     AccessibilityManager accessibilityManager =
                         (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
                     if (accessibilityManager.isEnabled()) {
@@ -54,14 +55,14 @@ public class GeckoAccessibility {
                         List<RunningServiceInfo> runningServices = activityManager.getRunningServices(Integer.MAX_VALUE);
 
                         for (RunningServiceInfo runningServiceInfo : runningServices) {
-                            sEnabled = sServiceWhitelist.contains(runningServiceInfo.service.getClassName());
-                            if (sEnabled)
+                            mEnabled = sServiceWhitelist.contains(runningServiceInfo.service.getClassName());
+                            if (mEnabled)
                                 break;
                         }
                     }
 
                     try {
-                        ret.put("enabled", sEnabled);
+                        ret.put("enabled", mEnabled);
                     } catch (Exception ex) {
                         Log.e(LOGTAG, "Error building JSON arguments for Accessibility:Settings:", ex);
                     }
@@ -116,9 +117,6 @@ public class GeckoAccessibility {
     }
 
     public static void sendAccessibilityEvent (final JSONObject message) {
-        if (!sEnabled)
-            return;
-
         final int eventType = message.optInt("eventType", -1);
         if (eventType < 0) {
             Log.e(LOGTAG, "No accessibility event type provided");
@@ -140,25 +138,25 @@ public class GeckoAccessibility {
             if (view == null)
                 return;
 
-            if (sVirtualCursorNode == null)
-                sVirtualCursorNode = AccessibilityNodeInfo.obtain(view, VIRTUAL_CURSOR_POSITION);
-            sVirtualCursorNode.setEnabled(message.optBoolean("enabled", true));
-            sVirtualCursorNode.setChecked(message.optBoolean("checked"));
-            sVirtualCursorNode.setPassword(message.optBoolean("password"));
+            if (mVirtualCursorNode == null)
+                mVirtualCursorNode = AccessibilityNodeInfo.obtain(view, VIRTUAL_CURSOR_POSITION);
+            mVirtualCursorNode.setEnabled(message.optBoolean("enabled", true));
+            mVirtualCursorNode.setChecked(message.optBoolean("checked"));
+            mVirtualCursorNode.setPassword(message.optBoolean("password"));
             JSONObject bounds = message.optJSONObject("bounds");
             if (bounds != null) {
                 Rect relativeBounds = new Rect(bounds.optInt("left"), bounds.optInt("top"),
                                                bounds.optInt("right"), bounds.optInt("bottom"));
-                sVirtualCursorNode.setBoundsInParent(relativeBounds);
+                mVirtualCursorNode.setBoundsInParent(relativeBounds);
                 int[] locationOnScreen = new int[2];
                 view.getLocationOnScreen(locationOnScreen);
                 Rect screenBounds = new Rect(relativeBounds);
                 screenBounds.offset(locationOnScreen[0], locationOnScreen[1]);
-                sVirtualCursorNode.setBoundsInScreen(screenBounds);
+                mVirtualCursorNode.setBoundsInScreen(screenBounds);
             }
 
             // Store the JSON message and use it to populate the event later in the code path.
-            sEventMessage = message;
+            mEventMessage = message;
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                     public void run() {
                         // If this is an accessibility focus, a lot of internal voodoo happens so we perform an
@@ -193,7 +191,7 @@ public class GeckoAccessibility {
     }
 
     public static void onLayerViewFocusChanged(LayerView layerview, boolean gainFocus) {
-        if (sEnabled)
+        if (mEnabled)
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Accessibility:Focus",
                                                                            gainFocus ? "true" : "false"));
     }
@@ -204,11 +202,11 @@ public class GeckoAccessibility {
         @Override
         public void onPopulateAccessibilityEvent (View host, AccessibilityEvent event) {
             super.onPopulateAccessibilityEvent(host, event);
-            if (sEventMessage != null)
-                populateEventFromJSON(event, sEventMessage);
+            if (mEventMessage != null)
+                populateEventFromJSON(event, mEventMessage);
             // We save the hover enter event so that we could reuse it for a subsequent accessibility focus event.
             if (event.getEventType() != AccessibilityEvent.TYPE_VIEW_HOVER_ENTER)
-                sEventMessage = null;
+                mEventMessage = null;
             // No matter where the a11y focus is requested, we always force it back to the current vc position.
             event.setSource(host, VIRTUAL_CURSOR_POSITION);
         }
@@ -224,8 +222,8 @@ public class GeckoAccessibility {
                 mAccessibilityNodeProvider = new AccessibilityNodeProvider() {
                         @Override
                         public AccessibilityNodeInfo createAccessibilityNodeInfo(int virtualDescendantId) {
-                            AccessibilityNodeInfo info = (virtualDescendantId == VIRTUAL_CURSOR_POSITION && sVirtualCursorNode != null) ?
-                                AccessibilityNodeInfo.obtain(sVirtualCursorNode) :
+                            AccessibilityNodeInfo info = (virtualDescendantId == VIRTUAL_CURSOR_POSITION && mVirtualCursorNode != null) ?
+                                AccessibilityNodeInfo.obtain(mVirtualCursorNode) :
                                 AccessibilityNodeInfo.obtain(host, virtualDescendantId);
 
 

@@ -79,13 +79,6 @@ BottomHost.prototype = {
   },
 
   /**
-   * Raise the host.
-   */
-  raise: function BH_raise() {
-    focusTab(this.hostTab);
-  },
-
-  /**
    * Destroy the bottom dock.
    */
   destroy: function BH_destroy() {
@@ -149,13 +142,6 @@ SidebarHost.prototype = {
     focusTab(this.hostTab);
 
     return deferred.promise;
-  },
-
-  /**
-   * Raise the host.
-   */
-  raise: function SH_raise() {
-    focusTab(this.hostTab);
   },
 
   /**
@@ -226,13 +212,6 @@ WindowHost.prototype = {
     this._window.removeEventListener("unload", this._boundUnload);
 
     this.emit("window-closed");
-  },
-
-  /**
-   * Raise the host.
-   */
-  raise: function RH_raise() {
-    this._window.focus();
   },
 
   /**

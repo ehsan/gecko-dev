@@ -35,7 +35,6 @@
 class mozIApplication;
 class nsConsoleService;
 class nsIDOMBlob;
-class nsDOMFileBase;
 
 namespace mozilla {
 
@@ -103,13 +102,9 @@ public:
     virtual bool DoSendAsyncMessage(const nsAString& aMessage,
                                     const mozilla::dom::StructuredCloneData& aData);
     virtual bool CheckPermission(const nsAString& aPermission);
-    virtual bool CheckManifestURL(const nsAString& aManifestURL);
 
-    /** Notify that a tab is beginning its destruction sequence. */
-    void NotifyTabDestroying(PBrowserParent* aTab);
     /** Notify that a tab was destroyed during normal operation. */
-    void NotifyTabDestroyed(PBrowserParent* aTab,
-                            bool aNotifiedDestroying);
+    void NotifyTabDestroyed(PBrowserParent* aTab);
 
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
@@ -131,9 +126,8 @@ public:
         return mSendPermissionUpdates;
     }
 
-    bool GetParamsForBlob(nsDOMFileBase* aBlob,
-                          BlobConstructorParams* aOutParams);
     BlobParent* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
+
     /**
      * Kill our subprocess and make sure it dies.  Should only be used
      * in emergency situations since it bypasses the normal shutdown
@@ -307,10 +301,6 @@ private:
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData);
 
-    virtual bool RecvFilePathUpdateNotify(const nsString& aType,
-                                          const nsString& aFilePath,
-                                          const nsCString& aReason);
-
     virtual bool RecvAddGeolocationListener(const IPC::Principal& aPrincipal);
     virtual bool RecvRemoveGeolocationListener();
     virtual bool RecvSetGeolocationHigherAccuracy(const bool& aEnable);
@@ -329,17 +319,11 @@ private:
     virtual bool RecvFirstIdle();
 
     virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
-                                          const bool& aElementHidden,
-                                          const bool& aElementWasHidden,
+                                          const bool& aMozHidden,
                                           bool* aValue);
 
     virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
-    virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,
-                                                const bool& aElementHidden);
-
-    virtual bool RecvAudioChannelChangedNotification();
-
-    virtual bool RecvBroadcastVolume(const nsString& aVolumeName);
+    virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType);
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
@@ -360,15 +344,6 @@ private:
     const nsString mAppManifestURL;
     nsRefPtr<nsFrameMessageManager> mMessageManager;
 
-    // After we initiate shutdown, we also start a timer to ensure
-    // that even content processes that are 100% blocked (say from
-    // SIGSTOP), are still killed eventually.  This task enforces that
-    // timer.
-    CancelableTask* mForceKillTask;
-    // How many tabs we're waiting to finish their destruction
-    // sequence.  Precisely, how many TabParents have called
-    // NotifyTabDestroying() but not called NotifyTabDestroyed().
-    int32_t mNumDestroyingTabs;
     // True only while this is ready to be used to host remote tabs.
     // This must not be used for new purposes after mIsAlive goes to
     // false, but some previously scheduled IPC traffic may still pass

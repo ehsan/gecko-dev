@@ -72,7 +72,7 @@ NS_IMETHODIMP AudioChannelAgent::StartPlaying(bool *_retval)
 
   service->RegisterAudioChannelAgent(this,
     static_cast<AudioChannelType>(mAudioChannelType));
-  *_retval = !service->GetMuted(this, !mVisible);
+  *_retval = !service->GetMuted(static_cast<AudioChannelType>(mAudioChannelType), !mVisible);
   mIsRegToService = true;
   return NS_OK;
 }
@@ -99,7 +99,8 @@ NS_IMETHODIMP AudioChannelAgent::SetVisibilityState(bool visible)
   mVisible = visible;
   if (mIsRegToService && oldVisibility != mVisible && mCallback != nullptr) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    mCallback->CanPlayChanged(!service->GetMuted(this, !mVisible));
+    mCallback->CanPlayChanged(!service->GetMuted(static_cast<AudioChannelType>(mAudioChannelType),
+       !mVisible));
   }
   return NS_OK;
 }
@@ -108,7 +109,8 @@ void AudioChannelAgent::NotifyAudioChannelStateChanged()
 {
   if (mCallback != nullptr) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    mCallback->CanPlayChanged(!service->GetMuted(this, !mVisible));
+    mCallback->CanPlayChanged(!service->GetMuted(static_cast<AudioChannelType>(mAudioChannelType),
+      !mVisible));
   }
 }
 

@@ -333,8 +333,6 @@ MappableDeflate::mmap(const void *addr, size_t length, int prot, int flags, off_
 void
 MappableDeflate::finalize()
 {
-  /* Free zlib internal buffers */
-  inflateEnd(&zStream);
   /* Free decompression buffer */
   buffer = NULL;
   /* Remove reference to Zip archive */

@@ -2559,11 +2559,11 @@ class MMathFunction
 
 class MAdd : public MBinaryArithInstruction
 {
-    int implicitTruncate_;
+    bool implicitTruncate_;
 
     MAdd(MDefinition *left, MDefinition *right)
       : MBinaryArithInstruction(left, right),
-        implicitTruncate_(0)
+        implicitTruncate_(false)
     {
         setResultType(MIRType_Value);
     }
@@ -2575,10 +2575,10 @@ class MAdd : public MBinaryArithInstruction
     }
     void analyzeTruncateBackward();
 
-    int isTruncated() const {
+    bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(int truncate) {
+    void setTruncated(bool truncate) {
         implicitTruncate_ = truncate;
     }
     bool updateForReplacement(MDefinition *ins);
@@ -2592,10 +2592,10 @@ class MAdd : public MBinaryArithInstruction
 
 class MSub : public MBinaryArithInstruction
 {
-    int implicitTruncate_;
+    bool implicitTruncate_;
     MSub(MDefinition *left, MDefinition *right)
       : MBinaryArithInstruction(left, right),
-        implicitTruncate_(0)
+        implicitTruncate_(false)
     {
         setResultType(MIRType_Value);
     }
@@ -2607,10 +2607,10 @@ class MSub : public MBinaryArithInstruction
     }
 
     void analyzeTruncateBackward();
-    int isTruncated() const {
+    bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(int truncate) {
+    void setTruncated(bool truncate) {
         implicitTruncate_ = truncate;
     }
     bool updateForReplacement(MDefinition *ins);
@@ -2725,14 +2725,14 @@ class MDiv : public MBinaryArithInstruction
     bool canBeNegativeZero_;
     bool canBeNegativeOverflow_;
     bool canBeDivideByZero_;
-    int implicitTruncate_;
+    bool implicitTruncate_;
 
     MDiv(MDefinition *left, MDefinition *right, MIRType type)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
         canBeNegativeOverflow_(true),
         canBeDivideByZero_(true),
-        implicitTruncate_(0)
+        implicitTruncate_(false)
     {
         if (type != MIRType_Value)
             specialization_ = type;
@@ -2759,10 +2759,10 @@ class MDiv : public MBinaryArithInstruction
         return 1;
     }
 
-    int isTruncated() const {
+    bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(int truncate) {
+    void setTruncated(bool truncate) {
         implicitTruncate_ = truncate;
     }
 

@@ -119,12 +119,15 @@ frontend::IsIdentifier(JSLinearString *str)
 TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
                          StableCharPtr base, size_t length, StrictModeGetter *smg)
   : tokens(),
+    tokensRoot(cx, &tokens),
     cursor(),
     lookahead(),
     lineno(options.lineno),
     flags(),
     linebase(base.get()),
     prevLinebase(NULL),
+    linebaseRoot(cx, &linebase),
+    prevLinebaseRoot(cx, &prevLinebase),
     userbuf(base.get(), length),
     filename(options.filename),
     sourceMap(NULL),
@@ -136,8 +139,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     cx(cx),
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
-    strictModeGetter(smg),
-    tokenSkip(cx, &tokens)
+    strictModeGetter(smg)
 {
     if (originPrincipals)
         JS_HoldPrincipals(originPrincipals);
@@ -1439,6 +1441,8 @@ TokenStream::getTokenInternal()
     bool hasFracOrExp;
     const jschar *identStart;
     bool hadUnicodeEscape;
+
+    SkipRoot skipNum(cx, &numStart), skipIdent(cx, &identStart);
 
 #if JS_HAS_XML_SUPPORT
     /*

@@ -60,8 +60,6 @@ class RangedPtr
 #endif
     }
 
-    uintptr_t asUintptr() const { return uintptr_t(ptr); }
-
   public:
     RangedPtr(T* p, T* start, T* end)
       : ptr(p)
@@ -130,13 +128,13 @@ class RangedPtr
 
     RangedPtr<T> operator+(size_t inc) {
       MOZ_ASSERT(inc <= size_t(-1) / sizeof(T));
-      MOZ_ASSERT(asUintptr() + inc * sizeof(T) >= asUintptr());
+      MOZ_ASSERT(ptr + inc >= ptr);
       return create(ptr + inc);
     }
 
     RangedPtr<T> operator-(size_t dec) {
       MOZ_ASSERT(dec <= size_t(-1) / sizeof(T));
-      MOZ_ASSERT(asUintptr() - dec * sizeof(T) <= asUintptr());
+      MOZ_ASSERT(ptr - dec <= ptr);
       return create(ptr - dec);
     }
 

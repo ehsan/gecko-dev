@@ -50,7 +50,7 @@ RemoteOpenFileParent::RecvAsyncOpenFile()
   if (NS_SUCCEEDED(rv)) {
     int fd = open(path.get(), O_RDONLY);
     if (fd != -1) {
-      unused << SendFileOpened(FileDescriptor(fd));
+      unused << SendFileOpened(FileDescriptor(fd), NS_OK);
       // file handle needs to stay open until it's shared with child (and IPDL
       // is async, so hasn't happened yet). Close in destructor.
       mFd = fd;
@@ -60,8 +60,7 @@ RemoteOpenFileParent::RecvAsyncOpenFile()
 
   // Note: sending an invalid file descriptor currently kills the child process:
   // but that's ok for our use case (failing to open application.jar).
-  printf_stderr("RemoteOpenFileParent: file '%s' was not found!\n", path.get());
-  unused << SendFileDidNotOpen();
+  unused << SendFileOpened(FileDescriptor(mFd), NS_ERROR_NOT_AVAILABLE);
 #endif // OS_TYPE
 
   return true;

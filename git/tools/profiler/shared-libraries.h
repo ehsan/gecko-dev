@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <string>
 #include <string.h>
 #include <stdlib.h>
 #include <mozilla/StandardInteger.h>
@@ -25,12 +24,20 @@ public:
   SharedLibrary(unsigned long aStart,
                 unsigned long aEnd,
                 unsigned long aOffset,
-                const std::string &aBreakpadId,
+#ifdef XP_WIN
+                nsID aPdbSignature,
+                unsigned long aPdbAge,
+                const char *aPdbName,
+#endif
                 const char *aName)
     : mStart(aStart)
     , mEnd(aEnd)
     , mOffset(aOffset)
-    , mBreakpadId(aBreakpadId)
+#ifdef XP_WIN
+    , mPdbSignature(aPdbSignature)
+    , mPdbAge(aPdbAge)
+    , mPdbName(strdup(aPdbName))
+#endif
     , mName(strdup(aName))
   {}
 
@@ -38,7 +45,11 @@ public:
     : mStart(aEntry.mStart)
     , mEnd(aEntry.mEnd)
     , mOffset(aEntry.mOffset)
-    , mBreakpadId(aEntry.mBreakpadId)
+#ifdef XP_WIN
+    , mPdbSignature(aEntry.mPdbSignature)
+    , mPdbAge(aEntry.mPdbAge)
+    , mPdbName(strdup(aEntry.mPdbName))
+#endif
     , mName(strdup(aEntry.mName))
   {}
 
@@ -50,7 +61,13 @@ public:
     mStart = aEntry.mStart;
     mEnd = aEntry.mEnd;
     mOffset = aEntry.mOffset;
-    mBreakpadId = aEntry.mBreakpadId;
+#ifdef XP_WIN
+    mPdbSignature = aEntry.mPdbSignature;
+    mPdbAge = aEntry.mPdbAge;
+    if (mPdbName)
+      free(mPdbName);
+    mPdbName = strdup(aEntry.mPdbName);
+#endif
     if (mName)
       free(mName);
     mName = strdup(aEntry.mName);
@@ -59,15 +76,25 @@ public:
 
   bool operator==(const SharedLibrary& other) const
   {
-    return (mStart == other.mStart) &&
-           (mEnd == other.mEnd) &&
-           (mOffset == other.mOffset) &&
-           (mName && other.mName && (strcmp(mName, other.mName) == 0)) &&
-           (mBreakpadId == other.mBreakpadId);
+    bool equal = ((mStart == other.mStart) &&
+                  (mEnd == other.mEnd) &&
+                  (mOffset == other.mOffset) &&
+                  (mName && other.mName && (strcmp(mName, other.mName) == 0)));
+#ifdef XP_WIN
+    equal = equal &&
+            (mPdbSignature.Equals(other.mPdbSignature)) &&
+            (mPdbAge == other.mPdbAge) &&
+            (mPdbName && other.mPdbName && (strcmp(mPdbName, other.mPdbName) == 0));
+#endif
+    return equal;
   }
 
   ~SharedLibrary()
   {
+#ifdef XP_WIN
+    free(mPdbName);
+    mPdbName = NULL;
+#endif
     free(mName);
     mName = NULL;
   }
@@ -75,7 +102,11 @@ public:
   uintptr_t GetStart() const { return mStart; }
   uintptr_t GetEnd() const { return mEnd; }
   uintptr_t GetOffset() const { return mOffset; }
-  const std::string &GetBreakpadId() const { return mBreakpadId; }
+#ifdef XP_WIN
+  nsID GetPdbSignature() const { return mPdbSignature; }
+  uint32_t GetPdbAge() const { return mPdbAge; }
+  char* GetPdbName() const { return mPdbName; }
+#endif
   char* GetName() const { return mName; }
 
 private:
@@ -84,7 +115,12 @@ private:
   uintptr_t mStart;
   uintptr_t mEnd;
   uintptr_t mOffset;
-  std::string mBreakpadId;
+#ifdef XP_WIN
+  // Windows-specific PDB file identifiers
+  nsID mPdbSignature;
+  uint32_t mPdbAge;
+  char *mPdbName;
+#endif
   char *mName;
 };
 

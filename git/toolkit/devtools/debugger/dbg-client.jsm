@@ -178,8 +178,7 @@ const UnsolicitedNotifications = {
   "newScript": "newScript",
   "tabDetached": "tabDetached",
   "tabNavigated": "tabNavigated",
-  "pageError": "pageError",
-  "webappsEvent": "webappsEvent"
+  "pageError": "pageError"
 };
 
 /**

@@ -306,9 +306,6 @@ public:
   bool
   IsToggling() const;
 
-  void
-  RemoveObserverFromTable(const nsAString& key);
-
 protected:
   BluetoothService()
   : mEnabled(false)

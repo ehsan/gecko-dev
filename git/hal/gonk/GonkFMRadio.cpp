@@ -189,11 +189,8 @@ runTavaruaRadio(void *)
   buffer.m.userptr = (long unsigned int)buf;
 
   while (sRadioEnabled) {
-    if (ioctl(sRadioFD, VIDIOC_DQBUF, &buffer) < 0) {
-      if (errno == EINTR)
-        continue;
+    if (ioctl(sRadioFD, VIDIOC_DQBUF, &buffer) < 0)
       break;
-    }
 
     for (unsigned int i = 0; i < buffer.bytesused; i++) {
       switch (buf[i]) {

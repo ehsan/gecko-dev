@@ -34,7 +34,6 @@ GestureEventListener::GestureEventListener(AsyncPanZoomController* aAsyncPanZoom
   : mAsyncPanZoomController(aAsyncPanZoomController),
     mState(GESTURE_NONE),
     mSpanChange(0.0f),
-    mTapStartTime(0),
     mLastTapEndTime(0),
     mLastTouchInput(MultiTouchInput::MULTITOUCH_START, 0)
 {
@@ -105,7 +104,7 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
     nsIntPoint touch = (nsIntPoint&)event.mTouches[0].mScreenPoint;
     if (mTouches.Length() == 1 &&
         NS_hypot(mTouchStartPosition.x - touch.x, mTouchStartPosition.y - touch.y) >
-          mAsyncPanZoomController->GetDPI() * mAsyncPanZoomController->GetTouchStartTolerance())
+          mAsyncPanZoomController->GetDPI() * AsyncPanZoomController::TOUCH_START_TOLERANCE)
     {
       HandleTapCancel(event);
     }

@@ -301,7 +301,7 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
   nsRect bounds = nsDisplayTransform::GetFrameBoundsForTransform(aFrame);
   float scale = presContext->AppUnitsPerDevPixel();
 
-  TimeStamp startTime = ea->mStartTime + ea->mDelay;
+  TimeStamp startTime = ea->mStartTime;
   TimeDuration duration = ea->mIterationDuration;
   float iterations = ea->mIterationCount != NS_IEEEPositiveInfinity()
                      ? ea->mIterationCount : -1;
@@ -410,10 +410,7 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
       anim.mIterationCount = 1;
       anim.mDirection = NS_STYLE_ANIMATION_DIRECTION_NORMAL;
       anim.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_NONE;
-      // Transition mStartTime is end-of-delay; animation mStartTime
-      // is start-of-delay, so set delay here to 0.
       anim.mStartTime = pt->mStartTime;
-      anim.mDelay = TimeDuration::FromMilliseconds(0);
       anim.mIterationDuration = pt->mDuration;
 
       AnimationProperty& prop = *anim.mProperties.AppendElement();

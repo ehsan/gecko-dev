@@ -32,9 +32,11 @@ interface HTMLTableElement : HTMLElement {
   void deleteRow(long index);
   //         attribute boolean sortable;
   //void stopSorting();
+/*
 };
 
 partial interface HTMLTableElement {
+*/
            [SetterThrows]
            attribute DOMString align;
            [SetterThrows]
