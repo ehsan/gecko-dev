@@ -7,7 +7,6 @@ package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.HomeItems;
-import org.mozilla.gecko.home.HomeConfig.ItemHandler;
 import org.mozilla.gecko.home.HomeConfig.ViewConfig;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
@@ -28,13 +27,11 @@ public class PanelGridView extends GridView
                            implements DatasetBacked, PanelView {
     private static final String LOGTAG = "GeckoPanelGridView";
 
-    private final ViewConfig mViewConfig;
     private final PanelGridViewAdapter mAdapter;
     protected OnUrlOpenListener mUrlOpenListener;
 
     public PanelGridView(Context context, ViewConfig viewConfig) {
         super(context, null, R.attr.panelGridViewStyle);
-        mViewConfig = viewConfig;
         mAdapter = new PanelGridViewAdapter(context);
         setAdapter(mAdapter);
         setOnItemClickListener(new PanelGridItemClickListener());
@@ -85,12 +82,7 @@ public class PanelGridView extends GridView
             int urlIndex = cursor.getColumnIndexOrThrow(HomeItems.URL);
             final String url = cursor.getString(urlIndex);
 
-            EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.noneOf(OnUrlOpenListener.Flags.class);
-            if (mViewConfig.getItemHandler() == ItemHandler.INTENT) {
-                flags.add(OnUrlOpenListener.Flags.OPEN_WITH_INTENT);
-            }
-
-            mUrlOpenListener.onUrlOpen(url, flags);
+            mUrlOpenListener.onUrlOpen(url, EnumSet.of(OnUrlOpenListener.Flags.OPEN_WITH_INTENT));
         }
     }
 }

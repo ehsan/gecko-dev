@@ -123,17 +123,15 @@ function safeGetState(state) {
     let data = JSON.parse(string);
     // Simplify the rest of the code by ensuring that we can simply
     // concatenate the result to a message.
-    if (data && typeof data == "object") {
-      data.toString = function() {
-        return string;
-      };
-    }
+    data.toString = function() {
+      return string;
+    };
     return data;
   } catch (ex) {
     try {
-      return "Error getting state: " + ex + " at " + ex.stack;
+      return "Error getting state: " + ex;
     } catch (ex2) {
-      return "Error getting state but could not display error";
+      return "Could not display error";
     }
   }
 }

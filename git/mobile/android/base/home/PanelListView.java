@@ -6,7 +6,6 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.home.HomeConfig.ItemHandler;
 import org.mozilla.gecko.home.HomeConfig.ViewConfig;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.PanelLayout.DatasetBacked;
@@ -74,12 +73,7 @@ public class PanelListView extends HomeListView
             int urlIndex = cursor.getColumnIndexOrThrow(HomeItems.URL);
             final String url = cursor.getString(urlIndex);
 
-            EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.noneOf(OnUrlOpenListener.Flags.class);
-            if (mViewConfig.getItemHandler() == ItemHandler.INTENT) {
-                flags.add(OnUrlOpenListener.Flags.OPEN_WITH_INTENT);
-            }
-
-            mUrlOpenListener.onUrlOpen(url, flags);
+            mUrlOpenListener.onUrlOpen(url, EnumSet.of(OnUrlOpenListener.Flags.OPEN_WITH_INTENT));
         }
     }
 }
