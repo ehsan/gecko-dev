@@ -83,6 +83,12 @@ APZCTreeManager::SetAllowedTouchBehavior(const ScrollableLayerGuid& aGuid,
   }
 }
 
+void
+APZCTreeManager::AssertOnCompositorThread()
+{
+  Compositor::AssertOnCompositorThread();
+}
+
 /* Flatten the tree of APZC instances into the given nsTArray */
 static void
 Collect(AsyncPanZoomController* aApzc, nsTArray< nsRefPtr<AsyncPanZoomController> >* aCollection)
@@ -98,9 +104,7 @@ void
 APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor, Layer* aRoot,
                                              bool aIsFirstPaint, uint64_t aFirstPaintLayersId)
 {
-  if (AsyncPanZoomController::GetThreadAssertionsEnabled()) {
-    Compositor::AssertOnCompositorThread();
-  }
+  AssertOnCompositorThread();
 
   MonitorAutoLock lock(mTreeLock);
 
@@ -196,9 +200,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
           apzc = new AsyncPanZoomController(aLayersId, this, state->mController,
                                             AsyncPanZoomController::USE_GESTURE_DETECTOR);
           apzc->SetCompositorParent(aCompositor);
-          if (state->mCrossProcessParent != nullptr) {
-            apzc->ShareFrameMetricsAcrossProcesses();
-          }
+          apzc->SetCrossProcessCompositorParent(state->mCrossProcessParent);
         } else {
           // If there was already an APZC for the layer clear the tree pointers
           // so that it doesn't continue pointing to APZCs that should no longer

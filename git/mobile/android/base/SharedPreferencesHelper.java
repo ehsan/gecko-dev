@@ -38,27 +38,26 @@ public final class SharedPreferencesHelper
 
         mListeners = new HashMap<String, SharedPreferences.OnSharedPreferenceChangeListener>();
 
-        EventDispatcher dispatcher = EventDispatcher.getInstance();
+        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
         if (dispatcher == null) {
             Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
             return;
         }
-        dispatcher.registerGeckoThreadListener(this,
-            "SharedPreferences:Set",
-            "SharedPreferences:Get",
-            "SharedPreferences:Observe");
+        dispatcher.registerEventListener("SharedPreferences:Set", this);
+        dispatcher.registerEventListener("SharedPreferences:Get", this);
+        dispatcher.registerEventListener("SharedPreferences:Observe", this);
     }
 
     public synchronized void uninit() {
-        EventDispatcher dispatcher = EventDispatcher.getInstance();
+        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
         if (dispatcher == null) {
             Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
             return;
         }
-        dispatcher.unregisterGeckoThreadListener(this,
-            "SharedPreferences:Set",
-            "SharedPreferences:Get",
-            "SharedPreferences:Observe");
+
+        dispatcher.unregisterEventListener("SharedPreferences:Set", this);
+        dispatcher.unregisterEventListener("SharedPreferences:Get", this);
+        dispatcher.unregisterEventListener("SharedPreferences:Observe", this);
     }
 
     private SharedPreferences getSharedPreferences(String branch) {

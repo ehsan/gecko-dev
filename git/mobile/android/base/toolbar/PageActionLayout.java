@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko.toolbar;
 
-import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.R;
@@ -61,9 +60,8 @@ public class PageActionLayout extends LinearLayout implements GeckoEventListener
         setNumberShown(DEFAULT_PAGE_ACTIONS_SHOWN);
         refreshPageActionIcons();
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
-            "PageActions:Add",
-            "PageActions:Remove");
+        registerEventListener("PageActions:Add");
+        registerEventListener("PageActions:Remove");
     }
 
     private void setNumberShown(int count) {
@@ -77,9 +75,16 @@ public class PageActionLayout extends LinearLayout implements GeckoEventListener
     }
 
     public void onDestroy() {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
-            "PageActions:Add",
-            "PageActions:Remove");
+        unregisterEventListener("PageActions:Add");
+        unregisterEventListener("PageActions:Remove");
+    }
+
+    protected void registerEventListener(String event) {
+        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+    }
+
+    protected void unregisterEventListener(String event) {
+        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 
     @Override

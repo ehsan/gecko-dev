@@ -269,8 +269,10 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
 
         for (int32_t i = 0; i < edgeCount; i++) {
             nsIAtom* curVertexAtom = data2->ObjectAt(i);
-            nsCString *curVertex = new nsCString();
-            curVertexAtom->ToUTF8String(*curVertex);
+            nsAutoString curVertexStr;
+            curVertexAtom->ToString(curVertexStr);
+            nsCString *curVertex = nullptr;
+            CopyUTF16toUTF8(curVertexStr, *curVertex);
 
             BFSTableData *curVertexState = lBFSTable.Get(*curVertex);
             if (!curVertexState) {

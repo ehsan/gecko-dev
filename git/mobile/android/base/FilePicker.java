@@ -47,7 +47,7 @@ public class FilePicker implements GeckoEventListener {
 
     protected FilePicker(Context context) {
         this.context = context;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, "FilePicker:Show");
+        GeckoAppShell.getEventDispatcher().registerEventListener("FilePicker:Show", this);
     }
 
     @Override
