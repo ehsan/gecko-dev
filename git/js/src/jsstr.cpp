@@ -980,7 +980,7 @@ str_substring(JSContext *cx, uintN argc, Value *vp)
             return JS_FALSE;
         length = str->length();
         begin = js_DoubleToInteger(d);
-        if (argc == 1) {
+        if (argc == 1 || vp[3].isUndefined()) {
             end = length;
         } else {
             if (!ValueToNumber(cx, vp[3], &d))
@@ -1224,8 +1224,6 @@ js_BoyerMooreHorspool(const jschar *text, jsuint textlen,
     return -1;
 }
 
-namespace {
-
 struct MemCmp {
     typedef jsuint Extent;
     static JS_ALWAYS_INLINE Extent computeExtent(const jschar *, jsuint patlen) {
@@ -1249,8 +1247,6 @@ struct ManualCmp {
         return true;
     }
 };
-
-}
 
 template <class InnerMatch>
 static jsint
@@ -2717,7 +2713,7 @@ str_substr(JSContext *cx, uintN argc, Value *vp)
             begin = length;
         }
 
-        if (argc == 1) {
+        if (argc == 1 || vp[3].isUndefined()) {
             end = length;
         } else {
             if (!ValueToNumber(cx, vp[3], &d))
@@ -2814,7 +2810,7 @@ str_slice(JSContext *cx, uintN argc, Value *vp)
             begin = length;
         }
 
-        if (argc == 1) {
+        if (argc == 1 || vp[3].isUndefined()) {
             end = length;
         } else {
             if (!ValueToNumber(cx, vp[3], &end))
