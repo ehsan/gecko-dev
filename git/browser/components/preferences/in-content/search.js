@@ -24,6 +24,12 @@ var gSearchPane = {
     document.getElementById("engineList").view = gEngineView;
     this.buildDefaultEngineDropDown();
 
+    window.addEventListener("click", this, false);
+    window.addEventListener("command", this, false);
+    window.addEventListener("dragstart", this, false);
+    window.addEventListener("keypress", this, false);
+    window.addEventListener("select", this, false);
+
     Services.obs.addObserver(this, "browser-search-engine-modified", false);
     window.addEventListener("unload", () => {
       Services.obs.removeObserver(this, "browser-search-engine-modified", false);
@@ -61,6 +67,49 @@ var gSearchPane = {
       if (e.name == currentEngine)
         list.selectedItem = item;
     });
+  },
+
+  handleEvent: function(aEvent) {
+    switch (aEvent.type) {
+      case "click":
+        if (aEvent.target.id == "addEngines" && aEvent.button == 0) {
+          Services.wm.getMostRecentWindow('navigator:browser')
+                     .BrowserSearch.loadAddEngines();
+        }
+        break;
+      case "command":
+        switch (aEvent.target.id) {
+          case "":
+            if (aEvent.target.parentNode &&
+                aEvent.target.parentNode.parentNode &&
+                aEvent.target.parentNode.parentNode.id == "defaultEngine") {
+              gSearchPane.setDefaultEngine();
+            }
+            break;
+          case "restoreDefaultSearchEngines":
+            gSearchPane.onRestoreDefaults();
+            break;
+          case "removeEngineButton":
+            gSearchPane.remove();
+            break;
+        }
+        break;
+      case "dragstart":
+        if (aEvent.target.id == "engineChildren") {
+          onDragEngineStart(aEvent);
+        }
+        break;
+      case "keypress":
+        if (aEvent.target.id == "engineList") {
+          gSearchPane.onTreeKeyPress(aEvent);
+        }
+        break;
+      case "select":
+        if (aEvent.target.id == "engineList") {
+          gSearchPane.onTreeSelect();
+        }
+        break;
+    }
   },
 
   observe: function(aEngine, aTopic, aVerb) {
@@ -190,7 +239,10 @@ var gSearchPane = {
 
 function onDragEngineStart(event) {
   var selectedIndex = gEngineView.selectedIndex;
-  if (selectedIndex >= 0) {
+  var tree = document.getElementById("engineList");
+  var row = { }, col = { }, child = { };
+  tree.treeBoxObject.getCellAt(event.clientX, event.clientY, row, col, child);
+  if (selectedIndex >= 0 && !gEngineView.isCheckBox(row.value, col.value)) {
     event.dataTransfer.setData(ENGINE_FLAVOR, selectedIndex.toString());
     event.dataTransfer.effectAllowed = "move";
   }
@@ -291,6 +343,11 @@ EngineStore.prototype = {
         this.moveEngine(this._getEngineByName(e.name), i);
       } else {
         // Otherwise, add it back to our internal store
+
+        // The search service removes the alias when an engine is hidden,
+        // so clear any alias we may have cached before unhiding the engine.
+        e.alias = "";
+
         this._engines.splice(i, 0, e);
         let engine = e.originalEngine;
         engine.hidden = false;
@@ -357,6 +414,10 @@ EngineView.prototype = {
 
   getSourceIndexFromDrag: function (dataTransfer) {
     return parseInt(dataTransfer.getData(ENGINE_FLAVOR));
+  },
+
+  isCheckBox: function(index, column) {
+    return column.id == "engineShown";
   },
 
   // nsITreeView

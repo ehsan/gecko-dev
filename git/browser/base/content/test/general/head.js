@@ -123,6 +123,23 @@ function promiseWaitForEvent(object, eventName, capturing = false, chrome = fals
   });
 }
 
+/**
+ * Allows setting focus on a window, and waiting for that window to achieve
+ * focus.
+ *
+ * @param aWindow
+ *        The window to focus and wait for.
+ *
+ * @return {Promise}
+ * @resolves When the window is focused.
+ * @rejects Never.
+ */
+function promiseWaitForFocus(aWindow) {
+  return new Promise((resolve) => {
+    waitForFocus(resolve, aWindow);
+  });
+}
+
 function getTestPlugin(aName) {
   var pluginName = aName || "Test Plug-in";
   var ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
@@ -202,14 +219,21 @@ function whenNewWindowLoaded(aOptions, aCallback) {
   }, false);
 }
 
-function promiseWindowClosed(win) {
-  let deferred = Promise.defer();
-  win.addEventListener("unload", function onunload() {
-    win.removeEventListener("unload", onunload);
-    deferred.resolve();
+function promiseWindowWillBeClosed(win) {
+  return new Promise((resolve, reject) => {
+    Services.obs.addObserver(function observe(subject, topic) {
+      if (subject == win) {
+        Services.obs.removeObserver(observe, topic);
+        resolve();
+      }
+    }, "domwindowclosed", false);
   });
+}
+
+function promiseWindowClosed(win) {
+  let promise = promiseWindowWillBeClosed(win);
   win.close();
-  return deferred.promise;
+  return promise;
 }
 
 function promiseOpenAndLoadWindow(aOptions, aWaitForDelayedStartup=false) {
@@ -310,45 +334,6 @@ function promiseTabLoaded(aTab) {
   return deferred.promise;
 }
 
-function addVisits(aPlaceInfo, aCallback) {
-  let places = [];
-  if (aPlaceInfo instanceof Ci.nsIURI) {
-    places.push({ uri: aPlaceInfo });
-  } else if (Array.isArray(aPlaceInfo)) {
-    places = places.concat(aPlaceInfo);
-  } else {
-    places.push(aPlaceInfo);
-   }
-
-  // Create mozIVisitInfo for each entry.
-  let now = Date.now();
-  for (let i = 0; i < places.length; i++) {
-    if (!places[i].title) {
-      places[i].title = "test visit for " + places[i].uri.spec;
-    }
-    places[i].visits = [{
-      transitionType: places[i].transition === undefined ? Ci.nsINavHistoryService.TRANSITION_LINK
-                                                         : places[i].transition,
-      visitDate: places[i].visitDate || (now++) * 1000,
-      referrerURI: places[i].referrer
-    }];
-  }
-
-  PlacesUtils.asyncHistory.updatePlaces(
-    places,
-    {
-      handleError: function AAV_handleError() {
-        throw("Unexpected error in adding visit.");
-      },
-      handleResult: function () {},
-      handleCompletion: function UP_handleCompletion() {
-        if (aCallback)
-          aCallback();
-      }
-    }
-  );
-}
-
 /**
  * Ensures that the specified URIs are either cleared or not.
  *
@@ -374,40 +359,6 @@ function promiseHistoryClearedState(aURIs, aShouldBeCleared) {
   });
 
   return deferred.promise;
-}
-
-/**
- * Allows waiting for an observer notification once.
- *
- * @param topic
- *        Notification topic to observe.
- *
- * @return {Promise}
- * @resolves The array [subject, data] from the observed notification.
- * @rejects Never.
- */
-function promiseTopicObserved(topic)
-{
-  let deferred = Promise.defer();
-  info("Waiting for observer topic " + topic);
-  Services.obs.addObserver(function PTO_observe(subject, topic, data) {
-    Services.obs.removeObserver(PTO_observe, topic);
-    deferred.resolve([subject, data]);
-  }, topic, false);
-  return deferred.promise;
-}
-
-/**
- * Clears history asynchronously.
- *
- * @return {Promise}
- * @resolves When history has been cleared.
- * @rejects Never.
- */
-function promiseClearHistory() {
-  let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-  PlacesUtils.bhistory.removeAllPages();
-  return promise;
 }
 
 /**
@@ -638,6 +589,21 @@ function promiseTabLoadEvent(tab, url, eventType="load")
   return deferred.promise;
 }
 
+/**
+ * Returns a Promise that resolves once a new tab has been opened in
+ * a xul:tabbrowser.
+ *
+ * @param aTabBrowser
+ *        The xul:tabbrowser to monitor for a new tab.
+ * @return {Promise}
+ *        Resolved when the new tab has been opened.
+ * @resolves to the TabOpen event that was fired.
+ * @rejects Never.
+ */
+function waitForNewTabEvent(aTabBrowser) {
+  return promiseWaitForEvent(aTabBrowser.tabContainer, "TabOpen");
+}
+
 function assertWebRTCIndicatorStatus(expected) {
   let ui = Cu.import("resource:///modules/webrtcUI.jsm", {}).webrtcUI;
   let expectedState = expected ? "visible" : "hidden";
@@ -811,3 +777,26 @@ function promiseAutocompleteResultPopup(inputText, win = window) {
 
   return promiseSearchComplete(win);
 }
+
+/**
+ * Allows waiting for an observer notification once.
+ *
+ * @param aTopic
+ *        Notification topic to observe.
+ *
+ * @return {Promise}
+ * @resolves An object with subject and data properties from the observed
+ *           notification.
+ * @rejects Never.
+ */
+function promiseTopicObserved(aTopic)
+{
+  return new Promise((resolve) => {
+    Services.obs.addObserver(
+      function PTO_observe(aSubject, aTopic, aData) {
+        Services.obs.removeObserver(PTO_observe, aTopic);
+        resolve({subject: aSubject, data: aData});
+      }, aTopic, false);
+  });
+}
+

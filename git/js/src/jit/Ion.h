@@ -122,10 +122,10 @@ JitExecStatus IonCannon(JSContext *cx, RunState &state);
 JitExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
 
 // Walk the stack and invalidate active Ion frames for the invalid scripts.
-void Invalidate(types::TypeZone &types, FreeOp *fop,
-                const types::RecompileInfoVector &invalid, bool resetUses = true,
+void Invalidate(TypeZone &types, FreeOp *fop,
+                const RecompileInfoVector &invalid, bool resetUses = true,
                 bool cancelOffThread = true);
-void Invalidate(JSContext *cx, const types::RecompileInfoVector &invalid, bool resetUses = true,
+void Invalidate(JSContext *cx, const RecompileInfoVector &invalid, bool resetUses = true,
                 bool cancelOffThread = true);
 bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true,
                 bool cancelOffThread = true);
@@ -144,6 +144,7 @@ CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(JSContext *cx, IonBuilder *builder);
+void StopAllOffThreadCompilations(Zone *zone);
 void StopAllOffThreadCompilations(JSCompartment *comp);
 
 uint8_t *LazyLinkTopActivation(JSContext *cx);

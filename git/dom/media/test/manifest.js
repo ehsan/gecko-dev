@@ -56,7 +56,9 @@ var gPlayedTests = [
   { name:"seek.webm", type:"video/webm", duration:3.966 },
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
   { name:"owl.mp3", type:"audio/mpeg", duration:3.29 },
-  { name:"vbr.mp3", type:"audio/mpeg", duration:10.0 },
+  // Disable vbr.mp3 to see if it reduces the error of AUDCLNT_E_CPUUSAGE_EXCEEDED.
+  // See bug 1110922 comment 26.
+  //{ name:"vbr.mp3", type:"audio/mpeg", duration:10.0 },
   { name:"bug495794.ogg", type:"audio/ogg", duration:0.3 }
 ];
 
@@ -92,6 +94,10 @@ var gTrackTests = [
   { name:"short-video.ogv", type:"video/ogg", duration:1.081, hasAudio:true, hasVideo:true },
   { name:"seek.webm", type:"video/webm", duration:3.966, size:215529, hasAudio:false, hasVideo:true },
   { name:"bogus.duh", type:"bogus/duh" }
+];
+
+var gClosingConnectionsTest = [
+  { name:"seek.ogv", type:"video/ogg", duration:3.966 }
 ];
 
 // Used by any media recorder test. Need one test file per decoder backend
@@ -640,15 +646,16 @@ var gMetadataTests = [
 // Test files for Encrypted Media Extensions
 var gEMETests = [
   {
-    name:"short-cenc.mp4",
+    name:"gizmo-frag-cencinit.mp4",
+    fragments: [ "gizmo-frag-cencinit.mp4", "gizmo-frag-cenc1.m4s", "gizmo-frag-cenc2.m4s" ],
     type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
     keys: {
       // "keyid" : "key"
-      "7e571d017e571d017e571d017e571d01" : "7e5711117e5711117e5711117e571111",
-      "7e571d027e571d027e571d027e571d02" : "7e5722227e5722227e5722227e572222",
+      "7e571d037e571d037e571d037e571d03" : "7e5733337e5733337e5733337e573333",
+      "7e571d047e571d047e571d047e571d04" : "7e5744447e5744447e5744447e574444",
     },
     sessionType:"temporary",
-    duration:0.47
+    duration:2.00,
   },
   {
     name:"gizmo-frag-cencinit.mp4",
@@ -661,6 +668,7 @@ var gEMETests = [
     },
     sessionType:"temporary",
     duration:2.00,
+    crossOrigin:true,
   },
 ];
 
@@ -675,6 +683,8 @@ function checkMetadata(msg, e, test) {
     ok(Math.abs(e.duration - test.duration) < 0.1,
        msg + " duration (" + e.duration + ") should be around " + test.duration);
   }
+  is(!!test.keys, SpecialPowers.do_lookupGetter(e, "isEncrypted").apply(e),
+     msg + " isEncrypted should be true if we have decryption keys");
 }
 
 // Returns the first test from candidates array which we can play with the

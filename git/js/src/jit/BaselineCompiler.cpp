@@ -90,7 +90,7 @@ BaselineCompiler::compile()
         return Method_Error;
 
     // Pin analysis info during compilation.
-    types::AutoEnterAnalysis autoEnterAnalysis(cx);
+    AutoEnterAnalysis autoEnterAnalysis(cx);
 
     MOZ_ASSERT(!script->hasBaselineScript());
 
@@ -175,7 +175,8 @@ BaselineCompiler::compile()
 
     prologueOffset_.fixup(&masm);
     epilogueOffset_.fixup(&masm);
-    spsPushToggleOffset_.fixup(&masm);
+    profilerEnterFrameToggleOffset_.fixup(&masm);
+    profilerExitFrameToggleOffset_.fixup(&masm);
 #ifdef JS_TRACE_LOGGING
     traceLoggerEnterToggleOffset_.fixup(&masm);
     traceLoggerExitToggleOffset_.fixup(&masm);
@@ -188,7 +189,8 @@ BaselineCompiler::compile()
     mozilla::UniquePtr<BaselineScript, JS::DeletePolicy<BaselineScript> > baselineScript(
         BaselineScript::New(script, prologueOffset_.offset(),
                             epilogueOffset_.offset(),
-                            spsPushToggleOffset_.offset(),
+                            profilerEnterFrameToggleOffset_.offset(),
+                            profilerExitFrameToggleOffset_.offset(),
                             traceLoggerEnterToggleOffset_.offset(),
                             traceLoggerExitToggleOffset_.offset(),
                             postDebugPrologueOffset_.offset(),
@@ -242,17 +244,13 @@ BaselineCompiler::compile()
     if (cx->zone()->needsIncrementalBarrier())
         baselineScript->toggleBarriers(true);
 
-    // All SPS instrumentation is emitted toggled off.  Toggle them on if needed.
-    if (cx->runtime()->spsProfiler.enabled())
-        baselineScript->toggleSPS(true);
-
 #ifdef JS_TRACE_LOGGING
     // Initialize the tracelogger instrumentation.
     baselineScript->initTraceLogger(cx->runtime(), script);
 #endif
 
     uint32_t *bytecodeMap = baselineScript->bytecodeTypeMap();
-    types::FillBytecodeTypeMap(script, bytecodeMap);
+    FillBytecodeTypeMap(script, bytecodeMap);
 
     // The last entry in the last index found, and is used to avoid binary
     // searches for the sought entry when queries are in linear order.
@@ -263,16 +261,29 @@ BaselineCompiler::compile()
     if (compileDebugInstrumentation_)
         baselineScript->setHasDebugInstrumentation();
 
-    // Register a native => bytecode mapping entry for this script if needed.
-    if (cx->runtime()->jitRuntime()->isNativeToBytecodeMapEnabled(cx->runtime())) {
+    // If profiler instrumentation is enabled, toggle instrumentation on.
+    if (cx->runtime()->jitRuntime()->isProfilerInstrumentationEnabled(cx->runtime()))
+        baselineScript->toggleProfilerInstrumentation(true);
+
+    // Always register a native => bytecode mapping entry, since profiler can be
+    // turned on with baseline jitcode on stack, and baseline jitcode cannot be invalidated.
+    {
         JitSpew(JitSpew_Profiling, "Added JitcodeGlobalEntry for baseline script %s:%d (%p)",
                     script->filename(), script->lineno(), baselineScript.get());
+
+        // Generate profiling string.
+        char *str = JitcodeGlobalEntry::createScriptString(cx, script);
+        if (!str)
+            return Method_Error;
+
         JitcodeGlobalEntry::BaselineEntry entry;
-        entry.init(code->raw(), code->raw() + code->instructionsSize(), script);
+        entry.init(code->raw(), code->rawEnd(), script, str);
 
         JitcodeGlobalTable *globalTable = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
-        if (!globalTable->addEntry(entry))
+        if (!globalTable->addEntry(entry, cx->runtime())) {
+            entry.destroy();
             return Method_Error;
+        }
 
         // Mark the jitcode as having a bytecode map.
         code->setHasBytecodeMap();
@@ -324,6 +335,8 @@ BaselineCompiler::emitPrologue()
     masm.pushReturnAddress();
     masm.checkStackAlignment();
 #endif
+    emitProfilerEnterFrame();
+
     masm.push(BaselineFrameReg);
     masm.mov(BaselineStackReg, BaselineFrameReg);
 
@@ -400,6 +413,10 @@ BaselineCompiler::emitPrologue()
     if (!initScopeChain())
         return false;
 
+    // When compiling with Debugger instrumentation, set the debuggeeness of
+    // the frame before any operation that can call into the VM.
+    emitIsDebuggeeCheck();
+
     if (!emitStackCheck())
         return false;
 
@@ -411,13 +428,6 @@ BaselineCompiler::emitPrologue()
 
     if (!emitArgumentTypeChecks())
         return false;
-
-    if (!emitSPSPush())
-        return false;
-
-    // Pad a nop so that the last non-op ICEntry we pushed does not get
-    // confused with the start address of the first op for PC mapping.
-    masm.nop();
 
     return true;
 }
@@ -436,11 +446,10 @@ BaselineCompiler::emitEpilogue()
         return false;
 #endif
 
-    // Pop SPS frame if necessary
-    emitSPSPop();
-
     masm.mov(BaselineFrameReg, BaselineStackReg);
     masm.pop(BaselineFrameReg);
+
+    emitProfilerExitFrame();
 
     masm.ret();
     return true;
@@ -507,7 +516,7 @@ bool
 BaselineCompiler::emitStackCheck(bool earlyCheck)
 {
     Label skipCall;
-    void *limitAddr = cx->runtime()->mainThread.addressOfJitStackLimit();
+    void *limitAddr = cx->runtime()->addressOfJitStackLimit();
     uint32_t slotsSize = script->nslots() * sizeof(Value);
     uint32_t tolerance = earlyCheck ? slotsSize : 0;
 
@@ -560,6 +569,19 @@ BaselineCompiler::emitStackCheck(bool earlyCheck)
 
     masm.bind(&skipCall);
     return true;
+}
+
+void
+BaselineCompiler::emitIsDebuggeeCheck()
+{
+    if (compileDebugInstrumentation_) {
+        masm.Push(BaselineFrameReg);
+        masm.setupUnalignedABICall(1, R0.scratchReg());
+        masm.loadBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
+        masm.passABIArg(R0.scratchReg());
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, jit::FrameIsDebuggeeCheck));
+        masm.Pop(BaselineFrameReg);
+    }
 }
 
 typedef bool (*DebugPrologueFn)(JSContext *, BaselineFrame *, jsbytecode *, bool *);
@@ -830,33 +852,34 @@ BaselineCompiler::emitTraceLoggerExit()
 }
 #endif
 
-bool
-BaselineCompiler::emitSPSPush()
+void
+BaselineCompiler::emitProfilerEnterFrame()
 {
-    // Enter the IC, guarded by a toggled jump (initially disabled).
-    Label noPush;
-    CodeOffsetLabel toggleOffset = masm.toggledJump(&noPush);
-    MOZ_ASSERT(frame.numUnsyncedSlots() == 0);
-    ICProfiler_Fallback::Compiler compiler(cx);
-    if (!emitNonOpIC(compiler.getStub(&stubSpace_)))
-        return false;
-    masm.bind(&noPush);
+    // Store stack position to lastProfilingFrame variable, guarded by a toggled jump.
+    // Starts off initially disabled.
+    Label noInstrument;
+    CodeOffsetLabel toggleOffset = masm.toggledJump(&noInstrument);
+    masm.profilerEnterFrame(BaselineStackReg, R0.scratchReg());
+    masm.bind(&noInstrument);
 
     // Store the start offset in the appropriate location.
-    MOZ_ASSERT(spsPushToggleOffset_.offset() == 0);
-    spsPushToggleOffset_ = toggleOffset;
-    return true;
+    MOZ_ASSERT(profilerEnterFrameToggleOffset_.offset() == 0);
+    profilerEnterFrameToggleOffset_ = toggleOffset;
 }
 
 void
-BaselineCompiler::emitSPSPop()
+BaselineCompiler::emitProfilerExitFrame()
 {
-    // If profiler entry was pushed on this frame, pop it.
-    Label noPop;
-    masm.branchTest32(Assembler::Zero, frame.addressOfFlags(),
-                      Imm32(BaselineFrame::HAS_PUSHED_SPS_FRAME), &noPop);
-    masm.spsPopFrameSafe(&cx->runtime()->spsProfiler, R1.scratchReg());
-    masm.bind(&noPop);
+    // Store previous frame to lastProfilingFrame variable, guarded by a toggled jump.
+    // Starts off initially disabled.
+    Label noInstrument;
+    CodeOffsetLabel toggleOffset = masm.toggledJump(&noInstrument);
+    masm.profilerExitFrame();
+    masm.bind(&noInstrument);
+
+    // Store the start offset in the appropriate location.
+    MOZ_ASSERT(profilerExitFrameToggleOffset_.offset() == 0);
+    profilerExitFrameToggleOffset_ = toggleOffset;
 }
 
 MethodStatus
@@ -1715,21 +1738,21 @@ BaselineCompiler::emit_JSOP_NEWARRAY()
     frame.syncStack(0);
 
     uint32_t length = GET_UINT24(pc);
-    RootedTypeObject type(cx);
-    if (!types::UseNewTypeForInitializer(script, pc, JSProto_Array)) {
-        type = types::TypeScript::InitObject(cx, script, pc, JSProto_Array);
-        if (!type)
+    RootedObjectGroup group(cx);
+    if (!ObjectGroup::useSingletonForAllocationSite(script, pc, JSProto_Array)) {
+        group = ObjectGroup::allocationSiteGroup(cx, script, pc, JSProto_Array);
+        if (!group)
             return false;
     }
 
-    // Pass length in R0, type in R1.
+    // Pass length in R0, group in R1.
     masm.move32(Imm32(length), R0.scratchReg());
-    masm.movePtr(ImmGCPtr(type), R1.scratchReg());
+    masm.movePtr(ImmGCPtr(group), R1.scratchReg());
 
-    ArrayObject *templateObject = NewDenseUnallocatedArray(cx, length, nullptr, TenuredObject);
+    ArrayObject *templateObject = NewDenseUnallocatedArray(cx, length, NullPtr(), TenuredObject);
     if (!templateObject)
         return false;
-    templateObject->setType(type);
+    templateObject->setGroup(group);
 
     ICNewArray_Fallback::Compiler stubCompiler(cx, templateObject);
     if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))
@@ -1747,7 +1770,7 @@ bool
 BaselineCompiler::emit_JSOP_NEWARRAY_COPYONWRITE()
 {
     RootedScript scriptRoot(cx, script);
-    JSObject *obj = types::GetOrFixupCopyOnWriteObject(cx, scriptRoot, pc);
+    JSObject *obj = ObjectGroup::getOrFixupCopyOnWriteObject(cx, scriptRoot, pc);
     if (!obj)
         return false;
 
@@ -1790,10 +1813,10 @@ BaselineCompiler::emit_JSOP_NEWOBJECT()
 {
     frame.syncStack(0);
 
-    RootedTypeObject type(cx);
-    if (!types::UseNewTypeForInitializer(script, pc, JSProto_Object)) {
-        type = types::TypeScript::InitObject(cx, script, pc, JSProto_Object);
-        if (!type)
+    RootedObjectGroup group(cx);
+    if (!ObjectGroup::useSingletonForAllocationSite(script, pc, JSProto_Object)) {
+        group = ObjectGroup::allocationSiteGroup(cx, script, pc, JSProto_Object);
+        if (!group)
             return false;
     }
 
@@ -1802,22 +1825,22 @@ BaselineCompiler::emit_JSOP_NEWOBJECT()
     if (!templateObject)
         return false;
 
-    if (type) {
-        templateObject->setType(type);
+    if (group) {
+        templateObject->setGroup(group);
     } else {
-        if (!JSObject::setSingletonType(cx, templateObject))
+        if (!JSObject::setSingleton(cx, templateObject))
             return false;
     }
 
     // Try to do the allocation inline.
     Label done;
-    if (type && !type->shouldPreTenure() && !templateObject->hasDynamicSlots()) {
+    if (group && !group->shouldPreTenure() && !templateObject->hasDynamicSlots()) {
         Label slowPath;
         Register objReg = R0.scratchReg();
         Register tempReg = R1.scratchReg();
-        masm.movePtr(ImmGCPtr(type), tempReg);
-        masm.branchTest32(Assembler::NonZero, Address(tempReg, types::TypeObject::offsetOfFlags()),
-                          Imm32(types::OBJECT_FLAG_PRE_TENURE), &slowPath);
+        masm.movePtr(ImmGCPtr(group), tempReg);
+        masm.branchTest32(Assembler::NonZero, Address(tempReg, ObjectGroup::offsetOfFlags()),
+                          Imm32(OBJECT_FLAG_PRE_TENURE), &slowPath);
         masm.branchPtr(Assembler::NotEqual, AbsoluteAddress(cx->compartment()->addressOfMetadataCallback()),
                       ImmWord(0), &slowPath);
         masm.createGCObject(objReg, tempReg, templateObject, gc::DefaultHeap, &slowPath);
@@ -1841,22 +1864,22 @@ BaselineCompiler::emit_JSOP_NEWINIT()
     frame.syncStack(0);
     JSProtoKey key = JSProtoKey(GET_UINT8(pc));
 
-    RootedTypeObject type(cx);
-    if (!types::UseNewTypeForInitializer(script, pc, key)) {
-        type = types::TypeScript::InitObject(cx, script, pc, key);
-        if (!type)
+    RootedObjectGroup group(cx);
+    if (!ObjectGroup::useSingletonForAllocationSite(script, pc, key)) {
+        group = ObjectGroup::allocationSiteGroup(cx, script, pc, key);
+        if (!group)
             return false;
     }
 
     if (key == JSProto_Array) {
-        // Pass length in R0, type in R1.
+        // Pass length in R0, group in R1.
         masm.move32(Imm32(0), R0.scratchReg());
-        masm.movePtr(ImmGCPtr(type), R1.scratchReg());
+        masm.movePtr(ImmGCPtr(group), R1.scratchReg());
 
-        ArrayObject *templateObject = NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject);
+        ArrayObject *templateObject = NewDenseUnallocatedArray(cx, 0, NullPtr(), TenuredObject);
         if (!templateObject)
             return false;
-        templateObject->setType(type);
+        templateObject->setGroup(group);
 
         ICNewArray_Fallback::Compiler stubCompiler(cx, templateObject);
         if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))
@@ -1869,10 +1892,10 @@ BaselineCompiler::emit_JSOP_NEWINIT()
         if (!templateObject)
             return false;
 
-        if (type) {
-            templateObject->setType(type);
+        if (group) {
+            templateObject->setGroup(group);
         } else {
-            if (!JSObject::setSingletonType(cx, templateObject))
+            if (!JSObject::setSingleton(cx, templateObject))
                 return false;
         }
 
@@ -3002,17 +3025,6 @@ static const VMFunction PopBlockScopeInfo = FunctionInfo<PopBlockScopeFn>(jit::P
 bool
 BaselineCompiler::emit_JSOP_POPBLOCKSCOPE()
 {
-#ifdef DEBUG
-    // The static block scope ends right before this op. Assert we generated
-    // JIT code for the previous op, so that pcForNativeOffset does not
-    // incorrectly return this pc instead of the previous one and confuse
-    // ScopeIter::settle. TODO: remove this when bug 1118826 lands.
-    PCMappingEntry &prevEntry = pcMappingEntries_[pcMappingEntries_.length() - 2];
-    PCMappingEntry &curEntry = pcMappingEntries_[pcMappingEntries_.length() - 1];
-    MOZ_ASSERT(curEntry.pcOffset == script->pcToOffset(pc));
-    MOZ_ASSERT(curEntry.nativeOffset > prevEntry.nativeOffset);
-#endif
-
     // Call a stub to pop the block from the block chain.
     prepareVMCall();
 
@@ -3028,12 +3040,8 @@ static const VMFunction DebugLeaveBlockInfo = FunctionInfo<DebugLeaveBlockFn>(ji
 bool
 BaselineCompiler::emit_JSOP_DEBUGLEAVEBLOCK()
 {
-    if (!compileDebugInstrumentation_) {
-        // See the comment in emit_JSOP_POPBLOCKSCOPE.
-        if (*GetNextPc(pc) == JSOP_POPBLOCKSCOPE)
-            masm.nop();
+    if (!compileDebugInstrumentation_)
         return true;
-    }
 
     prepareVMCall();
     masm.loadBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
@@ -3370,10 +3378,10 @@ BaselineCompiler::emit_JSOP_REST()
 {
     frame.syncStack(0);
 
-    ArrayObject *templateObject = NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject);
+    ArrayObject *templateObject = NewDenseUnallocatedArray(cx, 0, NullPtr(), TenuredObject);
     if (!templateObject)
         return false;
-    types::FixRestArgumentsType(cx, templateObject);
+    ObjectGroup::fixRestArgumentsGroup(cx, templateObject);
 
     // Call IC.
     ICRest_Fallback::Compiler compiler(cx, templateObject);
@@ -3645,6 +3653,19 @@ BaselineCompiler::emit_JSOP_RESUME()
 
     masm.jump(&returnTarget);
     masm.bind(&genStart);
+
+    // If profiler instrumentation is on, update lastProfilingFrame on
+    // current JitActivation
+    {
+        Register scratchReg = scratch2;
+        Label skip;
+        AbsoluteAddress addressOfEnabled(cx->runtime()->spsProfiler.addressOfEnabled());
+        masm.branch32(Assembler::Equal, addressOfEnabled, Imm32(0), &skip);
+        masm.loadPtr(AbsoluteAddress(cx->runtime()->addressOfProfilingActivation()), scratchReg);
+        masm.storePtr(BaselineStackReg,
+                      Address(scratchReg, JitActivation::offsetOfLastProfilingFrame()));
+        masm.bind(&skip);
+    }
 
     // Construct BaselineFrame.
     masm.push(BaselineFrameReg);

@@ -405,10 +405,13 @@ protected:
   nsresult DidCauseReflow();
   friend class nsAutoCauseReflowNotifier;
 
-  void DispatchTouchEvent(mozilla::WidgetEvent* aEvent,
-                          nsEventStatus* aStatus,
-                          nsPresShellEventCB* aEventCB,
-                          bool aTouchIsNew);
+  nsresult DispatchEventToDOM(mozilla::WidgetEvent* aEvent,
+                              nsEventStatus* aStatus,
+                              nsPresShellEventCB* aEventCB);
+  void DispatchTouchEventToDOM(mozilla::WidgetEvent* aEvent,
+                               nsEventStatus* aStatus,
+                               nsPresShellEventCB* aEventCB,
+                               bool aTouchIsNew);
 
   void     WillDoReflow();
 
@@ -690,7 +693,8 @@ protected:
   bool AdjustContextMenuKeyEvent(mozilla::WidgetMouseEvent* aEvent);
 
   //
-  bool PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTargetPt);
+  bool PrepareToUseCaretPosition(nsIWidget* aEventWidget,
+                                 mozilla::LayoutDeviceIntPoint& aTargetPt);
 
   // Get the selected item and coordinates in device pixels relative to root
   // document's root view for element, first ensuring the element is onscreen
@@ -867,6 +871,9 @@ protected:
   // not set, a transform that scales by the inverse of the resolution is
   // applied to rendered layers.
   bool                      mScaleToResolution : 1;
+
+  // Whether the last chrome-only escape key event is consumed.
+  bool                      mIsLastChromeOnlyEscapeKeyConsumed : 1;
 
   static bool               sDisableNonTestMouseEvents;
 };

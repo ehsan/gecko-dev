@@ -39,9 +39,7 @@ inline void
 NativeObject::removeLastProperty(ExclusiveContext *cx)
 {
     MOZ_ASSERT(canRemoveLastProperty());
-    RootedNativeObject self(cx, this);
-    RootedShape prev(cx, lastProperty()->previous());
-    JS_ALWAYS_TRUE(setLastProperty(cx, self, prev));
+    JS_ALWAYS_TRUE(setLastProperty(cx, lastProperty()->previous()));
 }
 
 inline bool
@@ -81,9 +79,9 @@ NativeObject::setDenseElementWithType(ExclusiveContext *cx, uint32_t index,
 {
     // Avoid a slow AddTypePropertyId call if the type is the same as the type
     // of the previous element.
-    types::Type thisType = types::GetValueType(val);
-    if (index == 0 || types::GetValueType(elements_[index - 1]) != thisType)
-        types::AddTypePropertyId(cx, this, JSID_VOID, thisType);
+    TypeSet::Type thisType = TypeSet::GetValueType(val);
+    if (index == 0 || TypeSet::GetValueType(elements_[index - 1]) != thisType)
+        AddTypePropertyId(cx, this, JSID_VOID, thisType);
     setDenseElementMaybeConvertDouble(index, val);
 }
 
@@ -92,14 +90,14 @@ NativeObject::initDenseElementWithType(ExclusiveContext *cx, uint32_t index,
                                        const Value &val)
 {
     MOZ_ASSERT(!shouldConvertDoubleElements());
-    types::AddTypePropertyId(cx, this, JSID_VOID, val);
+    AddTypePropertyId(cx, this, JSID_VOID, val);
     initDenseElement(index, val);
 }
 
 inline void
 NativeObject::setDenseElementHole(ExclusiveContext *cx, uint32_t index)
 {
-    types::MarkTypeObjectFlags(cx, this, types::OBJECT_FLAG_NON_PACKED);
+    MarkObjectGroupFlags(cx, this, OBJECT_FLAG_NON_PACKED);
     setDenseElement(index, MagicValue(JS_ELEMENTS_HOLE));
 }
 
@@ -107,9 +105,7 @@ NativeObject::setDenseElementHole(ExclusiveContext *cx, uint32_t index)
 NativeObject::removeDenseElementForSparseIndex(ExclusiveContext *cx,
                                                HandleNativeObject obj, uint32_t index)
 {
-    types::MarkTypeObjectFlags(cx, obj,
-                               types::OBJECT_FLAG_NON_PACKED |
-                               types::OBJECT_FLAG_SPARSE_INDEXES);
+    MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_NON_PACKED | OBJECT_FLAG_SPARSE_INDEXES);
     if (obj->containsDenseElement(index))
         obj->setDenseElement(index, MagicValue(JS_ELEMENTS_HOLE));
 }
@@ -124,14 +120,13 @@ inline void
 NativeObject::markDenseElementsNotPacked(ExclusiveContext *cx)
 {
     MOZ_ASSERT(isNative());
-    MarkTypeObjectFlags(cx, this, types::OBJECT_FLAG_NON_PACKED);
+    MarkObjectGroupFlags(cx, this, OBJECT_FLAG_NON_PACKED);
 }
 
 inline void
 NativeObject::ensureDenseInitializedLengthNoPackedCheck(ExclusiveContext *cx, uint32_t index,
                                                         uint32_t extra)
 {
-    MOZ_ASSERT(cx->isThreadLocal(this));
     MOZ_ASSERT(!denseElementsAreCopyOnWrite());
 
     /*
@@ -166,7 +161,6 @@ NativeObject::EnsureDenseResult
 NativeObject::extendDenseElements(ExclusiveContext *cx,
                                   uint32_t requiredCapacity, uint32_t extra)
 {
-    MOZ_ASSERT(cx->isThreadLocal(this));
     MOZ_ASSERT(!denseElementsAreCopyOnWrite());
 
     /*
@@ -285,10 +279,10 @@ NativeObject::copy(ExclusiveContext *cx, gc::AllocKind kind, gc::InitialHeap hea
                    HandleNativeObject templateObject)
 {
     RootedShape shape(cx, templateObject->lastProperty());
-    RootedTypeObject type(cx, templateObject->type());
+    RootedObjectGroup group(cx, templateObject->group());
     MOZ_ASSERT(!templateObject->denseElementsAreCopyOnWrite());
 
-    JSObject *baseObj = create(cx, kind, heap, shape, type);
+    JSObject *baseObj = create(cx, kind, heap, shape, group);
     if (!baseObj)
         return nullptr;
     NativeObject *obj = &baseObj->as<NativeObject>();
@@ -313,19 +307,6 @@ NativeObject::copy(ExclusiveContext *cx, gc::AllocKind kind, gc::InitialHeap hea
     return obj;
 }
 
-inline bool
-NativeObject::setSlotIfHasType(Shape *shape, const Value &value, bool overwriting)
-{
-    if (!types::HasTypePropertyId(this, shape->propid(), value))
-        return false;
-    setSlot(shape->slot(), value);
-
-    if (overwriting)
-        shape->setOverwritten();
-
-    return true;
-}
-
 inline void
 NativeObject::setSlotWithType(ExclusiveContext *cx, Shape *shape,
                               const Value &value, bool overwriting)
@@ -335,7 +316,7 @@ NativeObject::setSlotWithType(ExclusiveContext *cx, Shape *shape,
     if (overwriting)
         shape->setOverwritten();
 
-    types::AddTypePropertyId(cx, this, shape->propid(), value);
+    AddTypePropertyId(cx, this, shape->propid(), value);
 }
 
 /* Make an object with pregenerated shape from a NEWOBJECT bytecode. */
@@ -352,8 +333,7 @@ CopyInitializerObject(JSContext *cx, HandlePlainObject baseobj, NewObjectKind ne
         return nullptr;
 
     RootedObject metadata(cx, obj->getMetadata());
-    RootedShape lastProp(cx, baseobj->lastProperty());
-    if (!NativeObject::setLastProperty(cx, obj, lastProp))
+    if (!obj->setLastProperty(cx, baseobj->lastProperty()))
         return nullptr;
     if (metadata && !JSObject::setMetadata(cx, obj, metadata))
         return nullptr;
@@ -362,39 +342,49 @@ CopyInitializerObject(JSContext *cx, HandlePlainObject baseobj, NewObjectKind ne
 }
 
 inline NativeObject *
-NewNativeObjectWithGivenProto(ExclusiveContext *cx, const js::Class *clasp,
-                              TaggedProto proto, JSObject *parent,
+NewNativeObjectWithGivenTaggedProto(ExclusiveContext *cx, const Class *clasp,
+                                    Handle<TaggedProto> proto, HandleObject parent,
+                                    gc::AllocKind allocKind, NewObjectKind newKind)
+{
+    return MaybeNativeObject(NewObjectWithGivenTaggedProto(cx, clasp, proto, parent, allocKind,
+                                                           newKind));
+}
+
+inline NativeObject *
+NewNativeObjectWithGivenTaggedProto(ExclusiveContext *cx, const Class *clasp,
+                                    Handle<TaggedProto> proto, HandleObject parent,
+                                    NewObjectKind newKind = GenericObject)
+{
+    return MaybeNativeObject(NewObjectWithGivenTaggedProto(cx, clasp, proto, parent, newKind));
+}
+
+inline NativeObject *
+NewNativeObjectWithGivenProto(ExclusiveContext *cx, const Class *clasp,
+                              HandleObject proto, HandleObject parent,
                               gc::AllocKind allocKind, NewObjectKind newKind)
 {
     return MaybeNativeObject(NewObjectWithGivenProto(cx, clasp, proto, parent, allocKind, newKind));
 }
 
 inline NativeObject *
-NewNativeObjectWithGivenProto(ExclusiveContext *cx, const js::Class *clasp,
-                              TaggedProto proto, JSObject *parent,
+NewNativeObjectWithGivenProto(ExclusiveContext *cx, const Class *clasp,
+                              HandleObject proto, HandleObject parent,
                               NewObjectKind newKind = GenericObject)
 {
     return MaybeNativeObject(NewObjectWithGivenProto(cx, clasp, proto, parent, newKind));
 }
 
 inline NativeObject *
-NewNativeObjectWithGivenProto(ExclusiveContext *cx, const js::Class *clasp,
-                              JSObject *proto, JSObject *parent,
+NewNativeObjectWithClassProto(ExclusiveContext *cx, const Class *clasp, HandleObject proto,
+                              HandleObject parent, gc::AllocKind allocKind,
                               NewObjectKind newKind = GenericObject)
-{
-    return MaybeNativeObject(NewObjectWithGivenProto(cx, clasp, proto, parent, newKind));
-}
-
-inline NativeObject *
-NewNativeObjectWithClassProto(ExclusiveContext *cx, const js::Class *clasp, JSObject *proto, JSObject *parent,
-                              gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
 {
     return MaybeNativeObject(NewObjectWithClassProto(cx, clasp, proto, parent, allocKind, newKind));
 }
 
 inline NativeObject *
-NewNativeObjectWithClassProto(ExclusiveContext *cx, const js::Class *clasp, JSObject *proto, JSObject *parent,
-                              NewObjectKind newKind = GenericObject)
+NewNativeObjectWithClassProto(ExclusiveContext *cx, const Class *clasp, HandleObject proto,
+                              HandleObject parent, NewObjectKind newKind = GenericObject)
 {
     return MaybeNativeObject(NewObjectWithClassProto(cx, clasp, proto, parent, newKind));
 }
@@ -402,38 +392,30 @@ NewNativeObjectWithClassProto(ExclusiveContext *cx, const js::Class *clasp, JSOb
 /*
  * Call obj's resolve hook.
  *
- * cx, id, and flags are the parameters initially passed to the ongoing lookup;
- * objp and propp are its out parameters. obj is an object along the prototype
- * chain from where the lookup started.
+ * cx and id are the parameters initially passed to the ongoing lookup;
+ * propp and recursedp are its out parameters.
  *
  * There are four possible outcomes:
  *
  *   - On failure, report an error or exception and return false.
  *
- *   - If we are already resolving a property of *curobjp, set *recursedp = true,
+ *   - If we are already resolving a property of obj, set *recursedp = true,
  *     and return true.
  *
- *   - If the resolve hook finds or defines the sought property, set *objp and
- *     *propp appropriately, set *recursedp = false, and return true.
+ *   - If the resolve hook finds or defines the sought property, set propp
+ *      appropriately, set *recursedp = false, and return true.
  *
- *   - Otherwise no property was resolved. Set *propp = nullptr and
+ *   - Otherwise no property was resolved. Set propp to nullptr and
  *     *recursedp = false and return true.
  */
 static MOZ_ALWAYS_INLINE bool
-CallResolveOp(JSContext *cx, HandleNativeObject obj, HandleId id, MutableHandleObject objp,
-              MutableHandleShape propp, bool *recursedp)
+CallResolveOp(JSContext *cx, HandleNativeObject obj, HandleId id, MutableHandleShape propp,
+              bool *recursedp)
 {
-    /*
-     * Avoid recursion on (obj, id) already being resolved on cx.
-     *
-     * Once we have successfully added an entry for (obj, key) to
-     * cx->resolvingTable, control must go through cleanup: before
-     * returning.  But note that JS_DHASH_ADD may find an existing
-     * entry, in which case we bail to suppress runaway recursion.
-     */
+    // Avoid recursion on (obj, id) already being resolved on cx.
     AutoResolving resolving(cx, obj, id);
     if (resolving.alreadyStarted()) {
-        /* Already resolving id in obj -- suppress recursion. */
+        // Already resolving id in obj, suppress recursion.
         *recursedp = true;
         return true;
     }
@@ -446,18 +428,14 @@ CallResolveOp(JSContext *cx, HandleNativeObject obj, HandleId id, MutableHandleO
     if (!resolved)
         return true;
 
-    objp.set(obj);
-
     if (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))) {
         MarkDenseOrTypedArrayElementFound<CanGC>(propp);
         return true;
     }
 
-    if (Shape *shape = obj->lookup(cx, id))
-        propp.set(shape);
-    else
-        objp.set(nullptr);
+    MOZ_ASSERT(!IsAnyTypedArray(obj));
 
+    propp.set(obj->lookup(cx, id));
     return true;
 }
 
@@ -466,13 +444,11 @@ static MOZ_ALWAYS_INLINE bool
 LookupOwnPropertyInline(ExclusiveContext *cx,
                         typename MaybeRooted<NativeObject*, allowGC>::HandleType obj,
                         typename MaybeRooted<jsid, allowGC>::HandleType id,
-                        typename MaybeRooted<JSObject*, allowGC>::MutableHandleType objp,
                         typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp,
                         bool *donep)
 {
     // Check for a native dense element.
     if (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))) {
-        objp.set(obj);
         MarkDenseOrTypedArrayElementFound<allowGC>(propp);
         *donep = true;
         return true;
@@ -485,10 +461,8 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
         uint64_t index;
         if (IsTypedArrayIndex(id, &index)) {
             if (index < AnyTypedArrayLength(obj)) {
-                objp.set(obj);
                 MarkDenseOrTypedArrayElementFound<allowGC>(propp);
             } else {
-                objp.set(nullptr);
                 propp.set(nullptr);
             }
             *donep = true;
@@ -498,19 +472,13 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
 
     // Check for a native property.
     if (Shape *shape = obj->lookup(cx, id)) {
-        objp.set(obj);
         propp.set(shape);
         *donep = true;
         return true;
     }
 
     // id was not found in obj. Try obj's resolve hook, if any.
-    if (obj->getClass()->resolve
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 4
-        // Workaround. See the comment on JS_ResolveStub in jsapi.h.
-        && obj->getClass()->resolve != JS_ResolveStub
-#endif
-        )
+    if (obj->getClass()->resolve)
     {
         if (!cx->shouldBeJSContext() || !allowGC)
             return false;
@@ -519,7 +487,6 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
         if (!CallResolveOp(cx->asJSContext(),
                            MaybeRooted<NativeObject*, allowGC>::toHandle(obj),
                            MaybeRooted<jsid, allowGC>::toHandle(id),
-                           MaybeRooted<JSObject*, allowGC>::toMutableHandle(objp),
                            MaybeRooted<Shape*, allowGC>::toMutableHandle(propp),
                            &recursed))
         {
@@ -527,7 +494,6 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
         }
 
         if (recursed) {
-            objp.set(nullptr);
             propp.set(nullptr);
             *donep = true;
             return true;
@@ -539,6 +505,7 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
         }
     }
 
+    propp.set(nullptr);
     *donep = false;
     return true;
 }
@@ -591,10 +558,15 @@ LookupPropertyInline(ExclusiveContext *cx,
 
     while (true) {
         bool done;
-        if (!LookupOwnPropertyInline<allowGC>(cx, current, id, objp, propp, &done))
+        if (!LookupOwnPropertyInline<allowGC>(cx, current, id, propp, &done))
             return false;
-        if (done)
+        if (done) {
+            if (propp)
+                objp.set(current);
+            else
+                objp.set(nullptr);
             return true;
+        }
 
         typename MaybeRooted<JSObject*, allowGC>::RootType proto(cx, current->getProto());
 
@@ -603,11 +575,11 @@ LookupPropertyInline(ExclusiveContext *cx,
         if (!proto->isNative()) {
             if (!cx->shouldBeJSContext() || !allowGC)
                 return false;
-            return JSObject::lookupGeneric(cx->asJSContext(),
-                                           MaybeRooted<JSObject*, allowGC>::toHandle(proto),
-                                           MaybeRooted<jsid, allowGC>::toHandle(id),
-                                           MaybeRooted<JSObject*, allowGC>::toMutableHandle(objp),
-                                           MaybeRooted<Shape*, allowGC>::toMutableHandle(propp));
+            return LookupProperty(cx->asJSContext(),
+                                  MaybeRooted<JSObject*, allowGC>::toHandle(proto),
+                                  MaybeRooted<jsid, allowGC>::toHandle(id),
+                                  MaybeRooted<JSObject*, allowGC>::toMutableHandle(objp),
+                                  MaybeRooted<Shape*, allowGC>::toMutableHandle(propp));
         }
 
         current = &proto->template as<NativeObject>();
@@ -619,15 +591,23 @@ LookupPropertyInline(ExclusiveContext *cx,
 }
 
 inline bool
-DefineNativeProperty(ExclusiveContext *cx, HandleNativeObject obj,
-                     PropertyName *name, HandleValue value,
-                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
+NativeLookupProperty(ExclusiveContext *cx, HandleNativeObject obj, PropertyName *name,
+                     MutableHandleObject objp, MutableHandleShape propp)
+{
+    RootedId id(cx, NameToId(name));
+    return NativeLookupProperty<CanGC>(cx, obj, id, objp, propp);
+}
+
+inline bool
+NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, PropertyName *name,
+                     HandleValue value, PropertyOp getter, StrictPropertyOp setter,
+                     unsigned attrs)
 {
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
 
     RootedId id(cx, NameToId(name));
-    return DefineNativeProperty(cx, obj, id, value, getter, setter, attrs);
+    return NativeDefineProperty(cx, obj, id, value, getter, setter, attrs);
 }
 
 inline bool

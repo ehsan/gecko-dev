@@ -15,7 +15,10 @@
 #include "Layers.h"
 #include "SharedThreadPool.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/dom/TimeRanges.h"
+#include "mp4_demuxer/AnnexB.h"
+#include "mp4_demuxer/H264.h"
 #include "SharedDecoderManager.h"
 
 #ifdef MOZ_EME
@@ -63,6 +66,28 @@ TrackTypeToStr(TrackType aTrack)
   }
 }
 #endif
+
+bool
+AccumulateSPSTelemetry(const ByteBuffer* aExtradata)
+{
+  SPSData spsdata;
+  if (H264::DecodeSPSFromExtraData(aExtradata, spsdata) &&
+      spsdata.profile_idc && spsdata.level_idc) {
+    // Collect profile_idc values up to 244, otherwise 0 for unknown.
+    Telemetry::Accumulate(Telemetry::VIDEO_DECODED_H264_SPS_PROFILE,
+                          spsdata.profile_idc <= 244 ? spsdata.profile_idc : 0);
+
+    // Make sure level_idc represents a value between levels 1 and 5.2,
+    // otherwise collect 0 for unknown level.
+    Telemetry::Accumulate(Telemetry::VIDEO_DECODED_H264_SPS_LEVEL,
+                          (spsdata.level_idc >= 10 && spsdata.level_idc <= 52) ?
+                          spsdata.level_idc : 0);
+
+    return true;
+  }
+
+  return false;
+}
 
 // MP4Demuxer wants to do various blocking reads, which cause deadlocks while
 // mDemuxerMonitor is held. This stuff should really be redesigned, but we don't
@@ -114,6 +139,7 @@ MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder)
   , mLastReportedNumDecodedFrames(0)
   , mLayersBackendType(layers::LayersBackend::LAYERS_NONE)
   , mDemuxerInitialized(false)
+  , mFoundSPSForTelemetry(false)
   , mIsEncrypted(false)
   , mIndexReady(false)
   , mDemuxerMonitor("MP4 Demuxer")
@@ -364,7 +390,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     {
       MonitorAutoUnlock unlock(mDemuxerMonitor);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mIsEncrypted = mDemuxer->Crypto().valid;
+      mInfo.mIsEncrypted = mIsEncrypted = mDemuxer->Crypto().valid;
     }
 
     // Remember that we've initialized the demuxer, so that if we're decoding
@@ -379,14 +405,12 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
 
   if (mDemuxer->Crypto().valid) {
 #ifdef MOZ_EME
-    if (!sIsEMEEnabled) {
-      // TODO: Need to signal DRM/EME required somehow...
-      return NS_ERROR_FAILURE;
-    }
-
     // We have encrypted audio or video. We'll need a CDM to decrypt and
     // possibly decode this. Wait until we've received a CDM from the
-    // JavaScript player app.
+    // JavaScript player app. Note: we still go through the motions here
+    // even if EME is disabled, so that if script tries and fails to create
+    // a CDM, we can detect that and notify chrome and show some UI explaining
+    // that we failed due to EME being disabled.
     nsRefPtr<CDMProxy> proxy;
     nsTArray<uint8_t> initData;
     ExtractCryptoInitData(initData);
@@ -464,6 +488,11 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     nsresult rv = mVideo.mDecoder->Init();
     NS_ENSURE_SUCCESS(rv, rv);
     mInfo.mVideo.mIsHardwareAccelerated = mVideo.mDecoder->IsHardwareAccelerated();
+
+    // Collect telemetry from h264 AVCC SPS.
+    if (!mFoundSPSForTelemetry) {
+      mFoundSPSForTelemetry = AccumulateSPSTelemetry(video.extra_data);
+    }
   }
 
   // Get the duration, and report it to the decoder if we have it.
@@ -681,6 +710,13 @@ MP4Reader::Update(TrackType aTrack)
 
   if (needInput) {
     MP4Sample* sample = PopSample(aTrack);
+
+    // Collect telemetry from h264 Annex B SPS.
+    if (sample && !mFoundSPSForTelemetry && AnnexB::HasSPS(sample)) {
+      nsRefPtr<ByteBuffer> extradata = AnnexB::ExtractExtraData(sample);
+      mFoundSPSForTelemetry = AccumulateSPSTelemetry(extradata);
+    }
+
     if (sample) {
       decoder.mDecoder->Input(sample);
       if (aTrack == kVideo) {

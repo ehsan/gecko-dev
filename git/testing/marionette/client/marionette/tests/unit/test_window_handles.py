@@ -2,12 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from marionette_test import MarionetteTestCase
+from marionette_test import MarionetteTestCase, skip_if_e10s
 from marionette import Keys
 
 
 class TestWindowHandles(MarionetteTestCase):
 
+    @skip_if_e10s # Interactions with about: pages need e10s support (bug 1096488).
     def test_new_tab_window_handles(self):
         keys = [Keys.SHIFT]
         if self.marionette.session_capabilities['platformName'] == 'DARWIN':

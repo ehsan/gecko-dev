@@ -39,7 +39,6 @@
 #include "vm/String-inl.h"
 
 using namespace js;
-using namespace js::types;
 
 using mozilla::Abs;
 using mozilla::ArrayLength;
@@ -611,7 +610,7 @@ js::Int32ToString(ExclusiveContext *cx, int32_t si)
     Latin1Char *start = BackfillInt32InBuffer(si, buffer, ArrayLength(buffer), &length);
 
     mozilla::Range<const Latin1Char> chars(start, length);
-    JSInlineString *str = NewFatInlineString<allowGC>(cx, chars);
+    JSInlineString *str = NewInlineString<allowGC>(cx, chars);
     if (!str)
         return nullptr;
 
@@ -1206,9 +1205,9 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
     RootedValue valueInfinity(cx, cx->runtime()->positiveInfinityValue);
 
     /* ES5 15.1.1.1, 15.1.1.2 */
-    if (!DefineNativeProperty(cx, global, cx->names().NaN, valueNaN, nullptr, nullptr,
+    if (!NativeDefineProperty(cx, global, cx->names().NaN, valueNaN, nullptr, nullptr,
                               JSPROP_PERMANENT | JSPROP_READONLY) ||
-        !DefineNativeProperty(cx, global, cx->names().Infinity, valueInfinity, nullptr, nullptr,
+        !NativeDefineProperty(cx, global, cx->names().Infinity, valueInfinity, nullptr, nullptr,
                               JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return nullptr;
@@ -1382,7 +1381,7 @@ js::IndexToString(JSContext *cx, uint32_t index)
     RangedPtr<Latin1Char> start = BackfillIndexInCharBuffer(index, end);
 
     mozilla::Range<const Latin1Char> chars(start.get(), end - start);
-    JSInlineString *str = NewFatInlineString<CanGC>(cx, chars);
+    JSInlineString *str = NewInlineString<CanGC>(cx, chars);
     if (!str)
         return nullptr;
 

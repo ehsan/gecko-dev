@@ -114,6 +114,14 @@ AnyTypedArrayViewData(const JSObject *obj)
 }
 
 inline uint32_t
+AnyTypedArrayBytesPerElement(const JSObject *obj)
+{
+    if (obj->is<TypedArrayObject>())
+        return obj->as<TypedArrayObject>().bytesPerElement();
+    return obj->as<SharedTypedArrayObject>().bytesPerElement();
+}
+
+inline uint32_t
 AnyTypedArrayByteLength(const JSObject *obj)
 {
     if (obj->is<TypedArrayObject>())
@@ -277,7 +285,7 @@ class ElementSpecific
         // Convert and copy any remaining elements generically.
         RootedValue v(cx);
         for (; i < len; i++) {
-            if (!JSObject::getElement(cx, source, source, i, &v))
+            if (!GetElement(cx, source, source, i, &v))
                 return false;
 
             T n;
@@ -444,6 +452,8 @@ class ElementSpecific
         }
         if (MOZ_UNLIKELY(mozilla::IsNaN(d)))
             return T(0);
+        if (SpecificArray::ArrayTypeID() == Scalar::Uint8Clamped)
+            return T(d);
         if (TypeIsUnsigned<T>())
             return T(JS::ToUint32(d));
         return T(JS::ToInt32(d));

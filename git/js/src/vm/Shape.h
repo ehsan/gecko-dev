@@ -16,7 +16,6 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jsinfer.h"
 #include "jspropertytree.h"
 #include "jstypes.h"
 #include "NamespaceImports.h"
@@ -29,6 +28,7 @@
 #include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
 #include "js/UbiNode.h"
+#include "vm/ObjectGroup.h"
 #include "vm/PropDesc.h"
 
 #ifdef _MSC_VER
@@ -86,7 +86,7 @@
  *
  * To find the Shape for a particular property of an object initially requires
  * a linear search. But if the number of searches starting at any particular
- * Shape in the property tree exceeds MAX_LINEAR_SEARCHES and the Shape's
+ * Shape in the property tree exceeds LINEAR_SEARCHES_MAX and the Shape's
  * lineage has (excluding the EmptyShape) at least MIN_ENTRIES, we create an
  * auxiliary hash table -- the ShapeTable -- that allows faster lookup.
  * Furthermore, a ShapeTable is always created for dictionary mode lists,
@@ -226,11 +226,6 @@ class ShapeTable {
     bool init(ExclusiveContext *cx, Shape *lastProp);
     bool change(int log2Delta, ExclusiveContext *cx);
     Entry &search(jsid id, bool adding);
-
-#ifdef JSGC_COMPACTING
-    /* Update entries whose shapes have been moved */
-    void fixupAfterMovingGC();
-#endif
 
   private:
     Entry &getEntry(uint32_t i) const {
@@ -393,7 +388,7 @@ class BaseShape : public gc::TenuredCell
         HAD_ELEMENTS_ACCESS =   0x80,
         WATCHED             =  0x100,
         ITERATED_SINGLETON  =  0x200,
-        NEW_TYPE_UNKNOWN    =  0x400,
+        NEW_GROUP_UNKNOWN   =  0x400,
         UNCACHEABLE_PROTO   =  0x800,
         IMMUTABLE_PROTOTYPE = 0x1000,
 
@@ -408,7 +403,11 @@ class BaseShape : public gc::TenuredCell
         QUALIFIED_VAROBJ    = 0x2000,
         UNQUALIFIED_VAROBJ  = 0x4000,
 
-        OBJECT_FLAG_MASK    = 0x7ff8
+        // For a function used as an interpreted constructor, whether a 'new'
+        // type had constructor information cleared.
+        NEW_SCRIPT_CLEARED  = 0x8000,
+
+        OBJECT_FLAG_MASK    = 0xfff8
     };
 
   private:
@@ -530,10 +529,8 @@ class BaseShape : public gc::TenuredCell
             gc::MarkObject(trc, &metadata, "metadata");
     }
 
-#ifdef JSGC_COMPACTING
-    void fixupAfterMovingGC();
+    void fixupAfterMovingGC() {}
     bool fixupBaseShapeTableEntry();
-#endif
 
   private:
     static void staticAsserts() {
@@ -837,8 +834,8 @@ class Shape : public gc::TenuredCell
                                   JSObject *obj, TaggedProto proto, Shape *last);
     static Shape *setObjectMetadata(JSContext *cx,
                                     JSObject *metadata, TaggedProto proto, Shape *last);
-    static Shape *setObjectFlag(ExclusiveContext *cx,
-                                BaseShape::Flag flag, TaggedProto proto, Shape *last);
+    static Shape *setObjectFlags(ExclusiveContext *cx,
+                                 BaseShape::Flag flag, TaggedProto proto, Shape *last);
 
     uint32_t getObjectFlags() const { return base()->getObjectFlags(); }
     bool hasObjectFlag(BaseShape::Flag flag) const {
@@ -962,8 +959,8 @@ class Shape : public gc::TenuredCell
                setter() == rawSetter;
     }
 
-    bool get(JSContext* cx, HandleObject receiver, JSObject *obj, JSObject *pobj, MutableHandleValue vp);
-    bool set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, MutableHandleValue vp);
+    bool set(JSContext* cx, HandleNativeObject obj, HandleObject receiver, bool strict,
+             MutableHandleValue vp);
 
     BaseShape *base() const { return base_.get(); }
 
@@ -1102,9 +1099,7 @@ class Shape : public gc::TenuredCell
     inline Shape *search(ExclusiveContext *cx, jsid id);
     inline Shape *searchLinear(jsid id);
 
-#ifdef JSGC_COMPACTING
     void fixupAfterMovingGC();
-#endif
 
     /* For JIT usage */
     static inline size_t offsetOfBase() { return offsetof(Shape, base_); }
@@ -1112,10 +1107,8 @@ class Shape : public gc::TenuredCell
     static inline uint32_t fixedSlotsMask() { return FIXED_SLOTS_MASK; }
 
   private:
-#ifdef JSGC_COMPACTING
     void fixupDictionaryShapeAfterMovingGC();
     void fixupShapeTreeAfterMovingGC();
-#endif
 
     static void staticAsserts() {
         JS_STATIC_ASSERT(offsetof(Shape, base_) == offsetof(js::shadow::Shape, base));
@@ -1540,8 +1533,9 @@ template<> struct RootKind<BaseShape *> : SpecificRootKind<BaseShape *, THING_RO
 // properties of non-native objects, and dense elements for native objects.
 // Use separate APIs for these two cases.
 
+template <AllowGC allowGC>
 static inline void
-MarkNonNativePropertyFound(MutableHandleShape propp)
+MarkNonNativePropertyFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }
@@ -1558,6 +1552,10 @@ IsImplicitDenseOrTypedArrayElement(Shape *prop)
 {
     return prop == reinterpret_cast<Shape*>(1);
 }
+
+Shape *
+ReshapeForParentAndAllocKind(JSContext *cx, Shape *shape, TaggedProto proto, JSObject *parent,
+                             gc::AllocKind allocKind);
 
 } // namespace js
 

@@ -7,6 +7,7 @@
 #ifndef vm_Stack_h
 #define vm_Stack_h
 
+#include "mozilla/Atomics.h"
 #include "mozilla/MemoryReporting.h"
 
 #include "jsfun.h"
@@ -25,6 +26,7 @@ namespace js {
 class ArgumentsObject;
 class AsmJSModule;
 class InterpreterRegs;
+class CallObject;
 class ScopeObject;
 class ScriptFrameIter;
 class SPSProfiler;
@@ -206,7 +208,7 @@ class AbstractFramePtr
     inline bool hasArgsObj() const;
     inline ArgumentsObject &argsObj() const;
     inline void initArgsObj(ArgumentsObject &argsobj) const;
-    inline bool useNewType() const;
+    inline bool createSingleton() const;
 
     inline bool copyRawFrameSlots(AutoValueVector *vec) const;
 
@@ -217,6 +219,7 @@ class AbstractFramePtr
 
     inline bool prevUpToDate() const;
     inline void setPrevUpToDate() const;
+    inline void unsetPrevUpToDate() const;
 
     inline bool isDebuggee() const;
     inline void setIsDebuggee();
@@ -316,7 +319,7 @@ class InterpreterFrame
         RUNNING_IN_JIT     =    0x20000,
 
         /* Miscellaneous state. */
-        USE_NEW_TYPE       =    0x40000   /* Use new type for constructed |this| object. */
+        CREATE_SINGLETON   =    0x40000   /* Constructed |this| object should be singleton. */
     };
 
   private:
@@ -812,13 +815,13 @@ class InterpreterFrame
         return flags_ & HAS_ARGS_OBJ;
     }
 
-    void setUseNewType() {
+    void setCreateSingleton() {
         MOZ_ASSERT(isConstructing());
-        flags_ |= USE_NEW_TYPE;
+        flags_ |= CREATE_SINGLETON;
     }
-    bool useNewType() const {
+    bool createSingleton() const {
         MOZ_ASSERT(isConstructing());
-        return flags_ & USE_NEW_TYPE;
+        return flags_ & CREATE_SINGLETON;
     }
 
     bool isDebuggerEvalFrame() const {
@@ -831,6 +834,10 @@ class InterpreterFrame
 
     void setPrevUpToDate() {
         flags_ |= PREV_UP_TO_DATE;
+    }
+
+    void unsetPrevUpToDate() {
+        flags_ &= ~PREV_UP_TO_DATE;
     }
 
     bool isDebuggee() const {
@@ -995,7 +1002,7 @@ class InterpreterStack
     }
 };
 
-void MarkInterpreterActivations(PerThreadData *ptd, JSTracer *trc);
+void MarkInterpreterActivations(JSRuntime *rt, JSTracer *trc);
 
 /*****************************************************************************/
 
@@ -1030,7 +1037,6 @@ struct DefaultHasher<AbstractFramePtr> {
 /*****************************************************************************/
 
 class InterpreterActivation;
-class ForkJoinActivation;
 class AsmJSActivation;
 
 namespace jit {
@@ -1058,7 +1064,7 @@ class Activation
     // data structures instead.
     size_t hideScriptedCallerCount_;
 
-    enum Kind { Interpreter, Jit, ForkJoin, AsmJS };
+    enum Kind { Interpreter, Jit, AsmJS };
     Kind kind_;
 
     inline Activation(JSContext *cx, Kind kind_);
@@ -1083,9 +1089,6 @@ class Activation
     bool isJit() const {
         return kind_ == Jit;
     }
-    bool isForkJoin() const {
-        return kind_ == ForkJoin;
-    }
     bool isAsmJS() const {
         return kind_ == AsmJS;
     }
@@ -1101,10 +1104,6 @@ class Activation
     jit::JitActivation *asJit() const {
         MOZ_ASSERT(isJit());
         return (jit::JitActivation *)this;
-    }
-    ForkJoinActivation *asForkJoin() const {
-        MOZ_ASSERT(isForkJoin());
-        return (ForkJoinActivation *)this;
     }
     AsmJSActivation *asAsmJS() const {
         MOZ_ASSERT(isAsmJS());
@@ -1131,6 +1130,10 @@ class Activation
     }
     bool scriptedCallerIsHidden() const {
         return hideScriptedCallerCount_ > 0;
+    }
+
+    static size_t offsetOfPrevProfiling() {
+        return offsetof(Activation, prevProfiling_);
     }
 
   private:
@@ -1218,7 +1221,6 @@ class ActivationIterator
 
   public:
     explicit ActivationIterator(JSRuntime *rt);
-    explicit ActivationIterator(PerThreadData *perThreadData);
 
     ActivationIterator &operator++();
 
@@ -1245,6 +1247,7 @@ class BailoutFrameInfo;
 class JitActivation : public Activation
 {
     uint8_t *prevJitTop_;
+    JitActivation *prevJitActivation_;
     JSContext *prevJitJSContext_;
     bool active_;
 
@@ -1274,6 +1277,14 @@ class JitActivation : public Activation
     // reading it from the stack.
     BailoutFrameInfo *bailoutData_;
 
+    // When profiling is enabled, these fields will be updated to reflect the
+    // last pushed frame for this activation, and if that frame has been
+    // left for a call, the native code site of the call.
+    mozilla::Atomic<void *, mozilla::Relaxed> lastProfilingFrame_;
+    mozilla::Atomic<void *, mozilla::Relaxed> lastProfilingCallSite_;
+    static_assert(sizeof(mozilla::Atomic<void *, mozilla::Relaxed>) == sizeof(void *),
+                  "Atomic should have same memory format as underlying type.");
+
     void clearRematerializedFrames();
 
 #ifdef CHECK_OSIPOINT_REGISTERS
@@ -1293,9 +1304,7 @@ class JitActivation : public Activation
     }
     void setActive(JSContext *cx, bool active = true);
 
-    bool isProfiling() const {
-        return false;
-    }
+    bool isProfiling() const;
 
     uint8_t *prevJitTop() const {
         return prevJitTop_;
@@ -1305,6 +1314,9 @@ class JitActivation : public Activation
     }
     static size_t offsetOfPrevJitJSContext() {
         return offsetof(JitActivation, prevJitJSContext_);
+    }
+    static size_t offsetOfPrevJitActivation() {
+        return offsetof(JitActivation, prevJitActivation_);
     }
     static size_t offsetOfActiveUint8() {
         MOZ_ASSERT(sizeof(bool) == 1);
@@ -1366,6 +1378,26 @@ class JitActivation : public Activation
 
     // Unregister the bailout data when the frame is reconstructed.
     void cleanBailoutData();
+
+    static size_t offsetOfLastProfilingFrame() {
+        return offsetof(JitActivation, lastProfilingFrame_);
+    }
+    void *lastProfilingFrame() {
+        return lastProfilingFrame_;
+    }
+    void setLastProfilingFrame(void *ptr) {
+        lastProfilingFrame_ = ptr;
+    }
+
+    static size_t offsetOfLastProfilingCallSite() {
+        return offsetof(JitActivation, lastProfilingCallSite_);
+    }
+    void *lastProfilingCallSite() {
+        return lastProfilingCallSite_;
+    }
+    void setLastProfilingCallSite(void *ptr) {
+        lastProfilingCallSite_ = ptr;
+    }
 };
 
 // A filtering of the ActivationIterator to only stop at JitActivations.
@@ -1379,12 +1411,6 @@ class JitActivationIterator : public ActivationIterator
   public:
     explicit JitActivationIterator(JSRuntime *rt)
       : ActivationIterator(rt)
-    {
-        settle();
-    }
-
-    explicit JitActivationIterator(PerThreadData *perThreadData)
-      : ActivationIterator(perThreadData)
     {
         settle();
     }

@@ -32,22 +32,52 @@ using namespace mozilla;
 
 //----------------------------------------------------------------------
 
+#ifdef DEBUG
+
+// Check that the style struct IDs are in the same order as they are
+// in nsStyleStructList.h, since when we set up the IDs, we include
+// the inherited and reset structs spearately from nsStyleStructList.h
+enum DebugStyleStruct {
+#define STYLE_STRUCT(name, checkdata_cb) eDebugStyleStruct_##name,
+#include "nsStyleStructList.h"
+#undef STYLE_STRUCT
+};
+
+#define STYLE_STRUCT(name, checkdata_cb) \
+  static_assert(static_cast<int>(eDebugStyleStruct_##name) == \
+                  static_cast<int>(eStyleStruct_##name), \
+                "Style struct IDs are not declared in order?");
+#include "nsStyleStructList.h"
+#undef STYLE_STRUCT
+
+const uint32_t nsStyleContext::sDependencyTable[] = {
+#define STYLE_STRUCT(name, checkdata_cb)
+#define STYLE_STRUCT_DEP(dep) NS_STYLE_INHERIT_BIT(dep) |
+#define STYLE_STRUCT_END() 0,
+#include "nsStyleStructList.h"
+#undef STYLE_STRUCT
+#undef STYLE_STRUCT_DEP
+#undef STYLE_STRUCT_END
+};
+
+#endif
 
 nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsIAtom* aPseudoTag,
                                nsCSSPseudoElements::Type aPseudoType,
                                nsRuleNode* aRuleNode,
                                bool aSkipParentDisplayBasedStyleFixup)
-  : mParent(aParent),
-    mChild(nullptr),
-    mEmptyChild(nullptr),
-    mPseudoTag(aPseudoTag),
-    mRuleNode(aRuleNode),
-    mCachedResetData(nullptr),
-    mBits(((uint64_t)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
-    mRefCnt(0)
+  : mParent(aParent)
+  , mChild(nullptr)
+  , mEmptyChild(nullptr)
+  , mPseudoTag(aPseudoTag)
+  , mRuleNode(aRuleNode)
+  , mCachedResetData(nullptr)
+  , mBits(((uint64_t)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT)
+  , mRefCnt(0)
 #ifdef DEBUG
   , mFrameRefCnt(0)
+  , mComputingStruct(nsStyleStructID_None)
 #endif
 {
   // This check has to be done "backward", because if it were written the
@@ -56,6 +86,12 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                 nsCSSPseudoElements::ePseudo_MAX,
                 "pseudo element bits no longer fit in a uint64_t");
   MOZ_ASSERT(aRuleNode);
+
+#ifdef DEBUG
+  static_assert(MOZ_ARRAY_LENGTH(nsStyleContext::sDependencyTable)
+                  == nsStyleStructID_Length,
+                "Number of items in dependency table doesn't match IDs");
+#endif
 
   mNextSibling = this;
   mPrevSibling = this;
@@ -402,6 +438,8 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 
   UNIQUE_CASE(Display)
   UNIQUE_CASE(Background)
+  UNIQUE_CASE(Border)
+  UNIQUE_CASE(Padding)
   UNIQUE_CASE(Text)
   UNIQUE_CASE(TextReset)
 
@@ -579,6 +617,30 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
     }
   }
 
+  // Suppress border/padding of ruby level containers
+  if (disp->mDisplay == NS_STYLE_DISPLAY_RUBY_BASE_CONTAINER ||
+      disp->mDisplay == NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER) {
+    if (StyleBorder()->GetComputedBorder() != nsMargin(0, 0, 0, 0)) {
+      nsStyleBorder* border =
+        static_cast<nsStyleBorder*>(GetUniqueStyleData(eStyleStruct_Border));
+      NS_FOR_CSS_SIDES(side) {
+        border->SetBorderWidth(side, 0);
+      }
+    }
+
+    nsMargin computedPadding;
+    if (!StylePadding()->GetPadding(computedPadding) ||
+        computedPadding != nsMargin(0, 0, 0, 0)) {
+      const nsStyleCoord zero(0, nsStyleCoord::CoordConstructor);
+      nsStylePadding* padding =
+        static_cast<nsStylePadding*>(GetUniqueStyleData(eStyleStruct_Padding));
+      NS_FOR_CSS_SIDES(side) {
+        padding->mPadding.Set(side, zero);
+      }
+      padding->RecalcData();
+    }
+  }
+
   // Compute User Interface style, to trigger loads of cursors
   StyleUserInterface();
 }
@@ -591,9 +653,9 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
   PROFILER_LABEL("nsStyleContext", "CalcStyleDifference",
     js::ProfileEntry::Category::CSS);
 
-  NS_ABORT_IF_FALSE(NS_IsHintSubset(aParentHintsNotHandledForDescendants,
-                                    nsChangeHint_Hints_NotHandledForDescendants),
-                    "caller is passing inherited hints, but shouldn't be");
+  MOZ_ASSERT(NS_IsHintSubset(aParentHintsNotHandledForDescendants,
+                             nsChangeHint_Hints_NotHandledForDescendants),
+             "caller is passing inherited hints, but shouldn't be");
 
   static_assert(nsStyleStructID_Length <= 32,
                 "aEqualStructs is not big enough");
@@ -772,7 +834,10 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
       const nsStyleBorder *otherVisBorder = otherVis->StyleBorder();
       NS_FOR_CSS_SIDES(side) {
         bool thisFG, otherFG;
-        nscolor thisColor, otherColor;
+        // Dummy initialisations to keep Valgrind/Memcheck happy.
+        // See bug 1122375 comment 4.
+        nscolor thisColor = NS_RGBA(0, 0, 0, 0);
+        nscolor otherColor = NS_RGBA(0, 0, 0, 0);
         thisVisBorder->GetBorderColor(side, thisColor, thisFG);
         otherVisBorder->GetBorderColor(side, otherColor, otherFG);
         if (thisFG != otherFG || (!thisFG && thisColor != otherColor)) {
@@ -812,7 +877,10 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
     if (!change && PeekStyleTextReset()) {
       const nsStyleTextReset *thisVisTextReset = thisVis->StyleTextReset();
       const nsStyleTextReset *otherVisTextReset = otherVis->StyleTextReset();
-      nscolor thisVisDecColor, otherVisDecColor;
+      // Dummy initialisations to keep Valgrind/Memcheck happy.
+      // See bug 1122375 comment 4.
+      nscolor thisVisDecColor = NS_RGBA(0, 0, 0, 0);
+      nscolor otherVisDecColor = NS_RGBA(0, 0, 0, 0);
       bool thisVisDecColorIsFG, otherVisDecColorIsFG;
       thisVisTextReset->GetDecorationColor(thisVisDecColor,
                                            thisVisDecColorIsFG);
@@ -970,8 +1038,8 @@ ExtractAnimationValue(nsCSSProperty aProperty,
   DebugOnly<bool> success =
     StyleAnimationValue::ExtractComputedValue(aProperty, aStyleContext,
                                               aResult);
-  NS_ABORT_IF_FALSE(success,
-                    "aProperty must be extractable by StyleAnimationValue");
+  MOZ_ASSERT(success,
+             "aProperty must be extractable by StyleAnimationValue");
 }
 
 static nscolor
@@ -1007,9 +1075,9 @@ nsStyleContext::GetVisitedDependentColor(nsCSSProperty aProperty)
   NS_ASSERTION(aProperty == eCSSProperty_color ||
                aProperty == eCSSProperty_background_color ||
                aProperty == eCSSProperty_border_top_color ||
-               aProperty == eCSSProperty_border_right_color_value ||
+               aProperty == eCSSProperty_border_right_color ||
                aProperty == eCSSProperty_border_bottom_color ||
-               aProperty == eCSSProperty_border_left_color_value ||
+               aProperty == eCSSProperty_border_left_color ||
                aProperty == eCSSProperty_outline_color ||
                aProperty == eCSSProperty__moz_column_rule_color ||
                aProperty == eCSSProperty_text_decoration_color ||

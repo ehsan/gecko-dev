@@ -3608,8 +3608,6 @@ status_t MPEG4Source::read(
                 mDataSource->readAt(offset, (uint8_t*)mBuffer->data(), size);
         } else {
             if (!ensureSrcBufferAllocated(size)) {
-                ALOGE("Error insufficient memory, requested %u bytes (had:%u)",
-                      size, mSrcBackend.Length());
                 return ERROR_MALFORMED;
             }
             num_bytes_read = mDataSource->readAt(offset, mSrcBuffer, size);
@@ -3975,8 +3973,6 @@ status_t MPEG4Source::fragmentedRead(
                 mDataSource->readAt(offset, (uint8_t*)mBuffer->data(), size);
         } else {
             if (!ensureSrcBufferAllocated(size)) {
-                ALOGE("Error insufficient memory, requested %u bytes (had:%u)",
-                      size, mSrcBackend.Length());
                 return ERROR_MALFORMED;
             }
             num_bytes_read = mDataSource->readAt(offset, mSrcBuffer, size);

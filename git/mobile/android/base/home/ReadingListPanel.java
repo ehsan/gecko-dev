@@ -7,6 +7,7 @@ package org.mozilla.gecko.home;
 
 import java.util.EnumSet;
 
+import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Telemetry;
@@ -14,13 +15,13 @@ import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.gecko.db.ReadingListAccessor;
 import org.mozilla.gecko.home.HomeContextMenuInfo.RemoveItemType;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 
 import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.CursorAdapter;
 import android.text.SpannableStringBuilder;
@@ -164,13 +165,16 @@ public class ReadingListPanel extends HomeFragment {
      * Cursor loader for the list of reading list items.
      */
     private static class ReadingListLoader extends SimpleCursorLoader {
+        private final ReadingListAccessor accessor;
+
         public ReadingListLoader(Context context) {
             super(context);
+            accessor = GeckoProfile.get(context).getDB().getReadingListAccessor();
         }
 
         @Override
         public Cursor loadCursor() {
-            return BrowserDB.getReadingList(getContext().getContentResolver());
+            return accessor.getReadingList(getContext().getContentResolver());
         }
     }
 

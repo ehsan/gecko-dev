@@ -14,6 +14,7 @@
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
 #include "nsIAnonymousContentCreator.h"
+#include "nsIDOMEventListener.h"
 
 class nsPresContext;
 class nsRenderingContext;
@@ -104,6 +105,18 @@ public:
     return mCustomContentContainer;
   }
 
+  /**
+   * Unhide the CustomContentContainer. This call only has an effect if
+   * mCustomContentContainer is non-null.
+   */
+  void ShowCustomContentContainer();
+
+  /**
+   * Hide the CustomContentContainer. This call only has an effect if
+   * mCustomContentContainer is non-null.
+   */
+  void HideCustomContentContainer();
+
   /** SetHasFocus tells the CanvasFrame to draw with focus ring
    *  @param aHasFocus true to show focus ring, false to hide it
    */
@@ -156,6 +169,24 @@ protected:
   nsCOMPtr<mozilla::dom::Element> mSelectionCaretsStartElement;
   nsCOMPtr<mozilla::dom::Element> mSelectionCaretsEndElement;
   nsCOMPtr<mozilla::dom::Element> mCustomContentContainer;
+
+  class DummyTouchListener MOZ_FINAL : public nsIDOMEventListener
+  {
+  public:
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE
+    {
+      return NS_OK;
+    }
+  private:
+    ~DummyTouchListener() {}
+  };
+
+  /**
+   * A no-op touch-listener used for APZ purposes.
+   */
+  nsRefPtr<DummyTouchListener> mDummyTouchListener;
 };
 
 /**

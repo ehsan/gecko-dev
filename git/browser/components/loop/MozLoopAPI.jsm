@@ -417,26 +417,6 @@ function injectLoopAPI(targetWindow) {
     },
 
     /**
-     * Used to note a call url expiry time. If the time is later than the current
-     * latest expiry time, then the stored expiry time is increased. For times
-     * sooner, this function is a no-op; this ensures we always have the latest
-     * expiry time for a url.
-     *
-     * This is used to determine whether or not we should be registering with the
-     * push server on start.
-     *
-     * @param {Integer} expiryTimeSeconds The seconds since epoch of the expiry time
-     *                                    of the url.
-     */
-    noteCallUrlExpiry: {
-      enumerable: true,
-      writable: true,
-      value: function(expiryTimeSeconds) {
-        MozLoopService.noteCallUrlExpiry(expiryTimeSeconds);
-      }
-    },
-
-    /**
      * Set any preference under "loop."
      *
      * @param {String} prefName The name of the pref without the preceding "loop."
@@ -769,6 +749,22 @@ function injectLoopAPI(targetWindow) {
         UITour.notify(subject, params);
       }
     },
+
+    /**
+     * Used to record the screen sharing state for a window so that it can
+     * be reflected on the toolbar button.
+     *
+     * @param {String} windowId The id of the conversation window the state
+     *                          is being changed for.
+     * @param {Boolean} active  Whether or not screen sharing is now active.
+     */
+    setScreenShareState: {
+      enumerable: true,
+      writable: true,
+      value: function(windowId, active) {
+        MozLoopService.setScreenShareState(windowId, active);
+      }
+    }
   };
 
   function onStatusChanged(aSubject, aTopic, aData) {

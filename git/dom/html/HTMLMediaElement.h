@@ -25,13 +25,6 @@
 #endif
 #include "nsGkAtoms.h"
 
-// Something on Linux #defines None, which is an entry in the
-// MediaWaitingFor enum, so undef it here before including the binfing,
-// so that the build doesn't fail...
-#ifdef None
-#undef None
-#endif
-
 // X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
 #ifdef CurrentTime
 #undef CurrentTime
@@ -245,6 +238,10 @@ public:
   // Check if the media element had crossorigin set when loading started
   bool ShouldCheckAllowOrigin();
 
+  // Returns true if the currently loaded resource is CORS same-origin with
+  // respect to the document.
+  bool IsCORSSameOrigin();
+
   // Is the media element potentially playing as defined by the HTML 5 specification.
   // http://www.whatwg.org/specs/web-apps/current-work/#potentially-playing
   bool IsPotentiallyPlaying() const;
@@ -341,7 +338,11 @@ public:
   MediaStream* GetSrcMediaStream() const
   {
     NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
-    return mSrcStream->GetStream();
+    if (!mPlaybackStream) {
+      // XXX Remove this check with CameraPreviewMediaStream per bug 1124630.
+      return mSrcStream->GetStream();
+    }
+    return mPlaybackStream->GetStream();
   }
 
   // WebIDL
@@ -406,6 +407,11 @@ public:
   void FastSeek(double aTime, ErrorResult& aRv);
 
   double Duration() const;
+
+  bool IsEncrypted() const
+  {
+    return mIsEncrypted;
+  }
 
   bool Paused() const
   {
@@ -539,8 +545,6 @@ public:
   already_AddRefed<Promise> SetMediaKeys(MediaKeys* mediaKeys,
                                          ErrorResult& aRv);
 
-  MediaWaitingFor WaitingFor() const;
-
   mozilla::dom::EventHandlerNonNull* GetOnencrypted();
   void SetOnencrypted(mozilla::dom::EventHandlerNonNull* listener);
 
@@ -628,7 +632,7 @@ protected:
   class MediaStreamTracksAvailableCallback;
   class StreamListener;
 
-  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   class WakeLockBoolWrapper {
@@ -1012,6 +1016,14 @@ protected:
   // At most one of mDecoder and mSrcStream can be non-null.
   nsRefPtr<DOMMediaStream> mSrcStream;
 
+  // Holds a reference to a MediaInputPort connecting mSrcStream to mPlaybackStream.
+  nsRefPtr<MediaInputPort> mPlaybackStreamInputPort;
+
+  // Holds a reference to a stream with mSrcStream as input but intended for
+  // playback. Used so we don't block playback of other video elements
+  // playing the same mSrcStream.
+  nsRefPtr<DOMMediaStream> mPlaybackStream;
+
   // Holds references to the DOM wrappers for the MediaStreams that we're
   // writing to.
   struct OutputMediaStream {
@@ -1294,6 +1306,9 @@ protected:
   // True if the media has a video track
   bool mHasVideo;
 
+  // True if the media has encryption information.
+  bool mIsEncrypted;
+
   // True if the media's channel's download has been suspended.
   bool mDownloadSuspendedByCache;
 
@@ -1319,8 +1334,6 @@ protected:
   nsRefPtr<AudioTrackList> mAudioTrackList;
 
   nsRefPtr<VideoTrackList> mVideoTrackList;
-
-  MediaWaitingFor mWaitingFor;
 
   enum ElementInTreeState {
     // The MediaElement is not in the DOM tree now.

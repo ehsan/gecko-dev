@@ -26,7 +26,7 @@ class DocAccessibleParent : public ProxyAccessible,
 {
 public:
   DocAccessibleParent() :
-    ProxyAccessible(this), mParentDoc(nullptr)
+    ProxyAccessible(this), mParentDoc(nullptr), mShutdown(false)
   { MOZ_COUNT_CTOR_INHERITED(DocAccessibleParent, ProxyAccessible); }
   ~DocAccessibleParent()
   {
@@ -45,7 +45,12 @@ public:
   virtual bool RecvShowEvent(const ShowEventData& aData) MOZ_OVERRIDE;
   virtual bool RecvHideEvent(const uint64_t& aRootID) MOZ_OVERRIDE;
 
-  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  void Destroy();
+  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE
+  {
+    if (!mShutdown)
+      Destroy();
+  }
 
   /*
    * Return the main processes representation of the parent document (if any)
@@ -75,6 +80,15 @@ public:
   {
     MOZ_ASSERT(mAccessibles.GetEntry(aAccessible->ID()));
     mAccessibles.RemoveEntry(aAccessible->ID());
+  }
+
+  /**
+   * Return the accessible for given id.
+   */
+  ProxyAccessible* GetAccessible(uintptr_t aID) const
+  {
+    ProxyEntry* e = mAccessibles.GetEntry(aID);
+    return e ? e->mProxy : nullptr;
   }
 
 private:
@@ -115,6 +129,7 @@ private:
    * proxy object so we can't use a real map.
    */
   nsTHashtable<ProxyEntry> mAccessibles;
+  bool mShutdown;
 };
 
 }

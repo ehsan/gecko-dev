@@ -44,15 +44,13 @@
 #include "vm/ScopeObject.h"
 #include "vm/StringBuffer.h"
 
-#include "jsinferinlines.h"
-
 #include "vm/Interpreter-inl.h"
 #include "vm/String-inl.h"
 #include "vm/StringObject-inl.h"
+#include "vm/TypeInference-inl.h"
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 using namespace js::unicode;
 
 using JS::Symbol;
@@ -182,7 +180,7 @@ str_escape(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     ScopedJSFreePtr<Latin1Char> newChars;
-    uint32_t newLength;
+    uint32_t newLength = 0;  // initialize to silence GCC warning
     if (str->hasLatin1Chars()) {
         AutoCheckCannotGC nogc;
         newChars = Escape(cx, str->latin1Chars(nogc), str->length(), &newLength);
@@ -389,7 +387,7 @@ str_enumerate(JSContext *cx, HandleObject obj)
         if (!str1)
             return false;
         value.setString(str1);
-        if (!JSObject::defineElement(cx, obj, i, value, nullptr, nullptr, STRING_ELEMENT_ATTRS))
+        if (!DefineElement(cx, obj, i, value, nullptr, nullptr, STRING_ELEMENT_ATTRS))
             return false;
     }
 
@@ -410,11 +408,8 @@ js::str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
         if (!str1)
             return false;
         RootedValue value(cx, StringValue(str1));
-        if (!JSObject::defineElement(cx, obj, uint32_t(slot), value, nullptr, nullptr,
-                                     STRING_ELEMENT_ATTRS))
-        {
+        if (!DefineElement(cx, obj, uint32_t(slot), value, nullptr, nullptr, STRING_ELEMENT_ATTRS))
             return false;
-        }
         *resolvedp = true;
     }
     return true;
@@ -761,14 +756,14 @@ ToUpperCase(JSContext *cx, JSLinearString *str)
                 return nullptr;
 
             ToUpperCaseImpl(buf.get(), chars, i, length);
-            newChars.construct<Latin1CharPtr>(buf);
+            newChars.construct<Latin1CharPtr>(Move(buf));
         } else {
             TwoByteCharPtr buf = cx->make_pod_array<char16_t>(length + 1);
             if (!buf)
                 return nullptr;
 
             ToUpperCaseImpl(buf.get(), chars, i, length);
-            newChars.construct<TwoByteCharPtr>(buf);
+            newChars.construct<TwoByteCharPtr>(Move(buf));
         }
     }
 
@@ -2173,7 +2168,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
 
         // Handle everything else generically (including throwing if .lastIndex is non-writable).
         RootedValue zero(cx, Int32Value(0));
-        return JSObject::setProperty(cx, obj_, obj_, cx->names().lastIndex, &zero, true);
+        return SetProperty(cx, obj_, obj_, cx->names().lastIndex, &zero, true);
     }
 
     RegExpShared &regExp() { return *re_; }
@@ -2335,9 +2330,9 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     RootedValue matchVal(cx, Int32Value(fm.match()));
     RootedValue textVal(cx, StringValue(textstr));
 
-    if (!JSObject::defineElement(cx, obj, 0, patternVal) ||
-        !JSObject::defineProperty(cx, obj, cx->names().index, matchVal) ||
-        !JSObject::defineProperty(cx, obj, cx->names().input, textVal))
+    if (!DefineElement(cx, obj, 0, patternVal) ||
+        !DefineProperty(cx, obj, cx->names().index, matchVal) ||
+        !DefineProperty(cx, obj, cx->names().input, textVal))
     {
         return false;
     }
@@ -3068,32 +3063,32 @@ CopySubstringsToFatInline(JSFatInlineString *dest, const CharT *src, const Strin
 }
 
 static inline JSFatInlineString *
-FlattenSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr, const StringRange *ranges,
+FlattenSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
                   size_t rangesLen, size_t outputLen)
 {
-    JSFatInlineString *str = NewGCFatInlineString<CanGC>(cx);
-    if (!str)
+    JSFatInlineString *result = NewGCFatInlineString<CanGC>(cx);
+    if (!result)
         return nullptr;
 
     AutoCheckCannotGC nogc;
-    if (flatStr->hasLatin1Chars())
-        CopySubstringsToFatInline(str, flatStr->latin1Chars(nogc), ranges, rangesLen, outputLen);
+    if (str->hasLatin1Chars())
+        CopySubstringsToFatInline(result, str->latin1Chars(nogc), ranges, rangesLen, outputLen);
     else
-        CopySubstringsToFatInline(str, flatStr->twoByteChars(nogc), ranges, rangesLen, outputLen);
-    return str;
+        CopySubstringsToFatInline(result, str->twoByteChars(nogc), ranges, rangesLen, outputLen);
+    return result;
 }
 
 static JSString *
-AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
-                 const StringRange *ranges, size_t rangesLen)
+AppendSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
+                 size_t rangesLen)
 {
     MOZ_ASSERT(rangesLen);
 
     /* For single substrings, construct a dependent string. */
     if (rangesLen == 1)
-        return NewDependentString(cx, flatStr, ranges[0].start, ranges[0].length);
+        return NewDependentString(cx, str, ranges[0].start, ranges[0].length);
 
-    bool isLatin1 = flatStr->hasLatin1Chars();
+    bool isLatin1 = str->hasLatin1Chars();
     uint32_t fatInlineMaxLength = JSFatInlineString::MAX_LENGTH_TWO_BYTE;
     if (isLatin1)
         fatInlineMaxLength = JSFatInlineString::MAX_LENGTH_LATIN1;
@@ -3116,10 +3111,10 @@ AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
         if (i == end) {
             /* Not even one range fits JSFatInlineString, use DependentString */
             const StringRange &sr = ranges[i++];
-            part = NewDependentString(cx, flatStr, sr.start, sr.length);
+            part = NewDependentString(cx, str, sr.start, sr.length);
         } else {
             /* Copy the ranges (linearly) into a JSFatInlineString */
-            part = FlattenSubstrings(cx, flatStr, ranges + i, end - i, substrLen);
+            part = FlattenSubstrings(cx, str, ranges + i, end - i, substrLen);
             i = end;
         }
 
@@ -3137,13 +3132,13 @@ AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
 static bool
 StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, MutableHandleValue rval)
 {
-    Rooted<JSFlatString*> flatStr(cx, str->ensureFlat(cx));
-    if (!flatStr)
+    RootedLinearString linearStr(cx, str->ensureLinear(cx));
+    if (!linearStr)
         return false;
 
     Vector<StringRange, 16, SystemAllocPolicy> ranges;
 
-    size_t charsLen = flatStr->length();
+    size_t charsLen = linearStr->length();
 
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
     size_t startIndex = 0; /* Index used for iterating through the string. */
@@ -3155,7 +3150,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         if (!CheckForInterrupt(cx))
             return false;
 
-        RegExpRunStatus status = re.execute(cx, flatStr, startIndex, &matches);
+        RegExpRunStatus status = re.execute(cx, linearStr, startIndex, &matches);
         if (status == RegExpRunStatus_Error)
             return false;
         if (status == RegExpRunStatus_Success_NotFound)
@@ -3186,7 +3181,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
             res = cx->global()->getRegExpStatics(cx);
             if (!res)
                 return false;
-            res->updateLazily(cx, flatStr, &re, lazyIndex);
+            res->updateLazily(cx, linearStr, &re, lazyIndex);
         }
         rval.setString(str);
         return true;
@@ -3197,7 +3192,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
     if (!res)
         return false;
 
-    res->updateLazily(cx, flatStr, &re, lazyIndex);
+    res->updateLazily(cx, linearStr, &re, lazyIndex);
 
     /* Include any remaining part of the string. */
     if (lastIndex < charsLen) {
@@ -3211,7 +3206,7 @@ StrReplaceRegexpRemove(JSContext *cx, HandleString str, RegExpShared &re, Mutabl
         return true;
     }
 
-    JSString *result = AppendSubstrings(cx, flatStr, ranges.begin(), ranges.length());
+    JSString *result = AppendSubstrings(cx, linearStr, ranges.begin(), ranges.length());
     if (!result)
         return false;
 
@@ -3556,7 +3551,7 @@ class SplitMatchResult {
 template<class Matcher>
 static ArrayObject *
 SplitHelper(JSContext *cx, HandleLinearString str, uint32_t limit, const Matcher &splitMatch,
-            Handle<TypeObject*> type)
+            HandleObjectGroup group)
 {
     size_t strLength = str->length();
     SplitMatchResult result;
@@ -3660,7 +3655,7 @@ SplitHelper(JSContext *cx, HandleLinearString str, uint32_t limit, const Matcher
                         return nullptr;
                 } else {
                     /* Only string entries have been accounted for so far. */
-                    AddTypePropertyId(cx, type, JSID_VOID, UndefinedValue());
+                    AddTypePropertyId(cx, group, JSID_VOID, UndefinedValue());
                     if (!splits.append(UndefinedValue()))
                         return nullptr;
                 }
@@ -3788,10 +3783,10 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    RootedTypeObject type(cx, GetTypeCallerInitObject(cx, JSProto_Array));
-    if (!type)
+    RootedObjectGroup group(cx, ObjectGroup::callingAllocationSiteGroup(cx, JSProto_Array));
+    if (!group)
         return false;
-    AddTypePropertyId(cx, type, JSID_VOID, Type::StringType());
+    AddTypePropertyId(cx, group, JSID_VOID, TypeSet::StringType());
 
     /* Step 5: Use the second argument as the split limit, if given. */
     uint32_t limit;
@@ -3825,7 +3820,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
         JSObject *aobj = NewDenseEmptyArray(cx);
         if (!aobj)
             return false;
-        aobj->setType(type);
+        aobj->setGroup(group);
         args.rval().setObject(*aobj);
         return true;
     }
@@ -3836,7 +3831,7 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
         JSObject *aobj = NewDenseCopiedArray(cx, 1, v.address());
         if (!aobj)
             return false;
-        aobj->setType(type);
+        aobj->setGroup(group);
         args.rval().setObject(*aobj);
         return true;
     }
@@ -3851,26 +3846,26 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
             aobj = CharSplitHelper(cx, linearStr, limit);
         } else {
             SplitStringMatcher matcher(cx, sepstr);
-            aobj = SplitHelper(cx, linearStr, limit, matcher, type);
+            aobj = SplitHelper(cx, linearStr, limit, matcher, group);
         }
     } else {
         RegExpStatics *res = cx->global()->getRegExpStatics(cx);
         if (!res)
             return false;
         SplitRegExpMatcher matcher(*re, res);
-        aobj = SplitHelper(cx, linearStr, limit, matcher, type);
+        aobj = SplitHelper(cx, linearStr, limit, matcher, group);
     }
     if (!aobj)
         return false;
 
     /* Step 16. */
-    aobj->setType(type);
+    aobj->setGroup(group);
     args.rval().setObject(*aobj);
     return true;
 }
 
 JSObject *
-js::str_split_string(JSContext *cx, HandleTypeObject type, HandleString str, HandleString sep)
+js::str_split_string(JSContext *cx, HandleObjectGroup group, HandleString str, HandleString sep)
 {
     RootedLinearString linearStr(cx, str->ensureLinear(cx));
     if (!linearStr)
@@ -3887,13 +3882,13 @@ js::str_split_string(JSContext *cx, HandleTypeObject type, HandleString str, Han
         aobj = CharSplitHelper(cx, linearStr, limit);
     } else {
         SplitStringMatcher matcher(cx, linearSep);
-        aobj = SplitHelper(cx, linearStr, limit, matcher, type);
+        aobj = SplitHelper(cx, linearStr, limit, matcher, group);
     }
 
     if (!aobj)
         return nullptr;
 
-    aobj->setType(type);
+    aobj->setGroup(group);
     return aobj;
 }
 
@@ -4265,7 +4260,7 @@ js::ValueToSource(JSContext *cx, HandleValue v)
 
     RootedValue fval(cx);
     RootedObject obj(cx, &v.toObject());
-    if (!JSObject::getProperty(cx, obj, obj, cx->names().toSource, &fval))
+    if (!GetProperty(cx, obj, obj, cx->names().toSource, &fval))
         return nullptr;
     if (IsCallable(fval)) {
         RootedValue rval(cx);

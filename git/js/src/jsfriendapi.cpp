@@ -15,13 +15,13 @@
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsprf.h"
-#include "jsproxy.h"
 #include "jswatchpoint.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
 #include "prmjtime.h"
 
 #include "builtin/TestingFunctions.h"
+#include "js/Proxy.h"
 #include "proxy/DeadObjectProxy.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/WrapperObject.h"
@@ -63,14 +63,6 @@ js::ForgetSourceHook(JSRuntime *rt)
 {
     return Move(rt->sourceHook);
 }
-
-#ifdef NIGHTLY_BUILD
-JS_FRIEND_API(void)
-js::SetAssertOnScriptEntryHook(JSRuntime *rt, AssertOnScriptEntryHook hook)
-{
-    rt->assertOnScriptEntryHook_ = hook;
-}
-#endif
 
 JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
@@ -122,7 +114,7 @@ JS_SplicePrototype(JSContext *cx, HandleObject obj, HandleObject proto)
      */
     CHECK_REQUEST(cx);
 
-    if (!obj->hasSingletonType()) {
+    if (!obj->isSingleton()) {
         /*
          * We can see non-singleton objects when trying to splice prototypes
          * due to mutable __proto__ (ugh).
@@ -140,11 +132,11 @@ JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, HandleObject pro
 {
     /*
      * Create our object with a null proto and then splice in the correct proto
-     * after we setSingletonType, so that we don't pollute the default
-     * TypeObject attached to our proto with information about our object, since
-     * we're not going to be using that TypeObject anyway.
+     * after we setSingleton, so that we don't pollute the default
+     * ObjectGroup attached to our proto with information about our object, since
+     * we're not going to be using that ObjectGroup anyway.
      */
-    RootedObject obj(cx, NewObjectWithGivenProto(cx, (const js::Class *)clasp, nullptr,
+    RootedObject obj(cx, NewObjectWithGivenProto(cx, (const js::Class *)clasp, NullPtr(),
                                                  parent, SingletonObject));
     if (!obj)
         return nullptr;
@@ -268,7 +260,7 @@ js_ObjectClassIs(JSContext *cx, HandleObject obj, ESClassValue classValue)
 JS_FRIEND_API(const char *)
 js_ObjectClassName(JSContext *cx, HandleObject obj)
 {
-    return JSObject::className(cx, obj);
+    return GetObjectClassName(cx, obj);
 }
 
 JS_FRIEND_API(JS::Zone *)
@@ -397,7 +389,7 @@ js::GetOutermostEnclosingFunctionOfScriptedCaller(JSContext *cx)
 
     RootedFunction curr(cx, iter.callee(cx));
     for (StaticScopeIter<NoGC> i(curr); !i.done(); i++) {
-        if (i.type() == StaticScopeIter<NoGC>::FUNCTION)
+        if (i.type() == StaticScopeIter<NoGC>::Function)
             curr = &i.fun();
     }
     return curr;
@@ -477,7 +469,7 @@ js::GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<J
     if (IsProxy(obj))
         return JS_GetPrototype(cx, obj, proto);
 
-    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
+    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->group->proto);
     return true;
 }
 
@@ -507,7 +499,7 @@ js::GetGeneric(JSContext *cx, JSObject *objArg, JSObject *receiverArg, jsid idAr
     RootedObject obj(cx, objArg), receiver(cx, receiverArg);
     RootedId id(cx, idArg);
     RootedValue value(cx);
-    if (!JSObject::getGeneric(cx, obj, receiver, id, &value))
+    if (!GetProperty(cx, obj, receiver, id, &value))
         return false;
     *vp = value;
     return true;
@@ -707,7 +699,7 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
     RootedFunction fun(cx, iter.maybeCallee(cx));
     RootedString funname(cx);
     if (fun)
-        funname = fun->atom();
+        funname = fun->displayAtom();
 
     RootedValue thisVal(cx);
     if (iter.hasUsableAbstractFramePtr() && iter.computeThis(cx)) {
@@ -829,7 +821,7 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
             RootedValue key(cx, IdToValue(id));
             RootedValue v(cx);
 
-            if (!JSObject::getGeneric(cx, obj, obj, id, &v)) {
+            if (!GetProperty(cx, obj, obj, id, &v)) {
                 buf = JS_sprintf_append(buf, "    <Failed to fetch property while inspecting stack frame>\n");
                 cx->clearPendingException();
                 continue;
@@ -1052,7 +1044,7 @@ JS::ObjectPtr::trace(JSTracer *trc, const char *name)
 JS_FRIEND_API(JSObject *)
 js::GetTestingFunctions(JSContext *cx)
 {
-    RootedObject obj(cx, JS_NewObject(cx, nullptr, NullPtr(), NullPtr()));
+    RootedObject obj(cx, JS_NewPlainObject(cx));
     if (!obj)
         return nullptr;
 
@@ -1195,7 +1187,7 @@ js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
     if (descriptor.hasSetterObject())
         assertSameCompartment(cx, descriptor.setterObject());
 
-    return DefineOwnProperty(cx, HandleObject(obj), id, descriptor, bp);
+    return StandardDefineProperty(cx, obj, id, descriptor, bp);
 }
 
 JS_FRIEND_API(bool)

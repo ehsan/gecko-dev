@@ -40,7 +40,7 @@ protected:
   virtual ~BackgroundChildImpl();
 
   virtual void
-  ProcessingError(Result aWhat) MOZ_OVERRIDE;
+  ProcessingError(Result aCode, const char* aReason) MOZ_OVERRIDE;
 
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
@@ -70,6 +70,20 @@ protected:
 
   virtual bool
   DeallocPFileDescriptorSetChild(PFileDescriptorSetChild* aActor) MOZ_OVERRIDE;
+
+  virtual PVsyncChild*
+  AllocPVsyncChild() MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPVsyncChild(PVsyncChild* aActor) MOZ_OVERRIDE;
+
+  virtual PBroadcastChannelChild*
+  AllocPBroadcastChannelChild(const PrincipalInfo& aPrincipalInfo,
+                              const nsString& aOrigin,
+                              const nsString& aChannel) MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPBroadcastChannelChild(PBroadcastChannelChild* aActor) MOZ_OVERRIDE;
 };
 
 class BackgroundChildImpl::ThreadLocal MOZ_FINAL

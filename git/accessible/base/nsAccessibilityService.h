@@ -11,6 +11,7 @@
 #include "mozilla/a11y/DocManager.h"
 #include "mozilla/a11y/FocusManager.h"
 #include "mozilla/a11y/SelectionManager.h"
+#include "mozilla/Preferences.h"
 
 #include "nsIObserver.h"
 
@@ -251,12 +252,11 @@ GetAccService()
 inline bool
 IPCAccessibilityActive()
 {
-  // Don't allow IPC accessibility to ride the 37 train.
-  return false;
 #ifdef MOZ_B2G
   return false;
 #else
-  return XRE_GetProcessType() == GeckoProcessType_Content;
+  return XRE_GetProcessType() == GeckoProcessType_Content &&
+    mozilla::Preferences::GetBool("accessibility.ipc_architecture.enabled", true);
 #endif
 }
 

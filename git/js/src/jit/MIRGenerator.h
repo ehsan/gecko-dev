@@ -83,14 +83,12 @@ class MIRGenerator
         return instrumentedProfiling_;
     }
 
-    bool isNativeToBytecodeMapEnabled() {
-        if (compilingAsmJS())
-            return false;
-#ifdef DEBUG
-        return true;
-#else
-        return instrumentedProfiling();
-#endif
+    bool isProfilerInstrumentationEnabled() {
+        return !compilingAsmJS() && instrumentedProfiling();
+    }
+
+    bool isOptimizationTrackingEnabled() {
+        return isProfilerInstrumentationEnabled() && !info().isAnalysis();
     }
 
     // Whether the main thread is trying to cancel this build.
@@ -156,12 +154,12 @@ class MIRGenerator
         return modifiesFrameArguments_;
     }
 
-    typedef Vector<types::TypeObject *, 0, JitAllocPolicy> TypeObjectVector;
+    typedef Vector<ObjectGroup *, 0, JitAllocPolicy> ObjectGroupVector;
 
     // When abortReason() == AbortReason_NewScriptProperties, all types which
     // the new script properties analysis hasn't been performed on yet.
-    const TypeObjectVector &abortedNewScriptPropertiesTypes() const {
-        return abortedNewScriptPropertiesTypes_;
+    const ObjectGroupVector &abortedNewScriptPropertiesGroups() const {
+        return abortedNewScriptPropertiesGroups_;
     }
 
   public:
@@ -176,7 +174,7 @@ class MIRGenerator
     MIRGraph *graph_;
     AbortReason abortReason_;
     bool shouldForceAbort_; // Force AbortReason_Disable
-    TypeObjectVector abortedNewScriptPropertiesTypes_;
+    ObjectGroupVector abortedNewScriptPropertiesGroups_;
     bool error_;
     mozilla::Atomic<bool, mozilla::Relaxed> *pauseBuild_;
     mozilla::Atomic<bool, mozilla::Relaxed> cancelBuild_;
@@ -195,7 +193,13 @@ class MIRGenerator
     bool instrumentedProfiling_;
     bool instrumentedProfilingIsCached_;
 
-    void addAbortedNewScriptPropertiesType(types::TypeObject *type);
+    // List of nursery objects used by this compilation. Can be traced by a
+    // minor GC while compilation happens off-thread. This Vector should only
+    // be accessed on the main thread (IonBuilder, nursery GC or
+    // CodeGenerator::link).
+    ObjectVector nurseryObjects_;
+
+    void addAbortedNewScriptPropertiesGroup(ObjectGroup *type);
     void setForceAbort() {
         shouldForceAbort_ = true;
     }
@@ -212,6 +216,12 @@ class MIRGenerator
 
   public:
     const JitCompileOptions options;
+
+    void traceNurseryObjects(JSTracer *trc);
+
+    const ObjectVector &nurseryObjects() const {
+        return nurseryObjects_;
+    }
 };
 
 } // namespace jit

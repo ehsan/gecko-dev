@@ -45,7 +45,7 @@ public:
   virtual bool AttributeDefinesGeometry(const nsIAtom *aName) MOZ_OVERRIDE;
   virtual bool IsMarkable() MOZ_OVERRIDE { return true; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
-  virtual bool GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
+  virtual bool GetGeometryBounds(Rect* aBounds, const StrokeOptions& aStrokeOptions,
                                  const Matrix& aTransform) MOZ_OVERRIDE;
 
   // WebIDL

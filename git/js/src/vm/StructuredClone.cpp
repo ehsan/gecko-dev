@@ -31,7 +31,6 @@
 
 #include "mozilla/Endian.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/TypedEnum.h"
 
 #include <algorithm>
 
@@ -65,7 +64,7 @@ using JS::CanonicalizeNaN;
 // a stable ID, it need not be at the end of the list and should not be used for
 // sizing data structures.
 
-enum StructuredDataType MOZ_ENUM_TYPE(uint32_t) {
+enum StructuredDataType : uint32_t {
     /* Structured data types provided by the engine */
     SCTAG_FLOAT_MAX = 0xFFF00000,
     SCTAG_NULL = 0xFFFF0000,
@@ -336,6 +335,7 @@ struct JSStructuredCloneWriter {
     RootedValue transferable;
     AutoObjectVector transferableObjects;
 
+    friend bool JS_WriteString(JSStructuredCloneWriter *w, HandleString str);
     friend bool JS_WriteTypedArray(JSStructuredCloneWriter *w, HandleValue v);
 };
 
@@ -905,7 +905,7 @@ JSStructuredCloneWriter::startObject(HandleObject obj, bool *backref)
 {
     /* Handle cycles in the object graph. */
     CloneMemory::AddPtr p = memory.lookupForAdd(obj);
-    if ((*backref = p))
+    if ((*backref = p.found()))
         return out.writePair(SCTAG_BACK_REFERENCE_OBJECT, p->value());
     if (!memory.add(p, obj, memory.count()))
         return false;
@@ -1245,7 +1245,7 @@ JSStructuredCloneWriter::write(HandleValue v)
                 if (found) {
                     RootedValue val(context());
                     if (!startWrite(key) ||
-                        !JSObject::getGeneric(context(), obj, obj, id, &val) ||
+                        !GetProperty(context(), obj, obj, id, &val) ||
                         !startWrite(val))
                     {
                         return false;
@@ -1863,7 +1863,7 @@ JSStructuredCloneReader::read(MutableHandleValue vp)
             if (!ValueToId<CanGC>(context(), key, &id))
                 return false;
 
-            if (!JSObject::defineGeneric(context(), obj, id, val))
+            if (!DefineProperty(context(), obj, id, val))
                 return false;
          }
     }
@@ -2129,6 +2129,12 @@ JS_PUBLIC_API(bool)
 JS_WriteBytes(JSStructuredCloneWriter *w, const void *p, size_t len)
 {
     return w->output().writeBytes(p, len);
+}
+
+JS_PUBLIC_API(bool)
+JS_WriteString(JSStructuredCloneWriter *w, HandleString str)
+{
+    return w->writeString(SCTAG_STRING, str);
 }
 
 JS_PUBLIC_API(bool)

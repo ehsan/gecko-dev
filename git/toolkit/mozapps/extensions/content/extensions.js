@@ -2598,6 +2598,10 @@ var gListView = {
     while (this._listBox.itemCount > 0)
       this._listBox.removeItemAt(0);
 
+    if (aType == "plugin") {
+      navigator.plugins.refresh(false);
+    }
+
     var self = this;
     getAddonsAndInstalls(aType, function show_getAddonsAndInstalls(aAddonsList, aInstallsList) {
       if (gViewController && aRequest != gViewController.currentViewRequest)
@@ -3116,7 +3120,9 @@ var gDetailView = {
       } else if (this._addon.isGMPlugin && !this._addon.isInstalled) {
         this.node.setAttribute("notification", "warning");
         let warning = document.getElementById("detail-warning");
-        warning.textContent = gStrings.ext.GetStringFromName("details.notification.openH264Pending");
+        warning.textContent =
+          gStrings.ext.formatStringFromName("details.notification.gmpPending",
+                                            [this._addon.name], 1);
       } else {
         this.node.removeAttribute("notification");
       }

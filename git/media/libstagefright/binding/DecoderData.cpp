@@ -12,11 +12,9 @@
 #include "media/stagefright/MediaDefs.h"
 #include "media/stagefright/Utils.h"
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/fallible.h"
 #include "include/ESDS.h"
 
 using namespace stagefright;
-using mozilla::fallible_t;
 
 namespace mp4_demuxer
 {
@@ -224,7 +222,7 @@ MP4Sample::Clone() const
   s->size = size;
   s->crypto = crypto;
   s->extra_data = extra_data;
-  s->extra_buffer = s->data = new ((fallible_t())) uint8_t[size];
+  s->extra_buffer = s->data = new (fallible) uint8_t[size];
   if (!s->extra_buffer) {
     return nullptr;
   }
@@ -265,7 +263,7 @@ MP4Sample::Pad(size_t aPaddingBytes)
   // not then we copy to a new buffer.
   uint8_t* newData = mMediaBuffer && newSize <= mMediaBuffer->size()
                        ? data
-                       : new ((fallible_t())) uint8_t[newSize];
+                       : new (fallible) uint8_t[newSize];
   if (!newData) {
     return false;
   }
@@ -293,7 +291,7 @@ MP4Sample::Prepend(const uint8_t* aData, size_t aSize)
   // not then we copy to a new buffer.
   uint8_t* newData = mMediaBuffer && newSize <= mMediaBuffer->size()
                        ? data
-                       : new ((fallible_t())) uint8_t[newSize];
+                       : new (fallible) uint8_t[newSize];
   if (!newData) {
     return false;
   }
@@ -320,7 +318,7 @@ MP4Sample::Replace(const uint8_t* aData, size_t aSize)
   // not then we copy to a new buffer.
   uint8_t* newData = mMediaBuffer && aSize <= mMediaBuffer->size()
                        ? data
-                       : new ((fallible_t())) uint8_t[aSize];
+                       : new (fallible) uint8_t[aSize];
   if (!newData) {
     return false;
   }

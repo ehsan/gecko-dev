@@ -75,12 +75,8 @@ static const uint32_t GRAY = 1;
  */
 const uintptr_t ChunkLocationBitNursery = 1;       // Standard GGC nursery
 const uintptr_t ChunkLocationBitTenuredHeap = 2;   // Standard GGC tenured generation
-const uintptr_t ChunkLocationBitPJSNewspace = 4;   // The PJS generational GC's allocation space
-const uintptr_t ChunkLocationBitPJSFromspace = 8;  // The PJS generational GC's fromspace (during GC)
 
-const uintptr_t ChunkLocationAnyNursery = ChunkLocationBitNursery |
-                                          ChunkLocationBitPJSNewspace |
-                                          ChunkLocationBitPJSFromspace;
+const uintptr_t ChunkLocationAnyNursery = ChunkLocationBitNursery;
 
 #ifdef JS_DEBUG
 /* When downcasting, ensure we are actually the right type. */
@@ -157,9 +153,6 @@ struct Zone
 // to several kinds of GC thing.
 class JS_FRIEND_API(GCCellPtr)
 {
-    typedef void (GCCellPtr::* ConvertibleToBool)();
-    void nonNull() {}
-
   public:
     // Construction from a void* and trace kind.
     GCCellPtr(void *gcthing, JSGCTraceKind traceKind) : ptr(checkedCast(gcthing, traceKind)) {}
@@ -183,9 +176,9 @@ class JS_FRIEND_API(GCCellPtr)
     }
 
     // Allow GCCellPtr to be used in a boolean context.
-    operator ConvertibleToBool() const {
+    explicit operator bool() const {
         MOZ_ASSERT(bool(asCell()) == (kind() != JSTRACE_NULL));
-        return asCell() ? &GCCellPtr::nonNull : 0;
+        return asCell();
     }
 
     // Simplify checks to the kind.
@@ -244,6 +237,18 @@ class JS_FRIEND_API(GCCellPtr)
 
     uintptr_t ptr;
 };
+
+inline bool
+operator==(const GCCellPtr &ptr1, const GCCellPtr &ptr2)
+{
+    return ptr1.asCell() == ptr2.asCell();
+}
+
+inline bool
+operator!=(const GCCellPtr &ptr1, const GCCellPtr &ptr2)
+{
+    return !(ptr1 == ptr2);
+}
 
 } /* namespace JS */
 

@@ -18,14 +18,13 @@
 #include "vm/Interpreter.h"
 #include "vm/TraceLogging.h"
 
-#include "jsinferinlines.h"
-
 #include "jit/BaselineFrame-inl.h"
 #include "jit/JitFrames-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
 #include "vm/StringObject-inl.h"
+#include "vm/TypeInference-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -37,10 +36,9 @@ namespace jit {
 // run before the constructors for static VMFunctions.
 /* static */ VMFunction *VMFunction::functions;
 
-AutoDetectInvalidation::AutoDetectInvalidation(JSContext *cx, MutableHandleValue rval,
-                                               IonScript *ionScript)
+AutoDetectInvalidation::AutoDetectInvalidation(JSContext *cx, MutableHandleValue rval)
   : cx_(cx),
-    ionScript_(ionScript ? ionScript : GetTopJitJSScript(cx)->ionScript()),
+    ionScript_(GetTopJitJSScript(cx)->ionScript()),
     rval_(rval),
     disabled_(false)
 { }
@@ -58,25 +56,9 @@ VMFunction::addToFunctions()
 }
 
 bool
-InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Value *rval)
+InvokeFunction(JSContext *cx, HandleObject obj, uint32_t argc, Value *argv, Value *rval)
 {
-    RootedObject obj(cx, obj0);
-    if (obj->is<JSFunction>()) {
-        RootedFunction fun(cx, &obj->as<JSFunction>());
-        if (fun->isInterpreted()) {
-            if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
-                return false;
-
-            // Clone function at call site if needed.
-            if (fun->nonLazyScript()->shouldCloneAtCallsite()) {
-                jsbytecode *pc;
-                RootedScript script(cx, cx->currentScript(&pc));
-                fun = CloneFunctionAtCallsite(cx, fun, script, pc);
-                if (!fun)
-                    return false;
-            }
-        }
-    }
+    AutoArrayRooter argvRoot(cx, argc + 1, argv);
 
     // Data in the argument vector is arranged for a JIT -> JIT call.
     Value thisv = argv[0];
@@ -97,7 +79,7 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
     if (obj->is<JSFunction>()) {
         jsbytecode *pc;
         RootedScript script(cx, cx->currentScript(&pc));
-        types::TypeScript::Monitor(cx, script, pc, rv.get());
+        TypeScript::Monitor(cx, script, pc, rv.get());
     }
 
     *rval = rv;
@@ -203,7 +185,7 @@ MutatePrototype(JSContext *cx, HandlePlainObject obj, HandleValue value)
     RootedObject newProto(cx, value.toObjectOrNull());
 
     bool succeeded;
-    if (!JSObject::setProto(cx, obj, newProto, &succeeded))
+    if (!SetPrototype(cx, obj, newProto, &succeeded))
         return false;
     MOZ_ASSERT(succeeded);
     return true;
@@ -213,7 +195,7 @@ bool
 InitProp(JSContext *cx, HandleNativeObject obj, HandlePropertyName name, HandleValue value)
 {
     RootedId id(cx, NameToId(name));
-    return DefineNativeProperty(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE);
+    return NativeDefineProperty(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE);
 }
 
 template<bool Equal>
@@ -285,37 +267,16 @@ template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString 
 JSObject*
 NewInitObject(JSContext *cx, HandlePlainObject templateObject)
 {
-    NewObjectKind newKind = templateObject->hasSingletonType() ? SingletonObject : GenericObject;
-    if (!templateObject->hasLazyType() && templateObject->type()->shouldPreTenure())
+    NewObjectKind newKind = templateObject->isSingleton() ? SingletonObject : GenericObject;
+    if (!templateObject->hasLazyGroup() && templateObject->group()->shouldPreTenure())
         newKind = TenuredObject;
     RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
 
     if (!obj)
         return nullptr;
 
-    if (!templateObject->hasSingletonType())
-        obj->setType(templateObject->type());
-
-    return obj;
-}
-
-JSObject *
-NewInitObjectWithClassPrototype(JSContext *cx, HandlePlainObject templateObject)
-{
-    MOZ_ASSERT(!templateObject->hasSingletonType());
-    MOZ_ASSERT(!templateObject->hasLazyType());
-
-    NewObjectKind newKind = templateObject->type()->shouldPreTenure()
-                            ? TenuredObject
-                            : GenericObject;
-    PlainObject *obj = NewObjectWithGivenProto<PlainObject>(cx,
-                                                            templateObject->getProto(),
-                                                            cx->global(),
-                                                            newKind);
-    if (!obj)
-        return nullptr;
-
-    obj->setType(templateObject->type());
+    if (!templateObject->isSingleton())
+        obj->setGroup(templateObject->group());
 
     return obj;
 }
@@ -349,7 +310,7 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     // have to monitor the return value.
     rval.set(argv[0]);
     if (rval.isUndefined())
-        types::TypeScript::Monitor(cx, rval);
+        TypeScript::Monitor(cx, rval);
     return true;
 }
 
@@ -399,7 +360,7 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     // have to monitor the return value.
     rval.set(argv[0]);
     if (rval.isUndefined())
-        types::TypeScript::Monitor(cx, rval);
+        TypeScript::Monitor(cx, rval);
     return true;
 }
 
@@ -504,17 +465,17 @@ SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValu
     }
 
     if (MOZ_LIKELY(!obj->getOps()->setProperty)) {
-        return baseops::SetPropertyHelper(
+        return NativeSetProperty(
             cx, obj.as<NativeObject>(), obj.as<NativeObject>(), id,
             (op == JSOP_SETNAME || op == JSOP_STRICTSETNAME ||
              op == JSOP_SETGNAME || op == JSOP_STRICTSETGNAME)
-            ? baseops::Unqualified
-            : baseops::Qualified,
+            ? Unqualified
+            : Qualified,
             &v,
             strict);
     }
 
-    return JSObject::setGeneric(cx, obj, obj, id, &v, strict);
+    return SetProperty(cx, obj, obj, id, &v, strict);
 }
 
 bool
@@ -538,9 +499,9 @@ MallocWrapper(JSRuntime *rt, size_t nbytes)
 }
 
 JSObject *
-NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type, uint32_t lexicalBegin)
+NewCallObject(JSContext *cx, HandleShape shape, HandleObjectGroup group, uint32_t lexicalBegin)
 {
-    JSObject *obj = CallObject::create(cx, shape, type, lexicalBegin);
+    JSObject *obj = CallObject::create(cx, shape, group, lexicalBegin);
     if (!obj)
         return nullptr;
 
@@ -577,32 +538,11 @@ NewStringObject(JSContext *cx, HandleString str)
 }
 
 bool
-SPSEnter(JSContext *cx, HandleScript script)
-{
-    return cx->runtime()->spsProfiler.enter(script, script->functionNonDelazifying());
-}
-
-bool
-SPSExit(JSContext *cx, HandleScript script)
-{
-    cx->runtime()->spsProfiler.exit(script, script->functionNonDelazifying());
-    return true;
-}
-
-bool
 OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, bool *out)
 {
     RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, key, &id))
-        return false;
-
-    RootedObject obj2(cx);
-    RootedShape prop(cx);
-    if (!JSObject::lookupGeneric(cx, obj, id, &obj2, &prop))
-        return false;
-
-    *out = !!prop;
-    return true;
+    return ValueToId<CanGC>(cx, key, &id) &&
+           HasProperty(cx, obj, id, out);
 }
 
 bool
@@ -623,7 +563,7 @@ GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rva
     // purposes, as its side effect is not observable from JS. We are
     // guaranteed to bail out after this function, but because of its AliasSet,
     // type info will not be reflowed. Manually monitor here.
-    types::TypeScript::Monitor(cx, rval);
+    TypeScript::Monitor(cx, rval);
 
     return true;
 }
@@ -739,11 +679,6 @@ GetIndexFromString(JSString *str)
 bool
 DebugPrologue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *mustReturn)
 {
-    // Mark the BaselineFrame as a debuggee frame if necessary. This must be
-    // done dynamically, so we might as well do it here.
-    if (frame->script()->isDebuggee())
-        frame->setIsDebuggee();
-
     *mustReturn = false;
 
     switch (Debugger::onEnterFrame(cx, frame)) {
@@ -785,8 +720,8 @@ bool
 DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
 {
     // Unwind scope chain to stack depth 0.
-    ScopeIter si(frame, pc, cx);
-    UnwindAllScopes(cx, si);
+    ScopeIter si(cx, frame, pc);
+    UnwindAllScopesInFrame(cx, si);
     jsbytecode *unwindPc = frame->script()->main();
     frame->setOverridePc(unwindPc);
 
@@ -803,22 +738,13 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
         DebugScopes::onPopStrictEvalScope(frame);
     }
 
-    // If the frame has a pushed SPS frame, make sure to pop it.
-    if (frame->hasPushedSPSFrame()) {
-        cx->runtime()->spsProfiler.exit(frame->script(), frame->maybeFun());
-        // Unset the pushedSPSFrame flag because DebugEpilogue may get called before
-        // probes::ExitScript in baseline during exception handling, and we don't
-        // want to double-pop SPS frames.
-        frame->unsetPushedSPSFrame();
-    }
-
     if (!ok) {
         // Pop this frame by updating jitTop, so that the exception handling
         // code will start at the previous frame.
 
         JitFrameLayout *prefix = frame->framePrefix();
         EnsureExitFrame(prefix);
-        cx->mainThread().jitTop = (uint8_t *)prefix;
+        cx->runtime()->jitTop = (uint8_t *)prefix;
         return false;
     }
 
@@ -827,6 +753,13 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
     // builds after each callVM, to ensure this flag is not set.
     frame->clearOverridePc();
     return true;
+}
+
+void
+FrameIsDebuggeeCheck(BaselineFrame *frame)
+{
+    if (frame->script()->isDebuggee())
+        frame->setIsDebuggee();
 }
 
 JSObject *
@@ -928,7 +861,7 @@ GeneratorThrowOrClose(JSContext *cx, BaselineFrame *frame, Handle<GeneratorObjec
     frame->setOverridePc(script->offsetToPC(offset));
 
     MOZ_ALWAYS_TRUE(DebugAfterYield(cx, frame));
-    MOZ_ALWAYS_FALSE(js::GeneratorThrowOrClose(cx, genObj, arg, resumeKind));
+    MOZ_ALWAYS_FALSE(js::GeneratorThrowOrClose(cx, frame, genObj, arg, resumeKind));
     return false;
 }
 
@@ -962,7 +895,7 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
         Rooted<ArrayObject*> arrRes(cx, &objRes->as<ArrayObject>());
 
         MOZ_ASSERT(!arrRes->getDenseInitializedLength());
-        MOZ_ASSERT(arrRes->type() == templateObj->type());
+        MOZ_ASSERT(arrRes->group() == templateObj->group());
 
         // Fast path: we managed to allocate the array inline; initialize the
         // slots.
@@ -976,12 +909,12 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
         return arrRes;
     }
 
-    NewObjectKind newKind = templateObj->type()->shouldPreTenure()
+    NewObjectKind newKind = templateObj->group()->shouldPreTenure()
                             ? TenuredObject
                             : GenericObject;
-    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, nullptr, newKind);
+    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, NullPtr(), newKind);
     if (arrRes)
-        arrRes->setType(templateObj->type());
+        arrRes->setGroup(templateObj->group());
     return arrRes;
 }
 
@@ -1226,8 +1159,8 @@ AssertValidObjectPtr(JSContext *cx, JSObject *obj)
     MOZ_ASSERT(obj->compartment() == cx->compartment());
     MOZ_ASSERT(obj->runtimeFromMainThread() == cx->runtime());
 
-    MOZ_ASSERT_IF(!obj->hasLazyType(),
-                  obj->type()->clasp() == obj->lastProperty()->getObjectClass());
+    MOZ_ASSERT_IF(!obj->hasLazyGroup(),
+                  obj->group()->clasp() == obj->lastProperty()->getObjectClass());
 
     if (obj->isTenured()) {
         MOZ_ASSERT(obj->isAligned());
@@ -1337,9 +1270,9 @@ MarkShapeFromIon(JSRuntime *rt, Shape **shapep)
 }
 
 void
-MarkTypeObjectFromIon(JSRuntime *rt, types::TypeObject **typep)
+MarkObjectGroupFromIon(JSRuntime *rt, ObjectGroup **groupp)
 {
-    gc::MarkTypeObjectUnbarriered(&rt->gc.marker, typep, "write barrier");
+    gc::MarkObjectGroupUnbarriered(&rt->gc.marker, groupp, "write barrier");
 }
 
 bool

@@ -83,16 +83,15 @@ GMPDecryptorChild::RejectPromise(uint32_t aPromiseId,
 void
 GMPDecryptorChild::SessionMessage(const char* aSessionId,
                                   uint32_t aSessionIdLength,
+                                  GMPSessionMessageType aMessageType,
                                   const uint8_t* aMessage,
-                                  uint32_t aMessageLength,
-                                  const char* aDestinationURL,
-                                  uint32_t aDestinationURLLength)
+                                  uint32_t aMessageLength)
 {
   nsTArray<uint8_t> msg;
   msg.AppendElements(aMessage, aMessageLength);
   CALL_ON_GMP_THREAD(SendSessionMessage,
-                     nsAutoCString(aSessionId, aSessionIdLength), msg,
-                     nsAutoCString(aDestinationURL, aDestinationURLLength));
+                     nsAutoCString(aSessionId, aSessionIdLength),
+                     aMessageType, msg);
 }
 
 void
@@ -127,27 +126,17 @@ GMPDecryptorChild::SessionError(const char* aSessionId,
 }
 
 void
-GMPDecryptorChild::KeyIdUsable(const char* aSessionId,
-                               uint32_t aSessionIdLength,
-                               const uint8_t* aKeyId,
-                               uint32_t aKeyIdLength)
+GMPDecryptorChild::KeyStatusChanged(const char* aSessionId,
+                                    uint32_t aSessionIdLength,
+                                    const uint8_t* aKeyId,
+                                    uint32_t aKeyIdLength,
+                                    GMPMediaKeyStatus aStatus)
 {
   nsAutoTArray<uint8_t, 16> kid;
   kid.AppendElements(aKeyId, aKeyIdLength);
-  CALL_ON_GMP_THREAD(SendKeyIdUsable,
-                     nsAutoCString(aSessionId, aSessionIdLength), kid);
-}
-
-void
-GMPDecryptorChild::KeyIdNotUsable(const char* aSessionId,
-                                  uint32_t aSessionIdLength,
-                                  const uint8_t* aKeyId,
-                                  uint32_t aKeyIdLength)
-{
-  nsAutoTArray<uint8_t, 16> kid;
-  kid.AppendElements(aKeyId, aKeyIdLength);
-  CALL_ON_GMP_THREAD(SendKeyIdNotUsable,
-                     nsAutoCString(aSessionId, aSessionIdLength), kid);
+  CALL_ON_GMP_THREAD(SendKeyStatusChanged,
+                     nsAutoCString(aSessionId, aSessionIdLength), kid,
+                     aStatus);
 }
 
 void
@@ -212,7 +201,7 @@ bool
 GMPDecryptorChild::RecvCreateSession(const uint32_t& aCreateSessionToken,
                                      const uint32_t& aPromiseId,
                                      const nsCString& aInitDataType,
-                                     const nsTArray<uint8_t>& aInitData,
+                                     InfallibleTArray<uint8_t>&& aInitData,
                                      const GMPSessionType& aSessionType)
 {
   if (!mSession) {
@@ -248,7 +237,7 @@ GMPDecryptorChild::RecvLoadSession(const uint32_t& aPromiseId,
 bool
 GMPDecryptorChild::RecvUpdateSession(const uint32_t& aPromiseId,
                                      const nsCString& aSessionId,
-                                     const nsTArray<uint8_t>& aResponse)
+                                     InfallibleTArray<uint8_t>&& aResponse)
 {
   if (!mSession) {
     return false;
@@ -295,7 +284,7 @@ GMPDecryptorChild::RecvRemoveSession(const uint32_t& aPromiseId,
 
 bool
 GMPDecryptorChild::RecvSetServerCertificate(const uint32_t& aPromiseId,
-                                            const nsTArray<uint8_t>& aServerCert)
+                                            InfallibleTArray<uint8_t>&& aServerCert)
 {
   if (!mSession) {
     return false;
@@ -310,7 +299,7 @@ GMPDecryptorChild::RecvSetServerCertificate(const uint32_t& aPromiseId,
 
 bool
 GMPDecryptorChild::RecvDecrypt(const uint32_t& aId,
-                               const nsTArray<uint8_t>& aBuffer,
+                               InfallibleTArray<uint8_t>&& aBuffer,
                                const GMPDecryptionData& aMetadata)
 {
   if (!mSession) {

@@ -155,6 +155,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/HoldDropJSObjects.h"
 /* This must occur *after* base/process_util.h to avoid typedefs conflicts. */
 #include "mozilla/LinkedList.h"
@@ -801,13 +802,10 @@ PtrToNodeMatchEntry(PLDHashTable* aTable,
 }
 
 static PLDHashTableOps PtrNodeOps = {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
   PtrToNodeMatchEntry,
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
-  PL_DHashFinalizeStub,
   nullptr
 };
 
@@ -834,14 +832,11 @@ private:
   PLDHashTable mPtrToNodeMap;
 
 public:
-  CCGraph() : mRootCount(0)
-  {
-    mPtrToNodeMap.ops = nullptr;
-  }
+  CCGraph() : mRootCount(0) {}
 
   ~CCGraph()
   {
-    if (mPtrToNodeMap.ops) {
+    if (mPtrToNodeMap.IsInitialized()) {
       PL_DHashTableFinish(&mPtrToNodeMap);
     }
   }
@@ -849,7 +844,7 @@ public:
   void Init()
   {
     MOZ_ASSERT(IsEmpty(), "Failed to call CCGraph::Clear");
-    PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nullptr,
+    PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps,
                       sizeof(PtrToNodeEntry), 16384);
   }
 
@@ -860,7 +855,6 @@ public:
     mWeakMaps.Clear();
     mRootCount = 0;
     PL_DHashTableFinish(&mPtrToNodeMap);
-    mPtrToNodeMap.ops = nullptr;
   }
 
 #ifdef DEBUG
@@ -868,7 +862,7 @@ public:
   {
     return mNodes.IsEmpty() && mEdges.IsEmpty() &&
            mWeakMaps.IsEmpty() && mRootCount == 0 &&
-           !mPtrToNodeMap.ops;
+           !mPtrToNodeMap.IsInitialized();
   }
 #endif
 
@@ -898,24 +892,16 @@ PtrInfo*
 CCGraph::FindNode(void* aPtr)
 {
   PtrToNodeEntry* e =
-    static_cast<PtrToNodeEntry*>(PL_DHashTableLookup(&mPtrToNodeMap, aPtr));
-  if (!PL_DHASH_ENTRY_IS_BUSY(e)) {
-    return nullptr;
-  }
-  return e->mNode;
+    static_cast<PtrToNodeEntry*>(PL_DHashTableSearch(&mPtrToNodeMap, aPtr));
+  return e ? e->mNode : nullptr;
 }
 
 PtrToNodeEntry*
 CCGraph::AddNodeToMap(void* aPtr)
 {
   JS::AutoSuppressGCAnalysis suppress;
-  PtrToNodeEntry* e =
-    static_cast<PtrToNodeEntry*>(PL_DHashTableAdd(&mPtrToNodeMap, aPtr));
-  if (!e) {
-    // Caller should track OOMs
-    return nullptr;
-  }
-  return e;
+  return static_cast<PtrToNodeEntry*>
+    (PL_DHashTableAdd(&mPtrToNodeMap, aPtr)); // infallible add
 }
 
 void
@@ -1040,7 +1026,7 @@ public:
 
   void StartBlock(Block* aBlock)
   {
-    NS_ABORT_IF_FALSE(!mFreeList, "should not have free list");
+    MOZ_ASSERT(!mFreeList, "should not have free list");
 
     // Put all the entries in the block on the free list.
     nsPurpleBufferEntry* entries = aBlock->mEntries;
@@ -1260,7 +1246,7 @@ class nsCycleCollector : public nsIMemoryReporter
   nsAutoPtr<CCGraphBuilder> mBuilder;
   nsCOMPtr<nsICycleCollectorListener> mListener;
 
-  nsIThread* mThread;
+  DebugOnly<void*> mThread;
 
   nsCycleCollectorParams mParams;
 
@@ -1274,7 +1260,7 @@ class nsCycleCollector : public nsIMemoryReporter
   uint32_t mUnmergedNeeded;
   uint32_t mMergedInARow;
 
-  JSPurpleBuffer* mJSPurpleBuffer;
+  nsRefPtr<JSPurpleBuffer> mJSPurpleBuffer;
 
 private:
   virtual ~nsCycleCollector();
@@ -1366,7 +1352,7 @@ private:
     if (!aPi) {
       MOZ_CRASH();
     }
-    if (!aQueue.Push(aPi, fallible_t())) {
+    if (!aQueue.Push(aPi, fallible)) {
       mVisitor.Failed();
     }
   }
@@ -2044,9 +2030,8 @@ private:
   nsCycleCollectionParticipant* mJSParticipant;
   nsCycleCollectionParticipant* mJSZoneParticipant;
   nsCString mNextEdgeName;
-  nsICycleCollectorListener* mListener;
+  nsCOMPtr<nsICycleCollectorListener> mListener;
   bool mMergeZones;
-  bool mRanOutOfMemory;
   nsAutoPtr<NodePool::Enumerator> mCurrNode;
 
 public:
@@ -2161,7 +2146,6 @@ CCGraphBuilder::CCGraphBuilder(CCGraph& aGraph,
   , mJSZoneParticipant(nullptr)
   , mListener(aListener)
   , mMergeZones(aMergeZones)
-  , mRanOutOfMemory(false)
 {
   if (aJSRuntime) {
     mJSParticipant = aJSRuntime->GCThingParticipant();
@@ -2195,11 +2179,6 @@ PtrInfo*
 CCGraphBuilder::AddNode(void* aPtr, nsCycleCollectionParticipant* aParticipant)
 {
   PtrToNodeEntry* e = mGraph.AddNodeToMap(aPtr);
-  if (!e) {
-    mRanOutOfMemory = true;
-    return nullptr;
-  }
-
   PtrInfo* result;
   if (!e->mNode) {
     // New entry.
@@ -2278,11 +2257,6 @@ CCGraphBuilder::BuildGraph(SliceBudget& aBudget)
 
   if (mGraph.mRootCount > 0) {
     SetLastChild();
-  }
-
-  if (mRanOutOfMemory) {
-    MOZ_ASSERT(false, "Ran out of memory while building cycle collector graph");
-    CC_TELEMETRY(_OOM, true);
   }
 
   mCurrNode = nullptr;
@@ -2581,13 +2555,12 @@ class JSPurpleBuffer
   }
 
 public:
-  explicit JSPurpleBuffer(JSPurpleBuffer*& aReferenceToThis)
+  explicit JSPurpleBuffer(nsRefPtr<JSPurpleBuffer>& aReferenceToThis)
     : mReferenceToThis(aReferenceToThis)
     , mValues(kSegmentSize)
     , mObjects(kSegmentSize)
   {
     mReferenceToThis = this;
-    NS_ADDREF_THIS();
     mozilla::HoldJSObjects(this);
   }
 
@@ -2597,13 +2570,12 @@ public:
     mValues.Clear();
     mObjects.Clear();
     mozilla::DropJSObjects(this);
-    NS_RELEASE_THIS();
   }
 
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(JSPurpleBuffer)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(JSPurpleBuffer)
 
-  JSPurpleBuffer*& mReferenceToThis;
+  nsRefPtr<JSPurpleBuffer>& mReferenceToThis;
 
   // These are raw pointers instead of Heap<T> because we only need Heap<T> for
   // pointers which may point into the nursery. The purple buffer never contains
@@ -2745,7 +2717,7 @@ public:
   }
 
 private:
-  nsCycleCollector* mCollector;
+  nsRefPtr<nsCycleCollector> mCollector;
   ObjectsVector mObjects;
 };
 
@@ -3009,7 +2981,7 @@ public:
 
 private:
   CCGraph& mGraph;
-  nsICycleCollectorListener* mListener;
+  nsCOMPtr<nsICycleCollectorListener> mListener;
   uint32_t& mCount;
   bool& mFailed;
 };
@@ -3403,8 +3375,7 @@ nsCycleCollector::nsCycleCollector() :
   mBeforeUnlinkCB(nullptr),
   mForgetSkippableCB(nullptr),
   mUnmergedNeeded(0),
-  mMergedInARow(0),
-  mJSPurpleBuffer(nullptr)
+  mMergedInARow(0)
 {
 }
 
@@ -3701,9 +3672,13 @@ nsCycleCollector::FinishAnyCurrentCollection()
   // Use SliceCC because we only want to finish the CC in progress.
   Collect(SliceCC, unlimitedBudget, nullptr);
 
+  // It is only okay for Collect() to have failed to finish the
+  // current CC if we're reentering the CC at some point past
+  // graph building. We need to be past the point where the CC will
+  // look at JS objects so that it is safe to GC.
   MOZ_ASSERT(mIncrementalPhase == IdlePhase ||
-             (mIncrementalPhase == ScanAndCollectWhitePhase && mActivelyCollecting),
-             "FinishAnyCurrentCollection should finish the collection, unless we've reentered the CC during unlinking");
+             (mActivelyCollecting && mIncrementalPhase != GraphBuildingPhase),
+             "Reentered CC during graph building");
 }
 
 // Don't merge too many times in a row, and do at least a minimum

@@ -45,10 +45,9 @@ public:
 
   virtual void SessionMessage(const char* aSessionId,
                               uint32_t aSessionIdLength,
+                              GMPSessionMessageType aMessageType,
                               const uint8_t* aMessage,
-                              uint32_t aMessageLength,
-                              const char* aDestinationURL,
-                              uint32_t aDestinationURLLength) MOZ_OVERRIDE;
+                              uint32_t aMessageLength) MOZ_OVERRIDE;
 
   virtual void ExpirationChange(const char* aSessionId,
                                  uint32_t aSessionIdLength,
@@ -64,15 +63,11 @@ public:
                             const char* aMessage,
                             uint32_t aMessageLength) MOZ_OVERRIDE;
 
-  virtual void KeyIdUsable(const char* aSessionId,
-                           uint32_t aSessionIdLength,
-                           const uint8_t* aKeyId,
-                           uint32_t aKeyIdLength) MOZ_OVERRIDE;
-
-  virtual void KeyIdNotUsable(const char* aSessionId,
-                              uint32_t aSessionIdLength,
-                              const uint8_t* aKeyId,
-                              uint32_t aKeyIdLength) MOZ_OVERRIDE;
+  virtual void KeyStatusChanged(const char* aSessionId,
+                                uint32_t aSessionIdLength,
+                                const uint8_t* aKeyId,
+                                uint32_t aKeyIdLength,
+                                GMPMediaKeyStatus aStatus) MOZ_OVERRIDE;
 
   virtual void SetCapabilities(uint64_t aCaps) MOZ_OVERRIDE;
 
@@ -93,7 +88,7 @@ private:
   virtual bool RecvCreateSession(const uint32_t& aCreateSessionToken,
                                  const uint32_t& aPromiseId,
                                  const nsCString& aInitDataType,
-                                 const nsTArray<uint8_t>& aInitData,
+                                 InfallibleTArray<uint8_t>&& aInitData,
                                  const GMPSessionType& aSessionType) MOZ_OVERRIDE;
 
   virtual bool RecvLoadSession(const uint32_t& aPromiseId,
@@ -101,7 +96,7 @@ private:
 
   virtual bool RecvUpdateSession(const uint32_t& aPromiseId,
                                  const nsCString& aSessionId,
-                                 const nsTArray<uint8_t>& aResponse) MOZ_OVERRIDE;
+                                 InfallibleTArray<uint8_t>&& aResponse) MOZ_OVERRIDE;
 
   virtual bool RecvCloseSession(const uint32_t& aPromiseId,
                                 const nsCString& aSessionId) MOZ_OVERRIDE;
@@ -110,12 +105,12 @@ private:
                                  const nsCString& aSessionId) MOZ_OVERRIDE;
 
   virtual bool RecvDecrypt(const uint32_t& aId,
-                           const nsTArray<uint8_t>& aBuffer,
+                           InfallibleTArray<uint8_t>&& aBuffer,
                            const GMPDecryptionData& aMetadata) MOZ_OVERRIDE;
 
   // Resolve/reject promise on completion.
   virtual bool RecvSetServerCertificate(const uint32_t& aPromiseId,
-                                        const nsTArray<uint8_t>& aServerCert) MOZ_OVERRIDE;
+                                        InfallibleTArray<uint8_t>&& aServerCert) MOZ_OVERRIDE;
 
   virtual bool RecvDecryptingComplete() MOZ_OVERRIDE;
 

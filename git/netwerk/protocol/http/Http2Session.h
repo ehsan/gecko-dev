@@ -135,7 +135,6 @@ public:
   const static uint32_t kQueueTailRoom    =  4096;
   const static uint32_t kQueueReserved    =  1024;
 
-  const static uint32_t kDefaultMaxConcurrent = 100;
   const static uint32_t kMaxStreamID = 0x7800000;
 
   // This is a sentinel for a deleted stream. It is not a valid
@@ -205,8 +204,8 @@ public:
 
   uint32_t GetServerInitialStreamWindow() { return mServerInitialStreamWindow; }
 
+  bool TryToActivate(Http2Stream *stream);
   void ConnectPushedStream(Http2Stream *stream);
-  void MaybeDecrementConcurrent(Http2Stream *stream);
 
   nsresult ConfirmTLSProfile();
   static bool ALPNCallback(nsISupports *securityInfo);
@@ -225,7 +224,7 @@ public:
   void GetNegotiatedToken(nsACString &s) { s.Assign(mNegotiatedToken); }
 
   void SendPing() MOZ_OVERRIDE;
-
+  bool MaybeReTunnel(nsAHttpTransaction *) MOZ_OVERRIDE;
   bool UseH2Deps() { return mUseH2Deps; }
 
 private:
@@ -266,8 +265,6 @@ private:
   void        SetWriteCallbacks();
   void        RealignOutputQueue();
 
-  bool        RoomForMoreConcurrent();
-  void        ActivateStream(Http2Stream *);
   void        ProcessPending();
   nsresult    SetInputFrameDataStream(uint32_t);
   void        CreatePriorityNode(uint32_t, uint32_t, uint8_t, const char *);
@@ -277,6 +274,11 @@ private:
   void        UpdateLocalRwin(Http2Stream *stream, uint32_t bytes);
   void        UpdateLocalStreamWindow(Http2Stream *stream, uint32_t bytes);
   void        UpdateLocalSessionWindow(uint32_t bytes);
+
+  void        MaybeDecrementConcurrent(Http2Stream *stream);
+  bool        RoomForMoreConcurrent();
+  void        IncrementConcurrent(Http2Stream *stream);
+  void        QueueStream(Http2Stream *stream);
 
   // a wrapper for all calls to the nshttpconnection level segment writer. Used
   // to track network I/O for timeout purposes
@@ -486,10 +488,10 @@ private:
 private:
 /// connect tunnels
   void DispatchOnTunnel(nsAHttpTransaction *, nsIInterfaceRequestor *);
+  void CreateTunnel(nsHttpTransaction *, nsHttpConnectionInfo *, nsIInterfaceRequestor *);
   void RegisterTunnel(Http2Stream *);
   void UnRegisterTunnel(Http2Stream *);
   uint32_t FindTunnelCount(nsHttpConnectionInfo *);
-
   nsDataHashtable<nsCStringHashKey, uint32_t> mTunnelHash;
 };
 
