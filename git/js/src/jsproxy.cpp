@@ -3236,9 +3236,10 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
 };
 
 static JSObject *
-NewProxyObject(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, TaggedProto proto_,
+NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_, TaggedProto proto_,
                JSObject *parent_, ProxyCallable callable)
 {
+    RootedValue priv(cx, priv_);
     Rooted<TaggedProto> proto(cx, proto_);
     RootedObject parent(cx, parent_);
 
@@ -3279,23 +3280,23 @@ NewProxyObject(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, Tagge
 }
 
 JS_FRIEND_API(JSObject *)
-js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, JSObject *proto_,
+js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_, JSObject *proto_,
                    JSObject *parent_, ProxyCallable callable)
 {
-    return NewProxyObject(cx, handler, priv, TaggedProto(proto_), parent_, callable);
+    return NewProxyObject(cx, handler, priv_, TaggedProto(proto_), parent_, callable);
 }
 
 static JSObject *
-NewProxyObject(JSContext *cx, BaseProxyHandler *handler, HandleValue priv, JSObject *proto_,
+NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_, JSObject *proto_,
                JSObject *parent_, JSObject *call_, JSObject *construct_)
 {
     RootedObject call(cx, call_);
     RootedObject construct(cx, construct_);
 
     JS_ASSERT_IF(construct, cx->compartment == construct->compartment());
-    JS_ASSERT_IF(call && cx->compartment != call->compartment(), priv == ObjectValue(*call));
+    JS_ASSERT_IF(call && cx->compartment != call->compartment(), priv_ == ObjectValue(*call));
 
-    JSObject *proxy = NewProxyObject(cx, handler, priv, TaggedProto(proto_), parent_,
+    JSObject *proxy = NewProxyObject(cx, handler, priv_, TaggedProto(proto_), parent_,
                                      call || construct ? ProxyIsCallable : ProxyNotCallable);
     if (!proxy)
         return NULL;
@@ -3348,9 +3349,8 @@ proxy(JSContext *cx, unsigned argc, jsval *vp)
     if (!JSObject::getProto(cx, target, &proto))
         return false;
     RootedObject fun(cx, target->isCallable() ? target : (JSObject *) NULL);
-    RootedValue priv(cx, ObjectValue(*target));
     JSObject *proxy = NewProxyObject(cx, &ScriptedDirectProxyHandler::singleton,
-                                     priv, proto, cx->global(),
+                                     ObjectValue(*target), proto, cx->global(),
                                      fun, fun);
     if (!proxy)
         return false;
@@ -3397,9 +3397,8 @@ proxy_create(JSContext *cx, unsigned argc, Value *vp)
     }
     if (!parent)
         parent = vp[0].toObject().getParent();
-    RootedValue priv(cx, ObjectValue(*handler));
     JSObject *proxy = NewProxyObject(cx, &ScriptedIndirectProxyHandler::singleton,
-                                     priv, proto, parent);
+                                     ObjectValue(*handler), proto, parent);
     if (!proxy)
         return false;
 
@@ -3435,9 +3434,9 @@ proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
-    RootedValue priv(cx, ObjectValue(*handler));
     JSObject *proxy = NewProxyObject(cx, &ScriptedIndirectProxyHandler::singleton,
-                                     priv, proto, parent, call, construct);
+                                     ObjectValue(*handler), proto, parent,
+                                     call, construct);
     if (!proxy)
         return false;
 

@@ -1222,13 +1222,3 @@ function scrollOutputToNode(aNode)
   let nsIScrollBoxObject = boxObject.QueryInterface(Ci.nsIScrollBoxObject);
   nsIScrollBoxObject.ensureElementIsVisible(aNode);
 }
-
-function whenDelayedStartupFinished(aWindow, aCallback)
-{
-  Services.obs.addObserver(function observer(aSubject, aTopic) {
-    if (aWindow == aSubject) {
-      Services.obs.removeObserver(observer, aTopic);
-      executeSoon(aCallback);
-    }
-  }, "browser-delayed-startup-finished", false);
-}

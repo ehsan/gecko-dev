@@ -3969,58 +3969,6 @@ class LSetPropertyCacheT : public LInstructionHelper<0, 2, 1>
     }
 };
 
-class LSetElementCacheV : public LInstructionHelper<0, 1 + 2 * BOX_PIECES, 1>
-{
-  public:
-    LIR_HEADER(SetElementCacheV);
-
-    static const size_t Index = 1;
-    static const size_t Value = 1 + BOX_PIECES;
-
-    LSetElementCacheV(const LAllocation &object, const LDefinition &temp) {
-        setOperand(0, object);
-        setTemp(0, temp);
-    }
-    const MSetElementCache *mir() const {
-        return mir_->toSetElementCache();
-    }
-
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-};
-
-class LSetElementCacheT : public LInstructionHelper<0, 2 + BOX_PIECES, 1>
-{
-  public:
-    LIR_HEADER(SetElementCacheT);
-
-    static const size_t Index = 2;
-
-    LSetElementCacheT(const LAllocation &object, const LAllocation &value,
-                      const LDefinition &temp) {
-        setOperand(0, object);
-        setOperand(1, value);
-        setTemp(0, temp);
-    }
-    const MSetElementCache *mir() const {
-        return mir_->toSetElementCache();
-    }
-
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-    const LAllocation *value() {
-        return getOperand(1);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-};
-
 class LCallIteratorStart : public LCallInstructionHelper<1, 1, 0>
 {
   public:
@@ -4158,6 +4106,16 @@ class LGetArgument : public LInstructionHelper<BOX_PIECES, 1, 0>
     }
 };
 
+class LRunOncePrologue : public LCallInstructionHelper<0, 0, 0>
+{
+  public:
+    LIR_HEADER(RunOncePrologue)
+
+    MRunOncePrologue *mir() const {
+        return mir_->toRunOncePrologue();
+    }
+};
+
 // Create the rest parameter.
 class LRest : public LCallInstructionHelper<1, 1, 3>
 {
@@ -4202,7 +4160,6 @@ class LParRest : public LCallInstructionHelper<1, 2, 3>
         return mir_->toRest();
     }
 };
-
 
 class LParWriteGuard : public LCallInstructionHelper<0, 2, 1>
 {

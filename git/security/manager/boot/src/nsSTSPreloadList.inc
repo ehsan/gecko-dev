@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include "mozilla/StandardInteger.h"
-const PRTime gPreloadListExpirationTime = INT64_C(1380363248599000);
+const PRTime gPreloadListExpirationTime = INT64_C(1379758102034000);
 
 class nsSTSPreload
 {
@@ -35,7 +35,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "csawctf.poly.edu", true },
   { "developer.mydigipass.com", false },
   { "dist.torproject.org", false },
-  { "download.jitsi.org", false },
   { "ebanking.indovinabank.com.vn", false },
   { "entropia.de", false },
   { "espra.com", true },
@@ -52,7 +51,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "logentries.com", false },
   { "login.persona.org", true },
   { "login.sapo.pt", true },
-  { "lookout.com", false },
   { "luneta.nearbuysystems.com", false },
   { "makeyourlaws.org", false },
   { "mattmccutchen.net", true },
@@ -60,7 +58,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "members.mayfirst.org", false },
   { "members.nearlyfreespeech.net", false },
   { "my.onlime.ch", false },
-  { "mylookout.com", false },
   { "neg9.org", false },
   { "passwd.io", true },
   { "pay.gigahost.dk", true },
@@ -96,7 +93,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.irccloud.com", false },
   { "www.lookout.com", false },
   { "www.mydigipass.com", false },
-  { "www.mylookout.com", false },
   { "www.noisebridge.net", false },
   { "www.simple.com", false },
   { "www.surfeasy.com", false },

@@ -320,7 +320,6 @@ webidl_files = \
   TextTrackCue.webidl \
   TextTrackCueList.webidl \
   TextTrackList.webidl \
-  TimeEvent.webidl \
   TimeRanges.webidl \
   Touch.webidl \
   TouchEvent.webidl \

@@ -120,10 +120,10 @@ public class GeckoAccessibility {
     private static void sendDirectAccessibilityEvent(int eventType, JSONObject message) {
         final AccessibilityEvent accEvent = AccessibilityEvent.obtain(eventType);
         accEvent.setClassName(GeckoAccessibility.class.getName());
-        accEvent.setPackageName(GeckoAppShell.getContext().getPackageName());
+        accEvent.setPackageName(GeckoApp.mAppContext.getPackageName());
         populateEventFromJSON(accEvent, message);
         AccessibilityManager accessibilityManager =
-            (AccessibilityManager) GeckoAppShell.getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+            (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
         try {
             accessibilityManager.sendAccessibilityEvent(accEvent);
         } catch (IllegalStateException e) {
@@ -153,7 +153,7 @@ public class GeckoAccessibility {
         } else {
             // In Jelly Bean we populate an AccessibilityNodeInfo with the minimal amount of data to have
             // it work with TalkBack.
-            final LayerView view = GeckoAppShell.getGeckoInterface().getLayerView();
+            final LayerView view = GeckoApp.mAppContext.getLayerView();
             if (view == null)
                 return;
 
@@ -275,7 +275,7 @@ public class GeckoAccessibility {
                                 info.setParent(host);
                                 info.setSource(host, virtualDescendantId);
                                 info.setVisibleToUser(true);
-                                info.setPackageName(GeckoAppShell.getContext().getPackageName());
+                                info.setPackageName(GeckoApp.mAppContext.getPackageName());
                                 info.setClassName(host.getClass().getName());
                                 info.addAction(AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS);
                                 info.addAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);

@@ -354,9 +354,7 @@ let DebuggerView = {
     }
     // If the requested source exists, display it and update.
     else if (this.Sources.containsValue(aUrl) && !aFlags.noSwitch) {
-      this.Sources.node.preventFocusOnSelection = true;
       this.Sources.selectedValue = aUrl;
-      this.Sources.node.preventFocusOnSelection = false;
       set(aLine);
     }
     // Dumb request, invalidate the caret position and debug location.
@@ -614,9 +612,10 @@ ListWidget.prototype = {
   removeAllItems: function() {
     let parent = this._parent;
     let list = this._list;
+    let firstChild;
 
-    while (list.hasChildNodes()) {
-      list.firstChild.remove();
+    while ((firstChild = list.firstChild)) {
+      list.removeChild(firstChild);
     }
     parent.scrollTop = 0;
     parent.scrollLeft = 0;
@@ -892,7 +891,8 @@ create({ constructor: ResultsPanelContainer, proto: MenuContainer.prototype }, {
    * @param string aDescription
    *        An optional description of the item.
    */
-  _createItemView: function(aElementNode, aAttachment, aLabel, aValue, aDescription) {
+  _createItemView:
+  function RPC__createItemView(aElementNode, aAttachment, aLabel, aValue, aDescription) {
     let labelsGroup = document.createElement("hbox");
     if (aDescription) {
       let preLabelNode = document.createElement("label");

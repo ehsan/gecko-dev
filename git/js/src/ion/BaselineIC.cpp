@@ -785,7 +785,7 @@ PrepareOsrTempData(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *fram
     //
 
     // Copy formal args and thisv.
-    memcpy(stackFrameStart, frame->argv() - 1, (numFormalArgs + 1) * sizeof(Value));
+    memcpy(stackFrameStart, frame->formals() - 1, (numFormalArgs + 1) * sizeof(Value));
 
     // Initialize ScopeChain, Exec, and Flags fields in StackFrame struct.
     uint8_t *stackFrame = info->stackFrame;
@@ -6191,9 +6191,17 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
     JSOp op = JSOp(*pc);
     FallbackICSpew(cx, stub, "SetProp(%s)", js_CodeName[op]);
 
-    JS_ASSERT(op == JSOP_SETPROP || op == JSOP_SETNAME || op == JSOP_SETGNAME || op == JSOP_INITPROP);
+    JS_ASSERT(op == JSOP_SETPROP ||
+              op == JSOP_SETNAME ||
+              op == JSOP_SETGNAME ||
+              op == JSOP_INITPROP ||
+              op == JSOP_SETALIASEDVAR);
 
-    RootedPropertyName name(cx, script->getName(pc));
+    RootedPropertyName name(cx);
+    if (op == JSOP_SETALIASEDVAR)
+        name = ScopeCoordinateName(cx, script, pc);
+    else
+        name = script->getName(pc);
     RootedId id(cx, NameToId(name));
 
     RootedObject obj(cx, ToObjectFromStack(cx, lhs));
@@ -6209,6 +6217,8 @@ DoSetPropFallback(JSContext *cx, BaselineFrame *frame, ICSetProp_Fallback *stub,
     } else if (op == JSOP_SETNAME || op == JSOP_SETGNAME) {
         if (!SetNameOperation(cx, script, pc, obj, rhs))
             return false;
+    } else if (op == JSOP_SETALIASEDVAR) {
+        obj->asScope().setAliasedVar(cx, pc, name, rhs);
     } else if (script->strict) {
         if (!js::SetProperty<true>(cx, obj, id, rhs))
             return false;
@@ -8009,7 +8019,7 @@ DoCreateRestParameter(JSContext *cx, BaselineFrame *frame, ICRest_Fallback *stub
     unsigned numActuals = frame->numActualArgs();
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
 
-    JSObject *obj = NewDenseCopiedArray(cx, numRest, frame->argv() + numFormals, NULL);
+    JSObject *obj = NewDenseCopiedArray(cx, numRest, frame->actuals() + numFormals, NULL);
     if (!obj)
         return false;
     obj->setType(type);

@@ -23,7 +23,7 @@ CPPSRCS = \
   nsEffectiveTLDService.cpp \
   $(NULL)
 
-DISABLED_CSRCS = \
+CSRCS = \
   race.c \
   nameprep.c \
   punycode.c \

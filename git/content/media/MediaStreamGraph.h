@@ -929,13 +929,10 @@ public:
   enum AudioNodeStreamKind { INTERNAL_STREAM, EXTERNAL_STREAM };
   /**
    * Create a stream that will process audio for an AudioNode.
-   * Takes ownership of aEngine.  aSampleRate is the sampling rate used
-   * for the stream.  If 0 is passed, the sampling rate of the engine's
-   * node will get used.
+   * Takes ownership of aEngine.
    */
   AudioNodeStream* CreateAudioNodeStream(AudioNodeEngine* aEngine,
-                                         AudioNodeStreamKind aKind,
-                                         TrackRate aSampleRate = 0);
+                                         AudioNodeStreamKind aKind);
   /**
    * Returns the number of graph updates sent. This can be used to track
    * whether a given update has been processed by the graph thread and reflected

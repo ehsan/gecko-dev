@@ -386,8 +386,7 @@ ion::ParallelAbort(ParallelBailoutCause cause,
          "(%p:%s:%d at line %d)",
          cause,
          outermostScript, outermostScript->filename(), outermostScript->lineno,
-         currentScript, currentScript->filename(), currentScript->lineno,
-         (currentScript ? PCToLineNumber(currentScript, bytecode) : 0));
+         currentScript, currentScript->filename(), currentScript->lineno);
 
     JS_ASSERT(InParallelSection());
     JS_ASSERT(outermostScript != NULL);
@@ -413,7 +412,7 @@ ion::PropagateParallelAbort(JSScript *outermostScript,
     JS_ASSERT(InParallelSection());
     JS_ASSERT(outermostScript->hasParallelIonScript());
 
-    outermostScript->parallelIonScript()->setHasUncompiledCallTarget();
+    outermostScript->parallelIonScript()->setHasInvalidatedCallTarget();
 
     ForkJoinSlice *slice = ForkJoinSlice::Current();
     if (currentScript)

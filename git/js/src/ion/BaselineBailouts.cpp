@@ -565,14 +565,12 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     }
     IonSpew(IonSpew_BaselineBailouts, "      ScopeChain=%p", scopeChain);
     blFrame->setScopeChain(scopeChain);
-
-    // Do not need to initialize scratchValue or returnValue fields in BaselineFrame.
-
-    blFrame->setFlags(flags);
-
-    // initArgsObjUnchecked modifies the frame's flags, so call it after setFlags.
     if (argsObj)
         blFrame->initArgsObjUnchecked(*argsObj);
+    // Do not need to initialize scratchValue or returnValue fields in BaselineFrame.
+
+    // No flags are set.
+    blFrame->setFlags(flags);
 
     // Ion doesn't compile code with try/catch, so the block object will always be
     // null.
@@ -1119,7 +1117,7 @@ ion::BailoutIonToBaseline(JSContext *cx, IonActivation *activation, IonBailoutIt
 
     info->bailoutKind = bailoutKind;
     *bailoutInfo = info;
-    return BAILOUT_RETURN_OK;
+    return BAILOUT_RETURN_BASELINE;
 }
 
 static bool

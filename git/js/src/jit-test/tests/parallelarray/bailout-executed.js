@@ -13,11 +13,10 @@ function test() {
   var array = range(0, 768);
   var array1 = array.map(makeObject);
 
-  assertParallelExecWillRecover(function (m) {
-    var pa = new ParallelArray(array);
-    var pa1 = pa.map(makeObject, m);
-    assertStructuralEq(pa1, array1);
-  });
+  var pa = new ParallelArray(array);
+  var pa1 = pa.map(makeObject, {mode: "par", expect: "mixed"});
+
+  assertStructuralEq(pa1, array1);
 }
 
 if (getBuildConfiguration().parallelJS)

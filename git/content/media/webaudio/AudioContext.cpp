@@ -51,8 +51,7 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
                            uint32_t aNumberOfChannels,
                            uint32_t aLength,
                            float aSampleRate)
-  : mSampleRate(aIsOffline ? aSampleRate : IdealAudioRate())
-  , mDestination(new AudioDestinationNode(this, aIsOffline,
+  : mDestination(new AudioDestinationNode(this, aIsOffline,
                                           aNumberOfChannels,
                                           aLength, aSampleRate))
   , mIsOffline(aIsOffline)
@@ -108,8 +107,8 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  if (aSampleRate <= 0.0f) {
-    // The DOM binding protects us against infinity and NaN
+  if (aSampleRate != IdealAudioRate()) {
+    // TODO: Add support for running OfflineAudioContext at other sampling rates
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return nullptr;
   }

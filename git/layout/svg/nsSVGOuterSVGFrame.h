@@ -58,8 +58,6 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
-  virtual bool UpdateOverflow() MOZ_OVERRIDE;
-
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;

@@ -334,6 +334,12 @@ js::RunScript(JSContext *cx, StackFrame *fp)
             return false;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus status = ion::Cannon(cx, fp);
+
+            // Note that if we bailed out, new inline frames may have been
+            // pushed, so we interpret with the current fp.
+            if (status == ion::IonExec_Bailout)
+                return Interpret(cx, fp, JSINTERP_REJOIN);
+
             return !IsErrorStatus(status);
         }
     }
@@ -344,6 +350,13 @@ js::RunScript(JSContext *cx, StackFrame *fp)
             return false;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus status = ion::EnterBaselineMethod(cx, fp);
+
+            // For now, we can never bail out from the baseline jit.
+            // TODO: This may need to be removed when we want to add support for
+            // OSR into Ion, which will be implemented by bailing out to the interpreter
+            // from baseline.
+            JS_ASSERT(status != ion::IonExec_Bailout);
+
             return !IsErrorStatus(status);
         }
     }
@@ -1274,7 +1287,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode, bool
 
 /* No-ops for ease of decompilation. */
 ADD_EMPTY_CASE(JSOP_NOP)
-ADD_EMPTY_CASE(JSOP_UNUSED71)
 ADD_EMPTY_CASE(JSOP_UNUSED132)
 ADD_EMPTY_CASE(JSOP_UNUSED148)
 ADD_EMPTY_CASE(JSOP_UNUSED161)
@@ -1332,13 +1344,48 @@ check_backedge:
 BEGIN_CASE(JSOP_LOOPENTRY)
 
 #ifdef JS_ION
-    // Attempt on-stack replacement with Baseline code.
+    // Attempt on-stack replacement with Ion code. IonMonkey OSR takes place at
+    // the point of the initial loop entry, to consolidate hoisted code between
+    // entry points.
+    if (ion::IsEnabled(cx)) {
+        ion::MethodStatus status =
+            ion::CanEnterAtBranch(cx, script, AbstractFramePtr(regs.fp()), regs.pc,
+                                  regs.fp()->isConstructing());
+        if (status == ion::Method_Error)
+            goto error;
+        if (status == ion::Method_Compiled) {
+            ion::IonExecStatus maybeOsr = ion::SideCannon(cx, regs.fp(), regs.pc);
+            if (maybeOsr == ion::IonExec_Bailout) {
+                // We hit a deoptimization path in the first Ion frame, so now
+                // we've just replaced the entire Ion activation.
+                SET_SCRIPT(regs.fp()->script());
+                op = JSOp(*regs.pc);
+                DO_OP();
+            }
+
+            // We failed to call into Ion at all, so treat as an error.
+            if (maybeOsr == ion::IonExec_Aborted)
+                goto error;
+
+            interpReturnOK = (maybeOsr == ion::IonExec_Ok);
+
+            if (entryFrame != regs.fp())
+                goto jit_return;
+
+            regs.fp()->setFinishedInInterpreter();
+            goto leave_on_safe_point;
+        }
+    }
+
     if (ion::IsBaselineEnabled(cx)) {
         ion::MethodStatus status = ion::CanEnterBaselineJIT(cx, script, regs.fp(), false);
         if (status == ion::Method_Error)
             goto error;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus maybeOsr = ion::EnterBaselineAtBranch(cx, regs.fp(), regs.pc);
+
+            // We can never bail out from the baseline jit.
+            JS_ASSERT(maybeOsr != ion::IonExec_Bailout);
 
             // We failed to call into baseline at all, so treat as an error.
             if (maybeOsr == ion::IonExec_Aborted)
@@ -2246,6 +2293,11 @@ BEGIN_CASE(JSOP_FUNCALL)
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus exec = ion::Cannon(cx, regs.fp());
             CHECK_BRANCH();
+            if (exec == ion::IonExec_Bailout) {
+                SET_SCRIPT(regs.fp()->script());
+                op = JSOp(*regs.pc);
+                DO_OP();
+            }
             interpReturnOK = !IsErrorStatus(exec);
             goto jit_return;
         }
@@ -2258,6 +2310,13 @@ BEGIN_CASE(JSOP_FUNCALL)
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus exec = ion::EnterBaselineMethod(cx, regs.fp());
             CHECK_BRANCH();
+
+            // For now, we can never bail out from the baseline jit.
+            // TODO: This may need to be removed when we want to add support for
+            // OSR into Ion, which will be implemented by bailing out to the interpreter
+            // from baseline.
+            JS_ASSERT(exec != ion::IonExec_Bailout);
+
             interpReturnOK = !IsErrorStatus(exec);
             goto jit_return;
         }
@@ -2461,6 +2520,13 @@ BEGIN_CASE(JSOP_ARGUMENTS)
     }
 END_CASE(JSOP_ARGUMENTS)
 
+BEGIN_CASE(JSOP_RUNONCE)
+{
+    if (!RunOnceScriptPrologue(cx, script))
+        goto error;
+}
+END_CASE(JSOP_RUNONCE)
+
 BEGIN_CASE(JSOP_REST)
 {
     RootedObject &rest = rootObject0;
@@ -2489,7 +2555,13 @@ END_CASE(JSOP_GETALIASEDVAR)
 BEGIN_CASE(JSOP_SETALIASEDVAR)
 {
     ScopeCoordinate sc = ScopeCoordinate(regs.pc);
-    regs.fp()->aliasedVarScope(sc).setAliasedVar(sc, regs.sp[-1]);
+    ScopeObject &obj = regs.fp()->aliasedVarScope(sc);
+
+    // Avoid computing the name if no type updates are needed, as this may be
+    // expensive on scopes with large numbers of variables.
+    PropertyName *name = obj.hasSingletonType() ? ScopeCoordinateName(cx, script, regs.pc) : NULL;
+
+    obj.setAliasedVar(cx, sc, name, regs.sp[-1]);
 }
 END_CASE(JSOP_SETALIASEDVAR)
 
@@ -3581,4 +3653,23 @@ js::ImplicitThisOperation(JSContext *cx, HandleObject scopeObj, HandlePropertyNa
         return false;
 
     return ComputeImplicitThis(cx, obj, res);
+}
+
+bool
+js::RunOnceScriptPrologue(JSContext *cx, HandleScript script)
+{
+    JS_ASSERT(script->treatAsRunOnce);
+
+    if (!script->hasRunOnce) {
+        script->hasRunOnce = true;
+        return true;
+    }
+
+    // Force instantiation of the script's function's type to ensure the flag
+    // is preserved in type information.
+    if (!script->function()->getType(cx))
+        return false;
+
+    types::MarkTypeObjectFlags(cx, script->function(), types::OBJECT_FLAG_RUNONCE_INVALIDATED);
+    return true;
 }

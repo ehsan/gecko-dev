@@ -256,7 +256,7 @@ public final class SharedPreferencesHelper
     }
 
     @Override
-    public String getResponse(JSONObject origMessage) {
+    public String getResponse() {
         return mResponse;
     }
 }

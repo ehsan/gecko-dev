@@ -909,28 +909,28 @@ MediaStreamGraphImpl::EnsureNextIterationLocked(MonitorAutoLock& aLock)
 }
 
 static GraphTime
-RoundUpToAudioBlock(TrackRate aSampleRate, GraphTime aTime)
+RoundUpToAudioBlock(GraphTime aTime)
 {
-  int64_t ticksAtIdealaSampleRate = (aTime*aSampleRate) >> MEDIA_TIME_FRAC_BITS;
+  TrackRate rate = IdealAudioRate();
+  int64_t ticksAtIdealRate = (aTime*rate) >> MEDIA_TIME_FRAC_BITS;
   // Round up to nearest block boundary
-  int64_t blocksAtIdealaSampleRate =
-    (ticksAtIdealaSampleRate + (WEBAUDIO_BLOCK_SIZE - 1)) >>
+  int64_t blocksAtIdealRate =
+    (ticksAtIdealRate + (WEBAUDIO_BLOCK_SIZE - 1)) >>
     WEBAUDIO_BLOCK_SIZE_BITS;
   // Round up to nearest MediaTime unit
   return
-    ((((blocksAtIdealaSampleRate + 1)*WEBAUDIO_BLOCK_SIZE) << MEDIA_TIME_FRAC_BITS)
-     + aSampleRate - 1)/aSampleRate;
+    ((((blocksAtIdealRate + 1)*WEBAUDIO_BLOCK_SIZE) << MEDIA_TIME_FRAC_BITS)
+     + rate - 1)/rate;
 }
 
 void
 MediaStreamGraphImpl::ProduceDataForStreamsBlockByBlock(uint32_t aStreamIndex,
-                                                        TrackRate aSampleRate,
                                                         GraphTime aFrom,
                                                         GraphTime aTo)
 {
   GraphTime t = aFrom;
   while (t < aTo) {
-    GraphTime next = RoundUpToAudioBlock(aSampleRate, t + 1);
+    GraphTime next = RoundUpToAudioBlock(t + 1);
     for (uint32_t i = aStreamIndex; i < mStreams.Length(); ++i) {
       nsRefPtr<ProcessedMediaStream> ps = mStreams[i]->AsProcessedStream();
       if (ps) {
@@ -957,6 +957,8 @@ MediaStreamGraphImpl::RunThread()
   if (!mRealtime) {
     NS_ASSERTION(!mNonRealtimeIsRunning,
                  "We should not be running in non-realtime mode already");
+    NS_ASSERTION(mNonRealtimeTicksToProcess,
+                 "We should have a non-zero number of ticks to process");
     mNonRealtimeIsRunning = true;
   }
 
@@ -980,21 +982,8 @@ MediaStreamGraphImpl::RunThread()
 
     UpdateStreamOrder();
 
-    // Find the sampling rate that we need to use for non-realtime graphs.
-    TrackRate sampleRate = IdealAudioRate();
-    if (!mRealtime) {
-      for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-        AudioNodeStream* n = mStreams[i]->AsAudioNodeStream();
-        if (n) {
-          // We know that the rest of the streams will run at the same rate.
-          sampleRate = n->SampleRate();
-          break;
-        }
-      }
-    }
-
     GraphTime endBlockingDecisions =
-      RoundUpToAudioBlock(sampleRate, mCurrentTime + MillisecondsToMediaTime(AUDIO_TARGET_MS));
+      RoundUpToAudioBlock(mCurrentTime + MillisecondsToMediaTime(AUDIO_TARGET_MS));
     bool ensureNextIteration = false;
 
     // Grab pending stream input.
@@ -1023,20 +1012,9 @@ MediaStreamGraphImpl::RunThread()
         if (ps) {
           AudioNodeStream* n = stream->AsAudioNodeStream();
           if (n) {
-#ifdef DEBUG
-            // Verify that the sampling rate for all of the following streams is the same
-            for (uint32_t j = i + 1; j < mStreams.Length(); ++j) {
-              AudioNodeStream* nextStream = mStreams[j]->AsAudioNodeStream();
-              if (nextStream) {
-                MOZ_ASSERT(n->SampleRate() == nextStream->SampleRate(),
-                           "All AudioNodeStreams in the graph must have the same sampling rate");
-              }
-            }
-#endif
             // Since an AudioNodeStream is present, go ahead and
             // produce audio block by block for all the rest of the streams.
-            ProduceDataForStreamsBlockByBlock(i, n->SampleRate(), prevComputedTime, mStateComputedTime);
-            ticksProcessed += TimeToTicksRoundDown(n->SampleRate(), mStateComputedTime - prevComputedTime);
+            ProduceDataForStreamsBlockByBlock(i, prevComputedTime, mStateComputedTime);
             doneAllProducing = true;
           } else {
             ps->ProduceOutput(prevComputedTime, mStateComputedTime);
@@ -1064,8 +1042,9 @@ MediaStreamGraphImpl::RunThread()
       }
     }
     if (!mRealtime) {
+      ticksProcessed += TimeToTicksRoundDown(IdealAudioRate(), mStateComputedTime - prevComputedTime);
       // Terminate processing if we've produce enough non-realtime ticks.
-      if (!mForceShutDown && ticksProcessed >= mNonRealtimeTicksToProcess) {
+      if (ticksProcessed >= mNonRealtimeTicksToProcess) {
         // Wait indefinitely when we've processed enough non-realtime ticks.
         // We'll be woken up when the graph shuts down.
         MonitorAutoLock lock(mMonitor);
@@ -1906,6 +1885,9 @@ MediaInputPort::Destroy()
     {
       Run();
     }
+    // This does not need to be strongly referenced; the graph is holding
+    // a strong reference to the port, which we will remove. This will be the
+    // last message for the port.
     MediaInputPort* mPort;
   };
   GraphImpl()->AppendMessage(new Message(this));
@@ -1946,10 +1928,6 @@ ProcessedMediaStream::AllocateInputPort(MediaStream* aStream, uint32_t aFlags,
       mPort->Init();
       // The graph holds its reference implicitly
       mPort.forget();
-    }
-    virtual void RunDuringShutdown()
-    {
-      Run();
     }
     nsRefPtr<MediaInputPort> mPort;
   };
@@ -2086,10 +2064,6 @@ MediaStreamGraph::DestroyNonRealtimeInstance(MediaStreamGraph* aGraph)
   MOZ_ASSERT(aGraph != gGraph, "Should not destroy the global graph here");
 
   MediaStreamGraphImpl* graph = static_cast<MediaStreamGraphImpl*>(aGraph);
-  if (!graph->mNonRealtimeProcessing) {
-    // Start the graph, but don't produce anything
-    graph->StartNonRealtimeProcessing(0);
-  }
   graph->ForceShutDown();
 }
 
@@ -2117,14 +2091,10 @@ MediaStreamGraph::CreateTrackUnionStream(DOMMediaStream* aWrapper)
 
 AudioNodeStream*
 MediaStreamGraph::CreateAudioNodeStream(AudioNodeEngine* aEngine,
-                                        AudioNodeStreamKind aKind,
-                                        TrackRate aSampleRate)
+                                        AudioNodeStreamKind aKind)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (!aSampleRate) {
-    aSampleRate = aEngine->NodeMainThread()->Context()->SampleRate();
-  }
-  AudioNodeStream* stream = new AudioNodeStream(aEngine, aKind, aSampleRate);
+  AudioNodeStream* stream = new AudioNodeStream(aEngine, aKind);
   NS_ADDREF(stream);
   MediaStreamGraphImpl* graph = static_cast<MediaStreamGraphImpl*>(this);
   stream->SetGraphImpl(graph);

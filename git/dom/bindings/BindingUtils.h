@@ -1504,8 +1504,7 @@ enum StringificationBehavior {
 
 // pval must not be null and must point to a rooted JS::Value
 static inline bool
-ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
-                       JS::MutableHandle<JS::Value> pval,
+ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
                        StringificationBehavior nullBehavior,
                        StringificationBehavior undefinedBehavior,
                        FakeDependentString& result)
@@ -1536,7 +1535,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
     if (!s) {
       return false;
     }
-    pval.set(JS::StringValue(s));  // Root the new string.
+    pval->setString(s);  // Root the new string.
   }
 
   size_t len;

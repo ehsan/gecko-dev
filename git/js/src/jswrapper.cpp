@@ -36,8 +36,7 @@ Wrapper::New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
 
     AutoMarkInDeadZone amd(cx->zone());
 
-    RootedValue priv(cx, ObjectValue(*obj));
-    return NewProxyObject(cx, handler, priv, proto, parent,
+    return NewProxyObject(cx, handler, ObjectValue(*obj), proto, parent,
                           obj->isCallable() ? ProxyIsCallable : ProxyNotCallable);
 }
 
@@ -829,7 +828,7 @@ int DeadObjectProxy::sDeadObjectFamily;
 JSObject *
 js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
 {
-    return NewProxyObject(cx, &DeadObjectProxy::singleton, JS::NullHandleValue,
+    return NewProxyObject(cx, &DeadObjectProxy::singleton, NullValue(),
                           NULL, parent, ProxyNotCallable);
 }
 

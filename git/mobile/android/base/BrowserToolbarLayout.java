@@ -39,7 +39,7 @@ public class BrowserToolbarLayout extends GeckoRelativeLayout {
             post(new Runnable() {
                 @Override
                 public void run() {
-                    ((BrowserApp)GeckoAppShell.getContext()).refreshToolbarHeight();
+                    ((BrowserApp)GeckoApp.mAppContext).refreshToolbarHeight();
                 }
             });
         }

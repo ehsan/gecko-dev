@@ -41,10 +41,8 @@ function testClosureCreationAndInvocation() {
       }
     };
   };
-  for (var i in MODES) {
-    var m = p.map(makeaddv, MODES[i]);
-    assertEq(m.get(21)(1), 20); // v == 21; x == 1 ==> inner function returns b == 20
-  }
+  var m = p.map(makeaddv, {mode: "par", expect: "success"});
+  assertEq(m.get(21)(1), 20); // v == 21; x == 1 ==> inner function returns b == 20
 }
 
 if (getBuildConfiguration().parallelJS)

@@ -16,12 +16,14 @@ public:
 
   static already_AddRefed<nsIdleServiceX> GetInstance() 
   {
-    nsRefPtr<nsIdleService> idleService = nsIdleService::GetInstance();
+    nsIdleServiceX* idleService = 
+      static_cast<nsIdleServiceX*>(nsIdleService::GetInstance().get());
     if (!idleService) {
       idleService = new nsIdleServiceX();
+      NS_ADDREF(idleService);
     }
     
-    return idleService.forget().downcast<nsIdleServiceX>();
+    return idleService;
   }
   
 protected:

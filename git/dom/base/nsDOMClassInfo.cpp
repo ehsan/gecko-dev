@@ -193,6 +193,7 @@
 #include "nsIDOMSVGAnimatedInteger.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsIDOMSVGAnimatedString.h"
+#include "nsIDOMTimeEvent.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGNumber.h"
 
@@ -616,6 +617,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(CSSSupportsRule, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(TimeEvent, nsEventSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // other SVG classes
@@ -1714,6 +1718,11 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   // The SVG document
+
+  DOM_CLASSINFO_MAP_BEGIN(TimeEvent, nsIDOMTimeEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeEvent)
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
 
   // other SVG classes
   DOM_CLASSINFO_MAP_BEGIN(SVGAnimatedEnumeration, nsIDOMSVGAnimatedEnumeration)

@@ -67,7 +67,7 @@ CMMSRCS += \
   mac/dump_syms.mm
 endif
 
-DISABLED_CSRCS = \
+CSRCS = \
   convert_UTF.c \
   $(NULL)
 

@@ -4601,8 +4601,7 @@ CheckFunctionBody(ModuleCompiler &m, ModuleCompiler::Func &func, LifoAlloc &lifo
     // Memory for the objects is provided by the LifoAlloc argument,
     // which may be explicitly tracked by the caller.
     MIRGraph *graph = lifo.new_<MIRGraph>(tempAlloc);
-    CompileInfo *info = lifo.new_<CompileInfo>(locals.count(),
-                                               SequentialExecution);
+    CompileInfo *info = lifo.new_<CompileInfo>(locals.count());
     MIRGenerator *mirGen = lifo.new_<MIRGenerator>(m.cx()->compartment, tempAlloc, graph, info);
     JS_ASSERT(tempAlloc && graph && info && mirGen);
 

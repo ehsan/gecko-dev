@@ -282,8 +282,10 @@ private:
 
   /**
    * Singleton getter, invoked by class instantiation.
+   *
+   * Note: does AddRef.
    */
-  static already_AddRefed<Database> GetSingleton();
+  static Database* GetSingleton();
 
   static Database* gDatabase;
 

@@ -62,10 +62,9 @@ let TestRunner = {
    */
   finish: function () {
     function cleanupAndFinish() {
-      clearHistory(function () {
-        whenPagesUpdated(finish);
-        NewTabUtils.restore();
-      });
+      clearHistory();
+      whenPagesUpdated(finish);
+      NewTabUtils.restore();
     }
 
     let callbacks = NewTabUtils.links._populateCallbacks;
@@ -129,22 +128,16 @@ function setLinks(aLinks) {
     });
   }
 
-  clearHistory(function () {
-    fillHistory(links, function () {
-      NewTabUtils.links.populateCache(function () {
-        NewTabUtils.allPages.update();
-        TestRunner.next();
-      }, true);
-    });
+  clearHistory();
+  fillHistory(links, function () {
+    NewTabUtils.links.populateCache(function () {
+      NewTabUtils.allPages.update();
+      TestRunner.next();
+    }, true);
   });
 }
 
-function clearHistory(aCallback) {
-  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(observe, aTopic);
-    executeSoon(aCallback);
-  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-
+function clearHistory() {
   PlacesUtils.history.removeAllPages();
 }
 

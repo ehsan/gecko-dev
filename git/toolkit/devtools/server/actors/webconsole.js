@@ -94,10 +94,6 @@ function WebConsoleActor(aConnection, aParentActor)
   this._onObserverNotification = this._onObserverNotification.bind(this);
   Services.obs.addObserver(this._onObserverNotification,
                            "inner-window-destroyed", false);
-  if (this._isGlobalActor) {
-    Services.obs.addObserver(this._onObserverNotification,
-                             "last-pb-context-exited", false);
-  }
 }
 
 WebConsoleActor.prototype =
@@ -247,10 +243,6 @@ WebConsoleActor.prototype =
     this.conn.removeActorPool(this._actorPool);
     Services.obs.removeObserver(this._onObserverNotification,
                                 "inner-window-destroyed");
-    if (this._isGlobalActor) {
-      Services.obs.removeObserver(this._onObserverNotification,
-                                  "last-pb-context-exited");
-    }
     this._actorPool = null;
     this._protoChains.clear();
     this._dbgGlobals.clear();
@@ -507,24 +499,22 @@ WebConsoleActor.prototype =
       switch (type) {
         case "ConsoleAPI":
           if (this.consoleAPIListener) {
-            let cache = this.consoleAPIListener
-                        .getCachedMessages(!this._isGlobalActor);
-            cache.forEach((aMessage) => {
+            let cache = this.consoleAPIListener.getCachedMessages();
+            cache.forEach(function(aMessage) {
               let message = this.prepareConsoleMessageForRemote(aMessage);
               message._type = type;
               messages.push(message);
-            });
+            }, this);
           }
           break;
         case "PageError":
           if (this.pageErrorListener) {
-            let cache = this.pageErrorListener
-                        .getCachedMessages(!this._isGlobalActor);
-            cache.forEach((aMessage) => {
+            let cache = this.pageErrorListener.getCachedMessages();
+            cache.forEach(function(aMessage) {
               let message = this.preparePageErrorForRemote(aMessage);
               message._type = type;
               messages.push(message);
-            });
+            }, this);
           }
           break;
       }
@@ -914,7 +904,6 @@ WebConsoleActor.prototype =
       error: !!(aPageError.flags & aPageError.errorFlag),
       exception: !!(aPageError.flags & aPageError.exceptionFlag),
       strict: !!(aPageError.flags & aPageError.strictFlag),
-      private: aPageError.isFromPrivateWindow,
     };
   },
 
@@ -1001,8 +990,6 @@ WebConsoleActor.prototype =
   {
     let result = WebConsoleUtils.cloneObject(aMessage);
     delete result.wrappedJSObject;
-    delete result.ID;
-    delete result.innerID;
 
     result.arguments = Array.map(aMessage.arguments || [], (aObj) => {
       let dbgObj = this.makeDebuggeeValue(aObj, true);
@@ -1042,25 +1029,12 @@ WebConsoleActor.prototype =
    * @param object aSubject
    *        Notification subject - in this case it is the inner window ID that
    *        was destroyed.
-   * @param string aTopic
-   *        Notification topic.
    */
-  _onObserverNotification: function WCA__onObserverNotification(aSubject, aTopic)
+  _onObserverNotification: function WCA__onObserverNotification(aSubject)
   {
-    switch (aTopic) {
-      case "inner-window-destroyed": {
-        let windowId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
-        if (this._dbgGlobals.has(windowId)) {
-          this._dbgGlobals.delete(windowId);
-        }
-        break;
-      }
-      case "last-pb-context-exited":
-        this.conn.send({
-          from: this.actorID,
-          type: "lastPrivateContextExited",
-        });
-        break;
+    let windowId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
+    if (this._dbgGlobals.has(windowId)) {
+      this._dbgGlobals.delete(windowId);
     }
   },
 };
@@ -1091,7 +1065,6 @@ function NetworkEventActor(aNetworkEvent, aWebConsoleActor)
   this.conn = this.parent.conn;
 
   this._startedDateTime = aNetworkEvent.startedDateTime;
-  this._isXHR = aNetworkEvent.isXHR;
 
   this._request = {
     method: aNetworkEvent.method,
@@ -1114,7 +1087,6 @@ function NetworkEventActor(aNetworkEvent, aWebConsoleActor)
 
   this._discardRequestBody = aNetworkEvent.discardRequestBody;
   this._discardResponseBody = aNetworkEvent.discardResponseBody;
-  this._private = aNetworkEvent.private;
 }
 
 NetworkEventActor.prototype =
@@ -1136,8 +1108,6 @@ NetworkEventActor.prototype =
       startedDateTime: this._startedDateTime,
       url: this._request.url,
       method: this._request.method,
-      isXHR: this._isXHR,
-      private: this._private,
     };
   },
 

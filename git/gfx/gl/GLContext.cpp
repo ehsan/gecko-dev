@@ -1389,7 +1389,7 @@ GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader
 
     nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
     if (!surf || surf->CairoStatus()) {
-        return nullptr;
+        return NULL;
     }
 
     uint32_t currentPackAlignment = 0;

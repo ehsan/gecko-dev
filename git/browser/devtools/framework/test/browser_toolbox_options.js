@@ -55,13 +55,7 @@ function testMouseClicks() {
   }
   gDevTools.once("pref-changed", prefChanged);
   info("Click event synthesized for index " + index);
-  prefNodes[index].scrollIntoView();
-
-  // We use executeSoon here to ensure that the element is in view and
-  // clickable.
-  executeSoon(function() {
-    EventUtils.synthesizeMouseAtCenter(prefNodes[index], {}, panelWin);
-  });
+  EventUtils.synthesizeMouse(prefNodes[index], 10, 10, {}, panelWin);
 }
 
 function prefChanged(event, data) {
@@ -95,11 +89,11 @@ function checkTools() {
 function toggleTools() {
   if (index < prefNodes.length) {
     gDevTools.once("tool-unregistered", checkUnregistered);
-    EventUtils.synthesizeMouseAtCenter(prefNodes[index], {}, panelWin);
+    EventUtils.synthesizeMouse(prefNodes[index], 10, 10, {}, panelWin);
   }
   else if (index < 2*prefNodes.length) {
     gDevTools.once("tool-registered", checkRegistered);
-    EventUtils.synthesizeMouseAtCenter(prefNodes[index - prefNodes.length], {}, panelWin);
+    EventUtils.synthesizeMouse(prefNodes[index - prefNodes.length], 10, 10, {}, panelWin);
   }
   else {
     cleanup();
