@@ -322,12 +322,6 @@ class IDL(object):
             if p.kind == 'include':
                 yield p
 
-    def needsJSTypes(self):
-        for p in self.productions:
-            if p.kind == 'interface' and p.needsJSTypes():
-                return True
-        return False
-
 class CDATA(object):
     kind = 'cdata'
     _re = re.compile(r'\n+')
@@ -557,14 +551,6 @@ class Interface(object):
             raise IDLError("symbol '%s' is not a constant", c.location)
 
         return c.getValue()
-
-    def needsJSTypes(self):
-        for m in self.members:
-            if m.kind == "attribute" and m.type == "jsval":
-                return True
-            if m.kind == "method" and m.needsJSTypes():
-                return True
-        return False
 
 class InterfaceAttributes(object):
     uuid = None
@@ -828,15 +814,6 @@ class Method(object):
                                     ", ".join([p.toIDL()
                                                for p in self.params]),
                                     raises)
-
-    def needsJSTypes(self):
-        if self.implicit_jscontext:
-            return True
-        for p in self.params:
-            t = p.realtype
-            if isinstance(t, Native) and t.specialtype == "jsval":
-                return True
-        return False
 
 class Param(object):
     size_is = None

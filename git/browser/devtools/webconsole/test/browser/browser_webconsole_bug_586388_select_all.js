@@ -36,7 +36,7 @@ function testSelectionWhenMovingBetweenBoxes() {
 
   // Test that the global Firefox "Select All" functionality (e.g. Edit >
   // Select All) works properly in the Web Console.
-  let commandController = window.webConsoleCommandController;
+  let commandController = window.commandController;
   ok(commandController != null, "the window has a command controller object");
 
   commandController.selectAll(outputNode);

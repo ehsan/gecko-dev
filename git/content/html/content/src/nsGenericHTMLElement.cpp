@@ -50,7 +50,6 @@
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMNSHTMLElement.h"
-#include "nsIDOMHTMLMenuElement.h"
 #include "nsIDOMElementCSSInlineStyle.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
@@ -116,7 +115,6 @@
 #include "nsITextControlElement.h"
 #include "mozilla/dom/Element.h"
 #include "nsHTMLFieldSetElement.h"
-#include "nsHTMLMenuElement.h"
 
 #include "mozilla/Preferences.h"
 
@@ -2450,28 +2448,6 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
   }
 
   *aContentEditable = PR_FALSE;
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
-{
-  *aContextMenu = nsnull;
-
-  nsAutoString value;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::contextmenu, value);
-
-  if (value.IsEmpty()) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    nsRefPtr<nsHTMLMenuElement> element =
-      nsHTMLMenuElement::FromContent(doc->GetElementById(value));
-    element.forget(aContextMenu);
-  }
-
   return NS_OK;
 }
 

@@ -360,6 +360,12 @@ nsHTMLSelectElement::RemoveOptionsFromList(nsIContent* aOptions,
   return NS_OK;
 }
 
+static PRBool IsOptGroup(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::optgroup) &&
+          aContent->IsHTML());
+}
+
 // If the document is such that recursing over these options gets us
 // deeper than four levels, there is something terribly wrong with the
 // world.
@@ -388,7 +394,7 @@ nsHTMLSelectElement::InsertOptionsIntoListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down into optgroups
-  if (aOptions->IsHTML(nsGkAtoms::optgroup)) {
+  if (IsOptGroup(aOptions)) {
     mOptGroupCount++;
 
     PRUint32 numChildren = aOptions->GetChildCount();
@@ -432,7 +438,7 @@ nsHTMLSelectElement::RemoveOptionsFromListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down deeper for options
-  if (mOptGroupCount && aOptions->IsHTML(nsGkAtoms::optgroup)) {
+  if (mOptGroupCount && IsOptGroup(aOptions)) {
     mOptGroupCount--;
 
     PRUint32 numChildren = aOptions->GetChildCount();
@@ -1867,15 +1873,15 @@ void nsHTMLSelectElement::DispatchContentReset() {
 static void
 AddOptionsRecurse(nsIContent* aRoot, nsHTMLOptionCollection* aArray)
 {
-  for (nsIContent* cur = aRoot->GetFirstChild();
-       cur;
-       cur = cur->GetNextSibling()) {
-    nsHTMLOptionElement* opt = nsHTMLOptionElement::FromContent(cur);
+  nsIContent* child;
+  for(PRUint32 i = 0; (child = aRoot->GetChildAt(i)); ++i) {
+    nsHTMLOptionElement *opt = nsHTMLOptionElement::FromContent(child);
     if (opt) {
       // If we fail here, then at least we've tried our best
       aArray->AppendOption(opt);
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
-      AddOptionsRecurse(cur, aArray);
+    }
+    else if (IsOptGroup(child)) {
+      AddOptionsRecurse(child, aArray);
     }
   }
 }
@@ -1963,15 +1969,15 @@ static void
 VerifyOptionsRecurse(nsIContent* aRoot, PRInt32& aIndex,
                      nsHTMLOptionCollection* aArray)
 {
-  for (nsIContent* cur = aRoot->GetFirstChild();
-       cur;
-       cur = cur->GetNextSibling()) {
-    nsCOMPtr<nsIDOMHTMLOptionElement> opt = do_QueryInterface(cur);
+  nsIContent* child;
+  for(PRUint32 i = 0; (child = aRoot->GetChildAt(i)); ++i) {
+    nsCOMPtr<nsIDOMHTMLOptionElement> opt = do_QueryInterface(child);
     if (opt) {
       NS_ASSERTION(opt == aArray->ItemAsOption(aIndex++),
                    "Options collection broken");
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
-      VerifyOptionsRecurse(cur, aIndex, aArray);
+    }
+    else if (IsOptGroup(child)) {
+      VerifyOptionsRecurse(child, aIndex, aArray);
     }
   }
 }
