@@ -450,10 +450,10 @@ NewObjectCache::clearNurseryObjects(JSRuntime *rt)
 #ifdef JSGC_GENERATIONAL
     for (unsigned i = 0; i < mozilla::ArrayLength(entries); ++i) {
         Entry &e = entries[i];
-        NativeObject *obj = reinterpret_cast<NativeObject *>(&e.templateObject);
+        JSObject *obj = reinterpret_cast<JSObject *>(&e.templateObject);
         if (IsInsideNursery(e.key) ||
-            rt->gc.nursery.isInside(obj->slots_) ||
-            rt->gc.nursery.isInside(obj->elements_))
+            rt->gc.nursery.isInside(obj->fakeNativeSlots()) ||
+            rt->gc.nursery.isInside(obj->fakeNativeElements()))
         {
             PodZero(&e);
         }

@@ -2232,14 +2232,14 @@ JS_PUBLIC_API(void *)
 JS_GetPrivate(JSObject *obj)
 {
     /* This function can be called by a finalizer. */
-    return obj->as<NativeObject>().getPrivate();
+    return obj->fakeNativeGetPrivate();
 }
 
 JS_PUBLIC_API(void)
 JS_SetPrivate(JSObject *obj, void *data)
 {
     /* This function can be called by a finalizer. */
-    obj->as<NativeObject>().setPrivate(data);
+    obj->fakeNativeSetPrivate(data);
 }
 
 JS_PUBLIC_API(void *)
@@ -2247,7 +2247,7 @@ JS_GetInstancePrivate(JSContext *cx, HandleObject obj, const JSClass *clasp, Cal
 {
     if (!JS_InstanceOf(cx, obj, clasp, args))
         return nullptr;
-    return obj->as<NativeObject>().getPrivate();
+    return obj->fakeNativeGetPrivate();
 }
 
 JS_PUBLIC_API(bool)
@@ -2565,15 +2565,13 @@ JS_DeepFreezeObject(JSContext *cx, HandleObject obj)
         return false;
 
     /* Walk slots in obj and if any value is a non-null object, seal it. */
-    if (obj->isNative()) {
-        for (uint32_t i = 0, n = obj->as<NativeObject>().slotSpan(); i < n; ++i) {
-            const Value &v = obj->as<NativeObject>().getSlot(i);
-            if (v.isPrimitive())
-                continue;
-            RootedObject obj(cx, &v.toObject());
-            if (!JS_DeepFreezeObject(cx, obj))
-                return false;
-        }
+    for (uint32_t i = 0, n = obj->fakeNativeSlotSpan(); i < n; ++i) {
+        const Value &v = obj->fakeNativeGetSlot(i);
+        if (v.isPrimitive())
+            continue;
+        RootedObject obj(cx, &v.toObject());
+        if (!JS_DeepFreezeObject(cx, obj))
+            return false;
     }
 
     return true;
@@ -3657,13 +3655,13 @@ JS_Enumerate(JSContext *cx, HandleObject obj)
 JS_PUBLIC_API(jsval)
 JS_GetReservedSlot(JSObject *obj, uint32_t index)
 {
-    return obj->as<NativeObject>().getReservedSlot(index);
+    return obj->fakeNativeGetReservedSlot(index);
 }
 
 JS_PUBLIC_API(void)
 JS_SetReservedSlot(JSObject *obj, uint32_t index, Value value)
 {
-    obj->as<NativeObject>().setReservedSlot(index, value);
+    obj->fakeNativeSetReservedSlot(index, value);
 }
 
 JS_PUBLIC_API(JSObject *)

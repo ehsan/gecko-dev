@@ -86,10 +86,7 @@ bool UDPPusher::onPush() {
 
     length = fromlel(length);
 
-    if (length <= 0u) {
-        LOGE("Zero length");
-        return false;
-    }
+    CHECK_GT(length, 0u);
 
     sp<ABuffer> buffer = new ABuffer(length);
     if (fread(buffer->data(), 1, length, mFile) < length) {
@@ -102,10 +99,6 @@ bool UDPPusher::onPush() {
             &mRemoteAddr, PR_INTERVAL_NO_WAIT);
 
     CHECK_EQ(n, (ssize_t)buffer->size());
-    if (n != (ssize_t)buffer->size()) {
-        LOGE("Sizes don't match");
-        return false;
-    }
 
     uint32_t timeMs;
     if (fread(&timeMs, 1, sizeof(timeMs), mFile) < sizeof(timeMs)) {
@@ -114,10 +107,7 @@ bool UDPPusher::onPush() {
     }
 
     timeMs = fromlel(timeMs);
-    if (timeMs < mFirstTimeMs) {
-        LOGE("Time is wrong");
-        return false;
-    }
+    CHECK_GE(timeMs, mFirstTimeMs);
 
     timeMs -= mFirstTimeMs;
     int64_t whenUs = mFirstTimeUs + timeMs * 1000ll;
@@ -153,7 +143,7 @@ void UDPPusher::onMessageReceived(const sp<AMessage> &msg) {
                         mSocket, buffer->data(), buffer->size(), 0,
                         &tmp, PR_INTERVAL_NO_WAIT);
 
-                MOZ_ASSERT(n, (ssize_t)buffer->size());
+                CHECK_EQ(n, (ssize_t)buffer->size());
             }
             break;
         }

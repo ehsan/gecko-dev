@@ -19,8 +19,6 @@ interface ShadowRoot : DocumentFragment
   HTMLCollection getElementsByClassName(DOMString classNames);
   [SetterThrows,TreatNullAs=EmptyString]
   attribute DOMString innerHTML;
-  readonly attribute Element host;
-  readonly attribute ShadowRoot? olderShadowRoot;
   attribute boolean applyAuthorStyles;
   readonly attribute StyleSheetList styleSheets;
 };

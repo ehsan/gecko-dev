@@ -435,7 +435,7 @@ js::NotifyAnimationActivity(JSObject *obj)
 JS_FRIEND_API(uint32_t)
 js::GetObjectSlotSpan(JSObject *obj)
 {
-    return obj->as<NativeObject>().slotSpan();
+    return obj->fakeNativeSlotSpan();
 }
 
 JS_FRIEND_API(bool)
@@ -555,14 +555,9 @@ js::GetOriginalEval(JSContext *cx, HandleObject scope, MutableHandleObject eval)
 }
 
 JS_FRIEND_API(void)
-js::SetReservedOrProxyPrivateSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
+js::SetReservedSlotWithBarrier(JSObject *obj, size_t slot, const js::Value &value)
 {
-    if (IsProxy(obj)) {
-        MOZ_ASSERT(slot == 0);
-        obj->as<ProxyObject>().setSameCompartmentPrivate(value);
-    } else {
-        obj->as<NativeObject>().setSlot(slot, value);
-    }
+    obj->fakeNativeSetSlot(slot, value);
 }
 
 JS_FRIEND_API(bool)
@@ -1440,8 +1435,8 @@ js::IsInRequest(JSContext *cx)
 }
 
 bool
-js::HasObjectMovedOp(JSObject *obj) {
-    return !!GetObjectClass(obj)->ext.objectMovedOp;
+js::HasObjectMovedOpIfRequired(JSObject *obj) {
+    return obj->is<GlobalObject>() || !!GetObjectClass(obj)->ext.objectMovedOp;
 }
 #endif
 

@@ -2839,33 +2839,6 @@ CodeGenerator::visitCallNative(LCallNative *call)
     return true;
 }
 
-static void
-LoadDOMPrivate(MacroAssembler &masm, Register obj, Register priv)
-{
-    // Load the value in DOM_OBJECT_SLOT for a native or proxy DOM object. This
-    // will be in the first slot but may be fixed or non-fixed.
-    MOZ_ASSERT(obj != priv);
-
-    // Check shape->numFixedSlots != 0.
-    masm.loadPtr(Address(obj, JSObject::offsetOfShape()), priv);
-
-    Label hasFixedSlots, done;
-    masm.branchTest32(Assembler::NonZero,
-                      Address(priv, Shape::offsetOfSlotInfo()),
-                      Imm32(Shape::fixedSlotsMask()),
-                      &hasFixedSlots);
-
-    masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), priv);
-    masm.loadPrivate(Address(priv, 0), priv);
-
-    masm.jump(&done);
-    masm.bind(&hasFixedSlots);
-
-    masm.loadPrivate(Address(obj, NativeObject::getFixedSlotOffset(0)), priv);
-
-    masm.bind(&done);
-}
-
 bool
 CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
 {
@@ -2914,7 +2887,8 @@ CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
                      IonDOMMethodExitFrameLayoutTraits::offsetOfArgcFromArgv);
     masm.computeEffectiveAddress(Address(StackPointer, 2 * sizeof(Value)), argArgs);
 
-    LoadDOMPrivate(masm, obj, argPrivate);
+    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    masm.loadPrivate(Address(obj, NativeObject::getFixedSlotOffset(0)), argPrivate);
 
     // Push argc from the call instruction into what will become the IonExitFrame
     masm.Push(Imm32(call->numStackArgs()));
@@ -5017,7 +4991,7 @@ CodeGenerator::visitNeuterCheck(LNeuterCheck *lir)
     masm.loadObjClass(obj, temp);
     masm.branchPtr(Assembler::Equal, temp, ImmPtr(&InlineOpaqueTypedObject::class_), &inlineObject);
 
-    masm.loadPtr(Address(obj, OutlineTypedObject::offsetOfOwner()), temp);
+    masm.extractObject(Address(obj, OutlineTypedObject::offsetOfOwnerSlot()), temp);
     masm.unboxInt32(Address(temp, ArrayBufferObject::offsetOfFlagsSlot()), temp);
 
     Imm32 flag(ArrayBufferObject::neuteredFlag());
@@ -5047,16 +5021,6 @@ CodeGenerator::visitTypedObjectProto(LTypedObjectProto *lir)
 }
 
 bool
-CodeGenerator::visitTypedObjectUnsizedLength(LTypedObjectUnsizedLength *lir)
-{
-    Register obj = ToRegister(lir->object());
-    Register out = ToRegister(lir->output());
-
-    masm.load32(Address(obj, OutlineTypedObject::offsetOfUnsizedLength()), out);
-    return true;
-}
-
-bool
 CodeGenerator::visitTypedObjectElements(LTypedObjectElements *lir)
 {
     Register obj = ToRegister(lir->object());
@@ -5066,7 +5030,7 @@ CodeGenerator::visitTypedObjectElements(LTypedObjectElements *lir)
     masm.loadObjClass(obj, out);
     masm.branchPtr(Assembler::Equal, out, ImmPtr(&InlineOpaqueTypedObject::class_), &inlineObject);
 
-    masm.loadPtr(Address(obj, OutlineTypedObject::offsetOfData()), out);
+    masm.loadPtr(Address(obj, OutlineTypedObject::offsetOfDataSlot()), out);
     masm.jump(&done);
 
     masm.bind(&inlineObject);
@@ -5085,7 +5049,7 @@ CodeGenerator::visitSetTypedObjectOffset(LSetTypedObjectOffset *lir)
     Register temp1 = ToRegister(lir->temp1());
 
     // Compute the base pointer for the typed object's owner.
-    masm.loadPtr(Address(object, OutlineTypedObject::offsetOfOwner()), temp0);
+    masm.extractObject(Address(object, OutlineTypedObject::offsetOfOwnerSlot()), temp0);
 
     Label inlineObject, done;
     masm.loadObjClass(temp0, temp1);
@@ -5101,7 +5065,7 @@ CodeGenerator::visitSetTypedObjectOffset(LSetTypedObjectOffset *lir)
 
     // Compute the new data pointer and set it in the object.
     masm.addPtr(offset, temp0);
-    masm.storePtr(temp0, Address(object, OutlineTypedObject::offsetOfData()));
+    masm.storePtr(temp0, Address(object, OutlineTypedObject::offsetOfDataSlot()));
 
     return true;
 }
@@ -9260,7 +9224,8 @@ CodeGenerator::visitGetDOMProperty(LGetDOMProperty *ins)
 
     masm.Push(ObjectReg);
 
-    LoadDOMPrivate(masm, ObjectReg, PrivateReg);
+    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    masm.loadPrivate(Address(ObjectReg, NativeObject::getFixedSlotOffset(0)), PrivateReg);
 
     // Rooting will happen at GC time.
     masm.movePtr(StackPointer, ObjectReg);
@@ -9338,7 +9303,8 @@ CodeGenerator::visitSetDOMProperty(LSetDOMProperty *ins)
 
     masm.Push(ObjectReg);
 
-    LoadDOMPrivate(masm, ObjectReg, PrivateReg);
+    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    masm.loadPrivate(Address(ObjectReg, NativeObject::getFixedSlotOffset(0)), PrivateReg);
 
     // Rooting will happen at GC time.
     masm.movePtr(StackPointer, ObjectReg);

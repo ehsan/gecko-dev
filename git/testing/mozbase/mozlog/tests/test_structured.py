@@ -70,12 +70,7 @@ class TestStatusHandler(BaseStructuredTest):
         self.logger.test_end("test1", status='OK')
         self.logger.suite_end()
         summary = self.handler.summarize()
-        self.assertIn('TIMEOUT', summary.unexpected_statuses)
-        self.assertEqual(1, summary.unexpected_statuses['TIMEOUT'])
-        self.assertIn('PASS', summary.expected_statuses)
-        self.assertEqual(1, summary.expected_statuses['PASS'])
-        self.assertIn('OK', summary.expected_statuses)
-        self.assertEqual(1, summary.expected_statuses['OK'])
+        self.assertEqual(1, summary.unexpected)
         self.assertEqual(2, summary.action_counts['test_status'])
         self.assertEqual(1, summary.action_counts['test_end'])
 
@@ -83,15 +78,13 @@ class TestStatusHandler(BaseStructuredTest):
         self.logger.suite_start([])
         self.logger.test_start("test1")
         self.logger.error("ERRR!")
-        self.logger.test_end("test1", status='OK')
+        self.logger.test_end("test1", status='PASS')
         self.logger.test_start("test2")
-        self.logger.test_end("test2", status='OK')
+        self.logger.test_end("test2", status='PASS')
         self.logger.suite_end()
         summary = self.handler.summarize()
         self.assertIn('ERROR', summary.log_level_counts)
         self.assertEqual(1, summary.log_level_counts['ERROR'])
-        self.assertIn('OK', summary.expected_statuses)
-        self.assertEqual(2, summary.expected_statuses['OK'])
 
 
 class TestStructuredLog(BaseStructuredTest):

@@ -75,7 +75,7 @@ protected:
 
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv) MOZ_OVERRIDE;
-    virtual bool AnswerNP_Initialize(NPError* rv) MOZ_OVERRIDE;
+    virtual bool AnswerNP_Initialize(const uint32_t& aFlags, NPError* rv) MOZ_OVERRIDE;
 
     virtual PPluginIdentifierChild*
     AllocPPluginIdentifierChild(const nsCString& aString,
@@ -182,6 +182,8 @@ public:
 #ifdef DEBUG
     bool NPObjectIsRegistered(NPObject* aObject);
 #endif
+
+    bool AsyncDrawingAllowed() { return mAsyncDrawingAllowed; }
 
     /**
      * The child implementation of NPN_CreateObject.
@@ -313,6 +315,7 @@ private:
     nsCString mPluginFilename; // UTF8
     nsCString mUserAgent;
     int mQuirks;
+    bool mAsyncDrawingAllowed;
 
     // we get this from the plugin
     NP_PLUGINSHUTDOWN mShutdownFunc;

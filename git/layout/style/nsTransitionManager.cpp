@@ -533,7 +533,7 @@ nsTransitionManager::ConsiderStartingTransition(
   segment.mTimingFunction.Init(tf);
 
   nsRefPtr<dom::AnimationPlayer> player = new dom::AnimationPlayer(timeline);
-  player->mStartTime = timeline->GetCurrentTime();
+  player->mStartTime = timeline->GetCurrentTimeDuration();
   player->SetSource(pt);
 
   if (!aElementTransitions) {
@@ -834,7 +834,7 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
           } else if ((computedTiming.mPhase ==
                       ComputedTiming::AnimationPhase_Active) &&
                      canThrottleTick &&
-                     !player->IsRunningOnCompositor()) {
+                    !player->mIsRunningOnCompositor) {
             // Start a transition with a delay where we should start the
             // transition proper.
             collection->UpdateAnimationGeneration(mPresContext);

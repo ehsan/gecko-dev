@@ -7250,8 +7250,13 @@ IonBuilder::checkTypedObjectIndexInBounds(int32_t elemSize,
         // then we still need to check if the object was neutered.
         *canBeNeutered = true;
     } else if (objPrediction.kind() == type::UnsizedArray) {
-        length = MTypedObjectUnsizedLength::New(alloc(), obj);
-        current->add(length->toInstruction());
+        MInstruction *lengthValue = MLoadFixedSlot::New(alloc(), obj, OutlineTypedObject::LENGTH_SLOT);
+        current->add(lengthValue);
+
+        MInstruction *length32 = MTruncateToInt32::New(alloc(), lengthValue);
+        current->add(length32);
+
+        length = length32;
 
         // If we are loading the length from the object itself,
         // then we do not need an extra neuter check, because the length

@@ -14,6 +14,7 @@
 // Required here due to certain WebIDL enums/classes being declared in both
 // files.
 #include "mozilla/dom/RequestBinding.h"
+#include "mozilla/dom/UnionTypes.h"
 
 class nsPIDOMWindow;
 
@@ -23,7 +24,6 @@ namespace dom {
 class Headers;
 class InternalHeaders;
 class Promise;
-class RequestOrScalarValueString;
 
 class Request MOZ_FINAL : public nsISupports
                         , public nsWrapperCache

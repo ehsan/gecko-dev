@@ -91,9 +91,10 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE MOZ_FINAL;
-
-  virtual JSObject* WrapObjectInternal(JSContext* aCx);
+  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  {
+    return EventBinding::Wrap(aCx, this);
+  }
 
   virtual ErrorEvent* AsErrorEvent()
   {

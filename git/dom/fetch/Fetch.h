@@ -6,18 +6,13 @@
 #ifndef mozilla_dom_Fetch_h
 #define mozilla_dom_Fetch_h
 
-#include "nsCOMPtr.h"
-#include "nsError.h"
-#include "nsString.h"
-#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/UnionTypes.h"
 
 class nsIInputStream;
 
 namespace mozilla {
 namespace dom {
 
-class ArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams;
-class OwningArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams;
 class Promise;
 
 /*

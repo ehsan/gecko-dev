@@ -38,14 +38,10 @@
 #include "PrivateBrowsingChannel.h"
 #include "mozilla/net/DNS.h"
 #include "nsITimedChannel.h"
-#include "nsIHttpChannel.h"
 #include "nsISecurityConsoleMessage.h"
-#include "nsCOMArray.h"
 
 extern PRLogModuleInfo *gHttpLog;
 class nsPerformance;
-class nsISecurityConsoleMessage;
-class nsIPrincipal;
 
 namespace mozilla {
 namespace net {
@@ -181,7 +177,6 @@ public:
   NS_IMETHOD AddRedirect(nsIPrincipal *aRedirect);
   NS_IMETHOD ForcePending(bool aForcePending);
   NS_IMETHOD GetLastModifiedTime(PRTime* lastModifiedTime);
-  NS_IMETHOD ForceNoIntercept();
 
   inline void CleanRedirectCacheChainIfNecessary()
   {
@@ -281,10 +276,6 @@ protected:
   // null if the principal has unknown appId.
   nsIPrincipal *GetPrincipal(bool requireAppId);
 
-  // Returns true if this channel should intercept the network request and prepare
-  // for a possible synthesized response instead.
-  bool ShouldIntercept();
-
   friend class PrivateBrowsingChannel<HttpBaseChannel>;
 
   nsCOMPtr<nsIURI>                  mURI;
@@ -356,9 +347,6 @@ protected:
   // Is 1 if no redirects have occured or if all redirects
   // pass the Resource Timing timing-allow-check
   uint32_t                          mAllRedirectsPassTimingAllowCheck : 1;
-
-  // True if this channel should skip any interception checks
-  uint32_t                          mForceNoIntercept           : 1;
 
   // Current suspension depth for this channel object
   uint32_t                          mSuspendCount;

@@ -88,6 +88,7 @@ gfxContext::gfxContext(DrawTarget *aTarget, const Point& aDeviceOffset)
   : mPathIsRect(false)
   , mTransformChanged(false)
   , mRefCairo(nullptr)
+  , mFlags(0)
   , mDT(aTarget)
   , mOriginalDT(aTarget)
 {
@@ -488,7 +489,7 @@ gfxContext::UserToDevice(const gfxRect& rect) const
 bool
 gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
 {
-  if (mDT->GetUserData(&sDisablePixelSnapping))
+  if (GetFlags() & FLAG_DISABLE_SNAPPING)
       return false;
 
   // if we're not at 1.0 scale, don't snap, unless we're
@@ -529,7 +530,7 @@ gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
 bool
 gfxContext::UserToDevicePixelSnapped(gfxPoint& pt, bool ignoreScale) const
 {
-  if (mDT->GetUserData(&sDisablePixelSnapping))
+  if (GetFlags() & FLAG_DISABLE_SNAPPING)
       return false;
 
   // if we're not at 1.0 scale, don't snap, unless we're
@@ -826,7 +827,7 @@ gfxContext::SetColor(const gfxRGBA& c)
   CurrentState().pattern = nullptr;
   CurrentState().sourceSurfCairo = nullptr;
   CurrentState().sourceSurface = nullptr;
-  CurrentState().color = ToDeviceColor(c);
+  CurrentState().color = gfxPlatform::MaybeTransformColor(c);
 }
 
 void

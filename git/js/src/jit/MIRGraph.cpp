@@ -901,8 +901,10 @@ MBasicBlock::discardAllPhis()
 void
 MBasicBlock::discardAllResumePoints(bool discardEntry)
 {
-    if (outerResumePoint_)
-        clearOuterResumePoint();
+    if (outerResumePoint_) {
+        discardResumePoint(outerResumePoint_);
+        outerResumePoint_ = nullptr;
+    }
 
     if (discardEntry && entryResumePoint_)
         clearEntryResumePoint();

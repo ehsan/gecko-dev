@@ -241,7 +241,7 @@ function hookupTests(testList) {
   } else {
     gTestList = [];
     for (var obj in testList) {
-        gTestList.push(testList[obj]);
+        gTestList.push(obj);
     }
   }
 

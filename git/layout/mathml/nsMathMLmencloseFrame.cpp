@@ -6,7 +6,6 @@
 #include "nsMathMLmencloseFrame.h"
 
 #include "gfx2DGlue.h"
-#include "gfxUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "nsPresContext.h"
@@ -772,9 +771,9 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
 
   // paint the frame with the current text color
-  ColorPattern color(ToDeviceColor(
-                       mFrame->GetVisitedDependentColor(eCSSProperty_color)));
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  nscolor col = mFrame->GetVisitedDependentColor(eCSSProperty_color);
+  ColorPattern color(nsLayoutUtils::NSColorToColor(col));
+  aCtx->SetColor(col);
 
   DrawTarget* drawTarget = aCtx->GetDrawTarget();
 

@@ -15,9 +15,7 @@
 #include <stdint.h>
 #include <algorithm>
 
-#include "gfxUtils.h"
 #include "mozilla/dom/TabChild.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/layers/PLayerTransaction.h"
 #include "nsCSSRendering.h"
 #include "nsRenderingContext.h"
@@ -412,7 +410,7 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
       continue;
     }
     AddAnimationForProperty(aFrame, aProperty, player, aLayer, aData, aPending);
-    player->SetIsRunningOnCompositor();
+    player->mIsRunningOnCompositor = true;
   }
 }
 
@@ -1788,10 +1786,8 @@ void
 nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext* aCtx)
 {
-  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  Rect rect = NSRectToRect(mVisibleRect, appUnitsPerDevPixel, *drawTarget);
-  drawTarget->FillRect(rect, ColorPattern(ToDeviceColor(mColor)));
+  aCtx->SetColor(mColor);
+  aCtx->FillRect(mVisibleRect);
 }
 
 #ifdef MOZ_DUMP_PAINTING

@@ -17,15 +17,11 @@ namespace js {
 // instantiated.
 class ProxyObject : public JSObject
 {
-    // GetProxyDataLayout computes the address of this field.
-    ProxyDataLayout data;
-
-    void static_asserts() {
-        static_assert(sizeof(ProxyObject) == sizeof(JSObject_Slots0),
-                      "proxy object size must match GC thing size");
-        static_assert(offsetof(ProxyObject, data) == ProxyDataOffset,
-                      "proxy object layout must match shadow interface");
-    }
+    // These are just local renamings of the slot constants that are part of
+    // the API in jsproxy.h.
+    static const uint32_t PRIVATE_SLOT = PROXY_PRIVATE_SLOT;
+    static const uint32_t HANDLER_SLOT = PROXY_HANDLER_SLOT;
+    static const uint32_t EXTRA_SLOT   = PROXY_EXTRA_SLOT;
 
   public:
     static ProxyObject *New(JSContext *cx, const BaseProxyHandler *handler, HandleValue priv,
@@ -33,14 +29,14 @@ class ProxyObject : public JSObject
                             const ProxyOptions &options);
 
     const Value &private_() {
-        return GetProxyPrivate(this);
+        return GetReservedSlot(this, PRIVATE_SLOT);
     }
 
-    void setCrossCompartmentPrivate(const Value &priv);
+    void initCrossCompartmentPrivate(HandleValue priv);
     void setSameCompartmentPrivate(const Value &priv);
 
-    HeapValue *slotOfPrivate() {
-        return reinterpret_cast<HeapValue *>(&GetProxyDataLayout(this)->values->privateSlot);
+    HeapSlot *slotOfPrivate() {
+        return &fakeNativeGetReservedSlotRef(PRIVATE_SLOT);
     }
 
     JSObject *target() const {
@@ -48,36 +44,42 @@ class ProxyObject : public JSObject
     }
 
     const BaseProxyHandler *handler() const {
-        return GetProxyHandler(const_cast<ProxyObject *>(this));
+        return static_cast<const BaseProxyHandler*>(
+            GetReservedSlot(const_cast<ProxyObject*>(this), HANDLER_SLOT).toPrivate());
     }
+
+    void initHandler(const BaseProxyHandler *handler);
 
     void setHandler(const BaseProxyHandler *handler) {
-        SetProxyHandler(this, handler);
+        SetReservedSlot(this, HANDLER_SLOT, PrivateValue(const_cast<BaseProxyHandler*>(handler)));
     }
 
-    static size_t offsetOfValues() {
-        return offsetof(ProxyObject, data.values);
-    }
     static size_t offsetOfHandler() {
-        return offsetof(ProxyObject, data.handler);
-    }
-    static size_t offsetOfExtraSlotInValues(size_t slot) {
-        MOZ_ASSERT(slot < PROXY_EXTRA_SLOTS);
-        return offsetof(ProxyValueArray, extraSlots) + slot * sizeof(Value);
+        // FIXME Bug 1073842: this is temporary until non-native objects can
+        // access non-slot storage.
+        return NativeObject::getFixedSlotOffset(HANDLER_SLOT);
     }
 
     const Value &extra(size_t n) const {
-        return GetProxyExtra(const_cast<ProxyObject *>(this), n);
+        MOZ_ASSERT(n == 0 || n == 1);
+        return GetReservedSlot(const_cast<ProxyObject*>(this), EXTRA_SLOT + n);
     }
 
     void setExtra(size_t n, const Value &extra) {
-        SetProxyExtra(this, n, extra);
+        MOZ_ASSERT(n == 0 || n == 1);
+        SetReservedSlot(this, EXTRA_SLOT + n, extra);
     }
 
   private:
-    HeapValue *slotOfExtra(size_t n) {
-        MOZ_ASSERT(n < PROXY_EXTRA_SLOTS);
-        return reinterpret_cast<HeapValue *>(&GetProxyDataLayout(this)->values->extraSlots[n]);
+    HeapSlot *slotOfExtra(size_t n) {
+        MOZ_ASSERT(n == 0 || n == 1);
+        return &fakeNativeGetReservedSlotRef(EXTRA_SLOT + n);
+    }
+
+    HeapSlot *slotOfClassSpecific(size_t n) {
+        MOZ_ASSERT(n >= PROXY_MINIMUM_SLOTS);
+        MOZ_ASSERT(n < JSCLASS_RESERVED_SLOTS(getClass()));
+        return &fakeNativeGetReservedSlotRef(n);
     }
 
     static bool isValidProxyClass(const Class *clasp) {
@@ -93,11 +95,12 @@ class ProxyObject : public JSObject
         return clasp->isProxy() &&
                (clasp->flags & JSCLASS_IMPLEMENTS_BARRIERS) &&
                clasp->trace == proxy_Trace &&
-               !clasp->call && !clasp->construct;
+               !clasp->call && !clasp->construct &&
+               JSCLASS_RESERVED_SLOTS(clasp) >= PROXY_MINIMUM_SLOTS;
     }
 
   public:
-    static unsigned grayLinkExtraSlot(JSObject *obj);
+    static unsigned grayLinkSlot(JSObject *obj);
 
     void renew(JSContext *cx, const BaseProxyHandler *handler, Value priv);
 

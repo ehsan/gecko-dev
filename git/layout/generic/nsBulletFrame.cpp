@@ -8,7 +8,6 @@
 #include "nsBulletFrame.h"
 
 #include "gfx2DGlue.h"
-#include "gfxUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/MathAlgorithms.h"
@@ -317,12 +316,9 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
   }
 
   nsRefPtr<nsFontMetrics> fm;
-  ColorPattern color(ToDeviceColor(
-                       nsLayoutUtils::GetColor(this, eCSSProperty_color)));
-  aRenderingContext.SetColor(nsLayoutUtils::GetColor(this, eCSSProperty_color));
-
-  DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
-  int32_t appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
+  nscolor col = nsLayoutUtils::GetColor(this, eCSSProperty_color);
+  Color color = nsLayoutUtils::NSColorToColor(col);
+  aRenderingContext.SetColor(col);
 
   nsAutoString text;
   switch (listStyleType->GetStyle()) {
@@ -336,14 +332,16 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                   padding.top + aPt.y,
                   mRect.width - (padding.left + padding.right),
                   mRect.height - (padding.top + padding.bottom));
-      Rect devPxRect = NSRectToRect(rect, appUnitsPerDevPixel, *drawTarget);
+      Rect devPxRect =
+        ToRect(nsLayoutUtils::RectToGfxRect(rect, PresContext()->AppUnitsPerDevPixel()));
+      DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
       RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
       AppendEllipseToPath(builder, devPxRect.Center(), devPxRect.Size());
       RefPtr<Path> ellipse = builder->Finish();
       if (listStyleType->GetStyle() == NS_STYLE_LIST_STYLE_DISC) {
-        drawTarget->Fill(ellipse, color);
+        drawTarget->Fill(ellipse, ColorPattern(color));
       } else {
-        drawTarget->Stroke(ellipse, color);
+        drawTarget->Stroke(ellipse, ColorPattern(color));
       }
     }
     break;
@@ -365,8 +363,8 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                       pc->RoundAppUnitsToNearestDevPixels(rect.height));
       snapRect.MoveBy((rect.width - snapRect.width) / 2,
                       (rect.height - snapRect.height) / 2);
-      Rect devPxRect = NSRectToRect(snapRect, appUnitsPerDevPixel, *drawTarget);
-      drawTarget->FillRect(devPxRect, color);
+      aRenderingContext.FillRect(snapRect.x, snapRect.y,
+                                 snapRect.width, snapRect.height);
     }
     break;
 
@@ -392,31 +390,27 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
       rect.x = pc->RoundAppUnitsToNearestDevPixels(rect.x);
       rect.y = pc->RoundAppUnitsToNearestDevPixels(rect.y);
 
-      RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder();
+      nsPoint points[3];
       if (isDown) {
         // to bottom
-        builder->MoveTo(NSPointToPoint(rect.TopLeft(), appUnitsPerDevPixel));
-        builder->LineTo(NSPointToPoint(rect.TopRight(), appUnitsPerDevPixel));
-        builder->LineTo(NSPointToPoint((rect.BottomLeft() + rect.BottomRight()) / 2,
-                                       appUnitsPerDevPixel));
+        points[0] = rect.TopLeft();
+        points[1] = rect.TopRight();
+        points[2] = (rect.BottomLeft() + rect.BottomRight()) / 2;
       } else {
         bool isLR = isVertical ? wm.IsVerticalLR() : wm.IsBidiLTR();
         if (isLR) {
           // to right
-          builder->MoveTo(NSPointToPoint(rect.TopLeft(), appUnitsPerDevPixel));
-          builder->LineTo(NSPointToPoint((rect.TopRight() + rect.BottomRight()) / 2,
-                                         appUnitsPerDevPixel));
-          builder->LineTo(NSPointToPoint(rect.BottomLeft(), appUnitsPerDevPixel));
+          points[0] = rect.TopLeft();
+          points[1] = (rect.TopRight() + rect.BottomRight()) / 2;
+          points[2] = rect.BottomLeft();
         } else {
           // to left
-          builder->MoveTo(NSPointToPoint(rect.TopRight(), appUnitsPerDevPixel));
-          builder->LineTo(NSPointToPoint(rect.BottomRight(), appUnitsPerDevPixel));
-          builder->LineTo(NSPointToPoint((rect.TopLeft() + rect.BottomLeft()) / 2,
-                                         appUnitsPerDevPixel));
+          points[0] = rect.TopRight();
+          points[1] = rect.BottomRight();
+          points[2] = (rect.TopLeft() + rect.BottomLeft()) / 2;
         }
       }
-      RefPtr<Path> path = builder->Finish();
-      drawTarget->Fill(path, color);
+      aRenderingContext.FillPolygon(points, 3);
     }
     break;
 

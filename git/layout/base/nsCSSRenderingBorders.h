@@ -7,17 +7,11 @@
 #ifndef NS_CSS_RENDERING_BORDERS_H
 #define NS_CSS_RENDERING_BORDERS_H
 
-#include "gfxRect.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsColor.h"
-#include "nsCOMPtr.h"
-#include "nsStyleConsts.h"
 
 class gfxContext;
 class gfxPattern;
 struct gfxRGBA;
-struct nsBorderColors;
 
 namespace mozilla {
 namespace gfx {

@@ -17,7 +17,6 @@ UNIFIED_SOURCES += [
     'nsSecurityWarningDialogs.cpp',
     'nsSiteSecurityService.cpp',
     'PublicKeyPinningService.cpp',
-    'RootCertificateTelemetryUtils.cpp',
 ]
 
 LOCAL_INCLUDES += [

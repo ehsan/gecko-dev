@@ -84,15 +84,6 @@ class GCSchedulingTunables
      */
     size_t gcZoneAllocThresholdBase_;
 
-    /* Fraction of threshold.gcBytes() which triggers an incremental GC. */
-    double zoneAllocThresholdFactor_;
-
-    /*
-     * Number of bytes to allocate between incremental slices in GCs triggered
-     * by the zone allocation threshold.
-     */
-    size_t zoneAllocDelayBytes_;
-
     /*
      * Totally disables |highFrequencyGC|, the HeapGrowthFactor, and other
      * tunables that make GC non-deterministic.
@@ -135,8 +126,6 @@ class GCSchedulingTunables
     GCSchedulingTunables()
       : gcMaxBytes_(0),
         gcZoneAllocThresholdBase_(30 * 1024 * 1024),
-        zoneAllocThresholdFactor_(0.9),
-        zoneAllocDelayBytes_(1024 * 1024),
         dynamicHeapGrowthEnabled_(false),
         highFrequencyThresholdUsec_(1000 * 1000),
         highFrequencyLowLimitBytes_(100 * 1024 * 1024),
@@ -151,8 +140,6 @@ class GCSchedulingTunables
 
     size_t gcMaxBytes() const { return gcMaxBytes_; }
     size_t gcZoneAllocThresholdBase() const { return gcZoneAllocThresholdBase_; }
-    double zoneAllocThresholdFactor() const { return zoneAllocThresholdFactor_; }
-    size_t zoneAllocDelayBytes() const { return zoneAllocDelayBytes_; }
     bool isDynamicHeapGrowthEnabled() const { return dynamicHeapGrowthEnabled_; }
     uint64_t highFrequencyThresholdUsec() const { return highFrequencyThresholdUsec_; }
     uint64_t highFrequencyLowLimitBytes() const { return highFrequencyLowLimitBytes_; }
@@ -763,8 +750,8 @@ class GCRuntime
      * Otherwise, no additional GCs take place.
      *
      * You can control these values in several ways:
-     *   - Set the JS_GC_ZEAL environment variable
-     *   - Call zeal() or schedulegc() from inside shell-executed JS code
+     *   - Pass the -Z flag to the shell (see the usage info for details)
+     *   - Call   zeal() or schedulegc() from inside shell-executed JS code
      *     (see the help for details)
      *
      * If gzZeal_ == 1 then we perform GCs in select places (during MaybeGC and
@@ -775,8 +762,6 @@ class GCRuntime
      *
      * zeal_ values from 8 to 10 periodically run different types of
      * incremental GC.
-     *
-     * zeal_ value 14 performs periodic shrinking collections.
      */
 #ifdef JS_GC_ZEAL
     int                   zealMode;

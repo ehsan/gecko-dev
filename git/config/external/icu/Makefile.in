@@ -9,12 +9,18 @@ ifdef USE_ICU
   # and debug libraries.
     ifdef MOZ_SHARED_ICU
       ifeq ($(OS_ARCH),WINNT)
-        ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(libname)$(MOZ_ICU_DBG_SUFFIX)$(MOZ_ICU_VERSION).dll)
+        ifdef JS_SHARED_LIBRARY
+          ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(libname)$(MOZ_ICU_DBG_SUFFIX)$(MOZ_ICU_VERSION).dll)
+        endif
       else # ! WINNT
         ifeq ($(OS_ARCH),Darwin)
-          ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(DLL_PREFIX)$(libname).$(MOZ_ICU_VERSION)$(DLL_SUFFIX))
+          ifdef JS_SHARED_LIBRARY
+            ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(DLL_PREFIX)$(libname).$(MOZ_ICU_VERSION)$(DLL_SUFFIX))
+          endif
         else # ! Darwin
-          ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(DLL_PREFIX)$(libname)$(DLL_SUFFIX).$(MOZ_ICU_VERSION))
+          ifdef JS_SHARED_LIBRARY
+            ICU_FILES := $(foreach libname,$(ICU_LIB_NAMES),$(DEPTH)/intl/icu/target/lib/$(DLL_PREFIX)$(libname)$(DLL_SUFFIX).$(MOZ_ICU_VERSION))
+          endif
         endif
       endif # WINNT
       ifdef ICU_FILES

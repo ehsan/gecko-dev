@@ -71,7 +71,6 @@ GeckoTouchDispatcher::GeckoTouchDispatcher()
   mVsyncAdjust = gfxPrefs::TouchVsyncSampleAdjust();
   mMaxPredict = gfxPrefs::TouchResampleMaxPredict();
   mMinResampleTime = gfxPrefs::TouchResampleMinTime();
-  mDelayedVsyncThreshold = gfxPrefs::TouchResampleVsyncDelayThreshold();
   sTouchDispatcher = this;
   ClearOnShutdown(&sTouchDispatcher);
 }
@@ -142,28 +141,24 @@ GeckoTouchDispatcher::NotifyVsync(uint64_t aVsyncTimestamp)
 
 // Touch data timestamps are in milliseconds, aEventTime is in nanoseconds
 void
-GeckoTouchDispatcher::NotifyTouch(MultiTouchInput& aTouch, uint64_t aEventTime)
+GeckoTouchDispatcher::NotifyTouch(MultiTouchInput& aData, uint64_t aEventTime)
 {
-  if (aTouch.mType == MultiTouchInput::MULTITOUCH_MOVE) {
-    MutexAutoLock lock(mTouchQueueLock);
-    if (mResamplingEnabled) {
-      mTouchMoveEvents.push_back(aTouch);
-      mTouchTimeDiff = aEventTime - mLastTouchTime;
-      mLastTouchTime = aEventTime;
-      return;
+  if (mResamplingEnabled) {
+    switch (aData.mType) {
+      case MultiTouchInput::MULTITOUCH_MOVE:
+      {
+        MutexAutoLock lock(mTouchQueueLock);
+        mTouchMoveEvents.push_back(aData);
+        mTouchTimeDiff = aEventTime - mLastTouchTime;
+        mLastTouchTime = aEventTime;
+        return;
+      }
+      default:
+        break;
     }
-
-    if (mTouchMoveEvents.empty()) {
-      mTouchMoveEvents.push_back(aTouch);
-    } else {
-      // Coalesce touch move events
-      mTouchMoveEvents.back() = aTouch;
-    }
-
-    NS_DispatchToMainThread(new DispatchTouchEventsMainThread(this, 0));
-  } else {
-    NS_DispatchToMainThread(new DispatchSingleTouchMainThread(this, aTouch));
   }
+
+  NS_DispatchToMainThread(new DispatchSingleTouchMainThread(this, aData));
 }
 
 void
@@ -177,29 +172,19 @@ GeckoTouchDispatcher::DispatchTouchMoveEvents(uint64_t aVsyncTime)
       return;
     }
 
-    if (mResamplingEnabled) {
-      int touchCount = mTouchMoveEvents.size();
-      // Both aVsynctime and mLastTouchTime are uint64_t
-      // Need to store as a signed int.
-      int64_t vsyncTouchDiff = aVsyncTime - mLastTouchTime;
-      bool resample = (touchCount > 1) &&
-        (vsyncTouchDiff > mMinResampleTime);
-      // The delay threshold is a positive pref, but we're testing to see if the
-      // vsync time is delayed from the touch, so add a negative sign.
-      bool isDelayedVsyncEvent = vsyncTouchDiff < -mDelayedVsyncThreshold;
+    int touchCount = mTouchMoveEvents.size();
+    // Both aVsynctime and mLastTouchTime are uint64_t
+    // Need to store as a signed int.
+    int64_t vsyncTouchDiff = aVsyncTime - mLastTouchTime;
+    bool resample = (touchCount > 1) &&
+                    (vsyncTouchDiff > mMinResampleTime);
 
-      if (!resample) {
-        touchMove = mTouchMoveEvents.back();
-        mTouchMoveEvents.clear();
-        if (!isDelayedVsyncEvent) {
-          mTouchMoveEvents.push_back(touchMove);
-        }
-      } else {
-        ResampleTouchMoves(touchMove, aVsyncTime);
-      }
-    } else {
+    if (!resample) {
       touchMove = mTouchMoveEvents.back();
       mTouchMoveEvents.clear();
+      mTouchMoveEvents.push_back(touchMove);
+    } else {
+      ResampleTouchMoves(touchMove, aVsyncTime);
     }
   }
 

@@ -816,6 +816,7 @@ SharedSurfaceTextureClient::SharedSurfaceTextureClient(TextureFlags aFlags,
   , mSurf(surf)
   , mGL(mSurf->mGL)
 {
+  mSurf->Fence();
 }
 
 SharedSurfaceTextureClient::~SharedSurfaceTextureClient()

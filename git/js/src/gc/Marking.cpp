@@ -111,6 +111,9 @@ template<typename T>
 static inline bool
 IsThingPoisoned(T *thing)
 {
+    static_assert(sizeof(T) >= sizeof(FreeSpan) + sizeof(uint32_t),
+                  "Ensure it is well defined to look past any free span that "
+                  "may be embedded in the thing's header when freed.");
     const uint8_t poisonBytes[] = {
         JS_FRESH_NURSERY_PATTERN,
         JS_SWEPT_NURSERY_PATTERN,
@@ -969,12 +972,12 @@ gc::MarkArraySlots(JSTracer *trc, size_t len, HeapSlot *vec, const char *name)
 }
 
 void
-gc::MarkObjectSlots(JSTracer *trc, NativeObject *obj, uint32_t start, uint32_t nslots)
+gc::MarkObjectSlots(JSTracer *trc, JSObject *obj, uint32_t start, uint32_t nslots)
 {
     MOZ_ASSERT(obj->isNative());
     for (uint32_t i = start; i < (start + nslots); ++i) {
         trc->setTracingDetails(js_GetObjectSlotName, obj, i);
-        MarkValueInternal(trc, obj->getSlotRef(i).unsafeGet());
+        MarkValueInternal(trc, obj->fakeNativeGetSlotRef(i).unsafeGet());
     }
 }
 
@@ -1038,10 +1041,10 @@ gc::MarkCrossCompartmentScriptUnbarriered(JSTracer *trc, JSObject *src, JSScript
 }
 
 void
-gc::MarkCrossCompartmentSlot(JSTracer *trc, JSObject *src, HeapValue *dst, const char *name)
+gc::MarkCrossCompartmentSlot(JSTracer *trc, JSObject *src, HeapSlot *dst, const char *name)
 {
     if (dst->isMarkable() && ShouldMarkCrossCompartment(trc, src, (Cell *)dst->toGCThing()))
-        MarkValue(trc, dst, name);
+        MarkSlot(trc, dst, name);
 }
 
 /*** Special Marking ***/
@@ -1631,9 +1634,9 @@ GCMarker::saveValueRanges()
                     MOZ_ASSERT(arr->end == vp + Min(nfixed, obj->slotSpan()));
                     arr->index = arr->start - vp;
                 } else {
-                    MOZ_ASSERT(arr->start >= obj->slots_ &&
-                               arr->end == obj->slots_ + obj->slotSpan() - nfixed);
-                    arr->index = (arr->start - obj->slots_) + nfixed;
+                    MOZ_ASSERT(arr->start >= obj->slots &&
+                               arr->end == obj->slots + obj->slotSpan() - nfixed);
+                    arr->index = (arr->start - obj->slots) + nfixed;
                 }
                 arr->kind = HeapSlot::Slot;
             }
@@ -1673,8 +1676,8 @@ GCMarker::restoreValueArray(NativeObject *obj, void **vpp, void **endp)
                 *vpp = vp + start;
                 *endp = vp + Min(nfixed, nslots);
             } else {
-                *vpp = obj->slots_ + start - nfixed;
-                *endp = obj->slots_ + nslots - nfixed;
+                *vpp = obj->slots + start - nfixed;
+                *endp = obj->slots + nslots - nfixed;
             }
         } else {
             /* The object shrunk, in which case no scanning is needed. */
@@ -1830,11 +1833,11 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         } while (false);
 
         vp = nobj->fixedSlots();
-        if (nobj->slots_) {
+        if (nobj->slots) {
             unsigned nfixed = nobj->numFixedSlots();
             if (nslots > nfixed) {
                 pushValueArray(nobj, vp, vp + nfixed);
-                vp = nobj->slots_;
+                vp = nobj->slots;
                 end = vp + (nslots - nfixed);
                 goto scan_value_array;
             }
