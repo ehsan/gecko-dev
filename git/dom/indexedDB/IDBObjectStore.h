@@ -86,14 +86,11 @@ public:
                   jsval* aKeyVal);
 
   static nsresult
-  GetJSONFromArg0(/* jsval arg0, */
-                  nsAString& aJSON);
-
-  static nsresult
-  GetKeyPathValueFromJSON(const nsAString& aJSON,
-                          const nsAString& aKeyPath,
-                          JSContext** aCx,
-                          Key& aValue);
+  GetKeyPathValueFromStructuredData(const PRUint8* aData,
+                                    PRUint32 aDataLength,
+                                    const nsAString& aKeyPath,
+                                    JSContext** aCx,
+                                    Key& aValue);
 
   static nsresult
   GetIndexUpdateInfo(ObjectStoreInfo* aObjectStoreInfo,
@@ -110,14 +107,17 @@ public:
                 PRInt64 aObjectDataId,
                 const nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
+  static nsresult
+  GetStructuredCloneDataFromStatement(mozIStorageStatement* aStatement,
+                                      PRUint32 aIndex,
+                                      JSAutoStructuredCloneBuffer& aBuffer);
+
+  static void
+  ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
+
   const nsString& Name() const
   {
     return mName;
-  }
-
-  bool TransactionIsOpen() const
-  {
-    return mTransaction->TransactionIsOpen();
   }
 
   bool IsAutoIncrement() const
@@ -153,9 +153,16 @@ protected:
   nsresult GetAddInfo(JSContext* aCx,
                       jsval aValue,
                       jsval aKeyVal,
-                      nsString& aJSON,
+                      JSAutoStructuredCloneBuffer& aCloneBuffer,
                       Key& aKey,
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
+
+  nsresult AddOrPut(const jsval& aValue,
+                    const jsval& aKey,
+                    JSContext* aCx,
+                    PRUint8 aOptionalArgCount,
+                    nsIIDBRequest** _retval,
+                    bool aOverwrite);
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;
@@ -168,6 +175,7 @@ private:
   nsString mKeyPath;
   PRBool mAutoIncrement;
   PRUint32 mDatabaseId;
+  PRUint32 mStructuredCloneVersion;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
 

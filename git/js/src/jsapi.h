@@ -1335,63 +1335,23 @@ namespace js {
  * than that, we have avoided all garbage collection hazards.
  */
 template<typename T> class AnchorPermitted;
+template<> class AnchorPermitted<JSObject *> { };
+template<> class AnchorPermitted<const JSObject *> { };
+template<> class AnchorPermitted<JSFunction *> { };
+template<> class AnchorPermitted<const JSFunction *> { };
+template<> class AnchorPermitted<JSString *> { };
+template<> class AnchorPermitted<const JSString *> { };
+template<> class AnchorPermitted<jsval> { };
+
 template<typename T>
 class Anchor: AnchorPermitted<T> {
   public:
     Anchor() { }
     explicit Anchor(T t) { hold = t; }
-    ~Anchor() {
-#ifdef __GNUC__
-        /* 
-         * No code is generated for this. But because this is marked 'volatile', G++ will
-         * assume it has important side-effects, and won't delete it. (G++ never looks at
-         * the actual text and notices it's empty.) And because we have passed |hold| to
-         * it, GCC will keep |hold| alive until this point.
-         *
-         * The "memory" clobber operand ensures that G++ will not move prior memory
-         * accesses after the asm --- it's a barrier. Unfortunately, it also means that
-         * G++ will assume that all memory has changed after the asm, as it would for a
-         * call to an unknown function. I don't know of a way to avoid that consequence.
-         */
-        asm volatile("":: "g" (hold) : "memory");
-#else
-        /*
-         * An adequate portable substitute.
-         *
-         * The compiler promises that, by the end of an expression statement, the
-         * last-stored value to a volatile object is the same as it would be in an
-         * unoptimized, direct implementation (the "abstract machine" whose behavior the
-         * language spec describes). However, the compiler is still free to reorder
-         * non-volatile accesses across this store --- which is what we must prevent. So
-         * assigning the held value to a volatile variable, as we do here, is not enough.
-         *
-         * In our case, however, garbage collection only occurs at function calls, so it
-         * is sufficient to ensure that the destructor's store isn't moved earlier across
-         * any function calls that could collect. It is hard to imagine the compiler
-         * analyzing the program so thoroughly that it could prove that such motion was
-         * safe. In practice, compilers treat calls to the collector as opaque operations
-         * --- in particular, as operations which could access volatile variables, across
-         * which this destructor must not be moved.
-         *
-         * ("Objection, your honor!  *Alleged* killer whale!")
-         *
-         * The disadvantage of this approach is that it does generate code for the store.
-         * We do need to use Anchors in some cases where cycles are tight.
-         */
-        volatile T sink;
-#ifdef JS_USE_JSVAL_JSID_STRUCT_TYPES
-        /*
-         * Can't just do a simple assignment here.
-         */
-        doAssignment(sink, hold);
-#else
-        sink = hold;
-#endif
-#endif
-    }
-    T &get()      { return hold; }
-    void set(T t) { hold = t; }
-    void clear()  { hold = 0; }
+    inline ~Anchor();
+    T &get() { return hold; }
+    void set(const T &t) { hold = t; }
+    void clear() { hold = 0; }
   private:
     T hold;
     /* Anchors should not be assigned or passed to functions. */
@@ -1399,44 +1359,71 @@ class Anchor: AnchorPermitted<T> {
     const Anchor &operator=(const Anchor &);
 };
 
+#ifdef __GNUC__
+template<typename T>
+inline Anchor<T>::~Anchor() {
+    /* 
+     * No code is generated for this. But because this is marked 'volatile', G++ will
+     * assume it has important side-effects, and won't delete it. (G++ never looks at
+     * the actual text and notices it's empty.) And because we have passed |hold| to
+     * it, GCC will keep |hold| alive until this point.
+     *
+     * The "memory" clobber operand ensures that G++ will not move prior memory
+     * accesses after the asm --- it's a barrier. Unfortunately, it also means that
+     * G++ will assume that all memory has changed after the asm, as it would for a
+     * call to an unknown function. I don't know of a way to avoid that consequence.
+     */
+    asm volatile("":: "g" (hold) : "memory");
+}
+#else
+template<typename T>
+inline Anchor<T>::~Anchor() {
+    /*
+     * An adequate portable substitute, for non-structure types.
+     *
+     * The compiler promises that, by the end of an expression statement, the
+     * last-stored value to a volatile object is the same as it would be in an
+     * unoptimized, direct implementation (the "abstract machine" whose behavior the
+     * language spec describes). However, the compiler is still free to reorder
+     * non-volatile accesses across this store --- which is what we must prevent. So
+     * assigning the held value to a volatile variable, as we do here, is not enough.
+     *
+     * In our case, however, garbage collection only occurs at function calls, so it
+     * is sufficient to ensure that the destructor's store isn't moved earlier across
+     * any function calls that could collect. It is hard to imagine the compiler
+     * analyzing the program so thoroughly that it could prove that such motion was
+     * safe. In practice, compilers treat calls to the collector as opaque operations
+     * --- in particular, as operations which could access volatile variables, across
+     * which this destructor must not be moved.
+     *
+     * ("Objection, your honor!  *Alleged* killer whale!")
+     *
+     * The disadvantage of this approach is that it does generate code for the store.
+     * We do need to use Anchors in some cases where cycles are tight.
+     */
+    volatile T sink;
+    sink = hold;
+}
+
+#ifdef JS_USE_JSVAL_JSID_STRUCT_TYPES
 /*
- * Ensure that attempts to create Anchors for types the garbage collector's conservative
- * scanner doesn't actually recgonize fail. Such anchors would have no effect.
+ * The default assignment operator for |struct C| has the signature:
+ *
+ *   C& C::operator=(const C&)
+ *
+ * And in particular requires implicit conversion of |this| to type |C| for the return
+ * value. But |volatile C| cannot thus be converted to |C|, so just doing |sink = hold| as
+ * in the non-specialized version would fail to compile. Do the assignment on asBits
+ * instead, since I don't think we want to give jsval_layout an assignment operator
+ * returning |volatile jsval_layout|.
  */
-class Anchor_base {
-protected:
-#ifdef JS_USE_JSVAL_JSID_STRUCT_TYPES
-    template<typename T> void doAssignment(volatile T &lhs, const T &rhs) {
-        lhs = rhs;
-    }
+template<>
+inline Anchor<jsval>::~Anchor() {
+    volatile jsval sink;
+    sink.asBits = hold.asBits;
+}
 #endif
-};
-template<> class AnchorPermitted<JSObject *> : protected Anchor_base { };
-template<> class AnchorPermitted<const JSObject *> : protected Anchor_base { };
-template<> class AnchorPermitted<JSFunction *> : protected Anchor_base { };
-template<> class AnchorPermitted<const JSFunction *> : protected Anchor_base { };
-template<> class AnchorPermitted<JSString *> : protected Anchor_base { };
-template<> class AnchorPermitted<const JSString *> : protected Anchor_base { };
-template<> class AnchorPermitted<jsval> : protected Anchor_base {
-protected:
-#ifdef JS_USE_JSVAL_JSID_STRUCT_TYPES
-    void doAssignment(volatile jsval &lhs, const jsval &rhs) {
-        /*
-         * The default assignment operator for |struct C| has the signature:
-         *
-         *   C& C::operator=(const C&)
-         *
-         * And in particular requires implicit conversion of |this| to
-         * type |C| for the return value.  But |volatile C| cannot
-         * thus be converted to |C|, so just doing |sink = hold| here
-         * would fail to compile.  Do the assignment on asBits
-         * instead, since I don't think we want to give jsval_layout
-         * an assignment operator returning |volatile jsval_layout|.
-         */
-        lhs.asBits = rhs.asBits;
-    }
 #endif
-};
 
 }  /* namespace js */
 
@@ -2932,15 +2919,12 @@ JS_RestoreFrameChain(JSContext *cx, JSStackFrame *fp);
 /*
  * Strings.
  *
- * NB: JS_NewString takes ownership of bytes on success, avoiding a copy; but
- * on error (signified by null return), it leaves bytes owned by the caller.
- * So the caller must free bytes in the error case, if it has no use for them.
- * In contrast, all the JS_New*StringCopy* functions do not take ownership of
- * the character memory passed to them -- they copy it.
+ * NB: JS_NewUCString takes ownership of bytes on success, avoiding a copy;
+ * but on error (signified by null return), it leaves chars owned by the
+ * caller. So the caller must free bytes in the error case, if it has no use
+ * for them. In contrast, all the JS_New*StringCopy* functions do not take
+ * ownership of the character memory passed to them -- they copy it.
  */
-extern JS_PUBLIC_API(JSString *)
-JS_NewString(JSContext *cx, char *bytes, size_t length);
-
 extern JS_PUBLIC_API(JSString *)
 JS_NewStringCopyN(JSContext *cx, const char *s, size_t n);
 
@@ -3236,25 +3220,31 @@ JS_StructuredClone(JSContext *cx, jsval v, jsval *vp);
 #ifdef __cplusplus
 /* RAII sugar for JS_WriteStructuredClone. */
 class JSAutoStructuredCloneBuffer {
-    JSContext *cx;
+    JSContext *cx_;
     uint64 *data_;
     size_t nbytes_;
     uint32 version_;
 
   public:
-    explicit JSAutoStructuredCloneBuffer(JSContext *cx)
-        : cx(cx), data_(NULL), nbytes_(0), version_(JS_STRUCTURED_CLONE_VERSION) {}
+    JSAutoStructuredCloneBuffer()
+        : cx_(NULL), data_(NULL), nbytes_(0), version_(JS_STRUCTURED_CLONE_VERSION) {}
 
     ~JSAutoStructuredCloneBuffer() { clear(); }
 
+    JSContext *cx() const { return cx_; }
     uint64 *data() const { return data_; }
     size_t nbytes() const { return nbytes_; }
 
-    void clear() {
+    void clear(JSContext *cx=NULL) {
         if (data_) {
+            if (!cx)
+                cx = cx_;
+            JS_ASSERT(cx);
             JS_free(cx, data_);
+            cx_ = NULL;
             data_ = NULL;
             nbytes_ = 0;
+            version_ = 0;
         }
     }
 
@@ -3262,8 +3252,10 @@ class JSAutoStructuredCloneBuffer {
      * Adopt some memory. It will be automatically freed by the destructor.
      * data must have been allocated using JS_malloc.
      */
-    void adopt(uint64 *data, size_t nbytes, uint32 version=JS_STRUCTURED_CLONE_VERSION) {
-        clear();
+    void adopt(JSContext *cx, uint64 *data, size_t nbytes,
+               uint32 version=JS_STRUCTURED_CLONE_VERSION) {
+        clear(cx);
+        cx_ = cx;
         data_ = data;
         nbytes_ = nbytes;
         version_ = version;
@@ -3273,27 +3265,65 @@ class JSAutoStructuredCloneBuffer {
      * Remove the buffer so that it will not be automatically freed.
      * After this, the caller is responsible for calling JS_free(*datap).
      */
-    void steal(uint64 **datap, size_t *nbytesp) {
+    void steal(uint64 **datap, size_t *nbytesp, JSContext **cxp=NULL,
+               uint32 *versionp=NULL) {
         *datap = data_;
         *nbytesp = nbytes_;
+        if (cxp)
+            *cxp = cx_;
+        if (versionp)
+            *versionp = version_;
+
+        cx_ = NULL;
         data_ = NULL;
         nbytes_ = 0;
+        version_ = 0;
     }
 
-    bool read(jsval *vp) const {
+    bool read(jsval *vp, JSContext *cx=NULL) const {
+        if (!cx)
+            cx = cx_;
+        JS_ASSERT(cx);
         JS_ASSERT(data_);
         return !!JS_ReadStructuredClone(cx, data_, nbytes_, version_, vp);
     }
 
-    bool write(jsval v) {
-        clear();
+    bool write(JSContext *cx, jsval v) {
+        clear(cx);
+        cx_ = cx;
         bool ok = !!JS_WriteStructuredClone(cx, v, &data_, &nbytes_);
         if (!ok) {
             data_ = NULL;
             nbytes_ = 0;
+            version_ = JS_STRUCTURED_CLONE_VERSION;
         }
         return ok;
     }
+
+    /**
+     * Swap ownership with another JSAutoStructuredCloneBuffer.
+     */
+    void swap(JSAutoStructuredCloneBuffer &other) {
+        JSContext *cx = other.cx_;
+        uint64 *data = other.data_;
+        size_t nbytes = other.nbytes_;
+        uint32 version = other.version_;
+
+        other.cx_ = this->cx_;
+        other.data_ = this->data_;
+        other.nbytes_ = this->nbytes_;
+        other.version_ = this->version_;
+
+        this->cx_ = cx;
+        this->data_ = data;
+        this->nbytes_ = nbytes;
+        this->version_ = version;
+    }
+
+  private:
+    /* Copy and assignment are not supported. */
+    JSAutoStructuredCloneBuffer(const JSAutoStructuredCloneBuffer &other);
+    JSAutoStructuredCloneBuffer &operator=(const JSAutoStructuredCloneBuffer &other);
 };
 #endif
 
