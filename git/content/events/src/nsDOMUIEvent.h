@@ -40,6 +40,7 @@ public:
          aEvent->eventStructType != NS_POPUP_EVENT &&
          aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
          aEvent->eventStructType != NS_WHEEL_EVENT &&
+         aEvent->eventStructType != NS_MOZTOUCH_EVENT &&
          aEvent->eventStructType != NS_DRAG_EVENT &&
          aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
       return nsIntPoint(0, 0);
@@ -65,6 +66,7 @@ public:
          aEvent->eventStructType != NS_POPUP_EVENT &&
          aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
          aEvent->eventStructType != NS_WHEEL_EVENT &&
+         aEvent->eventStructType != NS_MOZTOUCH_EVENT &&
          aEvent->eventStructType != NS_DRAG_EVENT &&
          aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
         !aPresContext ||

@@ -288,24 +288,22 @@ StyleEditor.prototype = {
    */
   importFromFile: function SE_importFromFile(aFile, aParentWindow)
   {
-    let callback = function(aFile) {
-      if (aFile) {
-        this._savedFile = aFile; // remember filename for next save if any
+    aFile = this._showFilePicker(aFile, false, aParentWindow);
+    if (!aFile) {
+      return;
+    }
+    this._savedFile = aFile; // remember filename for next save if any
 
-        NetUtil.asyncFetch(aFile, function onAsyncFetch(aStream, aStatus) {
-          if (!Components.isSuccessCode(aStatus)) {
-            return this._signalError(LOAD_ERROR);
-          }
-          let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-          aStream.close();
-    
-          this._appendNewStyleSheet(source);
-          this.clearFlag(StyleEditorFlags.ERROR);
-        }.bind(this));
+    NetUtil.asyncFetch(aFile, function onAsyncFetch(aStream, aStatus) {
+      if (!Components.isSuccessCode(aStatus)) {
+        return this._signalError(LOAD_ERROR);
       }
-    }.bind(this);
+      let source = NetUtil.readInputStreamToString(aStream, aStream.available());
+      aStream.close();
 
-    this._showFilePicker(aFile, false, aParentWindow, callback);
+      this._appendNewStyleSheet(source);
+      this.clearFlag(StyleEditorFlags.ERROR);
+    }.bind(this));
   },
 
   /**
@@ -555,48 +553,46 @@ StyleEditor.prototype = {
    */
   saveToFile: function SE_saveToFile(aFile, aCallback)
   {
-    let callback = function(aReturnFile) {
-      if (!aReturnFile) {
+    aFile = this._showFilePicker(aFile || this._styleSheetFilePath, true);
+
+    if (!aFile) {
+      if (aCallback) {
+        aCallback(null);
+      }
+      return;
+    }
+
+    if (this._sourceEditor) {
+      this._state.text = this._sourceEditor.getText();
+    }
+
+    let ostream = FileUtils.openSafeFileOutputStream(aFile);
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                      .createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+    let istream = converter.convertToInputStream(this._state.text);
+
+    NetUtil.asyncCopy(istream, ostream, function SE_onStreamCopied(status) {
+      if (!Components.isSuccessCode(status)) {
         if (aCallback) {
           aCallback(null);
         }
+        this._signalError(SAVE_ERROR);
         return;
       }
+      FileUtils.closeSafeFileOutputStream(ostream);
 
-      if (this._sourceEditor) {
-        this._state.text = this._sourceEditor.getText();
+      // remember filename for next save if any
+      this._friendlyName = null;
+      this._savedFile = aFile;
+      this._persistExpando();
+
+      if (aCallback) {
+        aCallback(aFile);
       }
-
-      let ostream = FileUtils.openSafeFileOutputStream(aReturnFile);
-      let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                        .createInstance(Ci.nsIScriptableUnicodeConverter);
-      converter.charset = "UTF-8";
-      let istream = converter.convertToInputStream(this._state.text);
-
-      NetUtil.asyncCopy(istream, ostream, function SE_onStreamCopied(status) {
-        if (!Components.isSuccessCode(status)) {
-          if (aCallback) {
-            aCallback(null);
-          }
-          this._signalError(SAVE_ERROR);
-          return;
-        }
-        FileUtils.closeSafeFileOutputStream(ostream);
-
-        // remember filename for next save if any
-        this._friendlyName = null;
-        this._savedFile = aReturnFile;
-        this._persistExpando();
-
-        if (aCallback) {
-          aCallback(aReturnFile);
-        }
-        this.clearFlag(StyleEditorFlags.UNSAVED);
-        this.clearFlag(StyleEditorFlags.ERROR);
-      }.bind(this));
-    }.bind(this);
-
-    this._showFilePicker(aFile || this._styleSheetFilePath, true, null, callback);
+      this.clearFlag(StyleEditorFlags.UNSAVED);
+      this.clearFlag(StyleEditorFlags.ERROR);
+    }.bind(this));
   },
 
   /**
@@ -694,36 +690,31 @@ StyleEditor.prototype = {
    * @param nsIWindow aParentWindow
    *        Optional parent window. If null the parent window of the file picker
    *        will be the window of the attached input element.
-   * @param aCallback
-   *        The callback method, which will be called passing in the selected
-   *        file or null if the user did not pick one.
+   * @return nsIFile
+   *         The selected file or null if the user did not pick one.
    */
-  _showFilePicker: function SE__showFilePicker(aFile, aSave, aParentWindow, aCallback)
+  _showFilePicker: function SE__showFilePicker(aFile, aSave, aParentWindow)
   {
     if (typeof(aFile) == "string") {
       try {
         if (Services.io.extractScheme(aFile) == "file") {
           let uri = Services.io.newURI(aFile, null, null);
           let file = uri.QueryInterface(Ci.nsIFileURL).file;
-          aCallback(file);
-          return;
+          return file;
         }
       } catch (ex) {
       }
       try {
         let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
         file.initWithPath(aFile);
-        aCallback(file);
-        return;
+        return file;
       } catch (ex) {
         this._signalError(aSave ? SAVE_ERROR : LOAD_ERROR);
-        aCallback(null);
-        return;
+        return null;
       }
     }
     if (aFile) {
-      aCallback(aFile);
-      return;
+      return aFile;
     }
 
     let window = aParentWindow
@@ -732,19 +723,13 @@ StyleEditor.prototype = {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let mode = aSave ? fp.modeSave : fp.modeOpen;
     let key = aSave ? "saveStyleSheet" : "importStyleSheet";
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == Ci.nsIFilePicker.returnCancel) {
-        aCallback(null);
-      } else {
-        aCallback(fp.file);
-      }
-    };
 
     fp.init(window, _(key + ".title"), mode);
     fp.appendFilters(_(key + ".filter"), "*.css");
     fp.appendFilters(fp.filterAll);
-    fp.open(fpCallback);
-    return;
+
+    let rv = fp.show();
+    return (rv == fp.returnCancel) ? null : fp.file;
   },
 
   /**

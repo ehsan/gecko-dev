@@ -126,6 +126,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
       case NS_MOUSE_SCROLL_EVENT:
       case NS_WHEEL_EVENT:
       case NS_SIMPLE_GESTURE_EVENT:
+      case NS_MOZTOUCH_EVENT:
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nullptr;
         break;
       case NS_DRAG_EVENT:
@@ -153,6 +154,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
       case NS_MOUSE_SCROLL_EVENT:
       case NS_WHEEL_EVENT:
       case NS_SIMPLE_GESTURE_EVENT:
+      case NS_MOZTOUCH_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
@@ -786,6 +788,18 @@ nsDOMEvent::DuplicatePrivateData()
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       break;
     }
+    case NS_MOZTOUCH_EVENT:
+    {
+      nsMozTouchEvent* oldMozTouchEvent = static_cast<nsMozTouchEvent*>(mEvent);
+      nsMozTouchEvent* mozTouchEvent =
+        new nsMozTouchEvent(false, msg, nullptr,
+                            static_cast<nsMozTouchEvent*>(mEvent)->streamId);
+      NS_ENSURE_TRUE(mozTouchEvent, NS_ERROR_OUT_OF_MEMORY);
+      isInputEvent = true;
+      mozTouchEvent->buttons = oldMozTouchEvent->buttons;
+      newEvent = mozTouchEvent;
+      break;
+    }
     case NS_TOUCH_EVENT:
     {
       nsTouchEvent *oldTouchEvent = static_cast<nsTouchEvent*>(mEvent);
@@ -1069,6 +1083,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
         aEvent->eventStructType != NS_POPUP_EVENT &&
         aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
         aEvent->eventStructType != NS_WHEEL_EVENT &&
+        aEvent->eventStructType != NS_MOZTOUCH_EVENT &&
         aEvent->eventStructType != NS_TOUCH_EVENT &&
         aEvent->eventStructType != NS_DRAG_EVENT &&
         aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
@@ -1128,6 +1143,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
        aEvent->eventStructType != NS_POPUP_EVENT &&
        aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        aEvent->eventStructType != NS_WHEEL_EVENT &&
+       aEvent->eventStructType != NS_MOZTOUCH_EVENT &&
        aEvent->eventStructType != NS_TOUCH_EVENT &&
        aEvent->eventStructType != NS_DRAG_EVENT &&
        aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||

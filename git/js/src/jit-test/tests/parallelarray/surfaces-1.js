@@ -1,5 +1,3 @@
-load(libdir + "eqArrayHelper.js");
-
 // ParallelArray surfaces
 
 var desc = Object.getOwnPropertyDescriptor(this, "ParallelArray");
@@ -37,14 +35,3 @@ checkMethod("filter", 1);
 checkMethod("flatten", 0);
 checkMethod("partition", 1);
 checkMethod("get", 1);
-
-function checkAccessor(name) {
-  var desc = Object.getOwnPropertyDescriptor(ParallelArray.prototype, name);
-  assertEq(desc.enumerable, false);
-  assertEq(desc.configurable, false);
-  assertEq(typeof desc.get, 'function');
-  assertEq(desc.set, undefined);
-}
-
-checkAccessor("length");
-checkAccessor("shape");

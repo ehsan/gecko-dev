@@ -131,7 +131,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         // detecting its use early.
         JSScript *script = iter.script();
         if (!script->hasIonScript())
-            ion::ForbidCompilation(cx, script);
+            ion::ForbidCompilation(script);
 #endif
 
         vp.setObject(*argsobj);

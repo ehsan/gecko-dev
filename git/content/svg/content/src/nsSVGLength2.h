@@ -15,7 +15,7 @@
 #include "nsISMILAttr.h"
 #include "nsMathUtils.h"
 #include "nsSVGElement.h"
-#include "SVGContentUtils.h"
+#include "nsSVGUtils.h"
 
 class nsIFrame;
 class nsISMILAnimationElement;
@@ -26,7 +26,7 @@ class nsSVGLength2
 {
 
 public:
-  void Init(uint8_t aCtxType = SVGContentUtils::XY,
+  void Init(uint8_t aCtxType = nsSVGUtils::XY,
             uint8_t aAttrEnum = 0xff,
             float aValue = 0,
             uint8_t aUnitType = nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER) {
@@ -101,17 +101,17 @@ private:
   static float GetMMPerPixel() { return MM_PER_INCH_FLOAT / 96; }
   float GetAxisLength(nsIFrame *aNonSVGFrame) const;
   static float GetEmLength(nsIFrame *aFrame)
-    { return SVGContentUtils::GetFontSize(aFrame); }
+    { return nsSVGUtils::GetFontSize(aFrame); }
   static float GetExLength(nsIFrame *aFrame)
-    { return SVGContentUtils::GetFontXHeight(aFrame); }
+    { return nsSVGUtils::GetFontXHeight(aFrame); }
   float GetUnitScaleFactor(nsIFrame *aFrame, uint8_t aUnitType) const;
 
   float GetMMPerPixel(nsSVGSVGElement *aCtx) const;
   float GetAxisLength(nsSVGSVGElement *aCtx) const;
   static float GetEmLength(nsSVGElement *aSVGElement)
-    { return SVGContentUtils::GetFontSize(aSVGElement); }
+    { return nsSVGUtils::GetFontSize(aSVGElement); }
   static float GetExLength(nsSVGElement *aSVGElement)
-    { return SVGContentUtils::GetFontXHeight(aSVGElement); }
+    { return nsSVGUtils::GetFontXHeight(aSVGElement); }
   float GetUnitScaleFactor(nsSVGElement *aSVGElement, uint8_t aUnitType) const;
   float GetUnitScaleFactor(nsSVGSVGElement *aCtx, uint8_t aUnitType) const;
 

@@ -17,7 +17,6 @@
 #include "nsSVGPathGeometryFrame.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGUtils.h"
-#include "SVGContentUtils.h"
 
 using namespace mozilla;
 
@@ -232,10 +231,10 @@ nsSVGImageFrame::GetRasterImageTransform(int32_t aNativeWidth,
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
 
   gfxMatrix viewBoxTM =
-    SVGContentUtils::GetViewBoxTransform(element,
-                                         width, height,
-                                         0, 0, aNativeWidth, aNativeHeight,
-                                         element->mPreserveAspectRatio);
+    nsSVGUtils::GetViewBoxTransform(element,
+                                    width, height,
+                                    0, 0, aNativeWidth, aNativeHeight,
+                                    element->mPreserveAspectRatio);
 
   return viewBoxTM * gfxMatrix().Translate(gfxPoint(x, y)) * GetCanvasTM(aFor);
 }

@@ -9,6 +9,7 @@
 #include "nsIDOMSVGCircleElement.h"
 #include "nsSVGLength2.h"
 #include "nsGkAtoms.h"
+#include "nsSVGUtils.h"
 #include "gfxContext.h"
 
 using namespace mozilla;
@@ -55,9 +56,9 @@ protected:
 
 nsSVGElement::LengthInfo nsSVGCircleElement::sLengthInfo[3] =
 {
-  { &nsGkAtoms::cx, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::cy, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
-  { &nsGkAtoms::r, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::XY }
+  { &nsGkAtoms::cx, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::cy, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
+  { &nsGkAtoms::r, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::XY }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Circle)

@@ -152,11 +152,7 @@ let DOMApplicationRegistry = {
 #ifdef MOZ_WIDGET_GONK
     // if first run, merge the system apps.
     if (runUpdate) {
-      let file;
-      try {
-        file = FileUtils.getFile("coreAppsDir", ["webapps", "webapps.json"], false);
-      } catch(e) { }
-
+      let file = FileUtils.getFile("coreAppsDir", ["webapps", "webapps.json"], false);
       if (file && file.exists) {
         // 2.a
         this._loadJSONAsync(file, (function loadCoreRegistry(aData) {
@@ -198,8 +194,6 @@ let DOMApplicationRegistry = {
           }
           this.registerAppsHandlers();
         }).bind(this));
-      } else {
-        this.registerAppsHandlers();
       }
     } else {
       this.registerAppsHandlers();
@@ -387,8 +381,7 @@ let DOMApplicationRegistry = {
           if (aCallback)
             aCallback(data);
         } catch (ex) {
-          Cu.reportError("DOMApplicationRegistry: Could not parse JSON: " +
-                         aFile.path + " " + ex);
+          Cu.reportError("DOMApplicationRegistry: Could not parse JSON: " + ex);
           if (aCallback)
             aCallback(null);
         }
@@ -697,6 +690,21 @@ let DOMApplicationRegistry = {
 
     let dir = FileUtils.getDir("TmpD", ["webapps", id], true, true);
 
+    /** from https://developer.mozilla.org/en/OpenWebApps/The_Manifest
+     * only the name property is mandatory
+     */
+    function checkManifest(aManifest) {
+      if (aManifest.name == undefined)
+        return false;
+
+      if (aManifest.installs_allowed_from) {
+        return aManifest.installs_allowed_from.some(function(aOrigin) {
+          return aOrigin == "*" || aOrigin == aData.installOrigin;
+        });
+      }
+      return true;
+    }
+
     // Removes the directory we created, and sends an error to the DOM side.
     function cleanup(aError) {
       try {
@@ -793,7 +801,7 @@ let DOMApplicationRegistry = {
           let istream = zipReader.getInputStream("manifest.webapp");
           msg.app.manifest = JSON.parse(NetUtil.readInputStreamToString(istream,
                                         istream.available()) || "");
-          if (!AppsUtils.checkManifest(msg.app.manifest, aData.installOrigin)) {
+          if (!checkManifest(msg.app.manifest)) {
             throw "INVALID_MANIFEST";
           }
 

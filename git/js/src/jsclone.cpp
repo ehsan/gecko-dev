@@ -449,11 +449,13 @@ JSStructuredCloneWriter::writeArrayBuffer(JSHandleObject obj)
 }
 
 bool
-JSStructuredCloneWriter::startObject(JSHandleObject obj, bool *backref)
+JSStructuredCloneWriter::startObject(JSHandleObject obj)
 {
+    JS_ASSERT(obj->isArray() || obj->isObject());
+
     /* Handle cycles in the object graph. */
     CloneMemory::AddPtr p = memory.lookupForAdd(obj);
-    if ((*backref = p))
+    if (p)
         return out.writePair(SCTAG_BACK_REFERENCE_OBJECT, p->value);
     if (!memory.add(p, obj, memory.count()))
         return false;
@@ -464,12 +466,6 @@ JSStructuredCloneWriter::startObject(JSHandleObject obj, bool *backref)
         return false;
     }
 
-    return true;
-}
-
-bool
-JSStructuredCloneWriter::traverseObject(JSHandleObject obj)
-{
     /*
      * Get enumerable property ids and put them in reverse order so that they
      * will come off the stack in forward order.
@@ -515,13 +511,6 @@ JSStructuredCloneWriter::startWrite(const Value &v)
             return false;
 
         AutoCompartment ac(context(), obj);
-
-        bool backref;
-        if (!startObject(obj, &backref))
-            return false;
-        if (backref)
-            return true;
-
         if (obj->isRegExp()) {
             RegExpObject &reobj = obj->asRegExp();
             return out.writePair(SCTAG_REGEXP_OBJECT, reobj.getFlags()) &&
@@ -529,12 +518,12 @@ JSStructuredCloneWriter::startWrite(const Value &v)
         } else if (obj->isDate()) {
             double d = js_DateGetMsecSinceEpoch(context(), obj);
             return out.writePair(SCTAG_DATE_OBJECT, 0) && out.writeDouble(d);
+        } else if (obj->isObject() || obj->isArray()) {
+            return startObject(obj);
         } else if (obj->isTypedArray()) {
             return writeTypedArray(obj);
         } else if (obj->isArrayBuffer() && obj->asArrayBuffer().hasData()) {
             return writeArrayBuffer(obj);
-        } else if (obj->isObject() || obj->isArray()) {
-            return traverseObject(obj);
         } else if (obj->isBoolean()) {
             return out.writePair(SCTAG_BOOLEAN_OBJECT, obj->asBoolean().unbox());
         } else if (obj->isNumber()) {
@@ -832,7 +821,8 @@ JSStructuredCloneReader::startRead(Value *vp)
         JSObject *obj = (tag == SCTAG_ARRAY_OBJECT)
                         ? NewDenseEmptyArray(context())
                         : NewBuiltinClassInstance(context(), &ObjectClass);
-        if (!obj || !objs.append(ObjectValue(*obj)))
+        if (!obj || !objs.append(ObjectValue(*obj)) ||
+            !allObjs.append(ObjectValue(*obj)))
             return false;
         vp->setObject(*obj);
         break;
@@ -842,17 +832,14 @@ JSStructuredCloneReader::startRead(Value *vp)
         if (data >= allObjs.length()) {
             JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL,
                                  JSMSG_SC_BAD_SERIALIZED_DATA,
-                                 "invalid back reference in input");
-            return false;
+                                 "invalid input");
         }
         *vp = allObjs[data];
-        return true;
+        break;
       }
 
       case SCTAG_ARRAY_BUFFER_OBJECT:
-        if (!readArrayBuffer(data, vp))
-            return false;
-        break;
+        return readArrayBuffer(data, vp);
 
       default: {
         if (tag <= SCTAG_FLOAT_MAX) {
@@ -863,11 +850,8 @@ JSStructuredCloneReader::startRead(Value *vp)
             break;
         }
 
-        if (SCTAG_TYPED_ARRAY_MIN <= tag && tag <= SCTAG_TYPED_ARRAY_MAX) {
-            if (!readTypedArray(tag, data, vp))
-                return false;
-            break;
-        }
+        if (SCTAG_TYPED_ARRAY_MIN <= tag && tag <= SCTAG_TYPED_ARRAY_MAX)
+            return readTypedArray(tag, data, vp);
 
         if (!callbacks || !callbacks->read) {
             JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_BAD_SERIALIZED_DATA,
@@ -880,10 +864,6 @@ JSStructuredCloneReader::startRead(Value *vp)
         vp->setObject(*obj);
       }
     }
-
-    if (vp->isObject() && !allObjs.append(*vp))
-        return false;
-
     return true;
 }
 

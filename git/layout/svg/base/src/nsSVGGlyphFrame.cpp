@@ -24,7 +24,6 @@
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGUtils.h"
 #include "nsTextFragment.h"
-#include "SVGContentUtils.h"
 #include "SVGLengthList.h"
 
 using namespace mozilla;
@@ -1817,7 +1816,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     // diagonal vector (1,1) to the length of the untransformed diagonal
     // (which is sqrt(2)).
     gfxPoint p = m.Transform(gfxPoint(1, 1)) - m.Transform(gfxPoint(0, 0));
-    double contextScale = SVGContentUtils::ComputeNormalizedHypotenuse(p.x, p.y);
+    double contextScale = nsSVGUtils::ComputeNormalizedHypotenuse(p.x, p.y);
 
     if (GetStyleSVG()->mTextRendering ==
         NS_STYLE_TEXT_RENDERING_GEOMETRICPRECISION) {

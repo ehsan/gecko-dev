@@ -21,7 +21,6 @@
 #include "nsSVGPatternElement.h"
 #include "nsSVGUtils.h"
 #include "SVGAnimatedTransformList.h"
-#include "SVGContentUtils.h"
 
 using namespace mozilla;
 
@@ -662,7 +661,7 @@ nsSVGPatternFrame::ConstructCTM(const nsSVGViewBox& aViewBox,
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
-  gfxMatrix tm = SVGContentUtils::GetViewBoxTransform(
+  gfxMatrix tm = nsSVGUtils::GetViewBoxTransform(
     static_cast<nsSVGPatternElement*>(mContent),
     viewportWidth, viewportHeight,
     viewBoxRect.x, viewBoxRect.y,

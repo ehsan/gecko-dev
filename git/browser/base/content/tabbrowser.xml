@@ -836,9 +836,6 @@
             if (this.mCurrentBrowser == newBrowser && !aForceUpdate)
               return;
 
-            if (!aForceUpdate)
-              TelemetryStopwatch.start("FX_TAB_SWITCH_UPDATE_MS");
-
             var oldTab = this.mCurrentTab;
 
             // Preview mode should not reset the owner
@@ -1018,9 +1015,6 @@
                 fm.setFocus(newBrowser, focusFlags);
               } while (false);
             }
-
-            if (!aForceUpdate)
-              TelemetryStopwatch.finish("FX_TAB_SWITCH_UPDATE_MS");
           ]]>
         </body>
       </method>

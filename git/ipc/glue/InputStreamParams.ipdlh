@@ -5,7 +5,6 @@
 include "ipc/IPCMessageUtils.h";
 
 using mozilla::void_t;
-include protocol PBlob;
 
 namespace mozilla {
 namespace ipc {
@@ -37,11 +36,6 @@ struct MultiplexInputStreamParams
   bool startedReadingCurrent;
 };
 
-struct RemoteInputStreamParams
-{
-  PBlob remoteBlob;
-};
-
 union InputStreamParams
 {
   StringInputStreamParams;
@@ -50,7 +44,6 @@ union InputStreamParams
   BufferedInputStreamParams;
   MIMEInputStreamParams;
   MultiplexInputStreamParams;
-  RemoteInputStreamParams;
 };
 
 union OptionalInputStreamParams

@@ -15,7 +15,6 @@
 #endif 
 
 #include "nsXPCOM.h"
-#include "mozilla/Assertions.h"
 
 #ifdef DEBUG
 #include "prprf.h"
@@ -348,9 +347,12 @@
 
 #ifdef XPCOM_GLUE
   #define NS_CheckThreadSafe(owningThread, msg)
+#elif defined MOZ_FATAL_ASSERTIONS_FOR_THREAD_SAFETY
+  #define NS_CheckThreadSafe(owningThread, msg)                 \
+    NS_ABORT_IF_FALSE(owningThread == PR_GetCurrentThread(), msg)
 #else
   #define NS_CheckThreadSafe(owningThread, msg)                 \
-    MOZ_ASSERT(owningThread == PR_GetCurrentThread(), msg)
+    NS_ASSERTION(owningThread == PR_GetCurrentThread(), msg)
 #endif
 
 /* When compiling the XPCOM Glue on Windows, we pretend that it's going to

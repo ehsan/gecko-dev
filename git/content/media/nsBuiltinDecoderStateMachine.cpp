@@ -1490,9 +1490,7 @@ void nsBuiltinDecoderStateMachine::Seek(double aTime)
   mSeekTime = NS_MAX(mStartTime, mSeekTime);
   LOG(PR_LOG_DEBUG, ("%p Changed state to SEEKING (to %f)", mDecoder.get(), aTime));
   mState = DECODER_STATE_SEEKING;
-  if (mDecoder->GetDecodedStream()) {
-    mDecoder->RecreateDecodedStream(mSeekTime - mStartTime);
-  }
+  mDecoder->RecreateDecodedStream(mSeekTime - mStartTime);
   ScheduleStateMachine();
 }
 
@@ -2047,7 +2045,7 @@ nsresult nsBuiltinDecoderStateMachine::RunStateMachine()
       if ((isLiveStream || !mDecoder->CanPlayThrough()) &&
             elapsed < TimeDuration::FromSeconds(mBufferingWait) &&
             (mQuickBuffering ? HasLowDecodedData(QUICK_BUFFERING_LOW_DATA_USECS)
-                            : (GetUndecodedData() < mBufferingWait * USECS_PER_S)) &&
+                            : (GetUndecodedData() < mBufferingWait * USECS_PER_S / 1000)) &&
             !resource->IsDataCachedToEndOfResource(mDecoder->mDecoderPosition) &&
             !resource->IsSuspended())
       {
@@ -2219,21 +2217,12 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
   int64_t remainingTime = AUDIO_DURATION_USECS;
   NS_ASSERTION(clock_time >= mStartTime, "Should have positive clock time.");
   nsAutoPtr<VideoData> currentFrame;
-#ifdef PR_LOGGING
-  int32_t droppedFrames = 0;
-#endif
   if (mReader->VideoQueue().GetSize() > 0) {
     VideoData* frame = mReader->VideoQueue().PeekFront();
     while (mRealTime || clock_time >= frame->mTime) {
       mVideoFrameEndTime = frame->mEndTime;
       currentFrame = frame;
       LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld", mDecoder.get(), frame->mTime));
-#ifdef PR_LOGGING
-      if (droppedFrames++) {
-        LOG(PR_LOG_DEBUG, ("%p Decoder discarding video frame %lld (%d so far)",
-              mDecoder.get(), frame->mTime, droppedFrames - 1));
-      }
-#endif
       mReader->VideoQueue().PopFront();
       // Notify the decode thread that the video queue's buffers may have
       // free'd up space for more frames.
@@ -2399,7 +2388,7 @@ bool nsBuiltinDecoderStateMachine::JustExitedQuickBuffering()
 {
   return !mDecodeStartTime.IsNull() &&
     mQuickBuffering &&
-    (TimeStamp::Now() - mDecodeStartTime) < TimeDuration::FromMicroseconds(QUICK_BUFFER_THRESHOLD_USECS);
+    (TimeStamp::Now() - mDecodeStartTime) < TimeDuration::FromSeconds(QUICK_BUFFER_THRESHOLD_USECS);
 }
 
 void nsBuiltinDecoderStateMachine::StartBuffering()

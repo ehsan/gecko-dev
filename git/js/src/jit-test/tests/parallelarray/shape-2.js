@@ -7,8 +7,9 @@ function testShape() {
     shape.push(i+1);
     var p = new ParallelArray(shape, function () { return 0; });
     // Test shape identity and shape
-    assertEqArray(p.shape, shape);
+    assertEq(p.shape, p.shape);
     assertEq(p.shape !== shape, true);
+    assertEqArray(p.shape, shape);
   }
 }
 

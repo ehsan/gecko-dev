@@ -31,13 +31,8 @@ let tests = [
 
   function snapshotSchema(done) {
     Troubleshoot.snapshot(function (snapshot) {
-      try {
-        validateObject(snapshot, SNAPSHOT_SCHEMA);
-        ok(true, "The snapshot should conform to the schema.");
-      }
-      catch (err) {
-        ok(false, err);
-      }
+      validateObject(snapshot, SNAPSHOT_SCHEMA);
+      ok(true, "The snapshot should conform to the schema.");
       done();
     });
   },

@@ -25,11 +25,10 @@
 #include "nsError.h"
 #include "nsISVGChildFrame.h"
 #include "nsGUIEvent.h"
-#include "nsSVGSVGElement.h"
 #include "nsSVGUtils.h"
+#include "nsSVGSVGElement.h"
 #include "nsSVGViewElement.h"
 #include "nsStyleUtil.h"
-#include "SVGContentUtils.h"
 
 #include "nsEventDispatcher.h"
 #include "nsSMILTimeContainer.h"
@@ -102,10 +101,10 @@ nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
 {
-  { &nsGkAtoms::x, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
-  { &nsGkAtoms::width, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, SVGContentUtils::X },
-  { &nsGkAtoms::height, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, SVGContentUtils::Y },
+  { &nsGkAtoms::x, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
+  { &nsGkAtoms::width, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::X },
+  { &nsGkAtoms::height, 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE, nsSVGUtils::Y },
 };
 
 nsSVGEnumMapping nsSVGSVGElement::sZoomAndPanMap[] = {
@@ -637,7 +636,7 @@ nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
 NS_IMETHODIMP
 nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  *aNearestViewportElement = SVGContentUtils::GetNearestViewportElement(this).get();
+  *aNearestViewportElement = nsSVGUtils::GetNearestViewportElement(this).get();
   return NS_OK;
 }
 
@@ -645,7 +644,7 @@ nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportE
 NS_IMETHODIMP
 nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  NS_IF_ADDREF(*aFarthestViewportElement = SVGContentUtils::GetOuterSVGElement(this));
+  NS_IF_ADDREF(*aFarthestViewportElement = nsSVGUtils::GetOuterSVGElement(this));
   return NS_OK;
 }
 
@@ -671,7 +670,7 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 {
-  gfxMatrix m = SVGContentUtils::GetCTM(this, false);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, false);
   *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -681,7 +680,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
-  gfxMatrix m = SVGContentUtils::GetCTM(this, true);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
   *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -807,7 +806,7 @@ nsSVGSVGElement::GetTimedDocumentRoot()
 
   // We must not be the outermost <svg> element, try to find it
   nsSVGSVGElement *outerSVGElement =
-    SVGContentUtils::GetOuterSVGElement(this);
+    nsSVGUtils::GetOuterSVGElement(this);
 
   if (outerSVGElement) {
     return outerSVGElement->GetTimedDocumentRoot();
@@ -934,11 +933,11 @@ nsSVGSVGElement::GetViewBoxTransform() const
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
-  return SVGContentUtils::GetViewBoxTransform(this,
-                                              viewportWidth, viewportHeight,
-                                              viewBox.x, viewBox.y,
-                                              viewBox.width, viewBox.height,
-                                              GetPreserveAspectRatioWithOverride());
+  return nsSVGUtils::GetViewBoxTransform(this,
+                                         viewportWidth, viewportHeight,
+                                         viewBox.x, viewBox.y,
+                                         viewBox.width, viewBox.height,
+                                         GetPreserveAspectRatioWithOverride());
 }
 
 void
@@ -1191,12 +1190,12 @@ nsSVGSVGElement::GetLength(uint8_t aCtxType)
   h = NS_MAX(h, 0.0f);
 
   switch (aCtxType) {
-  case SVGContentUtils::X:
+  case nsSVGUtils::X:
     return w;
-  case SVGContentUtils::Y:
+  case nsSVGUtils::Y:
     return h;
-  case SVGContentUtils::XY:
-    return float(SVGContentUtils::ComputeNormalizedHypotenuse(w, h));
+  case nsSVGUtils::XY:
+    return float(nsSVGUtils::ComputeNormalizedHypotenuse(w, h));
   }
   return 0;
 }

@@ -345,7 +345,6 @@ private:
   static nsresult GetRequestBody(nsIVariant* aVariant,
                                  const Nullable<RequestBody>& aBody,
                                  nsIInputStream** aResult,
-                                 uint64_t* aContentLength,
                                  nsACString& aContentType,
                                  nsACString& aCharset);
 

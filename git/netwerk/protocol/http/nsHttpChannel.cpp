@@ -4101,7 +4101,7 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
     if (NS_FAILED(rv)) return rv;
 
     uint32_t redirectFlags;
-    if (nsHttp::IsPermanentRedirect(mRedirectType))
+    if (mRedirectType == 301) // Moved Permanently
         redirectFlags = nsIChannelEventSink::REDIRECT_PERMANENT;
     else
         redirectFlags = nsIChannelEventSink::REDIRECT_TEMPORARY;

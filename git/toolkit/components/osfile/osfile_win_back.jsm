@@ -72,39 +72,44 @@
 
        // Initialize types
 
+       Types.HANDLE =
+         Types.voidptr_t.withName("HANDLE");
+
        /**
         * A C integer holding INVALID_HANDLE_VALUE in case of error or
         * a file descriptor in case of success.
         */
-       Types.HANDLE =
-         Types.voidptr_t.withName("HANDLE");
-       Types.HANDLE.importFromC = function importFromC(maybe) {
-         if (Types.int.cast(maybe).value == INVALID_HANDLE) {
-           // Ensure that API clients can effectively compare against
-           // Const.INVALID_HANDLE_VALUE. Without this cast,
-           // == would always return |false|.
-           return INVALID_HANDLE;
-         }
-         return ctypes.CDataFinalizer(maybe, this.finalizeHANDLE);
+       Types.maybe_HANDLE =
+         Types.HANDLE.withName("maybe_HANDLE");
+       Types.maybe_HANDLE.importFromC =
+         function maybe_HANDLE_importFromC(maybe) {
+           if (Types.int.cast(maybe).value == INVALID_HANDLE) {
+             // Ensure that API clients can effectively compare against
+             // Const.INVALID_HANDLE_VALUE. Without this cast,
+             // == would always return |false|.
+             return INVALID_HANDLE;
+           }
+         return ctypes.CDataFinalizer(maybe, _CloseHandle);
        };
-       Types.HANDLE.finalizeHANDLE = function placeholder() {
-         throw new Error("finalizeHANDLE should be implemented");
+
+       /**
+        * A C integer holding INVALID_HANDLE_VALUE in case of error or
+        * a file descriptor in case of success.
+        */
+       Types.maybe_find_HANDLE =
+         Types.HANDLE.withName("maybe_find_HANDLE");
+       Types.maybe_find_HANDLE.importFromC =
+         function maybe_find_HANDLE_importFromC(maybe) {
+           if (Types.int.cast(maybe).value == INVALID_HANDLE) {
+             // Ensure that API clients can effectively compare against
+             // Const.INVALID_HANDLE_VALUE. Without this cast,
+             // == would always return |false|.
+             return INVALID_HANDLE;
+           }
+         return ctypes.CDataFinalizer(maybe, _FindClose);
        };
+
        let INVALID_HANDLE = exports.OS.Constants.Win.INVALID_HANDLE_VALUE;
-
-       Types.file_HANDLE = Types.HANDLE.withName("file HANDLE");
-       exports.OS.Shared.defineLazyGetter(Types.file_HANDLE,
-         "finalizeHANDLE",
-         function() {
-           return _CloseHandle;
-         });
-
-       Types.find_HANDLE = Types.HANDLE.withName("find HANDLE");
-       exports.OS.Shared.defineLazyGetter(Types.find_HANDLE,
-         "finalizeHANDLE",
-         function() {
-           return _FindClose;
-         });
 
        Types.DWORD = Types.int32_t.withName("DWORD");
 
@@ -217,7 +222,7 @@
 
        WinFile.CreateFile =
          declareFFI("CreateFileW", ctypes.winapi_abi,
-                    /*return*/  Types.file_HANDLE,
+                    /*return*/  Types.maybe_HANDLE,
                     /*name*/    Types.path,
                     /*access*/  Types.DWORD,
                     /*share*/   Types.DWORD,
@@ -239,14 +244,14 @@
 
        WinFile.FindFirstFile =
          declareFFI("FindFirstFileW", ctypes.winapi_abi,
-                    /*return*/ Types.find_HANDLE,
+                    /*return*/ Types.maybe_find_HANDLE,
                     /*pattern*/Types.path,
                     /*data*/   Types.FindData.out_ptr);
 
        WinFile.FindNextFile =
          declareFFI("FindNextFileW", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
-                    /*prev*/   Types.find_HANDLE,
+                    /*prev*/   Types.HANDLE,
                     /*data*/   Types.FindData.out_ptr);
 
        WinFile.FormatMessage =

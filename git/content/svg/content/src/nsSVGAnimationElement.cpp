@@ -423,7 +423,7 @@ nsSVGAnimationElement::ActivateByHyperlink()
 nsSMILTimeContainer*
 nsSVGAnimationElement::GetTimeContainer()
 {
-  nsSVGSVGElement *element = SVGContentUtils::GetOuterSVGElement(this);
+  nsSVGSVGElement *element = nsSVGUtils::GetOuterSVGElement(this);
 
   if (element) {
     return element->GetTimedDocumentRoot();

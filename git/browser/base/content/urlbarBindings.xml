@@ -182,16 +182,12 @@
           if (domain[0] != "[") {
             try {
               baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
-              if (!domain.contains(baseDomain)) {
-                // getBaseDomainFromHost converts its resultant to ACE.
-                let IDNService = Cc["@mozilla.org/network/idn-service;1"]
-                                 .getService(Ci.nsIIDNService);
-                baseDomain = IDNService.convertACEtoUTF8(baseDomain);
-              }
             } catch (e) {}
           }
           if (baseDomain != domain) {
-            subDomain = domain.slice(0, -baseDomain.length);
+            let segments = function (s) s.replace(/[^.]*/g, "").length + 1;
+            let subSegments = segments(domain) - segments(baseDomain);
+            subDomain = domain.match(new RegExp("(?:[^.]*\.){" + subSegments + "}"))[0];
           }
 
           let rangeLength = preDomain.length + subDomain.length;
