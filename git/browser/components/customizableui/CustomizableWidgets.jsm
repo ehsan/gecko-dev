@@ -159,7 +159,6 @@ const CustomizableWidgets = [{
       // Populate our list of history
       const kMaxResults = 15;
       let doc = aEvent.detail.ownerDocument;
-      let win = doc.defaultView;
 
       let options = PlacesUtils.history.getNewQueryOptions();
       options.excludeQueries = true;
@@ -202,10 +201,8 @@ const CustomizableWidgets = [{
               item.addEventListener("click", function (aEvent) {
                 onHistoryVisit(uri, aEvent, item);
               });
-              if (icon) {
-                let iconURL = PlacesUtils.getImageURLForResolution(win, "moz-anno:favicon:" + icon);
-                item.setAttribute("image", iconURL);
-              }
+              if (icon)
+                item.setAttribute("image", "moz-anno:favicon:" + icon);
               fragment.appendChild(item);
             } catch (e) {
               ERROR("Error while showing history subview: " + e);

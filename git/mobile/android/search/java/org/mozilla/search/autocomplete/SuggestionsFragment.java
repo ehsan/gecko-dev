@@ -63,8 +63,7 @@ public class SuggestionsFragment extends Fragment implements SearchEngineManager
 
     private AutoCompleteAdapter autoCompleteAdapter;
 
-    // Holds the list of search suggestions.
-    private ListView suggestionsList;
+    private ListView suggestionDropdown;
 
     public SuggestionsFragment() {
         // Required empty public constructor
@@ -111,14 +110,14 @@ public class SuggestionsFragment extends Fragment implements SearchEngineManager
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        suggestionsList = (ListView) inflater.inflate(R.layout.search_sugestions, container, false);
-        suggestionsList.setAdapter(autoCompleteAdapter);
+        suggestionDropdown = (ListView) inflater.inflate(R.layout.search_sugestions, container, false);
+        suggestionDropdown.setAdapter(autoCompleteAdapter);
 
         // Attach listener for tapping on a suggestion.
-        suggestionsList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        suggestionDropdown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                final Suggestion suggestion = (Suggestion) suggestionsList.getItemAtPosition(position);
+                final Suggestion suggestion = (Suggestion) suggestionDropdown.getItemAtPosition(position);
 
                 final Rect startBounds = new Rect();
                 view.getGlobalVisibleRect(startBounds);
@@ -135,17 +134,17 @@ public class SuggestionsFragment extends Fragment implements SearchEngineManager
             }
         });
 
-        return suggestionsList;
+        return suggestionDropdown;
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
 
-        if (null != suggestionsList) {
-            suggestionsList.setOnItemClickListener(null);
-            suggestionsList.setAdapter(null);
-            suggestionsList = null;
+        if (null != suggestionDropdown) {
+            suggestionDropdown.setOnItemClickListener(null);
+            suggestionDropdown.setAdapter(null);
+            suggestionDropdown = null;
         }
     }
 
@@ -205,17 +204,13 @@ public class SuggestionsFragment extends Fragment implements SearchEngineManager
 
         @Override
         public void onLoadFinished(Loader<List<Suggestion>> loader, List<Suggestion> suggestions) {
-            // Only show the ListView if there are suggestions in it.
-            if (suggestions.size() > 0) {
-                autoCompleteAdapter.update(suggestions);
-                suggestionsList.setVisibility(View.VISIBLE);
-            } else {
-                suggestionsList.setVisibility(View.INVISIBLE);
-            }
+            autoCompleteAdapter.update(suggestions);
         }
 
         @Override
-        public void onLoaderReset(Loader<List<Suggestion>> loader) { }
+        public void onLoaderReset(Loader<List<Suggestion>> loader) {
+            autoCompleteAdapter.update(null);
+        }
     }
 
     private static class SuggestionAsyncLoader extends AsyncTaskLoader<List<Suggestion>> {

@@ -2898,28 +2898,24 @@ WifiWorker.prototype = {
     // No change.
     if (enabled === WifiManager.enabled) {
       this._sendMessage(message, true, true, msg);
-      return;
     }
 
     // Can't enable wifi while hotspot mode is enabled.
     if (enabled && (this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] ||
         WifiManager.isWifiTetheringEnabled(WifiManager.tetheringState))) {
       self._sendMessage(message, false, "Can't enable Wifi while hotspot mode is enabled", msg);
-      return;
+    }
+
+    // Reply error to pending requests.
+    if (!enabled) {
+      this._clearPendingRequest();
     }
 
     WifiManager.setWifiEnabled(enabled, function(ok) {
       if (ok === 0 || ok === "no change") {
         self._sendMessage(message, true, true, msg);
-
-        // Reply error to pending requests.
-        if (!enabled) {
-          self._clearPendingRequest();
-        } else {
-          WifiManager.start();
-        }
       } else {
-        self._sendMessage(message, false, "Set wifi enabled failed", msg);
+        self._sendMessage(message, false, "Set power saving mode failed", msg);
       }
     });
   },

@@ -49,16 +49,9 @@ function connect() {
   });
 }
 
-// Certain options should be toggled since we can assume chrome debugging here
-function setPrefDefaults() {
-  Services.prefs.setBoolPref("devtools.inspector.showUserAgentStyles", true);
-  Services.prefs.setBoolPref("devtools.profiler.ui.show-platform-data", true);
-}
-
 window.addEventListener("load", function() {
   let cmdClose = document.getElementById("toolbox-cmd-close");
   cmdClose.addEventListener("command", onCloseCommand);
-  setPrefDefaults();
   connect();
 });
 
