@@ -227,7 +227,7 @@ ServiceWorkerManager::Register(nsIDOMWindow* aWindow, const nsAString& aScope,
   }
 
   nsCString cleanedScope;
-  rv = scopeURI->GetSpecIgnoringRef(cleanedScope);
+  rv = scopeURI->GetSpec(cleanedScope);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return NS_ERROR_FAILURE;
   }

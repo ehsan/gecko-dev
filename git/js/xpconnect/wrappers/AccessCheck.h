@@ -101,9 +101,7 @@ struct ExposedPropertiesOnly : public Policy {
         // Fail silently for GETs and ENUMERATEs.
         return act == js::Wrapper::GET || act == js::Wrapper::ENUMERATE;
     }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl) {
-        return false;
-    }
+    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl);
 };
 
 }

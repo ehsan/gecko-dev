@@ -2153,17 +2153,6 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Uint32, uint32_t, uint32_t)
 IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float32, float, float)
 IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
 
-#define TYPED_ARRAY_CLASS_SPEC(_typedArray)                                    \
-{                                                                              \
-    GenericCreateConstructor<_typedArray##Object::class_constructor,           \
-                             NAME_OFFSET(_typedArray), 3>,                     \
-    _typedArray##Object::CreatePrototype,                                      \
-    nullptr,                                                                   \
-    _typedArray##Object::jsfuncs,                                              \
-    _typedArray##Object::jsprops,                                              \
-    _typedArray##Object::FinishClassInit                                       \
-}
-
 #define IMPL_TYPED_ARRAY_PROTO_CLASS(_typedArray)                              \
 {                                                                              \
     #_typedArray "Prototype",                                                  \
@@ -2176,13 +2165,7 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     JS_StrictPropertyStub,   /* setProperty */                                 \
     JS_EnumerateStub,                                                          \
     JS_ResolveStub,                                                            \
-    JS_ConvertStub,                                                            \
-    nullptr,                 /* finalize    */                                 \
-    nullptr,                 /* call        */                                 \
-    nullptr,                 /* hasInstance */                                 \
-    nullptr,                 /* construct   */                                 \
-    nullptr,                 /* trace  */                                      \
-    TYPED_ARRAY_CLASS_SPEC(_typedArray)                                        \
+    JS_ConvertStub                                                             \
 }
 
 #define IMPL_TYPED_ARRAY_FAST_CLASS(_typedArray)                               \
@@ -2203,7 +2186,15 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     nullptr,                 /* hasInstance */                                 \
     nullptr,                 /* construct   */                                 \
     ArrayBufferViewObject::trace, /* trace  */                                 \
-    TYPED_ARRAY_CLASS_SPEC(_typedArray)                                        \
+    {                                                                          \
+        GenericCreateConstructor<_typedArray##Object::class_constructor,       \
+                                 NAME_OFFSET(_typedArray), 3>,                 \
+        _typedArray##Object::CreatePrototype,                                  \
+        nullptr,                                                               \
+        _typedArray##Object::jsfuncs,                                          \
+        _typedArray##Object::jsprops,                                          \
+        _typedArray##Object::FinishClassInit                                   \
+    }                                                                          \
 }
 
 template<typename NativeType>
@@ -2272,6 +2263,23 @@ const Class TypedArrayObject::protoClasses[ScalarTypeDescr::TYPE_MAX] = {
     IMPL_TYPED_ARRAY_PROTO_CLASS(Float64Array),
     IMPL_TYPED_ARRAY_PROTO_CLASS(Uint8ClampedArray)
 };
+
+#define CHECK(t, a) { if (t == a::IsThisClass) return true; }
+JS_FRIEND_API(bool)
+js::IsTypedArrayThisCheck(JS::IsAcceptableThis test)
+{
+    CHECK(test, Int8ArrayObject);
+    CHECK(test, Uint8ArrayObject);
+    CHECK(test, Int16ArrayObject);
+    CHECK(test, Uint16ArrayObject);
+    CHECK(test, Int32ArrayObject);
+    CHECK(test, Uint32ArrayObject);
+    CHECK(test, Float32ArrayObject);
+    CHECK(test, Float64ArrayObject);
+    CHECK(test, Uint8ClampedArrayObject);
+    return false;
+}
+#undef CHECK
 
 JSObject *
 js_InitArrayBufferClass(JSContext *cx, HandleObject obj)

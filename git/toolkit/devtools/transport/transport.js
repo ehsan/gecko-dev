@@ -450,12 +450,12 @@ DebuggerTransport.prototype = {
    * Delivers the packet to this.hooks.onPacket.
    */
   _onJSONObjectReady: function(object) {
-    DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
+    Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
       // Ensure the transport is still alive by the time this runs.
       if (this.active) {
         this.hooks.onPacket(object);
       }
-    }, "DebuggerTransport instance's this.hooks.onPacket"));
+    }, "DebuggerTransport instance's this.hooks.onPacket"), 0);
   },
 
   /**
@@ -465,12 +465,12 @@ DebuggerTransport.prototype = {
    * transport at the top of this file for more details.
    */
   _onBulkReadReady: function(...args) {
-    DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
+    Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
       // Ensure the transport is still alive by the time this runs.
       if (this.active) {
         this.hooks.onBulkPacket(...args);
       }
-    }, "DebuggerTransport instance's this.hooks.onBulkPacket"));
+    }, "DebuggerTransport instance's this.hooks.onBulkPacket"), 0);
   },
 
   /**
@@ -531,7 +531,7 @@ LocalDebuggerTransport.prototype = {
     this._deepFreeze(packet);
     let other = this.other;
     if (other) {
-      DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
+      Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
         // Avoid the cost of JSON.stringify() when logging is disabled.
         if (dumpn.wantLogging) {
           dumpn("Received packet " + serial + ": " + JSON.stringify(packet, null, 2));
@@ -539,7 +539,7 @@ LocalDebuggerTransport.prototype = {
         if (other.hooks) {
           other.hooks.onPacket(packet);
         }
-      }, "LocalDebuggerTransport instance's this.other.hooks.onPacket"));
+      }, "LocalDebuggerTransport instance's this.other.hooks.onPacket"), 0);
     }
   },
 
@@ -562,7 +562,7 @@ LocalDebuggerTransport.prototype = {
 
     let pipe = new Pipe(true, true, 0, 0, null);
 
-    DevToolsUtils.executeSoon(DevToolsUtils.makeInfallible(() => {
+    Services.tm.currentThread.dispatch(DevToolsUtils.makeInfallible(() => {
       dumpn("Received bulk packet " + serial);
       if (!this.other.hooks) {
         return;
@@ -586,14 +586,14 @@ LocalDebuggerTransport.prototype = {
 
       // Await the result of reading from the stream
       deferred.promise.then(() => pipe.inputStream.close(), this.close);
-    }, "LocalDebuggerTransport instance's this.other.hooks.onBulkPacket"));
+    }, "LocalDebuggerTransport instance's this.other.hooks.onBulkPacket"), 0);
 
     // Sender
     let sendDeferred = promise.defer();
 
     // The remote transport is not capable of resolving immediately here, so we
     // shouldn't be able to either.
-    DevToolsUtils.executeSoon(() => {
+    Services.tm.currentThread.dispatch(() => {
       let copyDeferred = promise.defer();
 
       sendDeferred.resolve({
@@ -608,7 +608,7 @@ LocalDebuggerTransport.prototype = {
 
       // Await the result of writing to the stream
       copyDeferred.promise.then(() => pipe.outputStream.close(), this.close);
-    });
+    }, 0);
 
     return sendDeferred.promise;
   },

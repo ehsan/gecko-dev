@@ -66,7 +66,6 @@ protected:
   gfx::SurfaceFormat mFormat;
   bool mIsLocked;
   bool mNeedsClear;
-  bool mNeedsClearWhite;
 };
 
 /**

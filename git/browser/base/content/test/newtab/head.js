@@ -308,7 +308,7 @@ function addNewTabPageTab() {
     if (NewTabUtils.allPages.enabled) {
       // Continue when the link cache has been populated.
       NewTabUtils.links.populateCache(function () {
-        whenSearchInitDone();
+        executeSoon(TestRunner.next);
       });
     } else {
       // It's important that we call next() asynchronously.
@@ -606,18 +606,33 @@ function whenPagesUpdated(aCallback, aOnlyIfHidden=false) {
 }
 
 /**
- * Waits for the response to the page's initial search state request.
+ * Waits a small amount of time for search events to stop occurring in the
+ * newtab page.
+ *
+ * newtab pages receive some search events around load time that are difficult
+ * to predict.  There are two categories of such events: (1) "State" events
+ * triggered by engine notifications like engine-changed, due to the search
+ * service initializing itself on app startup.  This can happen when a test is
+ * the first test to run.  (2) "State" events triggered by the newtab page
+ * itself when gSearch first sets itself up.  newtab preloading makes these a
+ * pain to predict.
  */
 function whenSearchInitDone() {
-  if (getContentWindow().gSearch._initialStateReceived) {
-    executeSoon(TestRunner.next);
-    return;
+  info("Waiting for initial search events...");
+  let numTicks = 0;
+  function reset(event) {
+    info("Got initial search event " + event.detail.type +
+         ", waiting for more...");
+    numTicks = 0;
   }
   let eventName = "ContentSearchService";
-  getContentWindow().addEventListener(eventName, function onEvent(event) {
-    if (event.detail.type == "State") {
-      getContentWindow().removeEventListener(eventName, onEvent);
+  getContentWindow().addEventListener(eventName, reset);
+  let interval = window.setInterval(() => {
+    if (++numTicks >= 100) {
+      info("Done waiting for initial search events");
+      window.clearInterval(interval);
+      getContentWindow().removeEventListener(eventName, reset);
       TestRunner.next();
     }
-  });
+  }, 0);
 }

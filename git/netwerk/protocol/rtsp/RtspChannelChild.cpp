@@ -20,7 +20,6 @@ RtspChannelChild::RtspChannelChild(nsIURI *aUri)
   , mCanceled(false)
 {
   nsBaseChannel::SetURI(aUri);
-  DisallowThreadRetargeting();
 }
 
 RtspChannelChild::~RtspChannelChild()

@@ -7,6 +7,12 @@
 DIRS += ['ipc']
 TEST_DIRS += ['test']
 
+XPIDL_SOURCES += [
+    'nsIIndexedDatabaseManager.idl',
+]
+
+XPIDL_MODULE = 'dom_indexeddb'
+
 EXPORTS.mozilla.dom.indexedDB += [
     'Client.h',
     'DatabaseInfo.h',
