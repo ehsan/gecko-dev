@@ -6,6 +6,7 @@
 #define DOM_CAMERA_ICAMERACONTROL_H
 
 #include "jsapi.h"
+#include "nsIDOMDeviceStorage.h"
 #include "nsIDOMCameraManager.h"
 #include "DictionaryHelpers.h"
 #include "CameraCommon.h"
@@ -26,8 +27,9 @@ public:
   virtual void StopPreview() = 0;
   virtual nsresult AutoFocus(nsICameraAutoFocusCallback* onSuccess, nsICameraErrorCallback* onError) = 0;
   virtual nsresult TakePicture(CameraSize aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError) = 0;
-  virtual nsresult StartRecording(CameraSize aSize, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError) = 0;
+  virtual nsresult StartRecording(nsIDOMDeviceStorage* aStorageArea, const nsAString& aFilename, nsICameraStartRecordingCallback* onSuccess, nsICameraErrorCallback* onError) = 0;
   virtual nsresult StopRecording() = 0;
+  virtual nsresult GetPreviewStreamVideoMode(CameraRecordingOptions* aOptions, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError) = 0;
 
   virtual nsresult Set(uint32_t aKey, const nsAString& aValue) = 0;
   virtual nsresult Get(uint32_t aKey, nsAString& aValue) = 0;
@@ -35,6 +37,10 @@ public:
   virtual nsresult Get(uint32_t aKey, double* aValue) = 0;
   virtual nsresult Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, uint32_t aLimit) = 0;
   virtual nsresult Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue) = 0;
+  virtual nsresult Set(nsICameraShutterCallback* aOnShutter) = 0;
+  virtual nsresult Get(nsICameraShutterCallback** aOnShutter) = 0;
+  virtual nsresult Set(nsICameraClosedCallback* aOnClosed) = 0;
+  virtual nsresult Get(nsICameraClosedCallback** aOnClosed) = 0;
   virtual nsresult SetFocusAreas(JSContext* aCx, const JS::Value& aValue) = 0;
   virtual nsresult SetMeteringAreas(JSContext* aCx, const JS::Value& aValue) = 0;
 
@@ -46,6 +52,8 @@ public:
   virtual void SetParameter(uint32_t aKey, const char* aValue) = 0;
   virtual void SetParameter(uint32_t aKey, double aValue) = 0;
   virtual void SetParameter(uint32_t aKey, const nsTArray<CameraRegion>& aRegions) = 0;
+
+  virtual void Shutdown() = 0;
 
 protected:
   virtual ~ICameraControl() { }

@@ -163,7 +163,7 @@ struct nsHttp
                                  const char *separators);
 
     // This function parses a string containing a decimal-valued, non-negative
-    // 64-bit integer.  If the value would exceed LL_MAXINT, then false is
+    // 64-bit integer.  If the value would exceed INT64_MAX, then false is
     // returned.  Otherwise, this function returns true and stores the
     // parsed value in |result|.  The next unparsed character in |input| is
     // optionally returned via |next| if |next| is non-null.
@@ -181,11 +181,11 @@ struct nsHttp
     }
 
     // Return whether the HTTP status code represents a permanent redirect
-    static bool IsPermanentRedirect(PRUint32 httpStatus);
+    static bool IsPermanentRedirect(uint32_t httpStatus);
 
     // Return whether upon a redirect code of httpStatus for method, the
     // request method should be rewritten to GET.
-    static bool ShouldRewriteRedirectToGET(PRUint32 httpStatus, nsHttpAtom method);
+    static bool ShouldRewriteRedirectToGET(uint32_t httpStatus, nsHttpAtom method);
 
     // Return whether the specified method is safe as per RFC 2616,
     // Section 9.1.1.

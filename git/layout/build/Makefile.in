@@ -65,6 +65,7 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/contacts/$(LIB_PREFIX)jsdomcontacts_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/alarm/$(LIB_PREFIX)domalarm_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/devicestorage/$(LIB_PREFIX)domdevicestorage_s.$(LIB_SUFFIX) \
+	$(DEPTH)/dom/encoding/$(LIB_PREFIX)domencoding_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/file/$(LIB_PREFIX)domfile_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/power/$(LIB_PREFIX)dom_power_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/settings/$(LIB_PREFIX)jsdomsettings_s.$(LIB_SUFFIX) \
@@ -188,6 +189,12 @@ ifdef MOZ_MEDIA_PLUGINS
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/plugins/$(LIB_PREFIX)gkconmediaplugins_s.$(LIB_SUFFIX) \
 	$(NULL)
+endif
+
+ifdef MOZ_DASH
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/content/media/dash/$(LIB_PREFIX)gkcondash_s.$(LIB_SUFFIX) \
+  $(NULL)
 endif
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))

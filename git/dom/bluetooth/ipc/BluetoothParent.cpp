@@ -213,6 +213,16 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_DenyPairingConfirmationRequest());
     case Request::TDenyAuthorizationRequest:
       return actor->DoRequest(aRequest.get_DenyAuthorizationRequest());
+    case Request::TConnectHeadsetRequest:
+      return actor->DoRequest(aRequest.get_ConnectHeadsetRequest());
+    case Request::TConnectObjectPushRequest:
+      return actor->DoRequest(aRequest.get_ConnectObjectPushRequest());
+    case Request::TDisconnectHeadsetRequest:
+      return actor->DoRequest(aRequest.get_DisconnectHeadsetRequest());
+    case Request::TDisconnectObjectPushRequest:
+      return actor->DoRequest(aRequest.get_DisconnectObjectPushRequest());
+    case Request::TSendFileRequest:
+      return actor->DoRequest(aRequest.get_SendFileRequest());
     default:
       MOZ_NOT_REACHED("Unknown type!");
       return false;
@@ -485,4 +495,60 @@ BluetoothRequestParent::DoRequest(const DenyAuthorizationRequest& aRequest)
   NS_ENSURE_TRUE(result, false);
 
   return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const ConnectHeadsetRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TConnectHeadsetRequest);
+
+  return mService->ConnectHeadset(aRequest.address(),
+                                  aRequest.adapterPath(),
+                                  mReplyRunnable.get());
+}
+
+bool
+BluetoothRequestParent::DoRequest(const ConnectObjectPushRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TConnectObjectPushRequest);
+
+  return mService->ConnectObjectPush(aRequest.address(),
+                                     aRequest.adapterPath(),
+                                     mReplyRunnable.get());
+}
+
+bool
+BluetoothRequestParent::DoRequest(const DisconnectHeadsetRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TDisconnectHeadsetRequest);
+
+  mService->DisconnectHeadset(mReplyRunnable.get());
+
+  return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const DisconnectObjectPushRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TDenyAuthorizationRequest);
+
+  mService->DisconnectObjectPush(mReplyRunnable.get());
+
+  return true;
+}
+
+bool
+BluetoothRequestParent::DoRequest(const SendFileRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TSendFileRequest);
+
+  return mService->SendFile(aRequest.devicePath(),
+                            (BlobParent*)aRequest.blobParent(),
+                            (BlobChild*)aRequest.blobChild(),
+                            mReplyRunnable.get());
 }

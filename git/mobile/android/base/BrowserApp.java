@@ -51,6 +51,7 @@ abstract public class BrowserApp extends GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     private AboutHomeContent mAboutHomeContent;
+    private Boolean mAboutHomeShowing = null;
 
     private static final int ADDON_MENU_OFFSET = 1000;
     private class MenuItemInfo {
@@ -597,17 +598,29 @@ abstract public class BrowserApp extends GeckoApp
         mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES));
     }
 
-    public void showAboutHome() {
+    private void showAboutHome() {
+        // Don't create an additional AboutHomeRunnable if about:home
+        // is already visible.
+        if (mAboutHomeShowing != null && mAboutHomeShowing)
+            return;
+
+        mAboutHomeShowing = true;
         Runnable r = new AboutHomeRunnable(true);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    public void hideAboutHome() {
+    private void hideAboutHome() {
+        // If hideAboutHome gets called before showAboutHome, we still need
+        // to create an AboutHomeRunnable to hide the about:home content.
+        if (mAboutHomeShowing != null && !mAboutHomeShowing)
+            return;
+
+        mAboutHomeShowing = false;
         Runnable r = new AboutHomeRunnable(false);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    public class AboutHomeRunnable implements Runnable {
+    private class AboutHomeRunnable implements Runnable {
         boolean mShow;
         AboutHomeRunnable(boolean show) {
             mShow = show;
@@ -626,12 +639,16 @@ abstract public class BrowserApp extends GeckoApp
                             loadUrl(url, AwesomeBar.Target.CURRENT_TAB);
                         }
                     });
+                    mAboutHomeContent.setLoadCompleteCallback(new AboutHomeContent.VoidCallback() {
+                         public void callback() {
+                             mAboutHomeStartupTimer.stop();
+                         }
+                    });
                     mAboutHomeContent.setOnInterceptTouchListener(new ContentTouchListener());
                 } else {
                     mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES,
                                                         AboutHomeContent.UpdateFlags.REMOTE_TABS));
                 }
-            
                 mAboutHomeContent.setVisibility(View.VISIBLE);
             } else {
                 findViewById(R.id.abouthome_content).setVisibility(View.GONE);
@@ -654,7 +671,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Log.i(LOGTAG, "menu item clicked");
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id)));
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id - ADDON_MENU_OFFSET)));
                 return true;
             }
         });

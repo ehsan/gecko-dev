@@ -580,7 +580,7 @@ nsStyleBorder::UntrackImage(nsPresContext* aContext)
   // Unregister the image with the document
   nsIDocument* doc = aContext->Document();
   if (doc)
-    doc->RemoveImage(mBorderImageSource);
+    doc->RemoveImage(mBorderImageSource, nsIDocument::REQUEST_DISCARD);
 
   // Mark state
 #ifdef DEBUG
@@ -1507,7 +1507,7 @@ nsStyleImage::UntrackImage(nsPresContext* aContext)
   // Unregister the image with the document
   nsIDocument* doc = aContext->Document();
   if (doc)
-    doc->RemoveImage(mImage);
+    doc->RemoveImage(mImage, nsIDocument::REQUEST_DISCARD);
 
   // Mark state
 #ifdef DEBUG
@@ -1569,7 +1569,7 @@ ConvertToPixelCoord(const nsStyleCoord& aCoord, int32_t aPercentScale)
       return 0;
   }
   NS_ABORT_IF_FALSE(pixelValue >= 0, "we ensured non-negative while parsing");
-  pixelValue = NS_MIN(pixelValue, double(PR_INT32_MAX)); // avoid overflow
+  pixelValue = NS_MIN(pixelValue, double(INT32_MAX)); // avoid overflow
   return NS_lround(pixelValue);
 }
 
@@ -2408,7 +2408,7 @@ nsStyleContentData::UntrackImage(nsPresContext* aContext)
   // Unregister the image with the document
   nsIDocument* doc = aContext->Document();
   if (doc)
-    doc->RemoveImage(mContent.mImage);
+    doc->RemoveImage(mContent.mImage, nsIDocument::REQUEST_DISCARD);
 
   // Mark state
 #ifdef DEBUG

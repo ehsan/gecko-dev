@@ -12,6 +12,7 @@
 #include "nsDOMJSUtils.h"
 #include "prprf.h"
 #include "nsGlobalWindow.h"
+#include "nsDOMEvent.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetHelper)
 
@@ -53,7 +54,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsDOMEventTargetHelper)
-  return tmp->IsBlack();
+  return tmp->IsBlackAndDoesNotNeedTracing(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsDOMEventTargetHelper)
@@ -202,6 +203,26 @@ nsDOMEventTargetHelper::DispatchEvent(nsIDOMEvent* aEvent, bool* aRetVal)
 
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
+}
+
+nsresult
+nsDOMEventTargetHelper::DispatchTrustedEvent(const nsAString& aEventName)
+{
+  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+  nsresult rv = event->InitEvent(aEventName, false, false);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return DispatchTrustedEvent(event);
+}
+
+nsresult
+nsDOMEventTargetHelper::DispatchTrustedEvent(nsIDOMEvent* event)
+{
+  nsresult rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool dummy;
+  return DispatchEvent(event, &dummy);
 }
 
 nsresult

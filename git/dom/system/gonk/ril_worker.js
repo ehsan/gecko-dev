@@ -51,6 +51,16 @@ const PARCEL_SIZE_SIZE = UINT32_SIZE;
 
 const PDU_HEX_OCTET_SIZE = 4;
 
+const TLV_COMMAND_DETAILS_SIZE = 5;
+const TLV_DEVICE_ID_SIZE = 4;
+const TLV_RESULT_SIZE = 3;
+const TLV_ITEM_ID_SIZE = 3;
+const TLV_HELP_REQUESTED_SIZE = 2;
+const TLV_EVENT_LIST_SIZE = 3;
+const TLV_LOCATION_STATUS_SIZE = 3;
+const TLV_LOCATION_INFO_GSM_SIZE = 9;
+const TLV_LOCATION_INFO_UMTS_SIZE = 11;
+
 const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
 
 let RILQUIRKS_CALLSTATE_EXTRA_UINT32 = libcutils.property_get("ro.moz.ril.callstate_extra_int");
@@ -812,6 +822,10 @@ let RIL = {
       case "puk2":
         this.enterICCPUK2(options);
         break;
+      case "nck":
+        options.type = CARD_PERSOSUBSTATE_SIM_NETWORK;
+        this.enterDepersonalization(options);
+        break;
       default:
         options.errorMsg = "Unsupported Card Lock.";
         options.success = false;
@@ -852,6 +866,21 @@ let RIL = {
     if (!RILQUIRKS_V5_LEGACY) {
       Buf.writeString(options.aid ? options.aid : this.aid);
     }
+    Buf.sendParcel();
+  },
+
+  /**
+   * Requests a network personalization be deactivated.
+   *
+   * @param type
+   *        Integer indicating the network personalization be deactivated.
+   * @param pin
+   *        String containing the pin.
+   */
+  enterDepersonalization: function enterDepersonalization(options) {
+    Buf.newParcel(REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE, options);
+    Buf.writeUint32(options.type);
+    Buf.writeString(options.pin);
     Buf.sendParcel();
   },
 
@@ -2238,10 +2267,10 @@ let RIL = {
     }
 
     // 1 octets = 2 chars.
-    let size = (5 + /* Size of Command Details TLV */
-                4 + /* Size of Device Identifier TLV */
-                3 + /* Size of Result */
-                (response.itemIdentifier ? 3 : 0) +
+    let size = (TLV_COMMAND_DETAILS_SIZE +
+                TLV_DEVICE_ID_SIZE +
+                TLV_RESULT_SIZE +
+                (response.itemIdentifier ? TLV_ITEM_ID_SIZE : 0) +
                 (textLen ? textLen + 3 : 0)) * 2;
     Buf.writeUint32(size);
 
@@ -2347,18 +2376,83 @@ let RIL = {
   },
 
   /**
+   * Send STK Envelope(Event Download) command.
+   * @param event
+   */
+  sendStkEventDownload: function sendStkEventDownload(command) {
+    command.tag = BER_EVENT_DOWNLOAD_TAG;
+    command.eventList = command.event.eventType;
+    switch (command.eventList) {
+      case STK_EVENT_TYPE_LOCATION_STATUS:
+        command.deviceId = {
+          sourceId :STK_DEVICE_ID_ME,
+          destinationId: STK_DEVICE_ID_SIM
+        };
+        command.locationStatus = command.event.locationStatus;
+        // Location info should only be provided when locationStatus is normal.
+        if (command.locationStatus == STK_SERVICE_STATE_NORMAL) {
+          command.locationInfo = command.event.locationInfo;
+        }
+        break;
+      case STK_EVENT_TYPE_MT_CALL:
+        command.deviceId = {
+          sourceId: STK_DEVICE_ID_NETWORK,
+          destinationId: STK_DEVICE_ID_SIM
+        };
+        command.transactionId = 0;
+        command.address = command.eventData.number;
+        break;
+      case STK_EVENT_TYPE_CALL_DISCONNECTED:
+        command.cause = command.eventData.error;
+      case STK_EVENT_TYPE_CALL_CONNECTED:  // Fall through
+        command.deviceId = {
+          sourceId: (command.eventData.isIssuedByRemote ?
+                     STK_DEVICE_ID_NETWORK : STK_DEVICE_ID_ME),
+          destinationId: STK_DEVICE_ID_SIM
+        };
+        command.transactionId = 0;
+        break;
+    }
+    this.sendICCEnvelopeCommand(command);
+  },
+
+  /**
    * Send REQUEST_STK_SEND_ENVELOPE_COMMAND to ICC.
    *
    * @param tag
    * @patam deviceId
    * @param [optioanl] itemIdentifier
    * @param [optional] helpRequested
+   * @param [optional] eventList
+   * @param [optional] locationStatus
+   * @param [optional] locationInfo
+   * @param [optional] address
+   * @param [optional] transactionId
+   * @param [optional] cause
    */
   sendICCEnvelopeCommand: function sendICCEnvelopeCommand(options) {
+    if (DEBUG) {
+      debug("Stk Envelope " + JSON.stringify(options));
+    }
     let token = Buf.newParcel(REQUEST_STK_SEND_ENVELOPE_COMMAND);
-    let berLen = 4 + /* Size of Device Identifier TLV */
-                 (options.itemIdentifier ? 3 : 0) +
-                 (options.helpRequested ? 2 : 0);
+    let berLen = TLV_DEVICE_ID_SIZE + /* Size of Device Identifier TLV */
+                 (options.itemIdentifier ? TLV_ITEM_ID_SIZE : 0) +
+                 (options.helpRequested ? TLV_HELP_REQUESTED_SIZE : 0) +
+                 (options.eventList ? TLV_EVENT_LIST_SIZE : 0) +
+                 (options.locationStatus ? TLV_LOCATION_STATUS_SIZE : 0) +
+                 (options.locationInfo ?
+                    (options.locationInfo.gsmCellId > 0xffff ?
+                      TLV_LOCATION_INFO_UMTS_SIZE :
+                      TLV_LOCATION_INFO_GSM_SIZE) :
+                    0) +
+                 (options.transactionId ? 3 : 0) +
+                 (options.address ?
+                  1 + // Length of tag.
+                  ComprehensionTlvHelper.getSizeOfLengthOctets(
+                    Math.ceil(options.address.length/2) + 1) + // Length of length field.
+                  Math.ceil(options.address.length/2) + 1 // address BCD + TON.
+                  : 0) +
+                 (options.cause ? 4 : 0);
     let size = (2 + berLen) * 2;
 
     Buf.writeUint32(size);
@@ -2388,6 +2482,51 @@ let RIL = {
                                  COMPREHENSIONTLV_FLAG_CR);
       GsmPDUHelper.writeHexOctet(0);
       // Help Request doesn't have value
+    }
+
+    // Event List
+    if (options.eventList) {
+      GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_EVENT_LIST |
+                                 COMPREHENSIONTLV_FLAG_CR);
+      GsmPDUHelper.writeHexOctet(1);
+      GsmPDUHelper.writeHexOctet(options.eventList);
+    }
+
+    // Location Status
+    if (options.locationStatus) {
+      let len = options.locationStatus.length;
+      GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_LOCATION_STATUS |
+                                 COMPREHENSIONTLV_FLAG_CR);
+      GsmPDUHelper.writeHexOctet(1);
+      GsmPDUHelper.writeHexOctet(options.locationStatus);
+    }
+
+    // Location Info
+    if (options.locationInfo) {
+      ComprehensionTlvHelper.writeLocationInfoTlv(options.locationInfo);
+    }
+
+    // Transaction Id
+    if (options.transactionId) {
+      GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_TRANSACTION_ID |
+                                 COMPREHENSIONTLV_FLAG_CR);
+      GsmPDUHelper.writeHexOctet(1);
+      GsmPDUHelper.writeHexOctet(options.transactionId);
+    }
+
+    // Address
+    if (options.address) {
+      GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_ADDRESS |
+                                 COMPREHENSIONTLV_FLAG_CR);
+      ComprehensionTlvHelper.writeLength(
+        Math.ceil(options.address.length/2) + 1 // address BCD + TON
+      );
+      GsmPDUHelper.writeDiallingNumber(options.address);
+    }
+
+    // Cause of disconnection.
+    if (options.cause) {
+      ComprehensionTlvHelper.writeCauseTlv(options.cause);
     }
 
     Buf.writeUint32(0);
@@ -3699,7 +3838,10 @@ RIL[REQUEST_CHANGE_SIM_PIN] = function REQUEST_CHANGE_SIM_PIN(length, options) {
 RIL[REQUEST_CHANGE_SIM_PIN2] = function REQUEST_CHANGE_SIM_PIN2(length, options) {
   this._processEnterAndChangeICCResponses(length, options);
 };
-RIL[REQUEST_ENTER_NETWORK_DEPERSONALIZATION] = null;
+RIL[REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE] =
+  function REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE(length, options) {
+  this._processEnterAndChangeICCResponses(length, options);
+};
 RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, options) {
   if (options.rilRequestError) {
     return;
@@ -3828,14 +3970,7 @@ RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length
       this._handleChangedCallState(options);
       this._handleDisconnectedCall(options);
       break;
-    case CALL_FAIL_UNOBTAINABLE_NUMBER:
-    case CALL_FAIL_CONGESTION:
-    case CALL_FAIL_ACM_LIMIT_EXCEEDED:
-    case CALL_FAIL_CALL_BARRED:
-    case CALL_FAIL_FDN_BLOCKED:
-    case CALL_FAIL_IMSI_UNKNOWN_IN_VLR:
-    case CALL_FAIL_IMEI_NOT_ACCEPTED:
-    case CALL_FAIL_ERROR_UNSPECIFIED:
+    default:
       options.rilMessageType = "callError";
       options.error = RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause];
       this.sendDOMMessage(options);
@@ -4513,22 +4648,24 @@ RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() 
   let hours = parseInt(dateString.substr(9, 2), 10);
   let minutes = parseInt(dateString.substr(12, 2), 10);
   let seconds = parseInt(dateString.substr(15, 2), 10);
-  let tz = parseInt(dateString.substr(17, 3), 10); // TZ is in 15 min. units
-  let dst = parseInt(dateString.substr(21, 2), 10); // DST already is in local time
+  // Note that |tz| is in 15-min units.
+  let tz = parseInt(dateString.substr(17, 3), 10);
+  // Note that |dst| is in 1-hour units and is already applied in |tz|.
+  let dst = parseInt(dateString.substr(21, 2), 10);
 
-  let timeInSeconds = Date.UTC(year + PDU_TIMESTAMP_YEAR_OFFSET, month - 1, day,
-                               hours, minutes, seconds) / 1000;
+  let timeInMS = Date.UTC(year + PDU_TIMESTAMP_YEAR_OFFSET, month - 1, day,
+                          hours, minutes, seconds);
 
-  if (isNaN(timeInSeconds)) {
+  if (isNaN(timeInMS)) {
     if (DEBUG) debug("NITZ failed to convert date");
     return;
   }
 
   this.sendDOMMessage({rilMessageType: "nitzTime",
-                       networkTimeInSeconds: timeInSeconds,
-                       networkTimeZoneInMinutes: tz * 15,
-                       dstFlag: dst,
-                       localTimeStampInMS: now});
+                       networkTimeInMS: timeInMS,
+                       networkTimeZoneInMinutes: -(tz * 15),
+                       networkDSTInMinutes: -(dst * 60),
+                       receiveTimeInMS: now});
 };
 
 RIL[UNSOLICITED_SIGNAL_STRENGTH] = function UNSOLICITED_SIGNAL_STRENGTH(length) {
@@ -5989,6 +6126,15 @@ let StkCommandParamsFactory = {
   createParam: function createParam(cmdDetails, ctlvs) {
     let param;
     switch (cmdDetails.typeOfCommand) {
+      case STK_CMD_REFRESH:
+        param = this.processRefresh(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_POLL_INTERVAL:
+        param = this.processPollInterval(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_POLL_OFF:
+        param = this.processPollOff(cmdDetails, ctlvs);
+        break;
       case STK_CMD_SET_UP_EVENT_LIST:
         param = this.processSetUpEventList(cmdDetails, ctlvs);
         break;
@@ -6017,14 +6163,77 @@ let StkCommandParamsFactory = {
       case STK_CMD_SET_UP_CALL:
         param = this.processSetupCall(cmdDetails, ctlvs);
         break;
-      case STK_LAUNCH_BROWSER:
+      case STK_CMD_LAUNCH_BROWSER:
         param = this.processLaunchBrowser(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_PLAY_TONE:
+        param = this.processPlayTone(cmdDetails, ctlvs);
         break;
       default:
         debug("unknown proactive command");
         break;
     }
     return param;
+  },
+
+  /**
+   * Construct a param for Refresh.
+   *
+   * @param cmdDetails
+   *        The value object of CommandDetails TLV.
+   * @param ctlvs
+   *        The all TLVs in this proactive command.
+   */
+  processRefresh: function processRefresh(cmdDetails, ctlvs) {
+    let refreshType = cmdDetails.commandQualifier;
+    switch (refreshType) {
+      case STK_REFRESH_FILE_CHANGE:
+      case STK_REFRESH_NAA_INIT_AND_FILE_CHANGE:
+        let ctlv = StkProactiveCmdHelper.searchForTag(
+          COMPREHENSIONTLV_FILE_LIST, ctlvs);
+        if (ctlv) {
+          let list = ctlv.value.fileList;
+          if (DEBUG) {
+            debug("Refresh, list = " + list);
+          }
+          RIL.fetchICCRecords();
+        }
+        break;
+    }
+    return {};
+  },
+
+  /**
+   * Construct a param for Poll Interval.
+   *
+   * @param cmdDetails
+   *        The value object of CommandDetails TLV.
+   * @param ctlvs
+   *        The all TLVs in this proactive command.
+   */
+  processPollInterval: function processPollInterval(cmdDetails, ctlvs) {
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_DURATION, ctlvs);
+    if (!ctlv) {
+      RIL.sendStkTerminalResponse({
+        command: cmdDetails,
+        resultCode: STK_RESULT_REQUIRED_VALUES_MISSING});
+      throw new Error("Stk Poll Interval: Required value missing : Duration");
+    }
+
+    return ctlv.value;
+  },
+
+  /**
+   * Construct a param for Poll Off.
+   *
+   * @param cmdDetails
+   *        The value object of CommandDetails TLV.
+   * @param ctlvs
+   *        The all TLVs in this proactive command.
+   */
+  processPollOff: function processPollOff(cmdDetails, ctlvs) {
+    return {};
   },
 
   /**
@@ -6292,6 +6501,32 @@ let StkCommandParamsFactory = {
     browser.mode = cmdDetails.commandQualifier & 0x03;
 
     return browser;
+  },
+
+  processPlayTone: function processPlayTone(cmdDetails, ctlvs) {
+    let playTone = {};
+
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
+    if (ctlv) {
+      playTone.text = ctlv.value.identifier;
+    }
+
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_TONE, ctlvs);
+    if (ctlv) {
+      playTone.tone = ctlv.value.tone;
+    }
+
+    ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_DURATION, ctlvs);
+    if (ctlv) {
+      playTone.duration = ctlv.value;
+    }
+
+    // vibrate is only defined in TS 102.223
+    playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) != 0x00;
+
+    return playTone;
   }
 };
 
@@ -6304,16 +6539,22 @@ let StkProactiveCmdHelper = {
         return this.retrieveDeviceId(length);
       case COMPREHENSIONTLV_TAG_ALPHA_ID:
         return this.retrieveAlphaId(length);
+      case COMPREHENSIONTLV_TAG_DURATION:
+        return this.retrieveDuration(length);
       case COMPREHENSIONTLV_TAG_ADDRESS:
         return this.retrieveAddress(length);
       case COMPREHENSIONTLV_TAG_TEXT_STRING:
         return this.retrieveTextString(length);
+      case COMPREHENSIONTLV_TAG_TONE:
+        return this.retrieveTone(length);
       case COMPREHENSIONTLV_TAG_ITEM:
         return this.retrieveItem(length);
       case COMPREHENSIONTLV_TAG_ITEM_ID:
         return this.retrieveItemId(length);
       case COMPREHENSIONTLV_TAG_RESPONSE_LENGTH:
         return this.retrieveResponseLength(length);
+      case COMPREHENSIONTLV_TAG_FILE_LIST:
+        return this.retrieveFileList(length);
       case COMPREHENSIONTLV_TAG_DEFAULT_TEXT:
         return this.retrieveDefaultText(length);
       case COMPREHENSIONTLV_TAG_EVENT_LIST:
@@ -6382,6 +6623,23 @@ let StkProactiveCmdHelper = {
   },
 
   /**
+   * Duration.
+   *
+   * | Byte | Description           | Length |
+   * |  1   | Response Length Tag   |   1    |
+   * |  2   | Lenth = 02            |   1    |
+   * |  3   | Time unit             |   1    |
+   * |  4   | Time interval         |   1    |
+   */
+  retrieveDuration: function retrieveDuration(length) {
+    let duration = {
+      timeUnit: GsmPDUHelper.readHexOctet(),
+      timeInterval: GsmPDUHelper.readHexOctet(),
+    };
+    return duration;
+  },
+
+  /**
    * Address.
    *
    * | Byte         | Description            | Length |
@@ -6434,6 +6692,21 @@ let StkProactiveCmdHelper = {
   },
 
   /**
+   * Tone.
+   *
+   * | Byte | Description     | Length |
+   * |  1   | Tone Tag        |   1    |
+   * |  2   | Lenth = 01      |   1    |
+   * |  3   | Tone            |   1    |
+   */
+  retrieveTone: function retrieveTone(length) {
+    let tone = {
+      tone: GsmPDUHelper.readHexOctet(),
+    };
+    return tone;
+  },
+
+  /**
    * Item.
    *
    * | Byte         | Description            | Length |
@@ -6481,6 +6754,30 @@ let StkProactiveCmdHelper = {
       maxLength : GsmPDUHelper.readHexOctet()
     };
     return rspLength;
+  },
+
+  /**
+   * File List.
+   *
+   * | Byte         | Description            | Length |
+   * |  1           | File List Tag          |   1    |
+   * | 2 ~ (Y-1)+2  | Length (X)             |   Y    |
+   * | (Y-1)+3      | Number of files        |   1    |
+   * | (Y-1)+4 ~    | Files                  |   X    |
+   * | (Y-1)+X+2    |                        |        |
+   */
+  retrieveFileList: function retrieveFileList(length) {
+    let num = GsmPDUHelper.readHexOctet();
+    let fileList = "";
+    length--; // -1 for the num octet.
+    for (let i = 0; i < 2 * length; i++) {
+      // Didn't use readHexOctet here,
+      // otherwise 0x00 will be "0", not "00"
+      fileList += String.fromCharCode(Buf.readUint16());
+    }
+    return {
+      fileList: fileList
+    };
   },
 
   /**
@@ -6652,7 +6949,137 @@ let ComprehensionTlvHelper = {
       index += tlv.hlen;
     }
     return chunks;
-  }
+  },
+
+  /**
+   * Write Location Info Comprehension TLV.
+   *
+   * @param loc location Information.
+   */
+  writeLocationInfoTlv: function writeLocationInfoTlv(loc) {
+    GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_LOCATION_INFO |
+                               COMPREHENSIONTLV_FLAG_CR);
+    GsmPDUHelper.writeHexOctet(loc.gsmCellId > 0xffff ? 9 : 7);
+    // From TS 11.14, clause 12.19
+    // "The mobile country code (MCC), the mobile network code (MNC),
+    // the location area code (LAC) and the cell ID are
+    // coded as in TS 04.08."
+    // And from TS 04.08 and TS 24.008,
+    // the format is as follows:
+    //
+    // MCC = MCC_digit_1 + MCC_digit_2 + MCC_digit_3
+    //
+    //   8  7  6  5    4  3  2  1
+    // +-------------+-------------+
+    // | MCC digit 2 | MCC digit 1 | octet 2
+    // | MNC digit 3 | MCC digit 3 | octet 3
+    // | MNC digit 2 | MNC digit 1 | octet 4
+    // +-------------+-------------+
+    //
+    // Also in TS 24.008
+    // "However a network operator may decide to
+    // use only two digits in the MNC in the LAI over the
+    // radio interface. In this case, bits 5 to 8 of octet 3
+    // shall be coded as '1111'".
+
+    // MCC & MNC, 3 octets
+    let mcc = loc.mcc.toString();
+    let mnc = loc.mnc.toString();
+    if (mnc.length == 1) {
+      mnc = "F0" + mnc;
+    } else if (mnc.length == 2) {
+      mnc = "F" + mnc;
+    } else {
+      mnc = mnc[2] + mnc[0] + mnc[1];
+    }
+    GsmPDUHelper.writeSwappedNibbleBCD(mcc + mnc);
+
+    // LAC, 2 octets
+    GsmPDUHelper.writeHexOctet((loc.gsmLocationAreaCode >> 8) & 0xff);
+    GsmPDUHelper.writeHexOctet(loc.gsmLocationAreaCode & 0xff);
+
+    // Cell Id
+    if (loc.gsmCellId > 0xffff) {
+      // UMTS/WCDMA, gsmCellId is 28 bits.
+      GsmPDUHelper.writeHexOctet((loc.gsmCellId >> 24) & 0xff);
+      GsmPDUHelper.writeHexOctet((loc.gsmCellId >> 16) & 0xff);
+      GsmPDUHelper.writeHexOctet((loc.gsmCellId >> 8) & 0xff);
+      GsmPDUHelper.writeHexOctet(loc.gsmCellId & 0xff);
+    } else {
+      // GSM, gsmCellId is 16 bits.
+      GsmPDUHelper.writeHexOctet((loc.gsmCellId >> 8) & 0xff);
+      GsmPDUHelper.writeHexOctet(loc.gsmCellId & 0xff);
+    }
+  },
+
+  /**
+   * Given a geckoError string, this function translates it into cause value
+   * and write the value into buffer.
+   *
+   * @param geckoError Error string that is passed to gecko.
+   */
+  writeCauseTlv: function writeCauseTlv(geckoError) {
+    let cause = -1;
+    for (let errorNo in RIL_ERROR_TO_GECKO_ERROR) {
+      if (geckoError == RIL_ERROR_TO_GECKO_ERROR[errorNo]) {
+        cause = errorNo;
+        break;
+      }
+    }
+    cause = (cause == -1) ? ERROR_SUCCESS : cause;
+
+    GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_CAUSE |
+                               COMPREHENSIONTLV_FLAG_CR);
+    GsmPDUHelper.writeHexOctet(2);  // For single cause value.
+
+    // TS 04.08, clause 10.5.4.11: National standard code + user location.
+    GsmPDUHelper.writeHexOctet(0x60);
+
+    // TS 04.08, clause 10.5.4.11: ext bit = 1 + 7 bits for cause.
+    // +-----------------+----------------------------------+
+    // | Ext = 1 (1 bit) |          Cause (7 bits)          |
+    // +-----------------+----------------------------------+
+    GsmPDUHelper.writeHexOctet(0x80 | cause);
+  },
+
+  getSizeOfLengthOctets: function getSizeOfLengthOctets(length) {
+    if (length >= 0x10000) {
+      return 4; // 0x83, len_1, len_2, len_3
+    } else if (length >= 0x100) {
+      return 3; // 0x82, len_1, len_2
+    } else if (length >= 0x80) {
+      return 2; // 0x81, len
+    } else {
+      return 1; // len
+    }
+  },
+
+  writeLength: function writeLength(length) {
+    // TS 101.220 clause 7.1.2, Length Encoding.
+    // Length   |  Byte 1  | Byte 2 | Byte 3 | Byte 4 |
+    // 0 - 127  |  00 - 7f | N/A    | N/A    | N/A    |
+    // 128-255  |  81      | 80 - ff| N/A    | N/A    |
+    // 256-65535|  82      | 0100 - ffff     | N/A    |
+    // 65536-   |  83      |     010000 - ffffff      |
+    // 16777215
+    if (length < 0x80) {
+      GsmPDUHelper.writeHexOctet(length);
+    } else if (0x80 <= length && length < 0x100) {
+      GsmPDUHelper.writeHexOctet(0x81);
+      GsmPDUHelper.writeHexOctet(length);
+    } else if (0x100 <= length && length < 0x10000) {
+      GsmPDUHelper.writeHexOctet(0x82);
+      GsmPDUHelper.writeHexOctet((length >> 8) & 0xff);
+      GsmPDUHelper.writeHexOctet(length & 0xff);
+    } else if (0x10000 <= length && length < 0x1000000) {
+      GsmPDUHelper.writeHexOctet(0x83);
+      GsmPDUHelper.writeHexOctet((length >> 16) & 0xff);
+      GsmPDUHelper.writeHexOctet((length >> 8) & 0xff);
+      GsmPDUHelper.writeHexOctet(length & 0xff);
+    } else {
+      throw new Error("Invalid length value :" + length);
+    }
+  },
 };
 
 let BerTlvHelper = {

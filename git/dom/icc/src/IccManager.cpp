@@ -103,7 +103,7 @@ IccManager::Observe(nsISupports* aSubject,
   }
 
   if (!strcmp(aTopic, kStkSessionEndTopic)) {
-    InternalDispatchEvent(STKSESSIONEND_EVENTNAME);
+    DispatchTrustedEvent(STKSESSIONEND_EVENTNAME);
     return NS_OK;
   }
 
@@ -137,23 +137,16 @@ IccManager::SendStkMenuSelection(uint16_t aItemIdentifier, bool aHelpRequested)
   return NS_OK;
 }
 
-nsresult
-IccManager::InternalDispatchEvent(const nsAString& aType)
+NS_IMETHODIMP
+IccManager::SendStkEventDownload(const JS::Value& aEvent)
 {
-  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
-  nsresult rv = event->InitEvent(aType, false, false);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mProvider) {
+    return NS_ERROR_FAILURE;
+  }
 
-  rv = event->SetTrusted(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool dummy;
-  rv = DispatchEvent(event, &dummy);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  mProvider->SendStkEventDownload(GetOwner(), aEvent);
   return NS_OK;
 }
-
 
 NS_IMPL_EVENT_HANDLER(IccManager, stkcommand)
 NS_IMPL_EVENT_HANDLER(IccManager, stksessionend)

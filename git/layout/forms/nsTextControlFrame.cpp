@@ -70,6 +70,7 @@
 #include "nsTextEditRules.h"
 #include "nsPresState.h"
 #include "nsContentList.h"
+#include "nsAttrValueInlines.h"
 
 #include "mozilla/Selection.h"
 
@@ -540,9 +541,6 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
     ReflowTextControlChild(kid, aPresContext, aReflowState, aStatus, aDesiredSize);
     kid = kid->GetNextSibling();
   }
-
-  // If we're resizing, we might need to invalidate our border areas and such
-  CheckInvalidateSizeChange(aDesiredSize);
 
   // take into account css properties that affect overflow handling
   FinishAndStoreOverflow(&aDesiredSize);

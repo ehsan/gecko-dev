@@ -24,6 +24,7 @@
 #include "DOMCameraControl.h"
 #include "CameraControlImpl.h"
 #include "CameraCommon.h"
+#include "GonkRecorder.h"
 
 namespace mozilla {
 
@@ -34,7 +35,7 @@ class GraphicBufferLocked;
 class nsGonkCameraControl : public CameraControlImpl
 {
 public:
-  nsGonkCameraControl(uint32_t aCameraId, nsIThread* aCameraThread, nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError);
+  nsGonkCameraControl(uint32_t aCameraId, nsIThread* aCameraThread, nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
   nsresult Init();
 
   const char* GetParameter(const char* aKey);
@@ -47,6 +48,9 @@ public:
   void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
   nsresult PushParameters();
 
+  nsresult SetupRecording(int aFd);
+  nsresult SetupVideoMode();
+
   void AutoFocusComplete(bool aSuccess);
   void TakePictureComplete(uint8_t* aData, uint32_t aLength);
 
@@ -56,12 +60,14 @@ protected:
   nsresult GetPreviewStreamImpl(GetPreviewStreamTask* aGetPreviewStream);
   nsresult StartPreviewImpl(StartPreviewTask* aStartPreview);
   nsresult StopPreviewImpl(StopPreviewTask* aStopPreview);
+  nsresult StopPreviewInternal(bool aForced = false);
   nsresult AutoFocusImpl(AutoFocusTask* aAutoFocus);
   nsresult TakePictureImpl(TakePictureTask* aTakePicture);
   nsresult StartRecordingImpl(StartRecordingTask* aStartRecording);
   nsresult StopRecordingImpl(StopRecordingTask* aStopRecording);
   nsresult PushParametersImpl();
   nsresult PullParametersImpl();
+  nsresult GetPreviewStreamVideoModeImpl(GetPreviewStreamVideoModeTask* aGetPreviewStreamVideoMode);
 
   void SetPreviewSize(uint32_t aWidth, uint32_t aHeight);
 
@@ -84,6 +90,27 @@ protected:
   uint32_t                  mFps;
   uint32_t                  mDiscardedFrameCount;
 
+  android::MediaProfiles*   mMediaProfiles;
+  android::GonkRecorder*    mRecorder;
+
+  uint32_t                  mVideoRotation;
+  uint32_t                  mVideoWidth;
+  uint32_t                  mVideoHeight;
+  nsString                  mVideoFile;
+
+  // camcorder profile settings for the desired quality level
+  int mDuration;        // max recording duration (ignored)
+  int mVideoFileFormat; // output file format
+  int mVideoCodec;      // video encoder
+  int mVideoBitRate;    // video bit rate
+  int mVideoFrameRate;  // video frame rate
+  int mVideoFrameWidth; // video frame width
+  int mVideoFrameHeight;// video frame height
+  int mAudioCodec;      // audio encoder
+  int mAudioBitRate;    // audio bit rate
+  int mAudioSampleRate; // audio sample rate
+  int mAudioChannels;   // number of audio channels
+
 private:
   nsGonkCameraControl(const nsGonkCameraControl&) MOZ_DELETE;
   nsGonkCameraControl& operator=(const nsGonkCameraControl&) MOZ_DELETE;
@@ -93,6 +120,8 @@ private:
 void ReceiveImage(nsGonkCameraControl* gc, uint8_t* aData, uint32_t aLength);
 void AutoFocusComplete(nsGonkCameraControl* gc, bool aSuccess);
 void ReceiveFrame(nsGonkCameraControl* gc, layers::GraphicBufferLocked* aBuffer);
+void OnShutter(nsGonkCameraControl* gc);
+void OnClosed(nsGonkCameraControl* gc);
 
 } // namespace mozilla
 

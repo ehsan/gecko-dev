@@ -554,6 +554,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "WebGLContext.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/HTMLCollectionBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -4350,6 +4351,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeMessageSender, nsISupports)
+    DOM_CLASSINFO_MAP_ENTRY(nsIPermissionChecker)
     DOM_CLASSINFO_MAP_ENTRY(nsIFrameScriptLoader)
     DOM_CLASSINFO_MAP_ENTRY(nsIMessageListenerManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIMessageSender)
@@ -9173,6 +9175,7 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, unsigned argc, jsval *vp)
   }
 
   size_t length;
+  JS::Anchor<JSString *> anchor(str);
   const jschar *chars = ::JS_GetStringCharsAndLength(cx, str, &length);
   if (!chars) {
     return JS_FALSE;
@@ -9206,7 +9209,7 @@ static inline uint32_t
 PrivateToFlags(void *priv)
 {
   uintptr_t intPriv = reinterpret_cast<uintptr_t>(priv);
-  MOZ_ASSERT(intPriv <= PR_UINT32_MAX && (intPriv & 1) == 0);
+  MOZ_ASSERT(intPriv <= UINT32_MAX && (intPriv & 1) == 0);
   return static_cast<uint32_t>(intPriv >> 1);
 }
 

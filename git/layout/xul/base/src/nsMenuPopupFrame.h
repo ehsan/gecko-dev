@@ -160,10 +160,6 @@ public:
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  virtual void InvalidateInternal(const nsRect& aDamageRect,
-                                  nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
-
   // returns true if the popup is a panel with the noautohide attribute set to
   // true. These panels do not roll up automatically.
   bool IsNoAutoHide() const;
@@ -268,9 +264,9 @@ public:
 
   void EnsureMenuItemIsVisible(nsMenuFrame* aMenuFrame);
 
-  // Move the popup to the screen coordinate (aLeft, aTop). If aUpdateAttrs
-  // is true, and the popup already has left or top attributes, then those
-  // attributes are updated to the new location.
+  // Move the popup to the screen coordinate (aLeft, aTop) in CSS pixels.
+  // If aUpdateAttrs is true, and the popup already has left or top attributes,
+  // then those attributes are updated to the new location.
   // The frame may be destroyed by this method.
   void MoveTo(int32_t aLeft, int32_t aTop, bool aUpdateAttrs);
 
@@ -306,6 +302,7 @@ public:
   nsIContent* GetAnchor() const { return mAnchorContent; }
 
   // Return the screen coordinates of the popup, or (-1, -1) if anchored.
+  // This position is in CSS pixels.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -391,8 +388,9 @@ protected:
   // would be before resizing. Computations are performed using this size.
   nsSize mPrefSize;
 
-  // the position of the popup. The screen coordinates, if set to values other
-  // than -1, override mXPos and mYPos.
+  // The position of the popup, in CSS pixels.
+  // The screen coordinates, if set to values other than -1,
+  // override mXPos and mYPos.
   int32_t mXPos;
   int32_t mYPos;
   int32_t mScreenXPos;

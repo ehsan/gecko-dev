@@ -84,7 +84,7 @@ private:
       const TimeStamp& frame = mFrames[i];
       if (!frame.IsNull() && frame > beginningOfWindow) {
         ++numFramesDrawnInWindow;
-        earliestFrameInWindow = PR_MIN(earliestFrameInWindow, frame);
+        earliestFrameInWindow = NS_MIN(earliestFrameInWindow, frame);
       }
     }
     double realWindowSecs = (aNow - earliestFrameInWindow).ToSeconds();
@@ -945,7 +945,7 @@ LayerManagerOGL::Render()
     if (mIsRenderingToEGLSurface) {
       rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
     } else {
-      mWidget->GetBounds(rect);
+      mWidget->GetClientBounds(rect);
     }
     nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
@@ -1180,12 +1180,12 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
   if (mIsRenderingToEGLSurface) {
     rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    mWidget->GetBounds(rect);
+    mWidget->GetClientBounds(rect);
   }
   GLint width = rect.width;
   GLint height = rect.height;
 
-  if ((int64_t(width) * int64_t(height) * int64_t(4)) > PR_INT32_MAX) {
+  if ((int64_t(width) * int64_t(height) * int64_t(4)) > INT32_MAX) {
     NS_ERROR("Widget size too big - integer overflow!");
     return;
   }

@@ -11,6 +11,7 @@
 #include "nsHTMLParts.h"
 #include "nsContainerFrame.h"
 #include "nsGenericHTMLElement.h"
+#include "nsAttrValueInlines.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
@@ -1481,7 +1482,7 @@ NS_IMETHODIMP nsBulletFrame::OnDataAvailable(imgIRequest *aRequest,
   // The image has changed.
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct, and I'll be a stunned mullet if it ever matters for performance
-  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
+  InvalidateFrame();
 
   return NS_OK;
 }
@@ -1523,7 +1524,7 @@ NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIRequest *aRequest,
 {
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct.
-  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
+  InvalidateFrame();
 
   return NS_OK;
 }
