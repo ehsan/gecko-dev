@@ -36,6 +36,8 @@ Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/osfile/_PromiseWorker.jsm", this);
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/AsyncShutdown.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
   "resource://gre/modules/devtools/Console.jsm");
@@ -132,24 +134,51 @@ let SessionFileInternal = {
     // See Bug 964531.
     SessionWorker.post("init");
 
-    return Task.spawn(function*() {
+    return Task.spawn(function () {
+      let data = null;
       for (let filename of [this.path, this.backupPath]) {
         try {
-          let startMs = Date.now();
-
-          let data = yield OS.File.read(filename, { encoding: "utf-8" });
-
-          Telemetry.getHistogramById("FX_SESSION_RESTORE_READ_FILE_MS")
-                   .add(Date.now() - startMs);
-
-          return data;
-        } catch (ex if ex instanceof OS.File.Error && ex.becauseNoSuchFile) {
+          data = yield this._readSessionFile(filename);
+          break;
+        } catch (ex if ex == Cr.NS_ERROR_FILE_NOT_FOUND) {
           // Ignore exceptions about non-existent files.
         }
       }
 
-      return "";
+      throw new Task.Result(data || "");
     }.bind(this));
+  },
+
+  /**
+   * Read the session file asynchronously.
+   *
+   * @param filename
+   *        string The name of the session file.
+   * @returns {promise}
+   */
+  _readSessionFile: function (path) {
+    let deferred = Promise.defer();
+    let file = FileUtils.File(path);
+    let durationMs = Date.now();
+
+    NetUtil.asyncFetch(file, function(inputStream, status) {
+      if (!Components.isSuccessCode(status)) {
+        deferred.reject(status);
+        return;
+      }
+
+      let byteLength = inputStream.available();
+      let data = NetUtil.readInputStreamToString(inputStream, byteLength,
+        { charset: "UTF-8" });
+      durationMs = Date.now() - durationMs;
+
+      deferred.resolve(data);
+
+      Telemetry.getHistogramById("FX_SESSION_RESTORE_READ_FILE_MS").add(durationMs);
+      Telemetry.getHistogramById("FX_SESSION_RESTORE_FILE_SIZE_BYTES").add(byteLength);
+    });
+
+    return deferred.promise;
   },
 
   gatherTelemetry: function(aStateString) {
