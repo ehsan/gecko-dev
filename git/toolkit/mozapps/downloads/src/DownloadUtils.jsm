@@ -160,8 +160,7 @@ let DownloadUtils = {
    *        Last time remaining in seconds or Infinity for unknown
    * @return A pair: [download status text, new value of "last seconds"]
    */
-  getDownloadStatus: function DU_getDownloadStatus(aCurrBytes, aMaxBytes,
-                                                   aSpeed, aLastSec)
+  getDownloadStatus: function(aCurrBytes, aMaxBytes, aSpeed, aLastSec)
   {
     if (isNil(aMaxBytes))
       aMaxBytes = -1;
@@ -209,7 +208,7 @@ let DownloadUtils = {
    *        Total number of bytes or -1 for unknown
    * @return The transfer progress text
    */
-  getTransferTotal: function DU_getTransferTotal(aCurrBytes, aMaxBytes)
+  getTransferTotal: function(aCurrBytes, aMaxBytes)
   {
     if (isNil(aMaxBytes))
       aMaxBytes = -1;
@@ -246,7 +245,7 @@ let DownloadUtils = {
    *        Last time remaining in seconds or Infinity for unknown
    * @return A pair: [time left text, new value of "last seconds"]
    */
-  getTimeLeft: function DU_getTimeLeft(aSeconds, aLastSec)
+  getTimeLeft: function(aSeconds, aLastSec)
   {
     if (isNil(aLastSec))
       aLastSec = Infinity;
@@ -317,7 +316,7 @@ let DownloadUtils = {
    *        The URI string to try getting an eTLD + 1, etc.
    * @return A pair: [display host for the URI string, full host name]
    */
-  getURIHost: function DU_getURIHost(aURIString)
+  getURIHost: function(aURIString)
   {
     let ioService = Cc["@mozilla.org/network/io-service;1"].
                     getService(Ci.nsIIOService);
@@ -380,7 +379,7 @@ let DownloadUtils = {
    *        Number of bytes to convert
    * @return A pair: [new value with 3 sig. figs., its unit]
    */
-  convertByteUnits: function DU_convertByteUnits(aBytes)
+  convertByteUnits: function(aBytes)
   {
     let unitIndex = 0;
 
@@ -406,7 +405,7 @@ let DownloadUtils = {
    *        Seconds to convert into the appropriate 2 units
    * @return 4-item array [first value, its unit, second value, its unit]
    */
-  convertTimeUnits: function DU_convertTimeUnits(aSecs)
+  convertTimeUnits: function(aSecs)
   {
     // These are the maximum values for seconds, minutes, hours corresponding
     // with gStr.timeUnits without the last item

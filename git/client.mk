@@ -289,7 +289,6 @@ endif
 
 CONFIG_STATUS_DEPS := \
 	$(TOPSRCDIR)/configure \
-	$(TOPSRCDIR)/allmakefiles.sh \
 	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/directory/c-sdk/configure) \
