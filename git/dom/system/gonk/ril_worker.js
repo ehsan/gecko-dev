@@ -3962,8 +3962,9 @@ RilObject.prototype = {
       }
       currentDataCall.gw = updatedDataCall.gw;
       if (updatedDataCall.dns) {
-        currentDataCall.dns[0] = updatedDataCall.dns[0];
-        currentDataCall.dns[1] = updatedDataCall.dns[1];
+        currentDataCall.dns = updatedDataCall.dns.slice();
+      } else {
+        currentDataCall.dns = [];
       }
       currentDataCall.rilMessageType = "datacallstatechange";
       this.sendChromeMessage(currentDataCall);
@@ -6756,25 +6757,12 @@ GsmPDUHelperObject.prototype = {
   },
 
   /**
-   * Convert a semi-octet (number) to a GSM BCD char, or return empty string
-   * if invalid semiOctet and supressException is set to true.
-   *
-   * @param semiOctet
-   *        Nibble to be converted to.
-   * @param [optional] supressException
-   *        Supress exception if invalid semiOctet and supressException is set
-   *        to true.
-   *
-   * @return GSM BCD char, or empty string.
+   * Convert a semi-octet (number) to a GSM BCD char.
    */
   bcdChars: "0123456789*#,;",
-  semiOctetToBcdChar: function(semiOctet, supressException) {
+  semiOctetToBcdChar: function(semiOctet) {
     if (semiOctet >= 14) {
-      if (supressException) {
-        return "";
-      } else {
-        throw new RangeError();
-      }
+      throw new RangeError();
     }
 
     return this.bcdChars.charAt(semiOctet);
@@ -6814,13 +6802,10 @@ GsmPDUHelperObject.prototype = {
    *
    * @param pairs
    *        Number of nibble *pairs* to read.
-   * @param [optional] supressException
-   *        Supress exception if invalid semiOctet and supressException is set
-   *        to true.
    *
    * @return The BCD string.
    */
-  readSwappedNibbleBcdString: function(pairs, supressException) {
+  readSwappedNibbleBcdString: function(pairs) {
     let str = "";
     for (let i = 0; i < pairs; i++) {
       let nibbleH = this.readHexNibble();
@@ -6829,9 +6814,9 @@ GsmPDUHelperObject.prototype = {
         break;
       }
 
-      str += this.semiOctetToBcdChar(nibbleL, supressException);
+      str += this.semiOctetToBcdChar(nibbleL);
       if (nibbleH != 0x0F) {
-        str += this.semiOctetToBcdChar(nibbleH, supressException);
+        str += this.semiOctetToBcdChar(nibbleH);
       }
     }
 
@@ -11961,13 +11946,7 @@ ICCRecordHelperObject.prototype = {
       let strLen = Buf.readInt32();
       let octetLen = strLen / 2;
       RIL.iccInfo.iccid =
-        this.context.GsmPDUHelper.readSwappedNibbleBcdString(octetLen, true);
-      // Consumes the remaining buffer if any.
-      let unReadBuffer = this.context.Buf.getReadAvailable() -
-                         this.context.Buf.PDU_HEX_OCTET_SIZE;
-      if (unReadBuffer > 0) {
-        this.context.Buf.seekIncoming(unReadBuffer);
-      }
+        this.context.GsmPDUHelper.readSwappedNibbleBcdString(octetLen);
       Buf.readStringDelimiter(strLen);
 
       if (DEBUG) this.context.debug("ICCID: " + RIL.iccInfo.iccid);

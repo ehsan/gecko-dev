@@ -1070,15 +1070,15 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
   if (mSocket) {
     if (mDeviceAddress == aDeviceAddress) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+      aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
     } else {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
+      aController->OnConnect(NS_LITERAL_STRING(ERR_REACHED_CONNECTION_LIMIT));
     }
     return;
   }
@@ -1087,7 +1087,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   BluetoothUuidHelper::GetString(BluetoothServiceClass::HANDSFREE, uuid);
 
   if (NS_FAILED(bs->GetServiceChannel(aDeviceAddress, uuid, this))) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
@@ -1158,7 +1158,7 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
 
   if (!mSocket) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     }
     return;
   }
@@ -1912,7 +1912,7 @@ BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
+  controller->OnConnect(aErrorStr);
 }
 
 void
@@ -1931,7 +1931,7 @@ BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
+  controller->OnDisconnect(aErrorStr);
 }
 
 NS_IMPL_ISUPPORTS1(BluetoothHfpManager, nsIObserver)
