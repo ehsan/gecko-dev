@@ -12,7 +12,6 @@
 #include <X11/Xlib.h>
 
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/GfxMessageUtils.h"
 
 #define MOZ_HAVE_SURFACEDESCRIPTORX11
 #define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS

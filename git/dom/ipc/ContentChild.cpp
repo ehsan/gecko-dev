@@ -345,11 +345,8 @@ ContentChild::SetProcessName(const nsAString& aName)
         printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, getpid());
         sleep(30);
 #elif defined(OS_WIN)
-        // Windows has a decent JIT debugging story, so NS_DebugBreak does the
-        // right thing.
-        NS_DebugBreak(NS_DEBUG_BREAK,
-                      "Invoking NS_DebugBreak() to debug child process",
-                      nullptr, __FILE__, __LINE__);
+        printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, _getpid());
+        Sleep(30000);
 #endif
     }
 

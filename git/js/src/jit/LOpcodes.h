@@ -18,6 +18,8 @@
     _(Value)                        \
     _(Parameter)                    \
     _(Callee)                       \
+    _(ForceUseV)                    \
+    _(ForceUseT)                    \
     _(TableSwitch)                  \
     _(TableSwitchV)                 \
     _(Goto)                         \
@@ -245,9 +247,7 @@
     _(AsmJSPassStackArg)            \
     _(AsmJSCall)                    \
     _(AsmJSCheckOverRecursed)       \
-    _(CheckInterruptPar)            \
-    _(RangeAssert)                  \
-    _(DoubleRangeAssert)
+    _(CheckInterruptPar)
 
 #if defined(JS_CPU_X86)
 # include "jit/x86/LOpcodes-x86.h"

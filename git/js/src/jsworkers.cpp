@@ -24,16 +24,8 @@ using namespace js;
 using mozilla::DebugOnly;
 
 bool
-js::EnsureWorkerThreadsInitialized(ExclusiveContext *cx)
+js::EnsureWorkerThreadsInitialized(JSRuntime *rt)
 {
-    // If 'cx' is not a JSContext, we are already off the main thread and the
-    // worker threads would have already been initialized.
-    if (!cx->isJSContext()) {
-        JS_ASSERT(cx->workerThreadState() != NULL);
-        return true;
-    }
-
-    JSRuntime *rt = cx->asJSContext()->runtime();
     if (rt->workerThreadState)
         return true;
 
@@ -51,17 +43,17 @@ js::EnsureWorkerThreadsInitialized(ExclusiveContext *cx)
 }
 
 bool
-js::StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData)
+js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 {
     // Threads already initialized by the AsmJS compiler.
-    JS_ASSERT(cx->workerThreadState() != NULL);
+    JS_ASSERT(cx->runtime()->workerThreadState);
     JS_ASSERT(asmData->mir);
     JS_ASSERT(asmData->lir == NULL);
 
-    WorkerThreadState &state = *cx->workerThreadState();
+    WorkerThreadState &state = *cx->runtime()->workerThreadState;
     JS_ASSERT(state.numThreads);
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(cx->runtime());
 
     // Don't append this task if another failed.
     if (state.asmJSWorkerFailed())
@@ -77,13 +69,14 @@ js::StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData)
 bool
 js::StartOffThreadIonCompile(JSContext *cx, ion::IonBuilder *builder)
 {
-    if (!EnsureWorkerThreadsInitialized(cx))
+    JSRuntime *rt = cx->runtime();
+    if (!EnsureWorkerThreadsInitialized(rt))
         return false;
 
     WorkerThreadState &state = *cx->runtime()->workerThreadState;
     JS_ASSERT(state.numThreads);
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(rt);
 
     if (!state.ionWorklist.append(builder))
         return false;
@@ -129,7 +122,7 @@ js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
     if (!ion)
         return;
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(rt);
 
     /* Cancel any pending entries for which processing hasn't started. */
     for (size_t i = 0; i < state.ionWorklist.length(); i++) {
@@ -215,7 +208,8 @@ js::StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
 
     frontend::MaybeCallSourceHandler(cx, options, chars, length);
 
-    if (!EnsureWorkerThreadsInitialized(cx))
+    JSRuntime *rt = cx->runtime();
+    if (!EnsureWorkerThreadsInitialized(rt))
         return false;
 
     JS::CompartmentOptions compartmentOptions(cx->compartment()->options());
@@ -276,7 +270,7 @@ js::StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
     WorkerThreadState &state = *cx->runtime()->workerThreadState;
     JS_ASSERT(state.numThreads);
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(rt);
 
     if (!state.parseWorklist.append(task.get()))
         return false;
@@ -295,7 +289,7 @@ js::WaitForOffThreadParsingToFinish(JSRuntime *rt)
 
     WorkerThreadState &state = *rt->workerThreadState;
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(rt);
 
     while (true) {
         if (state.parseWorklist.empty()) {
@@ -487,7 +481,7 @@ WorkerThreadState::finishParseTaskForScript(JSScript *script)
     ParseTask *parseTask = NULL;
 
     {
-        AutoLockWorkerThreadState lock(*rt->workerThreadState);
+        AutoLockWorkerThreadState lock(rt);
         for (size_t i = 0; i < parseFinishedList.length(); i++) {
             if (parseFinishedList[i]->script == script) {
                 parseTask = parseFinishedList[i];
@@ -546,7 +540,7 @@ WorkerThread::destroy()
 
     if (thread) {
         {
-            AutoLockWorkerThreadState lock(state);
+            AutoLockWorkerThreadState lock(runtime);
             terminate = true;
 
             /* Notify all workers, to ensure that this thread wakes up. */
@@ -688,7 +682,7 @@ void
 WorkerThread::threadLoop()
 {
     WorkerThreadState &state = *runtime->workerThreadState;
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(runtime);
 
     js::TlsPerThreadData.set(threadData.addr());
 
@@ -733,7 +727,7 @@ AutoPauseWorkersForGC::AutoPauseWorkersForGC(JSRuntime *rt MOZ_GUARD_OBJECT_NOTI
     if (!state.numThreads)
         return;
 
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(runtime);
 
     // Tolerate reentrant use of AutoPauseWorkersForGC.
     if (state.shouldPause) {
@@ -759,7 +753,7 @@ AutoPauseWorkersForGC::~AutoPauseWorkersForGC()
         return;
 
     WorkerThreadState &state = *runtime->workerThreadState;
-    AutoLockWorkerThreadState lock(state);
+    AutoLockWorkerThreadState lock(runtime);
 
     state.shouldPause = 0;
 
@@ -792,7 +786,7 @@ WorkerThread::pause()
 using namespace js;
 
 bool
-js::StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData)
+js::StartOffThreadAsmJSCompile(JSContext *cx, AsmJSParallelTask *asmData)
 {
     MOZ_ASSUME_UNREACHABLE("Off thread compilation not available in non-THREADSAFE builds");
 }

@@ -11,7 +11,6 @@
 
 namespace js {
 
-class ExclusiveContext;
 class AsmJSModule;
 class SPSProfiler;
 namespace frontend {
@@ -30,8 +29,7 @@ typedef frontend::ParseContext<frontend::FullParseHandler> AsmJSParseContext;
 // In this case, the parser.tokenStream has been advanced an indeterminate
 // amount and the entire function should be reparsed from the beginning.
 extern bool
-CompileAsmJS(ExclusiveContext *cx, AsmJSParser &parser, frontend::ParseNode *stmtList,
-             bool *validated);
+CompileAsmJS(JSContext *cx, AsmJSParser &parser, frontend::ParseNode *stmtList, bool *validated);
 
 // The JSRuntime maintains a stack of AsmJSModule activations. An "activation"
 // of module A is an initial call from outside A into a function inside A,

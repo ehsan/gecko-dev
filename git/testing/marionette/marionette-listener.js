@@ -36,8 +36,8 @@ let marionetteTestName;
 let winUtil = content.QueryInterface(Ci.nsIInterfaceRequestor)
                      .getInterface(Ci.nsIDOMWindowUtils);
 let listenerId = null; //unique ID of this listener
-let curFrame = content;
-let previousFrame = null;
+let activeFrame = null;
+let curWindow = content;
 let elementManager = new ElementManager([]);
 let importedScripts = null;
 
@@ -71,24 +71,6 @@ let mouseEventsOnly = false;
 Cu.import("resource://gre/modules/services-common/log4moz.js");
 let logger = Log4Moz.repository.getLogger("Marionette");
 logger.info("loaded marionette-listener.js");
-
-/*
- * This is a callback used with the 'mozbrowsershowmodalprompt' event
- * and is used to handle modal dialogs in B2G.
- * When a modal dialog is triggered in B2G, we want to switch into
- * the frame of the modal dialog instead of remaining in the current
- * frame, since the current frame's process will be frozen until the
- * modal dialog is dismissed.
- */ 
-let modalHandler = function() {
-  sendSyncMessage("Marionette:switchedToFrame", { frameValue: null, storePrevious: true });
-  let isLocal = sendSyncMessage("MarionetteFrame:handleModal", {})[0].value;
-  if (isLocal) {
-    previousFrame = curFrame;
-  }
-  curFrame = content;
-  sandbox = null;
-};
 
 /**
  * Called when listener is first started up. 
@@ -174,7 +156,6 @@ function startListeners() {
 function newSession(msg) {
   isB2G = msg.json.B2G;
   resetValues();
-  content.addEventListener("mozbrowsershowmodalprompt", modalHandler, false);
 }
  
 /**
@@ -192,7 +173,6 @@ function sleepSession(msg) {
  */
 function restart(msg) {
   removeMessageListener("Marionette:restart", restart);
-  content.addEventListener("mozbrowsershowmodalprompt", modalHandler, false);
   registerSelf();
 }
 
@@ -240,11 +220,10 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:getAllCookies", getAllCookies);
   removeMessageListenerId("Marionette:deleteAllCookies", deleteAllCookies);
   removeMessageListenerId("Marionette:deleteCookie", deleteCookie);
-  content.removeEventListener("mozbrowsershowmodalprompt", modalHandler, false);
   this.elementManager.reset();
   // reset frame to the top-most frame
-  curFrame = content;
-  curFrame.focus();
+  curWindow = content;
+  curWindow.focus();
   touchIds = {};
 }
 
@@ -296,25 +275,10 @@ function sendError(message, status, trace, command_id) {
  */
 function resetValues() {
   sandbox = null;
-  curFrame = content;
+  curWindow = content;
   mouseEventsOnly = false;
 }
 
-/**
- * Check if our context was interrupted
- */
-function wasInterrupted() {
-  if (previousFrame) {
-    let element = content.document.elementFromPoint((content.innerWidth/2), (content.innerHeight/2));
-    if (element.id.indexOf("modal-dialog") == -1) {
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
-  return sendSyncMessage("MarionetteFrame:getInterruptedState", {})[0].value;
-}
 
 /*
  * Marionette Methods
@@ -351,8 +315,8 @@ function createExecuteContentSandbox(aWindow, timeout) {
 
   sandbox.asyncComplete = function sandbox_asyncComplete(value, status, stack, commandId) {
     if (commandId == asyncTestCommandId) {
-      curFrame.removeEventListener("unload", onunload, false);
-      curFrame.clearTimeout(asyncTestTimeoutId);
+      curWindow.removeEventListener("unload", onunload, false);
+      curWindow.clearTimeout(asyncTestTimeoutId);
 
       sendSyncMessage("Marionette:shareData",
                       {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
@@ -401,7 +365,7 @@ function executeScript(msg, directInject) {
   let script = msg.json.value;
 
   if (msg.json.newSandbox || !sandbox) {
-    sandbox = createExecuteContentSandbox(curFrame,
+    sandbox = createExecuteContentSandbox(curWindow,
                                           msg.json.timeout);
     if (!sandbox) {
       sendError("Could not create sandbox!", 500, null, asyncTestCommandId);
@@ -436,7 +400,7 @@ function executeScript(msg, directInject) {
     else {
       try {
         sandbox.__marionetteParams = elementManager.convertWrappedArguments(
-          msg.json.args, curFrame);
+          msg.json.args, curWindow);
       }
       catch(e) {
         sendError(e.message, e.code, e.stack, asyncTestCommandId);
@@ -512,10 +476,10 @@ function executeWithCallback(msg, useFinish) {
   onunload = function() {
     sendError("unload was called", 17, null, asyncTestCommandId);
   };
-  curFrame.addEventListener("unload", onunload, false);
+  curWindow.addEventListener("unload", onunload, false);
 
   if (msg.json.newSandbox || !sandbox) {
-    sandbox = createExecuteContentSandbox(curFrame,
+    sandbox = createExecuteContentSandbox(curWindow,
                                           msg.json.timeout);
     if (!sandbox) {
       sendError("Could not create sandbox!", 17, null, asyncTestCommandId);
@@ -532,14 +496,14 @@ function executeWithCallback(msg, useFinish) {
   // However Selenium code returns 28, see
   // http://code.google.com/p/selenium/source/browse/trunk/javascript/firefox-driver/js/evaluate.js.
   // We'll stay compatible with the Selenium code.
-  asyncTestTimeoutId = curFrame.setTimeout(function() {
+  asyncTestTimeoutId = curWindow.setTimeout(function() {
     sandbox.asyncComplete('timed out', 28, null, asyncTestCommandId);
   }, msg.json.timeout);
 
-  originalOnError = curFrame.onerror;
-  curFrame.onerror = function errHandler(errMsg, url, line) {
+  originalOnError = curWindow.onerror;
+  curWindow.onerror = function errHandler(errMsg, url, line) {
     sandbox.asyncComplete(errMsg, 17, "@" + url + ", line " + line, asyncTestCommandId);
-    curFrame.onerror = originalOnError;
+    curWindow.onerror = originalOnError;
   };
 
   let scriptSrc;
@@ -552,7 +516,7 @@ function executeWithCallback(msg, useFinish) {
   else {
     try {
       sandbox.__marionetteParams = elementManager.convertWrappedArguments(
-        msg.json.args, curFrame);
+        msg.json.args, curWindow);
     }
     catch(e) {
       sendError(e.message, e.code, e.stack, asyncTestCommandId);
@@ -589,19 +553,17 @@ function executeWithCallback(msg, useFinish) {
  * This function creates a touch event given a touch type and a touch
  */
 function emitTouchEvent(type, touch) {
-  if (!wasInterrupted()) {
-    let loggingInfo = "Marionette: emitting Touch event of type " + type + " to element with id: " + touch.target.id + " and tag name: " + touch.target.tagName + " at coordinates (" + touch.clientX + ", " + touch.clientY + ") relative to the viewport";
-    dump(loggingInfo);
-    /*
-    Disabled per bug 888303
-    marionetteLogObj.log(loggingInfo, "TRACE");
-    sendSyncMessage("Marionette:shareData",
-                    {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
-    marionetteLogObj.clearLogs();
-    */
-    let domWindowUtils = curFrame.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
-    domWindowUtils.sendTouchEvent(type, [touch.identifier], [touch.screenX], [touch.screenY], [touch.radiusX], [touch.radiusY], [touch.rotationAngle], [touch.force], 1, 0);
-  }
+  let loggingInfo = "Marionette: emitting Touch event of type " + type + " to element with id: " + touch.target.id + " and tag name: " + touch.target.tagName + " at coordinates (" + touch.clientX + ", " + touch.clientY + ") relative to the viewport";
+  dump(loggingInfo);
+  /*
+  Disabled per bug 888303
+  marionetteLogObj.log(loggingInfo, "TRACE");
+  sendSyncMessage("Marionette:shareData",
+                  {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+  marionetteLogObj.clearLogs();
+  */
+  let domWindowUtils = curWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
+  domWindowUtils.sendTouchEvent(type, [touch.identifier], [touch.screenX], [touch.screenY], [touch.radiusX], [touch.radiusY], [touch.rotationAngle], [touch.force], 1, 0);
 }
 
 /**
@@ -612,22 +574,20 @@ function emitTouchEvent(type, touch) {
  *           elClientX and elClientY are the coordinates of the mouse relative to the viewport
  */
 function emitMouseEvent(doc, type, elClientX, elClientY, detail, button) {
-  if (!wasInterrupted()) {
-    let loggingInfo = "Marionette: emitting Mouse event of type " + type + " at coordinates (" + elClientX + ", " + elClientY + ") relative to the viewport";
-    dump(loggingInfo);
-    /*
-    Disabled per bug 888303
-    marionetteLogObj.log(loggingInfo, "TRACE");
-    sendSyncMessage("Marionette:shareData",
-                    {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
-    marionetteLogObj.clearLogs();
-    */
-    detail = detail || 1;
-    button = button || 0;
-    let win = doc.defaultView;
-    // Figure out the element the mouse would be over at (x, y)
-    utils.synthesizeMouseAtPoint(elClientX, elClientY, {type: type, button: button, clickCount: detail}, win);
-  }
+  let loggingInfo = "Marionette: emitting Mouse event of type " + type + " at coordinates (" + elClientX + ", " + elClientY + ") relative to the viewport";
+  dump(loggingInfo);
+  /*
+  Disabled per bug 888303
+  marionetteLogObj.log(loggingInfo, "TRACE");
+  sendSyncMessage("Marionette:shareData",
+                  {log: elementManager.wrapValue(marionetteLogObj.getLogs())});
+  marionetteLogObj.clearLogs();
+  */
+  detail = detail || 1;
+  button = button || 0;
+  let win = doc.defaultView;
+  // Figure out the element the mouse would be over at (x, y)
+  utils.synthesizeMouseAtPoint(elClientX, elClientY, {type: type, button: button, clickCount: detail}, win);
 }
 
 /**
@@ -666,30 +626,30 @@ function coordinates(target, x, y) {
 function elementInViewport(el) {
   let rect = el.getBoundingClientRect();
   return  (/* Top left corner is in view */
-           (rect.top >= curFrame.pageYOffset &&
-            rect.top <= (curFrame.pageYOffset + curFrame.innerHeight) &&
-            rect.left >= curFrame.pageXOffset &&
-            rect.left <= (curFrame.pageXOffset + curFrame.innerWidth)) ||
+           (rect.top >= curWindow.pageYOffset &&
+            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            rect.left >= curWindow.pageXOffset &&
+            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
            /* Top right corner is in view */ 
-           (rect.top >= curFrame.pageYOffset &&
-            rect.top <= (curFrame.pageYOffset + curFrame.innerHeight) &&
-            rect.right >= curFrame.pageXOffset &&
-            rect.right <= (curFrame.pageXOffset + curFrame.innerWidth)) ||
+           (rect.top >= curWindow.pageYOffset &&
+            rect.top <= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            rect.right >= curWindow.pageXOffset &&
+            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
            /* Bottom right corner is in view */
-           (rect.bottom >= curFrame.pageYOffset &&
-            rect.bottom <= (curFrame.pageYOffset + curFrame.innerHeight)  &&
-            rect.right >= curFrame.pageXOffset &&
-            rect.right <= (curFrame.pageXOffset + curFrame.innerWidth)) ||
+           (rect.bottom >= curWindow.pageYOffset &&
+            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
+            rect.right >= curWindow.pageXOffset &&
+            rect.right <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
            /* Bottom left corner is in view */
-           (rect.bottom >= curFrame.pageYOffset &&
-            rect.bottom <= (curFrame.pageYOffset + curFrame.innerHeight)  &&
-            rect.left >= curFrame.pageXOffset &&
-            rect.left <= (curFrame.pageXOffset + curFrame.innerWidth)) ||
+           (rect.bottom >= curWindow.pageYOffset &&
+            rect.bottom <= (curWindow.pageYOffset + curWindow.innerHeight)  &&
+            rect.left >= curWindow.pageXOffset &&
+            rect.left <= (curWindow.pageXOffset + curWindow.innerWidth)) ||
            /* Center of the element is in view if element larger than viewport */
-           ((rect.top + (rect.height/2)) <= curFrame.pageYOffset &&
-            (rect.top + (rect.height/2)) >= (curFrame.pageYOffset + curFrame.innerHeight) &&
-            (rect.left + (rect.width/2)) <= curFrame.pageXOffset &&
-            (rect.left + (rect.width/2)) >= (curFrame.pageXOffset + curFrame.innerWidth))
+           ((rect.top + (rect.height/2)) <= curWindow.pageYOffset &&
+            (rect.top + (rect.height/2)) >= (curWindow.pageYOffset + curWindow.innerHeight) &&
+            (rect.left + (rect.width/2)) <= curWindow.pageXOffset &&
+            (rect.left + (rect.width/2)) >= (curWindow.pageXOffset + curWindow.innerWidth))
          );
 }
 
@@ -723,7 +683,7 @@ function checkVisible(el) {
 //x and y are coordinates relative to the viewport
 function generateEvents(type, x, y, touchId, target) {
   lastCoordinates = [x, y];
-  let doc = curFrame.document;
+  let doc = curWindow.document;
   switch (type) {
     case 'tap':
       if (mouseEventsOnly) {
@@ -792,7 +752,7 @@ function generateEvents(type, x, y, touchId, target) {
       break;
     case 'contextmenu':
       isTap = false;
-      let event = curFrame.document.createEvent('HTMLEvents');
+      let event = curWindow.document.createEvent('HTMLEvents');
       event.initEvent('contextmenu', true, true);
       if (mouseEventsOnly) {
         target = doc.elementFromPoint(lastCoordinates[0], lastCoordinates[1]);
@@ -805,19 +765,6 @@ function generateEvents(type, x, y, touchId, target) {
     default:
       throw {message:"Unknown event type: " + type, code: 500, stack:null};
   }
-  if (wasInterrupted()) {
-    if (previousFrame) {
-      //if previousFrame is set, then we're in a single process environment
-      curFrame = previousFrame;
-      previousFrame = null;
-      sandbox = null;
-    }
-    else {
-      //else we're in OOP environment, so we'll switch to the original OOP frame
-      sendSyncMessage("Marionette:switchToModalOrigin");
-    }
-    sendSyncMessage("Marionette:switchedToFrame", { restorePrevious: true });
-  }
 }
 
 /**
@@ -826,13 +773,13 @@ function generateEvents(type, x, y, touchId, target) {
 function singleTap(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.value, curFrame);
+    let el = elementManager.getKnownElement(msg.json.value, curWindow);
     // after this block, the element will be scrolled into view
     if (!checkVisible(el)) {
        sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
        return;
     }
-    if (!curFrame.document.createTouch) {
+    if (!curWindow.document.createTouch) {
       mouseEventsOnly = true;
     }
     let c = coordinates(el, msg.json.corx, msg.json.cory);
@@ -892,7 +839,7 @@ function actions(chain, touchId, command_id, i) {
         sendError("Invalid Command: press cannot follow an active touch event", 500, null, command_id);
         return;
       }
-      el = elementManager.getKnownElement(pack[1], curFrame);
+      el = elementManager.getKnownElement(pack[1], curWindow);
       if (!checkVisible(el)) {
          sendError("Element is not currently visible and may not be manipulated", 11, null, command_id);
          return;
@@ -906,7 +853,7 @@ function actions(chain, touchId, command_id, i) {
       actions(chain, null, command_id, i);
       break;
     case 'move':
-      el = elementManager.getKnownElement(pack[1], curFrame);
+      el = elementManager.getKnownElement(pack[1], curWindow);
       c = coordinates(el);
       generateEvents('move', c.x, c.y, touchId);
       actions(chain, touchId, command_id, i);
@@ -953,12 +900,12 @@ function actionChain(msg) {
   let args = msg.json.chain;
   let touchId = msg.json.nextId;
   try {
-    let commandArray = elementManager.convertWrappedArguments(args, curFrame);
+    let commandArray = elementManager.convertWrappedArguments(args, curWindow);
     // loop the action array [ ['press', id], ['move', id], ['release', id] ]
     if (touchId == null) {
       touchId = nextTouchId++;
     }
-    if (!curFrame.document.createTouch) {
+    if (!curWindow.document.createTouch) {
       mouseEventsOnly = true;
     }
     actions(commandArray, touchId, command_id);
@@ -987,7 +934,7 @@ function emitMultiEvents(type, touch, touches) {
   // Create changed touches
   let changedTouches = doc.createTouchList(touch);
   // Create the event object
-  let event = curFrame.document.createEvent('TouchEvent');
+  let event = curWindow.document.createEvent('TouchEvent');
   event.initTouchEvent(type,
                        true,
                        true,
@@ -1040,7 +987,7 @@ function setDispatch(batches, touches, command_id, batchIndex) {
     command = pack[1];
     switch (command) {
       case 'press':
-        el = elementManager.getKnownElement(pack[2], curFrame);
+        el = elementManager.getKnownElement(pack[2], curWindow);
         c = coordinates(el, pack[3], pack[4]);
         touch = createATouch(el, c.x, c.y, touchId);
         multiLast[touchId] = touch;
@@ -1055,7 +1002,7 @@ function setDispatch(batches, touches, command_id, batchIndex) {
         emitMultiEvents('touchend', touch, touches);
         break;
       case 'move':
-        el = elementManager.getKnownElement(pack[2], curFrame);
+        el = elementManager.getKnownElement(pack[2], curWindow);
         c = coordinates(el);
         touch = createATouch(multiLast[touchId].target, c.x, c.y, touchId);
         touchIndex = touches.indexOf(lastTouch);
@@ -1109,7 +1056,7 @@ function multiAction(msg) {
   let maxlen = msg.json.maxlen;
   try {
     // unwrap the original nested array
-    let commandArray = elementManager.convertWrappedArguments(args, curFrame);
+    let commandArray = elementManager.convertWrappedArguments(args, curWindow);
     let concurrentEvent = [];
     let temp;
     for (let i = 0; i < maxlen; i++) {
@@ -1151,11 +1098,11 @@ function goUrl(msg) {
     let errorRegex = /about:.+(error)|(blocked)\?/;
     let elapse = end - start;
     if (msg.json.pageTimeout == null || elapse <= msg.json.pageTimeout){
-      if (curFrame.document.readyState == "complete"){
+      if (curWindow.document.readyState == "complete"){
         removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
         sendOk(command_id);
       }
-      else if (curFrame.document.readyState == "interactive" && errorRegex.exec(curFrame.document.baseURI)){
+      else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)){
         removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
         sendError("Error loading page", 13, null, command_id);
       }
@@ -1173,7 +1120,7 @@ function goUrl(msg) {
   // window (i.e., someone has used switch_to_frame).
   let onDOMContentLoaded = function onDOMContentLoaded(event){
     if (!event.originalTarget.defaultView.frameElement ||
-      event.originalTarget.defaultView.frameElement == curFrame.frameElement) {
+      event.originalTarget.defaultView.frameElement == curWindow.frameElement) {
       checkLoad();
     }
   };
@@ -1186,29 +1133,29 @@ function goUrl(msg) {
     checkTimer.initWithCallback(timerFunc, msg.json.pageTimeout, Ci.nsITimer.TYPE_ONE_SHOT);
   }
   addEventListener("DOMContentLoaded", onDOMContentLoaded, false);
-  curFrame.location = msg.json.value;
+  curWindow.location = msg.json.value;
 }
 
 /**
  * Get the current URI
  */
 function getUrl(msg) {
-  sendResponse({value: curFrame.location.href}, msg.json.command_id);
+  sendResponse({value: curWindow.location.href}, msg.json.command_id);
 }
 
 /**
  * Get the current Title of the window
  */
 function getTitle(msg) {
-  sendResponse({value: curFrame.top.document.title}, msg.json.command_id);
+  sendResponse({value: curWindow.top.document.title}, msg.json.command_id);
 }
 
 /**
  * Get the current page source 
  */
 function getPageSource(msg) {
-  var XMLSerializer = curFrame.XMLSerializer;
-  var pageSource = new XMLSerializer().serializeToString(curFrame.document);
+  var XMLSerializer = curWindow.XMLSerializer;
+  var pageSource = new XMLSerializer().serializeToString(curWindow.document);
   sendResponse({value: pageSource}, msg.json.command_id);
 }
 
@@ -1216,7 +1163,7 @@ function getPageSource(msg) {
  * Go back in history 
  */
 function goBack(msg) {
-  curFrame.history.back();
+  curWindow.history.back();
   sendOk(msg.json.command_id);
 }
 
@@ -1224,7 +1171,7 @@ function goBack(msg) {
  * Go forward in history 
  */
 function goForward(msg) {
-  curFrame.history.forward();
+  curWindow.history.forward();
   sendOk(msg.json.command_id);
 }
 
@@ -1233,7 +1180,7 @@ function goForward(msg) {
  */
 function refresh(msg) {
   let command_id = msg.json.command_id;
-  curFrame.location.reload(true);
+  curWindow.location.reload(true);
   let listen = function() {
     removeEventListener("DOMContentLoaded", arguments.callee, false);
     sendOk(command_id);
@@ -1249,7 +1196,7 @@ function findElementContent(msg) {
   try {
     let on_success = function(id, cmd_id) { sendResponse({value:id}, cmd_id); };
     let on_error = sendError;
-    elementManager.find(curFrame, msg.json, msg.json.searchTimeout,
+    elementManager.find(curWindow, msg.json, msg.json.searchTimeout,
                         on_success, on_error, false, command_id);
   }
   catch (e) {
@@ -1265,7 +1212,7 @@ function findElementsContent(msg) {
   try {
     let on_success = function(id, cmd_id) { sendResponse({value:id}, cmd_id); };
     let on_error = sendError;
-    elementManager.find(curFrame, msg.json, msg.json.searchTimeout,
+    elementManager.find(curWindow, msg.json, msg.json.searchTimeout,
                         on_success, on_error, true, command_id);
   }
   catch (e) {
@@ -1278,7 +1225,7 @@ function findElementsContent(msg) {
  */
 function getActiveElement(msg) {
   let command_id = msg.json.command_id;
-  var element = curFrame.document.activeElement;
+  var element = curWindow.document.activeElement;
   var id = elementManager.addToKnownElements(element);
   sendResponse({value: id}, command_id);
 }
@@ -1290,7 +1237,7 @@ function clickElement(msg) {
   let command_id = msg.json.command_id;
   let el;
   try {
-    el = elementManager.getKnownElement(msg.json.element, curFrame);
+    el = elementManager.getKnownElement(msg.json.element, curWindow);
     if (checkVisible(el)) {
       if (utils.isElementEnabled(el)) {
         utils.synthesizeMouseAtCenter(el, {}, el.ownerDocument.defaultView)
@@ -1315,7 +1262,7 @@ function clickElement(msg) {
 function getElementAttribute(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: utils.getElementAttribute(el, msg.json.name)},
                  command_id);
   }
@@ -1330,7 +1277,7 @@ function getElementAttribute(msg) {
 function getElementText(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: utils.getElementText(el)}, command_id);
   }
   catch (e) {
@@ -1344,7 +1291,7 @@ function getElementText(msg) {
 function getElementTagName(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: el.tagName.toLowerCase()}, command_id);
   }
   catch (e) {
@@ -1358,7 +1305,7 @@ function getElementTagName(msg) {
 function isElementDisplayed(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: utils.isElementDisplayed(el)}, command_id);
   }
   catch (e) {
@@ -1378,8 +1325,8 @@ function getElementValueOfCssProperty(msg){
   let command_id = msg.json.command_id;
   let propertyName = msg.json.propertyName;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
-    sendResponse({value: curFrame.document.defaultView.getComputedStyle(el, null).getPropertyValue(propertyName)},
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
+    sendResponse({value: curWindow.document.defaultView.getComputedStyle(el, null).getPropertyValue(propertyName)},
                  command_id);
   }
   catch (e) {
@@ -1393,7 +1340,7 @@ function getElementValueOfCssProperty(msg){
 function getElementSize(msg){
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     let clientRect = el.getBoundingClientRect();  
     sendResponse({value: {width: clientRect.width, height: clientRect.height}},
                  command_id);
@@ -1409,7 +1356,7 @@ function getElementSize(msg){
 function isElementEnabled(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: utils.isElementEnabled(el)}, command_id);
   }
   catch (e) {
@@ -1423,7 +1370,7 @@ function isElementEnabled(msg) {
 function isElementSelected(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     sendResponse({value: utils.isElementSelected(el)}, command_id);
   }
   catch (e) {
@@ -1437,9 +1384,9 @@ function isElementSelected(msg) {
 function sendKeysToElement(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     if (checkVisible(el)) {
-      utils.type(curFrame.document, el, msg.json.value.join(""), true);
+      utils.type(curWindow.document, el, msg.json.value.join(""), true);
       sendOk(command_id);
     }
     else {
@@ -1457,7 +1404,7 @@ function sendKeysToElement(msg) {
 function getElementPosition(msg) {
   let command_id = msg.json.command_id;
   try{
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     let rect = el.getBoundingClientRect();
 
     let location = {};
@@ -1477,7 +1424,7 @@ function getElementPosition(msg) {
 function clearElement(msg) {
   let command_id = msg.json.command_id;
   try {
-    let el = elementManager.getKnownElement(msg.json.element, curFrame);
+    let el = elementManager.getKnownElement(msg.json.element, curWindow);
     utils.clearElement(el);
     sendOk(command_id);
   }
@@ -1492,27 +1439,27 @@ function clearElement(msg) {
  */
 function switchToFrame(msg) {
   let command_id = msg.json.command_id;
-  function checkLoad() {
+  function checkLoad() { 
     let errorRegex = /about:.+(error)|(blocked)\?/;
-    if (curFrame.document.readyState == "complete") {
+    if (curWindow.document.readyState == "complete") {
       sendOk(command_id);
       return;
     } 
-    else if (curFrame.document.readyState == "interactive" && errorRegex.exec(curFrame.document.baseURI)) {
+    else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)) {
       sendError("Error loading page", 13, null, command_id);
       return;
     }
     checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
   }
   let foundFrame = null;
-  let frames = []; //curFrame.document.getElementsByTagName("iframe");
-  let parWindow = null; //curFrame.QueryInterface(Ci.nsIInterfaceRequestor)
-  // Check of the curFrame reference is dead
+  let frames = []; //curWindow.document.getElementsByTagName("iframe");
+  let parWindow = null; //curWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+  // Check of the curWindow reference is dead
   try {
-    frames = curFrame.document.getElementsByTagName("iframe");
+    frames = curWindow.document.getElementsByTagName("iframe");
     //Until Bug 761935 lands, we won't have multiple nested OOP iframes. We will only have one.
     //parWindow will refer to the iframe above the nested OOP frame.
-    parWindow = curFrame.QueryInterface(Ci.nsIInterfaceRequestor)
+    parWindow = curWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                       .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
   } catch (e) {
     // We probably have a dead compartment so accessing it is going to make Firefox
@@ -1525,9 +1472,9 @@ function switchToFrame(msg) {
     // returning to root frame
     sendSyncMessage("Marionette:switchedToFrame", { frameValue: null });
 
-    curFrame = content;
+    curWindow = content;
     if(msg.json.focus == true) {
-      curFrame.focus();
+      curWindow.focus();
     }
     sandbox = null;
     checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
@@ -1537,7 +1484,7 @@ function switchToFrame(msg) {
     if (elementManager.seenItems[msg.json.element] != undefined) {
       let wantedFrame;
       try {
-        wantedFrame = elementManager.getKnownElement(msg.json.element, curFrame); //HTMLIFrameElement
+        wantedFrame = elementManager.getKnownElement(msg.json.element, curWindow); //HTMLIFrameElement
       }
       catch(e) {
         sendError(e.message, e.code, e.stack, command_id);
@@ -1545,7 +1492,7 @@ function switchToFrame(msg) {
       for (let i = 0; i < frames.length; i++) {
         // use XPCNativeWrapper to compare elements; see bug 834266
         if (XPCNativeWrapper(frames[i]) == XPCNativeWrapper(wantedFrame)) {
-          curFrame = frames[i]; 
+          curWindow = frames[i]; 
           foundFrame = i;
         }
       }
@@ -1569,13 +1516,13 @@ function switchToFrame(msg) {
         }
         if ((foundFrame == null) && (foundById != null)) {
           foundFrame = foundById;
-          curFrame = frames[foundFrame];
+          curWindow = frames[foundFrame];
         }
         break;
       case "number":
         if (frames[msg.json.value] != undefined) {
           foundFrame = msg.json.value;
-          curFrame = frames[foundFrame];
+          curWindow = frames[foundFrame];
         }
         break;
     }
@@ -1589,21 +1536,21 @@ function switchToFrame(msg) {
 
   // send a synchronous message to let the server update the currently active
   // frame element (for getActiveFrame)
-  let frameValue = elementManager.wrapValue(curFrame.wrappedJSObject)['ELEMENT'];
+  let frameValue = elementManager.wrapValue(curWindow.wrappedJSObject)['ELEMENT'];
   sendSyncMessage("Marionette:switchedToFrame", { frameValue: frameValue });
 
-  if (curFrame.contentWindow == null) {
+  if (curWindow.contentWindow == null) {
     // The frame we want to switch to is a remote (out-of-process) frame;
     // notify our parent to handle the switch.
-    curFrame = content;
+    curWindow = content;
     sendToServer('Marionette:switchToFrame', {frame: foundFrame,
                                               win: parWindow,
                                               command_id: command_id});
   }
   else {
-    curFrame = curFrame.contentWindow;
+    curWindow = curWindow.contentWindow;
     if(msg.json.focus == true) {
-      curFrame.focus();
+      curWindow.focus();
     }
     checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
   }
@@ -1622,11 +1569,11 @@ function addCookie(msg) {
   }
 
   if (!cookie.domain) {
-    var location = curFrame.document.location;
+    var location = curWindow.document.location;
     cookie.domain = location.hostname;
   }
   else {
-    var currLocation = curFrame.location;
+    var currLocation = curWindow.location;
     var currDomain = currLocation.host;
     if (currDomain.indexOf(cookie.domain) == -1) {
       sendError("You may only set cookies for the current domain", 24, null, msg.json.command_id);
@@ -1640,7 +1587,7 @@ function addCookie(msg) {
     cookie.domain = cookie.domain.replace(/:\d+$/, '');
   }
 
-  var document = curFrame.document;
+  var document = curWindow.document;
   if (!document || !document.contentType.match(/html/i)) {
     sendError('You may only set cookies on html documents', 25, null, msg.json.command_id);
   }
@@ -1656,7 +1603,7 @@ function addCookie(msg) {
  */
 function getAllCookies(msg) {
   var toReturn = [];
-  var cookies = getVisibleCookies(curFrame.location);
+  var cookies = getVisibleCookies(curWindow.location);
   for (var i = 0; i < cookies.length; i++) {
     var cookie = cookies[i];
     var expires = cookie.expires;
@@ -1686,7 +1633,7 @@ function deleteCookie(msg) {
   var cookieManager = Cc['@mozilla.org/cookiemanager;1'].
                         getService(Ci.nsICookieManager);
 
-  var cookies = getVisibleCookies(curFrame.location);
+  var cookies = getVisibleCookies(curWindow.location);
   for (var i = 0; i < cookies.length; i++) {
     var cookie = cookies[i];
     if (cookie.name == toDelete) {
@@ -1703,7 +1650,7 @@ function deleteCookie(msg) {
 function deleteAllCookies(msg) {
   let cookieManager = Cc['@mozilla.org/cookiemanager;1'].
                         getService(Ci.nsICookieManager);
-  let cookies = getVisibleCookies(curFrame.location);
+  let cookies = getVisibleCookies(curWindow.location);
   for (let i = 0; i < cookies.length; i++) {
     let cookie = cookies[i];
     cookieManager.remove(cookie.host, cookie.name, cookie.path, false);
@@ -1744,7 +1691,7 @@ function getVisibleCookies(location) {
 }
 
 function getAppCacheStatus(msg) {
-  sendResponse({ value: curFrame.applicationCache.status },
+  sendResponse({ value: curWindow.applicationCache.status },
                msg.json.command_id);
 } 
 
@@ -1806,7 +1753,7 @@ function screenShot(msg) {
   let node = null;
   if (msg.json.element) {
     try {
-      node = elementManager.getKnownElement(msg.json.element, curFrame)
+      node = elementManager.getKnownElement(msg.json.element, curWindow)
     }
     catch (e) {
       sendResponse(e.message, e.code, e.stack, msg.json.command_id);
@@ -1814,14 +1761,14 @@ function screenShot(msg) {
     }
   }
   else {
-      node = curFrame;
+      node = curWindow;
   }
   let highlights = msg.json.highlights;
 
-  var document = curFrame.document;
+  var document = curWindow.document;
   var rect, win, width, height, left, top, needsOffset;
   // node can be either a window or an arbitrary DOM node
-  if (node == curFrame) {
+  if (node == curWindow) {
     // node is a window
     win = node;
     width = win.innerWidth;

@@ -425,9 +425,6 @@ private:
 
     virtual bool RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState) MOZ_OVERRIDE;
 
-    virtual bool RecvKeywordToURI(const nsCString& aKeyword, OptionalInputStreamParams* aPostData,
-                                  OptionalURIParams* aURI);
-
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     // If you add strong pointers to cycle collected objects here, be sure to
@@ -475,11 +472,10 @@ private:
     bool mSendPermissionUpdates;
     bool mIsForBrowser;
 
-    // These variables track whether we've called Close(), CloseWithError()
-    // and KillHard() on our channel.
+    // These variables track whether we've called Close() and CloseWithError()
+    // on our channel.
     bool mCalledClose;
     bool mCalledCloseWithError;
-    bool mCalledKillHard;
 
     friend class CrashReporterParent;
 

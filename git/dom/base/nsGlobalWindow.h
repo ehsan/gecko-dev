@@ -703,16 +703,14 @@ public:
   mozilla::dom::EventHandlerNonNull* GetOn##name_()                           \
   {                                                                           \
     nsEventListenerManager *elm = GetListenerManager(false);                  \
-    return elm ? elm->GetEventHandler(nsGkAtoms::on##name_, EmptyString())    \
-               : nullptr;                                                     \
+    return elm ? elm->GetEventHandler(nsGkAtoms::on##name_) : nullptr;        \
   }                                                                           \
   void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler,               \
                     mozilla::ErrorResult& error)                              \
   {                                                                           \
     nsEventListenerManager *elm = GetListenerManager(true);                   \
     if (elm) {                                                                \
-      error = elm->SetEventHandler(nsGkAtoms::on##name_, EmptyString(),       \
-                                   handler);                                  \
+      error = elm->SetEventHandler(nsGkAtoms::on##name_, handler);            \
     } else {                                                                  \
       error.Throw(NS_ERROR_OUT_OF_MEMORY);                                    \
     }                                                                         \

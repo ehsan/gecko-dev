@@ -124,17 +124,6 @@ IonContext::IonContext(JSContext *cx, TempAllocator *temp)
     SetIonContext(this);
 }
 
-IonContext::IonContext(ExclusiveContext *cx, TempAllocator *temp)
-  : runtime(cx->runtime_),
-    cx(NULL),
-    compartment(NULL),
-    temp(temp),
-    prev_(CurrentIonContext()),
-    assemblerCount_(0)
-{
-    SetIonContext(this);
-}
-
 IonContext::IonContext(JSRuntime *rt, JSCompartment *comp, TempAllocator *temp)
   : runtime(rt),
     cx(NULL),
@@ -194,6 +183,7 @@ IonRuntime::IonRuntime()
     functionWrappers_(NULL),
     osrTempData_(NULL),
     flusher_(NULL),
+    signalHandlersInstalled_(false),
     ionCodeProtected_(false)
 {
 }
@@ -293,6 +283,8 @@ IonRuntime::initialize(JSContext *cx)
             return false;
     }
 
+    signalHandlersInstalled_ = EnsureAsmJSSignalHandlersInstalled(cx->runtime());
+
     return true;
 }
 
@@ -341,7 +333,7 @@ IonRuntime::ensureIonCodeProtected(JSRuntime *rt)
 {
     JS_ASSERT(rt->currentThreadOwnsOperationCallbackLock());
 
-    if (!rt->signalHandlersInstalled() || ionCodeProtected_ || !ionAlloc_)
+    if (!signalHandlersInstalled_ || ionCodeProtected_ || !ionAlloc_)
         return;
 
     // Protect all Ion code in the runtime to trigger an access violation the
@@ -353,7 +345,7 @@ IonRuntime::ensureIonCodeProtected(JSRuntime *rt)
 bool
 IonRuntime::handleAccessViolation(JSRuntime *rt, void *faultingAddress)
 {
-    if (!rt->signalHandlersInstalled() || !ionAlloc_ || !ionAlloc_->codeContains((char *) faultingAddress))
+    if (!signalHandlersInstalled_ || !ionAlloc_ || !ionAlloc_->codeContains((char *) faultingAddress))
         return false;
 
 #ifdef JS_THREADSAFE
@@ -1529,7 +1521,7 @@ AttachFinishedCompilations(JSContext *cx)
     if (!ion || !cx->runtime()->workerThreadState)
         return;
 
-    AutoLockWorkerThreadState lock(*cx->runtime()->workerThreadState);
+    AutoLockWorkerThreadState lock(cx->runtime());
 
     OffThreadCompilationVector &compilations = ion->finishedOffThreadCompilations();
 
@@ -2599,10 +2591,8 @@ AutoFlushCache::updateTop(uintptr_t p, size_t len)
 {
     IonContext *ictx = GetIonContext();
     IonRuntime *irt = ictx->runtime->ionRuntime();
-    if (!irt || !irt->flusher())
-        JSC::ExecutableAllocator::cacheFlush((void*)p, len);
-    else
-        irt->flusher()->update(p, len);
+    AutoFlushCache *afc = irt->flusher();
+    afc->update(p, len);
 }
 
 AutoFlushCache::AutoFlushCache(const char *nonce, IonRuntime *rt)

@@ -171,11 +171,6 @@ NetAddrElement::NetAddrElement(const PRNetAddr *prNetAddr)
   PRNetAddrToNetAddr(prNetAddr, &mAddress);
 }
 
-NetAddrElement::NetAddrElement(const NetAddrElement& netAddr)
-{
-  mAddress = netAddr.mAddress;
-}
-
 NetAddrElement::~NetAddrElement()
 {
 }
@@ -183,9 +178,18 @@ NetAddrElement::~NetAddrElement()
 AddrInfo::AddrInfo(const char *host, const PRAddrInfo *prAddrInfo,
                    bool disableIPv4, const char *cname)
 {
-  MOZ_ASSERT(prAddrInfo, "Cannot construct AddrInfo with a null prAddrInfo pointer!");
+  size_t hostlen = strlen(host);
+  mHostName = static_cast<char*>(moz_xmalloc(hostlen + 1));
+  memcpy(mHostName, host, hostlen + 1);
+  if (cname) {
+      size_t cnameLen = strlen(cname);
+      mCanonicalName = static_cast<char*>(moz_xmalloc(cnameLen + 1));
+      memcpy(mCanonicalName, cname, cnameLen + 1);
+  }
+  else {
+      mCanonicalName = nullptr;
+  }
 
-  Init(host, cname);
   PRNetAddr tmpAddr;
   void *iter = nullptr;
   do {
@@ -197,11 +201,6 @@ AddrInfo::AddrInfo(const char *host, const PRAddrInfo *prAddrInfo,
   } while (iter);
 }
 
-AddrInfo::AddrInfo(const char *host, const char *cname)
-{
-  Init(host, cname);
-}
-
 AddrInfo::~AddrInfo()
 {
   NetAddrElement *addrElement;
@@ -210,32 +209,6 @@ AddrInfo::~AddrInfo()
   }
   moz_free(mHostName);
   moz_free(mCanonicalName);
-}
-
-void
-AddrInfo::Init(const char *host, const char *cname)
-{
-  MOZ_ASSERT(host, "Cannot initialize AddrInfo with a null host pointer!");
-
-  size_t hostlen = strlen(host);
-  mHostName = static_cast<char*>(moz_xmalloc(hostlen + 1));
-  memcpy(mHostName, host, hostlen + 1);
-  if (cname) {
-    size_t cnameLen = strlen(cname);
-    mCanonicalName = static_cast<char*>(moz_xmalloc(cnameLen + 1));
-    memcpy(mCanonicalName, cname, cnameLen + 1);
-  }
-  else {
-    mCanonicalName = nullptr;
-  }
-}
-
-void
-AddrInfo::AddAddress(NetAddrElement *address)
-{
-  MOZ_ASSERT(address, "Cannot add the address to an uninitialized list");
-
-  mAddresses.insertBack(address);
 }
 
 } // namespace dns

@@ -50,13 +50,13 @@ class GLConstHeader:
                     ' * License, v. 2.0. If a copy of the MPL was not distributed with this',
                     ' * file, You can obtain one at http://mozilla.org/MPL/2.0/. */',
                     '',
-                    '#ifndef GLCONSTS_H_',
+                    '#if !defined(GLCONSTS_H_)',
                     '#define GLCONSTS_H_',
                     '',
                     '/**',
                     ' * GENERATED FILE, DO NOT MODIFY DIRECTLY.',
-                    ' * This is a file generated directly from the official OpenGL registry',
-                    ' * xml available http://www.opengl.org/registry/#specfiles.',
+                    ' * THIS IS A GENERATED FILE DIRECTLY FROM THE OFFCIAL OPENGL REGISTRY',
+                    ' * XML AVAILABLE AT http://www.opengl.org/registry/#specfiles.',
                     ' *',
                     ' * To generate this file, see tutorial in GLParseRegistry.py',
                     ' */',
@@ -75,11 +75,7 @@ class GLConstHeader:
         # value is the value of the const (example: 0xABCD)
 
         define = '#define LOCAL_' + lib + '_' + name
-        whitespace = 60 - len(define)
-        
-        if whitespace < 0:
-            whitespace = whitespace % 8
-        
+        whitespace = max(60 - len(define), 0)
         self.write(define + ' ' * whitespace + ' ' + value)
 
 

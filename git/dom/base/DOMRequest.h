@@ -24,6 +24,7 @@ protected:
   JS::Heap<JS::Value> mResult;
   nsCOMPtr<nsISupports> mError;
   bool mDone;
+  bool mRooted;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -77,14 +78,16 @@ public:
 
   virtual ~DOMRequest()
   {
-    mResult = JSVAL_VOID;
-    NS_DROP_JS_OBJECTS(this, DOMRequest);
+    if (mRooted) {
+      UnrootResultVal();
+    }
   }
 
 protected:
   void FireEvent(const nsAString& aType, bool aBubble, bool aCancelable);
 
   void RootResultVal();
+  void UnrootResultVal();
 
   void Init(nsIDOMWindow* aWindow);
 };

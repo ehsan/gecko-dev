@@ -81,15 +81,15 @@ fi
 dnl A high level macro for selecting compiler options.
 AC_DEFUN([MOZ_COMPILER_OPTS],
 [
-  if test -z "$MOZILLA_OFFICIAL"; then
-    DEVELOPER_OPTIONS=1
-  fi
+  DEVELOPER_OPTIONS=1
   MOZ_ARG_ENABLE_BOOL(release,
   [  --enable-release        Build with more conservative, release engineering-oriented options.
                           This may slow down builds.],
-      DEVELOPER_OPTIONS=,
-      DEVELOPER_OPTIONS=1)
+      DEVELOPER_OPTIONS=)
 
+  if test -n "$MOZILLA_OFFICIAL" -a -n "$DEVELOPER_OPTIONS"; then
+    AC_MSG_ERROR([You cannot set MOZILLA_OFFICIAL without --enable-release])
+  fi
   AC_SUBST(DEVELOPER_OPTIONS)
 
   MOZ_DEBUGGING_OPTS

@@ -14,7 +14,6 @@
 #include "mozilla/WeakPtr.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/ipc/Transport.h"
-#include "nsAutoPtr.h"
 
 //-----------------------------------------------------------------------------
 

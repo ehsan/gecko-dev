@@ -231,7 +231,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     data(NULL),
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
-    signalHandlersInstalled_(false),
 #ifdef JS_THREADSAFE
 #ifdef JS_ION
     workerThreadState(NULL),
@@ -380,10 +379,6 @@ JSRuntime::init(uint32_t maxbytes)
     nativeStackBase = GetNativeStackBase();
 
     jitSupportsFloatingPoint = JitSupportsFloatingPoint();
-
-#ifdef JS_ION
-    signalHandlersInstalled_ = EnsureAsmJSSignalHandlersInstalled(this);
-#endif
     return true;
 }
 
