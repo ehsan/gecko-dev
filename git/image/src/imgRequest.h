@@ -9,13 +9,19 @@
 
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIRequest.h"
+#include "nsIProperties.h"
 #include "nsIStreamListener.h"
+#include "nsIURI.h"
 #include "nsIPrincipal.h"
+#include "nsITimedChannel.h"
+#include "nsIApplicationCache.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsStringGlue.h"
 #include "nsError.h"
+#include "imgIRequest.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 class imgCacheValidator;
@@ -25,11 +31,6 @@ class imgRequestProxy;
 class imgCacheEntry;
 class imgMemoryReporter;
 class imgRequestNotifyRunnable;
-class nsIApplicationCache;
-class nsIProperties;
-class nsIRequest;
-class nsITimedChannel;
-class nsIURI;
 
 namespace mozilla {
 namespace image {

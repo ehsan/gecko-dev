@@ -71,13 +71,13 @@ class nsGeolocationRequest
   nsGeolocationRequest(Geolocation* aLocator,
                        const GeoPositionCallback& aCallback,
                        const GeoPositionErrorCallback& aErrorCallback,
-                       PositionOptions* aOptions,
+                       idl::GeoPositionOptions* aOptions,
                        bool aWatchPositionRequest = false,
                        int32_t aWatchId = 0);
   void Shutdown();
 
   void SendLocation(nsIDOMGeoPosition* location);
-  bool WantsHighAccuracy() {return mOptions && mOptions->mEnableHighAccuracy;}
+  bool WantsHighAccuracy() {return mOptions && mOptions->enableHighAccuracy;}
   void SetTimeoutTimer();
   nsIPrincipal* GetPrincipal();
 
@@ -94,7 +94,7 @@ class nsGeolocationRequest
   nsCOMPtr<nsITimer> mTimeoutTimer;
   GeoPositionCallback mCallback;
   GeoPositionErrorCallback mErrorCallback;
-  nsAutoPtr<PositionOptions> mOptions;
+  nsAutoPtr<idl::GeoPositionOptions> mOptions;
 
   nsRefPtr<Geolocation> mLocator;
 
@@ -102,14 +102,15 @@ class nsGeolocationRequest
   bool mShutdown;
 };
 
-static PositionOptions*
-CreatePositionOptionsCopy(const PositionOptions& aOptions)
+static idl::GeoPositionOptions*
+GeoPositionOptionsFromPositionOptions(const PositionOptions& aOptions)
 {
-  nsAutoPtr<PositionOptions> geoOptions(new PositionOptions());
+  nsAutoPtr<idl::GeoPositionOptions> geoOptions(
+    new idl::GeoPositionOptions());
 
-  geoOptions->mEnableHighAccuracy = aOptions.mEnableHighAccuracy;
-  geoOptions->mMaximumAge = aOptions.mMaximumAge;
-  geoOptions->mTimeout = aOptions.mTimeout;
+  geoOptions->enableHighAccuracy = aOptions.mEnableHighAccuracy;
+  geoOptions->maximumAge = aOptions.mMaximumAge;
+  geoOptions->timeout = aOptions.mTimeout;
 
   return geoOptions.forget();
 }
@@ -335,7 +336,7 @@ PositionError::NotifyCallback(const GeoPositionErrorCallback& aCallback)
 nsGeolocationRequest::nsGeolocationRequest(Geolocation* aLocator,
                                            const GeoPositionCallback& aCallback,
                                            const GeoPositionErrorCallback& aErrorCallback,
-                                           PositionOptions* aOptions,
+                                           idl::GeoPositionOptions* aOptions,
                                            bool aWatchPositionRequest,
                                            int32_t aWatchId)
   : mIsWatchPositionRequest(aWatchPositionRequest),
@@ -459,11 +460,11 @@ nsGeolocationRequest::Allow()
 
   uint32_t maximumAge = 30 * PR_MSEC_PER_SEC;
   if (mOptions) {
-    if (mOptions->mMaximumAge >= 0) {
-      maximumAge = mOptions->mMaximumAge;
+    if (mOptions->maximumAge >= 0) {
+      maximumAge = mOptions->maximumAge;
     }
   }
-  gs->SetHigherAccuracy(mOptions && mOptions->mEnableHighAccuracy);
+  gs->SetHigherAccuracy(mOptions && mOptions->enableHighAccuracy);
 
   bool canUseCache = lastPosition && maximumAge > 0 &&
     (PRTime(PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
@@ -496,7 +497,7 @@ nsGeolocationRequest::SetTimeoutTimer()
   }
 
   int32_t timeout;
-  if (mOptions && (timeout = mOptions->mTimeout) != 0) {
+  if (mOptions && (timeout = mOptions->timeout) != 0) {
 
     if (timeout < 0) {
       timeout = 0;
@@ -599,7 +600,7 @@ nsGeolocationRequest::Shutdown()
 
   // This should happen last, to ensure that this request isn't taken into consideration
   // when deciding whether existing requests still require high accuracy.
-  if (mOptions && mOptions->mEnableHighAccuracy) {
+  if (mOptions && mOptions->enableHighAccuracy) {
     nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
     if (gs) {
       gs->SetHigherAccuracy(false);
@@ -1199,8 +1200,9 @@ Geolocation::GetCurrentPosition(PositionCallback& aCallback,
   GeoPositionCallback successCallback(&aCallback);
   GeoPositionErrorCallback errorCallback(aErrorCallback);
 
-  nsresult rv = GetCurrentPosition(successCallback, errorCallback,
-                                   CreatePositionOptionsCopy(aOptions));
+  nsresult rv =
+    GetCurrentPosition(successCallback, errorCallback,
+                       GeoPositionOptionsFromPositionOptions(aOptions));
 
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -1212,7 +1214,7 @@ Geolocation::GetCurrentPosition(PositionCallback& aCallback,
 NS_IMETHODIMP
 Geolocation::GetCurrentPosition(nsIDOMGeoPositionCallback* aCallback,
                                 nsIDOMGeoPositionErrorCallback* aErrorCallback,
-                                PositionOptions* aOptions)
+                                idl::GeoPositionOptions* aOptions)
 {
   NS_ENSURE_ARG_POINTER(aCallback);
 
@@ -1225,7 +1227,7 @@ Geolocation::GetCurrentPosition(nsIDOMGeoPositionCallback* aCallback,
 nsresult
 Geolocation::GetCurrentPosition(GeoPositionCallback& callback,
                                 GeoPositionErrorCallback& errorCallback,
-                                PositionOptions *options)
+                                idl::GeoPositionOptions *options)
 {
   if (mPendingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -1287,8 +1289,9 @@ Geolocation::WatchPosition(PositionCallback& aCallback,
   GeoPositionCallback successCallback(&aCallback);
   GeoPositionErrorCallback errorCallback(aErrorCallback);
 
-  nsresult rv = WatchPosition(successCallback, errorCallback,
-                              CreatePositionOptionsCopy(aOptions), &ret);
+  nsresult rv =
+    WatchPosition(successCallback, errorCallback,
+                  GeoPositionOptionsFromPositionOptions(aOptions), &ret);
 
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -1300,7 +1303,7 @@ Geolocation::WatchPosition(PositionCallback& aCallback,
 NS_IMETHODIMP
 Geolocation::WatchPosition(nsIDOMGeoPositionCallback *aCallback,
                            nsIDOMGeoPositionErrorCallback *aErrorCallback,
-                           PositionOptions *aOptions,
+                           idl::GeoPositionOptions *aOptions,
                            int32_t* aRv)
 {
   NS_ENSURE_ARG_POINTER(aCallback);
@@ -1314,7 +1317,7 @@ Geolocation::WatchPosition(nsIDOMGeoPositionCallback *aCallback,
 nsresult
 Geolocation::WatchPosition(GeoPositionCallback& aCallback,
                            GeoPositionErrorCallback& aErrorCallback,
-                           PositionOptions* aOptions,
+                           idl::GeoPositionOptions* aOptions,
                            int32_t* aRv)
 {
   if (mWatchingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW) {

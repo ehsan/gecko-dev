@@ -373,6 +373,10 @@ typedef bool
 (* PropertyAttributesOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
                          unsigned *attrsp);
 typedef bool
+(* ElementAttributesOp)(JSContext *cx, JS::HandleObject obj, uint32_t index, unsigned *attrsp);
+typedef bool
+(* SpecialAttributesOp)(JSContext *cx, JS::HandleObject obj, HandleSpecialId sid, unsigned *attrsp);
+typedef bool
 (* DeletePropertyOp)(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
                      bool *succeeded);
 typedef bool
@@ -464,7 +468,13 @@ struct ObjectOps
     StrictElementIdOp   setElement;
     StrictSpecialIdOp   setSpecial;
     GenericAttributesOp getGenericAttributes;
+    PropertyAttributesOp getPropertyAttributes;
+    ElementAttributesOp getElementAttributes;
+    SpecialAttributesOp getSpecialAttributes;
     GenericAttributesOp setGenericAttributes;
+    PropertyAttributesOp setPropertyAttributes;
+    ElementAttributesOp setElementAttributes;
+    SpecialAttributesOp setSpecialAttributes;
     DeletePropertyOp    deleteProperty;
     DeleteElementOp     deleteElement;
     DeleteSpecialOp     deleteSpecial;
@@ -475,7 +485,8 @@ struct ObjectOps
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
-     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL}
+     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,        \
+     NULL,NULL,NULL}
 
 } // namespace js
 

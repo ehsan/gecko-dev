@@ -505,7 +505,6 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
     // The context is the first argument.
     Register cxreg = IntArgReg0;
-    regs.take(cxreg);
 
     // Stack is:
     //    ... frame ...

@@ -97,6 +97,7 @@
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsDebug.h"
 #include "nsISupports.h"
 #include "nsIServiceManager.h"
@@ -159,7 +160,6 @@
 #include "SandboxPrivate.h"
 #include "BackstagePass.h"
 #include "nsCxPusher.h"
-#include "nsAXPCNativeCallContext.h"
 
 #ifdef XP_WIN
 // Nasty MS defines
@@ -1203,7 +1203,13 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setElement    */                                          \
         nullptr, /* setSpecial    */                                          \
         nullptr, /* getGenericAttributes  */                                  \
+        nullptr, /* getAttributes  */                                         \
+        nullptr, /* getElementAttributes  */                                  \
+        nullptr, /* getSpecialAttributes  */                                  \
         nullptr, /* setGenericAttributes  */                                  \
+        nullptr, /* setAttributes  */                                         \
+        nullptr, /* setElementAttributes  */                                  \
+        nullptr, /* setSpecialAttributes  */                                  \
         nullptr, /* deleteProperty */                                         \
         nullptr, /* deleteElement */                                          \
         nullptr, /* deleteSpecial */                                          \
@@ -1231,7 +1237,13 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JS::HandleObject obj);
         nullptr, /* setElement    */                                          \
         nullptr, /* setSpecial    */                                          \
         nullptr, /* getGenericAttributes  */                                  \
+        nullptr, /* getAttributes  */                                         \
+        nullptr, /* getElementAttributes  */                                  \
+        nullptr, /* getSpecialAttributes  */                                  \
         nullptr, /* setGenericAttributes  */                                  \
+        nullptr, /* setAttributes  */                                         \
+        nullptr, /* setElementAttributes  */                                  \
+        nullptr, /* setSpecialAttributes  */                                  \
         nullptr, /* deleteProperty */                                         \
         nullptr, /* deleteElement */                                          \
         nullptr, /* deleteSpecial */                                          \
@@ -3856,8 +3868,6 @@ GetObjectScope(JSObject *obj)
 
 extern bool gDebugMode;
 extern bool gDesiredDebugMode;
-
-extern JSClass SafeJSContextGlobalClass;
 
 JSObject* NewOutObject(JSContext* cx, JSObject* scope);
 bool IsOutObject(JSContext* cx, JSObject* obj);

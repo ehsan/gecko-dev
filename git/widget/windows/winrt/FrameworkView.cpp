@@ -197,6 +197,7 @@ FrameworkView::ShutdownXPCOM()
   mAutomationProvider = nullptr;
 
   mMetroInput = nullptr;
+  mD2DWindowSurface = nullptr;
   delete sSettingsArray;
   sSettingsArray = nullptr;
   mWidget = nullptr;

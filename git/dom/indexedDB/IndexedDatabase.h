@@ -17,7 +17,6 @@
 #include "nsError.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "nsIInputStream.h"
 
 #define BEGIN_INDEXEDDB_NAMESPACE \
   namespace mozilla { namespace dom { namespace indexedDB {
@@ -29,6 +28,7 @@
   using namespace mozilla::dom::indexedDB;
 
 class nsIDOMBlob;
+class nsIInputStream;
 
 BEGIN_INDEXEDDB_NAMESPACE
 

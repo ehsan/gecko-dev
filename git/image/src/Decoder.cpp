@@ -5,11 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Decoder.h"
+#include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "GeckoProfiler.h"
-#include "nsServiceManagerUtils.h"
-#include "nsComponentManagerUtils.h"
 
 namespace mozilla {
 namespace image {

@@ -11,6 +11,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "gfxASurface.h"
 #include "imgFrame.h"
+#include "nsISupportsImpl.h"
 
 namespace mozilla {
 namespace image {

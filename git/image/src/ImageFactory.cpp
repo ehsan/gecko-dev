@@ -12,10 +12,13 @@
 #include "nsIHttpChannel.h"
 #include "nsIFileChannel.h"
 #include "nsIFile.h"
+#include "nsSimpleURI.h"
 #include "nsMimeTypes.h"
 #include "nsIURI.h"
 #include "nsIRequest.h"
 
+#include "imgIContainer.h"
+#include "imgStatusTracker.h"
 #include "RasterImage.h"
 #include "VectorImage.h"
 #include "Image.h"

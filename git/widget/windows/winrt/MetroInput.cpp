@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Moz headers (alphabetical)
-#include "MetroInput.h"
 #include "MetroUtils.h" // Logging, POINT_CEIL_*, ActivateGenericInstance, etc
 #include "MetroWidget.h" // MetroInput::mWidget
 #include "mozilla/dom/Touch.h"  // Touch
@@ -161,6 +160,8 @@ MetroInput::MetroInput(MetroWidget* aWidget,
   LogFunction();
   NS_ASSERTION(aWidget, "Attempted to create MetroInput for null widget!");
   NS_ASSERTION(aWindow, "Attempted to create MetroInput for null window!");
+
+  mWidget->SetMetroInput(this);
 
   mTokenPointerPressed.value = 0;
   mTokenPointerReleased.value = 0;
@@ -925,6 +926,27 @@ MetroInput::OnRightTapped(UI::Input::IGestureRecognizer* aSender,
     LayoutDeviceIntPoint::FromUntyped(MetroUtils::LogToPhys(position)));
 
   return S_OK;
+}
+
+// Used by MetroWidget GeckoContentController callbacks
+void
+MetroInput::HandleDoubleTap(const LayoutDeviceIntPoint& aPoint)
+{
+#ifdef DEBUG_INPUT
+  LogFunction();
+#endif
+  nsSimpleGestureEvent* tapEvent =
+    new nsSimpleGestureEvent(true,
+                             NS_SIMPLE_GESTURE_TAP,
+                             mWidget.Get(),
+                             0,
+                             0.0);
+
+  tapEvent->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  tapEvent->refPoint = aPoint;
+  tapEvent->clickCount = 2;
+  tapEvent->pressure = 1;
+  DispatchAsyncEventIgnoreStatus(tapEvent);
 }
 
 void

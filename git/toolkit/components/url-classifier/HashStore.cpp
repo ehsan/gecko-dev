@@ -146,7 +146,7 @@ TableUpdate::NewAddComplete(uint32_t aAddChunk, const Completion& aHash)
 {
   AddComplete *add = mAddCompletes.AppendElement();
   add->addChunk = aAddChunk;
-  add->complete = aHash;
+  add->hash.complete = aHash;
 }
 
 void
@@ -154,7 +154,7 @@ TableUpdate::NewSubComplete(uint32_t aAddChunk, const Completion& aHash, uint32_
 {
   SubComplete *sub = mSubCompletes.AppendElement();
   sub->addChunk = aAddChunk;
-  sub->complete = aHash;
+  sub->hash.complete = aHash;
   sub->subChunk = aSubChunk;
 }
 
@@ -323,8 +323,6 @@ HashStore::CalculateChecksum(nsAutoCString& aChecksum,
   // Size of MD5 hash in bytes
   const uint32_t CHECKSUM_SIZE = 16;
 
-  // MD5 is not a secure hash function, but since this is a filesystem integrity
-  // check, this usage is ok.
   rv = hash->Init(nsICryptoHash::MD5);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -364,7 +362,9 @@ HashStore::UpdateHeader()
 nsresult
 HashStore::ReadChunkNumbers()
 {
-  NS_ENSURE_STATE(mInputStream);
+  if (!mInputStream) {
+    return NS_OK;
+  }
 
   nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mInputStream);
   nsresult rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET,
@@ -385,8 +385,6 @@ nsresult
 HashStore::ReadHashes()
 {
   if (!mInputStream) {
-    // BeginUpdate has been called but Open hasn't initialized mInputStream,
-    // because the existing HashStore is empty.
     return NS_OK;
   }
 
@@ -821,14 +819,14 @@ HashStore::WriteFile()
   rv = out->Write(reinterpret_cast<char*>(&mHeader), sizeof(mHeader), &written);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Write chunk numbers.
+  // Write chunk numbers...
   rv = mAddChunks.Write(out);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mSubChunks.Write(out);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Write hashes.
+  // Write hashes..
   rv = WriteAddPrefixes(out);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1004,7 +1002,7 @@ HashStore::ProcessSubs()
 
   // Remove any remaining subbed prefixes from both addprefixes
   // and addcompletes.
-  KnockoutSubs(&mSubPrefixes, &mAddPrefixes);
+  KnockoutSubs(&mSubPrefixes,  &mAddPrefixes);
   KnockoutSubs(&mSubCompletes, &mAddCompletes);
 
   // Remove any remaining subprefixes referring to addchunks that

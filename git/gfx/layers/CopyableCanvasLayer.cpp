@@ -28,18 +28,6 @@ using namespace mozilla::gl;
 namespace mozilla {
 namespace layers {
 
-CopyableCanvasLayer::CopyableCanvasLayer(LayerManager* aLayerManager, void *aImplData) :
-  CanvasLayer(aLayerManager, aImplData)
-{
-  MOZ_COUNT_CTOR(CopyableCanvasLayer);
-  mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
-}
-
-CopyableCanvasLayer::~CopyableCanvasLayer()
-{
-  MOZ_COUNT_DTOR(CopyableCanvasLayer);
-}
-
 void
 CopyableCanvasLayer::Initialize(const Data& aData)
 {

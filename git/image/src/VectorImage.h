@@ -8,9 +8,11 @@
 
 #include "Image.h"
 #include "nsIStreamListener.h"
+#include "nsIRequest.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/WeakPtr.h"
 
-class nsIRequest;
+class imgDecoderObserver;
 
 namespace mozilla {
 namespace layers {

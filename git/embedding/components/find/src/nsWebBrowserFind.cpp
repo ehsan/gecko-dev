@@ -38,7 +38,6 @@
 #include "nsFocusManager.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
-#include "nsISimpleEnumerator.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"

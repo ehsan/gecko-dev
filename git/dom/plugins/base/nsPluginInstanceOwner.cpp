@@ -58,7 +58,6 @@ using mozilla::DefaultXDisplay;
 #include "nsIDocShell.h"
 #include "ImageContainer.h"
 #include "nsIDOMHTMLCollection.h"
-#include "GLContext.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"

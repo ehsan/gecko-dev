@@ -334,6 +334,7 @@ var BrowserApp = {
     Reader.init();
     UserAgentOverrides.init();
     DesktopUserAgent.init();
+    ExternalApps.init();
     Distribution.init();
     Tabs.init();
 #ifdef ACCESSIBILITY
@@ -367,9 +368,6 @@ var BrowserApp = {
       SearchEngines.init();
       this.initContextMenu();
     }
-    // The order that context menu items are added is important
-    // Make sure the "Open in App" context menu item appears at the bottom of the list
-    ExternalApps.init();
 
     // XXX maybe we don't do this if the launch was kicked off from external
     Services.io.offline = false;

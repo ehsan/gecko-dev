@@ -11,7 +11,6 @@
 #include "SourceBuffer.h"
 #include "SourceBufferList.h"
 #include "nsContentTypeParser.h"
-#include "nsIInputStream.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaSourceLog;

@@ -100,6 +100,8 @@ function getFormSubmitButton(formNum) {
 
 // Counts the number of logins currently stored by password manager.
 function countLogins() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   var logins = pwmgr.getAllLogins();
 
   return logins.length;
@@ -108,10 +110,12 @@ function countLogins() {
 commonInit();
 
 // Get the pwmgr service
-var Cc_pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"];
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+var Cc_pwmgr = Components.classes["@mozilla.org/login-manager;1"];
 ok(Cc_pwmgr != null, "Access Cc[@mozilla.org/login-manager;1]");
 
-var Ci_pwmgr = SpecialPowers.Ci.nsILoginManager;
+var Ci_pwmgr = Components.interfaces.nsILoginManager;
 ok(Ci_pwmgr != null, "Access Ci.nsILoginManager");
 
 var pwmgr = Cc_pwmgr.getService(Ci_pwmgr);

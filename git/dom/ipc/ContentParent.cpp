@@ -34,7 +34,6 @@
 #include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/PFMRadioParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
-#include "mozilla/dom/GeolocationBinding.h"
 #include "SmsParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
@@ -149,6 +148,7 @@ using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::power;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::hal;
+using namespace mozilla::idl;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
@@ -2621,8 +2621,8 @@ AddGeolocationListener(nsIDOMGeoPositionCallback* watcher, bool highAccuracy)
     return -1;
   }
 
-  PositionOptions* options = new PositionOptions();
-  options->mEnableHighAccuracy = highAccuracy;
+  GeoPositionOptions* options = new GeoPositionOptions();
+  options->enableHighAccuracy = highAccuracy;
   int32_t retval = 1;
   geo->WatchPosition(watcher, nullptr, options, &retval);
   return retval;

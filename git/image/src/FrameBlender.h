@@ -9,10 +9,10 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "gfxASurface.h"
+#include "imgFrame.h"
 #include "FrameSequence.h"
 #include "nsCOMPtr.h"
-
-class imgFrame;
+#include "nsISupportsImpl.h"
 
 namespace mozilla {
 namespace image {

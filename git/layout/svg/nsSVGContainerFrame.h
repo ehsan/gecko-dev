@@ -8,6 +8,7 @@
 
 #include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
+#include "gfxRect.h"
 #include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsIFrame.h"
@@ -23,8 +24,6 @@ class nsRenderingContext;
 class nsStyleContext;
 
 struct nsPoint;
-struct nsRect;
-struct nsIntRect;
 
 typedef nsContainerFrame nsSVGContainerFrameBase;
 

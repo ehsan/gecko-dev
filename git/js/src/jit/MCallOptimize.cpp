@@ -323,10 +323,7 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
     bool needsHoleCheck = thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
     bool maybeUndefined = returnTypes->hasType(types::Type::UndefinedType());
 
-    bool barrier;
-    if (!PropertyReadNeedsTypeBarrier(cx, callInfo.thisArg(), NULL, returnTypes, &barrier))
-        return InliningStatus_Error;
-
+    bool barrier = PropertyReadNeedsTypeBarrier(cx, callInfo.thisArg(), NULL, returnTypes);
     if (barrier)
         returnType = MIRType_Value;
 
@@ -353,13 +350,7 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
 
     MDefinition *obj = callInfo.thisArg();
     MDefinition *value = callInfo.getArg(0);
-    bool writeNeedsBarrier;
-    if (!PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &value, /* canModify = */ false,
-                                       &writeNeedsBarrier))
-    {
-        return InliningStatus_Error;
-    }
-    if (writeNeedsBarrier)
+    if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &value, /* canModify = */ false))
         return InliningStatus_NotInlined;
     JS_ASSERT(obj == callInfo.thisArg() && value == callInfo.getArg(0));
 
@@ -1011,22 +1002,12 @@ IonBuilder::inlineUnsafePutElements(CallInfo &callInfo)
         MDefinition *id = callInfo.getArg(idxi);
         MDefinition *elem = callInfo.getArg(elemi);
 
-        bool isDenseNative = ElementAccessIsDenseNative(obj, id);
-
-        bool writeNeedsBarrier = false;
-        if (isDenseNative) {
-            if (!PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &elem,
-                                               /* canModify = */ false,
-                                               &writeNeedsBarrier))
-            {
-                return InliningStatus_Error;
-            }
-        }
-
         // We can only inline setelem on dense arrays that do not need type
         // barriers and on typed arrays.
         ScalarTypeRepresentation::Type arrayType;
-        if ((!isDenseNative || writeNeedsBarrier) &&
+        if ((!ElementAccessIsDenseNative(obj, id) ||
+             PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL,
+                                           &elem, /* canModify = */ false)) &&
             !ElementAccessIsTypedArray(obj, id, &arrayType))
         {
             return InliningStatus_NotInlined;
