@@ -1974,6 +1974,12 @@ JS_RemoveGCThingRoot(JSContext *cx, void **rp)
     return js_RemoveRoot(cx->runtime, (void *)rp);
 }
 
+JS_PUBLIC_API(void)
+JS_ClearNewbornRoots(JSContext *cx)
+{
+    JS_CLEAR_WEAK_ROOTS(&cx->weakRoots);
+}
+
 #ifdef DEBUG
 
 JS_PUBLIC_API(void)
@@ -4392,6 +4398,7 @@ inline static void
 LAST_FRAME_CHECKS(JSContext *cx, bool result)
 {
     if (!JS_IsRunning(cx)) {
+        cx->weakRoots.lastInternalResult = NULL;
         LAST_FRAME_EXCEPTION_CHECK(cx, result);
     }
 }
@@ -4616,18 +4623,18 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
             argAtom = js_Atomize(cx, argnames[i], strlen(argnames[i]), 0);
             if (!argAtom) {
                 fun = NULL;
-                goto out2;
+                goto out;
             }
             if (!js_AddLocal(cx, fun, argAtom, JSLOCAL_ARG)) {
                 fun = NULL;
-                goto out2;
+                goto out;
             }
         }
 
         if (!Compiler::compileFunctionBody(cx, fun, principals,
                                            chars, length, filename, lineno)) {
             fun = NULL;
-            goto out2;
+            goto out;
         }
 
         if (obj && funAtom &&
@@ -4646,6 +4653,9 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
             JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
         }
 #endif
+
+      out:
+        cx->weakRoots.finalizableNewborns[FINALIZE_FUNCTION] = fun;
     }
 
   out2:
@@ -5668,7 +5678,7 @@ JS_SetGCZeal(JSContext *cx, uint8 zeal)
 
 /************************************************************************/
 
-#if !defined(STATIC_EXPORTABLE_JS_API) && !defined(STATIC_JS_API) && defined(XP_WIN) && !defined (WINCE)
+#if !defined(STATIC_JS_API) && defined(XP_WIN) && !defined (WINCE)
 
 #include "jswin.h"
 

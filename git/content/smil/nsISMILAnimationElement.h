@@ -53,6 +53,7 @@ class nsISMILAttr;
 class nsSMILAnimationFunction;
 class nsSMILTimeContainer;
 class nsSMILTimedElement;
+class nsIContent;
 class nsIAtom;
 class nsAttrValue;
 
@@ -74,14 +75,14 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISMILANIMATIONELEMENT_IID)
 
   /*
-   * Returns this element as a mozilla::dom::Element.
+   * Returns this element as nsIContent.
    */
-  virtual const mozilla::dom::Element& AsElement() const = 0;
+  virtual const nsIContent& Content() const = 0;
 
   /*
-   * Non-const version of Element()
+   * Non-const version of Content()
    */
-  virtual mozilla::dom::Element& AsElement() = 0;
+  virtual nsIContent& Content() = 0;
 
   /*
    * Returns the source attribute as an nsAttrValue. The global namespace will

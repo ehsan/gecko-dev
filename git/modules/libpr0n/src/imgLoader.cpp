@@ -39,16 +39,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "imgLoader.h"
-#include "imgRequestProxy.h"
+#include "imgContainer.h"
 
-#include "RasterImage.h"
-/* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
- * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
- * gets changed.
- * This #undef needs to be in multiple places because we don't always pull
- * headers in in the same order.
- */
-#undef LoadImage
 
 #include "nsCOMPtr.h"
 
@@ -70,6 +62,9 @@
 
 #include "netCore.h"
 
+#include "imgRequest.h"
+#include "imgRequestProxy.h"
+
 #include "nsURILoader.h"
 #include "ImageLogging.h"
 
@@ -90,15 +85,12 @@
 
 #include "mozilla/FunctionTimer.h"
 
-using namespace mozilla::imagelib;
-
 #if defined(DEBUG_pavlov) || defined(DEBUG_timeless)
 #include "nsISimpleEnumerator.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPIDLString.h"
 #include "nsComponentManagerUtils.h"
-
 
 static void PrintImageDecoders()
 {
@@ -225,14 +217,14 @@ public:
     }
 
     nsRefPtr<imgRequest> req = entry->GetRequest();
-    RasterImage *image = static_cast<RasterImage*>(req->mImage.get());
-    if (!image)
+    imgContainer *container = (imgContainer*) req->mImage.get();
+    if (!container)
       return PL_DHASH_NEXT;
 
     if (rtype & RAW_BIT) {
-      arg->value += image->GetSourceDataSize();
+      arg->value += container->GetSourceDataSize();
     } else {
-      arg->value += image->GetDecodedDataSize();
+      arg->value += container->GetDecodedDataSize();
     }
 
     return PL_DHASH_NEXT;

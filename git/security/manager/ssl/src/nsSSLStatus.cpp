@@ -255,7 +255,6 @@ nsSSLStatus::nsSSLStatus()
 , mHaveKeyLengthAndCipher(PR_FALSE)
 , mHaveCertErrorBits(PR_FALSE)
 {
-  mCipherName = "";
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsSSLStatus, nsISSLStatus, nsISerializable, nsIClassInfo)

@@ -1057,6 +1057,18 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_NEWINIT)
 
           BEGIN_CASE(JSOP_ENDINIT)
+          {
+            FrameEntry *fe = frame.peek(-1);
+            RegisterID traversalReg = frame.allocReg();
+            JS_ASSERT(!fe->isConstant());
+            RegisterID objReg = frame.tempRegForData(fe);
+            masm.loadPtr(FrameAddress(offsetof(VMFrame, cx)), traversalReg);
+            masm.storePtr(objReg,
+                          Address(traversalReg,
+                                  offsetof(JSContext,
+                                           weakRoots.finalizableNewborns[FINALIZE_OBJECT])));
+            frame.freeReg(traversalReg);
+          }
           END_CASE(JSOP_ENDINIT)
 
           BEGIN_CASE(JSOP_INITPROP)
@@ -1562,6 +1574,16 @@ mjit::Compiler::jsop_getglobal(uint32 index)
 }
 
 void
+mjit::Compiler::restoreReturnAddress(Assembler &masm)
+{
+#ifndef JS_CPU_ARM
+    masm.push(Address(JSFrameReg, offsetof(JSStackFrame, ncode)));
+#else
+    masm.move(Address(JSFrameReg, offsetof(JSStackFrame, ncode)), JSC::ARMRegisters::lr);
+#endif
+}
+
+void
 mjit::Compiler::emitReturn()
 {
     /*
@@ -1572,7 +1594,7 @@ mjit::Compiler::emitReturn()
                                         FrameAddress(offsetof(VMFrame, entryFp)),
                                         JSFrameReg);
     stubcc.linkExit(noInlineCalls, Uses(frame.frameDepth()));
-    stubcc.masm.restoreReturnAddress();
+    restoreReturnAddress(stubcc.masm);
     stubcc.masm.ret();
 
     JS_ASSERT_IF(!fun, JSOp(*PC) == JSOP_STOP);
@@ -1633,7 +1655,7 @@ mjit::Compiler::emitReturn()
     Address rval(JSFrameReg, JSStackFrame::offsetReturnValue());
     masm.loadPayload(rval, JSReturnReg_Data);
     masm.loadTypeTag(rval, JSReturnReg_Type);
-    masm.restoreReturnAddress();
+    restoreReturnAddress(masm);
     masm.move(Registers::ReturnReg, JSFrameReg);
 #ifdef DEBUG
     masm.storePtr(ImmPtr(JSStackFrame::sInvalidPC),
@@ -3773,7 +3795,7 @@ mjit::Compiler::jsop_instanceof()
 
 /*
  * Note: This function emits tracer hooks into the OOL path. This means if
- * it is used in the middle of an in-progress slow path, the stream will be
+ * used in the middle of an in-progress slow path, the stream will be
  * hopelessly corrupted. Take care to only call this before linkExits() and
  * after rejoin()s.
  */
