@@ -13,7 +13,6 @@
 
 class nsCSSValue;
 class nsStringComparator;
-class nsStyleCoord;
 class nsIContent;
 struct gfxFontFeature;
 class nsCSSValueList;
@@ -45,8 +44,6 @@ public:
                                     int32_t aFirstMask,
                                     int32_t aLastMask,
                                     nsAString& aResult);
-
-  static void AppendAngleValue(const nsStyleCoord& aValue, nsAString& aResult);
 
   static void AppendPaintOrderValue(uint8_t aValue, nsAString& aResult);
 

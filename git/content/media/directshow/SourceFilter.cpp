@@ -8,7 +8,6 @@
 #include "MediaResource.h"
 #include "mozilla/RefPtr.h"
 #include "DirectShowUtils.h"
-#include "prlog.h"
 
 using namespace mozilla::media;
 
@@ -60,45 +59,6 @@ public:
   uint32_t mCount;
 };
 
-// A wrapper around media resource that presents only a partition of the
-// underlying resource to the caller to use. The partition returned is from
-// an offset to the end of stream, and this object deals with ensuring
-// the offsets and lengths etc are translated from the reduced partition
-// exposed to the caller, to the absolute offsets of the underlying stream.
-class MediaResourcePartition {
-public:
-  MediaResourcePartition(MediaResource* aResource,
-                         int64_t aDataStart)
-    : mResource(aResource),
-      mDataOffset(aDataStart)
-  {}
-
-  int64_t GetLength() {
-    int64_t len = mResource->GetLength();
-    if (len == -1) {
-      return len;
-    }
-    return std::max<int64_t>(0, len - mDataOffset);
-  }
-  nsresult ReadAt(int64_t aOffset, char* aBuffer,
-                  uint32_t aCount, uint32_t* aBytes)
-  {
-    return mResource->ReadAt(aOffset + mDataOffset,
-                             aBuffer,
-                             aCount,
-                             aBytes);
-  }
-  int64_t GetCachedDataEnd() {
-    int64_t tell = mResource->Tell();
-    int64_t dataEnd = mResource->GetCachedDataEnd(tell) - mDataOffset;
-    return dataEnd;
-  }
-private:
-  // MediaResource from which we read data.
-  RefPtr<MediaResource> mResource;
-  int64_t mDataOffset;
-};
-
 
 // Output pin for SourceFilter, which implements IAsyncReader, to
 // allow downstream filters to pull/read data from it. Downstream pins
@@ -106,10 +66,6 @@ private:
 // reads to complete using WaitForNext(). They may also synchronously read
 // using SyncRead(). This class is a delegate (tear off) of
 // SourceFilter.
-//
-// We can expose only a segment of the MediaResource to the filter graph.
-// This is used to strip off the ID3v2 tags from the stream, as DirectShow
-// has trouble parsing some headers.
 //
 // Implements:
 //  * IAsyncReader
@@ -125,8 +81,7 @@ public:
 
   OutputPin(MediaResource* aMediaResource,
             SourceFilter* aParent,
-            CriticalSection& aFilterLock,
-            int64_t aMP3DataStart);
+            CriticalSection& aFilterLock);
   virtual ~OutputPin();
 
   // IUnknown
@@ -199,7 +154,8 @@ private:
   // The filter that owns us. Weak reference, as we're a delegate (tear off).
   SourceFilter* mParentSource;
 
-  MediaResourcePartition mResource;
+  // MediaResource from which we read data.
+  RefPtr<MediaResource> mResource;
 
   // Counter, inc'd in BeginFlush(), dec'd in EndFlush(). Calls to this can
   // come from multiple threads and can interleave, hence the counter.
@@ -222,8 +178,7 @@ private:
 
 OutputPin::OutputPin(MediaResource* aResource,
                      SourceFilter* aParent,
-                     CriticalSection& aFilterLock,
-                     int64_t aMP3DataStart)
+                     CriticalSection& aFilterLock)
   : BasePin(static_cast<BaseFilter*>(aParent),
             &aFilterLock,
             L"MozillaOutputPin",
@@ -231,13 +186,14 @@ OutputPin::OutputPin(MediaResource* aResource,
     mPinLock(aFilterLock),
     mSignal(&mPinLock),
     mParentSource(aParent),
-    mResource(aResource, aMP3DataStart),
+    mResource(aResource),
     mFlushCount(0),
     mBytesConsumed(0),
     mQueriedForAsyncReader(false)
 {
   MOZ_COUNT_CTOR(OutputPin);
   LOG("OutputPin::OutputPin()");
+  mResource->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 }
 
 OutputPin::~OutputPin()
@@ -510,7 +466,7 @@ OutputPin::SyncReadAligned(IMediaSample* aSample)
 
   // If the range extends off the end of stream, truncate to the end of stream
   // as per IAsyncReader specificiation.
-  int64_t streamLength = mResource.GetLength();
+  int64_t streamLength = mResource->GetLength();
   if (streamLength != -1) {
     // We know the exact length of the stream, fail if the requested offset
     // is beyond it.
@@ -556,10 +512,10 @@ OutputPin::SyncRead(LONGLONG aPosition,
     BYTE* readBuffer = aBuffer + totalBytesRead;
     uint32_t bytesRead = 0;
     LONG length = aLength - totalBytesRead;
-    nsresult rv = mResource.ReadAt(aPosition + totalBytesRead,
-                                   reinterpret_cast<char*>(readBuffer),
-                                   length,
-                                   &bytesRead);
+    nsresult rv = mResource->ReadAt(aPosition + totalBytesRead,
+                                    reinterpret_cast<char*>(readBuffer),
+                                    length,
+                                    &bytesRead);
     if (NS_FAILED(rv)) {
       return E_FAIL;
     }
@@ -579,7 +535,7 @@ STDMETHODIMP
 OutputPin::Length(LONGLONG* aTotal, LONGLONG* aAvailable)
 {
   HRESULT hr = S_OK;
-  int64_t length = mResource.GetLength();
+  int64_t length = mResource->GetLength();
   if (length == -1) {
     hr = VFW_S_ESTIMATED;
     // Don't have a length. Just lie, it seems to work...
@@ -588,7 +544,7 @@ OutputPin::Length(LONGLONG* aTotal, LONGLONG* aAvailable)
     *aTotal = length;
   }
   if (aAvailable) {
-    *aAvailable = mResource.GetCachedDataEnd();
+    *aAvailable = mResource->GetCachedDataEnd(mResource->Tell());
   }
 
   LOG("OutputPin::Length() len=%lld avail=%lld", *aTotal, *aAvailable);
@@ -659,82 +615,14 @@ SourceFilter::GetMediaType() const
   return &mMediaType;
 }
 
-// Gets the length of the ID3v2 tag which starts at aStartOffset.
-static nsresult
-GetID3TagLength(MediaResource* aResource,
-                int64_t aStartOffset,
-                int32_t* aLength)
-{
-  MOZ_ASSERT(aLength);
-  char header[10];
-  uint32_t totalBytesRead = 0;
-  while (totalBytesRead < 10) {
-    uint32_t bytesRead = 0;
-    nsresult rv = aResource->ReadAt(aStartOffset + totalBytesRead,
-                                    header+totalBytesRead,
-                                    10-totalBytesRead,
-                                    &bytesRead);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (bytesRead == 0) {
-      // Reached end of file?
-      return NS_ERROR_FAILURE;
-    }
-    totalBytesRead += bytesRead;
-  }
-  if (strncmp("ID3", header, 3)) {
-    // No ID3v2 header
-    *aLength = 0;
-    return NS_OK;
-  }
-
-  int32_t id3Length =
-    10 +
-    (int32_t(0x7f & header[6]) << 21) +
-    (int32_t(0x7f & header[7]) << 14) +
-    (int32_t(0x7f & header[8]) << 7) +
-     int32_t(0x7f & header[9]);
-
-  *aLength = id3Length;
-  return NS_OK;
-}
-
-// Parses the ID3v2 headers in the resource and returns the offset of the
-// MP3 data after the ID3v2 headers. This is used to trim off the ID3v2 headers,
-// as DirectShow can't handle some ID3v2 tags (possibly ones that are large).
-static nsresult
-GetMP3DataOffset(MediaResource* aResource, int64_t* aOutOffset)
-{
-  nsresult rv;
-  int64_t id3TagsEndOffset = 0;
-  int32_t length = 0;
-  do {
-    rv = GetID3TagLength(aResource, id3TagsEndOffset, &length);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (length > 0) {
-      id3TagsEndOffset += length;
-    }
-  } while (length > 0);
-  *aOutOffset = id3TagsEndOffset;
-  return NS_OK;
-}
-
 nsresult
 SourceFilter::Init(MediaResource* aResource)
 {
   LOG("SourceFilter::Init()");
 
-  // Get the offset of MP3 data in the stream, and pass that into
-  // the output pin so that the stream that we present to DirectShow
-  // does not contain ID3v2 tags. DirectShow can't properly parse some
-  // streams' ID3v2 tags.
-  int64_t mp3DataOffset = 0;
-  nsresult rv = GetMP3DataOffset(aResource, &mp3DataOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   mOutputPin = new OutputPin(aResource,
                              this,
-                             mLock,
-                             mp3DataOffset);
+                             mLock);
   NS_ENSURE_TRUE(mOutputPin != nullptr, NS_ERROR_FAILURE);
 
   return NS_OK;

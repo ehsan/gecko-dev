@@ -32,6 +32,3 @@ elif CONFIG['ANDROID_VERSION'] == '15':
     ]
 else:
     error('Unsupported platform version: %s' % (CONFIG['ANDROID_VERSION']))
-
-LIBRARY_NAME = 'display'
-

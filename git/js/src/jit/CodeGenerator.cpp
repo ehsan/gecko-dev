@@ -79,10 +79,9 @@ class OutOfLineUpdateCache :
     }
 
     // ICs' visit functions delegating the work to the CodeGen visit funtions.
-#define VISIT_CACHE_FUNCTION(op)                                        \
-    bool visit##op##IC(CodeGenerator *codegen) {                        \
-        CodeGenerator::DataPtr<op##IC> ic(codegen, getCacheIndex());    \
-        return codegen->visit##op##IC(this, ic);                        \
+#define VISIT_CACHE_FUNCTION(op)                                \
+    bool visit##op##IC(CodeGenerator *codegen, op##IC *ic) {    \
+        return codegen->visit##op##IC(this, ic);                \
     }
 
     IONCACHE_KIND_LIST(VISIT_CACHE_FUNCTION)
@@ -96,7 +95,7 @@ class OutOfLineUpdateCache :
 bool
 CodeGeneratorShared::addCache(LInstruction *lir, size_t cacheIndex)
 {
-    DataPtr<IonCache> cache(this, cacheIndex);
+    IonCache *cache = static_cast<IonCache *>(getCache(cacheIndex));
     MInstruction *mir = lir->mirRaw()->toInstruction();
     if (mir->resumePoint())
         cache->setScriptedLocation(mir->block()->info().script(),
@@ -120,7 +119,8 @@ CodeGeneratorShared::addCache(LInstruction *lir, size_t cacheIndex)
 bool
 CodeGenerator::visitOutOfLineCache(OutOfLineUpdateCache *ool)
 {
-    DataPtr<IonCache> cache(this, ool->getCacheIndex());
+    size_t cacheIndex = ool->getCacheIndex();
+    IonCache *cache = static_cast<IonCache *>(getCache(cacheIndex));
 
     // Register the location of the OOL path in the IC.
     cache->setFallbackLabel(masm.labelForPatch());
@@ -5451,6 +5451,7 @@ CodeGenerator::generateAsmJS()
     JS_ASSERT(osiIndices_.empty());
     JS_ASSERT(cacheList_.empty());
     JS_ASSERT(safepoints_.size() == 0);
+    JS_ASSERT(graph.mir().numScripts() == 0);
     return true;
 }
 
@@ -5536,8 +5537,8 @@ CodeGenerator::link()
                      bailouts_.length(), graph.numConstants(),
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
-                     safepoints_.size(), callTargets.length(),
-                     patchableBackedges_.length());
+                     safepoints_.size(), graph.mir().numScripts(),
+                     callTargets.length(), patchableBackedges_.length());
     if (!ionScript)
         return false;
 
@@ -5619,6 +5620,8 @@ CodeGenerator::link()
         ionScript->copySnapshots(&snapshots_);
     if (graph.numConstants())
         ionScript->copyConstants(graph.constantPool());
+    JS_ASSERT(graph.mir().numScripts() > 0);
+    ionScript->copyScriptEntries(graph.mir().scripts());
     if (callTargets.length() > 0)
         ionScript->copyCallTargetEntries(callTargets.begin());
     if (patchableBackedges_.length() > 0)
@@ -5829,7 +5832,7 @@ const VMFunction CallsiteCloneIC::UpdateInfo =
     FunctionInfo<CallsiteCloneICFn>(CallsiteCloneIC::update);
 
 bool
-CodeGenerator::visitCallsiteCloneIC(OutOfLineUpdateCache *ool, DataPtr<CallsiteCloneIC> &ic)
+CodeGenerator::visitCallsiteCloneIC(OutOfLineUpdateCache *ool, CallsiteCloneIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -5861,7 +5864,7 @@ typedef bool (*NameICFn)(JSContext *, size_t, HandleObject, MutableHandleValue);
 const VMFunction NameIC::UpdateInfo = FunctionInfo<NameICFn>(NameIC::update);
 
 bool
-CodeGenerator::visitNameIC(OutOfLineUpdateCache *ool, DataPtr<NameIC> &ic)
+CodeGenerator::visitNameIC(OutOfLineUpdateCache *ool, NameIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -5925,17 +5928,9 @@ const VMFunction GetPropertyIC::UpdateInfo =
     FunctionInfo<GetPropertyICFn>(GetPropertyIC::update);
 
 bool
-CodeGenerator::visitGetPropertyIC(OutOfLineUpdateCache *ool, DataPtr<GetPropertyIC> &ic)
+CodeGenerator::visitGetPropertyIC(OutOfLineUpdateCache *ool, GetPropertyIC *ic)
 {
     LInstruction *lir = ool->lir();
-
-    if (ic->idempotent()) {
-        size_t numLocs;
-        CacheLocationList &cacheLocs = lir->mirRaw()->toGetPropertyCache()->location();
-        size_t locationBase = addCacheLocations(cacheLocs, &numLocs);
-        ic->setLocationInfo(locationBase, numLocs);
-    }
-
     saveLive(lir);
 
     pushArg(ic->object());
@@ -5955,7 +5950,7 @@ const VMFunction GetPropertyParIC::UpdateInfo =
     FunctionInfo<GetPropertyParICFn>(GetPropertyParIC::update);
 
 bool
-CodeGenerator::visitGetPropertyParIC(OutOfLineUpdateCache *ool, DataPtr<GetPropertyParIC> &ic)
+CodeGenerator::visitGetPropertyParIC(OutOfLineUpdateCache *ool, GetPropertyParIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6014,7 +6009,7 @@ const VMFunction GetElementIC::UpdateInfo =
     FunctionInfo<GetElementICFn>(GetElementIC::update);
 
 bool
-CodeGenerator::visitGetElementIC(OutOfLineUpdateCache *ool, DataPtr<GetElementIC> &ic)
+CodeGenerator::visitGetElementIC(OutOfLineUpdateCache *ool, GetElementIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6069,7 +6064,7 @@ const VMFunction SetElementIC::UpdateInfo =
     FunctionInfo<SetElementICFn>(SetElementIC::update);
 
 bool
-CodeGenerator::visitSetElementIC(OutOfLineUpdateCache *ool, DataPtr<SetElementIC> &ic)
+CodeGenerator::visitSetElementIC(OutOfLineUpdateCache *ool, SetElementIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6092,7 +6087,7 @@ const VMFunction GetElementParIC::UpdateInfo =
     FunctionInfo<GetElementParICFn>(GetElementParIC::update);
 
 bool
-CodeGenerator::visitGetElementParIC(OutOfLineUpdateCache *ool, DataPtr<GetElementParIC> &ic)
+CodeGenerator::visitGetElementParIC(OutOfLineUpdateCache *ool, GetElementParIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6124,7 +6119,7 @@ const VMFunction BindNameIC::UpdateInfo =
     FunctionInfo<BindNameICFn>(BindNameIC::update);
 
 bool
-CodeGenerator::visitBindNameIC(OutOfLineUpdateCache *ool, DataPtr<BindNameIC> &ic)
+CodeGenerator::visitBindNameIC(OutOfLineUpdateCache *ool, BindNameIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6212,7 +6207,7 @@ const VMFunction SetPropertyIC::UpdateInfo =
     FunctionInfo<SetPropertyICFn>(SetPropertyIC::update);
 
 bool
-CodeGenerator::visitSetPropertyIC(OutOfLineUpdateCache *ool, DataPtr<SetPropertyIC> &ic)
+CodeGenerator::visitSetPropertyIC(OutOfLineUpdateCache *ool, SetPropertyIC *ic)
 {
     LInstruction *lir = ool->lir();
     saveLive(lir);
@@ -6552,7 +6547,7 @@ template <typename T>
 static inline void
 StoreToTypedArray(MacroAssembler &masm, int arrayType, const LAllocation *value, const T &dest)
 {
-    if (arrayType == ScalarTypeRepresentation::TYPE_FLOAT32 || arrayType == ScalarTypeRepresentation::TYPE_FLOAT64) {
+    if (arrayType == TypedArrayObject::TYPE_FLOAT32 || arrayType == TypedArrayObject::TYPE_FLOAT64) {
         masm.storeToTypedFloatArray(arrayType, ToFloatRegister(value), dest);
     } else {
         if (value->isConstant())
@@ -7274,7 +7269,7 @@ CodeGenerator::visitAsmJSVoidReturn(LAsmJSVoidReturn *lir)
 bool
 CodeGenerator::visitAsmJSCheckOverRecursed(LAsmJSCheckOverRecursed *lir)
 {
-    uintptr_t *limitAddr = &GetIonContext()->runtime->mainThread.nativeStackLimit[StackForUntrustedScript];
+    uintptr_t *limitAddr = &GetIonContext()->runtime->mainThread.nativeStackLimit;
     masm.branchPtr(Assembler::AboveOrEqual,
                    AbsoluteAddress(limitAddr),
                    StackPointer,

@@ -18,6 +18,7 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME     = nativewindow
 STL_FLAGS=
 
 include $(topsrcdir)/config/rules.mk

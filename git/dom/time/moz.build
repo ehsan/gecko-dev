@@ -30,5 +30,3 @@ FAIL_ON_WARNINGS = True
 
 LIBXUL_LIBRARY = True
 
-LIBRARY_NAME = 'dom_time_s'
-

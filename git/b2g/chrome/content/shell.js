@@ -6,9 +6,6 @@
 
 Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
-#ifdef MOZ_B2G_FM
-Cu.import('resource://gre/modules/DOMFMRadioParent.jsm');
-#endif
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
@@ -759,7 +756,7 @@ var AlertsHelper = {
     this._listeners[uid] = listener;
 
     let app = DOMApplicationRegistry.getAppByManifestURL(listener.manifestURL);
-    DOMApplicationRegistry.getManifestFor(app.manifestURL, function(manifest) {
+    DOMApplicationRegistry.getManifestFor(app.origin, function(manifest) {
       let helper = new ManifestHelper(manifest, app.origin);
       let getNotificationURLFor = function(messages) {
         if (!messages)
@@ -816,7 +813,7 @@ var AlertsHelper = {
     // If we have a manifest URL, get the icon and title from the manifest
     // to prevent spoofing.
     let app = DOMApplicationRegistry.getAppByManifestURL(manifestUrl);
-    DOMApplicationRegistry.getManifestFor(manifestUrl, function(aManifest) {
+    DOMApplicationRegistry.getManifestFor(app.origin, function(aManifest) {
       let helper = new ManifestHelper(aManifest, app.origin);
       send(helper.name, helper.iconURLForSize(128));
     });
@@ -909,7 +906,7 @@ var WebappsHelper = {
 
     switch(topic) {
       case "webapps-launch":
-        DOMApplicationRegistry.getManifestFor(json.manifestURL, function(aManifest) {
+        DOMApplicationRegistry.getManifestFor(json.origin, function(aManifest) {
           if (!aManifest)
             return;
 

@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME    = xpconnect_s
 LOCAL_INCLUDES = \
 		-I$(srcdir)/../wrappers \
 		-I$(srcdir)/../loader \

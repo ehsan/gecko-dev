@@ -1581,9 +1581,14 @@ class MOZ_STACK_CLASS ModuleCompiler
 
         // Patch everything that needs an absolute address:
 
+        // Entry points
+        for (unsigned i = 0; i < module_->numExportedFunctions(); i++)
+            module_->exportedFunction(i).patch(code);
+
         // Exit points
         for (unsigned i = 0; i < module_->numExits(); i++) {
-            module_->exitIndexToGlobalDatum(i).exit = module_->interpExitTrampoline(module_->exit(i));
+            module_->exit(i).patch(code);
+            module_->exitIndexToGlobalDatum(i).exit = module_->exit(i).interpCode();
             module_->exitIndexToGlobalDatum(i).fun = NULL;
         }
         module_->setOperationCallbackExit(code + masm_.actualOffset(operationCallbackLabel_.offset()));
@@ -2392,6 +2397,16 @@ class FunctionCompiler
             return false;
         if (!*defaultBlock)
             return true;
+        for (unsigned i = 0; i < cases->length(); i++) {
+            if (!(*cases)[i]) {
+                MBasicBlock *bb;
+                if (!newBlock(switchBlock, &bb, NULL))
+                    return false;
+                bb->end(MGoto::New(*defaultBlock));
+                (*defaultBlock)->addPredecessor(bb);
+                (*cases)[i] = bb;
+            }
+        }
         mirGraph().moveBlockToEnd(*defaultBlock);
         return true;
     }
@@ -2402,13 +2417,9 @@ class FunctionCompiler
         if (!switchBlock)
             return true;
         MTableSwitch *mir = switchBlock->lastIns()->toTableSwitch();
-        size_t defaultIndex = mir->addDefault(defaultBlock);
-        for (unsigned i = 0; i < cases.length(); i++) {
-            if (!cases[i])
-                mir->addCase(defaultIndex);
-            else
-                mir->addCase(mir->addSuccessor(cases[i]));
-        }
+        mir->addDefault(defaultBlock);
+        for (unsigned i = 0; i < cases.length(); i++)
+            mir->addCase(cases[i]);
         if (curBlock_) {
             MBasicBlock *next;
             if (!newBlock(curBlock_, &next, pn))
@@ -5468,7 +5479,7 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     if (!ionScript->addDependentAsmJSModule(cx, DependentAsmJSModuleExit(&module, exitIndex)))
         return false;
 
-    module.exitIndexToGlobalDatum(exitIndex).exit = module.ionExitTrampoline(module.exit(exitIndex));
+    module.exitIndexToGlobalDatum(exitIndex).exit = module.exit(exitIndex).ionCode();
     return true;
 }
 

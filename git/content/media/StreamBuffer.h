@@ -164,7 +164,13 @@ public:
     void ForgetUpTo(TrackTicks aTime)
     {
       mSegment->ForgetUpTo(aTime);
+#ifdef DEBUG
+      mForgottenUpTo = std::max<TrackTicks>(mForgottenUpTo, aTime);
+#endif
     }
+#ifdef DEBUG
+    TrackTicks GetForgottenUpTo() { return mForgottenUpTo; }
+#endif
 
   protected:
     friend class StreamBuffer;
@@ -179,6 +185,7 @@ public:
     TrackID mID;
     // True when the track ends with the data in mSegment
     bool mEnded;
+    DebugOnly<TrackTicks> mForgottenUpTo;
   };
 
   class CompareTracksByID {

@@ -110,9 +110,7 @@ const kPrefImportedFromSqlite = "browser.download.importedFromSqlite";
 this.DownloadIntegration = {
   // For testing only
   _testMode: false,
-  testPromptDownloads: 0,
-  dontLoadList: false,
-  dontLoadObservers: false,
+  dontLoad: false,
   dontCheckParentalControls: false,
   shouldBlockInTest: false,
   dontOpenFileAndFolder: false,
@@ -151,7 +149,7 @@ this.DownloadIntegration = {
    */
   initializePublicDownloadList: function(aList) {
     return Task.spawn(function task_DI_initializePublicDownloadList() {
-      if (this.dontLoadList) {
+      if (this.dontLoad) {
         return;
       }
 
@@ -618,7 +616,7 @@ this.DownloadIntegration = {
    * @resolves When the views and observers are added.
    */
   addListObservers: function DI_addListObservers(aList, aIsPrivate) {
-    if (this.dontLoadObservers) {
+    if (this.dontLoad) {
       return Promise.resolve();
     }
 
@@ -724,11 +722,6 @@ this.DownloadObserver = {
     aCancel, aDownloadsCount, aIdTitle, aIdMessageSingle, aIdMessageMultiple, aIdButton) {
     // If user has already dismissed the request, then do nothing.
     if ((aCancel instanceof Ci.nsISupportsPRBool) && aCancel.data) {
-      return;
-    }
-    // Handle test mode
-    if (DownloadIntegration.testMode) {
-      DownloadIntegration.testPromptDownloads = aDownloadsCount;
       return;
     }
     // If there are no active downloads, then do nothing.

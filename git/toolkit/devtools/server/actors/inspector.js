@@ -50,7 +50,7 @@
  * we connect it up through its parents.
  */
 
-const {Cc, Ci, Cu, Cr} = require("chrome");
+const {Cc, Ci, Cu} = require("chrome");
 
 const protocol = require("devtools/server/protocol");
 const {Arg, Option, method, RetVal, types} = protocol;
@@ -701,29 +701,17 @@ var ProgressListener = Class({
   extends: Unknown,
   interfaces: ["nsIWebProgressListener", "nsISupportsWeakReference"],
 
-  initialize: function(tabActor) {
+  initialize: function(webProgress) {
     Unknown.prototype.initialize.call(this);
-    this.webProgress = tabActor.webProgress;
-    this.webProgress.addProgressListener(
-      this, Ci.nsIWebProgress.NOTIFY_ALL
-    );
+    this.webProgress = webProgress;
+    this.webProgress.addProgressListener(this);
   },
 
   destroy: function() {
-    try {
-      this.webProgress.removeProgressListener(this);
-    } catch(ex) {
-      // This can throw during browser shutdown.
-    }
-    this.webProgress = null;
+    this.webProgress.removeProgressListener(this);
   },
 
   onStateChange: makeInfallible(function stateChange(progress, request, flag, status) {
-    if (!this.webProgress) {
-      console.warn("got an onStateChange after destruction");
-      return;
-    }
-
     let isWindow = flag & Ci.nsIWebProgressListener.STATE_IS_WINDOW;
     let isDocument = flag & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT;
     if (!(isWindow || isDocument)) {
@@ -760,9 +748,9 @@ var WalkerActor = protocol.ActorClass({
    * @param DebuggerServerConnection conn
    *    The server connection.
    */
-  initialize: function(conn, tabActor, options) {
+  initialize: function(conn, document, webProgress, options) {
     protocol.Actor.prototype.initialize.call(this, conn);
-    this.rootDoc = tabActor.window.document;
+    this.rootDoc = document;
     this._refMap = new Map();
     this._pendingMutations = [];
     this._activePseudoClassLocks = new Set();
@@ -781,7 +769,7 @@ var WalkerActor = protocol.ActorClass({
     this.onFrameLoad = this.onFrameLoad.bind(this);
     this.onFrameUnload = this.onFrameUnload.bind(this);
 
-    this.progressListener = ProgressListener(tabActor);
+    this.progressListener = ProgressListener(webProgress);
 
     events.on(this.progressListener, "windowchange-start", this.onFrameUnload);
     events.on(this.progressListener, "windowchange-stop", this.onFrameLoad);
@@ -2089,10 +2077,11 @@ var InspectorActor = protocol.ActorClass({
     this._walkerPromise = deferred.promise;
 
     let window = this.window;
+
     var domReady = () => {
       let tabActor = this.tabActor;
       window.removeEventListener("DOMContentLoaded", domReady, true);
-      this.walker = WalkerActor(this.conn, tabActor, options);
+      this.walker = WalkerActor(this.conn, window.document, tabActor._tabbrowser, options);
       deferred.resolve(this.walker);
     };
 

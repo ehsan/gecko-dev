@@ -8,6 +8,7 @@ srcdir = @srcdir@
 VPATH = @srcdir@
 relativesrcdir = @relativesrcdir@
 
+LIBRARY_NAME     = dombindings_test_s
 # Do NOT export this library.  We don't actually want our test code
 # being added to libxul or anything.
 

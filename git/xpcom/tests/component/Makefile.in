@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME	= testcomponent
 IS_COMPONENT	= 1
 FORCE_SHARED_LIB = 1
 

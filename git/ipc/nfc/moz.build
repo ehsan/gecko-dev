@@ -14,5 +14,3 @@ if CONFIG['MOZ_B2G_NFC']:
 
 LIBXUL_LIBRARY = True
 
-LIBRARY_NAME = 'moznfc_s'
-

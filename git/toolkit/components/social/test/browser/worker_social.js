@@ -26,9 +26,7 @@ onconnect = function(e) {
         apiPort.postMessage({topic: "social.user-profile", data: data});
         break;
       case "test-pending-msg":
-        // we also want to check we have seen a social.initialize message before
-        // this one, so send that back in the response.
-        port.postMessage({topic: "test-pending-response", data: {seenInit: !!apiPort}});
+        port.postMessage({topic: "test-pending-response"})
         break;
       case "test-ambient":
         apiPort.postMessage({topic: "social.ambient-notification", data: data});

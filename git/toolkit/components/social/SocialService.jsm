@@ -651,14 +651,13 @@ this.SocialService = {
    * have knowledge of the currently selected provider here, we will notify
    * the front end to deal with any reload.
    */
-  updateProvider: function(aUpdateOrigin, aManifest, aCallback) {
-    let originUri = Services.io.newURI(aUpdateOrigin, null, null);
-    let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
-    let installType = this.getOriginActivationType(aUpdateOrigin);
+  updateProvider: function(aDOMDocument, aManifest, aCallback) {
+    let installOrigin = aDOMDocument.nodePrincipal.origin;
+    let installType = this.getOriginActivationType(installOrigin);
     // if we get data, we MUST have a valid manifest generated from the data
-    let manifest = this._manifestFromData(installType, aManifest, principal);
+    let manifest = this._manifestFromData(installType, aManifest, aDOMDocument.nodePrincipal);
     if (!manifest)
-      throw new Error("SocialService.installProvider: service configuration is invalid from " + aUpdateOrigin);
+      throw new Error("SocialService.installProvider: service configuration is invalid from " + installOrigin);
 
     // overwrite the preference
     let string = Cc["@mozilla.org/supports-string;1"].

@@ -5,6 +5,7 @@
 
 #include "mozilla/dom/HTMLTrackElement.h"
 #include "mozilla/dom/TextTrackCue.h"
+#include "mozilla/dom/TextTrackCueBinding.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "nsIFrame.h"
 #include "nsTextNode.h"
@@ -212,7 +213,7 @@ TextTrackCue::ConvertLeafNodeToContent(const webvtt_node* aWebVTTNode)
 JSObject*
 TextTrackCue::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return VTTCueBinding::Wrap(aCx, aScope, this);
+  return TextTrackCueBinding::Wrap(aCx, aScope, this);
 }
 
 void

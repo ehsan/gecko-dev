@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME	= gkconcvs_s
 ifdef MOZ_WEBGL
 LOCAL_INCLUDES += \
 	-I$(topsrcdir)/js/xpconnect/wrappers \

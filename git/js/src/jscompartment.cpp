@@ -54,7 +54,6 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     objectMetadataCallback(NULL),
     lastAnimationTime(0),
     regExps(runtime_),
-    typeReprs(runtime_),
     propertyTree(thisForCtor()),
     gcIncomingGrayPointers(NULL),
     gcLiveArrayBuffers(NULL),
@@ -107,9 +106,6 @@ JSCompartment::init(JSContext *cx)
         return false;
 
     if (!regExps.init(cx))
-        return false;
-
-    if (!typeReprs.init())
         return false;
 
     enumerators = NativeIterator::allocateSentinel(cx);

@@ -177,7 +177,7 @@ var Browser = {
 
     Task.spawn(function() {
       // Activation URIs come from protocol activations, secondary tiles, and file activations
-      let activationURI = yield this.getShortcutOrURI(Services.metro.activationURI);
+      let activationURI = yield this.getShortcutOrURI(MetroUtils.activationURI);
 
       let self = this;
       function loadStartupURI() {
@@ -733,10 +733,10 @@ var Browser = {
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
     var uriSpec = ios.newFileURI(file).spec;
-    Services.metro.pinTileAsync(this._currentPageTileID,
-                                Browser.selectedBrowser.contentTitle, // short name
-                                Browser.selectedBrowser.contentTitle, // display name
-                                "metrobrowser -url " + Browser.selectedBrowser.currentURI.spec,
+    MetroUtils.pinTileAsync(this._currentPageTileID,
+                            Browser.selectedBrowser.contentTitle, // short name
+                            Browser.selectedBrowser.contentTitle, // display name
+                            "metrobrowser -url " + Browser.selectedBrowser.currentURI.spec,
                             uriSpec, uriSpec);
   },
 
@@ -755,17 +755,17 @@ var Browser = {
   },
 
   unpinSite: function browser_unpinSite() {
-    if (!Services.metro.immersive)
+    if (!MetroUtils.immersive)
       return;
 
-    Services.metro.unpinTileAsync(this._currentPageTileID);
+    MetroUtils.unpinTileAsync(this._currentPageTileID);
   },
 
   isSitePinned: function browser_isSitePinned() {
-    if (!Services.metro.immersive)
+    if (!MetroUtils.immersive)
       return false;
 
-    return Services.metro.isTilePinned(this._currentPageTileID);
+    return MetroUtils.isTilePinned(this._currentPageTileID);
   },
 
   starSite: function browser_starSite(callback) {
