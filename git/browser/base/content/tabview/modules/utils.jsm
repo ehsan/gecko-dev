@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  * Ian Gilman <ian@iangilman.com>
- * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -131,7 +130,7 @@ window.Rect.prototype = {
   
   // ----------
   set right(value) {
-		this.width = value - this.left;
+      this.width = value - this.left;
   },
 
   // ----------
@@ -141,17 +140,9 @@ window.Rect.prototype = {
   
   // ----------
   set bottom(value) {
-		this.height = value - this.top;
-  },
-
-  get xRange() {
-		return new Range(this.left,this.right);
+      this.height = value - this.top;
   },
   
-  get yRange() {
-		return new Range(this.top,this.bottom);
-  },
-
   // ----------
   intersects: function(rect) {
     return (rect.right > this.left
@@ -242,81 +233,7 @@ window.Rect.prototype = {
     this.top = a.top;
     this.width = a.width;
     this.height = a.height;
-  },
-  
-  // ----------
-  // Function: css
-  // Returns an object with the dimensions of this rectangle, suitable for passing into iQ.fn.css.
-  // You could of course just pass the rectangle straight in, but this is cleaner.
-  css: function() {
-    return {
-      left: this.left,
-      top: this.top,
-      width: this.width,
-      height: this.height
-    };
   }
-};
-
-// ##########  
-// Class: Range
-// A physical interval, with a min and max.
-//
-// Constructor: Range
-// Creates a Range with the given min and max
-window.Range = function(min, max) {
-	if (isRange(min) && !max) { // if the one variable given is a range, copy it.
-		this.min = min.min;
-		this.max = min.max;
-	} else {
-		this.min = min || 0;
-		this.max = max || 0;
-	}
-};
-
-// ----------
-window.isRange = function(r) {
-  return (r 
-      && Utils.isNumber(r.min)
-      && Utils.isNumber(r.max));
-};
-
-window.Range.prototype = {  
-	// Variable: extent
-	// Equivalent to max-min
-	get extent() {
-		return (this.max - this.min);
-	},
-
-	set extent(extent) {
-		this.max = extent - this.min;
-	},
-
-  // ----------
-  // Function: contains
-  // Whether the <Range> contains the given value or not
-  //
-  // Paramaters
-  //  - a number or <Range>
-  contains: function(value) {
-  	if (Utils.isNumber(value))
-			return ( value >= this.min && value <= this.max );
-		else if (isRange(value))
-			return ( value.min >= this.min && value.max <= this.max );
-  },
-  // ----------
-  // Function: containsWithin
-  // Whether the <Range>'s interior contains the given value or not
-  //
-  // Paramaters
-  //  - a number or <Range>
-  containsWithin: function(value) {
-  	if (Utils.isNumber(value))
-			return ( value > this.min && value < this.max );
-		else if (isRange(value))
-			return ( value.min > this.min && value.max < this.max );
-  },
-  
 };
 
 // ##########
