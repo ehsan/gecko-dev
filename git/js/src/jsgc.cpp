@@ -1142,8 +1142,8 @@ CheckLeakedRoots(JSRuntime *rt);
 void
 js_FinishGC(JSRuntime *rt)
 {
-#ifdef JS_ARENAMETER
-    JS_DumpArenaStats(stdout);
+#ifdef DEBUG
+    JS_DumpArenaStats();
 #endif
 #ifdef JS_GCMETER
     if (JS_WANT_GC_METER_PRINT)
@@ -2426,8 +2426,7 @@ js_TraceRuntime(JSTracer *trc)
     while ((acx = js_ContextIterator(rt, JS_TRUE, &iter)) != NULL)
         js_TraceContext(trc, acx);
 
-    for (ThreadDataIter i(rt); !i.empty(); i.popFront())
-        i.threadData()->mark(trc);
+    js_TraceThreads(rt, trc);
 
     if (rt->gcExtraRootsTraceOp)
         rt->gcExtraRootsTraceOp(trc, rt->gcExtraRootsData);
