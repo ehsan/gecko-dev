@@ -167,30 +167,30 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp) MOZ_OVERRIDE;
-  virtual void NotifyGeometryChange() MOZ_OVERRIDE;
+  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp);
+  virtual void NotifyGeometryChange();
 
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
    */
-  virtual bool ShouldRollupOnMouseWheelEvent() MOZ_OVERRIDE
+  virtual bool ShouldRollupOnMouseWheelEvent()
     { return true; }
 
-  virtual bool ShouldConsumeOnMouseWheelEvent() MOZ_OVERRIDE
+  virtual bool ShouldConsumeOnMouseWheelEvent()
     { return false; }
 
   /**
    * A combobox should not roll up if activated by a mouse activate message
    * (eg. X-mouse).
    */
-  virtual bool ShouldRollupOnMouseActivate() MOZ_OVERRIDE
+  virtual bool ShouldRollupOnMouseActivate()
     { return false; }
 
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) MOZ_OVERRIDE
+  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
     { return 0; }
 
-  virtual nsIWidget* GetRollupWidget() MOZ_OVERRIDE;
+  virtual nsIWidget* GetRollupWidget();
 
   //nsIStatefulFrame
   NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE;

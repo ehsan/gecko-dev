@@ -869,8 +869,8 @@ protected:
     uint32_t mOwnOrContainingAppId;
 
 private:
-    nsCString         mForcedCharset;
-    nsCString         mParentCharset;
+    nsCOMPtr<nsIAtom> mForcedCharset;
+    nsCOMPtr<nsIAtom> mParentCharset;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
     int32_t           mParentCharsetSource;
     nsCString         mOriginalUriString;

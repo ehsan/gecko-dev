@@ -20,7 +20,7 @@ namespace layers {
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
  */
-struct FrameMetrics {
+struct THEBES_API FrameMetrics {
 public:
   // We use IDs to identify frames across processes.
   typedef uint64_t ViewID;

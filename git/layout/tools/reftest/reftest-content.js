@@ -13,7 +13,6 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 const DEBUG_CONTRACTID = "@mozilla.org/xpcom/debug;1";
 const PRINTSETTINGS_CONTRACTID = "@mozilla.org/gfx/printsettings-service;1";
-const ENVIRONMENT_CONTRACTID = "@mozilla.org/process/environment;1";
 
 // "<!--CLEAR-->"
 const BLANK_URL_FOR_CLEARING = "data:text/html;charset=UTF-8,%3C%21%2D%2DCLEAR%2D%2D%3E";
@@ -39,7 +38,6 @@ var gFailureReason;
 var gAssertionCount = 0;
 
 var gDebug;
-var gVerbose = false;
 
 var gCurrentTestStartTime;
 var gClearingForAssertionCheck = false;
@@ -97,8 +95,6 @@ function OnInitialLoad()
 #endif
 
     gDebug = CC[DEBUG_CONTRACTID].getService(CI.nsIDebug2);
-    var env = CC[ENVIRONMENT_CONTRACTID].getService(CI.nsIEnvironment);
-    gVerbose = !!env.get("MOZ_REFTEST_VERBOSE");
 
     RegisterMessageListeners();
 
@@ -632,20 +628,12 @@ function LoadURI(uri)
 
 function LogWarning(str)
 {
-    if (gVerbose) {
-        sendSyncMessage("reftest:Log", { type: "warning", msg: str });
-    } else {
-        sendAsyncMessage("reftest:Log", { type: "warning", msg: str });
-    }
+    sendAsyncMessage("reftest:Log", { type: "warning", msg: str });
 }
 
 function LogInfo(str)
 {
-    if (gVerbose) {
-        sendSyncMessage("reftest:Log", { type: "info", msg: str });
-    } else {
-        sendAsyncMessage("reftest:Log", { type: "info", msg: str });
-    }
+    sendAsyncMessage("reftest:Log", { type: "info", msg: str });
 }
 
 const SYNC_DEFAULT = 0x0;

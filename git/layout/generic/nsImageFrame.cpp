@@ -1307,13 +1307,7 @@ nsDisplayImage::BuildLayer(nsDisplayListBuilder* aBuilder,
   nsresult rv = mImage->GetImageContainer(aManager, getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
-    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, this));
-  if (!layer) {
-    layer = aManager->CreateImageLayer();
-    if (!layer)
-      return nullptr;
-  }
+  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
   layer->SetContainer(container);
   ConfigureLayer(layer, aParameters.mOffset);
   return layer.forget();

@@ -7,11 +7,13 @@
 #define MEDIASTREAMTRACK_H_
 
 #include "nsDOMEventTargetHelper.h"
-#include "DOMMediaStream.h"
 #include "nsID.h"
 #include "StreamBuffer.h"
 
 namespace mozilla {
+
+class DOMMediaStream;
+
 namespace dom {
 
 class AudioStreamTrack;
@@ -45,8 +47,6 @@ public:
   virtual void GetKind(nsAString& aKind) = 0;
   void GetId(nsAString& aID);
   void GetLabel(nsAString& aLabel) { aLabel.Truncate(); }
-  bool Enabled() { return mEnabled; }
-  void SetEnabled(bool aEnabled);
 
   // Notifications from the MediaStreamGraph
   void NotifyEnded() { mEnded = true; }
@@ -56,7 +56,6 @@ protected:
   TrackID mTrackID;
   nsID mID;
   bool mEnded;
-  bool mEnabled;
 };
 
 }

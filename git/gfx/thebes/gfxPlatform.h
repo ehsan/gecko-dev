@@ -139,7 +139,7 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
   MOZ_NOT_REACHED("Incomplete switch");
 }
 
-class gfxPlatform {
+class THEBES_API gfxPlatform {
 public:
     /**
      * Return a pointer to the current active platform.

@@ -741,14 +741,8 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
 {
     MacroAssembler masm(cx);
 
-    RegisterSet save;
-    if (cx->runtime->jitSupportsFloatingPoint) {
-        save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                           FloatRegisterSet(FloatRegisters::VolatileMask));
-    } else {
-        save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                           FloatRegisterSet());
-    }
+    RegisterSet save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
+                                   FloatRegisterSet(FloatRegisters::VolatileMask));
     masm.PushRegsInMask(save);
 
     JS_ASSERT(PreBarrierReg == r1);

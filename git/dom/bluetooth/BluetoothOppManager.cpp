@@ -461,7 +461,6 @@ BluetoothOppManager::AfterOppDisconnected()
   mConnected = false;
   mLastCommand = 0;
   mPacketLeftLength = 0;
-  mDsFile = nullptr;
 
   ClearQueue();
 
@@ -495,7 +494,6 @@ BluetoothOppManager::DeleteReceivedFile()
 
   if (mDsFile && mDsFile->mFile) {
     mDsFile->mFile->Remove(false);
-    mDsFile = nullptr;
   }
 }
 

@@ -14,7 +14,7 @@
 
 struct ID3D10Texture2D;
 
-class gfxD2DSurface : public gfxASurface {
+class THEBES_API gfxD2DSurface : public gfxASurface {
 public:
 
     gfxD2DSurface(HWND wnd,

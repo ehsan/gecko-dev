@@ -143,7 +143,7 @@ TextureRecycleBin::GetTexture(TextureType aType, const gfxIntSize& aSize,
   mRecycledTextures[aType].RemoveElementAt(last);
 }
 
-struct ImageOGLBackendData : public ImageBackendData
+struct THEBES_API ImageOGLBackendData : public ImageBackendData
 {
   GLTexture mTexture;
 };

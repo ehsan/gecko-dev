@@ -685,17 +685,12 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
 
         // Fast path: we managed to allocate the array inline; initialize the
         // slots.
-        if (length > 0) {
+        if (length) {
             if (!res->ensureElements(cx, length))
                 return NULL;
             res->setDenseInitializedLength(length);
             res->initDenseElements(0, rest, length);
             res->setArrayLengthInt32(length);
-
-            // Ensure that values in the rest array are represented in the
-            // type of the array.
-            for (unsigned i = 0; i < length; i++)
-                types::AddTypePropertyId(cx, res, JSID_VOID, rest[i]);
         }
         return res;
     }
@@ -704,10 +699,6 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
     if (!obj)
         return NULL;
     obj->setType(templateObj->type());
-
-    for (unsigned i = 0; i < length; i++)
-        types::AddTypePropertyId(cx, obj, JSID_VOID, rest[i]);
-
     return obj;
 }
 

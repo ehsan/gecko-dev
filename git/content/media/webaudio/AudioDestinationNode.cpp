@@ -60,10 +60,7 @@ public:
     // Record our input buffer
     MOZ_ASSERT(mWriteIndex < mLength, "How did this happen?");
     const uint32_t duration = std::min(WEBAUDIO_BLOCK_SIZE, mLength - mWriteIndex);
-    const uint32_t commonChannelCount = std::min(mInputChannels.Length(),
-                                                 aInput.mChannelData.Length());
-    // First, copy as many channels in the input as we have
-    for (uint32_t i = 0; i < commonChannelCount; ++i) {
+    for (uint32_t i = 0; i < mInputChannels.Length(); ++i) {
       if (aInput.IsNull()) {
         PodZero(mInputChannels[i] + mWriteIndex, duration);
       } else {
@@ -82,10 +79,6 @@ public:
           }
         }
       }
-    }
-    // Then, silence all of the remaining channels
-    for (uint32_t i = commonChannelCount; i < mInputChannels.Length(); ++i) {
-      PodZero(mInputChannels[i] + mWriteIndex, duration);
     }
     mWriteIndex += duration;
 

@@ -1084,7 +1084,6 @@
                     if (this._overlayPlayButtonHeight * animationScale > (videoHeight - this._controlBarHeight)||
                         this._overlayPlayButtonWidth * animationScale > videoWidth) {
                         this.clickToPlay.setAttribute("immediate", "true");
-                        this.clickToPlay.hidden = true;
                     } else {
                         this.clickToPlay.removeAttribute("immediate");
                     }

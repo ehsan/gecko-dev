@@ -1969,33 +1969,35 @@ nsDocShell::SetCharset(const char* aCharset)
     }
 
     // set the charset override
-    nsCString charset(aCharset);
-    SetForcedCharset(charset);
+    nsCOMPtr<nsIAtom> csAtom = do_GetAtom(aCharset);
+    SetForcedCharset(csAtom);
 
     return NS_OK;
-}
+} 
 
-NS_IMETHODIMP nsDocShell::SetForcedCharset(const nsACString& aCharset)
+NS_IMETHODIMP nsDocShell::SetForcedCharset(nsIAtom * aCharset)
 {
   mForcedCharset = aCharset;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::GetForcedCharset(nsACString& aResult)
+NS_IMETHODIMP nsDocShell::GetForcedCharset(nsIAtom ** aResult)
 {
-  aResult = mForcedCharset;
+  *aResult = mForcedCharset;
+  if (mForcedCharset) NS_ADDREF(*aResult);
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::SetParentCharset(const nsACString& aCharset)
+NS_IMETHODIMP nsDocShell::SetParentCharset(nsIAtom * aCharset)
 {
   mParentCharset = aCharset;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::GetParentCharset(nsACString& aResult)
+NS_IMETHODIMP nsDocShell::GetParentCharset(nsIAtom ** aResult)
 {
-  aResult = mParentCharset;
+  *aResult = mParentCharset;
+  if (mParentCharset) NS_ADDREF(*aResult);
   return NS_OK;
 }
 
@@ -3495,7 +3497,8 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
         // expose here.
 
         // set the child's parentCharset
-        res = childAsDocShell->SetParentCharset(parentCS);
+        nsCOMPtr<nsIAtom> parentCSAtom(do_GetAtom(parentCS));
+        res = childAsDocShell->SetParentCharset(parentCSAtom);
         if (NS_FAILED(res))
             return NS_OK;
 

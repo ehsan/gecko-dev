@@ -629,9 +629,9 @@ DoDeferredRelease(nsTArray<T> &array)
     }
 }
 
-struct DeferredFinalizeFunctionHolder
+struct DeferredFinalizeFunction
 {
-    DeferredFinalizeFunction run;
+    XPCJSRuntime::DeferredFinalizeFunction run;
     void *data;
 };
 
@@ -639,7 +639,7 @@ class XPCIncrementalReleaseRunnable : public nsRunnable
 {
     XPCJSRuntime *runtime;
     nsTArray<nsISupports *> items;
-    nsAutoTArray<DeferredFinalizeFunctionHolder, 16> deferredFinalizeFunctions;
+    nsAutoTArray<DeferredFinalizeFunction, 16> deferredFinalizeFunctions;
     uint32_t finalizeFunctionToRun;
 
     static const PRTime SliceMillis = 10; /* ms */
@@ -680,7 +680,7 @@ XPCIncrementalReleaseRunnable::XPCIncrementalReleaseRunnable(XPCJSRuntime *rt,
 {
     nsLayoutStatics::AddRef();
     this->items.SwapElements(items);
-    DeferredFinalizeFunctionHolder *function = deferredFinalizeFunctions.AppendElement();
+    DeferredFinalizeFunction *function = deferredFinalizeFunctions.AppendElement();
     function->run = ReleaseSliceNow;
     function->data = &this->items;
     for (uint32_t i = 0; i < rt->mDeferredFinalizeFunctions.Length(); ++i) {
@@ -712,7 +712,7 @@ XPCIncrementalReleaseRunnable::ReleaseNow(bool limited)
     TimeStamp started = TimeStamp::Now();
     bool timeout = false;
     do {
-        const DeferredFinalizeFunctionHolder &function =
+        const DeferredFinalizeFunction &function =
             deferredFinalizeFunctions[finalizeFunctionToRun];
         if (limited) {
             bool done = false;

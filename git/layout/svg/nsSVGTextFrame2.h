@@ -6,7 +6,6 @@
 #ifndef NS_SVGTEXTFRAME2_H
 #define NS_SVGTEXTFRAME2_H
 
-#include "mozilla/Attributes.h"
 #include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
@@ -189,8 +188,7 @@ protected:
     : nsSVGTextFrame2Base(aContext),
       mFontSizeScaleFactor(1.0f),
       mGetCanvasTMForFlag(FOR_OUTERSVG_TM),
-      mPositioningDirty(true),
-      mPositioningMayUsePercentages(false)
+      mPositioningDirty(true)
   {
   }
 
@@ -208,9 +206,9 @@ public:
 
   NS_IMETHOD AttributeChanged(int32_t aNamespaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType) MOZ_OVERRIDE;
+                              int32_t aModType);
 
-  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE
+  virtual nsIFrame* GetContentInsertionFrame()
   {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
@@ -218,7 +216,7 @@ public:
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -229,10 +227,10 @@ public:
    *
    * @see nsGkAtoms::svgTextFrame2
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGText2"), aResult);
   }
@@ -242,21 +240,21 @@ public:
    * Finds the nsTextFrame for the closest rendered run to the specified point.
    */
   virtual void FindCloserFrameForSelection(nsPoint aPoint,
-                                          FrameWithDistance* aCurrentBestFrame) MOZ_OVERRIDE;
+                                          FrameWithDistance* aCurrentBestFrame);
 
 
   // nsISVGChildFrame interface:
-  virtual void NotifySVGChanged(uint32_t aFlags) MOZ_OVERRIDE;
+  virtual void NotifySVGChanged(uint32_t aFlags);
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect* aDirtyRect) MOZ_OVERRIDE;
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint) MOZ_OVERRIDE;
-  virtual void ReflowSVG() MOZ_OVERRIDE;
-  NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
+                      const nsIntRect* aDirtyRect);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
+  virtual void ReflowSVG();
+  NS_IMETHOD_(nsRect) GetCoveredRegion();
   virtual SVGBBox GetBBoxContribution(const gfxMatrix& aToBBoxUserspace,
-                                      uint32_t aFlags) MOZ_OVERRIDE;
+                                      uint32_t aFlags);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
   
   // SVG DOM text methods:
   uint32_t GetNumberOfChars(nsIContent* aContent);
@@ -294,7 +292,7 @@ public:
    * Updates the mFontSizeScaleFactor value by looking at the range of
    * font-sizes used within the <text>.
    */
-  void UpdateFontSizeScaleFactor();
+  void UpdateFontSizeScaleFactor(bool aForceGlobalTransform);
 
   double GetFontSizeScaleFactor() const;
 
@@ -389,7 +387,7 @@ private:
   /**
    * Reflows the anonymous block child.
    */
-  void DoReflow();
+  void DoReflow(bool aForceGlobalTransform);
 
   /**
    * Calls FrameNeedsReflow on the anonymous block child.
@@ -398,8 +396,12 @@ private:
 
   /**
    * Reflows the anonymous block child and recomputes mPositions if needed.
+   *
+   * @param aForceGlobalTransform passed down to UpdateFontSizeScaleFactor to
+   * control whether it should use the global transform even when
+   * NS_STATE_NONDISPLAY_CHILD
    */
-  void UpdateGlyphPositioning();
+  void UpdateGlyphPositioning(bool aForceGlobalTransform);
 
   /**
    * Populates mPositions with positioning information for each character
@@ -622,13 +624,6 @@ private:
    * The flag to pass to GetCanvasTM from UpdateFontSizeScaleFactor.  This is
    * normally FOR_OUTERSVG_TM, but while painting or hit testing a pattern or
    * marker, we set it to FOR_PAINTING or FOR_HIT_TESTING appropriately.
-   *
-   * This flag is also used to determine whether in UpdateFontSizeScaleFactor
-   * GetCanvasTM should be called at all.  When the nsSVGTextFrame2 is a
-   * non-display child, and we are not painting or hit testing, there is
-   * no sensible CTM stack to use.  Additionally, when inside a <marker>,
-   * calling GetCanvasTM on the nsSVGMarkerFrame would crash due to not
-   * having a current mMarkedFrame.
    */
   uint32_t mGetCanvasTMForFlag;
 
@@ -643,30 +638,6 @@ private:
    * necessary.
    */
   bool mPositioningDirty;
-
-  /**
-   * Whether the values from x/y/dx/dy attributes have any percentage values
-   * that are used in determining the positions of glyphs.  The value will
-   * be true even if a positioning value is overridden by a descendant element's
-   * attribute with a non-percentage length.  For example,
-   * mPositioningMayUsePercentages would be true for:
-   *
-   *   <text x="10%"><tspan x="0">abc</tspan></text>
-   *
-   * Percentage values beyond the number of addressable characters, however, do
-   * not influence mPositioningMayUsePercentages.  For example,
-   * mPositioningMayUsePercentages would be false for:
-   *
-   *   <text x="10 20 30 40%">abc</text>
-   *
-   * mPositioningMayUsePercentages is used to determine whether to recompute
-   * mPositions when the viewport size changes.  So although the first example
-   * above shows that mPositioningMayUsePercentages can be true even if a viewport
-   * size change will not affect mPositions, determining a completley accurate
-   * value for mPositioningMayUsePercentages would require extra work that is
-   * probably not worth it.
-   */
-  bool mPositioningMayUsePercentages;
 };
 
 #endif

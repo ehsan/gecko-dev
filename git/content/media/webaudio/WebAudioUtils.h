@@ -21,10 +21,6 @@ class AudioNodeStream;
 namespace dom {
 
 struct WebAudioUtils {
-  // This is an arbitrary large number used to protect against OOMs.
-  // We can adjust it later if needed.
-  static const uint32_t MaxChannelCount = 10000;
-
   static bool FuzzyEqual(float v1, float v2)
   {
     using namespace std;

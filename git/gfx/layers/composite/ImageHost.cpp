@@ -189,7 +189,7 @@ ImageHostSingle::Dump(FILE* aFile,
     aFile = stderr;
   }
   if (mTextureHost) {
-    fprintf(aFile, "%s", aPrefix);
+    fprintf(aFile, aPrefix);
     fprintf(aFile, aDumpHtml ? "<ul><li>TextureHost: "
                              : "TextureHost: ");
     DumpTextureHost(aFile, mTextureHost);

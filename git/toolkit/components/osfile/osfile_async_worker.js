@@ -271,7 +271,7 @@ if (this.Components) {
            path: filePath
          });
        },
-       read: function read(path, bytes, options) {
+       read: function read(path, bytes) {
          let data = File.read(Type.path.fromMsg(path), bytes);
          return new Transfer({buffer: data.buffer, byteOffset: data.byteOffset, byteLength: data.byteLength}, [data.buffer]);
        },

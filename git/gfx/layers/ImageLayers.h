@@ -20,7 +20,7 @@ class ImageContainer;
 /**
  * A Layer which renders an Image.
  */
-class ImageLayer : public Layer {
+class THEBES_API ImageLayer : public Layer {
 public:
   enum ScaleMode {
     SCALE_NONE,

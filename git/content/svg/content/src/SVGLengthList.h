@@ -321,11 +321,6 @@ public:
     return (*mList)[aIndex].GetValueInUserUnits(mElement, mAxis);
   }
 
-  bool HasPercentageValueAt(uint32_t aIndex) const {
-    const SVGLength& length = (*mList)[aIndex];
-    return length.GetUnit() == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE;
-  }
-
 private:
   const SVGLengthList *mList;
   nsSVGElement *mElement;

@@ -5,7 +5,6 @@
 #ifndef nsMenuBarListener_h__
 #define nsMenuBarListener_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMEventListener.h"
 
 // X.h defines KeyPress
@@ -28,7 +27,7 @@ public:
    */
   virtual ~nsMenuBarListener();
    
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE;
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
   
   nsresult KeyUp(nsIDOMEvent* aMouseEvent);
   nsresult KeyDown(nsIDOMEvent* aMouseEvent);

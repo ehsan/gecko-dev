@@ -111,8 +111,6 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  virtual bool UpdateOverflow() MOZ_OVERRIDE;
-
   /**
    * Get the "type" of the frame
    *

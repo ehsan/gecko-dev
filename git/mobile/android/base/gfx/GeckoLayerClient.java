@@ -148,7 +148,6 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
     public void destroy() {
         mPanZoomController.destroy();
-        mMarginsAnimator.destroy();
     }
 
     /**

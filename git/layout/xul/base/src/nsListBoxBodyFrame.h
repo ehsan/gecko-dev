@@ -135,7 +135,7 @@ protected:
       mFrame(aFrame), mUp(aUp), mDelta(aDelta)
     {}
   
-    NS_IMETHOD Run() MOZ_OVERRIDE
+    NS_IMETHOD Run()
     {
       if (!mFrame) {
         return NS_OK;
