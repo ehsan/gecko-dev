@@ -8,7 +8,7 @@
 #include "IccListener.h"
 #include "mozilla/dom/IccChangeEvent.h"
 #include "mozilla/Preferences.h"
-#include "nsIIccInfo.h"
+#include "nsIDOMIccInfo.h"
 
 using namespace mozilla::dom;
 

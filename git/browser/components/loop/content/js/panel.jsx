@@ -55,9 +55,7 @@ loop.panel = (function(_, mozL10n) {
       }, this);
       return (
         <div className="tab-view-container">
-          {!this.props.buttonsHidden
-            ? <ul className="tab-view">{tabButtons}</ul>
-            : null}
+          <ul className="tab-view">{tabButtons}</ul>
           {tabs}
         </div>
       );
@@ -441,7 +439,6 @@ loop.panel = (function(_, mozL10n) {
       // Mostly used for UI components showcase and unit tests
       callUrl: React.PropTypes.string,
       userProfile: React.PropTypes.object,
-      showTabButtons: React.PropTypes.bool,
     },
 
     getInitialState: function() {
@@ -478,12 +475,7 @@ loop.panel = (function(_, mozL10n) {
     },
 
     _onStatusChanged: function() {
-      var profile = navigator.mozLoop.userProfile;
-      if (profile != this.state.userProfile) {
-        // On profile change (login, logout), switch back to the default tab.
-        this.selectTab("call");
-      }
-      this.setState({userProfile: profile});
+      this.setState({userProfile: navigator.mozLoop.userProfile});
       this.updateServiceErrors();
     },
 
@@ -516,7 +508,7 @@ loop.panel = (function(_, mozL10n) {
         <div>
           <NotificationListView notifications={this.props.notifications}
                                 clearOnDocumentHidden={true} />
-          <TabView ref="tabView" buttonsHidden={!this.state.userProfile && !this.props.showTabButtons}>
+          <TabView ref="tabView">
             <Tab name="call">
               <div className="content-area">
                 <CallUrlResult client={this.props.client}

@@ -89,7 +89,6 @@ private:
         CONNECTED,
         SEEKING,
         PAUSING,
-        PAUSED,
         PLAYING,
     };
 
@@ -118,7 +117,6 @@ private:
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
     uint64_t mLatestPausedUnit;
-    bool mPlayPending;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<RTSPSource> > mReflector;

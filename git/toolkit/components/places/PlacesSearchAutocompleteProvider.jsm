@@ -64,7 +64,6 @@ const SearchAutocompleteProviderInternal = {
       case "engine-added":
       case "engine-changed":
       case "engine-removed":
-      case "engine-current":
         this._refresh();
     }
   },

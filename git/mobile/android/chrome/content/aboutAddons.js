@@ -527,21 +527,6 @@ var Addons = {
       element.setAttribute("opType", "needs-restart");
   },
 
-  onInstalled: function(aAddon) {
-    let list = document.getElementById("addons-list");
-    let element = this._getElementForAddon(aAddon.id);
-    if (!element) {
-      element = this._createItemForAddon(aAddon);
-      list.insertBefore(element, list.firstElementChild);
-    }
-  },
-
-  onUninstalled: function(aAddon) {
-    let list = document.getElementById("addons-list");
-    let element = this._getElementForAddon(aAddon.id);
-    list.removeChild(element);
-  },
-
   onInstallFailed: function(aInstall) {
   },
 
