@@ -30,12 +30,12 @@ EXPORTS.harfbuzz += [
     'hb.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'hb-blob.cc',
     'hb-buffer.cc',
     'hb-common.cc',
-    'hb-face.cc',
     'hb-fallback-shape.cc',
+    'hb-face.cc',
     'hb-font.cc',
     'hb-ot-layout.cc',
     'hb-ot-map.cc',

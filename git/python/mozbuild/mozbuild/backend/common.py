@@ -60,19 +60,14 @@ class TestManager(object):
 
         self.tests_by_path = DefaultOnReadDict({}, global_default=[])
 
-    def add(self, t, flavor=None, topsrcdir=None):
+    def add(self, t, flavor=None):
         t = dict(t)
         t['flavor'] = flavor
 
-        if topsrcdir is None:
-            topsrcdir = self.topsrcdir
-        else:
-            topsrcdir = mozpath.normpath(topsrcdir)
-
         path = mozpath.normpath(t['path'])
-        assert path.startswith(topsrcdir)
+        assert path.startswith(self.topsrcdir)
 
-        key = path[len(topsrcdir)+1:]
+        key = path[len(self.topsrcdir)+1:]
         t['file_relpath'] = key
         t['dir_relpath'] = mozpath.dirname(key)
 
@@ -89,8 +84,7 @@ class CommonBackend(BuildBackend):
     def consume_object(self, obj):
         if isinstance(obj, TestManifest):
             for test in obj.tests:
-                self._test_manager.add(test, flavor=obj.flavor,
-                    topsrcdir=obj.topsrcdir)
+                self._test_manager.add(test, flavor=obj.flavor)
 
         if isinstance(obj, XPIDLFile):
             self._idl_manager.register_idl(obj.source_path, obj.module)

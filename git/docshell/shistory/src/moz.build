@@ -10,11 +10,11 @@ EXPORTS += [
     'nsSHEntryShared.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsSHEntry.cpp',
     'nsSHEntryShared.cpp',
-    'nsSHistory.cpp',
     'nsSHTransaction.cpp',
+    'nsSHistory.cpp',
 ]
 
 LIBRARY_NAME = 'shistory_s'

@@ -11,11 +11,14 @@ EXPORTS.mozilla.a11y += [
     'HyperTextAccessibleWrap.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AccessibleWrap.cpp',
     'ApplicationAccessibleWrap.cpp',
     'AtkSocketAccessible.cpp',
     'DocAccessibleWrap.cpp',
+    'Platform.cpp',
+    'RootAccessibleWrap.cpp',
+    'UtilInterface.cpp',
     'nsMaiHyperlink.cpp',
     'nsMaiInterfaceAction.cpp',
     'nsMaiInterfaceComponent.cpp',
@@ -28,9 +31,6 @@ SOURCES += [
     'nsMaiInterfaceTable.cpp',
     'nsMaiInterfaceText.cpp',
     'nsMaiInterfaceValue.cpp',
-    'Platform.cpp',
-    'RootAccessibleWrap.cpp',
-    'UtilInterface.cpp',
 ]
 
 LIBRARY_NAME = 'accessibility_toolkit_s'

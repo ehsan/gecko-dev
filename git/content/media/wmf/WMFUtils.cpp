@@ -236,7 +236,7 @@ DisableBlockedDecoders(IMFPluginControl* aPluginControl,
   HRESULT hr = S_OK;
 
   UINT32 numMFTs = 0;
-  IMFActivate **ppActivate = nullptr;
+  IMFActivate **ppActivate = NULL;
   hr = wmf::MFTEnumEx(aCategory,
                       MFT_ENUM_FLAG_ALL,
                       nullptr, // Input type, nullptr -> match all.
@@ -295,11 +295,11 @@ struct WMFModule {
 };
 
 static WMFModule sDLLs[] = {
-  { L"mfplat.dll", nullptr },
-  { L"mfreadwrite.dll", nullptr },
-  { L"propsys.dll", nullptr },
-  { L"mf.dll", nullptr },
-  { L"dxva2.dll", nullptr }
+  { L"mfplat.dll", NULL },
+  { L"mfreadwrite.dll", NULL },
+  { L"propsys.dll", NULL },
+  { L"mf.dll", NULL },
+  { L"dxva2.dll", NULL }
 };
 
 HRESULT
@@ -349,7 +349,7 @@ UnloadDLLs()
   for (uint32_t i = 0; i < length; i++) {
     if (sDLLs[i].handle) {
       FreeLibrary(sDLLs[i].handle);
-      sDLLs[i].handle = nullptr;
+      sDLLs[i].handle = NULL;
     }
     sDLLsLoaded = false;
   }

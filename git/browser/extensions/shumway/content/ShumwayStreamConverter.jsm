@@ -41,9 +41,6 @@ Cu.import('resource://gre/modules/NetUtil.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'PrivateBrowsingUtils',
   'resource://gre/modules/PrivateBrowsingUtils.jsm');
 
-XPCOMUtils.defineLazyModuleGetter(this, 'ShumwayTelemetry',
-  'resource://shumway/ShumwayTelemetry.jsm');
-
 let appInfo = Cc['@mozilla.org/xre/app-info;1'].getService(Ci.nsIXULAppInfo);
 let Svc = {};
 XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
@@ -199,12 +196,6 @@ function ChromeActions(url, window, document) {
   this.externalComInitialized = false;
   this.allowScriptAccess = false;
   this.crossdomainRequestsCache = Object.create(null);
-  this.telemetry = {
-    startTime: Date.now(),
-    features: [],
-    errors: [],
-    pageIndex: 0
-  };
 }
 
 ChromeActions.prototype = {
@@ -244,36 +235,29 @@ ChromeActions.prototype = {
     }
 
     // allows downloading from the same origin
-    var parsedUrl, parsedBaseUrl;
-    try {
-      parsedUrl = NetUtil.newURI(url);
-    } catch (ex) { /* skipping invalid urls */ }
-    try {
-      parsedBaseUrl = NetUtil.newURI(this.url);
-    } catch (ex) { /* skipping invalid urls */ }
-
-    if (parsedUrl && parsedBaseUrl &&
-        parsedUrl.prePath === parsedBaseUrl.prePath) {
+    var urlPrefix = /^(https?):\/\/([A-Za-z0-9\-_\.\[\]]+)/i.exec(url);
+    var basePrefix = /^(https?):\/\/([A-Za-z0-9\-_\.\[\]]+)/i.exec(this.url);
+    if (basePrefix && urlPrefix && basePrefix[0] === urlPrefix[0]) {
       return callback({success: true});
     }
 
     // additionally using internal whitelist
     var whitelist = getStringPref('shumway.whitelist', '');
-    if (whitelist && parsedUrl) {
+    if (whitelist && urlPrefix) {
       var whitelisted = whitelist.split(',').some(function (i) {
-        return domainMatches(parsedUrl.host, i);
+        return domainMatches(urlPrefix[2], i);
       });
       if (whitelisted) {
         return callback({success: true});
       }
     }
 
-    if (!checkPolicyFile || !parsedUrl || !parsedBaseUrl) {
+    if (!checkPolicyFile || !urlPrefix || !basePrefix) {
       return callback({success: false});
     }
 
     // we can request crossdomain.xml
-    fetchPolicyFile(parsedUrl.prePath + '/crossdomain.xml', this.crossdomainRequestsCache,
+    fetchPolicyFile(urlPrefix[0] + '/crossdomain.xml', this.crossdomainRequestsCache,
       function (policy, error) {
 
       if (!policy || policy.siteControl === 'none') {
@@ -282,8 +266,8 @@ ChromeActions.prototype = {
       // TODO assuming master-only, there are also 'by-content-type', 'all', etc.
 
       var allowed = policy.allowAccessFrom.some(function (i) {
-        return domainMatches(parsedBaseUrl.host, i.domain) &&
-          (!i.secure || parsedBaseUrl.scheme.toLowerCase() === 'https');
+        return domainMatches(basePrefix[2], i.domain) &&
+          (!i.secure || basePrefix[1].toLowerCase() === 'https');
       });
       return callback({success: allowed});
     }.bind(this));
@@ -350,14 +334,12 @@ ChromeActions.prototype = {
       }
     });
   },
-  fallback: function(automatic) {
+  fallback: function() {
     var obj = this.window.frameElement;
     var doc = obj.ownerDocument;
     var e = doc.createEvent("CustomEvent");
     e.initCustomEvent("MozPlayPlugin", true, true, null);
     obj.dispatchEvent(e);
-
-    ShumwayTelemetry.onFallback(!automatic);
   },
   setClipboard: function (data) {
     if (typeof data !== 'string' ||
@@ -381,45 +363,6 @@ ChromeActions.prototype = {
   endActivation: function () {
     if (ActivationQueue.currentNonActive === this) {
       ActivationQueue.activateNext();
-    }
-  },
-  reportTelemetry: function (data) {
-    var topic = data.topic;
-    switch (topic) {
-    case 'firstFrame':
-      var time = Date.now() - this.telemetry.startTime;
-      ShumwayTelemetry.onFirstFrame(time);
-      break;
-    case 'parseInfo':
-      ShumwayTelemetry.onParseInfo({
-        parseTime: +data.parseTime,
-        size: +data.bytesTotal,
-        swfVersion: data.swfVersion|0,
-        frameRate: +data.frameRate,
-        width: data.width|0,
-        height: data.height|0,
-        bannerType: data.bannerType|0,
-        isAvm2: !!data.isAvm2
-      });
-      break;
-    case 'feature':
-      var featureType = data.feature|0;
-      var MIN_FEATURE_TYPE = 0, MAX_FEATURE_TYPE = 999;
-      if (featureType >= MIN_FEATURE_TYPE && featureType <= MAX_FEATURE_TYPE &&
-          !this.telemetry.features[featureType]) {
-        this.telemetry.features[featureType] = true; // record only one feature per SWF
-        ShumwayTelemetry.onFeature(featureType);
-      }
-      break;
-    case 'error':
-      var errorType = data.error|0;
-      var MIN_ERROR_TYPE = 0, MAX_ERROR_TYPE = 2;
-      if (errorType >= MIN_ERROR_TYPE && errorType <= MAX_ERROR_TYPE &&
-          !this.telemetry.errors[errorType]) {
-        this.telemetry.errors[errorType] = true; // record only one report per SWF
-        ShumwayTelemetry.onError(errorType);
-      }
-      break;
     }
   },
   externalCom: function (data) {
@@ -508,14 +451,6 @@ var ActivationQueue = {
     if (this.nonActive.length === 1) {
       this.activateNext();
     }
-  },
-  findLastOnPage: function ActivationQueue_findLastOnPage(baseUrl) {
-    for (var i = this.nonActive.length - 1; i >= 0; i--) {
-      if (this.nonActive[i].baseUrl === baseUrl) {
-        return this.nonActive[i];
-      }
-    }
-    return null;
   },
   activateNext: function ActivationQueue_activateNext() {
     function weightInstance(actions) {
@@ -879,19 +814,8 @@ ShumwayStreamConverterBase.prototype = {
                                                       domWindow.document,
                                                       converter.getUrlHint(originalURI));
           if (!isShumwayEnabledFor(actions)) {
-            actions.fallback(true);
+            actions.fallback();
             return;
-          }
-
-          // Report telemetry on amount of swfs on the page
-          if (actions.isOverlay) {
-            // Looking for last actions with same baseUrl
-            var prevPageActions = ActivationQueue.findLastOnPage(actions.baseUrl);
-            var pageIndex = !prevPageActions ? 1 : (prevPageActions.telemetry.pageIndex + 1);
-            actions.telemetry.pageIndex = pageIndex;
-            ShumwayTelemetry.onPageIndex(pageIndex);
-          } else {
-            ShumwayTelemetry.onPageIndex(0);
           }
 
           actions.activationCallback = function(domWindow, isSimpleMode) {

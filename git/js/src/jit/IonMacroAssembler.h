@@ -240,10 +240,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     MacroAssembler(JSContext *cx, IonScript *ion)
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
-        sps_(nullptr)
+        sps_(NULL)
     {
         constructRoot(cx);
-         ionContext_.construct(cx, (js::jit::TempAllocator *)nullptr);
+         ionContext_.construct(cx, (js::jit::TempAllocator *)NULL);
          alloc_.construct(cx);
 #ifdef JS_CPU_ARM
          initWithAllocator();
@@ -863,6 +863,13 @@ class MacroAssembler : public MacroAssemblerSpecific
         }
 
     }
+
+    // Given a js::StackFrame in OsrFrameReg, performs inline on-stack
+    // replacement. The stack frame must be at a valid OSR entry-point.
+    void performOsr();
+
+    // Checks if an OSR frame is the previous frame, and if so, removes it.
+    void maybeRemoveOsrFrame(Register scratch);
 
     // Generates code used to complete a bailout.
     void generateBailoutTail(Register scratch, Register bailoutInfo);

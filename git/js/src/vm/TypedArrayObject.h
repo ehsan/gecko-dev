@@ -198,7 +198,7 @@ class ArrayBufferObject : public JSObject
     /*
      * Neuter all views of an ArrayBuffer.
      */
-    bool neuterViews(JSContext *cx);
+    void neuterViews(JSContext *maybecx);
 
     inline uint8_t * dataPointer() const {
         return (uint8_t *) elements;
@@ -221,11 +221,8 @@ class ArrayBufferObject : public JSObject
     bool isAsmJSArrayBuffer() const {
         return getElementsHeader()->isAsmJSArrayBuffer();
     }
-    bool isNeutered() const {
-        return getElementsHeader()->isNeuteredBuffer();
-    }
     static bool prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buffer);
-    static bool neuterAsmJSArrayBuffer(JSContext *cx, ArrayBufferObject &buffer);
+    static void neuterAsmJSArrayBuffer(ArrayBufferObject &buffer);
     static void releaseAsmJSArrayBuffer(FreeOp *fop, JSObject *obj);
 };
 

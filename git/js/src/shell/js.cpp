@@ -423,9 +423,9 @@ RunFile(JSContext *cx, Handle<JSObject*> obj, const char *filename, FILE *file, 
     RootedScript script(cx);
 
     {
-        JS::AutoSaveContextOptions asco(cx);
-        JS::ContextOptionsRef(cx).setCompileAndGo(true)
-                                 .setNoScriptRval(true);
+        AutoSaveContextOptions asco(cx);
+        ContextOptionsRef(cx).setCompileAndGo(true)
+                             .setNoScriptRval(true);
 
         CompileOptions options(cx);
         options.setUTF8(true)
@@ -690,7 +690,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JS::ContextOptions oldOptions = JS::ContextOptionsRef(cx);
+    ContextOptions oldOptions = ContextOptionsRef(cx);
     for (unsigned i = 0; i < args.length(); i++) {
         JSString *str = JS_ValueToString(cx, args[i]);
         if (!str)
@@ -702,15 +702,15 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
             return false;
 
         if (strcmp(opt.ptr(), "strict") == 0)
-            JS::ContextOptionsRef(cx).toggleExtraWarnings();
+            ContextOptionsRef(cx).toggleExtraWarnings();
         else if (strcmp(opt.ptr(), "typeinfer") == 0)
-            JS::ContextOptionsRef(cx).toggleTypeInference();
+            ContextOptionsRef(cx).toggleTypeInference();
         else if (strcmp(opt.ptr(), "werror") == 0)
-            JS::ContextOptionsRef(cx).toggleWerror();
+            ContextOptionsRef(cx).toggleWerror();
         else if (strcmp(opt.ptr(), "strict_mode") == 0)
-            JS::ContextOptionsRef(cx).toggleStrictMode();
+            ContextOptionsRef(cx).toggleStrictMode();
         else {
-            char* msg = JS_sprintf_append(nullptr,
+            char* msg = JS_sprintf_append(NULL,
                                           "unknown option name '%s'."
                                           " The valid names are strict,"
                                           " typeinfer, werror, and strict_mode.",
@@ -825,7 +825,7 @@ class AutoNewContext
         newcx = NewContext(JS_GetRuntime(cx));
         if (!newcx)
             return false;
-        JS::ContextOptionsRef(newcx).setDontReportUncaught(true);
+        ContextOptionsRef(newcx).setDontReportUncaught(true);
         js::SetDefaultObjectForContext(newcx, JS::CurrentGlobalOrNull(cx));
 
         newRequest.construct(newcx);
@@ -1063,8 +1063,8 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         RootedScript script(cx);
 
         {
-            JS::AutoSaveContextOptions asco(cx);
-            JS::ContextOptionsRef(cx).setCompileAndGo(compileAndGo)
+            AutoSaveContextOptions asco(cx);
+            ContextOptionsRef(cx).setCompileAndGo(compileAndGo)
                                  .setNoScriptRval(noScriptRval);
 
             CompileOptions options(cx);
@@ -1226,16 +1226,16 @@ Run(JSContext *cx, unsigned argc, jsval *vp)
     RootedScript script(cx);
     int64_t startClock = PRMJ_Now();
     {
-        JS::AutoSaveContextOptions asco(cx);
-        JS::ContextOptionsRef(cx).setCompileAndGo(true)
-                                 .setNoScriptRval(true);
+        AutoSaveContextOptions asco(cx);
+        ContextOptionsRef(cx).setCompileAndGo(true)
+                             .setNoScriptRval(true);
 
         script = JS_CompileUCScript(cx, thisobj, ucbuf, buflen, filename.ptr(), 1);
         if (!script)
             return false;
     }
 
-    if (!JS_ExecuteScript(cx, thisobj, script, nullptr))
+    if (!JS_ExecuteScript(cx, thisobj, script, NULL))
         return false;
 
     int64_t endClock = PRMJ_Now();
@@ -1985,7 +1985,6 @@ DisassembleToSprinter(JSContext *cx, unsigned argc, jsval *vp, Sprinter *sprinte
         /* Without arguments, disassemble the current script. */
         RootedScript script(cx, GetTopScript(cx));
         if (script) {
-            JSAutoCompartment ac(cx, script);
             if (!js_Disassemble(cx, script, p.lines, sprinter))
                 return false;
             SrcNotes(cx, script, sprinter);
@@ -2064,9 +2063,9 @@ DisassFile(JSContext *cx, unsigned argc, jsval *vp)
     RootedScript script(cx);
 
     {
-        JS::AutoSaveContextOptions asco(cx);
-        JS::ContextOptionsRef(cx).setCompileAndGo(true)
-                                 .setNoScriptRval(true);
+        AutoSaveContextOptions asco(cx);
+        ContextOptionsRef(cx).setCompileAndGo(true)
+                             .setNoScriptRval(true);
 
         CompileOptions options(cx);
         options.setUTF8(true)
@@ -3183,9 +3182,9 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
 
     RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    JS::AutoSaveContextOptions asco(cx);
-    JS::ContextOptionsRef(cx).setCompileAndGo(true)
-                              .setNoScriptRval(true);
+    AutoSaveContextOptions asco(cx);
+    ContextOptionsRef(cx).setCompileAndGo(true)
+                         .setNoScriptRval(true);
     bool ok = JS_CompileUCScript(cx, global, JS_GetStringCharsZ(cx, scriptContents),
                                  JS_GetStringLength(scriptContents), "<string>", 1);
     JS_SET_RVAL(cx, vp, UndefinedValue());
@@ -3768,16 +3767,11 @@ DecompileThisScript(JSContext *cx, unsigned argc, Value *vp)
         args.rval().setString(cx->runtime()->emptyString);
         return true;
     }
-
-    {
-        JSAutoCompartment ac(cx, script);
-        JSString *result = JS_DecompileScript(cx, script, "test", 0);
-        if (!result)
-            return false;
-        args.rval().setString(result);
-    }
-
-    return JS_WrapValue(cx, vp);
+    JSString *result = JS_DecompileScript(cx, script, "test", 0);
+    if (!result)
+        return false;
+    args.rval().setString(result);
+    return true;
 }
 
 static bool
@@ -5297,13 +5291,13 @@ NewContext(JSRuntime *rt)
     JS_SetContextPrivate(cx, data);
     JS_SetErrorReporter(cx, my_ErrorReporter);
     if (enableTypeInference)
-        JS::ContextOptionsRef(cx).toggleTypeInference();
+        ContextOptionsRef(cx).toggleTypeInference();
     if (enableIon)
-        JS::ContextOptionsRef(cx).toggleIon();
+        ContextOptionsRef(cx).toggleIon();
     if (enableBaseline)
-        JS::ContextOptionsRef(cx).toggleBaseline();
+        ContextOptionsRef(cx).toggleBaseline();
     if (enableAsmJS)
-        JS::ContextOptionsRef(cx).toggleAsmJS();
+        ContextOptionsRef(cx).toggleAsmJS();
     return cx;
 }
 
@@ -5427,7 +5421,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
         reportWarnings = false;
 
     if (op->getBoolOption('s'))
-        JS::ContextOptionsRef(cx).toggleExtraWarnings();
+        ContextOptionsRef(cx).toggleExtraWarnings();
 
     if (op->getBoolOption('d')) {
         JS_SetRuntimeDebugMode(JS_GetRuntime(cx), true);
@@ -5458,16 +5452,16 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
 #if defined(JS_ION)
     if (op->getBoolOption("no-ion")) {
         enableIon = false;
-        JS::ContextOptionsRef(cx).toggleIon();
+        ContextOptionsRef(cx).toggleIon();
     }
     if (op->getBoolOption("no-asmjs")) {
         enableAsmJS = false;
-        JS::ContextOptionsRef(cx).toggleAsmJS();
+        ContextOptionsRef(cx).toggleAsmJS();
     }
 
     if (op->getBoolOption("no-baseline")) {
         enableBaseline = false;
-        JS::ContextOptionsRef(cx).toggleBaseline();
+        ContextOptionsRef(cx).toggleBaseline();
     }
 
     if (const char *str = op->getStringOption("ion-gvn")) {
@@ -5647,7 +5641,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
      */
     if (op->getBoolOption("no-ti")) {
         enableTypeInference = false;
-        JS::ContextOptionsRef(cx).toggleTypeInference();
+        ContextOptionsRef(cx).toggleTypeInference();
     }
 
     if (op->getBoolOption("fuzzing-safe"))

@@ -6,7 +6,7 @@
 
 MODULE = 'find'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsFind.cpp',
     'nsWebBrowserFind.cpp',
 ]

@@ -8,7 +8,7 @@ EXPORTS.mozilla.dom += [
     'InterAppComm.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'InterAppComm.cpp',
 ]
 

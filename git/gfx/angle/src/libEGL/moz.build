@@ -9,13 +9,13 @@ MODULE = 'libegl'
 # Target: 'libEGL'
 #   Requires: 'libGLESv2'
 # src/common:
-SOURCES += ['../common/' + src for src in [
+CPP_SOURCES += ['../common/' + src for src in [
     'debug.cpp',
     'RefCountObject.cpp',
 ]]
 
 # src/libEGL
-SOURCES += [
+CPP_SOURCES += [
     'Config.cpp',
     'Display.cpp',
     'libEGL.cpp',

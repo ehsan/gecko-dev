@@ -212,8 +212,6 @@ CodeGeneratorARM::bailoutIf(Assembler::Condition condition, LSnapshot *snapshot)
 bool
 CodeGeneratorARM::bailoutFrom(Label *label, LSnapshot *snapshot)
 {
-    if (masm.bailed())
-        return false;
     JS_ASSERT(label->used());
     JS_ASSERT(!label->bound());
 

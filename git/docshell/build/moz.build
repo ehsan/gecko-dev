@@ -10,7 +10,7 @@ EXPORTS += [
     'nsDocShellCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsDocShellModule.cpp',
 ]
 

@@ -6,7 +6,7 @@
 
 MODULE = 'permissions'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsContentBlocker.cpp',
     'nsModuleFactory.cpp',
 ]

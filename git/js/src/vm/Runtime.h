@@ -592,7 +592,6 @@ class PerThreadData : public PerThreadDataFriendFields,
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
     inline JSRuntime *runtimeFromMainThread();
-    inline JSRuntime *runtimeIfOnOwnerThread();
 };
 
 template<class Client>
@@ -1794,12 +1793,6 @@ PerThreadData::runtimeFromMainThread()
 {
     JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
     return runtime_;
-}
-
-inline JSRuntime *
-PerThreadData::runtimeIfOnOwnerThread()
-{
-    return js::CurrentThreadCanAccessRuntime(runtime_) ? runtime_ : nullptr;
 }
 
 /************************************************************************/

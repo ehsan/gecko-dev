@@ -6,7 +6,7 @@
 
 PROGRAM = 'CommandExecuteHandler'
 
-SOURCES += [
+CPP_SOURCES += [
     'CEHHelper.cpp',
     'CommandExecuteHandler.cpp',
 ]

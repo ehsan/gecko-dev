@@ -6,7 +6,7 @@
 
 MODULE = 'xultmpl'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsContentSupportMap.cpp',
     'nsContentTestNode.cpp',
     'nsInstantiationNode.cpp',

@@ -10,7 +10,7 @@ EXPORTS.mozilla.browser += [
     'DirectoryProvider.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'DirectoryProvider.cpp',
 ]
 

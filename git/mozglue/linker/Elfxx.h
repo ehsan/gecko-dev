@@ -19,7 +19,7 @@
 /**
  * Generic ELF macros for the target system
  */
-#ifdef __LP64__
+#ifdef HAVE_64BIT_OS
 #define Elf_(type) Elf64_ ## type
 #define ELFCLASS ELFCLASS64
 #define ELF_R_TYPE ELF64_R_TYPE

@@ -520,8 +520,7 @@ DecoderTraits::CreateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
   }
 #endif
 #ifdef MOZ_MEDIA_PLUGINS
-  if (MediaDecoder::IsMediaPluginsEnabled() &&
-      GetMediaPluginHost()->FindDecoder(aType, nullptr)) {
+  if (MediaDecoder::IsMediaPluginsEnabled() && GetMediaPluginHost()->FindDecoder(aType, NULL)) {
     decoder = new MediaPluginDecoder(aType);
   }
 #endif

@@ -6,7 +6,7 @@
 
 MODULE = 'jsperf'
 
-SOURCES += [
+CPP_SOURCES += [
     'PerfMeasurement.cpp',
 ]
 

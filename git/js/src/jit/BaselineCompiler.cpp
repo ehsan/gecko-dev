@@ -87,14 +87,13 @@ BaselineCompiler::compile()
     // Pin analysis info during compilation.
     types::AutoEnterAnalysis autoEnterAnalysis(cx);
 
-    JS_ASSERT(!script->hasBaselineScript());
-
     if (!emitPrologue())
         return Method_Error;
 
     MethodStatus status = emitBody();
     if (status != Method_Compiled)
         return status;
+
 
     if (!emitEpilogue())
         return Method_Error;
@@ -112,22 +111,7 @@ BaselineCompiler::compile()
     if (!code)
         return Method_Error;
 
-    JSObject *templateScope = nullptr;
-    if (script->function()) {
-        RootedFunction fun(cx, script->function());
-        if (fun->isHeavyweight()) {
-            templateScope = CallObject::createTemplateObject(cx, script, gc::TenuredHeap);
-            if (!templateScope)
-                return Method_Error;
-
-            if (fun->isNamedLambda()) {
-                RootedObject declEnvObject(cx, DeclEnvObject::createTemplateObject(cx, fun, gc::TenuredHeap));
-                if (!declEnvObject)
-                    return Method_Error;
-                templateScope->as<ScopeObject>().setEnclosingScope(declEnvObject);
-            }
-        }
-    }
+    JS_ASSERT(!script->hasBaselineScript());
 
     // Encode the pc mapping table. See PCMappingIndexEntry for
     // more information.
@@ -184,7 +168,6 @@ BaselineCompiler::compile()
         return Method_Error;
 
     baselineScript->setMethod(code);
-    baselineScript->setTemplateScope(templateScope);
 
     script->setBaselineScript(baselineScript);
 

@@ -44,15 +44,12 @@ typedef NS_NPAPIPLUGIN_CALLBACK(OSErr, BP_GETSUPPORTEDMIMETYPES) (BPSupportedMIM
 */
 static CFBundleRef getPluginBundle(const char* path)
 {
-  CFBundleRef bundle = nullptr;
-  CFStringRef pathRef = ::CFStringCreateWithCString(nullptr, path,
-                                                    kCFStringEncodingUTF8);
+  CFBundleRef bundle = NULL;
+  CFStringRef pathRef = ::CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
   if (pathRef) {
-    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(nullptr, pathRef,
-                                                         kCFURLPOSIXPathStyle,
-                                                         true);
+    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
     if (bundleURL) {
-      bundle = ::CFBundleCreate(nullptr, bundleURL);
+      bundle = ::CFBundleCreate(NULL, bundleURL);
       ::CFRelease(bundleURL);
     }
     ::CFRelease(pathRef);
@@ -147,57 +144,57 @@ static CFDictionaryRef ParsePlistForMIMETypesFilename(CFBundleRef bundle)
 {
   CFTypeRef mimeFileName = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypesFilename"));
   if (!mimeFileName || ::CFGetTypeID(mimeFileName) != ::CFStringGetTypeID()) {
-    return nullptr;
+    return NULL;
   }
   
   FSRef homeDir;
   if (::FSFindFolder(kUserDomain, kCurrentUserFolderType, kDontCreateFolder, &homeDir) != noErr) {
-    return nullptr;
+    return NULL;
   }
   
   CFURLRef userDirURL = ::CFURLCreateFromFSRef(kCFAllocatorDefault, &homeDir);
   if (!userDirURL) {
-    return nullptr;
+    return NULL;
   }
   
   AutoCFTypeObject userDirURLAutorelease(userDirURL);
-  CFStringRef mimeFilePath = ::CFStringCreateWithFormat(kCFAllocatorDefault, nullptr, CFSTR("Library/Preferences/%@"), static_cast<CFStringRef>(mimeFileName));
+  CFStringRef mimeFilePath = ::CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("Library/Preferences/%@"), static_cast<CFStringRef>(mimeFileName));
   if (!mimeFilePath) {
-    return nullptr;
+    return NULL;
   }
   
   AutoCFTypeObject mimeFilePathAutorelease(mimeFilePath);
   CFURLRef mimeFileURL = ::CFURLCreateWithFileSystemPathRelativeToBase(kCFAllocatorDefault, mimeFilePath, kCFURLPOSIXPathStyle, false, userDirURL);
   if (!mimeFileURL) {
-    return nullptr;
+    return NULL;
   }
   
   AutoCFTypeObject mimeFileURLAutorelease(mimeFileURL);
   SInt32 errorCode = 0;
-  CFDataRef mimeFileData = nullptr;
-  Boolean result = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault, mimeFileURL, &mimeFileData, nullptr, nullptr, &errorCode);
+  CFDataRef mimeFileData = NULL;
+  Boolean result = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault, mimeFileURL, &mimeFileData, NULL, NULL, &errorCode);
   if (!result) {
-    return nullptr;
+    return NULL;
   }
   
   AutoCFTypeObject mimeFileDataAutorelease(mimeFileData);
   if (errorCode != 0) {
-    return nullptr;
+    return NULL;
   }
   
-  CFPropertyListRef propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault, mimeFileData, kCFPropertyListImmutable, nullptr);
+  CFPropertyListRef propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault, mimeFileData, kCFPropertyListImmutable, NULL);
   if (!propertyList) {
-    return nullptr;
+    return NULL;
   }
   
   AutoCFTypeObject propertyListAutorelease(propertyList);
   if (::CFGetTypeID(propertyList) != ::CFDictionaryGetTypeID()) {
-    return nullptr;
+    return NULL;
   }
 
   CFTypeRef mimeTypes = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyList), CFSTR("WebPluginMIMETypes"));
   if (!mimeTypes || ::CFGetTypeID(mimeTypes) != ::CFDictionaryGetTypeID() || ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeTypes)) == 0) {
-    return nullptr;
+    return NULL;
   }
   
   return static_cast<CFDictionaryRef>(::CFRetain(mimeTypes));
@@ -304,14 +301,11 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   executablePath[0] = '\0';
   nsAutoCString bundlePath;
   mPlugin->GetNativePath(bundlePath);
-  CFStringRef pathRef = ::CFStringCreateWithCString(nullptr, bundlePath.get(),
-                                                    kCFStringEncodingUTF8);
+  CFStringRef pathRef = ::CFStringCreateWithCString(NULL, bundlePath.get(), kCFStringEncodingUTF8);
   if (pathRef) {
-    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(nullptr, pathRef,
-                                                         kCFURLPOSIXPathStyle,
-                                                         true);
+    CFURLRef bundleURL = ::CFURLCreateWithFileSystemPath(NULL, pathRef, kCFURLPOSIXPathStyle, true);
     if (bundleURL) {
-      CFBundleRef bundle = ::CFBundleCreate(nullptr, bundleURL);
+      CFBundleRef bundle = ::CFBundleCreate(NULL, bundleURL);
       if (bundle) {
         CFURLRef executableURL = ::CFBundleCopyExecutableURL(bundle);
         if (executableURL) {
@@ -362,7 +356,7 @@ static char* GetNextPluginStringFromHandle(Handle h, short *index)
 
 static bool IsCompatibleArch(nsIFile *file)
 {
-  CFURLRef pluginURL = nullptr;
+  CFURLRef pluginURL = NULL;
   if (NS_FAILED(toCFURLRef(file, pluginURL)))
     return false;
   
@@ -489,7 +483,7 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
   }
 
   // We'll fill this in using BP_GetSupportedMIMETypes and/or resource fork data
-  BPSupportedMIMETypes mi = {kBPSupportedMIMETypesStructVers_1, nullptr, nullptr};
+  BPSupportedMIMETypes mi = {kBPSupportedMIMETypesStructVers_1, NULL, NULL};
 
   // Try to get data from BP_GetSupportedMIMETypes
   if (pLibrary) {

@@ -10,11 +10,11 @@ EXPORTS += [
     'APKOpen.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'APKOpen.cpp',
-    'nsGeckoUtils.cpp',
     'NSSBridge.cpp',
     'SQLiteBridge.cpp',
+    'nsGeckoUtils.cpp',
 ]
 
 LIBRARY_NAME = 'android'

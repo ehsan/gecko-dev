@@ -17,7 +17,7 @@
 #include "DecoderTraits.h"
 #include "nsIAudioChannelAgent.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/TextTrackManager.h"
+#include "mozilla/dom/TextTrackList.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -50,7 +50,6 @@ namespace dom {
 
 class MediaError;
 class MediaSource;
-class TextTrackList;
 
 class HTMLMediaElement : public nsGenericHTMLElement,
                          public nsIObserver,
@@ -527,14 +526,12 @@ public:
                                            const nsAString& aLanguage);
 
   void AddTextTrack(TextTrack* aTextTrack) {
-    if (mTextTrackManager) {
-      mTextTrackManager->AddTextTrack(aTextTrack);
-    }
+    mTextTracks->AddTextTrack(aTextTrack);
   }
 
   void RemoveTextTrack(TextTrack* aTextTrack) {
-    if (mTextTrackManager) {
-      mTextTrackManager->RemoveTextTrack(aTextTrack);
+    if (mTextTracks) {
+      mTextTracks->RemoveTextTrack(*aTextTrack);
     }
   }
 
@@ -1151,7 +1148,8 @@ protected:
   // An agent used to join audio channel service.
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;
 
-  nsRefPtr<TextTrackManager> mTextTrackManager;
+  // List of our attached text track objects.
+  nsRefPtr<TextTrackList> mTextTracks;
 };
 
 } // namespace dom

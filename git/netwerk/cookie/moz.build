@@ -25,14 +25,14 @@ if CONFIG['NECKO_COOKIES']:
     LIBRARY_NAME = 'neckocookie_s'
 
     EXPORTS.mozilla.net = [
-        'CookieServiceChild.h',
         'CookieServiceParent.h',
+        'CookieServiceChild.h',
     ]
-    SOURCES += [
-        'CookieServiceChild.cpp',
-        'CookieServiceParent.cpp',
+    CPP_SOURCES += [
         'nsCookie.cpp',
         'nsCookieService.cpp',
+        'CookieServiceParent.cpp',
+        'CookieServiceChild.cpp',
     ]
 
 if CONFIG['NECKO_COOKIES']:
@@ -47,6 +47,4 @@ IPDL_SOURCES = [
 ]
 
 FAIL_ON_WARNINGS = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

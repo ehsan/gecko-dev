@@ -694,10 +694,8 @@ class IonBuilder : public MIRGenerator
         // completed, both the |cx| member and |context()| may be used.
         if (info().executionMode() == DefinitePropertiesAnalysis)
             return cx;
-        return nullptr;
+        return NULL;
     }
-
-    JSAtomState &names() { return compartment->runtimeFromAnyThread()->atomState; }
 
   private:
     bool init();

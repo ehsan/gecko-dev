@@ -6,7 +6,7 @@
 
 MODULE = 'jsdownloads'
 
-SOURCES += [
+CPP_SOURCES += [
     'DownloadPlatform.cpp',
 ]
 
@@ -23,8 +23,8 @@ EXTRA_JS_MODULES += [
     'DownloadCore.jsm',
     'DownloadImport.jsm',
     'DownloadList.jsm',
-    'Downloads.jsm',
     'DownloadStore.jsm',
+    'Downloads.jsm',
 ]
 
 EXTRA_PP_JS_MODULES += [

@@ -14,7 +14,7 @@ EXPORTS.mozilla.dom += [
     'Promise.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Promise.cpp',
     'PromiseCallback.cpp',
 ]

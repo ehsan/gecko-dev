@@ -6,7 +6,7 @@
 
 MODULE = 'caps'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsJSPrincipals.cpp',
     'nsNullPrincipal.cpp',
     'nsNullPrincipalURI.cpp',

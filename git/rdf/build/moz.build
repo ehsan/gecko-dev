@@ -10,7 +10,7 @@ EXPORTS += [
     'nsRDFCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsRDFModule.cpp',
 ]
 

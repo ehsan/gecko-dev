@@ -3744,8 +3744,6 @@ public:
     CompartmentPrivate()
         : wantXrays(false)
         , universalXPConnectEnabled(false)
-        , adoptedNode(false)
-        , donatedNode(false)
         , scope(nullptr)
         , locationWasParsed(false)
     {
@@ -3761,10 +3759,6 @@ public:
     // enablePrivilege. Once set, this value is never unset (i.e., it doesn't follow
     // the old scoping rules of enablePrivilege). Using it is inherently unsafe.
     bool universalXPConnectEnabled;
-
-    // for telemetry. See bug 928476.
-    bool adoptedNode;
-    bool donatedNode;
 
     // Our XPCWrappedNativeScope. This is non-null if and only if this is an
     // XPConnect compartment.

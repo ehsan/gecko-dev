@@ -12,7 +12,7 @@ EXPORTS += [
     'nsJSON.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsJSON.cpp',
 ]
 

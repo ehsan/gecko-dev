@@ -571,7 +571,7 @@ class CompilerConstraint
 
     CompilerConstraint(const HeapTypeSetKey &property)
       : property(property),
-        expected(property.maybeTypes() ? property.maybeTypes()->clone(IonAlloc()) : nullptr)
+        expected(property.maybeTypes() ? property.maybeTypes()->clone(IonAlloc()) : NULL)
     {}
 
     // Generate the type constraint recording the assumption made by this
@@ -706,7 +706,7 @@ TypeScript::FreezeTypeSets(CompilerConstraintList *constraints, JSScript *script
     *pThisTypes = types + (ThisTypes(script) - existing);
     *pArgTypes = (script->function() && script->function()->nargs)
                  ? (types + (ArgTypes(script, 0) - existing))
-                 : nullptr;
+                 : NULL;
     *pBytecodeTypes = types;
 
     constraints->freezeScript(script, *pThisTypes, *pArgTypes, *pBytecodeTypes);
@@ -818,7 +818,7 @@ TypeObjectKey::maybeType()
     if (isTypeObject())
         return asTypeObject();
     if (asSingleObject()->hasLazyType())
-        return nullptr;
+        return NULL;
     return asSingleObject()->type();
 }
 
@@ -831,7 +831,7 @@ TypeObjectKey::unknownProperties()
 }
 
 HeapTypeSetKey
-TypeObjectKey::property(jsid id, JSContext *maybecx /* = nullptr */)
+TypeObjectKey::property(jsid id, JSContext *maybecx /* = NULL */)
 {
     JS_ASSERT(!unknownProperties());
 
@@ -867,7 +867,7 @@ HeapTypeSetKey::instantiate(JSContext *cx)
     if (object()->isSingleObject() && !object()->asSingleObject()->getType(cx))
         return false;
     maybeTypes_ = object()->maybeType()->getProperty(cx, id());
-    return maybeTypes_ != nullptr;
+    return maybeTypes_ != NULL;
 }
 
 static bool
@@ -926,7 +926,7 @@ class TypeConstraintFreezeStack : public TypeConstraint
 } /* anonymous namespace */
 
 bool
-types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode executionMode,
+types::FinishCompilation(JSContext *cx, JSScript *script, ExecutionMode executionMode,
                          CompilerConstraintList *constraints, RecompileInfo *precompileInfo)
 {
     if (constraints->failed())
@@ -1368,7 +1368,7 @@ ObjectStateChange(ExclusiveContext *cxArg, TypeObject *object, bool markingUnkno
 }
 
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun);
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun);
 
 namespace {
 
@@ -1402,8 +1402,7 @@ class ConstraintDataFreezeConfiguredProperty
         if (type->flags & OBJECT_FLAG_NEW_SCRIPT_REGENERATE) {
             type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
             if (type->hasNewScript()) {
-                RootedFunction fun(cx, type->newScript()->fun);
-                CheckNewScriptProperties(cx, type, fun);
+                CheckNewScriptProperties(cx, type, type->newScript()->fun);
             } else {
                 JS_ASSERT(type->flags & OBJECT_FLAG_ADDENDUM_CLEARED);
                 type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
@@ -3212,7 +3211,7 @@ types::AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
  * newScript on the type after they were cleared by a GC.
  */
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun)
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 

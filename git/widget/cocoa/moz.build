@@ -23,9 +23,11 @@ LIBRARY_NAME = 'widget_mac'
 
 LIBXUL_LIBRARY = True
 
-SOURCES += [
+CMMSRCS += [
     'GfxInfo.mm',
     'NativeKeyBindings.mm',
+    'TextInputHandler.mm',
+    'WidgetTraceEvent.mm',
     'nsAppShell.mm',
     'nsBidiKeyboard.mm',
     'nsChildView.mm',
@@ -60,12 +62,10 @@ SOURCES += [
     'nsToolkit.mm',
     'nsWidgetFactory.mm',
     'nsWindowMap.mm',
-    'TextInputHandler.mm',
-    'WidgetTraceEvent.mm',
 ]
 
 if CONFIG['TARGET_CPU'] == 'x86_64':
-    SOURCES += [
+    CMMSRCS += [
         'ComplexTextInputPanel.mm',
     ]
 

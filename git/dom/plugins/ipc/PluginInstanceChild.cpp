@@ -68,8 +68,8 @@ typedef BOOL (WINAPI *User32TrackPopupMenu)(HMENU hMenu,
                                             HWND hWnd,
                                             CONST RECT *prcRect);
 static WindowsDllInterceptor sUser32Intercept;
-static HWND sWinlessPopupSurrogateHWND = nullptr;
-static User32TrackPopupMenu sUser32TrackPopupMenuStub = nullptr;
+static HWND sWinlessPopupSurrogateHWND = NULL;
+static User32TrackPopupMenu sUser32TrackPopupMenuStub = NULL;
 
 using mozilla::gfx::SharedDIB;
 
@@ -131,8 +131,8 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
 #endif
     , mLayersRendering(false)
 #ifdef XP_WIN
-    , mCurrentSurfaceActor(nullptr)
-    , mBackSurfaceActor(nullptr)
+    , mCurrentSurfaceActor(NULL)
+    , mBackSurfaceActor(NULL)
 #endif
     , mAccumulatedInvalidRect(0,0,0,0)
     , mIsTransparent(false)
@@ -152,8 +152,8 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
 #if (MOZ_WIDGET_GTK == 2)
-    mWsInfo.display = nullptr;
-    mXtClient.top_widget = nullptr;
+    mWsInfo.display = NULL;
+    mXtClient.top_widget = NULL;
 #else
     mWsInfo.display = DefaultXDisplay();
 #endif
@@ -197,7 +197,7 @@ NPError
 PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
                                                  NPObject** aObject)
 {
-    PluginScriptableObjectChild* actor = nullptr;
+    PluginScriptableObjectChild* actor = NULL;
     NPError result = NPERR_NO_ERROR;
 
     switch (aValue) {
@@ -675,7 +675,7 @@ PluginInstanceChild::AnswerNPP_GetValue_NPPVpluginNativeAccessibleAtkPlugId(
 
 #if MOZ_ACCESSIBILITY_ATK
 
-    char* plugId = nullptr;
+    char* plugId = NULL;
     NPError result = NPERR_GENERIC_ERROR;
     if (mPluginIface->getvalue) {
         result = mPluginIface->getvalue(GetNPP(),
@@ -1058,7 +1058,7 @@ void PluginInstanceChild::DeleteWindow()
   if (mXtClient.top_widget) {     
       xt_client_unrealize(&mXtClient);
       xt_client_destroy(&mXtClient); 
-      mXtClient.top_widget = nullptr;
+      mXtClient.top_widget = NULL;
   }
 #endif
 
@@ -1103,7 +1103,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     }
 
 #if (MOZ_WIDGET_GTK == 2)
-    if (mXEmbed && gtk_check_version(2,18,7) != nullptr) { // older
+    if (mXEmbed && gtk_check_version(2,18,7) != NULL) { // older
         if (aWindow.type == NPWindowTypeWindow) {
             GdkWindow* socket_window = gdk_window_lookup(static_cast<GdkNativeWindow>(aWindow.window));
             if (socket_window) {
@@ -1117,7 +1117,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
         }
 
         if (aWindow.visualID != None
-            && gtk_check_version(2, 12, 10) != nullptr) { // older
+            && gtk_check_version(2, 12, 10) != NULL) { // older
             // Workaround for a bug in Gtk+ (prior to 2.12.10) where deleting
             // a foreign GdkColormap will also free the XColormap.
             // http://git.gnome.org/browse/gtk+/log/gdk/x11/gdkcolor-x11.c?id=GTK_2_12_10
@@ -1287,7 +1287,7 @@ PluginInstanceChild::RegisterWindowClass()
     wcex.lpfnWndProc    = DummyWindowProc;
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
-    wcex.hInstance      = GetModuleHandle(nullptr);
+    wcex.hInstance      = GetModuleHandle(NULL);
     wcex.hIcon          = 0;
     wcex.hCursor        = 0;
     wcex.hbrBackground  = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
@@ -1314,7 +1314,7 @@ PluginInstanceChild::CreatePluginWindow()
                        WS_EX_RIGHTSCROLLBAR,
                        kWindowClassName, 0,
                        WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0, 0,
-                       0, 0, nullptr, 0, GetModuleHandle(nullptr), 0);
+                       0, 0, NULL, 0, GetModuleHandle(NULL), 0);
     if (!mPluginWindowHWND)
         return false;
     if (!SetProp(mPluginWindowHWND, kPluginInstanceChildProperty, this))
@@ -1373,7 +1373,7 @@ PluginInstanceChild::SizePluginWindow(int width,
     if (mPluginWindowHWND) {
         mPluginSize.x = width;
         mPluginSize.y = height;
-        SetWindowPos(mPluginWindowHWND, nullptr, 0, 0, width, height,
+        SetWindowPos(mPluginWindowHWND, NULL, 0, 0, width, height,
                      SWP_NOZORDER | SWP_NOREPOSITION);
     }
 }
@@ -1446,7 +1446,7 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
     // Prevent lockups due to plugins making rpc calls when the parent
     // is making a synchronous SendMessage call to the child window. Add
     // more messages as needed.
-    if ((InSendMessageEx(nullptr)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+    if ((InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
         switch(message) {
             case WM_KILLFOCUS:
             ReplyMessage(0);
@@ -1516,8 +1516,8 @@ typedef LONG_PTR
   (WINAPI *User32SetWindowLongPtrW)(HWND hWnd,
                                     int nIndex,
                                     LONG_PTR dwNewLong);
-static User32SetWindowLongPtrA sUser32SetWindowLongAHookStub = nullptr;
-static User32SetWindowLongPtrW sUser32SetWindowLongWHookStub = nullptr;
+static User32SetWindowLongPtrA sUser32SetWindowLongAHookStub = NULL;
+static User32SetWindowLongPtrW sUser32SetWindowLongWHookStub = NULL;
 #else
 typedef LONG
 (WINAPI *User32SetWindowLongA)(HWND hWnd,
@@ -1527,8 +1527,8 @@ typedef LONG
 (WINAPI *User32SetWindowLongW)(HWND hWnd,
                                int nIndex,
                                LONG dwNewLong);
-static User32SetWindowLongA sUser32SetWindowLongAHookStub = nullptr;
-static User32SetWindowLongW sUser32SetWindowLongWHookStub = nullptr;
+static User32SetWindowLongA sUser32SetWindowLongAHookStub = NULL;
+static User32SetWindowLongW sUser32SetWindowLongWHookStub = NULL;
 #endif
 
 extern LRESULT CALLBACK
@@ -1694,7 +1694,7 @@ PluginInstanceChild::TrackPopupHookProc(HMENU hMenu,
   }
 
   HWND surrogateHwnd = sWinlessPopupSurrogateHWND;
-  sWinlessPopupSurrogateHWND = nullptr;
+  sWinlessPopupSurrogateHWND = NULL;
 
   // Popups that don't use TPM_RETURNCMD expect a final command message
   // when an item is selected and the context closes. Since we replace
@@ -1737,7 +1737,7 @@ PluginInstanceChild::CreateWinlessPopupSurrogate()
     if (mWinlessPopupSurrogateHWND)
         return;
 
-    HWND hwnd = nullptr;
+    HWND hwnd = NULL;
     NPError result;
     if (!CallNPN_GetValue_NPNVnetscapeWindow(&hwnd, &result)) {
         NS_ERROR("CallNPN_GetValue_NPNVnetscapeWindow failed.");
@@ -1745,8 +1745,8 @@ PluginInstanceChild::CreateWinlessPopupSurrogate()
     }
 
     mWinlessPopupSurrogateHWND =
-        CreateWindowEx(WS_EX_NOPARENTNOTIFY, L"Static", nullptr, WS_CHILD,
-                       0, 0, 0, 0, hwnd, 0, GetModuleHandle(nullptr), 0);
+        CreateWindowEx(WS_EX_NOPARENTNOTIFY, L"Static", NULL, WS_CHILD, 0, 0,
+                       0, 0, hwnd, 0, GetModuleHandle(NULL), 0);
     if (!mWinlessPopupSurrogateHWND) {
         NS_ERROR("CreateWindowEx failed for winless placeholder!");
         return;
@@ -1759,7 +1759,7 @@ PluginInstanceChild::DestroyWinlessPopupSurrogate()
 {
     if (mWinlessPopupSurrogateHWND)
         DestroyWindow(mWinlessPopupSurrogateHWND);
-    mWinlessPopupSurrogateHWND = nullptr;
+    mWinlessPopupSurrogateHWND = NULL;
 }
 
 int16_t
@@ -1772,7 +1772,7 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
     // special handling during delivery.
     int16_t handled;
     
-    HWND focusHwnd = nullptr;
+    HWND focusHwnd = NULL;
 
     // TrackPopupMenu will fail if the parent window is not associated with
     // our ui thread. So we hook TrackPopupMenu so we can hand in a surrogate
@@ -1792,7 +1792,7 @@ PluginInstanceChild::WinlessHandleEvent(NPEvent& event)
 
     handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&event));
 
-    sWinlessPopupSurrogateHWND = nullptr;
+    sWinlessPopupSurrogateHWND = NULL;
 
     if (IsWindow(focusHwnd)) {
       SetFocus(focusHwnd);
@@ -1832,8 +1832,7 @@ PluginInstanceChild::SharedSurfaceSetWindow(const NPRemoteWindow& aWindow)
     mWindow.type   = aWindow.type;
 
     mWindow.window = reinterpret_cast<void*>(mSharedSurfaceDib.GetHDC());
-    ::SetViewportOrgEx(mSharedSurfaceDib.GetHDC(),
-                       -aWindow.x, -aWindow.y, nullptr);
+    ::SetViewportOrgEx(mSharedSurfaceDib.GetHDC(), -aWindow.x, -aWindow.y, NULL);
 
     if (mPluginIface->setwindow)
         mPluginIface->setwindow(&mData, &mWindow);
@@ -1856,7 +1855,7 @@ PluginInstanceChild::AlphaExtractCacheSetup()
 {
     AlphaExtractCacheRelease();
 
-    mAlphaExtract.hdc = ::CreateCompatibleDC(nullptr);
+    mAlphaExtract.hdc = ::CreateCompatibleDC(NULL);
 
     if (!mAlphaExtract.hdc)
         return false;
@@ -1875,7 +1874,7 @@ PluginInstanceChild::AlphaExtractCacheSetup()
                                            (BITMAPINFO*)&bmih,
                                            DIB_RGB_COLORS,
                                            (void**)&ppvBits,
-                                           nullptr,
+                                           NULL,
                                            (unsigned long)sizeof(BITMAPINFOHEADER));
     if (!mAlphaExtract.bmp)
       return false;
@@ -1893,8 +1892,8 @@ PluginInstanceChild::AlphaExtractCacheRelease()
     if (mAlphaExtract.hdc)
         ::DeleteObject(mAlphaExtract.hdc);
 
-    mAlphaExtract.bmp = nullptr;
-    mAlphaExtract.hdc = nullptr;
+    mAlphaExtract.bmp = NULL;
+    mAlphaExtract.hdc = NULL;
 }
 
 void
@@ -2294,7 +2293,7 @@ PluginInstanceChild::AllocPPluginStreamChild(const nsCString& mimeType,
                                              NPError* result)
 {
     NS_RUNTIMEABORT("not callable");
-    return nullptr;
+    return NULL;
 }
 
 bool
@@ -2315,7 +2314,7 @@ PluginInstanceChild::AllocPStreamNotifyChild(const nsCString& url,
 {
     AssertPluginThread();
     NS_RUNTIMEABORT("not reached");
-    return nullptr;
+    return NULL;
 }
 
 void
@@ -2325,8 +2324,8 @@ StreamNotifyChild::ActorDestroy(ActorDestroyReason why)
         NS_ERROR("Pending NPP_URLNotify not called when closing an instance.");
 
         // reclaim responsibility for deleting ourself
-        mBrowserStream->mStreamNotify = nullptr;
-        mBrowserStream = nullptr;
+        mBrowserStream->mStreamNotify = NULL;
+        mBrowserStream = NULL;
     }
 }
 
@@ -2433,7 +2432,7 @@ PluginInstanceChild::NPN_NewStream(NPMIMEType aMIMEType, const char* aWindow,
     CallPPluginStreamConstructor(ps, nsDependentCString(aMIMEType),
                                  NullableString(aWindow), &result);
     if (NPERR_NO_ERROR != result) {
-        *aStream = nullptr;
+        *aStream = NULL;
         PPluginStreamChild::Call__delete__(ps, NPERR_GENERIC_ERROR, true);
         return result;
     }
@@ -2490,7 +2489,7 @@ PluginInstanceChild::NPN_InitAsyncSurface(NPSize *size, NPImageFormat format,
 {
     AssertPluginThread();
 
-    surface->bitmap.data = nullptr;
+    surface->bitmap.data = NULL;
 
     if (!IsAsyncDrawing()) {
         return NPERR_GENERIC_ERROR;
@@ -2577,7 +2576,7 @@ PluginInstanceChild::NPN_FinalizeAsyncSurface(NPAsyncSurface *surface)
                 CrossProcessMutexAutoLock autoLock(*mRemoteImageDataMutex);
                 RemoteImageData *data = mRemoteImageData;
                 if (data->mBitmap.mData == bitmapData->mRemotePtr) {
-                    data->mBitmap.mData = nullptr;
+                    data->mBitmap.mData = NULL;
                     data->mSize = gfxIntSize(0, 0);
                     data->mWasUpdated = true;
                 }
@@ -2592,7 +2591,7 @@ PluginInstanceChild::NPN_FinalizeAsyncSurface(NPAsyncSurface *surface)
                 CrossProcessMutexAutoLock autoLock(*mRemoteImageDataMutex);
                 RemoteImageData *data = mRemoteImageData;
                 if (data->mTextureHandle == surface->sharedHandle) {
-                    data->mTextureHandle = nullptr;
+                    data->mTextureHandle = NULL;
                     data->mSize = gfxIntSize(0, 0);
                     data->mWasUpdated = true;
                 }
@@ -2618,7 +2617,7 @@ PluginInstanceChild::NPN_SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect 
 
     if (!surface) {
         CrossProcessMutexAutoLock autoLock(*mRemoteImageDataMutex);
-        data->mBitmap.mData = nullptr;
+        data->mBitmap.mData = NULL;
         data->mSize = gfxIntSize(0, 0);
         data->mWasUpdated = true;
     } else {
@@ -2673,7 +2672,7 @@ PluginInstanceChild::DoAsyncRedraw()
 {
     {
         MutexAutoLock autoLock(mAsyncInvalidateMutex);
-        mAsyncInvalidateTask = nullptr;
+        mAsyncInvalidateTask = NULL;
     }
 
     SendRedrawPlugin();
@@ -2726,7 +2725,7 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
         mCurrentAsyncSetWindowTask = nullptr;
     }
 
-    mWindow.window = nullptr;
+    mWindow.window = NULL;
     if (mWindow.width != aWindow.width || mWindow.height != aWindow.height ||
         mWindow.clipRect.top != aWindow.clipRect.top ||
         mWindow.clipRect.left != aWindow.clipRect.left ||
@@ -3024,7 +3023,7 @@ PluginInstanceChild::UpdateWindowAttributes(bool aForceSetWindow)
     }
 #endif // MOZ_X11
 #ifdef XP_WIN
-    HDC dc = nullptr;
+    HDC dc = NULL;
 
     if (curSurface) {
         if (!SharedDIBSurface::IsSharedDIBSurface(curSurface))
@@ -3143,8 +3142,8 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
         uintptr_t(&rect)
     };
 
-    ::SetViewportOrgEx((HDC) mWindow.window, -mWindow.x, -mWindow.y, nullptr);
-    ::SelectClipRgn((HDC) mWindow.window, nullptr);
+    ::SetViewportOrgEx((HDC) mWindow.window, -mWindow.x, -mWindow.y, NULL);
+    ::SelectClipRgn((HDC) mWindow.window, NULL);
     ::IntersectClipRect((HDC) mWindow.window, rect.left, rect.top, rect.right, rect.bottom);
     mPluginIface->event(&mData, reinterpret_cast<void*>(&paintEvent));
 #else
@@ -3495,7 +3494,7 @@ PluginInstanceChild::ShowPluginFrame()
     if (SharedDIBSurface::IsSharedDIBSurface(mCurrentSurface)) {
         SharedDIBSurface* s = static_cast<SharedDIBSurface*>(mCurrentSurface.get());
         if (!mCurrentSurfaceActor) {
-            base::SharedMemoryHandle handle = nullptr;
+            base::SharedMemoryHandle handle = NULL;
             s->ShareToProcess(PluginModuleChild::current()->OtherProcess(), &handle);
 
             mCurrentSurfaceActor =
@@ -3847,7 +3846,7 @@ PluginInstanceChild::ClearCurrentSurface()
 #ifdef XP_WIN
     if (mCurrentSurfaceActor) {
         PPluginSurfaceChild::Send__delete__(mCurrentSurfaceActor);
-        mCurrentSurfaceActor = nullptr;
+        mCurrentSurfaceActor = NULL;
     }
 #endif
     mHelperSurface = nullptr;
@@ -3873,11 +3872,11 @@ PluginInstanceChild::ClearAllSurfaces()
 #ifdef XP_WIN
     if (mCurrentSurfaceActor) {
         PPluginSurfaceChild::Send__delete__(mCurrentSurfaceActor);
-        mCurrentSurfaceActor = nullptr;
+        mCurrentSurfaceActor = NULL;
     }
     if (mBackSurfaceActor) {
         PPluginSurfaceChild::Send__delete__(mBackSurfaceActor);
-        mBackSurfaceActor = nullptr;
+        mBackSurfaceActor = NULL;
     }
 #endif
 
@@ -3962,8 +3961,8 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     mDeletingHash = new nsTHashtable<DeletingObjectEntry>;
     PluginModuleChild::current()->FindNPObjectsForInstance(this);
 
-    mDeletingHash->EnumerateEntries(InvalidateObject, nullptr);
-    mDeletingHash->EnumerateEntries(DeleteObject, nullptr);
+    mDeletingHash->EnumerateEntries(InvalidateObject, NULL);
+    mDeletingHash->EnumerateEntries(DeleteObject, NULL);
 
     // Null out our cached actors as they should have been killed in the
     // PluginInstanceDestroyed call above.

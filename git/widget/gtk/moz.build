@@ -17,7 +17,8 @@ EXPORTS += [
     'nsIImageToPixbuf.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
+    'WidgetTraceEvent.cpp',
     'nsAppShell.cpp',
     'nsBidiKeyboard.cpp',
     'nsColorPicker.cpp',
@@ -34,54 +35,51 @@ SOURCES += [
     'nsToolkit.cpp',
     'nsWidgetFactory.cpp',
     'nsWindow.cpp',
-    'WidgetTraceEvent.cpp',
 ]
 
 if CONFIG['MOZ_X11']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsIdleServiceGTK.cpp',
     ]
 
 if CONFIG['NS_PRINTING']:
-    SOURCES += [
-        'nsCUPSShim.cpp',
+    CPP_SOURCES += [
         'nsDeviceContextSpecG.cpp',
-        'nsPaperPS.cpp',
-        'nsPrintDialogGTK.cpp',
         'nsPrintOptionsGTK.cpp',
+        'nsPrintDialogGTK.cpp',
         'nsPrintSettingsGTK.cpp',
+        'nsCUPSShim.cpp',
+        'nsPaperPS.cpp',
         'nsPSPrinters.cpp',
     ]
 
 if CONFIG['MOZ_X11']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsClipboard.cpp',
         'nsDragService.cpp',
     ]
 
 FAIL_ON_WARNINGS = True
 
-SOURCES += [
+CSRCS += [
     'mozcontainer.c',
 ]
 
 LIBXUL_LIBRARY = True
 
 if CONFIG['ACCESSIBILITY']:
-    SOURCES += [
+    CSRCS += [
         'maiRedundantObjectFactory.c',
     ]
 
 if CONFIG['MOZ_ENABLE_GTK2']:
-    SOURCES += [
+    CSRCS += [
         'gtk2drawing.c',
     ]
 else:
-    SOURCES += [
+    CSRCS += [
         'gtk3drawing.c',
     ]
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 
