@@ -8,21 +8,10 @@ let gSearch = {
 
   currentEngineName: null,
 
-  get useNewUI() {
-    let newUI = Services.prefs.getBoolPref("browser.search.showOneOffButtons");
-    delete this.useNewUI;
-    this.useNewUI = newUI;
-    return newUI;
-  },
-
   init: function () {
     for (let idSuffix of this._nodeIDSuffixes) {
       this._nodes[idSuffix] =
         document.getElementById("newtab-search-" + idSuffix);
-    }
-
-    if (this.useNewUI) {
-      this._nodes.logo.classList.add("magnifier");
     }
 
     window.addEventListener("ContentSearchService", this);
@@ -133,11 +122,6 @@ let gSearch = {
   },
 
   _setUpPanel: function () {
-    // The new search UI only contains the "manage" engine entry in the panel
-    if (this.useNewUI) {
-      return;
-    }
-
     // Build the panel if necessary.
     if (this._newEngines) {
       this._buildPanel(this._newEngines);
@@ -214,30 +198,28 @@ let gSearch = {
   _setCurrentEngine: function (engine) {
     this.currentEngineName = engine.name;
 
-    if (!this.useNewUI) {
-      let type = "";
-      let uri;
-      let logoBuf = window.devicePixelRatio >= 2 ?
-                    engine.logo2xBuffer || engine.logoBuffer :
-                    engine.logoBuffer || engine.logo2xBuffer;
-      if (logoBuf) {
-        uri = URL.createObjectURL(new Blob([logoBuf]));
-        type = "logo";
-      }
-      else if (engine.iconBuffer) {
-        uri = this._getFaviconURIFromBuffer(engine.iconBuffer);
-        type = "favicon";
-      }
-      this._nodes.logo.setAttribute("type", type);
-
-      if (uri) {
-        this._nodes.logo.style.backgroundImage = "url(" + uri + ")";
-      }
-      else {
-        this._nodes.logo.style.backgroundImage = "";
-      }
-      this._nodes.text.placeholder = engine.placeholder;
+    let type = "";
+    let uri;
+    let logoBuf = window.devicePixelRatio >= 2 ?
+                  engine.logo2xBuffer || engine.logoBuffer :
+                  engine.logoBuffer || engine.logo2xBuffer;
+    if (logoBuf) {
+      uri = URL.createObjectURL(new Blob([logoBuf]));
+      type = "logo";
     }
+    else if (engine.iconBuffer) {
+      uri = this._getFaviconURIFromBuffer(engine.iconBuffer);
+      type = "favicon";
+    }
+    this._nodes.logo.setAttribute("type", type);
+
+    if (uri) {
+      this._nodes.logo.style.backgroundImage = "url(" + uri + ")";
+    }
+    else {
+      this._nodes.logo.style.backgroundImage = "";
+    }
+    this._nodes.text.placeholder = engine.placeholder;
 
     // Set up the suggestion controller.
     if (!this._suggestionController) {

@@ -71,21 +71,9 @@ function openToolbox(form) {
   };
   devtools.TargetFactory.forRemoteTab(options).then(target => {
     let frame = document.getElementById("toolbox-iframe");
-    let selectedTool = "jsdebugger";
-
-    try {
-      // Remember the last panel that was used inside of this profile.
-      selectedTool = Services.prefs.getCharPref("devtools.toolbox.selectedTool");
-    } catch(e) {}
-
-    try {
-      // But if we are testing, then it should always open the debugger panel.
-      selectedTool = Services.prefs.getCharPref("devtools.browsertoolbox.panel");
-    } catch(e) {}
-
     let options = { customIframe: frame };
     gDevTools.showToolbox(target,
-                          selectedTool,
+                          "jsdebugger",
                           devtools.Toolbox.HostType.CUSTOM,
                           options)
              .then(onNewToolbox);

@@ -92,13 +92,12 @@ D3D9SurfaceImage::SetData(const Data& aData)
 void
 D3D9SurfaceImage::EnsureSynchronized()
 {
-  RefPtr<IDirect3DQuery9> query = mQuery;
-  if (!query) {
+  if (!mQuery) {
     // Not setup, or already synchronized.
     return;
   }
   int iterations = 0;
-  while (iterations < 10 && S_FALSE == query->GetData(nullptr, 0, D3DGETDATA_FLUSH)) {
+  while (iterations < 10 && S_FALSE == mQuery->GetData(nullptr, 0, D3DGETDATA_FLUSH)) {
     Sleep(1);
     iterations++;
   }

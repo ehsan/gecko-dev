@@ -29,8 +29,6 @@ browser.jar:
 *       skin/classic/browser/browser-lightweightTheme.css
         skin/classic/browser/click-to-play-warning-stripes.png
 *       skin/classic/browser/content-contextmenu.svg
-        skin/classic/browser/dots.png                                (../shared/dots.png)
-        skin/classic/browser/dots@2x.png                             (../shared/dots@2x.png)
 *       skin/classic/browser/engineManager.css
         skin/classic/browser/fullscreen-darknoise.png
         skin/classic/browser/Geolocation-16.png
@@ -45,8 +43,6 @@ browser.jar:
         skin/classic/browser/keyhole-forward-mask.svg
         skin/classic/browser/KUI-background.png
         skin/classic/browser/livemark-folder.png
-        skin/classic/browser/magnifier.png                          (../shared/magnifier.png)
-        skin/classic/browser/magnifier@2x.png                       (../shared/magnifier@2x.png)
         skin/classic/browser/mask.png                               (../shared/mask.png)
         skin/classic/browser/mask@2x.png                            (../shared/mask@2x.png)
         skin/classic/browser/menu-back.png
@@ -469,8 +465,6 @@ browser.jar:
 *       skin/classic/aero/browser/browser-lightweightTheme.css
         skin/classic/aero/browser/click-to-play-warning-stripes.png
 *       skin/classic/aero/browser/content-contextmenu.svg
-        skin/classic/aero/browser/dots.png                           (../shared/dots.png)
-        skin/classic/aero/browser/dots@2x.png                        (../shared/dots@2x.png)
 *       skin/classic/aero/browser/engineManager.css
         skin/classic/aero/browser/fullscreen-darknoise.png
         skin/classic/aero/browser/Geolocation-16.png
@@ -485,8 +479,6 @@ browser.jar:
         skin/classic/aero/browser/keyhole-forward-mask.svg
         skin/classic/aero/browser/KUI-background.png
         skin/classic/aero/browser/livemark-folder.png                (livemark-folder-aero.png)
-        skin/classic/aero/browser/magnifier.png                      (../shared/magnifier.png)
-        skin/classic/aero/browser/magnifier@2x.png                   (../shared/magnifier@2x.png)
         skin/classic/aero/browser/mask.png                           (../shared/mask.png)
         skin/classic/aero/browser/mask@2x.png                        (../shared/mask@2x.png)
         skin/classic/aero/browser/menu-back.png                      (menu-back-aero.png)
