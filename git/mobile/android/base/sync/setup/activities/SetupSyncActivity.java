@@ -427,13 +427,13 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   private boolean hasInternet() {
     Logger.debug(LOG_TAG, "Checking internet connectivity.");
     ConnectivityManager connManager = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-    NetworkInfo network = connManager.getActiveNetworkInfo();
+    NetworkInfo wifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+    NetworkInfo mobile = connManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
 
-    if (network != null && network.isConnected()) {
-      Logger.debug(LOG_TAG, network + " is connected.");
+    if (wifi.isConnected() || mobile.isConnected()) {
+      Logger.debug(LOG_TAG, "Internet connected.");
       return true;
     }
-    Logger.debug(LOG_TAG, "No connected networks.");
     return false;
   }
 

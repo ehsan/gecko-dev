@@ -556,7 +556,7 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mNetworkCreated(true)
   // If plugins.click_to_play is false, plugins should always play
   , mShouldPlay(!mozilla::Preferences::GetBool("plugins.click_to_play", false))
-  , mSrcStreamLoading(false)
+  , mSrcStreamLoadInitiated(false)
   , mFallbackReason(ePluginOtherState)
 {
 }
@@ -691,6 +691,8 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
                                        nsISupports *aContext)
 {
   SAMPLE_LABEL("nsObjectLoadingContent", "OnStartRequest");
+
+  mSrcStreamLoadInitiated = true;
 
   if (aRequest != mChannel || !aRequest) {
     // This is a bit of an edge case - happens when a new load starts before the
@@ -881,7 +883,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       if (!pluginHost) {
         return NS_ERROR_NOT_AVAILABLE;
       }
-      pluginHost->CreateListenerForChannel(chan, this, getter_AddRefs(mFinalListener));
+      pluginHost->InstantiatePluginForChannel(chan, this, getter_AddRefs(mFinalListener));
       break;
     }
     case eType_Loading:
@@ -904,9 +906,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
 
   if (mFinalListener) {
     mType = newType;
-    mSrcStreamLoading = true;
     rv = mFinalListener->OnStartRequest(aRequest, aContext);
-    mSrcStreamLoading = false;
     if (NS_FAILED(rv)) {
 #ifdef XP_MACOSX
       // Shockwave on Mac is special and returns an error here even when it
@@ -2111,6 +2111,7 @@ nsObjectLoadingContent::PlayPlugin()
   if (!nsContentUtils::IsCallerChrome())
     return NS_OK;
 
+  mSrcStreamLoadInitiated = false;
   mShouldPlay = true;
   return LoadObject(mURI, true, mContentType, true);
 }

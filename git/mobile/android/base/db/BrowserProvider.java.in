@@ -47,7 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
-import org.mozilla.gecko.GeckoBackgroundThread;
+import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
@@ -744,8 +744,7 @@ public class BrowserProvider extends ContentProvider {
     public boolean onCreate() {
         debug("Creating BrowserProvider");
 
-        GeckoBackgroundThread.post(new Runnable() {
-            @Override
+        GeckoAppShell.getHandler().post(new Runnable() {
             public void run() {
                 // Kick this off early. It is synchronized so that other callers will wait
                 try {

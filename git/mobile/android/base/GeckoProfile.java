@@ -61,7 +61,7 @@ public final class GeckoProfile {
         mName = profileName;
     }
 
-    public synchronized File getDir() {
+    public File getDir() {
         if (mDir != null) {
             return mDir;
         }
@@ -280,7 +280,7 @@ public final class GeckoProfile {
         return success;
     }
 
-    private synchronized File ensureMozillaDirectory() throws IOException {
+    private File ensureMozillaDirectory() throws IOException {
         if (mMozDir != null) {
             return mMozDir;
         }
