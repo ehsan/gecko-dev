@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -16,8 +16,8 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,51 +35,42 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#ifndef nsHistory_h___
-#define nsHistory_h___
 
-#include "nsIDOMHistory.h"
-#include "nsISupports.h"
-#include "nscore.h"
-#include "nsIScriptContext.h"
-#include "nsISHistory.h"
-#include "nsIWeakReference.h"
-#include "nsPIDOMWindow.h"
+#ifdef IBMBIDI
 
-class nsIDocShell;
+#include "nsBidiFrames.h"
+#include "nsGkAtoms.h"
 
-// Script "History" object
-class nsHistory : public nsIDOMHistory,
-                  public nsIDOMHistory_MOZILLA_2_0_BRANCH
+
+nsDirectionalFrame::nsDirectionalFrame(nsStyleContext* aContext, PRUnichar aChar)
+  : nsFrame(aContext), mChar(aChar)
 {
-public:
-  nsHistory(nsPIDOMWindow* aInnerWindow);
-  virtual ~nsHistory();
+}
 
-  // nsISupports
-  NS_DECL_ISUPPORTS
+nsDirectionalFrame::~nsDirectionalFrame()
+{
+}
 
-  // nsIDOMHistory
-  NS_DECL_NSIDOMHISTORY
-  NS_DECL_NSIDOMHISTORY_MOZILLA_2_0_BRANCH
+nsIAtom*
+nsDirectionalFrame::GetType() const
+{ 
+  return nsGkAtoms::directionalFrame;
+}
+  
+#ifdef NS_DEBUG
+NS_IMETHODIMP
+nsDirectionalFrame::GetFrameName(nsAString& aResult) const
+{
+  return MakeFrameName(NS_LITERAL_STRING("Directional"), aResult);
+}
+#endif
 
-  nsIDocShell *GetDocShell() {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-    if (!win)
-      return nsnull;
-    return win->GetDocShell();
-  }
+nsIFrame*
+NS_NewDirectionalFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUnichar aChar)
+{
+  return new (aPresShell) nsDirectionalFrame(aContext, aChar);
+}
 
-  void GetWindow(nsPIDOMWindow **aWindow) {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-    *aWindow = win.forget().get();
-  }
+NS_IMPL_FRAMEARENA_HELPERS(nsDirectionalFrame)
 
-protected:
-  nsresult GetSessionHistoryFromDocShell(nsIDocShell * aDocShell,
-                                         nsISHistory ** aReturn);
-
-  nsCOMPtr<nsIWeakReference> mInnerWindow;
-};
-
-#endif /* nsHistory_h___ */
+#endif /* IBMBIDI */

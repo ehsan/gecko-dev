@@ -64,11 +64,7 @@
 
   -. 'method' is designed to be as input for CSS2Properties and similar
   callers.  It must always be the same as 'name' except it must use
-  InterCaps and all hyphens ('-') must be removed.  Callers using this
-  parameter must also define the CSS_PROP_DOMPROP_PREFIXED(prop) macro,
-  either to be Moz ## prop or to just be prop, depending on whether they
-  want Moz prefixes or not (i.e., whether the use is for internal use
-  such as nsRuleData::ValueFor* or external use).
+  InterCaps and all hyphens ('-') must be removed.
 
   -. 'flags', a bitfield containing CSS_PROPERTY_* flags.
 
@@ -296,7 +292,7 @@
 CSS_PROP_DISPLAY(
     -moz-appearance,
     appearance,
-    CSS_PROP_DOMPROP_PREFIXED(Appearance),
+    MozAppearance,
     CSS_PROPERTY_PARSE_VALUE,
     Display,
     mAppearance,
@@ -307,12 +303,12 @@ CSS_PROP_DISPLAY(
 CSS_PROP_SHORTHAND(
     -moz-outline-radius,
     _moz_outline_radius,
-    CSS_PROP_DOMPROP_PREFIXED(OutlineRadius),
+    MozOutlineRadius,
     CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_OUTLINE(
     -moz-outline-radius-topleft,
     _moz_outline_radius_topLeft,
-    CSS_PROP_DOMPROP_PREFIXED(OutlineRadiusTopleft),
+    MozOutlineRadiusTopleft,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC,
     Margin,
@@ -324,7 +320,7 @@ CSS_PROP_OUTLINE(
 CSS_PROP_OUTLINE(
     -moz-outline-radius-topright,
     _moz_outline_radius_topRight,
-    CSS_PROP_DOMPROP_PREFIXED(OutlineRadiusTopright),
+    MozOutlineRadiusTopright,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC,
     Margin,
@@ -336,7 +332,7 @@ CSS_PROP_OUTLINE(
 CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomright,
     _moz_outline_radius_bottomRight,
-    CSS_PROP_DOMPROP_PREFIXED(OutlineRadiusBottomright),
+    MozOutlineRadiusBottomright,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC,
     Margin,
@@ -348,7 +344,7 @@ CSS_PROP_OUTLINE(
 CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomleft,
     _moz_outline_radius_bottomLeft,
-    CSS_PROP_DOMPROP_PREFIXED(OutlineRadiusBottomleft),
+    MozOutlineRadiusBottomleft,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC,
     Margin,
@@ -360,7 +356,7 @@ CSS_PROP_OUTLINE(
 CSS_PROP_TEXT(
     -moz-tab-size,
     _moz_tab_size,
-    CSS_PROP_DOMPROP_PREFIXED(TabSize),
+    MozTabSize,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     Text,
@@ -373,7 +369,7 @@ CSS_PROP_TEXT(
 CSS_PROP_FONT(
     -x-system-font,
     _x_system_font,
-    CSS_PROP_DOMPROP_PREFIXED(SystemFont),
+    MozSystemFont,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
@@ -455,7 +451,7 @@ CSS_PROP_BACKGROUND(
 CSS_PROP_BACKGROUND(
     -moz-background-inline-policy,
     _moz_background_inline_policy,
-    CSS_PROP_DOMPROP_PREFIXED(BackgroundInlinePolicy),
+    MozBackgroundInlinePolicy,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Color,
@@ -521,7 +517,7 @@ CSS_PROP_BACKGROUND(
 CSS_PROP_DISPLAY(
     -moz-binding,
     binding,
-    CSS_PROP_DOMPROP_PREFIXED(Binding),
+    MozBinding,
     CSS_PROPERTY_PARSE_VALUE,
     Display,
     mBinding,
@@ -555,7 +551,7 @@ CSS_PROP_BORDER(
 CSS_PROP_BORDER(
     -moz-border-bottom-colors,
     border_bottom_colors,
-    CSS_PROP_DOMPROP_PREFIXED(BorderBottomColors),
+    MozBorderBottomColors,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
@@ -609,12 +605,12 @@ CSS_PROP_SHORTHAND(
 CSS_PROP_SHORTHAND(
     -moz-border-end,
     border_end,
-    CSS_PROP_DOMPROP_PREFIXED(BorderEnd),
+    MozBorderEnd,
     CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_SHORTHAND(
     -moz-border-end-color,
     border_end_color,
-    CSS_PROP_DOMPROP_PREFIXED(BorderEndColor),
+    MozBorderEndColor,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -633,7 +629,7 @@ CSS_PROP_BORDER(
 CSS_PROP_SHORTHAND(
     -moz-border-end-style,
     border_end_style,
-    CSS_PROP_DOMPROP_PREFIXED(BorderEndStyle),
+    MozBorderEndStyle,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -652,7 +648,7 @@ CSS_PROP_BORDER(
 CSS_PROP_SHORTHAND(
     -moz-border-end-width,
     border_end_width,
-    CSS_PROP_DOMPROP_PREFIXED(BorderEndWidth),
+    MozBorderEndWidth,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -672,7 +668,7 @@ CSS_PROP_BORDER(
 CSS_PROP_BORDER(
     -moz-border-image,
     border_image,
-    CSS_PROP_DOMPROP_PREFIXED(BorderImage),
+    MozBorderImage,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_START_IMAGE_LOADS |
@@ -740,7 +736,7 @@ CSS_PROP_BORDER(
 CSS_PROP_BORDER(
     -moz-border-left-colors,
     border_left_colors,
-    CSS_PROP_DOMPROP_PREFIXED(BorderLeftColors),
+    MozBorderLeftColors,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
@@ -900,7 +896,7 @@ CSS_PROP_BORDER(
 CSS_PROP_BORDER(
     -moz-border-right-colors,
     border_right_colors,
-    CSS_PROP_DOMPROP_PREFIXED(BorderRightColors),
+    MozBorderRightColors,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
@@ -1017,12 +1013,12 @@ CSS_PROP_TABLEBORDER(
 CSS_PROP_SHORTHAND(
     -moz-border-start,
     border_start,
-    CSS_PROP_DOMPROP_PREFIXED(BorderStart),
+    MozBorderStart,
     CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_SHORTHAND(
     -moz-border-start-color,
     border_start_color,
-    CSS_PROP_DOMPROP_PREFIXED(BorderStartColor),
+    MozBorderStartColor,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -1041,7 +1037,7 @@ CSS_PROP_BORDER(
 CSS_PROP_SHORTHAND(
     -moz-border-start-style,
     border_start_style,
-    CSS_PROP_DOMPROP_PREFIXED(BorderStartStyle),
+    MozBorderStartStyle,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -1060,7 +1056,7 @@ CSS_PROP_BORDER(
 CSS_PROP_SHORTHAND(
     -moz-border-start-width,
     border_start_width,
-    CSS_PROP_DOMPROP_PREFIXED(BorderStartWidth),
+    MozBorderStartWidth,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_BORDER(
@@ -1103,7 +1099,7 @@ CSS_PROP_BORDER(
 CSS_PROP_BORDER(
     -moz-border-top-colors,
     border_top_colors,
-    CSS_PROP_DOMPROP_PREFIXED(BorderTopColors),
+    MozBorderTopColors,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
@@ -1229,7 +1225,7 @@ CSS_PROP_BORDER(
 CSS_PROP_POSITION(
     -moz-box-sizing,
     box_sizing,
-    CSS_PROP_DOMPROP_PREFIXED(BoxSizing),
+    MozBoxSizing,
     CSS_PROPERTY_PARSE_VALUE,
     Position,
     mBoxSizing,
@@ -1286,7 +1282,7 @@ CSS_PROP_COLOR(
 CSS_PROP_COLUMN(
     -moz-column-count,
     _moz_column_count,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnCount),
+    MozColumnCount,
     CSS_PROPERTY_PARSE_VALUE |
         // Need to reject 0 in addition to negatives.  If we accept 0, we
         // need to change NS_STYLE_COLUMN_COUNT_AUTO to something else.
@@ -1300,7 +1296,7 @@ CSS_PROP_COLUMN(
 CSS_PROP_COLUMN(
     -moz-column-width,
     _moz_column_width,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnWidth),
+    MozColumnWidth,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     Column,
@@ -1312,7 +1308,7 @@ CSS_PROP_COLUMN(
 CSS_PROP_COLUMN(
     -moz-column-gap,
     _moz_column_gap,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnGap),
+    MozColumnGap,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     Column,
@@ -1324,12 +1320,12 @@ CSS_PROP_COLUMN(
 CSS_PROP_SHORTHAND(
     -moz-column-rule,
     _moz_column_rule,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnRule),
+    MozColumnRule,
     CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_COLUMN(
     -moz-column-rule-color,
     _moz_column_rule_color,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnRuleColor),
+    MozColumnRuleColor,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Column,
@@ -1341,7 +1337,7 @@ CSS_PROP_COLUMN(
 CSS_PROP_COLUMN(
     -moz-column-rule-style,
     _moz_column_rule_style,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnRuleStyle),
+    MozColumnRuleStyle,
     CSS_PROPERTY_PARSE_VALUE,
     Column,
     mColumnRuleStyle,
@@ -1352,7 +1348,7 @@ CSS_PROP_COLUMN(
 CSS_PROP_COLUMN(
     -moz-column-rule-width,
     _moz_column_rule_width,
-    CSS_PROP_DOMPROP_PREFIXED(ColumnRuleWidth),
+    MozColumnRuleWidth,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     Column,
@@ -1489,7 +1485,7 @@ CSS_PROP_DISPLAY(
 CSS_PROP_BORDER(
     -moz-float-edge,
     float_edge,
-    CSS_PROP_DOMPROP_PREFIXED(FloatEdge),
+    MozFloatEdge,
     CSS_PROPERTY_PARSE_VALUE,
     Margin,
     mFloatEdge,
@@ -1518,7 +1514,7 @@ CSS_PROP_FONT(
 CSS_PROP_FONT(
     -moz-font-feature-settings,
     font_feature_settings,
-    CSS_PROP_DOMPROP_PREFIXED(FontFeatureSettings),
+    MozFontFeatureSettings,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
@@ -1530,7 +1526,7 @@ CSS_PROP_FONT(
 CSS_PROP_FONT(
     -moz-font-language-override,
     font_language_override,
-    CSS_PROP_DOMPROP_PREFIXED(FontLanguageOverride),
+    MozFontLanguageOverride,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
@@ -1618,7 +1614,7 @@ CSS_PROP_FONT(
 CSS_PROP_UIRESET(
     -moz-force-broken-image-icon,
     force_broken_image_icon,
-    CSS_PROP_DOMPROP_PREFIXED(ForceBrokenImageIcon),
+    MozForceBrokenImageIcon,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     UserInterface,
@@ -1643,7 +1639,7 @@ CSS_PROP_POSITION(
 CSS_PROP_LIST(
     -moz-image-region,
     image_region,
-    CSS_PROP_DOMPROP_PREFIXED(ImageRegion),
+    MozImageRegion,
     CSS_PROPERTY_PARSE_FUNCTION,
     List,
     mImageRegion,
@@ -1759,7 +1755,7 @@ CSS_PROP_MARGIN(
 CSS_PROP_SHORTHAND(
     -moz-margin-end,
     margin_end,
-    CSS_PROP_DOMPROP_PREFIXED(MarginEnd),
+    MozMarginEnd,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -1873,7 +1869,7 @@ CSS_PROP_MARGIN(
 CSS_PROP_SHORTHAND(
     -moz-margin-start,
     margin_start,
-    CSS_PROP_DOMPROP_PREFIXED(MarginStart),
+    MozMarginStart,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -2097,7 +2093,7 @@ CSS_PROP_PADDING(
 CSS_PROP_SHORTHAND(
     -moz-padding-end,
     padding_end,
-    CSS_PROP_DOMPROP_PREFIXED(PaddingEnd),
+    MozPaddingEnd,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_PADDING(
@@ -2214,7 +2210,7 @@ CSS_PROP_PADDING(
 CSS_PROP_SHORTHAND(
     -moz-padding-start,
     padding_start,
-    CSS_PROP_DOMPROP_PREFIXED(PaddingStart),
+    MozPaddingStart,
     CSS_PROPERTY_PARSE_FUNCTION)
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_PADDING(
@@ -2533,7 +2529,7 @@ CSS_PROP_TEXT(
 CSS_PROP_DISPLAY(
     -moz-transform,
     _moz_transform,
-    CSS_PROP_DOMPROP_PREFIXED(Transform),
+    MozTransform,
     CSS_PROPERTY_PARSE_FUNCTION,
     Display,
     mTransform,
@@ -2544,7 +2540,7 @@ CSS_PROP_DISPLAY(
 CSS_PROP_DISPLAY(
     -moz-transform-origin,
     _moz_transform_origin,
-    CSS_PROP_DOMPROP_PREFIXED(TransformOrigin),
+    MozTransformOrigin,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_STORES_CALC,
     Display,
@@ -2568,12 +2564,12 @@ CSS_PROP_POSITION(
 CSS_PROP_SHORTHAND(
     -moz-transition,
     transition,
-    CSS_PROP_DOMPROP_PREFIXED(Transition),
+    MozTransition,
     CSS_PROPERTY_PARSE_FUNCTION)
 CSS_PROP_DISPLAY(
     -moz-transition-delay,
     transition_delay,
-    CSS_PROP_DOMPROP_PREFIXED(TransitionDelay),
+    MozTransitionDelay,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
@@ -2585,7 +2581,7 @@ CSS_PROP_DISPLAY(
 CSS_PROP_DISPLAY(
     -moz-transition-duration,
     transition_duration,
-    CSS_PROP_DOMPROP_PREFIXED(TransitionDuration),
+    MozTransitionDuration,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
@@ -2597,7 +2593,7 @@ CSS_PROP_DISPLAY(
 CSS_PROP_DISPLAY(
     -moz-transition-property,
     transition_property,
-    CSS_PROP_DOMPROP_PREFIXED(TransitionProperty),
+    MozTransitionProperty,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
@@ -2609,7 +2605,7 @@ CSS_PROP_DISPLAY(
 CSS_PROP_DISPLAY(
     -moz-transition-timing-function,
     transition_timing_function,
-    CSS_PROP_DOMPROP_PREFIXED(TransitionTimingFunction),
+    MozTransitionTimingFunction,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
@@ -2632,7 +2628,7 @@ CSS_PROP_TEXTRESET(
 CSS_PROP_USERINTERFACE(
     -moz-user-focus,
     user_focus,
-    CSS_PROP_DOMPROP_PREFIXED(UserFocus),
+    MozUserFocus,
     CSS_PROPERTY_PARSE_VALUE,
     UserInterface,
     mUserFocus,
@@ -2643,7 +2639,7 @@ CSS_PROP_USERINTERFACE(
 CSS_PROP_USERINTERFACE(
     -moz-user-input,
     user_input,
-    CSS_PROP_DOMPROP_PREFIXED(UserInput),
+    MozUserInput,
     CSS_PROPERTY_PARSE_VALUE,
     UserInterface,
     mUserInput,
@@ -2654,7 +2650,7 @@ CSS_PROP_USERINTERFACE(
 CSS_PROP_USERINTERFACE(
     -moz-user-modify,
     user_modify,
-    CSS_PROP_DOMPROP_PREFIXED(UserModify),
+    MozUserModify,
     CSS_PROPERTY_PARSE_VALUE,
     UserInterface,
     mUserModify,
@@ -2665,7 +2661,7 @@ CSS_PROP_USERINTERFACE(
 CSS_PROP_UIRESET(
     -moz-user-select,
     user_select,
-    CSS_PROP_DOMPROP_PREFIXED(UserSelect),
+    MozUserSelect,
     CSS_PROPERTY_PARSE_VALUE,
     UserInterface,
     mUserSelect,
@@ -2756,7 +2752,7 @@ CSS_PROP_POSITION(
 CSS_PROP_UIRESET(
     -moz-window-shadow,
     _moz_window_shadow,
-    CSS_PROP_DOMPROP_PREFIXED(WindowShadow),
+    MozWindowShadow,
     CSS_PROPERTY_PARSE_VALUE,
     UserInterface,
     mWindowShadow,
@@ -2801,7 +2797,7 @@ CSS_PROP_POSITION(
 CSS_PROP_XUL(
     -moz-box-align,
     box_align,
-    CSS_PROP_DOMPROP_PREFIXED(BoxAlign),
+    MozBoxAlign,
     CSS_PROPERTY_PARSE_VALUE,
     XUL,
     mBoxAlign,
@@ -2812,7 +2808,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-box-direction,
     box_direction,
-    CSS_PROP_DOMPROP_PREFIXED(BoxDirection),
+    MozBoxDirection,
     CSS_PROPERTY_PARSE_VALUE,
     XUL,
     mBoxDirection,
@@ -2823,7 +2819,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-box-flex,
     box_flex,
-    CSS_PROP_DOMPROP_PREFIXED(BoxFlex),
+    MozBoxFlex,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     XUL,
@@ -2835,7 +2831,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-box-orient,
     box_orient,
-    CSS_PROP_DOMPROP_PREFIXED(BoxOrient),
+    MozBoxOrient,
     CSS_PROPERTY_PARSE_VALUE,
     XUL,
     mBoxOrient,
@@ -2846,7 +2842,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-box-pack,
     box_pack,
-    CSS_PROP_DOMPROP_PREFIXED(BoxPack),
+    MozBoxPack,
     CSS_PROPERTY_PARSE_VALUE,
     XUL,
     mBoxPack,
@@ -2857,7 +2853,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-box-ordinal-group,
     box_ordinal_group,
-    CSS_PROP_DOMPROP_PREFIXED(BoxOrdinalGroup),
+    MozBoxOrdinalGroup,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_POSITIVE_NONZERO,
     XUL,
@@ -2869,7 +2865,7 @@ CSS_PROP_XUL(
 CSS_PROP_XUL(
     -moz-stack-sizing,
     stack_sizing,
-    CSS_PROP_DOMPROP_PREFIXED(StackSizing),
+    MozStackSizing,
     CSS_PROPERTY_PARSE_VALUE,
     XUL,
     mStackSizing,
@@ -3257,23 +3253,18 @@ CSS_PROP_SVG(
     offsetof(nsStyleSVG, mTextRendering),
     eStyleAnimType_EnumU8)
 
-#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
-// We have a few properties that are in style structs but are not stored
-// in style sheets (or nsCSS* structs).  Some fields in these property
-// definitions are bogus (e.g., they work for nsRuleData* offsets but
-// not nsCSS* offsets).  Callers that care about these bogus fields can
-// define CSS_PROP_STUB_NOT_CSS to define a replacement for these
-// entries.
-#ifdef CSS_PROP_STUB_NOT_CSS
-CSS_PROP_STUB_NOT_CSS
-CSS_PROP_STUB_NOT_CSS
-CSS_PROP_STUB_NOT_CSS
-#else
+// Callers that want information on the properties that are in
+// the style structs but not in the nsCSS* structs should define
+// |CSS_PROP_INCLUDE_NOT_CSS|.  (Some of these are also in nsRuleData*,
+// and a distinction might be needed at some point.)
+// The first 3 parameters don't matter, but some compilers don't like
+// empty arguments to macros.
+#ifdef CSS_PROP_INCLUDE_NOT_CSS
 CSS_PROP_VISIBILITY(
-    -x-lang,
-    _x_lang,
+    X,
+    X,
     Lang,
-    CSS_PROPERTY_PARSE_INACCESSIBLE,
+    CSS_PROPERTY_PARSE_VALUE,
     Display,
     mLang,
     0,
@@ -3281,10 +3272,10 @@ CSS_PROP_VISIBILITY(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_TABLE(
-    -x-cols,
-    _x_cols,
+    X,
+    X,
     Cols,
-    CSS_PROPERTY_PARSE_INACCESSIBLE,
+    CSS_PROPERTY_PARSE_VALUE,
     Table,
     mCols,
     0,
@@ -3292,18 +3283,17 @@ CSS_PROP_TABLE(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_TABLE(
-    -x-span,
-    _x_span,
+    X,
+    X,
     Span,
-    CSS_PROPERTY_PARSE_INACCESSIBLE,
+    CSS_PROPERTY_PARSE_VALUE,
     Table,
     mSpan,
     0,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-#endif /* !defined(CSS_PROP_STUB_NOT_CSS) */
-#endif /* !defined(CSS_PROP_EXCLUDE_INTERNAL) */
+#endif /* defined(CSS_PROP_INCLUDE_NOT_CSS) */
 
 #ifdef USED_CSS_PROP
 

@@ -25,6 +25,8 @@ c.width = c.height = 1;
 
 c = c.getContext("2d");
 
+SimpleTest.waitForExplicitFinish();
+
 var threw = true;
 try {
   c.putImageData({ width: 1, height: 1, data: [ 0, 0, 0, 0] }, 0, 0);
@@ -45,6 +47,8 @@ try {
 
 is(threw, DOMException.TYPE_MISMATCH_ERR,
    "Should throw type error when data is not an array");
+SimpleTest.finish();
+
 
 </script>
 </pre>

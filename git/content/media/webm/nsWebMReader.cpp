@@ -209,7 +209,7 @@ void nsWebMReader::Cleanup()
   }
 }
 
-nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
+nsresult nsWebMReader::ReadMetadata()
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
   MonitorAutoEnter mon(mMonitor);
@@ -395,8 +395,6 @@ nsresult nsWebMReader::ReadMetadata(nsVideoInfo* aInfo)
       mChannels = mInfo.mAudioChannels;
     }
   }
-
-  *aInfo = mInfo;
 
   return NS_OK;
 }

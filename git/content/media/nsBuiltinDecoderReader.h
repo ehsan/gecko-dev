@@ -414,7 +414,6 @@ private:
 class nsBuiltinDecoderReader : public nsRunnable {
 public:
   typedef mozilla::Monitor Monitor;
-  typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
 
   nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder);
   ~nsBuiltinDecoderReader();
@@ -444,7 +443,7 @@ public:
   // Read header data for all bitstreams in the file. Fills mInfo with
   // the data required to present the media. Returns NS_OK on success,
   // or NS_ERROR_FAILURE on failure.
-  virtual nsresult ReadMetadata(nsVideoInfo* aInfo) = 0;
+  virtual nsresult ReadMetadata() = 0;
 
   // Stores the presentation time of the first frame/sample we'd be
   // able to play if we started playback at aOffset, and returns the
@@ -463,6 +462,11 @@ public:
                         PRInt64 aStartTime,
                         PRInt64 aEndTime,
                         PRInt64 aCurrentTime) = 0;
+
+  // Gets presentation info required for playback.
+  const nsVideoInfo& GetInfo() {
+    return mInfo;
+  }
 
   // Queue of audio samples. This queue is threadsafe.
   MediaQueue<SoundData> mAudioQueue;
@@ -516,8 +520,7 @@ protected:
   // Used to seek to media start time.
   PRInt64 mDataOffset;
 
-  // Stores presentation info required for playback. The reader's monitor
-  // must be held when accessing this.
+  // Stores presentation info required for playback.
   nsVideoInfo mInfo;
 };
 

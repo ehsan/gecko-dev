@@ -35,71 +35,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class for CSS @import rules */
+/* internal interface for CSS @import rules */
 
-#ifndef mozilla_css_ImportRule_h__
-#define mozilla_css_ImportRule_h__
+#ifndef nsICSSImportRule_h
+#define nsICSSImportRule_h
 
 #include "nsICSSRule.h"
-#include "nsCSSRule.h"
-#include "nsIDOMCSSImportRule.h"
-#include "nsCSSRules.h"
 
 class nsMediaList;
 class nsString;
 
-namespace mozilla {
-namespace css {
+#define NS_ICSS_IMPORT_RULE_IID \
+{ 0x07bd9b80, 0x721e, 0x4566, \
+  { 0xb7, 0x90, 0xed, 0x25, 0x10, 0xed, 0x99, 0xde } }
 
-class NS_FINAL_CLASS ImportRule : public nsCSSRule,
-                                  public nsICSSRule,
-                                  public nsIDOMCSSImportRule
-{
+
+class nsICSSImportRule : public nsICSSRule {
 public:
-  ImportRule(nsMediaList* aMedia);
-private:
-  // for |Clone|
-  ImportRule(const ImportRule& aCopy);
-  ~ImportRule();
-public:
-  NS_DECL_ISUPPORTS
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICSS_IMPORT_RULE_IID)
 
-  DECL_STYLE_RULE_INHERIT
+  NS_IMETHOD SetURLSpec(const nsString& aURLSpec) = 0;
+  NS_IMETHOD GetURLSpec(nsString& aURLSpec) const = 0;
 
-  // nsIStyleRule methods
-#ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
-#endif
+  NS_IMETHOD SetMedia(const nsString& aMedia) = 0;
+  NS_IMETHOD GetMedia(nsString& aMedia) const = 0;
 
-  // nsICSSRule methods
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
-
-  void SetURLSpec(const nsString& aURLSpec) { mURLSpec = aURLSpec; }
-  void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
-
-  nsresult SetMedia(const nsString& aMedia);
-  void GetMedia(nsString& aMedia) const;
-
-  void SetSheet(nsCSSStyleSheet*);
-
-  // nsIDOMCSSRule interface
-  NS_DECL_NSIDOMCSSRULE
-
-  // nsIDOMCSSImportRule interface
-  NS_DECL_NSIDOMCSSIMPORTRULE
-
-private:
-  nsString  mURLSpec;
-  nsRefPtr<nsMediaList> mMedia;
-  nsRefPtr<nsCSSStyleSheet> mChildSheet;
+  NS_IMETHOD SetSheet(nsCSSStyleSheet*) = 0;
 };
 
-} // namespace css
-} // namespace mozilla
+NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSImportRule, NS_ICSS_IMPORT_RULE_IID)
 
 nsresult
-NS_NewCSSImportRule(mozilla::css::ImportRule** aInstancePtrResult,
+NS_NewCSSImportRule(nsICSSImportRule** aInstancePtrResult, 
                     const nsString& aURLSpec, nsMediaList* aMedia);
 
-#endif /* mozilla_css_ImportRule_h__ */
+#endif /* nsICSSImportRule_h */

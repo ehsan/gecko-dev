@@ -900,6 +900,7 @@ nsFormFillController::KeyPress(nsIDOMEvent* aEvent)
   }
   
   if (cancel) {
+    aEvent->StopPropagation();
     aEvent->PreventDefault();
   }
   

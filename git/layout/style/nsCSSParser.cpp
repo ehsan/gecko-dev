@@ -52,9 +52,9 @@
 #include "nsCSSScanner.h"
 #include "mozilla/css/Loader.h"
 #include "mozilla/css/StyleRule.h"
-#include "mozilla/css/ImportRule.h"
+#include "nsICSSImportRule.h"
 #include "nsCSSRules.h"
-#include "mozilla/css/NameSpaceRule.h"
+#include "nsICSSNameSpaceRule.h"
 #include "nsIUnicharInputStream.h"
 #include "nsCSSStyleSheet.h"
 #include "mozilla/css/Declaration.h"
@@ -382,7 +382,7 @@ protected:
                                               nsCSSSelector& aSelector,
                                               PRBool         aIsNegated,
                                               nsIAtom**      aPseudoElement,
-                                              nsAtomList**   aPseudoElementArgs,
+                                              nsPseudoClassList** aPseudoElementArgs,
                                               nsCSSPseudoElements::Type* aPseudoElementType);
 
   nsSelectorParsingStatus ParseAttributeSelector(PRInt32&       aDataMask,
@@ -393,12 +393,15 @@ protected:
                                                        PRBool         aIsNegated);
 
   nsSelectorParsingStatus ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
+                                                       nsIAtom*       aPseudo,
                                                        nsCSSPseudoClasses::Type aType);
 
   nsSelectorParsingStatus ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
+                                                         nsIAtom*       aPseudo,
                                                          nsCSSPseudoClasses::Type aType);
 
   nsSelectorParsingStatus ParsePseudoClassWithSelectorListArg(nsCSSSelector& aSelector,
+                                                              nsIAtom*       aPseudo,
                                                               nsCSSPseudoClasses::Type aType);
 
   nsSelectorParsingStatus ParseNegatedSimpleSelector(PRInt32&       aDataMask,
@@ -430,7 +433,7 @@ protected:
   PriorityParsingStatus ParsePriority();
 
 #ifdef MOZ_XUL
-  PRBool ParseTreePseudoElement(nsAtomList **aPseudoElementArgs);
+  PRBool ParseTreePseudoElement(nsPseudoClassList **aPseudoElementArgs);
 #endif
 
   void InitBoxPropsAsPhysical(const nsCSSProperty *aSourceProperties);
@@ -1927,7 +1930,7 @@ CSSParserImpl::ProcessImport(const nsString& aURLSpec,
                              RuleAppendFunc aAppendFunc,
                              void* aData)
 {
-  nsRefPtr<css::ImportRule> rule;
+  nsCOMPtr<nsICSSImportRule> rule;
   nsresult rv = NS_NewCSSImportRule(getter_AddRefs(rule), aURLSpec, aMedia);
   if (NS_FAILED(rv)) { // out of memory
     mScanner.SetLowLevelError(rv);
@@ -2125,7 +2128,7 @@ CSSParserImpl::ProcessNameSpace(const nsString& aPrefix,
                                 RuleAppendFunc aAppendFunc,
                                 void* aData)
 {
-  nsRefPtr<css::NameSpaceRule> rule;
+  nsCOMPtr<nsICSSNameSpaceRule> rule;
   nsCOMPtr<nsIAtom> prefix;
 
   if (!aPrefix.IsEmpty()) {
@@ -2959,7 +2962,7 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
                                    nsCSSSelector& aSelector,
                                    PRBool         aIsNegated,
                                    nsIAtom**      aPseudoElement,
-                                   nsAtomList**   aPseudoElementArgs,
+                                   nsPseudoClassList** aPseudoElementArgs,
                                    nsCSSPseudoElements::Type* aPseudoElementType)
 {
   NS_ASSERTION(aIsNegated || (aPseudoElement && aPseudoElementArgs),
@@ -3049,10 +3052,10 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
 #ifdef MOZ_XUL
        isTree ||
 #endif
-       nsCSSPseudoClasses::ePseudoClass_notPseudo == pseudoClassType ||
-       nsCSSPseudoClasses::HasStringArg(pseudoClassType) ||
-       nsCSSPseudoClasses::HasNthPairArg(pseudoClassType) ||
-       nsCSSPseudoClasses::HasSelectorListArg(pseudoClassType))) {
+       nsCSSPseudoClasses::notPseudo == pseudo ||
+       nsCSSPseudoClasses::HasStringArg(pseudo) ||
+       nsCSSPseudoClasses::HasNthPairArg(pseudo) ||
+       nsCSSPseudoClasses::HasSelectorListArg(pseudo))) {
     // There are no other function pseudos
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelNonFunc);
     UngetToken();
@@ -3068,8 +3071,7 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
     return eSelectorParsingStatus_Error;
   }
 
-  if (!parsingPseudoElement &&
-      nsCSSPseudoClasses::ePseudoClass_notPseudo == pseudoClassType) {
+  if (!parsingPseudoElement && nsCSSPseudoClasses::notPseudo == pseudo) {
     if (aIsNegated) { // :not() can't be itself negated
       REPORT_UNEXPECTED_TOKEN(PEPseudoSelDoubleNot);
       UngetToken();
@@ -3086,18 +3088,18 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
     aDataMask |= SEL_MASK_PCLASS;
     if (eCSSToken_Function == mToken.mType) {
       nsSelectorParsingStatus parsingStatus;
-      if (nsCSSPseudoClasses::HasStringArg(pseudoClassType)) {
+      if (nsCSSPseudoClasses::HasStringArg(pseudo)) {
         parsingStatus =
-          ParsePseudoClassWithIdentArg(aSelector, pseudoClassType);
+          ParsePseudoClassWithIdentArg(aSelector, pseudo, pseudoClassType);
       }
-      else if (nsCSSPseudoClasses::HasNthPairArg(pseudoClassType)) {
+      else if (nsCSSPseudoClasses::HasNthPairArg(pseudo)) {
         parsingStatus =
-          ParsePseudoClassWithNthPairArg(aSelector, pseudoClassType);
+          ParsePseudoClassWithNthPairArg(aSelector, pseudo, pseudoClassType);
       }
       else {
-        NS_ABORT_IF_FALSE(nsCSSPseudoClasses::HasSelectorListArg(pseudoClassType),
+        NS_ABORT_IF_FALSE(nsCSSPseudoClasses::HasSelectorListArg(pseudo),
                           "unexpected pseudo with function token");
-        parsingStatus = ParsePseudoClassWithSelectorListArg(aSelector,
+        parsingStatus = ParsePseudoClassWithSelectorListArg(aSelector, pseudo,
                                                             pseudoClassType);
       }
       if (eSelectorParsingStatus_Continue != parsingStatus) {
@@ -3108,7 +3110,7 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
       }
     }
     else {
-      aSelector.AddPseudoClass(pseudoClassType);
+      aSelector.AddPseudoClass(pseudo, pseudoClassType);
     }
   }
   else if (isPseudoElement || isAnonBox) {
@@ -3266,6 +3268,7 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
 //
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
+                                            nsIAtom*       aPseudo,
                                             nsCSSPseudoClasses::Type aType)
 {
   if (! GetToken(PR_TRUE)) { // premature eof
@@ -3280,7 +3283,7 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
   }
 
   // -moz-locale-dir can only have values of 'ltr' or 'rtl'.
-  if (aType == nsCSSPseudoClasses::ePseudoClass_mozLocaleDir) {
+  if (aPseudo == nsCSSPseudoClasses::mozLocaleDir) {
     if (!mToken.mIdent.EqualsLiteral("ltr") &&
         !mToken.mIdent.EqualsLiteral("rtl")) {
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
@@ -3288,7 +3291,7 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
   }
 
   // Add the pseudo with the language parameter
-  aSelector.AddPseudoClass(aType, mToken.mIdent.get());
+  aSelector.AddPseudoClass(aPseudo, aType, mToken.mIdent.get());
 
   // close the parenthesis
   if (!ExpectSymbol(')', PR_TRUE)) {
@@ -3301,6 +3304,7 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
 
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
+                                              nsIAtom*       aPseudo,
                                               nsCSSPseudoClasses::Type aType)
 {
   PRInt32 numbers[2] = { 0, 0 };
@@ -3413,7 +3417,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     REPORT_UNEXPECTED_TOKEN(PEPseudoClassNoClose);
     return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
   }
-  aSelector.AddPseudoClass(aType, numbers);
+  aSelector.AddPseudoClass(aPseudo, aType, numbers);
   return eSelectorParsingStatus_Continue;
 }
 
@@ -3424,6 +3428,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
 //
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoClassWithSelectorListArg(nsCSSSelector& aSelector,
+                                                   nsIAtom*       aPseudo,
                                                    nsCSSPseudoClasses::Type aType)
 {
   nsAutoPtr<nsCSSSelectorList> slist;
@@ -3441,7 +3446,7 @@ CSSParserImpl::ParsePseudoClassWithSelectorListArg(nsCSSSelector& aSelector,
   }
 
   // Add the pseudo with the selector list parameter
-  aSelector.AddPseudoClass(aType, slist.forget());
+  aSelector.AddPseudoClass(aPseudo, aType, slist.forget());
 
   // close the parenthesis
   if (!ExpectSymbol(')', PR_TRUE)) {
@@ -3468,7 +3473,7 @@ CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
 
   nsCSSSelector* selector = aList->AddSelector(aPrevCombinator);
   nsCOMPtr<nsIAtom> pseudoElement;
-  nsAutoPtr<nsAtomList> pseudoElementArgs;
+  nsAutoPtr<nsPseudoClassList> pseudoElementArgs;
   nsCSSPseudoElements::Type pseudoElementType =
     nsCSSPseudoElements::ePseudo_NotPseudoElement;
 
@@ -3535,7 +3540,7 @@ CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
     // Rewrite the current selector as this pseudo-element.
     // It does not contribute to selector weight.
     selector->mLowercaseTag.swap(pseudoElement);
-    selector->mClassList = pseudoElementArgs.forget();
+    selector->mPseudoClassList = pseudoElementArgs.forget();
     selector->SetPseudoType(pseudoElementType);
     return PR_TRUE;
   }
@@ -3548,7 +3553,7 @@ CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
     selector = aList->AddSelector('>');
 
     selector->mLowercaseTag.swap(pseudoElement);
-    selector->mClassList = pseudoElementArgs.forget();
+    selector->mPseudoClassList = pseudoElementArgs.forget();
     selector->SetPseudoType(pseudoElementType);
   }
 
@@ -3930,7 +3935,7 @@ CSSParserImpl::ParseColorOpacity(PRUint8& aOpacity)
 
 #ifdef MOZ_XUL
 PRBool
-CSSParserImpl::ParseTreePseudoElement(nsAtomList **aPseudoElementArgs)
+CSSParserImpl::ParseTreePseudoElement(nsPseudoClassList **aPseudoElementArgs)
 {
   // The argument to a tree pseudo-element is a sequence of identifiers
   // that are either space- or comma-separated.  (Was the intent to
@@ -3942,7 +3947,9 @@ CSSParserImpl::ParseTreePseudoElement(nsAtomList **aPseudoElementArgs)
       return PR_FALSE;
     }
     if (eCSSToken_Ident == mToken.mType) {
-      fakeSelector.AddClass(mToken.mIdent);
+      nsCOMPtr<nsIAtom> pseudo = do_GetAtom(mToken.mIdent);
+      fakeSelector.AddPseudoClass(pseudo,
+                                  nsCSSPseudoClasses::ePseudoClass_NotPseudoClass);
     }
     else if (!mToken.IsSymbol(',')) {
       UngetToken();
@@ -3950,8 +3957,8 @@ CSSParserImpl::ParseTreePseudoElement(nsAtomList **aPseudoElementArgs)
       return PR_FALSE;
     }
   }
-  *aPseudoElementArgs = fakeSelector.mClassList;
-  fakeSelector.mClassList = nsnull;
+  *aPseudoElementArgs = fakeSelector.mPseudoClassList;
+  fakeSelector.mPseudoClassList = nsnull;
   return PR_TRUE;
 }
 #endif

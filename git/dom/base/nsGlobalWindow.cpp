@@ -1609,7 +1609,8 @@ nsGlobalWindow::SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal)
                  "Unexpected original document");
 #endif
 
-    GetDocShell()->CreateAboutBlankContentViewer(aPrincipal);
+    nsCOMPtr<nsIDocShell_MOZILLA_2_0_BRANCH> ds(do_QueryInterface(GetDocShell()));
+    ds->CreateAboutBlankContentViewer(aPrincipal);
     mDoc->SetIsInitialDocument(PR_TRUE);
 
     nsCOMPtr<nsIPresShell> shell;
@@ -2507,7 +2508,9 @@ nsGlobalWindow::GetIsTabModalPromptAllowed()
   if (mDocShell) {
     nsCOMPtr<nsIContentViewer> cv;
     mDocShell->GetContentViewer(getter_AddRefs(cv));
-    cv->GetIsTabModalPromptAllowed(&allowTabModal);
+    nsCOMPtr<nsIContentViewer_MOZILLA_2_0_BRANCH> cv2 = do_QueryInterface(cv);
+    if (cv2)
+      cv2->GetIsTabModalPromptAllowed(&allowTabModal);
   }
 
   return allowTabModal;
@@ -7727,7 +7730,12 @@ nsGlobalWindow::DispatchSyncPopState()
   // going to send along with the popstate event.  The object is serialized as
   // JSON.
   nsCOMPtr<nsIVariant> stateObj;
-  rv = mDoc->GetMozCurrentStateObject(getter_AddRefs(stateObj));
+  nsCOMPtr<nsIDOMNSDocument_MOZILLA_2_0_BRANCH> doc2 = do_QueryInterface(mDoc);
+  if (!doc2) {
+    return NS_OK;
+  }
+  
+  rv = doc2->GetMozCurrentStateObject(getter_AddRefs(stateObj));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Obtain a presentation shell for use in creating a popstate event.
@@ -8133,7 +8141,8 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
       }
     }
   }
-  else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils))) {
+  else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils)) ||
+           aIID.Equals(NS_GET_IID(nsIDOMWindowUtils_MOZILLA_2_0_BRANCH))) {
     FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
     nsCOMPtr<nsISupports> utils(do_QueryReferent(mWindowUtils));

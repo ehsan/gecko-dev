@@ -48,9 +48,7 @@
 #include "ContentChild.h"
 #include "CrashReporterChild.h"
 #include "TabChild.h"
-#if defined(MOZ_SYDNEYAUDIO)
 #include "AudioChild.h"
-#endif
 
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/net/NeckoChild.h"
@@ -60,9 +58,7 @@
 #include "mozilla/dom/StorageChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
 
-#if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
-#endif
 #include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
@@ -388,22 +384,16 @@ ContentChild::AllocPAudio(const PRInt32& numChannels,
                           const PRInt32& rate,
                           const PRInt32& format)
 {
-#if defined(MOZ_SYDNEYAUDIO)
     AudioChild *child = new AudioChild();
     NS_ADDREF(child);
     return child;
-#else
-    return nsnull;
-#endif
 }
 
 bool
 ContentChild::DeallocPAudio(PAudioChild* doomed)
 {
-#if defined(MOZ_SYDNEYAUDIO)
     AudioChild *child = static_cast<AudioChild*>(doomed);
     NS_RELEASE(child);
-#endif
     return true;
 }
 
