@@ -2914,18 +2914,21 @@ nsAccessible::SetCurrentItem(nsAccessible* aItem)
 nsAccessible*
 nsAccessible::ContainerWidget() const
 {
-  if (HasARIARole() && mContent->HasID()) {
-    for (nsAccessible* parent = Parent(); parent; parent = parent->Parent()) {
-      nsIContent* parentContent = parent->GetContent();
-      if (parentContent &&
-        parentContent->HasAttr(kNameSpaceID_None,
-                               nsGkAtoms::aria_activedescendant)) {
-        return parent;
-      }
+  nsIAtom* idAttribute = mContent->GetIDAttributeName();
+  if (idAttribute) {
+    if (mContent->HasAttr(kNameSpaceID_None, idAttribute)) {
+      for (nsAccessible* parent = Parent(); parent; parent = parent->Parent()) {
+        nsIContent* parentContent = parent->GetContent();
+        if (parentContent &&
+            parentContent->HasAttr(kNameSpaceID_None,
+                                   nsGkAtoms::aria_activedescendant)) {
+          return parent;
+        }
 
-      // Don't cross DOM document boundaries.
-      if (parent->IsDocumentNode())
-        break;
+        // Don't cross DOM document boundaries.
+        if (parent->IsDocumentNode())
+          break;
+      }
     }
   }
   return nsnull;

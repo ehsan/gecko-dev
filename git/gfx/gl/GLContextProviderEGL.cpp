@@ -69,12 +69,12 @@
 #include "AndroidBridge.h"
 #endif
 #include <android/log.h>
-#endif
-
 #define EGL_LIB "libEGL.so"
 #define GLES2_LIB "libGLESv2.so"
-#define EGL_LIB1 "libEGL.so.1"
-#define GLES2_LIB2 "libGLESv2.so.2"
+#else
+#define EGL_LIB "libEGL.so.1"
+#define GLES2_LIB "libGLESv2.so.2"
+#endif
 
 typedef void *EGLNativeDisplayType;
 typedef void *EGLNativePixmapType;
@@ -386,11 +386,6 @@ public:
 
         if (!mEGLLibrary) {
             mEGLLibrary = PR_LoadLibrary(EGL_LIB);
-#if defined(XP_UNIX)
-            if (!mEGLLibrary) {
-                mEGLLibrary = PR_LoadLibrary(EGL_LIB1);
-            }
-#endif
         }
 
         if (!mEGLLibrary) {
@@ -755,11 +750,7 @@ public:
     bool Init()
     {
         if (!OpenLibrary(GLES2_LIB)) {
-#if defined(XP_UNIX)
-            if (!OpenLibrary(GLES2_LIB2)) {
-                NS_WARNING("Couldn't load EGL LIB.");
-            }
-#endif
+            NS_WARNING("Couldn't load EGL LIB.");
             return false;
         }
 

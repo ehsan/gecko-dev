@@ -909,8 +909,19 @@ static bool HasRelatedContent(nsIContent *aContent)
 
   // If the given ID is referred by relation attribute then create an accessible
   // for it. Take care of HTML elements only for now.
-  return aContent->IsHTML() &&
-    nsAccUtils::GetDocAccessibleFor(aContent)->IsDependentID(id);
+  if (aContent->IsHTML() &&
+      nsAccUtils::GetDocAccessibleFor(aContent)->IsDependentID(id))
+    return true;
+
+  nsIContent *ancestorContent = aContent;
+  while ((ancestorContent = ancestorContent->GetParent()) != nsnull) {
+    if (ancestorContent->HasAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant)) {
+        // ancestor has activedescendant property, this content could be active
+      return true;
+    }
+  }
+
+  return false;
 }
 
 nsAccessible*

@@ -46,7 +46,7 @@
 #include "ImageLogging.h"
 #include "RasterImage.h"
 
-using namespace mozilla::image;
+using namespace mozilla::imagelib;
 
 static nsresult
 GetResultFromImageStatus(PRUint32 aStatus)

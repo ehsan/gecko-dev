@@ -843,12 +843,7 @@ LoginManager.prototype = {
         if (!this._remember)
             return;
 
-        var hostname = this._getPasswordOrigin(doc.documentURI);
-        if (!hostname) {
-            this.log("(form submission ignored -- invalid hostname)");
-            return;
-        }
-
+        var hostname      = this._getPasswordOrigin(doc.documentURI);
         var formSubmitURL = this._getActionOrigin(form)
         if (!this.getLoginSavingEnabled(hostname)) {
             this.log("(form submission ignored -- saving is " +

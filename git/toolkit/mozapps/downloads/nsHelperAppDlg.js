@@ -54,7 +54,7 @@
  *
  * @param aDirectory
  *        The directory to check.
- * @return true if we can use the directory, false otherwise.
+ * @returns true if we can use the directory, false otherwise.
  */
 function isUsableDirectory(aDirectory)
 {
@@ -64,11 +64,11 @@ function isUsableDirectory(aDirectory)
 
 // Web progress listener so we can detect errors while mLauncher is
 // streaming the data to a temporary file.
-function nsUnknownContentTypeDialogProgressListener(aHelperAppDialog) {
+function nsUnkownContentTypeDialogProgressListener(aHelperAppDialog) {
   this.helperAppDlg = aHelperAppDialog;
 }
 
-nsUnknownContentTypeDialogProgressListener.prototype = {
+nsUnkownContentTypeDialogProgressListener.prototype = {
   // nsIWebProgressListener methods.
   // Look for error notifications and display alert to user.
   onStatusChange: function( aWebProgress, aRequest, aStatus, aMessage ) {
@@ -121,7 +121,7 @@ nsUnknownContentTypeDialogProgressListener.prototype = {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-//// nsUnknownContentTypeDialog
+//// nsUnkownContentTypeDialog
 
 /* This file implements the nsIHelperAppLauncherDialog interface.
  *
@@ -214,7 +214,7 @@ nsUnknownContentTypeDialog.prototype = {
     this.getSpecialFolderKey = this.mDialog.getSpecialFolderKey;
 
     // Watch for error notifications.
-    var progressListener = new nsUnknownContentTypeDialogProgressListener(this);
+    var progressListener = new nsUnkownContentTypeDialogProgressListener(this);
     this.mLauncher.setWebProgressListener(progressListener);
   },
 
@@ -354,7 +354,7 @@ nsUnknownContentTypeDialog.prototype = {
    * the file system (or finds such a combination with a reasonably similar
    * leaf name), creates the corresponding file, and returns it.
    *
-   * @param   aLocalFolder
+   * @param   aLocalFile
    *          the folder where the file resides
    * @param   aLeafName
    *          the string name of the file (may be empty if no name is known,
@@ -362,12 +362,12 @@ nsUnknownContentTypeDialog.prototype = {
    * @param   aFileExt
    *          the extension of the file, if one is known; this will be ignored
    *          if aLeafName is non-empty
-   * @return  nsILocalFile
+   * @returns nsILocalFile
    *          the created file
    */
-  validateLeafName: function (aLocalFolder, aLeafName, aFileExt)
+  validateLeafName: function (aLocalFile, aLeafName, aFileExt)
   {
-    if (!(aLocalFolder && isUsableDirectory(aLocalFolder)))
+    if (!(aLocalFile && isUsableDirectory(aLocalFile)))
       return null;
 
     // Remove any leading periods, since we don't want to save hidden files
@@ -376,9 +376,9 @@ nsUnknownContentTypeDialog.prototype = {
 
     if (aLeafName == "")
       aLeafName = "unnamed" + (aFileExt ? "." + aFileExt : "");
-    aLocalFolder.append(aLeafName);
+    aLocalFile.append(aLeafName);
 
-    var createdFile = DownloadPaths.createNiceUniqueFile(aLocalFolder);
+    var createdFile = DownloadPaths.createNiceUniqueFile(aLocalFile);
 
 #ifdef XP_WIN
     let ext;
@@ -392,8 +392,8 @@ nsUnknownContentTypeDialog.prototype = {
     let leaf = createdFile.leafName;
     if (ext && leaf.slice(-ext.length) != ext && createdFile.isExecutable()) {
       createdFile.remove(false);
-      aLocalFolder.leafName = leaf + ext;
-      createdFile = DownloadPaths.createNiceUniqueFile(aLocalFolder);
+      aLocalFile.leafName = leaf + ext;
+      createdFile = DownloadPaths.createNiceUniqueFile(aLocalFile);
     }
 #endif
 

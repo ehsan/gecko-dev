@@ -225,6 +225,7 @@ CNavDTD::WillBuildModel(const CParserContext& aParserContext,
 
 NS_IMETHODIMP
 CNavDTD::BuildModel(nsITokenizer* aTokenizer,
+                    bool aCanInterrupt,
                     bool aCountLines,
                     const nsCString*)
 {
@@ -309,9 +310,11 @@ CNavDTD::BuildModel(nsITokenizer* aTokenizer,
 
     if (NS_ERROR_HTMLPARSER_INTERRUPTED == mSink->DidProcessAToken()) {
       // The content sink has requested that DTD interrupt processing tokens
-      // We need to make sure that an interruption does not override
+      // So we need to make sure the parser is in a state where it can be
+      // interrupted (e.g., not in a document.write).
+      // We also need to make sure that an interruption does not override
       // a request to block the parser.
-      if (NS_SUCCEEDED(result)) {
+      if (aCanInterrupt && NS_SUCCEEDED(result)) {
         result = NS_ERROR_HTMLPARSER_INTERRUPTED;
         break;
       }
@@ -335,10 +338,12 @@ CNavDTD::BuildNeglectedTarget(eHTMLTags aTarget,
   CToken* target = mTokenAllocator->CreateTokenOfType(aType, aTarget);
   NS_ENSURE_TRUE(target, NS_ERROR_OUT_OF_MEMORY);
   mTokenizer->PushTokenFront(target);
-  // Also, BuildModel
+  // Always safe to disallow interruptions, so it doesn't matter that we've
+  // forgotten the aCanInterrupt parameter to BuildModel.  Also, BuildModel
   // doesn't seem to care about the charset, and at this point we have no idea
-  // what the charset was, so 0 can and must suffice.
-  return BuildModel(mTokenizer, mCountLines, 0);
+  // what the charset was, so 0 can and must suffice.  If either of these
+  // values mattered, we'd want to store them as data members in BuildModel.
+  return BuildModel(mTokenizer, false, mCountLines, 0);
 }
 
 NS_IMETHODIMP

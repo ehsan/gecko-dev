@@ -108,7 +108,6 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include "sampler.h"
 
@@ -146,8 +145,6 @@ static PRLogModuleInfo* gJSDiagnostics;
 static nsITimer *sGCTimer;
 static nsITimer *sShrinkGCBuffersTimer;
 static nsITimer *sCCTimer;
-
-static PRTime sLastCCEndTime;
 
 static bool sGCHasRun;
 
@@ -3279,15 +3276,8 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener)
     PokeGC();
   }
 
-  PRTime now = PR_Now();
-
-  if (sLastCCEndTime) {
-    PRUint32 timeBetween = (PRUint32)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
-  }
-  sLastCCEndTime = now;
-
   if (sPostGCEventsToConsole) {
+    PRTime now = PR_Now();
     PRTime delta = 0;
     if (sFirstCollectionTime) {
       delta = now - sFirstCollectionTime;
@@ -3625,7 +3615,6 @@ nsJSRuntime::Startup()
   // initialize all our statics, so that we can restart XPCOM
   sGCTimer = sCCTimer = nsnull;
   sGCHasRun = false;
-  sLastCCEndTime = 0;
   sPendingLoadCount = 0;
   sLoadingInProgress = false;
   sCCollectedWaitingForGC = 0;

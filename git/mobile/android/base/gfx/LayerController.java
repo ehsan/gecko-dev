@@ -142,7 +142,6 @@ public class LayerController {
         return mViewportMetrics.getZoomFactor();
     }
 
-    public Bitmap getBackgroundPattern()    { return getDrawable("background"); }
     public Bitmap getCheckerboardPattern()  { return getDrawable("checkerboard"); }
     public Bitmap getShadowPattern()        { return getDrawable("shadow"); }
 

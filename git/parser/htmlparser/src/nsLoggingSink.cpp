@@ -66,6 +66,7 @@ nsLoggingSink::nsLoggingSink() {
   mOutput = 0;
   mLevel=-1;
   mSink=0;
+  mParser=0;
 }
 
 nsLoggingSink::~nsLoggingSink() { 
@@ -151,7 +152,7 @@ nsLoggingSink::WillResume() {
 }
 
 NS_IMETHODIMP
-nsLoggingSink::SetParser(nsParserBase* aParser)  {
+nsLoggingSink::SetParser(nsIParser* aParser)  {
   nsresult theResult=NS_OK;
 
   //proxy the call to the real sink if you have one.
@@ -159,6 +160,12 @@ nsLoggingSink::SetParser(nsParserBase* aParser)  {
     theResult=mSink->SetParser(aParser);
   }
   
+  NS_IF_RELEASE(mParser);
+  
+  mParser = aParser;
+  
+  NS_IF_ADDREF(mParser);
+
   return theResult;
 }
 

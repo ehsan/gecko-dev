@@ -50,7 +50,7 @@
 #include "ICOFileHeaders.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 class RasterImage;
 
@@ -123,7 +123,7 @@ private:
   bool mIsPNG;
 };
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
 
 #endif

@@ -611,7 +611,7 @@ SimpleTest.waitForClipboard = function(aExpectedStringOrValidatorFn, aSetupFn,
             return;
         }
 
-        var data = SpecialPowers.getClipboardData(flavor);
+        data = SpecialPowers.getClipboardData(flavor);
 
         if (validatorFn(data)) {
             // Don't show the success message when waiting for preExpectedVal

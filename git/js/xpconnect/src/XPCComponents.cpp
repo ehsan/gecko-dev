@@ -3604,19 +3604,11 @@ nsXPCComponents_Utils::ForceGC(JSContext *cx)
     return NS_OK;
 }
 
-/* void forceShrinkingGC (); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::ForceShrinkingGC(JSContext *cx)
-{
-    JS_ShrinkingGC(cx);
-    return NS_OK;
-}
-
 class PreciseGCRunnable : public nsRunnable
 {
   public:
-    PreciseGCRunnable(JSContext *aCx, ScheduledGCCallback* aCallback, bool aShrinking)
-    : mCallback(aCallback), mCx(aCx), mShrinking(aShrinking) {}
+    PreciseGCRunnable(JSContext *aCx, ScheduledGCCallback* aCallback)
+    : mCallback(aCallback), mCx(aCx) {}
 
     NS_IMETHOD Run()
     {
@@ -3635,10 +3627,7 @@ class PreciseGCRunnable : public nsRunnable
             }
         }
 
-        if (mShrinking)
-            JS_ShrinkingGC(mCx);
-        else
-            JS_GC(mCx);
+        JS_GC(mCx);
 
         mCallback->Callback();
         return NS_OK;
@@ -3647,22 +3636,13 @@ class PreciseGCRunnable : public nsRunnable
   private:
     nsRefPtr<ScheduledGCCallback> mCallback;
     JSContext *mCx;
-    bool mShrinking;
 };
 
 /* [inline_jscontext] void schedulePreciseGC(in ScheduledGCCallback callback); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::SchedulePreciseGC(ScheduledGCCallback* aCallback, JSContext* aCx)
 {
-    nsRefPtr<PreciseGCRunnable> event = new PreciseGCRunnable(aCx, aCallback, false);
-    return NS_DispatchToMainThread(event);
-}
-
-/* [inline_jscontext] void schedulePreciseShrinkingGC(in ScheduledGCCallback callback); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::SchedulePreciseShrinkingGC(ScheduledGCCallback* aCallback, JSContext* aCx)
-{
-    nsRefPtr<PreciseGCRunnable> event = new PreciseGCRunnable(aCx, aCallback, true);
+    nsRefPtr<PreciseGCRunnable> event = new PreciseGCRunnable(aCx, aCallback);
     return NS_DispatchToMainThread(event);
 }
 

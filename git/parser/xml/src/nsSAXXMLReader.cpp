@@ -107,7 +107,7 @@ nsSAXXMLReader::DidBuildModel(bool aTerminated)
 }
 
 NS_IMETHODIMP
-nsSAXXMLReader::SetParser(nsParserBase *aParser)
+nsSAXXMLReader::SetParser(nsIParser *aParser)
 {
   return NS_OK;
 }

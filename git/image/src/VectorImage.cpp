@@ -59,7 +59,7 @@ namespace mozilla {
 
 using namespace dom;
 
-namespace image {
+namespace imagelib {
 
 // Helper-class: SVGRootRenderingObserver
 class SVGRootRenderingObserver : public nsSVGRenderingObserver {
@@ -747,5 +747,5 @@ VectorImage::InvalidateObserver()
   }
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla

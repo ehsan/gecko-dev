@@ -42,7 +42,7 @@
 #include "mozilla/Preferences.h"
 
 namespace mozilla {
-namespace image {
+namespace imagelib {
 
 static bool sInitialized = false;
 static bool sTimerOn = false;
@@ -289,5 +289,5 @@ DiscardTracker::TimerCallback(nsITimer *aTimer, void *aClosure)
     TimerOff();
 }
 
-} // namespace image
+} // namespace imagelib
 } // namespace mozilla
