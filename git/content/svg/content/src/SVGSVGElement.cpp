@@ -411,7 +411,7 @@ SVGSVGElement::CreateSVGMatrix()
 already_AddRefed<SVGIRect>
 SVGSVGElement::CreateSVGRect()
 {
-  return NS_NewSVGRect();
+  return NS_NewSVGRect(this);
 }
 
 already_AddRefed<SVGTransform>
@@ -442,10 +442,10 @@ SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<nsIDOMSVGAnimatedRect>
+already_AddRefed<SVGAnimatedRect>
 SVGSVGElement::ViewBox()
 {
-  nsCOMPtr<nsIDOMSVGAnimatedRect> rect;
+  nsRefPtr<SVGAnimatedRect> rect;
   mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
   return rect.forget();
 }
@@ -706,9 +706,8 @@ SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
     changeHint = nsChangeHint_ReconstructFrame;
   } else {
     // We just assume the old and new transforms are different.
-    changeHint = nsChangeHint(nsChangeHint_RepaintFrame |
-                   nsChangeHint_UpdateOverflow |
-                   nsChangeHint_ChildrenOnlyTransform);
+    changeHint = nsChangeHint(nsChangeHint_UpdateOverflow |
+                              nsChangeHint_ChildrenOnlyTransform);
   }
 
   // If we're not reconstructing the frame tree, then we only call

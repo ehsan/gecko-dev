@@ -184,8 +184,6 @@ public:
 
   static bool LookupBindingMember(JSContext* aCx, nsIContent *aContent,
                                   JS::HandleId aId, JSPropertyDescriptor* aDesc);
-  static bool IsBindingField(JSContext* aCx, nsIContent* aContent,
-                             JS::HandleId aId);
 
   /**
    * Returns the parent node of aChild crossing document boundaries.
@@ -1726,7 +1724,7 @@ public:
 
   static nsresult CreateBlobBuffer(JSContext* aCx,
                                    const nsACString& aData,
-                                   JS::Value& aBlob);
+                                   JS::MutableHandle<JS::Value> aBlob);
 
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
 
@@ -1866,6 +1864,14 @@ public:
    * Returns true if the idle observers API is enabled.
    */
   static bool IsIdleObserverAPIEnabled() { return sIsIdleObserverAPIEnabled; }
+
+  /*
+   * Returns true if the performance timing APIs are enabled.
+   */
+  static bool IsPerformanceTimingEnabled()
+  {
+    return sIsPerformanceTimingEnabled;
+  }
   
   /**
    * Returns true if the doc tree branch which contains aDoc contains any
@@ -2230,6 +2236,7 @@ private:
   static bool sFullscreenApiIsContentOnly;
   static uint32_t sHandlingInputTimeout;
   static bool sIsIdleObserverAPIEnabled;
+  static bool sIsPerformanceTimingEnabled;
 
   static nsHtml5StringParser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;

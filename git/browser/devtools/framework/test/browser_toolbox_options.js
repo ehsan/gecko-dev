@@ -26,24 +26,16 @@ function testSelectTool(aToolbox) {
 
 function testOptionsShortcut() {
   ok(true, "Toolbox selected via selectTool method");
-  toolbox.once("options-selected", testOptionsButtonClick);
+  toolbox.once("options-selected", testOptions);
   toolbox.selectTool("webconsole")
          .then(() => synthesizeKeyFromKeyTag("toolbox-options-key", doc));
 }
 
-function testOptionsButtonClick() {
-  ok(true, "Toolbox selected via shortcut");
-  toolbox.once("options-selected", testOptions);
-  toolbox.selectTool("webconsole")
-         .then(() => doc.getElementById("toolbox-tab-options").click());
-}
-
-function testOptions(event, iframe) {
+function testOptions(event, tool) {
   ok(true, "Toolbox selected via button click");
-  panelWin = iframe.contentWindow;
-  let panelDoc = iframe.contentDocument;
+  panelWin = tool.panelWin;
   // Testing pref changes
-  let prefCheckboxes = panelDoc.querySelectorAll("checkbox[data-pref]");
+  let prefCheckboxes = tool.panelDoc.querySelectorAll("checkbox[data-pref]");
   for (let checkbox of prefCheckboxes) {
     prefNodes.push(checkbox);
     prefValues.push(Services.prefs.getBoolPref(checkbox.getAttribute("data-pref")));
@@ -86,6 +78,10 @@ function checkTools() {
   for (let tool of toolsPref) {
     prefNodes.push(tool);
   }
+  // Randomize the order in which we remove the tool and then add them back so
+  // that we get to know if the tabs are correctly placed as per their ordinals.
+  prefNodes = prefNodes.sort(() => Math.random() > 0.5 ? 1: -1);
+
   // Wait for the next turn of the event loop to avoid stack overflow errors.
   executeSoon(toggleTools);
 }
@@ -124,7 +120,22 @@ function checkRegistered(event, data) {
   if (data == prefNodes[index - prefNodes.length].getAttribute("id")) {
     ok(true, "Correct tool added back");
     // checking tab on the toolbox
-    ok(doc.getElementById("toolbox-tab-" + data), "Tab added back for " + data);
+    let radio = doc.getElementById("toolbox-tab-" + data);
+    ok(radio, "Tab added back for " + data);
+    if (radio.previousSibling) {
+      ok(+radio.getAttribute("ordinal") >=
+         +radio.previousSibling.getAttribute("ordinal"),
+         "Inserted tab's ordinal is greater than equal to its previous tab." +
+         "Expected " + radio.getAttribute("ordinal") + " >= " +
+         radio.previousSibling.getAttribute("ordinal"));
+    }
+    if (radio.nextSibling) {
+      ok(+radio.getAttribute("ordinal") <
+         +radio.nextSibling.getAttribute("ordinal"),
+         "Inserted tab's ordinal is less than its next tab. Expected " +
+         radio.getAttribute("ordinal") + " < " +
+         radio.nextSibling.getAttribute("ordinal"));
+    }
     index++;
     // Wait for the next turn of the event loop to avoid stack overflow errors.
     executeSoon(toggleTools);

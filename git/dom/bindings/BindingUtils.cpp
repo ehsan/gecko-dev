@@ -162,7 +162,8 @@ ErrorResult::ReportJSException(JSContext* cx)
 namespace dom {
 
 bool
-DefineConstants(JSContext* cx, JSObject* obj, const ConstantSpec* cs)
+DefineConstants(JSContext* cx, JS::Handle<JSObject*> obj,
+                const ConstantSpec* cs)
 {
   for (; cs->name; ++cs) {
     JSBool ok =
@@ -176,15 +177,15 @@ DefineConstants(JSContext* cx, JSObject* obj, const ConstantSpec* cs)
 }
 
 static inline bool
-Define(JSContext* cx, JSObject* obj, const JSFunctionSpec* spec) {
+Define(JSContext* cx, JS::Handle<JSObject*> obj, const JSFunctionSpec* spec) {
   return JS_DefineFunctions(cx, obj, spec);
 }
 static inline bool
-Define(JSContext* cx, JSObject* obj, const JSPropertySpec* spec) {
+Define(JSContext* cx, JS::Handle<JSObject*> obj, const JSPropertySpec* spec) {
   return JS_DefineProperties(cx, obj, spec);
 }
 static inline bool
-Define(JSContext* cx, JSObject* obj, const ConstantSpec* spec) {
+Define(JSContext* cx, JS::Handle<JSObject*> obj, const ConstantSpec* spec) {
   return DefineConstants(cx, obj, spec);
 }
 
@@ -1311,26 +1312,17 @@ SetXrayExpandoChain(JSObject* obj, JSObject* chain)
   }
 }
 
-JSContext*
-MainThreadDictionaryBase::ParseJSON(const nsAString& aJSON,
-                                    Maybe<JSAutoRequest>& aAr,
-                                    Maybe<JSAutoCompartment>& aAc,
-                                    Maybe< JS::Rooted<JS::Value> >& aVal)
+bool
+MainThreadDictionaryBase::ParseJSON(JSContext *aCx,
+                                    const nsAString& aJSON,
+                                    JS::MutableHandle<JS::Value> aVal)
 {
-  AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> global(cx, JS_GetGlobalObject(cx));
-  aAr.construct(static_cast<JSContext*>(cx));
-  aAc.construct(static_cast<JSContext*>(cx), global);
-  aVal.construct(static_cast<JSContext*>(cx), JS::UndefinedValue());
   if (aJSON.IsEmpty()) {
-    return cx;
+    return true;
   }
-  if (!JS_ParseJSON(cx,
-                    static_cast<const jschar*>(PromiseFlatString(aJSON).get()),
-                    aJSON.Length(), aVal.ref().address())) {
-    return nullptr;
-  }
-  return cx;
+  return JS_ParseJSON(aCx,
+                      static_cast<const jschar*>(PromiseFlatString(aJSON).get()),
+                      aJSON.Length(), aVal.address());
 }
 
 static JSString*
@@ -1639,6 +1631,7 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
   Maybe<JSAutoCompartment> ac;
   mGlobalJSObject = GetGlobalObject<true>(aCx, aObject, ac);
   if (!mGlobalJSObject) {
+    mGlobalObject = nullptr;
     return;
   }
 
@@ -1725,26 +1718,30 @@ InterfaceHasInstance(JSContext* cx, JSHandleObject obj, JSMutableHandleValue vp,
   return InterfaceHasInstance(cx, obj, instanceObject, bp);
 }
 
-void
+bool
 ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
 {
   GlobalObject global(cx, obj);
+  if (global.Failed()) {
+    return false;
+  }
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.Get());
   if (window && window->GetDoc()) {
     window->GetDoc()->WarnOnceAbout(nsIDocument::eLenientThis);
   }
+  return true;
 }
 
 // Date implementation methods
 Date::Date() :
-  mMsecSinceEpoch(MOZ_DOUBLE_NaN())
+  mMsecSinceEpoch(UnspecifiedNaN())
 {
 }
 
 bool
 Date::IsUndefined() const
 {
-  return MOZ_DOUBLE_IS_NaN(mMsecSinceEpoch);
+  return IsNaN(mMsecSinceEpoch);
 }
 
 bool

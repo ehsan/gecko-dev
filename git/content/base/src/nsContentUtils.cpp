@@ -231,6 +231,7 @@ bool nsContentUtils::sIsFullScreenApiEnabled = false;
 bool nsContentUtils::sTrustedFullScreenOnly = true;
 bool nsContentUtils::sFullscreenApiIsContentOnly = false;
 bool nsContentUtils::sIsIdleObserverAPIEnabled = false;
+bool nsContentUtils::sIsPerformanceTimingEnabled = false;
 
 uint32_t nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -426,6 +427,9 @@ nsContentUtils::Init()
                                "full-screen-api.allow-trusted-requests-only");
 
   sIsIdleObserverAPIEnabled = Preferences::GetBool("dom.idle-observers-api.enabled", true);
+
+  Preferences::AddBoolVarCache(&sIsPerformanceTimingEnabled,
+                               "dom.enable_performance", true);
 
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
@@ -1647,7 +1651,8 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
     return;
   }
   if (JSObject* global = JS_GetGlobalObject(cx)) {
-    JS_CallObjectTracer(aTrc, global, "safe context");
+    JS_CallObjectTracer(aTrc, &global, "safe context");
+    MOZ_ASSERT(global == JS_GetGlobalObject(cx));
   }
 }
 
@@ -1668,8 +1673,8 @@ nsIDocument*
 nsContentUtils::GetDocumentFromCaller()
 {
   JSContext *cx = nullptr;
-  JSObject *obj = nullptr;
-  sXPConnect->GetCaller(&cx, &obj);
+  JS::Rooted<JSObject*> obj(cx);
+  sXPConnect->GetCaller(&cx, obj.address());
   NS_ASSERTION(cx && obj, "Caller ensures something is running");
 
   JSAutoCompartment ac(cx, obj);
@@ -1754,23 +1759,6 @@ nsContentUtils::LookupBindingMember(JSContext* aCx, nsIContent *aContent,
   if (!binding)
     return true;
   return binding->LookupMember(aCx, aId, aDesc);
-}
-
-// static
-bool
-nsContentUtils::IsBindingField(JSContext* aCx, nsIContent* aContent,
-                               JS::HandleId aId)
-{
-  nsXBLBinding* binding = aContent->OwnerDoc()->BindingManager()
-                                  ->GetBinding(aContent);
-  if (!binding)
-    return false;
-
-  if (!JSID_IS_STRING(aId))
-    return false;
-  nsDependentJSString name(aId);
-
-  return binding->HasField(name);
 }
 
 // static
@@ -3362,7 +3350,7 @@ nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
       // automation that the chrome document expects.
       nsAutoCString spec;
       docURI->GetSpec(spec);
-      spec.AppendASCII(" -> ");
+      spec.AppendLiteral(" -> ");
       spec.Append(aScriptURI);
 
       aScriptURI = spec;
@@ -5919,7 +5907,7 @@ nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
 nsresult
 nsContentUtils::CreateBlobBuffer(JSContext* aCx,
                                  const nsACString& aData,
-                                 JS::Value& aBlob)
+                                 JS::MutableHandle<JS::Value> aBlob)
 {
   uint32_t blobLen = aData.Length();
   void* blobData = moz_malloc(blobLen);
@@ -5931,7 +5919,8 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
     return NS_ERROR_OUT_OF_MEMORY;
   }
   JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
-  return nsContentUtils::WrapNative(aCx, scope, blob, &aBlob, nullptr, true);
+  return nsContentUtils::WrapNative(aCx, scope, blob, aBlob.address(), nullptr,
+                                    true);
 }
 
 void
@@ -6625,8 +6614,8 @@ nsContentUtils::ReleaseWrapper(void* aScriptObjectHolder,
     // can also be in the DOM expando hash, so we need to try to remove them
     // from both here.
     JSObject* obj = aCache->GetWrapperPreserveColor();
-    if (aCache->IsDOMBinding() && obj) {
-      xpc::GetObjectScope(obj)->RemoveDOMExpandoObject(obj);
+    if (aCache->IsDOMBinding() && obj && js::IsProxy(obj)) {
+        DOMProxyHandler::GetAndClearExpandoObject(obj);
     }
     aCache->SetPreservingWrapper(false);
     DropJSObjects(aScriptObjectHolder);

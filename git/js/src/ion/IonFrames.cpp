@@ -25,8 +25,6 @@
 #include "Safepoints.h"
 #include "VMFunctions.h"
 
-#include "vm/ParallelDo.h"
-
 namespace js {
 namespace ion {
 
@@ -90,21 +88,17 @@ IonFrameIterator::calleeToken() const
 JSFunction *
 IonFrameIterator::callee() const
 {
-    if (isScripted()) {
-        JS_ASSERT(isFunctionFrame() || isParallelFunctionFrame());
-        if (isFunctionFrame())
-            return CalleeTokenToFunction(calleeToken());
-        return CalleeTokenToParallelFunction(calleeToken());
-    }
-
-    JS_ASSERT(isNative());
-    return exitFrame()->nativeExit()->vp()[0].toObject().toFunction();
+    JS_ASSERT(isScripted());
+    JS_ASSERT(isFunctionFrame() || isParallelFunctionFrame());
+    if (isFunctionFrame())
+        return CalleeTokenToFunction(calleeToken());
+    return CalleeTokenToParallelFunction(calleeToken());
 }
 
 JSFunction *
 IonFrameIterator::maybeCallee() const
 {
-    if ((isScripted() && (isFunctionFrame() || isParallelFunctionFrame())) || isNative())
+    if (isScripted() && (isFunctionFrame() || isParallelFunctionFrame()))
         return callee();
     return NULL;
 }
@@ -435,6 +429,9 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             break;
           }
 
+          case JSTRY_LOOP:
+            break;
+
           default:
             JS_NOT_REACHED("Invalid try note");
         }
@@ -522,8 +519,8 @@ HandleException(ResumeFromException *rfe)
         if (current) {
             // Unwind the frame by updating ionTop. This is necessary so that
             // (1) debugger exception unwind and leave frame hooks don't see this
-            // frame when they use StackIter, and (2) StackIter does not crash
-            // when accessing an IonScript that's destroyed by the
+            // frame when they use ScriptFrameIter, and (2) ScriptFrameIter does
+            // not crash when accessing an IonScript that's destroyed by the
             // ionScript->decref call.
             EnsureExitFrame(current);
             cx->mainThread().ionTop = (uint8_t *)current;
@@ -541,8 +538,17 @@ HandleParallelFailure(ResumeFromException *rfe)
 
     while (!iter.isEntry()) {
         parallel::Spew(parallel::SpewBailouts, "Bailing from VM reentry");
-        if (!slice->abortedScript && iter.isScripted())
-            slice->abortedScript = iter.script();
+        if (iter.isScripted()) {
+            slice->bailoutRecord->setCause(ParallelBailoutFailedIC,
+                                           iter.script(), iter.script(), NULL);
+            break;
+        }
+        ++iter;
+    }
+
+    while (!iter.isEntry()) {
+        if (iter.isScripted())
+            PropagateParallelAbort(iter.script(), iter.script());
         ++iter;
     }
 

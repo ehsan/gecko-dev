@@ -42,12 +42,12 @@ protected:
                              JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // WebIDL
   uint16_t ZoomAndPan() { return mEnumAttributes[ZOOMANDPAN].GetAnimValue(); }
   void SetZoomAndPan(uint16_t aZoomAndPan, ErrorResult& rv);
-  already_AddRefed<nsIDOMSVGAnimatedRect> ViewBox();
+  already_AddRefed<SVGAnimatedRect> ViewBox();
   already_AddRefed<DOMSVGAnimatedPreserveAspectRatio> PreserveAspectRatio();
   already_AddRefed<DOMSVGStringList> ViewTarget();
 
@@ -55,20 +55,20 @@ private:
 
   // nsSVGElement overrides
 
-  virtual EnumAttributesInfo GetEnumInfo();
+  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
 
   enum { ZOOMANDPAN };
   nsSVGEnum mEnumAttributes[1];
   static nsSVGEnumMapping sZoomAndPanMap[];
   static EnumInfo sEnumInfo[1];
 
-  virtual nsSVGViewBox *GetViewBox();
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual nsSVGViewBox *GetViewBox() MOZ_OVERRIDE;
+  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio() MOZ_OVERRIDE;
 
   nsSVGViewBox                   mViewBox;
   SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
 
-  virtual StringListAttributesInfo GetStringListInfo();
+  virtual StringListAttributesInfo GetStringListInfo() MOZ_OVERRIDE;
 
   enum { VIEW_TARGET };
   SVGStringList mStringListAttributes[1];

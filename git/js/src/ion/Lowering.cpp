@@ -118,7 +118,7 @@ LIRGenerator::visitParCheckOverRecursed(MParCheckOverRecursed *ins)
     LParCheckOverRecursed *lir = new LParCheckOverRecursed(
         useRegister(ins->parSlice()),
         temp());
-    if (!add(lir))
+    if (!add(lir, ins))
         return false;
     if (!assignSafepoint(lir, ins))
         return false;
@@ -293,8 +293,7 @@ LIRGenerator::visitPassArg(MPassArg *arg)
 
     // Known types can move constant types and/or payloads.
     LStackArgT *stack = new LStackArgT(argslot, useRegisterOrConstant(opd));
-    stack->setMir(arg);
-    return add(stack);
+    return add(stack, arg);
 }
 
 bool
@@ -659,7 +658,7 @@ LIRGenerator::visitTest(MTest *test)
         }
 
         // Compare and branch doubles.
-        if (comp->compareType() == MCompare::Compare_Double) {
+        if (comp->isDoubleComparison()) {
             LAllocation lhs = useRegister(left);
             LAllocation rhs = useRegister(right);
             LCompareDAndBranch *lir = new LCompareDAndBranch(lhs, rhs, ifTrue, ifFalse);
@@ -835,12 +834,8 @@ LIRGenerator::visitCompare(MCompare *comp)
     }
 
     // Compare doubles.
-    if (comp->compareType() == MCompare::Compare_Double ||
-        comp->compareType() == MCompare::Compare_DoubleMaybeCoerceLHS ||
-        comp->compareType() == MCompare::Compare_DoubleMaybeCoerceRHS)
-    {
+    if (comp->isDoubleComparison())
         return define(new LCompareD(useRegister(left), useRegister(right)), comp);
-    }
 
     // Compare values.
     if (comp->compareType() == MCompare::Compare_Value) {
@@ -862,8 +857,10 @@ ReorderCommutative(MDefinition **lhsp, MDefinition **rhsp)
     MDefinition *lhs = *lhsp;
     MDefinition *rhs = *rhsp;
 
-    // Put the constant in the right-hand side, if there is one.
-    if (lhs->isConstant()) {
+    // Ensure that if there is a constant, then it is in rhs.
+    // In addition, since clobbering binary operations clobber the left
+    // operand, prefer a lhs operand with no further uses.
+    if (lhs->isConstant() || rhs->useCount() == 1) {
         *rhsp = lhs;
         *lhsp = rhs;
     }
@@ -1025,14 +1022,15 @@ LIRGenerator::visitMinMax(MMinMax *ins)
     MDefinition *first = ins->getOperand(0);
     MDefinition *second = ins->getOperand(1);
 
+    ReorderCommutative(&first, &second);
+
     if (ins->specialization() == MIRType_Int32) {
-        ReorderCommutative(&first, &second);
         LMinMaxI *lir = new LMinMaxI(useRegisterAtStart(first), useRegisterOrConstant(second));
         return defineReuseInput(lir, ins, 0);
-    } else {
-        LMinMaxD *lir = new LMinMaxD(useRegisterAtStart(first), useRegister(second));
-        return defineReuseInput(lir, ins, 0);
     }
+
+    LMinMaxD *lir = new LMinMaxD(useRegisterAtStart(first), useRegister(second));
+    return defineReuseInput(lir, ins, 0);
 }
 
 bool
@@ -1160,6 +1158,7 @@ LIRGenerator::visitAdd(MAdd *ins)
 
     if (ins->specialization() == MIRType_Double) {
         JS_ASSERT(lhs->type() == MIRType_Double);
+        ReorderCommutative(&lhs, &rhs);
         return lowerForFPU(new LMathD(JSOP_ADD), ins, lhs, rhs);
     }
 
@@ -1209,6 +1208,7 @@ LIRGenerator::visitMul(MMul *ins)
     }
     if (ins->specialization() == MIRType_Double) {
         JS_ASSERT(lhs->type() == MIRType_Double);
+        ReorderCommutative(&lhs, &rhs);
 
         // If our LHS is a constant -1.0, we can optimize to an LNegD.
         if (lhs->isConstant() && lhs->toConstant()->value() == DoubleValue(-1.0))
@@ -1641,9 +1641,11 @@ LIRGenerator::visitParSlice(MParSlice *ins)
 bool
 LIRGenerator::visitParWriteGuard(MParWriteGuard *ins)
 {
-    return add(new LParWriteGuard(useFixed(ins->parSlice(), CallTempReg0),
-                                  useFixed(ins->object(), CallTempReg1),
-                                  tempFixed(CallTempReg2)));
+    LParWriteGuard *lir = new LParWriteGuard(useFixed(ins->parSlice(), CallTempReg0),
+                                             useFixed(ins->object(), CallTempReg1),
+                                             tempFixed(CallTempReg2));
+    lir->setMir(ins);
+    return add(lir, ins);
 }
 
 bool
@@ -1652,7 +1654,7 @@ LIRGenerator::visitParCheckInterrupt(MParCheckInterrupt *ins)
     LParCheckInterrupt *lir = new LParCheckInterrupt(
         useRegister(ins->parSlice()),
         temp());
-    if (!add(lir))
+    if (!add(lir, ins))
         return false;
     if (!assignSafepoint(lir, ins))
         return false;
@@ -2611,8 +2613,7 @@ LIRGenerator::visitAsmJSCall(MAsmJSCall *ins)
 
     LInstruction *lir = new LAsmJSCall(args, ins->numOperands());
     if (ins->type() == MIRType_None) {
-        lir->setMir(ins);
-        return add(lir);
+        return add(lir, ins);
     }
     return defineReturn(lir, ins);
 }
@@ -2743,7 +2744,7 @@ void
 LIRGenerator::updateResumeState(MInstruction *ins)
 {
     lastResumePoint_ = ins->resumePoint();
-    if (IonSpewEnabled(IonSpew_Snapshots))
+    if (IonSpewEnabled(IonSpew_Snapshots) && lastResumePoint_)
         SpewResumePoint(NULL, ins, lastResumePoint_);
 }
 
@@ -2751,7 +2752,7 @@ void
 LIRGenerator::updateResumeState(MBasicBlock *block)
 {
     lastResumePoint_ = block->entryResumePoint();
-    if (IonSpewEnabled(IonSpew_Snapshots))
+    if (IonSpewEnabled(IonSpew_Snapshots) && lastResumePoint_)
         SpewResumePoint(block, NULL, lastResumePoint_);
 }
 

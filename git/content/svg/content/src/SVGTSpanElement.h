@@ -27,13 +27,11 @@ protected:
 
 public:
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-protected:
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
-  // nsSVGElement overrides
-  virtual bool IsEventName(nsIAtom* aName);
+  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 };
 
 } // namespace dom

@@ -9,7 +9,7 @@ function test() {
   waitForExplicitFinish();
 
   // Need to load a http/https/ftp/ftps page for the social mark button to appear
-  let tab = gBrowser.selectedTab = gBrowser.addTab("https://example.com", {skipAnimation: true});
+  let tab = gBrowser.selectedTab = gBrowser.addTab("https://test1.example.com", {skipAnimation: true});
   tab.linkedBrowser.addEventListener("load", function tabLoad(event) {
     tab.linkedBrowser.removeEventListener("load", tabLoad, true);
     executeSoon(tabLoaded);
@@ -69,25 +69,19 @@ function testInitial(finishcb) {
         });
       });
     });
-    markButton.click();
   }, "provider didn't provide page-mark-config");
 }
 
 function testStillMarkedIn2Tabs() {
-  let toMark = "http://example.com";
+  let toMark = "http://test2.example.com";
   let markUri = Services.io.newURI(toMark, null, null);
   let markButton = SocialMark.button;
   let initialTab = gBrowser.selectedTab;
+  info("initialTab has loaded " + gBrowser.currentURI.spec);
   is(markButton.hasAttribute("marked"), false, "SocialMark button should not have 'marked' for the initial tab");
-  let tab1 = gBrowser.selectedTab = gBrowser.addTab(toMark);
-  let tab1b = gBrowser.getBrowserForTab(tab1);
 
-  tab1b.addEventListener("load", function tabLoad(event) {
-    tab1b.removeEventListener("load", tabLoad, true);
-    let tab2 = gBrowser.selectedTab = gBrowser.addTab(toMark);
-    let tab2b = gBrowser.getBrowserForTab(tab2);
-    tab2b.addEventListener("load", function tabLoad(event) {
-      tab2b.removeEventListener("load", tabLoad, true);
+  addTab(toMark, function(tab1) {
+    addTab(toMark, function(tab2) {
       // should start without either page being marked.
       is(markButton.hasAttribute("marked"), false, "SocialMark button should not have 'marked' before we've done anything");
       Social.isURIMarked(markUri, function(marked) {
@@ -97,109 +91,92 @@ function testStillMarkedIn2Tabs() {
           Social.isURIMarked(markUri, function(marked) {
             ok(marked, "page is marked in annotations");
             // and switching to the first tab (with the same URL) should still reflect marked.
-            gBrowser.selectedTab = tab1;
-            is(markButton.hasAttribute("marked"), true, "SocialMark button should reflect the marked state");
-            // but switching back the initial one should reflect not marked.
-            gBrowser.selectedTab = initialTab;
-            waitForCondition(function() !markButton.hasAttribute("marked"), function() {
-              gBrowser.selectedTab = tab1;
-    
-              SocialMark.togglePageMark(function() {
-                Social.isURIMarked(gBrowser.currentURI, function(marked) {
-                  ok(!marked, "page is unmarked in annotations");
-                  is(markButton.hasAttribute("marked"), false, "mark button should not be marked");
-                  gBrowser.removeTab(tab1);
-                  gBrowser.removeTab(tab2);
-                  executeSoon(testStillMarkedAfterReopen);
-                });
+            selectBrowserTab(tab1, function() {
+              is(markButton.hasAttribute("marked"), true, "SocialMark button should reflect the marked state");
+              // wait for tabselect
+              selectBrowserTab(initialTab, function() {
+                waitForCondition(function() !markButton.hasAttribute("marked"), function() {
+                  gBrowser.selectedTab = tab1;
+        
+                  SocialMark.togglePageMark(function() {
+                    Social.isURIMarked(gBrowser.currentURI, function(marked) {
+                      ok(!marked, "page is unmarked in annotations");
+                      is(markButton.hasAttribute("marked"), false, "mark button should not be marked");
+                      gBrowser.removeTab(tab1);
+                      gBrowser.removeTab(tab2);
+                      executeSoon(testStillMarkedAfterReopen);
+                    });
+                  });
+                }, "button has been unmarked");
               });
-            }, "button has been unmarked");
+            });
           });
         }, "button has been marked");
       });
-
-    }, true);
-  }, true);
+    });
+  });
 }
 
 function testStillMarkedAfterReopen() {
-  let toMark = "http://example.com";
+  let toMark = "http://test2.example.com";
   let markButton = SocialMark.button;
 
   is(markButton.hasAttribute("marked"), false, "Reopen: SocialMark button should not have 'marked' for the initial tab");
-  let tab = gBrowser.selectedTab = gBrowser.addTab(toMark);
-  let tabb = gBrowser.getBrowserForTab(tab);
-  tabb.addEventListener("load", function tabLoad(event) {
-    tabb.removeEventListener("load", tabLoad, true);
+  addTab(toMark, function(tab) {
     SocialMark.togglePageMark(function() {
       is(markButton.hasAttribute("marked"), true, "SocialMark button should reflect the marked state");
       gBrowser.removeTab(tab);
       // should be on the initial unmarked tab now.
       waitForCondition(function() !markButton.hasAttribute("marked"), function() {
         // now open the same URL - should be back to Marked.
-        tab = gBrowser.selectedTab = gBrowser.addTab(toMark, {skipAnimation: true});
-        tab.linkedBrowser.addEventListener("load", function tabLoad(event) {
-          tab.linkedBrowser.removeEventListener("load", tabLoad, true);
-          executeSoon(function() {
-            is(markButton.hasAttribute("marked"), true, "New tab to previously marked URL should reflect marked state");
-            SocialMark.togglePageMark(function() {
-              gBrowser.removeTab(tab);
-              executeSoon(testOnlyMarkCertainUrlsTabSwitch);
-            });
+        addTab(toMark, function(tab) {
+          is(markButton.hasAttribute("marked"), true, "New tab to previously marked URL should reflect marked state");
+          SocialMark.togglePageMark(function() {
+            gBrowser.removeTab(tab);
+            executeSoon(testOnlyMarkCertainUrlsTabSwitch);
           });
-        }, true);
+        });
       }, "button is now unmarked");
     });
-  }, true);
+  });
 }
 
 function testOnlyMarkCertainUrlsTabSwitch() {
-  let toMark = "http://example.com";
+  let toMark = "http://test2.example.com";
   let notSharable = "about:blank";
   let markButton = SocialMark.button;
-  let tab = gBrowser.selectedTab = gBrowser.addTab(toMark);
-  let tabb = gBrowser.getBrowserForTab(tab);
-  tabb.addEventListener("load", function tabLoad(event) {
-    tabb.removeEventListener("load", tabLoad, true);
+  addTab(toMark, function(tab) {
     ok(!markButton.hidden, "SocialMark button not hidden for http url");
-    let tab2 = gBrowser.selectedTab = gBrowser.addTab(notSharable);
-    let tabb2 = gBrowser.getBrowserForTab(tab2);
-    tabb2.addEventListener("load", function tabLoad(event) {
-      tabb2.removeEventListener("load", tabLoad, true);
+    addTab(notSharable, function(tab2) {
       ok(markButton.disabled, "SocialMark button disabled for about:blank");
-      gBrowser.selectedTab = tab;
-      ok(!markButton.disabled, "SocialMark button re-shown when switching back to http: url");
-      gBrowser.selectedTab = tab2;
-      ok(markButton.disabled, "SocialMark button re-hidden when switching back to about:blank");
-      gBrowser.removeTab(tab);
-      gBrowser.removeTab(tab2);
-      executeSoon(testOnlyMarkCertainUrlsSameTab);
-    }, true);
-  }, true);
+      selectBrowserTab(tab, function() {
+        ok(!markButton.disabled, "SocialMark button re-shown when switching back to http: url");
+        selectBrowserTab(tab2, function() {
+          ok(markButton.disabled, "SocialMark button re-hidden when switching back to about:blank");
+          gBrowser.removeTab(tab);
+          gBrowser.removeTab(tab2);
+          executeSoon(testOnlyMarkCertainUrlsSameTab);
+        });
+      });
+    });
+  });
 }
 
 function testOnlyMarkCertainUrlsSameTab() {
-  let toMark = "http://example.com";
+  let toMark = "http://test2.example.com";
   let notSharable = "about:blank";
   let markButton = SocialMark.button;
-  let tab = gBrowser.selectedTab = gBrowser.addTab(toMark);
-  let tabb = gBrowser.getBrowserForTab(tab);
-  tabb.addEventListener("load", function tabLoad(event) {
-    tabb.removeEventListener("load", tabLoad, true);
+  addTab(toMark, function(tab) {
     ok(!markButton.disabled, "SocialMark button not disabled for http url");
-    tabb.addEventListener("load", function tabLoad(event) {
-      tabb.removeEventListener("load", tabLoad, true);
+    loadIntoTab(tab, notSharable, function() {
       ok(markButton.disabled, "SocialMark button disabled for about:blank");
-      tabb.addEventListener("load", function tabLoad(event) {
-        tabb.removeEventListener("load", tabLoad, true);
+      loadIntoTab(tab, toMark, function() {
         ok(!markButton.disabled, "SocialMark button re-enabled http url");
         gBrowser.removeTab(tab);
         executeSoon(testDisable);
-      }, true);
-      tabb.loadURI(toMark);
-    }, true);
-    tabb.loadURI(notSharable);
-  }, true);
+      });
+    });
+  });
 }
 
 function testDisable() {

@@ -51,6 +51,7 @@
 #include "nsRegion.h"
 #include "Layers.h"
 #include "LayerManagerOGL.h"
+#include "ClientLayerManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "GLTextureImage.h"
 #include "mozilla/layers/GLManager.h"
@@ -707,7 +708,7 @@ nsChildView::GetCGContextForTitlebarDrawing(NSSize aSize)
 void
 nsChildView::WillPaint()
 {
-  [mView maybeDrawInTitlebar];
+  [(ChildView*)mView maybeDrawInTitlebar];
 }
 
 void
@@ -1870,6 +1871,17 @@ nsChildView::CleanupWindowEffects()
 }
 
 void
+nsChildView::PreRender(LayerManager* aManager)
+{
+  nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
+  if (!manager) {
+    return;
+  }
+  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
+  [(ChildView*)mView preRender:glContext];
+}
+
+void
 nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
@@ -2312,6 +2324,20 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+-(void)preRender:(NSOpenGLContext *)aGLContext
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (!mGLContext) {
+    [self setGLContext:aGLContext];
+  }
+
+  [aGLContext setView:self];
+  [aGLContext update];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
 - (void)dealloc
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -2687,11 +2713,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild) {
     return;
   }
-  ToolbarWindow* win = [self window];
+  NSWindow* win = [self window];
   if (!win || ![win isKindOfClass:[ToolbarWindow class]]) {
     return;
   }
-  if (![win drawsContentsIntoWindowFrame]) {
+  ToolbarWindow* toolbarWin = (ToolbarWindow*)win;
+  if (![toolbarWin drawsContentsIntoWindowFrame]) {
     return;
   }
 
@@ -2701,8 +2728,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // "unified toolbar".  Our ChildView ('self') is the same size as the frame
   // view and covers it.  Our ChildView has a flipped coordinate system, but
   // the frame view doesn't.
-  NSRect titlebarRect = [win titlebarRect];
-  NSView* frameView = [[win contentView] superview];
+  NSRect titlebarRect = [toolbarWin titlebarRect];
+  NSView* frameView = [[toolbarWin contentView] superview];
   NSRect dirtyRect = NSIntersectionRect([frameView _dirtyRect], titlebarRect);
   // Flip dirtyRect's coordinate system.
   dirtyRect.origin.y = [frameView bounds].size.height -
@@ -2840,10 +2867,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
   targetContext->Clip();
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  bool painted;
+  bool painted = false;
   if (mGeckoChild->GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
     nsBaseWidget::AutoLayerManagerSetup
       setupLayerManager(mGeckoChild, targetContext, BUFFER_NONE);
+    painted = mGeckoChild->PaintWindow(region, aIsAlternate);
+  } else if (mGeckoChild->GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
+    // We only need this so that we actually get DidPaintWindow fired
+    if (Compositor::GetBackend() == LAYERS_BASIC) {
+      ClientLayerManager *manager = static_cast<ClientLayerManager*>(mGeckoChild->GetLayerManager());
+      manager->SetShadowTarget(targetContext);
+    }
     painted = mGeckoChild->PaintWindow(region, aIsAlternate);
   }
 

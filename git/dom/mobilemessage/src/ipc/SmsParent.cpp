@@ -55,13 +55,13 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
   }
 
   nsCOMPtr<nsIDOMBlob> blob = static_cast<BlobParent*>(aAttachment.contentParent())->GetBlob();
-  JS::Value content;
-  JS::Rooted<JSObject*> global (aContext, JS_GetGlobalForScopeChain(aContext));
+  JS::Rooted<JS::Value> content(aContext);
+  JS::Rooted<JSObject*> global(aContext, JS_GetGlobalForScopeChain(aContext));
   nsresult rv = nsContentUtils::WrapNative(aContext,
                                            global,
                                            blob,
                                            &NS_GET_IID(nsIDOMBlob),
-                                           &content);
+                                           content.address());
   NS_ENSURE_SUCCESS(rv, nullptr);
   if (!JS_DefineProperty(aContext, obj, "content", content,
                          nullptr, nullptr, 0)) {
@@ -482,7 +482,9 @@ SmsRequestParent::DoRequest(const DeleteMessageRequest& aRequest)
   nsCOMPtr<nsIMobileMessageDatabaseService> dbService =
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
   if (dbService) {
-    rv = dbService->DeleteMessage(aRequest.messageId(), this);
+    const InfallibleTArray<int32_t>& messageIds = aRequest.messageIds();
+    rv = dbService->DeleteMessage(const_cast<int32_t *>(messageIds.Elements()),
+                                  messageIds.Length(), this);
   }
 
   if (NS_FAILED(rv)) {
@@ -583,9 +585,11 @@ SmsRequestParent::NotifyGetMessageFailed(int32_t aError)
 }
 
 NS_IMETHODIMP
-SmsRequestParent::NotifyMessageDeleted(bool aDeleted)
+SmsRequestParent::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
 {
-  return SendReply(ReplyMessageDelete(aDeleted));
+  ReplyMessageDelete data;
+  data.deleted().AppendElements(aDeleted, aSize);
+  return SendReply(data);
 }
 
 NS_IMETHODIMP

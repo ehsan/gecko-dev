@@ -408,16 +408,8 @@ FileUpdateDispatcher::Observe(nsISupports *aSubject,
       NS_WARNING("Device storage file looks invalid!");
       return NS_OK;
     }
-
-    nsString fullpath;
-    nsresult rv = file->mFile->GetPath(fullpath);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Could not get path from the nsIFile!");
-      return NS_OK;
-    }
-
     ContentChild::GetSingleton()->SendFilePathUpdateNotify(file->mStorageType,
-                                                           fullpath,
+                                                           file->mPath,
                                                            NS_ConvertUTF16toUTF8(aData));
   } else {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -1046,6 +1038,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType,
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   obs->AddObserver(this, "file-watcher-update", false);
+  obs->AddObserver(this, "disk-space-watcher", false);
   mRootDirectory = f;
   mStorageType = aType;
 }
@@ -2169,6 +2162,7 @@ nsDOMDeviceStorage::Shutdown()
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   obs->RemoveObserver(this, "file-watcher-update");
+  obs->RemoveObserver(this, "disk-space-watcher");
 }
 
 void
@@ -2501,7 +2495,7 @@ ExtractDateFromOptions(JSContext* aCx, const JS::Value& aOptions)
   if (!JSVAL_IS_VOID(aOptions) && !aOptions.isNull()) {
     nsresult rv = params.Init(aCx, &aOptions);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_VOID(params.since) && !params.since.isNull() && params.since.isObject()) {
-      JSObject* obj = JSVAL_TO_OBJECT(params.since);
+      JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(params.since));
       if (JS_ObjectIsDate(aCx, obj) && js_DateIsValid(obj)) {
         result = js_DateGetMsecSinceEpoch(obj);
       }
@@ -2621,6 +2615,18 @@ nsDOMDeviceStorage::Observe(nsISupports *aSubject, const char *aTopic, const PRU
 
     DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
     Notify(NS_ConvertUTF16toUTF8(aData).get(), file);
+    return NS_OK;
+  } else if (!strcmp(aTopic, "disk-space-watcher")) {
+    // 'disk-space-watcher' notifications are sent when there is a modification
+    // of a file in a specific location while a low device storage situation
+    // exists or after recovery of a low storage situation. For Firefox OS,
+    // these notifications are specific for apps storage.
+    nsRefPtr<DeviceStorageFile> file = new DeviceStorageFile(mStorageType);
+    if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "full")) {
+      Notify("low-disk-space", file);
+    } else if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "free")) {
+      Notify("available-disk-space", file);
+    }
     return NS_OK;
   }
 

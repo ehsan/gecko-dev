@@ -19,7 +19,6 @@
 #include "EdgeCaseAnalysis.h"
 #include "RangeAnalysis.h"
 #include "LinearScan.h"
-#include "vm/ParallelDo.h"
 #include "ParallelArrayAnalysis.h"
 #include "jscompartment.h"
 #include "vm/ThreadPool.h"
@@ -100,6 +99,12 @@ IonContext *
 ion::GetIonContext()
 {
     JS_ASSERT(CurrentIonContext());
+    return CurrentIonContext();
+}
+
+IonContext *
+ion::MaybeGetIonContext()
+{
     return CurrentIonContext();
 }
 
@@ -550,6 +555,7 @@ IonScript::IonScript()
     deoptTable_(NULL),
     osrPc_(NULL),
     osrEntryOffset_(0),
+    skipArgCheckEntryOffset_(0),
     invalidateEpilogueOffset_(0),
     invalidateEpilogueDataOffset_(0),
     numBailouts_(0),
@@ -717,7 +723,7 @@ IonScript::copyBailoutTable(const SnapshotOffset *table)
 }
 
 void
-IonScript::copyConstants(const HeapValue *vp)
+IonScript::copyConstants(const Value *vp)
 {
     for (size_t i = 0; i < constantEntries_; i++)
         constants()[i].init(vp[i]);
@@ -2074,7 +2080,7 @@ ion::SideCannon(JSContext *cx, StackFrame *fp, jsbytecode *pc)
 }
 
 IonExecStatus
-ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args)
+ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
 {
     JS_CHECK_RECURSION(cx, return IonExec_Error);
 
@@ -2116,10 +2122,8 @@ ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args)
     JS_ASSERT(args.length() >= fun->nargs);
 
     JSAutoResolveFlags rf(cx, RESOLVE_INFER);
-    args.setActive();
     enter(jitcode, args.length() + 1, args.array() - 1, fp, calleeToken,
           /* scopeChain = */ NULL, 0, result.address());
-    args.setInactive();
 
     if (clearCallingIntoIon)
         fp->clearCallingIntoIon();
@@ -2491,17 +2495,15 @@ ion::UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc)
     JS_ASSERT(pc == script->code || JSOp(*pc) == JSOP_LOOPENTRY);
 
     uint32_t minUses = js_IonOptions.usesBeforeCompile;
-    if (JSOp(*pc) != JSOP_LOOPENTRY || !script->hasAnalysis() || js_IonOptions.eagerCompilation)
-        return minUses;
-
-    analyze::LoopAnalysis *loop = script->analysis()->getLoop(pc);
-    if (!loop)
+    if (JSOp(*pc) != JSOP_LOOPENTRY || js_IonOptions.eagerCompilation)
         return minUses;
 
     // It's more efficient to enter outer loops, rather than inner loops, via OSR.
     // To accomplish this, we use a slightly higher threshold for inner loops.
-    // Note that we use +1 to prefer non-OSR over OSR.
-    return minUses + (loop->depth + 1) * 100;
+    // Note that the loop depth is always > 0 so we will prefer non-OSR over OSR.
+    uint32_t loopDepth = GET_UINT8(pc);
+    JS_ASSERT(loopDepth > 0);
+    return minUses + loopDepth * 100;
 }
 
 void

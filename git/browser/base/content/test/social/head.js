@@ -190,8 +190,13 @@ function checkSocialUI(win) {
   isbool(!win.SocialMark.button.hidden, markVisible, "SocialMark button visible?");
   isbool(!win.SocialMark.button.disabled, canMark, "SocialMark button enabled?");
   isbool(!doc.getElementById("social-toolbar-item").hidden, active, "toolbar items visible?");
-  if (active)
-    is(win.SocialToolbar.button.style.listStyleImage, 'url("' + Social.defaultProvider.iconURL + '")', "toolbar button has provider icon");
+  if (active) {
+    if (!enabled) {
+      ok(!win.SocialToolbar.button.style.listStyleImage, "toolbar button is default icon");
+    } else {
+      is(win.SocialToolbar.button.style.listStyleImage, 'url("' + Social.defaultProvider.iconURL + '")', "toolbar button has provider icon");
+    }
+  }
   // the menus should always have the provider name
   if (provider) {
     for (let id of ["menu_socialSidebar", "menu_socialAmbientMenu"])
@@ -294,3 +299,25 @@ function addTab(url, callback) {
     executeSoon(function() {callback(tab)});
   }, true);
 }
+
+function selectBrowserTab(tab, callback) {
+  if (gBrowser.selectedTab == tab) {
+    executeSoon(function() {callback(tab)});
+    return;
+  }
+  gBrowser.tabContainer.addEventListener("TabSelect", function onTabSelect() {
+    gBrowser.tabContainer.removeEventListener("TabSelect", onTabSelect, false);
+    is(gBrowser.selectedTab, tab, "browser tab is selected");
+    executeSoon(function() {callback(tab)});
+  });
+  gBrowser.selectedTab = tab;
+}
+
+function loadIntoTab(tab, url, callback) {
+  tab.linkedBrowser.addEventListener("load", function tabLoad(event) {
+    tab.linkedBrowser.removeEventListener("load", tabLoad, true);
+    executeSoon(function() {callback(tab)});
+  }, true);
+  tab.linkedBrowser.loadURI(url);
+}
+

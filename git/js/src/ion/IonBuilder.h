@@ -31,6 +31,16 @@ class IonBuilder : public MIRGenerator
         ControlStatus_None          // No control flow.
     };
 
+    enum SetElemSafety {
+        // Normal write like a[b] = c.
+        SetElem_Normal,
+
+        // Write due to UnsafeSetElement:
+        // - assumed to be in bounds,
+        // - not checked for data races
+        SetElem_Unsafe,
+    };
+
     struct DeferredEdge : public TempObject
     {
         MBasicBlock *block;
@@ -383,8 +393,10 @@ class IonBuilder : public MIRGenerator
     bool jsop_getelem_string();
     bool jsop_setelem();
     bool jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
+                            SetElemSafety safety,
                             MDefinition *object, MDefinition *index, MDefinition *value);
     bool jsop_setelem_typed(int arrayType,
+                            SetElemSafety safety,
                             MDefinition *object, MDefinition *index, MDefinition *value);
     bool jsop_setelem_typed_static(MDefinition *object, MDefinition *index, MDefinition *value,
                                    bool *psucceeded);
@@ -467,7 +479,7 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineUnsafeSetElement(CallInfo &callInfo);
     bool inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base);
     bool inlineUnsafeSetTypedArrayElement(CallInfo &callInfo, uint32_t base, int arrayType);
-    InliningStatus inlineShouldForceSequentialOrInParallelSection(CallInfo &callInfo);
+    InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
     InliningStatus inlineNewDenseArray(CallInfo &callInfo);
     InliningStatus inlineNewDenseArrayForSequentialExecution(CallInfo &callInfo);
     InliningStatus inlineNewDenseArrayForParallelExecution(CallInfo &callInfo);

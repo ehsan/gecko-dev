@@ -136,6 +136,7 @@ function migrateSettings() {
     for (let origin in ActiveProviders._providers) {
       let prefname;
       let manifest;
+      let defaultManifest;
       try {
         prefname = getPrefnameFromOrigin(origin);
         manifest = JSON.parse(Services.prefs.getComplexValue(prefname, Ci.nsISupportsString).data);
@@ -148,14 +149,27 @@ function migrateSettings() {
         ActiveProviders.flush();
         continue;
       }
-      if (!manifest.updateDate) {
+      let needsUpdate = !manifest.updateDate;
+      // fx23 may have built-ins with shareURL
+      try {
+        defaultManifest = Services.prefs.getDefaultBranch(null)
+                        .getComplexValue(prefname, Ci.nsISupportsString).data;
+        defaultManifest = JSON.parse(defaultManifest);
+        if (defaultManifest.shareURL && !manifest.shareURL) {
+          manifest.shareURL = defaultManifest.shareURL;
+          needsUpdate = true;
+        }
+      } catch(e) {
+        // not a built-in, continue
+      }
+      if (needsUpdate) {
         // the provider was installed with an older build, so we will update the
         // timestamp and ensure the manifest is in user prefs
         delete manifest.builtin;
-        if (!manifest.updateDate) {
-          manifest.updateDate = Date.now();
+        // we're potentially updating for share, so always mark the updateDate
+        manifest.updateDate = Date.now();
+        if (!manifest.installDate)
           manifest.installDate = 0; // we don't know when it was installed
-        }
 
         let string = Cc["@mozilla.org/supports-string;1"].
                      createInstance(Ci.nsISupportsString);
@@ -404,7 +418,7 @@ this.SocialService = {
   },
 
   _manifestFromData: function(type, data, principal) {
-    let sameOriginRequired = ['workerURL', 'sidebarURL'];
+    let sameOriginRequired = ['workerURL', 'sidebarURL', 'shareURL'];
 
     if (type == 'directory') {
       // directory provided manifests must have origin in manifest, use that
@@ -422,7 +436,7 @@ this.SocialService = {
     // iconURL and name are required
     // iconURL may be a different origin (CDN or data url support) if this is
     // a whitelisted or directory listed provider
-    if (!data['workerURL'] || !data['sidebarURL']) {
+    if (!data['workerURL'] && !data['sidebarURL'] && !data['shareURL']) {
       Cu.reportError("SocialService.manifestFromData manifest missing required workerURL or sidebarURL.");
       return null;
     }
@@ -487,7 +501,6 @@ this.SocialService = {
   },
 
   installProvider: function(aDOMDocument, data, installCallback) {
-    let sourceURI = aDOMDocument.location.href;
     let installOrigin = aDOMDocument.nodePrincipal.origin;
 
     let id = getAddonIDFromOrigin(installOrigin);
@@ -495,6 +508,21 @@ this.SocialService = {
     if (Services.blocklist.getAddonBlocklistState(id, version) == Ci.nsIBlocklistService.STATE_BLOCKED)
       throw new Error("installProvider: provider with origin [" +
                       installOrigin + "] is blocklisted");
+
+    AddonManager.getAddonByID(id, function(aAddon) {
+      if (aAddon && aAddon.userDisabled) {
+        aAddon.cancelUninstall();
+        aAddon.userDisabled = false;
+      }
+      schedule(function () {
+        this._installProvider(aDOMDocument, data, installCallback);
+      }.bind(this));
+    }.bind(this));
+  },
+
+  _installProvider: function(aDOMDocument, data, installCallback) {
+    let sourceURI = aDOMDocument.location.href;
+    let installOrigin = aDOMDocument.nodePrincipal.origin;
 
     let installType = this.getOriginActivationType(installOrigin);
     let manifest;
@@ -578,6 +606,7 @@ function SocialProvider(input) {
   this.icon64URL = input.icon64URL;
   this.workerURL = input.workerURL;
   this.sidebarURL = input.sidebarURL;
+  this.shareURL = input.shareURL;
   this.origin = input.origin;
   let originUri = Services.io.newURI(input.origin, null, null);
   this.principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
@@ -727,6 +756,10 @@ SocialProvider.prototype = {
   setAmbientNotification: function(notification) {
     if (!this.profile.userName)
       throw new Error("unable to set notifications while logged out");
+    if (!this.ambientNotificationIcons[notification.name] &&
+        Object.keys(this.ambientNotificationIcons).length >= 3) {
+      throw new Error("ambient notification limit reached");
+    }
     this.ambientNotificationIcons[notification.name] = notification;
 
     Services.obs.notifyObservers(null, "social:ambient-notification-changed", this.origin);
@@ -833,6 +866,7 @@ function AddonInstaller(sourceURI, aManifest, installCallback) {
   aManifest.updateDate = Date.now();
   // get the existing manifest for installDate
   let manifest = SocialServiceInternal.getManifestByOrigin(aManifest.origin);
+  let isNewInstall = !manifest;
   if (manifest && manifest.installDate)
     aManifest.installDate = manifest.installDate;
   else
@@ -841,15 +875,19 @@ function AddonInstaller(sourceURI, aManifest, installCallback) {
   this.sourceURI = sourceURI;
   this.install = function() {
     let addon = this.addon;
-    AddonManagerPrivate.callInstallListeners("onExternalInstall", null, addon, null, false);
-    AddonManagerPrivate.callAddonListeners("onInstalling", addon, false);
+    if (isNewInstall) {
+      AddonManagerPrivate.callInstallListeners("onExternalInstall", null, addon, null, false);
+      AddonManagerPrivate.callAddonListeners("onInstalling", addon, false);
+    }
 
     let string = Cc["@mozilla.org/supports-string;1"].
                  createInstance(Ci.nsISupportsString);
     string.data = JSON.stringify(aManifest);
     Services.prefs.setComplexValue(getPrefnameFromOrigin(aManifest.origin), Ci.nsISupportsString, string);
 
-    AddonManagerPrivate.callAddonListeners("onInstalled", addon);
+    if (isNewInstall) {
+      AddonManagerPrivate.callAddonListeners("onInstalled", addon);
+    }
     installCallback(aManifest);
   };
   this.cancel = function() {
@@ -1085,14 +1123,6 @@ AddonWrapper.prototype = {
   },
 
   cancelUninstall: function() {
-    let prefName = getPrefnameFromOrigin(this.manifest.origin);
-    if (Services.prefs.prefHasUserValue(prefName))
-      throw new Error(this.manifest.name + " is not marked to be uninstalled");
-    // ensure we're set into prefs
-    let string = Cc["@mozilla.org/supports-string;1"].
-                 createInstance(Ci.nsISupportsString);
-    string.data = JSON.stringify(this.manifest);
-    Services.prefs.setComplexValue(prefName, Ci.nsISupportsString, string);
     this._pending -= AddonManager.PENDING_UNINSTALL;
     AddonManagerPrivate.callAddonListeners("onOperationCancelled", this);
   }

@@ -303,6 +303,7 @@ public:
   {
     return mJSObject;
   }
+  void TraceGlobalJSObject(JSTracer* aTrc);
 
   virtual nsresult EnsureScriptEnvironment();
 
@@ -1009,7 +1010,7 @@ protected:
   inline int32_t DOMMinTimeoutValue() const;
 
   nsresult CreateOuterObject(nsGlobalWindow* aNewInner);
-  nsresult SetOuterObject(JSContext* aCx, JSObject* aOuterObject);
+  nsresult SetOuterObject(JSContext* aCx, JS::Handle<JSObject*> aOuterObject);
   nsresult CloneStorageEvent(const nsAString& aType,
                              nsCOMPtr<nsIDOMStorageEvent>& aEvent);
 

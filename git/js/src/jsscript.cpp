@@ -1916,11 +1916,7 @@ JSScript::isShortRunning()
 {
     return length < 100 &&
            hasAnalysis() &&
-           !analysis()->hasFunctionCalls()
-#ifdef JS_METHODJIT
-           && getMaxLoopCount() < 40
-#endif
-           ;
+           !analysis()->hasFunctionCalls();
 }
 
 bool
@@ -2824,7 +2820,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
          * arguments object right after restoring the StackFrame and before
          * entering the interpreter (in ion::ThunkToInterpreter).  This delay is
          * safe since the engine avoids any observation of a StackFrame when it
-         * beginsIonActivation (see StackIter::interpFrame comment).
+         * beginsIonActivation (see ScriptFrameIter::interpFrame comment).
          */
         if (i.isIonOptimizedJS())
             continue;
@@ -2883,11 +2879,15 @@ void
 JSScript::updateBaselineOrIonRaw()
 {
 #ifdef JS_ION
-    if (hasIonScript())
+    if (hasIonScript()) {
         baselineOrIonRaw = ion->method()->raw();
-    else if (hasBaselineScript())
+        baselineOrIonSkipArgCheck = ion->method()->raw() + ion->getSkipArgCheckEntryOffset();
+    } else if (hasBaselineScript()) {
         baselineOrIonRaw = baseline->method()->raw();
-    else
+        baselineOrIonSkipArgCheck = baseline->method()->raw();
+    } else {
         baselineOrIonRaw = NULL;
+        baselineOrIonSkipArgCheck = NULL;
+    }
 #endif
 }

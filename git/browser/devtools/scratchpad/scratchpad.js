@@ -21,7 +21,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource:///modules/PropertyPanel.jsm");
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
@@ -29,6 +28,12 @@ Cu.import("resource://gre/modules/jsdebugger.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+
+XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
+                                  "resource:///modules/devtools/VariablesView.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
+                                  "resource:///modules/devtools/gDevTools.jsm");
 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
 const SCRATCHPAD_CONTEXT_BROWSER = 2;
@@ -38,7 +43,9 @@ const PREF_RECENT_FILES_MAX = "devtools.scratchpad.recentFilesMax";
 const BUTTON_POSITION_SAVE = 0;
 const BUTTON_POSITION_CANCEL = 1;
 const BUTTON_POSITION_DONT_SAVE = 2;
-const BUTTON_POSITION_REVERT=0;
+const BUTTON_POSITION_REVERT = 0;
+const VARIABLES_VIEW_URL = "chrome://browser/content/devtools/widgets/VariablesView.xul";
+
 
 /**
  * The scratchpad object handles the Scratchpad window functionality.
@@ -71,7 +78,7 @@ var Scratchpad = {
       .replace(/^\/\*/, "")
       .replace(/\*\/$/, "");
 
-    aLine.split(",").forEach(function (pair) {
+    aLine.split(",").forEach(pair => {
       let [key, val] = pair.split(":");
 
       if (key && val) {
@@ -253,6 +260,18 @@ var Scratchpad = {
     return "Scratchpad/" + this._instanceId;
   },
 
+
+  /**
+   * Sidebar that contains the VariablesView for object inspection.
+   */
+  get sidebar()
+  {
+    if (!this._sidebar) {
+      this._sidebar = new ScratchpadSidebar();
+    }
+    return this._sidebar;
+  },
+
   /**
    * Get the Cu.Sandbox object for the active tab content window object. Note
    * that the returned object is cached for later reuse. The cached object is
@@ -423,25 +442,35 @@ var Scratchpad = {
 
   /**
    * Execute the selected text (if any) or the entire editor content in the
-   * current context. The resulting object is opened up in the Property Panel
-   * for inspection.
+   * current context. If the result is primitive then it is written as a
+   * comment. Otherwise, the resulting object is inspected up in the sidebar.
    *
    * @return Promise
    *         The promise for the script evaluation result.
    */
   inspect: function SP_inspect()
   {
-    let promise = this.execute();
-    promise.then(([aString, aError, aResult]) => {
+    let deferred = Promise.defer();
+    let reject = aReason => deferred.reject(aReason);
+
+    this.execute().then(([aString, aError, aResult]) => {
+      let resolve = () => deferred.resolve([aString, aError, aResult]);
+
       if (aError) {
         this.writeAsErrorComment(aError);
+        resolve();
+      }
+      else if (!isObject(aResult)) {
+        this.writeAsComment(aResult);
+        resolve();
       }
       else {
         this.deselect();
-        this.openPropertyPanel(aString, aResult);
+        this.sidebar.open(aString, aResult).then(resolve, reject);
       }
-    });
-    return promise;
+    }, reject);
+    
+    return deferred.promise;
   },
 
   /**
@@ -552,58 +581,6 @@ var Scratchpad = {
     this.writeAsComment(newComment);
   },
 
-  /**
-   * Open the Property Panel to inspect the given object.
-   *
-   * @param string aEvalString
-   *        The string that was evaluated. This is re-used when the user updates
-   *        the properties list, by clicking the Update button.
-   * @param object aOutputObject
-   *        The object to inspect, which is the aEvalString evaluation result.
-   * @return object
-   *         The PropertyPanel object instance.
-   */
-  openPropertyPanel: function SP_openPropertyPanel(aEvalString, aOutputObject)
-  {
-    let propPanel;
-    // The property panel has a button:
-    // `Update`: reexecutes the string executed on the command line. The
-    // result will be inspected by this panel.
-    let buttons = [];
-
-    // If there is a evalString passed to this function, then add a `Update`
-    // button to the panel so that the evalString can be reexecuted to update
-    // the content of the panel.
-    if (aEvalString !== null) {
-      buttons.push({
-        label: this.strings.
-               GetStringFromName("propertyPanel.updateButton.label"),
-        accesskey: this.strings.
-                   GetStringFromName("propertyPanel.updateButton.accesskey"),
-        oncommand: () => {
-          this.evalForContext(aEvalString).then(([, aError, aResult]) => {
-            if (!aError) {
-              propPanel.treeView.data = { object: aResult };
-            }
-          });
-        }
-      });
-    }
-
-    let doc = this.browserWindow.document;
-    let parent = doc.getElementById("mainPopupSet");
-    let title = String(aOutputObject);
-    propPanel = new PropertyPanel(parent, title, { object: aOutputObject },
-                                  buttons);
-
-    let panel = propPanel.panel;
-    panel.setAttribute("class", "scratchpad_propertyPanel");
-    panel.openPopup(null, "after_pointer", 0, 0, false, false);
-    panel.sizeTo(200, 400);
-
-    return propPanel;
-  },
-
   // Menu Operations
 
   /**
@@ -643,18 +620,18 @@ var Scratchpad = {
     let encoder = new TextEncoder();
     let buffer = encoder.encode(this.getText());
     let promise = OS.File.writeAtomic(aFile.path, buffer,{tmpPath: aFile.path + ".tmp"});
-    promise.then(function success(value) {
+    promise.then(value => {
       if (aCallback) {
         aCallback.call(this, Components.results.NS_OK);
       }
-    }.bind(this), function failure(reason) {
+    }, reason => {
       if (!aSilentError) {
         window.alert(this.strings.GetStringFromName("saveFile.failed"));
       }
       if (aCallback) {
         aCallback.call(this, Components.results.NS_ERROR_UNEXPECTED);
       }
-    }.bind(this));
+    });
 
   },
 
@@ -678,8 +655,7 @@ var Scratchpad = {
     let channel = NetUtil.newChannel(aFile);
     channel.contentType = "application/javascript";
 
-    let self = this;
-    NetUtil.asyncFetch(channel, function(aInputStream, aStatus) {
+    NetUtil.asyncFetch(channel, (aInputStream, aStatus) => {
       let content = null;
 
       if (Components.isSuccessCode(aStatus)) {
@@ -692,22 +668,22 @@ var Scratchpad = {
 
         // Check to see if the first line is a mode-line comment.
         let line = content.split("\n")[0];
-        let modeline = self._scanModeLine(line);
+        let modeline = this._scanModeLine(line);
         let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
 
         if (chrome && modeline["-sp-context"] === "browser") {
-          self.setBrowserContext();
+          this.setBrowserContext();
         }
 
-        self.setText(content);
-        self.editor.resetUndo();
+        this.setText(content);
+        this.editor.resetUndo();
       }
       else if (!aSilentError) {
-        window.alert(self.strings.GetStringFromName("openFile.failed"));
+        window.alert(this.strings.GetStringFromName("openFile.failed"));
       }
 
       if (aCallback) {
-        aCallback.call(self, aStatus, content);
+        aCallback.call(this, aStatus, content);
       }
     });
   },
@@ -720,8 +696,8 @@ var Scratchpad = {
    */
   openFile: function SP_openFile(aIndex)
   {
-    let promptCallback = function(aFile) {
-      this.promptSave(function(aCloseFile, aSaved, aStatus) {
+    let promptCallback = aFile => {
+      this.promptSave((aCloseFile, aSaved, aStatus) => {
         let shouldOpen = aCloseFile;
         if (aSaved && !Components.isSuccessCode(aStatus)) {
           shouldOpen = false;
@@ -754,23 +730,21 @@ var Scratchpad = {
           this.importFromFile(file, false);
           this.setRecentFile(file);
         }
-      }.bind(this));
-    }.bind(this);
+      });
+    };
 
     if (aIndex > -1) {
       promptCallback();
     } else {
       let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-      let fpCallback = function fpCallback_done(aResult) {
-        if (aResult != Ci.nsIFilePicker.returnCancel) {
-          promptCallback(fp.file);
-        }
-      };
-
       fp.init(window, this.strings.GetStringFromName("openFile.title"),
               Ci.nsIFilePicker.modeOpen);
       fp.defaultString = "";
-      fp.open(fpCallback);
+      fp.open(aResult => {
+        if (aResult != Ci.nsIFilePicker.returnCancel) {
+          promptCallback(fp.file);
+        }
+      });
     }
   },
 
@@ -975,7 +949,7 @@ var Scratchpad = {
     let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
     file.initWithPath(this.filename);
 
-    this.exportToFile(file, true, false, function(aStatus) {
+    this.exportToFile(file, true, false, aStatus => {
       if (Components.isSuccessCode(aStatus)) {
         this.editor.dirty = false;
         this.setRecentFile(file);
@@ -995,10 +969,10 @@ var Scratchpad = {
   saveFileAs: function SP_saveFileAs(aCallback)
   {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
+    let fpCallback = aResult => {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
         this.setFilename(fp.file.path);
-        this.exportToFile(fp.file, true, false, function(aStatus) {
+        this.exportToFile(fp.file, true, false, aStatus => {
           if (Components.isSuccessCode(aStatus)) {
             this.editor.dirty = false;
             this.setRecentFile(fp.file);
@@ -1008,7 +982,7 @@ var Scratchpad = {
           }
         });
       }
-    }.bind(this);
+    };
 
     fp.init(window, this.strings.GetStringFromName("saveFileAs"),
             Ci.nsIFilePicker.modeSave);
@@ -1031,7 +1005,7 @@ var Scratchpad = {
       return;
     }
 
-    this.importFromFile(file, false, function(aStatus, aContent) {
+    this.importFromFile(file, false, (aStatus, aContent) => {
       if (aCallback) {
         aCallback(aStatus);
       }
@@ -1067,8 +1041,8 @@ var Scratchpad = {
         return;
       }
       if (button == BUTTON_POSITION_REVERT) {
-        this.revertFile(function(aStatus) {
-          if(aCallback){
+        this.revertFile(aStatus => {
+          if (aCallback) {
             aCallback(true, aStatus);
           }
         });
@@ -1370,7 +1344,7 @@ var Scratchpad = {
       }
 
       if (button == BUTTON_POSITION_SAVE) {
-        this.saveFile(function(aStatus) {
+        this.saveFile(aStatus => {
           if (aCallback) {
             aCallback(true, true, aStatus);
           }
@@ -1409,7 +1383,7 @@ var Scratchpad = {
    */
   close: function SP_close(aCallback)
   {
-    this.promptSave(function(aShouldClose, aSaved, aStatus) {
+    this.promptSave((aShouldClose, aSaved, aStatus) => {
       let shouldClose = aShouldClose;
       if (aSaved && !Components.isSuccessCode(aStatus)) {
         shouldClose = false;
@@ -1421,7 +1395,7 @@ var Scratchpad = {
       if (aCallback) {
         aCallback();
       }
-    }.bind(this));
+    });
   },
 
   _observers: [],
@@ -1494,6 +1468,132 @@ var Scratchpad = {
     this.gBrowser.selectedTab = newTab;
   },
 };
+
+
+/**
+ * Encapsulates management of the sidebar containing the VariablesView for
+ * object inspection.
+ */
+function ScratchpadSidebar()
+{
+  let ToolSidebar = devtools.require("devtools/framework/sidebar").ToolSidebar;
+  let tabbox = document.querySelector("#scratchpad-sidebar");
+  this._sidebar = new ToolSidebar(tabbox, this);
+  this._splitter = document.querySelector(".devtools-side-splitter");
+}
+
+ScratchpadSidebar.prototype = {
+  /*
+   * The ToolSidebar for this sidebar.
+   */
+  _sidebar: null,
+
+  /*
+   * The splitter element between the sidebar and the editor.
+   */
+  _splitter: null,
+
+  /*
+   * The VariablesView for this sidebar.
+   */
+  variablesView: null,
+
+  /*
+   * Whether the sidebar is currently shown.
+   */
+  visible: false,
+
+  /**
+   * Open the sidebar, if not open already, and populate it with the properties
+   * of the given object.
+   *
+   * @param string aString
+   *        The string that was evaluated.
+   * @param object aObject
+   *        The object to inspect, which is the aEvalString evaluation result.
+   * @return Promise
+   *         A promise that will resolve once the sidebar is open.
+   */
+  open: function SS_open(aEvalString, aObject)
+  {
+    this.show();
+
+    let deferred = Promise.defer();
+
+    let onTabReady = () => {
+      if (!this.variablesView) {
+        let window = this._sidebar.getWindowForTab("variablesview");
+        let container = window.document.querySelector("#variables");
+        this.variablesView = new VariablesView(container);
+      }
+      this._update(aObject).then(() => deferred.resolve());
+    };
+
+    if (this._sidebar.getCurrentTabID() == "variablesview") {
+      onTabReady();
+    }
+    else {
+      this._sidebar.once("variablesview-ready", onTabReady);
+      this._sidebar.addTab("variablesview", VARIABLES_VIEW_URL, true);
+    }
+
+    return deferred.promise;
+  },
+
+  /**
+   * Show the sidebar.
+   */
+  show: function SS_show()
+  {
+    if (!this.visible) {
+      this.visible = true;
+      this._sidebar.show();
+      this._splitter.setAttribute("state", "open");
+    }
+  },
+
+  /**
+   * Hide the sidebar.
+   */
+  hide: function SS_hide()
+  {
+    if (this.visible) {
+      this.visible = false;
+      this._sidebar.hide();
+      this._splitter.setAttribute("state", "collapsed");
+    }
+  },
+
+  /**
+   * Update the object currently inspected by the sidebar.
+   *
+   * @param object aObject
+   *        The object to inspect in the sidebar.
+   * @return Promise
+   *         A promise that resolves when the update completes.
+   */
+  _update: function SS__update(aObject)
+  {
+    let deferred = Promise.defer();
+
+    this.variablesView.rawObject = aObject;
+
+    // In the future this will work on remote values (bug 825039).
+    setTimeout(() => deferred.resolve(), 0);
+    return deferred.promise;
+  }
+};
+
+
+/**
+ * Check whether a value is non-primitive.
+ */
+function isObject(aValue)
+{
+  let type = typeof aValue;
+  return type == "object" ? aValue != null : type == "function";
+}
+
 
 /**
  * The PreferenceObserver listens for preference changes while Scratchpad is

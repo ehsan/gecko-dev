@@ -21,6 +21,13 @@ Cu.import("resource://gre/modules/OfflineCacheInstaller.jsm");
 Cu.import("resource://gre/modules/SystemMessagePermissionsChecker.jsm");
 Cu.import("resource://gre/modules/AppDownloadManager.jsm");
 
+#ifdef MOZ_WIDGET_GONK
+XPCOMUtils.defineLazyGetter(this, "libcutils", function() {
+  Cu.import("resource://gre/modules/systemlibs.js");
+  return libcutils;
+});
+#endif
+
 function debug(aMsg) {
   //dump("-*-*- Webapps.jsm : " + aMsg + "\n");
 }
@@ -1612,11 +1619,16 @@ this.DOMApplicationRegistry = {
     }
 
     // Try to download a new manifest.
-    function doRequest(oldManifest) {
+    function doRequest(oldManifest, headers) {
+      headers = headers || [];
       let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
       xhr.open("GET", aData.manifestURL, true);
       xhr.channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
+      headers.forEach(function(aHeader) {
+        debug("Adding header: " + aHeader.name + ": " + aHeader.value);
+        xhr.setRequestHeader(aHeader.name, aHeader.value);
+      });
       xhr.responseType = "json";
       if (app.etag) {
         debug("adding manifest etag:" + app.etag);
@@ -1636,7 +1648,21 @@ this.DOMApplicationRegistry = {
 
     // Read the current app manifest file
     this._readManifests([{ id: id }], (function(aResult) {
-      doRequest.call(this, aResult[0].manifest);
+      let extraHeaders = [];
+#ifdef MOZ_WIDGET_GONK
+      let pingManifestURL;
+      try {
+        pingManifestURL = Services.prefs.getCharPref("ping.manifestURL");
+      } catch(e) { }
+
+      if (pingManifestURL && pingManifestURL == aData.manifestURL) {
+        // Get the device info.
+        let device = libcutils.property_get("ro.product.model");
+        extraHeaders.push({ name: "X-MOZ-B2G-DEVICE",
+                            value: device || "unknown" });
+      }
+#endif
+      doRequest.call(this, aResult[0].manifest, extraHeaders);
     }).bind(this));
   },
 
@@ -1843,7 +1869,7 @@ this.DOMApplicationRegistry = {
 
   confirmInstall: function(aData, aFromSync, aProfileDir,
                            aOfflineCacheObserver,
-                           aZipDownloadSuccessCallback) {
+                           aInstallSuccessCallback) {
     let isReinstall = false;
     let app = aData.app;
     app.removable = true;
@@ -1952,15 +1978,23 @@ this.DOMApplicationRegistry = {
       offlineCacheObserver: aOfflineCacheObserver
     }
 
-    if (!aFromSync)
-      this._saveApps((function() {
-        this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
-        this.broadcastMessage("Webapps:Install:Return:OK", aData);
-        Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
-      }).bind(this));
+    let postFirstInstallTask = (function () {
+      // Only executed on install not involving sync.
+      this.broadcastMessage("Webapps:AddApp", { id: id, app: appObject });
+      this.broadcastMessage("Webapps:Install:Return:OK", aData);
+      Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
+    }).bind(this);
 
     if (!aData.isPackage) {
+      if (!aFromSync) {
+        this._saveApps((function() {
+          postFirstInstallTask();
+        }).bind(this));
+      }
       this.updateAppHandlers(null, app.manifest, app);
+      if (aInstallSuccessCallback) {
+        aInstallSuccessCallback(manifest);
+      }
     }
 
     if (manifest.package_path) {
@@ -2000,8 +2034,11 @@ this.DOMApplicationRegistry = {
                                   manifestURL: appObject.manifestURL,
                                   app: app,
                                   manifest: aManifest });
-          if (aZipDownloadSuccessCallback) {
-            aZipDownloadSuccessCallback(aManifest);
+          if (!aFromSync) {
+            postFirstInstallTask();
+          }
+          if (aInstallSuccessCallback) {
+            aInstallSuccessCallback(aManifest);
           }
         }).bind(this));
       }).bind(this));

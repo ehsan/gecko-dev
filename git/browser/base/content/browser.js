@@ -8,6 +8,7 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
+Cu.import("resource://gre/modules/PushService.jsm");
 
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
@@ -1301,7 +1302,7 @@ var gBrowserInit = {
     } catch (ex) {
     }
 
-    BookmarksMenuButton.uninit();
+    BookmarkingUI.uninit();
 
     TabsOnTop.uninit();
 
@@ -2222,7 +2223,7 @@ function UpdatePageProxyState()
 
 function SetPageProxyState(aState)
 {
-  BookmarksMenuButton.onPageProxyStateChanged(aState);
+  BookmarkingUI.onPageProxyStateChanged(aState);
 
   if (!gURLBar)
     return;
@@ -3318,7 +3319,7 @@ function BrowserToolboxCustomizeChange(aType) {
       break;
     default:
       gHomeButton.updatePersonalToolbarStyle();
-      BookmarksMenuButton.customizeChange();
+      BookmarkingUI.customizeChange();
   }
 }
 
@@ -3745,8 +3746,9 @@ var XULBrowserWindow = {
         URLBarSetURI(aLocationURI);
 
         // Update starring UI
-        BookmarksMenuButton.updateStarState();
+        BookmarkingUI.updateStarState();
         SocialMark.updateMarkState();
+        SocialShare.update();
       }
 
       // Show or hide browser chrome based on the whitelist
@@ -3776,7 +3778,16 @@ var XULBrowserWindow = {
           else
             elt.removeAttribute("disabled");
         }
-      }
+        if (gFindBarInitialized) {
+          if (!gFindBar.hidden && aDisable) {
+            gFindBar.hidden = true;
+            this._findbarTemporarilyHidden = true;
+          } else if (this._findbarTemporarilyHidden && !aDisable) {
+            gFindBar.hidden = false;
+            this._findbarTemporarilyHidden = false;
+          }
+        }
+      }.bind(this);
 
       var onContentRSChange = function onContentRSChange(e) {
         if (e.target.readyState != "interactive" && e.target.readyState != "complete")
@@ -4360,7 +4371,7 @@ function setToolbarVisibility(toolbar, isVisible) {
   document.persist(toolbar.id, hidingAttribute);
 
   PlacesToolbarHelper.init();
-  BookmarksMenuButton.onToolbarVisibilityChange();
+  BookmarkingUI.onToolbarVisibilityChange();
   gBrowser.updateWindowResizers();
 
 #ifdef CAN_DRAW_IN_TITLEBAR

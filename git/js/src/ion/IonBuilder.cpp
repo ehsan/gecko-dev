@@ -197,7 +197,7 @@ IonBuilder::canEnterInlinedFunction(JSFunction *target)
 {
     RootedScript targetScript(cx, target->nonLazyScript());
 
-    if (!targetScript->hasAnalysis())
+    if (!targetScript->ensureRanAnalysis(cx))
         return false;
 
     if (!targetScript->analysis()->ionInlineable())
@@ -237,7 +237,8 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     RootedScript inlineScript(cx, target->nonLazyScript());
     ExecutionMode executionMode = info().executionMode();
     if (!CanIonCompile(inlineScript, executionMode)) {
-        IonSpew(IonSpew_Inlining, "Cannot inline due to disable Ion compilation");
+        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline due to disable Ion compilation",
+                                  inlineScript->filename(), inlineScript->lineno);
         return false;
     }
 
@@ -246,7 +247,8 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         ion::IsBaselineEnabled(cx) &&
         !inlineScript->hasBaselineScript())
     {
-        IonSpew(IonSpew_Inlining, "Cannot inline target with no baseline jitcode");
+        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
+                                  inlineScript->filename(), inlineScript->lineno);
         return false;
     }
 
@@ -254,18 +256,20 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     IonBuilder *builder = callerBuilder_;
     while (builder) {
         if (builder->script() == inlineScript) {
-            IonSpew(IonSpew_Inlining, "Not inlining recursive call");
+            IonSpew(IonSpew_Inlining, "%s:%d Not inlining recursive call",
+                                       inlineScript->filename(), inlineScript->lineno);
             return false;
         }
         builder = builder->callerBuilder_;
     }
 
     if (!canEnterInlinedFunction(target)) {
-        IonSpew(IonSpew_Inlining, "Cannot inline due to analysis data %d", script()->lineno);
+        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline due to oracle veto %d",
+                                  inlineScript->filename(), inlineScript->lineno,
+                                  script()->lineno);
         return false;
     }
 
-    IonSpew(IonSpew_Inlining, "Inlining good to go!");
     return true;
 }
 
@@ -313,7 +317,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
         MPhi *phi = entry->getSlot(slot)->toPhi();
 
         if (js_CodeSpec[*last].format & JOF_TYPESET) {
-            types::StackTypeSet *typeSet = script()->analysis()->bytecodeTypes(last);
+            types::StackTypeSet *typeSet = types::TypeScript::BytecodeTypes(script(), last);
             if (!typeSet->empty()) {
                 MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
                 phi->addBackedgeType(type, typeSet);
@@ -427,13 +431,15 @@ IonBuilder::pushLoop(CFGState::State initial, jsbytecode *stopAt, MBasicBlock *e
 bool
 IonBuilder::build()
 {
+    if (!script()->ensureHasBytecodeTypeMap(cx))
+        return false;
+
     setCurrentAndSpecializePhis(newBlock(pc));
     if (!current)
         return false;
 
-    IonSpew(IonSpew_Scripts, "Analyzing script %s:%d (%p) (usecount=%d) (maxloopcount=%d)",
-            script()->filename(), script()->lineno, (void *)script(), (int)script()->getUseCount(),
-            (int)script()->getMaxLoopCount());
+    IonSpew(IonSpew_Scripts, "Analyzing script %s:%d (%p) (usecount=%d)",
+            script()->filename(), script()->lineno, (void *)script(), (int)script()->getUseCount());
 
     if (!graph().addScript(script()))
         return false;
@@ -566,6 +572,9 @@ bool
 IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoint,
                         CallInfo &callInfo)
 {
+    if (!script()->ensureHasBytecodeTypeMap(cx))
+        return false;
+
     IonSpew(IonSpew_Scripts, "Inlining script %s:%d (%p)",
             script()->filename(), script()->lineno, (void *)script());
 
@@ -3424,6 +3433,12 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
 
     // Accumulate return values.
     MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
+    if (exits.length() == 0) {
+        // Inlining of functions that have no exit is not supported.
+        calleeScript->analysis()->setIonUninlineable();
+        abortReason_ = AbortReason_Inlining;
+        return false;
+    }
     MDefinition *retvalDefn = patchInlinedReturns(callInfo, exits, returnBlock);
     if (!retvalDefn)
         return false;
@@ -3532,11 +3547,13 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
                                       targetScript->filename(), targetScript->lineno);
             return false;
         }
-     }
 
-    // Always inline the empty script up to the inlining depth.
-    if (targetScript->length == 1)
-        return true;
+        if (targetScript->analysis()->hasLoops()) {
+            IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: big function that contains a loop",
+                                      targetScript->filename(), targetScript->lineno);
+            return false;
+        }
+     }
 
     // Callee must not be excessively large.
     // This heuristic also applies to the callsite as a whole.
@@ -4551,7 +4568,7 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
         if (!resumeAfter(apply))
             return false;
 
-        types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+        types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
         return pushTypeBarrier(apply, types, true);
     }
 
@@ -4744,6 +4761,49 @@ TestAreKnownDOMTypes(JSContext *cx, types::TypeSet *inTypes)
     return false;
 }
 
+
+static bool
+ArgumentTypesMatch(MDefinition *def, types::StackTypeSet *calleeTypes)
+{
+    if (def->resultTypeSet()) {
+        JS_ASSERT(def->type() == MIRType_Value || def->mightBeType(def->type()));
+        return def->resultTypeSet()->isSubset(calleeTypes);
+    }
+
+    if (def->type() == MIRType_Value)
+        return false;
+
+    return calleeTypes->mightBeType(ValueTypeFromMIRType(def->type()));
+}
+
+static bool
+TestNeedsArgumentCheck(JSContext *cx, HandleFunction target, CallInfo &callInfo)
+{
+    // If we have a known target, check if the caller arg types are a subset of callee.
+    // Since typeset accumulates and can't decrease that means we don't need to check
+    // the arguments anymore.
+    if (!target->isInterpreted())
+        return true;
+
+    RootedScript targetScript(cx, target->nonLazyScript());
+    if (!targetScript->hasAnalysis())
+        return true;
+
+    if (!ArgumentTypesMatch(callInfo.thisArg(), types::TypeScript::ThisTypes(targetScript)))
+        return true;
+    uint32_t expected_args = Min<uint32_t>(callInfo.argc(), target->nargs);
+    for (size_t i = 0; i < expected_args; i++) {
+        if (!ArgumentTypesMatch(callInfo.getArg(i), types::TypeScript::ArgTypes(targetScript, i)))
+            return true;
+    }
+    for (size_t i = callInfo.argc(); i < target->nargs; i++) {
+        if (!types::TypeScript::ArgTypes(targetScript, i)->mightBeType(JSVAL_TYPE_UNDEFINED))
+            return true;
+    }
+
+    return false;
+}
+
 MCall *
 IonBuilder::makeCallHelper(HandleFunction target, CallInfo &callInfo, bool cloneAtCallsite)
 {
@@ -4813,6 +4873,7 @@ IonBuilder::makeCallHelper(HandleFunction target, CallInfo &callInfo, bool clone
         current->add(newThis);
 
         thisArg = newThis;
+        callInfo.setThis(newThis);
     }
 
     // Pass |this| and function.
@@ -4837,6 +4898,9 @@ IonBuilder::makeCallHelper(HandleFunction target, CallInfo &callInfo, bool clone
             call->setDOMFunction();
         }
     }
+
+    if (target && !TestNeedsArgumentCheck(cx, target, callInfo))
+        call->disableArgCheck();
 
     call->initFunction(callInfo.fun());
 
@@ -4872,7 +4936,7 @@ IonBuilder::makeCall(HandleFunction target, CallInfo &callInfo, bool cloneAtCall
     if (!resumeAfter(call))
         return false;
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
 
     bool barrier = true;
     if (call->isDOMFunction()) {
@@ -4965,7 +5029,7 @@ IonBuilder::jsop_eval(uint32_t argc)
         current->add(ins);
         current->push(ins);
 
-        types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+        types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
         return resumeAfter(ins) && pushTypeBarrier(ins, types, true);
     }
 
@@ -5018,7 +5082,7 @@ IonBuilder::jsop_newarray(uint32_t count)
         return false;
 
     types::StackTypeSet::DoubleConversion conversion =
-        script()->analysis()->bytecodeTypes(pc)->convertDoubleElements(cx);
+        types::TypeScript::BytecodeTypes(script(), pc)->convertDoubleElements(cx);
     if (conversion == types::StackTypeSet::AlwaysConvertToDoubles)
         templateObject->setShouldConvertDoubleElements();
 
@@ -5419,7 +5483,10 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
 
             bool haveValue = false;
             Value existingValue;
-            {
+            if (info().fun() && i == info().thisSlot()) {
+                haveValue = true;
+                existingValue = fp.thisValue();
+            } else {
                 uint32_t arg = i - info().firstArgSlot();
                 uint32_t var = i - info().firstLocalSlot();
                 if (arg < info().nargs()) {
@@ -5820,7 +5887,7 @@ IonBuilder::jsop_getgname(HandlePropertyName name)
         return jsop_getname(name);
     }
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     bool barrier = PropertyReadNeedsTypeBarrier(cx, globalType, name, types);
 
     // If the property is permanent, a shape guard isn't necessary.
@@ -5995,14 +6062,14 @@ IonBuilder::jsop_getname(HandlePropertyName name)
     if (!resumeAfter(ins))
         return false;
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     return pushTypeBarrier(ins, types, true);
 }
 
 bool
 IonBuilder::jsop_intrinsic(HandlePropertyName name)
 {
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     JSValueType type = types->getKnownTypeTag();
 
     // If we haven't executed this opcode yet, we need to get the intrinsic
@@ -6098,15 +6165,19 @@ IonBuilder::jsop_getelem()
 
     MInstruction *ins;
 
-    bool cacheable = obj->type() == MIRType_Object &&
+    bool cacheable = obj->mightBeType(MIRType_Object) && !obj->mightBeType(MIRType_String) &&
         (index->mightBeType(MIRType_Int32) || index->mightBeType(MIRType_String));
+
+    bool nonNativeGetElement =
+        script()->analysis()->getCode(pc).nonNativeGetElement ||
+        inspector->hasSeenNonNativeGetElement(pc);
 
     // Turn off cacheing if the element is int32 and we've seen non-native objects as the target
     // of this getelem.
-    if (index->mightBeType(MIRType_Int32) && script()->analysis()->getCode(pc).nonNativeGetElement)
+    if (index->mightBeType(MIRType_Int32) && nonNativeGetElement)
         cacheable = false;
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     bool barrier = PropertyReadNeedsTypeBarrier(cx, obj, NULL, types);
 
     // Always add a barrier if the index might be a string, so that the cache
@@ -6144,7 +6215,7 @@ IonBuilder::jsop_getelem_dense()
     MDefinition *id = current->pop();
     MDefinition *obj = current->pop();
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     bool barrier = PropertyReadNeedsTypeBarrier(cx, obj, NULL, types);
     bool needsHoleCheck = !ElementAccessIsPacked(cx, obj);
 
@@ -6170,8 +6241,14 @@ IonBuilder::jsop_getelem_dense()
 
     // If we can load the element as a definite double, make sure to check that
     // the array has been converted to homogenous doubles first.
+    //
+    // NB: We disable this optimization in parallel execution mode
+    // because it is inherently not threadsafe (how do you convert the
+    // array atomically when there might be concurrent readers)?
     types::StackTypeSet *objTypes = obj->resultTypeSet();
+    ExecutionMode executionMode = info().executionMode();
     bool loadDouble =
+        executionMode == SequentialExecution &&
         !barrier &&
         loopDepth_ &&
         !readOutOfBounds &&
@@ -6332,7 +6409,7 @@ IonBuilder::jsop_getelem_typed(int arrayType)
     if (staticAccess)
         return true;
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
 
     MDefinition *id = current->pop();
     MDefinition *obj = current->pop();
@@ -6445,14 +6522,16 @@ IonBuilder::jsop_setelem()
 
     int arrayType = TypedArray::TYPE_MAX;
     if (ElementAccessIsTypedArray(object, index, &arrayType))
-        return jsop_setelem_typed(arrayType, object, index, value);
+        return jsop_setelem_typed(arrayType, SetElem_Normal,
+                                  object, index, value);
 
     if (!PropertyWriteNeedsTypeBarrier(cx, current, &object, NULL, &value)) {
         if (ElementAccessIsDenseNative(object, index)) {
             types::StackTypeSet::DoubleConversion conversion =
                 object->resultTypeSet()->convertDoubleElements(cx);
             if (conversion != types::StackTypeSet::AmbiguousDoubleConversion)
-                return jsop_setelem_dense(conversion, object, index, value);
+                return jsop_setelem_dense(conversion, SetElem_Normal,
+                                          object, index, value);
         }
     }
 
@@ -6471,6 +6550,7 @@ IonBuilder::jsop_setelem()
 
 bool
 IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
+                               SetElemSafety safety,
                                MDefinition *obj, MDefinition *id, MDefinition *value)
 {
     MIRType elementType = DenseNativeElementType(cx, obj);
@@ -6499,11 +6579,22 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
     MElements *elements = MElements::New(obj);
     current->add(elements);
 
+    bool writeHole;
+    if (safety == SetElem_Normal) {
+        writeHole = script()->analysis()->getCode(pc).arrayWriteHole;
+        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
+        writeHole |= icInspect.sawOOBDenseWrite();
+    } else {
+        writeHole = false;
+    }
+
     // Use MStoreElementHole if this SETELEM has written to out-of-bounds
     // indexes in the past. Otherwise, use MStoreElement so that we can hoist
     // the initialized length and bounds check.
     MStoreElementCommon *store;
-    if (script()->analysis()->getCode(pc).arrayWriteHole && writeOutOfBounds) {
+    if (writeHole && writeOutOfBounds) {
+        JS_ASSERT(safety == SetElem_Normal);
+
         MStoreElementHole *ins = MStoreElementHole::New(obj, elements, id, newValue);
         store = ins;
 
@@ -6516,15 +6607,24 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
         MInitializedLength *initLength = MInitializedLength::New(elements);
         current->add(initLength);
 
-        id = addBoundsCheck(id, initLength);
-
-        bool needsHoleCheck = !packed && !writeOutOfBounds;
+        bool needsHoleCheck;
+        if (safety == SetElem_Normal) {
+            id = addBoundsCheck(id, initLength);
+            needsHoleCheck = !packed && !writeOutOfBounds;
+        } else {
+            needsHoleCheck = false;
+        }
 
         MStoreElement *ins = MStoreElement::New(elements, id, newValue, needsHoleCheck);
         store = ins;
 
+        if (safety == SetElem_Unsafe)
+            ins->setRacy();
+
         current->add(ins);
-        current->push(value);
+
+        if (safety == SetElem_Normal)
+            current->push(value);
 
         if (!resumeAfter(ins))
             return false;
@@ -6582,6 +6682,7 @@ IonBuilder::jsop_setelem_typed_static(MDefinition *obj, MDefinition *id, MDefini
 
 bool
 IonBuilder::jsop_setelem_typed(int arrayType,
+                               SetElemSafety safety,
                                MDefinition *obj, MDefinition *id, MDefinition *value)
 {
     bool staticAccess = false;
@@ -6590,8 +6691,14 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     if (staticAccess)
         return true;
 
-    SetElemICInspector icInspect(inspector->setElemICInspector(pc));
-    bool expectOOB = icInspect.sawOOBTypedArrayWrite();
+    bool expectOOB;
+    if (safety == SetElem_Normal) {
+        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
+        expectOOB = icInspect.sawOOBTypedArrayWrite();
+    } else {
+        expectOOB = false;
+    }
+
     if (expectOOB)
         spew("Emitting OOB TypedArray SetElem");
 
@@ -6604,7 +6711,7 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     MInstruction *length = getTypedArrayLength(obj);
     current->add(length);
 
-    if (!expectOOB) {
+    if (!expectOOB && safety == SetElem_Normal) {
         // Bounds check.
         id = addBoundsCheck(id, length);
     }
@@ -6627,7 +6734,10 @@ IonBuilder::jsop_setelem_typed(int arrayType,
     else
         ins = MStoreTypedArrayElement::New(elements, id, toWrite, arrayType);
     current->add(ins);
-    current->push(value);
+
+    if (safety == SetElem_Normal)
+        current->push(value);
+
     return resumeAfter(ins);
 }
 
@@ -6644,7 +6754,7 @@ IonBuilder::jsop_length()
 bool
 IonBuilder::jsop_length_fastPath()
 {
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
 
     if (types->getKnownTypeTag() != JSVAL_TYPE_INT32)
         return false;
@@ -6748,7 +6858,7 @@ IonBuilder::jsop_arguments_getelem()
     current->add(load);
     current->push(load);
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     return pushTypeBarrier(load, types, true);
 }
 
@@ -7162,7 +7272,7 @@ IonBuilder::jsop_getprop(HandlePropertyName name)
 
     bool emitted = false;
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
 
     // Try to optimize arguments.length.
     if (!getPropTryArgumentsLength(&emitted) || emitted)
@@ -7432,7 +7542,9 @@ IonBuilder::getPropTryCache(bool *emitted, HandlePropertyName name, HandleId id,
                             bool barrier, types::StackTypeSet *types)
 {
     JS_ASSERT(*emitted == false);
-    bool accessGetter = script()->analysis()->getCode(pc).accessGetter;
+    bool accessGetter =
+        script()->analysis()->getCode(pc).accessGetter ||
+        inspector->hasSeenAccessedGetter(pc);
 
     MDefinition *obj = current->peek(-1);
 
@@ -7746,7 +7858,9 @@ IonBuilder::jsop_this()
     }
 
     types::StackTypeSet *types = types::TypeScript::ThisTypes(script());
-    if (types && types->getKnownTypeTag() == JSVAL_TYPE_OBJECT) {
+    if (types && (types->getKnownTypeTag() == JSVAL_TYPE_OBJECT ||
+                  (types->empty() && fp && fp.thisValue().isObject())))
+    {
         // This is safe, because if the entry type of |this| is an object, it
         // will necessarily be an object throughout the entire function. OSR
         // can introduce a phi, but this phi will be specialized.
@@ -7883,7 +7997,7 @@ IonBuilder::jsop_getaliasedvar(ScopeCoordinate sc)
     current->add(load);
     current->push(load);
 
-    types::StackTypeSet *types = script()->analysis()->bytecodeTypes(pc);
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
     return pushTypeBarrier(load, types, true);
 }
 

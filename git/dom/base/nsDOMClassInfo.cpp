@@ -214,14 +214,10 @@
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsIDOMSVGAnimatedInteger.h"
 #include "nsIDOMSVGAnimatedNumber.h"
-#include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsIDOMTimeEvent.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGNumber.h"
-#include "nsIDOMSVGRect.h"
-
-#include "nsIImageDocument.h"
 
 // Storage includes
 #include "DOMStorage.h"
@@ -662,9 +658,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(ImageDocument, nsHTMLDocumentSH,
-                           DOCUMENT_SCRIPTABLE_FLAGS)
-
 #ifdef MOZ_XUL
   NS_DEFINE_CLASSINFO_DATA(XULTemplateBuilder, nsDOMGenericSH,
                            DEFAULT_SCRIPTABLE_FLAGS)
@@ -700,15 +693,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGAnimatedNumber, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGAnimatedRect, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGAnimatedString, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGLength, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGNumber, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGRect, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(MozCanvasPrintState, nsDOMGenericSH,
@@ -1883,12 +1872,6 @@ nsDOMClassInfo::Init()
 #endif
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(ImageDocument, nsIImageDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIImageDocument)
-    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
 #ifdef MOZ_XUL
   DOM_CLASSINFO_MAP_BEGIN(XULTemplateBuilder, nsIXULTemplateBuilder)
     DOM_CLASSINFO_MAP_ENTRY(nsIXULTemplateBuilder)
@@ -1944,10 +1927,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimatedNumber)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(SVGAnimatedRect, nsIDOMSVGAnimatedRect)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimatedRect)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(SVGAnimatedString, nsIDOMSVGAnimatedString)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimatedString)
   DOM_CLASSINFO_MAP_END
@@ -1958,10 +1937,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(SVGNumber, nsIDOMSVGNumber)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGNumber)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(SVGRect, nsIDOMSVGRect)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGRect)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozCanvasPrintState, nsIDOMMozCanvasPrintState)
@@ -3669,8 +3644,8 @@ IDBConstantGetter(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHan
 
   // Redefine property to remove getter
   NS_ConvertASCIItoUTF16 valStr(c.value);
-  jsval value;
-  if (!xpc::StringToJsval(cx, valStr, &value)) {
+  JS::Rooted<JS::Value> value(cx);
+  if (!xpc::StringToJsval(cx, valStr, value.address())) {
     return JS_FALSE;
   }
   if (!::JS_DefineProperty(cx, obj, c.name, value,
@@ -3685,7 +3660,7 @@ IDBConstantGetter(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHan
 }
 
 static nsresult
-DefineIDBInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
+DefineIDBInterfaceConstants(JSContext *cx, JS::Handle<JSObject*> obj, const nsIID *aIID)
 {
   const char* interface;
   if (aIID->Equals(NS_GET_IID(nsIIDBCursor))) {
@@ -5028,24 +5003,20 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
-  if (s_content_id == id) {
+  // NB: By accident, we previously didn't support this over Xrays. This is a
+  // deprecated non-standard feature, so there's no reason to start doing so
+  // now.
+  if ((s_content_id == id) && !xpc::WrapperFactory::IsXrayWrapper(obj)) {
     // Map window._content to window.content for backwards
     // compatibility, this should spit out an message on the JS
     // console.
-
-    JS::Rooted<JSObject*> windowObj(cx, js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
-    NS_ENSURE_TRUE(windowObj, NS_ERROR_DOM_SECURITY_ERR);
-
     JS::Rooted<JSObject*> funObj(cx);
-    {
-      JSAutoCompartment ac(cx, windowObj);
-      JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
-                                         windowObj, "_content");
-      if (!fun) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      funObj = ::JS_GetFunctionObject(fun);
+    JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
+                                       obj, "_content");
+    if (!fun) {
+      return NS_ERROR_OUT_OF_MEMORY;
     }
+    funObj = ::JS_GetFunctionObject(fun);
 
     if (!JS_WrapObject(cx, funObj.address()) ||
         !JS_DefinePropertyById(cx, obj, id, JSVAL_VOID,
@@ -5574,10 +5545,11 @@ nsNodeSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsNodeSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                     JSObject *aObj, jsid id, uint32_t flags,
+                     JSObject *aObj, jsid aId, uint32_t flags,
                      JSObject **objp, bool *_retval)
 {
   JS::Rooted<JSObject*> obj(cx, aObj);
+  JS::Rooted<jsid> id(cx, aId);
   if (id == sOnload_id || id == sOnerror_id) {
     // Make sure that this node can't go away while waiting for a
     // network load that could fire an event handler.
@@ -6799,10 +6771,11 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsHTMLDocumentSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
-                              JSContext *cx, JSObject *aObj, jsid id,
+                              JSContext *cx, JSObject *aObj, jsid aId,
                               jsval *vp, bool *_retval)
 {
   JS::Rooted<JSObject*> obj(cx, aObj);
+  JS::Rooted<jsid> id(cx, aId);
   nsCOMPtr<nsISupports> result;
 
   JSAutoRequest ar(cx);
@@ -7195,9 +7168,10 @@ nsCSSRuleListSH::GetItemAt(nsISupports *aNative, uint32_t aIndex,
 
 NS_IMETHODIMP
 nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsid id, uint32_t flags,
+                         JSObject *obj, jsid aId, uint32_t flags,
                          JSObject **objp, bool *_retval)
 {
+  JS::Rooted<jsid> id(cx, aId);
   if (ObjectIsNativeWrapper(cx, obj)) {
     return NS_OK;
   }

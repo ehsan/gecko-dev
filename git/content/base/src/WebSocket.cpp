@@ -453,7 +453,7 @@ WebSocket::WebSocket()
   mCloseEventCode(nsIWebSocketChannel::CLOSE_ABNORMAL),
   mReadyState(WebSocket::CONNECTING),
   mOutgoingBufferedAmount(0),
-  mBinaryType(BinaryTypeValues::Blob),
+  mBinaryType(dom::BinaryType::Blob),
   mScriptLine(0),
   mInnerWindowID(0)
 {
@@ -884,16 +884,16 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   // Create appropriate JS object for message
-  JS::Value jsData;
+  JS::Rooted<JS::Value> jsData(cx);
   {
     JSAutoRequest ar(cx);
     if (isBinary) {
-      if (mBinaryType == BinaryTypeValues::Blob) {
-        rv = nsContentUtils::CreateBlobBuffer(cx, aData, jsData);
+      if (mBinaryType == dom::BinaryType::Blob) {
+        rv = nsContentUtils::CreateBlobBuffer(cx, aData, &jsData);
         NS_ENSURE_SUCCESS(rv, rv);
-      } else if (mBinaryType == BinaryTypeValues::Arraybuffer) {
-        JSObject* arrayBuf;
-        rv = nsContentUtils::CreateArrayBuffer(cx, aData, &arrayBuf);
+      } else if (mBinaryType == dom::BinaryType::Arraybuffer) {
+        JS::Rooted<JSObject*> arrayBuf(cx);
+        rv = nsContentUtils::CreateArrayBuffer(cx, aData, arrayBuf.address());
         NS_ENSURE_SUCCESS(rv, rv);
         jsData = OBJECT_TO_JSVAL(arrayBuf);
       } else {

@@ -433,8 +433,7 @@ XULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
         NS_GetFinalChannelURI(aChannel, getter_AddRefs(mDocumentURI));
     NS_ENSURE_SUCCESS(rv, rv);
     
-    rv = ResetStylesheetsToURI(mDocumentURI);
-    if (NS_FAILED(rv)) return rv;
+    ResetStylesheetsToURI(mDocumentURI);
 
     RetrieveRelevantHeaders(aChannel);
 
@@ -4762,11 +4761,7 @@ XULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 JSObject*
 XULDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  JS::Rooted<JSObject*> obj(aCx, XULDocumentBinding::Wrap(aCx, aScope, this));
-  if (obj && !PostCreateWrapper(aCx, obj)) {
-    return nullptr;
-  }
-  return obj;
+  return XULDocumentBinding::Wrap(aCx, aScope, this);
 }
 
 } // namespace dom

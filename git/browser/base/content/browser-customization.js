@@ -36,7 +36,7 @@ let CustomizationHandler = {
 
     CombinedStopReload.uninit();
     PlacesToolbarHelper.customizeStart();
-    BookmarksMenuButton.customizeStart();
+    BookmarkingUI.customizeStart();
     DownloadsButton.customizeStart();
     TabsInTitlebar.allowedBy("customizing-toolbars", false);
   },
@@ -66,7 +66,7 @@ let CustomizationHandler = {
     }
 
     PlacesToolbarHelper.customizeDone();
-    BookmarksMenuButton.customizeDone();
+    BookmarkingUI.customizeDone();
     DownloadsButton.customizeDone();
 
     // The url bar splitter state is dependent on whether stop/reload
@@ -79,7 +79,7 @@ let CustomizationHandler = {
     if (gURLBar) {
       URLBarSetURI();
       XULBrowserWindow.asyncUpdateUI();
-      BookmarksMenuButton.updateStarState();
+      BookmarkingUI.updateStarState();
       SocialMark.updateMarkState();
     }
 
