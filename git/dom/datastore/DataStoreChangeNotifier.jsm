@@ -57,16 +57,6 @@ this.DataStoreChangeNotifier = {
     }
   },
 
-  broadcastMessage: function broadcastMessage(aData) {
-    debug("Broadast");
-    this.children.forEach(function(obj) {
-      if (obj.store == aData.store && obj.owner == aData.owner) {
-        obj.mm.sendAsyncMessage("DataStore:Changed:Return:OK", aData);
-      }
-    });
-  },
-
-
   receiveMessage: function(aMessage) {
     debug("receiveMessage");
 
@@ -83,7 +73,9 @@ this.DataStoreChangeNotifier = {
 
     switch (aMessage.name) {
       case "DataStore:Changed":
-        this.broadcastMessage(aMessage.data);
+        debug("Broadasting message.");
+        let childMM = aMessage.target.QueryInterface(Ci.nsIMessageSender);
+        childMM.sendAsyncMessage("DataStore:Changed:Return:OK", aMessage.data);
         break;
 
       case "DataStore:RegisterForMessages":
@@ -93,16 +85,13 @@ this.DataStoreChangeNotifier = {
           if (this.children[i].mm == aMessage.target &&
               this.children[i].store == aMessage.data.store &&
               this.children[i].owner == aMessage.data.owner) {
-            debug("Register on existing index: " + i);
-            ++this.children[i].count;
             return;
           }
         }
 
         this.children.push({ mm: aMessage.target,
                              store: aMessage.data.store,
-                             owner: aMessage.data.owner,
-                             count: 1 });
+                             owner: aMessage.data.owner });
         break;
 
       case "child-process-shutdown":
@@ -112,11 +101,7 @@ this.DataStoreChangeNotifier = {
         for (let i = 0; i < this.children.length;) {
           if (this.children[i].mm == aMessage.target) {
             debug("Unregister index: " + i);
-            if (!--this.children[i].count) {
-              debug("Unregister delete index: " + i);
-              this.children.splice(i, 1);
-            }
-            break;
+            this.children.splice(i, 1);
           } else {
             ++i;
           }

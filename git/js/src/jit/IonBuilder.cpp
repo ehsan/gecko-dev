@@ -2689,7 +2689,6 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
     JS_ASSERT(loopHead == ifne + GetJumpOffset(ifne));
 
     jsbytecode *loopEntry = GetNextPc(loopHead);
-    bool canOsr = LoopEntryCanIonOsr(loopEntry);
     bool osr = info().hasOsrAt(loopEntry);
 
     if (osr) {
@@ -2700,8 +2699,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
         setCurrentAndSpecializePhis(preheader);
     }
 
-    unsigned stackPhiCount = 0;
-    MBasicBlock *header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock *header = newPendingLoopHeader(current, pc, osr);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -2751,7 +2749,6 @@ IonBuilder::whileOrForInLoop(jssrcnote *sn)
     JS_ASSERT(GetNextPc(pc) == ifne + GetJumpOffset(ifne));
 
     jsbytecode *loopEntry = pc + GetJumpOffset(pc);
-    bool canOsr = LoopEntryCanIonOsr(loopEntry);
     bool osr = info().hasOsrAt(loopEntry);
 
     if (osr) {
@@ -2762,15 +2759,7 @@ IonBuilder::whileOrForInLoop(jssrcnote *sn)
         setCurrentAndSpecializePhis(preheader);
     }
 
-    unsigned stackPhiCount;
-    if (SN_TYPE(sn) == SRC_FOR_OF)
-        stackPhiCount = 2;
-    else if (SN_TYPE(sn) == SRC_FOR_IN)
-        stackPhiCount = 1;
-    else
-        stackPhiCount = 0;
-
-    MBasicBlock *header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock *header = newPendingLoopHeader(current, pc, osr);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -2845,7 +2834,6 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
     bodyStart = GetNextPc(bodyStart);
 
     bool osr = info().hasOsrAt(loopEntry);
-    bool canOsr = LoopEntryCanIonOsr(loopEntry);
 
     if (osr) {
         MBasicBlock *preheader = newOsrPreheader(current, loopEntry);
@@ -2855,8 +2843,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
         setCurrentAndSpecializePhis(preheader);
     }
 
-    unsigned stackPhiCount = 0;
-    MBasicBlock *header = newPendingLoopHeader(current, pc, osr, canOsr, stackPhiCount);
+    MBasicBlock *header = newPendingLoopHeader(current, pc, osr);
     if (!header)
         return ControlStatus_Error;
     current->end(MGoto::New(alloc(), header));
@@ -5642,7 +5629,7 @@ IonBuilder::newBlock(MBasicBlock *predecessor, jsbytecode *pc, uint32_t loopDept
 MBasicBlock *
 IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 {
-    JS_ASSERT(LoopEntryCanIonOsr(loopEntry));
+    JS_ASSERT((JSOp)*loopEntry == JSOP_LOOPENTRY);
     JS_ASSERT(loopEntry == info().osrPc());
 
     // Create two blocks: one for the OSR entry with no predecessors, one for
@@ -5808,15 +5795,10 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 }
 
 MBasicBlock *
-IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool osr, bool canOsr,
-                                 unsigned stackPhiCount)
+IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool osr)
 {
     loopDepth_++;
-    // If this site can OSR, all values on the expression stack are part of the loop.
-    if (canOsr)
-        stackPhiCount = predecessor->stackDepth() - info().firstStackSlot();
-    MBasicBlock *block = MBasicBlock::NewPendingLoopHeader(graph(), info(), predecessor, pc,
-                                                           stackPhiCount);
+    MBasicBlock *block = MBasicBlock::NewPendingLoopHeader(graph(), info(), predecessor, pc);
     if (!addBlock(block, loopDepth_))
         return nullptr;
 
@@ -7199,12 +7181,10 @@ IonBuilder::getTypedArrayElements(MDefinition *obj)
             // The 'data' pointer can change in rare circumstances
             // (ArrayBufferObject::changeContents).
             types::TypeObjectKey *tarrType = types::TypeObjectKey::get(tarr);
-            if (!tarrType->unknownProperties()) {
-                tarrType->watchStateChangeForTypedArrayBuffer(constraints());
+            tarrType->watchStateChangeForTypedArrayBuffer(constraints());
 
-                obj->setImplicitlyUsedUnchecked();
-                return MConstantElements::New(alloc(), data);
-            }
+            obj->setImplicitlyUsedUnchecked();
+            return MConstantElements::New(alloc(), data);
         }
     }
     return MTypedArrayElements::New(alloc(), obj);

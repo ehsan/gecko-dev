@@ -4327,9 +4327,9 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions &rhs)
 }
 
 JSPrincipals *
-JS::ReadOnlyCompileOptions::originPrincipals(ExclusiveContext *cx) const
+JS::ReadOnlyCompileOptions::originPrincipals() const
 {
-    return NormalizeOriginPrincipals(cx->compartment()->principals, originPrincipals_);
+    return NormalizeOriginPrincipals(principals_, originPrincipals_);
 }
 
 JS::OwningCompileOptions::OwningCompileOptions(JSContext *cx)
@@ -4343,6 +4343,8 @@ JS::OwningCompileOptions::OwningCompileOptions(JSContext *cx)
 
 JS::OwningCompileOptions::~OwningCompileOptions()
 {
+    if (principals_)
+        JS_DropPrincipals(runtime, principals_);
     if (originPrincipals_)
         JS_DropPrincipals(runtime, originPrincipals_);
 
@@ -4357,7 +4359,8 @@ JS::OwningCompileOptions::copy(JSContext *cx, const ReadOnlyCompileOptions &rhs)
 {
     copyPODOptions(rhs);
 
-    setOriginPrincipals(rhs.originPrincipals(cx));
+    setPrincipals(rhs.principals());
+    setOriginPrincipals(rhs.originPrincipals());
     setElement(rhs.element());
     setElementAttributeName(rhs.elementAttributeName());
     setIntroductionScript(rhs.introductionScript());
@@ -4496,6 +4499,7 @@ JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optio
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
+    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
     AutoLastFrameCheck lfc(cx);
 
     return frontend::CompileScript(cx, &cx->tempLifoAlloc(), obj, NullPtr(), options, chars, length);
@@ -4660,6 +4664,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOption
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
+    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
     AutoLastFrameCheck lfc(cx);
 
     RootedAtom funAtom(cx);
@@ -4819,6 +4824,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &opti
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
+    JS_ASSERT_IF(options.principals(), cx->compartment()->principals == options.principals());
 
     AutoLastFrameCheck lfc(cx);
 
@@ -4885,6 +4891,52 @@ JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &opti
 }
 
 JS_PUBLIC_API(bool)
+JS_EvaluateUCScriptForPrincipals(JSContext *cx, HandleObject obj,
+                                 JSPrincipals *principals,
+                                 const jschar *chars, unsigned length,
+                                 const char *filename, unsigned lineno,
+                                 MutableHandleValue rval)
+{
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, chars, length, rval.address());
+}
+
+JS_PUBLIC_API(bool)
+JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, HandleObject obj,
+                                        JSPrincipals *principals,
+                                        const jschar *chars, unsigned length,
+                                        const char *filename, unsigned lineno,
+                                        MutableHandleValue rval, JSVersion version)
+{
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Evaluate(cx, obj, options, chars, length, rval.address());
+}
+
+extern JS_PUBLIC_API(bool)
+JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, HandleObject obj,
+                                              JSPrincipals *principals,
+                                              JSPrincipals *originPrincipals,
+                                              const jschar *chars, unsigned length,
+                                              const char *filename, unsigned lineno,
+                                              MutableHandleValue rval, JSVersion version)
+{
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setOriginPrincipals(originPrincipals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Evaluate(cx, obj, options, chars, length, rval.address());
+}
+
+JS_PUBLIC_API(bool)
 JS_EvaluateUCScript(JSContext *cx, HandleObject obj, const jschar *chars, unsigned length,
                     const char *filename, unsigned lineno, MutableHandleValue rval)
 {
@@ -4892,6 +4944,35 @@ JS_EvaluateUCScript(JSContext *cx, HandleObject obj, const jschar *chars, unsign
     options.setFileAndLine(filename, lineno);
 
     return Evaluate(cx, obj, options, chars, length, rval.address());
+}
+
+/* Ancient unsigned nbytes is part of API/ABI, so use size_t length local. */
+JS_PUBLIC_API(bool)
+JS_EvaluateScriptForPrincipals(JSContext *cx, JSObject *objArg, JSPrincipals *principals,
+                               const char *bytes, unsigned nbytes,
+                               const char *filename, unsigned lineno, jsval *rval)
+{
+    RootedObject obj(cx, objArg);
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
+}
+
+JS_PUBLIC_API(bool)
+JS_EvaluateScriptForPrincipalsVersion(JSContext *cx, JSObject *objArg, JSPrincipals *principals,
+                                      const char *bytes, unsigned nbytes,
+                                      const char *filename, unsigned lineno, jsval *rval,
+                                      JSVersion version)
+{
+    RootedObject obj(cx, objArg);
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setVersion(version)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
 }
 
 JS_PUBLIC_API(bool)
@@ -6115,7 +6196,7 @@ DescribeScriptedCaller(JSContext *cx, AutoFilename *filename, unsigned *lineno)
     if (lineno)
         *lineno = 0;
 
-    NonBuiltinFrameIter i(cx);
+    NonBuiltinScriptFrameIter i(cx);
     if (i.done())
         return false;
 
@@ -6125,16 +6206,16 @@ DescribeScriptedCaller(JSContext *cx, AutoFilename *filename, unsigned *lineno)
         return false;
 
     if (filename)
-        filename->reset(i.scriptSource());
+        filename->reset(i.script()->scriptSource());
     if (lineno)
-        *lineno = i.computeLine();
+        *lineno = js::PCToLineNumber(i.script(), i.pc());
     return true;
 }
 
 JS_PUBLIC_API(JSObject *)
 GetScriptedCallerGlobal(JSContext *cx)
 {
-    NonBuiltinFrameIter i(cx);
+    NonBuiltinScriptFrameIter i(cx);
     if (i.done())
         return nullptr;
 

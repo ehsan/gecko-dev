@@ -544,7 +544,7 @@ nsTextControlFrame::ReflowTextControlChild(nsIFrame*                aKid,
                     aReflowState.ComputedPhysicalPadding().top;
 
   // reflow the child
-  nsHTMLReflowMetrics desiredSize(aReflowState);
+  nsHTMLReflowMetrics desiredSize(aReflowState.GetWritingMode());
   ReflowChild(aKid, aPresContext, desiredSize, kidReflowState, 
               xOffset, yOffset, 0, aStatus);
 

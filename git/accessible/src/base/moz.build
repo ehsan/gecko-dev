@@ -47,7 +47,6 @@ UNIFIED_SOURCES += [
     'SelectionManager.cpp',
     'StyleInfo.cpp',
     'TextAttrs.cpp',
-    'TextRange.cpp',
     'TextUpdater.cpp',
     'TreeWalker.cpp',
 ]

@@ -72,7 +72,7 @@ static MOZ_NEVER_INLINE bool
 #else
 static bool
 #endif
-ToBooleanOp(const InterpreterRegs &regs)
+ToBooleanOp(const FrameRegs &regs)
 {
     return ToBoolean(regs.stackHandleAt(-1));
 }
@@ -83,7 +83,7 @@ static MOZ_NEVER_INLINE bool
 #else
 static bool
 #endif
-LooseEqualityOp(JSContext *cx, InterpreterRegs &regs)
+LooseEqualityOp(JSContext *cx, FrameRegs &regs)
 {
     HandleValue rval = regs.stackHandleAt(-1);
     HandleValue lval = regs.stackHandleAt(-2);
@@ -483,8 +483,8 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
     // Check to see if useNewType flag should be set for this frame.
     if (construct && cx->typeInferenceEnabled()) {
-        FrameIter iter(cx);
-        if (!iter.done() && iter.hasScript()) {
+        ScriptFrameIter iter(cx);
+        if (!iter.done()) {
             JSScript *script = iter.script();
             jsbytecode *pc = iter.pc();
             if (UseNewType(cx, script, pc))
@@ -894,21 +894,21 @@ js::UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc)
 }
 
 static void
-ForcedReturn(JSContext *cx, ScopeIter &si, InterpreterRegs &regs)
+ForcedReturn(JSContext *cx, ScopeIter &si, FrameRegs &regs)
 {
     UnwindScope(cx, si, regs.fp()->script()->main());
     regs.setToEndOfScript();
 }
 
 static void
-ForcedReturn(JSContext *cx, InterpreterRegs &regs)
+ForcedReturn(JSContext *cx, FrameRegs &regs)
 {
     ScopeIter si(regs.fp(), regs.pc, cx);
     ForcedReturn(cx, si, regs);
 }
 
 void
-js::UnwindForUncatchableException(JSContext *cx, const InterpreterRegs &regs)
+js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
 {
     /* c.f. the regular (catchable) TryNoteIter loop in HandleError. */
     for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
@@ -920,7 +920,7 @@ js::UnwindForUncatchableException(JSContext *cx, const InterpreterRegs &regs)
     }
 }
 
-TryNoteIter::TryNoteIter(JSContext *cx, const InterpreterRegs &regs)
+TryNoteIter::TryNoteIter(JSContext *cx, const FrameRegs &regs)
   : regs(regs),
     script(cx, regs.fp()->script()),
     pcOffset(regs.pc - script->main())
@@ -988,7 +988,7 @@ enum HandleErrorContinuation
 };
 
 static HandleErrorContinuation
-HandleError(JSContext *cx, InterpreterRegs &regs)
+HandleError(JSContext *cx, FrameRegs &regs)
 {
     JS_ASSERT(regs.fp()->script()->containsPC(regs.pc));
 

@@ -108,8 +108,6 @@ dictionary RTCIceCandidateStats : RTCStats {
   DOMString componentId;
   DOMString candidateId;
   DOMString ipAddress;
-  DOMString transport;
-  DOMString mozLocalTransport; // needs standardization
   long portNumber;
   RTCStatsIceCandidateType candidateType;
 };

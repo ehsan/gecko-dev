@@ -96,7 +96,7 @@ PluginModuleParent::LoadModule(const char* aFilePath)
     nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
     bool launched = parent->mSubprocess->Launch(prefSecs * 1000);
     if (!launched) {
-        // We never reached open
+        // Need to set this so the destructor doesn't complain.
         parent->mShutdown = true;
         return nullptr;
     }
@@ -108,7 +108,7 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 #ifdef MOZ_CRASHREPORTER
     // If this fails, we're having IPC troubles, and we're doomed anyways.
     if (!CrashReporterParent::CreateCrashReporter(parent.get())) {
-        parent->Close();
+        parent->mShutdown = true;
         return nullptr;
     }
 #ifdef XP_WIN
@@ -160,9 +160,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
 
 PluginModuleParent::~PluginModuleParent()
 {
-    if (!OkToCleanup()) {
-        NS_RUNTIMEABORT("unsafe destruction");
-    }
+    NS_ASSERTION(OkToCleanup(), "unsafe destruction");
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
     ShutdownPluginProfiling();
@@ -173,7 +171,6 @@ PluginModuleParent::~PluginModuleParent()
         NPError err;
         NP_Shutdown(&err);
     }
-
     NS_ASSERTION(mShutdown, "NP_Shutdown didn't");
 
     if (mSubprocess) {
@@ -231,7 +228,7 @@ PluginModuleParent::WriteExtraDataForMinidump(AnnotationTable& notes)
             pluginVersion = tag->mVersion;
         }
     }
-
+        
     notes.Put(NS_LITERAL_CSTRING("PluginName"), pluginName);
     notes.Put(NS_LITERAL_CSTRING("PluginVersion"), pluginVersion);
 
@@ -754,7 +751,7 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
         break;
 
     default:
-        NS_RUNTIMEABORT("Unexpected shutdown reason for toplevel actor.");
+        NS_ERROR("Unexpected shutdown reason for toplevel actor.");
     }
 }
 
@@ -1197,11 +1194,11 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     uint32_t flags = 0;
 
     if (!CallNP_Initialize(flags, error)) {
-        Close();
+        mShutdown = true;
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
-        Close();
+        mShutdown = true;
         return NS_OK;
     }
 
@@ -1228,11 +1225,11 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 #endif
 
     if (!CallNP_Initialize(flags, error)) {
-        Close();
+        mShutdown = true;
         return NS_ERROR_FAILURE;
     }
     if (*error != NPERR_NO_ERROR) {
-        Close();
+        mShutdown = true;
         return NS_OK;
     }
 

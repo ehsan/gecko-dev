@@ -59,7 +59,6 @@ public:
   double MaxExposureCompensation() const;
   double ExposureCompensationStep() const;
   JS::Value RecorderProfiles(JSContext* cx) const;
-  void GetIsoModes(nsTArray<nsString>& aRetVal) const;
 
 protected:
   nsresult TranslateToDictionary(ICameraControl* aCameraControl,
@@ -76,7 +75,6 @@ protected:
   nsTArray<nsString> mEffects;
   nsTArray<nsString> mFlashModes;
   nsTArray<nsString> mFocusModes;
-  nsTArray<nsString> mIsoModes;
 
   nsTArray<double> mZoomRatios;
 
