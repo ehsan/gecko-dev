@@ -1331,7 +1331,7 @@ nsIContent*
 nsIContent::GetEditingHost()
 {
   // If this isn't editable, return NULL.
-  NS_ENSURE_TRUE(IsEditableInternal(), nsnull);
+  NS_ENSURE_TRUE(HasFlag(NODE_IS_EDITABLE), nsnull);
 
   nsIDocument* doc = GetCurrentDoc();
   NS_ENSURE_TRUE(doc, nsnull);

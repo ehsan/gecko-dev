@@ -37,11 +37,9 @@
 # ***** END LICENSE BLOCK *****
 */
 
-(function(){
-
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
@@ -330,4 +328,3 @@ InstallTriggerManager.prototype = {
 
 var manager = new InstallTriggerManager();
 
-})();

@@ -63,12 +63,6 @@ const MEM_HISTOGRAMS = {
   "page-faults-hard": "PAGE_FAULTS_HARD"
 };
 
-function getLocale() {
-  return Cc["@mozilla.org/chrome/chrome-registry;1"].
-         getService(Ci.nsIXULChromeRegistry).
-         getSelectedLocale('global');
-}
-
 XPCOMUtils.defineLazyGetter(this, "Telemetry", function () {
   return Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
 });
@@ -149,7 +143,6 @@ function getMetadata(reason) {
     appName: ai.name,
     appBuildID: ai.appBuildID,
     platformBuildID: ai.platformBuildID,
-    locale: getLocale(),
   };
 
   // sysinfo fields is not always available, get what we can.
@@ -186,12 +179,10 @@ function getSimpleMeasurements() {
     // uptime in minutes
     uptime: Math.round((new Date() - si.process) / 60000)
   }
-  if (si.process) {
-    for each (let field in ["main", "firstPaint", "sessionRestored"]) {
-      if (!(field in si))
-        continue;
-      ret[field] = si[field] - si.process
-    }
+  for each (let field in ["main", "firstPaint", "sessionRestored"]) {
+    if (!(field in si))
+      continue;
+    ret[field] = si[field] - si.process
   }
   return ret;
 }

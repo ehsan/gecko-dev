@@ -43,6 +43,11 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 
+#include "nsIDOMDocument.h"
+#include "nsIDOMWindowInternal.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIInterfaceRequestorUtils.h"
+
 void
 componentInterfaceInitCB(AtkComponentIface *aIface)
 {

@@ -69,11 +69,6 @@ if (params.timeout) {
 var fileLevel =  params.fileLevel || null;
 var consoleLevel = params.consoleLevel || null;
 
-// loop tells us how many times to run the tests
-if (params.loops) {
-  TestRunner.loops = params.loops;
-} 
-
 // closeWhenDone tells us to call quit.js when complete
 if (params.closeWhenDone) {
   TestRunner.onComplete = goQuitApplication;
@@ -159,7 +154,6 @@ RunSet.runall = function(e) {
   }
   TestRunner.runTests(my_tests);
 }
-
 RunSet.reloadAndRunAll = function(e) {
   e.preventDefault();
   //window.location.hash = "";
@@ -171,7 +165,8 @@ RunSet.reloadAndRunAll = function(e) {
     window.location.href += "&autorun=1";
   } else {
     window.location.href += "?autorun=1";
-  }  
+  }
+  
 };
 
 // UI Stuff
@@ -210,7 +205,7 @@ function toggleNonTests (e) {
 function hookup() {
   connect("runtests", "onclick", RunSet, "reloadAndRunAll");
   connect("toggleNonTests", "onclick", toggleNonTests);
-  // run automatically if autorun specified
+  // run automatically if
   if (params.autorun) {
     RunSet.runall();
   }

@@ -83,9 +83,8 @@ IPDLTESTS = \
   TestShmem \
   TestShutdown \
   TestStackHooks \
-  TestSyncError \
-  TestSyncHang \
   TestSyncWakeup \
+  TestSyncHang \
   $(NULL)
 
 ifeq ($(OS_ARCH),Linux)

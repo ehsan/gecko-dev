@@ -100,7 +100,6 @@ _SERV_FILES = 	\
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
 		mozprefs.js \
 		pywebsocket_wrapper.py \
- 	 	plain-loop.html \
 		$(NULL)	
 
 _PYWEBSOCKET_FILES = \

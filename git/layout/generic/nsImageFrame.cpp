@@ -1790,7 +1790,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                                        relevant for cookies, so does not
                                        apply to icons. */
                        nsnull,      /* referrer (not relevant for icons) */
-                       nsnull,      /* principal (not relevant for icons) */
                        loadGroup,
                        gIconLoad,
                        nsnull,      /* Not associated with any particular document */

@@ -463,10 +463,7 @@ ImageLayerOGL::RenderLayer(int,
 
     if (cairoImage->mSurface) {
         pixmap = sGLXLibrary.CreatePixmap(cairoImage->mSurface);
-        NS_ASSERTION(pixmap, "Failed to create pixmap!");
-        if (pixmap) {
-            sGLXLibrary.BindTexImage(pixmap);
-        }
+        sGLXLibrary.BindTexImage(pixmap);
     }
 #endif
 
@@ -572,7 +569,7 @@ ImageLayerOGL::RenderLayer(int,
         gl()->fDisableVertexAttribArray(texCoordAttribIndex);
     }
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    if (cairoImage->mSurface && pixmap) {
+    if (cairoImage->mSurface) {
         sGLXLibrary.ReleaseTexImage(pixmap);
         sGLXLibrary.DestroyPixmap(pixmap);
     }
@@ -770,7 +767,7 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   mSize = aData.mSize;
 
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (sGLXLibrary.SupportsTextureFromPixmap(aData.mSurface)) {
+  if (sGLXLibrary.HasTextureFromPixmap()) {
     mSurface = aData.mSurface;
     if (mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
       mLayerProgram = gl::RGBALayerProgramType;

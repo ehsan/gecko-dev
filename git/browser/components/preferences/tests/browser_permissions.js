@@ -295,7 +295,7 @@ function addWindowListener(aURL, aCallback) {
       Services.wm.removeListener(this);
 
       var domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindow);
+                                .getInterface(Ci.nsIDOMWindowInternal);
       waitForFocus(function() {
         is(domwindow.document.location.href, aURL, "should have seen the right window open");
         domwindow.close();

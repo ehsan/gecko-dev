@@ -40,7 +40,7 @@
 
 #include <windows.h>
 #include <audiopolicy.h>
-#include <mmdeviceapi.h>
+#include <Mmdeviceapi.h>
 
 #include "nsIStringBundle.h"
 #include "nsIUUIDGenerator.h"
@@ -51,7 +51,7 @@
 #include "nsAutoPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
-#include "nsXULAppAPI.h"
+#include "nsXULAppApi.h"
 
 #include <objbase.h>
 

@@ -37,7 +37,7 @@
 
 #include "nsISupports.idl"
 
-interface nsIDOMWindow;
+interface nsIDOMWindowInternal;
 interface nsIVariant;
 interface amIInstallCallback;
 interface nsIURI;
@@ -84,7 +84,7 @@ interface amIWebInstaller : nsISupports
    * @return true if the installation was successfully started
    */
   boolean installAddonsFromWebpage(in AString aMimetype,
-                                   in nsIDOMWindow aWindow,
+                                   in nsIDOMWindowInternal aWindow,
                                    in nsIURI aReferer,
                                    [array, size_is(aInstallCount)] in wstring aUris,
                                    [array, size_is(aInstallCount)] in wstring aHashes,

@@ -446,7 +446,7 @@ protected:
   NS_IMETHOD  InitRules();
 
   // Create the event listeners for the editor to install
-  virtual void CreateEventListeners();
+  virtual nsresult CreateEventListeners();
 
   virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
@@ -458,13 +458,10 @@ protected:
   // @return    If the editor has focus, this returns the focused node.
   //            Otherwise, returns null.
   already_AddRefed<nsINode> GetFocusedNode();
-  // Get an active editor's editing host in DOM window.  If this editor isn't
-  // active in the DOM window, this returns NULL.
-  nsIContent* GetActiveEditingHost();
 
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);
-  PRBool IsNodeInActiveEditor(nsIDOMNode* aNode);
+  PRBool IsElementInBody(nsIDOMElement* aElement);
 
   // key event helpers
   NS_IMETHOD TabInTable(PRBool inIsShift, PRBool *outHandled);
