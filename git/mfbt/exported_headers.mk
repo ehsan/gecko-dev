@@ -31,7 +31,6 @@ EXPORTS_mozilla += \
   MSStdInt.h \
   NullPtr.h \
   PodOperations.h \
-  Poison.h \
   Range.h \
   RangedPtr.h \
   RefPtr.h \

@@ -38,7 +38,6 @@
 
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
-#include "ion/BaselineJIT.h"
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
 
@@ -1781,13 +1780,8 @@ js::CloneObjectLiteral(JSContext *cx, HandleObject parent, HandleObject srcObj)
 {
     Rooted<TypeObject*> typeObj(cx);
     typeObj = cx->global()->getOrCreateObjectPrototype(cx)->getNewType(cx, &ObjectClass);
-
-    JS_ASSERT(srcObj->getClass() == &ObjectClass);
-    AllocKind kind = GetBackgroundAllocKind(GuessObjectGCKind(srcObj->numFixedSlots()));
-    JS_ASSERT_IF(srcObj->isTenured(), kind == srcObj->tenuredGetAllocKind());
-
     RootedShape shape(cx, srcObj->lastProperty());
-    return NewReshapedObject(cx, typeObj, parent, kind, shape);
+    return NewReshapedObject(cx, typeObj, parent, srcObj->tenuredGetAllocKind(), shape);
 }
 
 struct JSObject::TradeGutsReserved {
@@ -3774,20 +3768,6 @@ NativeGetInline(JSContext *cx,
             if (code)
                 code->accessGetter = true;
         }
-
-#ifdef JS_ION
-        if (script && script->hasBaselineScript()) {
-            switch (JSOp(*pc)) {
-              case JSOP_GETPROP:
-              case JSOP_CALLPROP:
-              case JSOP_LENGTH:
-                script->baselineScript()->noteAccessedGetter(pc - script->code);
-                break;
-              default:
-                break;
-            }
-        }
-#endif
     }
 
     if (!allowGC)

@@ -65,9 +65,8 @@ static const JSFunctionSpec PrivilegeManager_static_methods[] = {
 NS_IMETHODIMP
 nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
-    AutoJSContext cx;
-    JS::Rooted<JSObject*> global(cx, aScriptContext->GetNativeGlobal());
-    JSAutoCompartment ac(cx, global);
+    AutoPushJSContext cx(aScriptContext->GetNativeContext());
+    JS::Rooted<JSObject*> global(cx, JS_ObjectToInnerObject(cx, JS_GetGlobalObject(cx)));
 
     /*
      * Find Object.prototype's class by walking up the global object's

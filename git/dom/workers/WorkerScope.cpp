@@ -355,7 +355,7 @@ private:
 
     JSFunction* adaptor =
       js::NewFunctionWithReserved(aCx, UnwrapErrorEvent, 1, 0,
-                                  JS_GetGlobalForScopeChain(aCx), "unwrap");
+                                  JS_GetGlobalObject(aCx), "unwrap");
     if (!adaptor) {
       return false;
     }

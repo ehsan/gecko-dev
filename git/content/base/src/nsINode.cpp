@@ -697,10 +697,10 @@ nsINode::SetUserData(JSContext* aCx, const nsAString& aKey, JS::Value aData,
     return JS::NullValue();
   }
 
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Value result;
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), oldData,
-                                                    result.address());
+                                                    &result);
   return result;
 }
 
@@ -712,10 +712,10 @@ nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
     return JS::NullValue();
   }
 
-  JS::Rooted<JS::Value> result(aCx);
+  JS::Value result;
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), data,
-                                                    result.address());
+                                                    &result);
   return result;
 }
 
@@ -2394,7 +2394,7 @@ nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> obj(aCx, WrapNode(aCx, aScope));
+  JSObject* obj = WrapNode(aCx, aScope);
   if (obj && ChromeOnlyAccess() &&
       !nsContentUtils::IsSystemPrincipal(NodePrincipal()) &&
       xpc::AllowXBLScope(js::GetContextCompartment(aCx)))

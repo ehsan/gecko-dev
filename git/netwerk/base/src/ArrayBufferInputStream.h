@@ -30,10 +30,9 @@ public:
 private:
   JSRuntime* mRt;
   jsval mArrayBuffer;
-  uint8_t* mBuffer; // start of actual buffer
-  uint32_t mBufferLength; // length of slice
-  uint32_t mOffset; // permanent offset from start of actual buffer
-  uint32_t mPos; // offset from start of slice
+  uint8_t* mBuffer;
+  uint32_t mBufferLength;
+  uint32_t mOffset;
   bool mClosed;
 };
 

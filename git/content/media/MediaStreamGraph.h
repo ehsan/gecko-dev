@@ -427,12 +427,6 @@ public:
 
   bool HasCurrentData() { return mHasCurrentData; }
 
-  DOMMediaStream* GetWrapper()
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Only use DOMMediaStream on main thread");
-    return mWrapper;
-  }
-
 protected:
   virtual void AdvanceTimeVaryingValuesToCurrentTime(GraphTime aCurrentTime, GraphTime aBlockedTime)
   {
@@ -887,8 +881,7 @@ inline TrackRate IdealAudioRate() { return 48000; }
 
 /**
  * Initially, at least, we will have a singleton MediaStreamGraph per
- * process.  Each OfflineAudioContext object creates its own MediaStreamGraph
- * object too.
+ * process.
  */
 class MediaStreamGraph {
 public:
@@ -899,9 +892,6 @@ public:
 
   // Main thread only
   static MediaStreamGraph* GetInstance();
-  static MediaStreamGraph* CreateNonRealtimeInstance();
-  static void DestroyNonRealtimeInstance(MediaStreamGraph* aGraph);
-
   // Control API.
   /**
    * Create a stream that a media decoder (or some other source of

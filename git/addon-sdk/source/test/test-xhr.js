@@ -6,7 +6,6 @@
 const xhr = require('sdk/net/xhr');
 const { Loader } = require('sdk/test/loader');
 const xulApp = require('sdk/system/xul-app');
-const { data } = require('sdk/self');
 
 // TODO: rewrite test below
 /* Test is intentionally disabled until platform bug 707256 is fixed.
@@ -23,11 +22,12 @@ exports.testLocalXhr = function(assert, done) {
   let ready = false;
 
   req.overrideMimeType('text/plain');
-  req.open('GET', data.url('testLocalXhr.json'));
+  req.open('GET', module.uri);
   req.onreadystatechange = function() {
     if (req.readyState == 4 && (req.status == 0 || req.status == 200)) {
       ready = true;
-      assert.equal(req.responseText, '{}\n', 'XMLHttpRequest should get local files');
+      assert.ok(req.responseText.match(/onreadystatechange/i),
+                'XMLHttpRequest should get local files');
     }
   };
   req.addEventListener('load', function onload() {

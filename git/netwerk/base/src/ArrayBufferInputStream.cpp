@@ -16,7 +16,6 @@ ArrayBufferInputStream::ArrayBufferInputStream()
 , mBuffer(nullptr)
 , mBufferLength(0)
 , mOffset(0)
-, mPos(0)
 , mClosed(false)
 {
 }
@@ -66,7 +65,7 @@ ArrayBufferInputStream::Available(uint64_t* aCount)
   if (mClosed) {
     return NS_BASE_STREAM_CLOSED;
   }
-  *aCount = mBufferLength - mPos;
+  *aCount = mBufferLength - mOffset;
   return NS_OK;
 }
 
@@ -74,6 +73,7 @@ NS_IMETHODIMP
 ArrayBufferInputStream::Read(char* aBuf, uint32_t aCount, uint32_t *aReadCount)
 {
   return ReadSegments(NS_CopySegmentToBuffer, aBuf, aCount, aReadCount);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -81,13 +81,13 @@ ArrayBufferInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
                                      uint32_t aCount, uint32_t *result)
 {
   NS_ASSERTION(result, "null ptr");
-  NS_ASSERTION(mBufferLength >= mPos, "bad stream state");
+  NS_ASSERTION(mBufferLength >= mOffset, "bad stream state");
 
   if (mClosed) {
     return NS_BASE_STREAM_CLOSED;
   }
 
-  uint32_t remaining = mBufferLength - mPos;
+  uint32_t remaining = mBufferLength - mOffset;
   if (!remaining) {
     *result = 0;
     return NS_OK;
@@ -96,12 +96,12 @@ ArrayBufferInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
   if (aCount > remaining) {
     aCount = remaining;
   }
-  nsresult rv = writer(this, closure, (char*)(mBuffer + mOffset) + mPos,
+  nsresult rv = writer(this, closure, reinterpret_cast<char*>(mBuffer + mOffset),
                        0, aCount, result);
   if (NS_SUCCEEDED(rv)) {
     NS_ASSERTION(*result <= aCount,
                  "writer should not write more than we asked it to write");
-    mPos += *result;
+    mOffset += *result;
   }
 
   return NS_OK;

@@ -178,7 +178,7 @@ private:
 
   const nsCString mTextToSign; // in
   SECKEYPrivateKey* mPrivateKey; // in
-  nsMainThreadPtrHandle<nsIIdentitySignCallback> mCallback; // in
+  const nsCOMPtr<nsIIdentitySignCallback> mCallback; // in
   nsresult mRv; // out
   nsCString mSignature; // out
 
@@ -496,7 +496,7 @@ SignRunnable::SignRunnable(const nsACString & aText,
                            nsIIdentitySignCallback * aCallback)
   : mTextToSign(aText)
   , mPrivateKey(SECKEY_CopyPrivateKey(privateKey))
-  , mCallback(new nsMainThreadPtrHolder<nsIIdentitySignCallback>(aCallback))
+  , mCallback(aCallback)
   , mRv(NS_ERROR_NOT_INITIALIZED)
 {
 }

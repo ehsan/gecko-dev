@@ -884,16 +884,16 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   // Create appropriate JS object for message
-  JS::Rooted<JS::Value> jsData(cx);
+  JS::Value jsData;
   {
     JSAutoRequest ar(cx);
     if (isBinary) {
       if (mBinaryType == dom::BinaryType::Blob) {
-        rv = nsContentUtils::CreateBlobBuffer(cx, aData, &jsData);
+        rv = nsContentUtils::CreateBlobBuffer(cx, aData, jsData);
         NS_ENSURE_SUCCESS(rv, rv);
       } else if (mBinaryType == dom::BinaryType::Arraybuffer) {
-        JS::Rooted<JSObject*> arrayBuf(cx);
-        rv = nsContentUtils::CreateArrayBuffer(cx, aData, arrayBuf.address());
+        JSObject* arrayBuf;
+        rv = nsContentUtils::CreateArrayBuffer(cx, aData, &arrayBuf);
         NS_ENSURE_SUCCESS(rv, rv);
         jsData = OBJECT_TO_JSVAL(arrayBuf);
       } else {

@@ -87,13 +87,19 @@ this.webappsUI = {
   },
 
   _getBrowserForId: function(aId) {
-    let content = Services.wm.getOuterWindowWithId(aId);
-    if (content) {
-      let browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIWebNavigation)
-                    .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
-      let win = browser.ownerDocument.defaultView;
-      return [win, browser];
+    let someWindow = Services.wm.getMostRecentWindow(null);
+
+    if (someWindow) {
+      let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                  .getInterface(Ci.nsIDOMWindowUtils);
+      let content = windowUtils.getOuterWindowWithId(aId);
+      if (content) {
+        let browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIWebNavigation)
+                      .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
+        let win = browser.ownerDocument.defaultView;
+        return [win, browser];
+      }
     }
 
     return [null, null];

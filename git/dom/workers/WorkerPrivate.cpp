@@ -704,6 +704,8 @@ public:
     }
 
     JSAutoCompartment ac(aCx, global);
+    JS_SetGlobalObject(aCx, global);
+
     return scriptloader::LoadWorkerScript(aCx);
   }
 };
@@ -719,7 +721,7 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JS::Rooted<JSObject*> target(aCx, JS_GetGlobalForScopeChain(aCx));
+    JS::Rooted<JSObject*> target(aCx, JS_GetGlobalObject(aCx));
     NS_ASSERTION(target, "This must never be null!");
 
     aWorkerPrivate->CloseHandlerStarted();
@@ -808,7 +810,7 @@ public:
       NS_ASSERTION(aWorkerPrivate == GetWorkerPrivateFromContext(aCx),
                    "Badness!");
       mainRuntime = false;
-      target = JS_GetGlobalForScopeChain(aCx);
+      target = JS_GetGlobalObject(aCx);
     }
 
     NS_ASSERTION(target, "This should never be null!");
@@ -1523,7 +1525,7 @@ WorkerRunnable::Dispatch(JSContext* aCx)
 
   JSAutoRequest ar(aCx);
 
-  JSObject* global = JS_GetGlobalForScopeChain(aCx);
+  JSObject* global = JS_GetGlobalObject(aCx);
 
   Maybe<JSAutoCompartment> ac;
   if (global) {
@@ -1620,7 +1622,7 @@ WorkerRunnable::Run()
   JS::Rooted<JSObject*> targetCompartmentObject(cx);
 
   if (mTarget == WorkerThread) {
-    targetCompartmentObject = JS_GetGlobalForScopeChain(cx);
+    targetCompartmentObject = JS_GetGlobalObject(cx);
   } else {
     targetCompartmentObject = mWorkerPrivate->GetJSObject();
   }
@@ -3597,7 +3599,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
 
   // If the worker script never ran, or failed to compile, we don't need to do
   // anything else, except pretend that we ran the close handler.
-  if (!JS_GetGlobalForScopeChain(aCx)) {
+  if (!JS_GetGlobalObject(aCx)) {
     mCloseHandlerStarted = true;
     mCloseHandlerFinished = true;
     return true;
@@ -3922,7 +3924,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   bool retval = true;
 
   AutoPtrComparator<TimeoutInfo> comparator = GetAutoPtrComparator(mTimeouts);
-  JS::RootedObject global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::RootedObject global(aCx, JS_GetGlobalObject(aCx));
   JSPrincipals* principal = GetWorkerPrincipal();
 
   // We want to make sure to run *something*, even if the timer fired a little

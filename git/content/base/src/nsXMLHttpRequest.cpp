@@ -1001,9 +1001,9 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       return JSVAL_NULL;
     }
 
-    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
+    JS::Value result = JSVAL_NULL;
     JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, result.address(),
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, &result,
                                      nullptr, true);
     return result;
   }
@@ -1014,8 +1014,8 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
     }
 
     JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
-    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, result.address(),
+    JS::Value result = JSVAL_NULL;
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, &result,
                                      nullptr, true);
     return result;
   }
@@ -2405,12 +2405,11 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult, uint64_t* aContentLe
     }
 
     // ArrayBuffer?
-    AutoSafeJSContext cx;
-    JS::Rooted<JS::Value> realVal(cx);
+    JS::Value realVal;
 
-    nsresult rv = aBody->GetAsJSVal(realVal.address());
+    nsresult rv = aBody->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal)) {
-      JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(realVal));
+      JSObject *obj = JSVAL_TO_OBJECT(realVal);
       if (JS_IsArrayBufferObject(obj)) {
           ArrayBuffer buf(obj);
           return GetRequestBody(buf.Data(), buf.Length(), aResult,
