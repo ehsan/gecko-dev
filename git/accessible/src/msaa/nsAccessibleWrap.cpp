@@ -91,14 +91,12 @@ static const PRInt32 kIEnumVariantDisconnected = -1;
 // nsAccessibleWrap
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeInfo* nsAccessibleWrap::gTypeInfo = NULL;
-
 //-----------------------------------------------------
 // construction
 //-----------------------------------------------------
 nsAccessibleWrap::
   nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0)
+  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0), mTypeInfo(NULL)
 {
 }
 
@@ -107,6 +105,8 @@ nsAccessibleWrap::
 //-----------------------------------------------------
 nsAccessibleWrap::~nsAccessibleWrap()
 {
+  if (mTypeInfo)
+    mTypeInfo->Release();
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsAccessibleWrap, nsAccessible);
@@ -1835,19 +1835,19 @@ void nsAccessibleWrap::UpdateSystemCaret()
 ITypeInfo*
 nsAccessibleWrap::GetTI(LCID lcid)
 {
-  if (gTypeInfo)
-    return gTypeInfo;
+  if (mTypeInfo)
+    return mTypeInfo;
 
   ITypeLib *typeLib = NULL;
   HRESULT hr = LoadRegTypeLib(LIBID_Accessibility, 1, 0, lcid, &typeLib);
   if (FAILED(hr))
     return NULL;
 
-  hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &gTypeInfo);
+  hr = typeLib->GetTypeInfoOfGuid(IID_IAccessible, &mTypeInfo);
   typeLib->Release();
 
   if (FAILED(hr))
     return NULL;
 
-  return gTypeInfo;
+  return mTypeInfo;
 }
