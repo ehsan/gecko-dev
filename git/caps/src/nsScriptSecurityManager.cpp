@@ -1708,8 +1708,7 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
             if (NS_FAILED(rv)) return rv;
             if (appType == nsIDocShell::APP_TYPE_MAIL) 
             {
-                // we are temporarily disabling js in mail for TB 3.0 b1
-                *result = PR_FALSE; // mIsMailJavaScriptEnabled;
+                *result = mIsMailJavaScriptEnabled;
             }
         }
     }
