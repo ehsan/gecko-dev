@@ -1624,7 +1624,9 @@ MediaDecoderStateMachine::StartSeek(const SeekTarget& aTarget)
 
   DECODER_LOG("Changed state to SEEKING (to %lld)", mSeekTarget.mTime);
   SetState(DECODER_STATE_SEEKING);
-  mDecoder->RecreateDecodedStreamIfNecessary(seekTime - mStartTime);
+  if (mDecoder->GetDecodedStream()) {
+    mDecoder->RecreateDecodedStream(seekTime - mStartTime);
+  }
   ScheduleStateMachine();
 }
 

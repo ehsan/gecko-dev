@@ -62,21 +62,15 @@ public:
   // Constructs a TileHost from a gfxSharedReadLock and TextureHost.
   TileHost(gfxSharedReadLock* aSharedLock,
                TextureHost* aTextureHost,
-               TextureHost* aTextureHostOnWhite,
-               TextureSource* aSource,
-               TextureSource* aSourceOnWhite)
+               TextureHost* aTextureHostOnWhite)
     : mSharedLock(aSharedLock)
     , mTextureHost(aTextureHost)
     , mTextureHostOnWhite(aTextureHostOnWhite)
-    , mTextureSource(aSource)
-    , mTextureSourceOnWhite(aSourceOnWhite)
   {}
 
   TileHost(const TileHost& o) {
     mTextureHost = o.mTextureHost;
     mTextureHostOnWhite = o.mTextureHostOnWhite;
-    mTextureSource = o.mTextureSource;
-    mTextureSourceOnWhite = o.mTextureSourceOnWhite;
     mSharedLock = o.mSharedLock;
   }
   TileHost& operator=(const TileHost& o) {
@@ -85,8 +79,6 @@ public:
     }
     mTextureHost = o.mTextureHost;
     mTextureHostOnWhite = o.mTextureHostOnWhite;
-    mTextureSource = o.mTextureSource;
-    mTextureSourceOnWhite = o.mTextureSourceOnWhite;
     mSharedLock = o.mSharedLock;
     return *this;
   }
@@ -107,10 +99,8 @@ public:
   }
 
   RefPtr<gfxSharedReadLock> mSharedLock;
-  CompositableTextureHostRef mTextureHost;
-  CompositableTextureHostRef mTextureHostOnWhite;
-  mutable CompositableTextureSourceRef mTextureSource;
-  mutable CompositableTextureSourceRef mTextureSourceOnWhite;
+  RefPtr<TextureHost> mTextureHost;
+  RefPtr<TextureHost> mTextureHostOnWhite;
 };
 
 class TiledLayerBufferComposite
@@ -124,8 +114,7 @@ public:
   TiledLayerBufferComposite();
   TiledLayerBufferComposite(ISurfaceAllocator* aAllocator,
                             const SurfaceDescriptorTiles& aDescriptor,
-                            const nsIntRegion& aOldPaintedRegion,
-                            Compositor* aCompositor);
+                            const nsIntRegion& aOldPaintedRegion);
 
   TileHost GetPlaceholderTile() const { return TileHost(); }
 

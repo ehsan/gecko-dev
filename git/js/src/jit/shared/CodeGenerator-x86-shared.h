@@ -100,17 +100,17 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
         bailoutIf(Assembler::Zero, snapshot);
     }
     void bailoutCvttsd2si(FloatRegister src, Register dest, LSnapshot *snapshot) {
-        // vcvttsd2si returns 0x80000000 on failure. Test for it by
+        // cvttsd2si returns 0x80000000 on failure. Test for it by
         // subtracting 1 and testing overflow. The other possibility is to test
         // equality for INT_MIN after a comparison, but 1 costs fewer bytes to
         // materialize.
-        masm.vcvttsd2si(src, dest);
+        masm.cvttsd2si(src, dest);
         masm.cmp32(dest, Imm32(1));
         bailoutIf(Assembler::Overflow, snapshot);
     }
     void bailoutCvttss2si(FloatRegister src, Register dest, LSnapshot *snapshot) {
         // Same trick as explained in the above comment.
-        masm.vcvttss2si(src, dest);
+        masm.cvttss2si(src, dest);
         masm.cmp32(dest, Imm32(1));
         bailoutIf(Assembler::Overflow, snapshot);
     }

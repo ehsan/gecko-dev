@@ -251,17 +251,16 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  getCardLockEnabled: function(clientId, window, lockType) {
+  getCardLockState: function(clientId, window, lockType) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
-
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
     this._windowsMap[requestId] = window;
 
-    cpmm.sendAsyncMessage("RIL:GetCardLockEnabled", {
+    cpmm.sendAsyncMessage("RIL:GetCardLockState", {
       clientId: clientId,
       data: {
         lockType: lockType,
@@ -271,69 +270,34 @@ RILContentHelper.prototype = {
     return request;
   },
 
-  unlockCardLock: function(clientId, window, lockType, password, newPin) {
+  unlockCardLock: function(clientId, window, info) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
-
     let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
+    info.requestId = this.getRequestId(request);
+    this._windowsMap[info.requestId] = window;
 
     cpmm.sendAsyncMessage("RIL:UnlockCardLock", {
       clientId: clientId,
-      data: {
-        lockType: lockType,
-        password: password,
-        newPin: newPin,
-        requestId: requestId
-      }
+      data: info
     });
     return request;
   },
 
-  setCardLockEnabled: function(clientId, window, lockType, password, enabled) {
+  setCardLock: function(clientId, window, info) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
     }
-
     let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
+    info.requestId = this.getRequestId(request);
+    this._windowsMap[info.requestId] = window;
 
-    cpmm.sendAsyncMessage("RIL:SetCardLockEnabled", {
+    cpmm.sendAsyncMessage("RIL:SetCardLock", {
       clientId: clientId,
-      data: {
-        lockType: lockType,
-        password: password,
-        enabled: enabled,
-        requestId: requestId
-      }
-    });
-    return request;
-  },
-
-  changeCardLockPassword: function(clientId, window, lockType, password,
-                                   newPassword) {
-    if (window == null) {
-      throw Components.Exception("Can't get window object",
-                                  Cr.NS_ERROR_UNEXPECTED);
-    }
-
-    let request = Services.DOMRequest.createRequest(window);
-    let requestId = this.getRequestId(request);
-    this._windowsMap[requestId] = window;
-
-    cpmm.sendAsyncMessage("RIL:ChangeCardLockPassword", {
-      clientId: clientId,
-      data: {
-        lockType: lockType,
-        password: password,
-        newPassword: newPassword,
-        requestId: requestId
-      }
+      data: info
     });
     return request;
   },

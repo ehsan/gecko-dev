@@ -639,10 +639,10 @@ class Assembler : public AssemblerX86Shared
         append(AsmJSGlobalAccess(label, AsmJSHeapGlobalDataOffset));
     }
 
-    void cmpq(Register rhs, Register lhs) {
-        masm.cmpq_rr(rhs.code(), lhs.code());
-    }
-    void cmpq(Register rhs, const Operand &lhs) {
+    // The below cmpq methods switch the lhs and rhs when it invokes the
+    // macroassembler to conform with intel standard.  When calling this
+    // function put the left operand on the left as you would expect.
+    void cmpq(const Operand &lhs, Register rhs) {
         switch (lhs.kind()) {
           case Operand::REG:
             masm.cmpq_rr(rhs.code(), lhs.reg());
@@ -657,10 +657,7 @@ class Assembler : public AssemblerX86Shared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-    void cmpq(Imm32 rhs, Register lhs) {
-        masm.cmpq_ir(rhs.value, lhs.code());
-    }
-    void cmpq(Imm32 rhs, const Operand &lhs) {
+    void cmpq(const Operand &lhs, Imm32 rhs) {
         switch (lhs.kind()) {
           case Operand::REG:
             masm.cmpq_ir(rhs.value, lhs.reg());
@@ -675,7 +672,7 @@ class Assembler : public AssemblerX86Shared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-    void cmpq(const Operand &rhs, Register lhs) {
+    void cmpq(Register lhs, const Operand &rhs) {
         switch (rhs.kind()) {
           case Operand::REG:
             masm.cmpq_rr(rhs.reg(), lhs.code());
@@ -687,17 +684,23 @@ class Assembler : public AssemblerX86Shared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-
-    void testq(Imm32 rhs, Register lhs) {
-        masm.testq_ir(rhs.value, lhs.code());
+    void cmpq(Register lhs, Register rhs) {
+        masm.cmpq_rr(rhs.code(), lhs.code());
     }
-    void testq(Register rhs, Register lhs) {
+    void cmpq(Register lhs, Imm32 rhs) {
+        masm.cmpq_ir(rhs.value, lhs.code());
+    }
+
+    void testq(Register lhs, Imm32 rhs) {
+        masm.testq_i32r(rhs.value, lhs.code());
+    }
+    void testq(Register lhs, Register rhs) {
         masm.testq_rr(rhs.code(), lhs.code());
     }
-    void testq(Imm32 rhs, const Operand &lhs) {
+    void testq(const Operand &lhs, Imm32 rhs) {
         switch (lhs.kind()) {
           case Operand::REG:
-            masm.testq_ir(rhs.value, lhs.reg());
+            masm.testq_i32r(rhs.value, lhs.reg());
             break;
           case Operand::MEM_REG_DISP:
             masm.testq_i32m(rhs.value, lhs.disp(), lhs.base());
@@ -747,17 +750,17 @@ class Assembler : public AssemblerX86Shared
     // Do not mask shared implementations.
     using AssemblerX86Shared::call;
 
-    void vcvttsd2sq(FloatRegister src, Register dest) {
-        masm.vcvttsd2sq_rr(src.code(), dest.code());
+    void cvttsd2sq(FloatRegister src, Register dest) {
+        masm.cvttsd2sq_rr(src.code(), dest.code());
     }
-    void vcvttss2sq(FloatRegister src, Register dest) {
-        masm.vcvttss2sq_rr(src.code(), dest.code());
+    void cvttss2sq(FloatRegister src, Register dest) {
+        masm.cvttss2sq_rr(src.code(), dest.code());
     }
-    void vcvtsq2sd(Register src1, FloatRegister src0, FloatRegister dest) {
-        masm.vcvtsq2sd_rr(src1.code(), src0.code(), dest.code());
+    void cvtsq2sd(Register src, FloatRegister dest) {
+        masm.cvtsq2sd_rr(src.code(), dest.code());
     }
-    void vcvtsq2ss(Register src1, FloatRegister src0, FloatRegister dest) {
-        masm.vcvtsq2ss_rr(src1.code(), src0.code(), dest.code());
+    void cvtsq2ss(Register src, FloatRegister dest) {
+        masm.cvtsq2ss_rr(src.code(), dest.code());
     }
 };
 

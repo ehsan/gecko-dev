@@ -754,8 +754,6 @@ BaselineCompiler::emitDebugTrap()
 
     // Emit patchable call to debug trap handler.
     JitCode *handler = cx->runtime()->jitRuntime()->debugTrapHandler(cx);
-    if (!handler)
-        return false;
     mozilla::DebugOnly<CodeOffsetLabel> offset = masm.toggledCall(handler, enabled);
 
 #ifdef DEBUG
