@@ -184,7 +184,7 @@ TextureSourceD3D9::InitTextures(DeviceManagerD3D9* aDeviceManager,
   }
 
   tmpTexture->GetSurfaceLevel(0, byRef(aSurface));
-  aSurface->LockRect(&aLockedRect, nullptr, 0);
+  aSurface->LockRect(&aLockedRect, NULL, 0);
   if (!aLockedRect.pBits) {
     NS_WARNING("Could not lock surface");
     return nullptr;
@@ -208,8 +208,7 @@ FinishTextures(DeviceManagerD3D9* aDeviceManager,
   aSurface->UnlockRect();
   nsRefPtr<IDirect3DSurface9> dstSurface;
   aTexture->GetSurfaceLevel(0, getter_AddRefs(dstSurface));
-  aDeviceManager->device()->UpdateSurface(aSurface, nullptr, dstSurface,
-                                          nullptr);
+  aDeviceManager->device()->UpdateSurface(aSurface, NULL, dstSurface, NULL);
 }
 
 TemporaryRef<IDirect3DTexture9>

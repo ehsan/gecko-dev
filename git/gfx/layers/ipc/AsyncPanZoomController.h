@@ -130,14 +130,20 @@ public:
 
   /**
    * Updates any zoom constraints contained in the <meta name="viewport"> tag.
+   * We try to obey everything it asks us elsewhere, but here we only handle
+   * minimum-scale, maximum-scale, and user-scalable.
    */
-  void UpdateZoomConstraints(const ZoomConstraints& aConstraints);
+  void UpdateZoomConstraints(bool aAllowZoom,
+                             const CSSToScreenScale& aMinScale,
+                             const CSSToScreenScale& aMaxScale);
 
   /**
    * Return the zoom constraints last set for this APZC (in the constructor
    * or in UpdateZoomConstraints()).
    */
-  ZoomConstraints GetZoomConstraints() const;
+  void GetZoomConstraints(bool* aAllowZoom,
+                          CSSToScreenScale* aMinScale,
+                          CSSToScreenScale* aMaxScale);
 
   /**
    * Schedules a runnable to run on the controller/UI thread at some time
@@ -603,7 +609,9 @@ private:
   // Most up-to-date constraints on zooming. These should always be reasonable
   // values; for example, allowing a min zoom of 0.0 can cause very bad things
   // to happen.
-  ZoomConstraints mZoomConstraints;
+  bool mAllowZoom;
+  CSSToScreenScale mMinZoom;
+  CSSToScreenScale mMaxZoom;
 
   // The last time the compositor has sampled the content transform for this
   // frame.

@@ -38,7 +38,7 @@ void leaky::readSymbols(const char *fileName)
 {
     LDFILE *ldptr;
 
-    ldptr = ldopen(fileName, nullptr);
+    ldptr = ldopen(fileName, NULL);
     if (!ldptr) {
 	fprintf(stderr, "%s: unable to open \"%s\"\n", applicationName,
 		fileName);

@@ -189,7 +189,7 @@ struct EffectSolidColor : public Effect
 
 struct EffectChain
 {
-  EffectChain() : mLayerRef(nullptr) {}
+  EffectChain() : mLayerRef(NULL) {}
   explicit EffectChain(void* aLayerRef) : mLayerRef(aLayerRef) {}
 
   RefPtr<Effect> mPrimaryEffect;

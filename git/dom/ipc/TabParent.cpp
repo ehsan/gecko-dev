@@ -1713,10 +1713,12 @@ bool
 TabParent::RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
                                      const ViewID& aViewId,
                                      const bool& aIsRoot,
-                                     const ZoomConstraints& aConstraints)
+                                     const bool& aAllowZoom,
+                                     const CSSToScreenScale& aMinZoom,
+                                     const CSSToScreenScale& aMaxZoom)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->UpdateZoomConstraints(aPresShellId, aViewId, aIsRoot, aConstraints);
+    rfp->UpdateZoomConstraints(aPresShellId, aViewId, aIsRoot, aAllowZoom, aMinZoom, aMaxZoom);
   }
   return true;
 }

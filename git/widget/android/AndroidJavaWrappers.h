@@ -67,10 +67,10 @@ private:
 class WrappedJavaObject {
 public:
     WrappedJavaObject() :
-        wrapped_obj(nullptr)
+        wrapped_obj(NULL)
     { }
 
-    WrappedJavaObject(jobject jobj) : wrapped_obj(nullptr) {
+    WrappedJavaObject(jobject jobj) : wrapped_obj(NULL) {
         Init(jobj);
     }
 
@@ -79,7 +79,7 @@ public:
     }
 
     bool isNull() const {
-        return wrapped_obj == nullptr;
+        return wrapped_obj == NULL;
     }
 
     jobject wrappedObject() const {
@@ -93,10 +93,10 @@ protected:
 class AutoGlobalWrappedJavaObject : protected WrappedJavaObject{
 public:
     AutoGlobalWrappedJavaObject() :
-        wrapped_obj(nullptr)
+        wrapped_obj(NULL)
     { }
 
-    AutoGlobalWrappedJavaObject(jobject jobj, JNIEnv* env) : wrapped_obj(nullptr) {
+    AutoGlobalWrappedJavaObject(jobject jobj, JNIEnv* env) : wrapped_obj(NULL) {
         Init(jobj, env);
     }
 
@@ -111,7 +111,7 @@ public:
     }
 
     bool isNull() const {
-        return wrapped_obj == nullptr;
+        return wrapped_obj == NULL;
     }
 
     jobject wrappedObject() const {

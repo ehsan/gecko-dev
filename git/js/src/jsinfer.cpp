@@ -416,11 +416,8 @@ ConstraintTypeSet::add(JSContext *cx, TypeConstraint *constraint, bool callExist
 void
 TypeSet::print()
 {
-    if (flags & TYPE_FLAG_NON_DATA_PROPERTY)
-        fprintf(stderr, " [non-data]");
-
-    if (flags & TYPE_FLAG_NON_WRITABLE_PROPERTY)
-        fprintf(stderr, " [non-writable]");
+    if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
+        fprintf(stderr, " [configured]");
 
     if (definiteProperty())
         fprintf(stderr, " [definite:%d]", definiteSlot());
@@ -1187,7 +1184,7 @@ HeapTypeSetKey::knownTypeTag(CompilerConstraintList *constraints)
 bool
 HeapTypeSetKey::isOwnProperty(CompilerConstraintList *constraints)
 {
-    if (maybeTypes() && (!maybeTypes()->empty() || maybeTypes()->nonDataProperty()))
+    if (maybeTypes() && (!maybeTypes()->empty() || maybeTypes()->configuredProperty()))
         return true;
     if (JSObject *obj = object()->singleton()) {
         if (CanHaveEmptyPropertyTypesForOwnProperty(obj))
@@ -1224,7 +1221,7 @@ HeapTypeSetKey::singleton(CompilerConstraintList *constraints)
 {
     HeapTypeSet *types = maybeTypes();
 
-    if (!types || types->nonDataProperty() || types->baseFlags() != 0 || types->getObjectCount() != 1)
+    if (!types || types->configuredProperty() || types->baseFlags() != 0 || types->getObjectCount() != 1)
         return nullptr;
 
     JSObject *obj = types->getSingleObject(0);
@@ -1508,32 +1505,24 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun);
 
 namespace {
 
-class ConstraintDataFreezePropertyState
+class ConstraintDataFreezeConfiguredProperty
 {
   public:
-    enum Which {
-        NON_DATA,
-        NON_WRITABLE
-    } which;
-
-    ConstraintDataFreezePropertyState(Which which)
-      : which(which)
+    ConstraintDataFreezeConfiguredProperty()
     {}
 
-    const char *kind() { return (which == NON_DATA) ? "freezeNonDataProperty" : "freezeNonWritableProperty"; }
+    const char *kind() { return "freezeConfiguredProperty"; }
 
     bool invalidateOnNewType(Type type) { return false; }
     bool invalidateOnNewPropertyState(TypeSet *property) {
-        return (which == NON_DATA)
-               ? property->nonDataProperty()
-               : property->nonWritableProperty();
+        return property->configuredProperty();
     }
     bool invalidateOnNewObjectState(TypeObject *object) { return false; }
 
     bool constraintHolds(JSContext *cx,
                          const HeapTypeSetKey &property, TemporaryTypeSet *expected)
     {
-        return !invalidateOnNewPropertyState(property.maybeTypes());
+        return !property.maybeTypes()->configuredProperty();
     }
 
     bool shouldSweep() { return false; }
@@ -1542,30 +1531,16 @@ class ConstraintDataFreezePropertyState
 } /* anonymous namespace */
 
 bool
-HeapTypeSetKey::nonData(CompilerConstraintList *constraints)
+HeapTypeSetKey::configured(CompilerConstraintList *constraints)
 {
-    if (maybeTypes() && maybeTypes()->nonDataProperty())
+    if (maybeTypes() && maybeTypes()->configuredProperty())
         return true;
 
     LifoAlloc *alloc = constraints->alloc();
 
-    typedef CompilerConstraintInstance<ConstraintDataFreezePropertyState> T;
+    typedef CompilerConstraintInstance<ConstraintDataFreezeConfiguredProperty> T;
     constraints->add(alloc->new_<T>(alloc, *this,
-                                    ConstraintDataFreezePropertyState(ConstraintDataFreezePropertyState::NON_DATA)));
-    return false;
-}
-
-bool
-HeapTypeSetKey::nonWritable(CompilerConstraintList *constraints)
-{
-    if (maybeTypes() && maybeTypes()->nonWritableProperty())
-        return true;
-
-    LifoAlloc *alloc = constraints->alloc();
-
-    typedef CompilerConstraintInstance<ConstraintDataFreezePropertyState> T;
-    constraints->add(alloc->new_<T>(alloc, *this,
-                                    ConstraintDataFreezePropertyState(ConstraintDataFreezePropertyState::NON_WRITABLE)));
+                                    ConstraintDataFreezeConfiguredProperty()));
     return false;
 }
 
@@ -2096,7 +2071,7 @@ PrototypeHasIndexedProperty(CompilerConstraintList *constraints, JSObject *obj)
         if (type->unknownProperties())
             return true;
         HeapTypeSetKey index = type->property(JSID_VOID);
-        if (index.nonData(constraints) || index.isOwnProperty(constraints))
+        if (index.configured(constraints) || index.isOwnProperty(constraints))
             return true;
         if (!obj->hasTenuredProto())
             return true;
@@ -2764,10 +2739,10 @@ UpdatePropertyType(ExclusiveContext *cx, HeapTypeSet *types, JSObject *obj, Shap
                    bool indexed)
 {
     if (!shape->writable())
-        types->setNonWritableProperty(cx);
+        types->setConfiguredProperty(cx);
 
     if (shape->hasGetterValue() || shape->hasSetterValue()) {
-        types->setNonDataProperty(cx);
+        types->setConfiguredProperty(cx);
         if (!types->TypeSet::addType(Type::UnknownType(), &cx->typeLifoAlloc()))
             cx->compartment()->types.setPendingNukeTypes(cx);
     } else if (shape->hasDefaultGetter() && shape->hasSlot()) {
@@ -2834,10 +2809,10 @@ TypeObject::addProperty(ExclusiveContext *cx, jsid id, Property **pprop)
 
         if (singleton()->watched()) {
             /*
-             * Mark the property as non-data, to inhibit optimizations on it
+             * Mark the property as configured, to inhibit optimizations on it
              * and avoid bypassing the watchpoint handler.
              */
-            base->types.setNonDataProperty(cx);
+            base->types.setConfiguredProperty(cx);
         }
     }
 
@@ -2953,7 +2928,7 @@ TypeObject::addPropertyType(ExclusiveContext *cx, const char *name, const Value 
 }
 
 void
-TypeObject::markPropertyNonData(ExclusiveContext *cx, jsid id)
+TypeObject::markPropertyConfigured(ExclusiveContext *cx, jsid id)
 {
     AutoEnterAnalysis enter(cx);
 
@@ -2961,36 +2936,15 @@ TypeObject::markPropertyNonData(ExclusiveContext *cx, jsid id)
 
     HeapTypeSet *types = getProperty(cx, id);
     if (types)
-        types->setNonDataProperty(cx);
-}
-
-void
-TypeObject::markPropertyNonWritable(ExclusiveContext *cx, jsid id)
-{
-    AutoEnterAnalysis enter(cx);
-
-    id = IdToTypeId(id);
-
-    HeapTypeSet *types = getProperty(cx, id);
-    if (types)
-        types->setNonWritableProperty(cx);
+        types->setConfiguredProperty(cx);
 }
 
 bool
-TypeObject::isPropertyNonData(jsid id)
+TypeObject::isPropertyConfigured(jsid id)
 {
     TypeSet *types = maybeGetProperty(id);
     if (types)
-        return types->nonDataProperty();
-    return false;
-}
-
-bool
-TypeObject::isPropertyNonWritable(jsid id)
-{
-    TypeSet *types = maybeGetProperty(id);
-    if (types)
-        return types->nonWritableProperty();
+        return types->configuredProperty();
     return false;
 }
 
@@ -3068,7 +3022,7 @@ TypeObject::markUnknown(ExclusiveContext *cx)
         Property *prop = getProperty(i);
         if (prop) {
             prop->types.addType(cx, Type::UnknownType());
-            prop->types.setNonDataProperty(cx);
+            prop->types.setConfiguredProperty(cx);
         }
     }
 }
@@ -3132,7 +3086,7 @@ TypeObject::clearNewScriptAddendum(ExclusiveContext *cx)
         if (!prop)
             continue;
         if (prop->types.definiteProperty())
-            prop->types.setNonDataProperty(cx);
+            prop->types.setConfiguredProperty(cx);
     }
 
     /*
@@ -3294,13 +3248,11 @@ class TypeConstraintClearDefiniteGetterSetter : public TypeConstraint
         /*
          * Clear out the newScript shape and definite property information from
          * an object if the source type set could be a setter or could be
-         * non-writable.
+         * non-writable, both of which are indicated by the source type set
+         * being marked as configured.
          */
-        if (!(object->flags() & OBJECT_FLAG_ADDENDUM_CLEARED) &&
-            (source->nonDataProperty() || source->nonWritableProperty()))
-        {
+        if (!(object->flags() & OBJECT_FLAG_ADDENDUM_CLEARED) && source->configuredProperty())
             object->clearAddendum(cx);
-        }
     }
 
     void newType(JSContext *cx, TypeSet *source, Type type) {}
@@ -3329,7 +3281,7 @@ types::AddClearDefiniteGetterSetterForPrototypeChain(JSContext *cx, TypeObject *
         if (!parentObject || parentObject->unknownProperties())
             return false;
         HeapTypeSet *parentTypes = parentObject->getProperty(cx, id);
-        if (!parentTypes || parentTypes->nonDataProperty() || parentTypes->nonWritableProperty())
+        if (!parentTypes || parentTypes->configuredProperty())
             return false;
         parentTypes->add(cx, cx->typeLifoAlloc().new_<TypeConstraintClearDefiniteGetterSetter>(type));
         parent = parent->getProto();
