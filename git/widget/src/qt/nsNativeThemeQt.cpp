@@ -338,7 +338,6 @@ nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
         aResult->SizeTo(2, 2, 2, 2);
         return PR_TRUE;
     }
-
     return PR_FALSE;
 }
 
@@ -397,16 +396,11 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
         break;
     }
     case NS_THEME_SCROLLBAR_BUTTON_UP:
-    case NS_THEME_SCROLLBAR_BUTTON_DOWN: {
-        (*aResult).width = s->pixelMetric(QStyle::PM_ScrollBarExtent);
-        (*aResult).height = (*aResult).width;
-        //*aIsOverridable = PR_FALSE;
-        break;
-    }
+    case NS_THEME_SCROLLBAR_BUTTON_DOWN:
     case NS_THEME_SCROLLBAR_BUTTON_LEFT:
     case NS_THEME_SCROLLBAR_BUTTON_RIGHT: {
-        (*aResult).height = s->pixelMetric(QStyle::PM_ScrollBarExtent);
-        (*aResult).width = (*aResult).height;
+        (*aResult).width = s->pixelMetric(QStyle::PM_ScrollBarExtent);
+        (*aResult).height = (*aResult).width;
         //*aIsOverridable = PR_FALSE;
         break;
         }
@@ -451,7 +445,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
     case NS_THEME_DROPDOWN: {
         QStyleOptionComboBox comboOpt;
 
-        nsRect frameRect = aFrame->GetRect();
+        nsRect frameRect = aFrame->GetContentRect();
         QRect qRect = qRectInPixels(frameRect, p2a);
         comboOpt.rect = qRect;
 
@@ -468,6 +462,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
         break;
     }
     case NS_THEME_DROPDOWN_TEXT: {
+        qDebug("---");
         QStyleOptionComboBox comboOpt;
         
         nsRect frameRect = aFrame->GetRect();
@@ -658,7 +653,8 @@ void
 nsNativeThemeQt::InitComboStyle(PRUint8 aWidgetType,
                                 nsIFrame* aFrame,
                                 QRect rect,
-                                QStyleOptionComboBox &opt)
+                                QStyleOptionComboBox &opt,
+                                QStyle::State extraFlags /*= QStyle::State_None*/)
 {
     PRInt32 eventState = GetContentState(aFrame, aWidgetType);
 
@@ -674,8 +670,10 @@ nsNativeThemeQt::InitComboStyle(PRUint8 aWidgetType,
         opt.state |= QStyle::State_Raised;
     if (!disabled && eventState & NS_EVENT_STATE_ACTIVE)
         // Don't allow sunken when disabled
-        opt.state |= QStyle::State_Sunken;
+        opt.state |= QStyle::State_On;
 
     opt.rect = rect;
     opt.palette = mNoBackgroundPalette;
+
+    opt.state |= extraFlags;
 }

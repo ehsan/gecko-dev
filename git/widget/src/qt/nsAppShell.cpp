@@ -56,10 +56,24 @@ PRLogModuleInfo *gWidgetIMLog = nsnull;
 PRLogModuleInfo *gWidgetDrawLog = nsnull;
 #endif
 
-static int sPokeEvent;
+void nsAppShell::EventNativeCallback(int fd)
+{
+    unsigned char c;
+    read (mPipeFDs[0], &c, sizeof(unsigned int));
+    NS_ASSERTION(c == (unsigned char) NOTIFY_TOKEN, "wrong token");
+
+    NativeEventCallback();
+    return;
+}
 
 nsAppShell::~nsAppShell()
 {
+    if (mTag)
+        mTag = 0;
+    if (mPipeFDs[0])
+        close(mPipeFDs[0]);
+    if (mPipeFDs[1])
+        close(mPipeFDs[1]);
 }
 
 nsresult
@@ -76,16 +90,41 @@ nsAppShell::Init()
         gWidgetDrawLog = PR_NewLogModule("WidgetDraw");
 #endif
 
-    sPokeEvent = QEvent::registerEventType();
+    int err = pipe(mPipeFDs);
+    if (err)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    // make the pipe nonblocking
+
+    int flags = fcntl(mPipeFDs[0], F_GETFL, 0);
+    if (flags == -1)
+        goto failed;
+    err = fcntl(mPipeFDs[0], F_SETFL, flags | O_NONBLOCK);
+    if (err == -1)
+        goto failed;
+    flags = fcntl(mPipeFDs[1], F_GETFL, 0);
+    if (flags == -1)
+        goto failed;
+    err = fcntl(mPipeFDs[1], F_SETFL, flags | O_NONBLOCK);
+    if (err == -1)
+        goto failed;
+
+    mTag = new QSocketNotifier (mPipeFDs[0], QSocketNotifier::Read);
+    connect (mTag, SIGNAL(activated(int)), SLOT(EventNativeCallback(int)));
 
     return nsBaseAppShell::Init();
+failed:
+    close(mPipeFDs[0]);
+    close(mPipeFDs[1]);
+    mPipeFDs[0] = mPipeFDs[1] = 0;
+    return NS_ERROR_FAILURE;
 }
 
 void
 nsAppShell::ScheduleNativeEventCallback()
 {
-    QCoreApplication::postEvent(this,
-                                new QEvent((QEvent::Type) sPokeEvent));
+  unsigned char buf [] = { NOTIFY_TOKEN };
+  write (mPipeFDs[1], buf, 1);
 }
 
 PRBool
@@ -98,15 +137,4 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 
   qApp->processEvents(flags);
   return PR_TRUE;
-}
-
-bool
-nsAppShell::event (QEvent *e)
-{
-    if (e->type() == sPokeEvent) {
-        NativeEventCallback();
-        return true;
-    }
-
-    return false;
 }

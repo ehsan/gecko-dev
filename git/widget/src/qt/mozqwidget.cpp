@@ -85,14 +85,14 @@ bool MozQWidget::event(QEvent *e)
     case QEvent::FocusIn:
     {
         QFocusEvent *fev = (QFocusEvent*)(e);
-        mReceiver->OnFocusInEvent(fev);
+        mReceiver->OnContainerFocusInEvent(fev);
         return TRUE;
     }
     break;
     case QEvent::FocusOut:
     {
         QFocusEvent *fev = (QFocusEvent*)(e);
-        mReceiver->OnFocusOutEvent(fev);
+        mReceiver->OnContainerFocusOutEvent(fev);
         return TRUE;
     }
     break;
@@ -109,19 +109,19 @@ bool MozQWidget::event(QEvent *e)
     case QEvent::Paint:
     {
         QPaintEvent *ev = (QPaintEvent*)(e);
-        status = mReceiver->OnPaintEvent(ev);
+        status = mReceiver->OnExposeEvent(ev);
     }
     break;
     case QEvent::Move:
     {
         QMoveEvent *mev = (QMoveEvent*)(e);
-        status = mReceiver->OnMoveEvent(mev);
+        status = mReceiver->OnConfigureEvent(mev);
     }
     break;
     case QEvent::Resize:
     {
         QResizeEvent *rev = (QResizeEvent*)(e);
-        status = mReceiver->OnResizeEvent(rev);
+        status = mReceiver->OnSizeAllocate(rev);
     }
         break;
     case QEvent::Show:
@@ -139,7 +139,7 @@ bool MozQWidget::event(QEvent *e)
     case QEvent::Close:
     {
         QCloseEvent *cev = (QCloseEvent*)(e);
-        status = mReceiver->OnCloseEvent(cev);
+        status = mReceiver->OnDeleteEvent(cev);
     }
     break;
     case QEvent::Wheel:
