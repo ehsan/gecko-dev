@@ -118,7 +118,6 @@
 #include "nsExpirationTracker.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGEffects.h"
-#include "nsChangeHint.h"
 
 #include "gfxContext.h"
 #include "CSSCalc.h"
@@ -1890,7 +1889,7 @@ nsFrame::FireDOMEvent(const nsAString& aDOMEventName, nsIContent *aContent)
   if (target) {
     nsRefPtr<nsPLDOMEvent> event =
       new nsPLDOMEvent(target, aDOMEventName, PR_TRUE, PR_FALSE);
-    if (NS_FAILED(event->PostDOMEvent()))
+    if (!event || NS_FAILED(event->PostDOMEvent()))
       NS_WARNING("Failed to dispatch nsPLDOMEvent");
   }
 }
@@ -2192,7 +2191,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   else
     frameselection = shell->ConstFrameSelection();
 
-  if (!frameselection || frameselection->GetDisplaySelection() == nsISelectionController::SELECTION_OFF)
+  if (frameselection->GetDisplaySelection() == nsISelectionController::SELECTION_OFF)
     return NS_OK;//nothing to do we cannot affect selection from here
 
   nsMouseEvent *me = (nsMouseEvent *)aEvent;
@@ -4100,17 +4099,12 @@ nsIFrame::InvalidateTransformLayer()
 
 class LayerActivity {
 public:
-  LayerActivity(nsIFrame* aFrame) : mFrame(aFrame), mChangeHint(nsChangeHint(0)) {}
+  LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
   ~LayerActivity();
   nsExpirationState* GetExpirationState() { return &mState; }
 
   nsIFrame* mFrame;
   nsExpirationState mState;
-  // mChangeHint can be some combination of nsChangeHint_UpdateOpacityLayer and
-  // nsChangeHint_UpdateTransformLayer (or neither)
-  // The presence of those bits indicates whether opacity or transform
-  // changes have been detected.
-  nsChangeHint mChangeHint;
 };
 
 class LayerActivityTracker : public nsExpirationTracker<LayerActivity,4> {
@@ -4155,7 +4149,7 @@ LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
 }
 
 void
-nsIFrame::MarkLayersActive(nsChangeHint aChangeHint)
+nsIFrame::MarkLayersActive()
 {
   FrameProperties properties = Properties();
   LayerActivity* layerActivity =
@@ -4170,21 +4164,12 @@ nsIFrame::MarkLayersActive(nsChangeHint aChangeHint)
     gLayerActivityTracker->AddObject(layerActivity);
     properties.Set(LayerActivityProperty(), layerActivity);
   }
-  NS_UpdateHint(layerActivity->mChangeHint, aChangeHint);
 }
 
 PRBool
 nsIFrame::AreLayersMarkedActive()
 {
   return Properties().Get(LayerActivityProperty()) != nsnull;
-}
-
-PRBool
-nsIFrame::AreLayersMarkedActive(nsChangeHint aChangeHint)
-{
-  LayerActivity* layerActivity =
-    static_cast<LayerActivity*>(Properties().Get(LayerActivityProperty()));
-  return layerActivity && (layerActivity->mChangeHint & aChangeHint);
 }
 
 /* static */ void

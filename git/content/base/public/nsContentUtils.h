@@ -112,7 +112,7 @@ class nsIContentPolicy;
 class nsILineBreaker;
 class nsIWordBreaker;
 class nsIJSRuntimeService;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
@@ -123,6 +123,7 @@ class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
 class nsPIDOMWindow;
+class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
 #ifdef MOZ_XTF
@@ -1000,8 +1001,8 @@ public:
    * @param aCreateIfNotFound If PR_FALSE, returns a listener manager only if
    *                          one already exists.
    */
-  static nsEventListenerManager* GetListenerManager(nsINode* aNode,
-                                                    PRBool aCreateIfNotFound);
+  static nsIEventListenerManager* GetListenerManager(nsINode* aNode,
+                                                     PRBool aCreateIfNotFound);
 
   /**
    * Remove the eventlistener manager for aNode.
@@ -1820,10 +1821,10 @@ public:
   ~nsCxPusher(); // Calls Pop();
 
   // Returns PR_FALSE if something erroneous happened.
-  PRBool Push(nsIDOMEventTarget *aCurrentTarget);
+  PRBool Push(nsPIDOMEventTarget *aCurrentTarget);
   // If nothing has been pushed to stack, this works like Push.
   // Otherwise if context will change, Pop and Push will be called.
-  PRBool RePush(nsIDOMEventTarget *aCurrentTarget);
+  PRBool RePush(nsPIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
   PRBool Push(JSContext *cx, PRBool aRequiresScriptContext = PR_TRUE);

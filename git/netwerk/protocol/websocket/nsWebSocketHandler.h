@@ -120,8 +120,6 @@ public:
   const static PRUint16 kCloseProtocolError = 1002;
   const static PRUint16 kCloseUnsupported   = 1003;
   const static PRUint16 kCloseTooLarge      = 1004;
-  const static PRUint16 kCloseNoStatus      = 1005;
-  const static PRUint16 kCloseAbnormal      = 1006;
 
 protected:
   virtual ~nsWebSocketHandler();
@@ -140,13 +138,10 @@ private:
   nsresult HandleExtensions();
   nsresult SetupRequest();
   nsresult ApplyForAdmission();
-  nsresult StartWebsocketData();
-  PRUint16 ResultToCloseCode(nsresult resultCode);
   
   void StopSession(nsresult reason);
   void AbortSession(nsresult reason);
   void ReleaseSession();
-  void CleanupConnection();
 
   void EnsureHdrOut(PRUint32 size);
   void ApplyMask(PRUint32 mask, PRUint8 *data, PRUint64 len);
@@ -228,12 +223,6 @@ private:
   PRUint32                        mPingTimeout;  /* milliseconds */
   PRUint32                        mPingResponseTimeout;  /* milliseconds */
   
-  nsCOMPtr<nsITimer>              mLingeringCloseTimer;
-  const static PRInt32            kLingeringCloseTimeout =   1000;
-  const static PRInt32            kLingeringCloseThreshold = 50;
-
-  PRUint32                        mMaxConcurrentConnections;
-
   PRUint32                        mRecvdHttpOnStartRequest   : 1;
   PRUint32                        mRecvdHttpUpgradeTransport : 1;
   PRUint32                        mRequestedClose            : 1;
@@ -245,11 +234,9 @@ private:
   PRUint32                        mAllowCompression          : 1;
   PRUint32                        mAutoFollowRedirects       : 1;
   PRUint32                        mReleaseOnTransmit         : 1;
-  PRUint32                        mTCPClosed                 : 1;
   
   PRInt32                         mMaxMessageSize;
   nsresult                        mStopOnClose;
-  PRUint16                        mCloseCode;
 
   // These are for the read buffers
   PRUint8                        *mFramePtr;

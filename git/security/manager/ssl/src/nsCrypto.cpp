@@ -2013,8 +2013,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   NS_ENSURE_TRUE(secMan, NS_ERROR_UNEXPECTED);
   
   nsCOMPtr<nsIPrincipal> principals;
-  nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(principals));
-  NS_ENSURE_SUCCESS(rv, rv);
+  secMan->GetSubjectPrincipal(getter_AddRefs(principals));
   NS_ENSURE_TRUE(principals, NS_ERROR_UNEXPECTED);
   
   nsCryptoRunArgs *args = new nsCryptoRunArgs();
@@ -2032,7 +2031,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   if (!cryptoRunnable)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  rv = NS_DispatchToMainThread(cryptoRunnable);
+  nsresult rv = NS_DispatchToMainThread(cryptoRunnable);
   if (NS_FAILED(rv))
     delete cryptoRunnable;
 

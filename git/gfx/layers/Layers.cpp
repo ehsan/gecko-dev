@@ -48,7 +48,6 @@
 #include "mozilla/Util.h"
 
 using namespace mozilla::layers;
-using namespace mozilla::gfx;
 
 typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
@@ -209,14 +208,6 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
 {
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
-}
-
-TemporaryRef<DrawTarget>
-LayerManager::CreateDrawTarget(const IntSize &aSize,
-                               SurfaceFormat aFormat)
-{
-  // Right now this doesn't work on the general layer manager.
-  return NULL;
 }
 
 #ifdef DEBUG
@@ -579,6 +570,9 @@ ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   if (!mValidRegion.IsEmpty()) {
     AppendToString(aTo, mValidRegion, " [valid=", "]");
+  }
+  if (mXResolution != 1.0 || mYResolution != 1.0) {
+    aTo.AppendPrintf(" [xres=%g yres=%g]", mXResolution, mYResolution);
   }
   return aTo;
 }

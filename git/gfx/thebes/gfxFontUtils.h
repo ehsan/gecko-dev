@@ -900,7 +900,7 @@ public:
         InitLoader();
 
         // start timer
-        mTimer->InitWithFuncCallback(LoaderTimerCallback, this, timerInterval,
+        mTimer->InitWithFuncCallback(LoaderTimerCallback, this, aDelay, 
                                      nsITimer::TYPE_REPEATING_SLACK);
     }
 

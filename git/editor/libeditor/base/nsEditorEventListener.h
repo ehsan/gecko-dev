@@ -52,6 +52,7 @@
 
 class nsEditor;
 class nsIDOMDragEvent;
+class nsPIDOMEventTarget;
 
 class nsEditorEventListener : public nsIDOMKeyListener,
                               public nsIDOMTextListener,

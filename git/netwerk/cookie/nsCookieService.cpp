@@ -83,7 +83,6 @@
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 using namespace mozilla::net;
 
@@ -1946,7 +1945,7 @@ nsCookieService::CancelAsyncRead(PRBool aPurgeReadSet)
   // Cancel the pending read, kill the read listener, and empty the array
   // of data already read in on the background thread.
   mDefaultDBState->readListener->Cancel();
-  mozilla::DebugOnly<nsresult> rv = mDefaultDBState->pendingRead->Cancel();
+  nsresult rv = mDefaultDBState->pendingRead->Cancel();
   NS_ASSERT_SUCCESS(rv);
 
   mDefaultDBState->stmtReadDomain = nsnull;

@@ -125,6 +125,7 @@
 #endif
 #endif
 
+#include "base/basictypes.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollectorUtils.h"
 #include "nsIProgrammingLanguage.h"
@@ -151,6 +152,8 @@
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
 #include "xpcpublic.h"
+#include "base/histogram.h"
+#include "base/logging.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
@@ -164,7 +167,6 @@
 
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 
@@ -1461,30 +1463,8 @@ public:
     NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
 
 private:
-    void DescribeNode(PRUint32 refCount,
-                      size_t objSz,
-                      const char *objName)
-    {
-#ifdef DEBUG_CC
-        mCurrPi->mBytes = objSz;
-        mCurrPi->mName = PL_strdup(objName);
-#endif
-
-        if (mListener) {
-            mListener->NoteObject((PRUint64)mCurrPi->mPointer, objName);
-        }
-
-        mCurrPi->mRefCount = refCount;
-
-#ifdef DEBUG_CC
-        sCollector->mStats.mVisitedNode++;
-#endif
-    }
-
-    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
-                                             const char *objName);
-    NS_IMETHOD_(void) DescribeGCedNode(PRBool isMarked, size_t objSz,
-                                       const char *objName);
+    NS_IMETHOD_(void) DescribeNode(CCNodeType type, nsrefcnt refCount,
+                                   size_t objSz, const char *objName);
     NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void *child,
                                nsCycleCollectionParticipant* participant);
     NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child);
@@ -1616,22 +1596,32 @@ GCGraphBuilder::NoteRoot(PRUint32 langID, void *root,
 }
 
 NS_IMETHODIMP_(void)
-GCGraphBuilder::DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
-                                       const char *objName)
+GCGraphBuilder::DescribeNode(CCNodeType type, nsrefcnt refCount,
+                             size_t objSz, const char *objName)
 {
-    if (refCount == 0)
-        Fault("zero refcount", mCurrPi);
-    if (refCount == PR_UINT32_MAX)
-        Fault("overflowing refcount", mCurrPi);
-    DescribeNode(refCount, objSz, objName);
-}
+#ifdef DEBUG_CC
+    mCurrPi->mBytes = objSz;
+    mCurrPi->mName = PL_strdup(objName);
+#endif
 
-NS_IMETHODIMP_(void)
-GCGraphBuilder::DescribeGCedNode(PRBool isMarked, size_t objSz,
-                                 const char *objName)
-{
-    PRUint32 refCount = isMarked ? PR_UINT32_MAX : 0;
-    DescribeNode(refCount, objSz, objName);
+    if (mListener) {
+        mListener->NoteObject((PRUint64)mCurrPi->mPointer, objName);
+    }
+
+    if (type == RefCounted) {
+        if (refCount == 0)
+            Fault("zero refcount", mCurrPi);
+        if (refCount == PR_UINT32_MAX)
+            Fault("overflowing refcount", mCurrPi);
+
+        mCurrPi->mRefCount = refCount;
+    }
+    else {
+        mCurrPi->mRefCount = type == GCMarked ? PR_UINT32_MAX : 0;
+    }
+#ifdef DEBUG_CC
+    sCollector->mStats.mVisitedNode++;
+#endif
 }
 
 NS_IMETHODIMP_(void)
@@ -2291,14 +2281,8 @@ public:
         return mSuppressThisNode;
     }
 
-    NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount, size_t objSz,
-                                             const char *objName)
-    {
-        mSuppressThisNode = (PL_strstr(sSuppressionList, objName) != nsnull);
-    }
-
-    NS_IMETHOD_(void) DescribeGCedNode(PRBool isMarked, size_t objSz,
-                                       const char *objName)
+    NS_IMETHOD_(void) DescribeNode(CCNodeType type, nsrefcnt refCount,
+                                   size_t objSz, const char *objName)
     {
         mSuppressThisNode = (PL_strstr(sSuppressionList, objName) != nsnull);
     }
@@ -2601,7 +2585,8 @@ nsCycleCollector::CleanupAfterCollection()
 #ifdef COLLECT_TIME_DEBUG
     printf("cc: CleanupAfterCollection(), total time %ums\n", interval);
 #endif
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR, interval);
+    UMA_HISTOGRAM_TIMES("nsCycleCollector::Collect (ms)",
+                        base::TimeDelta::FromMilliseconds(interval));
 
 #ifdef DEBUG_CC
     ExplainLiveExpectedGarbage();

@@ -1904,9 +1904,9 @@ public:
     nsInProcessTabChildGlobal* tabChild =
       static_cast<nsInProcessTabChildGlobal*>(mFrameLoader->mChildMessageManager.get());
     if (tabChild && tabChild->GetInnerManager()) {
-      nsFrameScriptCx cx(static_cast<nsIDOMEventTarget*>(tabChild), tabChild);
+      nsFrameScriptCx cx(static_cast<nsPIDOMEventTarget*>(tabChild), tabChild);
       nsRefPtr<nsFrameMessageManager> mm = tabChild->GetInnerManager();
-      mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(tabChild), mMessage,
+      mm->ReceiveMessage(static_cast<nsPIDOMEventTarget*>(tabChild), mMessage,
                          PR_FALSE, mJSON, nsnull, nsnull);
     }
     return NS_OK;
@@ -2056,7 +2056,7 @@ nsFrameLoader::EnsureMessageManager()
   return NS_OK;
 }
 
-nsIDOMEventTarget*
+nsPIDOMEventTarget*
 nsFrameLoader::GetTabChildGlobalAsEventTarget()
 {
   return static_cast<nsInProcessTabChildGlobal*>(mChildMessageManager.get());

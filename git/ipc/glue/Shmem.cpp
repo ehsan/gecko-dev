@@ -45,7 +45,6 @@
 #include "SharedMemorySysV.h"
 
 #include "nsAutoPtr.h"
-#include "mozilla/unused.h"
 
 
 namespace mozilla {
@@ -357,10 +356,7 @@ Shmem::AssertInvariants() const
   // trigger SIGSEGV
   char checkMappingFront = *reinterpret_cast<char*>(mData);
   char checkMappingBack = *(reinterpret_cast<char*>(mData) + mSize - 1);
-
-  // avoid "unused" warnings for these variables:
-  unused << checkMappingFront;
-  unused << checkMappingBack;
+  checkMappingFront = checkMappingBack; // avoid "unused" warnings
 }
 
 void

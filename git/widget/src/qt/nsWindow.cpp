@@ -309,8 +309,8 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
             return true;
     }
 
-    gBufferMaxSize.width = NS_MAX(gBufferMaxSize.width, size.width);
-    gBufferMaxSize.height = NS_MAX(gBufferMaxSize.height, size.height);
+    gBufferMaxSize.width = PR_MAX(gBufferMaxSize.width, size.width);
+    gBufferMaxSize.height = PR_MAX(gBufferMaxSize.height, size.height);
 
     // Check if system depth has related gfxImage format
     gfxASurface::gfxImageFormat format =
@@ -2596,12 +2596,7 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     // create a QGraphicsView if this is a new toplevel window
 
     if (mIsTopLevel) {
-        QGraphicsView* newView = nsnull;
-#if defined MOZ_ENABLE_MEEGOTOUCH
-        newView = new MozMGraphicsView(widget, parentWidget);
-#else
-        newView = new MozQGraphicsView(widget, parentWidget);
-#endif
+        QGraphicsView* newView = new MozQGraphicsView(widget, parentWidget);
 
         if (!newView) {
             delete widget;

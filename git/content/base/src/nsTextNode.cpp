@@ -42,6 +42,7 @@
 #include "nsTextNode.h"
 #include "nsContentUtils.h"
 #include "nsIDOMEventListener.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsIAttribute.h"
 #include "nsIDocument.h"

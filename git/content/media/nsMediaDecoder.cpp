@@ -74,6 +74,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mRGBWidth(-1),
   mRGBHeight(-1),
   mVideoUpdateLock("nsMediaDecoder.mVideoUpdateLock"),
+  mPixelAspectRatio(1.0),
   mFrameBufferLength(0),
   mPinnedForSeek(PR_FALSE),
   mSizeChanged(PR_FALSE),
@@ -115,6 +116,15 @@ nsresult nsMediaDecoder::RequestFrameBufferLength(PRUint32 aLength)
   return NS_OK;
 }
 
+
+static PRInt32 ConditionDimension(float aValue, PRInt32 aDefault)
+{
+  // This will exclude NaNs and infinities
+  if (aValue >= 1.0 && aValue <= 10000.0)
+    return PRInt32(NS_round(aValue));
+  return aDefault;
+}
+
 void nsMediaDecoder::Invalidate()
 {
   if (!mElement)
@@ -131,9 +141,21 @@ void nsMediaDecoder::Invalidate()
     mImageContainerSizeChanged = PR_FALSE;
 
     if (mSizeChanged) {
-      mElement->UpdateMediaSize(nsIntSize(mRGBWidth, mRGBHeight));
-      mSizeChanged = PR_FALSE;
+      nsIntSize scaledSize(mRGBWidth, mRGBHeight);
+      // Apply the aspect ratio to produce the intrinsic size we report
+      // to the element.
+      if (mPixelAspectRatio > 1.0) {
+        // Increase the intrinsic width
+        scaledSize.width =
+          ConditionDimension(mPixelAspectRatio*scaledSize.width, scaledSize.width);
+      } else {
+        // Increase the intrinsic height
+        scaledSize.height =
+          ConditionDimension(scaledSize.height/mPixelAspectRatio, scaledSize.height);
+      }
+      mElement->UpdateMediaSize(scaledSize);
 
+      mSizeChanged = PR_FALSE;
       if (frame) {
         nsPresContext* presContext = frame->PresContext();
         nsIPresShell *presShell = presContext->PresShell();
@@ -222,14 +244,17 @@ void nsMediaDecoder::FireTimeUpdate()
 }
 
 void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
+                                  float aPixelAspectRatio,
                                   Image* aImage,
                                   TimeStamp aTarget)
 {
   MutexAutoLock lock(mVideoUpdateLock);
 
-  if (mRGBWidth != aSize.width || mRGBHeight != aSize.height) {
+  if (mRGBWidth != aSize.width || mRGBHeight != aSize.height ||
+      mPixelAspectRatio != aPixelAspectRatio) {
     mRGBWidth = aSize.width;
     mRGBHeight = aSize.height;
+    mPixelAspectRatio = aPixelAspectRatio;
     mSizeChanged = PR_TRUE;
   }
   if (mImageContainer && aImage) {

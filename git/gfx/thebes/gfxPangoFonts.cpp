@@ -161,14 +161,6 @@ FindFunctionSymbol(const char *name)
     return result;
 }
 
-static PRBool HasChar(FcPattern *aFont, FcChar32 wc)
-{
-    FcCharSet *charset = NULL;
-    FcPatternGetCharSet(aFont, FC_CHARSET, 0, &charset);
-
-    return charset && FcCharSetHasChar(charset, wc);
-}
-
 /**
  * gfxFcFontEntry:
  *
@@ -206,17 +198,6 @@ public:
     // instead of trying to get the 'name' table, as we don't implement
     // GetFontTable() here
     virtual nsString RealFaceName();
-
-    // This is needed to make gfxFontEntry::HasCharacter(aCh) work.
-    virtual PRBool TestCharacterMap(PRUint32 aCh)
-    {
-        for (PRUint32 i = 0; i < mPatterns.Length(); ++i) {
-            if (HasChar(mPatterns[i], aCh)) {
-                return PR_TRUE;
-            }
-        }
-        return PR_FALSE;
-    }
 
 protected:
     gfxFcFontEntry(const nsAString& aName)
@@ -1651,6 +1632,14 @@ gfxFcFontSet::GetFontPatternAt(PRUint32 i)
     }
 
     return mFonts[i].mPattern;
+}
+
+static PRBool HasChar(FcPattern *aFont, FcChar32 wc)
+{
+    FcCharSet *charset = NULL;
+    FcPatternGetCharSet(aFont, FC_CHARSET, 0, &charset);
+
+    return charset && FcCharSetHasChar(charset, wc);
 }
 
 /**

@@ -1375,14 +1375,21 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
 /**
  * Set the frames on the overflow list
  */
-void
+nsresult
 nsContainerFrame::SetOverflowFrames(nsPresContext* aPresContext,
                                     const nsFrameList& aOverflowFrames)
 {
   NS_PRECONDITION(aOverflowFrames.NotEmpty(), "Shouldn't be called");
   nsFrameList* newList = new nsFrameList(aOverflowFrames);
+  if (!newList) {
+    // XXXbz should really destroy the frames here, but callers are holding
+    // pointers to them.... We should switch all callers to framelists, then
+    // audit and do that.
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   aPresContext->PropertyTable()->Set(this, OverflowProperty(), newList);
+  return NS_OK;
 }
 
 nsFrameList*

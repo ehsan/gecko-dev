@@ -71,18 +71,10 @@ gfxCoreTextShaper::gfxCoreTextShaper(gfxMacFont *aFont)
     : gfxFontShaper(aFont)
 {
     // Create our CTFontRef
-    if (gfxMacPlatformFontList::UseATSFontEntry()) {
-        ATSFontEntry *fe = static_cast<ATSFontEntry*>(aFont->GetFontEntry());
-        mCTFont = ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(),
-                                                 aFont->GetAdjustedSize(),
-                                                 NULL,
-                                                 GetDefaultFeaturesDescriptor());
-    } else {
-        mCTFont = ::CTFontCreateWithGraphicsFont(aFont->GetCGFontRef(),
-                                                 aFont->GetAdjustedSize(),
-                                                 NULL,
-                                                 GetDefaultFeaturesDescriptor());
-    }
+    mCTFont = ::CTFontCreateWithPlatformFont(aFont->GetATSFontRef(),
+                                             aFont->GetAdjustedSize(),
+                                             NULL,
+                                             GetDefaultFeaturesDescriptor());
 
     // Set up the default attribute dictionary that we will need each time we create a CFAttributedString
     mAttributesDict = ::CFDictionaryCreate(kCFAllocatorDefault,
@@ -169,8 +161,10 @@ gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
     if (disableLigatures) {
         // For letterspacing (or maybe other situations) we need to make a copy of the CTFont
         // with the ligature feature disabled
+        gfxMacFont *font = static_cast<gfxMacFont*>(mFont);
         CTFontRef ctFont =
-            CreateCTFontWithDisabledLigatures(::CTFontGetSize(mCTFont));
+            CreateCTFontWithDisabledLigatures(font->GetATSFontRef(),
+                                              ::CTFontGetSize(mCTFont));
 
         attrObj =
             ::CFDictionaryCreate(kCFAllocatorDefault,
@@ -601,9 +595,9 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
     ::CFRelease(attributesDict);
 }
 
-// Create a CTFontRef, with the Common Ligatures feature disabled
+// Create a CTFontRef, with the Common Ligatures feature disabled [static]
 CTFontRef
-gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
+gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat aSize)
 {
     if (sDisableLigaturesDescriptor == NULL) {
         // initialize cached descriptor to turn off the Common Ligatures feature
@@ -649,20 +643,11 @@ gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
         ::CFRelease(featuresArray);
 
         sDisableLigaturesDescriptor =
-            ::CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(),
-                                                       attributesDict);
+            ::CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(), attributesDict);
         ::CFRelease(attributesDict);
     }
-
-    if (gfxMacPlatformFontList::UseATSFontEntry()) {
-        ATSFontEntry *fe = static_cast<ATSFontEntry*>(mFont->GetFontEntry());
-        return ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(), aSize, NULL,
-                                              sDisableLigaturesDescriptor);
-    }
-
-    gfxMacFont *f = static_cast<gfxMacFont*>(mFont);
-    return ::CTFontCreateWithGraphicsFont(f->GetCGFontRef(), aSize, NULL,
-                                          sDisableLigaturesDescriptor);
+    
+    return ::CTFontCreateWithPlatformFont(aFontRef, aSize, NULL, sDisableLigaturesDescriptor);
 }
 
 void

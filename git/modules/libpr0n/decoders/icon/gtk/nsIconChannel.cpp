@@ -64,8 +64,6 @@ extern "C" {
 #include "nsIURL.h"
 #include "prlink.h"
 
-#include "mozilla/Util.h" // for DebugOnly
-
 #include "nsIconChannel.h"
 
 NS_IMPL_ISUPPORTS2(nsIconChannel,
@@ -291,7 +289,7 @@ GetIconSize(nsIMozIconURI *aIconURI)
   aIconURI->GetIconSize(iconSizeString);
   if (iconSizeString.IsEmpty()) {
     PRUint32 size;
-    mozilla::DebugOnly<nsresult> rv = aIconURI->GetImageSize(&size);
+    nsresult rv = aIconURI->GetImageSize(&size);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetImageSize failed");
     return size; 
   } else {

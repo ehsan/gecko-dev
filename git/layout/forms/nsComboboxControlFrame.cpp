@@ -59,7 +59,7 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsEventDispatcher.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMNode.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsISelectControlFrame.h"
@@ -1520,10 +1520,6 @@ nsComboboxControlFrame::RestoreState(nsPresState* aState)
 PRBool
 nsComboboxControlFrame::ToolkitHasNativePopup()
 {
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return PR_TRUE;
-#else
-  return PR_FALSE;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
+  return Preferences::GetBool("ui.use_native_popup_windows");
 }
 

@@ -344,15 +344,11 @@ protected:
   }
 
   PRBool AreOnSameLine(nsIFrame* aFrame1, nsIFrame* aFrame2) {
+    // Assumes that aFrame1 and aFrame2 are both decsendants of mBlockFrame.
     PRBool isValid1, isValid2;
     nsBlockInFlowLineIterator it1(mBlockFrame, aFrame1, &isValid1);
     nsBlockInFlowLineIterator it2(mBlockFrame, aFrame2, &isValid2);
-    return isValid1 && isValid2 &&
-      // Make sure aFrame1 and aFrame2 are in the same continuation of
-      // mBlockFrame.
-      it1.GetContainer() == it2.GetContainer() &&
-      // And on the same line in it
-      it1.GetLine() == it2.GetLine();
+    return isValid1 && isValid2 && it1.GetLine() == it2.GetLine();
   }
 };
 
@@ -1129,8 +1125,8 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     skipGfxRect = nsLayoutUtils::RectToGfxRect(paddingRect, twipsPerPixel);
   } else if (hasBorderRadius) {
     skipGfxRect.Deflate(gfxMargin(
-        0, NS_MAX(borderRadii[C_TL].height, borderRadii[C_TR].height),
-        0, NS_MAX(borderRadii[C_BL].height, borderRadii[C_BR].height)));
+        0, PR_MAX(borderRadii[C_TL].height, borderRadii[C_TR].height),
+        0, PR_MAX(borderRadii[C_BL].height, borderRadii[C_BR].height)));
   }
 
   for (PRUint32 i = shadows->Length(); i > 0; --i) {
@@ -1366,8 +1362,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     gfxRect skipGfxRect = nsLayoutUtils::RectToGfxRect(skipRect, twipsPerPixel);
     if (hasBorderRadius) {
       skipGfxRect.Deflate(
-          gfxMargin(0, NS_MAX(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height),
-                    0, NS_MAX(clipRectRadii[C_BL].height, clipRectRadii[C_BR].height)));
+          gfxMargin(0, PR_MAX(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height),
+                    0, PR_MAX(clipRectRadii[C_BL].height, clipRectRadii[C_BR].height)));
     }
 
     // When there's a blur radius, gfxAlphaBoxBlur leaves the skiprect area
@@ -2125,7 +2121,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
     }
     gradientPattern = new gfxPattern(lineStart.x, lineStart.y, innerRadius,
                                      lineStart.x, lineStart.y, outerRadius);
-    if (radiusX != radiusY) {
+    if (gradientPattern && radiusX != radiusY) {
       // Stretch the circles into ellipses vertically by setting a transform
       // in the pattern.
       // Recall that this is the transform from user space to pattern space.
@@ -2138,7 +2134,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       gradientPattern->SetMatrix(matrix);
     }
   }
-  if (gradientPattern->CairoStatus())
+  if (!gradientPattern || gradientPattern->CairoStatus())
     return;
 
   // Now set normalized color stops in pattern.

@@ -49,7 +49,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsEventStateManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMEvent.h"
 #include "nsGUIEvent.h"
 #include "nsContentUtils.h"

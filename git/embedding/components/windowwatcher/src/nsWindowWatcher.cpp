@@ -1460,12 +1460,10 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
   NS_ENSURE_TRUE(securityManager, NS_ERROR_FAILURE);
 
   PRBool isChrome = PR_FALSE;
-  nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
-  if (NS_FAILED(rv)) {
-    isChrome = PR_FALSE;
-  }
+  securityManager->SubjectPrincipalIsSystem(&isChrome);
 
   nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsresult rv;
   nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, PR_TRUE);
 
@@ -1986,10 +1984,7 @@ nsWindowWatcher::SizeOpenedDocShellItem(nsIDocShellTreeItem *aDocShellItem,
       nsCOMPtr<nsIDOMChromeWindow> chromeWin(do_QueryInterface(aParent));
 
       PRBool isChrome = PR_FALSE;
-      nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
-      if (NS_FAILED(rv)) {
-        isChrome = PR_FALSE;
-      }
+      securityManager->SubjectPrincipalIsSystem(&isChrome);
 
       // Only enable special priveleges for chrome when chrome calls
       // open() on a chrome window

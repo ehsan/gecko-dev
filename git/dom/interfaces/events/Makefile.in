@@ -50,6 +50,8 @@ SDK_XPIDLSRCS =                                 \
 	nsIDOMEvent.idl				\
 	nsIDOMEventTarget.idl			\
 	nsIDOMEventListener.idl			\
+	nsIDOM3EventTarget.idl			\
+	nsIDOMEventGroup.idl			\
 	nsIDOMMouseEvent.idl			\
 	nsIDOMMouseScrollEvent.idl      \
 	nsIDOMUIEvent.idl			\
@@ -66,6 +68,7 @@ XPIDLSRCS =					\
 	nsIDOMDataTransfer.idl  			\
 	nsIDOMPopupBlockedEvent.idl		\
 	nsIDOMBeforeUnloadEvent.idl		\
+	nsIDOMNSEventTarget.idl			\
 	nsIDOMSmartCardEvent.idl                \
 	nsIDOMPageTransitionEvent.idl		\
 	nsIDOMCommandEvent.idl			\
@@ -81,7 +84,6 @@ XPIDLSRCS =					\
 	nsIDOMDeviceMotionEvent.idl		\
 	nsIDOMScrollAreaEvent.idl		\
 	nsIDOMTransitionEvent.idl		\
-	nsIDOMAnimationEvent.idl		\
 	nsIDOMPopStateEvent.idl			\
 	nsIDOMCloseEvent.idl			\
 	nsIDOMEventException.idl		\
@@ -89,5 +91,11 @@ XPIDLSRCS =					\
 	nsIDOMHashChangeEvent.idl		\
 	nsIDOMCustomEvent.idl			\
 	$(NULL)
+
+ifdef MOZ_CSS_ANIMATIONS
+XPIDLSRCS +=					\
+	nsIDOMAnimationEvent.idl		\
+	$(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk

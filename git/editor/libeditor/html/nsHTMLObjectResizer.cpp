@@ -38,8 +38,9 @@
 
 #include "nsHTMLObjectResizer.h"
 
-#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMNSHTMLElement.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIDOMText.h"
 
 #include "nsIDOMCSSValue.h"
@@ -496,7 +497,8 @@ nsHTMLEditor::HideResizers(void)
 
   // don't forget to remove the listeners !
 
-  nsCOMPtr<nsIDOMEventTarget> target = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(piTarget);
 
   if (target && mMouseMotionListenerP)
   {
@@ -604,7 +606,8 @@ nsHTMLEditor::StartResizing(nsIDOMElement *aHandle)
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    nsCOMPtr<nsIDOMEventTarget> target = GetDOMEventTarget();
+    nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
+    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(piTarget);
     NS_ENSURE_TRUE(target, NS_ERROR_FAILURE);
 
     result = target->AddEventListener(NS_LITERAL_STRING("mousemove"),

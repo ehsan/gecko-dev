@@ -569,7 +569,4 @@ XRE_API(void,
         XRE_SetupDllBlocklist, ())
 #endif
 
-XRE_API(void,
-        XRE_TelemetryAccumulate, (int aID, PRUint32 aSample))
-
 #endif // _nsXULAppAPI_h__
