@@ -36,7 +36,7 @@ namespace mozilla { namespace pkix { namespace test {
 NSSTest::SetUpTestCase()
 {
   if (NSS_NoDB_Init(nullptr) != SECSuccess) {
-    abort();
+    PR_Abort();
   }
 
   now = Now();
@@ -49,7 +49,7 @@ NSSTest::NSSTest()
   : arena(PORT_NewArena(DER_DEFAULT_CHUNKSIZE))
 {
   if (!arena) {
-    abort();
+    PR_Abort();
   }
 }
 

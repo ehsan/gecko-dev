@@ -10,7 +10,6 @@ from __future__ import unicode_literals
 import copy
 import difflib
 import errno
-import functools
 import hashlib
 import os
 import stat
@@ -21,6 +20,7 @@ from collections import (
     defaultdict,
     OrderedDict,
 )
+from functools import wraps
 from StringIO import StringIO
 
 
@@ -76,10 +76,13 @@ class ReadOnlyDefaultDict(ReadOnlyDict):
         ReadOnlyDict.__init__(self, *args, **kwargs)
         self._default_factory = default_factory
 
-    def __missing__(self, key):
-        value = self._default_factory()
-        dict.__setitem__(self, key, value)
-        return value
+    def __getitem__(self, key):
+        try:
+            return ReadOnlyDict.__getitem__(self, key)
+        except KeyError:
+            value = self._default_factory()
+            dict.__setitem__(self, key, value)
+            return value
 
 
 def ensureParentDir(path):
@@ -712,66 +715,20 @@ class OrderedDefaultDict(OrderedDict):
         OrderedDict.__init__(self, *args, **kwargs)
         self._default_factory = default_factory
 
-    def __missing__(self, key):
-        value = self[key] = self._default_factory()
-        return value
+    def __getitem__(self, key):
+        try:
+            return OrderedDict.__getitem__(self, key)
+        except KeyError:
+            value = self[key] = self._default_factory()
+            return value
 
 
-class KeyedDefaultDict(dict):
-    '''Like a defaultdict, but the default_factory function takes the key as
-    argument'''
-    def __init__(self, default_factory, *args, **kwargs):
-        dict.__init__(self, *args, **kwargs)
-        self._default_factory = default_factory
+def memoize(func):
+    cache = {}
 
-    def __missing__(self, key):
-        value = self._default_factory(key)
-        dict.__setitem__(self, key, value)
-        return value
-
-
-class ReadOnlyKeyedDefaultDict(KeyedDefaultDict, ReadOnlyDict):
-    '''Like KeyedDefaultDict, but read-only.'''
-
-
-class memoize(dict):
-    '''A decorator to memoize the results of function calls depending
-    on its arguments.
-    Both functions and instance methods are handled, although in the
-    instance method case, the results are cache in the instance itself.
-    '''
-    def __init__(self, func):
-        self.func = func
-        functools.update_wrapper(self, func)
-
-    def __call__(self, *args):
-        if args not in self:
-            self[args] = self.func(*args)
-        return self[args]
-
-    def method_call(self, instance, *args):
-        name = '_%s' % self.func.__name__
-        if not hasattr(instance, name):
-            setattr(instance, name, {})
-        cache = getattr(instance, name)
+    @wraps(func)
+    def wrapper(*args):
         if args not in cache:
-            cache[args] = self.func(instance, *args)
+            cache[args] = func(*args)
         return cache[args]
-
-    def __get__(self, instance, cls):
-        return functools.update_wrapper(
-            functools.partial(self.method_call, instance), self.func)
-
-
-class memoized_property(object):
-    '''A specialized version of the memoize decorator that works for
-    class instance properties.
-    '''
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, instance, cls):
-        name = '_%s' % self.func.__name__
-        if not hasattr(instance, name):
-            setattr(instance, name, self.func(instance))
-        return getattr(instance, name)
+    return wrapper

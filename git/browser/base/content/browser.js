@@ -30,6 +30,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "gDNSService",
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
 var gLastBrowserCharset = null;
+var gPrevCharset = null;
 var gProxyFavIcon = null;
 var gLastValidURLStr = "";
 var gInPrintPreviewMode = false;
@@ -241,6 +242,7 @@ XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
 * one listener that calls all real handlers.
 */
 function pageShowEventHandlers(persisted) {
+  charsetLoadListener();
   XULBrowserWindow.asyncUpdateUI();
 
   // The PluginClickToPlay events are not fired when navigating using the
@@ -2586,7 +2588,7 @@ let BrowserOnClick = {
         anchorTarget.classList.contains("newtab-link")) {
       event.preventDefault();
       let where = whereToOpenLink(event, false, false);
-      openLinkIn(anchorTarget.href, where, { charset: ownerDoc.characterSet });
+      openUILinkIn(anchorTarget.href, where);
     }
   },
 
@@ -3509,7 +3511,9 @@ function updateCharacterEncodingMenuState()
   // gBrowser is null on Mac when the menubar shows in the context of
   // non-browser windows. The above elements may be null depending on
   // what parts of the menubar are present. E.g. no app menu on Mac.
-  if (gBrowser && gBrowser.selectedBrowser.mayEnableCharacterEncodingMenu) {
+  if (gBrowser &&
+      gBrowser.docShell &&
+      gBrowser.docShell.mayEnableCharacterEncodingMenu) {
     if (charsetMenu) {
       charsetMenu.removeAttribute("disabled");
     }
@@ -5354,7 +5358,8 @@ function handleDroppedLink(event, url, name)
 function BrowserSetForcedCharacterSet(aCharset)
 {
   if (aCharset) {
-    gBrowser.selectedBrowser.characterSet = aCharset;
+    gBrowser.docShell.gatherCharsetMenuTelemetry();
+    gBrowser.docShell.charset = aCharset;
     // Save the forced character-set
     if (!PrivateBrowsingUtils.isWindowPrivate(window))
       PlacesUtils.setCharsetForURI(getWebNavigation().currentURI, aCharset);
@@ -5367,11 +5372,35 @@ function BrowserCharsetReload()
   BrowserReloadWithFlags(nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
 }
 
+function charsetMenuGetElement(parent, charset) {
+  return parent.getElementsByAttribute("charset", charset)[0];
+}
+
 function UpdateCurrentCharset(target) {
-  for (let menuItem of target.getElementsByTagName("menuitem")) {
-    let isSelected = menuItem.getAttribute("charset") ===
-                     CharsetMenu.foldCharset(gBrowser.selectedBrowser.characterSet);
-    menuItem.setAttribute("checked", isSelected);
+    // extract the charset from DOM
+    var wnd = document.commandDispatcher.focusedWindow;
+    if ((window == wnd) || (wnd == null)) wnd = window.content;
+
+    // Uncheck previous item
+    if (gPrevCharset) {
+        var pref_item = charsetMenuGetElement(target, gPrevCharset);
+        if (pref_item)
+          pref_item.setAttribute('checked', 'false');
+    }
+
+    var menuitem = charsetMenuGetElement(target, CharsetMenu.foldCharset(wnd.document.characterSet));
+    if (menuitem) {
+        menuitem.setAttribute('checked', 'true');
+    }
+}
+
+function charsetLoadListener() {
+  let currCharset = gBrowser.selectedBrowser.characterSet;
+  let charset = CharsetMenu.foldCharset(currCharset);
+
+  if (charset.length > 0 && (charset != gLastBrowserCharset)) {
+    gPrevCharset = gLastBrowserCharset;
+    gLastBrowserCharset = charset;
   }
 }
 

@@ -89,8 +89,7 @@ public:
         "CN=CA7"
     };
 
-    static_assert(MOZILLA_PKIX_ARRAY_LENGTH(names) ==
-                    MOZILLA_PKIX_ARRAY_LENGTH(certChainTail),
+    static_assert(PR_ARRAY_SIZE(names) == PR_ARRAY_SIZE(certChainTail),
                   "mismatch in sizes of names and certChainTail arrays");
 
     ScopedPLArenaPool arena(PORT_NewArena(DER_DEFAULT_CHUNKSIZE));
@@ -98,7 +97,7 @@ public:
       return false;
     }
 
-    for (size_t i = 0; i < MOZILLA_PKIX_ARRAY_LENGTH(names); ++i) {
+    for (size_t i = 0; i < PR_ARRAY_SIZE(names); ++i) {
       const char* issuerName = i == 0 ? names[0]
                                       : certChainTail[i - 1]->subjectName;
       (void) CreateCert(arena.get(), issuerName, names[i],
@@ -198,7 +197,7 @@ public:
   ScopedSECKEYPrivateKey leafCAKey;
   CERTCertificate* GetLeafCACert() const
   {
-    return certChainTail[MOZILLA_PKIX_ARRAY_LENGTH(certChainTail) - 1].get();
+    return certChainTail[PR_ARRAY_SIZE(certChainTail) - 1].get();
   }
 };
 
@@ -211,7 +210,7 @@ public:
     // Initialize the tail of the cert chains we'll be using once, to make the
     // tests run faster (generating the keys is slow).
     if (!trustDomain.SetUpCertChainTail()) {
-      abort();
+      PR_Abort();
     }
   }
 

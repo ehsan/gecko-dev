@@ -262,11 +262,6 @@ class GCRuntime
     bool isHeapMajorCollecting() { return heapState == js::MajorCollecting; }
     bool isHeapMinorCollecting() { return heapState == js::MinorCollecting; }
     bool isHeapCollecting() { return isHeapMajorCollecting() || isHeapMinorCollecting(); }
-#ifdef JSGC_COMPACTING
-    bool isHeapCompacting() { return isHeapMajorCollecting() && state() == COMPACT; }
-#else
-    bool isHeapCompacting() { return false; }
-#endif
 
     // Performance note: if isFJMinorCollecting turns out to be slow because
     // reading the counter is slow then we may be able to augment the counter
@@ -283,27 +278,14 @@ class GCRuntime
     void maybePeriodicFullGC();
     void minorGC(JS::gcreason::Reason reason);
     void minorGC(JSContext *cx, JS::gcreason::Reason reason);
-    void evictNursery(JS::gcreason::Reason reason = JS::gcreason::EVICT_NURSERY) { minorGC(reason); }
     void gcIfNeeded(JSContext *cx);
-    void gc(JSGCInvocationKind gckind, JS::gcreason::Reason reason);
+    void collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
+                 JS::gcreason::Reason reason);
     void gcSlice(JSGCInvocationKind gckind, JS::gcreason::Reason reason, int64_t millis = 0);
-    void gcFinalSlice(JSGCInvocationKind gckind, JS::gcreason::Reason reason);
-    void gcDebugSlice(bool limit, int64_t objCount);
-
     void runDebugGC();
     inline void poke();
 
-    enum TraceOrMarkRuntime {
-        TraceRuntime,
-        MarkRuntime
-    };
-    enum TraceRootsOrUsedSaved {
-        TraceRoots,
-        UseSavedRoots
-    };
-    void markRuntime(JSTracer *trc,
-                     TraceOrMarkRuntime traceOrMark = TraceRuntime,
-                     TraceRootsOrUsedSaved rootsSource = TraceRoots);
+    void markRuntime(JSTracer *trc, bool useSavedRoots = false);
 
     void notifyDidPaint();
     void shrinkBuffers();
@@ -396,11 +378,6 @@ class GCRuntime
     void disableGenerationalGC();
     void enableGenerationalGC();
 
-#ifdef JSGC_COMPACTING
-    void disableCompactingGC();
-    void enableCompactingGC();
-#endif
-
     void setGrayRootsTracer(JSTraceDataOp traceOp, void *data);
     bool addBlackRootsTracer(JSTraceDataOp traceOp, void *data);
     void removeBlackRootsTracer(JSTraceDataOp traceOp, void *data);
@@ -444,7 +421,7 @@ class GCRuntime
     bool isGcNeeded() { return isNeeded; }
 
     double computeHeapGrowthFactor(size_t lastBytes);
-    size_t computeTriggerBytes(double growthFactor, size_t lastBytes);
+    size_t computeTriggerBytes(double growthFactor, size_t lastBytes, JSGCInvocationKind gckind);
 
     JSGCMode gcMode() const { return mode; }
     void setGCMode(JSGCMode m) {
@@ -488,14 +465,13 @@ class GCRuntime
 
     bool initZeal();
     void requestInterrupt(JS::gcreason::Reason reason);
-    void collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
-                 JS::gcreason::Reason reason);
     bool gcCycle(bool incremental, int64_t budget, JSGCInvocationKind gckind,
                  JS::gcreason::Reason reason);
     gcstats::ZoneGCStats scanZonesBeforeGC();
     void budgetIncrementalGC(int64_t *budget);
     void resetIncrementalGC(const char *reason);
-    void incrementalCollectSlice(int64_t budget, JS::gcreason::Reason reason);
+    void incrementalCollectSlice(int64_t budget, JS::gcreason::Reason reason,
+                                 JSGCInvocationKind gckind);
     void pushZealSelectedObjects();
     bool beginMarkPhase(JS::gcreason::Reason reason);
     bool shouldPreserveJITCode(JSCompartment *comp, int64_t currentTime,
@@ -504,11 +480,8 @@ class GCRuntime
     bool drainMarkStack(SliceBudget &sliceBudget, gcstats::Phase phase);
     template <class CompartmentIterT> void markWeakReferences(gcstats::Phase phase);
     void markWeakReferencesInCurrentGroup(gcstats::Phase phase);
-    template <class ZoneIterT, class CompartmentIterT> void markGrayReferences(gcstats::Phase phase);
-    void markGrayReferencesInCurrentGroup(gcstats::Phase phase);
-    void markAllWeakReferences(gcstats::Phase phase);
-    void markAllGrayReferences(gcstats::Phase phase);
-
+    template <class ZoneIterT, class CompartmentIterT> void markGrayReferences();
+    void markGrayReferencesInCurrentGroup();
     void beginSweepPhase(bool lastGC);
     void findZoneGroups();
     bool findZoneEdgesForWeakMaps();
@@ -518,21 +491,13 @@ class GCRuntime
     bool shouldReleaseObservedTypes();
     void endSweepingZoneGroup();
     bool sweepPhase(SliceBudget &sliceBudget);
-    void endSweepPhase(bool lastGC);
+    void endSweepPhase(JSGCInvocationKind gckind, bool lastGC);
     void sweepZones(FreeOp *fop, bool lastGC);
     void decommitArenasFromAvailableList(Chunk **availableListHeadp);
     void decommitArenas();
     void expireChunksAndArenas(bool shouldShrink);
     void sweepBackgroundThings(bool onBackgroundThread);
     void assertBackgroundSweepingFinished();
-    bool shouldCompact();
-#ifdef JSGC_COMPACTING
-    void compactPhase();
-    ArenaHeader *relocateArenas();
-    void updatePointersToRelocatedCells();
-    void releaseRelocatedArenas(ArenaHeader *relocatedList);
-#endif
-    void finishCollection();
 
     void computeNonIncrementalMarkingForValidation();
     void validateIncrementalMarking();
@@ -542,6 +507,8 @@ class GCRuntime
 
 #ifdef DEBUG
     void checkForCompartmentMismatches();
+    void markAllWeakReferences(gcstats::Phase phase);
+    void markAllGrayReferences();
 #endif
 
   public:
@@ -640,9 +607,6 @@ class GCRuntime
     /* Whether all compartments are being collected in first GC slice. */
     bool                  isFull;
 
-    /* The invocation kind of the current GC, taken from the first slice. */
-    JSGCInvocationKind    invocationKind;
-
     /* The reason that an interrupt-triggered GC should be called. */
     JS::gcreason::Reason  triggerReason;
 
@@ -717,15 +681,6 @@ class GCRuntime
      * GGC can be enabled from the command line while testing.
      */
     unsigned              generationalDisabled;
-
-#ifdef JSGC_COMPACTING
-    /*
-     * Some code cannot tolerate compacting GC so it can be disabled with this
-     * counter.  This can happen from code executing in a ThreadSafeContext so
-     * we make it atomic.
-     */
-    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> compactingDisabled;
-#endif
 
     /*
      * This is true if we are in the middle of a brain transplant (e.g.,
@@ -872,8 +827,7 @@ GCRuntime::needZealousGC() {
         if (zealMode == ZealAllocValue ||
             zealMode == ZealGenerationalGCValue ||
             (zealMode >= ZealIncrementalRootsThenFinish &&
-             zealMode <= ZealIncrementalMultipleSlices) ||
-            zealMode == ZealCompactValue)
+             zealMode <= ZealIncrementalMultipleSlices))
         {
             nextScheduled = zealFrequency;
         }

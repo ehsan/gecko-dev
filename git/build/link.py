@@ -2,11 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import expandlibs_exec
-import sys
-import threading
-import time
-
+from __future__ import with_statement
+import os, subprocess, sys, threading, time
 from win32 import procmem
 
 def measure_vsize_threadfunc(proc, output_file):
@@ -36,17 +33,14 @@ def measure_link_vsize(output_file, args):
     Execute |args|, and measure the maximum virtual memory usage of the process,
     printing it to stdout when finished.
     """
-
-    # This needs to be a list in order for the callback to set the
-    # variable properly with python-2's scoping rules.
-    t = [None]
-    def callback(proc):
-        t[0] = threading.Thread(target=measure_vsize_threadfunc,
-                             args=(proc, output_file))
-        t[0].start()
-    exitcode = expandlibs_exec.main(args, proc_callback=callback)
-    # Wait for the background thread to finish.
-    t[0].join()
+    proc = subprocess.Popen(args)
+    t = threading.Thread(target=measure_vsize_threadfunc,
+                         args=(proc, output_file))
+    t.start()
+    # Wait for the linker to finish.
+    exitcode = proc.wait()
+    # ...and then wait for the background thread to finish.
+    t.join()
     return exitcode
 
 if __name__ == "__main__":
@@ -56,5 +50,4 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print >>sys.stderr, "Usage: link.py <output filename> <commandline>"
         sys.exit(1)
-    output_file = sys.argv.pop(1)
-    sys.exit(measure_link_vsize(output_file, sys.argv[1:]))
+    sys.exit(measure_link_vsize(sys.argv[1], sys.argv[2:]))
