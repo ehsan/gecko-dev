@@ -59,6 +59,8 @@
 #include "nsDOMError.h"
 #include "nsDOMCID.h"
 #include "jsdbgapi.h"
+#include "jsfun.h"
+#include "jsobj.h"
 #include "nsIXPConnect.h"
 #include "nsIXPCSecurityManager.h"
 #include "nsTextFormatter.h"
@@ -616,7 +618,7 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
     // Do the same-origin check -- this sets a JS exception if the check fails.
     // Pass the parent object's class name, as we have no class-info for it.
     nsresult rv =
-        ssm->CheckPropertyAccess(cx, target, js::GetObjectClass(obj)->name, id,
+        ssm->CheckPropertyAccess(cx, target, obj->getClass()->name, id,
                                  (mode & JSACC_WRITE) ?
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY :
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
@@ -2411,7 +2413,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     JSObject* origObj = aObj;
 #endif
     
-    js::Class *jsClass = js::GetObjectClass(aObj);
+    js::Class *jsClass = aObj->getClass();
 
     // A common case seen in this code is that we enter this function
     // with aObj being a Function object, whose parent is a Call
@@ -2421,20 +2423,20 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     // the loop.
 
     if (jsClass == &js::FunctionClass) {
-        aObj = js::GetObjectParent(aObj);
+        aObj = aObj->getParent();
 
         if (!aObj)
             return nsnull;
 
-        jsClass = js::GetObjectClass(aObj);
+        jsClass = aObj->getClass();
 
         if (jsClass == &js::CallClass) {
-            aObj = js::GetObjectParent(aObj);
+            aObj = aObj->getParent();
 
             if (!aObj)
                 return nsnull;
 
-            jsClass = js::GetObjectClass(aObj);
+            jsClass = aObj->getClass();
         }
     }
 
@@ -2455,7 +2457,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
             }
         } else if (!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                                         JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
-            nsISupports *priv = (nsISupports *) js::GetObjectPrivate(aObj);
+            nsISupports *priv = (nsISupports *) aObj->getPrivate();
 
 #ifdef DEBUG
             if (aAllowShortCircuit) {
@@ -2481,12 +2483,12 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
             }
         }
 
-        aObj = js::GetObjectParent(aObj);
+        aObj = aObj->getParent();
 
         if (!aObj)
             break;
 
-        jsClass = js::GetObjectClass(aObj);
+        jsClass = aObj->getClass();
     } while (1);
 
 #ifdef DEBUG

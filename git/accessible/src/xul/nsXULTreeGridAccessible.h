@@ -163,7 +163,6 @@ public:
   virtual nsAccessible* FocusedChild();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual PRInt32 IndexInParent() const;
-  virtual Relation RelationByType(PRUint32 aType);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 

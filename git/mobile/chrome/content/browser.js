@@ -1276,6 +1276,60 @@ var Browser = {
         this._handleErrorPage(aMessage);
         break;
     }
+  },
+
+  _grabbedSidebar: false, // true while the user is dragging the sidebar
+  _sidebarOffset: 0, // tracks how far the sidebar has been dragged
+  _slideMultiplier: 1, // set greater than 1 to amplify sidebar drags (makes swiping easier)
+
+  /**
+   * Call this function in landscape tablet mode to begin dragging the tab sidebar.
+   * Hiding the sidebar makes the viewable area grow; showing the sidebar makes it shrink.
+   */
+  grabSidebar: function grabSidebar() {
+    this._grabbedSidebar = true;
+    ViewableAreaObserver.update();
+
+    let ltr = (Util.localeDir == Util.LOCALE_DIR_LTR);
+
+    if (TabsPopup.visible) {
+      this._setSidebarOffset(ltr ? 0 : ViewableAreaObserver.sidebarWidth);
+      this._slideMultiplier = 3;
+    } else {
+      // If the tab bar is hidden, un-collapse it but scroll it offscreen.
+      TabsPopup.show();
+      this._setSidebarOffset(ltr ? ViewableAreaObserver.sidebarWidth : 0);
+      this._slideMultiplier = 6;
+    }
+  },
+
+  /** Move the tablet sidebar by aX pixels. */
+  slideSidebarBy: function slideSidebarBy(aX) {
+    this._setSidebarOffset(this._sidebarOffset + (aX * this._slideMultiplier));
+  },
+
+  /** Call this when tablet sidebar dragging is finished. */
+  ungrabSidebar: function ungrabSidebar() {
+    if (!this._grabbedSidebar)
+      return;
+    this._grabbedSidebar = false;
+
+    let finalOffset = this._sidebarOffset;
+    this._setSidebarOffset(0);
+
+    let rtl = (Util.localeDir == Util.LOCALE_DIR_RTL);
+    if (finalOffset > (ViewableAreaObserver.sidebarWidth / 2) ^ rtl)
+      TabsPopup.hide();
+    else
+      // we already called TabsPopup.show() in grabSidebar; just need to update the width again.
+      ViewableAreaObserver.update();
+  },
+
+  /** Move the tablet sidebar. */
+  _setSidebarOffset: function _setSidebarOffset(aOffset) {
+    this._sidebarOffset = aOffset;
+    let scrollX = Util.clamp(aOffset, 0, ViewableAreaObserver.sidebarWidth);
+    Browser.controlsScrollboxScroller.scrollTo(scrollX, 0);
   }
 };
 
@@ -1311,7 +1365,7 @@ Browser.MainDragger.prototype = {
     this._canGrabSidebar = false;
     // In landscape portrait mode, swiping from the left margin drags the tab sidebar.
     if (isTablet && !Util.isPortrait()) {
-      let grabSidebarMargin = TabletSidebar.visible ? 30 : 5;
+      let grabSidebarMargin = TabsPopup.visible ? 30 : 5;
       // Don't actually grab until we see whether the swipe is horizontal in dragMove.
       this._canGrabSidebar = ((Util.localeDir == Util.LOCALE_DIR_LTR)
                            ? (clientX - bcr.left < 30)
@@ -1326,7 +1380,7 @@ Browser.MainDragger.prototype = {
 
   dragStop: function dragStop(dx, dy, scroller) {
     if (this._grabSidebar) {
-      TabletSidebar.ungrab();
+      Browser.ungrabSidebar();
       return;
     }
 
@@ -1340,10 +1394,10 @@ Browser.MainDragger.prototype = {
   dragMove: function dragMove(dx, dy, scroller, aIsKinetic) {
     if (this._canGrabSidebar && !this._grabSidebar && dx) {
       this._grabSidebar = true;
-      TabletSidebar.grab();
+      Browser.grabSidebar();
     }
     if (this._grabSidebar) {
-      TabletSidebar.slideBy(dx);
+      Browser.slideSidebarBy(dx);
       return;
     }
 
@@ -2030,7 +2084,7 @@ KeyFilter.prototype = {
       return;
 
     let browser = getBrowser();
-    if (browser && browser.active) {
+    if (browser && browser.active && browser.getAttribute("remote") == "true") {
       aEvent.stopPropagation();
       document.getElementById("mainKeyset").setAttribute("disabled", "true");
     }
@@ -3182,7 +3236,7 @@ function rendererFactory(aBrowser, aCanvas) {
 var ViewableAreaObserver = {
   get width() {
     let width = this._width || window.innerWidth;
-    if (!TabletSidebar._grabbed && Util.isTablet())
+    if (!Browser._grabbedSidebar && Util.isTablet())
       width -= this.sidebarWidth;
     return width;
   },

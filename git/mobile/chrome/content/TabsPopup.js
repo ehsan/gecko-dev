@@ -61,18 +61,22 @@ var TabsPopup = {
     return this.button = document.getElementById("tool-tabs");
   },
 
-  get visible() {
-    return !this.box.hidden;
-  },
+  hide: function hide() {
+    this._hidePortraitMenu();
 
-  toggle: function toggle() {
-    if (this.visible)
-      this.hide();
-    else
-      this.show();
+    if (!Util.isPortrait()) {
+      Elements.urlbarState.removeAttribute("tablet_sidebar");
+      ViewableAreaObserver.update();
+    }
   },
 
   show: function show() {
+    if (!Util.isPortrait()) {
+      Elements.urlbarState.setAttribute("tablet_sidebar", "true");
+      ViewableAreaObserver.update();
+      return;
+    }
+
     while(this.list.firstChild)
       this.list.removeChild(this.list.firstChild);
 
@@ -119,7 +123,18 @@ var TabsPopup = {
     window.addEventListener("resize", this.resizeHandler, false);
   },
 
-  hide: function hide() {
+  toggle: function toggle() {
+    if (this.visible)
+      this.hide();
+    else
+      this.show();
+  },
+
+  get visible() {
+    return Util.isPortrait() ? !this.box.hidden : Elements.urlbarState.hasAttribute("tablet_sidebar");
+  },
+
+  _hidePortraitMenu: function _hidePortraitMenu() {
     if (!this.box.hidden) {
       this.box.hidden = true;
       BrowserUI.popPopup(this);
@@ -159,7 +174,7 @@ var TabsPopup = {
     if (aEvent.target != window)
       return;
     if (!Util.isPortrait())
-      this.hide();
+      this._hidePortraitMenu();
   },
 
   handleEvent: function handleEvent(aEvent) {

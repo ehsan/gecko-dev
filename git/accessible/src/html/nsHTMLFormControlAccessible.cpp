@@ -278,8 +278,8 @@ nsHTMLButtonAccessible::NativeState()
 {
   PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
 
-  nsEventStates elmState = mContent->AsElement()->State();
-  if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                            nsGkAtoms::submit, eIgnoreCase))
     state |= states::DEFAULT;
 
   return state;
@@ -382,8 +382,8 @@ nsHTML4ButtonAccessible::NativeState()
 
   state |= states::FOCUSABLE;
 
-  nsEventStates elmState = mContent->AsElement()->State();
-  if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                            nsGkAtoms::submit, eIgnoreCase))
     state |= states::DEFAULT;
 
   return state;

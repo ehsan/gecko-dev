@@ -79,7 +79,7 @@ GetSecurityManager()
 inline JSBool
 IsSecurityWrapper(JSObject *wrapper)
 {
-  return js::IsWrapper(wrapper);
+  return wrapper->isWrapper();
 }
 
 /**

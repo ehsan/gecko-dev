@@ -428,7 +428,7 @@ var BrowserUI = {
     window.addEventListener("mousedown", this, true);
 
     // listening escape to dismiss dialog on VK_ESCAPE
-    window.addEventListener("keypress", this, true);
+    window.addEventListener("keypress", this, false);
 
     // listening AppCommand to handle special keys
     window.addEventListener("AppCommand", this, true);
@@ -945,10 +945,6 @@ var BrowserUI = {
         break;
       // Window events
       case "keypress":
-        // Ignore events headed toward the browser; they will be
-        // re-dispatched after content has a chance to handle them.
-        if (aEvent.target.localName == "browser")
-          break;
         if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
           this.handleEscape(aEvent);
         break;
@@ -1250,10 +1246,7 @@ var BrowserUI = {
         AppMenu.toggle();
         break;
       case "cmd_showTabs":
-        if (Util.isPortrait())
-          TabsPopup.toggle();
-        else
-          TabletSidebar.toggle();
+        TabsPopup.toggle();
         break;
       case "cmd_newTab":
         this.newTab();

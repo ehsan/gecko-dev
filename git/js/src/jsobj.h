@@ -51,7 +51,6 @@
  */
 #include "jsapi.h"
 #include "jsclass.h"
-#include "jsfriendapi.h"
 #include "jsinfer.h"
 #include "jshash.h"
 #include "jspubtd.h"
@@ -83,6 +82,18 @@ CastAsPropertyOp(JSObject *object)
 
 static inline StrictPropertyOp
 CastAsStrictPropertyOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(StrictPropertyOp, object);
+}
+
+static inline PropertyOp
+CastAsJSPropertyOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(PropertyOp, object);
+}
+
+static inline StrictPropertyOp
+CastAsJSStrictPropertyOp(JSObject *object)
 {
     return JS_DATA_TO_FUNC_PTR(StrictPropertyOp, object);
 }
@@ -316,6 +327,10 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, js::Value *rval, JSBool
 extern JSBool
 js_DeleteElement(JSContext *cx, JSObject *obj, uint32 index, js::Value *rval, JSBool strict);
 
+extern JS_FRIEND_API(JSBool)
+js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
+             js::Value *statep, jsid *idp);
+
 extern JSType
 js_TypeOf(JSContext *cx, JSObject *obj);
 
@@ -324,6 +339,19 @@ namespace js {
 /* ES5 8.12.8. */
 extern JSBool
 DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
+
+extern JS_FRIEND_DATA(Class) AnyNameClass;
+extern JS_FRIEND_DATA(Class) AttributeNameClass;
+extern JS_FRIEND_DATA(Class) CallClass;
+extern JS_FRIEND_DATA(Class) DeclEnvClass;
+extern JS_FRIEND_DATA(Class) FunctionClass;
+extern JS_FRIEND_DATA(Class) FunctionProxyClass;
+extern JS_FRIEND_DATA(Class) NamespaceClass;
+extern JS_FRIEND_DATA(Class) OuterWindowProxyClass;
+extern JS_FRIEND_DATA(Class) ObjectProxyClass;
+extern JS_FRIEND_DATA(Class) QNameClass;
+extern JS_FRIEND_DATA(Class) ScriptClass;
+extern JS_FRIEND_DATA(Class) XMLClass;
 
 extern Class ArrayClass;
 extern Class ArrayBufferClass;
@@ -1264,6 +1292,12 @@ struct JSObject : js::gc::Cell {
     /*
      * Proxy-specific getters and setters.
      */
+
+    inline js::ProxyHandler *getProxyHandler() const;
+    inline const js::Value &getProxyPrivate() const;
+    inline void setProxyPrivate(const js::Value &priv);
+    inline const js::Value &getProxyExtra() const;
+    inline void setProxyExtra(const js::Value &extra);
     inline js::Wrapper *getWrapperHandler() const;
 
     /*
@@ -1460,7 +1494,7 @@ struct JSObject : js::gc::Cell {
 
     JSBool enumerate(JSContext *cx, JSIterateOp iterop, js::Value *statep, jsid *idp) {
         JSNewEnumerateOp op = getOps()->enumerate;
-        return (op ? op : JS_EnumerateState)(cx, this, iterop, statep, idp);
+        return (op ? op : js_Enumerate)(cx, this, iterop, statep, idp);
     }
 
     bool defaultValue(JSContext *cx, JSType hint, js::Value *vp) {
@@ -1483,8 +1517,12 @@ struct JSObject : js::gc::Cell {
 
     static bool thisObject(JSContext *cx, const js::Value &v, js::Value *vp);
 
+    inline JSCompartment *getCompartment() const;
+
     inline JSObject *getThrowTypeError() const;
 
+    JS_FRIEND_API(JSObject *) clone(JSContext *cx, JSObject *proto, JSObject *parent);
+    JS_FRIEND_API(bool) copyPropertiesFrom(JSContext *cx, JSObject *obj);
     bool swap(JSContext *cx, JSObject *other);
 
     const js::Shape *defineBlockVariable(JSContext *cx, jsid id, intN index);
@@ -1520,7 +1558,8 @@ struct JSObject : js::gc::Cell {
     inline bool isXML() const { return clasp == &js::XMLClass; }
     inline bool isNamespace() const { return clasp == &js::NamespaceClass; }
     inline bool isWeakMap() const { return clasp == &js::WeakMapClass; }
-    inline bool isProxy() const;
+    inline bool isFunctionProxy() const { return clasp == &js::FunctionProxyClass; }
+    inline bool isProxy() const { return isObjectProxy() || isFunctionProxy(); }
 
     inline bool isXMLId() const {
         return clasp == &js::QNameClass || clasp == &js::AttributeNameClass || clasp == &js::AnyNameClass;
@@ -1528,30 +1567,23 @@ struct JSObject : js::gc::Cell {
     inline bool isQName() const {
         return clasp == &js::QNameClass || clasp == &js::AttributeNameClass || clasp == &js::AnyNameClass;
     }
+    inline bool isObjectProxy() const {
+        return clasp == &js::ObjectProxyClass || clasp == &js::OuterWindowProxyClass;
+    }
 
-    inline bool isWrapper() const;
-    inline bool isCrossCompartmentWrapper() const;
+    JS_FRIEND_API(bool) isWrapper() const;
+    bool isCrossCompartmentWrapper() const;
+    JS_FRIEND_API(JSObject *) unwrap(uintN *flagsp = NULL);
 
     inline void initArrayClass();
-
-    static void staticAsserts() {
-        /* Check alignment for any fixed slots allocated after the object. */
-        JS_STATIC_ASSERT(sizeof(JSObject) % sizeof(js::Value) == 0);
-
-        JS_STATIC_ASSERT(offsetof(JSObject, clasp) == offsetof(js::shadow::Object, clasp));
-        JS_STATIC_ASSERT(offsetof(JSObject, flags) == offsetof(js::shadow::Object, flags));
-        JS_STATIC_ASSERT(offsetof(JSObject, parent) == offsetof(js::shadow::Object, parent));
-        JS_STATIC_ASSERT(offsetof(JSObject, privateData) == offsetof(js::shadow::Object, privateData));
-        JS_STATIC_ASSERT(offsetof(JSObject, slots) == offsetof(js::shadow::Object, slots));
-        JS_STATIC_ASSERT(offsetof(JSObject, type_) == offsetof(js::shadow::Object, type));
-        JS_STATIC_ASSERT(sizeof(JSObject) == sizeof(js::shadow::Object));
-        JS_STATIC_ASSERT(FIXED_SLOTS_SHIFT == js::shadow::Object::FIXED_SLOTS_SHIFT);
-    }
 
     /*** For jit compiler: ***/
 
     static size_t offsetOfClassPointer() { return offsetof(JSObject, clasp); }
 };
+
+/* Check alignment for any fixed slots allocated after the object. */
+JS_STATIC_ASSERT(sizeof(JSObject) % sizeof(js::Value) == 0);
 
 /*
  * The only sensible way to compare JSObject with == is by identity. We use
@@ -1615,6 +1647,13 @@ OBJ_TO_INNER_OBJECT(JSContext *cx, JSObject *&obj)
     if (JSObjectOp op = obj->getClass()->ext.innerObject)
         obj = op(cx, obj);
 }
+
+/*
+ * It is safe to call with input obj == NULL. Return true iff output obj is
+ * non-NULL.
+ */
+extern JS_FRIEND_API(bool)
+NULLABLE_OBJ_TO_INNER_OBJECT(JSContext *cx, JSObject *&obj);
 
 inline void
 OBJ_TO_OUTER_OBJECT(JSContext *cx, JSObject *&obj)
@@ -1698,7 +1737,12 @@ js_PutBlockObject(JSContext *cx, JSBool normalUnwind);
 JSBool
 js_XDRBlockObject(JSXDRState *xdr, JSObject **objp);
 
-/* For manipulating JSContext::sharpObjectMap. */
+struct JSSharpObjectMap {
+    jsrefcount  depth;
+    uint32      sharpgen;
+    JSHashTable *table;
+};
+
 #define SHARP_BIT       ((jsatomid) 1)
 #define BUSY_BIT        ((jsatomid) 2)
 #define SHARP_ID_SHIFT  2
@@ -1741,6 +1785,11 @@ extern JSPropertySpec object_props[];
 
 extern JSFunctionSpec object_methods[];
 extern JSFunctionSpec object_static_methods[];
+
+#ifdef OLD_GETTER_SETTER_METHODS
+JS_FRIEND_API(JSBool) js_obj_defineGetter(JSContext *cx, uintN argc, js::Value *vp);
+JS_FRIEND_API(JSBool) js_obj_defineSetter(JSContext *cx, uintN argc, js::Value *vp);
+#endif
 
 namespace js {
 
@@ -2007,6 +2056,15 @@ extern JSBool
 js_GetMethod(JSContext *cx, JSObject *obj, jsid id, uintN getHow, js::Value *vp);
 
 /*
+ * Check whether it is OK to assign an undeclared property with name
+ * propname of the global object in the current script on cx.  Reports
+ * an error if one needs to be reported (in particular in all cases
+ * when it returns false).
+ */
+extern JS_FRIEND_API(bool)
+js_CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname);
+
+/*
  * Change attributes for the given native property. The caller must ensure
  * that obj is locked and this function always unlocks obj on return.
  */
@@ -2117,6 +2175,19 @@ js_SetReservedSlot(JSContext *cx, JSObject *obj, uint32 index, const js::Value &
 extern JSBool
 js_ReportGetterOnlyAssignment(JSContext *cx);
 
+extern JS_FRIEND_API(JSBool)
+js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+
+#ifdef DEBUG
+JS_FRIEND_API(void) js_DumpChars(const jschar *s, size_t n);
+JS_FRIEND_API(void) js_DumpString(JSString *str);
+JS_FRIEND_API(void) js_DumpAtom(JSAtom *atom);
+JS_FRIEND_API(void) js_DumpObject(JSObject *obj);
+JS_FRIEND_API(void) js_DumpValue(const js::Value &val);
+JS_FRIEND_API(void) js_DumpId(jsid id);
+JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = NULL);
+#endif
+
 extern uintN
 js_InferFlags(JSContext *cx, uintN defaultFlags);
 
@@ -2206,7 +2277,7 @@ ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp);
  * any effectful operations are performed.
  */
 inline JSObject *
-NonGenericMethodGuard(JSContext *cx, CallArgs args, Native native, Class *clasp, bool *ok);
+NonGenericMethodGuard(JSContext *cx, CallArgs args, Class *clasp, bool *ok);
 
 /*
  * NonGenericMethodGuard tests args.thisv's class using 'clasp'. If more than
@@ -2216,7 +2287,7 @@ NonGenericMethodGuard(JSContext *cx, CallArgs args, Native native, Class *clasp,
  * for error reporting (clasp->name).
  */
 extern bool
-HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Native native, Class *clasp);
+HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Class *clasp);
 
 /*
  * Implement the extraction of a primitive from a value as needed for the
@@ -2227,7 +2298,22 @@ HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Native native,
  */
 template <typename T>
 inline bool
-BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, Native native, T *v, bool *ok);
+BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, T *v, bool *ok);
+
+/*
+ * Enumeration describing possible values of the [[Class]] internal property
+ * value of objects.
+ */
+enum ESClassValue { ESClass_Array, ESClass_Number, ESClass_String, ESClass_Boolean };
+
+/*
+ * Return whether the given object has the given [[Class]] internal property
+ * value. Beware, this query says nothing about the js::Class of the JSObject
+ * so the caller must not assume anything about obj's representation (e.g., obj
+ * may be a proxy).
+ */
+inline bool
+ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx);
 
 }  /* namespace js */
 

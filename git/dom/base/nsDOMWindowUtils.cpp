@@ -79,6 +79,8 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include "jsobj.h"
+
 #include "Layers.h"
 #include "nsIIOService.h"
 
@@ -1573,7 +1575,7 @@ nsDOMWindowUtils::GetParent()
 
   // Outerize if necessary.
   if (parent) {
-    if (JSObjectOp outerize = js::GetObjectClass(parent)->ext.outerObject)
+    if (JSObjectOp outerize = parent->getClass()->ext.outerObject)
       *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
   }
 

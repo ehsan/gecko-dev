@@ -1199,7 +1199,7 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     if (argc == 1) {
         Value arg = vp[2];
         if (arg.isObject())
-            comp = UnwrapObject(&arg.toObject())->compartment();
+            comp = arg.toObject().unwrap()->compartment();
     }
 
     size_t preBytes = cx->runtime->gcBytes;
@@ -2718,9 +2718,9 @@ Clone(JSContext *cx, uintN argc, jsval *vp)
     {
         JSAutoEnterCompartment ac;
         if (!JSVAL_IS_PRIMITIVE(argv[0]) &&
-            IsCrossCompartmentWrapper(JSVAL_TO_OBJECT(argv[0])))
+            JSVAL_TO_OBJECT(argv[0])->isCrossCompartmentWrapper())
         {
-            JSObject *obj = UnwrapObject(JSVAL_TO_OBJECT(argv[0]));
+            JSObject *obj = JSVAL_TO_OBJECT(argv[0])->unwrap();
             if (!ac.enter(cx, obj))
                 return JS_FALSE;
             argv[0] = OBJECT_TO_JSVAL(obj);
@@ -3007,7 +3007,7 @@ EvalInContext(JSContext *cx, uintN argc, jsval *vp)
     {
         JSAutoEnterCompartment ac;
         uintN flags;
-        JSObject *unwrapped = UnwrapObject(sobj, &flags);
+        JSObject *unwrapped = sobj->unwrap(&flags);
         if (flags & Wrapper::CROSS_COMPARTMENT) {
             sobj = unwrapped;
             if (!ac.enter(cx, sobj))
@@ -3150,7 +3150,7 @@ CopyProperty(JSContext *cx, JSObject *obj, JSObject *referent, jsid id,
             desc.setter = JS_StrictPropertyStub;
         desc.shortid = shape->shortid;
         propFlags = shape->getFlags();
-   } else if (IsProxy(referent)) {
+   } else if (referent->isProxy()) {
         PropertyDescriptor desc;
         if (!Proxy::getOwnPropertyDescriptor(cx, referent, id, false, &desc))
             return false;

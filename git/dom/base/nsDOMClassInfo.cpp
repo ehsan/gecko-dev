@@ -42,6 +42,7 @@
 #include "jsapi.h"
 #include "jsprvtd.h"    // we are using private JS typedefs...
 #include "jscntxt.h"
+#include "jsobj.h"
 #include "jsdbgapi.h"
 #include "WrapperFactory.h"
 #include "AccessCheck.h"
@@ -1636,10 +1637,10 @@ FindObjectClass(JSObject* aGlobalObject)
   JSObject *obj, *proto = aGlobalObject;
   do {
     obj = proto;
-    proto = js::GetObjectProto(obj);
+    proto = obj->getProto();
   } while (proto);
 
-  sObjectClass = js::GetObjectJSClass(obj);
+  sObjectClass = obj->getJSClass();
 }
 
 static void
@@ -1822,7 +1823,7 @@ WrapNativeParent(JSContext *cx, JSObject *scope, nsISupports *native,
 nsISupports *
 nsDOMClassInfo::GetNative(nsIXPConnectWrappedNative *wrapper, JSObject *obj)
 {
-  return wrapper ? wrapper->Native() : static_cast<nsISupports*>(js::GetObjectPrivate(obj));
+  return wrapper ? wrapper->Native() : static_cast<nsISupports*>(obj->getPrivate());
 }
 
 nsresult
@@ -4724,7 +4725,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // it's likely that global is a sandbox object whose prototype is a window.
   // Don't do anything in this case.
   if (win->FastGetGlobalJSObject() &&
-      js::GetObjectCompartment(global) != js::GetObjectCompartment(win->FastGetGlobalJSObject())) {
+      global->compartment() != win->FastGetGlobalJSObject()->compartment()) {
     return NS_OK;
   }
 
@@ -5260,7 +5261,7 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   if (id == sWrappedJSObject_id &&
       xpc::AccessCheck::isChrome(cx->compartment)) {
-    obj = JS_ObjectToOuterObject(cx, obj);
+    OBJ_TO_OUTER_OBJECT(cx, obj);
     *vp = OBJECT_TO_JSVAL(obj);
     return NS_SUCCESS_I_DID_SOMETHING;
   }
@@ -6853,7 +6854,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     wrapper->GetJSObject(&realObj);
 
     if (obj == realObj) {
-      JSObject *proto = js::GetObjectProto(obj);
+      JSObject *proto = obj->getProto();
       if (proto) {
         JSObject *pobj = NULL;
         jsval val;
@@ -6885,7 +6886,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       // we must take care to check those warnings here.
       JSString *str = JSID_TO_STRING(id);
       if ((!(flags & JSRESOLVE_QUALIFIED) &&
-           !js::CheckUndeclaredVarAssignment(cx, str)) ||
+           !js_CheckUndeclaredVarAssignment(cx, str)) ||
           !::JS_DefinePropertyById(cx, obj, id, JSVAL_VOID, JS_PropertyStub,
                                    JS_StrictPropertyStub, JSPROP_ENUMERATE)) {
         *_retval = JS_FALSE;
@@ -7171,7 +7172,7 @@ nsNodeSH::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // set up our proto first
   nsresult rv = nsDOMGenericSH::PostCreatePrototype(cx, proto);
 
-  if (xpc::AccessCheck::isChrome(js::GetObjectCompartment(proto))) {
+  if (xpc::AccessCheck::isChrome(proto->compartment())) {
     // Stick nodePrincipal and baseURIObject  properties on there
     JS_DefinePropertyById(cx, proto, sNodePrincipal_id,
                           JSVAL_VOID, GetterShim<NodePrincipalGetter>,
@@ -8246,7 +8247,7 @@ nsDocumentSH::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // set up our proto first
   nsresult rv = nsNodeSH::PostCreatePrototype(cx, proto);
 
-  if (xpc::AccessCheck::isChrome(js::GetObjectCompartment(proto))) {
+  if (xpc::AccessCheck::isChrome(proto->compartment())) {
     // Stick a documentURIObject property on there
     JS_DefinePropertyById(cx, proto, sDocumentURIObject_id,
                           JSVAL_VOID, GetterShim<DocumentURIObjectGetter>,
@@ -8477,8 +8478,8 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  while (js::GetObjectJSClass(obj) != &sHTMLDocumentAllClass) {
-    obj = js::GetObjectProto(obj);
+  while (obj->getJSClass() != &sHTMLDocumentAllClass) {
+    obj = obj->getProto();
 
     if (!obj) {
       NS_ERROR("The JS engine lies!");
