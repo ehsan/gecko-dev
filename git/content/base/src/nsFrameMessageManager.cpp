@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jscntxt.h"
+
 #include "nsFrameMessageManager.h"
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
@@ -43,9 +44,6 @@
 #include "jsarray.h"
 #include "jsinterp.h"
 #include "nsJSUtils.h"
-#include "nsNetUtil.h"
-#include "nsScriptLoader.h"
-#include "nsIJSContextStack.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsFrameMessageManager)
 
@@ -224,20 +222,26 @@ nsFrameMessageManager::SendSyncMessage()
       JSAutoRequest ar(ctx);
 
       PRUint32 len = retval.Length();
-      JSObject* dataArray = JS_NewArrayObject(ctx, len, NULL);
+      jsval* dest = nsnull;
+      JSObject* dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
       NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
+      nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       for (PRUint32 i = 0; i < len; ++i) {
+        dest[i] = JSVAL_NULL;
         if (!retval[i].Length())
           continue;
 
         jsval ret = JSVAL_VOID;
+        nsAutoGCRoot root(&ret, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
         JSONParser* parser = JS_BeginJSONParse(ctx, &ret);
         JSBool ok = JS_ConsumeJSONText(ctx, parser, (jschar*)retval[i].get(),
                                        (uint32)retval[i].Length());
         ok = JS_FinishJSONParse(ctx, parser, JSVAL_NULL) && ok;
         if (ok) {
-          NS_ENSURE_TRUE(JS_SetElement(ctx, dataArray, i, &ret), NS_ERROR_OUT_OF_MEMORY);
+          dest[i] = ret;
         }
       }
 
@@ -346,9 +350,10 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         // To keep compatibility with e10s message manager,
         // define empty objects array.
         if (!aObjectsArray) {
+          jsval* dest = nsnull;
           // Because we want JS messages to have always the same properties,
           // create array even if len == 0.
-          aObjectsArray = JS_NewArrayObject(ctx, 0, NULL);
+          aObjectsArray = js_NewArrayObjectWithCapacity(ctx, 0, &dest);
           if (!aObjectsArray) {
             return false;
           }
@@ -421,11 +426,11 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         NS_ENSURE_SUCCESS(rv, rv);
 
         js::AutoValueRooter argv(ctx);
-        argv.set(OBJECT_TO_JSVAL(param));
+        argv.setObject(param);
 
         JSObject* thisObject = JSVAL_TO_OBJECT(thisValue);
         JS_CallFunctionValue(ctx, thisObject,
-                             funval, 1, argv.jsval_addr(), &rval);
+                             funval, 1, argv.addr(), &rval);
         if (aJSONRetVal) {
           nsString json;
           if (JS_TryJSON(ctx, &rval) &&
@@ -506,169 +511,4 @@ NS_NewGlobalMessageManager(nsIChromeFrameMessageManager** aResult)
                                                         PR_TRUE);
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   return CallQueryInterface(mm, aResult);
-}
-
-nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>*
-  nsFrameScriptExecutor::sCachedScripts = nsnull;
-
-void
-nsFrameScriptExecutor::DidCreateCx()
-{
-  NS_ASSERTION(mCx, "Should have mCx!");
-  if (!sCachedScripts) {
-    sCachedScripts =
-      new nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>;
-    sCachedScripts->Init();
-  }
-}
-
-void
-nsFrameScriptExecutor::DestroyCx()
-{
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  if (xpc) {
-    xpc->ReleaseJSContext(mCx, PR_TRUE);
-  } else {
-    JS_DestroyContext(mCx);
-  }
-  mCx = nsnull;
-}
-
-static PLDHashOperator
-CachedScriptUnrooter(const nsAString& aKey,
-                       nsFrameScriptExecutorJSObjectHolder*& aData,
-                       void* aUserArg)
-{
-  JSContext* cx = static_cast<JSContext*>(aUserArg);
-  JS_RemoveObjectRoot(cx, &(aData->mObject));
-  return PL_DHASH_REMOVE;
-}
-
-// static
-void
-nsFrameScriptExecutor::Shutdown()
-{
-  if (sCachedScripts) {
-    JSContext* cx = nsnull;
-    nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
-    if (cx) {
-#ifdef DEBUG_smaug
-      printf("Will clear cached frame manager scripts!\n");
-#endif
-      JSAutoRequest ar(cx);
-      NS_ASSERTION(sCachedScripts != nsnull, "Need cached scripts");
-      sCachedScripts->Enumerate(CachedScriptUnrooter, cx);
-    } else {
-      NS_WARNING("No context available. Leaking cached scripts!\n");
-    }
-
-    delete sCachedScripts;
-    sCachedScripts = nsnull;
-  }
-}
-
-void
-nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
-{
-  if (!mGlobal || !mCx) {
-    return;
-  }
-
-  nsFrameScriptExecutorJSObjectHolder* holder = sCachedScripts->Get(aURL);
-  if (holder) {
-    nsContentUtils::ThreadJSContextStack()->Push(mCx);
-    {
-      // Need to scope JSAutoRequest to happen after Push but before Pop,
-      // at least for now. See bug 584673.
-      JSAutoRequest ar(mCx);
-      JSObject* global = nsnull;
-      mGlobal->GetJSObject(&global);
-      if (global) {
-        jsval val;
-        JS_ExecuteScript(mCx, global,
-                         (JSScript*)JS_GetPrivate(mCx, holder->mObject),
-                         &val);
-      }
-    }
-    JSContext* unused;
-    nsContentUtils::ThreadJSContextStack()->Pop(&unused);
-    return;
-  }
-
-  nsCString url = NS_ConvertUTF16toUTF8(aURL);
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), url);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  nsCOMPtr<nsIChannel> channel;
-  NS_NewChannel(getter_AddRefs(channel), uri);
-  if (!channel) {
-    return;
-  }
-
-  nsCOMPtr<nsIInputStream> input;
-  channel->Open(getter_AddRefs(input));
-  nsString dataString;
-  if (input) {
-    const PRUint32 bufferSize = 1024;
-    char buffer[bufferSize];
-    nsCString data;
-    PRUint32 avail = 0;
-    input->Available(&avail);
-    PRUint32 read = 0;
-    if (avail) {
-      while (NS_SUCCEEDED(input->Read(buffer, bufferSize, &read)) && read) {
-        data.Append(buffer, read);
-        read = 0;
-      }
-    }
-    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)data.get(), data.Length(),
-                                   EmptyString(), nsnull, dataString);
-  }
-
-  if (!dataString.IsEmpty()) {
-    nsContentUtils::ThreadJSContextStack()->Push(mCx);
-    {
-      // Need to scope JSAutoRequest to happen after Push but before Pop,
-      // at least for now. See bug 584673.
-      JSAutoRequest ar(mCx);
-      JSObject* global = nsnull;
-      mGlobal->GetJSObject(&global);
-      if (global) {
-        JSPrincipals* jsprin = nsnull;
-        mPrincipal->GetJSPrincipals(mCx, &jsprin);
-        nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
-        JSScript* script =
-          JS_CompileUCScriptForPrincipals(mCx, nsnull, jsprin,
-                                         (jschar*)dataString.get(),
-                                          dataString.Length(),
-                                          url.get(), 1);
-
-        if (script) {
-          JSObject* scriptObj = JS_NewScriptObject(mCx, script);
-          JS_AddObjectRoot(mCx, &scriptObj);
-          nsCAutoString scheme;
-          uri->GetScheme(scheme);
-          // We don't cache data: scripts!
-          if (!scheme.EqualsLiteral("data")) {
-            nsFrameScriptExecutorJSObjectHolder* holder =
-              new nsFrameScriptExecutorJSObjectHolder(scriptObj);
-            // Root the object also for caching.
-            JS_AddNamedObjectRoot(mCx, &(holder->mObject),
-                                  "Cached message manager script");
-            sCachedScripts->Put(aURL, holder);
-          }
-          jsval val;
-          JS_ExecuteScript(mCx, global,
-                           (JSScript*)JS_GetPrivate(mCx, scriptObj), &val);
-          JS_RemoveObjectRoot(mCx, &scriptObj);
-        }
-        //XXX Argh, JSPrincipals are manually refcounted!
-        JSPRINCIPALS_DROP(mCx, jsprin);
-      }
-    } 
-    JSContext* unused;
-    nsContentUtils::ThreadJSContextStack()->Pop(&unused);
-  }
 }

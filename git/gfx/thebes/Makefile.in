@@ -277,7 +277,6 @@ CPPSRCS += \
 	gfxFT2Fonts.cpp \
 	gfxFT2FontBase.cpp \
 	gfxFT2Utils.cpp \
-	gfxFT2FontList.cpp \
 	nsUnicodeRange.cpp \
 	$(NULL)
 endif
@@ -396,11 +395,7 @@ endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-ifdef MOZ_PLATFORM_MAEMO
 GL_PROVIDER = EGL
-else
-GL_PROVIDER = GLX
-endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
@@ -412,11 +407,6 @@ ifeq ($(GL_PROVIDER),CGL)
 CMMSRCS += GLContextProvider$(GL_PROVIDER).mm
 else
 CPPSRCS += GLContextProvider$(GL_PROVIDER).cpp
-endif
-
-# Win32 is a special snowflake, for ANGLE
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-CPPSRCS += GLContextProviderEGL.cpp
 endif
 
 DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'RegExp_lastParen.js';
 
 /**
    Filename:     RegExp_lastParen.js

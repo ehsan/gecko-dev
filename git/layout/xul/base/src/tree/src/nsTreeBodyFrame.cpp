@@ -134,6 +134,7 @@ NS_NewTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTreeBodyFrame)
 
 NS_QUERYFRAME_HEAD(nsTreeBodyFrame)
+  NS_QUERYFRAME_ENTRY(nsICSSPseudoComparator)
   NS_QUERYFRAME_ENTRY(nsIScrollbarMediator)
   NS_QUERYFRAME_ENTRY(nsTreeBodyFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
@@ -143,7 +144,6 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
 :nsLeafBoxFrame(aPresShell, aContext),
  mSlots(nsnull),
  mTopRowIndex(0),
- mPageLength(0),
  mHorzPosition(0),
  mHorzWidth(0),
  mAdjustWidth(0),
@@ -1014,21 +1014,35 @@ nsTreeBodyFrame::InvalidateScrollbars(const ScrollParts& aParts, nsWeakFrame& aW
   }
 }
 
-// Takes client x/y in pixels, converts them to appunits, and converts into
-// values relative to this nsTreeBodyFrame frame.
-nsPoint
-nsTreeBodyFrame::AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY)
+// Takes client x/y in pixels, converts them to twips, and massages them to be
+// in our coordinate system.
+void
+nsTreeBodyFrame::AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY,
+                                                   nscoord* aResultX,
+                                                   nscoord* aResultY)
 {
+  nsPresContext* presContext = PresContext();
+
   nsPoint point(nsPresContext::CSSPixelsToAppUnits(aX),
                 nsPresContext::CSSPixelsToAppUnits(aY));
 
-  nsPresContext* presContext = PresContext();
-  point -= GetOffsetTo(presContext->GetPresShell()->GetRootFrame());
+  // Now get our client offset, in twips, and subtract if from the
+  // point to get it in our coordinates
+  nsPoint clientOffset;
+  nsIView* closestView = GetClosestView(&clientOffset);
+  point -= clientOffset;
+
+  nsIView* rootView;
+  presContext->GetPresShell()->GetViewManager()->GetRootView(rootView);
+  NS_ASSERTION(closestView && rootView, "No view?");
+  point -= closestView->GetOffsetTo(rootView);
 
   // Adjust by the inner box coords, so that we're in the inner box's
   // coordinate space.
   point -= mInnerBox.TopLeft();
-  return point;
+
+  *aResultX = point.x;
+  *aResultY = point.y;
 } // AdjustClientCoordsToBoxCoordSpace
 
 nsresult
@@ -1037,15 +1051,17 @@ nsTreeBodyFrame::GetRowAt(PRInt32 aX, PRInt32 aY, PRInt32* _retval)
   if (!mView)
     return NS_OK;
 
-  nsPoint point = AdjustClientCoordsToBoxCoordSpace(aX, aY);
+  nscoord x;
+  nscoord y;
+  AdjustClientCoordsToBoxCoordSpace(aX, aY, &x, &y);
 
   // Check if the coordinates are above our visible space.
-  if (point.y < 0) {
+  if (y < 0) {
     *_retval = -1;
     return NS_OK;
   }
 
-  *_retval = GetRowAt(point.x, point.y);
+  *_retval = GetRowAt(x, y);
 
   return NS_OK;
 }
@@ -1057,17 +1073,19 @@ nsTreeBodyFrame::GetCellAt(PRInt32 aX, PRInt32 aY, PRInt32* aRow, nsITreeColumn*
   if (!mView)
     return NS_OK;
 
-  nsPoint point = AdjustClientCoordsToBoxCoordSpace(aX, aY);
+  nscoord x;
+  nscoord y;
+  AdjustClientCoordsToBoxCoordSpace(aX, aY, &x, &y);
 
   // Check if the coordinates are above our visible space.
-  if (point.y < 0) {
+  if (y < 0) {
     *aRow = -1;
     return NS_OK;
   }
 
   nsTreeColumn* col;
   nsIAtom* child;
-  GetCellAt(point.x, point.y, aRow, &col, &child);
+  GetCellAt(x, y, aRow, &col, &child);
 
   if (col) {
     NS_ADDREF(*aCol = col);
@@ -4183,9 +4201,11 @@ nsTreeBodyFrame::GetPseudoStyleContext(nsIAtom* aPseudoElement)
 }
 
 // Our comparator for resolving our complex pseudos
-PRBool
-nsTreeBodyFrame::PseudoMatches(nsCSSSelector* aSelector)
+NS_IMETHODIMP
+nsTreeBodyFrame::PseudoMatches(nsIAtom* aTag, nsCSSSelector* aSelector, PRBool* aResult)
 {
+  NS_ABORT_IF_FALSE(aSelector->mLowercaseTag == aTag,
+                   "should not have been called");
   // Iterate the pseudoclass list.  For each item in the list, see if
   // it is contained in our scratch array.  If we have a miss, then
   // we aren't a match.  If all items in the pseudoclass list are
@@ -4195,11 +4215,13 @@ nsTreeBodyFrame::PseudoMatches(nsCSSSelector* aSelector)
     PRInt32 index;
     mScratchArray->GetIndexOf(curr->mAtom, &index);
     if (index == -1) {
-      return PR_FALSE;
+      *aResult = PR_FALSE;
+      return NS_OK;
     }
     curr = curr->mNext;
   }
-  return PR_TRUE;
+  *aResult = PR_TRUE;
+  return NS_OK;
 }
 
 nsIContent*

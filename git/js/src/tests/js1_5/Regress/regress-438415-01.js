@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-438415-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 438415;
 var summary = 'Do not assert: *vp != JSVAL_HOLE';

@@ -20,9 +20,6 @@ var gServer;
 var gAddonInstalled = false;
 
 function test() {
-  // Turn on searching for this test
-  Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 15);
-
   waitForExplicitFinish();
 
   gProvider = new MockProvider();
@@ -94,22 +91,6 @@ function getAnonymousElementByAttribute(aElement, aName, aValue) {
 }
 
 /*
- * Checks whether or not the Add-ons Manager is currently searching
- *
- * @param  aExpectedSearching
- *         The expected isSearching state
- */
-function check_is_searching(aExpectedSearching) {
-  is(gManagerWindow.gHeader.isSearching, aExpectedSearching,
-     "Should get expected isSearching state");
-
-  var throbber = gManagerWindow.document.getElementById("header-searching");
-  var style = gManagerWindow.document.defaultView.getComputedStyle(throbber, "");
-  is(style.visibility, aExpectedSearching ? "visible" : "hidden",
-     "Search throbber should be showing iff currently searching");
-}
-
-/*
  * Completes a search
  *
  * @param  aQuery
@@ -141,7 +122,7 @@ function search(aQuery, aFinishImmediately, aCallback, aCategoryType) {
     is(gCategoryUtilities.selectedCategory, aCategoryType, "Expected category view should be selected");
     is(gCategoryUtilities.isTypeVisible("search"), aCategoryType == "search",
        "Search category should only be visible if it is the current view");
-    check_is_searching(false);
+    is(gManagerWindow.gHeader.isSearching, false, "Should no longer be searching");
     is(finishImmediately, aFinishImmediately, "Search should finish immediately only if expected");
 
     aCallback();
@@ -149,7 +130,7 @@ function search(aQuery, aFinishImmediately, aCallback, aCategoryType) {
 
   finishImmediately = false
   if (!aFinishImmediately)
-    check_is_searching(true);
+    ok(gManagerWindow.gHeader.isSearching, "Should be searching");
 }
 
 /*

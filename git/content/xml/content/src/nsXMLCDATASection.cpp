@@ -47,7 +47,7 @@ class nsXMLCDATASection : public nsGenericTextNode,
                           public nsIDOMCDATASection
 {
 public:
-  nsXMLCDATASection(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsXMLCDATASection(nsINodeInfo *aNodeInfo);
   virtual ~nsXMLCDATASection();
 
   // nsISupports
@@ -67,8 +67,6 @@ public:
 
   // nsIContent
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;
   virtual void DumpContent(FILE* out, PRInt32 aIndent,PRBool aDumpAll) const;
@@ -88,7 +86,7 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
                                      nsnull, kNameSpaceID_None);
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-  nsXMLCDATASection *instance = new nsXMLCDATASection(ni.forget());
+  nsXMLCDATASection *instance = new nsXMLCDATASection(ni);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -98,7 +96,7 @@ NS_NewXMLCDATASection(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsXMLCDATASection::nsXMLCDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsXMLCDATASection::nsXMLCDATASection(nsINodeInfo *aNodeInfo)
   : nsGenericTextNode(aNodeInfo)
 {
 }
@@ -108,7 +106,7 @@ nsXMLCDATASection::~nsXMLCDATASection()
 }
 
 
-DOMCI_NODE_DATA(CDATASection, nsXMLCDATASection)
+DOMCI_DATA(CDATASection, nsXMLCDATASection)
 
 // QueryInterface implementation for nsXMLCDATASection
 NS_INTERFACE_TABLE_HEAD(nsXMLCDATASection)
@@ -157,8 +155,7 @@ nsXMLCDATASection::GetNodeType(PRUint16* aNodeType)
 nsGenericDOMDataNode*
 nsXMLCDATASection::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsXMLCDATASection *it = new nsXMLCDATASection(ni.forget());
+  nsXMLCDATASection *it = new nsXMLCDATASection(aNodeInfo);
   if (it && aCloneText) {
     it->mText = mText;
   }

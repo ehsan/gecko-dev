@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsITextControlElement.h"
 #include "nsIFileControlElement.h"
 #include "nsIDOMNSEditableElement.h"
@@ -125,6 +126,8 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 #define NS_CONTROL_TYPE(bits)  ((bits) & ~( \
   NS_OUTER_ACTIVATE_EVENT | NS_ORIGINAL_CHECKED_VALUE | NS_NO_CONTENT_DISPATCH | \
   NS_ORIGINAL_INDETERMINATE_VALUE))
+
+static const char kWhitespace[] = "\n\r\t\b";
 
 // whether textfields should be selected once focused:
 //  -1: no, 1: yes, 0: uninitialized
@@ -221,7 +224,7 @@ static nsresult FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 
-nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsHTMLInputElement::nsHTMLInputElement(nsINodeInfo *aNodeInfo,
                                        PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kInputDefaultType->value),
@@ -281,12 +284,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLInputElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLInputElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLInputElement, nsHTMLInputElement)
+DOMCI_DATA(HTMLInputElement, nsHTMLInputElement)
 
 // QueryInterface implementation for nsHTMLInputElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLInputElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE8(nsHTMLInputElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE9(nsHTMLInputElement,
                                    nsIDOMHTMLInputElement,
+                                   nsIDOMNSHTMLInputElement,
                                    nsITextControlElement,
                                    nsIFileControlElement,
                                    nsIPhonetic,
@@ -306,8 +310,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLInputElement *it = new nsHTMLInputElement(ni.forget(), PR_FALSE);
+  nsHTMLInputElement *it = new nsHTMLInputElement(aNodeInfo, PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -328,7 +331,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
         nsAutoString value;
         const_cast<nsHTMLInputElement*>(this)->GetValue(value);
         // SetValueInternal handles setting the VALUE_CHANGED bit for us
-        it->SetValueInternal(value, PR_FALSE, PR_TRUE);
+        it->SetValueInternal(value, PR_FALSE);
       }
       break;
     case NS_FORM_INPUT_FILE:
@@ -339,7 +342,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
       if (GET_BOOLBIT(mBitField, BF_CHECKED_CHANGED)) {
         // We no longer have our original checked state.  Set our
         // checked state on the clone.
-        it->DoSetChecked(GetChecked(), PR_FALSE, PR_TRUE);
+        it->DoSetChecked(GetChecked(), PR_FALSE);
       }
       break;
     case NS_FORM_INPUT_IMAGE:
@@ -407,14 +410,24 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       AddedToRadioGroup();
     }
 
-    // If @value is changed and BF_VALUE_CHANGED is false, @value is the value
-    // of the element so we call |Reset| which is getting the default value and
-    // sets it to the current value.
+    //
+    // Some elements have to change their value when the value and checked
+    // attributes change (but they only do so when ValueChanged() and
+    // CheckedChanged() are false--i.e. the value has not been changed by the
+    // user or by JS)
+    //
+    // We only really need to call reset for the value so that the text control
+    // knows the new value.  No other reason.
+    //
     if (aName == nsGkAtoms::value &&
-        !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
-      SetDefaultValueAsValue();
+        !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED) &&
+        (mType == NS_FORM_INPUT_TEXT ||
+         mType == NS_FORM_INPUT_SEARCH ||
+         mType == NS_FORM_INPUT_PASSWORD ||
+         mType == NS_FORM_INPUT_TEL ||
+         mType == NS_FORM_INPUT_FILE)) {
+      Reset();
     }
-
     //
     // Checked must be set no matter what type of control it is, since
     // GetChecked() must reflect the new value
@@ -427,7 +440,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       } else {
         PRBool defaultChecked;
         GetDefaultChecked(&defaultChecked);
-        DoSetChecked(defaultChecked, PR_TRUE, PR_TRUE);
+        DoSetChecked(defaultChecked);
         SetCheckedChanged(PR_FALSE);
       }
     }
@@ -523,7 +536,7 @@ nsHTMLInputElement::GetForm(nsIDOMHTMLFormElement** aForm)
   return nsGenericHTMLFormElement::GetForm(aForm);
 }
 
-NS_IMPL_STRING_ATTR(nsHTMLInputElement, DefaultValue, value)
+//NS_IMPL_STRING_ATTR(nsHTMLInputElement, DefaultValue, value)
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, DefaultChecked, checked)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Accept, accept)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, AccessKey, accesskey)
@@ -544,6 +557,25 @@ NS_IMPL_STRING_ATTR(nsHTMLInputElement, UseMap, usemap)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Placeholder, placeholder)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Type, type,
                                 kInputDefaultType->tag)
+
+NS_IMETHODIMP
+nsHTMLInputElement::GetDefaultValue(nsAString& aValue)
+{
+  GetAttrHelper(nsGkAtoms::value, aValue);
+
+  if (mType != NS_FORM_INPUT_HIDDEN) {
+    // Bug 114997: trim \n, etc. for non-hidden inputs
+    aValue = nsContentUtils::TrimCharsInSet(kWhitespace, aValue);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLInputElement::SetDefaultValue(const nsAString& aValue)
+{
+  return SetAttrHelper(nsGkAtoms::value, aValue);
+}
 
 NS_IMETHODIMP
 nsHTMLInputElement::GetIndeterminate(PRBool* aValue)
@@ -640,6 +672,10 @@ nsHTMLInputElement::GetValue(nsAString& aValue)
     aValue.AssignLiteral("on");
   }
 
+  if (mType != NS_FORM_INPUT_HIDDEN) {
+    aValue = nsContentUtils::TrimCharsInSet(kWhitespace, aValue);
+  }
+
   return NS_OK;
 }
 
@@ -662,7 +698,7 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
     }
   }
   else {
-    SetValueInternal(aValue, PR_FALSE, PR_TRUE);
+    SetValueInternal(aValue, PR_FALSE);
   }
 
   return NS_OK;
@@ -728,7 +764,7 @@ nsHTMLInputElement::SetUserInput(const nsAString& aValue)
   {
     SetSingleFileName(aValue);
   } else {
-    SetValueInternal(aValue, PR_TRUE, PR_TRUE);
+    SetValueInternal(aValue, PR_TRUE);
   }
   return NS_OK;
 }
@@ -777,7 +813,7 @@ NS_IMETHODIMP_(void)
 nsHTMLInputElement::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
   nsTextEditorState *state = GetEditorState();
-  if (state && aFrame) {
+  if (state) {
     state->UnbindFromFrame(aFrame);
   }
 }
@@ -926,29 +962,23 @@ nsHTMLInputElement::UpdateFileList()
 
 nsresult
 nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
-                                     PRBool aUserInput,
-                                     PRBool aSetValueChanged)
+                                     PRBool aUserInput)
 {
   NS_PRECONDITION(mType != NS_FORM_INPUT_FILE,
                   "Don't call SetValueInternal for file inputs");
 
-  if (mType == NS_FORM_INPUT_FILE) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
   if (IsSingleLineTextControl(PR_FALSE)) {
-    // At the moment, only single line text control have to sanitize their value
-    // Because we have to create a new string for that, we should prevent doing
-    // it if it's useless.
-    nsAutoString value(aValue);
-    SanitizeValue(value);
-
-    if (aSetValueChanged) {
-      SetValueChanged(PR_TRUE);
-    }
-    mInputData.mState->SetValue(value, aUserInput);
+    // Need to set the value changed flag here, so that
+    // nsTextControlFrame::UpdateValueDisplay retrieves the correct value
+    // if needed.
+    SetValueChanged(PR_TRUE);
+    mInputData.mState->SetValue(aValue, aUserInput);
 
     return NS_OK;
+  }
+
+  if (mType == NS_FORM_INPUT_FILE) {
+    return NS_ERROR_UNEXPECTED;
   }
 
   // If the value of a hidden input was changed, we mark it changed so that we
@@ -1023,21 +1053,20 @@ nsHTMLInputElement::GetCheckedChanged()
 NS_IMETHODIMP
 nsHTMLInputElement::SetChecked(PRBool aChecked)
 {
-  return DoSetChecked(aChecked, PR_TRUE, PR_TRUE);
+  return DoSetChecked(aChecked);
 }
 
 nsresult
-nsHTMLInputElement::DoSetChecked(PRBool aChecked, PRBool aNotify,
-                                 PRBool aSetValueChanged)
+nsHTMLInputElement::DoSetChecked(PRBool aChecked, PRBool aNotify)
 {
   nsresult rv = NS_OK;
 
+  //
   // If the user or JS attempts to set checked, whether it actually changes the
   // value or not, we say the value was changed so that defaultValue don't
   // affect it no more.
-  if (aSetValueChanged) {
-    DoSetCheckedChanged(PR_TRUE, aNotify);
-  }
+  //
+  DoSetCheckedChanged(PR_TRUE, aNotify);
 
   //
   // Don't do anything if we're not changing whether it's checked (it would
@@ -1493,7 +1522,7 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
           }
 
           GetChecked(&originalCheckedValue);
-          DoSetChecked(!originalCheckedValue, PR_TRUE, PR_TRUE);
+          DoSetChecked(!originalCheckedValue);
           SET_BOOLBIT(mBitField, BF_CHECKED_IS_TOGGLED, PR_TRUE);
         }
         break;
@@ -1513,7 +1542,7 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
           originalCheckedValue = GetChecked();
           if (!originalCheckedValue) {
-            DoSetChecked(PR_TRUE, PR_TRUE, PR_TRUE);
+            DoSetChecked(PR_TRUE);
             SET_BOOLBIT(mBitField, BF_CHECKED_IS_TOGGLED, PR_TRUE);
           }
         }
@@ -1674,13 +1703,13 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         // If this one is no longer a radio button we must reset it back to
         // false to cancel the action.  See how the web of hack grows?
         if (mType != NS_FORM_INPUT_RADIO) {
-          DoSetChecked(PR_FALSE, PR_TRUE, PR_TRUE);
+          DoSetChecked(PR_FALSE);
         }
       } else if (oldType == NS_FORM_INPUT_CHECKBOX) {
         PRBool originalIndeterminateValue =
           !!(aVisitor.mItemFlags & NS_ORIGINAL_INDETERMINATE_VALUE);
         SetIndeterminateInternal(originalIndeterminateValue, PR_FALSE);
-        DoSetChecked(originalCheckedValue, PR_TRUE, PR_TRUE);
+        DoSetChecked(originalCheckedValue);
       }
     } else {
       FireOnChange();
@@ -2024,33 +2053,6 @@ nsHTMLInputElement::HandleTypeChange(PRUint8 aNewType)
   }
 
   mType = aNewType;
-
-  // We have to sanitize the value when the type changes.
-  // We could check that we are not changing to a type with the same
-  // sanitization algorithm than the current one but that would be bad for
-  // readability and not so helpful.
-  if (IsSingleLineTextControlInternal(PR_FALSE, mType)) {
-    nsAutoString value;
-    GetValue(value);
-    // SetValueInternal is going to sanitize the value.
-    SetValueInternal(value, PR_FALSE, PR_FALSE);
-  }
-}
-
-void
-nsHTMLInputElement::SanitizeValue(nsAString& aValue)
-{
-  switch (mType) {
-    case NS_FORM_INPUT_TEXT:
-    case NS_FORM_INPUT_SEARCH:
-    case NS_FORM_INPUT_TEL:
-    case NS_FORM_INPUT_PASSWORD:
-      {
-        PRUnichar crlf[] = { PRUnichar('\r'), PRUnichar('\n'), 0 };
-        aValue.StripChars(crlf);
-      }
-      break;
-  }
 }
 
 PRBool
@@ -2372,25 +2374,36 @@ FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 #endif
 
 nsresult
-nsHTMLInputElement::SetDefaultValueAsValue()
+nsHTMLInputElement::Reset()
 {
+  nsresult rv = NS_OK;
+
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
+
   switch (mType) {
     case NS_FORM_INPUT_CHECKBOX:
     case NS_FORM_INPUT_RADIO:
     {
       PRBool resetVal;
       GetDefaultChecked(&resetVal);
-      return DoSetChecked(resetVal, PR_TRUE, PR_FALSE);
+      rv = DoSetChecked(resetVal);
+      SetCheckedChanged(PR_FALSE);
+      break;
     }
     case NS_FORM_INPUT_SEARCH:
     case NS_FORM_INPUT_PASSWORD:
     case NS_FORM_INPUT_TEXT:
     case NS_FORM_INPUT_TEL:
     {
-      nsAutoString resetVal;
-      GetDefaultValue(resetVal);
-      // SetValueInternal is going to sanitize the value.
-      return SetValueInternal(resetVal, PR_FALSE, PR_FALSE);
+      // If the frame is there, we have to set the value so that it will show
+      // up.
+      if (formControlFrame) {
+        nsAutoString resetVal;
+        GetDefaultValue(resetVal);
+        rv = SetValue(resetVal);
+      }
+      SetValueChanged(PR_FALSE);
+      break;
     }
     case NS_FORM_INPUT_FILE:
     {
@@ -2404,31 +2417,7 @@ nsHTMLInputElement::SetDefaultValueAsValue()
       break;
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLInputElement::Reset()
-{
-  nsresult rv = SetDefaultValueAsValue();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch (mType) {
-    case NS_FORM_INPUT_CHECKBOX:
-    case NS_FORM_INPUT_RADIO:
-      SetCheckedChanged(PR_FALSE);
-      break;
-    case NS_FORM_INPUT_SEARCH:
-    case NS_FORM_INPUT_PASSWORD:
-    case NS_FORM_INPUT_TEXT:
-    case NS_FORM_INPUT_TEL:
-      SetValueChanged(PR_FALSE);
-      break;
-    default:
-      break;
-  }
-
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2664,7 +2653,7 @@ nsHTMLInputElement::DoneCreatingElement()
       GET_BOOLBIT(mBitField, BF_SHOULD_INIT_CHECKED)) {
     PRBool resetVal;
     GetDefaultChecked(&resetVal);
-    DoSetChecked(resetVal, PR_FALSE, PR_TRUE);
+    DoSetChecked(resetVal, PR_FALSE);
     DoSetCheckedChanged(PR_FALSE, PR_FALSE);
   }
 
@@ -2719,7 +2708,7 @@ nsHTMLInputElement::RestoreState(nsPresState* aState)
         {
           if (inputState->IsCheckedSet()) {
             restoredCheckedState = PR_TRUE;
-            DoSetChecked(inputState->GetChecked(), PR_TRUE, PR_TRUE);
+            DoSetChecked(inputState->GetChecked());
           }
           break;
         }
@@ -2729,7 +2718,7 @@ nsHTMLInputElement::RestoreState(nsPresState* aState)
       case NS_FORM_INPUT_TEL:
       case NS_FORM_INPUT_HIDDEN:
         {
-          SetValueInternal(inputState->GetValue(), PR_FALSE, PR_TRUE);
+          SetValueInternal(inputState->GetValue(), PR_FALSE);
           break;
         }
       case NS_FORM_INPUT_FILE:
@@ -2880,7 +2869,7 @@ nsHTMLInputElement::IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRI
   }
 
 #ifdef XP_MACOSX
-  const PRBool defaultFocusable = !aWithMouse || nsFocusManager::sMouseFocusesFormControl;
+  const PRBool defaultFocusable = !aWithMouse;
 #else
   const PRBool defaultFocusable = PR_TRUE;
 #endif
@@ -3162,9 +3151,6 @@ nsHTMLInputElement::GetDefaultValueFromContent(nsAString& aValue)
   nsTextEditorState *state = GetEditorState();
   if (state) {
     GetDefaultValue(aValue);
-    // This is called by the frame to show the value.
-    // We have to sanitize it when needed.
-    SanitizeValue(aValue);
   }
 }
 

@@ -34,7 +34,6 @@ THE SOFTWARE.
 #include FT_LZW_H
 #include FT_ERRORS_H
 #include FT_BDF_H
-#include FT_TRUETYPE_IDS_H 
 
 #include "pcf.h"
 #include "pcfdrivr.h"
@@ -228,8 +227,7 @@ THE SOFTWARE.
         {
           prop = &face->properties[i];
 
-          if ( prop )
-          {
+          if ( prop ) {
             FT_FREE( prop->name );
             if ( prop->isString )
               FT_FREE( prop->value.atom );
@@ -360,15 +358,14 @@ THE SOFTWARE.
 
         charmap.face        = FT_FACE( face );
         charmap.encoding    = FT_ENCODING_NONE;
-        /* initial platform/encoding should indicate unset status? */
-        charmap.platform_id = TT_PLATFORM_APPLE_UNICODE;
-        charmap.encoding_id = TT_APPLE_ID_DEFAULT;
+        charmap.platform_id = 0;
+        charmap.encoding_id = 0;
 
         if ( unicode_charmap )
         {
           charmap.encoding    = FT_ENCODING_UNICODE;
-          charmap.platform_id = TT_PLATFORM_MICROSOFT;
-          charmap.encoding_id = TT_MS_ID_UNICODE_CS;
+          charmap.platform_id = 3;
+          charmap.encoding_id = 1;
         }
 
         error = FT_CMap_New( &pcf_cmap_class, NULL, &charmap, NULL );

@@ -4,8 +4,7 @@
 /*                                                                         */
 /*    PostScript hinting algorithm (body).                                 */
 /*                                                                         */
-/*  Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010   */
-/*            by                                                           */
+/*  Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 by      */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used        */
@@ -1691,10 +1690,7 @@
     /* process secondary hints to `selected' points */
     if ( num_masks > 1 && glyph->num_points > 0 )
     {
-      /* the `endchar' op can reduce the number of points */
-      first = mask->end_point > glyph->num_points
-                ? glyph->num_points
-                : mask->end_point;
+      first = mask->end_point;
       mask++;
       for ( ; num_masks > 1; num_masks--, mask++ )
       {
@@ -1702,9 +1698,7 @@
         FT_Int   count;
 
 
-        next  = mask->end_point > glyph->num_points
-                  ? glyph->num_points
-                  : mask->end_point;
+        next  = mask->end_point;
         count = next - first;
         if ( count > 0 )
         {

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351515.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351515;
 var summary = 'Invalid uses of yield, let keywords in js17';

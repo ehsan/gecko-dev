@@ -360,18 +360,10 @@ private:
 #endif // defined(OS_WIN)
 #if defined(OS_MACOSX)
 private:
-    CGColorSpaceRef       mShColorSpace;
-    CGContextRef          mShContext;
-    int16_t               mDrawingModel;
-    nsCARenderer          mCARenderer;
-
-public:
-    const NPCocoaEvent* getCurrentEvent() {
-        return mCurrentEvent;
-    }
-
-private:
-    const NPCocoaEvent   *mCurrentEvent;
+    CGColorSpaceRef mShColorSpace;
+    CGContextRef    mShContext;
+    int16_t         mDrawingModel;
+    nsCARenderer    mCARenderer;
 #endif
 };
 

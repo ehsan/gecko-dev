@@ -705,7 +705,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return StringToNPIdentifier(str);
+  return (NPIdentifier)STRING_TO_JSVAL(str);
 }
 
 #if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
@@ -1368,23 +1368,25 @@ _getintidentifier(int32_t intid)
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
-  return IntToNPIdentifier(intid);
+  return (NPIdentifier)INT_TO_JSVAL(intid);
 }
 
 NPUTF8* NP_CALLBACK
-_utf8fromidentifier(NPIdentifier id)
+_utf8fromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_utf8fromidentifier called from the wrong thread\n"));
   }
-  if (!id)
+  if (!identifier)
     return NULL;
 
-  if (!NPIdentifierIsString(id)) {
+  jsval v = (jsval)identifier;
+
+  if (!JSVAL_IS_STRING(v)) {
     return nsnull;
   }
 
-  JSString *str = NPIdentifierToString(id);
+  JSString *str = JSVAL_TO_STRING(v);
 
   return
     ToNewUTF8String(nsDependentString((PRUnichar *)::JS_GetStringChars(str),
@@ -1392,27 +1394,29 @@ _utf8fromidentifier(NPIdentifier id)
 }
 
 int32_t NP_CALLBACK
-_intfromidentifier(NPIdentifier id)
+_intfromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_intfromidentifier called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  if (!NPIdentifierIsInt(id)) {
+  if (!JSVAL_IS_INT(v)) {
     return PR_INT32_MIN;
   }
 
-  return NPIdentifierToInt(id);
+  return JSVAL_TO_INT(v);
 }
 
 bool NP_CALLBACK
-_identifierisstring(NPIdentifier id)
+_identifierisstring(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_identifierisstring called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  return NPIdentifierIsString(id);
+  return JSVAL_IS_STRING(v);
 }
 
 NPObject* NP_CALLBACK
@@ -1559,8 +1563,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
-
-  JSAutoRequest req(cx);
 
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'send-no-rhs.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER     = "(none)";
 var summary = "|it.send(o)| without an RHS";

@@ -17,11 +17,9 @@
 
 namespace egl
 {
-Surface::Surface(Display *display, const Config *config, HWND window) 
-    : mDisplay(display), mConfig(config), mWindow(window)
+Surface::Surface(Display *display, IDirect3DSwapChain9 *swapChain, IDirect3DSurface9 *depthStencil, const Config *config) 
+    : mDisplay(display), mSwapChain(swapChain), mDepthStencil(depthStencil), mConfig(config)
 {
-    mSwapChain = NULL;
-    mDepthStencil = NULL;
     mBackBuffer = NULL;
     mRenderTarget = NULL;
     mFlipTexture = NULL;
@@ -32,7 +30,42 @@ Surface::Surface(Display *display, const Config *config, HWND window)
     mRenderBuffer = EGL_BACK_BUFFER;
     mSwapBehavior = EGL_BUFFER_PRESERVED;
 
-    resetSwapChain();
+    if (mSwapChain)
+    {
+        mSwapChain->AddRef();
+        mSwapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &mBackBuffer);
+
+        D3DSURFACE_DESC description;
+        mBackBuffer->GetDesc(&description);
+
+        mWidth = description.Width;
+        mHeight = description.Height;
+
+        IDirect3DDevice9 *device = display->getDevice();
+        HRESULT result = device->CreateRenderTarget(mWidth, mHeight, description.Format, description.MultiSampleType, description.MultiSampleQuality, FALSE, &mRenderTarget, NULL);
+
+        if (result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY)
+        {
+            error(EGL_BAD_ALLOC);
+
+            return;
+        }
+
+        ASSERT(SUCCEEDED(result));
+
+        result = device->CreateTexture(mWidth, mHeight, 1, D3DUSAGE_RENDERTARGET, description.Format, D3DPOOL_DEFAULT, &mFlipTexture, NULL);
+
+        if (FAILED(result))
+        {
+            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+
+            error(EGL_BAD_ALLOC);
+
+            mRenderTarget->Release();
+
+            return;
+        }
+    }
 }
 
 Surface::~Surface()
@@ -73,116 +106,20 @@ Surface::~Surface()
     }
 }
 
-void Surface::resetSwapChain()
-{
-    IDirect3DDevice9 *device = mDisplay->getDevice();
-
-    D3DPRESENT_PARAMETERS presentParameters = {0};
-
-    presentParameters.AutoDepthStencilFormat = mConfig->mDepthStencilFormat;
-    presentParameters.BackBufferCount = 1;
-    presentParameters.BackBufferFormat = mConfig->mRenderTargetFormat;
-    presentParameters.EnableAutoDepthStencil = FALSE;
-    presentParameters.Flags = 0;
-    presentParameters.hDeviceWindow = getWindowHandle();
-    presentParameters.MultiSampleQuality = 0;                  // FIXME: Unimplemented
-    presentParameters.MultiSampleType = D3DMULTISAMPLE_NONE;   // FIXME: Unimplemented
-    presentParameters.PresentationInterval = Display::convertInterval(mConfig->mMinSwapInterval);
-    presentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    presentParameters.Windowed = TRUE;
-
-    RECT windowRect;
-    GetClientRect(getWindowHandle(), &windowRect);
-    presentParameters.BackBufferWidth = windowRect.right - windowRect.left;
-    presentParameters.BackBufferHeight = windowRect.bottom - windowRect.top;
-
-    IDirect3DSwapChain9 *swapChain = NULL;
-    HRESULT result = device->CreateAdditionalSwapChain(&presentParameters, &swapChain);
-
-    if (FAILED(result))
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-
-        ERR("Could not create additional swap chains: %08lX", result);
-        return error(EGL_BAD_ALLOC);
-    }
-
-    IDirect3DSurface9 *depthStencilSurface = NULL;
-    result = device->CreateDepthStencilSurface(presentParameters.BackBufferWidth, presentParameters.BackBufferHeight,
-                                               presentParameters.AutoDepthStencilFormat, presentParameters.MultiSampleType,
-                                               presentParameters.MultiSampleQuality, FALSE, &depthStencilSurface, NULL);
-
-    if (FAILED(result))
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-
-        swapChain->Release();
-
-        ERR("Could not create depthstencil surface for new swap chain: %08lX", result);
-        return error(EGL_BAD_ALLOC);
-    }
-
-    IDirect3DSurface9 *renderTarget = NULL;
-    result = device->CreateRenderTarget(presentParameters.BackBufferWidth, presentParameters.BackBufferHeight, presentParameters.BackBufferFormat,
-                                        presentParameters.MultiSampleType, presentParameters.MultiSampleQuality, FALSE, &renderTarget, NULL);
-
-    if (FAILED(result))
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-
-        swapChain->Release();
-        depthStencilSurface->Release();
-
-        ERR("Could not create render target surface for new swap chain: %08lX", result);
-        return error(EGL_BAD_ALLOC);
-    }
-
-    ASSERT(SUCCEEDED(result));
-
-    IDirect3DTexture9 *flipTexture = NULL;
-    result = device->CreateTexture(presentParameters.BackBufferWidth, presentParameters.BackBufferHeight, 1, D3DUSAGE_RENDERTARGET,
-                                   presentParameters.BackBufferFormat, D3DPOOL_DEFAULT, &flipTexture, NULL);
-
-    if (FAILED(result))
-    {
-        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-
-        swapChain->Release();
-        depthStencilSurface->Release();
-        renderTarget->Release();
-
-        ERR("Could not create flip texture for new swap chain: %08lX", result);
-        return error(EGL_BAD_ALLOC);
-    }
-
-    IDirect3DSurface9 *backBuffer = NULL;
-    swapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
-
-    if (mSwapChain) mSwapChain->Release();
-    if (mDepthStencil) mDepthStencil->Release();
-    if (mBackBuffer) mBackBuffer->Release();
-    if (mRenderTarget) mRenderTarget->Release();
-    if (mFlipTexture) mFlipTexture->Release();
-
-    mWidth = presentParameters.BackBufferWidth;
-    mHeight = presentParameters.BackBufferHeight;
-
-    mSwapChain = swapChain;
-    mDepthStencil = depthStencilSurface;
-    mBackBuffer = backBuffer;
-    mRenderTarget = renderTarget;
-    mFlipTexture = flipTexture;
-
-    // The flip state block recorded mFlipTexture so it is now invalid.
-    releaseRecordedState(device);
-}
-
 HWND Surface::getWindowHandle()
 {
-    return mWindow;
+    if (mSwapChain)
+    {
+        D3DPRESENT_PARAMETERS presentParameters;
+        mSwapChain->GetPresentParameters(&presentParameters);
+
+        return presentParameters.hDeviceWindow;
+    }
+
+    return NULL;
 }
 
-void Surface::writeRecordableFlipState(IDirect3DDevice9 *device)
+void Surface::writeRecordableFlipState(IDirect3DDevice9 *device, IDirect3DTexture9 *source)
 {
     // Disable all pipeline operations
     device->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
@@ -201,18 +138,16 @@ void Surface::writeRecordableFlipState(IDirect3DDevice9 *device)
     device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
     device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
     device->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
-    device->SetTexture(0, NULL); // The actual texture will change after resizing. But the pre-flip state block must save/restore the texture.
+    device->SetTexture(0, source);
     device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
     device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
     device->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, FALSE);
-    device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-    device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
     device->SetFVF(D3DFVF_XYZRHW | D3DFVF_TEX1);
 
     device->SetStreamSourceFreq(0, 1); // DrawPrimitiveUP only cares about stream 0, not the rest.
 }
 
-void Surface::applyFlipState(IDirect3DDevice9 *device)
+void Surface::applyFlipState(IDirect3DDevice9 *device, IDirect3DTexture9 *source)
 {
     HRESULT hr;
 
@@ -223,7 +158,7 @@ void Surface::applyFlipState(IDirect3DDevice9 *device)
         // mPreFlipState will record the original state each entry.
         hr = device->BeginStateBlock();
         ASSERT(SUCCEEDED(hr));
-        writeRecordableFlipState(device);
+        writeRecordableFlipState(device, source);
         hr = device->EndStateBlock(&mPreFlipState);
         ASSERT(SUCCEEDED(hr) || hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
 
@@ -236,7 +171,7 @@ void Surface::applyFlipState(IDirect3DDevice9 *device)
         hr = device->BeginStateBlock();
         ASSERT(SUCCEEDED(hr));
 
-        writeRecordableFlipState(device);
+        writeRecordableFlipState(device, source);
 
         hr = device->EndStateBlock(&mFlipState);
         ASSERT(SUCCEEDED(hr) || hr == D3DERR_OUTOFVIDEOMEMORY || hr == E_OUTOFMEMORY);
@@ -288,83 +223,29 @@ void Surface::restoreState(IDirect3DDevice9 *device)
     }
 }
 
-// On the next flip, this will cause the state to be recorded from scratch.
-// In particular we need to do this if the flip texture changes.
-void Surface::releaseRecordedState(IDirect3DDevice9 *device)
-{
-    if (mFlipState)
-    {
-        mFlipState->Release();
-        mFlipState = NULL;
-    }
-
-    if (mPreFlipState)
-    {
-        mPreFlipState->Release();
-        mPreFlipState = NULL;
-    }
-}
-
-bool Surface::checkForWindowResize()
-{
-    RECT client;
-    GetClientRect(getWindowHandle(), &client);
-    if (getWidth() != client.right - client.left || getHeight() != client.bottom - client.top)
-    {
-        resetSwapChain();
-
-        if (static_cast<egl::Surface*>(getCurrentDrawSurface()) == this)
-        {
-            glMakeCurrent(glGetCurrentContext(), static_cast<egl::Display*>(getCurrentDisplay()), this);
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
 bool Surface::swap()
 {
     if (mSwapChain)
     {
-        IDirect3DTexture9 *flipTexture = mFlipTexture;
-        flipTexture->AddRef();
-
-        IDirect3DSurface9 *renderTarget = mRenderTarget;
-        renderTarget->AddRef();
-
-        EGLint oldWidth = mWidth;
-        EGLint oldHeight = mHeight;
-
-        checkForWindowResize();
-
         IDirect3DDevice9 *device = mDisplay->getDevice();
 
         IDirect3DSurface9 *textureSurface;
-        flipTexture->GetSurfaceLevel(0, &textureSurface);
+        mFlipTexture->GetSurfaceLevel(0, &textureSurface);
 
         mDisplay->endScene();
-        device->StretchRect(renderTarget, NULL, textureSurface, NULL, D3DTEXF_NONE);
-        renderTarget->Release();
+        device->StretchRect(mRenderTarget, NULL, textureSurface, NULL, D3DTEXF_NONE);
 
-        applyFlipState(device);
-        device->SetTexture(0, flipTexture);
-
-        float xscale = (float)mWidth / oldWidth;
-        float yscale = (float)mHeight / oldHeight;
+        applyFlipState(device, mFlipTexture);
 
         // Render the texture upside down into the back buffer
-        // Texcoords are chosen to pin a potentially resized image into the upper-left corner without scaling.
-        float quad[4][6] = {{     0 - 0.5f,       0 - 0.5f, 0.0f, 1.0f, 0.0f,   1.0f       },
-                            {mWidth - 0.5f,       0 - 0.5f, 0.0f, 1.0f, xscale, 1.0f       },
-                            {mWidth - 0.5f, mHeight - 0.5f, 0.0f, 1.0f, xscale, 1.0f-yscale},
-                            {     0 - 0.5f, mHeight - 0.5f, 0.0f, 1.0f, 0.0f,   1.0f-yscale}};   // x, y, z, rhw, u, v
+        float quad[4][6] = {{     0 - 0.5f,       0 - 0.5f, 0.0f, 1.0f, 0.0f, 1.0f},
+                            {mWidth - 0.5f,       0 - 0.5f, 0.0f, 1.0f, 1.0f, 1.0f},
+                            {mWidth - 0.5f, mHeight - 0.5f, 0.0f, 1.0f, 1.0f, 0.0f},
+                            {     0 - 0.5f, mHeight - 0.5f, 0.0f, 1.0f, 0.0f, 0.0f}};   // x, y, z, rhw, u, v
 
         mDisplay->startScene();
         device->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, 2, quad, 6 * sizeof(float));
 
-        flipTexture->Release();
         textureSurface->Release();
 
         restoreState(device);
@@ -383,7 +264,6 @@ bool Surface::swap()
         }
 
         ASSERT(SUCCEEDED(result));
-
     }
 
     return true;

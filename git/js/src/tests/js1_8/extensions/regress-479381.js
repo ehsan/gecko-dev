@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'regress-479381.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 479381;
 var summary = 'Do not crash @ js_FinalizeStringRT with multi-threads.';

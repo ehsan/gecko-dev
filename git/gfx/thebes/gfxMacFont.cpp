@@ -43,12 +43,8 @@
 #include "gfxHarfBuzzShaper.h"
 #include "gfxPlatformMac.h"
 #include "gfxContext.h"
-#include "gfxUnicodeProperties.h"
-#include "gfxFontUtils.h"
 
 #include "cairo-quartz.h"
-
-using namespace mozilla;
 
 gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
                        PRBool aNeedsBold)
@@ -153,64 +149,6 @@ gfxMacFont::~gfxMacFont()
     ::CGFontRelease(mCGFont);
 }
 
-PRBool
-gfxMacFont::InitTextRun(gfxContext *aContext,
-                        gfxTextRun *aTextRun,
-                        const PRUnichar *aString,
-                        PRUint32 aRunStart,
-                        PRUint32 aRunLength,
-                        PRInt32 aRunScript)
-{
-    if (!mIsValid) {
-        NS_WARNING("invalid font! expect incorrect text rendering");
-        return PR_FALSE;
-    }
-
-    PRBool ok = PR_FALSE;
-
-    if (mHarfBuzzShaper &&
-        !static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout())
-    {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
-            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
-            ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength, 
-                                              aRunScript);
-#if DEBUG
-            if (!ok) {
-                NS_ConvertUTF16toUTF8 name(GetName());
-                char msg[256];
-                sprintf(msg, "HarfBuzz shaping failed for font: %s",
-                        name.get());
-                NS_WARNING(msg);
-            }
-#endif
-        }
-    }
-
-    if (!ok) {
-        // fallback to Core Text shaping
-        if (!mPlatformShaper) {
-            CreatePlatformShaper();
-        }
-
-        ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                          aRunStart, aRunLength, 
-                                          aRunScript);
-#if DEBUG
-        if (!ok) {
-            NS_ConvertUTF16toUTF8 name(GetName());
-            char msg[256];
-            sprintf(msg, "Core Text shaping failed for font: %s",
-                    name.get());
-            NS_WARNING(msg);
-        }
-#endif
-    }
-
-    return ok;
-}
-
 void
 gfxMacFont::CreatePlatformShaper()
 {
@@ -235,28 +173,11 @@ gfxMacFont::InitMetrics()
     mIsValid = PR_FALSE;
     ::memset(&mMetrics, 0, sizeof(mMetrics));
 
-    PRUint32 upem = 0;
-
-    // try to get unitsPerEm from sfnt head table, to avoid calling CGFont
-    // if possible (bug 574368) and because CGFontGetUnitsPerEm does not
-    // return the true value for OpenType/CFF fonts (it normalizes to 1000,
-    // which then leads to metrics errors when we read the 'hmtx' table to
-    // get glyph advances for HarfBuzz, see bug 580863)
-    const PRUint32 kHeadTableTag = TRUETYPE_TAG('h','e','a','d');
-    nsAutoTArray<PRUint8,sizeof(HeadTable)> headData;
-    if (NS_SUCCEEDED(mFontEntry->GetFontTable(kHeadTableTag, headData)) &&
-        headData.Length() >= sizeof(HeadTable)) {
-        HeadTable *head = reinterpret_cast<HeadTable*>(headData.Elements());
-        upem = head->unitsPerEm;
-    } else {
-        upem = ::CGFontGetUnitsPerEm(mCGFont);
-    }
-
-    if (upem < 16 || upem > 16384) {
-        // See http://www.microsoft.com/typography/otspec/head.htm
+    PRUint32 upem = ::CGFontGetUnitsPerEm(mCGFont);
+    if (!upem) {
 #ifdef DEBUG
         char warnBuf[1024];
-        sprintf(warnBuf, "Bad font metrics for: %s (invalid unitsPerEm value)",
+        sprintf(warnBuf, "Bad font metrics for: %s (no unitsPerEm value)",
                 NS_ConvertUTF16toUTF8(mFontEntry->Name()).get());
         NS_WARNING(warnBuf);
 #endif

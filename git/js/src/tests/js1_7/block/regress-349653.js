@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-349653.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 349653;
 var summary = 'Do not assert: OBJ_GET_CLASS(cx, obj) == &js_ArrayClass';

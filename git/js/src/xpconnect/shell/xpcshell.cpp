@@ -156,7 +156,7 @@ JSPrincipals *gJSPrincipals = nsnull;
 nsAutoString *gWorkingDirectory = nsnull;
 
 static JSBool
-GetLocationProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
 #if (!defined(XP_WIN) && !defined(XP_UNIX)) || defined(WINCE)
     //XXX: your platform should really implement this
@@ -870,7 +870,7 @@ JSClass global_class = {
 };
 
 static JSBool
-env_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+env_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_BEOS && !defined XP_OS2 && !defined SOLARIS
@@ -878,11 +878,7 @@ env_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     const char *name, *value;
     int rv;
 
-    jsval idval;
-    if (!JS_IdToValue(cx, id, &idval))
-        return JS_FALSE;
-    
-    idstr = JS_ValueToString(cx, idval);
+    idstr = JS_ValueToString(cx, id);
     valstr = JS_ValueToString(cx, *vp);
     if (!idstr || !valstr)
         return JS_FALSE;
@@ -953,7 +949,7 @@ env_enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-env_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+env_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
             JSObject **objp)
 {
     JSString *idstr, *valstr;
@@ -962,11 +958,7 @@ env_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
     if (flags & JSRESOLVE_ASSIGNING)
         return JS_TRUE;
 
-    jsval idval;
-    if (!JS_IdToValue(cx, id, &idval))
-        return JS_FALSE;
-
-    idstr = JS_ValueToString(cx, idval);
+    idstr = JS_ValueToString(cx, id);
     if (!idstr)
         return JS_FALSE;
     name = JS_GetStringBytes(idstr);
@@ -1149,7 +1141,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
@@ -1389,17 +1381,17 @@ FullTrustSecMan::CanAccess(PRUint32 aAction,
                            nsAXPCNativeCallContext *aCallContext,
                            JSContext * aJSContext, JSObject * aJSObject,
                            nsISupports *aObj, nsIClassInfo *aClassInfo,
-                           jsid aName, void * *aPolicy)
+                           jsval aName, void * *aPolicy)
 {
     return NS_OK;
 }
 
-/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsid aProperty, in PRUint32 aAction); */
+/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsval aProperty, in PRUint32 aAction); */
 NS_IMETHODIMP
 FullTrustSecMan::CheckPropertyAccess(JSContext * aJSContext,
                                      JSObject * aJSObject,
                                      const char *aClassName,
-                                     jsid aProperty, PRUint32 aAction)
+                                     jsval aProperty, PRUint32 aAction)
 {
     return NS_OK;
 }
@@ -1827,22 +1819,6 @@ main(int argc, char **argv)
         argv += 2;
     }
 
-    while (argc > 1 && !strcmp(argv[1], "-r")) {
-        if (argc < 3)
-            return usage();
-
-        nsCOMPtr<nsILocalFile> lf;
-        rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(lf));
-        if (NS_FAILED(rv)) {
-            printf("Couldn't get manifest file.\n");
-            return 1;
-        }
-        XRE_AddManifestLocation(NS_COMPONENT_LOCATION, lf);
-
-        argc -= 2;
-        argv += 2;
-    }
-
     {
         nsCOMPtr<nsIServiceManager> servMan;
         rv = NS_InitXPCOM2(getter_AddRefs(servMan), appDir, &dirprovider);
@@ -1883,26 +1859,25 @@ main(int argc, char **argv)
         xpc->SetSecurityManagerForJSContext(cx, secman, 0xFFFF);
 
 #ifndef XPCONNECT_STANDALONE
-        nsCOMPtr<nsIPrincipal> systemprincipal;
-
         // Fetch the system principal and store it away in a global, to use for
         // script compilation in Load() and ProcessFile() (including interactive
         // eval loop)
         {
+            nsCOMPtr<nsIPrincipal> princ;
 
             nsCOMPtr<nsIScriptSecurityManager> securityManager =
                 do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
             if (NS_SUCCEEDED(rv) && securityManager) {
-                rv = securityManager->GetSystemPrincipal(getter_AddRefs(systemprincipal));
+                rv = securityManager->GetSystemPrincipal(getter_AddRefs(princ));
                 if (NS_FAILED(rv)) {
                     fprintf(gErrFile, "+++ Failed to obtain SystemPrincipal from ScriptSecurityManager service.\n");
                 } else {
                     // fetch the JS principals and stick in a global
-                    rv = systemprincipal->GetJSPrincipals(cx, &gJSPrincipals);
+                    rv = princ->GetJSPrincipals(cx, &gJSPrincipals);
                     if (NS_FAILED(rv)) {
                         fprintf(gErrFile, "+++ Failed to obtain JS principals from SystemPrincipal.\n");
                     }
-                    secman->SetSystemPrincipal(systemprincipal);
+                    secman->SetSystemPrincipal(princ);
                 }
             } else {
                 fprintf(gErrFile, "+++ Failed to get ScriptSecurityManager service, running without principals");
@@ -1938,8 +1913,6 @@ main(int argc, char **argv)
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                                   NS_GET_IID(nsISupports),
-                                                  systemprincipal,
-                                                  EmptyCString(),
                                                   nsIXPConnect::
                                                       FLAG_SYSTEM_GLOBAL_OBJECT,
                                                   getter_AddRefs(holder));

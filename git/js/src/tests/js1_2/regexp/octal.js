@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'octal.js';
 
 /**
    Filename:     octal.js

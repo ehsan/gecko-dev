@@ -189,11 +189,13 @@ private:
       mImageContent(aImageContent),
       mNotify(aNotify)
     {
-      mImageContent->mStateChangerDepth++;
+      NS_ASSERTION(!mImageContent->mStartingLoad,
+                   "Nested AutoStateChangers somehow?");
+      mImageContent->mStartingLoad = PR_TRUE;
     }
     ~AutoStateChanger()
     {
-      mImageContent->mStateChangerDepth--;
+      mImageContent->mStartingLoad = PR_FALSE;
       mImageContent->UpdateImageState(mNotify);
     }
 
@@ -246,50 +248,9 @@ private:
 protected:
   void CreateStaticImageClone(nsImageLoadingContent* aDest) const;
 
-  /**
-   * Prepare and returns a reference to the "next request". If there's already
-   * a _usable_ current request (one with SIZE_AVAILABLE), this request is
-   * "pending" until it becomes usable. Otherwise, this becomes the current
-   * request.
-   */
-   nsCOMPtr<imgIRequest>& PrepareNextRequest();
-
-  /**
-   * Called when we would normally call PrepareNextRequest(), but the request was
-   * blocked.
-   */
-  void SetBlockedRequest(nsIURI* aURI, PRInt16 aContentDecision);
-
-  /**
-   * Returns a COMPtr reference to the current/pending image requests, cleaning
-   * up and canceling anything that was there before. Note that if you just want
-   * to get rid of one of the requests, you should call
-   * Clear*Request(NS_BINDING_ABORTED) instead, since it passes a more appropriate
-   * aReason than Prepare*Request() does (NS_ERROR_IMAGE_SRC_CHANGED).
-   */
-  nsCOMPtr<imgIRequest>& PrepareCurrentRequest();
-  nsCOMPtr<imgIRequest>& PreparePendingRequest();
-
-  /**
-   * Cancels and nulls-out the "current" and "pending" requests if they exist.
-   */
-  void ClearCurrentRequest(nsresult aReason);
-  void ClearPendingRequest(nsresult aReason);
-
-  /**
-   * Static helper method to tell us if we have the size of a request. The
-   * image may be null.
-   */
-  static bool HaveSize(imgIRequest *aImage);
-
   /* MEMBERS */
   nsCOMPtr<imgIRequest> mCurrentRequest;
   nsCOMPtr<imgIRequest> mPendingRequest;
-
-  // If the image was blocked or if there was an error loading, it's nice to
-  // still keep track of what the URI was despite not having an imgIRequest.
-  // We only maintain this in those situations (in the common case, this is
-  // always null).
   nsCOMPtr<nsIURI>      mCurrentURI;
 
 private:
@@ -311,6 +272,7 @@ private:
 
   PRInt16 mImageBlockingStatus;
   PRPackedBool mLoadingEnabled : 1;
+  PRPackedBool mStartingLoad : 1;
 
   /**
    * When true, we return mForcedImageState from ImageState().
@@ -330,9 +292,6 @@ private:
    * Whether we're currently blocking document load.
    */
   PRPackedBool mBlockingOnload : 1;
-
-  /* The number of nested AutoStateChangers currently tracking our state. */
-  PRUint8 mStateChangerDepth;
 };
 
 #endif // nsImageLoadingContent_h__

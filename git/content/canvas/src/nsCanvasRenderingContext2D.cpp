@@ -74,7 +74,6 @@
 
 #include "nsCSSParser.h"
 #include "nsICSSStyleRule.h"
-#include "mozilla/css/Declaration.h"
 #include "nsComputedDOMStyle.h"
 #include "nsStyleSet.h"
 
@@ -2244,36 +2243,28 @@ CreateFontStyleRule(const nsAString& aFont,
     nsCSSParser parser;
     NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsICSSStyleRule> rule;
-    PRBool changed;
+    // aFont is to be parsed as the value of a CSS 'font' shorthand,
+    // and then any line-height setting in that shorthand is to be
+    // overridden with "normal".  Because of the way style rules are
+    // stored, it is more efficient to fabricate a text string that
+    // can be processed in one go with ParseStyleAttribute than to
+    // make two calls to ParseDeclaration.
+
+    nsAutoString styleAttr(NS_LITERAL_STRING("font:"));
+    styleAttr.Append(aFont);
+    styleAttr.AppendLiteral(";line-height:normal");
 
     nsIPrincipal* principal = aNode->NodePrincipal();
     nsIDocument* document = aNode->GetOwnerDoc();
-
     nsIURI* docURL = document->GetDocumentURI();
     nsIURI* baseURL = document->GetDocBaseURI();
 
-    nsresult rv = parser.ParseStyleAttribute(EmptyString(), docURL, baseURL,
-                                             principal, getter_AddRefs(rule));
+    nsresult rv = parser.ParseStyleAttribute(styleAttr, docURL, baseURL,
+                                             principal, aResult);
     if (NS_FAILED(rv))
         return rv;
 
-    rv = parser.ParseProperty(eCSSProperty_font, aFont, docURL, baseURL,
-                              principal, rule->GetDeclaration(), &changed,
-                              PR_FALSE);
-    if (NS_FAILED(rv))
-        return rv;
-
-    rv = parser.ParseProperty(eCSSProperty_line_height,
-                              NS_LITERAL_STRING("normal"), docURL, baseURL,
-                              principal, rule->GetDeclaration(), &changed,
-                              PR_FALSE);
-    if (NS_FAILED(rv))
-        return rv;
-
-    rule->RuleMatched();
-
-    rule.forget(aResult);
+    (*aResult)->RuleMatched();
     return NS_OK;
 }
 
@@ -2307,23 +2298,6 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     rv = CreateFontStyleRule(font, document, getter_AddRefs(rule));
     if (NS_FAILED(rv))
         return rv;
-
-    css::Declaration *declaration = rule->GetDeclaration();
-    // The easiest way to see whether we got a syntax error or whether
-    // we got 'inherit' or 'initial' is to look at font-size-adjust,
-    // which the shorthand resets to either 'none' or
-    // '-moz-system-font'.
-    // We know the declaration is not !important, so we can use
-    // GetNormalBlock().
-    const nsCSSValue *fsaVal =
-      declaration->GetNormalBlock()->
-        ValueStorageFor(eCSSProperty_font_size_adjust);
-    if (!fsaVal || (fsaVal->GetUnit() != eCSSUnit_None &&
-                    fsaVal->GetUnit() != eCSSUnit_System_Font)) {
-        // We got an all-property value or a syntax error.  The spec says
-        // this value must be ignored.
-        return NS_OK;
-    }
 
     rules.AppendObject(rule);
 
@@ -2393,13 +2367,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
                                                     &style,
                                                     presShell->GetPresContext()->GetUserFontSet());
     NS_ASSERTION(CurrentState().fontGroup, "Could not get font group");
-
-    // The font getter is required to be reserialized based on what we
-    // parsed (including having line-height removed).  (Older drafts of
-    // the spec required font sizes be converted to pixels, but that no
-    // longer seems to be required.)
-    declaration->GetValue(eCSSProperty_font, CurrentState().font);
-
+    CurrentState().font = font;
     return NS_OK;
 }
 
@@ -2600,26 +2568,8 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
         point.x += xOffset * mAppUnitsPerDevPixel;
 
         // offset is given in terms of left side of string
-        if (mTextRun->IsRightToLeft()) {
-            // Bug 581092 - don't use rounded pixel width to advance to
-            // right-hand end of run, because this will cause different
-            // glyph positioning for LTR vs RTL drawing of the same
-            // glyph string on OS X and DWrite where textrun widths may
-            // involve fractional pixels.
-            gfxTextRun::Metrics textRunMetrics =
-                mTextRun->MeasureText(0,
-                                      mTextRun->GetLength(),
-                                      mDoMeasureBoundingBox ?
-                                          gfxFont::TIGHT_INK_EXTENTS :
-                                          gfxFont::LOOSE_INK_EXTENTS,
-                                      mThebes,
-                                      nsnull);
-            point.x += textRunMetrics.mAdvanceWidth;
-            // old code was:
-            //   point.x += width * mAppUnitsPerDevPixel;
-            // TODO: restore this if/when we move to fractional coords
-            // throughout the text layout process
-        }
+        if (mTextRun->IsRightToLeft())
+            point.x += width * mAppUnitsPerDevPixel;
 
         // stroke or fill the text depending on operation
         if (mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
@@ -3537,17 +3487,11 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
         mThebes->SetPattern(pattern);
         DirtyAllStyles();
 
-        /* Direct2D isn't very good at clipping so use Fill() when we can */
-        if (CurrentState().globalAlpha == 1.0f && mThebes->CurrentOperator() == gfxContext::OPERATOR_OVER) {
-            mThebes->NewPath();
-            mThebes->Rectangle(clip);
-            mThebes->Fill();
-        } else {
-            /* we need to use to clip instead of fill for globalAlpha */
-            mThebes->Clip(clip);
-            mThebes->Paint(CurrentState().globalAlpha);
-        }
+        mThebes->Clip(clip);
+
         dirty = mThebes->UserToDevice(clip);
+
+        mThebes->Paint(CurrentState().globalAlpha);
     }
 
 #if 1
@@ -3730,9 +3674,6 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_USE_WIDGET_LAYERS) {
         renderDocFlags |= nsIPresShell::RENDER_USE_WIDGET_LAYERS;
     }
-    if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_ASYNC_DECODE_IMAGES) {
-        renderDocFlags |= nsIPresShell::RENDER_ASYNC_DECODE_IMAGES;
-    }
 
     rv = presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
 
@@ -3884,6 +3825,14 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
 //
 // device pixel getting/setting
 //
+extern "C" {
+#include "jstypes.h"
+JS_FRIEND_API(JSBool)
+js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
+                                JSUint8 *dest);
+JS_FRIEND_API(JSObject *)
+js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
+}
 
 void
 nsCanvasRenderingContext2D::EnsureUnpremultiplyTable() {

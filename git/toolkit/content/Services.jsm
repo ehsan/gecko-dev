@@ -61,10 +61,6 @@ XPCOMUtils.defineLazyGetter(Services, "dirsvc", function () {
            .QueryInterface(Ci.nsIProperties);
 });
 
-XPCOMUtils.defineLazyServiceGetter(Services, "contentPrefs",
-                                   "@mozilla.org/content-pref/service;1",
-                                   "nsIContentPrefService");
-
 XPCOMUtils.defineLazyServiceGetter(Services, "wm",
                                    "@mozilla.org/appshell/window-mediator;1",
                                    "nsIWindowMediator");

@@ -277,15 +277,12 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         const nsStyleFont *rootStyleFont = styleFont;
         Element* docElement = aPresContext->Document()->GetRootElement();
 
-        if (docElement) {
-          rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
-                                                                nsnull);
-          if (rootStyle) {
-            rootStyleFont = rootStyle->GetStyleFont();
-          }
+        rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
+                                                              nsnull);
+        if (rootStyle) {
+          rootStyleFont = rootStyle->GetStyleFont();
+          rootFontSize = rootStyleFont->mFont.size;
         }
-
-        rootFontSize = rootStyleFont->mFont.size;
       }
 
       return ScaleCoord(aValue, float(rootFontSize));
@@ -4569,7 +4566,7 @@ nsRuleNode::ComputeVisibilityData(void* aStartStruct,
       nsAutoString lang;
       displayData.mLang.GetStringValue(lang);
 
-      nsContentUtils::ASCIIToLower(lang);
+      ToLowerCase(lang);
       visibility->mLanguage = do_GetAtom(lang);
     }
   }

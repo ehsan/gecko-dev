@@ -32,7 +32,7 @@ Texture::Image::~Image()
   if (surface) surface->Release();
 }
 
-Texture::Texture(GLuint id) : RefCountObject(id)
+Texture::Texture(Context *context) : mContext(context)
 {
     mMinFilter = GL_NEAREST_MIPMAP_LINEAR;
     mMagFilter = GL_LINEAR;
@@ -51,8 +51,7 @@ Texture::~Texture()
 
 Blit *Texture::getBlitter()
 {
-    Context *context = getContext();
-    return context->getBlitter();
+    return mContext->getBlitter();
 }
 
 // Returns true on successful filter state update (valid enum parameter)
@@ -443,7 +442,7 @@ int Texture::levelCount() const
     return mBaseTexture ? mBaseTexture->GetLevelCount() : 0;
 }
 
-Texture2D::Texture2D(GLuint id) : Texture(id)
+Texture2D::Texture2D(Context *context) : Texture(context)
 {
     mTexture = NULL;
     mColorbufferProxy = NULL;
@@ -564,7 +563,7 @@ void Texture2D::subImage(GLint level, GLint xoffset, GLint yoffset, GLsizei widt
     commitRect(level, xoffset, yoffset, width, height);
 }
 
-void Texture2D::copyImage(GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source)
+void Texture2D::copyImage(GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source)
 {
     if (redefineTexture(level, internalFormat, width, height))
     {
@@ -592,7 +591,7 @@ void Texture2D::copyImage(GLint level, GLenum internalFormat, GLint x, GLint y, 
     mImageArray[level].format = internalFormat;
 }
 
-void Texture2D::copySubImage(GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source)
+void Texture2D::copySubImage(GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source)
 {
     if (xoffset + width > mImageArray[level].width || yoffset + height > mImageArray[level].height)
     {
@@ -872,17 +871,16 @@ void Texture2D::generateMipmaps()
     }
 }
 
-Renderbuffer *Texture2D::getColorbuffer(GLenum target)
+Colorbuffer *Texture2D::getColorbuffer(GLenum target)
 {
     if (target != GL_TEXTURE_2D)
     {
-        return error(GL_INVALID_OPERATION, (Renderbuffer *)NULL);
+        return error(GL_INVALID_OPERATION, (Colorbuffer *)NULL);
     }
 
     if (mColorbufferProxy == NULL)
     {
-        mColorbufferProxy = new Renderbuffer(id(), new TextureColorbufferProxy(this, target));
-        mColorbufferProxy->addRef();
+        mColorbufferProxy = new TextureColorbufferProxy(this, target);
     }
 
     return mColorbufferProxy;
@@ -900,7 +898,7 @@ IDirect3DSurface9 *Texture2D::getRenderTarget(GLenum target)
     return renderTarget;
 }
 
-TextureCubeMap::TextureCubeMap(GLuint id) : Texture(id)
+TextureCubeMap::TextureCubeMap(Context *context) : Texture(context)
 {
     mTexture = NULL;
 
@@ -1280,7 +1278,7 @@ bool TextureCubeMap::redefineTexture(GLint level, GLenum internalFormat, GLsizei
     return !textureOkay;
 }
 
-void TextureCubeMap::copyImage(GLenum face, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source)
+void TextureCubeMap::copyImage(GLenum face, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source)
 {
     unsigned int faceindex = faceIndex(face);
 
@@ -1342,7 +1340,7 @@ IDirect3DSurface9 *TextureCubeMap::getCubeMapSurface(unsigned int faceIdentifier
     return (SUCCEEDED(hr)) ? surface : NULL;
 }
 
-void TextureCubeMap::copySubImage(GLenum face, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source)
+void TextureCubeMap::copySubImage(GLenum face, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source)
 {
     GLsizei size = mImageArray[faceIndex(face)][level].width;
 
@@ -1442,19 +1440,18 @@ void TextureCubeMap::generateMipmaps()
     }
 }
 
-Renderbuffer *TextureCubeMap::getColorbuffer(GLenum target)
+Colorbuffer *TextureCubeMap::getColorbuffer(GLenum target)
 {
     if (!IsCubemapTextureTarget(target))
     {
-        return error(GL_INVALID_OPERATION, (Renderbuffer *)NULL);
+        return error(GL_INVALID_OPERATION, (Colorbuffer *)NULL);
     }
 
     unsigned int face = faceIndex(target);
 
     if (mFaceProxies[face] == NULL)
     {
-        mFaceProxies[face] = new Renderbuffer(id(), new TextureColorbufferProxy(this, target));
-        mFaceProxies[face]->addRef();
+        mFaceProxies[face] = new TextureColorbufferProxy(this, target);
     }
 
     return mFaceProxies[face];
@@ -1478,16 +1475,6 @@ Texture::TextureColorbufferProxy::TextureColorbufferProxy(Texture *texture, GLen
     ASSERT(target == GL_TEXTURE_2D || IsCubemapTextureTarget(target));
 }
 
-void Texture::TextureColorbufferProxy::addRef() const
-{
-    mTexture->addRef();
-}
-
-void Texture::TextureColorbufferProxy::release() const
-{
-    mTexture->release();
-}
-
 IDirect3DSurface9 *Texture::TextureColorbufferProxy::getRenderTarget()
 {
     if (mRenderTarget) mRenderTarget->Release();
@@ -1497,12 +1484,12 @@ IDirect3DSurface9 *Texture::TextureColorbufferProxy::getRenderTarget()
     return mRenderTarget;
 }
 
-int Texture::TextureColorbufferProxy::getWidth() const
+int Texture::TextureColorbufferProxy::getWidth()
 {
     return mTexture->getWidth();
 }
 
-int Texture::TextureColorbufferProxy::getHeight() const
+int Texture::TextureColorbufferProxy::getHeight()
 {
     return mTexture->getHeight();
 }

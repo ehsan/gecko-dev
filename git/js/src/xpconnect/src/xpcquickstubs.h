@@ -40,8 +40,6 @@
 #ifndef xpcquickstubs_h___
 #define xpcquickstubs_h___
 
-#include "nsINode.h"
-
 /* xpcquickstubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
@@ -78,80 +76,6 @@ struct xpc_qsHashEntry {
     size_t chain;
 };
 
-class qsObjectHelper
-{
-public:
-  qsObjectHelper(nsISupports* aObject)
-  : mObject(aObject),
-    mCanonical(nsnull),
-    mCanonicalIsStrong(PR_FALSE),
-    mNode(nsnull)  {}
-
-  ~qsObjectHelper()
-  {
-    if (mCanonicalIsStrong) {
-      NS_RELEASE(mCanonical);
-    }
-  }
-
-  void SetCanonical(already_AddRefed<nsISupports> aCanonical)
-  {
-    mCanonical = aCanonical.get();
-    if (mCanonical) {
-      mCanonicalIsStrong = PR_TRUE;
-    }
-  }
-
-  void SetCanonical(nsISupports* aCanonical) { mCanonical = aCanonical; }
-
-  void SetNode(nsINode* aNode) { mNode = aNode; }
-
-  void SetNode(void* /*aDummy*/) { }
-  
-  nsISupports* Object() { return mObject; }
-
-  nsISupports* GetCanonical()
-  {
-    if (!mCanonical) {
-      CallQueryInterface(mObject, &mCanonical);
-      mCanonicalIsStrong = PR_TRUE;
-    }
-    return mCanonical;
-  }
-
-  already_AddRefed<nsISupports> TakeCanonical()
-  {
-    nsISupports* retval = mCanonical;
-    if (mCanonicalIsStrong) {
-      mCanonicalIsStrong = PR_FALSE;
-    } else {
-      NS_IF_ADDREF(mCanonical);
-    }
-    mCanonical = nsnull;
-    return retval;
-  }
-
-  already_AddRefed<nsXPCClassInfo> GetXPCClassInfo()
-  {
-    nsRefPtr<nsXPCClassInfo> ci;
-    if (mNode) {
-      ci = mNode->GetClassInfo();
-    } else {
-      CallQueryInterface(mObject, getter_AddRefs(ci));
-    }
-    return ci.forget();
-  }
-
-private:
-  qsObjectHelper(qsObjectHelper& aOther) {}
-  qsObjectHelper() {}
-
-  nsISupports*           mObject;
-  nsISupports*           mCanonical;
-  PRBool                 mCanonicalIsStrong;
-  nsINode*               mNode;
-};
-
 JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN extraFlags,
                        PRUint32 ifacec, const nsIID **interfaces,
@@ -176,7 +100,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  */
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, jsid memberId);
+                              JSObject *obj, jsval memberId);
 
 /**
  * Fail after an XPCOM method returned rv.
@@ -216,29 +140,34 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
  */
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          jsid propId);
+                          jsval propId);
 
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
 inline JSBool
 xpc_qsInt32ToJsval(JSContext *cx, PRInt32 i, jsval *rv)
 {
-    *rv = INT_TO_JSVAL(i);
-    return JS_TRUE;
+    if(INT_FITS_IN_JSVAL(i))
+    {
+        *rv = INT_TO_JSVAL(i);
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, i, rv);
 }
 
 inline JSBool
 xpc_qsUint32ToJsval(JSContext *cx, PRUint32 u, jsval *rv)
 {
     if(u <= JSVAL_INT_MAX)
+    {
         *rv = INT_TO_JSVAL(u);
-    else
-        *rv = DOUBLE_TO_JSVAL(u);
-    return JS_TRUE;
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, u, rv);
 }
 
 #ifdef HAVE_LONG_LONG
@@ -424,10 +353,6 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
  */
 JSBool
 xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
-
-/** Convert an nsString to JSString, returning JS_TRUE on success. This will sometimes modify |str| to be empty. */
-JSBool
-xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
 
 nsresult
 getWrapper(JSContext *cx,
@@ -624,13 +549,10 @@ xpc_qsGetWrapperCache(void *p)
     return nsnull;
 }
 
-/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. 
- * aIdentity is a performance optimization. Set it to PR_TRUE,
- * only if p is the identity pointer.
- */
+/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
-                         qsObjectHelper* aHelper,
+                         nsISupports *p,
                          nsWrapperCache *cache,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
@@ -648,12 +570,6 @@ inline nsISupports*
 ToSupports(nsISupports *p)
 {
     return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-  return nsnull;
 }
 
 #ifdef DEBUG

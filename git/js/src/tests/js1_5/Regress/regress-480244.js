@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-480244.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 480244;
 var summary = 'Do not assert: isInt32(*p)';

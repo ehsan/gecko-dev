@@ -40,14 +40,6 @@
 
 #include "imgRequest.h"
 
-/* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
- * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
- * gets changed.
- * This #undef needs to be in multiple places because we don't always pull
- * headers in in the same order.
- */
-#undef LoadImage
-
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 #include "imgContainer.h"
@@ -83,7 +75,6 @@
 #include "nsIPrefBranch2.h"
 
 #include "imgDiscardTracker.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 #define DISCARD_PREF "image.mem.discardable"
 #define DECODEONDRAW_PREF "image.mem.decodeondraw"
@@ -159,19 +150,22 @@ imgRequestPrefObserver::Observe(nsISupports     *aSubject,
 PRLogModuleInfo *gImgLog = PR_NewLogModule("imgRequest");
 #endif
 
-NS_IMPL_ISUPPORTS8(imgRequest,
+NS_IMPL_ISUPPORTS7(imgRequest,
                    imgIDecoderObserver, imgIContainerObserver,
                    nsIStreamListener, nsIRequestObserver,
                    nsISupportsWeakReference,
                    nsIChannelEventSink,
-                   nsIInterfaceRequestor,
-                   nsIAsyncVerifyRedirectCallback)
+                   nsIInterfaceRequestor)
 
 imgRequest::imgRequest() : 
-  mCacheId(0), mValidator(nsnull), mImageSniffers("image-sniffing-services"),
-  mDecodeRequested(PR_FALSE), mIsMultiPartChannel(PR_FALSE),
-  mGotData(PR_FALSE), mIsInCache(PR_FALSE)
-{}
+  mImageStatus(imgIRequest::STATUS_NONE), mState(0), mCacheId(0), 
+  mValidator(nsnull), mImageSniffers("image-sniffing-services"),
+  mDeferredLocks(0), mDecodeRequested(PR_FALSE),
+  mIsMultiPartChannel(PR_FALSE), mLoading(PR_FALSE),
+  mHadLastPart(PR_FALSE), mGotData(PR_FALSE), mIsInCache(PR_FALSE)
+{
+  /* member initializers and constructor code */
+}
 
 imgRequest::~imgRequest()
 {
@@ -200,8 +194,9 @@ nsresult imgRequest::Init(nsIURI *aURI,
   NS_ABORT_IF_FALSE(aChannel, "No channel");
 
   mProperties = do_CreateInstance("@mozilla.org/properties;1");
-  nsCOMPtr<imgIContainer> comImg = do_CreateInstance("@mozilla.org/image/container;3");
-  mImage = static_cast<imgContainer*>(comImg.get());
+  if (!mProperties)
+    return NS_ERROR_OUT_OF_MEMORY;
+
 
   mURI = aURI;
   mKeyURI = aKeyURI;
@@ -213,6 +208,13 @@ nsresult imgRequest::Init(nsIURI *aURI,
                "Initializing with a channel that already calls back to us!");
 
   mChannel->SetNotificationCallbacks(this);
+
+  /* set our loading flag to true here.
+     Setting it here lets checks to see if the load is in progress
+     before OnStartRequest gets called, letting 'this' properly get removed
+     from the cache in certain cases.
+  */
+  mLoading = PR_TRUE;
 
   mCacheEntry = aCacheEntry;
 
@@ -262,15 +264,6 @@ nsresult imgRequest::AddProxy(imgRequestProxy *proxy)
     imgLoader::SetHasProxies(mKeyURI);
   }
 
-  // If we don't have any current observers, we should restart any animation.
-  if (!HaveProxyWithObserver(proxy) && proxy->HasObserver()) {
-    LOG_MSG(gImgLog, "imgRequest::AddProxy", "resetting animation");
-
-    mImage->ResetAnimation();
-  }
-
-  proxy->SetPrincipal(mPrincipal);
-
   return mObservers.AppendElementUnlessExists(proxy) ?
     NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -281,14 +274,30 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
 
   mObservers.RemoveElement(proxy);
 
-  // Let the status tracker do its thing before we potentially call Cancel()
-  // below, because Cancel() may result in OnStopRequest being called back
-  // before Cancel() returns, leaving the image in a different state then the
-  // one it was in at this point.
+  /* Check mState below before we potentially call Cancel() below. Since
+     Cancel() may result in OnStopRequest being called back before Cancel()
+     returns, leaving mState in a different state then the one it was in at
+     this point.
+   */
 
-  mImage->GetStatusTracker().EmulateRequestFinished(proxy, aStatus, !aNotify);
+  if (aNotify) {
+    // The "real" OnStopDecode - fix this with bug 505385.
+    if (!(mState & stateDecodeStopped)) {
+      proxy->OnStopContainer(mImage);
+    }
 
-  if (!HaveProxyWithObserver(nsnull)) {
+    // make sure that observer gets an OnStopDecode message sent to it
+    if (!(mState & stateRequestStopped)) {
+      proxy->OnStopDecode(aStatus, nsnull);
+    }
+  }
+
+  // make sure that observer gets an OnStopRequest message sent to it
+  if (!(mState & stateRequestStopped)) {
+    proxy->OnStopRequest(nsnull, nsnull, NS_BINDING_ABORTED, PR_TRUE);
+  }
+
+  if (mImage && !HaveProxyWithObserver(nsnull)) {
     LOG_MSG(gImgLog, "imgRequest::RemoveProxy", "stopping animation");
 
     mImage->StopAnimation();
@@ -316,8 +325,10 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
        This way, if a proxy is destroyed without calling cancel on it, it won't leak
        and won't leave a bad pointer in mObservers.
      */
-    if (mImage->GetStatusTracker().IsLoading() && NS_FAILED(aStatus)) {
+    if (mRequest && mLoading && NS_FAILED(aStatus)) {
       LOG_MSG(gImgLog, "imgRequest::RemoveProxy", "load in progress.  canceling");
+
+      mImageStatus |= imgIRequest::STATUS_LOAD_PARTIAL;
 
       this->Cancel(NS_BINDING_ABORTED);
     }
@@ -334,6 +345,86 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
   return NS_OK;
 }
 
+nsresult imgRequest::NotifyProxyListener(imgRequestProxy *proxy)
+{
+  nsCOMPtr<imgIRequest> kungFuDeathGrip(proxy);
+
+  // Keep these notifications in sync with imgContainerRequest::Clone!
+
+  // OnStartRequest
+  if (mState & stateRequestStarted)
+    proxy->OnStartRequest(nsnull, nsnull);
+
+  // OnStartContainer
+  if (mState & stateHasSize)
+    proxy->OnStartContainer(mImage);
+
+  // OnStartDecode
+  if (mState & stateDecodeStarted)
+    proxy->OnStartDecode();
+
+  // Send frame messages (OnStartFrame, OnDataAvailable, OnStopFrame)
+  PRUint32 nframes = 0;
+  if (mImage)
+    mImage->GetNumFrames(&nframes);
+
+  if (nframes > 0) {
+    PRUint32 frame;
+    mImage->GetCurrentFrameIndex(&frame);
+    proxy->OnStartFrame(frame);
+
+    // OnDataAvailable
+    // XXX - Should only send partial rects here, but that needs to
+    // wait until we fix up the observer interface
+    nsIntRect r;
+    mImage->GetCurrentFrameRect(r);
+    proxy->OnDataAvailable(frame, &r);
+
+    if (mState & stateRequestStopped)
+      proxy->OnStopFrame(frame);
+  }
+
+  if (mImage && !HaveProxyWithObserver(proxy) && proxy->HasObserver()) {
+    LOG_MSG(gImgLog, "imgRequest::NotifyProxyListener", "resetting animation");
+
+    mImage->ResetAnimation();
+  }
+
+  // The "real" OnStopDecode - Fix this with bug 505385.
+  if (mState & stateDecodeStopped)
+    proxy->OnStopContainer(mImage);
+
+  if (mState & stateRequestStopped) {
+    proxy->OnStopDecode(GetResultFromImageStatus(mImageStatus), nsnull);
+    proxy->OnStopRequest(nsnull, nsnull,
+                         GetResultFromImageStatus(mImageStatus),
+                         mHadLastPart);
+  }
+
+  return NS_OK;
+}
+
+void imgRequest::Cancel(nsresult aStatus)
+{
+  /* The Cancel() method here should only be called by this class. */
+
+  LOG_SCOPE(gImgLog, "imgRequest::Cancel");
+
+  if (mImage) {
+    LOG_MSG(gImgLog, "imgRequest::Cancel", "stopping animation");
+
+    mImage->StopAnimation();
+  }
+
+  if (!(mImageStatus & imgIRequest::STATUS_LOAD_PARTIAL))
+    mImageStatus |= imgIRequest::STATUS_ERROR;
+
+  RemoveFromCache();
+
+  if (mRequest && mLoading)
+    mRequest->Cancel(aStatus);
+}
+
 void imgRequest::CancelAndAbort(nsresult aStatus)
 {
   LOG_SCOPE(gImgLog, "imgRequest::CancelAndAbort");
@@ -347,23 +438,6 @@ void imgRequest::CancelAndAbort(nsresult aStatus)
     mChannel->SetNotificationCallbacks(mPrevChannelSink);
     mPrevChannelSink = nsnull;
   }
-}
-
-void imgRequest::Cancel(nsresult aStatus)
-{
-  /* The Cancel() method here should only be called by this class. */
-
-  LOG_SCOPE(gImgLog, "imgRequest::Cancel");
-
-  LOG_MSG(gImgLog, "imgRequest::Cancel", "stopping animation");
-  mImage->StopAnimation();
-
-  mImage->GetStatusTracker().RecordCancel();
-
-  RemoveFromCache();
-
-  if (mRequest && mImage->GetStatusTracker().IsLoading())
-    mRequest->Cancel(aStatus);
 }
 
 nsresult imgRequest::GetURI(nsIURI **aURI)
@@ -386,6 +460,18 @@ nsresult imgRequest::GetKeyURI(nsIURI **aKeyURI)
   if (mKeyURI) {
     *aKeyURI = mKeyURI;
     NS_ADDREF(*aKeyURI);
+    return NS_OK;
+  }
+
+  return NS_ERROR_FAILURE;
+}
+
+nsresult imgRequest::GetPrincipal(nsIPrincipal **aPrincipal)
+{
+  LOG_FUNC(gImgLog, "imgRequest::GetPrincipal");
+
+  if (mPrincipal) {
+    NS_ADDREF(*aPrincipal = mPrincipal);
     return NS_OK;
   }
 
@@ -471,7 +557,8 @@ void imgRequest::UpdateCacheEntrySize()
 {
   if (mCacheEntry) {
     PRUint32 imageSize = 0;
-    mImage->GetDataSize(&imageSize);
+    if (mImage)
+      mImage->GetDataSize(&imageSize);
     mCacheEntry->SetDataSize(imageSize);
 
 #ifdef DEBUG_joe
@@ -480,25 +567,56 @@ void imgRequest::UpdateCacheEntrySize()
     printf("CACHEPUT: %d %s %d\n", time(NULL), url.get(), imageSize);
 #endif
   }
+
+}
+
+nsresult
+imgRequest::GetImage(imgIContainer **aImage)
+{
+  LOG_FUNC(gImgLog, "imgRequest::GetImage");
+
+  *aImage = mImage;
+  NS_IF_ADDREF(*aImage);
+  return NS_OK;
 }
 
 nsresult
 imgRequest::LockImage()
 {
-  return mImage->LockImage();
+  // If we have an image, apply the lock directly
+  if (mImage) {
+    NS_ABORT_IF_FALSE(mDeferredLocks == 0, "Have image, but deferred locks?");
+    return mImage->LockImage();
+  }
+
+  // Otherwise, queue it up for when we have an image
+  mDeferredLocks++;
+
+  return NS_OK;
 }
 
 nsresult
 imgRequest::UnlockImage()
 {
-  return mImage->UnlockImage();
+  // If we have an image, apply the unlock directly
+  if (mImage) {
+    NS_ABORT_IF_FALSE(mDeferredLocks == 0, "Have image, but deferred locks?");
+    return mImage->UnlockImage();
+  }
+
+  // If we don't have an image, get rid of one of our deferred locks (we should
+  // have one).
+  NS_ABORT_IF_FALSE(mDeferredLocks > 0, "lock/unlock calls must be matched!");
+  mDeferredLocks--;
+
+  return NS_OK;
 }
 
 nsresult
 imgRequest::RequestDecode()
 {
-  // If we've initialized our image, we can request a decode.
-  if (mImage->IsInitialized()) {
+  // If we have an image, apply the request directly
+  if (mImage) {
     return mImage->RequestDecode();
   }
 
@@ -516,11 +634,9 @@ NS_IMETHODIMP imgRequest::FrameChanged(imgIContainer *container,
 {
   LOG_SCOPE(gImgLog, "imgRequest::FrameChanged");
 
-  mImage->GetStatusTracker().RecordFrameChanged(container, dirtyRect);
-
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendFrameChanged(iter.GetNext(), container, dirtyRect);
+    iter.GetNext()->FrameChanged(container, dirtyRect);
   }
 
   return NS_OK;
@@ -533,11 +649,11 @@ NS_IMETHODIMP imgRequest::OnStartDecode(imgIRequest *request)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStartDecode");
 
-  mImage->GetStatusTracker().RecordStartDecode();
+  mState |= stateDecodeStarted;
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStartDecode(iter.GetNext());
+    iter.GetNext()->OnStartDecode();
   }
 
   /* In the case of streaming jpegs, it is possible to get multiple OnStartDecodes which
@@ -565,17 +681,19 @@ NS_IMETHODIMP imgRequest::OnStartContainer(imgIRequest *request, imgIContainer *
   NS_ASSERTION(image, "imgRequest::OnStartContainer called with a null image!");
   if (!image) return NS_ERROR_UNEXPECTED;
 
-  // We only want to send onStartContainer once, but we might get multiple
-  // OnStartContainer calls (e.g. from multipart/x-mixed-replace). Therefore,
-  // we tell our status tracker about OnStartContainer *after* attempting to
-  // send the notifications. That way, if we have previously called
-  // OnStartContainer, the status tracker can notice.
-  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
-  while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStartContainer(iter.GetNext(), image);
-  }
+  // We only want to send onStartContainer once
+  PRBool alreadySent = (mState & stateHasSize) != 0;
 
-  mImage->GetStatusTracker().RecordStartContainer(image);
+  mState |= stateHasSize;
+
+  mImageStatus |= imgIRequest::STATUS_SIZE_AVAILABLE;
+
+  if (!alreadySent) {
+    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
+    while (iter.HasMore()) {
+      iter.GetNext()->OnStartContainer(image);
+    }
+  }
 
   return NS_OK;
 }
@@ -586,11 +704,9 @@ NS_IMETHODIMP imgRequest::OnStartFrame(imgIRequest *request,
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStartFrame");
 
-  mImage->GetStatusTracker().RecordStartFrame(frame);
-
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStartFrame(iter.GetNext(), frame);
+    iter.GetNext()->OnStartFrame(frame);
   }
 
   return NS_OK;
@@ -603,11 +719,9 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(imgIRequest *request,
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnDataAvailable");
 
-  mImage->GetStatusTracker().RecordDataAvailable(aCurrentFrame, rect);
-
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendDataAvailable(iter.GetNext(), aCurrentFrame, rect);
+    iter.GetNext()->OnDataAvailable(aCurrentFrame, rect);
   }
 
   return NS_OK;
@@ -619,11 +733,11 @@ NS_IMETHODIMP imgRequest::OnStopFrame(imgIRequest *request,
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopFrame");
 
-  mImage->GetStatusTracker().RecordStopFrame(frame);
+  mImageStatus |= imgIRequest::STATUS_FRAME_COMPLETE;
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStopFrame(iter.GetNext(), frame);
+    iter.GetNext()->OnStopFrame(frame);
   }
 
   return NS_OK;
@@ -635,11 +749,13 @@ NS_IMETHODIMP imgRequest::OnStopContainer(imgIRequest *request,
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopContainer");
 
-  mImage->GetStatusTracker().RecordStopContainer(image);
+  // XXXbholley - This should be moved into OnStopDecode when we fix bug
+  // 505385.
+  mState |= stateDecodeStopped;
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStopContainer(iter.GetNext(), image);
+    iter.GetNext()->OnStopContainer(image);
   }
 
   return NS_OK;
@@ -656,13 +772,12 @@ NS_IMETHODIMP imgRequest::OnStopDecode(imgIRequest *aRequest,
   // entry size to take this into account.
   UpdateCacheEntrySize();
 
-  mImage->GetStatusTracker().RecordStopDecode(aStatus, aStatusArg);
-
-  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
-  while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStopDecode(iter.GetNext(), aStatus,
-                                              aStatusArg);
-  }
+  // If we were successful, set STATUS_DECODE_COMPLETE
+  if (NS_SUCCEEDED(aStatus))
+    mImageStatus |= imgIRequest::STATUS_DECODE_COMPLETE;
+  // If we weren't, clear all success status bits and set error.
+  else
+    mImageStatus = imgIRequest::STATUS_ERROR;
 
   // ImgContainer and everything below it is completely correct and
   // bulletproof about its handling of decoder notifications.
@@ -672,10 +787,9 @@ NS_IMETHODIMP imgRequest::OnStopDecode(imgIRequest *aRequest,
   // thankfully, happen in bug 505385). From imgRequest and above (for
   // the time being), OnStopDecode is just a companion to OnStopRequest
   // that signals success or failure of the _load_ (not the _decode_).
-  // Within imgStatusTracker, we ignore OnStopDecode notifications from the
-  // decoder and container and generate our own every time we send
-  // OnStopRequest. From within SendStopDecode, we actually send
-  // OnStopContainer.  For more information, see bug 435296.
+  // As such, we ignore OnStopDecode notifications from the decoder and
+  // container and generate our own every time we send OnStopRequest.
+  // For more information, see bug 435296.
 
   return NS_OK;
 }
@@ -690,17 +804,25 @@ NS_IMETHODIMP imgRequest::OnStopRequest(imgIRequest *aRequest,
 /* void onDiscard (in imgIRequest request); */
 NS_IMETHODIMP imgRequest::OnDiscard(imgIRequest *aRequest)
 {
-  mImage->GetStatusTracker().RecordDiscard();
+  // Clear the state bits we no longer deserve.
+  PRUint32 stateBitsToClear = stateDecodeStarted | stateDecodeStopped;
+  mState &= ~stateBitsToClear;
+
+  // Clear the status bits we no longer deserve.
+  PRUint32 statusBitsToClear = imgIRequest::STATUS_FRAME_COMPLETE
+                               | imgIRequest::STATUS_DECODE_COMPLETE;
+  mImageStatus &= ~statusBitsToClear;
 
   // Update the cache entry size, since we just got rid of frame data
   UpdateCacheEntrySize();
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendDiscard(iter.GetNext());
+    iter.GetNext()->OnDiscard();
   }
 
   return NS_OK;
+
 }
 
 /** nsIRequestObserver methods **/
@@ -718,14 +840,23 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
       mIsMultiPartChannel = PR_TRUE;
 
   // If we're not multipart, we shouldn't have an image yet
-  NS_ABORT_IF_FALSE(mIsMultiPartChannel || !mImage->IsInitialized(),
+  NS_ABORT_IF_FALSE(mIsMultiPartChannel || !mImage,
                     "Already have an image for non-multipart request");
 
-  // If we're multipart, and our image is initialized, fix things up for another round
-  if (mIsMultiPartChannel && mImage->IsInitialized()) {
+  // If we're multipart and have an image, fix things up for another round
+  if (mIsMultiPartChannel && mImage) {
 
     // Inform the container that we have new source data
     mImage->NewSourceData();
+
+    // Clear any status and state bits indicating load/decode
+    mImageStatus &= ~imgIRequest::STATUS_LOAD_PARTIAL;
+    mImageStatus &= ~imgIRequest::STATUS_LOAD_COMPLETE;
+    mImageStatus &= ~imgIRequest::STATUS_FRAME_COMPLETE;
+    mState &= ~stateRequestStarted;
+    mState &= ~stateDecodeStarted;
+    mState &= ~stateDecodeStopped;
+    mState &= ~stateRequestStopped;
   }
 
   /*
@@ -743,15 +874,20 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
     mRequest = chan;
   }
 
-  mImage->GetStatusTracker().RecordStartRequest();
+  // The request has started
+  mState |= stateRequestStarted;
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
   if (channel)
     channel->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
 
+  /* set our loading flag to true */
+  mLoading = PR_TRUE;
+
+  /* notify our kids */
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    mImage->GetStatusTracker().SendStartRequest(iter.GetNext());
+    iter.GetNext()->OnStartRequest(aRequest, ctxt);
   }
 
   /* Get our principal */
@@ -764,12 +900,6 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
                                                 getter_AddRefs(mPrincipal));
       if (NS_FAILED(rv)) {
         return rv;
-      }
-
-      // Tell all of our proxies that we have a principal.
-      nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
-      while (iter.HasMore()) {
-        iter.GetNext()->SetPrincipal(mPrincipal);
       }
     }
   }
@@ -837,10 +967,19 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
 {
   LOG_FUNC(gImgLog, "imgRequest::OnStopRequest");
 
-  PRBool lastPart = PR_TRUE;
+  mState |= stateRequestStopped;
+
+  /* set our loading flag to false */
+  mLoading = PR_FALSE;
+
+  mHadLastPart = PR_TRUE;
   nsCOMPtr<nsIMultiPartChannel> mpchan(do_QueryInterface(aRequest));
-  if (mpchan)
-    mpchan->GetIsLastPart(&lastPart);
+  if (mpchan) {
+    PRBool lastPart;
+    nsresult rv = mpchan->GetIsLastPart(&lastPart);
+    if (NS_SUCCEEDED(rv))
+      mHadLastPart = lastPart;
+  }
 
   // XXXldb What if this is a non-last part of a multipart request?
   // xxx before we release our reference to mRequest, lets
@@ -860,7 +999,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // Tell the image that it has all of the source data. Note that this can
   // trigger a failure, since the image might be waiting for more non-optional
   // data and this is the point where we break the news that it's not coming.
-  if (mImage->IsInitialized()) {
+  if (mImage) {
 
     // Notify the image
     nsresult rv = mImage->SourceDataComplete();
@@ -873,24 +1012,30 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
       status = rv;
   }
 
-  mImage->GetStatusTracker().RecordStopRequest(lastPart, status);
+  // If the request went through, say we loaded the image, and update the
+  // cache entry size. Otherwise, cancel the request, which adds an error
+  // flag to mImageStatus.
+  if (mImage && NS_SUCCEEDED(status)) {
 
-  // If the request went through, update the cache entry size. Otherwise,
-  // cancel the request, which removes us from the cache.
-  if (mImage->IsInitialized() && NS_SUCCEEDED(status)) {
+    // Flag that we loaded the image
+    mImageStatus |= imgIRequest::STATUS_LOAD_COMPLETE;
+
     // We update the cache entry size here because this is where we finish
     // loading compressed source data, which is part of our size calculus.
     UpdateCacheEntrySize();
   }
-  else {
-    // stops animations, removes from cache
-    this->Cancel(status);
-  }
+  else
+    this->Cancel(status); // sets status, stops animations, removes from cache
 
   /* notify the kids */
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator sdIter(mObservers);
+  while (sdIter.HasMore()) {
+    sdIter.GetNext()->OnStopDecode(GetResultFromImageStatus(mImageStatus), nsnull);
+  }
+
   nsTObserverArray<imgRequestProxy*>::ForwardIterator srIter(mObservers);
   while (srIter.HasMore()) {
-    mImage->GetStatusTracker().SendStopRequest(srIter.GetNext(), lastPart, status);
+    srIter.GetNext()->OnStopRequest(aRequest, ctxt, status, mHadLastPart);
   }
 
   return NS_OK;
@@ -909,12 +1054,11 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
 
   NS_ASSERTION(aRequest, "imgRequest::OnDataAvailable -- no request!");
 
+  mGotData = PR_TRUE;
   nsresult rv;
 
-  if (!mGotData) {
+  if (!mImage) {
     LOG_SCOPE(gImgLog, "imgRequest::OnDataAvailable |First time through... finding mimetype|");
-
-    mGotData = PR_TRUE;
 
     /* look at the first few bytes and see if we can tell what the data is from that
      * since servers tend to lie. :(
@@ -1013,11 +1157,24 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     if (mIsMultiPartChannel)
       containerFlags |= imgIContainer::INIT_FLAG_MULTIPART;
 
-    // Initialize the image that we created in OnStartRequest(). This
-    // instantiates a decoder behind the scenes, so if we don't have a decoder
-    // for this mimetype we'll find out about it here.
+    // Create and initialize the imgContainer. This instantiates a decoder behind
+    // the scenes, so if we don't have a decoder for this mimetype we'll find out
+    // about it here.
+    mImage = do_CreateInstance("@mozilla.org/image/container;3");
+    if (!mImage) {
+      this->Cancel(NS_ERROR_OUT_OF_MEMORY);
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     rv = mImage->Init(this, mContentType.get(), containerFlags);
     if (NS_FAILED(rv)) { // Probably bad mimetype
+
+      // There's no reason to keep the image around. Save memory.
+      //
+      // XXXbholley - This is also here because I'm not sure we've found
+      // all the consumers who (incorrectly) check whether the container
+      // is null to determine things like size availability (they should
+      // be checking the image status instead).
+      mImage = nsnull;
 
       this->Cancel(rv);
       return NS_BINDING_ABORTED;
@@ -1041,9 +1198,14 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
       }
     }
 
+
     // If we were waiting on the image to do something, now's our chance.
     if (mDecodeRequested) {
       mImage->RequestDecode();
+    }
+    while (mDeferredLocks) {
+      mImage->LockImage();
+      mDeferredLocks--;
     }
   }
 
@@ -1121,49 +1283,24 @@ imgRequest::GetInterface(const nsIID & aIID, void **aResult)
 }
 
 /** nsIChannelEventSink methods **/
+
+/* void onChannelRedirect (in nsIChannel oldChannel, in nsIChannel newChannel, in unsigned long flags); */
 NS_IMETHODIMP
-imgRequest::AsyncOnChannelRedirect(nsIChannel *oldChannel,
-                                   nsIChannel *newChannel, PRUint32 flags,
-                                   nsIAsyncVerifyRedirectCallback *callback)
+imgRequest::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PRUint32 flags)
 {
-  NS_ASSERTION(mRequest && mChannel, "Got a channel redirect after we nulled out mRequest!");
+  NS_ASSERTION(mRequest && mChannel, "Got an OnChannelRedirect after we nulled out mRequest!");
   NS_ASSERTION(mChannel == oldChannel, "Got a channel redirect for an unknown channel!");
   NS_ASSERTION(newChannel, "Got a redirect to a NULL channel!");
 
-  // Prepare for callback
-  mRedirectCallback = callback;
-  mNewRedirectChannel = newChannel;
-
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIChannelEventSink> sink(do_GetInterface(mPrevChannelSink));
   if (sink) {
-    nsresult rv = sink->AsyncOnChannelRedirect(oldChannel, newChannel, flags,
-                                               this);
-    if (NS_FAILED(rv)) {
-        mRedirectCallback = nsnull;
-        mNewRedirectChannel = nsnull;
-    }
-    return rv;
-  }
-  
-  (void) OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgRequest::OnRedirectVerifyCallback(nsresult result)
-{
-  NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
-  NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
-    
-  if (NS_FAILED(result)) {
-      mRedirectCallback->OnRedirectVerifyCallback(result);
-      mRedirectCallback = nsnull;
-      mNewRedirectChannel = nsnull;
-      return NS_OK;
+    rv = sink->OnChannelRedirect(oldChannel, newChannel, flags);
+    if (NS_FAILED(rv))
+      return rv;
   }
 
-  mChannel = mNewRedirectChannel;
-  mNewRedirectChannel = nsnull;
+  mChannel = newChannel;
 
   // Don't make any cache changes if we're going to point to the same thing. We
   // compare specs and not just URIs here because URIs that compare as
@@ -1176,23 +1313,17 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   // make sure we have a protocol that returns data rather than opens
   // an external application, e.g. mailto:
   nsCOMPtr<nsIURI> uri;
-  mChannel->GetURI(getter_AddRefs(uri));
+  newChannel->GetURI(getter_AddRefs(uri));
   PRBool doesNotReturnData = PR_FALSE;
-  nsresult rv =
-    NS_URIChainHasFlags(uri, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
-                        &doesNotReturnData);
-
-  if (NS_SUCCEEDED(rv) && doesNotReturnData)
-    rv = NS_ERROR_ABORT;
-
-  if (NS_FAILED(rv)) {
-    mRedirectCallback->OnRedirectVerifyCallback(rv);
-    mRedirectCallback = nsnull;
-    return NS_OK;
-  }
+  rv = NS_URIChainHasFlags(uri, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
+                           &doesNotReturnData);
+  if (NS_FAILED(rv))
+    return rv;
+  if (doesNotReturnData)
+    return NS_ERROR_ABORT;
 
   nsCOMPtr<nsIURI> newURI;
-  mChannel->GetOriginalURI(getter_AddRefs(newURI));
+  newChannel->GetOriginalURI(getter_AddRefs(newURI));
   nsCAutoString newspec;
   if (newURI)
     newURI->GetSpec(newspec);
@@ -1219,7 +1350,5 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
     }
   }
 
-  mRedirectCallback->OnRedirectVerifyCallback(NS_OK);
-  mRedirectCallback = nsnull;
-  return NS_OK;
+  return rv;
 }

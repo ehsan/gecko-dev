@@ -2661,14 +2661,28 @@ public class Tokenizer implements Locator {
                                  * Stay in the comment end state.
                                  */
                                 continue;
+                            case ' ':
+                            case '\t':
+                            case '\u000C':
+                                /*
+                                 * Parse error. Append two U+002D HYPHEN-MINUS
+                                 * (-) characters and the input character to the
+                                 * comment token's data. Switch to the comment
+                                 * end space state.
+                                 */
+                                adjustDoubleHyphenAndAppendToLongStrBufAndErr(c);
+                                state = Tokenizer.COMMENT_END_SPACE;
+                                break commentendloop;
+                            // continue stateloop;
                             case '\r':
                                 adjustDoubleHyphenAndAppendToLongStrBufCarriageReturn();
-                                state = Tokenizer.COMMENT;
+                                state = Tokenizer.COMMENT_END_SPACE;
                                 break stateloop;
                             case '\n':
                                 adjustDoubleHyphenAndAppendToLongStrBufLineFeed();
-                                state = Tokenizer.COMMENT;
-                                continue stateloop;
+                                state = Tokenizer.COMMENT_END_SPACE;
+                                break commentendloop;
+                            // continue stateloop;
                             case '!':
                                 errHyphenHyphenBang();
                                 appendLongStrBuf(c);
@@ -4377,7 +4391,7 @@ public class Tokenizer implements Locator {
                          */
                         int hilo = 0;
                         if (c <= 'z') {
-                            @Const @NoLength int[] row = NamedCharactersAccel.HILO_ACCEL[c];
+                            @Const @NoLength int[] row = NamedCharacters.HILO_ACCEL[c];
                             if (row != null) {
                                 hilo = row[firstCharKey];
                             }

@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    ANSI-specific FreeType low-level system interface (body).            */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2006, 2008, 2009, 2010 by                   */
+/*  Copyright 1996-2001, 2002, 2006, 2008, 2009 by                         */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -192,9 +192,7 @@
   /*    count  :: The number of bytes to read from the stream.             */
   /*                                                                       */
   /* <Return>                                                              */
-  /*    The number of bytes actually read.  If `count' is zero (this is,   */
-  /*    the function is used for seeking), a non-zero return value         */
-  /*    indicates an error.                                                */
+  /*    The number of bytes actually read.                                 */
   /*                                                                       */
   FT_CALLBACK_DEF( unsigned long )
   ft_ansi_stream_io( FT_Stream       stream,
@@ -204,9 +202,6 @@
   {
     FT_FILE*  file;
 
-
-    if ( !count && offset > stream->size )
-      return 1;
 
     file = STREAM_FILE( stream );
 

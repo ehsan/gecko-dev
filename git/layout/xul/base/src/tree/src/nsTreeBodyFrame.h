@@ -143,7 +143,7 @@ public:
   virtual void ReflowCallbackCanceled();
 
   // nsICSSPseudoComparator
-  virtual PRBool PseudoMatches(nsCSSSelector* aSelector);
+  NS_IMETHOD PseudoMatches(nsIAtom* aTag, nsCSSSelector* aSelector, PRBool* aResult);
 
   // nsIScrollbarMediator
   NS_IMETHOD PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
@@ -383,8 +383,9 @@ protected:
   nsresult ScrollHorzInternal(const ScrollParts& aParts, PRInt32 aPosition);
   nsresult EnsureRowIsVisibleInternal(const ScrollParts& aParts, PRInt32 aRow);
   
-  // Convert client pixels into appunits in our coordinate space.
-  nsPoint AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY);
+  // Convert client pixels into twips in our coordinate space.
+  void AdjustClientCoordsToBoxCoordSpace(PRInt32 aX, PRInt32 aY,
+                                         nscoord* aResultX, nscoord* aResultY);
 
   // Convert a border style into line style.
   nsLineStyle ConvertBorderStyleToLineStyle(PRUint8 aBorderStyle);
@@ -427,8 +428,6 @@ protected:
       InvalidateRow(aRow + aOrientation);
   }
 
-public:
-  static
   already_AddRefed<nsTreeColumn> GetColumnImpl(nsITreeColumn* aUnknownCol) {
     if (!aUnknownCol)
       return nsnull;
@@ -437,8 +436,6 @@ public:
     aUnknownCol->QueryInterface(NS_GET_IID(nsTreeColumn), (void**)&col);
     return col;
   }
-
-protected:
 
   // Create a new timer. This method is used to delay various actions like
   // opening/closing folders or tree scrolling.

@@ -50,7 +50,7 @@ class nsHTMLSourceElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLSourceElement
 {
 public:
-  nsHTMLSourceElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLSourceElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLSourceElement();
 
   // nsISupports
@@ -79,15 +79,13 @@ public:
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,
                               PRBool aCompileEventHandlers);
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Source)
 
 
-nsHTMLSourceElement::nsHTMLSourceElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLSourceElement::nsHTMLSourceElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -101,7 +99,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSourceElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSourceElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLSourceElement, nsHTMLSourceElement)
+DOMCI_DATA(HTMLSourceElement, nsHTMLSourceElement)
 
 // QueryInterface implementation for nsHTMLSourceElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLSourceElement)

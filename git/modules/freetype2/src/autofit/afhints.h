@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Auto-fitter hinting routines (specification).                        */
 /*                                                                         */
-/*  Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2010 by                  */
+/*  Copyright 2003, 2004, 2005, 2006, 2007, 2008 by                        */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -286,7 +286,8 @@ FT_BEGIN_HEADER
 
   FT_LOCAL( FT_Error )
   af_glyph_hints_reload( AF_GlyphHints  hints,
-                         FT_Outline*    outline );
+                         FT_Outline*    outline,
+                         FT_Bool        get_inflections );
 
   FT_LOCAL( void )
   af_glyph_hints_save( AF_GlyphHints  hints,

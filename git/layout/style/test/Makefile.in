@@ -71,11 +71,9 @@ HOST_SIMPLE_PROGRAMS	= $(addprefix host_, $(HOST_CPPSRCS:.cpp=$(HOST_BIN_SUFFIX)
 # TestCSSPropertyLookup.cpp needs the internal XPCOM APIs and so cannot
 # be built with libxul enabled.
 
-ifndef BUILD_STATIC_LIBS
 ifndef MOZ_ENABLE_LIBXUL
 CPP_UNIT_TESTS = TestCSSPropertyLookup.cpp
 LIBS += ../nsCSSKeywords.$(OBJ_SUFFIX) ../nsCSSProps.$(OBJ_SUFFIX) $(XPCOM_LIBS)
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -134,7 +132,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug524175.html \
 		test_bug534804.html \
 		test_bug573255.html \
-		test_bug580685.html \
 		test_cascade.html \
 		test_compute_data_with_start_struct.html \
 		test_computed_style_no_pseudo.html \

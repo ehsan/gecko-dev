@@ -216,8 +216,7 @@ void
 nsSVGRenderingObserver::ContentRemoved(nsIDocument *aDocument,
                                        nsIContent *aContainer,
                                        nsIContent *aChild,
-                                       PRInt32 aIndexInContainer,
-                                       nsIContent *aPreviousSibling)
+                                       PRInt32 aIndexInContainer)
 {
   DoUpdate();
 }

@@ -43,6 +43,7 @@
  * See http://bugzilla.mozilla.org/show_bug.cgi?id=90325
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'scope-004.js';
 var UBound = 0;
 var BUGNUMBER = 90325;
 var summary = 'Testing visiblity of variables from within a with block';

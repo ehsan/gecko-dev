@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452742-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452742;
 var summary = 'Do not do overzealous eval inside function optimization in BindNameToSlot';

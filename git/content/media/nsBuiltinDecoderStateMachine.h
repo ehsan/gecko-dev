@@ -168,7 +168,6 @@ public:
   virtual void ClearPositionChangeFlag();
   virtual void SetSeekable(PRBool aSeekable);
   virtual void UpdatePlaybackPosition(PRInt64 aTime);
-  virtual void StartBuffering();
 
 
   // Load metadata Called on the state machine thread. The decoder monitor must be held with
@@ -233,11 +232,6 @@ public:
   // the main thread so the decoder thread can wake up.
   // Accessed on state machine, audio, main, and AV thread. 
   State mState;
-
-  nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) {
-    NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mReader->GetBuffered(aBuffered, mStartTime);
-  }
 
 protected:
 

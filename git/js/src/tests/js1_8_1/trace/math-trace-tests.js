@@ -43,6 +43,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'math-trace-tests.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 'none';
 var summary = 'trace-capability math mini-testsuite';

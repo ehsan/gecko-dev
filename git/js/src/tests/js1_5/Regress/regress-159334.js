@@ -54,6 +54,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-159334.js';
 var UBound = 0;
 var BUGNUMBER = 159334;
 var summary = 'Testing script with at least 64K of different string literals';

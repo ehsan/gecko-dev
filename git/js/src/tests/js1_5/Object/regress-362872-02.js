@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-362872-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 362872;
 var summary = 'script should not drop watchpoint that is in use';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-464092-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 464092;
 var summary = 'Do not assert: OBJ_IS_CLONED_BLOCK(obj)';

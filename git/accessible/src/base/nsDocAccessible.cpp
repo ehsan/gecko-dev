@@ -1250,8 +1250,7 @@ nsDocAccessible::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
 
 void
 nsDocAccessible::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
-                                nsIContent* aChild, PRInt32 /* unused */,
-                                nsIContent* aPreviousSibling)
+                                nsIContent* aChild, PRInt32 /* unused */)
 {
   // It's no needed to invalidate the subtree of the removed element,
   // because we get notifications directly from content (see

@@ -173,17 +173,33 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &fBufferSubData, { "BufferSubData", NULL } },
         { (PRFuncPtr*) &fClear, { "Clear", NULL } },
         { (PRFuncPtr*) &fClearColor, { "ClearColor", NULL } },
+#ifdef USE_GLES2
+        { (PRFuncPtr*) &fClearDepthf, { "ClearDepthf", NULL } },
+#else
+        { (PRFuncPtr*) &fClearDepth, { "ClearDepth", NULL } },
+#endif
         { (PRFuncPtr*) &fClearStencil, { "ClearStencil", NULL } },
         { (PRFuncPtr*) &fColorMask, { "ColorMask", NULL } },
         { (PRFuncPtr*) &fCullFace, { "CullFace", NULL } },
         { (PRFuncPtr*) &fDetachShader, { "DetachShader", "DetachShaderARB", NULL } },
         { (PRFuncPtr*) &fDepthFunc, { "DepthFunc", NULL } },
         { (PRFuncPtr*) &fDepthMask, { "DepthMask", NULL } },
+#ifdef USE_GLES2
+        { (PRFuncPtr*) &fDepthRangef, { "DepthRangef", NULL } },
+#else
+        { (PRFuncPtr*) &fDepthRange, { "DepthRange", NULL } },
+#endif
         { (PRFuncPtr*) &fDisable, { "Disable", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fDisableClientState, { "DisableClientState", NULL } },
+#endif
         { (PRFuncPtr*) &fDisableVertexAttribArray, { "DisableVertexAttribArray", "DisableVertexAttribArrayARB", NULL } },
         { (PRFuncPtr*) &fDrawArrays, { "DrawArrays", NULL } },
         { (PRFuncPtr*) &fDrawElements, { "DrawElements", NULL } },
         { (PRFuncPtr*) &fEnable, { "Enable", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fEnableClientState, { "EnableClientState", NULL } },
+#endif
         { (PRFuncPtr*) &fEnableVertexAttribArray, { "EnableVertexAttribArray", "EnableVertexAttribArrayARB", NULL } },
         { (PRFuncPtr*) &fFinish, { "Finish", NULL } },
         { (PRFuncPtr*) &fFlush, { "Flush", NULL } },
@@ -199,6 +215,9 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &fGetError, { "GetError", NULL } },
         { (PRFuncPtr*) &fGetProgramiv, { "GetProgramiv", "GetProgramivARB", NULL } },
         { (PRFuncPtr*) &fGetProgramInfoLog, { "GetProgramInfoLog", "GetProgramInfoLogARB", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fTexCoordPointer, { "TexCoordPointer", NULL } },
+#endif
         { (PRFuncPtr*) &fTexParameteri, { "TexParameteri", NULL } },
         { (PRFuncPtr*) &fTexParameterf, { "TexParameterf", NULL } },
         { (PRFuncPtr*) &fGetString, { "GetString", NULL } },
@@ -219,6 +238,9 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &fLinkProgram, { "LinkProgram", "LinkProgramARB", NULL } },
         { (PRFuncPtr*) &fPixelStorei, { "PixelStorei", NULL } },
         { (PRFuncPtr*) &fPolygonOffset, { "PolygonOffset", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fReadBuffer,  { "ReadBuffer", NULL } },
+#endif
         { (PRFuncPtr*) &fReadPixels, { "ReadPixels", NULL } },
         { (PRFuncPtr*) &fSampleCoverage, { "SampleCoverage", NULL } },
         { (PRFuncPtr*) &fScissor, { "Scissor", NULL } },
@@ -228,6 +250,9 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &fStencilMaskSeparate, { "StencilMaskSeparate", "StencilMaskSeparateEXT", NULL } },
         { (PRFuncPtr*) &fStencilOp, { "StencilOp", NULL } },
         { (PRFuncPtr*) &fStencilOpSeparate, { "StencilOpSeparate", "StencilOpSeparateEXT", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fTexEnvf, { "TexEnvf",  NULL } },
+#endif
         { (PRFuncPtr*) &fTexImage2D, { "TexImage2D", NULL } },
         { (PRFuncPtr*) &fTexSubImage2D, { "TexSubImage2D", NULL } },
         { (PRFuncPtr*) &fUniform1f, { "Uniform1f", NULL } },
@@ -260,6 +285,9 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &fVertexAttrib2fv, { "VertexAttrib2fv", NULL } },
         { (PRFuncPtr*) &fVertexAttrib3fv, { "VertexAttrib3fv", NULL } },
         { (PRFuncPtr*) &fVertexAttrib4fv, { "VertexAttrib4fv", NULL } },
+#ifndef USE_GLES2
+        { (PRFuncPtr*) &fVertexPointer, { "VertexPointer", NULL } },
+#endif
         { (PRFuncPtr*) &fViewport, { "Viewport", NULL } },
         { (PRFuncPtr*) &fCompileShader, { "CompileShader", NULL } },
         { (PRFuncPtr*) &fCopyTexImage2D, { "CopyTexImage2D", NULL } },
@@ -295,76 +323,12 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
         { (PRFuncPtr*) &priv_fDeleteFramebuffers, { "DeleteFramebuffers", "DeleteFramebuffersEXT", NULL } },
         { (PRFuncPtr*) &priv_fDeleteRenderbuffers, { "DeleteRenderbuffers", "DeleteRenderbuffersEXT", NULL } },
 
-        { mIsGLES2 ? (PRFuncPtr*) &priv_fClearDepthf : (PRFuncPtr*) &priv_fClearDepth,
-          { mIsGLES2 ? "ClearDepthf" : "ClearDepth", NULL } },
-        { mIsGLES2 ? (PRFuncPtr*) &priv_fDepthRangef : (PRFuncPtr*) &priv_fDepthRange,
-          { mIsGLES2 ? "DepthRangef" : "DepthRange", NULL } },
-
-        // XXX FIXME -- we shouldn't be using glReadBuffer!
-        { mIsGLES2 ? (PRFuncPtr*) NULL : (PRFuncPtr*) &fReadBuffer,
-          { mIsGLES2 ? NULL : "ReadBuffer", NULL } },
-
         { NULL, { NULL } },
 
     };
 
     mInitialized = LoadSymbols(&symbols[0], trygl, prefix);
-
-    if (mInitialized) {
-        InitExtensions();
-    }
-
     return mInitialized;
-}
-
-// should match the order of GLExtensions
-static const char *sExtensionNames[] = {
-    "GL_EXT_framebuffer_object",
-    "GL_ARB_framebuffer_object",
-    "GL_ARB_texture_rectangle",
-    "GL_EXT_bgra",
-    "GL_EXT_texture_format_BGRA8888",
-    "GL_OES_depth24",
-    "GL_OES_depth32",
-    "GL_OES_stencil8",
-    "GL_OES_texture_npot",
-    "GL_OES_depth_texture",
-    "GL_OES_packed_depth_stencil",
-    "GL_IMG_read_format",
-    "GL_EXT_read_format_bgra",
-    NULL
-};
-
-void
-GLContext::InitExtensions()
-{
-    MakeCurrent();
-    const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
-    char *exts = strdup((char *)extensions);
-
-    printf_stderr("GL extensions: %s\n", exts);
-
-    char *s = exts;
-    bool done = false;
-    while (!done) {
-        char *space = strchr(s, ' ');
-        if (space) {
-            *space = '\0';
-        } else {
-            done = true;
-        }
-
-        for (int i = 0; sExtensionNames[i]; ++i) {
-            if (strcmp(s, sExtensionNames[i]) == 0) {
-                printf_stderr("Found extension %s\n", s);
-                mAvailableExtensions[i] = 1;
-            }
-        }
-
-        s = space+1;
-    }
-
-    free(exts);
 }
 
 PRBool
@@ -526,6 +490,12 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     int depth = mCreationFormat.depth;
     int stencil = mCreationFormat.stencil;
 
+#ifdef USE_GLES2
+    const bool isMobile = true;
+#else
+    const bool isMobile = false;
+#endif
+
     bool firstTime = (mOffscreenFBO == 0);
 
     GLuint curBoundTexture = 0;
@@ -533,9 +503,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
     GLuint curBoundFramebuffer = 0;
 
     GLint viewport[4];
-
-    bool useDepthStencil =
-        !mIsGLES2 || IsExtensionSupported(OES_packed_depth_stencil);
 
     // save a few things for later restoring
     fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, (GLint*) &curBoundTexture);
@@ -554,16 +521,12 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
         fGenFramebuffers(1, &mOffscreenFBO);
         fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mOffscreenFBO);
 
-        if (depth && stencil && useDepthStencil) {
+        if (depth) {
             fGenRenderbuffers(1, &mOffscreenDepthRB);
-        } else {
-            if (depth) {
-                fGenRenderbuffers(1, &mOffscreenDepthRB);
-            }
+        }
 
-            if (stencil) {
-                fGenRenderbuffers(1, &mOffscreenStencilRB);
-            }
+        if (stencil) {
+            fGenRenderbuffers(1, &mOffscreenStencilRB);
         }
     } else {
         fBindTexture(LOCAL_GL_TEXTURE_2D, mOffscreenTexture);
@@ -587,48 +550,24 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                     aSize.width, aSize.height,
                     0,
                     LOCAL_GL_RGB,
-#ifdef XP_WIN
-                    LOCAL_GL_UNSIGNED_BYTE,
-#else
-                    mIsGLES2 ? LOCAL_GL_UNSIGNED_SHORT_5_6_5
+                    isMobile ? LOCAL_GL_UNSIGNED_SHORT_5_6_5
                              : LOCAL_GL_UNSIGNED_BYTE,
-#endif
                     NULL);
     }
 
-    if (depth && stencil && useDepthStencil) {
+
+    if (depth) {
         fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenDepthRB);
         fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
-                             LOCAL_GL_DEPTH24_STENCIL8,
+                             LOCAL_GL_DEPTH_COMPONENT16,
                              aSize.width, aSize.height);
-    } else {
-        if (depth) {
-            GLenum depthType;
-            if (mIsGLES2) {
-                if (IsExtensionSupported(OES_depth32)) {
-                    depthType = LOCAL_GL_DEPTH_COMPONENT32;
-                } else if (IsExtensionSupported(OES_depth24)) {
-                    depthType = LOCAL_GL_DEPTH_COMPONENT24;
-                } else {
-                    depthType = LOCAL_GL_DEPTH_COMPONENT16;
-                }
-            } else {
-                depthType = LOCAL_GL_DEPTH_COMPONENT24;
-            }
+    }
 
-            fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenDepthRB);
-            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
-                                 mIsGLES2 ? LOCAL_GL_DEPTH_COMPONENT16
-                                          : LOCAL_GL_DEPTH_COMPONENT24,
-                                 aSize.width, aSize.height);
-        }
-
-        if (stencil) {
-            fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenStencilRB);
-            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
-                                 LOCAL_GL_STENCIL_INDEX8,
-                                 aSize.width, aSize.height);
-        }
+    if (stencil) {
+        fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenStencilRB);
+        fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
+                             LOCAL_GL_STENCIL_INDEX8,
+                             aSize.width, aSize.height);
     }
 
     // Now assemble the FBO, if we're creating one
@@ -639,30 +578,18 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
                               LOCAL_GL_TEXTURE_2D,
                               mOffscreenTexture,
                               0);
-
-        if (depth && stencil && useDepthStencil) {
+        if (depth) {
             fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                      LOCAL_GL_DEPTH_ATTACHMENT,
                                      LOCAL_GL_RENDERBUFFER,
                                      mOffscreenDepthRB);
+        }
+
+        if (stencil) {
             fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
                                      LOCAL_GL_STENCIL_ATTACHMENT,
                                      LOCAL_GL_RENDERBUFFER,
-                                     mOffscreenDepthRB);
-        } else {
-            if (depth) {
-                fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
-                                         LOCAL_GL_DEPTH_ATTACHMENT,
-                                         LOCAL_GL_RENDERBUFFER,
-                                         mOffscreenDepthRB);
-            }
-
-            if (stencil) {
-                fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER,
-                                         LOCAL_GL_STENCIL_ATTACHMENT,
-                                         LOCAL_GL_RENDERBUFFER,
-                                         mOffscreenStencilRB);
-            }
+                                     mOffscreenStencilRB);
         }
     }
 
@@ -678,10 +605,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
 
     if (firstTime) {
         UpdateActualFormat();
-
-        printf_stderr("Created offscreen FBO: r: %d g: %d b: %d a: %d depth: %d stencil: %d\n",
-                      mActualFormat.red, mActualFormat.green, mActualFormat.blue, mActualFormat.alpha,
-                      mActualFormat.depth, mActualFormat.stencil);
     }
 
     // We're good, and the framebuffer is already attached, so let's
@@ -732,228 +655,27 @@ GLContext::ClearSafely()
 
     fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     fClearStencil(0);
-    fClearDepth(1.0f);
+#ifdef USE_GLES2
+    fClearDepthf(1.0f);
+#else
+    fClearDepth(1.0);
+#endif
 
     fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT | LOCAL_GL_STENCIL_BUFFER_BIT);
 
     fClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
     fClearStencil(clearStencil);
+#ifdef USE_GLES2
+    fClearDepthf(clearDepth);
+#else
     fClearDepth(clearDepth);
+#endif
 }
 
 void
 GLContext::UpdateActualFormat()
 {
-    ContextFormat nf;
-
-    fGetIntegerv(LOCAL_GL_RED_BITS, (GLint*) &nf.alpha);
-    fGetIntegerv(LOCAL_GL_GREEN_BITS, (GLint*) &nf.alpha);
-    fGetIntegerv(LOCAL_GL_BLUE_BITS, (GLint*) &nf.alpha);
-    fGetIntegerv(LOCAL_GL_ALPHA_BITS, (GLint*) &nf.alpha);
-    fGetIntegerv(LOCAL_GL_DEPTH_BITS, (GLint*) &nf.depth);
-    fGetIntegerv(LOCAL_GL_STENCIL_BITS, (GLint*) &nf.depth);
-
-    mActualFormat = nf;
-}
-
-void
-GLContext::MarkDestroyed()
-{
-    MakeCurrent();
-    DeleteOffscreenFBO();
-    memset(&mFunctionListStartSentinel, 0, &mFunctionListEndSentinel - &mFunctionListStartSentinel);
-}
-
-already_AddRefed<gfxImageSurface>
-GLContext::ReadTextureImage(GLuint aTexture,
-                            const gfxIntSize& aSize,
-                            GLenum aTextureFormat)
-{
-    MakeCurrent();
-
-    nsRefPtr<gfxImageSurface> isurf;
-
-    GLint oldrb, oldfb, oldprog, oldvp[4], oldPackAlignment;
-    GLint success;
-
-    GLuint rb = 0, fb = 0;
-    GLuint vs = 0, fs = 0, prog = 0;
-
-    const char *vShader =
-        "attribute vec4 aVertex;\n"
-        "attribute vec2 aTexCoord;\n"
-        "varying vec2 vTexCoord;\n"
-        "void main() { gl_Position = aVertex; vTexCoord = aTexCoord; }";
-    const char *fShader =
-        "#ifdef GL_ES\n"
-        "precision mediump float;\n"
-        "#endif\n"
-        "varying vec2 vTexCoord;\n"
-        "uniform sampler2D uTexture;\n"
-        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord); }";
-
-    float verts[4*4] = {
-        -1.0f, -1.0f, 0.0f, 1.0f,
-         1.0f, -1.0f, 0.0f, 1.0f,
-        -1.0f,  1.0f, 0.0f, 1.0f,
-         1.0f,  1.0f, 0.0f, 1.0f
-    };
-
-    float texcoords[2*4] = {
-        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f
-    };
-
-    fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, &oldrb);
-    fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &oldfb);
-    fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &oldprog);
-    fGetIntegerv(LOCAL_GL_VIEWPORT, oldvp);
-    fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &oldPackAlignment);
-
-    fGenRenderbuffers(1, &rb);
-    fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, rb);
-    fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA,
-                         aSize.width, aSize.height);
-
-    fGenFramebuffers(1, &fb);
-    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fb);
-    fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                             LOCAL_GL_RENDERBUFFER, rb);
-
-    if (fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
-        LOCAL_GL_FRAMEBUFFER_COMPLETE)
-    {
-        goto cleanup;
-    }
-
-    vs = fCreateShader(LOCAL_GL_VERTEX_SHADER);
-    fs = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
-    fShaderSource(vs, 1, (const GLchar**) &vShader, NULL);
-    fShaderSource(fs, 1, (const GLchar**) &fShader, NULL);
-    prog = fCreateProgram();
-    fAttachShader(prog, vs);
-    fAttachShader(prog, fs);
-    fBindAttribLocation(prog, 0, "aVertex");
-    fBindAttribLocation(prog, 1, "aTexCoord");
-    fLinkProgram(prog);
-
-    fGetProgramiv(prog, LOCAL_GL_LINK_STATUS, &success);
-    if (!success) {
-        goto cleanup;
-    }
-
-    fUseProgram(prog);
-
-    fEnableVertexAttribArray(0);
-    fEnableVertexAttribArray(1);
-
-    fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, verts);
-    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, texcoords);
-
-    fActiveTexture(LOCAL_GL_TEXTURE0);
-    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
-
-    fUniform1i(fGetUniformLocation(prog, "uTexture"), 0);
-
-    fViewport(0, 0, aSize.width, aSize.height);
-
-    fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
-
-    fDisableVertexAttribArray(1);
-    fDisableVertexAttribArray(0);
-
-    isurf = new gfxImageSurface(aSize, gfxASurface::ImageFormatARGB32);
-    if (!isurf || isurf->CairoStatus()) {
-        isurf = nsnull;
-        goto cleanup;
-    }
-
-    if (oldPackAlignment != 4)
-        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
-
-    fReadPixels(0, 0, aSize.width, aSize.height,
-                LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE,
-                isurf->Data());
-
-    if (oldPackAlignment != 4)
-        fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, oldPackAlignment);
-
- cleanup:
-    // note that deleting 0 has no effect in any of these calls
-    fDeleteRenderbuffers(1, &rb);
-    fDeleteFramebuffers(1, &fb);
-    fDeleteShader(vs);
-    fDeleteShader(fs);
-    fDeleteProgram(prog);
-
-    fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, oldrb);
-    fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, oldfb);
-    fUseProgram(oldprog);
-    fViewport(oldvp[0], oldvp[1], oldvp[2], oldvp[3]);
-
-    return isurf.forget();
-}
-
-void
-GLContext::ReadPixelsIntoImageSurface(GLint aX, GLint aY,
-                                      GLsizei aWidth, GLsizei aHeight,
-                                      gfxImageSurface *aDest)
-{
-    MakeCurrent();
-
-    if (aDest->Format() != gfxASurface::ImageFormatARGB32 &&
-        aDest->Format() != gfxASurface::ImageFormatRGB24)
-    {
-        NS_WARNING("ReadPixelsIntoImageSurface called with invalid image format");
-        return;
-    }
-
-    if (aDest->Width() != aWidth ||
-        aDest->Height() != aHeight ||
-        aDest->Stride() != aWidth * 4)
-    {
-        NS_WARNING("ReadPixelsIntoImageSurface called with wrong size or stride surface");
-        return;
-    }
-
-    GLint currentPackAlignment = 0;
-    fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &currentPackAlignment);
-    fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
-
-    // defaults for desktop
-    GLenum format = LOCAL_GL_BGRA;
-    GLenum datatype = LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV;
-    bool swap = false;
-
-    if (IsGLES2()) {
-        datatype = LOCAL_GL_UNSIGNED_BYTE;
-
-        if (IsExtensionSupported(gl::GLContext::EXT_read_format_bgra) ||
-            IsExtensionSupported(gl::GLContext::IMG_read_format) ||
-            IsExtensionSupported(gl::GLContext::EXT_bgra))
-        {
-            format = LOCAL_GL_BGRA;
-        } else {
-            format = LOCAL_GL_RGBA;
-            swap = true;
-        }
-    }
-
-    fReadPixels(0, 0, aWidth, aHeight,
-                format, datatype,
-                aDest->Data());
-
-    if (swap) {
-        // swap B and R bytes
-        for (int j = 0; j < aHeight; ++j) {
-            PRUint32 *row = (PRUint32*) (aDest->Data() + aDest->Stride() * j);
-            for (int i = 0; i < aWidth; ++i) {
-                *row = (*row & 0xff00ff00) | ((*row & 0xff) << 16) | ((*row & 0xff0000) >> 16);
-                row++;
-            }
-        }
-    }
-
-    fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
+    // TODO
 }
 
 #ifdef DEBUG

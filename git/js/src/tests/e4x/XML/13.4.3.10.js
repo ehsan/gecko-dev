@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.4.3.10.js';
 
 START("13.4.3.10 - XML Constructor [[HasInstance]]");
 

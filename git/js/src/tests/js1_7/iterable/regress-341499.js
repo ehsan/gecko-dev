@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-341499.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 341499;
 var summary = 'Iterators: do not assert from close handler when ' +

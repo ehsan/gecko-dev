@@ -182,11 +182,10 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
   OnPluginDestroy(&mNPP);
 
   // clean up open streams
-  while (mPStreamListeners.Length() > 0) {
-    nsRefPtr<nsNPAPIPluginStreamListener> currentListener(mPStreamListeners[0]);
-    currentListener->CleanUpStream(NPRES_USER_BREAK);
-    mPStreamListeners.RemoveElement(currentListener);
+  for (unsigned int i = 0; i < mPStreamListeners.Length(); i++) {
+    mPStreamListeners[i]->CleanUpStream(NPRES_USER_BREAK);
   }
+  mPStreamListeners.Clear();
 
   if (!mPlugin)
     return NS_ERROR_FAILURE;

@@ -349,31 +349,23 @@ endif
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/localized
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/optional
 	@$(NSINSTALL) -D $(DIST)/xpt
-	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
-	  "$(call core_abspath,$(DEPTH)/installer-stage/nonlocalized)", \
-	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
-	  $(foreach pkg,$(MOZ_NONLOCALIZED_PKG_LIST),$(PKG_ARG)) )
-	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
-	  "$(call core_abspath,$(DEPTH)/installer-stage/localized)", \
-	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
-	  $(foreach pkg,$(MOZ_LOCALIZED_PKG_LIST),$(PKG_ARG)) )
+	$(call PACKAGER_COPY, "$(DIST)",\
+		"$(DEPTH)/installer-stage/nonlocalized", \
+		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
+		$(foreach pkg,$(MOZ_NONLOCALIZED_PKG_LIST),$(PKG_ARG)) )
+	$(call PACKAGER_COPY, "$(DIST)",\
+		"$(DEPTH)/installer-stage/localized", \
+		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
+		$(foreach pkg,$(MOZ_LOCALIZED_PKG_LIST),$(PKG_ARG)) )
 ifdef MOZ_OPTIONAL_PKG_LIST
-	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
-	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
-	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
-	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
+	$(call PACKAGER_COPY, "$(DIST)",\
+		"$(DEPTH)/installer-stage/optional", \
+		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
+		$(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
 endif
 	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DEPTH)/installer-stage/nonlocalized/components -v -x "$(XPIDL_LINK)"
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DEPTH)/installer-stage/nonlocalized/components/components.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/components,$(MOZ_NONLOCALIZED_PKG_LIST))
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DEPTH)/installer-stage/nonlocalized/chrome/nonlocalized.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/chrome,$(MOZ_NONLOCALIZED_PKG_LIST))
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DEPTH)/installer-stage/localized/chrome/localized.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/chrome,$(MOZ_LOCALIZED_PKG_LIST))
-	printf "manifest components/interfaces.manifest\nmanifest components/components.manifest\nmanifest chrome/nonlocalized.manifest\nmanifest chrome/localized.manifest\n" > $(DEPTH)/installer-stage/nonlocalized/chrome.manifest
+	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py $(DIST)/manifests $(DEPTH)/installer-stage/nonlocalized
+
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
 	@rm -rf $(DIST)/$(MOZ_PKG_DIR) $(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar $(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
@@ -387,19 +379,10 @@ ifndef UNIVERSAL_BINARY
 ifdef MOZ_PKG_MANIFEST
 	$(RM) -rf $(DIST)/xpt $(RM) -rf $(DIST)/manifests
 	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
-	  "$(call core_abspath,$(DIST)/$(MOZ_PKG_DIR))", \
-	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1)
+		 "$(call core_abspath,$(DIST)/$(MOZ_PKG_DIR))", \
+		"$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1)
 	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components -v -x "$(XPIDL_LINK)"
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components/components.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/components,$(MOZ_NONLOCALIZED_PKG_LIST))
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/chrome/nonlocalized.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/chrome,$(MOZ_NONLOCALIZED_PKG_LIST))
-	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
-	  $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/chrome/localized.manifest \
-	  $(patsubst %,$(DIST)/manifests/%/chrome,$(MOZ_LOCALIZED_PKG_LIST))
-	printf "manifest components/interfaces.manifest\nmanifest components/components.manifest\nmanifest chrome/nonlocalized.manifest\nmanifest chrome/localized.manifest\n" > $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/chrome.manifest
+	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py $(DIST)/manifests $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)
 else # !MOZ_PKG_MANIFEST
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef STAGE_SDK

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-429249.js';
 
 var summary = 'trap should not change decompilation <x/>';
 var BUGNUMBER = 429249

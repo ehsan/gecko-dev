@@ -41,6 +41,7 @@
 #define jsgchunk_h__
 
 #include "jsprvtd.h"
+#include "jspubtd.h"
 #include "jsutil.h"
 
 namespace js {

@@ -63,8 +63,7 @@ class nsDOMAttribute : public nsIAttribute,
                        public nsStubMutationObserver
 {
 public:
-  nsDOMAttribute(nsDOMAttributeMap* aAttrMap,
-                 already_AddRefed<nsINodeInfo> aNodeInfo,
+  nsDOMAttribute(nsDOMAttributeMap* aAttrMap, nsINodeInfo *aNodeInfo,
                  const nsAString& aValue);
   virtual ~nsDOMAttribute();
 
@@ -123,11 +122,10 @@ public:
 
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
   {
-    return GetContentInternal();
+    return GetContentInternal()->AsElement();
   }
 
   static PRBool sInitialized;
@@ -143,7 +141,7 @@ private:
   // pointer so we can implement GetChildArray().
   nsIContent* mChild;
 
-  mozilla::dom::Element *GetContentInternal() const
+  nsIContent *GetContentInternal() const
   {
     return mAttrMap ? mAttrMap->GetContent() : nsnull;
   }

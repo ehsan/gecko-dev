@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-322957.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 322957;
 var summary = 'TryMethod should not eat getter exceptions';

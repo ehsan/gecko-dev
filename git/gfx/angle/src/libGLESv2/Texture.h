@@ -23,6 +23,7 @@
 
 namespace gl
 {
+class Context;
 class Blit;
 
 enum
@@ -33,10 +34,10 @@ enum
     MAX_TEXTURE_LEVELS = 12   // 1+log2 of MAX_TEXTURE_SIZE
 };
 
-class Texture : public RefCountObject
+class Texture
 {
   public:
-    explicit Texture(GLuint id);
+    explicit Texture(Context *context);
 
     virtual ~Texture();
 
@@ -58,13 +59,11 @@ class Texture : public RefCountObject
     virtual bool isComplete() const = 0;
 
     IDirect3DBaseTexture9 *getTexture();
-    virtual Renderbuffer *getColorbuffer(GLenum target) = 0;
+    virtual Colorbuffer *getColorbuffer(GLenum target) = 0;
 
     virtual void generateMipmaps() = 0;
 
     bool isDirty() const;
-
-    static const GLuint INCOMPLETE_TEXTURE_ID = static_cast<GLuint>(-1); // Every texture takes an id at creation time. The value is arbitrary because it is never registered with the resource manager.
 
   protected:
     class TextureColorbufferProxy;
@@ -75,13 +74,10 @@ class Texture : public RefCountObject
         TextureColorbufferProxy(Texture *texture, GLenum target);
             // target is a 2D-like texture target (GL_TEXTURE_2D or one of the cube face targets)
 
-        virtual void addRef() const;
-        virtual void release() const;
-
         virtual IDirect3DSurface9 *getRenderTarget();
 
-        virtual int getWidth() const;
-        virtual int getHeight() const;
+        virtual int getWidth();
+        virtual int getHeight();
 
       private:
         Texture *mTexture;
@@ -140,6 +136,8 @@ class Texture : public RefCountObject
   private:
     DISALLOW_COPY_AND_ASSIGN(Texture);
 
+    Context *mContext;
+
     IDirect3DBaseTexture9 *mBaseTexture; // This is a weak pointer. The derived class is assumed to own a strong pointer.
     bool mDirtyMetaData;
     bool mIsRenderable;
@@ -153,7 +151,7 @@ class Texture : public RefCountObject
 class Texture2D : public Texture
 {
   public:
-    explicit Texture2D(GLuint id);
+    explicit Texture2D(Context *context);
 
     ~Texture2D();
 
@@ -161,14 +159,14 @@ class Texture2D : public Texture
 
     void setImage(GLint level, GLenum internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels);
     void subImage(GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels);
-    void copyImage(GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source);
-    void copySubImage(GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source);
+    void copyImage(GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source);
+    void copySubImage(GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source);
 
     bool isComplete() const;
 
     virtual void generateMipmaps();
 
-    virtual Renderbuffer *getColorbuffer(GLenum target);
+    virtual Colorbuffer *getColorbuffer(GLenum target);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Texture2D);
@@ -185,7 +183,7 @@ class Texture2D : public Texture
 
     IDirect3DTexture9 *mTexture;
 
-    Renderbuffer *mColorbufferProxy;
+    TextureColorbufferProxy *mColorbufferProxy;
 
     bool redefineTexture(GLint level, GLenum internalFormat, GLsizei width, GLsizei height);
 
@@ -195,7 +193,7 @@ class Texture2D : public Texture
 class TextureCubeMap : public Texture
 {
   public:
-    explicit TextureCubeMap(GLuint id);
+    explicit TextureCubeMap(Context *context);
 
     ~TextureCubeMap();
 
@@ -209,14 +207,14 @@ class TextureCubeMap : public Texture
     void setImageNegZ(GLint level, GLenum internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels);
 
     void subImage(GLenum face, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels);
-    void copyImage(GLenum face, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source);
-    void copySubImage(GLenum face, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, RenderbufferStorage *source);
+    void copyImage(GLenum face, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source);
+    void copySubImage(GLenum face, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height, Renderbuffer *source);
 
     bool isComplete() const;
 
     virtual void generateMipmaps();
 
-    virtual Renderbuffer *getColorbuffer(GLenum target);
+    virtual Colorbuffer *getColorbuffer(GLenum target);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(TextureCubeMap);
@@ -243,7 +241,7 @@ class TextureCubeMap : public Texture
 
     IDirect3DCubeTexture9 *mTexture;
 
-    Renderbuffer *mFaceProxies[6];
+    TextureColorbufferProxy *mFaceProxies[6];
 
     virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
 };

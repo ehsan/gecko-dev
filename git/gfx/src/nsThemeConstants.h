@@ -29,33 +29,27 @@
 // The dropdown portion of a toolbar button
 #define NS_THEME_TOOLBAR_BUTTON_DROPDOWN                   15
 
-// Various arrows that go in buttons
-#define NS_THEME_BUTTON_ARROW_UP                           16
-#define NS_THEME_BUTTON_ARROW_DOWN                         17
-#define NS_THEME_BUTTON_ARROW_NEXT                         18
-#define NS_THEME_BUTTON_ARROW_PREVIOUS                     19
-
 // A separator.  Can be horizontal or vertical.
-#define NS_THEME_TOOLBAR_SEPARATOR                         20
+#define NS_THEME_TOOLBAR_SEPARATOR                         16
 
 // The gripper for a toolbar.
-#define NS_THEME_TOOLBAR_GRIPPER                           21
+#define NS_THEME_TOOLBAR_GRIPPER                           17
 
 // A splitter.  Can be horizontal or vertical.
-#define NS_THEME_SPLITTER                                  22
+#define NS_THEME_SPLITTER                                  19
 
 // A status bar in a main application window.
-#define NS_THEME_STATUSBAR                                 23
+#define NS_THEME_STATUSBAR                                 21
 
 // A single pane of a status bar.
-#define NS_THEME_STATUSBAR_PANEL                           24
+#define NS_THEME_STATUSBAR_PANEL                           22
 
 // The resizer background area in a status bar 
 // for the resizer widget in the corner of a window.
-#define NS_THEME_STATUSBAR_RESIZER_PANEL                   25
+#define NS_THEME_STATUSBAR_RESIZER_PANEL                   23
 
 // The resizer itself.
-#define NS_THEME_RESIZER                                   26
+#define NS_THEME_RESIZER                                   24
 
 // List boxes
 #define NS_THEME_LISTBOX                                   31
@@ -237,16 +231,3 @@
 
 // Vista glass
 #define NS_THEME_WIN_GLASS                                 230
-
-// Windows themed window frame elements
-#define NS_THEME_WINDOW_TITLEBAR                           231
-#define NS_THEME_WINDOW_TITLEBAR_MAXIMIZED                 232
-#define NS_THEME_WINDOW_FRAME_LEFT                         233
-#define NS_THEME_WINDOW_FRAME_RIGHT                        234
-#define NS_THEME_WINDOW_FRAME_BOTTOM                       235
-#define NS_THEME_WINDOW_BUTTON_CLOSE                       236
-#define NS_THEME_WINDOW_BUTTON_MINIMIZE                    237
-#define NS_THEME_WINDOW_BUTTON_MAXIMIZE                    238
-#define NS_THEME_WINDOW_BUTTON_RESTORE                     239
-#define NS_THEME_WINDOW_BUTTON_BOX                         240
-#define NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED               241

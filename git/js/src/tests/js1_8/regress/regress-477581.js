@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'regress-477581.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 477581;
 var summary = 'Do not assert: !JSVAL_IS_PRIMITIVE(regs.sp[-2])';

@@ -54,6 +54,7 @@
  * to say so.
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-103602.js';
 var UBound = 0;
 var BUGNUMBER = 103602;
 var summary = 'Reassignment to a const is NOT an error per ECMA';

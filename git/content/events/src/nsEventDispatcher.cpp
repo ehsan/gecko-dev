@@ -742,10 +742,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext,
                                    static_cast<nsGUIEvent*>(aEvent));
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-    case NS_SMIL_TIME_EVENT:
-      return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, aEvent);
-#endif // MOZ_SMIL
 
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
@@ -753,9 +749,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_SIMPLE_GESTURE_EVENT:
       return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext,
                                          static_cast<nsSimpleGestureEvent*>(aEvent));
-    case NS_MOZTOUCH_EVENT:
-      return NS_NewDOMMozTouchEvent(aDOMEvent, aPresContext,
-                                    static_cast<nsMozTouchEvent*>(aEvent));
     case NS_TRANSITION_EVENT:
       return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext,
                                       static_cast<nsTransitionEvent*>(aEvent));
@@ -804,11 +797,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       aEventType.LowerCaseEqualsLiteral("svgzoomevents"))
     return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext, nsnull);
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-  if (aEventType.LowerCaseEqualsLiteral("timeevent") ||
-      aEventType.LowerCaseEqualsLiteral("timeevents"))
-    return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, nsnull);
-#endif // MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("xulcommandevent") ||
       aEventType.LowerCaseEqualsLiteral("xulcommandevents"))
     return NS_NewDOMXULCommandEvent(aDOMEvent, aPresContext, nsnull);
@@ -830,8 +818,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMBeforeUnloadEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("pagetransition"))
     return NS_NewDOMPageTransitionEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("moztouchevent"))
-    return NS_NewDOMMozTouchEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("scrollareaevent"))
     return NS_NewDOMScrollAreaEvent(aDOMEvent, aPresContext, nsnull);
   // FIXME: Should get spec to say what the right string is here!  This

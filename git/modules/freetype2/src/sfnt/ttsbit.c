@@ -4,8 +4,7 @@
 /*                                                                         */
 /*    TrueType and OpenType embedded bitmap support (body).                */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,   */
-/*            2010 by                                                      */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 by */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -418,7 +417,7 @@
   tt_face_load_eblc( TT_Face    face,
                      FT_Stream  stream )
   {
-    FT_Error   error  = SFNT_Err_Ok;
+    FT_Error   error  = 0;
     FT_Memory  memory = stream->memory;
     FT_Fixed   version;
     FT_ULong   num_strikes;

@@ -62,7 +62,7 @@ public:
 
 protected:
 
-  nsSVGTextPositioningElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsSVGTextPositioningElement(nsINodeInfo *aNodeInfo)
     : nsSVGTextPositioningElementBase(aNodeInfo)
   {}
 
@@ -73,7 +73,7 @@ protected:
   // nsIDOMSVGTextPositioning properties:
 
   enum { X, Y, DX, DY };
-  mozilla::SVGAnimatedLengthList mLengthListAttributes[4];
+  SVGAnimatedLengthList mLengthListAttributes[4];
   static LengthListInfo sLengthListInfo[4];
 
   nsCOMPtr<nsIDOMSVGAnimatedNumberList> mRotate;

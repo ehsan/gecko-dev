@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-314890.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 314890;
 var summary = 'String == should short circuit for object identify';

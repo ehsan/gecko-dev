@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'RegExp_object.js';
 
 /**
    Filename:     RegExp_object.js

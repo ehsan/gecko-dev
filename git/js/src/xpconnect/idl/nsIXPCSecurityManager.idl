@@ -108,6 +108,6 @@ interface nsIXPCSecurityManager : nsISupports
                    in JSObjectPtr aJSObject,
                    in nsISupports aObj,
                    in nsIClassInfo aClassInfo,
-                   in jsid aName,
+                   in jsval aName,
                    inout voidPtr aPolicy);
 };

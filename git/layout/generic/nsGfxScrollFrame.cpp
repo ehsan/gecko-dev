@@ -1649,12 +1649,9 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
   mOuter->InvalidateWithFlags(mScrollPort, flags);
 
   if (flags & nsIFrame::INVALIDATE_NO_THEBES_LAYERS) {
-    nsRect update =
-      GetScrollPortRect() + mOuter->GetOffsetToCrossDoc(displayRoot);
-    update = update.ConvertAppUnitsRoundOut(
-      mOuter->PresContext()->AppUnitsPerDevPixel(),
-      displayRoot->PresContext()->AppUnitsPerDevPixel());
-    InvalidateFixedBackgroundFrames(displayRoot, mScrolledFrame, update);
+    // XXX fix this to transform rectangle properly
+    InvalidateFixedBackgroundFrames(displayRoot, mScrolledFrame,
+      GetScrollPortRect() + mOuter->GetOffsetToCrossDoc(displayRoot));
   }
 }
 
@@ -2196,9 +2193,8 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   if (canHaveHorizontal) {
-    nsCOMPtr<nsINodeInfo> ni = nodeInfo;
     rv = NS_NewElement(getter_AddRefs(mHScrollbarContent),
-                       kNameSpaceID_XUL, ni.forget(), PR_FALSE);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                                 NS_LITERAL_STRING("horizontal"), PR_FALSE);
@@ -2209,9 +2205,8 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   }
 
   if (canHaveVertical) {
-    nsCOMPtr<nsINodeInfo> ni = nodeInfo;
     rv = NS_NewElement(getter_AddRefs(mVScrollbarContent),
-                       kNameSpaceID_XUL, ni.forget(), PR_FALSE);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                                 NS_LITERAL_STRING("vertical"), PR_FALSE);
@@ -2227,8 +2222,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                             kNameSpaceID_XUL);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-    rv = NS_NewXULElement(getter_AddRefs(mScrollCornerContent),
-                          nodeInfo.forget());
+    rv = NS_NewXULElement(getter_AddRefs(mScrollCornerContent), nodeInfo);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoString dir;
@@ -2263,7 +2257,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::scrollcorner, nsnull,
                                             kNameSpaceID_XUL);
     rv = NS_NewElement(getter_AddRefs(mScrollCornerContent),
-                       kNameSpaceID_XUL, nodeInfo.forget(), PR_FALSE);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!aElements.AppendElement(mScrollCornerContent))
       return NS_ERROR_OUT_OF_MEMORY;

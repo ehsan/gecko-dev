@@ -31,7 +31,7 @@ var eventsink = {
     throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
-  asyncOnChannelRedirect: function eventsink_onredir(oldChan, newChan, flags, callback) {
+  onChannelRedirect: function eventsink_onredir(oldChan, newChan, flags) {
     // veto
     this.called = true;
     throw NS_BINDING_ABORTED;

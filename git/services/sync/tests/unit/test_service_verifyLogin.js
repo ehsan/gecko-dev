@@ -22,7 +22,6 @@ function run_test() {
   let logger = Log4Moz.repository.rootLogger;
   Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
-  do_test_pending();
   let server = httpd_setup({
     "/1.0/johndoe/info/collections": login_handler
   });
@@ -55,6 +54,6 @@ function run_test() {
 
   } finally {
     Svc.Prefs.resetBranch("");
-    server.stop(do_test_finished);
+    server.stop(function() {});
   }
 }

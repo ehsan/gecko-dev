@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMNSHTMLImageElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsImageLoadingContent.h"
@@ -58,7 +59,6 @@
 #include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
-#include "nsFocusManager.h"
 
 #include "imgIContainer.h"
 #include "imgILoader.h"
@@ -81,10 +81,11 @@
 class nsHTMLImageElement : public nsGenericHTMLElement,
                            public nsImageLoadingContent,
                            public nsIDOMHTMLImageElement,
+                           public nsIDOMNSHTMLImageElement,
                            public nsIJSNativeInitializer
 {
 public:
-  nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLImageElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLImageElement();
 
   // nsISupports
@@ -101,6 +102,9 @@ public:
 
   // nsIDOMHTMLImageElement
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
+
+  // nsIDOMNSHTMLImageElement
+  NS_DECL_NSIDOMNSHTMLIMAGEELEMENT
 
   // override from nsGenericHTMLElement
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
@@ -146,15 +150,13 @@ public:
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void MaybeLoadImage();
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsPoint GetXY();
   nsSize GetWidthHeight();
 };
 
 nsGenericHTMLElement*
-NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       PRUint32 aFromParser)
+NS_NewHTMLImageElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -172,10 +174,10 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
-  return new nsHTMLImageElement(nodeInfo.forget());
+  return new nsHTMLImageElement(nodeInfo);
 }
 
-nsHTMLImageElement::nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLImageElement::nsHTMLImageElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -190,12 +192,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLImageElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLImageElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLImageElement, nsHTMLImageElement)
+DOMCI_DATA(HTMLImageElement, nsHTMLImageElement)
 
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLImageElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLImageElement,
                                    nsIDOMHTMLImageElement,
+                                   nsIDOMNSHTMLImageElement,
                                    nsIJSNativeInitializer,
                                    imgIDecoderObserver,
                                    nsIImageLoadingContent,
@@ -481,7 +484,7 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
 
   *aIsFocusable = 
 #ifdef XP_MACOSX
-    (!aWithMouse || nsFocusManager::sMouseFocusesFormControl) &&
+    !aWithMouse &&
 #endif
     (tabIndex >= 0 || HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
 

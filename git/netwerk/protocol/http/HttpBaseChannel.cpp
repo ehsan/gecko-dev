@@ -55,7 +55,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mPriority(PRIORITY_NORMAL)
   , mCaps(0)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
-  , mCanceled(PR_FALSE)
   , mIsPending(PR_FALSE)
   , mWasOpened(PR_FALSE)
   , mResponseHeadersModified(PR_FALSE)
@@ -917,13 +916,6 @@ HttpBaseChannel::SetForceAllowThirdPartyCookie(PRBool aForce)
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mForceAllowThirdPartyCookie = aForce;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetCanceled(PRBool *aCanceled)
-{
-  *aCanceled = mCanceled;
   return NS_OK;
 }
 

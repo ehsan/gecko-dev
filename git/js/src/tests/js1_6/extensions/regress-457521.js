@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-457521.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 457521;
 var summary = 'Do not crash @ js_DecompileValueGenerator';

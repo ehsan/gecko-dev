@@ -46,7 +46,7 @@ class nsHTMLLIElement : public nsGenericHTMLElement,
                         public nsIDOMHTMLLIElement
 {
 public:
-  nsHTMLLIElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLLIElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLLIElement();
 
   // nsISupports
@@ -71,14 +71,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(LI)
 
 
-nsHTMLLIElement::nsHTMLLIElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLLIElement::nsHTMLLIElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -92,7 +91,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLIElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLIElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLLIElement, nsHTMLLIElement)
+DOMCI_DATA(HTMLLIElement, nsHTMLLIElement)
 
 // QueryInterface implementation for nsHTMLLIElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLIElement)

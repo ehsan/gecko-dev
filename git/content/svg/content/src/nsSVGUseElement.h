@@ -55,8 +55,7 @@ class nsINodeInfo;
   { 0x80, 0x3f, 0xeb, 0x90, 0xfe, 0xe0, 0x7a, 0xe9 } }
 
 nsresult
-NS_NewSVGSVGElement(nsIContent **aResult,
-                    already_AddRefed<nsINodeInfo> aNodeInfo,
+NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
                     PRUint32 aFromParser);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
@@ -69,8 +68,8 @@ class nsSVGUseElement : public nsSVGUseElementBase,
   friend class nsSVGUseFrame;
 protected:
   friend nsresult NS_NewSVGUseElement(nsIContent **aResult,
-                                      already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGUseElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                      nsINodeInfo *aNodeInfo);
+  nsSVGUseElement(nsINodeInfo *aNodeInfo);
   virtual ~nsSVGUseElement();
   
 public:
@@ -109,7 +108,6 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   class SourceReference : public nsReferencedElement {
   public:

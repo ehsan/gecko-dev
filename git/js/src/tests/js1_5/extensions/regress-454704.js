@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-454704.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 454704;
 var summary = 'Do not crash with defineGetter and XPC wrapper';

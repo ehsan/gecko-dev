@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-255555.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 255555;
 var summary = 'Array.prototype.sort(comparefn) never passes undefined to comparefn';

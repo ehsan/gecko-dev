@@ -33,10 +33,6 @@ function run_test() {
       maxVersion: "1"
     }],
     name: "Test Addon 1",
-    targetPlatforms: [
-      "XPCShell",
-      "WINNT_x86",
-    ]
   }, dest);
 
   // Works in all tested versions
@@ -51,9 +47,6 @@ function run_test() {
       maxVersion: "2"
     }],
     name: "Test Addon 2",
-    targetPlatforms: [
-      "XPCShell_noarch-spidermonkey"
-    ]
   }, dest);
 
   // Will be disabled in the first version and enabled in the second.
@@ -83,6 +76,7 @@ function run_test() {
     }],
     name: "Test Addon 4",
   }, dest);
+  dump("Wrote to " + dest.path +"\n");
   dest.lastModifiedTime = gInstallTime;
 
   do_test_pending();

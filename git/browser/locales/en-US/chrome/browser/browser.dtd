@@ -12,6 +12,8 @@
 <!ENTITY mainWindow.titlePrivateBrowsingSuffix "(Private Browsing)">
 
 <!-- Tab context menu -->
+<!ENTITY  newTab.label                       "New Tab">
+<!ENTITY  newTab.accesskey                   "N">
 <!ENTITY  reloadTab.label                    "Reload Tab">
 <!ENTITY  reloadTab.accesskey                "R">
 <!ENTITY  reloadAllTabs.label                "Reload All Tabs">
@@ -119,7 +121,6 @@
 <!ENTITY printButton.label            "Print">
 <!ENTITY printButton.tooltip          "Print this page">
 
-<!ENTITY backForwardItem.title        "Back/Forward">
 <!ENTITY locationItem.title           "Location">
 <!ENTITY searchItem.title             "Search">
 <!ENTITY throbberItem.title           "Activity Indicator">
@@ -168,15 +169,14 @@
 <!ENTITY errorConsoleCmd.accesskey    "C">
 <!ENTITY errorConsoleCmd.commandkey   "j">
 
-<!ENTITY webConsoleCmd.label          "Web Console">
-<!ENTITY webConsoleCmd.accesskey      "W">
-<!ENTITY webConsoleCmd.commandkey     "k">
+<!ENTITY hudConsoleCmd.label          "Heads Up Display">
+<!ENTITY hudConsoleCmd.accesskey      "U">
+<!ENTITY hudConsoleCmd.commandkey     "k">
 
 <!ENTITY inspectMenu.label            "Inspect">
 <!ENTITY inspectMenu.accesskey        "T">
 <!ENTITY inspectMenu.commandkey       "I">
 
-<!ENTITY inspectPanelTitle.label      "HTML">
 <!ENTITY inspectButton.label          "Inspect">
 <!ENTITY inspectButton.accesskey      "I">
 <!ENTITY inspectNextButton.label      "Next">
@@ -258,8 +258,6 @@
 <!ENTITY appMenuSidebars.label "Sidebars">
 <!ENTITY appMenuHelp.label "Help">
 
-<!ENTITY developerMenu.label "Developer">
-
 <!ENTITY openCmd.commandkey           "l">
 <!ENTITY urlbar.placeholder           "Go to a Web Site">
 <!ENTITY urlbar.accesskey             "d">
@@ -290,16 +288,16 @@
 <!ENTITY searchFocus.commandkey2      "e">
 <!ENTITY searchFocusUnix.commandkey   "j">
 
-<!ENTITY openLinkCmdInTab.label       "Open Link in New Tab">
-<!ENTITY openLinkCmdInTab.accesskey   "T">
 <!ENTITY openLinkCmd.label            "Open Link in New Window">
 <!ENTITY openLinkCmd.accesskey        "W">
 <!ENTITY openLinkCmdInCurrent.label     "Open Link">
 <!ENTITY openLinkCmdInCurrent.accesskey "O">
-<!ENTITY openFrameCmdInTab.label      "Open Frame in New Tab">
-<!ENTITY openFrameCmdInTab.accesskey  "T">
+<!ENTITY openLinkCmdInTab.label       "Open Link in New Tab">
+<!ENTITY openLinkCmdInTab.accesskey   "T">
 <!ENTITY openFrameCmd.label           "Open Frame in New Window">
 <!ENTITY openFrameCmd.accesskey       "W">
+<!ENTITY openFrameCmdInTab.label      "Open Frame in New Tab">
+<!ENTITY openFrameCmdInTab.accesskey  "T">
 <!ENTITY showOnlyThisFrameCmd.label     "Show Only This Frame">
 <!ENTITY showOnlyThisFrameCmd.accesskey "S">
 <!ENTITY reloadCmd.commandkey         "r">
@@ -510,21 +508,3 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!-- Name for the tabs toolbar as spoken by screen readers.
      The word "toolbar" is appended automatically and should not be contained below! -->
 <!ENTITY tabsToolbar.label "Browser tabs">
-
-<!-- LOCALIZATION NOTE (syncTabsMenu.label): This appears in the history menu -->
-<!ENTITY syncTabsMenu.label     "Tabs From Other Computers">
-
-<!ENTITY syncBrand.shortName.label  "Sync">
-
-<!ENTITY syncMenu.label               "&syncBrand.shortName.label;">
-<!-- LOCALIZATION NOTE (sync.menu.accesskey): This is part of the tools menu, so
-                                              don't use a conflicting access key -->
-<!ENTITY syncMenu.accesskey           "Y">
-<!ENTITY syncSetup.label              "Set Up &syncBrand.shortName.label;…">
-<!ENTITY syncSetup.accesskey          "Y">
-<!ENTITY syncLogInItem.label          "Connect">
-<!ENTITY syncLogInItem.accesskey      "C">
-<!ENTITY syncLogOutItem.label         "Disconnect">
-<!ENTITY syncLogOutItem.accesskey     "D">
-<!ENTITY syncSyncNowItem.label        "Sync Now">
-<!ENTITY syncSyncNowItem.accesskey    "S">

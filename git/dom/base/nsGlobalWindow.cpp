@@ -227,8 +227,6 @@ static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
 using namespace mozilla::dom;
-using mozilla::TimeStamp;
-using mozilla::TimeDuration;
 
 nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
@@ -643,7 +641,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
 : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
   mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
   mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
-  mMayHavePaintEventListener(PR_FALSE), mMayHaveTouchEventListener(PR_FALSE),
+  mMayHavePaintEventListener(PR_FALSE),
   mIsModalContentWindow(PR_FALSE), mIsActive(PR_FALSE),
   mInnerWindow(nsnull), mOuterWindow(aOuterWindow) {}
 
@@ -1288,15 +1286,22 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
                "We don't support this language ID");
   NS_ASSERTION(IsOuterWindow(), "Uh, SetScriptContext() called on inner window!");
 
-  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
-
-  if (aScriptContext) {
+  if (!aScriptContext) {
+    NS_WARNING("Possibly early removal of script object, see bug #41608");
+  } else {
     // should probably assert the context is clean???
     aScriptContext->WillInitializeContext();
 
-    nsresult rv = aScriptContext->InitContext();
+    // Bind the script context and the global object
+    nsresult rv = aScriptContext->InitContext(this);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
 
+  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
+
+  void *script_glob = nsnull;
+
+  if (aScriptContext) {
     if (IsFrame()) {
       // This window is a [i]frame, don't bother GC'ing when the
       // frame's context is destroyed since a GC will happen when the
@@ -1304,9 +1309,14 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
 
       aScriptContext->SetGCOnDestruction(PR_FALSE);
     }
+
+    aScriptContext->DidInitializeContext();
+    script_glob = aScriptContext->GetNativeGlobal();
+    NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");
   }
 
   mContext = aScriptContext;
+  mJSObject = (JSObject *)script_glob;
   return NS_OK;
 }
 
@@ -1320,8 +1330,7 @@ nsGlobalWindow::EnsureScriptEnvironment(PRUint32 aLangID)
   if (mJSObject)
       return NS_OK;
 
-  NS_ASSERTION(!GetCurrentInnerWindowInternal(),
-               "mJSObject is null, but we have an inner window?");
+  NS_ASSERTION(!GetCurrentInnerWindowInternal(), "Huh?");
 
   nsCOMPtr<nsIScriptRuntime> scriptRuntime;
   nsresult rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(scriptRuntime));
@@ -1613,14 +1622,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   if (IsFrozen()) {
     // This outer is now getting its first inner, thaw the outer now
     // that it's ready and is getting an inner window.
-    mContext->CreateOuterObject(this, aDocument->NodePrincipal());
-    mContext->DidInitializeContext();
-    mJSObject = (JSObject *)mContext->GetNativeGlobal();
-
     Thaw();
   }
-
-  // XXX Brain transplant outer window JSObject and create new one!
 
   NS_ASSERTION(!GetCurrentInnerWindow() ||
                GetCurrentInnerWindow()->GetExtantDocument() == mDocument,
@@ -1742,7 +1745,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow = currentInner;
 
     if (aDocument != oldDoc) {
-      nsCommonWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
+      nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
   } else {
     if (aState) {
@@ -1820,7 +1823,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       void *&newGlobal = (void *&)newInnerWindow->mJSObject;
       nsCOMPtr<nsIXPConnectJSObjectHolder> &holder = mInnerWindowHolder;
       rv = mContext->CreateNativeGlobalForInner(sgo, isChrome,
-                                                aDocument->NodePrincipal(),
                                                 &newGlobal,
                                                 getter_AddRefs(holder));
       NS_ASSERTION(NS_SUCCEEDED(rv) && newGlobal && holder,
@@ -1893,11 +1895,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // ensure that the outer window gets a new prototype so we don't
     // leak prototype properties from the old inner window to the
     // new one.
-    mContext->InitOuterWindow();
+    JS_BeginRequest((JSContext *)mContext->GetNativeContext());
+    mContext->InitContext(this);
 
     // Now that both the the inner and outer windows are initialized
     // let the script context do its magic to hook them together.
     mContext->ConnectToInner(newInnerWindow, mJSObject);
+    JS_EndRequest((JSContext *)mContext->GetNativeContext());
 
     nsCOMPtr<nsIContent> frame = do_QueryInterface(GetFrameElementInternal());
     if (frame && frame->GetOwnerDoc()) {
@@ -1927,8 +1931,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   if ((!reUseInnerWindow || aDocument != oldDoc) && !aState) {
     nsCOMPtr<nsIHTMLDocument> html_doc(do_QueryInterface(mDocument));
-    nsCommonWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
-                                                 html_doc);
+    nsWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
+                                           html_doc);
   }
 
   // This code should not be called during shutdown any more (now that
@@ -1982,6 +1986,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         // make sure the cached document property gets updated.
 
         // XXXmarkh - tell other languages about this?
+        JSAutoRequest ar(cx);
         ::JS_DeleteProperty(cx, currentInner->mJSObject, "document");
       }
     } else {
@@ -1994,6 +1999,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       if (navigatorHolder) {
         // Restore window.navigator onto the new inner window.
+        JSAutoRequest ar(cx);
 
         ::JS_DefineProperty(cx, newInnerWindow->mJSObject, "navigator",
                             nav, nsnull, nsnull,
@@ -2159,9 +2165,7 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mDoc = nsnull;
     }
 
-    if (mContext) {
-      mContext->ClearScope(mJSObject, PR_TRUE);
-    }
+    mContext->ClearScope(mJSObject, PR_TRUE);
 
     ClearControllers();
 
@@ -2175,11 +2179,9 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mArgumentsOrigin = nsnull;
     }
 
-    if (mContext) {
-      mContext->GC();
-      mContext->FinalizeContext();
-      mContext = nsnull;
-    }
+    mContext->GC();
+    mContext->FinalizeContext();
+    mContext = nsnull;
 
 #ifdef DEBUG
     nsCycleCollector_DEBUG_shouldBeFreed(mContext);
@@ -2468,7 +2470,7 @@ nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
   if (mIsModalContentWindow) {
     // Modal content windows don't have an "arguments" property, they
     // have a "dialogArguments" property which is handled
-    // separately. See nsCommonWindowSH::NewResolve().
+    // separately. See nsWindowSH::NewResolve().
 
     return NS_OK;
   }
@@ -6879,35 +6881,6 @@ nsGlobalWindow::SetActive(PRBool aActive)
   NotifyDocumentTree(mDoc, nsnull);
 }
 
-void nsGlobalWindow::MaybeUpdateTouchState()
-{
-  FORWARD_TO_INNER_VOID(MaybeUpdateTouchState, ());
-
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
-
-  if(this == focusedWindow) {
-    UpdateTouchState();
-  }
-}
-
-void nsGlobalWindow::UpdateTouchState()
-{
-  FORWARD_TO_INNER_VOID(UpdateTouchState, ());
-
-  nsCOMPtr<nsIWidget> mainWidget = GetMainWidget();
-  if (!mainWidget)
-    return;
-
-  if (mMayHaveTouchEventListener) {
-    mainWidget->RegisterTouchWindow();
-  } else {
-    mainWidget->UnregisterTouchWindow();
-  }
-}
-
 void
 nsGlobalWindow::SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler)
 {
@@ -8221,14 +8194,14 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     timeout->mPrincipal = ourPrincipal;
   }
 
-  TimeDuration delta = TimeDuration::FromMilliseconds(realInterval);
+  PRTime delta = (PRTime)realInterval * PR_USEC_PER_MSEC;
 
   if (!IsFrozen() && !mTimeoutsSuspendDepth) {
     // If we're not currently frozen, then we set timeout->mWhen to be the
     // actual firing time of the timer (i.e., now + delta). We also actually
     // create a timer and fire it off.
 
-    timeout->mWhen = TimeStamp::Now() + delta;
+    timeout->mWhen = PR_Now() + delta;
 
     timeout->mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
     if (NS_FAILED(rv)) {
@@ -8249,13 +8222,12 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     // The timeout is now also held in the timer's closure.
     timeout->AddRef();
   } else {
-    // If we are frozen, however, then we instead simply set
-    // timeout->mTimeRemaining to be the "time remaining" in the timeout (i.e.,
-    // the interval itself). We don't create a timer for it, since that will
-    // happen when we are thawed and the timeout will then get a timer and run
-    // to completion.
+    // If we are frozen, however, then we instead simply set timeout->mWhen to
+    // be the "time remaining" in the timeout (i.e., the interval itself). We
+    // don't create a timer for it, since that will happen when we are thawed
+    // and the timeout will then get a timer and run to completion.
 
-    timeout->mTimeRemaining = delta;
+    timeout->mWhen = delta;
   }
 
   timeout->mWindow = this;
@@ -8361,8 +8333,8 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
 
   // A native timer has gone off. See which of our timeouts need
   // servicing
-  TimeStamp now = TimeStamp::Now();
-  TimeStamp deadline;
+  PRTime now = PR_Now();
+  PRTime deadline;
 
   if (aTimeout && aTimeout->mWhen > now) {
     // The OS timer fired early (yikes!), and possibly out of order
@@ -8404,7 +8376,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   // win_run_timeout(). This dummy timeout serves as the head of the
   // list for any timeouts inserted as a result of running a timeout.
   dummy_timeout.mFiringDepth = firingDepth;
-  dummy_timeout.mWhen = now;
   PR_INSERT_AFTER(&dummy_timeout, last_expired_timeout);
 
   // Don't let ClearWindowTimeouts throw away our stack-allocated
@@ -8513,9 +8484,13 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     } else {
       // Let the script handler know about the "secret" final argument that
       // indicates timeout lateness in milliseconds
-      TimeDuration lateness = now - timeout->mWhen;
+      PRTime lateness = now - timeout->mWhen;
 
-      handler->SetLateness(lateness.ToMilliseconds());
+      // Make sure to cast the unsigned PR_USEC_PER_MSEC to signed
+      // PRTime to make the division do the right thing on 64-bit
+      // platforms whether lateness is positive or negative.
+      handler->SetLateness((PRIntervalTime)(lateness /
+                                            (PRTime)PR_USEC_PER_MSEC));
 
       nsCOMPtr<nsIVariant> dummy;
       nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
@@ -8572,32 +8547,35 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     // timeout, accounting for clock drift.
     if (timeout->mInterval) {
       // Compute time to next timeout for interval timer.
+      PRTime nextInterval = (PRTime)timeout->mInterval * PR_USEC_PER_MSEC;
+
       // Make sure nextInterval is at least DOM_MIN_TIMEOUT_VALUE.
-      TimeDuration nextInterval =
-        TimeDuration::FromMilliseconds(NS_MAX(timeout->mInterval,
-                                              PRUint32(DOM_MIN_TIMEOUT_VALUE)));
+      // Note: We must cast the rhs expression to PRTime to work
+      // around what looks like a compiler bug on x86_64.
+      if (nextInterval < (PRTime)(DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC)) {
+         nextInterval = DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC;
+      }
 
       // If we're running pending timeouts because they've been temporarily
       // disabled (!aTimeout), set the next interval to be relative to "now",
       // and not to when the timeout that was pending should have fired.  Also
       // check if the next interval timeout is overdue.  If so, then restart
       // the interval from now.
-      TimeStamp firingTime;
-      if (!aTimeout || timeout->mWhen + nextInterval <= now)
-        firingTime = now + nextInterval;
+      if (!aTimeout || nextInterval + timeout->mWhen <= now)
+        nextInterval += now;
       else
-        firingTime = timeout->mWhen + nextInterval;
+        nextInterval += timeout->mWhen;
 
-      TimeDuration delay = firingTime - TimeStamp::Now();
+      PRTime delay = nextInterval - PR_Now();
 
       // And make sure delay is nonnegative; that might happen if the timer
       // thread is firing our timers somewhat early.
-      if (delay < TimeDuration(0)) {
-        delay = TimeDuration(0);
+      if (delay < 0) {
+        delay = 0;
       }
 
       if (timeout->mTimer) {
-        timeout->mWhen = firingTime;
+        timeout->mWhen = nextInterval;
 
         // Reschedule the OS timer. Don't bother returning any error
         // codes if this fails since the callers of this method
@@ -8611,7 +8589,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
         // consistency).
         nsresult rv = timeout->mTimer->
           InitWithFuncCallback(TimerCallback, timeout,
-                               delay.ToMilliseconds(),
+                               (PRInt32)(delay / (PRTime)PR_USEC_PER_MSEC),
                                nsITimer::TYPE_ONE_SHOT);
 
         if (NS_FAILED(rv)) {
@@ -8635,7 +8613,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
                      "How'd our timer end up null if we're not frozen or "
                      "suspended?");
 
-        timeout->mTimeRemaining = delay;
+        timeout->mWhen = delay;
         isInterval = PR_TRUE;
       }
     }
@@ -8840,11 +8818,7 @@ nsGlobalWindow::InsertTimeoutIntoList(nsTimeout *aTimeout)
   nsTimeout* prevSibling;
   for (prevSibling = LastTimeout();
        IsTimeout(prevSibling) && prevSibling != mTimeoutInsertionPoint &&
-         // This condition needs to match the one in SetTimeoutOrInterval that
-         // determines whether to set mWhen or mTimeRemaining.
-         ((IsFrozen() || mTimeoutsSuspendDepth) ?
-          prevSibling->mTimeRemaining > aTimeout->mTimeRemaining :
-          prevSibling->mWhen > aTimeout->mWhen);
+         prevSibling->mWhen > aTimeout->mWhen;
        prevSibling = prevSibling->Prev()) {
     /* Do nothing; just searching */
   }
@@ -9159,13 +9133,13 @@ nsGlobalWindow::SuspendTimeouts(PRUint32 aIncrease,
       dts->SuspendWorkersForGlobal(static_cast<nsIScriptGlobalObject*>(this));
     }
   
-    TimeStamp now = TimeStamp::Now();
+    PRTime now = PR_Now();
     for (nsTimeout *t = FirstTimeout(); IsTimeout(t); t = t->Next()) {
-      // Set mTimeRemaining to be the time remaining for this timer.
+      // Change mWhen to be the time remaining for this timer.    
       if (t->mWhen > now)
-        t->mTimeRemaining = t->mWhen - now;
+        t->mWhen -= now;
       else
-        t->mTimeRemaining = TimeDuration(0);
+        t->mWhen = 0;
   
       // Drop the XPCOM timer; we'll reschedule when restoring the state.
       if (t->mTimer) {
@@ -9234,9 +9208,9 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
     }
 
     // Restore all of the timeouts, using the stored time remaining
-    // (stored in timeout->mTimeRemaining).
+    // (stored in timeout->mWhen).
 
-    TimeStamp now = TimeStamp::Now();
+    PRTime now = PR_Now();
 
 #ifdef DEBUG
     PRBool _seenDummyTimeout = PR_FALSE;
@@ -9254,16 +9228,18 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
         continue;
       }
 
-      // XXXbz the combination of the way |delay| and |t->mWhen| are set here
-      // makes no sense.  Are we trying to impose that min timeout value or
-      // not???
+      // Make sure to cast the unsigned PR_USEC_PER_MSEC to signed
+      // PRTime to make the division do the right thing on 64-bit
+      // platforms whether t->mWhen is positive or negative (which is
+      // likely to always be positive here, but cast anyways for
+      // consistency).
       PRUint32 delay =
-        NS_MAX(PRInt32(t->mTimeRemaining.ToMilliseconds()),
-               DOM_MIN_TIMEOUT_VALUE);
+        NS_MAX(((PRUint32)(t->mWhen / (PRTime)PR_USEC_PER_MSEC)),
+               (PRUint32)DOM_MIN_TIMEOUT_VALUE);
 
       // Set mWhen back to the time when the timer is supposed to
       // fire.
-      t->mWhen = now + t->mTimeRemaining;
+      t->mWhen += now;
 
       t->mTimer = do_CreateInstance("@mozilla.org/timer;1");
       NS_ENSURE_TRUE(t->mTimer, NS_ERROR_OUT_OF_MEMORY);

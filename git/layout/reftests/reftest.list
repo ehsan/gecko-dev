@@ -102,9 +102,6 @@ include floats/reftest.list
 # font-face
 include font-face/reftest.list
 
-# font features (opentype)
-include font-features/reftest.list
-
 # font matching
 include font-matching/reftest.list
 
@@ -216,9 +213,6 @@ include text-transform/reftest.list
 
 # -moz-transform/
 include transform/reftest.list
-
-# unicode/ (verify that we don't do expend effort doing unicode-aware case checks)
-include unicode/reftest.list
 
 # widget/
 include ../../widget/reftests/reftest.list

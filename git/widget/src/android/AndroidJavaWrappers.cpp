@@ -57,12 +57,8 @@ jfieldID AndroidGeckoEvent::jKeyCodeField = 0;
 jfieldID AndroidGeckoEvent::jMetaStateField = 0;
 jfieldID AndroidGeckoEvent::jFlagsField = 0;
 jfieldID AndroidGeckoEvent::jUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jOffsetField = 0;
 jfieldID AndroidGeckoEvent::jCountField = 0;
-jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
-jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
+jfieldID AndroidGeckoEvent::jCount2Field = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
@@ -137,12 +133,8 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jMetaStateField = getField("mMetaState", "I");
     jFlagsField = getField("mFlags", "I");
     jUnicodeCharField = getField("mUnicodeChar", "I");
-    jOffsetField = getField("mOffset", "I");
     jCountField = getField("mCount", "I");
-    jRangeTypeField = getField("mRangeType", "I");
-    jRangeStylesField = getField("mRangeStyles", "I");
-    jRangeForeColorField = getField("mRangeForeColor", "I");
-    jRangeBackColorField = getField("mRangeBackColor", "I");
+    jCount2Field = getField("mCount2", "I");
     jLocationField = getField("mLocation", "Landroid/location/Location;");
 }
 
@@ -303,21 +295,9 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
 
         case IME_EVENT:
-            if (mAction == IME_GET_TEXT || mAction == IME_SET_SELECTION) {
-                mOffset = jenv->GetIntField(jobj, jOffsetField);
-                mCount = jenv->GetIntField(jobj, jCountField);
-            } else if (mAction == IME_SET_TEXT || mAction == IME_ADD_RANGE) {
-                if (mAction == IME_SET_TEXT)
-                    ReadCharactersField(jenv);
-                mOffset = jenv->GetIntField(jobj, jOffsetField);
-                mCount = jenv->GetIntField(jobj, jCountField);
-                mRangeType = jenv->GetIntField(jobj, jRangeTypeField);
-                mRangeStyles = jenv->GetIntField(jobj, jRangeStylesField);
-                mRangeForeColor =
-                    jenv->GetIntField(jobj, jRangeForeColorField);
-                mRangeBackColor =
-                    jenv->GetIntField(jobj, jRangeBackColorField);
-            }
+            mCount = jenv->GetIntField(jobj, jCountField);
+            mCount2 = jenv->GetIntField(jobj, jCount2Field);
+            ReadCharactersField(jenv);
             break;
 
         case DRAW:
@@ -354,7 +334,6 @@ void
 AndroidGeckoEvent::Init(int aType)
 {
     mType = aType;
-    mNativeWindow = nsnull;
 }
 
 void

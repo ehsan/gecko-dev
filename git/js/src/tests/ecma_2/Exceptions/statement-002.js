@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'statement-002.js';
 
 /**
    File Name:          statement-002.js

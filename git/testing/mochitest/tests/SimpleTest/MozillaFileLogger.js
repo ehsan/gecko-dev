@@ -82,20 +82,11 @@ MozillaFileLogger.getLogCallback = function() {
     } catch(ex) {} //running in ipcMode-chrome
 
     var data = msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n";
-    if (MozillaFileLogger._foStream)
-      MozillaFileLogger._foStream.write(data, data.length);
-
+    MozillaFileLogger._foStream.write(data, data.length);
     if (data.indexOf("SimpleTest FINISH") >= 0) {
       MozillaFileLogger.close();
     }
   }
-}
-
-// This is only used from chrome space by the reftest harness
-MozillaFileLogger.log = function(msg) {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  if (MozillaFileLogger._foStream)
-    MozillaFileLogger._foStream.write(msg, msg.length);
 }
 
 MozillaFileLogger.close = function() {
@@ -108,9 +99,7 @@ MozillaFileLogger.close = function() {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   } catch(ex) {} //running in ipcMode-chrome
 
-  if(MozillaFileLogger._foStream)
-    MozillaFileLogger._foStream.close();
-  
+  MozillaFileLogger._foStream.close();
   MozillaFileLogger._foStream = null;
   MozillaFileLogger._file = null;
 }

@@ -154,8 +154,6 @@
 #include <process.h>
 #endif
 
-//#define COLLECT_TIME_DEBUG
-
 #ifdef DEBUG_CC
 #define IF_DEBUG_CC_PARAM(_p) , _p
 #define IF_DEBUG_CC_ONLY_PARAM(_p) _p
@@ -170,6 +168,15 @@
 #else
 #define SHUTDOWN_COLLECTIONS(params) DEFAULT_SHUTDOWN_COLLECTIONS
 #endif
+
+#define CC_RUNTIME_ABORT_IF_FALSE(_expr, _msg)                                \
+  PR_BEGIN_MACRO                                                              \
+    if (!(_expr)) {                                                           \
+      NS_ERROR(_msg);                                                         \
+      int *foo = (int*)nsnull;                                                \
+      *foo = 42;                                                              \
+    }                                                                         \
+  PR_END_MACRO
 
 // Various parameters of this collector can be tuned using environment
 // variables.
@@ -380,6 +387,7 @@ public:
             { return mPointer != aOther.mPointer; }
 
     private:
+        friend class EdgePool;
         PtrInfoOrBlock *mPointer;
     };
 
@@ -417,6 +425,7 @@ public:
         Block **mNextBlockPtr;
     };
 
+    void CheckIterator(Iterator &aIterator);
 };
 
 #ifdef DEBUG_CC
@@ -623,6 +632,8 @@ public:
         // NB: mLast is a reference to allow enumerating while building!
         PtrInfo *mNext, *mBlockEnd, *&mLast;
     };
+
+    void CheckPtrInfo(PtrInfo *aPtrInfo);
 
 private:
     Block *mBlocks;
@@ -932,8 +943,7 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
 struct nsCycleCollectionXPCOMRuntime : 
     public nsCycleCollectionLanguageRuntime 
 {
-    nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
-                                  bool explainLiveExpectedGarbage)
+    nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb) 
     {
         return NS_OK;
     }
@@ -960,7 +970,6 @@ struct nsCycleCollector
     PRBool mScanInProgress;
     PRBool mFollowupCollection;
     PRUint32 mCollectedObjects;
-    PRBool mFirstCollection;
 
     nsCycleCollectionLanguageRuntime *mRuntimes[nsIProgrammingLanguage::MAX+1];
     nsCycleCollectionXPCOMRuntime mXPCOMRuntime;
@@ -1027,6 +1036,14 @@ struct nsCycleCollector
 };
 
 
+struct DoWalkDebugInfo
+{
+    PtrInfo *mCurrentPI;
+    EdgePool::Iterator mFirstChild;
+    EdgePool::Iterator mLastChild;
+    EdgePool::Iterator mCurrentChild;
+};
+
 /**
  * GraphWalker is templatized over a Visitor class that must provide
  * the following two methods:
@@ -1039,6 +1056,7 @@ class GraphWalker
 {
 private:
     Visitor mVisitor;
+    DoWalkDebugInfo *mDebugInfo;
 
     void DoWalk(nsDeque &aQueue);
 
@@ -1238,20 +1256,72 @@ GraphWalker<Visitor>::WalkFromRoots(GCGraph& aGraph)
     DoWalk(queue);
 }
 
+void
+EdgePool::CheckIterator(Iterator &aIterator)
+{
+    PtrInfoOrBlock *iteratorPos = aIterator.mPointer;
+    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos, "Iterator's pos is null.");
+
+    PtrInfoOrBlock *start = &mSentinelAndBlocks[0];
+    size_t sentinelOffset = 0;
+    PtrInfoOrBlock *end;
+    Block *nextBlockPtr;
+    do {
+        end = start + sentinelOffset;
+        nextBlockPtr = (end + 1)->block;
+        // We must be in a block of edges or on a sentinel.
+        if (iteratorPos >= start && iteratorPos <= end)
+            break;
+        sentinelOffset = Block::BlockSize - 2;
+    } while ((start = nextBlockPtr ? nextBlockPtr->Start() : nsnull));
+    CC_RUNTIME_ABORT_IF_FALSE(start, "Iterator doesn't point into EdgePool.");
+
+    // If the ptrInfo is null we need to be on the sentinel.
+    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos->ptrInfo || iteratorPos == end,
+                              "iteratorPos points to null, but it's not a "
+                              "sentinel!");
+}
+
+void
+NodePool::CheckPtrInfo(PtrInfo *aPtrInfo)
+{
+    // Find out if pi is null.
+    CC_RUNTIME_ABORT_IF_FALSE(aPtrInfo, "Pointer is null.");
+
+    // Find out if pi is a dangling pointer.
+    Block *block = mBlocks;
+    do {
+        if(aPtrInfo >= &block->mEntries[0] &&
+           aPtrInfo <= &block->mEntries[BlockSize - 1])
+           break;
+    } while ((block = block->mNext));
+    CC_RUNTIME_ABORT_IF_FALSE(block, "Pointer is outside blocks.");
+}
+
 template <class Visitor>
 void
 GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 {
     // Use a aQueue to match the breadth-first traversal used when we
     // built the graph, for hopefully-better locality.
+    DoWalkDebugInfo debugInfo;
+    mDebugInfo = &debugInfo;
+
     while (aQueue.GetSize() > 0) {
         PtrInfo *pi = static_cast<PtrInfo*>(aQueue.PopFront());
 
+        sCollector->mGraph.mNodes.CheckPtrInfo(pi);
+
+        debugInfo.mCurrentPI = pi;
         if (mVisitor.ShouldVisitNode(pi)) {
             mVisitor.VisitNode(pi);
+            debugInfo.mFirstChild = pi->mFirstChild;
+            debugInfo.mLastChild = pi->mLastChild;
+            debugInfo.mCurrentChild = pi->mFirstChild;
             for (EdgePool::Iterator child = pi->mFirstChild,
                                 child_end = pi->mLastChild;
-                 child != child_end; ++child) {
+                 child != child_end; ++child, debugInfo.mCurrentChild = child) {
+                sCollector->mGraph.mEdges.CheckIterator(child);
                 aQueue.Push(*child);
             }
         }
@@ -2015,7 +2085,6 @@ nsCycleCollector::nsCycleCollector() :
     mCollectionInProgress(PR_FALSE),
     mScanInProgress(PR_FALSE),
     mCollectedObjects(0),
-    mFirstCollection(PR_TRUE),
     mWhiteNodes(nsnull),
     mWhiteNodeCount(0),
 #ifdef DEBUG_CC
@@ -2448,27 +2517,14 @@ nsCycleCollector::Collect(PRUint32 aTryCollections)
 
     PRUint32 totalCollections = 0;
     while (aTryCollections > totalCollections) {
-        // The cycle collector uses the mark bitmap to discover what JS objects
-        // were reachable only from XPConnect roots that might participate in
-        // cycles. If this is the first cycle collection after startup force
-        // a garbage collection, otherwise the GC might not have run yet and
-        // the bitmap is invalid.
-        // Also force a JS GC if we are doing our infamous shutdown dance
-        // (aTryCollections > 1).
-        if ((mFirstCollection || aTryCollections > 1) &&
-            mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
-#ifdef COLLECT_TIME_DEBUG
-            PRTime start = PR_Now();
-#endif
-            static_cast<nsCycleCollectionJSRuntime*>
+        PRBool collected;
+        if (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
+            collected = static_cast<nsCycleCollectionJSRuntime*>
                 (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT])->Collect();
-            mFirstCollection = PR_FALSE;
-#ifdef COLLECT_TIME_DEBUG
-            printf("cc: GC() took %lldms\n", (PR_Now() - start) / PR_USEC_PER_MSEC);
-#endif
         }
-
-        PRBool collected = BeginCollection() && FinishCollection();
+        else {
+            collected = BeginCollection() && FinishCollection();
+        }
 
 #ifdef DEBUG_CC
         // We wait until after FinishCollection to check the white nodes because
@@ -2535,7 +2591,7 @@ nsCycleCollector::BeginCollection()
 #endif
     for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
         if (mRuntimes[i])
-            mRuntimes[i]->BeginCycleCollection(builder, false);
+            mRuntimes[i]->BeginCycleCollection(builder);
     }
 
 #ifdef COLLECT_TIME_DEBUG
@@ -2784,7 +2840,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
 
         for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
             if (mRuntimes[i])
-                mRuntimes[i]->BeginCycleCollection(builder, true);
+                mRuntimes[i]->BeginCycleCollection(builder);
         }
 
         // But just for extra information, add entries from the purple
@@ -3090,17 +3146,13 @@ nsCycleCollector::DestroyReversedEdges()
 void
 nsCycleCollector::ShouldBeFreed(nsISupports *n)
 {
-    if (n) {
-        mExpectedGarbage.PutEntry(n);
-    }
+    mExpectedGarbage.PutEntry(n);
 }
 
 void
 nsCycleCollector::WasFreed(nsISupports *n)
 {
-    if (n) {
-        mExpectedGarbage.RemoveEntry(n);
-    }
+    mExpectedGarbage.RemoveEntry(n);
 }
 #endif
 
@@ -3172,6 +3224,18 @@ PRUint32
 nsCycleCollector_suspectedCount()
 {
     return sCollector ? sCollector->SuspectedCount() : 0;
+}
+
+PRBool 
+nsCycleCollector_beginCollection()
+{
+    return sCollector ? sCollector->BeginCollection() : PR_FALSE;
+}
+
+PRBool 
+nsCycleCollector_finishCollection()
+{
+    return sCollector ? sCollector->FinishCollection() : PR_FALSE;
 }
 
 nsresult 

@@ -38,8 +38,6 @@
 
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
-#elif XP_MACOSX
-#include "PluginUtilsOSX.h"
 #endif
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
@@ -54,7 +52,6 @@
 #include "mozilla/plugins/BrowserStreamParent.h"
 #include "PluginIdentifierParent.h"
 
-#include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsCRT.h"
 #ifdef MOZ_CRASHREPORTER
@@ -70,7 +67,6 @@ using mozilla::ipc::SyncChannel;
 using namespace mozilla::plugins;
 
 static const char kTimeoutPref[] = "dom.ipc.plugins.timeoutSecs";
-static const char kLaunchTimeoutPref[] = "dom.ipc.plugins.processLaunchTimeoutSecs";
 
 template<>
 struct RunnableMethodTraits<mozilla::plugins::PluginModuleParent>
@@ -86,21 +82,15 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PRInt32 prefSecs = nsContentUtils::GetIntPref(kLaunchTimeoutPref, 0);
-
     // Block on the child process being launched and initialized.
-    nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
-    bool launched = parent->mSubprocess->Launch(prefSecs * 1000);
-    if (!launched) {
-        // Need to set this so the destructor doesn't complain.
-        parent->mShutdown = true;
-        return nsnull;
-    }
+    PluginModuleParent* parent = new PluginModuleParent(aFilePath);
+    parent->mSubprocess->Launch();
     parent->Open(parent->mSubprocess->GetChannel(),
                  parent->mSubprocess->GetChildProcessHandle());
 
     TimeoutChanged(kTimeoutPref, parent);
-    return parent.forget();
+
+    return parent;
 }
 
 
@@ -778,14 +768,6 @@ PluginModuleParent::AnswerProcessSomeEvents()
 
     PLUGIN_LOG_DEBUG(("... quitting mini nested loop"));
 
-    return true;
-}
-
-#elif defined(XP_MACOSX)
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    mozilla::plugins::PluginUtilsOSX::InvokeNativeEventLoop();
     return true;
 }
 

@@ -390,7 +390,7 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
 
-    content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE).get();
+    content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE).get();
     NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
     result = AddAttributes(aNode, content);
@@ -477,7 +477,7 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
-        content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE);
+        content = CreateHTMLElement(nodeType, nodeInfo, PR_FALSE);
         NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
         result = AddAttributes(aNode, content);
@@ -1100,10 +1100,6 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
 {
   nsresult rv = NS_OK;
 
-  if (mIgnoreNextCloseHead && aTag == eHTMLTag_head) {
-    mIgnoreNextCloseHead = PR_FALSE;
-    return NS_OK;
-  }
   if (mSkip) {
     mSkip = PR_FALSE;
     return rv;
@@ -1221,8 +1217,10 @@ nsHTMLParanoidFragmentSink::SanitizeStyleRule(nsICSSStyleRule *aRule, nsAutoStri
   aRuleText.Truncate();
   css::Declaration *style = aRule->GetDeclaration();
   if (style) {
-    style->RemoveProperty(eCSSProperty_binding);
-    style->ToString(aRuleText);
+    nsresult rv = style->RemoveProperty(eCSSProperty_binding);
+    if (NS_SUCCEEDED(rv)) {
+      style->ToString(aRuleText);
+    }
   }
 }
 
@@ -1233,10 +1231,7 @@ nsHTMLParanoidFragmentSink::AddLeaf(const nsIParserNode& aNode)
   
   nsresult rv = NS_OK;
 
-  // We need to explicitly skip adding leaf nodes in the paranoid sink,
-  // otherwise things like the textnode under <title> get appended to
-  // the fragment itself, and won't be popped off in CloseContainer.
-  if (mSkip || mIgnoreNextCloseHead) {
+  if (mSkip) {
     return rv;
   }
   

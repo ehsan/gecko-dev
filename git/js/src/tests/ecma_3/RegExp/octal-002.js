@@ -62,6 +62,7 @@
  * defined in the ECMA spec as having Unicode value \u0009.
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'octal-002.js';
 var i = 0;
 var BUGNUMBER = 141078;
 var summary = 'Testing regexps containing octal escape sequences';

@@ -41,7 +41,6 @@
 #include "mozilla/dom/PContentDialogChild.h"
 
 #include "nsIWebBrowser.h"
-#include "nsIWebBrowserSetup.h"
 #include "nsEmbedCID.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIBaseWindow.h"
@@ -454,17 +453,6 @@ TabChild::RecvCreateWidget(const MagicWindowHandle& parentWidget)
     baseWindow->SetVisibility(PR_TRUE);
 #endif
 
-    // IPC uses a WebBrowser object for which DNS prefetching is turned off
-    // by default. But here we really want it, so enable it explicitly
-    nsCOMPtr<nsIWebBrowserSetup> webBrowserSetup = do_QueryInterface(baseWindow);
-    if (webBrowserSetup) {
-      webBrowserSetup->SetProperty(nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH,
-                                   PR_TRUE);
-    } else {
-        NS_WARNING("baseWindow doesn't QI to nsIWebBrowserSetup, skipping "
-                   "DNS prefetching enable step.");
-    }
-
     return InitTabChildGlobal();
 }
 
@@ -478,23 +466,10 @@ TabChild::DestroyWidget()
     return true;
 }
 
-void
-TabChild::ActorDestroy(ActorDestroyReason why)
-{
-  // The messageManager relays messages via the TabChild which
-  // no longer exists.
-  static_cast<nsFrameMessageManager*>
-    (mTabChildGlobal->mMessageManager.get())->Disconnect();
-  mTabChildGlobal->mMessageManager = nsnull;
-}
-
 TabChild::~TabChild()
 {
+    DestroyWidget();
     nsCOMPtr<nsIWebBrowser> webBrowser = do_QueryInterface(mWebNav);
-    nsCOMPtr<nsIWeakReference> weak =
-      do_GetWeakReference(static_cast<nsSupportsWeakReference*>(this));
-    webBrowser->RemoveWebBrowserListener(weak, NS_GET_IID(nsIWebProgressListener));
-
     if (webBrowser) {
       webBrowser->SetContainerWindow(nsnull);
     }
@@ -594,6 +569,8 @@ TabChild::OnRefreshAttempted(nsIWebProgress *aWebProgress,
   *aRefreshAllowed = refreshAllowed;
   return NS_OK;
 }
+                             
+                             
 
 bool
 TabChild::RecvLoadURL(const nsCString& uri)
@@ -953,15 +930,6 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
   return true;
 }
 
-bool
-TabChild::RecvDestroy()
-{
-    DestroyWidget();
-
-    // XXX what other code in ~TabChild() should we be running here?
-
-    return Send__delete__(this);
-}
 
 bool
 TabChild::InitTabChildGlobal()
@@ -1029,9 +997,8 @@ TabChild::InitTabChildGlobal()
 
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
-                                         NS_GET_IID(nsISupports),
-                                         scope->GetPrincipal(), EmptyCString(),
-                                         flags, getter_AddRefs(mRootGlobal));
+                                         NS_GET_IID(nsISupports), flags,
+                                         getter_AddRefs(mRootGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
   nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(chromeHandler);
@@ -1106,8 +1073,6 @@ NS_IMETHODIMP
 TabChildGlobal::GetContent(nsIDOMWindow** aContent)
 {
   *aContent = nsnull;
-  if (!mTabChild)
-    return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mTabChild->WebNavigation());
   window.swap(*aContent);
   return NS_OK;

@@ -204,31 +204,29 @@ XPCWrappedNativeScope::SetComponents(nsXPCComponents* aComponents)
 // reserved slots in this class needs to match that of the wrappers
 // for the JS engine to share scopes.
 
-js::Class XPC_WN_NoHelper_Proto_JSClass = {
+JSClass XPC_WN_NoHelper_Proto_JSClass = {
     "XPC_WN_NoHelper_Proto_JSClass",// name;
     WRAPPER_SLOTS,                  // flags;
 
     /* Mandatory non-null function pointer members. */
-    js::PropertyStub,               // addProperty;
-    js::PropertyStub,               // delProperty;
-    js::PropertyStub,               // getProperty;
-    js::PropertyStub,               // setProperty;
-    js::EnumerateStub,              // enumerate;
+    JS_PropertyStub,                // addProperty;
+    JS_PropertyStub,                // delProperty;
+    JS_PropertyStub,                // getProperty;
+    JS_PropertyStub,                // setProperty;
+    JS_EnumerateStub,               // enumerate;
     JS_ResolveStub,                 // resolve;
-    js::ConvertStub,                // convert;
+    JS_ConvertStub,                 // convert;
     nsnull,                         // finalize;
 
     /* Optionally non-null members start here. */
-    nsnull,                         // reserved0;
+    XPC_WN_Proto_GetObjectOps,      // getObjectOps;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
     nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     nsnull,                         // mark/trace;
-
-    JS_NULL_CLASS_EXT,
-    XPC_WN_NoCall_ObjectOps
+    nsnull                          // spare;
 };
 
 
@@ -243,7 +241,7 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
     mScriptObjectPrincipal = nsnull;
     // Now init our script object principal, if the new global has one
 
-    const JSClass* jsClass = aGlobal->getJSClass();
+    const JSClass* jsClass = aGlobal->getClass();
     if(!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS)))
     {
@@ -352,8 +350,7 @@ XPCWrappedNativeScope::GetPrototypeNoHelper(XPCCallContext& ccx)
     if(!mPrototypeNoHelper)
     {
         mPrototypeNoHelper =
-            xpc_NewSystemInheritingJSObject(ccx,
-                                            js::Jsvalify(&XPC_WN_NoHelper_Proto_JSClass),
+            xpc_NewSystemInheritingJSObject(ccx, &XPC_WN_NoHelper_Proto_JSClass,
                                             mPrototypeJSObject,
                                             mGlobalJSObject);
 
@@ -411,20 +408,15 @@ WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
 {
     SuspectClosure* closure = static_cast<SuspectClosure*>(arg);
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
-
-    if(wrapper->IsValid() &&
-       wrapper->HasExternalReference() &&
-       !wrapper->IsWrapperExpired())
+    if(wrapper->IsValid())
     {
         NS_ASSERTION(NS_IsMainThread(), 
                      "Suspecting wrapped natives from non-main thread");
-        NS_ASSERTION(!JS_IsAboutToBeFinalized(closure->cx, wrapper->GetFlatJSObject()),
-                     "WrappedNativeSuspecter attempting to touch dead object");
 
         // Only record objects that might be part of a cycle as roots, unless
         // the callback wants all traces (a debug feature).
-        if(!(closure->cb.WantAllTraces()) &&
-           !nsXPConnect::IsGray(wrapper->GetFlatJSObject()))
+        if(!(closure->cb.WantAllTraces()) && 
+           !JS_IsAboutToBeFinalized(closure->cx, wrapper->GetFlatJSObject()))
             return JS_DHASH_NEXT;
 
         closure->cb.NoteRoot(nsIProgrammingLanguage::JAVASCRIPT,
@@ -728,7 +720,7 @@ XPCWrappedNativeScope*
 GetScopeOfObject(JSObject* obj)
 {
     nsISupports* supports;
-    js::Class* clazz = obj->getClass();
+    JSClass* clazz = obj->getClass();
     JSBool isWrapper = IS_WRAPPER_CLASS(clazz);
 
     if(isWrapper && IS_SLIM_WRAPPER_OBJECT(obj))

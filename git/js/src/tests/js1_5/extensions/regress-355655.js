@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355655.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355655;
 var summary = 'running script can be recompiled';

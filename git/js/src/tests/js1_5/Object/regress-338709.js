@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-338709.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 338709;
 var summary = 'ReadOnly properties should not be overwritten by using ' +

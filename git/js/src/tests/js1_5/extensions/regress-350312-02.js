@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350312-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350312;
 var summary = 'Accessing wrong stack slot with nested catch/finally';

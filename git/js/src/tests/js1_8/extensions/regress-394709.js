@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-394709.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 394709;
 var summary = 'Do not leak with object.watch and closure';

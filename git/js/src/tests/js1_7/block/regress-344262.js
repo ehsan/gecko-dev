@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-344262.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 344262;
 var summary = 'Variables bound by let statement/expression';

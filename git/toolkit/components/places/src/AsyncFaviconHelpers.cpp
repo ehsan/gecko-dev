@@ -49,7 +49,6 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsFaviconService.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #include "nsCycleCollectionParticipant.h"
 
@@ -333,7 +332,7 @@ GetEffectivePageStep::HandleResult(mozIStorageResultSet* aResultSet)
     rv = row->GetUTF8String(0, spec);
     FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
     // We always want to use the bookmark uri.
-    rv = NS_NewURI(getter_AddRefs(mStepper->mPageURI), spec);
+    rv = mStepper->mPageURI->SetSpec(spec);
     FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
     // Since we got a result, this is a bookmark.
     mIsBookmarked = true;
@@ -472,23 +471,16 @@ FetchDatabaseIconStep::HandleResult(mozIStorageResultSet* aResultSet)
   // is in the query to mimic mDBGetIconInfo.
   // Indeed in future we could want to retain only one statement.
 
-  PRBool isNull;
-  rv = row->GetIsNull(2, &isNull);
-  if (!isNull) {
-    rv = row->GetInt64(2, &mStepper->mExpiration);
-    FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
-  }
+  rv = row->GetInt64(2, &mStepper->mExpiration);
+  FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
 
-  rv = row->GetIsNull(3, &isNull);
-  if (!isNull) {
-    PRUint8* data;
-    PRUint32 dataLen = 0;
-    rv = row->GetBlob(3, &dataLen, &data);
-    FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
-    mStepper->mData.Adopt(TO_CHARBUFFER(data), dataLen);
-    rv = row->GetUTF8String(4, mStepper->mMimeType);
-    FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
-  }
+  PRUint8* data;
+  PRUint32 dataLen = 0;
+  rv = row->GetBlob(3, &dataLen, &data);
+  FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
+  mStepper->mData.Adopt(TO_CHARBUFFER(data), dataLen);
+  rv = row->GetUTF8String(4, mStepper->mMimeType);
+  FAVICONSTEP_FAIL_IF_FALSE_RV(NS_SUCCEEDED(rv), rv);
 
   PRInt32 isRevisit;
   rv = row->GetInt32(5, &isRevisit);
@@ -766,13 +758,11 @@ FetchNetworkIconStep::GetInterface(const nsIID& uuid,
 
 
 NS_IMETHODIMP
-FetchNetworkIconStep::AsyncOnChannelRedirect(nsIChannel* oldChannel,
-                                             nsIChannel* newChannel,
-                                             PRUint32 flags,
-                                             nsIAsyncVerifyRedirectCallback *cb)
+FetchNetworkIconStep::OnChannelRedirect(nsIChannel* oldChannel,
+                                        nsIChannel* newChannel,
+                                        PRUint32 flags)
 {
   mChannel = newChannel;
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 

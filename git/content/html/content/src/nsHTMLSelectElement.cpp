@@ -138,7 +138,7 @@ nsSafeOptionListMutation::~nsSafeOptionListMutation()
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Select)
 
-nsHTMLSelectElement::nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsHTMLSelectElement::nsHTMLSelectElement(nsINodeInfo *aNodeInfo,
                                          PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mOptions(new nsHTMLOptionCollection(this)),
@@ -177,12 +177,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSelectElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSelectElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLSelectElement, nsHTMLSelectElement)
+DOMCI_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLSelectElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLSelectElement,
                                    nsIDOMHTMLSelectElement,
+                                   nsIDOMNSHTMLSelectElement,
                                    nsISelectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSelectElement,
                                                nsGenericHTMLFormElement)
@@ -193,6 +194,7 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSelectElement)
 
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSelectElement)
+
 
 NS_IMETHODIMP
 nsHTMLSelectElement::GetForm(nsIDOMHTMLFormElement** aForm)
@@ -729,7 +731,7 @@ nsHTMLSelectElement::SetLength(PRUint32 aLength)
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::option,
                                 getter_AddRefs(nodeInfo));
 
-    nsCOMPtr<nsIContent> element = NS_NewHTMLOptionElement(nodeInfo.forget());
+    nsCOMPtr<nsIContent> element = NS_NewHTMLOptionElement(nodeInfo);
     if (!element) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -796,8 +798,8 @@ nsHTMLSelectElement::GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
                                     PRInt32 aStartIndex, PRBool aForward,
                                     PRInt32* aIndex)
 {
-  nsCOMPtr<nsINode> option = do_QueryInterface(aOption);
-  return mOptions->GetOptionIndex(option->AsElement(), aStartIndex, aForward, aIndex);
+  nsCOMPtr<Element> option = do_QueryInterface(aOption);
+  return mOptions->GetOptionIndex(option, aStartIndex, aForward, aIndex);
 }
 
 PRBool
@@ -1943,21 +1945,22 @@ nsHTMLOptionCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(item, aReturn);
 }
 
-nsIContent*
+nsISupports*
 nsHTMLOptionCollection::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
 
-  return static_cast<nsIContent*>(ItemAsOption(aIndex));
+  return static_cast<Element*>(ItemAsOption(aIndex));
 }
 
-static nsHTMLOptionElement*
-GetNamedItemHelper(nsTArray<nsRefPtr<nsHTMLOptionElement> > &aElements,
-                   const nsAString& aName)
+nsISupports*
+nsHTMLOptionCollection::GetNamedItem(const nsAString& aName, nsresult* aResult)
 {
-  PRUint32 count = aElements.Length();
+  *aResult = NS_OK;
+
+  PRUint32 count = mElements.Length();
   for (PRUint32 i = 0; i < count; i++) {
-    nsHTMLOptionElement *content = aElements.ElementAt(i);
+    nsIContent *content = ItemAsOption(i);
     if (content &&
         (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name, aName,
                               eCaseMatters) ||
@@ -1970,25 +1973,19 @@ GetNamedItemHelper(nsTArray<nsRefPtr<nsHTMLOptionElement> > &aElements,
   return nsnull;
 }
 
-nsISupports*
-nsHTMLOptionCollection::GetNamedItem(const nsAString& aName,
-                                     nsWrapperCache **aCache,
-                                     nsresult* aResult)
-{
-  *aResult = NS_OK;
-
-  nsINode *item = GetNamedItemHelper(mElements, aName);
-  *aCache = item;
-  return item;
-}
-
 NS_IMETHODIMP
 nsHTMLOptionCollection::NamedItem(const nsAString& aName,
                                   nsIDOMNode** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetNamedItemHelper(mElements, aName));
+  nsresult rv;
+  nsISupports* item = GetNamedItem(aName, &rv);
+  if (!item) {
+    *aReturn = nsnull;
 
-  return NS_OK;
+    return rv;
+  }
+
+  return CallQueryInterface(item, aReturn);
 }
 
 NS_IMETHODIMP

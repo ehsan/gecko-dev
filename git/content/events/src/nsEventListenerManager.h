@@ -231,7 +231,7 @@ protected:
   nsCOMPtr<nsIAtom>                         mNoListenerForEventAtom;
 
   static PRUint32                           mInstanceCount;
-  static jsid                               sAddListenerID;
+  static jsval                              sAddListenerID;
 
   friend class nsEventTargetChainItem;
   static PRUint32                           sCreatedCount;

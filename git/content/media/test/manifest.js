@@ -104,9 +104,6 @@ var gPlayTests = [
   // Test playback of a webm file
   { name:"seek.webm", type:"video/webm", duration:3.966 },
 
-  // Test playback of a raw file
-  { name:"seek.yuv", type:"video/x-raw-yuv", duration:1.833 },
-
   { name:"bogus.duh", type:"bogus/duh", duration:Number.NaN }
   
 ];
@@ -190,7 +187,6 @@ var gErrorTests = [
   { name:"448636.ogv", type:"video/ogg" },
   { name:"bug504843.ogv", type:"video/ogg" },
   { name:"bug501279.ogg", type:"audio/ogg" },
-  { name:"bug580982.webm", type:"video/webm" },
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 

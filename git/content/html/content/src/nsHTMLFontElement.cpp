@@ -51,7 +51,7 @@ class nsHTMLFontElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLFontElement
 {
 public:
-  nsHTMLFontElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFontElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFontElement();
 
   // nsISupports
@@ -76,14 +76,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Font)
 
 
-nsHTMLFontElement::nsHTMLFontElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLFontElement::nsHTMLFontElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -95,7 +94,8 @@ nsHTMLFontElement::~nsHTMLFontElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLFontElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFontElement, nsGenericElement)
 
-DOMCI_NODE_DATA(HTMLFontElement, nsHTMLFontElement)
+
+DOMCI_DATA(HTMLFontElement, nsHTMLFontElement)
 
 // QueryInterface implementation for nsHTMLFontElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFontElement)

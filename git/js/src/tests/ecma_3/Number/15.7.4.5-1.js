@@ -46,6 +46,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '15.7.4.5-1.js';
 var UBound = 0;
 var BUGNUMBER = '(none)';
 var summary = 'Testing Number.prototype.toFixed(fractionDigits)';

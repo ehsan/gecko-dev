@@ -56,7 +56,7 @@
 
 #include "jstypedarray.h"
 
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
 // shader translator
 #include "angle/ShaderLang.h"
 #endif
@@ -109,6 +109,7 @@ already_AddRefed<WebGLUniformLocation> WebGLProgram::GetUniformLocationObject(GL
 {
     WebGLUniformLocation *existingLocationObject;
     if (mMapUniformLocations.Get(glLocation, &existingLocationObject)) {
+        NS_ADDREF(existingLocationObject);
         return existingLocationObject;
     } else {
         nsRefPtr<WebGLUniformLocation> loc = new WebGLUniformLocation(mContext, this, glLocation);
@@ -525,7 +526,11 @@ WebGLContext::Clear(PRUint32 mask)
 
 GL_SAME_METHOD_4(ClearColor, ClearColor, WebGLfloat, WebGLfloat, WebGLfloat, WebGLfloat)
 
+#ifdef USE_GLES2
+GL_SAME_METHOD_1(ClearDepthf, ClearDepth, WebGLfloat)
+#else
 GL_SAME_METHOD_1(ClearDepth, ClearDepth, WebGLfloat)
+#endif
 
 GL_SAME_METHOD_1(ClearStencil, ClearStencil, WebGLint)
 
@@ -829,7 +834,11 @@ WebGLContext::DepthFunc(WebGLenum func)
 
 GL_SAME_METHOD_1(DepthMask, DepthMask, WebGLboolean)
 
+#ifdef USE_GLES2
+GL_SAME_METHOD_2(DepthRangef, DepthRange, WebGLfloat, WebGLfloat)
+#else
 GL_SAME_METHOD_2(DepthRange, DepthRange, WebGLfloat, WebGLfloat)
+#endif
 
 NS_IMETHODIMP
 WebGLContext::DisableVertexAttribArray(WebGLuint index)
@@ -1333,18 +1342,18 @@ WebGLContext::GetParameter(PRUint32 pname, nsIVariant **retval)
 
         case LOCAL_GL_MAX_VARYING_VECTORS:
         {
-            if (gl->IsGLES2()) {
+            #ifdef USE_GLES2
                 GLint i = 0;
                 gl->fGetIntegerv(pname, &i);
                 wrval->SetAsInt32(i);
-            } else {
+            #else
                 // since this pname is absent from desktop OpenGL, we have to implement it by hand.
                 // The formula below comes from the public_webgl list, "problematic GetParameter pnames" thread
                 GLint i = 0, j = 0;
                 gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_OUTPUT_COMPONENTS, &i);
                 gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_INPUT_COMPONENTS, &j);
                 wrval->SetAsInt32(PR_MIN(i,j)/4);
-            }
+            #endif
         }
             break;
 
@@ -2410,6 +2419,58 @@ WebGLContext::ReadPixels_buf(WebGLint x, WebGLint y, WebGLsizei width, WebGLsize
 }
 
 NS_IMETHODIMP
+WebGLContext::ReadPixels_byteLength_old_API_deprecated(WebGLsizei width, WebGLsizei height,
+                             WebGLenum format, WebGLenum type, WebGLsizei *retval)
+{
+    *retval = 0;
+    if (width < 0 || height < 0)
+        return ErrorInvalidValue("ReadPixels: negative size passed");
+
+    PRUint32 size = 0;
+    switch (format) {
+      case LOCAL_GL_ALPHA:
+        size = 1;
+        break;
+      case LOCAL_GL_RGB:
+        size = 3;
+        break;
+      case LOCAL_GL_RGBA:
+        size = 4;
+        break;
+      default:
+        return ErrorInvalidEnumInfo("ReadPixels: format", format);
+    }
+
+    switch (type) {
+//         case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+//         case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+//         case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+      case LOCAL_GL_UNSIGNED_BYTE:
+        break;
+      default:
+        return ErrorInvalidEnumInfo("ReadPixels: type", type);
+    }
+    PRUint32 packAlignment;
+    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, (GLint*) &packAlignment);
+
+    CheckedUint32 checked_plainRowSize = CheckedUint32(width) * size;
+
+    // alignedRowSize = row size rounded up to next multiple of
+    // packAlignment which is a power of 2
+    CheckedUint32 checked_alignedRowSize
+        = ((checked_plainRowSize + packAlignment-1) / packAlignment) * packAlignment;
+
+    CheckedUint32 checked_neededByteLength = (height-1)*checked_alignedRowSize + checked_plainRowSize;
+
+    if (!checked_neededByteLength.valid())
+        return ErrorInvalidOperation("ReadPixels: integer overflow computing the needed buffer size");
+
+    *retval = checked_neededByteLength.value();
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, WebGLsizei width, WebGLsizei height)
 {
     if (target != LOCAL_GL_RENDERBUFFER)
@@ -2683,9 +2744,9 @@ WebGLContext::name##_array(nsIWebGLUniformLocation *ploc, WebGLboolean transpose
 {                                                                       \
     OBTAIN_UNIFORM_LOCATION(#name ": location")                         \
     if (!wa || wa->type != js::TypedArray::arrayType)                   \
-        return ErrorInvalidValue(#name ": array must be " #arrayType);      \
+        return ErrorInvalidOperation(#name ": array must be " #arrayType);      \
     if (wa->length == 0 || wa->length % (dim*dim) != 0)                 \
-        return ErrorInvalidValue(#name ": array length must be >0 and multiple of %d", dim*dim); \
+        return ErrorInvalidOperation(#name ": array must be > 0 elements and have a length multiple of %d", dim*dim); \
     if (transpose)                                                      \
         return ErrorInvalidValue(#name ": transpose must be FALSE as per the OpenGL ES 2.0 spec"); \
     MakeContextCurrent();                                               \
@@ -2840,7 +2901,7 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         return NS_OK;
     MakeContextCurrent();
 
-#if defined(USE_ANGLE)
+#if !defined(USE_GLES2) && defined(USE_ANGLE)
     if (shader->NeedsTranslation() && mShaderValidation) {
         ShHandle compiler = 0;
         int debugFlags = 0;
@@ -2858,18 +2919,13 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         resources.maxFragmentUniformVectors = mGLMaxFragmentUniformVectors;
         resources.maxDrawBuffers = 1;
 
-        compiler = ShConstructCompiler(lang, EShSpecWebGL, &resources);
+        compiler = ShConstructCompiler(lang, debugFlags);
 
         nsDependentCString src(shader->Source());
         const char *s = src.get();
 
-        if (!ShCompile(compiler, &s, 1, EShOptSimple, debugFlags)) {
-            const char* info = ShGetInfoLog(compiler);
-            if (info) {
-                shader->SetTranslationFailure(nsDependentCString(info));
-            } else {
-                shader->SetTranslationFailure(NS_LITERAL_CSTRING("Internal error: failed to get shader info log"));
-            }
+        if (!ShCompile(compiler, &s, 1, EShOptNone, &resources, debugFlags)) {
+            shader->SetTranslationFailure(nsDependentCString(ShGetInfoLog(compiler)));
             ShDestruct(compiler);
             return NS_OK;
         }
@@ -3179,6 +3235,27 @@ WebGLContext::TexImage2D_dom(WebGLenum target, WebGLint level, WebGLenum interna
     return TexImage2D_base(target, level, internalformat,
                            isurf->Width(), isurf->Height(), 0,
                            format, type,
+                           isurf->Data(), byteLength);
+}
+
+NS_IMETHODIMP
+WebGLContext::TexImage2D_dom_old_API_deprecated(WebGLenum target, WebGLint level, nsIDOMElement *elt,
+                                                PRBool flipY, PRBool premultiplyAlpha)
+{
+    nsRefPtr<gfxImageSurface> isurf;
+
+    nsresult rv = DOMElementToImageSurface(elt, getter_AddRefs(isurf),
+                                           flipY, premultiplyAlpha);
+    if (NS_FAILED(rv))
+        return rv;
+
+    NS_ASSERTION(isurf->Stride() == isurf->Width() * 4, "Bad stride!");
+
+    PRUint32 byteLength = isurf->Stride() * isurf->Height();
+
+    return TexImage2D_base(target, level, LOCAL_GL_RGBA,
+                           isurf->Width(), isurf->Height(), 0,
+                           LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE,
                            isurf->Data(), byteLength);
 }
 

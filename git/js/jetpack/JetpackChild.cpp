@@ -68,13 +68,10 @@ JetpackChild::sImplMethods[] = {
   JS_FN("registerReceiver", RegisterReceiver, 2, IMPL_METHOD_FLAGS),
   JS_FN("unregisterReceiver", UnregisterReceiver, 2, IMPL_METHOD_FLAGS),
   JS_FN("unregisterReceivers", UnregisterReceivers, 1, IMPL_METHOD_FLAGS),
+  JS_FN("wrap", Wrap, 1, IMPL_METHOD_FLAGS),
   JS_FN("createHandle", CreateHandle, 0, IMPL_METHOD_FLAGS),
   JS_FN("createSandbox", CreateSandbox, 0, IMPL_METHOD_FLAGS),
   JS_FN("evalInSandbox", EvalInSandbox, 2, IMPL_METHOD_FLAGS),
-  JS_FN("gc", GC, 0, IMPL_METHOD_FLAGS),
-#ifdef JS_GC_ZEAL
-  JS_FN("gczeal", GCZeal, 1, IMPL_METHOD_FLAGS),
-#endif
   JS_FS_END
 };
 
@@ -88,6 +85,20 @@ JetpackChild::sGlobalClass = {
   JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
+static void
+ReportJetpackErrors(JSContext* cx, const char* message, JSErrorReport* report)
+{
+  const char* filename = "<unknown>";
+  if (report && report->filename)
+    filename = report->filename;
+  int lineno = -1;
+  if (report)
+    lineno = report->lineno;
+
+  fprintf(stderr, "Jetpack JavaScript Error: %s:%i, %s\n",
+          filename, lineno, message);
+}
+
 bool
 JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
                    MessageLoop* aIOLoop,
@@ -100,12 +111,7 @@ JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
       !(mCx = JS_NewContext(mRuntime, 8192)))
     return false;
 
-  JS_SetVersion(mCx, JSVERSION_LATEST);
-  JS_SetOptions(mCx, JS_GetOptions(mCx) |
-                JSOPTION_DONT_REPORT_UNCAUGHT |
-                JSOPTION_ATLINE |
-                JSOPTION_JIT);
-  JS_SetErrorReporter(mCx, ReportError);
+  JS_SetErrorReporter(mCx, ReportJetpackErrors);
 
   {
     JSAutoRequest request(mCx);
@@ -152,7 +158,7 @@ JetpackChild::RecvEvalScript(const nsString& code)
 
   js::AutoValueRooter ignored(mCx);
   (void) JS_EvaluateUCScript(mCx, JS_GetGlobalObject(mCx), code.get(),
-                             code.Length(), "", 1, ignored.jsval_addr());
+                             code.Length(), "", 1, ignored.addr());
   return true;
 }
 
@@ -244,7 +250,7 @@ JetpackChild::CallMessage(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
 
   nsTArray<Variant> results;
-  if (!GetThis(cx)->CallCallMessage(smr.msgName, smr.data, &results)) {
+  if (!GetThis(cx)->SendCallMessage(smr.msgName, smr.data, &results)) {
     JS_ReportError(cx, "Failed to callMessage");
     return JS_FALSE;
   }
@@ -366,6 +372,13 @@ JetpackChild::UnregisterReceivers(JSContext* cx, uintN argc, jsval* vp)
 }
 
 JSBool
+JetpackChild::Wrap(JSContext* cx, uintN argc, jsval* vp)
+{
+  NS_NOTYETIMPLEMENTED("wrap not yet implemented (depends on bug 563010)");
+  return JS_FALSE;
+}
+
+JSBool
 JetpackChild::CreateHandle(JSContext* cx, uintN argc, jsval* vp)
 {
   if (argc > 0) {
@@ -429,70 +442,8 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
 
   js::AutoValueRooter ignored(cx);
   return JS_EvaluateUCScript(cx, obj, JS_GetStringChars(str), JS_GetStringLength(str), "", 1,
-                             ignored.jsval_addr());
+                             ignored.addr());
 }
-
-bool JetpackChild::sReportingError;
-
-/* static */ void
-JetpackChild::ReportError(JSContext* cx, const char* message,
-                          JSErrorReport* report)
-{
-  if (sReportingError) {
-    NS_WARNING("Recursive error reported.");
-    return;
-  }
-
-  sReportingError = true;
-
-  js::AutoObjectRooter obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
-
-  if (report && report->filename) {
-    jsval filename = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, report->filename));
-    JS_SetProperty(cx, obj.object(), "fileName", &filename);
-  }
-
-  if (report) {
-    jsval lineno = INT_TO_JSVAL(report->lineno);
-    JS_SetProperty(cx, obj.object(), "lineNumber", &lineno);
-  }
-
-  jsval msgstr = JSVAL_NULL;
-  if (report && report->ucmessage)
-    msgstr = STRING_TO_JSVAL(JS_NewUCStringCopyZ(cx, report->ucmessage));
-  else
-    msgstr = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, message));
-  JS_SetProperty(cx, obj.object(), "message", &msgstr);
-
-  MessageResult smr;
-  Variant* vp = smr.data.AppendElement();
-  JetpackActorCommon::jsval_to_Variant(cx, OBJECT_TO_JSVAL(obj.object()), vp);
-  GetThis(cx)->SendSendMessage(NS_LITERAL_STRING("core:exception"), smr.data);
-
-  sReportingError = false;
-}
-
-JSBool
-JetpackChild::GC(JSContext* cx, uintN argc, jsval *vp)
-{
-  JS_GC(cx);
-  return JS_TRUE;
-}
-
-#ifdef JS_GC_ZEAL
-JSBool
-JetpackChild::GCZeal(JSContext* cx, uintN argc, jsval *vp)
-{
-  jsval* argv = JS_ARGV(cx, vp);
-
-  uint32 zeal;
-  if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
-    return JS_FALSE;
-
-  JS_SetGCZeal(cx, PRUint8(zeal));
-  return JS_TRUE;
-}
-#endif
 
 } // namespace jetpack
 } // namespace mozilla

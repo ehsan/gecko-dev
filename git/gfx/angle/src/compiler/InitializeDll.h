@@ -6,11 +6,14 @@
 #ifndef __INITIALIZEDLL_H
 #define __INITIALIZEDLL_H
 
-bool InitProcess();
-bool DetachProcess();
 
+#include "compiler/osinclude.h"
+
+
+bool InitProcess();
 bool InitThread();
 bool DetachThread();
+bool DetachProcess();
 
 #endif // __INITIALIZEDLL_H
 

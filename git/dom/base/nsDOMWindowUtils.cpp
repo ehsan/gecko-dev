@@ -72,8 +72,6 @@
 #include <gdk/gdkx.h>
 #endif
 
-#include "jsobj.h"
-
 static PRBool IsUniversalXPConnectCapable()
 {
   PRBool hasCap = PR_FALSE;
@@ -523,13 +521,15 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
 NS_IMETHODIMP
 nsDOMWindowUtils::GarbageCollect()
 {
-  // Always permit this in debug builds.
+  // NOTE: Only do this in NON debug builds, as this function can useful
+  // during debugging.
 #ifndef DEBUG
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 #endif
 
+  nsJSContext::CC();
   nsJSContext::CC();
 
   return NS_OK;
@@ -1074,18 +1074,6 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  NS_ENSURE_TRUE(mWindow, NS_ERROR_FAILURE);
-
-  nsIDocShell *docShell = mWindow->GetDocShell();
-  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIPresShell> presShell;
-  docShell->GetPresShell(getter_AddRefs(presShell));
-  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-
-  nsPresContext* presContext = presShell->GetPresContext();
-  NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);
-
   // get the widget to send the event to
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
@@ -1109,7 +1097,7 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
     nsQueryContentEvent dummyEvent(PR_TRUE, NS_QUERY_CONTENT_STATE, widget);
     InitEvent(dummyEvent, &pt);
     nsIFrame* popupFrame =
-      nsLayoutUtils::GetPopupFrameForEventCoordinates(presContext->GetRootPresContext(), &dummyEvent);
+      nsLayoutUtils::GetPopupFrameForEventCoordinates(&dummyEvent);
 
     nsIntRect widgetBounds;
     nsresult rv = widget->GetClientBounds(widgetBounds);
@@ -1361,10 +1349,14 @@ nsDOMWindowUtils::GetParent()
   JSObject *parent = JS_GetParent(cx, JSVAL_TO_OBJECT(argv[0]));
   *rval = OBJECT_TO_JSVAL(parent);
 
-  // Outerize if necessary.
+  // Outerize if necessary.  Embrace the ugliness!
   if (parent) {
-    if (JSObjectOp outerize = parent->getClass()->ext.outerObject)
-      *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
+    JSClass* clasp = JS_GET_CLASS(cx, parent);
+    if (clasp->flags & JSCLASS_IS_EXTENDED) {
+      JSExtendedClass* xclasp = reinterpret_cast<JSExtendedClass*>(clasp);
+      if (JSObjectOp outerize = xclasp->outerObject)
+        *rval = OBJECT_TO_JSVAL(outerize(cx, parent));
+    }
   }
 
   cc->SetReturnValueWasSet(PR_TRUE);
@@ -1388,29 +1380,5 @@ nsDOMWindowUtils::GetCurrentInnerWindowID(PRUint64 *aWindowID)
     return NS_ERROR_NOT_AVAILABLE;
   }
   *aWindowID = inner->mWindowID;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SuspendTimeouts()
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  mWindow->SuspendTimeouts();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ResumeTimeouts()
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  mWindow->ResumeTimeouts();
-
   return NS_OK;
 }

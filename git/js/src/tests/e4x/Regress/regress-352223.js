@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-352223.js';
 
 var BUGNUMBER = 352223;
 var summary = 'Reject invalid spaces in tags';

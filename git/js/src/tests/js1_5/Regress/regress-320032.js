@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-320032.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 320032;
 var summary = 'Parenthesization should not dereference ECMA Reference type';

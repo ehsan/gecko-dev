@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-470310.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 470310;
 var summary = 'Do not assert: (uint32)((atoms - script->atomMap.vector + ' + 

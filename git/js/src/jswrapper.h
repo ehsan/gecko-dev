@@ -59,31 +59,31 @@ class JSWrapper : public js::JSProxyHandler {
 
     /* ES5 Harmony fundamental wrapper traps. */
     virtual JS_FRIEND_API(bool) getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                                      js::PropertyDescriptor *desc);
+                                                      JSPropertyDescriptor *desc);
     virtual JS_FRIEND_API(bool) getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                                         js::PropertyDescriptor *desc);
+                                                         JSPropertyDescriptor *desc);
     virtual JS_FRIEND_API(bool) defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
-                                               js::PropertyDescriptor *desc);
+                                               JSPropertyDescriptor *desc);
     virtual JS_FRIEND_API(bool) getOwnPropertyNames(JSContext *cx, JSObject *wrapper,
-                                                    js::AutoIdVector &props);
+                                                    js::AutoValueVector &props);
     virtual JS_FRIEND_API(bool) delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
-    virtual JS_FRIEND_API(bool) enumerate(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
-    virtual JS_FRIEND_API(bool) fix(JSContext *cx, JSObject *wrapper, js::Value *vp);
+    virtual JS_FRIEND_API(bool) enumerate(JSContext *cx, JSObject *wrapper, js::AutoValueVector &props);
+    virtual JS_FRIEND_API(bool) fix(JSContext *cx, JSObject *wrapper, jsval *vp);
 
     /* ES5 Harmony derived wrapper traps. */
     virtual JS_FRIEND_API(bool) has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
     virtual JS_FRIEND_API(bool) hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
     virtual JS_FRIEND_API(bool) get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
-                                    js::Value *vp);
+                                    jsval *vp);
     virtual JS_FRIEND_API(bool) set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
-                                    js::Value *vp);
-    virtual JS_FRIEND_API(bool) enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
-    virtual JS_FRIEND_API(bool) iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp);
+                                    jsval *vp);
+    virtual JS_FRIEND_API(bool) enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoValueVector &props);
+    virtual JS_FRIEND_API(bool) iterate(JSContext *cx, JSObject *wrapper, uintN flags, jsval *vp);
 
     /* Spidermonkey extensions. */
-    virtual JS_FRIEND_API(bool) call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp);
+    virtual JS_FRIEND_API(bool) call(JSContext *cx, JSObject *wrapper, uintN argc, jsval *vp);
     virtual JS_FRIEND_API(bool) construct(JSContext *cx, JSObject *wrapper,
-                                          uintN argc, js::Value *argv, js::Value *rval);
+                                          uintN argc, jsval *argv, jsval *rval);
     virtual JS_FRIEND_API(JSString *) obj_toString(JSContext *cx, JSObject *wrapper);
     virtual JS_FRIEND_API(JSString *) fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
 
@@ -100,46 +100,49 @@ class JSWrapper : public js::JSProxyHandler {
                                          JSWrapper *handler);
 
     static inline JSObject *wrappedObject(JSObject *wrapper) {
-        return wrapper->getProxyPrivate().toObjectOrNull();
+        return JSVAL_TO_OBJECT(wrapper->getProxyPrivate());
     }
 };
 
 /* Base class for all cross compartment wrapper handlers. */
-class JS_FRIEND_API(JSCrossCompartmentWrapper) : public JSWrapper {
+class JSCrossCompartmentWrapper : public JSWrapper {
   public:
-    JSCrossCompartmentWrapper(uintN flags);
+    JS_FRIEND_API(JSCrossCompartmentWrapper(uintN flags));
 
-    virtual ~JSCrossCompartmentWrapper();
+    virtual JS_FRIEND_API(~JSCrossCompartmentWrapper());
 
     /* ES5 Harmony fundamental wrapper traps. */
-    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                       js::PropertyDescriptor *desc);
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                          js::PropertyDescriptor *desc);
-    virtual bool defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
-                                js::PropertyDescriptor *desc);
-    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
-    virtual bool delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
-    virtual bool enumerate(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
+    virtual JS_FRIEND_API(bool) getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                                     JSPropertyDescriptor *desc);
+    virtual JS_FRIEND_API(bool) getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                                         JSPropertyDescriptor *desc);
+    virtual JS_FRIEND_API(bool) defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
+                                               JSPropertyDescriptor *desc);
+    virtual JS_FRIEND_API(bool) getOwnPropertyNames(JSContext *cx, JSObject *wrapper, js::AutoValueVector &props);
+    virtual JS_FRIEND_API(bool) delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
+    virtual JS_FRIEND_API(bool) enumerate(JSContext *cx, JSObject *wrapper, js::AutoValueVector &props);
 
     /* ES5 Harmony derived wrapper traps. */
-    virtual bool has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
-    virtual bool hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
-    virtual bool get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
-    virtual bool set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, js::Value *vp);
-    virtual bool enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
-    virtual bool iterate(JSContext *cx, JSObject *wrapper, uintN flags, js::Value *vp);
+    virtual JS_FRIEND_API(bool) has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
+    virtual JS_FRIEND_API(bool) hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
+    virtual JS_FRIEND_API(bool) get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, jsval *vp);
+    virtual JS_FRIEND_API(bool) set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, jsval *vp);
+    virtual JS_FRIEND_API(bool) enumerateOwn(JSContext *cx, JSObject *wrapper, js::AutoValueVector &props);
+    virtual JS_FRIEND_API(bool) iterate(JSContext *cx, JSObject *wrapper, uintN flags, jsval *vp);
 
     /* Spidermonkey extensions. */
-    virtual bool call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp);
-    virtual bool construct(JSContext *cx, JSObject *wrapper,
-                           uintN argc, js::Value *argv, js::Value *rval);
-    virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-    virtual JSString *fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
+    virtual JS_FRIEND_API(bool) call(JSContext *cx, JSObject *wrapper, uintN argc, jsval *vp);
+    virtual JS_FRIEND_API(bool) construct(JSContext *cx, JSObject *wrapper,
+                                          uintN argc, jsval *argv, jsval *rval);
+    virtual JS_FRIEND_API(JSString *) obj_toString(JSContext *cx, JSObject *wrapper);
+    virtual JS_FRIEND_API(JSString *) fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
 
-    static bool isCrossCompartmentWrapper(JSObject *obj);
+    static JS_FRIEND_API(bool) isCrossCompartmentWrapper(JSObject *obj);
 
-    static JSCrossCompartmentWrapper singleton;
+    static JS_FRIEND_API(JSCrossCompartmentWrapper) singleton;
+
+    /* Default id used for filter when the trap signature does not contain an id. */
+    static const jsid id = JSVAL_VOID;
 };
 
 namespace js {
@@ -155,18 +158,18 @@ class AutoCompartment
     LazilyConstructed<ExecuteFrameGuard> frame;
     JSFrameRegs regs;
     JSRegExpStatics statics;
-    AutoStringRooter input;
-    bool entered;
+    AutoValueRooter input;
 
   public:
     AutoCompartment(JSContext *cx, JSObject *target);
     ~AutoCompartment();
 
+    bool entered() const { return context->compartment == destination; }
     bool enter();
     void leave();
 
-    js::Value *getvp() {
-        JS_ASSERT(entered);
+    jsval *getvp() {
+        JS_ASSERT(entered());
         return frame.ref().getvp();
     }
 

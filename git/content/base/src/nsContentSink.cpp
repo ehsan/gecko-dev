@@ -1600,10 +1600,12 @@ nsContentSink::DropParserAndPerfHint(void)
   // Do this hack to make sure that the parser
   // doesn't get destroyed, accidently, before
   // the circularity, between sink & parser, is
-  // actually broken.
+  // actually borken.
+  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser);
+
   // Drop our reference to the parser to get rid of a circular
   // reference.
-  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser.forget());
+  mParser = nsnull;
 
   if (mDynamicLowerValue) {
     // Reset the performance hint which was set to FALSE

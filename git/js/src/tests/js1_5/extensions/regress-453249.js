@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453249.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453249;
 var summary = 'Do not assert with JIT: s0->isQuad()';

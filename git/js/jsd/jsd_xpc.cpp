@@ -38,6 +38,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsdbgapi.h"
+#include "jscntxt.h"
+#include "jsfun.h"
 #include "jsd_xpc.h"
 
 #include "nsIXPConnect.h"
@@ -1012,8 +1014,7 @@ jsdScript::CreatePPLineMap()
     PRBool      scriptOwner = PR_FALSE;
     
     if (fun) {
-        uintN nargs = JS_GetFunctionArgumentCount(cx, fun);
-        if (nargs > 12)
+        if (fun->nargs > 12)
             return nsnull;
         JSString *jsstr = JS_DecompileFunctionBody (cx, fun, 4);
         if (!jsstr)
@@ -1022,7 +1023,7 @@ jsdScript::CreatePPLineMap()
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
-        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames,
+        fun = JS_CompileUCFunction (cx, obj, "ppfun", fun->nargs, argnames,
                                     JS_GetStringChars(jsstr),
                                     JS_GetStringLength(jsstr),
                                     "x-jsd:ppbuffer?type=function", 3);
@@ -1231,32 +1232,37 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
 
     JSAutoRequest ar(cx);
 
-    uintN nargs = JS_GetFunctionArgumentCount(cx, fun);
-    if (!fun || !JS_FunctionHasLocalNames(cx, fun) || nargs == 0) {
+    if (!fun || !fun->hasLocalNames() || fun->nargs == 0) {
         *count = 0;
         *paramNames = nsnull;
         return NS_OK;
     }
 
     PRUnichar **ret =
-        static_cast<PRUnichar**>(NS_Alloc(nargs * sizeof(PRUnichar*)));
+        static_cast<PRUnichar**>(NS_Alloc(fun->nargs * sizeof(PRUnichar*)));
     if (!ret)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    void *mark;
-    jsuword *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
     if (!names) {
         NS_Free(ret);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     nsresult rv = NS_OK;
-    for (uintN i = 0; i < nargs; ++i) {
-        JSAtom *atom = JS_LocalNameToAtom(names[i]);
+    for (uintN i = 0; i < fun->nargs; ++i) {
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(names[i]);
         if (!atom) {
             ret[i] = 0;
         } else {
-            JSString *str = JS_AtomKey(atom);
+            jsval atomVal = ATOM_KEY(atom);
+            if (!JSVAL_IS_STRING(atomVal)) {
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
+                rv = NS_ERROR_UNEXPECTED;
+                break;
+            }
+            JSString *str = JSVAL_TO_STRING(atomVal);
             ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
                                 JS_GetStringLength(str));
             if (!ret[i]) {
@@ -1266,10 +1272,10 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
             }
         }
     }
-    JS_ReleaseFunctionLocalNameArray(cx, mark);
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
     if (NS_FAILED(rv))
         return rv;
-    *count = nargs;
+    *count = fun->nargs;
     *paramNames = ret;
     return NS_OK;
 }
@@ -1478,7 +1484,8 @@ jsdScript::SetBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;
     jsuword pc = mFirstPC + aPC;
-    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc, NULL);
+    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc,
+                          reinterpret_cast<void *>(PRIVATE_TO_JSVAL(NULL)));
     return NS_OK;
 }
 
@@ -1983,7 +1990,7 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
         if (JS_IsExceptionPending(cx))
             JS_GetPendingException (cx, &jv);
         else
-            jv = JSVAL_NULL;
+            jv = 0;
     }
 
     JS_RestoreExceptionState (cx, estate);
@@ -2188,7 +2195,10 @@ NS_IMETHODIMP
 jsdValue::GetDoubleValue(double *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_GetValueDouble (mCx, mValue);
+    double *dp = JSD_GetValueDouble (mCx, mValue);
+    if (!dp)
+        return NS_ERROR_FAILURE;
+    *_rval = *dp;
     return NS_OK;
 }
 
@@ -2897,7 +2907,7 @@ jsdService::WrapValue(jsdIValue **_rval)
 }
 
 NS_IMETHODIMP
-jsdService::WrapJSValue(const jsval &value, jsdIValue** _rval)
+jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
 {
     JSDValue *jsdv = JSD_NewValue(mCx, value);
     if (!jsdv)
@@ -3280,7 +3290,7 @@ jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
     if (NS_FAILED(rv))
         return rv;
     
-    return NS_OK;
+    return jsds->SetFlags(JSD_DISABLE_OBJECT_TRACE);
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(jsdASObserver)

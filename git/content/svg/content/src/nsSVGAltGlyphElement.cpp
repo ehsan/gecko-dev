@@ -46,8 +46,8 @@ class nsSVGAltGlyphElement : public nsSVGAltGlyphElementBase, // = nsIDOMSVGText
 {
 protected:
   friend nsresult NS_NewSVGAltGlyphElement(nsIContent **aResult,
-                                           already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                           nsINodeInfo *aNodeInfo);
+  nsSVGAltGlyphElement(nsINodeInfo* aNodeInfo);
   
 public:
   // interfaces:
@@ -69,7 +69,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   // nsSVGElement overrides
@@ -96,7 +95,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(AltGlyph)
 NS_IMPL_ADDREF_INHERITED(nsSVGAltGlyphElement,nsSVGAltGlyphElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAltGlyphElement,nsSVGAltGlyphElementBase)
 
-DOMCI_NODE_DATA(SVGAltGlyphElement, nsSVGAltGlyphElement)
+DOMCI_DATA(SVGAltGlyphElement, nsSVGAltGlyphElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAltGlyphElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGAltGlyphElement, nsIDOMNode, nsIDOMElement,
@@ -109,7 +108,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAltGlyphElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAltGlyphElement::nsSVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGAltGlyphElement::nsSVGAltGlyphElement(nsINodeInfo *aNodeInfo)
   : nsSVGAltGlyphElementBase(aNodeInfo)
 {
 }

@@ -138,8 +138,7 @@ GARBAGE	+= \
 	dlldeps-javaxpcom.cpp \
 	$(NULL)
 
-LOCAL_INCLUDES += -I$(topsrcdir)/intl/unicharutil/util \
-  -I$(topsrcdir)/intl/unicharutil/src
+LOCAL_INCLUDES += -I$(topsrcdir)/intl/unicharutil/util
 
 ifdef MOZ_RDF
 EXTRA_DEPS += \
@@ -226,10 +225,6 @@ endif
 
 ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
 EXTRA_DSO_LDOPTS += $(MOZ_STARTUP_NOTIFICATION_LIBS)
-endif
-
-ifdef MOZ_ENABLE_LIBPROXY
-EXTRA_DSO_LDOPTS += $(MOZ_LIBPROXY_LIBS)
 endif
 
 ifeq ($(OS_ARCH),BeOS)

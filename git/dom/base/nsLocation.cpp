@@ -404,7 +404,7 @@ nsLocation::GetHost(nsAString& aHost)
     }
   }
 
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP
@@ -443,7 +443,7 @@ nsLocation::GetHostname(nsAString& aHostname)
     }
   }
 
-  return NS_OK;
+  return result;
 }
 
 NS_IMETHODIMP

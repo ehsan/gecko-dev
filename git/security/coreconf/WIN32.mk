@@ -131,13 +131,9 @@ else # !NS_USE_GCC
 		OPTIMIZER += -O2
 	endif
 	DEFINES    += -UDEBUG -U_DEBUG -DNDEBUG
-	DLLFLAGS   += -DYNAMICBASE -OUT:"$@"
+	DLLFLAGS   += -OUT:"$@"
 	ifdef MOZ_DEBUG_SYMBOLS
-		ifdef MOZ_DEBUG_FLAGS
-			OPTIMIZER += $(MOZ_DEBUG_FLAGS) -Fd$(OBJDIR)/
-		else
-			OPTIMIZER += -Zi -Fd$(OBJDIR)/
-		endif
+		OPTIMIZER += -Zi -Fd$(OBJDIR)/
 		DLLFLAGS += -DEBUG -OPT:REF
 		LDFLAGS += -DEBUG -OPT:REF
 	endif

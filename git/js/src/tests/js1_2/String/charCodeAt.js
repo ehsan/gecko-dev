@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'charCodeAt.js';
 
 /**
    Filename:     charCodeAt.js
