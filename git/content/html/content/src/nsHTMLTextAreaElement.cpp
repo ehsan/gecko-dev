@@ -229,8 +229,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  virtual nsIDOMNode* AsDOMNode() { return this; }
-
   // nsIConstraintValidation
   bool     IsTooLong();
   bool     IsValueMissing() const;

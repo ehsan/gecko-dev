@@ -184,8 +184,6 @@ public:
   void MarkContextClean();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   nsIntSize GetWidthHeight();
 
