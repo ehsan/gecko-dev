@@ -101,7 +101,6 @@ CPP_UNIT_TESTS = \
                  TestRefPtr.cpp \
                  TestServMgr.cpp \
                  TestTextFormatter.cpp \
-                 TestCheckedInt.cpp \
                  $(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL

@@ -48,7 +48,6 @@ JAVAFILES = \
   GeckoAppShell.java \
   GeckoEvent.java \
   GeckoSurfaceView.java \
-  GeckoInputConnection.java \
   $(NULL)
 
 DEFINES += \

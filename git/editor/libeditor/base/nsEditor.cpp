@@ -1852,43 +1852,48 @@ nsEditor::StopPreservingSelection()
 
 #ifdef XP_MAC
 #pragma mark -
-#pragma mark  IME event handlers 
+#pragma mark  nsIEditorIMESupport 
 #pragma mark -
 #endif
 
-nsresult
-nsEditor::BeginIMEComposition()
+//
+// The BeingComposition method is called from the Editor Composition event listeners.
+//
+NS_IMETHODIMP
+nsEditor::BeginComposition()
 {
+#ifdef DEBUG_tague
+  printf("nsEditor::StartComposition\n");
+#endif
   mInIMEMode = PR_TRUE;
-  if (mPhonetic) {
+  if (mPhonetic)
     mPhonetic->Truncate(0);
-  }
+
   return NS_OK;
 }
 
-nsresult
-nsEditor::EndIMEComposition()
+NS_IMETHODIMP
+nsEditor::EndComposition(void)
 {
   NS_ENSURE_TRUE(mInIMEMode, NS_OK); // nothing to do
-
-  nsresult rv = NS_OK;
+  
+  nsresult result = NS_OK;
 
   // commit the IME transaction..we can get at it via the transaction mgr.
   // Note that this means IME won't work without an undo stack!
-  if (mTxnMgr) {
+  if (mTxnMgr) 
+  {
     nsCOMPtr<nsITransaction> txn;
-    rv = mTxnMgr->PeekUndoStack(getter_AddRefs(txn));
-    NS_ASSERTION(NS_SUCCEEDED(rv), "PeekUndoStack() failed");
+    result = mTxnMgr->PeekUndoStack(getter_AddRefs(txn));  
     nsCOMPtr<nsIAbsorbingTransaction> plcTxn = do_QueryInterface(txn);
-    if (plcTxn) {
-      rv = plcTxn->Commit();
-      NS_ASSERTION(NS_SUCCEEDED(rv),
-                   "nsIAbsorbingTransaction::Commit() failed");
+    if (plcTxn)
+    {
+      result = plcTxn->Commit();
     }
   }
 
   /* reset the data we need to construct a transaction */
-  mIMETextNode = nsnull;
+  mIMETextNode = do_QueryInterface(nsnull);
   mIMETextOffset = 0;
   mIMEBufferLength = 0;
   mInIMEMode = PR_FALSE;
@@ -1897,16 +1902,15 @@ nsEditor::EndIMEComposition()
   // notify editor observers of action
   NotifyEditorObservers();
 
-  return rv;
+  return result;
 }
 
-
-#ifdef XP_MAC
-#pragma mark -
-#pragma mark  nsIPhonetic
-#pragma mark -
-#endif
-
+NS_IMETHODIMP
+nsEditor::SetCompositionString(const nsAString& aCompositionString,
+                               nsIPrivateTextRangeList* aTextRangeList)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
 NS_IMETHODIMP
 nsEditor::GetPhonetic(nsAString& aPhonetic)
@@ -1918,13 +1922,6 @@ nsEditor::GetPhonetic(nsAString& aPhonetic)
 
   return NS_OK;
 }
-
-
-#ifdef XP_MAC
-#pragma mark -
-#pragma mark  nsIEditorIMESupport 
-#pragma mark -
-#endif
 
 
 static nsresult
