@@ -135,7 +135,6 @@ gfxQtPlatform::gfxQtPlatform()
     if (pixmap.depth() == 16) {
         sOffscreenFormat = gfxASurface::ImageFormatRGB16_565;
     }
-    mScreenDepth = pixmap.depth();
 #if (QT_VERSION < QT_VERSION_CHECK(4,8,0))
     if (pixmap.paintEngine())
         sDefaultQtPaintEngineType = pixmap.paintEngine()->type();
@@ -605,11 +604,5 @@ gfxImageFormat
 gfxQtPlatform::GetOffscreenFormat()
 {
     return sOffscreenFormat;
-}
-
-int
-gfxQtPlatform::GetScreenDepth() const
-{
-    return mScreenDepth;
 }
 

@@ -10,7 +10,6 @@
 #include <QApplication>
 #include <QInputMethodEvent>
 #include "nsQtKeyUtils.h"
-#include "NestedLoopTimer.h"
 #endif
 
 #include "PluginBackgroundDestroyer.h"
