@@ -217,21 +217,9 @@ void* operator new(size_t size) throw()
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new(size_t size, const std::nothrow_t&) throw()
-{
-    return moz_malloc(size);
-}
-
-MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void* operator new[](size_t size) throw()
 {
     return moz_xmalloc(size);
-}
-
-MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new[](size_t size, const std::nothrow_t&) throw()
-{
-    return moz_malloc(size);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
@@ -241,19 +229,7 @@ void operator delete(void* ptr) throw()
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete(void* ptr, const std::nothrow_t&) throw()
-{
-    return moz_free(ptr);
-}
-
-MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void operator delete[](void* ptr) throw()
-{
-    return moz_free(ptr);
-}
-
-MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete[](void* ptr, const std::nothrow_t&) throw()
 {
     return moz_free(ptr);
 }

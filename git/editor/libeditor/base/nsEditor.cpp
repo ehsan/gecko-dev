@@ -23,7 +23,6 @@
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -2043,15 +2042,18 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
 
       // XXX_kin: END HACK! HACK! HACK!
 
+      nsIView *view = nsnull;
       nsRect rect;
-      nsIFrame* frame = caretP->GetGeometry(selection, &rect);
-      if (!frame)
-        return NS_ERROR_FAILURE;
-      nsPoint nearestWidgetOffset;
-      aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
-      rect.MoveBy(nearestWidgetOffset);
+      result =
+        caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+                                    selection,
+                                    &rect,
+                                    &(aReply->mCursorIsCollapsed),
+                                    &view);
       aReply->mCursorPosition =
-        rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+        rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+      if (NS_SUCCEEDED(result) && view)
+        aReply->mReferenceWidget = view->GetWidget();
     }
   }
   return result;

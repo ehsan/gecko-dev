@@ -77,10 +77,8 @@ CPPSRCS	+= gfxDWriteFonts.cpp \
 	   gfxDWriteFontList.cpp \
 	   $(NULL)
 endif
-CPPSRCS	+= gfxGDIFont.cpp \
+CPPSRCS	+= gfxWindowsFonts.cpp \
 	   gfxGDIFontList.cpp \
-	   gfxGDIShaper.cpp \
-	   gfxUniscribeShaper.cpp \
 	   $(NULL)
 _OS_LIBS = usp10 msimg32
 endif

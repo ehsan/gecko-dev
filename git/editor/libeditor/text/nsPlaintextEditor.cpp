@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -1716,15 +1716,18 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
 
   if (caretP)
   {
+    nsIView *view = nsnull;
     nsRect rect;
-    nsIFrame* frame = caretP->GetGeometry(selection, &rect);
-    if (!frame)
-      return NS_ERROR_FAILURE;
-    nsPoint nearestWidgetOffset;
-    aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
-    rect.MoveBy(nearestWidgetOffset);
+    result = caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+                                         selection,
+                                         &rect,
+                                         &(aReply->mCursorIsCollapsed),
+                                         &view);
     aReply->mCursorPosition =
-       rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+       rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+    NS_ASSERTION(NS_SUCCEEDED(result), "cannot get caret position");
+    if (NS_SUCCEEDED(result) && view)
+      aReply->mReferenceWidget = view->GetWidget();
   }
 
   return result;

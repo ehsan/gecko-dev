@@ -6108,7 +6108,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
 
   const nsStyleText* textStyle = GetStyleText();
 
-  PRBool atStartOfLine = lineLayout.LineAtStart();
+  PRBool atStartOfLine = lineLayout.LineIsEmpty();
   if (atStartOfLine) {
     AddStateBits(TEXT_START_OF_LINE);
   }

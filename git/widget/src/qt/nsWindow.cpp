@@ -538,23 +538,20 @@ nsWindow::SetSizeMode(PRInt32 aMode)
         return rv;
     }
 
-    QWidget *widget = GetViewWidget();
-    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-
     switch (aMode) {
     case nsSizeMode_Maximized:
-        widget->showMaximized();
+        GetViewWidget()->showMaximized();
         break;
     case nsSizeMode_Minimized:
-        widget->showMinimized();
+        GetViewWidget()->showMinimized();
         break;
     case nsSizeMode_Fullscreen:
-        widget->showFullScreen();
+        GetViewWidget()->showFullScreen();
         break;
 
     default:
         // nsSizeMode_Normal, really.
-        widget->showNormal();
+        GetViewWidget()->showNormal();
         break;
     }
 
@@ -601,9 +598,7 @@ nsWindow::SetFocus(PRBool aRaise)
 
     if (aRaise) {
         // the raising has to happen on the view widget
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->raise();
+        GetViewWidget()->raise();
         realFocusItem->setFocus(Qt::ActiveWindowFocusReason);
     }
     else
@@ -666,11 +661,8 @@ nsWindow::Invalidate(const nsIntRect &aRect,
     mWidget->update(aRect.x, aRect.y, aRect.width, aRect.height);
 
     // QGraphicsItems cannot trigger a repaint themselves, so we start it on the view
-    if (aIsSynchronous) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->repaint();
-    }
+    if (aIsSynchronous)
+        GetViewWidget()->repaint();
 
     return NS_OK;
 }
@@ -742,7 +734,7 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
 QWidget* nsWindow::GetViewWidget()
 {
     NS_ASSERTION(mWidget, "Calling GetViewWidget without mWidget created");
-    if (!mWidget || !mWidget->scene())
+    if (!mWidget)
         return nsnull;
 
     NS_ASSERTION(mWidget->scene()->views().size() == 1, "Not exactly one view for our scene!");
@@ -768,8 +760,7 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 
 #ifdef Q_WS_X11
     case NS_NATIVE_DISPLAY:
-        QWidget *widget = GetViewWidget();
-        return widget ? widget->x11Info().display() : nsnull;
+        return GetViewWidget()->x11Info().display();
         break;
 #endif
 
@@ -792,11 +783,8 @@ NS_IMETHODIMP
 nsWindow::SetTitle(const nsAString& aTitle)
 {
     QString qStr(QString::fromUtf16(aTitle.BeginReading(), aTitle.Length()));
-    if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->setWindowTitle(qStr);
-    }
+    if (mIsTopLevel)
+        GetViewWidget()->setWindowTitle(qStr);
     else if (mWidget)
         mWidget->setWindowTitle(qStr);
 
@@ -867,14 +855,10 @@ nsWindow::CaptureMouse(PRBool aCapture)
 
     if (!mWidget)
         return NS_OK;
-
-    QWidget *widget = GetViewWidget();
-    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-
     if (aCapture)
-        widget->grabMouse();
+        GetViewWidget()->grabMouse();
     else
-        widget->releaseMouse();
+        GetViewWidget()->releaseMouse();
 
     return NS_OK;
 }
@@ -1845,12 +1829,8 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
 void
 nsWindow::NativeShow(PRBool aAction)
 {
-    if (aAction) {
-        QWidget *widget = GetViewWidget();
-        if (widget && !widget->isVisible())
-            MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
+    if (aAction == PR_TRUE)
         mWidget->show();
-    }
     else
         mWidget->hide();
 }
@@ -1896,9 +1876,7 @@ nsWindow::SetWindowIconList(const nsTArray<nsCString> &aIconList)
         icon.addFile(path);
     }
 
-    QWidget *widget = GetViewWidget();
-    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-    widget->setWindowIcon(icon);
+    GetViewWidget()->setWindowIcon(icon);
 
     return NS_OK;
 }
@@ -1917,30 +1895,25 @@ void nsWindow::QWidgetDestroyed()
 NS_IMETHODIMP
 nsWindow::MakeFullScreen(PRBool aFullScreen)
 {
-    QWidget *widget = GetViewWidget();
-    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
     if (aFullScreen) {
         if (mSizeMode != nsSizeMode_Fullscreen)
             mLastSizeMode = mSizeMode;
 
         mSizeMode = nsSizeMode_Fullscreen;
-        widget->showFullScreen();
+        GetViewWidget()->showFullScreen();
     }
     else {
         mSizeMode = mLastSizeMode;
 
         switch (mSizeMode) {
         case nsSizeMode_Maximized:
-            widget->showMaximized();
+            GetViewWidget()->showMaximized();
             break;
         case nsSizeMode_Minimized:
-            widget->showMinimized();
+            GetViewWidget()->showMinimized();
             break;
         case nsSizeMode_Normal:
-            widget->showNormal();
-            break;
-        default:
-            widget->showNormal();
+            GetViewWidget()->showNormal();
             break;
         }
     }
@@ -1980,9 +1953,7 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     // error later when this happens (when the persistence timer fires
     // and GetWindowPos is called)
 #ifdef Q_WS_X11
-    QWidget *widget = GetViewWidget();
-    NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
-    XSync(widget->x11Info().display(), False);
+    XSync(GetViewWidget()->x11Info().display(), False);
 #endif
 
     return NS_OK;
@@ -2120,6 +2091,7 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 #endif
         newView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         newView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        newView->showNormal();
 
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
         // Top level widget is just container, and should not be painted
@@ -2296,9 +2268,7 @@ nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
     mWidget->resize(aWidth, aHeight);
 
     if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->resize(aWidth, aHeight);
+        GetViewWidget()->resize(aWidth,aHeight);
     }
 
     if (aRepaint)
@@ -2324,9 +2294,7 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
 
     if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->resize(aWidth, aHeight);
+        GetViewWidget()->resize(aWidth,aHeight);
     }
 
     if (aRepaint)

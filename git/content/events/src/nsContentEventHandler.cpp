@@ -133,12 +133,13 @@ nsContentEventHandler::Init(nsQueryContentEvent* aEvent)
   rv = mPresShell->GetCaret(getter_AddRefs(caret));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(caret, "GetCaret succeeded, but the result is null");
-
   nsRect r;
-  nsIFrame* frame = caret->GetGeometry(mSelection, &r);
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  aEvent->mReply.mFocusedWidget = frame->GetWindow();
+  nsIView* view = nsnull;
+  rv = caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+                                  mSelection, &r, &isCollapsed, &view);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
+  aEvent->mReply.mFocusedWidget = view->GetWidget();
 
   return NS_OK;
 }
@@ -660,15 +661,14 @@ nsContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
     rv = GetFlatTextOffsetOfRange(mRootContent, mFirstSelectedRange, &offset);
     NS_ENSURE_SUCCESS(rv, rv);
     if (offset == aEvent->mInput.mOffset) {
+      PRBool isCollapsed;
       nsRect rect;
-      nsIFrame* caretFrame = caret->GetGeometry(mSelection, &rect);
-      if (!caretFrame)
-        return NS_ERROR_FAILURE;
-      nsPoint windowOffset(0, 0);
-      caretFrame->GetWindowOffset(windowOffset);
-      rect.MoveBy(windowOffset);
+      rv = caret->GetCaretCoordinates(nsCaret::eTopLevelWindowCoordinates,
+                                      mSelection, &rect,
+                                      &isCollapsed, nsnull);
       aEvent->mReply.mRect =
-        rect.ToOutsidePixels(caretFrame->PresContext()->AppUnitsPerDevPixel());
+          rect.ToOutsidePixels(mPresContext->AppUnitsPerDevPixel());
+      NS_ENSURE_SUCCESS(rv, rv);
       aEvent->mSucceeded = PR_TRUE;
       return NS_OK;
     }

@@ -102,7 +102,7 @@ gfxCoreTextShaper::~gfxCoreTextShaper()
     }
 }
 
-PRBool
+void
 gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
@@ -203,19 +203,13 @@ gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
     // Iterate through the glyph runs.
     // Note that this includes the bidi wrapper, so we have to be careful
     // not to include the extra glyphs from there
-    PRBool success = PR_TRUE;
     for (PRUint32 runIndex = 0; runIndex < numRuns; runIndex++) {
         CTRunRef aCTRun = (CTRunRef)::CFArrayGetValueAtIndex(glyphRuns, runIndex);
-        if (SetGlyphsFromRun(aTextRun, aCTRun, startOffset,
-                             aRunStart, aRunLength) != NS_OK) {
-            success = PR_FALSE;
+        if (SetGlyphsFromRun(aTextRun, aCTRun, startOffset, aRunStart, aRunLength) != NS_OK)
             break;
-        }
     }
 
     ::CFRelease(line);
-
-    return success;
 }
 
 #define SMALL_GLYPH_RUN 128 // preallocated size of our auto arrays for per-glyph data;
