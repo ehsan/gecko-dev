@@ -180,21 +180,14 @@ AutoIdArray::trace(JSTracer *trc) {
     js::TraceValues(trc, idArray->length, idArray->vector, "JSAutoIdArray.idArray");
 }
 
-class AutoNamespaceArray : protected AutoGCRooter {
-  public:
-    AutoNamespaceArray(JSContext *cx) : AutoGCRooter(cx, NAMESPACES) {
-        array.init();
+class AutoNamespaces : protected AutoGCRooter {
+  protected:
+    AutoNamespaces(JSContext *cx) : AutoGCRooter(cx, NAMESPACES) {
     }
 
-    ~AutoNamespaceArray() {
-        array.finish(context);
-    }
-
-    uint32 length() const { return array.length; }
-
-  public:
     friend void AutoGCRooter::trace(JSTracer *trc);
 
+  public:
     JSXMLArray array;
 };
 
