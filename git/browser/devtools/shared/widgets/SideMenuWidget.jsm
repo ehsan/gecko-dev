@@ -14,16 +14,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-  "resource://gre/modules/devtools/Loader.jsm");
-
-Object.defineProperty(this, "NetworkHelper", {
-  get: function() {
-    return devtools.require("devtools/toolkit/webconsole/network-helper");
-  },
-  configurable: true,
-  enumerable: true
-});
+XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
+  "resource://gre/modules/devtools/NetworkHelper.jsm");
 
 this.EXPORTED_SYMBOLS = ["SideMenuWidget"];
 
@@ -637,12 +629,7 @@ SideMenuItem.prototype = {
       checkbox.removeAttribute("checked");
     }
 
-    // Stop the toggling of the checkbox from selecting the list item.
-    checkbox.addEventListener("mousedown", function (event) {
-      event.stopPropagation();
-    }, false);
-
-    checkbox.addEventListener("command", function (event) {
+    checkbox.addEventListener("command", function () {
       ViewHelpers.dispatchEvent(checkbox, "check", {
         checked: checkbox.checked,
       });

@@ -53,7 +53,7 @@ function performTest(aRequest, aConsole)
       executeSoon(finishTest);
     });
 
-  HUDService.lastFinishedRequest.callback = null;
+  HUDService.lastFinishedRequestCallback = null;
 }
 
 function test()
@@ -63,7 +63,7 @@ function test()
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
     openConsole(null, () => {
-      HUDService.lastFinishedRequest.callback = performTest;
+      HUDService.lastFinishedRequestCallback = performTest;
 
       browser.addEventListener("load", function onReload() {
         browser.removeEventListener("load", onReload, true);

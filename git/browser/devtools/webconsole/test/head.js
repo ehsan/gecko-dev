@@ -3,19 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let WebConsoleUtils, gDevTools, TargetFactory, console, promise, require;
-
-(() => {
-  gDevTools = Cu.import("resource:///modules/devtools/gDevTools.jsm", {}).gDevTools;
-  console = Cu.import("resource://gre/modules/devtools/Console.jsm", {}).console;
-  promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-
-  let tools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-  let utils = tools.require("devtools/toolkit/webconsole/utils");
-  TargetFactory = tools.TargetFactory;
-  WebConsoleUtils = utils.Utils;
-  require = tools.require;
-})();
+let tempScope = {};
+Cu.import("resource:///modules/HUDService.jsm", tempScope);
+let HUDService = tempScope.HUDService;
+Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tempScope);
+let WebConsoleUtils = tempScope.WebConsoleUtils;
+Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
+let gDevTools = tempScope.gDevTools;
+Cu.import("resource://gre/modules/devtools/Loader.jsm", tempScope);
+let TargetFactory = tempScope.devtools.TargetFactory;
+Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
+let console = tempScope.console;
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
 // promise._reportErrors = true; // please never leave me.
 
 let gPendingOutputTest = 0;
@@ -244,7 +243,7 @@ function dumpConsoles()
 {
   if (gPendingOutputTest) {
     console.log("dumpConsoles start");
-    for (let hud of HUDService.consoles) {
+    for each (let hud in HUDService.hudReferences) {
       if (!hud.outputNode) {
         console.debug("no output content for", hud.hudId);
         continue;
@@ -290,12 +289,14 @@ function finishTest()
 
   dumpConsoles();
 
-  let browserConsole = HUDService.getBrowserConsole();
-  if (browserConsole) {
-    if (browserConsole.jsterm) {
-      browserConsole.jsterm.clearOutput(true);
+  if (HUDConsoleUI.browserConsole) {
+    let hud = HUDConsoleUI.browserConsole;
+
+    if (hud.jsterm) {
+      hud.jsterm.clearOutput(true);
     }
-    HUDService.toggleBrowserConsole().then(finishTest);
+
+    HUDConsoleUI.toggleBrowserConsole().then(finishTest);
     return;
   }
 
@@ -318,8 +319,8 @@ function tearDown()
 {
   dumpConsoles();
 
-  if (HUDService.getBrowserConsole()) {
-    HUDService.toggleBrowserConsole();
+  if (HUDConsoleUI.browserConsole) {
+    HUDConsoleUI.toggleBrowserConsole();
   }
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
@@ -885,9 +886,6 @@ function getMessageElementText(aElement)
  *            message.
  *            - longString: boolean, set to |true} to match long strings in the
  *            message.
- *            - type: match messages that are instances of the given object. For
- *            example, you can point to Messages.NavigationMarker to match any
- *            such message.
  *            - objects: boolean, set to |true| if you expect inspectable
  *            objects in the message.
  *            - source: object that can hold one property: url. This is used to
@@ -1067,25 +1065,8 @@ function waitForMessages(aOptions)
       return false;
     }
 
-    if (aRule.type) {
-      // The rule tries to match the newer types of messages, based on their
-      // object constructor.
-      if (!aElement._messageObject ||
-          !(aElement._messageObject instanceof aRule.type)) {
-        return false;
-      }
-    }
-    else if (aElement._messageObject) {
-      // If the message element holds a reference to its object, it means this
-      // is a newer message type. All of the older waitForMessages() rules do
-      // not expect this kind of messages. We return false here.
-      // TODO: we keep this behavior until bug 778766 is fixed. After that we
-      // will not require |type| to match newer types of messages.
-      return false;
-    }
-
     let partialMatch = !!(aRule.consoleTrace || aRule.consoleTime ||
-                          aRule.consoleTimeEnd || aRule.type);
+                          aRule.consoleTimeEnd);
 
     if (aRule.category && aElement.category != aRule.category) {
       if (partialMatch) {

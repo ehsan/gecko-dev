@@ -67,8 +67,8 @@ this._SessionFile = {
   /**
    * Write the contents of the session file, asynchronously.
    */
-  write: function (aData) {
-    return SessionFileInternal.write(aData);
+  write: function (aData, aOptions = {}) {
+    return SessionFileInternal.write(aData, aOptions);
   },
   /**
    * Writes the initial state to disk again only to change the session's load
@@ -209,13 +209,13 @@ let SessionFileInternal = {
     });
   },
 
-  write: function (aData) {
+  write: function (aData, aOptions) {
     let refObj = {};
     return TaskUtils.spawn(function task() {
       TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
       try {
-        let promise = SessionWorker.post("write", [aData]);
+        let promise = SessionWorker.post("write", [aData, aOptions]);
         // At this point, we measure how long we stop the main thread
         TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 

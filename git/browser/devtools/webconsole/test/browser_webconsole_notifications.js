@@ -14,14 +14,14 @@ function test() {
 function webConsoleCreated(aID)
 {
   Services.obs.removeObserver(observer, "web-console-created");
-  ok(HUDService.getHudReferenceById(aID), "We have a hud reference");
+  ok(HUDService.hudReferences[aID], "We have a hud reference");
   content.wrappedJSObject.console.log("adding a log message");
 }
 
 function webConsoleDestroyed(aID)
 {
   Services.obs.removeObserver(observer, "web-console-destroyed");
-  ok(!HUDService.getHudReferenceById(aID), "We do not have a hud reference");
+  ok(!HUDService.hudReferences[aID], "We do not have a hud reference");
   executeSoon(finishTest);
 }
 
@@ -43,10 +43,10 @@ let observer = {
 
     switch(aTopic) {
       case "web-console-created":
-        webConsoleCreated(aSubject.data);
+        webConsoleCreated(aSubject);
         break;
       case "web-console-destroyed":
-        webConsoleDestroyed(aSubject.data);
+        webConsoleDestroyed(aSubject);
         break;
       case "web-console-message-created":
         webConsoleMessage(aSubject, aData);

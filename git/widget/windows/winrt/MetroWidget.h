@@ -66,8 +66,6 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  static HWND GetICoreWindowHWND() { return sICoreHwnd; }
-
   // nsWindowBase
   virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
   virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) MOZ_OVERRIDE;
@@ -234,7 +232,6 @@ protected:
   nsIntRegion mInvalidatedRegion;
   nsCOMPtr<nsIdleService> mIdleService;
   HWND mWnd;
-  static HWND sICoreHwnd;
   WNDPROC mMetroWndProc;
   bool mTempBasicLayerInUse;
   Microsoft::WRL::ComPtr<mozilla::widget::winrt::MetroInput> mMetroInput;

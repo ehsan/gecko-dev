@@ -955,7 +955,7 @@ Navigator::GetDeviceStorages(const nsAString& aType,
     return;
   }
 
-  nsDOMDeviceStorage::CreateDeviceStoragesFor(mWindow, aType, aStores);
+  nsDOMDeviceStorage::CreateDeviceStoragesFor(mWindow, aType, aStores, false);
 
   mDeviceStorageStores.AppendElements(aStores);
 }

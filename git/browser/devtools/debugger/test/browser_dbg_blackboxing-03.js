@@ -57,15 +57,17 @@ function testBlackBoxSource() {
 
   const { activeThread } = gDebugger.DebuggerController;
   activeThread.addOneTimeListener("blackboxchange", function (event, sourceClient) {
-    ok(sourceClient.isBlackBoxed, "The source should be black boxed now");
+    activeThread.addOneTimeListener("framesadded", function () {
+      ok(sourceClient.isBlackBoxed, "The source should be black boxed now");
 
-    const frames = gDebugger.DebuggerView.StackFrames.widget._list;
-    is(frames.querySelectorAll(".dbg-stackframe").length, 3,
-       "Should only get 3 frames");
-    is(frames.querySelectorAll(".dbg-stackframe-black-boxed").length, 1,
-       "And one of them is the combined black boxed frames");
+      const frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      is(frames.querySelectorAll(".dbg-stackframe").length, 3,
+         "Should only get 3 frames");
+      is(frames.querySelectorAll(".dbg-stackframe-black-boxed").length, 1,
+         "And one of them is the combined black boxed frames");
 
-    closeDebuggerAndFinish();
+      closeDebuggerAndFinish();
+    });
   });
 
   checkbox.click();

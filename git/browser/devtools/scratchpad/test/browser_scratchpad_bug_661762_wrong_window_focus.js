@@ -2,6 +2,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+let tempScope = {};
+Cu.import("resource:///modules/HUDService.jsm", tempScope);
+let HUDService = tempScope.HUDService;
+
 function test()
 {
   waitForExplicitFinish();
@@ -39,7 +43,7 @@ function test()
         Services.obs.
           addObserver(onWebConsoleOpen, "web-console-created", false);
 
-        HUDService.toggleWebConsole();
+        HUDService.consoleUI.toggleHUD();
       });
     });
   }, true);
