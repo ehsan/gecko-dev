@@ -7189,7 +7189,7 @@ PresShell::IsVisible()
 NS_IMETHODIMP_(PRBool)
 PresShell::ShouldIgnoreInvalidation()
 {
-  return mPaintingSuppressed || !mIsActive;
+  return mPaintingSuppressed;
 }
 
 NS_IMETHODIMP_(void)
