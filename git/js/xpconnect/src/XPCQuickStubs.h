@@ -265,13 +265,11 @@ public:
 
     implementation_type *Ptr()
     {
-        MOZ_ASSERT(mValid);
         return reinterpret_cast<implementation_type *>(mBuf);
     }
 
     operator interface_type &()
     {
-        MOZ_ASSERT(mValid);
         return *Ptr();
     }
 

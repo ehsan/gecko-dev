@@ -45,8 +45,6 @@
 
 #include "vm/GlobalObject.h"
 
-#include "vm/ScopeObject-inl.h"
-
 inline bool
 JSFunction::inStrictMode() const
 {
@@ -353,8 +351,8 @@ SkipScopeParent(JSObject *parent)
 {
     if (!parent)
         return NULL;
-    while (parent->isScope())
-        parent = &parent->asScope().enclosingScope();
+    while (parent->isInternalScope())
+        parent = parent->scopeChain();
     return parent;
 }
 
@@ -363,7 +361,7 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
                     gc::AllocKind kind = JSFunction::FinalizeKind)
 {
     JS_ASSERT(parent);
-    JSObject *proto = parent->global().getOrCreateFunctionPrototype(cx);
+    JSObject *proto = parent->getGlobal()->getOrCreateFunctionPrototype(cx);
     if (!proto)
         return NULL;
 
@@ -397,7 +395,7 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun)
      * Variant which makes an exact clone of fun, preserving parent and proto.
      * Calling the above version CloneFunctionObject(cx, fun, fun->getParent())
      * is not equivalent: API clients, including XPConnect, can reparent
-     * objects so that fun->global() != fun->getProto()->global().
+     * objects so that fun->getGlobal() != fun->getProto()->getGlobal().
      * See ReparentWrapperIfFound.
      */
     JS_ASSERT(fun->getParent() && fun->getProto());

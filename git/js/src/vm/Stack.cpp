@@ -149,12 +149,13 @@ StackFrame::stealFrameAndSlots(Value *vp, StackFrame *otherfp,
      * js_LiveFrameToFloating comment in jsiter.h.
      */
     if (hasCallObj()) {
-        CallObject &obj = callObj();
-        obj.setStackFrame(this);
+        JSObject &obj = callObj();
+        obj.setPrivate(this);
         otherfp->flags_ &= ~HAS_CALL_OBJ;
         if (js_IsNamedLambda(fun())) {
-            DeclEnvObject &env = obj.enclosingScope().asDeclEnv();
-            env.setStackFrame(this);
+            JSObject *env = obj.internalScopeChain();
+            JS_ASSERT(env->isDeclEnv());
+            env->setPrivate(this);
         }
     }
     if (hasArgsObj()) {
@@ -780,7 +781,7 @@ ContextStack::pushDummyFrame(JSContext *cx, JSCompartment *dest, JSObject &scope
     uintN nvars = VALUES_PER_STACK_FRAME;
     Value *firstUnused = ensureOnTop(cx, REPORT_ERROR, nvars, CAN_EXTEND, &dfg->pushedSeg_, dest);
     if (!firstUnused)
-        return false;
+        return NULL;
 
     StackFrame *fp = reinterpret_cast<StackFrame *>(firstUnused);
     fp->initDummyFrame(cx, scopeChain);

@@ -49,8 +49,6 @@
 
 namespace js {
 
-class DummyFrameGuard;
-
 /* No-op wrapper handler base class. */
 class JS_FRIEND_API(Wrapper) : public ProxyHandler
 {

@@ -111,11 +111,10 @@ top:
             if (tn->stackDepth > cx->regs().sp - fp->base())
                 continue;
 
-            UnwindScope(cx, tn->stackDepth);
-
             jsbytecode *pc = script->main() + tn->start + tn->length;
             cx->regs().pc = pc;
-            cx->regs().sp = fp->base() + tn->stackDepth;
+            JSBool ok = UnwindScope(cx, tn->stackDepth, JS_TRUE);
+            JS_ASSERT(cx->regs().sp == fp->base() + tn->stackDepth);
 
             switch (tn->kind) {
                 case JSTRY_CATCH:
@@ -157,7 +156,7 @@ top:
                   Value v = cx->getPendingException();
                   JS_ASSERT(JSOp(*pc) == JSOP_ENDITER);
                   cx->clearPendingException();
-                  bool ok = !!js_CloseIterator(cx, &cx->regs().sp[-1].toObject());
+                  ok = !!js_CloseIterator(cx, &cx->regs().sp[-1].toObject());
                   cx->regs().sp -= 1;
                   if (!ok)
                       goto top;
@@ -580,8 +579,7 @@ js_InternalThrow(VMFrame &f)
         // and epilogues. RunTracer(), Interpret(), and Invoke() all
         // rely on this property.
         JS_ASSERT(!f.fp()->finishedInInterpreter());
-        UnwindScope(cx, 0);
-        f.regs.sp = f.fp()->base();
+        UnwindScope(cx, 0, cx->isExceptionPending());
 
         if (cx->compartment->debugMode())
             js::ScriptDebugEpilogue(cx, f.fp(), false);
@@ -632,8 +630,8 @@ js_InternalThrow(VMFrame &f)
      */
     if (cx->isExceptionPending()) {
         JS_ASSERT(JSOp(*pc) == JSOP_ENTERBLOCK);
-        StaticBlockObject &blockObj = script->getObject(GET_SLOTNO(pc))->asStaticBlock();
-        Value *vp = cx->regs().sp + blockObj.slotCount();
+        JSObject *obj = script->getObject(GET_SLOTNO(pc));
+        Value *vp = cx->regs().sp + OBJ_BLOCK_COUNT(cx, obj);
         SetValueRangeToUndefined(cx->regs().sp, vp);
         cx->regs().sp = vp;
         JS_ASSERT(JSOp(pc[JSOP_ENTERBLOCK_LENGTH]) == JSOP_EXCEPTION);
@@ -641,7 +639,7 @@ js_InternalThrow(VMFrame &f)
         cx->clearPendingException();
         cx->regs().sp++;
         cx->regs().pc = pc + JSOP_ENTERBLOCK_LENGTH + JSOP_EXCEPTION_LENGTH;
-        cx->regs().fp()->setBlockChain(&blockObj);
+        cx->regs().fp()->setBlockChain(obj);
     }
 
     *f.oldregs = f.regs;

@@ -171,7 +171,7 @@ ScriptGlobal(JSContext *cx, JSScript *script, GlobalObject *scriptGlobal)
     for (AllFramesIter i(cx->stack.space()); ; ++i) {
         JS_ASSERT(!i.done());
         if (i.fp()->maybeScript() == script)
-            return &i.fp()->scopeChain().global();
+            return i.fp()->scopeChain().getGlobal();
     }
     JS_NOT_REACHED("ScriptGlobal: live non-held script not on stack");
 }
@@ -431,7 +431,7 @@ Debugger::slowPathOnEnterFrame(JSContext *cx, Value *vp)
 {
     /* Build the list of recipients. */
     AutoValueVector triggered(cx);
-    GlobalObject *global = &cx->fp()->scopeChain().global();
+    GlobalObject *global = cx->fp()->scopeChain().getGlobal();
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
             Debugger *dbg = *p;
@@ -458,7 +458,7 @@ void
 Debugger::slowPathOnLeaveFrame(JSContext *cx)
 {
     StackFrame *fp = cx->fp();
-    GlobalObject *global = &fp->scopeChain().global();
+    GlobalObject *global = fp->scopeChain().getGlobal();
 
     /*
      * FIXME This notifies only current debuggers, so it relies on a hack in
@@ -811,7 +811,7 @@ Debugger::dispatchHook(JSContext *cx, Value *vp, Hook which)
      * different compartments--every compartment *except* this one.
      */
     AutoValueVector triggered(cx);
-    GlobalObject *global = &cx->fp()->scopeChain().global();
+    GlobalObject *global = cx->fp()->scopeChain().getGlobal();
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
             Debugger *dbg = *p;
@@ -899,7 +899,7 @@ Debugger::onTrap(JSContext *cx, Value *vp)
 {
     StackFrame *fp = cx->fp();
     JSScript *script = fp->script();
-    GlobalObject *scriptGlobal = &fp->scopeChain().global();
+    GlobalObject *scriptGlobal = fp->scopeChain().getGlobal();
     jsbytecode *pc = cx->regs().pc;
     BreakpointSite *site = script->getBreakpointSite(pc);
     JSOp op = JSOp(*pc);
@@ -975,7 +975,7 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
      * onStep handlers.
      */
     AutoObjectVector frames(cx);
-    GlobalObject *global = &fp->scopeChain().global();
+    GlobalObject *global = fp->scopeChain().getGlobal();
     if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
         for (Debugger **d = debuggers->begin(); d != debuggers->end(); d++) {
             Debugger *dbg = *d;
@@ -1536,7 +1536,7 @@ Debugger::addDebuggee(JSContext *cx, uintN argc, Value *vp)
     JSObject *referent = dbg->unwrapDebuggeeArgument(cx, args[0]);
     if (!referent)
         return false;
-    GlobalObject *global = &referent->global();
+    GlobalObject *global = referent->getGlobal();
     if (!dbg->addDebuggeeGlobal(cx, global))
         return false;
 
@@ -1555,7 +1555,7 @@ Debugger::removeDebuggee(JSContext *cx, uintN argc, Value *vp)
     JSObject *referent = dbg->unwrapDebuggeeArgument(cx, args[0]);
     if (!referent)
         return false;
-    GlobalObject *global = &referent->global();
+    GlobalObject *global = referent->getGlobal();
     if (dbg->debuggees.has(global))
         dbg->removeDebuggeeGlobal(cx, global, NULL, NULL);
     args.rval().setUndefined();
@@ -1570,7 +1570,7 @@ Debugger::hasDebuggee(JSContext *cx, uintN argc, Value *vp)
     JSObject *referent = dbg->unwrapDebuggeeArgument(cx, args[0]);
     if (!referent)
         return false;
-    args.rval().setBoolean(!!dbg->debuggees.lookup(&referent->global()));
+    args.rval().setBoolean(!!dbg->debuggees.lookup(referent->getGlobal()));
     return true;
 }
 
@@ -1665,7 +1665,7 @@ Debugger::construct(JSContext *cx, uintN argc, Value *vp)
 
     /* Add the initial debuggees, if any. */
     for (uintN i = 0; i < argc; i++) {
-        GlobalObject *debuggee = &GetProxyPrivate(&args[i].toObject()).toObject().global();
+        GlobalObject *debuggee = GetProxyPrivate(&args[i].toObject()).toObject().getGlobal();
         if (!dbg->addDebuggeeGlobal(cx, debuggee))
             return false;
     }
@@ -1773,7 +1773,7 @@ Debugger::removeDebuggeeGlobal(JSContext *cx, GlobalObject *global,
      */
     for (FrameMap::Enum e(frames); !e.empty(); e.popFront()) {
         StackFrame *fp = e.front().key;
-        if (&fp->scopeChain().global() == global) {
+        if (fp->scopeChain().getGlobal() == global) {
             e.front().value->setPrivate(NULL);
             e.removeFront();
         }
@@ -2637,7 +2637,7 @@ DebuggerFrame_getArguments(JSContext *cx, uintN argc, Value *vp)
     if (fp->hasArgs()) {
         /* Create an arguments object. */
         RootedVar<GlobalObject*> global(cx);
-        global = &args.callee().global();
+        global = args.callee().getGlobal();
         JSObject *proto;
         if (!js_GetClassPrototype(cx, global, JSProto_Array, &proto))
             return false;
@@ -3683,7 +3683,7 @@ DebuggerEnv_getParent(JSContext *cx, uintN argc, Value *vp)
     THIS_DEBUGENV_OWNER(cx, argc, vp, "get parent", args, envobj, env, dbg);
 
     /* Don't bother switching compartments just to get env's parent. */
-    Env *parent = env->enclosingScope();
+    Env *parent = env->scopeChain();
     return dbg->wrapEnvironment(cx, parent, &args.rval());
 }
 
@@ -3760,7 +3760,7 @@ DebuggerEnv_find(JSContext *cx, uintN argc, Value *vp)
         ErrorCopier ec(ac, dbg->toJSObject());
         JSProperty *prop = NULL;
         JSObject *pobj;
-        for (; env && !prop; env = env->enclosingScope()) {
+        for (; env && !prop; env = env->scopeChain()) {
             if (!env->lookupGeneric(cx, id, &pobj, &prop))
                 return false;
             if (prop)

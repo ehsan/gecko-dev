@@ -59,6 +59,7 @@
 #include "nsScriptLoader.h"
 
 #include "jsapi.h"
+#include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 
@@ -240,7 +241,11 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
         rv = wn->GetJSObject(&targetObj);
         NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
-        targetObj = JS_GetGlobalForObject(cx, targetObj);
+        JSObject *maybeGlob = JS_GetParent(cx, targetObj);
+        while (maybeGlob) {
+            targetObj = maybeGlob;
+            maybeGlob = JS_GetParent(cx, maybeGlob);
+        }
     }
 
     // Remember an object out of the calling compartment so that we

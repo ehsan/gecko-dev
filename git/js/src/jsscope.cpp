@@ -1460,7 +1460,7 @@ NewObjectCache::invalidateEntriesForShape(JSContext *cx, Shape *shape, JSObject 
     if (CanBeFinalizedInBackground(kind, clasp))
         kind = GetBackgroundAllocKind(kind);
 
-    GlobalObject *global = &shape->getObjectParent()->global();
+    GlobalObject *global = shape->getObjectParent()->getGlobal();
     types::TypeObject *type = proto->getNewType(cx);
 
     EntryIndex entry;

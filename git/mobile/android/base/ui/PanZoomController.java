@@ -153,10 +153,19 @@ public class PanZoomController
     private boolean mOverrideScrollAck;
     private boolean mOverrideScrollPending;
 
+    /* The current frame of the bounce-back animation, or -1 if the animation is not running. */
+    private int mBounceFrame;
+    /*
+     * The viewport metrics that represent the start and end of the bounce-back animation,
+     * respectively.
+     */
+    private ViewportMetrics mBounceStartMetrics, mBounceEndMetrics;
+
     public PanZoomController(LayerController controller) {
         mController = controller;
         mX = new AxisX(); mY = new AxisY();
         mState = PanZoomState.NOTHING;
+        mBounceFrame = -1;
 
         GeckoAppShell.registerGeckoEventListener("Browser:ZoomToRect", this);
         GeckoAppShell.registerGeckoEventListener("Browser:ZoomToPageWidth", this);
@@ -509,17 +518,19 @@ public class PanZoomController
     private void bounce(ViewportMetrics metrics) {
         stopAnimationTimer();
 
-        ViewportMetrics bounceStartMetrics = new ViewportMetrics(mController.getViewportMetrics());
-        if (bounceStartMetrics.fuzzyEquals(metrics)) {
+        mBounceStartMetrics = new ViewportMetrics(mController.getViewportMetrics());
+        if (mBounceStartMetrics.fuzzyEquals(metrics)) {
             mState = PanZoomState.NOTHING;
             return;
         }
 
+        mBounceFrame = 0;
         mState = PanZoomState.FLING;
         mX.setFlingState(Axis.FlingStates.SNAPPING); mY.setFlingState(Axis.FlingStates.SNAPPING);
-        Log.d(LOGTAG, "end bounce at " + metrics);
+        mBounceEndMetrics = metrics;
+        Log.d(LOGTAG, "end bounce at " + mBounceEndMetrics);
 
-        startAnimationTimer(new BounceRunnable(bounceStartMetrics, metrics));
+        startAnimationTimer(new BounceRunnable());
     }
 
     /* Performs a bounce-back animation to the nearest valid viewport metrics. */
@@ -586,20 +597,6 @@ public class PanZoomController
 
     /* The callback that performs the bounce animation. */
     private class BounceRunnable implements Runnable {
-        /* The current frame of the bounce-back animation */
-        private int mBounceFrame;
-        /*
-         * The viewport metrics that represent the start and end of the bounce-back animation,
-         * respectively.
-         */
-        private ViewportMetrics mBounceStartMetrics;
-        private ViewportMetrics mBounceEndMetrics;
-
-        BounceRunnable(ViewportMetrics startMetrics, ViewportMetrics endMetrics) {
-            mBounceStartMetrics = startMetrics;
-            mBounceEndMetrics = endMetrics;
-        }
-
         public void run() {
             /*
              * The pan/zoom controller might have signaled to us that it wants to abort the

@@ -830,7 +830,7 @@ public:
 
 class MessageEventRunnable : public WorkerRunnable
 {
-  uint64_t* mData;
+  uint64* mData;
   size_t mDataByteCount;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
 

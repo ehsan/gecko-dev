@@ -76,12 +76,12 @@ static inline GlobalObject *
 GetGlobalForScopeChain(JSContext *cx)
 {
     if (cx->hasfp())
-        return &cx->fp()->scopeChain().global();
+        return cx->fp()->scopeChain().getGlobal();
 
     JSObject *scope = JS_ObjectToInnerObject(cx, cx->globalObject);
     if (!scope)
         return NULL;
-    return &scope->asGlobal();
+    return scope->asGlobal();
 }
 
 inline GSNCache *
@@ -502,8 +502,11 @@ JSContext::ensureParseMapPool()
     return parseMapPool_;
 }
 
-/* Get the current frame, first lazily instantiating stack frames if needed. */
-static inline js::StackFrame *
+/*
+ * Get the current frame, first lazily instantiating stack frames if needed.
+ * (Do not access cx->fp() directly except in JS_REQUIRES_STACK code.)
+ */
+static JS_FORCES_STACK JS_INLINE js::StackFrame *
 js_GetTopStackFrame(JSContext *cx, FrameExpandKind expand)
 {
 #ifdef JS_METHODJIT

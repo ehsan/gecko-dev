@@ -221,7 +221,6 @@ TiltVisualizer.Presenter = function TV_Presenter(
    * Modified by events in the controller through delegate functions.
    */
   this.transforms = {
-    zoom: TiltUtils.getDocumentZoom(),
     offset: vec3.create(),      // mesh offset, aligned to the viewport center
     translation: vec3.create(), // scene translation, on the [x, y, z] axis
     rotation: quat4.create()    // scene rotation, expressed as a quaternion
@@ -338,8 +337,6 @@ TiltVisualizer.Presenter.prototype = {
     // offset the visualization mesh to center
     renderer.translate(transforms.offset[0],
                        transforms.offset[1] + transforms.translation[1], 0);
-
-    renderer.scale(transforms.zoom, transforms.zoom);
 
     // draw the visualization mesh
     renderer.strokeWeight(2);
@@ -495,13 +492,12 @@ TiltVisualizer.Presenter.prototype = {
       this.highlightNode(this.inspectorUI.selection);
     }
 
-    let zoom = TiltUtils.getDocumentZoom();
-    let width = Math.min(aData.meshWidth * zoom, renderer.width);
-    let height = Math.min(aData.meshHeight * zoom, renderer.height);
+    let width = renderer.width;
+    let height = renderer.height;
 
     // set the necessary mesh offsets
-    this.transforms.offset[0] = -width * 0.5;
-    this.transforms.offset[1] = -height * 0.5;
+    this.transforms.offset[0] = -Math.min(aData.meshWidth, width) * 0.5;
+    this.transforms.offset[1] = -Math.min(aData.meshHeight, height) * 0.5;
 
     // make sure the canvas is opaque now that the initialization is finished
     this.canvas.style.background = TiltVisualizerStyle.canvas.background;
@@ -563,9 +559,8 @@ TiltVisualizer.Presenter.prototype = {
    */
   onResize: function TVP_onResize(e)
   {
-    let zoom = TiltUtils.getDocumentZoom();
-    let width = e.target.innerWidth * zoom;
-    let height = e.target.innerHeight * zoom;
+    let width = e.target.innerWidth;
+    let height = e.target.innerHeight;
 
     // handle aspect ratio changes to update the projection matrix
     this.renderer.width = width;
@@ -708,12 +703,9 @@ TiltVisualizer.Presenter.prototype = {
       }
     }, false);
 
-    let zoom = TiltUtils.getDocumentZoom();
-    let width = this.renderer.width * zoom;
-    let height = this.renderer.height * zoom;
+    let width = this.renderer.width;
+    let height = this.renderer.height;
     let mesh = this.meshStacks;
-    x *= zoom;
-    y *= zoom;
 
     // create a ray following the mouse direction from the near clipping plane
     // to the far clipping plane, to check for intersections with the mesh,
@@ -996,11 +988,7 @@ TiltVisualizer.Controller.prototype = {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
-      this.arcball.cancelKeyEvents();
-    } else {
-      this.arcball.keyDown(code);
-    }
+    this.arcball.keyDown(code);
   },
 
   /**
@@ -1025,7 +1013,7 @@ TiltVisualizer.Controller.prototype = {
    * Called when the canvas looses focus.
    */
   onBlur: function TVC_onBlur(e) {
-    this.arcball.cancelKeyEvents();
+    this.arcball._keyCode = {};
   },
 
   /**
@@ -1033,9 +1021,8 @@ TiltVisualizer.Controller.prototype = {
    */
   onResize: function TVC_onResize(e)
   {
-    let zoom = TiltUtils.getDocumentZoom();
-    let width = e.target.innerWidth * zoom;
-    let height = e.target.innerHeight * zoom;
+    let width = e.target.innerWidth;
+    let height = e.target.innerHeight;
 
     this.arcball.resize(width, height);
   },
@@ -1479,13 +1466,6 @@ TiltVisualizer.Arcball.prototype = {
       aSphereVec[1] = y;
       aSphereVec[2] = Math.sqrt(1 - sqlength);
     }
-  },
-
-  /**
-   * Cancels all pending transformations caused by key events.
-   */
-  cancelKeyEvents: function TVA_cancelKeyEvents() {
-    this._keyCode = {};
   },
 
   /**

@@ -421,10 +421,13 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     // Nestle %esp up to the argument vector.
     masm.freeStack(unusedStack);
 
+    // Remember the size of the frame above this point, in case of bailout.
+    uint32 stackSize = masm.framePushed() - unusedStack;
+    uint32 sizeDescriptor = (stackSize << FRAMETYPE_BITS) | IonFrame_JS;
+
     // Construct the IonFramePrefix.
-    uint32 descriptor = MakeFrameDescriptor(masm.framePushed(), IonFrame_JS);
     masm.Push(calleereg);
-    masm.Push(Imm32(descriptor));
+    masm.Push(Imm32(sizeDescriptor));
 
     Label thunk, rejoin;
 

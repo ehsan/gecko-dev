@@ -195,18 +195,3 @@
 |           <td>
 |             <button>
 |           <td>
-
-#data
-<table><tr><td><svg><desc><td>
-#errors
-#document
-| <html>
-|   <head>
-|   <body>
-|     <table>
-|       <tbody>
-|         <tr>
-|           <td>
-|             <svg svg>
-|               <svg desc>
-|           <td>
