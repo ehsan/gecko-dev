@@ -227,10 +227,7 @@ public:
         }
         Block *block = mBlocks[blockIndex];
         if (!block) {
-            block = new Block;
-            if (NS_UNLIKELY(!block)) // OOM
-                return;
-            mBlocks[blockIndex] = block;
+            return;
         }
         block->mBits[(aIndex>>3) & (BLOCK_SIZE - 1)] &= ~(1 << (aIndex & 0x7));
     }
@@ -248,22 +245,12 @@ public:
 
         for (PRUint32 i = startIndex; i <= endIndex; ++i) {
             const PRUint32 blockFirstBit = i * BLOCK_SIZE_BITS;
-            const PRUint32 blockLastBit = blockFirstBit + BLOCK_SIZE_BITS - 1;
 
             Block *block = mBlocks[i];
             if (!block) {
-                PRBool fullBlock = PR_FALSE;
-                if (aStart <= blockFirstBit && aEnd >= blockLastBit)
-                    fullBlock = PR_TRUE;
-
-                block = new Block(fullBlock ? 0xFF : 0);
-
-                if (NS_UNLIKELY(!block)) // OOM
-                    return;
-                mBlocks[i] = block;
-
-                if (fullBlock)
-                    continue;
+                // any nonexistent block is implicitly all clear,
+                // so there's no need to even create it
+                continue;
             }
 
             const PRUint32 start = aStart > blockFirstBit ? aStart - blockFirstBit : 0;
@@ -368,8 +355,24 @@ private:
     PRUint8  value[3];
 };
 
+struct SFNTHeader {
+    AutoSwap_PRUint32    sfntVersion;            // Fixed, 0x00010000 for version 1.0.
+    AutoSwap_PRUint16    numTables;              // Number of tables.
+    AutoSwap_PRUint16    searchRange;            // (Maximum power of 2 <= numTables) x 16.
+    AutoSwap_PRUint16    entrySelector;          // Log2(maximum power of 2 <= numTables).
+    AutoSwap_PRUint16    rangeShift;             // NumTables x 16-searchRange.        
+};
+
+struct TableDirEntry {
+    AutoSwap_PRUint32    tag;                    // 4 -byte identifier.
+    AutoSwap_PRUint32    checkSum;               // CheckSum for this table.
+    AutoSwap_PRUint32    offset;                 // Offset from beginning of TrueType font file.
+    AutoSwap_PRUint32    length;                 // Length of this table.        
+};
+
 struct HeadTable {
     enum {
+        HEAD_VERSION = 0x00010000,
         HEAD_MAGIC_NUMBER = 0x5F0F3CF5,
         HEAD_CHECKSUM_CALC_CONST = 0xB1B0AFBA
     };
@@ -463,6 +466,38 @@ struct HheaTable {
     AutoSwap_PRInt16     reserved4;
     AutoSwap_PRInt16     metricDataFormat;
     AutoSwap_PRUint16    numOfLongHorMetrics;
+};
+
+struct MaxpTableHeader {
+    AutoSwap_PRUint32    version; // CFF: 0x00005000; TrueType: 0x00010000
+    AutoSwap_PRUint16    numGlyphs;
+// truetype version has additional fields that we don't currently use
+};
+
+// old 'kern' table, supported on Windows
+// see http://www.microsoft.com/typography/otspec/kern.htm
+struct KernTableVersion0 {
+    AutoSwap_PRUint16    version; // 0x0000
+    AutoSwap_PRUint16    nTables;
+};
+
+struct KernTableSubtableHeaderVersion0 {
+    AutoSwap_PRUint16    version;
+    AutoSwap_PRUint16    length;
+    AutoSwap_PRUint16    coverage;
+};
+
+// newer Mac-only 'kern' table, ignored by Windows
+// see http://developer.apple.com/textfonts/TTRefMan/RM06/Chap6kern.html
+struct KernTableVersion1 {
+    AutoSwap_PRUint32    version; // 0x00010000
+    AutoSwap_PRUint32    nTables;
+};
+
+struct KernTableSubtableHeaderVersion1 {
+    AutoSwap_PRUint32    length;
+    AutoSwap_PRUint16    coverage;
+    AutoSwap_PRUint16    tupleIndex;
 };
 
 #pragma pack()
@@ -645,7 +680,7 @@ public:
     MapUVSToGlyphFormat14(const PRUint8 *aBuf, PRUint32 aCh, PRUint32 aVS);
 
     static PRUint32
-    MapCharToGlyph(const PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh);
+    MapCharToGlyph(const PRUint8 *aBuf, PRUint32 aBufLength, PRUint32 aCh);
 
 #ifdef XP_WIN
 

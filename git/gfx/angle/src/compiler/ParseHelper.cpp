@@ -176,8 +176,8 @@ void TParseContext::recover()
 //
 // Used by flex/bison to output all syntax and parsing errors.
 //
-void C_DECL TParseContext::error(TSourceLoc nLine, const char *szReason, const char *szToken, 
-                                 const char *szExtraInfoFormat, ...)
+void TParseContext::error(TSourceLoc nLine, const char *szReason, const char *szToken, 
+                          const char *szExtraInfoFormat, ...)
 {
     char szExtraInfo[400];
     va_list marker;
@@ -402,15 +402,28 @@ bool TParseContext::globalErrorCheck(int line, bool global, const char* token)
 // For now, keep it simple:  if it starts "gl_", it's reserved, independent
 // of scope.  Except, if the symbol table is at the built-in push-level,
 // which is when we are parsing built-ins.
+// Also checks for "webgl_" and "_webgl_" reserved identifiers if parsing a
+// webgl shader.
 //
 // Returns true if there was an error.
 //
 bool TParseContext::reservedErrorCheck(int line, const TString& identifier)
 {
+    static const char* reservedErrMsg = "reserved built-in name";
     if (!symbolTable.atBuiltInLevel()) {
         if (identifier.substr(0, 3) == TString("gl_")) {
-            error(line, "reserved built-in name", "gl_", "");
+            error(line, reservedErrMsg, "gl_", "");
             return true;
+        }
+        if (shaderSpec == SH_WEBGL_SPEC) {
+            if (identifier.substr(0, 6) == TString("webgl_")) {
+                error(line, reservedErrMsg, "webgl_", "");
+                return true;
+            }
+            if (identifier.substr(0, 7) == TString("_webgl_")) {
+                error(line, reservedErrMsg, "_webgl_", "");
+                return true;
+            }
         }
         if (identifier.find("__") != TString::npos) {
             //error(line, "Two consecutive underscores are reserved for future use.", identifier.c_str(), "", "");
@@ -458,22 +471,23 @@ bool TParseContext::constructorErrorCheck(int line, TIntermNode* node, TFunction
     bool matrixInMatrix = false;
     bool arrayArg = false;
     for (int i = 0; i < function.getParamCount(); ++i) {
-        size += function[i].type->getObjectSize();
+        const TParameter& param = function.getParam(i);
+        size += param.type->getObjectSize();
         
-        if (constructingMatrix && function[i].type->isMatrix())
+        if (constructingMatrix && param.type->isMatrix())
             matrixInMatrix = true;
         if (full)
             overFull = true;
         if (op != EOpConstructStruct && !type->isArray() && size >= type->getObjectSize())
             full = true;
-        if (function[i].type->getQualifier() != EvqConst)
+        if (param.type->getQualifier() != EvqConst)
             constType = false;
-        if (function[i].type->isArray())
+        if (param.type->isArray())
             arrayArg = true;
     }
     
     if (constType)
-        type->changeQualifier(EvqConst);
+        type->setQualifier(EvqConst);
 
     if (type->isArray() && type->getArraySize() != function.getParamCount()) {
         error(line, "array constructor needs one argument per array element", "constructor", "");
@@ -573,14 +587,14 @@ bool TParseContext::samplerErrorCheck(int line, const TPublicType& pType, const 
 {
     if (pType.type == EbtStruct) {
         if (containsSampler(*pType.userDef)) {
-            error(line, reason, TType::getBasicString(pType.type), "(structure contains a sampler)");
+            error(line, reason, getBasicString(pType.type), "(structure contains a sampler)");
         
             return true;
         }
         
         return false;
     } else if (IsSampler(pType.type)) {
-        error(line, reason, TType::getBasicString(pType.type), "");
+        error(line, reason, getBasicString(pType.type), "");
 
         return true;
     }
@@ -661,13 +675,10 @@ bool TParseContext::arraySizeErrorCheck(int line, TIntermTyped* expr, int& size)
 //
 bool TParseContext::arrayQualifierErrorCheck(int line, TPublicType type)
 {
-    if (type.qualifier == EvqAttribute) {
+    if ((type.qualifier == EvqAttribute) || (type.qualifier == EvqConst)) {
         error(line, "cannot declare arrays of this qualifier", TType(type).getCompleteString().c_str(), "");
         return true;
     }
-
-    if (type.qualifier == EvqConst && extensionErrorCheck(line, "GL_3DL_array_objects"))
-        return true;
 
     return false;
 }
@@ -866,22 +877,28 @@ bool TParseContext::paramErrorCheck(int line, TQualifier qualifier, TQualifier p
     }
 
     if (qualifier == EvqConst)
-        type->changeQualifier(EvqConstReadOnly);
+        type->setQualifier(EvqConstReadOnly);
     else
-        type->changeQualifier(paramQualifier);
+        type->setQualifier(paramQualifier);
 
     return false;
 }
 
-bool TParseContext::extensionErrorCheck(int line, const char* extension)
-{       
-    if (extensionBehavior[extension] == EBhWarn) {
-        infoSink.info.message(EPrefixWarning, ("extension " + TString(extension) + " is being used").c_str(), line);
-        return false;
-    }
-    if (extensionBehavior[extension] == EBhDisable) {
-        error(line, "extension", extension, "is disabled");
+bool TParseContext::extensionErrorCheck(int line, const TString& extension)
+{
+    TExtensionBehavior::const_iterator iter = extensionBehavior.find(extension);
+    if (iter == extensionBehavior.end()) {
+        error(line, "extension", extension.c_str(), "is not supported");
         return true;
+    }
+    if (iter->second == EBhDisable) {
+        error(line, "extension", extension.c_str(), "is disabled");
+        return true;
+    }
+    if (iter->second == EBhWarn) {
+        TString msg = "extension " + extension + " is being used";
+        infoSink.info.message(EPrefixWarning, msg.c_str(), line);
+        return false;
     }
 
     return false;
@@ -900,21 +917,24 @@ bool TParseContext::extensionErrorCheck(int line, const char* extension)
 //
 const TFunction* TParseContext::findFunction(int line, TFunction* call, bool *builtIn)
 {
-    const TSymbol* symbol = symbolTable.find(call->getMangledName(), builtIn);
+    // First find by unmangled name to check whether the function name has been
+    // hidden by a variable name or struct typename.
+    const TSymbol* symbol = symbolTable.find(call->getName(), builtIn);
+    if (symbol == 0) {
+        symbol = symbolTable.find(call->getMangledName(), builtIn);
+    }
 
-    if (symbol == 0) {        
+    if (symbol == 0) {
         error(line, "no matching overloaded function found", call->getName().c_str(), "");
         return 0;
     }
 
-    if (! symbol->isFunction()) {
+    if (!symbol->isFunction()) {
         error(line, "function name expected", call->getName().c_str(), "");
         return 0;
     }
-    
-    const TFunction* function = static_cast<const TFunction*>(symbol);
-    
-    return function;
+
+    return static_cast<const TFunction*>(symbol);
 }
 
 //
@@ -960,13 +980,13 @@ bool TParseContext::executeInitializer(TSourceLoc line, TString& identifier, TPu
     if (qualifier == EvqConst) {
         if (qualifier != initializer->getType().getQualifier()) {
             error(line, " assigning non-constant to", "=", "'%s'", variable->getType().getCompleteString().c_str());
-            variable->getType().changeQualifier(EvqTemporary);
+            variable->getType().setQualifier(EvqTemporary);
             return true;
         }
         if (type != initializer->getType()) {
             error(line, " non-matching types for const initializer ", 
                 variable->getType().getQualifierString(), "");
-            variable->getType().changeQualifier(EvqTemporary);
+            variable->getType().setQualifier(EvqTemporary);
             return true;
         }
         if (initializer->getAsConstantUnion()) { 
@@ -985,7 +1005,7 @@ bool TParseContext::executeInitializer(TSourceLoc line, TString& identifier, TPu
             variable->shareConstPointer(constArray);
         } else {
             error(line, " cannot assign to", "=", "'%s'", variable->getType().getCompleteString().c_str());
-            variable->getType().changeQualifier(EvqTemporary);
+            variable->getType().setQualifier(EvqTemporary);
             return true;
         }
     }
@@ -1036,7 +1056,7 @@ TIntermTyped* TParseContext::addConstructor(TIntermNode* node, const TType* type
 
     TIntermAggregate* aggrNode = node->getAsAggregate();
     
-    TTypeList::iterator memberTypes;
+    TTypeList::const_iterator memberTypes;
     if (op == EOpConstructStruct)
         memberTypes = type->getStruct()->begin();
     
@@ -1334,7 +1354,7 @@ TIntermTyped* TParseContext::addConstArrayNode(int index, TIntermTyped* node, TS
 //
 TIntermTyped* TParseContext::addConstStruct(TString& identifier, TIntermTyped* node, TSourceLoc line)
 {
-    TTypeList* fields = node->getType().getStruct();
+    const TTypeList* fields = node->getType().getStruct();
     TIntermTyped *typedNode;
     int instanceSize = 0;
     unsigned int index = 0;
@@ -1362,19 +1382,6 @@ TIntermTyped* TParseContext::addConstStruct(TString& identifier, TIntermTyped* n
     return typedNode;
 }
 
-//
-// Initialize all supported extensions to disable
-//
-void TParseContext::initializeExtensionBehavior()
-{
-    //
-    // example code: extensionBehavior["test"] = EBhDisable; // where "test" is the name of 
-    // supported extension
-    //
-    extensionBehavior["GL_ARB_texture_rectangle"] = EBhRequire;
-    extensionBehavior["GL_3DL_array_objects"] = EBhDisable;
-}
-
 OS_TLSIndex GlobalParseContextIndex = OS_INVALID_TLS_INDEX;
 
 bool InitializeParseContextIndex()
@@ -1395,6 +1402,20 @@ bool InitializeParseContextIndex()
     }
 
     return true;
+}
+
+bool FreeParseContextIndex()
+{
+    OS_TLSIndex tlsiIndex = GlobalParseContextIndex;
+
+    if (GlobalParseContextIndex == OS_INVALID_TLS_INDEX) {
+        assert(0 && "FreeParseContextIndex(): Parse Context index not initalised");
+        return false;
+    }
+
+    GlobalParseContextIndex = OS_INVALID_TLS_INDEX;
+
+    return OS_FreeTLSIndex(tlsiIndex);
 }
 
 bool InitializeGlobalParseContext()
@@ -1422,17 +1443,6 @@ bool InitializeGlobalParseContext()
     return true;
 }
 
-TParseContextPointer& GetGlobalParseContext()
-{
-    //
-    // Minimal error checking for speed
-    //
-
-    TThreadParseContext *lpParseContext = static_cast<TThreadParseContext *>(OS_GetTLSValue(GlobalParseContextIndex));
-
-    return lpParseContext->lpGlobalParseContext;
-}
-
 bool FreeParseContext()
 {
     if (GlobalParseContextIndex == OS_INVALID_TLS_INDEX) {
@@ -1447,16 +1457,14 @@ bool FreeParseContext()
     return true;
 }
 
-bool FreeParseContextIndex()
+TParseContextPointer& GetGlobalParseContext()
 {
-    OS_TLSIndex tlsiIndex = GlobalParseContextIndex;
+    //
+    // Minimal error checking for speed
+    //
 
-    if (GlobalParseContextIndex == OS_INVALID_TLS_INDEX) {
-        assert(0 && "FreeParseContextIndex(): Parse Context index not initalised");
-        return false;
-    }
+    TThreadParseContext *lpParseContext = static_cast<TThreadParseContext *>(OS_GetTLSValue(GlobalParseContextIndex));
 
-    GlobalParseContextIndex = OS_INVALID_TLS_INDEX;
-
-    return OS_FreeTLSIndex(tlsiIndex);
+    return lpParseContext->lpGlobalParseContext;
 }
+

@@ -43,7 +43,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-var gTestfile = 'math-trace-tests.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 'none';
 var summary = 'trace-capability math mini-testsuite';
@@ -61,11 +60,7 @@ jit(true);
 // The HOTLOOP constant we depend on; only readable from our stats
 // object in debug builds.
 const haveTracemonkey = !!(this.tracemonkey)
-  const HOTLOOP = haveTracemonkey ? tracemonkey.HOTLOOP : 2;
-// The loop count at which we trace
-const RECORDLOOP = HOTLOOP;
-// The loop count at which we run the trace
-const RUNLOOP = HOTLOOP + 1;
+const HOTLOOP = haveTracemonkey ? tracemonkey.HOTLOOP : 2;
 
 var testName = null;
 if ("arguments" in this && arguments.length > 0)

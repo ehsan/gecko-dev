@@ -63,6 +63,8 @@
 #include "nsIAccessibilityService.h"
 #endif
 
+namespace dom = mozilla::dom;
+
 ////////////////////////////////////////////////////////////////////////
 // inDOMViewNode
 
@@ -682,7 +684,7 @@ inDOMView::NodeWillBeDestroyed(const nsINode* aNode)
 }
 
 void
-inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
+inDOMView::AttributeChanged(nsIDocument* aDocument, dom::Element* aElement,
                             PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                             PRInt32 aModType)
 {
@@ -694,9 +696,11 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
     return;
   }
 
+  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+  
   // get the dom attribute node, if there is any
-  nsCOMPtr<nsIDOMNode> content(do_QueryInterface(aContent));
-  nsCOMPtr<nsIDOMElement> el(do_QueryInterface(aContent));
+  nsCOMPtr<nsIDOMNode> content(do_QueryInterface(aElement));
+  nsCOMPtr<nsIDOMElement> el(do_QueryInterface(aElement));
   nsCOMPtr<nsIDOMAttr> domAttr;
   nsDependentAtomString attrStr(aAttribute);
   if (aNameSpaceID) {
@@ -855,6 +859,8 @@ inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
   if (NS_FAILED(rv = RowToNode(parentRow, &parentNode)))
     return;
 
+  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+  
   if (!parentNode->isOpen) {
     // Parent is not open, so don't bother creating tree rows for the
     // kids.  But do indicate that it's now a container, if needed.
@@ -908,7 +914,9 @@ inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
 }
 
 void
-inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsIContent* aChild, PRInt32 aIndexInContainer)
+inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
+                          nsIContent* aChild, PRInt32 aIndexInContainer,
+                          nsIContent* aPreviousSibling)
 {
   if (!mTree)
     return;
@@ -924,6 +932,8 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsICon
   if (NS_FAILED(rv = RowToNode(row, &oldNode)))
     return;
 
+  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+  
   // The parent may no longer be a container.  Note that we don't want
   // to access oldNode after calling RemoveNode, so do this now.
   inDOMViewNode* parentNode = oldNode->parent;

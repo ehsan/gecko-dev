@@ -170,15 +170,11 @@ nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
-  nsCOMPtr<nsIDOMNode> item;
 
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
-    aContentList.Item(i, getter_AddRefs(item));
-
-    nsCOMPtr<nsIContent> c(do_QueryInterface(item));
-
+    nsIContent *c = aContentList.GetNodeAt(i);
     if (c && nsContentUtils::BelongsInForm(aForm, c)) {
       AppendElement(c);
     }
@@ -214,10 +210,16 @@ ContentListHashtableMatchEntry(PLDHashTable *table,
 }
 
 already_AddRefed<nsContentList>
-NS_GetContentList(nsINode* aRootNode, nsIAtom* aMatchAtom,
-                  PRInt32 aMatchNameSpaceId)
+NS_GetContentList(nsINode* aRootNode, 
+                  PRInt32  aMatchNameSpaceId,
+                  nsIAtom* aHTMLMatchAtom,
+                  nsIAtom* aXMLMatchAtom)
+                  
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
+
+  if(!aXMLMatchAtom)
+    aXMLMatchAtom = aHTMLMatchAtom;
 
   nsContentList* list = nsnull;
 
@@ -247,8 +249,8 @@ NS_GetContentList(nsINode* aRootNode, nsIAtom* aMatchAtom,
   ContentListHashEntry *entry = nsnull;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.ops) {
-    nsContentListKey hashKey(aRootNode, aMatchAtom,
-                             aMatchNameSpaceId);
+    nsContentListKey hashKey(aRootNode, aHTMLMatchAtom,
+                             aXMLMatchAtom, aMatchNameSpaceId);
     
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
@@ -263,16 +265,11 @@ NS_GetContentList(nsINode* aRootNode, nsIAtom* aMatchAtom,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    list = new nsContentList(aRootNode, aMatchAtom,
-                             aMatchNameSpaceId);
+    list = new nsContentList(aRootNode, aMatchNameSpaceId,
+                             aHTMLMatchAtom, aXMLMatchAtom);
     if (entry) {
-      if (list)
-        entry->mContentList = list;
-      else
-        PL_DHashTableRawRemove(&gContentListHashTable, entry);
+      entry->mContentList = list;
     }
-
-    NS_ENSURE_TRUE(list, nsnull);
   }
 
   NS_ADDREF(list);
@@ -389,11 +386,12 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
 // nsContentList implementation
 
 nsContentList::nsContentList(nsINode* aRootNode,
-                             nsIAtom* aMatchAtom,
                              PRInt32 aMatchNameSpaceId,
+                             nsIAtom* aHTMLMatchAtom,
+                             nsIAtom* aXMLMatchAtom,
                              PRBool aDeep)
   : nsBaseContentList(),
-    nsContentListKey(aRootNode, aMatchAtom, aMatchNameSpaceId),
+    nsContentListKey(aRootNode, aHTMLMatchAtom, aXMLMatchAtom, aMatchNameSpaceId),
     mFunc(nsnull),
     mDestroyFunc(nsnull),
     mData(nsnull),
@@ -402,7 +400,8 @@ nsContentList::nsContentList(nsINode* aRootNode,
     mFuncMayDependOnAttr(PR_FALSE)
 {
   NS_ASSERTION(mRootNode, "Must have root");
-  if (nsGkAtoms::_asterix == mMatchAtom) {
+  if (nsGkAtoms::_asterix == mHTMLMatchAtom) {
+    NS_ASSERTION(mXMLMatchAtom == nsGkAtoms::_asterix, "HTML atom and XML atom are not both asterix?");
     mMatchAll = PR_TRUE;
   }
   else {
@@ -420,7 +419,7 @@ nsContentList::nsContentList(nsINode* aRootNode,
                              PRInt32 aMatchNameSpaceId,
                              PRBool aFuncMayDependOnAttr)
   : nsBaseContentList(),
-    nsContentListKey(aRootNode, aMatchAtom, aMatchNameSpaceId),
+    nsContentListKey(aRootNode, aMatchAtom, aMatchAtom, aMatchNameSpaceId),
     mFunc(aFunc),
     mDestroyFunc(aDestroyFunc),
     mData(aData),
@@ -590,7 +589,7 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsISupports*
+nsIContent*
 nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
@@ -598,46 +597,49 @@ nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 }
 
 nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
+nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
+                            nsresult* aResult)
 {
   *aResult = NS_OK;
-  return NamedItem(aName, PR_TRUE);
+
+  nsIContent *item;
+  *aCache = item = NamedItem(aName, PR_TRUE);
+  return item;
 }
 
 void
-nsContentList::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
+nsContentList::AttributeChanged(nsIDocument *aDocument, Element* aElement,
                                 PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                 PRInt32 aModType)
 {
-  NS_PRECONDITION(aContent, "Must have a content node to work with");
-  NS_PRECONDITION(aContent->IsElement(), "Should be an element");
+  NS_PRECONDITION(aElement, "Must have a content node to work with");
   
   if (!mFunc || !mFuncMayDependOnAttr || mState == LIST_DIRTY ||
-      !MayContainRelevantNodes(aContent->GetNodeParent()) ||
-      !nsContentUtils::IsInSameAnonymousTree(mRootNode, aContent)) {
+      !MayContainRelevantNodes(aElement->GetNodeParent()) ||
+      !nsContentUtils::IsInSameAnonymousTree(mRootNode, aElement)) {
     // Either we're already dirty or this notification doesn't affect
-    // whether we might match aContent.
+    // whether we might match aElement.
     return;
   }
   
-  if (Match(aContent->AsElement())) {
-    if (mElements.IndexOf(aContent) == -1) {
-      // We match aContent now, and it's not in our list already.  Just dirty
+  if (Match(aElement)) {
+    if (mElements.IndexOf(aElement) == -1) {
+      // We match aElement now, and it's not in our list already.  Just dirty
       // ourselves; this is simpler than trying to figure out where to insert
-      // aContent.
+      // aElement.
       SetDirty();
     }
   } else {
-    // We no longer match aContent.  Remove it from our list.  If it's
+    // We no longer match aElement.  Remove it from our list.  If it's
     // already not there, this is a no-op (though a potentially
     // expensive one).  Either way, no change of mState is required
     // here.
-    mElements.RemoveObject(aContent);
+    mElements.RemoveObject(aElement);
   }
 }
 
 void
-nsContentList::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
+nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
                                nsIContent* aFirstNewContent,
                                PRInt32 aNewIndexInContainer)
 {
@@ -754,7 +756,8 @@ void
 nsContentList::ContentRemoved(nsIDocument *aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling)
 {
   // Note that aContainer can be null here if we are removing from
   // the document itself; any attempted optimizations to this method
@@ -773,25 +776,39 @@ PRBool
 nsContentList::Match(Element *aElement)
 {
   if (mFunc) {
-    return (*mFunc)(aElement, mMatchNameSpaceId, mMatchAtom, mData);
+    return (*mFunc)(aElement, mMatchNameSpaceId, mXMLMatchAtom, mData);
   }
 
-  if (mMatchAtom) {
-    nsINodeInfo *ni = aElement->NodeInfo();
+  if (!mXMLMatchAtom)
+    return PR_FALSE;
 
-    if (mMatchNameSpaceId == kNameSpaceID_Unknown) {
-      return (mMatchAll || ni->QualifiedNameEquals(mMatchAtom));
-    }
+  nsINodeInfo *ni = aElement->NodeInfo();
+ 
+  PRBool unknown = mMatchNameSpaceId == kNameSpaceID_Unknown;
+  PRBool wildcard = mMatchNameSpaceId == kNameSpaceID_Wildcard;
+  PRBool toReturn = mMatchAll;
+  if (!unknown && !wildcard)
+    toReturn &= ni->NamespaceEquals(mMatchNameSpaceId);
 
-    if (mMatchNameSpaceId == kNameSpaceID_Wildcard) {
-      return (mMatchAll || ni->Equals(mMatchAtom));
-    }
+  if (toReturn)
+    return toReturn;
 
-    return ((mMatchAll && ni->NamespaceEquals(mMatchNameSpaceId)) ||
-            ni->Equals(mMatchAtom, mMatchNameSpaceId));
+  nsIDocument* doc = aElement->GetOwnerDoc();
+  PRBool matchHTML = aElement->GetNameSpaceID() == kNameSpaceID_XHTML &&
+    doc && doc->IsHTML();
+ 
+  if (unknown) {
+    return matchHTML ? ni->QualifiedNameEquals(mHTMLMatchAtom) :
+                       ni->QualifiedNameEquals(mXMLMatchAtom);
   }
-
-  return PR_FALSE;
+  
+  if (wildcard) {
+    return matchHTML ? ni->Equals(mHTMLMatchAtom) :
+                       ni->Equals(mXMLMatchAtom);
+  }
+  
+  return matchHTML ? ni->Equals(mHTMLMatchAtom, mMatchNameSpaceId) :
+                     ni->Equals(mXMLMatchAtom, mMatchNameSpaceId);
 }
 
 PRBool 

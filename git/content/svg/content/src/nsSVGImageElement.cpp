@@ -54,7 +54,7 @@ nsSVGElement::LengthInfo nsSVGImageElement::sLengthInfo[4] =
 
 nsSVGElement::StringInfo nsSVGImageElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
@@ -65,7 +65,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Image)
 NS_IMPL_ADDREF_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 
-DOMCI_DATA(SVGImageElement, nsSVGImageElement)
+DOMCI_NODE_DATA(SVGImageElement, nsSVGImageElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGImageElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
@@ -78,7 +78,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGImageElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGImageElement::nsSVGImageElement(nsINodeInfo *aNodeInfo)
+nsSVGImageElement::nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGImageElementBase(aNodeInfo)
 {
 }
@@ -269,6 +269,17 @@ nsSVGImageElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
                               NS_ARRAY_LENGTH(sStringInfo));
+}
+
+void
+nsSVGImageElement::DidAnimateString(PRUint8 aAttrEnum)
+{
+  if (aAttrEnum == HREF) {
+    LoadSVGImage(PR_TRUE, PR_FALSE);
+    return;
+  }
+
+  nsSVGImageElementBase::DidAnimateString(aAttrEnum);
 }
 
 nsresult

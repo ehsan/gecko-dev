@@ -7,11 +7,12 @@
 // Context.h: Defines the gl::Context class, managing all GL state and performing
 // rendering operations. It is the GLES2 specific implementation of EGLContext.
 
-#ifndef INCLUDE_CONTEXT_H_
-#define INCLUDE_CONTEXT_H_
+#ifndef LIBGLESV2_CONTEXT_H_
+#define LIBGLESV2_CONTEXT_H_
 
 #define GL_APICALL
 #include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #define EGLAPI
 #include <EGL/egl.h>
 #include <d3d9.h>
@@ -19,6 +20,8 @@
 #include <map>
 
 #include "common/angleutils.h"
+#include "libGLESv2/ResourceManager.h"
+#include "libGLESv2/RefCountObject.h"
 
 namespace egl
 {
@@ -40,13 +43,16 @@ class Texture2D;
 class TextureCubeMap;
 class Framebuffer;
 class Renderbuffer;
+class RenderbufferStorage;
 class Colorbuffer;
 class Depthbuffer;
 class Stencilbuffer;
+class DepthStencilbuffer;
 class VertexDataManager;
 class IndexDataManager;
 class BufferBackEnd;
 class Blit;
+class Fence;
 
 enum
 {
@@ -67,15 +73,8 @@ enum
 const float ALIASED_LINE_WIDTH_RANGE_MIN = 1.0f;
 const float ALIASED_LINE_WIDTH_RANGE_MAX = 1.0f;
 const float ALIASED_POINT_SIZE_RANGE_MIN = 1.0f;
-const float ALIASED_POINT_SIZE_RANGE_MAX = 1.0f;
-
-enum SamplerType
-{
-    SAMPLER_2D,
-    SAMPLER_CUBE,
-
-    SAMPLER_TYPE_COUNT
-};
+const float ALIASED_POINT_SIZE_RANGE_MAX_SM2 = 1.0f;
+const float ALIASED_POINT_SIZE_RANGE_MAX_SM3 = 64.0f;
 
 struct Color
 {
@@ -90,7 +89,7 @@ class AttributeState
 {
   public:
     AttributeState()
-        : mType(GL_FLOAT), mSize(0), mNormalized(false), mStride(0), mPointer(NULL), mBoundBuffer(0), mEnabled(false)
+        : mType(GL_FLOAT), mSize(0), mNormalized(false), mStride(0), mPointer(NULL), mEnabled(false)
     {
         mCurrentValue[0] = 0;
         mCurrentValue[1] = 0;
@@ -105,7 +104,7 @@ class AttributeState
     GLsizei mStride; // 0 means natural stride
     const void *mPointer;
 
-    GLuint mBoundBuffer; // Captured when VertexArrayPointer is called.
+    BindingPointer<Buffer> mBoundBuffer; // Captured when VertexArrayPointer is called.
 
     bool mEnabled; // From Enable/DisableVertexAttribArray
 
@@ -160,6 +159,7 @@ struct State
     GLfloat lineWidth;
 
     GLenum generateMipmapHint;
+    GLenum fragmentShaderDerivativeHint;
 
     GLint viewportX;
     GLint viewportY;
@@ -180,16 +180,17 @@ struct State
     bool depthMask;
 
     int activeSampler;   // Active texture unit selector - GL_TEXTURE0
-    GLuint arrayBuffer;
-    GLuint elementArrayBuffer;
-    GLuint texture2D;
-    GLuint textureCubeMap;
-    GLuint framebuffer;
-    GLuint renderbuffer;
+    BindingPointer<Buffer> arrayBuffer;
+    BindingPointer<Buffer> elementArrayBuffer;
+    BindingPointer<Texture> texture2D;
+    BindingPointer<Texture> textureCubeMap;
+    GLuint readFramebuffer;
+    GLuint drawFramebuffer;
+    BindingPointer<Renderbuffer> renderbuffer;
     GLuint currentProgram;
 
     AttributeState vertexAttribute[MAX_VERTEX_ATTRIBS];
-    GLuint samplerTexture[SAMPLER_TYPE_COUNT][MAX_TEXTURE_IMAGE_UNITS];
+    BindingPointer<Texture> samplerTexture[SAMPLER_TYPE_COUNT][MAX_TEXTURE_IMAGE_UNITS];
 
     GLint unpackAlignment;
     GLint packAlignment;
@@ -198,7 +199,7 @@ struct State
 class Context
 {
   public:
-    Context(const egl::Config *config);
+    Context(const egl::Config *config, const gl::Context *shareContext);
 
     ~Context();
 
@@ -266,6 +267,7 @@ class Context
     void setLineWidth(GLfloat width);
 
     void setGenerateMipmapHint(GLenum hint);
+    void setFragmentShaderDerivativeHint(GLenum hint);
 
     void setViewportParams(GLint x, GLint y, GLsizei width, GLsizei height);
 
@@ -276,14 +278,15 @@ class Context
 
     void setActiveSampler(int active);
 
-    GLuint getFramebufferHandle() const;
+    GLuint getReadFramebufferHandle() const;
+    GLuint getDrawFramebufferHandle() const;
     GLuint getRenderbufferHandle() const;
 
     GLuint getArrayBufferHandle() const;
 
     void setVertexAttribEnabled(unsigned int attribNum, bool enabled);
     const AttributeState &getVertexAttribState(unsigned int attribNum);
-    void setVertexAttribState(unsigned int attribNum, GLuint boundBuffer, GLint size, GLenum type,
+    void setVertexAttribState(unsigned int attribNum, Buffer *boundBuffer, GLint size, GLenum type,
                               bool normalized, GLsizei stride, const void *pointer);
     const void *getVertexAttribPointer(unsigned int attribNum) const;
 
@@ -295,45 +298,50 @@ class Context
     void setPackAlignment(GLint alignment);
     GLint getPackAlignment() const;
 
+    // These create  and destroy methods are merely pass-throughs to 
+    // ResourceManager, which owns these object types
     GLuint createBuffer();
     GLuint createShader(GLenum type);
     GLuint createProgram();
     GLuint createTexture();
-    GLuint createFramebuffer();
     GLuint createRenderbuffer();
 
     void deleteBuffer(GLuint buffer);
     void deleteShader(GLuint shader);
     void deleteProgram(GLuint program);
     void deleteTexture(GLuint texture);
-    void deleteFramebuffer(GLuint framebuffer);
     void deleteRenderbuffer(GLuint renderbuffer);
+
+    // Framebuffers are owned by the Context, so these methods do not pass through
+    GLuint createFramebuffer();
+    void deleteFramebuffer(GLuint framebuffer);
+
+    // Fences are owned by the Context.
+    GLuint createFence();
+    void deleteFence(GLuint fence);
 
     void bindArrayBuffer(GLuint buffer);
     void bindElementArrayBuffer(GLuint buffer);
     void bindTexture2D(GLuint texture);
     void bindTextureCubeMap(GLuint texture);
-    void bindFramebuffer(GLuint framebuffer);
+    void bindReadFramebuffer(GLuint framebuffer);
+    void bindDrawFramebuffer(GLuint framebuffer);
     void bindRenderbuffer(GLuint renderbuffer);
     void useProgram(GLuint program);
 
     void setFramebufferZero(Framebuffer *framebuffer);
-    void setColorbufferZero(Colorbuffer *renderbuffer);
-    void setDepthbufferZero(Depthbuffer *depthBuffer);
-    void setStencilbufferZero(Stencilbuffer *stencilBuffer);
-    void setRenderbuffer(Renderbuffer *renderbuffer);
+
+    void setRenderbufferStorage(RenderbufferStorage *renderbuffer);
 
     void setVertexAttrib(GLuint index, const GLfloat *values);
 
     Buffer *getBuffer(GLuint handle);
+    Fence *getFence(GLuint handle);
     Shader *getShader(GLuint handle);
     Program *getProgram(GLuint handle);
     Texture *getTexture(GLuint handle);
     Framebuffer *getFramebuffer(GLuint handle);
     Renderbuffer *getRenderbuffer(GLuint handle);
-    Colorbuffer *getColorbuffer(GLuint handle);
-    Depthbuffer *getDepthbuffer(GLuint handle);
-    Stencilbuffer *getStencilbuffer(GLuint handle);
 
     Buffer *getArrayBuffer();
     Buffer *getElementArrayBuffer();
@@ -341,7 +349,8 @@ class Context
     Texture2D *getTexture2D();
     TextureCubeMap *getTextureCubeMap();
     Texture *getSamplerTexture(unsigned int sampler, SamplerType type);
-    Framebuffer *getFramebuffer();
+    Framebuffer *getReadFramebuffer();
+    Framebuffer *getDrawFramebuffer();
 
     bool getFloatv(GLenum pname, GLfloat *params);
     bool getIntegerv(GLenum pname, GLint *params);
@@ -373,10 +382,22 @@ class Context
 
     GLenum getError();
 
-    const char *getPixelShaderProfile();
-    const char *getVertexShaderProfile();
-
+    bool supportsShaderModel3() const;
+    GLsizei getMaxSupportedSamples() const;
+    int getNearestSupportedSamples(D3DFORMAT format, int requested) const;
     const char *getExtensionString() const;
+    bool supportsEventQueries() const;
+    bool supportsCompressedTextures() const;
+    bool supportsFloatTextures() const;
+    bool supportsFloatLinearFilter() const;
+    bool supportsFloatRenderableTextures() const;
+    bool supportsHalfFloatTextures() const;
+    bool supportsHalfFloatLinearFilter() const;
+    bool supportsHalfFloatRenderableTextures() const;
+
+    void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
+                         GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
+                         GLbitfield mask);
 
     Blit *getBlitter() { return mBlit; }
 
@@ -396,36 +417,20 @@ class Context
 
     bool cullSkipsDraw(GLenum drawMode);
     bool isTriangleMode(GLenum drawMode);
-    bool hasStencil();
 
     const egl::Config *const mConfig;
 
     State   mState;
 
-    Texture2D *mTexture2DZero;
-    TextureCubeMap *mTextureCubeMapZero;
+    BindingPointer<Texture2D> mTexture2DZero;
+    BindingPointer<TextureCubeMap> mTextureCubeMapZero;
 
-    Colorbuffer *mColorbufferZero;
-    Depthbuffer *mDepthbufferZero;
-    Stencilbuffer *mStencilbufferZero;
-
-    typedef std::map<GLuint, Buffer*> BufferMap;
-    BufferMap mBufferMap;
-
-    typedef std::map<GLuint, Shader*> ShaderMap;
-    ShaderMap mShaderMap;
-
-    typedef std::map<GLuint, Program*> ProgramMap;
-    ProgramMap mProgramMap;
-
-    typedef std::map<GLuint, Texture*> TextureMap;
-    TextureMap mTextureMap;
 
     typedef std::map<GLuint, Framebuffer*> FramebufferMap;
     FramebufferMap mFramebufferMap;
 
-    typedef std::map<GLuint, Renderbuffer*> RenderbufferMap;
-    RenderbufferMap mRenderbufferMap;
+    typedef std::map<GLuint, Fence*> FenceMap;
+    FenceMap mFenceMap;
 
     void initExtensionString();
     std::string mExtensionString;
@@ -435,8 +440,8 @@ class Context
     IndexDataManager *mIndexDataManager;
 
     Blit *mBlit;
-
-    Texture *mIncompleteTextures[SAMPLER_TYPE_COUNT];
+    
+    BindingPointer<Texture> mIncompleteTextures[SAMPLER_TYPE_COUNT];
 
     // Recorded errors
     bool mInvalidEnum;
@@ -450,9 +455,20 @@ class Context
     unsigned int mAppliedProgram;
     unsigned int mAppliedRenderTargetSerial;
     unsigned int mAppliedDepthbufferSerial;
+    unsigned int mAppliedStencilbufferSerial;
+    bool mDepthStencilInitialized;
 
-    const char *mPsProfile;
-    const char *mVsProfile;
+    bool mSupportsShaderModel3;
+    std::map<D3DFORMAT, bool *> mMultiSampleSupport;
+    GLsizei mMaxSupportedSamples;
+    bool mSupportsEventQueries;
+    bool mSupportsCompressedTextures;
+    bool mSupportsFloatTextures;
+    bool mSupportsFloatLinearFilter;
+    bool mSupportsFloatRenderableTextures;
+    bool mSupportsHalfFloatTextures;
+    bool mSupportsHalfFloatLinearFilter;
+    bool mSupportsHalfFloatRenderableTextures;
 
     // state caching flags
     bool mClearStateDirty;
@@ -471,13 +487,15 @@ class Context
     IDirect3DStateBlock9 *mMaskedClearSavedState;
 
     D3DCAPS9 mDeviceCaps;
+
+    ResourceManager *mResourceManager;
 };
 }
 
 extern "C"
 {
 // Exported functions for use by EGL
-gl::Context *glCreateContext(const egl::Config *config);
+gl::Context *glCreateContext(const egl::Config *config, const gl::Context *shareContext);
 void glDestroyContext(gl::Context *context);
 void glMakeCurrent(gl::Context *context, egl::Display *display, egl::Surface *surface);
 gl::Context *glGetCurrentContext();

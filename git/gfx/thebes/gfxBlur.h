@@ -44,12 +44,20 @@
 #include "gfxThebesUtils.h"
 
 /**
- * Implementation of a box blur approximation of a Gaussian blur.
+ * Implementation of a triple box blur approximation of a Gaussian blur.
  *
- * Creates an 8-bit alpha channel context for callers to draw in, blurs the
- * contents of that context and applies it as an alpha mask on a
- * different existing context.
+ * A Gaussian blur is good for blurring because, when done independently
+ * in the horizontal and vertical directions, it matches the result that
+ * would be obtained using a different (rotated) set of axes.  A triple
+ * box blur is a very close approximation of a Gaussian.
  *
+ * Creates an 8-bit alpha channel context for callers to draw in,
+ * spreads the contents of that context, blurs the contents, and applies
+ * it as an alpha mask on a different existing context.
+ * 
+ * A spread N makes each output pixel the maximum value of all source
+ * pixels within a square of side length 2N+1 centered on the output pixel.
+ * 
  * A temporary surface is created in the Init function. The caller then draws
  * any desired content onto the context acquired through GetContext, and lastly
  * calls Paint to apply the blurred content as an alpha mask.
@@ -65,7 +73,11 @@ public:
      * Constructs a box blur and initializes the temporary surface.
      * @param aRect The coordinates of the surface to create in device units.
      *
-     * @param aBlurRadius The blur radius in pixels
+     * @param aBlurRadius The blur radius in pixels.  This is the radius of
+     *   the entire (triple) kernel function.  Each individual box blur has
+     *   radius approximately 1/3 this value, or diameter approximately 2/3
+     *   this value.  This parameter should nearly always be computed using
+     *   CalculateBlurRadius, below.
      *
      * @param aDirtyRect A pointer to a dirty rect, measured in device units, if available.
      *  This will be used for optimizing the blur operation. It is safe to pass NULL here.
@@ -75,6 +87,7 @@ public:
      *  pass NULL here.
      */
     gfxContext* Init(const gfxRect& aRect,
+                     const gfxIntSize& aSpreadRadius,
                      const gfxIntSize& aBlurRadius,
                      const gfxRect* aDirtyRect,
                      const gfxRect* aSkipRect);
@@ -95,8 +108,8 @@ public:
     void PremultiplyAlpha(gfxFloat alpha);
 
     /**
-     * Does the actual blurring and mask applying. Users of this object
-     * must have drawn whatever they want to be blurred onto the internal
+     * Does the actual blurring/spreading and mask applying. Users of this
+     * object must have drawn whatever they want to be blurred onto the internal
      * gfxContext returned by GetContext before calling this.
      *
      * @param aDestinationCtx The graphics context on which to apply the
@@ -106,11 +119,17 @@ public:
 
     /**
      * Calculates a blur radius that, when used with box blur, approximates
-     * a Gaussian blur with the given standard deviation.
+     * a Gaussian blur with the given standard deviation.  The result of
+     * this function should be used as the aBlurRadius parameter to Init,
+     * above.
      */
     static gfxIntSize CalculateBlurRadius(const gfxPoint& aStandardDeviation);
 
 protected:
+    /**
+     * The spread radius, in pixels.
+     */
+    gfxIntSize mSpreadRadius;
     /**
      * The blur radius, in pixels.
      */

@@ -65,7 +65,7 @@
 #include "gfxDirectFBSurface.h"
 #endif
 
-#ifdef CAIRO_HAS_QT_SURFACE
+#if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
 #include "gfxQPainterSurface.h"
 #endif
 
@@ -191,7 +191,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxDirectFBSurface(csurf);
     }
 #endif
-#ifdef CAIRO_HAS_QT_SURFACE
+#if defined(CAIRO_HAS_QT_SURFACE) && defined(MOZ_WIDGET_QT)
     else if (stype == CAIRO_SURFACE_TYPE_QT) {
         result = new gfxQPainterSurface(csurf);
     }
@@ -267,7 +267,7 @@ gfxASurface::GetDeviceOffset() const
 }
 
 void
-gfxASurface::Flush()
+gfxASurface::Flush() const
 {
     cairo_surface_flush(mSurface);
 }
@@ -310,6 +310,10 @@ already_AddRefed<gfxASurface>
 gfxASurface::CreateSimilarSurface(gfxContentType aContent,
                                   const gfxIntSize& aSize)
 {
+    if (!mSurface || !mSurfaceValid) {
+      return nsnull;
+    }
+    
     cairo_surface_t *surface =
         cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
                                      aSize.width, aSize.height);
@@ -420,6 +424,20 @@ gfxASurface::ContentFromFormat(gfxImageFormat format)
     }
 }
 
+gfxASurface::gfxImageFormat
+gfxASurface::FormatFromContent(gfxASurface::gfxContentType type)
+{
+    switch (type) {
+        case CONTENT_COLOR_ALPHA:
+            return ImageFormatARGB32;
+        case CONTENT_ALPHA:
+            return ImageFormatA8;
+        case CONTENT_COLOR:
+        default:
+            return ImageFormatRGB24;
+    }
+}
+
 PRInt32
 gfxASurface::BytePerPixelFromFormat(gfxImageFormat format)
 {
@@ -456,10 +474,22 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "gfx/surface/quartzimage",
     "gfx/surface/script",
     "gfx/surface/qpainter",
-    "gfx/surface/ddraw"
+    "gfx/surface/recording",
+    "gfx/surface/vg",
+    "gfx/surface/gl",
+    "gfx/surface/drm",
+    "gfx/surface/tee",
+    "gfx/surface/xml",
+    "gfx/surface/skia",
+    "gfx/surface/ddraw",
+    "gfx/surface/d2d"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
+#ifdef CAIRO_HAS_D2D_SURFACE
+PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_D2D == gfxASurface::SurfaceTypeD2D);
+#endif
+PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_SKIA == gfxASurface::SurfaceTypeSkia);
 
 static const char *
 SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)

@@ -59,7 +59,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLE
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
 
 protected:
 
@@ -75,6 +75,10 @@ protected:
 class nsXULTreeGridRowAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
+  using nsAccessible::GetChildCount;
+  using nsAccessible::GetChildAt;
+  using nsAccessible::GetChildAtPoint;
+
   nsXULTreeGridRowAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                              nsAccessible *aParent, nsITreeBoxObject *aTree,
                              nsITreeView *aTreeView, PRInt32 aRow);
@@ -88,7 +92,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
@@ -127,6 +131,8 @@ class nsXULTreeGridCellAccessible : public nsLeafAccessible,
                                     public nsIAccessibleTableCell
 {
 public:
+  using nsAccessible::GetParent;
+
   nsXULTreeGridCellAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                               nsXULTreeGridRowAccessible *aRowAcc,
                               nsITreeBoxObject *aTree, nsITreeView *aTreeView,
@@ -158,7 +164,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRInt32 GetIndexInParent() { return GetColumnIndex(); }
 

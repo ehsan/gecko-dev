@@ -166,25 +166,29 @@ var TestPilotTask = {
     return url + this._id;
   },
 
-  get showMoreInfoLink() {
-    return true;
-  },
-
   // event handlers:
 
   onExperimentStartup: function TestPilotTask_onExperimentStartup() {
+    // Called when experiment is to start running (either on Firefox
+    // startup, or when study first becomes IN_PROGRESS)
   },
 
   onExperimentShutdown: function TestPilotTask_onExperimentShutdown() {
+    // Called when experiment needs to stop running (either on Firefox
+    // shutdown, or on experiment reload, or on finishing or being canceled.)
+  },
+
+  doExperimentCleanup: function TestPilotTask_onExperimentCleanup() {
+    // Called when experiment has finished or been canceled; do any cleanup
+    // of user's profile.
   },
 
   onAppStartup: function TestPilotTask_onAppStartup() {
-    // Called by extension core when startup is complete.
+    // Called by extension core when Firefox startup is complete.
   },
 
   onAppShutdown: function TestPilotTask_onAppShutdown() {
-    // TODO: not implemented - should be called when firefox is ready to
-    // shut down.
+    // Called by extension core when Firefox is shutting down.
   },
 
   onEnterPrivateBrowsing: function TestPilotTask_onEnterPrivate() {
@@ -498,6 +502,13 @@ TestPilotExperiment.prototype = {
     }
   },
 
+  doExperimentCleanup: function TestPilotExperiment_doExperimentCleanup() {
+    if (this._handlers.doExperimentCleanup) {
+      this._logger.trace("Doing experiment cleanup.");
+      this._handlers.doExperimentCleanup();
+    }
+  },
+
   onEnterPrivateBrowsing: function TestPilotExperiment_onEnterPrivate() {
     this._logger.trace("Task is entering private browsing.");
     if (this.experimentIsRunning()) {
@@ -619,11 +630,14 @@ TestPilotExperiment.prototype = {
       if (uuid.indexOf("{") == 0) {
         uuid = uuid.substring(1, (uuid.length - 1));
       }
-      // clear the data before starting.
-      this._dataStore.wipeAllData();
-      this.changeStatus(TaskConstants.STATUS_STARTING, true);
       Application.prefs.setValue(GUID_PREF_PREFIX + this._id, uuid);
-      this.onExperimentStartup();
+      // clear the data before starting.
+      let self = this;
+      this._dataStore.wipeAllData(function() {
+        // Experiment is now in progress.
+        self.changeStatus(TaskConstants.STATUS_IN_PROGRESS, true);
+        self.onExperimentStartup();
+      });
     }
 
     // What happens when a test finishes:
@@ -634,6 +648,7 @@ TestPilotExperiment.prototype = {
       this._logger.info("Passed End Date - Switched Task Status to Finished");
       this.changeStatus(TaskConstants.STATUS_FINISHED);
       this.onExperimentShutdown();
+      this.doExperimentCleanup();
 
       if (this._recursAutomatically) {
         this._reschedule();
@@ -752,7 +767,7 @@ TestPilotExperiment.prototype = {
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 201) {
+          if (req.status == 200 || req.status == 201 || req.status == 202) {
             let location = req.getResponseHeader("Location");
   	    self._logger.info("DATA WAS POSTED SUCCESSFULLY " + location);
             if (self._uploadRetryTimer) {
@@ -801,8 +816,11 @@ TestPilotExperiment.prototype = {
     // database table of just opt-out messages; include study ID in metadata.
     let url = Application.prefs.getValue(DATA_UPLOAD_PREF, "") + "opt-out";
     let logger = this._logger;
+
+    this.onExperimentShutdown();
     this.changeStatus(TaskConstants.STATUS_CANCELLED);
     this._dataStore.wipeAllData();
+    this.doExperimentCleanup();
     this._dateForDataDeletion = null;
     this._expirationDateForDataSubmission = null;
     logger.info("Opting out of test with reason " + reason);
@@ -822,7 +840,7 @@ TestPilotExperiment.prototype = {
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 200) {
+          if (req.status == 200 || req.status == 201 || req.status == 202) {
 	    logger.info("Quit reason posted successfully " + req.responseText);
     	    callback(true);
 	  } else {
@@ -936,6 +954,9 @@ TestPilotBuiltinSurvey.prototype = {
       // Include guid of the study that this survey is related to, so we
       // can match them up server-side.
       let guid = Application.prefs.getValue(GUID_PREF_PREFIX + self._studyId, "");
+      /* TODO if the guid for that study ID hasn't been set yet, set it!  And
+       * then use it on the study.  That way it won't matter whether the
+       * study or the survey gets run first.*/
       json.metadata.task_guid = guid;
       let pref = SURVEY_ANSWER_PREFIX + self._id;
       let surveyAnswers = JSON.parse(Application.prefs.getValue(pref, "{}"));
@@ -953,14 +974,14 @@ TestPilotBuiltinSurvey.prototype = {
         Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
           createInstance(Ci.nsIXMLHttpRequest);
       let url = self.uploadUrl;
-
       req.open("POST", url, true);
       req.setRequestHeader("Content-type", "application/json");
       req.setRequestHeader("Content-length", params.length);
       req.setRequestHeader("Connection", "close");
       req.onreadystatechange = function(aEvt) {
         if (req.readyState == 4) {
-          if (req.status == 200) {
+          if (req.status == 200 || req.status == 201 ||
+             req.status == 202) {
             self._logger.info(
 	    "DATA WAS POSTED SUCCESSFULLY " + req.responseText);
             if (self._uploadRetryTimer) {
@@ -969,7 +990,7 @@ TestPilotBuiltinSurvey.prototype = {
             self.changeStatus(TaskConstants.STATUS_SUBMITTED);
 	    callback(true);
 	  } else {
-	    self._logger.warn("ERROR POSTING DATA: " + req.responseText);
+	    self._logger.warn(req.status + " ERROR POSTING DATA: " + req.responseText);
 	    self._uploadRetryTimer =
 	      Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 
@@ -1013,10 +1034,6 @@ TestPilotWebSurvey.prototype = {
 
   get defaultUrl() {
     return this.infoPageUrl;
-  },
-
-  get showMoreInfoLink() {
-    return false;
   },
 
   onDetailPageOpened: function TPWS_onDetailPageOpened() {

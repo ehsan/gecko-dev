@@ -1,8 +1,3 @@
-//
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -78,7 +73,7 @@ typedef struct InputSrc {
 } InputSrc;
 
 int InitScanner(CPPStruct *cpp);   // Intialise the cpp scanner. 
-int ScanFromString(char *);      // Start scanning the input from the string mentioned.
+int ScanFromString(const char *);      // Start scanning the input from the string mentioned.
 int check_EOF(int);              // check if we hit a EOF abruptly 
 void CPPErrorToInfoLog(char *);   // sticking the msg,line into the Shader's.Info.log
 void SetLineNumber(int);

@@ -134,6 +134,7 @@
  */
 
 class nsWaveStateMachine;
+class nsTimeRanges;
 
 class nsWaveDecoder : public nsMediaDecoder
 {
@@ -179,7 +180,8 @@ class nsWaveDecoder : public nsMediaDecoder
   // Start downloading the media at the specified URI.  The media's metadata
   // will be parsed and made available as the load progresses.
   virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aStreamListener);
+                        nsIStreamListener** aStreamListener,
+                        nsMediaDecoder* aCloneDonor);
 
   // Called by mStream (and possibly the nsChannelToPipeListener used
   // internally by mStream) when the stream has completed loading.
@@ -219,7 +221,7 @@ class nsWaveDecoder : public nsMediaDecoder
   // Resume any media downloads that have been suspended. Called by the
   // media element when it is restored from the bfcache. Call on the
   // main thread only.
-  virtual void Resume();
+  virtual void Resume(PRBool aForceBuffering);
 
   // Calls mElement->UpdateReadyStateForData, telling it which state we have
   // entered.  Main thread only.
@@ -235,6 +237,12 @@ class nsWaveDecoder : public nsMediaDecoder
 
   // Called asynchronously to shut down the decoder
   void Stop();
+
+  // Constructs the time ranges representing what segments of the media
+  // are buffered and playable.
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered);
+
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
 
 private:
   // Notifies the element that seeking has started.
@@ -252,6 +260,10 @@ private:
 
   // Notifies the element that decoding has failed.
   void DecodeError();
+
+  // Ensures that state machine thread is running, starting a new one
+  // if necessary.
+  nsresult StartStateMachineThread();
 
   // Volume that the audio backend will be initialized with.
   float mInitialVolume;

@@ -11,9 +11,10 @@
 
 class TranslatorHLSL : public TCompiler {
 public:
-    TranslatorHLSL(EShLanguage l, int dOptions);
-    virtual bool compile(TIntermNode* root);
-    int debugOptions;
+    TranslatorHLSL(ShShaderType type, ShShaderSpec spec);
+
+protected:
+    virtual void translate(TIntermNode* root);
 };
 
 #endif  // COMPILER_TRANSLATORHLSL_H_

@@ -60,6 +60,15 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 
+#ifdef MOZ_IPC
+namespace mozilla {
+namespace dom {
+  class PBrowserParent;
+  class PBrowserChild;
+}
+}
+#endif // MOZ_IPC
+
 #ifdef ACCESSIBILITY
 class nsAccessible;
 #endif
@@ -101,6 +110,9 @@ class nsHashKey;
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+#define NS_SMIL_TIME_EVENT                32
+#endif // MOZ_SMIL
 
 #define NS_QUERY_CONTENT_EVENT            33
 
@@ -111,6 +123,7 @@ class nsHashKey;
 #define NS_CONTENT_COMMAND_EVENT          39
 #define NS_GESTURENOTIFY_EVENT            40
 #define NS_UISTATECHANGE_EVENT            41
+#define NS_MOZTOUCH_EVENT                 42
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -258,6 +271,7 @@ class nsHashKey;
 #define NS_FORM_CHANGE                  (NS_FORM_EVENT_START + 2)
 #define NS_FORM_SELECTED                (NS_FORM_EVENT_START + 3)
 #define NS_FORM_INPUT                   (NS_FORM_EVENT_START + 4)
+#define NS_FORM_INVALID                 (NS_FORM_EVENT_START + 5)
 
 //Need separate focus/blur notifications for non-native widgets
 #define NS_FOCUS_EVENT_START            1300
@@ -404,11 +418,13 @@ class nsHashKey;
 #define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
 #define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
 #define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
+#define NS_MOZAUDIOAVAILABLE   (NS_MEDIA_EVENT_START+20)
 #endif // MOZ_MEDIA
 
 // paint notification events
 #define NS_NOTIFYPAINT_START    3400
 #define NS_AFTERPAINT           (NS_NOTIFYPAINT_START)
+#define NS_BEFOREPAINT          (NS_NOTIFYPAINT_START+1)
 
 // Simple gesture events
 #define NS_SIMPLE_GESTURE_EVENT_START    3500
@@ -460,6 +476,23 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
+#ifdef MOZ_SMIL
+#define NS_SMIL_TIME_EVENT_START     4300
+#define NS_SMIL_BEGIN                (NS_SMIL_TIME_EVENT_START)
+#define NS_SMIL_END                  (NS_SMIL_TIME_EVENT_START + 1)
+#define NS_SMIL_REPEAT               (NS_SMIL_TIME_EVENT_START + 2)
+#endif // MOZ_SMIL
+
+#define NS_MOZTOUCH_EVENT_START      4400
+#define NS_MOZTOUCH_DOWN             (NS_MOZTOUCH_EVENT_START)
+#define NS_MOZTOUCH_MOVE             (NS_MOZTOUCH_EVENT_START+1)
+#define NS_MOZTOUCH_UP               (NS_MOZTOUCH_EVENT_START+2)
+
+// script notification events
+#define NS_NOTIFYSCRIPT_START    4500
+#define NS_BEFORE_SCRIPT_EXECUTE (NS_NOTIFYSCRIPT_START)
+#define NS_AFTER_SCRIPT_EXECUTE  (NS_NOTIFYSCRIPT_START+1)
+
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -492,6 +525,12 @@ protected:
     MOZ_COUNT_CTOR(nsEvent);
   }
 
+#ifdef MOZ_IPC
+  nsEvent()
+  {
+  }
+#endif // MOZ_IPC
+
 public:
   nsEvent(PRBool isTrusted, PRUint32 msg)
     : eventStructType(NS_EVENT),
@@ -518,7 +557,7 @@ public:
   nsIntPoint  refPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
-  PRUint32    time;
+  PRUint64    time;
   // Flags to hold event flow stage and capture/bubble cancellation
   // status. This is used also to indicate whether the event is trusted.
   PRUint32    flags;
@@ -542,6 +581,13 @@ protected:
       widget(w), pluginEvent(nsnull)
   {
   }
+
+#ifdef MOZ_IPC
+  nsGUIEvent()
+    : pluginEvent(nsnull)
+  {
+  }
+#endif // MOZ_IPC
 
 public:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -706,6 +752,12 @@ protected:
       isShift(PR_FALSE), isControl(PR_FALSE), isAlt(PR_FALSE), isMeta(PR_FALSE)
   {
   }
+
+#ifdef MOZ_IPC
+  nsInputEvent()
+  {
+  }
+#endif // MOZ_IPC
 
 public:
   nsInputEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1003,6 +1055,19 @@ typedef nsTextRange* nsTextRangeArray;
 
 class nsTextEvent : public nsInputEvent
 {
+#ifdef MOZ_IPC
+private:
+  friend class mozilla::dom::PBrowserParent;
+  friend class mozilla::dom::PBrowserChild;
+
+  nsTextEvent()
+  {
+  }
+
+public:
+  PRUint32 seqno;
+#endif // MOZ_IPC
+
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
@@ -1021,6 +1086,19 @@ public:
 
 class nsCompositionEvent : public nsInputEvent
 {
+#ifdef MOZ_IPC
+private:
+  friend class mozilla::dom::PBrowserParent;
+  friend class mozilla::dom::PBrowserChild;
+
+  nsCompositionEvent()
+  {
+  }
+
+public:
+  PRUint32 seqno;
+#endif // MOZ_IPC
+
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
@@ -1135,10 +1213,22 @@ public:
 
 class nsQueryContentEvent : public nsGUIEvent
 {
+#ifdef MOZ_IPC
+private:
+  friend class mozilla::dom::PBrowserParent;
+  friend class mozilla::dom::PBrowserChild;
+
+  nsQueryContentEvent()
+  {
+    mReply.mContentsRoot = nsnull;
+    mReply.mFocusedWidget = nsnull;
+  }
+#endif // MOZ_IPC
+
 public:
   nsQueryContentEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_QUERY_CONTENT_EVENT),
-    mSucceeded(PR_FALSE)
+    mSucceeded(PR_FALSE), mWasAsync(PR_FALSE)
   {
   }
 
@@ -1165,7 +1255,22 @@ public:
     mInput.mLength = aLength;
   }
 
+  PRUint32 GetSelectionStart(void) const
+  {
+    NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
+                 "not querying selection");
+    return mReply.mOffset + (mReply.mReversed ? mReply.mString.Length() : 0);
+  }
+
+  PRUint32 GetSelectionEnd(void) const
+  {
+    NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
+                 "not querying selection");
+    return mReply.mOffset + (mReply.mReversed ? 0 : mReply.mString.Length());
+  }
+
   PRBool mSucceeded;
+  PRPackedBool mWasAsync;
   struct {
     PRUint32 mOffset;
     PRUint32 mLength;
@@ -1202,6 +1307,19 @@ public:
 
 class nsSelectionEvent : public nsGUIEvent
 {
+#ifdef MOZ_IPC
+private:
+  friend class mozilla::dom::PBrowserParent;
+  friend class mozilla::dom::PBrowserChild;
+
+  nsSelectionEvent()
+  {
+  }
+
+public:
+  PRUint32 seqno;
+#endif // MOZ_IPC
+
 public:
   nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
     nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),
@@ -1253,6 +1371,19 @@ public:
 
   PRPackedBool mSucceeded;                                 // [out]
   PRPackedBool mIsEnabled;                                 // [out]
+};
+
+class nsMozTouchEvent : public nsMouseEvent_base
+{
+public:
+  nsMozTouchEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
+                  PRUint32 streamIdArg)
+    : nsMouseEvent_base(isTrusted, msg, w, NS_MOZTOUCH_EVENT),
+      streamId(streamIdArg)
+  {
+  }
+
+  PRUint32 streamId;
 };
 
 /**

@@ -76,7 +76,6 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
-#include "nsIPrivateDOMImplementation.h"
 #include "nsIRangeUtils.h"
 #include "nsIScriptNameSpaceManager.h"
 #include "nsISelection.h"
@@ -134,6 +133,9 @@
 #include "nsDOMScriptObjectFactory.h"
 #include "nsDOMStorage.h"
 #include "nsJSON.h"
+#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
+
+using mozilla::dom::indexedDB::IndexedDatabaseManager;
 
 // Editor stuff
 #include "nsEditorCID.h"
@@ -155,6 +157,7 @@
 #include "nsSystemPrincipal.h"
 #include "nsNullPrincipal.h"
 #include "nsNetCID.h"
+#include "nsINodeInfo.h"
 
 #define NS_EDITORCOMMANDTABLE_CID \
 { 0x4f5e62b8, 0xd659, 0x4156, { 0x84, 0xfc, 0x2f, 0x60, 0x99, 0x40, 0x03, 0x69 }}
@@ -251,7 +254,6 @@ static NS_DEFINE_CID(kWindowCommandTableCID, NS_WINDOWCOMMANDTABLE_CID);
 
 #include "nsIBoxObject.h"
 
-#ifndef MOZ_NO_INSPECTOR_APIS
 #ifdef MOZ_XUL
 #include "inDOMView.h"
 #endif /* MOZ_XUL */
@@ -260,7 +262,6 @@ static NS_DEFINE_CID(kWindowCommandTableCID, NS_WINDOWCOMMANDTABLE_CID);
 #include "inFlasher.h"
 #include "inCSSValueSearch.h"
 #include "inDOMUtils.h"
-#endif /* MOZ_NO_INSPECTOR_APIS */
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -273,6 +274,9 @@ NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 nsresult
 NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 #endif
+
+nsresult
+NS_NewDOMImplementation(nsIDOMDOMImplementation**);
 
 static void Shutdown();
 
@@ -320,6 +324,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(IndexedDatabaseManager,
+                                         IndexedDatabaseManager::GetOrCreateInstance)
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
@@ -462,6 +468,8 @@ nsresult NS_NewDOMEventGroup(nsIDOMEventGroup** aResult);
 
 nsresult NS_NewEventListenerService(nsIEventListenerService** aResult);
 nsresult NS_NewGlobalMessageManager(nsIChromeFrameMessageManager** aResult);
+nsresult NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult);
+nsresult NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult);
 
 nsresult NS_NewXULControllers(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
@@ -499,7 +507,6 @@ MAKE_CTOR(CreateNewTreeBoxObject,       nsIBoxObject,           NS_NewTreeBoxObj
 MAKE_CTOR(CreateNewContainerBoxObject,  nsIBoxObject,           NS_NewContainerBoxObject)
 #endif // MOZ_XUL
 
-#ifndef MOZ_NO_INSPECTOR_APIS
 #ifdef MOZ_XUL
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDOMView)
 #endif
@@ -507,7 +514,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(inDeepTreeWalker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inFlasher)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inCSSValueSearch)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDOMUtils)
-#endif
 
 MAKE_CTOR(CreateNameSpaceManager,         nsINameSpaceManager,         NS_GetNameSpaceManager)
 MAKE_CTOR(CreateEventListenerManager,     nsIEventListenerManager,     NS_NewEventListenerManager)
@@ -563,6 +569,8 @@ MAKE_CTOR(CreateXMLContentBuilder,        nsIXMLContentBuilder,        NS_NewXML
 MAKE_CTOR(CreateContentDLF,               nsIDocumentLoaderFactory,    NS_NewContentDocumentLoaderFactory)
 MAKE_CTOR(CreateEventListenerService,     nsIEventListenerService,     NS_NewEventListenerService)
 MAKE_CTOR(CreateGlobalMessageManager,     nsIChromeFrameMessageManager,NS_NewGlobalMessageManager)
+MAKE_CTOR(CreateParentMessageManager,     nsIFrameMessageManager,NS_NewParentProcessMessageManager)
+MAKE_CTOR(CreateChildMessageManager,     nsISyncMessageSender,NS_NewChildProcessMessageManager)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWyciwygProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDataDocumentContentPolicy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsNoDataProtocolContentPolicy)
@@ -616,7 +624,8 @@ CreateHTMLImgElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLImageElement is special cased to handle a null nodeinfo
-  nsIContent* inst = NS_NewHTMLImageElement(nsnull);
+  nsCOMPtr<nsINodeInfo> ni;
+  nsIContent* inst = NS_NewHTMLImageElement(ni.forget());
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   if (inst) {
     NS_ADDREF(inst);
@@ -633,7 +642,8 @@ CreateHTMLOptionElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLOptionElement is special cased to handle a null nodeinfo
-  nsIContent* inst = NS_NewHTMLOptionElement(nsnull);
+  nsCOMPtr<nsINodeInfo> ni;
+  nsIContent* inst = NS_NewHTMLOptionElement(ni.forget());
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   if (inst) {
     NS_ADDREF(inst);
@@ -651,7 +661,8 @@ CreateHTMLAudioElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
   // Note! NS_NewHTMLAudioElement is special cased to handle a null nodeinfo
-  nsCOMPtr<nsIContent> inst(NS_NewHTMLAudioElement(nsnull));
+  nsCOMPtr<nsINodeInfo> ni;
+  nsCOMPtr<nsIContent> inst(NS_NewHTMLAudioElement(ni.forget()));
   return inst ? inst->QueryInterface(aIID, aResult) : NS_ERROR_OUT_OF_MEMORY;
 }
 #endif
@@ -749,7 +760,6 @@ NS_DEFINE_NAMED_CID(NS_CONTAINERBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_SCROLLBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_TREEBOXOBJECT_CID);
 #endif // MOZ_XUL
-#ifndef MOZ_NO_INSPECTOR_APIS
 #ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(IN_DOMVIEW_CID);
 #endif
@@ -757,7 +767,6 @@ NS_DEFINE_NAMED_CID(IN_DEEPTREEWALKER_CID);
 NS_DEFINE_NAMED_CID(IN_FLASHER_CID);
 NS_DEFINE_NAMED_CID(IN_CSSVALUESEARCH_CID);
 NS_DEFINE_NAMED_CID(IN_DOMUTILS_CID);
-#endif // MOZ_NO_INSPECTOR_APIS
 NS_DEFINE_NAMED_CID(NS_NAMESPACEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTLISTENERMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_DOMEVENTGROUP_CID);
@@ -849,6 +858,7 @@ NS_DEFINE_NAMED_CID(NS_DOMSTORAGE2_CID);
 NS_DEFINE_NAMED_CID(NS_DOMSTORAGEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_DOMJSON_CID);
 NS_DEFINE_NAMED_CID(NS_TEXTEDITOR_CID);
+NS_DEFINE_NAMED_CID(INDEXEDDB_MANAGER_CID );
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #ifdef ENABLE_EDITOR_API_LOG
 NS_DEFINE_NAMED_CID(NS_HTMLEDITOR_CID);
@@ -868,6 +878,8 @@ NS_DEFINE_NAMED_CID(NS_ICONTENTUTILS_CID);
 NS_DEFINE_NAMED_CID(CSPSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTLISTENERSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_GLOBALMESSAGEMANAGER_CID);
+NS_DEFINE_NAMED_CID(NS_PARENTPROCESSMESSAGEMANAGER_CID);
+NS_DEFINE_NAMED_CID(NS_CHILDPROCESSMESSAGEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NSCHANNELPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_SCRIPTSECURITYMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_PRINCIPAL_CID);
@@ -899,7 +911,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_SCROLLBOXOBJECT_CID, false, NULL, CreateNewScrollBoxObject },
   { &kNS_TREEBOXOBJECT_CID, false, NULL, CreateNewTreeBoxObject },
 #endif // MOZ_XUL
-#ifndef MOZ_NO_INSPECTOR_APIS
 #ifdef MOZ_XUL
   { &kIN_DOMVIEW_CID, false, NULL, inDOMViewConstructor },
 #endif
@@ -907,7 +918,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kIN_FLASHER_CID, false, NULL, inFlasherConstructor },
   { &kIN_CSSVALUESEARCH_CID, false, NULL, inCSSValueSearchConstructor },
   { &kIN_DOMUTILS_CID, false, NULL, inDOMUtilsConstructor },
-#endif // MOZ_NO_INSPECTOR_APIS
   { &kNS_NAMESPACEMANAGER_CID, false, NULL, CreateNameSpaceManager },
   { &kNS_EVENTLISTENERMANAGER_CID, false, NULL, CreateEventListenerManager },
   { &kNS_DOMEVENTGROUP_CID, false, NULL, CreateDOMEventGroup },
@@ -999,6 +1009,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_DOMSTORAGEMANAGER_CID, false, NULL, nsDOMStorageManagerConstructor },
   { &kNS_DOMJSON_CID, false, NULL, NS_NewJSON },
   { &kNS_TEXTEDITOR_CID, false, NULL, nsPlaintextEditorConstructor },
+  { &kINDEXEDDB_MANAGER_CID, false, NULL, IndexedDatabaseManagerConstructor },
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #ifdef ENABLE_EDITOR_API_LOG
   { &kNS_HTMLEDITOR_CID, false, NULL, nsHTMLEditorLogConstructor },
@@ -1018,6 +1029,8 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kCSPSERVICE_CID, false, NULL, CSPServiceConstructor },
   { &kNS_EVENTLISTENERSERVICE_CID, false, NULL, CreateEventListenerService },
   { &kNS_GLOBALMESSAGEMANAGER_CID, false, NULL, CreateGlobalMessageManager },
+  { &kNS_PARENTPROCESSMESSAGEMANAGER_CID, false, NULL, CreateParentMessageManager },
+  { &kNS_CHILDPROCESSMESSAGEMANAGER_CID, false, NULL, CreateChildMessageManager },
   { &kNSCHANNELPOLICY_CID, false, NULL, nsChannelPolicyConstructor },
   { &kNS_SCRIPTSECURITYMANAGER_CID, false, NULL, Construct_nsIScriptSecurityManager },
   { &kNS_PRINCIPAL_CID, false, NULL, nsPrincipalConstructor },
@@ -1044,7 +1057,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/layout/xul-boxobject-scrollbox;1", &kNS_SCROLLBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-tree;1", &kNS_TREEBOXOBJECT_CID },
 #endif // MOZ_XUL
-#ifndef MOZ_NO_INSPECTOR_APIS
 #ifdef MOZ_XUL
   { "@mozilla.org/inspector/dom-view;1", &kIN_DOMVIEW_CID },
 #endif
@@ -1052,7 +1064,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/inspector/flasher;1", &kIN_FLASHER_CID },
   { "@mozilla.org/inspector/search;1?type=cssvalue", &kIN_CSSVALUESEARCH_CID },
   { "@mozilla.org/inspector/dom-utils;1", &kIN_DOMUTILS_CID },
-#endif // MOZ_NO_INSPECTOR_APIS
   { NS_NAMESPACEMANAGER_CONTRACTID, &kNS_NAMESPACEMANAGER_CID },
   { "@mozilla.org/xml/xml-document;1", &kNS_XMLDOCUMENT_CID },
 #ifdef MOZ_SVG
@@ -1143,6 +1154,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/dom/storagemanager;1", &kNS_DOMSTORAGEMANAGER_CID },
   { "@mozilla.org/dom/json;1", &kNS_DOMJSON_CID },
   { "@mozilla.org/editor/texteditor;1", &kNS_TEXTEDITOR_CID },
+  { INDEXEDDB_MANAGER_CONTRACTID, &kINDEXEDDB_MANAGER_CID },
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #ifdef ENABLE_EDITOR_API_LOG
   { "@mozilla.org/editor/htmleditor;1", &kNS_HTMLEDITOR_CID },
@@ -1162,6 +1174,8 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { CSPSERVICE_CONTRACTID, &kCSPSERVICE_CID },
   { NS_EVENTLISTENERSERVICE_CONTRACTID, &kNS_EVENTLISTENERSERVICE_CID },
   { NS_GLOBALMESSAGEMANAGER_CONTRACTID, &kNS_GLOBALMESSAGEMANAGER_CID },
+  { NS_PARENTPROCESSMESSAGEMANAGER_CONTRACTID, &kNS_PARENTPROCESSMESSAGEMANAGER_CID },
+  { NS_CHILDPROCESSMESSAGEMANAGER_CONTRACTID, &kNS_CHILDPROCESSMESSAGEMANAGER_CID },
   { NSCHANNELPOLICY_CONTRACTID, &kNSCHANNELPOLICY_CID },
   { NS_SCRIPTSECURITYMANAGER_CONTRACTID, &kNS_SCRIPTSECURITYMANAGER_CID },
   { NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID, &kNS_SCRIPTSECURITYMANAGER_CID },

@@ -28,9 +28,7 @@ function run_test() {
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(olda1) {
     do_check_eq(olda1, null);
 
-    var dest = profileDir.clone();
-    dest.append("addon1@tests.mozilla.org");
-    writeInstallRDFToDir(addon1, dest);
+    writeInstallRDFForExtension(addon1, profileDir);
 
     restartManager();
 
@@ -60,6 +58,8 @@ function run_test_1() {
   });
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     do_check_eq(a1.pendingOperations, 0);
+    do_check_neq(a1.operationsRequiringRestart &
+                 AddonManager.OP_NEEDS_RESTART_UNINSTALL, 0);
     a1.uninstall();
     do_check_true(hasFlag(a1.pendingOperations, AddonManager.PENDING_UNINSTALL));
     do_check_in_crash_annotation(addon1.id, addon1.version);
@@ -84,9 +84,9 @@ function check_test_1() {
     do_check_not_in_crash_annotation(addon1.id, addon1.version);
 
     var dest = profileDir.clone();
-    dest.append("addon1@tests.mozilla.org");
+    dest.append(do_get_expected_addon_name("addon1@tests.mozilla.org"));
     do_check_false(dest.exists());
-    writeInstallRDFToDir(addon1, dest);
+    writeInstallRDFForExtension(addon1, profileDir);
     restartManager();
 
     run_test_2();

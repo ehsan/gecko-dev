@@ -73,23 +73,20 @@
   6. 'member' gives the name of the member variable in the nsRuleData
   struct.
 
-  7. 'type' gives the |nsCSSType| of the data in the nsRuleData struct
-  and in the nsCSSDeclaration backend.
-
-  8. 'kwtable', which is either nsnull or the name of the appropriate
+  7. 'kwtable', which is either nsnull or the name of the appropriate
   keyword table member of class nsCSSProps, for use in
   nsCSSProps::LookupPropertyValue.
 
-  9. 'stylestruct_' [used only for CSS_PROP, not CSS_PROP_*] gives the
+  8. 'stylestruct_' [used only for CSS_PROP, not CSS_PROP_*] gives the
   name of the style struct.  Can be used to make nsStyle##stylestruct_
   and eStyleStruct_##stylestruct_
 
-  10. 'stylestructoffset_' [not used for CSS_PROP_BACKENDONLY] gives the
+  9. 'stylestructoffset_' [not used for CSS_PROP_BACKENDONLY] gives the
   result of offsetof(nsStyle*, member).  Ignored (and generally
   CSS_PROP_NO_OFFSET, or -1) for properties whose animtype_ is
   eStyleAnimType_None.
 
-  11. 'animtype_' [not used for CSS_PROP_BACKENDONLY] gives the
+  10. 'animtype_' [not used for CSS_PROP_BACKENDONLY] gives the
   animation type (see nsStyleAnimType) of this property.
 
   CSS_PROP_SHORTHAND only takes 1-4.
@@ -118,35 +115,35 @@
 #ifdef CSS_PROP
 
 #define USED_CSS_PROP
-#define CSS_PROP_FONT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Font, stylestructoffset_, animtype_)
-#define CSS_PROP_COLOR(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Color, stylestructoffset_, animtype_)
-#define CSS_PROP_BACKGROUND(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Background, stylestructoffset_, animtype_)
-#define CSS_PROP_LIST(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, List, stylestructoffset_, animtype_)
-#define CSS_PROP_POSITION(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Position, stylestructoffset_, animtype_)
-#define CSS_PROP_TEXT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Text, stylestructoffset_, animtype_)
-#define CSS_PROP_TEXTRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, TextReset, stylestructoffset_, animtype_)
-#define CSS_PROP_DISPLAY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Display, stylestructoffset_, animtype_)
-#define CSS_PROP_VISIBILITY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Visibility, stylestructoffset_, animtype_)
-#define CSS_PROP_CONTENT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Content, stylestructoffset_, animtype_)
-#define CSS_PROP_QUOTES(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Quotes, stylestructoffset_, animtype_)
-#define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, UserInterface, stylestructoffset_, animtype_)
-#define CSS_PROP_UIRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, UIReset, stylestructoffset_, animtype_)
-#define CSS_PROP_TABLE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Table, stylestructoffset_, animtype_)
-#define CSS_PROP_TABLEBORDER(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, TableBorder, stylestructoffset_, animtype_)
-#define CSS_PROP_MARGIN(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Margin, stylestructoffset_, animtype_)
-#define CSS_PROP_PADDING(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Padding, stylestructoffset_, animtype_)
-#define CSS_PROP_BORDER(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Border, stylestructoffset_, animtype_)
-#define CSS_PROP_OUTLINE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Outline, stylestructoffset_, animtype_)
-#define CSS_PROP_XUL(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, XUL, stylestructoffset_, animtype_)
-#define CSS_PROP_COLUMN(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, Column, stylestructoffset_, animtype_)
-#define CSS_PROP_SVG(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, SVG, stylestructoffset_, animtype_)
-#define CSS_PROP_SVGRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, SVGReset, stylestructoffset_, animtype_)
+#define CSS_PROP_FONT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Font, stylestructoffset_, animtype_)
+#define CSS_PROP_COLOR(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Color, stylestructoffset_, animtype_)
+#define CSS_PROP_BACKGROUND(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Background, stylestructoffset_, animtype_)
+#define CSS_PROP_LIST(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, List, stylestructoffset_, animtype_)
+#define CSS_PROP_POSITION(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Position, stylestructoffset_, animtype_)
+#define CSS_PROP_TEXT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Text, stylestructoffset_, animtype_)
+#define CSS_PROP_TEXTRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, TextReset, stylestructoffset_, animtype_)
+#define CSS_PROP_DISPLAY(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Display, stylestructoffset_, animtype_)
+#define CSS_PROP_VISIBILITY(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Visibility, stylestructoffset_, animtype_)
+#define CSS_PROP_CONTENT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Content, stylestructoffset_, animtype_)
+#define CSS_PROP_QUOTES(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Quotes, stylestructoffset_, animtype_)
+#define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, UserInterface, stylestructoffset_, animtype_)
+#define CSS_PROP_UIRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, UIReset, stylestructoffset_, animtype_)
+#define CSS_PROP_TABLE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Table, stylestructoffset_, animtype_)
+#define CSS_PROP_TABLEBORDER(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, TableBorder, stylestructoffset_, animtype_)
+#define CSS_PROP_MARGIN(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Margin, stylestructoffset_, animtype_)
+#define CSS_PROP_PADDING(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Padding, stylestructoffset_, animtype_)
+#define CSS_PROP_BORDER(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Border, stylestructoffset_, animtype_)
+#define CSS_PROP_OUTLINE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Outline, stylestructoffset_, animtype_)
+#define CSS_PROP_XUL(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, XUL, stylestructoffset_, animtype_)
+#define CSS_PROP_COLUMN(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, Column, stylestructoffset_, animtype_)
+#define CSS_PROP_SVG(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, SVG, stylestructoffset_, animtype_)
+#define CSS_PROP_SVGRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, SVGReset, stylestructoffset_, animtype_)
 
 // For properties that are stored in the CSS backend but are not
 // computed.  An includer may define this in addition to CSS_PROP, but
 // otherwise we treat it as the same.
 #ifndef CSS_PROP_BACKENDONLY
-#define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, BackendOnly, CSS_PROP_NO_OFFSET, eStyleAnimType_None)
+#define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, kwtable_) CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, kwtable_, BackendOnly, CSS_PROP_NO_OFFSET, eStyleAnimType_None)
 #define DEFINED_CSS_PROP_BACKENDONLY
 #endif
 
@@ -157,100 +154,100 @@
 // ignored.
 
 #ifndef CSS_PROP_FONT
-#define CSS_PROP_FONT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_FONT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_FONT
 #endif
 #ifndef CSS_PROP_COLOR
-#define CSS_PROP_COLOR(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_COLOR(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_COLOR
 #endif
 #ifndef CSS_PROP_BACKGROUND
-#define CSS_PROP_BACKGROUND(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_BACKGROUND(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_BACKGROUND
 #endif
 #ifndef CSS_PROP_LIST
-#define CSS_PROP_LIST(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_LIST(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_LIST
 #endif
 #ifndef CSS_PROP_POSITION
-#define CSS_PROP_POSITION(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_POSITION(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_POSITION
 #endif
 #ifndef CSS_PROP_TEXT
-#define CSS_PROP_TEXT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_TEXT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_TEXT
 #endif
 #ifndef CSS_PROP_TEXTRESET
-#define CSS_PROP_TEXTRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_TEXTRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_TEXTRESET
 #endif
 #ifndef CSS_PROP_DISPLAY
-#define CSS_PROP_DISPLAY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_DISPLAY(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_DISPLAY
 #endif
 #ifndef CSS_PROP_VISIBILITY
-#define CSS_PROP_VISIBILITY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_VISIBILITY(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_VISIBILITY
 #endif
 #ifndef CSS_PROP_CONTENT
-#define CSS_PROP_CONTENT(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_CONTENT(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_CONTENT
 #endif
 #ifndef CSS_PROP_QUOTES
-#define CSS_PROP_QUOTES(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_QUOTES(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_QUOTES
 #endif
 #ifndef CSS_PROP_USERINTERFACE
-#define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_USERINTERFACE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_USERINTERFACE
 #endif
 #ifndef CSS_PROP_UIRESET
-#define CSS_PROP_UIRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_UIRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_UIRESET
 #endif
 #ifndef CSS_PROP_TABLE
-#define CSS_PROP_TABLE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_TABLE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_TABLE
 #endif
 #ifndef CSS_PROP_TABLEBORDER
-#define CSS_PROP_TABLEBORDER(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_TABLEBORDER(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_TABLEBORDER
 #endif
 #ifndef CSS_PROP_MARGIN
-#define CSS_PROP_MARGIN(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_MARGIN(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_MARGIN
 #endif
 #ifndef CSS_PROP_PADDING
-#define CSS_PROP_PADDING(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_PADDING(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_PADDING
 #endif
 #ifndef CSS_PROP_BORDER
-#define CSS_PROP_BORDER(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_BORDER(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_BORDER
 #endif
 #ifndef CSS_PROP_OUTLINE
-#define CSS_PROP_OUTLINE(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_OUTLINE(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_OUTLINE
 #endif
 #ifndef CSS_PROP_XUL
-#define CSS_PROP_XUL(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_XUL(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_XUL
 #endif
 #ifndef CSS_PROP_COLUMN
-#define CSS_PROP_COLUMN(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_COLUMN(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_COLUMN
 #endif
 #ifndef CSS_PROP_SVG
-#define CSS_PROP_SVG(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_SVG(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_SVG
 #endif
 #ifndef CSS_PROP_SVGRESET
-#define CSS_PROP_SVGRESET(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_, stylestructoffset_, animtype_) /* nothing */
+#define CSS_PROP_SVGRESET(name_, id_, method_, flags_, datastruct_, member_, kwtable_, stylestructoffset_, animtype_) /* nothing */
 #define DEFINED_CSS_PROP_SVGRESET
 #endif
 
 #ifndef CSS_PROP_BACKENDONLY
-#define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) /* nothing */
+#define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, kwtable_) /* nothing */
 #define DEFINED_CSS_PROP_BACKENDONLY
 #endif
 
@@ -283,7 +280,7 @@
 // appropriate), 'line-height', 'float', 'vertical-align' (only if
 // 'float' is 'none'), margin properties, padding properties, border
 // properties, 'color', and background properties.  We also allow
-// 'text-shadow' (see above) and '-moz-box-shadow' (which is like the
+// 'text-shadow' (see above) and 'box-shadow' (which is like the
 // border properties).
 
 // We include '-moz-background-inline-policy' (css3-background's
@@ -297,59 +294,9 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mAppearance,
-    eCSSType_Value,
     kAppearanceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_SHORTHAND(
-    -moz-border-radius,
-    _moz_border_radius,
-    MozBorderRadius,
-    0)
-CSS_PROP_BORDER(
-    -moz-border-radius-topleft,
-    _moz_border_radius_topLeft,
-    MozBorderRadiusTopleft,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    Margin,
-    mBorderRadius.mTopLeft,
-    eCSSType_ValuePair,
-    nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_TopLeft)
-CSS_PROP_BORDER(
-    -moz-border-radius-topright,
-    _moz_border_radius_topRight,
-    MozBorderRadiusTopright,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    Margin,
-    mBorderRadius.mTopRight,
-    eCSSType_ValuePair,
-    nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_TopRight)
-CSS_PROP_BORDER(
-    -moz-border-radius-bottomright,
-    _moz_border_radius_bottomRight,
-    MozBorderRadiusBottomright,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    Margin,
-    mBorderRadius.mBottomRight,
-    eCSSType_ValuePair,
-    nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_BottomRight)
-CSS_PROP_BORDER(
-    -moz-border-radius-bottomleft,
-    _moz_border_radius_bottomLeft,
-    MozBorderRadiusBottomleft,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
-    Margin,
-    mBorderRadius.mBottomLeft,
-    eCSSType_ValuePair,
-    nsnull,
-    offsetof(nsStyleBorder, mBorderRadius),
-    eStyleAnimType_Corner_BottomLeft)
 CSS_PROP_SHORTHAND(
     -moz-outline-radius,
     _moz_outline_radius,
@@ -359,10 +306,9 @@ CSS_PROP_OUTLINE(
     -moz-outline-radius-topleft,
     _moz_outline_radius_topLeft,
     MozOutlineRadiusTopleft,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Margin,
     mOutlineRadius.mTopLeft,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleOutline, mOutlineRadius),
     eStyleAnimType_Corner_TopLeft)
@@ -370,10 +316,9 @@ CSS_PROP_OUTLINE(
     -moz-outline-radius-topright,
     _moz_outline_radius_topRight,
     MozOutlineRadiusTopright,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Margin,
     mOutlineRadius.mTopRight,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleOutline, mOutlineRadius),
     eStyleAnimType_Corner_TopRight)
@@ -381,10 +326,9 @@ CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomright,
     _moz_outline_radius_bottomRight,
     MozOutlineRadiusBottomright,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Margin,
     mOutlineRadius.mBottomRight,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleOutline, mOutlineRadius),
     eStyleAnimType_Corner_BottomRight)
@@ -392,10 +336,9 @@ CSS_PROP_OUTLINE(
     -moz-outline-radius-bottomleft,
     _moz_outline_radius_bottomLeft,
     MozOutlineRadiusBottomleft,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Margin,
     mOutlineRadius.mBottomLeft,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleOutline, mOutlineRadius),
     eStyleAnimType_Corner_BottomLeft)
@@ -406,7 +349,6 @@ CSS_PROP_TEXT(
     0,
     Text,
     mTabSize,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleText, mTabSize),
     eStyleAnimType_None)
@@ -418,7 +360,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mSystemFont,
-    eCSSType_Value,
     kFontKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -430,7 +371,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mAzimuth,
-    eCSSType_Value,
     kAzimuthKTable)
 CSS_PROP_SHORTHAND(
     background,
@@ -445,7 +385,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackAttachment,
-    eCSSType_ValueList,
     kBackgroundAttachmentKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -457,7 +396,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackClip,
-    eCSSType_ValueList,
     kBackgroundOriginKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -469,7 +407,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Color,
     mBackColor,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleBackground, mBackgroundColor),
     eStyleAnimType_Color)
@@ -483,7 +420,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_START_IMAGE_LOADS,
     Color,
     mBackImage,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -494,7 +430,6 @@ CSS_PROP_BACKGROUND(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Color,
     mBackInlinePolicy,
-    eCSSType_Value,
     kBackgroundInlinePolicyKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -506,7 +441,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackOrigin,
-    eCSSType_ValueList,
     kBackgroundOriginKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -515,10 +449,10 @@ CSS_PROP_BACKGROUND(
     background_position,
     BackgroundPosition,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
+        CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
+        CSS_PROPERTY_STORES_CALC,
     Color,
     mBackPosition,
-    eCSSType_ValuePairList,
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -530,7 +464,6 @@ CSS_PROP_BACKGROUND(
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackRepeat,
-    eCSSType_ValueList,
     kBackgroundRepeatKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -539,10 +472,10 @@ CSS_PROP_BACKGROUND(
     background_size,
     BackgroundSize,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
+        CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
+        CSS_PROPERTY_STORES_CALC,
     Color,
     mBackSize,
-    eCSSType_ValuePairList,
     kBackgroundSizeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -553,7 +486,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mBinding,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -575,7 +507,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mBottom,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -587,7 +518,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColors.mBottom,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -598,7 +528,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mBottom,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)  // on/off will need reflow
@@ -609,7 +538,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mBottom,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -620,7 +548,6 @@ CSS_PROP_TABLEBORDER(
     0,
     Table,
     mBorderCollapse,
-    eCSSType_Value,
     kBorderCollapseKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -647,7 +574,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderEndColor,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -665,7 +591,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderEndStyle,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -683,7 +608,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderEndWidth,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -697,7 +621,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
     Margin,
     mBorderImage,
-    eCSSType_Value,
     kBorderImageKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -721,7 +644,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderColor.mLeft,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -734,7 +656,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderLeftColorLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -747,7 +668,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderLeftColorRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -760,7 +680,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColors.mLeft,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -778,7 +697,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderStyle.mLeft,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -790,7 +708,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderLeftStyleLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -802,7 +719,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderLeftStyleRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -821,7 +737,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderWidth.mLeft,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -833,7 +748,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderLeftWidthLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -845,7 +759,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderLeftWidthRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -870,7 +783,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderColor.mRight,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -883,7 +795,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderRightColorLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -896,7 +807,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderRightColorRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -909,7 +819,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColors.mRight,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -927,7 +836,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderStyle.mRight,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -939,7 +847,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderRightStyleLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -951,7 +858,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderRightStyleRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -970,7 +876,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_REPORT_OTHER_NAME,
     Margin,
     mBorderWidth.mRight,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -982,7 +887,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderRightWidthLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -994,7 +898,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mBorderRightWidthRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1006,7 +909,6 @@ CSS_PROP_TABLEBORDER(
     0,
     Table,
     mBorderSpacing,
-    eCSSType_ValuePair,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom) // XXX bug 3935
@@ -1028,7 +930,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStartColor,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1046,7 +947,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStartStyle,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1064,7 +964,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStartWidth,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1087,7 +986,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mTop,
-    eCSSType_Value,
     kBorderColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -1099,7 +997,6 @@ CSS_PROP_BORDER(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColors.mTop,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1110,7 +1007,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mTop,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)  // on/off will need reflow
@@ -1121,7 +1017,6 @@ CSS_PROP_BORDER(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mTop,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -1130,27 +1025,74 @@ CSS_PROP_SHORTHAND(
     border_width,
     BorderWidth,
     0)
+CSS_PROP_SHORTHAND(
+    border-radius,
+    border_radius,
+    BorderRadius,
+    0)
+CSS_PROP_BORDER(
+    border-top-left-radius,
+    border_top_left_radius,
+    BorderTopLeftRadius,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
+    Margin,
+    mBorderRadius.mTopLeft,
+    nsnull,
+    offsetof(nsStyleBorder, mBorderRadius),
+    eStyleAnimType_Corner_TopLeft)
+CSS_PROP_BORDER(
+    border-top-right-radius,
+    border_top_right_radius,
+    BorderTopRightRadius,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
+    Margin,
+    mBorderRadius.mTopRight,
+    nsnull,
+    offsetof(nsStyleBorder, mBorderRadius),
+    eStyleAnimType_Corner_TopRight)
+CSS_PROP_BORDER(
+    border-bottom-right-radius,
+    border_bottom_right_radius,
+    BorderBottomRightRadius,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
+    Margin,
+    mBorderRadius.mBottomRight,
+    nsnull,
+    offsetof(nsStyleBorder, mBorderRadius),
+    eStyleAnimType_Corner_BottomRight)
+CSS_PROP_BORDER(
+    border-bottom-left-radius,
+    border_bottom_left_radius,
+    BorderBottomLeftRadius,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
+    Margin,
+    mBorderRadius.mBottomLeft,
+    nsnull,
+    offsetof(nsStyleBorder, mBorderRadius),
+    eStyleAnimType_Corner_BottomLeft)
 CSS_PROP_POSITION(
     bottom,
     bottom,
     Bottom,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mOffset.mBottom,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mOffset),
     eStyleAnimType_Sides_Bottom)
 CSS_PROP_BORDER(
-    -moz-box-shadow,
+    box-shadow,
     box_shadow,
-    MozBoxShadow,
+    BoxShadow,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBoxShadow,
-    eCSSType_ValueList,
     kBoxShadowTypeKTable,
     offsetof(nsStyleBorder, mBoxShadow),
     eStyleAnimType_Shadow)
@@ -1161,7 +1103,6 @@ CSS_PROP_POSITION(
     0,
     Position,
     mBoxSizing,
-    eCSSType_Value,
     kBoxSizingKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -1172,7 +1113,6 @@ CSS_PROP_TABLEBORDER(
     0,
     Table,
     mCaptionSide,
-    eCSSType_Value,
     kCaptionSideKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1183,7 +1123,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mClear,
-    eCSSType_Value,
     kClearKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1194,7 +1133,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mClip,
-    eCSSType_Rect,
     nsnull,
     offsetof(nsStyleDisplay, mClip),
     eStyleAnimType_Custom)
@@ -1206,7 +1144,6 @@ CSS_PROP_COLOR(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Color,
     mColor,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleColor, mColor),
     eStyleAnimType_Color)
@@ -1217,7 +1154,6 @@ CSS_PROP_COLUMN(
     0,
     Column,
     mColumnCount,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleColumn, mColumnCount),
     eStyleAnimType_Custom)
@@ -1228,7 +1164,6 @@ CSS_PROP_COLUMN(
     0,
     Column,
     mColumnWidth,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleColumn, mColumnWidth),
     eStyleAnimType_Coord)
@@ -1239,7 +1174,6 @@ CSS_PROP_COLUMN(
     0,
     Column,
     mColumnGap,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleColumn, mColumnGap),
     eStyleAnimType_Coord)
@@ -1255,7 +1189,6 @@ CSS_PROP_COLUMN(
     CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Column,
     mColumnRuleColor,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -1266,7 +1199,6 @@ CSS_PROP_COLUMN(
     0,
     Column,
     mColumnRuleStyle,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1277,7 +1209,6 @@ CSS_PROP_COLUMN(
     0,
     Column,
     mColumnRuleWidth,
-    eCSSType_Value,
     kBorderWidthKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -1288,7 +1219,6 @@ CSS_PROP_CONTENT(
     CSS_PROPERTY_START_IMAGE_LOADS,
     Content,
     mContent,
-    eCSSType_ValueList,
     kContentKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1299,7 +1229,6 @@ CSS_PROP_CONTENT(
     0,
     Content,
     mCounterIncrement,
-    eCSSType_ValuePairList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 137285
@@ -1310,7 +1239,6 @@ CSS_PROP_CONTENT(
     0,
     Content,
     mCounterReset,
-    eCSSType_ValuePairList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 137285
@@ -1326,7 +1254,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mCueAfter,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_BACKENDONLY(
     cue-before,
@@ -1335,7 +1262,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mCueBefore,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_USERINTERFACE(
     cursor,
@@ -1346,7 +1272,6 @@ CSS_PROP_USERINTERFACE(
         CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
     UserInterface,
     mCursor,
-    eCSSType_ValueList,
     kCursorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1357,7 +1282,6 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mDirection,
-    eCSSType_Value,
     kDirectionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1368,7 +1292,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mDisplay,
-    eCSSType_Value,
     kDisplayKTable,
     offsetof(nsStyleDisplay, mDisplay),
     eStyleAnimType_EnumU8)
@@ -1379,7 +1302,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mElevation,
-    eCSSType_Value,
     kElevationKTable)
 CSS_PROP_TABLEBORDER(
     empty-cells,
@@ -1388,7 +1310,6 @@ CSS_PROP_TABLEBORDER(
     0,
     Table,
     mEmptyCells,
-    eCSSType_Value,
     kEmptyCellsKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1399,7 +1320,6 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Display,
     mFloat,
-    eCSSType_Value,
     kFloatKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1410,7 +1330,6 @@ CSS_PROP_BORDER(
     0,
     Margin,
     mFloatEdge,
-    eCSSType_Value,
     kFloatEdgeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -1426,7 +1345,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mFamily,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1437,7 +1355,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mFontFeatureSettings,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1448,7 +1365,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mFontLanguageOverride,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1459,7 +1375,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mSize,
-    eCSSType_Value,
     kFontSizeKTable,
     // Note that mSize is the correct place for *reading* the computed value,
     // but setting it requires setting mFont.size as well.
@@ -1472,7 +1387,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mSizeAdjust,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleFont, mFont.sizeAdjust),
     eStyleAnimType_float)
@@ -1483,7 +1397,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mStretch,
-    eCSSType_Value,
     kFontStretchKTable,
     offsetof(nsStyleFont, mFont.stretch),
     eStyleAnimType_Custom)
@@ -1494,7 +1407,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mStyle,
-    eCSSType_Value,
     kFontStyleKTable,
     offsetof(nsStyleFont, mFont.style),
     eStyleAnimType_EnumU8)
@@ -1505,7 +1417,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mVariant,
-    eCSSType_Value,
     kFontVariantKTable,
     offsetof(nsStyleFont, mFont.variant),
     eStyleAnimType_EnumU8)
@@ -1516,7 +1427,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Font,
     mWeight,
-    eCSSType_Value,
     kFontWeightKTable,
     offsetof(nsStyleFont, mFont.weight),
     eStyleAnimType_Custom)
@@ -1527,7 +1437,6 @@ CSS_PROP_UIRESET(
     0,
     UserInterface,
     mForceBrokenImageIcon,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // bug 58646
@@ -1535,10 +1444,9 @@ CSS_PROP_POSITION(
     height,
     height,
     Height,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mHeight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mHeight),
     eStyleAnimType_Coord)
@@ -1549,7 +1457,6 @@ CSS_PROP_LIST(
     0,
     List,
     mImageRegion,
-    eCSSType_Rect,
     nsnull,
     offsetof(nsStyleList, mImageRegion),
     eStyleAnimType_Custom)
@@ -1560,7 +1467,6 @@ CSS_PROP_UIRESET(
     0,
     UserInterface,
     mIMEMode,
-    eCSSType_Value,
     kIMEModeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1568,10 +1474,9 @@ CSS_PROP_POSITION(
     left,
     left,
     Left,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mOffset.mLeft,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mOffset),
     eStyleAnimType_Sides_Left)
@@ -1582,7 +1487,6 @@ CSS_PROP_TEXT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Text,
     mLetterSpacing,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleText, mLetterSpacing),
     eStyleAnimType_Coord)
@@ -1593,7 +1497,6 @@ CSS_PROP_TEXT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Text,
     mLineHeight,
-    eCSSType_Value,
     kLineHeightKTable,
     offsetof(nsStyleText, mLineHeight),
     eStyleAnimType_Coord)
@@ -1609,7 +1512,6 @@ CSS_PROP_LIST(
     CSS_PROPERTY_START_IMAGE_LOADS,
     List,
     mImage,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1620,7 +1522,6 @@ CSS_PROP_LIST(
     0,
     List,
     mPosition,
-    eCSSType_Value,
     kListStylePositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1631,7 +1532,6 @@ CSS_PROP_LIST(
     0,
     List,
     mType,
-    eCSSType_Value,
     kListStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1644,10 +1544,10 @@ CSS_PROP_MARGIN(
     margin-bottom,
     margin_bottom,
     MarginBottom,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMargin.mBottom,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleMargin, mMargin),
     eStyleAnimType_Sides_Bottom)
@@ -1661,10 +1561,10 @@ CSS_PROP_MARGIN(
     margin-end-value,
     margin_end_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMarginEnd,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1680,10 +1580,10 @@ CSS_PROP_MARGIN(
     margin_left_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_REPORT_OTHER_NAME |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMargin.mLeft,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleMargin, mMargin),
     eStyleAnimType_Sides_Left)
@@ -1695,7 +1595,6 @@ CSS_PROP_MARGIN(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mMarginLeftLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1707,7 +1606,6 @@ CSS_PROP_MARGIN(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mMarginLeftRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1723,10 +1621,10 @@ CSS_PROP_MARGIN(
     margin_right_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_REPORT_OTHER_NAME |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMargin.mRight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleMargin, mMargin),
     eStyleAnimType_Sides_Right)
@@ -1738,7 +1636,6 @@ CSS_PROP_MARGIN(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mMarginRightLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1750,7 +1647,6 @@ CSS_PROP_MARGIN(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mMarginRightRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1765,10 +1661,10 @@ CSS_PROP_MARGIN(
     margin-start-value,
     margin_start_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMarginStart,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1777,10 +1673,10 @@ CSS_PROP_MARGIN(
     margin-top,
     margin_top,
     MarginTop,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mMargin.mTop,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleMargin, mMargin),
     eStyleAnimType_Sides_Top)
@@ -1791,7 +1687,6 @@ CSS_PROP_CONTENT(
     0,
     Content,
     mMarkerOffset,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleContent, mMarkerOffset),
     eStyleAnimType_Coord)
@@ -1802,16 +1697,14 @@ CSS_PROP_BACKENDONLY(
     0,
     Page,
     mMarks,
-    eCSSType_Value,
     kPageMarksKTable)
 CSS_PROP_POSITION(
     max-height,
     max_height,
     MaxHeight,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mMaxHeight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mMaxHeight),
     eStyleAnimType_Coord)
@@ -1819,10 +1712,9 @@ CSS_PROP_POSITION(
     max-width,
     max_width,
     MaxWidth,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mMaxWidth,
-    eCSSType_Value,
     kWidthKTable,
     offsetof(nsStylePosition, mMaxWidth),
     eStyleAnimType_Coord)
@@ -1830,10 +1722,9 @@ CSS_PROP_POSITION(
     min-height,
     min_height,
     MinHeight,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mMinHeight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mMinHeight),
     eStyleAnimType_Coord)
@@ -1841,10 +1732,9 @@ CSS_PROP_POSITION(
     min-width,
     min_width,
     MinWidth,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mMinWidth,
-    eCSSType_Value,
     kWidthKTable,
     offsetof(nsStylePosition, mMinWidth),
     eStyleAnimType_Coord)
@@ -1855,7 +1745,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mOpacity,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleDisplay, mOpacity),
     eStyleAnimType_float) // XXX bug 3935
@@ -1866,7 +1755,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Breaks,
     mOrphans,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_SHORTHAND(
     outline,
@@ -1880,7 +1768,6 @@ CSS_PROP_OUTLINE(
     CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mOutlineColor,
-    eCSSType_Value,
     kOutlineColorKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -1891,7 +1778,6 @@ CSS_PROP_OUTLINE(
     0,
     Margin,
     mOutlineStyle,
-    eCSSType_Value,
     kBorderStyleKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1902,7 +1788,6 @@ CSS_PROP_OUTLINE(
     0,
     Margin,
     mOutlineWidth,
-    eCSSType_Value,
     kBorderWidthKTable,
     offsetof(nsStyleOutline, mOutlineWidth),
     eStyleAnimType_Coord)
@@ -1913,7 +1798,6 @@ CSS_PROP_OUTLINE(
     0,
     Margin,
     mOutlineOffset,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleOutline, mOutlineOffset),
     eStyleAnimType_nscoord)
@@ -1929,7 +1813,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mOverflowX,
-    eCSSType_Value,
     kOverflowSubKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1940,7 +1823,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mOverflowY,
-    eCSSType_Value,
     kOverflowSubKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1953,10 +1835,10 @@ CSS_PROP_PADDING(
     padding-bottom,
     padding_bottom,
     PaddingBottom,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPadding.mBottom,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePadding, mPadding),
     eStyleAnimType_Sides_Bottom)
@@ -1970,10 +1852,10 @@ CSS_PROP_PADDING(
     padding-end-value,
     padding_end_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPaddingEnd,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -1989,10 +1871,10 @@ CSS_PROP_PADDING(
     padding_left_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_REPORT_OTHER_NAME |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPadding.mLeft,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePadding, mPadding),
     eStyleAnimType_Sides_Left)
@@ -2004,7 +1886,6 @@ CSS_PROP_PADDING(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mPaddingLeftLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2016,7 +1897,6 @@ CSS_PROP_PADDING(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mPaddingLeftRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2032,10 +1912,10 @@ CSS_PROP_PADDING(
     padding_right_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_REPORT_OTHER_NAME |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPadding.mRight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePadding, mPadding),
     eStyleAnimType_Sides_Right)
@@ -2047,7 +1927,6 @@ CSS_PROP_PADDING(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mPaddingRightLTRSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2059,7 +1938,6 @@ CSS_PROP_PADDING(
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     Margin,
     mPaddingRightRTLSource,
-    eCSSType_Value,
     kBoxPropSourceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2074,10 +1952,10 @@ CSS_PROP_PADDING(
     padding-start-value,
     padding_start_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPaddingStart,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2086,10 +1964,10 @@ CSS_PROP_PADDING(
     padding-top,
     padding_top,
     PaddingTop,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
+        CSS_PROPERTY_STORES_CALC,
     Margin,
     mPadding.mTop,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePadding, mPadding),
     eStyleAnimType_Sides_Top)
@@ -2100,7 +1978,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Breaks,
     mPage,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_DISPLAY(
     page-break-after,
@@ -2109,7 +1986,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mBreakAfter,
-    eCSSType_Value,
     kPageBreakKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // temp fix for bug 24000
@@ -2120,7 +1996,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mBreakBefore,
-    eCSSType_Value,
     kPageBreakKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // temp fix for bug 24000
@@ -2131,7 +2006,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Breaks,
     mPageBreakInside,
-    eCSSType_Value,
     kPageBreakInsideKTable)
 CSS_PROP_SHORTHAND(
     pause,
@@ -2145,7 +2019,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mPauseAfter,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_BACKENDONLY(
     pause-before,
@@ -2154,7 +2027,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mPauseBefore,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_BACKENDONLY(
     pitch,
@@ -2163,7 +2035,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mPitch,
-    eCSSType_Value,
     kPitchKTable)
 CSS_PROP_BACKENDONLY(
     pitch-range,
@@ -2172,7 +2043,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mPitchRange,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_VISIBILITY(
     pointer-events,
@@ -2181,7 +2051,6 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mPointerEvents,
-    eCSSType_Value,
     kPointerEventsKTable,
     offsetof(nsStyleVisibility, mPointerEvents),
     eStyleAnimType_EnumU8)
@@ -2192,7 +2061,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mPosition,
-    eCSSType_Value,
     kPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2203,7 +2071,6 @@ CSS_PROP_QUOTES(
     0,
     Content,
     mQuotes,
-    eCSSType_ValuePairList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2214,7 +2081,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mResize,
-    eCSSType_Value,
     kResizeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2225,16 +2091,14 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mRichness,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_POSITION(
     right,
     right,
     Right,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mOffset.mRight,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mOffset),
     eStyleAnimType_Sides_Right)
@@ -2245,7 +2109,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Page,
     mSize,
-    eCSSType_ValuePair,
     kPageSizeKTable)
 CSS_PROP_BACKENDONLY(
     speak,
@@ -2254,7 +2117,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mSpeak,
-    eCSSType_Value,
     kSpeakKTable)
 CSS_PROP_BACKENDONLY(
     speak-header,
@@ -2263,7 +2125,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mSpeakHeader,
-    eCSSType_Value,
     kSpeakHeaderKTable)
 CSS_PROP_BACKENDONLY(
     speak-numeral,
@@ -2272,7 +2133,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mSpeakNumeral,
-    eCSSType_Value,
     kSpeakNumeralKTable)
 CSS_PROP_BACKENDONLY(
     speak-punctuation,
@@ -2281,7 +2141,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mSpeakPunctuation,
-    eCSSType_Value,
     kSpeakPunctuationKTable)
 CSS_PROP_BACKENDONLY(
     speech-rate,
@@ -2290,7 +2149,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mSpeechRate,
-    eCSSType_Value,
     kSpeechRateKTable)
 CSS_PROP_BACKENDONLY(
     stress,
@@ -2299,7 +2157,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mStress,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_TABLE(
     table-layout,
@@ -2308,7 +2165,6 @@ CSS_PROP_TABLE(
     0,
     Table,
     mLayout,
-    eCSSType_Value,
     kTableLayoutKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2319,7 +2175,6 @@ CSS_PROP_TEXT(
     0,
     Text,
     mTextAlign,
-    eCSSType_Value,
     kTextAlignKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2330,7 +2185,6 @@ CSS_PROP_TEXTRESET(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Text,
     mDecoration,
-    eCSSType_Value,
     kTextDecorationKTable,
     offsetof(nsStyleTextReset, mTextDecoration),
     eStyleAnimType_EnumU8)
@@ -2338,10 +2192,9 @@ CSS_PROP_TEXT(
     text-indent,
     text_indent,
     TextIndent,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Text,
     mTextIndent,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleText, mTextIndent),
     eStyleAnimType_Coord)
@@ -2354,7 +2207,6 @@ CSS_PROP_TEXT(
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Text,
     mTextShadow,
-    eCSSType_ValueList,
     nsnull,
     offsetof(nsStyleText, mTextShadow),
     eStyleAnimType_Shadow)
@@ -2365,7 +2217,6 @@ CSS_PROP_TEXT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Text,
     mTextTransform,
-    eCSSType_Value,
     kTextTransformKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2376,7 +2227,6 @@ CSS_PROP_DISPLAY(
     0,
     Display,
     mTransform,
-    eCSSType_ValueList,
     kDisplayKTable,
     offsetof(nsStyleDisplay, mSpecifiedTransform),
     eStyleAnimType_Custom)
@@ -2384,10 +2234,9 @@ CSS_PROP_DISPLAY(
     -moz-transform-origin,
     _moz_transform_origin,
     MozTransformOrigin,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Display,
     mTransformOrigin,
-    eCSSType_ValuePair,
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
@@ -2395,10 +2244,9 @@ CSS_PROP_POSITION(
     top,
     top,
     Top,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mOffset.mTop,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mOffset),
     eStyleAnimType_Sides_Top)
@@ -2414,7 +2262,6 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
     mTransitionDelay,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2425,7 +2272,6 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
     mTransitionDuration,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2436,7 +2282,6 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
     mTransitionProperty,
-    eCSSType_ValueList /* list of CSS properties that have transitions ? */,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2447,7 +2292,6 @@ CSS_PROP_DISPLAY(
     CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Display,
     mTransitionTimingFunction,
-    eCSSType_ValueList,
     kTransitionTimingFunctionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2458,7 +2302,6 @@ CSS_PROP_TEXTRESET(
     0,
     Text,
     mUnicodeBidi,
-    eCSSType_Value,
     kUnicodeBidiKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2469,7 +2312,6 @@ CSS_PROP_USERINTERFACE(
     0,
     UserInterface,
     mUserFocus,
-    eCSSType_Value,
     kUserFocusKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2480,7 +2322,6 @@ CSS_PROP_USERINTERFACE(
     0,
     UserInterface,
     mUserInput,
-    eCSSType_Value,
     kUserInputKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX ??? // XXX bug 3935
@@ -2491,7 +2332,6 @@ CSS_PROP_USERINTERFACE(
     0,
     UserInterface,
     mUserModify,
-    eCSSType_Value,
     kUserModifyKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2502,7 +2342,6 @@ CSS_PROP_UIRESET(
     0,
     UserInterface,
     mUserSelect,
-    eCSSType_Value,
     kUserSelectKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2513,10 +2352,10 @@ CSS_PROP_TEXTRESET(
     vertical-align,
     vertical_align,
     VerticalAlign,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
+        CSS_PROPERTY_STORES_CALC,
     Text,
     mVerticalAlign,
-    eCSSType_Value,
     kVerticalAlignKTable,
     offsetof(nsStyleTextReset, mVerticalAlign),
     eStyleAnimType_Coord)
@@ -2527,7 +2366,6 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mVisibility,
-    eCSSType_Value,
     kVisibilityKTable,
     offsetof(nsStyleVisibility, mVisible),
     eStyleAnimType_EnumU8)  // reflow for collapse
@@ -2538,7 +2376,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mVoiceFamily,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_BACKENDONLY(
     volume,
@@ -2547,7 +2384,6 @@ CSS_PROP_BACKENDONLY(
     0,
     Aural,
     mVolume,
-    eCSSType_Value,
     kVolumeKTable)
 CSS_PROP_TEXT(
     white-space,
@@ -2556,7 +2392,6 @@ CSS_PROP_TEXT(
     0,
     Text,
     mWhiteSpace,
-    eCSSType_Value,
     kWhitespaceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2567,16 +2402,14 @@ CSS_PROP_BACKENDONLY(
     0,
     Breaks,
     mWidows,
-    eCSSType_Value,
     nsnull)
 CSS_PROP_POSITION(
     width,
     width,
     Width,
-    0,
+    CSS_PROPERTY_STORES_CALC,
     Position,
     mWidth,
-    eCSSType_Value,
     kWidthKTable,
     offsetof(nsStylePosition, mWidth),
     eStyleAnimType_Coord)
@@ -2587,7 +2420,6 @@ CSS_PROP_UIRESET(
     0,
     UserInterface,
     mWindowShadow,
-    eCSSType_Value,
     kWindowShadowKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2598,7 +2430,6 @@ CSS_PROP_TEXT(
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     Text,
     mWordSpacing,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleText, mWordSpacing),
     eStyleAnimType_nscoord)
@@ -2609,7 +2440,6 @@ CSS_PROP_TEXT(
     0,
     Text,
     mWordWrap,
-    eCSSType_Value,
     kWordwrapKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2620,7 +2450,6 @@ CSS_PROP_POSITION(
     0,
     Position,
     mZIndex,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStylePosition, mZIndex),
     eStyleAnimType_Coord)
@@ -2631,7 +2460,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxAlign,
-    eCSSType_Value,
     kBoxAlignKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2642,7 +2470,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxDirection,
-    eCSSType_Value,
     kBoxDirectionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2653,7 +2480,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxFlex,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleXUL, mBoxFlex),
     eStyleAnimType_float) // XXX bug 3935
@@ -2664,7 +2490,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxOrient,
-    eCSSType_Value,
     kBoxOrientKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2675,7 +2500,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxPack,
-    eCSSType_Value,
     kBoxPackKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // XXX bug 3935
@@ -2686,7 +2510,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mBoxOrdinal,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2697,7 +2520,6 @@ CSS_PROP_XUL(
     0,
     XUL,
     mStackSizing,
-    eCSSType_Value,
     kStackSizingKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2711,7 +2533,6 @@ CSS_PROP_FONT(
     0,
     Font,
     mScriptLevel,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2722,7 +2543,6 @@ CSS_PROP_FONT(
     0,
     Font,
     mScriptSizeMultiplier,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2733,7 +2553,6 @@ CSS_PROP_FONT(
     0,
     Font,
     mScriptMinSize,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2747,7 +2566,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mClipPath,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2758,7 +2576,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mClipRule,
-    eCSSType_Value,
     kFillRuleKTable,
     offsetof(nsStyleSVG, mClipRule),
     eStyleAnimType_EnumU8)
@@ -2769,7 +2586,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mColorInterpolation,
-    eCSSType_Value,
     kColorInterpolationKTable,
     offsetof(nsStyleSVG, mColorInterpolation),
     eStyleAnimType_EnumU8)
@@ -2780,7 +2596,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mColorInterpolationFilters,
-    eCSSType_Value,
     kColorInterpolationKTable,
     offsetof(nsStyleSVG, mColorInterpolationFilters),
     eStyleAnimType_EnumU8)
@@ -2791,7 +2606,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mDominantBaseline,
-    eCSSType_Value,
     kDominantBaselineKTable,
     offsetof(nsStyleSVGReset, mDominantBaseline),
     eStyleAnimType_EnumU8)
@@ -2802,7 +2616,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mFill,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleSVG, mFill),
     eStyleAnimType_PaintServer)
@@ -2813,7 +2626,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mFillOpacity,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVG, mFillOpacity),
     eStyleAnimType_float)
@@ -2824,7 +2636,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mFillRule,
-    eCSSType_Value,
     kFillRuleKTable,
     offsetof(nsStyleSVG, mFillRule),
     eStyleAnimType_EnumU8)
@@ -2835,7 +2646,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mFilter,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2846,7 +2656,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mFloodColor,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVGReset, mFloodColor),
     eStyleAnimType_Color)
@@ -2857,7 +2666,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mFloodOpacity,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVGReset, mFloodOpacity),
     eStyleAnimType_float)
@@ -2868,7 +2676,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mImageRendering,
-    eCSSType_Value,
     kImageRenderingKTable,
     offsetof(nsStyleSVG, mImageRendering),
     eStyleAnimType_EnumU8)
@@ -2879,7 +2686,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mLightingColor,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVGReset, mLightingColor),
     eStyleAnimType_Color)
@@ -2895,7 +2701,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mMarkerEnd,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2906,7 +2711,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mMarkerMid,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2917,7 +2721,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mMarkerStart,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2928,7 +2731,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mMask,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -2939,7 +2741,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mShapeRendering,
-    eCSSType_Value,
     kShapeRenderingKTable,
     offsetof(nsStyleSVG, mShapeRendering),
     eStyleAnimType_EnumU8)
@@ -2950,7 +2751,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mStopColor,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVGReset, mStopColor),
     eStyleAnimType_Color)
@@ -2961,7 +2761,6 @@ CSS_PROP_SVGRESET(
     0,
     SVG,
     mStopOpacity,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVGReset, mStopOpacity),
     eStyleAnimType_float)
@@ -2972,7 +2771,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStroke,
-    eCSSType_ValuePair,
     nsnull,
     offsetof(nsStyleSVG, mStroke),
     eStyleAnimType_PaintServer)
@@ -2983,7 +2781,6 @@ CSS_PROP_SVG(
     CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     SVG,
     mStrokeDasharray,
-    eCSSType_ValueList,
     nsnull,
     CSS_PROP_NO_OFFSET, /* property stored in 2 separate members */
     eStyleAnimType_Custom)
@@ -2994,7 +2791,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeDashoffset,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVG, mStrokeDashoffset),
     eStyleAnimType_Coord)
@@ -3005,7 +2801,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeLinecap,
-    eCSSType_Value,
     kStrokeLinecapKTable,
     offsetof(nsStyleSVG, mStrokeLinecap),
     eStyleAnimType_EnumU8)
@@ -3016,7 +2811,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeLinejoin,
-    eCSSType_Value,
     kStrokeLinejoinKTable,
     offsetof(nsStyleSVG, mStrokeLinejoin),
     eStyleAnimType_EnumU8)
@@ -3027,7 +2821,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeMiterlimit,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVG, mStrokeMiterlimit),
     eStyleAnimType_float)
@@ -3038,7 +2831,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeOpacity,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVG, mStrokeOpacity),
     eStyleAnimType_float)
@@ -3049,7 +2841,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mStrokeWidth,
-    eCSSType_Value,
     nsnull,
     offsetof(nsStyleSVG, mStrokeWidth),
     eStyleAnimType_Coord)
@@ -3060,7 +2851,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mTextAnchor,
-    eCSSType_Value,
     kTextAnchorKTable,
     offsetof(nsStyleSVG, mTextAnchor),
     eStyleAnimType_EnumU8)
@@ -3071,7 +2861,6 @@ CSS_PROP_SVG(
     0,
     SVG,
     mTextRendering,
-    eCSSType_Value,
     kTextRenderingKTable,
     offsetof(nsStyleSVG, mTextRendering),
     eStyleAnimType_EnumU8)
@@ -3090,7 +2879,6 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mLang,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -3101,7 +2889,6 @@ CSS_PROP_TABLE(
     0,
     Table,
     mCols,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
@@ -3112,7 +2899,6 @@ CSS_PROP_TABLE(
     0,
     Table,
     mSpan,
-    eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)

@@ -60,7 +60,7 @@ public:
 
     already_AddRefed<gfxASurface>
         CreateOffscreenSurface(const gfxIntSize& size,
-                               gfxASurface::gfxImageFormat imageFormat);
+                               gfxASurface::gfxContentType contentType);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -87,8 +87,6 @@ public:
     }
 
 protected:
-    void InitDisplayCaps();
-
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:

@@ -38,6 +38,7 @@
 #define CSSCalc_h_
 
 #include "nsCSSValue.h"
+#include "nsStyleCoord.h"
 #include <math.h>
 
 namespace mozilla {
@@ -99,7 +100,7 @@ namespace css {
  * NumbersAlreadyNormalizedCalcOps.)
  *
  * For non-leaves, one of the Merge functions will be called:
- *   MergeAdditive for Plus, Minus, Minimum, and Maximum
+ *   MergeAdditive for Plus and Minus
  *   MergeMultiplicativeL for Times_L (number * value)
  *   MergeMultiplicativeR for Times_R (value * number) and Divided
  */
@@ -135,16 +136,6 @@ ComputeCalc(const typename CalcOps::input_type& aValue, CalcOps &aOps)
       typename CalcOps::result_type lhs = ComputeCalc(arr->Item(0), aOps);
       float rhs = aOps.ComputeNumber(arr->Item(1));
       return aOps.MergeMultiplicativeR(CalcOps::GetUnit(aValue), lhs, rhs);
-    }
-    case eCSSUnit_Calc_Minimum:
-    case eCSSUnit_Calc_Maximum: {
-      typename CalcOps::input_array_type *arr = aValue.GetArrayValue();
-      typename CalcOps::result_type result = ComputeCalc(arr->Item(0), aOps);
-      for (size_t i = 1, i_end = arr->Count(); i < i_end; ++i) {
-        typename CalcOps::result_type tmp = ComputeCalc(arr->Item(i), aOps);
-        result = aOps.MergeAdditive(CalcOps::GetUnit(aValue), result, tmp);
-      }
-      return result;
     }
     default: {
       return aOps.ComputeLeafValue(aValue);
@@ -184,15 +175,9 @@ struct BasicCoordCalcOps
     if (aCalcFunction == eCSSUnit_Calc_Plus) {
       return NSCoordSaturatingAdd(aValue1, aValue2);
     }
-    if (aCalcFunction == eCSSUnit_Calc_Minus) {
-      return NSCoordSaturatingSubtract(aValue1, aValue2, 0);
-    }
-    if (aCalcFunction == eCSSUnit_Calc_Minimum) {
-      return NS_MIN(aValue1, aValue2);
-    }
-    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Maximum,
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Minus,
                       "unexpected unit");
-    return NS_MAX(aValue1, aValue2);
+    return NSCoordSaturatingSubtract(aValue1, aValue2, 0);
   }
 
   result_type
@@ -229,15 +214,9 @@ struct BasicFloatCalcOps
     if (aCalcFunction == eCSSUnit_Calc_Plus) {
       return aValue1 + aValue2;
     }
-    if (aCalcFunction == eCSSUnit_Calc_Minus) {
-      return aValue1 - aValue2;
-    }
-    if (aCalcFunction == eCSSUnit_Calc_Minimum) {
-      return NS_MIN(aValue1, aValue2);
-    }
-    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Maximum,
+    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Minus,
                       "unexpected unit");
-    return NS_MAX(aValue1, aValue2);
+    return aValue1 - aValue2;
   }
 
   result_type
@@ -275,37 +254,6 @@ struct NumbersAlreadyNormalizedOps : public CSSValueInputCalcOps
   }
 };
 
-#define CHECK_UNIT(u_)                                                        \
-  PR_STATIC_ASSERT(int(eCSSUnit_Calc_##u_) + 14 == int(eStyleUnit_Calc_##u_));\
-  PR_STATIC_ASSERT(eCSSUnit_Calc_##u_ >= eCSSUnit_Calc_Plus);                 \
-  PR_STATIC_ASSERT(eCSSUnit_Calc_##u_ <= eCSSUnit_Calc_Maximum);
-
-CHECK_UNIT(Plus)
-CHECK_UNIT(Minus)
-CHECK_UNIT(Times_L)
-CHECK_UNIT(Times_R)
-CHECK_UNIT(Divided)
-CHECK_UNIT(Minimum)
-CHECK_UNIT(Maximum)
-
-#undef CHECK_UNIT
-
-inline nsStyleUnit
-ConvertCalcUnit(nsCSSUnit aUnit)
-{
-  NS_ABORT_IF_FALSE(eCSSUnit_Calc_Plus <= aUnit &&
-                    aUnit <= eCSSUnit_Calc_Maximum, "out of range");
-  return nsStyleUnit(aUnit + 14);
-}
-
-inline nsCSSUnit
-ConvertCalcUnit(nsStyleUnit aUnit)
-{
-  NS_ABORT_IF_FALSE(eStyleUnit_Calc_Plus <= aUnit &&
-                    aUnit <= eStyleUnit_Calc_Maximum, "out of range");
-  return nsCSSUnit(aUnit - 14);
-}
-
 /**
  * SerializeCalc appends the serialization of aValue to a string.
  *
@@ -340,11 +288,8 @@ template <class CalcOps>
 static void
 SerializeCalc(const typename CalcOps::input_type& aValue, CalcOps &aOps)
 {
-  aOps.Append("-moz-");
+  aOps.Append("-moz-calc(");
   nsCSSUnit unit = CalcOps::GetUnit(aValue);
-  if (unit != eCSSUnit_Calc_Minimum && unit != eCSSUnit_Calc_Maximum) {
-    aOps.Append("calc(");
-  }
   if (unit == eCSSUnit_Calc) {
     const typename CalcOps::input_array_type *array = aValue.GetArrayValue();
     NS_ABORT_IF_FALSE(array->Count() == 1, "unexpected length");
@@ -352,9 +297,7 @@ SerializeCalc(const typename CalcOps::input_type& aValue, CalcOps &aOps)
   } else {
     SerializeCalcInternal(aValue, aOps);
   }
-  if (unit != eCSSUnit_Calc_Minimum && unit != eCSSUnit_Calc_Maximum) {
-    aOps.Append(")");
-  }
+  aOps.Append(")");
 }
 
 static inline PRBool
@@ -379,23 +322,7 @@ template <class CalcOps>
 SerializeCalcInternal(const typename CalcOps::input_type& aValue, CalcOps &aOps)
 {
   nsCSSUnit unit = CalcOps::GetUnit(aValue);
-  if (eCSSUnit_Calc_Minimum == unit || eCSSUnit_Calc_Maximum == unit) {
-    const typename CalcOps::input_array_type *array = aValue.GetArrayValue();
-    if (eCSSUnit_Calc_Minimum == unit) {
-      aOps.Append("min(");
-    } else {
-      aOps.Append("max(");
-    }
-
-    for (size_t i = 0, i_end = array->Count(); i < i_end; ++i) {
-      if (i != 0) {
-        aOps.Append(", ");
-      }
-      SerializeCalcInternal(array->Item(i), aOps);
-    }
-
-    aOps.Append(")");
-  } else if (IsCalcAdditiveUnit(unit)) {
+  if (IsCalcAdditiveUnit(unit)) {
     const typename CalcOps::input_array_type *array = aValue.GetArrayValue();
     NS_ABORT_IF_FALSE(array->Count() == 2, "unexpected length");
 

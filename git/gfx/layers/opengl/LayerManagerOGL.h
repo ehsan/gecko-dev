@@ -42,6 +42,10 @@
 
 #include "Layers.h"
 
+#ifdef MOZ_IPC
+#include "mozilla/layers/ShadowLayers.h"
+#endif
+
 #ifdef XP_WIN
 #include <windows.h>
 #endif
@@ -69,18 +73,33 @@ namespace mozilla {
 namespace layers {
 
 class LayerOGL;
+class ShadowThebesLayer;
+class ShadowContainerLayer;
+class ShadowImageLayer;
+class ShadowCanvasLayer;
+class ShadowColorLayer;
 
 /**
  * This is the LayerManager used for OpenGL 2.1. For now this will render on
  * the main thread.
  */
-class THEBES_API LayerManagerOGL : public LayerManager {
+class THEBES_API LayerManagerOGL :
+#ifdef MOZ_IPC
+    public ShadowLayerManager
+#else
+    public LayerManager
+#endif
+{
   typedef mozilla::gl::GLContext GLContext;
 
 public:
   LayerManagerOGL(nsIWidget *aWidget);
   virtual ~LayerManagerOGL();
-  
+
+  void CleanupResources();
+
+  void Destroy();
+
   /**
    * Initializes the layer manager, this is when the layer manager will
    * actually access the device and attempt to create the swap chain used
@@ -131,12 +150,35 @@ public:
 
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
+  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
+  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
+  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
+  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer();
+  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
+
   virtual LayersBackend GetBackendType() { return LAYERS_OPENGL; }
+  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("OpenGL"); }
+
+  /**
+   * Image Container management.
+   */
+
+  /* Forget this image container.  Should be called by ImageContainerOGL
+   * on its current layer manager before switching to a new one.
+   */
+  void ForgetImageContainer(ImageContainer* aContainer);
+  void RememberImageContainer(ImageContainer* aContainer);
 
   /**
    * Helper methods.
    */
-  void MakeCurrent();
+  void MakeCurrent(PRBool aForce = PR_FALSE) {
+    if (mDestroyed) {
+      NS_WARNING("Call on destroyed layer manager");
+      return;
+    }
+    mGLContext->MakeCurrent(aForce);
+  }
 
   ColorTextureLayerProgram *GetRGBALayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBALayerProgramType]);
@@ -150,6 +192,19 @@ public:
   ColorTextureLayerProgram *GetBGRXLayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[BGRXLayerProgramType]);
   }
+  ColorTextureLayerProgram *GetBasicLayerProgram(PRBool aOpaque, PRBool aIsRGB)
+  {
+    if (aIsRGB) {
+      return aOpaque
+        ? GetRGBXLayerProgram()
+        : GetRGBALayerProgram();
+    } else {
+      return aOpaque
+        ? GetBGRXLayerProgram()
+        : GetBGRALayerProgram();
+    }
+  }
+
   ColorTextureLayerProgram *GetRGBARectLayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBARectLayerProgramType]);
   }
@@ -173,6 +228,22 @@ public:
   }
 
   GLContext *gl() const { return mGLContext; }
+
+  DrawThebesLayerCallback GetThebesLayerCallback() const
+  { return mThebesLayerCallback; }
+
+  void* GetThebesLayerCallbackData() const
+  { return mThebesLayerCallbackData; }
+
+  // This is a GLContext that can be used for resource
+  // management (creation, destruction).  It is guaranteed
+  // to be either the same as the gl() context, or a context
+  // that is in the same share pool.
+  GLContext *glForResources() const {
+    if (mGLContext->GetSharedContext())
+      return mGLContext->GetSharedContext();
+    return mGLContext;
+  }
 
   /*
    * Helper functions for our layers
@@ -263,15 +334,36 @@ public:
                     aFlipped);
   }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual const char* Name() const { return "OGL"; }
+#endif // MOZ_LAYERS_HAVE_LOG
+
+  const nsIntSize& GetWigetSize() {
+    return mWidgetSize;
+  }
+  
+  /**
+   * Setup the viewport and projection matrix for rendering
+   * to a window of the given dimensions.
+   */
+  void SetupPipeline(int aWidth, int aHeight);
+
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
+  nsIntSize mWidgetSize;
+
   /** 
    * Context target, NULL when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
 
   nsRefPtr<GLContext> mGLContext;
+
+  // The image containers that this layer manager has created.
+  // The destructor will tell the layer manager to remove
+  // it from the list.
+  nsTArray<ImageContainer*> mImageContainers;
 
   enum ProgramType {
     RGBALayerProgramType,
@@ -317,15 +409,12 @@ private:
    * Render the current layer tree to the active target.
    */
   void Render();
-  /**
-   * Setup the viewport and projection matrix for rendering
-   * to a window of the given dimensions.
-   */
-  void SetupPipeline(int aWidth, int aHeight);
+
   /**
    * Setup a backbuffer of the given dimensions.
    */
   void SetupBackBuffer(int aWidth, int aHeight);
+
   /**
    * Copies the content of our backbuffer to the set transaction target.
    */
@@ -356,12 +445,19 @@ class LayerOGL
 {
 public:
   LayerOGL(LayerManagerOGL *aManager)
-    : mOGLManager(aManager)
+    : mOGLManager(aManager), mDestroyed(PR_FALSE)
   { }
+
+  virtual ~LayerOGL() { }
 
   virtual LayerOGL *GetFirstChildOGL() {
     return nsnull;
   }
+
+  /* Do NOT call this from the generic LayerOGL destructor.  Only from the
+   * concrete class destructor
+   */
+  virtual void Destroy() = 0;
 
   virtual Layer* GetLayer() = 0;
 
@@ -370,9 +466,13 @@ public:
 
   typedef mozilla::gl::GLContext GLContext;
 
+  LayerManagerOGL* OGLManager() const { return mOGLManager; }
   GLContext *gl() const { return mOGLManager->gl(); }
+
+  void ApplyFilter(gfxPattern::GraphicsFilter aFilter);
 protected:
   LayerManagerOGL *mOGLManager;
+  PRPackedBool mDestroyed;
 };
 
 } /* layers */

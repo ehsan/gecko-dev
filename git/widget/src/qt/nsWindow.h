@@ -43,6 +43,7 @@
 
 #include <QKeyEvent>
 #include <qgraphicswidget.h>
+#include <QTime>
 
 #include "nsAutoPtr.h"
 
@@ -130,9 +131,20 @@ public:
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
+
+    virtual already_AddRefed<nsIWidget>
+    CreateChild(const nsIntRect&  aRect,
+                EVENT_CALLBACK    aHandleEventFunction,
+                nsIDeviceContext* aContext,
+                nsIAppShell*      aAppShell = nsnull,
+                nsIToolkit*       aToolkit = nsnull,
+                nsWidgetInitData* aInitData = nsnull,
+                PRBool            aForceUseIWidgetParent = PR_TRUE);
+
     NS_IMETHOD         Destroy(void);
     NS_IMETHOD         SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
+    virtual float      GetDPI();
     NS_IMETHOD         Show(PRBool aState);
     NS_IMETHOD         SetModal(PRBool aModal);
     NS_IMETHOD         IsVisible(PRBool & aState);
@@ -168,9 +180,6 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
-    void               Scroll(const nsIntPoint&,
-                              const nsTArray<nsIntRect>&,
-                              const nsTArray<nsIWidget::Configuration>&);
 
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
@@ -192,7 +201,6 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
-    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -205,6 +213,8 @@ public:
 
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
+    void DispatchActivateEventOnTopLevelWindow(void);
+    void DispatchDeactivateEventOnTopLevelWindow(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {
@@ -222,6 +232,7 @@ public:
     // called to check and see if a widget's dimensions are sane
     PRBool AreBoundsSane(void);
 
+    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
@@ -279,7 +290,11 @@ protected:
 //Gestures are only supported in qt > 4.6
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     virtual nsEventStatus OnTouchEvent(QTouchEvent *event, PRBool &handled);
+
     virtual nsEventStatus OnGestureEvent(QGestureEvent *event, PRBool &handled);
+    nsEventStatus DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
+                                       double aDelta, const nsIntPoint& aRefPoint);
+
     double DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint);
 #endif
 
@@ -305,12 +320,9 @@ protected:
 
     void               ThemeChanged(void);
 
-    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:
-    void               GetToplevelWidget(MozQWidget **aWidget);
-    nsWindow*          GetTopLevelNsWindow();
     void*              SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
@@ -381,13 +393,15 @@ private:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     double mTouchPointDistance;
     double mLastPinchDistance;
-    PRBool mMouseEventsDisabled;
+    double mPinchStartDistance;
+    QTime mLastMultiTouchTime;
 #endif
 
     PRPackedBool mNeedsResize;
     PRPackedBool mNeedsMove;
     PRPackedBool mListenForResizes;
     PRPackedBool mNeedsShow;
+    PRPackedBool mGesturesCancelled;
 };
 
 class nsChildWindow : public nsWindow

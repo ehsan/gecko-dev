@@ -172,6 +172,7 @@ public:
   PRBool HasNameContentList() {
     return mNameContentList != nsnull;
   }
+  PRBool IsEmpty();
   nsBaseContentList* GetNameContentList() {
     return mNameContentList;
   }
@@ -182,6 +183,11 @@ public:
    * id. Otherwise returns null.
    */
   Element* GetIdElement();
+  /**
+   * If this entry has a non-null image element set (using SetImageElement),
+   * the image element will be returned, otherwise the same as GetIdElement().
+   */
+  Element* GetImageIdElement();
   /**
    * Append all the elements with this id to aElements
    */
@@ -194,13 +200,19 @@ public:
   PRBool AddIdElement(Element* aElement);
   /**
    * This can fire ID change callbacks.
-   * @return true if this map entry should be removed
    */
-  PRBool RemoveIdElement(Element* aElement);
+  void RemoveIdElement(Element* aElement);
+  /**
+   * Set the image element override for this ID. This will be returned by
+   * GetIdElement(PR_TRUE) if non-null.
+   */
+  void SetImageElement(Element* aElement);
 
   PRBool HasContentChangeCallback() { return mChangeCallbacks != nsnull; }
-  void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
-  void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
+  void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
+                                void* aData, PRBool aForImage);
+  void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
+                                void* aData, PRBool aForImage);
 
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
 
@@ -210,6 +222,7 @@ public:
   struct ChangeCallback {
     nsIDocument::IDTargetObserver mCallback;
     void* mData;
+    PRBool mForImage;
   };
 
   struct ChangeCallbackEntry : public PLDHashEntryHdr {
@@ -224,7 +237,8 @@ public:
     KeyType GetKey() const { return mKey; }
     PRBool KeyEquals(KeyTypePointer aKey) const {
       return aKey->mCallback == mKey.mCallback &&
-             aKey->mData == mKey.mData;
+             aKey->mData == mKey.mData &&
+             aKey->mForImage == mKey.mForImage;
     }
 
     static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
@@ -239,16 +253,18 @@ public:
   };
 
 private:
-  void FireChangeCallbacks(Element* aOldElement, Element* aNewElement);
+  void FireChangeCallbacks(Element* aOldElement, Element* aNewElement,
+                           PRBool aImageOnly = PR_FALSE);
 
   // empty if there are no elementswith this ID.
-  // The elementsnodes are stored addrefed.
+  // The elements are stored as weak pointers.
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
   // stores Elements.
   nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
+  nsRefPtr<Element> mImageElement;
 };
 
 class nsDocHeaderData
@@ -374,6 +390,12 @@ public:
     nsCOMPtr<nsIContentViewer> mViewer;
     nsCOMPtr<nsILoadGroup> mLoadGroup;
   };
+
+  // Hide all our viewers
+  void HideViewers();
+
+  // Show all our viewers
+  void ShowViewers();
 
 protected:
   class PendingLoad : public ExternalResourceLoad,
@@ -567,9 +589,9 @@ public:
   virtual void RemoveCharSetObserver(nsIObserver* aObserver);
 
   virtual Element* AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
-                                       void* aData);
-  virtual void RemoveIDTargetObserver(nsIAtom* aID,
-                                      IDTargetObserver aObserver, void* aData);
+                                       void* aData, PRBool aForImage);
+  virtual void RemoveIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
+                                      void* aData, PRBool aForImage);
 
   /**
    * Access HTTP header data (this may also get set from other sources, like
@@ -588,6 +610,7 @@ public:
                                nsIViewManager* aViewManager,
                                nsStyleSet* aStyleSet,
                                nsIPresShell** aInstancePtrResult);
+  virtual void DeleteShell();
 
   virtual nsresult SetSubDocumentFor(nsIContent *aContent,
                                      nsIDocument* aSubDoc);
@@ -659,13 +682,10 @@ public:
   /**
    * Add/Remove an element to the document's id and name hashes
    */
-  virtual void AddToIdTable(mozilla::dom::Element* aElement, nsIAtom* aId);
-  virtual void RemoveFromIdTable(mozilla::dom::Element* aElement,
-                                 nsIAtom* aId);
-  virtual void AddToNameTable(mozilla::dom::Element* aElement,
-                              nsIAtom* aName);
-  virtual void RemoveFromNameTable(mozilla::dom::Element* aElement,
-                                   nsIAtom* aName);
+  virtual void AddToIdTable(Element* aElement, nsIAtom* aId);
+  virtual void RemoveFromIdTable(Element* aElement, nsIAtom* aId);
+  virtual void AddToNameTable(Element* aElement, nsIAtom* aName);
+  virtual void RemoveFromNameTable(Element* aElement, nsIAtom* aName);
 
   /**
    * Add a new observer of document change notifications. Whenever
@@ -834,10 +854,15 @@ public:
   
   virtual nsresult AddXMLEventsContent(nsIContent * aXMLEventsElement);
 
-  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+  virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
                               PRBool aDocumentDefaultType,
                               nsIContent **aResult);
+
+  nsresult CreateElement(const nsAString& aTagName,
+                         nsIContent** aReturn);
+
+  nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
   virtual NS_HIDDEN_(nsresult) Sanitize();
 
@@ -931,7 +956,8 @@ public:
 
   virtual PRInt32 GetDocumentState();
 
-  virtual void RegisterFileDataUri(nsACString& aUri);
+  virtual void RegisterFileDataUri(const nsACString& aUri);
+  virtual void UnregisterFileDataUri(const nsACString& aUri);
 
   // Only BlockOnload should call this!
   void AsyncBlockOnload();
@@ -947,7 +973,13 @@ public:
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                            const nsAString& aLocalName);
 
-  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId);
+  virtual Element *GetElementById(const nsAString& aElementId);
+
+  virtual Element *LookupImageElement(const nsAString& aElementId);
+
+  virtual NS_HIDDEN_(nsresult) AddImage(imgIRequest* aImage);
+  virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
+  virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
 
 protected:
   friend class nsNodeUtils;
@@ -1018,10 +1050,11 @@ protected:
   virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
+  virtual PRBool InternalAllowXULXBL();
 
-#define NS_DOCUMENT_NOTIFY_OBSERVERS(func_, params_)                  \
-  NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS(mObservers, nsIDocumentObserver, \
-                                     func_, params_);
+#define NS_DOCUMENT_NOTIFY_OBSERVERS(func_, params_)                        \
+  NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mObservers, nsIDocumentObserver, \
+                                           func_, params_);
   
 #ifdef DEBUG
   void VerifyRootContentState();
@@ -1109,6 +1142,12 @@ protected:
   // flag here so that we can check it in nsDocument::GetAnimationController.
   PRPackedBool mLoadedAsInteractiveData:1;
 
+  // Whether we're currently holding a lock on all of our images.
+  PRPackedBool mLockingImages:1;
+
+  // Whether we currently require our images to animate
+  PRPackedBool mAnimatingImages:1;
+
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
@@ -1143,6 +1182,7 @@ private:
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
 
+  nsresult CheckFrameOptions();
   nsresult InitCSP();
 
   /**
@@ -1207,10 +1247,19 @@ private:
   PRUint8 mScrolledToRefAlready : 1;
   PRUint8 mChangeScrollPosWhenScrollingToRef : 1;
 
+  // Tracking for images in the document.
+  nsDataHashtable< nsPtrHashKey<imgIRequest>, PRUint32> mImageTracker;
+
 #ifdef DEBUG
 protected:
   PRBool mWillReparent;
 #endif
+
+protected:
+  // Makes the images on this document capable of having their animation
+  // active or suspended. An Image will animate as long as at least one of its
+  // owning Documents needs it to animate; otherwise it can suspend.
+  void SetImagesNeedAnimating(PRBool aAnimating);
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

@@ -176,8 +176,9 @@ nsFieldSetFrame::SetInitialChildList(nsIAtom*       aListName,
 
 class nsDisplayFieldSetBorderBackground : public nsDisplayItem {
 public:
-  nsDisplayFieldSetBorderBackground(nsFieldSetFrame* aFrame)
-    : nsDisplayItem(aFrame) {
+  nsDisplayFieldSetBorderBackground(nsDisplayListBuilder* aBuilder,
+                                    nsFieldSetFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayFieldSetBorderBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -207,7 +208,7 @@ nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
                                          nsIRenderingContext* aCtx)
 {
   static_cast<nsFieldSetFrame*>(mFrame)->
-    PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame),
+    PaintBorderBackground(*aCtx, ToReferenceFrame(),
                           mVisibleRect, aBuilder->GetBackgroundPaintFlags());
 }
 
@@ -222,14 +223,14 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (IsVisibleForPainting(aBuilder)) {
     if (GetStyleBorder()->mBoxShadow) {
       nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayBoxShadowOuter(this));
+          nsDisplayBoxShadowOuter(aBuilder, this));
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayFieldSetBorderBackground(this));
+        nsDisplayFieldSetBorderBackground(aBuilder, this));
     NS_ENSURE_SUCCESS(rv, rv);
   
     rv = DisplayOutlineUnconditional(aBuilder, aLists);
@@ -278,6 +279,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
      
   // if the border is smaller than the legend. Move the border down
   // to be centered on the legend. 
+  // FIXME: This means border-radius clamping is incorrect; we should
+  // override nsIFrame::GetBorderRadii.
   if (topBorder < mLegendRect.height)
     yoff = (mLegendRect.height - topBorder)/2;
       
@@ -594,14 +597,14 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
       aDesiredSize.height = min;
   }
   aDesiredSize.width = contentRect.width + borderPadding.LeftRight();
-  aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
   if (mLegendFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowArea, mLegendFrame);
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mLegendFrame);
   if (mContentFrame)
-    ConsiderChildOverflow(aDesiredSize.mOverflowArea, mContentFrame);
+    ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mContentFrame);
   FinishAndStoreOverflow(&aDesiredSize);
 
-  Invalidate(aDesiredSize.mOverflowArea);
+  Invalidate(aDesiredSize.VisualOverflow());
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
@@ -673,7 +676,6 @@ nsFieldSetFrame::ReparentFrameList(const nsFrameList& aFrameList)
     e.get()->SetParent(mContentFrame);
     frameManager->ReparentStyleContext(e.get());
   }
-  mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
 }
 
 nscoord

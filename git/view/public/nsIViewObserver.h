@@ -47,8 +47,8 @@ class nsIRenderingContext;
 class nsGUIEvent;
 
 #define NS_IVIEWOBSERVER_IID  \
-  { 0x8e69db48, 0x9d01, 0x4c0a, \
-    { 0xb9, 0xea, 0xa4, 0x4b, 0xc5, 0x89, 0xc8, 0x63 } }
+  { 0x4d467c73, 0xb6a9, 0x462a, \
+    { 0x90, 0x25, 0x80, 0xd9, 0x42, 0xbc, 0xcc, 0xb5 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -57,11 +57,16 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IVIEWOBSERVER_IID)
 
   /* called when the observer needs to paint. This paints the entire
-   * frame subtree rooted at the view, including frame subtrees from
+   * frame subtree rooted at aViewToPaint, including frame subtrees from
    * subdocuments.
    * @param aViewToPaint the view for the widget that is being painted
-   * @param aDirtyRegion the region to be painted, in the coordinates of
+   * @param aWidgetToPaint the widget that is being painted, the widget of
    * aViewToPaint
+   * @param aDirtyRegion the region to be painted, in appunits of aDisplayRoot
+   * and relative to aDisplayRoot
+   * @param aIntDirtyRegion the region to be painted, in dev pixels, in the
+   * coordinates of aWidgetToPaint. This conveys the same information as
+   * aDirtyRegion but in a different format.
    * @param aPaintDefaultBackground just paint the default background,
    * don't try to paint any content. This is set when the observer
    * needs to paint something, but the view tree is unstable, so it
@@ -71,12 +76,13 @@ public:
    * which is to paint some default background color over the dirty region.
    * @return error status
    */
-  NS_IMETHOD Paint(nsIView*        aDisplayRoot,
-                   nsIView*        aViewToPaint,
-                   nsIWidget*      aWidgetToPaint,
-                   const nsRegion& aDirtyRegion,
-                   PRBool          aPaintDefaultBackground,
-                   PRBool          aWillSendDidPaint) = 0;
+  NS_IMETHOD Paint(nsIView*           aDisplayRoot,
+                   nsIView*           aViewToPaint,
+                   nsIWidget*         aWidgetToPaint,
+                   const nsRegion&    aDirtyRegion,
+                   const nsIntRegion& aIntDirtyRegion,
+                   PRBool             aPaintDefaultBackground,
+                   PRBool             aWillSendDidPaint) = 0;
 
   /* called when the observer needs to handle an event
    * @param aView  - where to start processing the event; the root view,
@@ -102,10 +108,11 @@ public:
   NS_IMETHOD ResizeReflow(nsIView * aView, nscoord aWidth, nscoord aHeight) = 0;
 
   /**
-   * Hack to find out if the view observer is itself visible, in lieu
-   * of having the view trees linked.
+   * Returns true if the view observer wants to drop all invalidation right now
+   * because painting is suppressed. It will invalidate everything when it
+   * unsuppresses.
    */
-  NS_IMETHOD_(PRBool) IsVisible() = 0;
+  NS_IMETHOD_(PRBool) ShouldIgnoreInvalidation() = 0;
 
   /**
    * Notify the observer that we're about to start painting.  This

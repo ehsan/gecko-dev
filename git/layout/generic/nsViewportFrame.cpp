@@ -46,6 +46,9 @@
 #include "nsGkAtoms.h"
 #include "nsIScrollableFrame.h"
 #include "nsDisplayList.h"
+#include "FrameLayerBuilder.h"
+
+using namespace mozilla;
 
 nsIFrame*
 NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -257,7 +260,12 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   // Because |Reflow| sets mComputedHeight on the child to
   // availableHeight.
   AddStateBits(NS_FRAME_CONTAINS_RELATIVE_HEIGHT);
-  
+
+  // Set our size up front, since some parts of reflow depend on it
+  // being already set.  Note that the computed height may be
+  // unconstrained; that's ok.  Consumers should watch out for that.
+  SetSize(nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight()));
+ 
   // Reflow the main content first so that the placeholders of the
   // fixed-position frames will be in the right places on an initial
   // reflow.
@@ -318,7 +326,8 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   rv = mFixedContainer.Reflow(this, aPresContext, reflowState, aStatus,
                               reflowState.ComputedWidth(),
                               reflowState.ComputedHeight(),
-                              PR_FALSE, PR_TRUE, PR_TRUE); // XXX could be optimized
+                              PR_FALSE, PR_TRUE, PR_TRUE, // XXX could be optimized
+                              nsnull /* ignore overflow */);
 
   // If we were dirty then do a repaint
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
@@ -327,8 +336,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   // XXX Should we do something to clip our children to this?
-  aDesiredSize.mOverflowArea =
-    nsRect(nsPoint(0, 0), nsSize(aDesiredSize.width, aDesiredSize.height));
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
 
   NS_FRAME_TRACE_REFLOW_OUT("ViewportFrame::Reflow", aStatus);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -353,11 +361,27 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, aFlags);
+  nsPresContext* presContext = PresContext();
+  presContext->NotifyInvalidation(r, aFlags);
+
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    FrameLayerBuilder::InvalidateThebesLayerContents(this, r);
+    // Don't need to invalidate any more Thebes layers
+    aFlags |= INVALIDATE_NO_THEBES_LAYERS;
+    if (aFlags & INVALIDATE_ONLY_THEBES_LAYERS) {
+      return;
+    }
+  }
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
-    nsPoint pt = GetOffsetTo(parent);
+    if (!presContext->PresShell()->IsActive())
+      return;
+    nsPoint pt = -parent->GetOffsetToCrossDoc(this);
+    PRInt32 ourAPD = presContext->AppUnitsPerDevPixel();
+    PRInt32 parentAPD = parent->PresContext()->AppUnitsPerDevPixel();
+    r = r.ConvertAppUnitsRoundOut(ourAPD, parentAPD);
     parent->InvalidateInternal(r, pt.x, pt.y, this,
                                aFlags | INVALIDATE_CROSS_DOC);
     return;

@@ -66,7 +66,11 @@ public:
     ATSFontRef GetFontRef();
     nsresult ReadCMAP();
 
+    PRBool RequiresAATLayout() const { return mRequiresAAT; }
+
     virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer);
+
+    PRBool IsCFF();
 
 protected:
     // for use with data fonts
@@ -78,6 +82,9 @@ protected:
 
     ATSFontRef mATSFontRef;
     PRPackedBool mATSFontRefInitialized;
+    PRPackedBool mRequiresAAT;
+    PRPackedBool mIsCFF;
+    PRPackedBool mIsCFFInitialized;
 };
 
 class gfxMacPlatformFontList : public gfxPlatformFontList {

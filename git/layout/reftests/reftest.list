@@ -41,14 +41,23 @@ include bugs/reftest.list
 # canvas 2D
 include canvas/reftest.list
 
-# css default pseudo class tests
-include css-default/reftest.list
-
-# css @import tests
-include css-import/reftest.list
+# css calc() tests
+include css-calc/reftest.list
 
 # css character encoding tests
 include css-charset/reftest.list
+
+# css default pseudo class tests
+include css-default/reftest.list
+
+# css :disable tests
+include css-disabled/reftest.list
+
+# css :enable tests
+include css-enabled/reftest.list
+
+# css @import tests
+include css-import/reftest.list
 
 # css gradients
 include css-gradients/reftest.list
@@ -62,6 +71,24 @@ include css-namespace/reftest.list
 # css parsing
 include css-parsing/reftest.list
 
+# css placeholder
+include css-placeholder/reftest.list
+
+# css required
+include css-required/reftest.list
+
+# css optional
+include css-optional/reftest.list
+
+# css valid
+include css-valid/reftest.list
+
+# css invalid
+include css-invalid/reftest.list
+
+# css-submit-invalid
+include css-submit-invalid/reftest.list
+
 # css transitions
 include css-transitions/reftest.list
 
@@ -72,6 +99,8 @@ include css-valuesandunits/reftest.list
 # layout/style/test/test_visited_reftests instead of using the reftest
 # harness.
 
+include cssom/reftest.list
+
 # columns/
 include columns/reftest.list
 
@@ -80,6 +109,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# datalist
+include datalist/reftest.list
 
 # dom/
 include dom/reftest.list
@@ -102,6 +134,9 @@ include floats/reftest.list
 # font-face
 include font-face/reftest.list
 
+# font features (opentype)
+include font-features/reftest.list
+
 # font matching
 include font-matching/reftest.list
 
@@ -113,6 +148,9 @@ include ib-split/reftest.list
 
 # image/
 include image/reftest.list
+
+# image-element/
+include image-element/reftest.list
 
 # image-rect/
 include image-rect/reftest.list
@@ -213,6 +251,9 @@ include text-transform/reftest.list
 
 # -moz-transform/
 include transform/reftest.list
+
+# unicode/ (verify that we don't do expend effort doing unicode-aware case checks)
+include unicode/reftest.list
 
 # widget/
 include ../../widget/reftests/reftest.list

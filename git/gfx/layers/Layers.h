@@ -49,6 +49,17 @@
 #include "gfxColor.h"
 #include "gfxPattern.h"
 
+#if defined(DEBUG) || defined(PR_LOGGING)
+#  include <stdio.h>            // FILE
+#  include "prlog.h"
+#  define MOZ_LAYERS_HAVE_LOG
+#  define MOZ_LAYERS_LOG(_args)                             \
+  PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args)
+#else
+struct PRLogModuleInfo;
+#  define MOZ_LAYERS_LOG(_args)
+#endif  // if defined(DEBUG) || defined(PR_LOGGING)
+
 class gfxContext;
 class nsPaintEvent;
 
@@ -66,15 +77,51 @@ class ImageLayer;
 class ColorLayer;
 class ImageContainer;
 class CanvasLayer;
+class ShadowLayer;
+class SpecificLayerAttributes;
 
-#if defined(DEBUG) || defined(PR_LOGGING)
-#define NS_LAYER_DECL_NAME(n, e) \
-  virtual const char* Name() { return n; } \
-  virtual LayerType GetType() { return e; }
-#else
-#define NS_LAYER_DECL_NAME(n, e) \
-  virtual LayerType GetType() { return e; }
-#endif
+/**
+ * The viewport and displayport metrics for the painted frame at the
+ * time of a layer-tree transaction.  These metrics are especially
+ * useful for shadow layers, because the metrics values are updated
+ * atomically with new pixels.
+ */
+struct FrameMetrics {
+  FrameMetrics()
+    : mViewportSize(0, 0)
+    , mViewportScrollOffset(0, 0)
+  {}
+
+  // Default copy ctor and operator= are fine
+
+  PRBool operator==(const FrameMetrics& aOther) const
+  {
+    return (mViewportSize == aOther.mViewportSize &&
+            mViewportScrollOffset == aOther.mViewportScrollOffset &&
+            mDisplayPort == aOther.mDisplayPort);
+  }
+
+  PRBool IsDefault() const
+  {
+    return (FrameMetrics() == *this);
+  }
+
+  nsIntSize mViewportSize;
+  nsIntPoint mViewportScrollOffset;
+  nsIntRect mDisplayPort;
+};
+
+#define MOZ_LAYER_DECL_NAME(n, e)                           \
+  virtual const char* Name() const { return n; }            \
+  virtual LayerType GetType() const { return e; }
+
+/**
+ * Base class for userdata objects attached to layers and layer managers.
+ */
+class THEBES_API LayerUserData {
+public:
+  virtual ~LayerUserData() {}
+};
 
 /*
  * Motivation: For truly smooth animation and video playback, we need to
@@ -101,6 +148,52 @@ class CanvasLayer;
  * efficient implementation in an "immediate mode" style. See the
  * BasicLayerManager for such an implementation.
  */
+
+/**
+ * Helper class to manage user data for layers and LayerManagers.
+ */
+class THEBES_API LayerUserDataSet {
+public:
+  LayerUserDataSet() : mKey(nsnull) {}
+
+  void Set(void* aKey, LayerUserData* aValue)
+  {
+    NS_ASSERTION(!mKey || mKey == aKey,
+                 "Multiple LayerUserData objects not supported");
+    mKey = aKey;
+    mValue = aValue;
+  }
+  /**
+   * This can be used anytime. Ownership passes to the caller!
+   */
+  LayerUserData* Remove(void* aKey)
+  {
+    if (mKey == aKey) {
+      mKey = nsnull;
+      LayerUserData* d = mValue.forget();
+      return d;
+    }
+    return nsnull;
+  }
+  /**
+   * This getter can be used anytime.
+   */
+  PRBool Has(void* aKey)
+  {
+    return mKey == aKey;
+  }
+  /**
+   * This getter can be used anytime. Ownership is retained by this object.
+   */
+  LayerUserData* Get(void* aKey)
+  {
+    return mKey == aKey ? mValue.get() : nsnull;
+  }
+
+private:
+  void* mKey;
+  nsAutoPtr<LayerUserData> mValue;
+};
 
 /**
  * A LayerManager controls a tree of layers. All layers in the tree
@@ -132,11 +225,24 @@ public:
   enum LayersBackend {
     LAYERS_BASIC = 0,
     LAYERS_OPENGL,
-    LAYERS_D3D9
+    LAYERS_D3D9,
+    LAYERS_D3D10
   };
 
-  LayerManager() : mUserData(nsnull) {}
+  LayerManager() : mDestroyed(PR_FALSE)
+  {
+    InitLog();
+  }
   virtual ~LayerManager() {}
+
+  /**
+   * Release layers and resources held by this layer manager, and mark
+   * it as destroyed.  Should do any cleanup necessary in preparation
+   * for its widget going away.  After this call, only user data calls
+   * are valid on the layer manager.
+   */
+  virtual void Destroy() { mDestroyed = PR_TRUE; }
+  PRBool IsDestroyed() { return mDestroyed; }
 
   /**
    * Start a new transaction. Nested transactions are not allowed so
@@ -206,6 +312,12 @@ public:
 
   /**
    * CONSTRUCTION PHASE ONLY
+   * Called when a managee has mutated.
+   */
+  virtual void Mutated(Layer* aLayer) { }
+
+  /**
+   * CONSTRUCTION PHASE ONLY
    * Create a ThebesLayer for this manager's layer tree.
    */
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer() = 0;
@@ -241,15 +353,85 @@ public:
    * Layers backend specific functionality is necessary.
    */
   virtual LayersBackend GetBackendType() = 0;
+ 
+  /**
+   * Creates a layer which is optimized for inter-operating with this layer
+   * manager.
+   */
+  virtual already_AddRefed<gfxASurface>
+    CreateOptimalSurface(const gfxIntSize &aSize,
+                         gfxASurface::gfxImageFormat imageFormat);
 
-  // This setter and getter can be used anytime. The user data is initially
-  // null.
-  void SetUserData(void* aData) { mUserData = aData; }
-  void* GetUserData() { return mUserData; }
+  /**
+   * Return the name of the layer manager's backend.
+   */
+  virtual void GetBackendName(nsAString& aName) = 0;
+
+  /**
+   * This setter can be used anytime. The user data for all keys is
+   * initially null. Ownership pases to the layer manager.
+   */
+  void SetUserData(void* aKey, LayerUserData* aData)
+  { mUserData.Set(aKey, aData); }
+  /**
+   * This can be used anytime. Ownership passes to the caller!
+   */
+  nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
+  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
+  /**
+   * This getter can be used anytime.
+   */
+  PRBool HasUserData(void* aKey)
+  { return mUserData.Has(aKey); }
+  /**
+   * This getter can be used anytime. Ownership is retained by the layer
+   * manager.
+   */
+  LayerUserData* GetUserData(void* aKey)
+  { return mUserData.Get(aKey); }
+
+  // We always declare the following logging symbols, because it's
+  // extremely tricky to conditionally declare them.  However, for
+  // ifndef MOZ_LAYERS_HAVE_LOG builds, they only have trivial
+  // definitions in Layers.cpp.
+  virtual const char* Name() const { return "???"; }
+
+  /**
+   * Dump information about this layer manager and its managed tree to
+   * aFile, which defaults to stderr.
+   */
+  void Dump(FILE* aFile=NULL, const char* aPrefix="");
+  /**
+   * Dump information about just this layer manager itself to aFile,
+   * which defaults to stderr.
+   */
+  void DumpSelf(FILE* aFile=NULL, const char* aPrefix="");
+
+  /**
+   * Log information about this layer manager and its managed tree to
+   * the NSPR log (if enabled for "Layers").
+   */
+  void Log(const char* aPrefix="");
+  /**
+   * Log information about just this layer manager itself to the NSPR
+   * log (if enabled for "Layers").
+   */
+  void LogSelf(const char* aPrefix="");
+
+  static bool IsLogEnabled();
+  static PRLogModuleInfo* GetLog() { return sLog; }
 
 protected:
   nsRefPtr<Layer> mRoot;
-  void* mUserData;
+  LayerUserDataSet mUserData;
+  PRPackedBool mDestroyed;
+
+  // Print interesting information about this into aTo.  Internally
+  // used to implement Dump*() and Log*().
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
+
+  static void InitLog();
+  static PRLogModuleInfo* sLog;
 };
 
 class ThebesLayer;
@@ -267,40 +449,81 @@ public:
     TYPE_CONTAINER,
     TYPE_IMAGE,
     TYPE_COLOR,
-    TYPE_CANVAS
+    TYPE_CANVAS,
+    TYPE_SHADOW
   };
 
   virtual ~Layer() {}
 
   /**
-   * Returns the LayoutManager this Layer belongs to. Cannot be null.
+   * Returns the LayerManager this Layer belongs to. Note that the layer
+   * manager might be in a destroyed state, at which point it's only
+   * valid to set/get user data from it.
    */
   LayerManager* Manager() { return mManager; }
 
+  enum {
+    /**
+     * If this is set, the caller is promising that by the end of this
+     * transaction the entire visible region (as specified by
+     * SetVisibleRegion) will be filled with opaque content.
+     */
+    CONTENT_OPAQUE = 0x01,
+    /**
+     * ThebesLayers only!
+     * If this is set, the caller is promising that the visible region
+     * contains no text at all. If this is set,
+     * CONTENT_NO_TEXT_OVER_TRANSPARENT will also be set.
+     */
+    CONTENT_NO_TEXT = 0x02,
+    /**
+     * ThebesLayers only!
+     * If this is set, the caller is promising that the visible region
+     * contains no text over transparent pixels (any text, if present,
+     * is over fully opaque pixels).
+     */
+    CONTENT_NO_TEXT_OVER_TRANSPARENT = 0x04
+  };
   /**
    * CONSTRUCTION PHASE ONLY
-   * If this is called with aOpaque set to true, the caller is promising
-   * that by the end of this transaction the entire visible region
-   * (as specified by SetVisibleRegion) will be filled with opaque
-   * content. This enables some internal quality and performance
-   * optimizations.
+   * This lets layout make some promises about what will be drawn into the
+   * visible region of the ThebesLayer. This enables internal quality
+   * and performance optimizations.
    */
-  void SetIsOpaqueContent(PRBool aOpaque) { mIsOpaqueContent = aOpaque; }
+  void SetContentFlags(PRUint32 aFlags)
+  {
+    mContentFlags = aFlags;
+    Mutated();
+  }
   /**
    * CONSTRUCTION PHASE ONLY
-   * Tell this layer which region will be visible. It is the responsibility
-   * of the caller to ensure that content outside this region does not
-   * contribute to the final visible window. This can be an
-   * overapproximation to the true visible region.
+   * Tell this layer which region will be visible. The visible region
+   * is a region which contains all the contents of the layer that can
+   * actually affect the rendering of the window. It can exclude areas
+   * that are covered by opaque contents of other layers, and it can
+   * exclude areas where this layer simply contains no content at all.
+   * (This can be an overapproximation to the "true" visible region.)
+   * 
+   * There is no general guarantee that drawing outside the bounds of the
+   * visible region will be ignored. So if a layer draws outside the bounds
+   * of its visible region, it needs to ensure that what it draws is valid.
    */
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) { mVisibleRegion = aRegion; }
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
+  {
+    mVisibleRegion = aRegion;
+    Mutated();
+  }
 
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the opacity which will be applied to this layer as it
    * is composited to the destination.
    */
-  void SetOpacity(float aOpacity) { mOpacity = aOpacity; }
+  void SetOpacity(float aOpacity)
+  {
+    mOpacity = aOpacity;
+    Mutated();
+  }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -318,7 +541,9 @@ public:
     if (aRect) {
       mClipRect = *aRect;
     }
+    Mutated();
   }
+
   /**
    * CONSTRUCTION PHASE ONLY
    * Set a clip rect which will be applied to this layer as it is
@@ -337,6 +562,7 @@ public:
       mUseClipRect = PR_TRUE;
       mClipRect = aRect;
     }
+    Mutated();
   }
 
   /**
@@ -346,12 +572,16 @@ public:
    * XXX Currently only transformations corresponding to 2D affine transforms
    * are supported.
    */
-  void SetTransform(const gfx3DMatrix& aMatrix) { mTransform = aMatrix; }
+  void SetTransform(const gfx3DMatrix& aMatrix)
+  {
+    mTransform = aMatrix;
+    Mutated();
+  }
 
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nsnull; }
-  PRBool IsOpaqueContent() { return mIsOpaqueContent; }
+  PRUint32 GetContentFlags() { return mContentFlags; }
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
   ContainerLayer* GetParent() { return mParent; }
   Layer* GetNextSibling() { return mNextSibling; }
@@ -359,10 +589,54 @@ public:
   virtual Layer* GetFirstChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
 
-  // This setter and getter can be used anytime. The user data is initially
-  // null.
-  void SetUserData(void* aData) { mUserData = aData; }
-  void* GetUserData() { return mUserData; }
+  /**
+   * DRAWING PHASE ONLY
+   *
+   * Write layer-subtype-specific attributes into aAttrs.  Used to
+   * synchronize layer attributes to their shadows'.
+   */
+  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) { }
+
+  // Returns true if it's OK to save the contents of aLayer in an
+  // opaque surface (a surface without an alpha channel).
+  // If we can use a surface without an alpha channel, we should, because
+  // it will often make painting of antialiased text faster and higher
+  // quality.
+  PRBool CanUseOpaqueSurface();
+
+  /**
+   * This setter can be used anytime. The user data for all keys is
+   * initially null. Ownership pases to the layer manager.
+   */
+  void SetUserData(void* aKey, LayerUserData* aData)
+  { mUserData.Set(aKey, aData); }
+  /**
+   * This can be used anytime. Ownership passes to the caller!
+   */
+  nsAutoPtr<LayerUserData> RemoveUserData(void* aKey)
+  { nsAutoPtr<LayerUserData> d(mUserData.Remove(aKey)); return d; }
+  /**
+   * This getter can be used anytime.
+   */
+  PRBool HasUserData(void* aKey)
+  { return mUserData.Has(aKey); }
+  /**
+   * This getter can be used anytime. Ownership is retained by the layer
+   * manager.
+   */
+  LayerUserData* GetUserData(void* aKey)
+  { return mUserData.Get(aKey); }
+
+  /**
+   * |Disconnect()| is used by layers hooked up over IPC.  It may be
+   * called at any time, and may not be called at all.  Using an
+   * IPC-enabled layer after Destroy() (drawing etc.) results in a
+   * safe no-op; no crashy or uaf etc.
+   *
+   * XXX: this interface is essentially LayerManager::Destroy, but at
+   * Layer granularity.  It might be beneficial to unify them.
+   */
+  virtual void Disconnect() {}
 
   /**
    * Dynamic downcast to a Thebes layer. Returns null if this is not
@@ -370,10 +644,21 @@ public:
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
 
-#ifdef DEBUG
-  virtual const char* Name() = 0;
-#endif
-  virtual LayerType GetType() = 0;
+  /**
+   * Dynamic cast to a ShadowLayer.  Return null if this is not a
+   * ShadowLayer.  Can be used anytime.
+   */
+  virtual ShadowLayer* AsShadowLayer() { return nsnull; }
+
+  // These getters can be used anytime.  They return the effective
+  // values that should be used when drawing this layer to screen,
+  // accounting for this layer possibly being a shadow.
+  const nsIntRect* GetEffectiveClipRect();
+  const nsIntRegion& GetEffectiveVisibleRegion();
+  const gfx3DMatrix& GetEffectiveTransform();
+
+  virtual const char* Name() const =0;
+  virtual LayerType GetType() const =0;
 
   /**
    * Only the implementation should call this. This is per-implementation
@@ -389,6 +674,30 @@ public:
   void SetNextSibling(Layer* aSibling) { mNextSibling = aSibling; }
   void SetPrevSibling(Layer* aSibling) { mPrevSibling = aSibling; }
 
+  /**
+   * Dump information about this layer manager and its managed tree to
+   * aFile, which defaults to stderr.
+   */
+  void Dump(FILE* aFile=NULL, const char* aPrefix="");
+  /**
+   * Dump information about just this layer manager itself to aFile,
+   * which defaults to stderr.
+   */
+  void DumpSelf(FILE* aFile=NULL, const char* aPrefix="");
+
+  /**
+   * Log information about this layer manager and its managed tree to
+   * the NSPR log (if enabled for "Layers").
+   */
+  void Log(const char* aPrefix="");
+  /**
+   * Log information about just this layer manager itself to the NSPR
+   * log (if enabled for "Layers").
+   */
+  void LogSelf(const char* aPrefix="");
+
+  static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
+
 protected:
   Layer(LayerManager* aManager, void* aImplData) :
     mManager(aManager),
@@ -396,24 +705,32 @@ protected:
     mNextSibling(nsnull),
     mPrevSibling(nsnull),
     mImplData(aImplData),
-    mUserData(nsnull),
     mOpacity(1.0),
-    mUseClipRect(PR_FALSE),
-    mIsOpaqueContent(PR_FALSE)
+    mContentFlags(0),
+    mUseClipRect(PR_FALSE)
     {}
+
+  void Mutated() { mManager->Mutated(this); }
+
+  // Print interesting information about this into aTo.  Internally
+  // used to implement Dump*() and Log*().  If subclasses have
+  // additional interesting properties, they should override this with
+  // an implementation that first calls the base implementation then
+  // appends additional info to aTo.
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   LayerManager* mManager;
   ContainerLayer* mParent;
   Layer* mNextSibling;
   Layer* mPrevSibling;
   void* mImplData;
-  void* mUserData;
+  LayerUserDataSet mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
   float mOpacity;
   nsIntRect mClipRect;
+  PRUint32 mContentFlags;
   PRPackedBool mUseClipRect;
-  PRPackedBool mIsOpaqueContent;
 };
 
 /**
@@ -440,17 +757,40 @@ public:
   /**
    * Can be used anytime
    */
-  const nsIntRegion& GetValidRegion() { return mValidRegion; }
+  const nsIntRegion& GetValidRegion() const { return mValidRegion; }
+  float GetXResolution() const { return mXResolution; }
+  float GetYResolution() const { return mYResolution; }
 
   virtual ThebesLayer* AsThebesLayer() { return this; }
 
-  NS_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
+  MOZ_LAYER_DECL_NAME("ThebesLayer", TYPE_THEBES)
 
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
-    : Layer(aManager, aImplData) {}
+    : Layer(aManager, aImplData)
+    , mValidRegion()
+    , mXResolution(1.0)
+    , mYResolution(1.0)
+  {}
+
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   nsIntRegion mValidRegion;
+  // Resolution values tell this to paint its content scaled by
+  // <aXResolution, aYResolution>, into a backing buffer with
+  // dimensions scaled the same.  A non-1.0 resolution also tells this
+  // to set scaling factors that compensate for the re-paint
+  // resolution when rendering itself to render targets
+  //
+  // Resolution doesn't affect the visible region, valid region, or
+  // re-painted regions at all.  It only affects how scalable thebes
+  // content is rasterized to device pixels.
+  //
+  // Setting the resolution isn't part of the public ThebesLayer API
+  // because it's backend-specific, and it doesn't necessarily make
+  // sense for all backends to fully support it.
+  float mXResolution;
+  float mYResolution;
 };
 
 /**
@@ -474,10 +814,22 @@ public:
    */
   virtual void RemoveChild(Layer* aChild) = 0;
 
-  // This getter can be used anytime.
-  virtual Layer* GetFirstChild() { return mFirstChild; }
+  /**
+   * CONSTRUCTION PHASE ONLY
+   * Set the (sub)document metrics used to render the Layer subtree
+   * rooted at this.
+   */
+  void SetFrameMetrics(const FrameMetrics& aFrameMetrics)
+  {
+    mFrameMetrics = aFrameMetrics;
+  }
 
-  NS_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
+  // These getters can be used anytime.
+
+  virtual Layer* GetFirstChild() { return mFirstChild; }
+  const FrameMetrics& GetFrameMetrics() { return mFrameMetrics; }
+
+  MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
 
 protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
@@ -485,7 +837,10 @@ protected:
       mFirstChild(nsnull)
   {}
 
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
+
   Layer* mFirstChild;
+  FrameMetrics mFrameMetrics;
 };
 
 /**
@@ -507,13 +862,15 @@ public:
   // This getter can be used anytime.
   virtual const gfxRGBA& GetColor() { return mColor; }
 
-  NS_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
+  MOZ_LAYER_DECL_NAME("ColorLayer", TYPE_COLOR)
 
 protected:
   ColorLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
       mColor(0.0, 0.0, 0.0, 0.0)
   {}
+
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   gfxRGBA mColor;
 };
@@ -575,11 +932,13 @@ public:
   void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
   gfxPattern::GraphicsFilter GetFilter() const { return mFilter; }
 
-  NS_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
+  MOZ_LAYER_DECL_NAME("CanvasLayer", TYPE_CANVAS)
 
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData), mFilter(gfxPattern::FILTER_GOOD) {}
+
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   gfxPattern::GraphicsFilter mFilter;
 };

@@ -42,6 +42,7 @@
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
+#include "nsICapturePicker.h"
 #include "nsCOMPtr.h"
 
 #include "nsTextControlFrame.h"
@@ -98,24 +99,13 @@ public:
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  // create and destroy the static UploadLastDir object for remembering
-  // which directory was last used on a site-by-site basis
-  static void InitUploadLastDir();
-  static void DestroyUploadLastDir();
+  typedef PRBool (*AcceptAttrCallback)(const nsAString&, void*);
+  void ParseAcceptAttribute(AcceptAttrCallback aCallback, void* aClosure) const;
 
-  /**
-   * This methods return the file filter mask requested by the HTML5 accept
-   * attribute. If the accept attribute isn't present or the value isn't valid,
-   * the returned value will be 0.
-   *
-   * See:
-   * http://dev.w3.org/html5/spec/forms.html#attr-input-accept
-   *
-   * @return the file picker filter mask or 0 if there is no filter.
-   */
-  PRInt32 GetFileFilterFromAccept() const;
+  nsIFrame* GetTextFrame() { return mTextFrame; }
 
 protected:
+
   class MouseListener;
   friend class MouseListener;
   class MouseListener : public nsIDOMMouseListener {
@@ -134,16 +124,30 @@ protected:
     // and textfield.
     NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { return NS_OK; }
-    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) = 0;
     NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent) { return NS_OK; }
     NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
-  private:
+  protected:
     nsFileControlFrame* mFrame;
   };
   
+  class CaptureMouseListener: public MouseListener {
+  public:
+    CaptureMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame),
+                                                       mMode(0) {};
+    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+    PRUint32 mMode;
+  };
+  
+  class BrowseMouseListener: public MouseListener {
+  public:
+    BrowseMouseListener(nsFileControlFrame* aFrame) : MouseListener(aFrame) {};
+     NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+  };
+
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
@@ -169,9 +173,16 @@ protected:
   nsCOMPtr<nsIContent> mBrowse;
 
   /**
+   * The capture button input.
+   * @see nsFileControlFrame::CreateAnonymousContent
+   */
+  nsCOMPtr<nsIContent> mCapture;
+
+  /**
    * Our mouse listener.  This makes sure we don't get used after destruction.
    */
-  nsRefPtr<MouseListener> mMouseListener;
+  nsRefPtr<BrowseMouseListener> mMouseListener;
+  nsRefPtr<CaptureMouseListener> mCaptureMouseListener;
 
 private:
   /**

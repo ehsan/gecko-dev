@@ -62,9 +62,11 @@ include $(topsrcdir)/config/rules.mk
 DEFINES += -D_IMPL_NS_LAYOUT
 
 _TEST_FILES =	\
+		border_radius_hit_testing_iframe.html \
 		bug369950-subframe.xml \
 		bug495648.rdf \
 		decoration_line_rendering.js \
+		test_border_radius_hit_testing.html \
 		test_bug66619.html \
 		test_bug114649.html \
 		$(warning test_bug369950.html disabled due to random orange; see bug 492575) \
@@ -93,12 +95,27 @@ _TEST_FILES =	\
 		     bug106855-1.html \
 		     bug106855-2.html \
 		     bug106855-1-ref.html \
+		     bug240933-1.html \
+		     bug240933-2.html \
+		     bug240933-1-ref.html \
 		     bug482484.html \
 		     bug482484-ref.html \
 		     bug512295-1.html \
 		     bug512295-1-ref.html \
 		     bug512295-2.html \
 		     bug512295-2-ref.html \
+		     bug585922.html \
+		     bug585922-ref.html \
+		     bug597519-1.html \
+		     bug597519-1-ref.html \
+		     bug602141-1.html \
+		     bug602141-1-ref.html \
+		     bug602141-2.html \
+		     bug602141-2-ref.html \
+		     bug602141-3.html \
+		     bug602141-3-ref.html \
+		     bug602141-4.html \
+		     bug602141-4-ref.html \
 		test_bug514127.html \
 		test_bug518777.html \
 		test_bug548545.xhtml \
@@ -196,6 +213,7 @@ _TEST_FILES += \
 		bug467672-5.html \
 		bug467672-5-ref.html \
 		test_bug499538-1.html \
+		test_bug569520.html \
 		test_bug570378-arabic-1a.html \
 		test_bug570378-arabic-1b.html \
 		test_bug570378-arabic-1c.html \
@@ -276,6 +294,7 @@ _TEST_FILES += \
 		test_bug570378-persian-5g.html \
 		bug570378-persian-5.html \
 		bug570378-persian-5-ref.html \
+		test_bug588174.html \
 		$(NULL)
 endif
 

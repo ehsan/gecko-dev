@@ -104,7 +104,6 @@ public:
     NS_IMETHOD FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
     NS_IMETHOD FlushFontCache(void);
 
-    NS_IMETHOD SupportsNativeWidgets(PRBool& aSupportsWidgets);
     NS_IMETHOD PrepareNativeWidget(nsIWidget *aWidget, void **aOut);
 
     NS_IMETHOD GetSystemFont(nsSystemFontID aID, nsFont *aFont) const;
@@ -161,9 +160,6 @@ protected:
     nsCOMPtr<nsIAtom> mLocaleLanguage; // XXX temp fix for performance bug
     nsHashtable*      mFontAliasTable;
     nsIWidget*        mWidget;
-#ifdef NS_DEBUG
-    PRBool            mInitialized;
-#endif
 
 private:
     nsCOMPtr<nsIScreenManager> mScreenManager;

@@ -48,7 +48,7 @@ class AccGroupInfo
 {
 public:
   AccGroupInfo(nsAccessible* aItem, PRUint32 aRole);
-  ~AccGroupInfo() { }
+  ~AccGroupInfo() { MOZ_COUNT_DTOR(AccGroupInfo); }
 
   PRInt32 PosInSet() const { return mPosInSet; }
   PRUint32 SetSize() const { return mSetSize; }
@@ -59,7 +59,7 @@ public:
    */
   static AccGroupInfo* CreateGroupInfo(nsAccessible* aAccessible)
   {
-    PRUint32 role = nsAccUtils::Role(aAccessible);
+    PRUint32 role = aAccessible->Role();
     if (role != nsIAccessibleRole::ROLE_ROW &&
         role != nsIAccessibleRole::ROLE_GRID_CELL &&
         role != nsIAccessibleRole::ROLE_OUTLINEITEM &&

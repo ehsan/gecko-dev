@@ -36,7 +36,33 @@ function readBytesFromInputStream(inputStream, count) {
   return new BinaryInputStream(inputStream).readBytes(count);
 }
 
+/*
+ * Create and upload public + private key pair. You probably want to enable
+ * FakeCryptoService first, otherwise this will be very expensive.
+ */
+function createAndUploadKeypair() {
+  let storageURL = Svc.Prefs.get("clusterURL") + Svc.Prefs.get("storageAPI")
+                   + "/" + ID.get("WeaveID").username + "/storage/";
 
+  PubKeys.defaultKeyUri = storageURL + "keys/pubkey";
+  PrivKeys.defaultKeyUri = storageURL + "keys/privkey";
+  let keys = PubKeys.createKeypair(ID.get("WeaveCryptoID"),
+                                   PubKeys.defaultKeyUri,
+                                   PrivKeys.defaultKeyUri);
+  PubKeys.uploadKeypair(keys);
+}
+
+/*
+ * Create and upload an engine's symmetric key.
+ */
+function createAndUploadSymKey(url) {
+  let symkey = Svc.Crypto.generateRandomKey();
+  let pubkey = PubKeys.getDefaultKey();
+  let meta = new CryptoMeta(url);
+  meta.addUnwrappedKey(pubkey, symkey);
+  let res = new Resource(meta.uri);
+  res.put(meta);
+}
 
 /*
  * Represent a WBO on the server
@@ -153,7 +179,7 @@ ServerCollection.prototype = {
   post: function(input) {
     input = JSON.parse(input);
     let success = [];
-    let failed = [];
+    let failed = {};
 
     // This will count records where we have an existing ServerWBO
     // registered with us as successful and all other records as failed.
@@ -164,10 +190,11 @@ ServerCollection.prototype = {
         wbo.modified = Date.now() / 1000;
         success.push(record.id);
       } else {
-        failed.push(record.id);
+        failed[record.id] = "no wbo configured";
       }
     }
-    return {success: success,
+    return {modified: Date.now() / 1000,
+            success: success,
             failed: failed};
   },
 

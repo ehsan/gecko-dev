@@ -166,7 +166,8 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     }
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
-      case nsDisplayItem::TYPE_CLIP: {
+      case nsDisplayItem::TYPE_CLIP:
+      case nsDisplayItem::TYPE_CLIP_ROUNDED_RECT: {
         nsDisplayClip* c = static_cast<nsDisplayClip*>(i);
         rect = c->GetClipRect();
         break;
@@ -175,15 +176,14 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
         break;
     }
     nscolor color;
-    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)%s%s%s%s\n", i->Name(),
-            (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
-            rect.x, rect.y, rect.width, rect.height,
-            i->IsOpaque(aBuilder) ? " opaque" : "",
-            i->IsUniform(aBuilder, &color) ? " uniform" : "",
-            f && aBuilder->IsMovingFrame(f) ? " moving" : "",
-            f && aBuilder->IsMovingFrame(f) && !i->GetList() &&
-              i->IsVaryingRelativeToMovingFrame(aBuilder) ? " varying" : "");
+    nsRect vis = i->GetVisibleRect();
     nsDisplayList* list = i->GetList();
+    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)%s%s\n",
+            i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
+            rect.x, rect.y, rect.width, rect.height,
+            vis.x, vis.y, vis.width, vis.height,
+            ((!list || list->DidComputeVisibility()) && i->IsOpaque(aBuilder)) ? " opaque" : "",
+            i->IsUniform(aBuilder, &color) ? " uniform" : "");
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
     }

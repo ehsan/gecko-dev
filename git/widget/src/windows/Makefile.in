@@ -71,6 +71,7 @@ CPPSRCS		= \
 	TaskbarPreviewButton.cpp \
  	JumpListBuilder.cpp \
  	JumpListItem.cpp \
+	GfxInfo.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING
@@ -88,7 +89,7 @@ CPPSRCS += \
 	$(NULL)
 else
 CPPSRCS += \
-	nsKeyboardLayout.cpp \
+	KeyboardLayout.cpp \
 	IEnumFE.cpp  \
 	nsDataObj.cpp  \
 	nsDataObjCollection.cpp  \
@@ -109,6 +110,10 @@ DEFINES		+= -D_IMPL_NS_WIDGET -DMOZ_UNICODE
 
 ifdef MOZ_ENABLE_D3D9_LAYER
 DEFINES		+= -DMOZ_ENABLE_D3D9_LAYER
+endif
+
+ifdef MOZ_ENABLE_D3D10_LAYER
+DEFINES		+= -DMOZ_ENABLE_D3D10_LAYER
 endif
 
 ifdef BUILD_STATIC_LIBS

@@ -193,6 +193,18 @@ public:
     static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
     static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
 
+#ifdef OS_MACOSX
+    void ProcessNativeEvents();
+    
+    void PluginShowWindow(uint32_t window_id, bool modal, CGRect r) {
+        SendPluginShowWindow(window_id, modal, r.origin.x, r.origin.y, r.size.width, r.size.height);
+    }
+
+    void PluginHideWindow(uint32_t window_id) {
+        SendPluginHideWindow(window_id);
+    }
+#endif
+
 private:
     bool InitGraphics();
 #if defined(MOZ_WIDGET_GTK2)

@@ -168,6 +168,12 @@ public:
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
 
+  void ReleaseMainThreadObjects()
+  {
+    mIndex = nsnull;
+    AsyncConnectionHelper::ReleaseMainThreadObjects();
+  }
+
 private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
@@ -207,6 +213,12 @@ public:
   PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection);
   PRUint16 GetSuccessResult(nsIWritableVariant* aResult);
 
+  void ReleaseMainThreadObjects()
+  {
+    mIndex = nsnull;
+    AsyncConnectionHelper::ReleaseMainThreadObjects();
+  }
+
 private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
@@ -223,6 +235,16 @@ private:
   nsTArray<KeyValuePair> mData;
 };
 
+inline
+already_AddRefed<IDBRequest>
+GenerateRequest(IDBIndex* aIndex)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  IDBDatabase* database = aIndex->ObjectStore()->Transaction()->Database();
+  return IDBRequest::Create(static_cast<nsPIDOMEventTarget*>(aIndex),
+                            database->ScriptContext(), database->Owner());
+}
+
 } // anonymous namespace
 
 // static
@@ -234,7 +256,12 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   NS_ASSERTION(aObjectStore, "Null pointer!");
   NS_ASSERTION(aIndexInfo, "Null pointer!");
 
+  IDBDatabase* database = aObjectStore->Transaction()->Database();
+
   nsRefPtr<IDBIndex> index = new IDBIndex();
+
+  index->mScriptContext = database->ScriptContext();
+  index->mOwner = database->Owner();
 
   index->mObjectStore = aObjectStore;
   index->mId = aIndexInfo->id;
@@ -257,16 +284,34 @@ IDBIndex::IDBIndex()
 IDBIndex::~IDBIndex()
 {
   NS_PRECONDITION(NS_IsMainThread(), "Wrong thread!");
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
-NS_IMPL_ADDREF(IDBIndex)
-NS_IMPL_RELEASE(IDBIndex)
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBIndex)
 
-NS_INTERFACE_MAP_BEGIN(IDBIndex)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, IDBRequest::Generator)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBIndex,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mObjectStore,
+                                                       nsPIDOMEventTarget)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBIndex,
+                                                nsDOMEventTargetHelper)
+  // Don't unlink mObjectStore!
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBIndex)
   NS_INTERFACE_MAP_ENTRY(nsIIDBIndex)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBIndex)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+
+NS_IMPL_ADDREF_INHERITED(IDBIndex, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(IDBIndex, nsDOMEventTargetHelper)
 
 DOMCI_DATA(IDBIndex, IDBIndex)
 
@@ -319,12 +364,13 @@ IDBIndex::Get(nsIVariant* aKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetHelper> helper =
-    new GetHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
-                  mAutoIncrement);
+    new GetHelper(transaction, request, key, mId, mUnique, mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -346,11 +392,13 @@ IDBIndex::GetObject(nsIVariant* aKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetObjectHelper> helper =
-    new GetObjectHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
+    new GetObjectHelper(transaction, request, key, mId, mUnique,
                         mAutoIncrement);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -379,12 +427,14 @@ IDBIndex::GetAll(nsIVariant* aKey,
     aLimit = PR_UINT32_MAX;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllHelper> helper =
-    new GetAllHelper(mObjectStore->Transaction(), request, key, mId, mUnique,
-                     mAutoIncrement, aLimit);
+    new GetAllHelper(transaction, request, key, mId, mUnique, mAutoIncrement,
+                     aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -412,12 +462,14 @@ IDBIndex::GetAllObjects(nsIVariant* aKey,
     aLimit = PR_UINT32_MAX;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<GetAllObjectsHelper> helper =
-    new GetAllObjectsHelper(mObjectStore->Transaction(), request, key, mId,
-                            mUnique, mAutoIncrement, aLimit);
+    new GetAllObjectsHelper(transaction, request, key, mId, mUnique,
+                            mAutoIncrement, aLimit);
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -477,13 +529,15 @@ IDBIndex::OpenCursor(nsIIDBKeyRange* aKeyRange,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenCursorHelper> helper =
-    new OpenCursorHelper(mObjectStore->Transaction(), request, this, mId,
-                         mUnique, mAutoIncrement, leftKey, rightKey,
-                         keyRangeFlags, aDirection, aPreload);
+    new OpenCursorHelper(transaction, request, this, mId, mUnique,
+                         mAutoIncrement, leftKey, rightKey, keyRangeFlags,
+                         aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -544,13 +598,15 @@ IDBIndex::OpenObjectCursor(nsIIDBKeyRange* aKeyRange,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest();
+  IDBTransaction* transaction = mObjectStore->Transaction();
+
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<OpenObjectCursorHelper> helper =
-    new OpenObjectCursorHelper(mObjectStore->Transaction(), request, this, mId,
-                               mUnique, mAutoIncrement, leftKey, rightKey,
-                               keyRangeFlags, aDirection, aPreload);
+    new OpenObjectCursorHelper(transaction, request, this, mId, mUnique,
+                               mAutoIncrement, leftKey, rightKey, keyRangeFlags,
+                               aDirection, aPreload);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -708,7 +764,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   if (mAutoIncrement) {
     keyColumn.AssignLiteral("ai_object_data_id");
     if (mUnique) {
-      tableName.AssignLiteral("unique_ai_index_data");
+      tableName.AssignLiteral("ai_unique_index_data");
     }
     else {
       tableName.AssignLiteral("ai_index_data");
@@ -957,7 +1013,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   if (mAutoIncrement) {
     keyColumn.AssignLiteral("ai_object_data_id");
     if (mUnique) {
-      table.AssignLiteral("unique_ai_index_data");
+      table.AssignLiteral("ai_unique_index_data");
     }
     else {
       table.AssignLiteral("ai_index_data");
@@ -1139,10 +1195,7 @@ OpenCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
     IDBCursor::Create(mRequest, mTransaction, mIndex, mDirection, mData);
   NS_ENSURE_TRUE(cursor, nsIIDBDatabaseException::UNKNOWN_ERR);
 
-  aResult->SetAsISupports(static_cast<IDBRequest::Generator*>(cursor));
-
-  mIndex = nsnull;
-
+  aResult->SetAsISupports(static_cast<nsPIDOMEventTarget*>(cursor));
   return OK;
 }
 
@@ -1158,11 +1211,13 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   nsCString indexTable;
   nsCString objectTable;
+  nsCString objectDataId;
 
   if (mAutoIncrement) {
     objectTable.AssignLiteral("ai_object_data");
+    objectDataId.AssignLiteral("ai_object_data_id");
     if (mUnique) {
-      indexTable.AssignLiteral("unique_ai_index_data");
+      indexTable.AssignLiteral("ai_unique_index_data");
     }
     else {
       indexTable.AssignLiteral("ai_index_data");
@@ -1170,6 +1225,7 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
   else {
     objectTable.AssignLiteral("object_data");
+    objectDataId.AssignLiteral("object_data_id");
     if (mUnique) {
       indexTable.AssignLiteral("unique_index_data");
     }
@@ -1248,7 +1304,8 @@ OpenObjectCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                     NS_LITERAL_CSTRING(" FROM ") + objectTable +
                     NS_LITERAL_CSTRING(" INNER JOIN ") + indexTable +
                     NS_LITERAL_CSTRING(" ON ") + indexTable +
-                    NS_LITERAL_CSTRING(".object_data_id = ") + objectTable +
+                    NS_LITERAL_CSTRING(".") + objectDataId +
+                    NS_LITERAL_CSTRING(" = ") + objectTable +
                     NS_LITERAL_CSTRING(".id WHERE ") + indexId +
                     NS_LITERAL_CSTRING(" = :") + indexId + keyRangeClause +
                     groupClause + NS_LITERAL_CSTRING(" ORDER BY ") +
@@ -1340,9 +1397,6 @@ OpenObjectCursorHelper::GetSuccessResult(nsIWritableVariant* aResult)
     IDBCursor::Create(mRequest, mTransaction, mIndex, mDirection, mData);
   NS_ENSURE_TRUE(cursor, nsIIDBDatabaseException::UNKNOWN_ERR);
 
-  aResult->SetAsISupports(static_cast<IDBRequest::Generator*>(cursor));
-
-  mIndex = nsnull;
-
+  aResult->SetAsISupports(static_cast<nsPIDOMEventTarget*>(cursor));
   return OK;
 }

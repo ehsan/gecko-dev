@@ -86,7 +86,7 @@ class nsGenericDOMDataNode : public nsIContent
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  nsGenericDOMDataNode(nsINodeInfo *aNodeInfo);
+  nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsGenericDOMDataNode();
 
   // Implementation for nsIDOMNode
@@ -230,7 +230,7 @@ public:
   virtual void SaveSubtreeState();
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 /*aNamespaceID*/, nsIAtom* /*aName*/)
   {
     return nsnull;
   }
@@ -358,7 +358,7 @@ protected:
   nsTextFragment mText;
 
 private:
-  void SetBidiStatus();
+  void UpdateBidiStatus(const PRUnichar* aBuffer, PRUint32 aLength);
 
   already_AddRefed<nsIAtom> GetCurrentValueAtom();
 };
@@ -366,7 +366,8 @@ private:
 class nsGenericTextNode : public nsGenericDOMDataNode
 {
 public:
-  nsGenericTextNode(nsINodeInfo *aNodeInfo) : nsGenericDOMDataNode(aNodeInfo)
+  nsGenericTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
   {
   }
 

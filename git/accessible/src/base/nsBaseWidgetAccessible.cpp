@@ -205,27 +205,6 @@ nsLinkableAccessible::GetKeyboardShortcut(nsAString& aKeyboardShortcut)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsLinkableAccessible. nsIAccessibleHyperLink
-
-NS_IMETHODIMP
-nsLinkableAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
-{
-  if (mIsLink) {
-    nsAccessible *actionAcc = GetActionAccessible();
-    if (actionAcc) {
-      nsCOMPtr<nsIAccessibleHyperLink> hyperLinkAcc = do_QueryObject(actionAcc);
-      NS_ASSERTION(hyperLinkAcc,
-                   "nsIAccessibleHyperLink isn't implemented.");
-
-      if (hyperLinkAcc)
-        return hyperLinkAcc->GetURI(aIndex, aURI);
-    }
-  }
-  
-  return NS_ERROR_INVALID_ARG;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // nsLinkableAccessible. nsAccessNode
 
 PRBool
@@ -240,6 +219,26 @@ nsLinkableAccessible::Shutdown()
 {
   mActionContent = nsnull;
   nsAccessibleWrap::Shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsLinkableAccessible: HyperLinkAccessible
+
+already_AddRefed<nsIURI>
+nsLinkableAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
+{
+  if (mIsLink) {
+    nsAccessible* link = GetActionAccessible();
+    if (link) {
+      NS_ASSERTION(link->IsHyperLink(),
+                   "nsIAccessibleHyperLink isn't implemented.");
+
+      if (link->IsHyperLink())
+        return link->GetAnchorURI(aAnchorIndex);
+    }
+  }
+
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,17 +257,17 @@ nsLinkableAccessible::CacheActionContent()
   }
 
   while ((walkUpContent = walkUpContent->GetParent())) {
-    isOnclick = nsCoreUtils::HasClickListener(walkUpContent);
-    nsAccessible *walkUpAcc =
+    nsAccessible* walkUpAcc =
       GetAccService()->GetAccessibleInWeakShell(walkUpContent, mWeakShell);
 
-    if (nsAccUtils::Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
+    if (walkUpAcc && walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
         nsAccUtils::State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED) {
       mIsLink = PR_TRUE;
       mActionContent = walkUpContent;
       return;
     }
 
+    isOnclick = nsCoreUtils::HasClickListener(walkUpContent);
     if (isOnclick) {
       mActionContent = walkUpContent;
       mIsOnclick = PR_TRUE;
@@ -303,9 +302,8 @@ nsEnumRoleAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsEnumRoleAccessible, nsAccessible)
 
-nsresult
-nsEnumRoleAccessible::GetRoleInternal(PRUint32 *aRole)
+PRUint32
+nsEnumRoleAccessible::NativeRole()
 {
-  *aRole = mRole;
-  return NS_OK;
+  return mRole;
 }

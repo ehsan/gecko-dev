@@ -27,7 +27,6 @@ WebGL Conformance Test Runner.
   .testpagetimeout { border: 1px solid black; background-color: #FC8; }
   .nowebgl { font-weight: bold; color: red; }
 </style>
-<script type="text/javascript" src="test_list.txt.js"></script>
 <script type="text/javascript" src="resources/webgl-test-harness.js"></script>
 <script>
 function start() {
@@ -173,7 +172,6 @@ function start() {
     page.startPage();
     this.currentPage = page;
     this.iframe.src = url;
-    return result;
   };
 
   Reporter.prototype.addPage = function(url) {
@@ -243,7 +241,7 @@ function start() {
   var iframe = document.getElementById("testframe");
   var testHarness = new WebGLTestHarnessModule.TestHarness(
       iframe,
-      'test_list.txt',
+      '00_testFIXME_list.txt',
       function(type, msg, success) {
         return reporter.reportFunc(type, msg, success);
       });

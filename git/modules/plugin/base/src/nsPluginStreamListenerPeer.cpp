@@ -279,6 +279,9 @@ nsPluginStreamListenerPeer::~nsPluginStreamListenerPeer()
     mFileCacheOutputStream = nsnull;
   
   delete mDataForwardToRequest;
+
+  if (mPluginInstance)
+    mPluginInstance->BStreamListeners()->RemoveElement(this);
 }
 
 // Called as a result of GetURL and PostURL
@@ -339,6 +342,8 @@ nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
     mOwner = aOwner;
   }
   
+  mPendingRequests = 1;
+  
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
     return NS_ERROR_FAILURE;
@@ -360,6 +365,8 @@ nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIURI* aURL, nsNPAPIPlu
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
     return NS_ERROR_FAILURE;
+
+  mPendingRequests = 1;
   
   return NS_OK;
 }
@@ -377,16 +384,15 @@ nsPluginStreamListenerPeer::SetupPluginCacheFile(nsIChannel* channel)
   nsresult rv = NS_OK;
   
   PRBool useExistingCacheFile = PR_FALSE;
-  
   nsRefPtr<nsPluginHost> pluginHost = dont_AddRef(nsPluginHost::GetInst());
-  nsTArray< nsAutoPtr<nsPluginInstanceTag> > *instanceTags = pluginHost->InstanceTagArray();
-  for (PRUint32 i = 0; i < instanceTags->Length(); i++) {
-    nsPluginInstanceTag *instanceTag = (*instanceTags)[i];
-    
+
+  // Look for an existing cache file for the URI.
+  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *instances = pluginHost->InstanceArray();
+  for (PRUint32 i = 0; i < instances->Length(); i++) {
     // most recent streams are at the end of list
-    for (PRInt32 i = instanceTag->mStreams.Count() - 1; i >= 0; --i) {
-      nsPluginStreamListenerPeer *lp =
-      static_cast<nsPluginStreamListenerPeer*>(instanceTag->mStreams[i]);
+    nsTArray<nsPluginStreamListenerPeer*> *bStreamListeners = instances->ElementAt(i)->BStreamListeners();
+    for (PRInt32 i = bStreamListeners->Length() - 1; i >= 0; --i) {
+      nsPluginStreamListenerPeer *lp = bStreamListeners->ElementAt(i);
       if (lp && lp->mLocalCachedFileHolder) {
         useExistingCacheFile = lp->UseExistingPluginCacheFile(this);
         if (useExistingCacheFile) {
@@ -398,7 +404,8 @@ nsPluginStreamListenerPeer::SetupPluginCacheFile(nsIChannel* channel)
         break;
     }
   }
-  
+
+  // Create a new cache file if one could not be found.
   if (!useExistingCacheFile) {
     nsCOMPtr<nsIFile> pluginTmp;
     rv = nsPluginHost::GetPluginTempDir(getter_AddRefs(pluginTmp));
@@ -438,17 +445,12 @@ nsPluginStreamListenerPeer::SetupPluginCacheFile(nsIChannel* channel)
       return rv;
     
     // save the file.
-    
     mLocalCachedFileHolder = new CachedFileHolder(pluginTmp);
   }
-  
+
   // add this listenerPeer to list of stream peers for this instance
-  // it'll delay release of listenerPeer until nsPluginInstanceTag::~nsPluginInstanceTag
-  // and the temp file is going to stay alive until then
-  nsPluginInstanceTag *instanceTag = pluginHost->FindInstanceTag(mPluginInstance);
-  if (instanceTag)
-    instanceTag->mStreams.AppendObject(this);
-  
+  mPluginInstance->BStreamListeners()->AppendElement(this);
+
   return rv;
 }
 
@@ -596,6 +598,12 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
           // If we've got a native window, the let the plugin know about it.
           if (window->window) {
             ((nsPluginNativeWindow*)window)->CallSetWindow(pluginInstCOMPtr);
+          } else {
+            PRBool useAsyncPainting = PR_FALSE;
+            mPluginInstance->UseAsyncPainting(&useAsyncPainting);
+            if (useAsyncPainting) {
+              mPluginInstance->AsyncSetWindow(window);
+            }
           }
         }
       }
@@ -829,7 +837,7 @@ nsPluginStreamListenerPeer::UseExistingPluginCacheFile(nsPluginStreamListenerPee
   
   NS_ENSURE_ARG_POINTER(psi);
   
-  if ( psi->mLength == mLength &&
+  if (psi->mLength == mLength &&
       psi->mModified == mModified &&
       mStreamComplete &&
       mURLSpec.Equals(psi->mURLSpec))

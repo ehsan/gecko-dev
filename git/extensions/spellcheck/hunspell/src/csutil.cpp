@@ -79,7 +79,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsICaseConversion.h"
 #include "nsICharsetConverterManager.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsUnicharUtils.h"
@@ -272,8 +271,7 @@ int flag_bsearch(unsigned short flags[], unsigned short flag, int length) {
       }
       if (dp) {
          *stringp = dp+1;
-         int nc = (int)((unsigned long)dp - (unsigned long)mp);
-         *(mp+nc) = '\0';
+         *dp = '\0';
       } else {
          *stringp = mp + strlen(mp);
       }
@@ -287,7 +285,7 @@ int flag_bsearch(unsigned short flags[], unsigned short flag, int length) {
  {
    char * d = NULL;
    if (s) {
-      int sl = strlen(s)+1;
+      size_t sl = strlen(s)+1;
       d = (char *) malloc(sl);
       if (d) {
          memcpy(d,s,sl);
@@ -313,7 +311,7 @@ int flag_bsearch(unsigned short flags[], unsigned short flag, int length) {
  // remove cross-platform text line end characters
  void mychomp(char * s)
  {
-   int k = strlen(s);
+   size_t k = strlen(s);
    if ((k > 0) && ((*(s+k-1)=='\r') || (*(s+k-1)=='\n'))) *(s+k-1) = '\0';
    if ((k > 1) && (*(s+k-2) == '\r')) *(s+k-2) = '\0';
  }
@@ -324,7 +322,7 @@ int flag_bsearch(unsigned short flags[], unsigned short flag, int length) {
  {
      char * d = NULL;
      if (s) {
-        int sl = strlen(s);
+        size_t sl = strlen(s);
         d = (char *) malloc(sl+1);
         if (d) {
           const char * p = s + sl - 1;
@@ -5212,7 +5210,6 @@ struct cs_info * get_current_cs(const char * es) {
 
   nsCOMPtr<nsIUnicodeEncoder> encoder; 
   nsCOMPtr<nsIUnicodeDecoder> decoder; 
-  nsCOMPtr<nsICaseConversion> caseConv;
 
   nsresult rv;
   nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(kCharsetConverterManagerCID, &rv);
@@ -5227,10 +5224,6 @@ struct cs_info * get_current_cs(const char * es) {
   if (NS_FAILED(rv))
     return nsnull;
   decoder->SetInputErrorBehavior(decoder->kOnError_Signal);
-
-  caseConv = do_GetService(kUnicharUtilCID, &rv);
-  if (NS_FAILED(rv))
-    return nsnull;
 
   ccs = new cs_info[256];
 
@@ -5253,18 +5246,14 @@ struct cs_info * get_current_cs(const char * es) {
       // NS_OK_UDEC_MOREOUTPUT or NS_OK_UDEC_MOREINPUT.
       if (rv != NS_OK || charLength != 1 || uniLength != 1)
         break;
-      rv = caseConv->ToLower(uni, &uniCased);
-      if (NS_FAILED(rv))
-        break;
+      uniCased = ToLowerCase(uni);
       rv = encoder->Convert(&uniCased, &uniLength, &lower, &charLength);
       // Explicitly check NS_OK because we don't want to allow
       // NS_OK_UDEC_MOREOUTPUT or NS_OK_UDEC_MOREINPUT.
       if (rv != NS_OK || charLength != 1 || uniLength != 1)
         break;
 
-      rv = caseConv->ToUpper(uni, &uniCased);
-      if (NS_FAILED(rv))
-        break;
+      uniCased = ToUpperCase(uni);
       rv = encoder->Convert(&uniCased, &uniLength, &upper, &charLength);
       // Explicitly check NS_OK because we don't want to allow
       // NS_OK_UDEC_MOREOUTPUT or NS_OK_UDEC_MOREINPUT.
@@ -5393,15 +5382,6 @@ void free_utf_tbl() {
   }
 }
 
-#ifdef MOZILLA_CLIENT
-static nsCOMPtr<nsICaseConversion>& getcaseConv()
-{
-  nsresult rv;
-  static nsCOMPtr<nsICaseConversion> caseConv = do_GetService(kUnicharUtilCID, &rv);
-  return caseConv;
-}
-#endif
-
 unsigned short unicodetoupper(unsigned short c, int langnum)
 {
   // In Azeri and Turkish, I and i dictinct letters:
@@ -5413,9 +5393,7 @@ unsigned short unicodetoupper(unsigned short c, int langnum)
   return u_toupper(c);
 #else
 #ifdef MOZILLA_CLIENT
-  PRUnichar ch2;
-  getcaseConv()->ToUpper((PRUnichar) c, &ch2);
-  return ch2;
+  return ToUpperCase((PRUnichar) c);
 #else
   return (utf_tbl) ? utf_tbl[c].cupper : c;
 #endif
@@ -5433,9 +5411,7 @@ unsigned short unicodetolower(unsigned short c, int langnum)
   return u_tolower(c);
 #else
 #ifdef MOZILLA_CLIENT
-  PRUnichar ch2;
-  getcaseConv()->ToLower((PRUnichar) c, &ch2);
-  return ch2;
+  return ToLowerCase((PRUnichar) c);
 #else
   return (utf_tbl) ? utf_tbl[c].clower : c;
 #endif

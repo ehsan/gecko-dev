@@ -13,6 +13,8 @@
   <script type="application/javascript" 
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" 
+          src="chrome://mochikit/content/chrome-harness.js"></script>
+  <script type="application/javascript" 
           src="RegisterUnregisterChrome.js"></script>
 
   <body  xmlns="http://www.w3.org/1999/xhtml">
@@ -35,7 +37,8 @@
       const UI_DIRECTION_PREF = "intl.uidirection.ar";
       prefs.setCharPref(UI_DIRECTION_PREF, "rtl");
 
-      registerManifestPermanently("chrome://mochikit/content/chrome/toolkit/content/tests/chrome/rtltest/righttoleft.manifest");
+      let rootDir = getRootDirectory(window.location.href);
+      registerManifestPermanently(rootDir + "rtltest/righttoleft.manifest");
 
       function runTest()
       {

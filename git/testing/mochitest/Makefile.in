@@ -51,6 +51,19 @@ DIRS =	MochiKit \
 	ssltunnel \
 	$(NULL)
 
+
+NO_JS_MANIFEST = 1
+MOZ_CHROME_FILE_FORMAT = jar
+DIST_FILES = install.rdf
+
+# Used in install.rdf
+USE_EXTENSION_MANIFEST = 1
+
+XPI_NAME = mochijar
+
+# we turn this off for UNIVERSAL_BINARY
+CHROME_JAR = 1
+
 include $(topsrcdir)/config/rules.mk
 # We're installing to _tests/testing/mochitest, so this is the depth
 # necessary for relative objdir paths.
@@ -74,6 +87,7 @@ _SERV_FILES = 	\
 		harness.xul \
 		browser-test-overlay.xul \
 		browser-test.js \
+		chrome-harness.js \
 		ipc-overlay.xul \
 		ipc.js \
 		browser-harness.xul \
@@ -106,6 +120,9 @@ _HANDSHAKE_FILES = \
 		$(NULL)
 
 _DEST_DIR = $(DEPTH)/_tests/$(relativesrcdir)
+
+libs:: 
+	(cd $(DIST)/xpi-stage && tar $(TAR_CREATE_FLAGS) - mochijar) | (cd $(_DEST_DIR) && tar -xf -)
 
 libs:: $(_PYWEBSOCKET_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(_DEST_DIR)/pywebsocket
@@ -151,6 +168,10 @@ ifeq ($(OS_ARCH),Linux)
 TEST_HARNESS_BINS += fix-linux-stack.pl
 endif
 
+ifeq (gtk2_1,$(MOZ_WIDGET_TOOLKIT)_$(MOZ_X11))
+TEST_HARNESS_BINS += screentopng
+endif
+
 # Components / typelibs that don't get packaged with
 # the build, but that we need for the test harness.
 TEST_HARNESS_COMPONENTS := \
@@ -169,6 +190,25 @@ endif
 # Rules for staging the necessary harness bits for a test package
 PKG_STAGE = $(DIST)/test-package-stage
 DIST_BIN = $(DIST)/bin
+
+PKG_CHROMEJAR = $(PKG_STAGE)/mochitest/content/
+
+ifdef CHROME_JAR
+stage-chromejar:
+	$(NSINSTALL) -D $(PKG_CHROMEJAR)
+	cp -RL $(DEPTH)/_tests/testing/mochitest/browser $(PKG_CHROMEJAR)
+	cp -RL $(DEPTH)/_tests/testing/mochitest/chrome $(PKG_CHROMEJAR)
+ifdef ACCESSIBILITY
+	cp -RL $(DEPTH)/_tests/testing/mochitest/a11y $(PKG_CHROMEJAR)
+endif
+	@(cd $(PKG_STAGE)/mochitest && zip -r tests.jar content/)
+	@(rm -rf $(PKG_CHROMEJAR))
+
+stage-package: stage-chromejar
+endif
+
+$(_DEST_DIR):
+	$(NSINSTALL) -D $@
 
 stage-package:
 	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins

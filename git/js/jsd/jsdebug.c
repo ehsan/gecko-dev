@@ -49,7 +49,7 @@ JSD_DebuggerOnForUser(JSRuntime*         jsrt,
                       JSD_UserCallbacks* callbacks,
                       void*              user)
 {
-    return jsd_DebuggerOnForUser(jsrt, callbacks, user);
+    return jsd_DebuggerOnForUser(jsrt, callbacks, user, NULL);
 }
 
 JSD_PUBLIC_API(JSDContext*)
@@ -138,21 +138,10 @@ JSD_SetContextFlags(JSDContext *jsdc, uint32 flags)
     uint32 oldFlags = jsdc->flags;
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     jsdc->flags = flags;
-    if ((flags & JSD_COLLECT_PROFILE_DATA) ||
-        !(flags & JSD_DISABLE_OBJECT_TRACE)) {
+    if (flags & JSD_COLLECT_PROFILE_DATA) {
         /* Need to reenable our call hooks now */
         JS_SetExecuteHook(jsdc->jsrt, jsd_TopLevelCallHook, jsdc);
         JS_SetCallHook(jsdc->jsrt, jsd_FunctionCallHook, jsdc);
-    }
-    if ((oldFlags ^ flags) & JSD_DISABLE_OBJECT_TRACE) {
-        /* Changing our JSD_DISABLE_OBJECT_TRACE flag */
-        if (!(flags & JSD_DISABLE_OBJECT_TRACE)) {
-            /* Need to reenable our object hooks now */
-            JS_SetObjectHook(jsdc->jsrt, jsd_ObjectHook, jsdc);
-        } else {
-            jsd_DestroyObjects(jsdc);
-            JS_SetObjectHook(jsdc->jsrt, NULL, NULL);
-        }
     }
 }
 
@@ -357,6 +346,22 @@ JSD_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, uintN line)
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JSD_ASSERT_VALID_SCRIPT(jsdscript);
     return jsd_GetClosestPC(jsdc, jsdscript, line);
+}
+
+JSD_PUBLIC_API(jsuword)
+JSD_GetFirstValidPC(JSDContext* jsdc, JSDScript* jsdscript)
+{
+    JSD_ASSERT_VALID_CONTEXT(jsdc);
+    JSD_ASSERT_VALID_SCRIPT(jsdscript);
+    return jsd_GetFirstValidPC(jsdc, jsdscript);
+}
+
+JSD_PUBLIC_API(jsuword)
+JSD_GetEndPC(JSDContext* jsdc, JSDScript* jsdscript)
+{
+    JSD_ASSERT_VALID_CONTEXT(jsdc);
+    JSD_ASSERT_VALID_SCRIPT(jsdscript);
+    return jsd_GetEndPC(jsdc, jsdscript);
 }
 
 JSD_PUBLIC_API(uintN)
@@ -762,15 +767,6 @@ JSD_GetNameForStackFrame(JSDContext* jsdc,
 }
 
 JSD_PUBLIC_API(JSBool)
-JSD_IsStackFrameNative(JSDContext* jsdc,
-                       JSDThreadState* jsdthreadstate,
-                       JSDStackFrameInfo* jsdframe)
-{
-    JSD_ASSERT_VALID_CONTEXT(jsdc);
-    return jsd_IsStackFrameNative(jsdc, jsdthreadstate, jsdframe);
-}
-
-JSD_PUBLIC_API(JSBool)
 JSD_IsStackFrameDebugger(JSDContext* jsdc,
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe)
@@ -1112,7 +1108,7 @@ JSD_GetValueInt(JSDContext* jsdc, JSDValue* jsdval)
     return jsd_GetValueInt(jsdc, jsdval);
 }
 
-JSD_PUBLIC_API(jsdouble*)
+JSD_PUBLIC_API(jsdouble)
 JSD_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);

@@ -50,8 +50,7 @@
 #include "nsIDOMHTMLCollection.h" 
 #include "nsIDOMHTMLOptionsCollection.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h"
-#include "nsIDOMHTMLSelectElement.h" 
-#include "nsIDOMNSHTMLSelectElement.h" 
+#include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsComboboxControlFrame.h"
 #include "nsIViewManager.h"
@@ -89,6 +88,7 @@
 #include "nsIDOMKeyListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
+#include "nsIEventStateManager.h"
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -242,7 +242,7 @@ nsListControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // this frame as the root of a stacking context we need make sure to draw
     // some opaque color over the whole widget. (Bug 511323)
     aLists.BorderBackground()->AppendNewToBottom(
-      new (aBuilder) nsDisplaySolidColor(
+      new (aBuilder) nsDisplaySolidColor(aBuilder,
         this, nsRect(aBuilder->ToReferenceFrame(this), GetSize()),
         mLastDropdownBackstopColor));
   }
@@ -285,8 +285,8 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
 
   nsCOMPtr<nsIContent> focusedContent;
 
-  nsCOMPtr<nsIDOMNSHTMLSelectElement> selectNSElement(do_QueryInterface(mContent));
-  NS_ASSERTION(selectNSElement, "Can't be null");
+  nsCOMPtr<nsIDOMHTMLSelectElement> selectDOMElement(do_QueryInterface(mContent));
+  NS_ASSERTION(selectDOMElement, "Can't be null");
 
   nsCOMPtr<nsISelectElement> selectElement(do_QueryInterface(mContent));
   NS_ASSERTION(selectElement, "Can't be null");
@@ -312,7 +312,7 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
       // find the first non-disabled item
       PRBool isDisabled = PR_TRUE;
       for (PRInt32 i=0;i<PRInt32(length) && isDisabled;i++) {
-        if (NS_FAILED(selectNSElement->Item(i, getter_AddRefs(node))) || !node) {
+        if (NS_FAILED(selectDOMElement->Item(i, getter_AddRefs(node))) || !node) {
           break;
         }
         if (NS_FAILED(selectElement->IsOptionDisabled(i, &isDisabled))) {
@@ -389,7 +389,7 @@ nsListControlFrame::InvalidateFocus()
     // Invalidating from the containerFrame because that's where our focus
     // is drawn.
     // The origin of the scrollport is the origin of containerFrame.
-    nsRect invalidateArea = containerFrame->GetOverflowRect();
+    nsRect invalidateArea = containerFrame->GetVisualOverflowRect();
     nsRect emptyFallbackArea(0, 0, GetScrollPortRect().width, CalcFallbackRowHeight());
     invalidateArea.UnionRect(invalidateArea, emptyFallbackArea);
     containerFrame->Invalidate(invalidateArea);
@@ -1101,7 +1101,8 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled))
+  PRInt32 eventStates = mContent->IntrinsicState();
+  if (eventStates & NS_EVENT_STATE_DISABLED)
     return NS_OK;
 
   return nsHTMLScrollFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
@@ -1186,27 +1187,6 @@ nsListControlFrame::Init(nsIContent*     aContent,
   mLastDropdownBackstopColor = PresContext()->DefaultBackgroundColor();
 
   return result;
-}
-
-PRBool
-nsListControlFrame::GetMultiple(nsIDOMHTMLSelectElement* aSelect) const
-{
-  PRBool multiple = PR_FALSE;
-  nsresult rv = NS_OK;
-  if (aSelect) {
-    rv = aSelect->GetMultiple(&multiple);
-  } else {
-    nsCOMPtr<nsIDOMHTMLSelectElement> selectElement = 
-       do_QueryInterface(mContent);
-  
-    if (selectElement) {
-      rv = selectElement->GetMultiple(&multiple);
-    }
-  }
-  if (NS_SUCCEEDED(rv)) {
-    return multiple;
-  }
-  return PR_FALSE;
 }
 
 already_AddRefed<nsIContent> 
@@ -1982,7 +1962,8 @@ nsListControlFrame::MouseUp(nsIDOMEvent* aMouseEvent)
 
   mButtonDown = PR_FALSE;
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRInt32 eventStates = mContent->IntrinsicState();
+  if (eventStates & NS_EVENT_STATE_DISABLED) {
     return NS_OK;
   }
 
@@ -2191,7 +2172,8 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
 
   UpdateInListState(aMouseEvent);
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRInt32 eventStates = mContent->IntrinsicState();
+  if (eventStates & NS_EVENT_STATE_DISABLED) {
     return NS_OK;
   }
 
@@ -2497,7 +2479,8 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   NS_ASSERTION(aKeyEvent, "keyEvent is null.");
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled))
+  PRInt32 eventStates = mContent->IntrinsicState();
+  if (eventStates & NS_EVENT_STATE_DISABLED)
     return NS_OK;
 
   // Start by making sure we can query for a key event

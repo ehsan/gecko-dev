@@ -43,6 +43,8 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMNSEvent.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIMEStateManager.h"
 #include "nsFocusManager.h"
@@ -111,6 +113,7 @@
 
 #include "nsITransferable.h"
 #include "nsComputedDOMStyle.h"
+#include "nsTextEditUtils.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -137,6 +140,7 @@ extern nsIParserService *sParserService;
 
 nsEditor::nsEditor()
 :  mModCount(0)
+,  mFlags(0)
 ,  mPresShellWeak(nsnull)
 ,  mUpdateCount(0)
 ,  mSpellcheckCheckboxState(eTriUnset)
@@ -279,8 +283,12 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
 NS_IMETHODIMP
 nsEditor::PostCreate()
 {
-  // Synchronize some stuff for the flags
-  nsresult rv = SetFlags(mFlags);
+  // Synchronize some stuff for the flags.  SetFlags() will initialize
+  // something by the flag difference.  This is first time of that, so, all
+  // initializations must be run.  For such reason, we need to invert mFlags
+  // value first.
+  mFlags = ~mFlags;
+  nsresult rv = SetFlags(~mFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set up listeners
@@ -303,6 +311,26 @@ nsEditor::PostCreate()
   NotifyDocumentListeners(eDocumentCreated);
   NotifyDocumentListeners(eDocumentStateChanged);
   
+  // update nsTextStateManager and caret if we have focus
+  if (HasFocus()) {
+    nsFocusManager* fm = nsFocusManager::GetFocusManager();
+    NS_ASSERTION(fm, "no focus manager?");
+
+    nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
+    if (focusedContent) {
+      nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+      NS_ASSERTION(ps, "no pres shell even though we have focus");
+      nsPresContext* pc = ps->GetPresContext(); 
+
+      nsIMEStateManager::OnTextStateBlur(pc, nsnull);
+      nsIMEStateManager::OnTextStateFocus(pc, focusedContent);
+
+      nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(focusedContent);
+      if (target) {
+        InitializeSelection(target);
+      }
+    }
+  }
   return NS_OK;
 }
 
@@ -366,9 +394,7 @@ nsEditor::GetDesiredSpellCheckState()
     return PR_FALSE;                    // Spellchecking forced off globally
   }
 
-  // Check for password/readonly/disabled, which are not spellchecked
-  // regardless of DOM
-  if (IsPasswordEditor() || IsReadonly() || IsDisabled()) {
+  if (!CanEnableSpellCheck()) {
     return PR_FALSE;
   }
 
@@ -441,6 +467,11 @@ nsEditor::GetFlags(PRUint32 *aFlags)
 NS_IMETHODIMP
 nsEditor::SetFlags(PRUint32 aFlags)
 {
+  if (mFlags == aFlags) {
+    return NS_OK;
+  }
+
+  PRBool spellcheckerWasEnabled = CanEnableSpellCheck();
   mFlags = aFlags;
 
   if (!mDocWeak || !mPresShellWeak) {
@@ -450,9 +481,11 @@ nsEditor::SetFlags(PRUint32 aFlags)
     return NS_OK;
   }
 
-  // Changing the flags can change whether spellchecking is on, so re-sync it
-  nsresult rv = SyncRealTimeSpell();
-  NS_ENSURE_SUCCESS(rv, rv);
+  // The flag change may cause the spellchecker state change
+  if (CanEnableSpellCheck() != spellcheckerWasEnabled) {
+    nsresult rv = SyncRealTimeSpell();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // Might be changing editable state, so, we need to reset current IME state
   // if we're focused and the flag change causes IME state change.
@@ -460,7 +493,7 @@ nsEditor::SetFlags(PRUint32 aFlags)
     // Use "enable" for the default value because if IME is disabled
     // unexpectedly, it makes serious a11y problem.
     PRUint32 newState = nsIContent::IME_STATUS_ENABLE;
-    rv = GetPreferredIMEState(&newState);
+    nsresult rv = GetPreferredIMEState(&newState);
     if (NS_SUCCEEDED(rv)) {
       // NOTE: When the enabled state isn't going to be modified, this method
       // is going to do nothing.
@@ -859,11 +892,12 @@ nsEditor::BeginPlaceHolderTransaction(nsIAtom *aName)
     mPlaceHolderName = aName;
     nsCOMPtr<nsISelection> selection;
     nsresult res = GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(res, res);
-    mSelState = new nsSelectionState();
-    NS_ENSURE_TRUE(mSelState, NS_ERROR_OUT_OF_MEMORY);
-
-    mSelState->SaveSelection(selection);
+    if (NS_SUCCEEDED(res)) {
+      mSelState = new nsSelectionState();
+      if (mSelState) {
+        mSelState->SaveSelection(selection);
+      }
+    }
   }
   mPlaceHolderBatch++;
 
@@ -890,14 +924,27 @@ nsEditor::EndPlaceHolderTransaction()
     if (selPrivate) {
       selPrivate->SetCanCacheFrameOffset(PR_TRUE);
     }
-    
-    // time to turn off the batch
-    EndUpdateViewBatch();
-    // make sure selection is in view
 
-    // After ScrollSelectionIntoView(), the pending notifications might be
-    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-    ScrollSelectionIntoView(PR_FALSE);
+    {
+      // Hide the caret here to avoid hiding it twice, once in EndUpdateViewBatch
+      // and once in ScrollSelectionIntoView.
+      nsRefPtr<nsCaret> caret;
+      nsCOMPtr<nsIPresShell> presShell;
+      GetPresShell(getter_AddRefs(presShell));
+
+      if (presShell)
+        caret = presShell->GetCaret();
+
+      StCaretHider caretHider(caret);
+
+      // time to turn off the batch
+      EndUpdateViewBatch();
+      // make sure selection is in view
+
+      // After ScrollSelectionIntoView(), the pending notifications might be
+      // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
+      ScrollSelectionIntoView(PR_FALSE);
+    }
 
     // cached for frame offset are Not available now
     if (selPrivate) {
@@ -2230,22 +2277,8 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
     if (aScrollToAnchor)
       region = nsISelectionController::SELECTION_ANCHOR_REGION;
 
-    PRBool syncScroll = PR_TRUE;
-    PRUint32 flags = 0;
-
-    if (NS_SUCCEEDED(GetFlags(&flags)))
-    {
-      // If the editor is relying on asynchronous reflows, we have
-      // to use asynchronous requests to scroll, so that the scrolling happens
-      // after reflow requests are processed.
-      // XXXbz why not just always do async scroll?
-      syncScroll = !(flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask);
-    }
-
-    // After ScrollSelectionIntoView(), the pending notifications might be
-    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-                                    region, syncScroll);
+                                    region, PR_FALSE);
   }
 
   return NS_OK;
@@ -2260,11 +2293,75 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
   // class to turn off txn selection updating.  Caller also turned on rules sniffing
   // if desired.
   
+  nsresult res;
   NS_ENSURE_TRUE(aInOutNode && *aInOutNode && aInOutOffset && aDoc, NS_ERROR_NULL_POINTER);
   if (!mInIMEMode && aStringToInsert.IsEmpty()) return NS_OK;
   nsCOMPtr<nsIDOMText> nodeAsText = do_QueryInterface(*aInOutNode);
+  if (!nodeAsText && IsPlaintextEditor()) {
+    // In some cases, aInOutNode is the anonymous DIV, and aInOutOffset is 0.
+    // To avoid injecting unneeded text nodes, we first look to see if we have
+    // one available.  In that case, we'll just adjust aInOutNode and aInOutOffset
+    // accordingly.
+    if (*aInOutNode == GetRoot() && *aInOutOffset == 0) {
+      nsCOMPtr<nsIDOMNode> possibleTextNode;
+      res = (*aInOutNode)->GetFirstChild(getter_AddRefs(possibleTextNode));
+      if (NS_SUCCEEDED(res)) {
+        nodeAsText = do_QueryInterface(possibleTextNode);
+        if (nodeAsText) {
+          *aInOutNode = possibleTextNode;
+        }
+      }
+    }
+    // In some other cases, aInOutNode is the anonymous DIV, and aInOutOffset points
+    // to the terminating mozBR.  In that case, we'll adjust aInOutNode and aInOutOffset
+    // to the preceding text node, if any.
+    if (!nodeAsText && *aInOutNode == GetRoot() && *aInOutOffset > 0) {
+      nsCOMPtr<nsIDOMNodeList> children;
+      res = (*aInOutNode)->GetChildNodes(getter_AddRefs(children));
+      if (NS_SUCCEEDED(res)) {
+        nsCOMPtr<nsIDOMNode> possibleMozBRNode;
+        children->Item(*aInOutOffset, getter_AddRefs(possibleMozBRNode));
+        if (possibleMozBRNode && nsTextEditUtils::IsMozBR(possibleMozBRNode)) {
+          nsCOMPtr<nsIDOMNode> possibleTextNode;
+          res = children->Item(*aInOutOffset - 1, getter_AddRefs(possibleTextNode));
+          if (NS_SUCCEEDED(res)) {
+            nodeAsText = do_QueryInterface(possibleTextNode);
+            if (nodeAsText) {
+              PRUint32 length;
+              res = nodeAsText->GetLength(&length);
+              if (NS_SUCCEEDED(res)) {
+                *aInOutOffset = PRInt32(length);
+                *aInOutNode = possibleTextNode;
+              }
+            }
+          }
+        }
+      }
+    }
+    // Sometimes, aInOutNode is the mozBR element itself.  In that case, we'll
+    // adjust the insertion point to the previous text node, if one exists, or
+    // to the parent anonymous DIV.
+    if (nsTextEditUtils::IsMozBR(*aInOutNode) && *aInOutOffset == 0) {
+      nsCOMPtr<nsIDOMNode> previous;
+      (*aInOutNode)->GetPreviousSibling(getter_AddRefs(previous));
+      nodeAsText = do_QueryInterface(previous);
+      if (nodeAsText) {
+        PRUint32 length;
+        res = nodeAsText->GetLength(&length);
+        if (NS_SUCCEEDED(res)) {
+          *aInOutOffset = PRInt32(length);
+          *aInOutNode = previous;
+        }
+      } else {
+        nsCOMPtr<nsIDOMNode> parent;
+        (*aInOutNode)->GetParentNode(getter_AddRefs(parent));
+        if (parent == GetRoot()) {
+          *aInOutNode = parent;
+        }
+      }
+    }
+  }
   PRInt32 offset = *aInOutOffset;
-  nsresult res;
   if (mInIMEMode)
   {
     if (!nodeAsText)
@@ -3533,8 +3630,9 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
         // and uses enhanced logic to find out in the HTML world.
         return IsTextInDirtyFrameVisible(aNode);
       }
-      if (resultFrame->GetSize().width > 0) 
-        return PR_TRUE;  // text node has width
+      if (resultFrame->HasAnyNoncollapsedCharacters()) {
+        return PR_TRUE;
+      }
       resultFrame = resultFrame->GetNextContinuation();
     }
   }
@@ -3844,8 +3942,12 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
+  // Look at the node (and its parent if it's not an element), and grab its style context
   nsRefPtr<nsStyleContext> elementStyle;
-  if (content->IsElement()) {
+  if (!content->IsElement()) {
+    content = content->GetParent();
+  }
+  if (content && content->IsElement()) {
     elementStyle = nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
                                                                  nsnull,
                                                                  ps);
@@ -4106,11 +4208,6 @@ nsresult nsEditor::EndUpdateViewBatch()
       // the reflows we caused will get processed before the invalidates.
       if (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) {
         updateFlag = NS_VMREFRESH_DEFERRED;
-      } else if (presShell) {
-        // Flush out layout.  Need to do this because if we have no invalidates
-        // to flush the viewmanager code won't flush our reflow here, and we
-        // have selection code that does sync caret scrolling in this case.
-        presShell->FlushPendingNotifications(Flush_Layout);
       }
       mBatch.EndUpdateViewBatch(updateFlag);
     }
@@ -4879,10 +4976,7 @@ nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIAtom> tag = do_GetAtom(aTag);
-  NS_ENSURE_TRUE(tag, NS_ERROR_OUT_OF_MEMORY);
-
-  return doc->CreateElem(tag, nsnull, kNameSpaceID_XHTML, PR_FALSE, aContent);
+  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML, PR_FALSE, aContent);
 }
 
 nsresult
@@ -5165,4 +5259,42 @@ nsEditor::HasFocus()
 
   nsCOMPtr<nsIContent> content = fm->GetFocusedContent();
   return SameCOMIdentity(content, piTarget);
+}
+
+PRBool
+nsEditor::IsActiveInDOMWindow()
+{
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
+  if (!piTarget) {
+    return PR_FALSE;
+  }
+
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE(fm, PR_FALSE);
+
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  nsPIDOMWindow* ourWindow = doc->GetWindow();
+  nsCOMPtr<nsPIDOMWindow> win;
+  nsIContent* content =
+    nsFocusManager::GetFocusedDescendant(ourWindow, PR_FALSE,
+                                         getter_AddRefs(win));
+  return SameCOMIdentity(content, piTarget);
+}
+
+PRBool
+nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
+{
+  // If the event is trusted, the event should always cause input.
+  nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aEvent);
+  NS_ENSURE_TRUE(NSEvent, PR_FALSE);
+
+  PRBool isTrusted;
+  nsresult rv = NSEvent->GetIsTrusted(&isTrusted);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  if (isTrusted) {
+    return PR_TRUE;
+  }
+  // Otherwise, we shouldn't handle any input events when we're not an active
+  // element of the DOM window.
+  return IsActiveInDOMWindow();
 }

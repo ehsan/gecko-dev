@@ -43,7 +43,7 @@ class nsHTMLElement : public nsGenericHTMLElement,
                       public nsIDOMHTMLElement
 {
 public:
-  nsHTMLElement(nsINodeInfo *aNodeInfo);
+  nsHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLElement();
 
   // nsISupports
@@ -58,18 +58,23 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
+
+  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 // Here, we expand 'NS_IMPL_NS_NEW_HTML_ELEMENT()' by hand.
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
-NS_NewHTMLElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+NS_NewHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                  PRUint32 aFromParser)
 {
   return new nsHTMLElement(aNodeInfo);
 }
 
-nsHTMLElement::nsHTMLElement(nsINodeInfo* aNodeInfo)
+nsHTMLElement::nsHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -81,7 +86,7 @@ nsHTMLElement::~nsHTMLElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLElement, nsGenericElement)
 
-DOMCI_DATA(HTMLElement, nsHTMLElement)
+DOMCI_NODE_DATA(HTMLElement, nsHTMLElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLElement)
   NS_HTML_CONTENT_INTERFACE_TABLE0(nsHTMLElement)
@@ -90,4 +95,23 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLElement)
+
+nsresult
+nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
+{
+  /**
+   * nsGenericHTMLElement::GetInnerHTML escapes < and > characters (at least).
+   * .innerHTML should return the HTML code for xmp and plaintext element.
+   *
+   * This code is a workaround until we implement a HTML5 Serializer
+   * with this behavior.
+   */
+  if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
+      mNodeInfo->Equals(nsGkAtoms::plaintext)) {
+    nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
+    return NS_OK;
+  }
+
+  return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);
+}
 

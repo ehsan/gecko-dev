@@ -22,6 +22,7 @@
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
  *  Masayuki Nakano <masayuki@d-toybox.com>
+ *  Robert Strong <robert.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -153,10 +154,10 @@ InitDialog(HWND hDlg)
   WCHAR szwTitle[MAX_TEXT_LEN];
   WCHAR szwInfo[MAX_TEXT_LEN];
 
-  MultiByteToWideChar(CP_UTF8, 0, uiStrings.title, strlen(uiStrings.title) + 1,
-                      szwTitle, sizeof(szwTitle)/sizeof(szwTitle[0]));
-  MultiByteToWideChar(CP_UTF8, 0, uiStrings.info, strlen(uiStrings.info) + 1,
-                      szwInfo, sizeof(szwInfo)/sizeof(szwInfo[0]));
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.title, -1, szwTitle,
+                      sizeof(szwTitle)/sizeof(szwTitle[0]));
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.info, -1, szwInfo,
+                      sizeof(szwInfo)/sizeof(szwInfo[0]));
 
   SetWindowTextW(hDlg, szwTitle);
   SetWindowTextW(GetDlgItem(hDlg, IDC_INFO), szwInfo);
@@ -335,12 +336,12 @@ InitProgressUI(int *argc, NS_tchar ***argv)
 int
 ShowProgressUI()
 {
-  // Only show the Progress UI if the process is taking significant time.
-  // Here we measure significant time as taking more than one second.
+  // Only show the Progress UI if the process is taking significant time. We
+  // measure significant time as sProgress being more than 60 out of 100.
 
   Sleep(500);
 
-  if (sQuit || sProgress > 50.0f)
+  if (sQuit || sProgress > 60.0f)
     return 0;
 
   // If we do not have updater.ini, then we should not bother showing UI.
@@ -348,6 +349,11 @@ ShowProgressUI()
   if (!GetStringsFile(filename))
     return -1;
   if (_waccess(filename, 04))
+    return -1;
+  // If the updater.ini doesn't have the required strings, then we should not
+  // bother showing UI.
+  StringTable uiStrings;
+  if (ReadStrings(filename, &uiStrings) != OK)
     return -1;
 
   INITCOMMONCONTROLSEX icc = {

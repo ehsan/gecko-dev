@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package com.mozilla.SUTAgentAndroid;
+package com.mozilla.SUTAgentAndroid.service;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -60,7 +60,9 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.Timer;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
@@ -81,6 +83,8 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
+import com.mozilla.SUTAgentAndroid.SUTAgentAndroid;
+
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ActivityNotFoundException;
@@ -93,11 +97,13 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Debug;
 import android.os.Environment;
 import android.os.StatFs;
 import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.WindowManager;
 
 public class DoCommand {
 	
@@ -106,10 +112,13 @@ public class DoCommand {
 	OutputStream sutIn;
 	InputStream	sutErr;
 	InputStream	sutOut;
-//	Timer alertTimer = null;
 	AlertLooperThread alrt = null;
+	ContextWrapper	contextWrapper = null;
 	
 	String	currentDir = "/";
+	String	sErrorPrefix = "##AGENT-WARNING## ";
+	
+	private final String prgVersion = "SUTAgentAndroid Version 0.85";
 	
 	public enum Command
 		{
@@ -122,6 +131,7 @@ public class DoCommand {
 		OS ("os"),
 		ID ("id"),
 		UPTIME ("uptime"),
+		SETTIME ("settime"),
 		SYSTIME ("systime"),
 		SCREEN ("screen"),
 		MEMORY ("memory"),
@@ -159,8 +169,10 @@ public class DoCommand {
 		FTPG ("ftpg"),
 		FTPP ("ftpp"),
 		INST ("inst"),
+		UPDT ("updt"),
 		UNINST ("uninst"),
 		TEST ("test"),
+		VER ("ver"),
 		UNKNOWN ("unknown");
 		
 		private final String theCmd;
@@ -184,7 +196,11 @@ public class DoCommand {
 			}
 		}
 	
-//	public String processCommand(String theCmdLine, PrintWriter out, BufferedReader in, OutputStream cmdOut, InputStream cmdIn)
+	public DoCommand(ContextWrapper service)
+		{
+		this.contextWrapper = service;
+		}
+	
 	public String processCommand(String theCmdLine, PrintWriter out, BufferedInputStream in, OutputStream cmdOut)
 		{
 		String 	strReturn = "";
@@ -199,6 +215,22 @@ public class DoCommand {
 		
 		switch(cCmd)
 			{
+			case VER:
+				strReturn = prgVersion;
+				break;
+				
+			case CLOK:
+				strReturn = GetClok();
+				break;
+				
+			case UPDT:
+				strReturn = StartUpdateOMatic(Argv[1], Argv[2]);
+				break;
+			
+			case SETTIME:
+				strReturn = SetSystemTime(Argv[1], Argv[2], cmdOut);
+				break;
+			
 			case CWD:
 				try {
 					strReturn = new java.io.File(currentDir).getCanonicalPath();
@@ -213,7 +245,7 @@ public class DoCommand {
 				if (Argc == 2)
 					strReturn = changeDir(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for cd command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for cd command!";
 				break;
 			
 			case LS:
@@ -224,7 +256,7 @@ public class DoCommand {
 				if (Argc == 2)
 					strReturn = GetAppRoot(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for cd command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for getapproot command!";
 				break;
 				
 			case TESTROOT:
@@ -235,7 +267,7 @@ public class DoCommand {
 				if (Argc == 2)
 					strReturn = (IsProcessDead(Argv[1]) ? (Argv[1] + " is hung or unresponsive") : (Argv[1] + " is ok"));
 				else
-					strReturn = "Wrong number of arguments for dead command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for dead command!";
 				break;
 				
 			case PS:
@@ -259,21 +291,21 @@ public class DoCommand {
 					strReturn = Push(Argv[1], in, lArg);
 					}
 				else
-					strReturn = "Wrong number of arguments for push command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for push command!";
 				break;
 				
 			case INST:
-				if (Argc == 2)
+				if (Argc >= 2)
 					strReturn = InstallApp(Argv[1], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for inst command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for inst command!";
 				break;
 				
 			case UNINST:
-				if (Argc == 2)
+				if (Argc >= 2)
 					strReturn = UnInstallApp(Argv[1], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for inst command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for inst command!";
 				break;
 				
 			case ALRT:
@@ -290,7 +322,7 @@ public class DoCommand {
 					}
 				else
 					{
-					strReturn = "Wrong number of arguments for alrt command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for alrt command!";
 					}
 				break;
 				
@@ -378,84 +410,84 @@ public class DoCommand {
 				if (Argc == 2)
 					strReturn = StatProcess(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for ping command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for ping command!";
 				break;
 				
 			case PING:
 				if (Argc == 2)
 					strReturn = SendPing(Argv[1], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for ping command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for ping command!";
 				break;
 				
 			case HASH:
 				if (Argc == 2)
 					strReturn = HashFile(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for hash command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for hash command!";
 				break;
 				
 			case PRUNE:
 				if (Argc == 2)
 					strReturn = PruneDir(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for prune command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for prune command!";
 				break;
 				
 			case FTPG:
 				if (Argc == 4)
 					strReturn = FTPGetFile(Argv[1], Argv[2], Argv[3], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for ftpg command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for ftpg command!";
 				break;
 				
 			case CAT:
 				if (Argc == 2)
 					strReturn = Cat(Argv[1], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for cat command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for cat command!";
 				break;
 				
 			case DIRWRITABLE:
 				if (Argc == 2)
 					strReturn = IsDirWritable(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for dirwritable command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for dirwritable command!";
 				break;
 				
 			case TIME:
 				if (Argc == 2)
 					strReturn = PrintFileTimestamp(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for time command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for time command!";
 				break;
 				
 			case MKDR:
 				if (Argc == 2)
 					strReturn = MakeDir(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for mkdr command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for mkdr command!";
 				break;
 				
 			case RM:
 				if (Argc == 2)
 					strReturn = RemoveFile(Argv[1]);
 				else
-					strReturn = "Wrong number of arguments for mkdr command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for mkdr command!";
 				break;
 				
 			case MV:
 				if (Argc == 3)
 					strReturn = Move(Argv[1], Argv[2]);
 				else
-					strReturn = "Wrong number of arguments for mv command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for mv command!";
 				break;
 				
 			case CP:
 				if (Argc == 3)
 					strReturn = CopyFile(Argv[1], Argv[2]);
 				else
-					strReturn = "Wrong number of arguments for cp command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for cp command!";
 				break;
 				
 			case QUIT:
@@ -639,7 +671,7 @@ public class DoCommand {
 					}
 				else
 					{
-					strReturn = "Wrong number of arguments for " + Argv[0] + " command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for " + Argv[0] + " command!";
 					}
 				break;
 
@@ -649,7 +681,7 @@ public class DoCommand {
 //					strReturn = NewKillProc(Argv[1], cmdOut);
 					strReturn = KillProcess(Argv[1], cmdOut);
 				else
-					strReturn = "Wrong number of arguments for kill command!";
+					strReturn = sErrorPrefix + "Wrong number of arguments for kill command!";
 				break;
 				
 			case DISK:
@@ -669,7 +701,7 @@ public class DoCommand {
 				break;
 				
 			default:
-				strReturn = "[" + Argv[0] + "] command";
+				strReturn = sErrorPrefix + "[" + Argv[0] + "] command";
 				if (Argc > 1)
 					{
 					strReturn += " with arg(s) =";
@@ -762,7 +794,7 @@ public class DoCommand {
 	public void StartAlert()
 		{
 		// start the alert message
-		alrt = new AlertLooperThread();
+		alrt = new AlertLooperThread(this.contextWrapper);
 		alrt.start();
 		}
 
@@ -1028,12 +1060,9 @@ public class DoCommand {
 			while((entry = zis.getNextEntry()) != null)
         		{
 				System.out.println("Extracting: " + entry);
-//				sRet += "Extracting: " + entry;
 				int count;
-//				byte [] data = new byte[BUFFER];
-				// write the files to the disk
 				if (fixedDstDirectory.length() > 0)
-					dstFileName = fixedDstDirectory + "/" + entry.getName();
+					dstFileName = fixedDstDirectory + entry.getName();
 				else
 					dstFileName = entry.getName();
 				
@@ -1048,24 +1077,26 @@ public class DoCommand {
 				
 				if (bRet)
 					{
-					FileOutputStream fos = new FileOutputStream(dstFileName);
-					dest = new BufferedOutputStream(fos, BUFFER);
-					while ((count = zis.read(data, 0, BUFFER)) != -1)
-        				{
-						dest.write(data, 0, count);
-        				}
-					dest.flush();
-					dest.close();
-					dest = null;
-					fos.close();
-					fos = null;
-//					sRet += " - succeded" + lineSep;
+					// if we aren't just creating a directory
+					if (dstFileName.lastIndexOf('/') != (dstFileName.length() - 1))
+						{
+						// write out the file
+						FileOutputStream fos = new FileOutputStream(dstFileName);
+						dest = new BufferedOutputStream(fos, BUFFER);
+						while ((count = zis.read(data, 0, BUFFER)) != -1)
+        					{
+							dest.write(data, 0, count);
+        					}
+						dest.flush();
+						dest.close();
+						dest = null;
+						fos.close();
+						fos = null;
+						}
 					nNumExtracted++;
 					}
 				else
 					sRet += " - failed" + lineSep;
-				
-//				data = null;
         		}
 			
 			data = null;
@@ -1085,7 +1116,8 @@ public class DoCommand {
 	public String StatProcess(String string)
 		{
 		String sRet = "";
-		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+//		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
 		int	[] nPids = new int [1];
 		
 		nPids[0] = Integer.parseInt(string);
@@ -1128,7 +1160,8 @@ public class DoCommand {
 	public String GetAppRoot(String AppName)
 		{
 		String sRet = "";
-		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+//		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+		Context ctx = contextWrapper.getApplicationContext();
 		
 		if (ctx != null)
 			{
@@ -1152,7 +1185,7 @@ public class DoCommand {
 	public String changeDir(String newDir)
 		{
 		String	tmpDir	= fixFileName(newDir);
-		String	sRet = "Couldn't change directory to " + tmpDir;
+		String	sRet = sErrorPrefix + "Couldn't change directory to " + tmpDir;
 		
 		File tmpFile = new java.io.File(tmpDir);
 		
@@ -1192,7 +1225,7 @@ public class DoCommand {
 	public String HashFile(String fileName)
 		{
 		String			sTmpFileName = fixFileName(fileName);
-		String			sRet 		= "Couldn't calculate hash for file " + sTmpFileName;
+		String			sRet 		= sErrorPrefix + "Couldn't calculate hash for file " + sTmpFileName;
 		byte[] 			buffer 		= new byte [4096];
 		int				nRead 		= 0;
 		long 			lTotalRead 	= 0;
@@ -1220,12 +1253,12 @@ public class DoCommand {
 			}
 		catch (FileNotFoundException e)
 			{
-			// TODO Auto-generated catch block
+			sRet += " file not found";
 			e.printStackTrace();
 			}
 		catch (IOException e)
 			{
-			// TODO Auto-generated catch block
+			sRet += " io exception";
 			e.printStackTrace();
 			} 
 		return(sRet);
@@ -1234,7 +1267,7 @@ public class DoCommand {
 	public String RemoveFile(String fileName)
 		{
 		String	sTmpFileName = fixFileName(fileName);
-		String	sRet = "Couldn't delete file " + sTmpFileName;
+		String	sRet = sErrorPrefix + "Couldn't delete file " + sTmpFileName;
 		
 		File f = new File(sTmpFileName);
 		
@@ -1297,7 +1330,7 @@ public class DoCommand {
 			}
 		else
 			{
-			sRet += sTmpDir + " is not a directory";
+			sRet += sErrorPrefix + sTmpDir + " is not a directory";
 			}
 		
 		return(sRet);
@@ -1332,7 +1365,7 @@ public class DoCommand {
 			}
 		else
 			{
-			sRet = sTmpDir + " is not a directory";
+			sRet = sErrorPrefix + sTmpDir + " is not a directory";
 			}
 		
 		return(sRet);
@@ -1342,7 +1375,7 @@ public class DoCommand {
 		{
 		String	sTmpSrcFileName = fixFileName(srcFileName);
 		String	sTmpDstFileName = fixFileName(dstFileName);
-		String sRet = "Could not move " + sTmpSrcFileName + " to " + sTmpDstFileName;
+		String sRet = sErrorPrefix + "Could not move " + sTmpSrcFileName + " to " + sTmpDstFileName;
 		
 		File srcFile = new File(sTmpSrcFileName);
 		File dstFile = new File(sTmpDstFileName);
@@ -1357,7 +1390,7 @@ public class DoCommand {
 		{
 		String	sTmpSrcFileName = fixFileName(srcFileName);
 		String	sTmpDstFileName = fixFileName(dstFileName);
-		String sRet = "Could not copy " + sTmpSrcFileName + " to " + sTmpDstFileName;
+		String sRet = sErrorPrefix + "Could not copy " + sTmpSrcFileName + " to " + sTmpDstFileName;
 		File destFile = null;
 		byte[] buffer = new byte [4096];
 		int	nRead = 0;
@@ -1383,7 +1416,7 @@ public class DoCommand {
 			if (lTotalWritten == lTotalRead)
 				sRet = sTmpSrcFileName + " copied to " + sTmpDstFileName;
 			else
-				sRet = "Failed to copy " + sTmpSrcFileName + " [length = " + lTotalWritten + "] to " + sTmpDstFileName + " [length = " + lTotalRead + "]";
+				sRet = sErrorPrefix + "Failed to copy " + sTmpSrcFileName + " [length = " + lTotalWritten + "] to " + sTmpDstFileName + " [length = " + lTotalRead + "]";
 			}
 		catch (FileNotFoundException e)
 			{
@@ -1411,7 +1444,7 @@ public class DoCommand {
 			}
 		else
 			{
-			sRet = "[" + sDir + "] is not a directory";
+			sRet = sErrorPrefix + "[" + sDir + "] is not a directory";
 			}
 		
 		return(sRet);
@@ -1423,7 +1456,7 @@ public class DoCommand {
 		int					nRead			= 0;
 		long				lRead			= 0;
 		String				sTmpFileName 	= fixFileName(fileName);
-		String				sRet			= "Push failed!";
+		String				sRet			= sErrorPrefix + "Push failed!";
 		
 		try {
 			FileOutputStream dstFile = new FileOutputStream(sTmpFileName, false);
@@ -1444,7 +1477,6 @@ public class DoCommand {
 			if (lRead == lSize)
 				{
 				sRet = HashFile(sTmpFileName);
-				
 				}
 			}
 		catch (IOException e)
@@ -1462,7 +1494,7 @@ public class DoCommand {
 		byte[] buffer = new byte [4096];
 		int	nRead = 0;
 		long lTotalRead = 0;
-		String sRet = "FTP Get failed for " + sSrcFileName;
+		String sRet = sErrorPrefix + "FTP Get failed for " + sSrcFileName;
 		String strRet = "";
 		int	reply = 0;
 		FileOutputStream outStream = null;
@@ -1554,7 +1586,7 @@ public class DoCommand {
 	public String Cat(String fileName, OutputStream out)
 		{
 		String	sTmpFileName = fixFileName(fileName);
-		String	sRet = "Could not read the file " + sTmpFileName;
+		String	sRet = sErrorPrefix + "Could not read the file " + sTmpFileName;
 		byte[]	buffer = new byte [4096];
 		int		nRead = 0;
 		
@@ -1581,7 +1613,7 @@ public class DoCommand {
 	public String MakeDir(String sDir)
 		{
 		String	sTmpDir = fixFileName(sDir);
-		String sRet = "Could not create the directory " + sTmpDir;
+		String sRet = sErrorPrefix + "Could not create the directory " + sTmpDir;
 		File dir = new File(sTmpDir);
 		
 		if (dir.mkdirs())
@@ -1589,21 +1621,23 @@ public class DoCommand {
 		
 		return (sRet);
 		}
-	
+	// move this to SUTAgentAndroid.java
 	public String GetScreenInfo()
 		{
 		String sRet = "";
 		DisplayMetrics metrics = new DisplayMetrics();
-		SUTAgentAndroid.me.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+		WindowManager wMgr = (WindowManager) contextWrapper.getSystemService(Context.WINDOW_SERVICE);
+		wMgr.getDefaultDisplay().getMetrics(metrics);
 		sRet = "X:" + metrics.widthPixels + " Y:" + metrics.heightPixels;
 		return (sRet);
 		}
-	
+	// move this to SUTAgentAndroid.java
 	public int [] GetScreenXY()
 		{
 			int [] nRetXY = new int [2];
 			DisplayMetrics metrics = new DisplayMetrics();
-			SUTAgentAndroid.me.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+			WindowManager wMgr = (WindowManager) contextWrapper.getSystemService(Context.WINDOW_SERVICE);
+			wMgr.getDefaultDisplay().getMetrics(metrics);
 			nRetXY[0] = metrics.widthPixels;
 			nRetXY[1] = metrics.heightPixels;
 			return(nRetXY);
@@ -1617,8 +1651,9 @@ public class DoCommand {
 		theArgs[1] = "-c";
 		theArgs[2] = "kill";
 
-		String sRet = "Unable to kill " + sProcName + "\n";
-		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		String sRet = sErrorPrefix + "Unable to kill " + sProcName + "\n";
+//		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
 		List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
 		int lcv = 0;
 		String strProcName = "";
@@ -1631,7 +1666,7 @@ public class DoCommand {
 				{
 				strProcName = lProcesses.get(lcv).processName;
 				nPID = lProcesses.get(lcv).pid;
-				sRet = "Failed to kill " + nPID + " " + strProcName + "\n";
+				sRet = sErrorPrefix + "Failed to kill " + nPID + " " + strProcName + "\n";
 
 				theArgs[2] += " " + nPID;
 				
@@ -1652,8 +1687,9 @@ public class DoCommand {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 					}
-/*
-				SUTAgentAndroid.me.finishActivity(SUTAgentAndroid.START_PRG);
+
+//				SUTAgentAndroid.me.finishActivity(SUTAgentAndroid.START_PRG);
+
 				// Give the messages a chance to be processed
 				try {
 					Thread.sleep(2000);
@@ -1663,8 +1699,6 @@ public class DoCommand {
 					e.printStackTrace();
 					}
 //				aMgr.restartPackage(strProcName);
- * 
- */
 				break;
 				}
 			}
@@ -1678,7 +1712,7 @@ public class DoCommand {
 //				if (lProcesses.get(lcv).processName.contentEquals(sProcName))
 				if (lProcesses.get(lcv).processName.contains(sProcName))
 					{
-					sRet = "Unable to kill " + nPID + " " + strProcName + "\n";
+					sRet = sErrorPrefix + "Unable to kill " + nPID + " " + strProcName + "\n";
 					break;
 					}
 				}
@@ -1690,7 +1724,8 @@ public class DoCommand {
 	public boolean IsProcessDead(String sProcName)
 		{
 		boolean bRet = false;
-		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+//		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
 		List <ActivityManager.ProcessErrorStateInfo> lProcesses = aMgr.getProcessesInErrorState();
 		int lcv = 0;
 //		String strProcName = "";
@@ -1717,7 +1752,8 @@ public class DoCommand {
 	public String GetProcessInfo()
 		{
 		String sRet = "";
-		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+//		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
 		List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
 		int	nProcs = lProcesses.size();
 		int lcv = 0;
@@ -1781,7 +1817,8 @@ public class DoCommand {
 
 	public long GetMemoryConfig()
 		{
-		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+//		ActivityManager aMgr = (ActivityManager) SUTAgentAndroid.me.getSystemService(Activity.ACTIVITY_SERVICE);
+		ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
 		ActivityManager.MemoryInfo outInfo = new ActivityManager.MemoryInfo();
 		aMgr.getMemoryInfo(outInfo);
 		long lMem = outInfo.availMem;
@@ -1806,10 +1843,12 @@ public class DoCommand {
 				out.println(sData);
 				if ( out.checkError() == false )
 					{
+					socket.setSoTimeout(30000);
 					while (socket.isInputShutdown() == false)
 						{
 						line = in.readLine();
-						if ((line == null) || (line.contains("OK")))
+						line = line.toLowerCase();
+						if ((line == null) || (line.contains("ok")))
 							{
 							sRet += line;
 							break;
@@ -1833,6 +1872,7 @@ public class DoCommand {
 			catch (IOException e)
 				{
 				// TODO Auto-generated catch block
+				sRet += "reg exception thrown";
 				e.printStackTrace();
 				}
 			}
@@ -1899,6 +1939,84 @@ public class DoCommand {
 		sRet = sdf.format(cal.getTime());
 	
 		return (sRet);
+		}
+	
+	public String SetSystemTime(String sDate, String sTime, OutputStream out)
+		{
+//		Debug.waitForDebugger();
+		String sRet = "";
+		
+//		Intent	prgIntent = new Intent(android.provider.Settings.ACTION_DATE_SETTINGS);
+//		prgIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//		contextWrapper.startActivity(prgIntent);
+		
+		// 2010/09/22 
+		// 15:41:00
+		// 0123456789012345678
+		
+		if (((sDate != null) && (sTime != null)) && 
+			(sDate.contains("/") || sDate.contains(".")) &&
+			(sTime.contains(":")))
+			{
+			int year = Integer.parseInt(sDate.substring(0,4));
+			int month = Integer.parseInt(sDate.substring(5,7));
+			int day = Integer.parseInt(sDate.substring(8,10));
+			
+			int hour = Integer.parseInt(sTime.substring(0,2));
+			int mins = Integer.parseInt(sTime.substring(3,5));
+			int secs = Integer.parseInt(sTime.substring(6,8));
+
+			Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("GMT"));
+			cal.set(year, month - 1, day, hour, mins, secs);
+			long lMillisecs = cal.getTime().getTime();
+			
+//			boolean bRet = SystemClock.setCurrentTimeMillis(lMillisecs);
+			String sM = Long.toString(lMillisecs);
+//			long lm = 1285175618316L;
+			String sTest = cal.getTime().toGMTString();
+			String sMillis = sM.substring(0, sM.length() - 3) + "." + sM.substring(sM.length() - 3);
+			String [] theArgs = new String [3];
+		
+			theArgs[0] = "su";
+			theArgs[1] = "-c";
+			theArgs[2] = "date -u " + sMillis;
+		
+			try 
+				{
+				pProc = Runtime.getRuntime().exec(theArgs);
+				RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
+				outThrd.start();
+				outThrd.join(10000);
+				sRet = GetSystemTime();
+				}
+			catch (IOException e) 
+				{
+				sRet = e.getMessage();
+				e.printStackTrace();
+				} 
+			catch (InterruptedException e)
+				{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				}
+			}
+		else
+			{
+			sRet = "Invalid argument(s)";
+			}
+
+		return (sRet);
+		}
+
+	public String GetClok()
+		{
+		long lMillisecs = System.currentTimeMillis();
+		String sRet = "";
+		
+		if (lMillisecs > 0)
+			sRet = Long.toString(lMillisecs);
+		
+		return(sRet);
 		}
 	
 	public String GetUptime()
@@ -2015,7 +2133,8 @@ public class DoCommand {
 	public String GetTmpDir()
 	{
 		String 	sRet = "";
-		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+//		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+		Context ctx = contextWrapper.getApplicationContext();
         File dir = ctx.getFilesDir();
         ctx = null;
         try {
@@ -2043,7 +2162,7 @@ public class DoCommand {
 			}
 		else
 			{
-			sRet = "[" + sTmpFileName + "] doesn't exist";
+			sRet = sErrorPrefix + "[" + sTmpFileName + "] doesn't exist";
 			}
 
 		return(sRet);
@@ -2111,6 +2230,9 @@ public class DoCommand {
 	
 		try 
 			{
+			// Tell all of the data channels we are rebooting
+			((ASMozStub)this.contextWrapper).SendToDataChannel("Rebooting ...");
+			
 			pProc = Runtime.getRuntime().exec(theArgs);
 			RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
 			outThrd.start();
@@ -2277,6 +2399,58 @@ public class DoCommand {
 		return (sRet);
 		}
 
+	public String StartUpdateOMatic(String sPkgName, String sPkgFileName)
+		{
+		String sRet = "";
+	
+//		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+		Context ctx = contextWrapper.getApplicationContext();
+		PackageManager pm = ctx.getPackageManager();
+
+		Intent prgIntent = new Intent();
+		prgIntent.setPackage("com.mozilla.UpdateOMatic");
+		prgIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+		try {
+			PackageInfo pi = pm.getPackageInfo("com.mozilla.UpdateOMatic", PackageManager.GET_ACTIVITIES | PackageManager.GET_INTENT_FILTERS);
+			ActivityInfo [] ai = pi.activities;
+			for (int i = 0; i < ai.length; i++)
+				{
+				ActivityInfo a = ai[i];
+				if (a.name.length() > 0)
+					{
+					prgIntent.setClassName(a.packageName, a.name);
+					break;
+					}
+				}
+			}
+		catch (NameNotFoundException e)
+			{
+			e.printStackTrace();
+			}
+		
+		prgIntent.putExtra("pkgName", sPkgName);
+		prgIntent.putExtra("pkgFileName", sPkgFileName);
+
+		try 
+			{
+			contextWrapper.startActivity(prgIntent);
+//			Thread.sleep(5000);
+			sRet = "exit";
+			}
+		catch(ActivityNotFoundException anf)
+			{
+			anf.printStackTrace();
+			} 
+//		catch (InterruptedException e)
+//			{
+//			e.printStackTrace();
+//			}
+	
+		ctx = null;
+		return (sRet);
+		}
+
 	public String StartJavaPrg(String [] sArgs)
 		{
 		String sRet = "";
@@ -2284,16 +2458,16 @@ public class DoCommand {
 		String sUrl = "";
 		String sRedirFileName = "";
 		
-		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+//		Context ctx = SUTAgentAndroid.me.getApplicationContext();
+		Context ctx = contextWrapper.getApplicationContext();
 		PackageManager pm = ctx.getPackageManager();
 
 		Intent prgIntent = new Intent();
 		prgIntent.setPackage(sArgs[0]);
-//		prgIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		prgIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
 		try {
 			PackageInfo pi = pm.getPackageInfo(sArgs[0], PackageManager.GET_ACTIVITIES | PackageManager.GET_INTENT_FILTERS);
-//			ApplicationInfo appinfo = pi.applicationInfo;
 			ActivityInfo [] ai = pi.activities;
 			for (int i = 0; i < ai.length; i++)
 				{
@@ -2357,8 +2531,9 @@ public class DoCommand {
 		try 
 			{
 //			ctx.startActivity(prgIntent);
+			contextWrapper.startActivity(prgIntent);
 //			SUTAgentAndroid.me.startActivity(prgIntent);
-			SUTAgentAndroid.me.startActivityForResult(prgIntent, SUTAgentAndroid.START_PRG);
+//			SUTAgentAndroid.me.startActivityForResult(prgIntent, SUTAgentAndroid.START_PRG);
 			}
 		catch(ActivityNotFoundException anf)
 			{
@@ -2435,7 +2610,6 @@ public class DoCommand {
 			"kill [program name]      - kill program no path\n" +
 			"killall                  - kill all processes started\n" +
 			"ps                       - list of running processes\n" +
-			"nodebug                  - kill debugger loop\n" +
 			"info                     - list of device info\n" +
 			"        [os]             - os version for device\n" +
 			"        [id]             - unique identifier for device\n" +
@@ -2468,8 +2642,15 @@ public class DoCommand {
 			"unzp zipfile destdir     - unzip the zipfile into the destination dir\n" +
 			"zip zipfile src          - zip the source file/dir into zipfile\n" +
 			"rebt                     - reboot device\n" +
+			"inst /path/filename.apk  - install the referenced apk file\n" +
+			"uninst packagename       - uninstall the referenced package\n" +
+			"updt pkgname pkgfile     - unpdate the referenced package\n" +
+			"clok                     - the current device time expressed as the number of millisecs since epoch\n" +
+			"settime date time        - sets the device date and time (YYYY/MM/DD HH:MM:SS)\n" +
+			"rebt                     - reboot device\n" +
 			"quit                     - disconnect SUTAgent\n" +
 			"exit                     - close SUTAgent\n" +
+			"ver                      - SUTAgent version\n" +
 			"help                     - you're reading it";
 		return (sRet);
 		}

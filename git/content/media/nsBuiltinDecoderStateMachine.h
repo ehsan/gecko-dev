@@ -116,6 +116,7 @@ not yet time to display the next frame.
 #include "nsThreadUtils.h"
 #include "nsBuiltinDecoder.h"
 #include "nsBuiltinDecoderReader.h"
+#include "nsAudioAvailableEventManager.h"
 #include "nsHTMLMediaElement.h"
 #include "mozilla/Monitor.h"
 
@@ -147,7 +148,7 @@ public:
   ~nsBuiltinDecoderStateMachine();
 
   // nsDecoderStateMachine interface
-  virtual nsresult Init();
+  virtual nsresult Init(nsDecoderStateMachine* aCloneDonor);
   State GetState()
   { 
     mDecoder->GetMonitor().AssertCurrentThreadIn();
@@ -168,6 +169,7 @@ public:
   virtual void ClearPositionChangeFlag();
   virtual void SetSeekable(PRBool aSeekable);
   virtual void UpdatePlaybackPosition(PRInt64 aTime);
+  virtual void StartBuffering();
 
 
   // Load metadata Called on the state machine thread. The decoder monitor must be held with
@@ -233,7 +235,33 @@ public:
   // Accessed on state machine, audio, main, and AV thread. 
   State mState;
 
+  nsresult GetBuffered(nsTimeRanges* aBuffered) {
+    NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+    return mReader->GetBuffered(aBuffered, mStartTime);
+  }
+
+  void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {
+    NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+    mReader->NotifyDataArrived(aBuffer, aLength, aOffset);
+  }
+
+  PRInt64 GetEndMediaTime() const {
+    mDecoder->GetMonitor().AssertCurrentThreadIn();
+    return mEndTime;
+  }
+
 protected:
+
+  // Returns the number of unplayed ms of audio we've got decoded and/or
+  // pushed to the hardware waiting to play. This is how much audio we can
+  // play without having to run the audio decoder.
+  PRInt64 AudioDecodedMs() const;
+
+  // Returns PR_TRUE if we're running low on decoded data.
+  PRBool HasLowDecodedData() const;
+
+  // Returns PR_TRUE if we've got plenty of decoded data.
+  PRBool HasAmpleDecodedData() const;
 
   // Returns PR_TRUE when there's decoded audio waiting to play.
   // The decoder monitor must be held.
@@ -280,6 +308,21 @@ protected:
   // on the state machine thread.
   void AdvanceFrame();
 
+  // Pushes up to aSamples samples of silence onto the audio hardware. Returns
+  // the number of samples acutally pushed to the hardware. This pushes up to
+  // 32KB worth of samples to the hardware before returning, so must be called
+  // in a loop to ensure that the desired number of samples are pushed to the
+  // hardware. This ensures that the playback position advances smoothly, and
+  // guarantees that we don't try to allocate an impossibly large chunk of
+  // memory in order to play back silence. Called on the audio thread.
+  PRUint32 PlaySilence(PRUint32 aSamples, PRUint32 aChannels,
+                       PRUint64 aSampleOffset);
+
+  // Pops an audio chunk from the front of the audio queue, and pushes its
+  // sound data to the audio hardware. MozAudioAvailable sample data is also
+  // queued here. Called on the audio thread.
+  PRUint32 PlayFromAudioQueue(PRUint64 aSampleOffset, PRUint32 aChannels);
+
   // Stops the decode threads. The decoder monitor must be held with exactly
   // one lock count. Called on the state machine thread.
   void StopDecodeThreads();
@@ -315,6 +358,16 @@ protected:
   // Returns PR_TRUE if we're currently playing. The decoder monitor must
   // be held.
   PRBool IsPlaying();
+
+  // Returns the "media time". This is the absolute time which the media
+  // playback has reached. i.e. this returns values in the range
+  // [mStartTime, mEndTime], and mStartTime will not be 0 if the media does
+  // not start at 0. Note this is different to the value returned
+  // by GetCurrentTime(), which is in the range [0,duration].
+  PRInt64 GetMediaTime() const {
+    mDecoder->GetMonitor().AssertCurrentThreadIn();
+    return mStartTime + mCurrentFrameTime;
+  }
 
   // Monitor on mAudioStream. This monitor must be held in order to delete
   // or use the audio stream. This stops us destroying the audio stream
@@ -428,14 +481,19 @@ protected:
   // Synchronised via the decoder monitor.
   PRPackedBool mBufferExhausted;
 
-  // PR_TRUE if mDuration has a value obtained from an HTTP header.
-  // Accessed on the state machine thread.
-  PRPackedBool mGotDurationFromHeader;
+  // PR_TRUE if mDuration has a value obtained from an HTTP header, or from
+  // the media index/metadata. Accessed on the state machine thread.
+  PRPackedBool mGotDurationFromMetaData;
     
   // PR_FALSE while decode threads should be running. Accessed on audio, 
   // state machine and decode threads. Syncrhonised by decoder monitor.
   PRPackedBool mStopDecodeThreads;
-};
 
+private:
+  // Manager for queuing and dispatching MozAudioAvailable events.  The
+  // event manager is accessed from the state machine and audio threads,
+  // and takes care of synchronizing access to its internal queue.
+  nsAudioAvailableEventManager mEventManager;
+};
 
 #endif

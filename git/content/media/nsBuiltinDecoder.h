@@ -237,7 +237,7 @@ public:
 
   // Initializes the state machine, returns NS_OK on success, or
   // NS_ERROR_FAILURE on failure.
-  virtual nsresult Init() = 0;
+  virtual nsresult Init(nsDecoderStateMachine* aCloneDonor) = 0;
 
   // Return the current decode state. The decoder monitor must be
   // obtained before calling this.
@@ -293,6 +293,16 @@ public:
   // Only called on the decoder thread. Must be called with
   // the decode monitor held.
   virtual void UpdatePlaybackPosition(PRInt64 aTime) = 0;
+
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered) = 0;
+
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) = 0;
+
+  // Causes the state machine to switch to buffering state, and to
+  // immediately stop playback and buffer downloaded data. Must be called
+  // with the decode monitor held. Called on the state machine thread and
+  // the main thread.
+  virtual void StartBuffering() = 0;
 };
 
 class nsBuiltinDecoder : public nsMediaDecoder
@@ -329,7 +339,8 @@ class nsBuiltinDecoder : public nsMediaDecoder
   virtual float GetCurrentTime();
 
   virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aListener);
+                        nsIStreamListener** aListener,
+                        nsMediaDecoder* aCloneDonor);
 
   virtual nsDecoderStateMachine* CreateStateMachine() = 0;
 
@@ -393,7 +404,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Resume any media downloads that have been suspended. Called by the
   // media element when it is restored from the bfcache. Call on the
   // main thread only.
-  virtual void Resume();
+  virtual void Resume(PRBool aForceBuffering);
 
   // Tells our nsMediaStream to put all loads in the background.
   virtual void MoveLoadsToBackground();
@@ -401,6 +412,8 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // Stop the state machine thread and drop references to the thread and
   // state machine.
   void Stop();
+
+  void AudioAvailable(float* aFrameBuffer, PRUint32 aFrameBufferLength, float aTime);
 
   // Called by the state machine to notify the decoder that the duration
   // has changed.
@@ -418,6 +431,16 @@ class nsBuiltinDecoder : public nsMediaDecoder
   // state.
   Monitor& GetMonitor() { 
     return mMonitor; 
+  }
+
+  // Constructs the time ranges representing what segments of the media
+  // are buffered and playable.
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered) {
+    return mDecoderStateMachine->GetBuffered(aBuffered);
+  }
+
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {
+    return mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
 
  public:
@@ -464,7 +487,9 @@ class nsBuiltinDecoder : public nsMediaDecoder
 
   // Called when the metadata from the media file has been read.
   // Call on the main thread only.
-  void MetadataLoaded();
+  void MetadataLoaded(PRUint32 aChannels,
+                      PRUint32 aRate,
+                      PRUint32 aFrameBufferLength);
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.
@@ -519,6 +544,10 @@ class nsBuiltinDecoder : public nsMediaDecoder
 public:
   // Notifies the element that decoding has failed.
   void DecodeError();
+
+  // Ensures the state machine thread is running, starting a new one
+  // if necessary.
+  nsresult StartStateMachineThread();
 
   /******
    * The following members should be accessed with the decoder lock held.

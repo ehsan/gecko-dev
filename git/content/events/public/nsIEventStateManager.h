@@ -53,10 +53,10 @@ class imgIContainer;
 /*
  * Event state manager interface.
  */
-// {C224A806-A99F-4056-85C2-3B1970F94DB2}
+// {92EDD580-062E-4471-ADEB-68329B0EC2E4}
 #define NS_IEVENTSTATEMANAGER_IID \
-{ 0xc224a806, 0xa99f, 0x4056, \
-  { 0x85, 0xc2, 0x3b, 0x19, 0x70, 0xf9, 0x4d, 0xb2 } }
+{ 0x92edd580, 0x062e, 0x4471, \
+  { 0xad, 0xeb, 0x68, 0x32, 0x9b, 0x0e, 0xc2, 0xe4 } }
 
 #define NS_EVENT_NEEDS_FRAME(event) (!NS_IS_ACTIVATION_EVENT(event))
 
@@ -212,9 +212,24 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIEventStateManager, NS_IEVENTSTATEMANAGER_IID)
 
 // Handler for the content has crashed
 #define NS_EVENT_STATE_HANDLER_CRASHED \
-                                     0x08000000
+                                     (1 << 28)
 
 // content has focus and should show a ring
-#define NS_EVENT_STATE_FOCUSRING     0x10000000
+#define NS_EVENT_STATE_FOCUSRING     (1 << 29)
+
+// Content shows its placeholder
+#define NS_EVENT_STATE_MOZ_PLACEHOLDER (1 << 30)
+
+// Content is a submit control and the form isn't valid.
+#define NS_EVENT_STATE_MOZ_SUBMITINVALID (1U << 31)
+
+/**
+ * WARNING:
+ * (1U << 31) should work but we currently handle event states with PRInt32
+ * so it's an edge case.
+ * DO NOT ADD AN EVENT STATE after NS_EVENT_STATE_MOZ_SUBMITINVALID until we
+ * move to PRUint64 and we introduce a type to handle event states.
+ * See bug 595036.
+ */
 
 #endif // nsIEventStateManager_h__

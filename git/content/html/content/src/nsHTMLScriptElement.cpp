@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLScriptElement.h"
-#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -305,11 +304,11 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLScriptElement,
-                            public nsIDOMNSHTMLScriptElement,
                             public nsScriptElement
 {
 public:
-  nsHTMLScriptElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser);
+  nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                      PRUint32 aFromParser);
   virtual ~nsHTMLScriptElement();
 
   // nsISupports
@@ -325,7 +324,6 @@ public:
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
-  NS_DECL_NSIDOMNSHTMLSCRIPTELEMENT
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
@@ -345,6 +343,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   PRBool IsOnloadEventForWindow();
 
@@ -361,9 +360,10 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
 
 
-nsHTMLScriptElement::nsHTMLScriptElement(nsINodeInfo *aNodeInfo,
+nsHTMLScriptElement::nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                          PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo)
+  , nsScriptElement(aFromParser)
 {
   mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
@@ -377,15 +377,14 @@ nsHTMLScriptElement::~nsHTMLScriptElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLScriptElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
-DOMCI_DATA(HTMLScriptElement, nsHTMLScriptElement)
+DOMCI_NODE_DATA(HTMLScriptElement, nsHTMLScriptElement)
 
 // QueryInterface implementation for nsHTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLScriptElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLScriptElement,
                                    nsIDOMHTMLScriptElement,
                                    nsIScriptLoaderObserver,
                                    nsIScriptElement,
-                                   nsIDOMNSHTMLScriptElement,
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLScriptElement,
                                                nsGenericHTMLElement)
@@ -419,7 +418,8 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsHTMLScriptElement* it = new nsHTMLScriptElement(aNodeInfo, PR_FALSE);
+  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
+  nsHTMLScriptElement* it = new nsHTMLScriptElement(ni.forget(), PR_FALSE);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -429,7 +429,7 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The clone should be marked evaluated if we are.
-  it->mIsEvaluated = mIsEvaluated;
+  it->mAlreadyStarted = mAlreadyStarted;
   it->mLineNumber = mLineNumber;
   it->mMalformed = mMalformed;
 
@@ -478,11 +478,10 @@ nsHTMLScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
   nsresult rv = MaybeProcessScript();
-  if (!mIsEvaluated) {
-    // Need to thaw the script uri here to allow another script to cause
+  if (!mAlreadyStarted) {
+    // Need to lose parser-insertedness here to allow another script to cause
     // execution later.
-    mFrozen = PR_FALSE;
-    mUri = nsnull;
+    LoseParserInsertedness();
   }
   return rv;
 }
@@ -556,7 +555,7 @@ nsHTMLScriptElement::MaybeProcessScript()
 
     // We tried to evaluate the script but realized it was an eventhandler
     // mEvaluated will already be set at this point
-    NS_ASSERTION(mIsEvaluated, "should have set mIsEvaluated already");
+    NS_ASSERTION(mAlreadyStarted, "should have set mIsEvaluated already");
     NS_ASSERTION(!mScriptEventHandler, "how could we have an SEH already?");
 
     mScriptEventHandler = new nsHTMLScriptEventHandler(this);

@@ -69,6 +69,11 @@
 #include "COMMessageFilter.h"
 #endif
 
+#ifdef OS_MACOSX
+#include "PluginInterposeOSX.h"
+#include "PluginUtilsOSX.h"
+#endif
+
 using namespace mozilla::plugins;
 
 #if defined(XP_WIN)
@@ -110,6 +115,9 @@ PluginModuleChild::PluginModuleChild() :
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
+#ifdef XP_MACOSX
+    mac_plugin_interposing::child::SetUpCocoaInterposing();
+#endif
 }
 
 PluginModuleChild::~PluginModuleChild()
@@ -185,7 +193,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     nsPluginFile lib(pluginIfile);
 
-    nsresult rv = lib.LoadPlugin(mLibrary);
+    nsresult rv = lib.LoadPlugin(&mLibrary);
     NS_ASSERTION(NS_OK == rv, "trouble with mPluginFile");
     NS_ASSERTION(mLibrary, "couldn't open shared object");
 
@@ -1515,13 +1523,67 @@ _unscheduletimer(NPP npp, uint32_t timerID)
     InstCast(npp)->UnscheduleTimer(timerID);
 }
 
+
+#ifdef OS_MACOSX
+static void ProcessBrowserEvents(void* pluginModule) {
+    PluginModuleChild* pmc = static_cast<PluginModuleChild*>(pluginModule);
+
+    if (!pmc)
+        return;
+
+    pmc->CallProcessSomeEvents();
+}
+#endif
+
 NPError NP_CALLBACK
 _popupcontextmenu(NPP instance, NPMenu* menu)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
-    NS_WARNING("Not yet implemented!");
+
+#ifdef OS_MACOSX
+    double pluginX, pluginY; 
+    double screenX, screenY;
+
+    const NPCocoaEvent* currentEvent = InstCast(instance)->getCurrentEvent();
+    if (!currentEvent) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    // Ensure that the events has an x/y value.
+    if (currentEvent->type != NPCocoaEventMouseDown    &&
+        currentEvent->type != NPCocoaEventMouseUp      &&
+        currentEvent->type != NPCocoaEventMouseMoved   &&
+        currentEvent->type != NPCocoaEventMouseEntered &&
+        currentEvent->type != NPCocoaEventMouseExited  &&
+        currentEvent->type != NPCocoaEventMouseDragged) {
+        return NPERR_GENERIC_ERROR;
+    }
+
+    pluginX = currentEvent->data.mouse.pluginX;
+    pluginY = currentEvent->data.mouse.pluginY;
+
+    if ((pluginX < 0.0) || (pluginY < 0.0))
+        return NPERR_GENERIC_ERROR;
+
+    NPBool success = _convertpoint(instance, 
+                                  pluginX,  pluginY, NPCoordinateSpacePlugin, 
+                                 &screenX, &screenY, NPCoordinateSpaceScreen);
+
+    if (success) {
+        return mozilla::plugins::PluginUtilsOSX::ShowCocoaContextMenu(menu,
+                                    screenX, screenY,
+                                    PluginModuleChild::current(),
+                                    ProcessBrowserEvents);
+    } else {
+        NS_WARNING("Convertpoint failed, could not created contextmenu.");
+        return NPERR_GENERIC_ERROR;
+    }
+
+#else
+    NS_WARNING("Not supported on this platform!");
     return NPERR_GENERIC_ERROR;
+#endif
 }
 
 NPBool NP_CALLBACK
@@ -1611,15 +1673,17 @@ PluginModuleChild::AllocPPluginIdentifier(const nsCString& aString,
 
     if (aString.IsVoid()) {
         newActor = new PluginIdentifierChildInt(aInt);
-        if (mIntIdentifiers.Get(aInt, &existingActor)) {
+        if (mIntIdentifiers.Get(aInt, &existingActor))
             newActor->SetCanonicalIdentifier(existingActor);
-        }
+        else
+            mIntIdentifiers.Put(aInt, newActor);
     }
     else {
         newActor = new PluginIdentifierChildString(aString);
-        if (mStringIdentifiers.Get(aString, &existingActor)) {
+        if (mStringIdentifiers.Get(aString, &existingActor))
             newActor->SetCanonicalIdentifier(existingActor);
-        }
+        else
+            mStringIdentifiers.Put(aString, newActor);
     }
     return newActor;
 }
@@ -1693,6 +1757,17 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     if (NPERR_NO_ERROR != *rv) {
         return false;
     }
+
+#if defined(XP_MACOSX) && defined(__i386__)
+    // If an i386 Mac OS X plugin has selected the Carbon event model then
+    // we have to fail. We do not support putting Carbon event model plugins
+    // out of process. Note that Carbon is the default model so out of process
+    // plugins need to actively negotiate something else in order to work
+    // out of process.
+    if (childInstance->EventModel() == NPEventModelCarbon) {
+        *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
+    }
+#endif
 
     return true;
 }
@@ -2023,5 +2098,12 @@ PluginModuleChild::ResetEventHooks()
     if (mGlobalCallWndProcHook)
         UnhookWindowsHookEx(mGlobalCallWndProcHook);
     mGlobalCallWndProcHook = NULL;
+}
+#endif
+
+#ifdef OS_MACOSX
+void
+PluginModuleChild::ProcessNativeEvents() {
+    CallProcessSomeEvents();    
 }
 #endif

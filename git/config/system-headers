@@ -62,6 +62,7 @@ be/kernel/image.h
 be/kernel/OS.h
 bfd.h
 Bitmap.h
+bitset
 blapi.h
 bsd/libc.h
 bsd/syscall.h
@@ -93,6 +94,7 @@ cairo-directfb.h
 cairo-qpainter.h
 #endif
 dfiff.h
+exception
 ffi.h
 fusion/reactor.h
 fusion/property.h
@@ -196,6 +198,7 @@ CPString.h
 crtdbg.h
 crt_externs.h
 crypt.h
+cstddef
 cstdio
 cstdlib
 cstring
@@ -539,6 +542,7 @@ Objsafe.h
 ojiapitests.h
 ole2.h
 oleidl.h
+OpenGL/OpenGL.h
 OpenTptInternet.h
 OpenTransport.h
 os2.h
@@ -861,6 +865,7 @@ Volume.h
 wab.h
 wait.h
 wchar.h
+wctype.h
 winbase.h
 win/compobj.h
 windef.h
@@ -891,6 +896,7 @@ wx/xrc/xmlres.h
 X11/cursorfont.h
 X11/extensions/Print.h
 X11/extensions/shape.h
+X11/extensions/scrnsaver.h
 X11/extensions/XIElib.h
 X11/extensions/XShm.h
 X11/extensions/Xrender.h
@@ -1032,4 +1038,13 @@ conic/conicstatisticsevent.h
 #endif
 #if MOZ_NATIVE_LIBEVENT==1
 event.h
+#endif
+#ifdef MOZ_ENABLE_LIBPROXY
+proxy.h
+#endif
+#if MOZ_PLATFORM_MAEMO==6
+contentaction/contentaction.h
+#endif
+#ifndef MOZ_TREE_PIXMAN
+pixman.h
 #endif

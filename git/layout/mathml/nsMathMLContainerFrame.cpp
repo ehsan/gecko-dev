@@ -124,8 +124,8 @@ nsMathMLContainerFrame::ReflowError(nsIRenderingContext& aRenderingContext,
 
 class nsDisplayMathMLError : public nsDisplayItem {
 public:
-  nsDisplayMathMLError(nsIFrame* aFrame)
-    : nsDisplayItem(aFrame) {
+  nsDisplayMathMLError(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayMathMLError);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -145,7 +145,7 @@ void nsDisplayMathMLError::Paint(nsDisplayListBuilder* aBuilder,
   // Set color and font ...
   nsLayoutUtils::SetFontFromStyle(aCtx, mFrame->GetStyleContext());
 
-  nsPoint pt = aBuilder->ToReferenceFrame(mFrame);
+  nsPoint pt = ToReferenceFrame();
   aCtx->SetColor(NS_RGB(255,0,0));
   aCtx->FillRect(nsRect(pt, mFrame->GetSize()));
   aCtx->SetColor(NS_RGB(255,255,255));
@@ -672,7 +672,8 @@ nsMathMLContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (!IsVisibleForPainting(aBuilder))
       return NS_OK;
 
-    return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayMathMLError(this));
+    return aLists.Content()->AppendNewToTop(
+        new (aBuilder) nsDisplayMathMLError(aBuilder, this));
   }
 
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
@@ -855,12 +856,15 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
 {
   // nsIFrame::FinishAndStoreOverflow likes the overflow area to include the
   // frame rectangle.
-  nsRect frameRect(0, 0, aMetrics->width, aMetrics->height);
+  aMetrics->SetOverflowAreasToDesiredBounds();
 
   // Text-shadow overflows.
   if (PresContext()->CompatibilityMode() != eCompatibility_NavQuirks) {
+    nsRect frameRect(0, 0, aMetrics->width, aMetrics->height);
     nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(frameRect, this);
-    frameRect.UnionRect(frameRect, shadowRect);
+    // shadows contribute only to visual overflow
+    nsRect& visOverflow = aMetrics->VisualOverflow();
+    visOverflow.UnionRect(visOverflow, shadowRect);
   }
 
   // All non-child-frame content such as nsMathMLChars (and most child-frame
@@ -870,7 +874,9 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
                      mBoundingMetrics.rightBearing - mBoundingMetrics.leftBearing,
                      mBoundingMetrics.ascent + mBoundingMetrics.descent);
 
-  aMetrics->mOverflowArea.UnionRect(frameRect, boundingBox);
+  // REVIEW: Maybe this should contribute only to visual overflow
+  // and not scrollable?
+  aMetrics->mOverflowAreas.UnionAllWith(boundingBox);
 
   // mBoundingMetrics does not necessarily include content of <mpadded>
   // elements whose mBoundingMetrics may not be representative of the true
@@ -878,7 +884,7 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
   // make such to include child overflow areas.
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
-    ConsiderChildOverflow(aMetrics->mOverflowArea, childFrame);
+    ConsiderChildOverflow(aMetrics->mOverflowAreas, childFrame);
     childFrame = childFrame->GetNextSibling();
   }
 

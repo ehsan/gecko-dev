@@ -133,6 +133,12 @@ nsresult TestRegular()
                           kCoreServiceA_CID, kExtServiceA_CID);
 }
 
+nsresult TestJar()
+{
+  return execRegOrderTest("TestJar", SERVICE_B_CONTRACT_ID,
+                          kCoreServiceB_CID, kExtServiceB_CID);
+}
+
 bool TestContractFirst()
 {
   nsCOMPtr<nsIComponentRegistrar> r;
@@ -158,7 +164,7 @@ bool TestContractFirst()
 }
 
 static already_AddRefed<nsILocalFile>
-GetRegDirectory(const char* basename, const char* dirname)
+GetRegDirectory(const char* basename, const char* dirname, const char* leafname)
 {
     nsCOMPtr<nsILocalFile> f;
     nsresult rv = NS_NewNativeLocalFile(nsDependentCString(basename), PR_TRUE,
@@ -167,6 +173,8 @@ GetRegDirectory(const char* basename, const char* dirname)
         return NULL;
 
     f->AppendNative(nsDependentCString(dirname));
+    if (leafname)
+        f->AppendNative(nsDependentCString(leafname));
     return f.forget();
 }
 
@@ -184,15 +192,20 @@ int main(int argc, char** argv)
   
   const char *regPath = argv[1];
   XRE_AddManifestLocation(NS_COMPONENT_LOCATION,
-                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "core")));
+                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "core", "component.manifest")));
   XRE_AddManifestLocation(NS_COMPONENT_LOCATION,
-                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "extension")));
+                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "extension", "extComponent.manifest")));
+  XRE_AddJarManifestLocation(NS_COMPONENT_LOCATION,
+                          nsCOMPtr<nsILocalFile>(GetRegDirectory(regPath, "extension2.jar", NULL)));
   ScopedXPCOM xpcom("RegistrationOrder");
   if (xpcom.failed())
     return 1;
 
   int rv = 0;
   if (NS_FAILED(TestRegular()))
+    rv = 1;
+
+  if (NS_FAILED(TestJar()))
     rv = 1;
 
   if (!TestContractFirst())

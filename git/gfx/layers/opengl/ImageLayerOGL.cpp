@@ -36,8 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+# include "gfxSharedImageSurface.h"
+#endif
+
 #include "ImageLayerOGL.h"
 #include "gfxImageSurface.h"
+#include "yuv_convert.h"
 #include "GLContextProvider.h"
 
 using namespace mozilla::gl;
@@ -57,11 +62,13 @@ public:
                  GLuint aTexture)
       : mContext(aContext), mTexture(aTexture)
   {
+    NS_ASSERTION(aTexture, "TextureDeleter instantiated with nothing to do");
   }
+
   NS_IMETHOD Run() {
-    if (mTexture) {
-      mContext->DestroyTexture(mTexture);
-    }
+    mContext->MakeCurrent();
+    mContext->fDeleteTextures(1, &mTexture);
+
     // Ensure context is released on the main thread
     mContext = nsnull;
     return NS_OK;
@@ -74,12 +81,15 @@ public:
 void
 GLTexture::Allocate(GLContext *aContext)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Can only allocate texture on main thread");
+  NS_ASSERTION(aContext->IsGlobalSharedContext() ||
+               NS_IsMainThread(), "Can only allocate texture on main thread or with cx sharing");
 
   Release();
 
   mContext = aContext;
-  mTexture = mContext->CreateTexture();
+
+  mContext->MakeCurrent();
+  mContext->fGenTextures(1, &mTexture);
 }
 
 void
@@ -100,19 +110,20 @@ GLTexture::Release()
     return;
   }
 
-  if (NS_IsMainThread()) {
-    if (mTexture) {
-      mContext->DestroyTexture(mTexture);
-      mTexture = 0;
+  if (mTexture) {
+    if (NS_IsMainThread() || mContext->IsGlobalSharedContext()) {
+      mContext->MakeCurrent();
+      mContext->fDeleteTextures(1, &mTexture);
+    } else {
+      nsCOMPtr<nsIRunnable> runnable =
+        new TextureDeleter(mContext.forget(), mTexture);
+      NS_DispatchToMainThread(runnable);
     }
-    mContext = nsnull;
-    return;
+
+    mTexture = 0;
   }
 
-  nsCOMPtr<nsIRunnable> runnable =
-    new TextureDeleter(mContext.forget(), mTexture);
-  NS_DispatchToMainThread(runnable);
-  mTexture = 0;
+  mContext = nsnull;
 }
 
 RecycleBin::RecycleBin()
@@ -133,7 +144,7 @@ RecycleBin::RecycleBuffer(PRUint8* aBuffer, PRUint32 aSize)
 }
 
 PRUint8*
-RecycleBin::TakeBuffer(PRUint32 aSize)
+RecycleBin::GetBuffer(PRUint32 aSize)
 {
   MutexAutoLock lock(mLock);
 
@@ -150,10 +161,10 @@ void
 RecycleBin::RecycleTexture(GLTexture *aTexture, TextureType aType,
                            const gfxIntSize& aSize)
 {
+  MutexAutoLock lock(mLock);
+
   if (!aTexture->IsAllocated())
     return;
-
-  MutexAutoLock lock(mLock);
 
   if (!mRecycledTextures[aType].IsEmpty() && aSize != mRecycledTextureSizes[aType]) {
     mRecycledTextures[aType].Clear();
@@ -163,8 +174,8 @@ RecycleBin::RecycleTexture(GLTexture *aTexture, TextureType aType,
 }
 
 void
-RecycleBin::TakeTexture(TextureType aType, const gfxIntSize& aSize,
-                        GLContext *aContext, GLTexture *aOutTexture)
+RecycleBin::GetTexture(TextureType aType, const gfxIntSize& aSize,
+                       GLContext *aContext, GLTexture *aOutTexture)
 {
   MutexAutoLock lock(mLock);
 
@@ -184,6 +195,15 @@ ImageContainerOGL::ImageContainerOGL(LayerManagerOGL *aManager)
 {
 }
 
+ImageContainerOGL::~ImageContainerOGL()
+{
+  if (mManager) {
+    NS_ASSERTION(mManager->GetBackendType() == LayerManager::LAYERS_OPENGL, "Wrong layer manager got assigned to ImageContainerOGL!");
+
+    static_cast<LayerManagerOGL*>(mManager)->ForgetImageContainer(this);
+  }
+}
+
 already_AddRefed<Image>
 ImageContainerOGL::CreateImage(const Image::Format *aFormats,
                                PRUint32 aNumFormats)
@@ -193,7 +213,8 @@ ImageContainerOGL::CreateImage(const Image::Format *aFormats,
   }
   nsRefPtr<Image> img;
   if (aFormats[0] == Image::PLANAR_YCBCR) {
-    img = new PlanarYCbCrImageOGL(mRecycleBin);
+    img = new PlanarYCbCrImageOGL(static_cast<LayerManagerOGL*>(mManager),
+                                  mRecycleBin);
   } else if (aFormats[0] == Image::CAIRO_SURFACE) {
     img = new CairoImageOGL(static_cast<LayerManagerOGL*>(mManager));
   }
@@ -228,7 +249,59 @@ ImageContainerOGL::GetCurrentImage()
 already_AddRefed<gfxASurface>
 ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 {
-  return nsnull;
+  MutexAutoLock lock(mActiveImageLock);
+
+  if (!mActiveImage) {
+    *aSize = gfxIntSize(0,0);
+    return nsnull;
+  }
+
+  GLContext *gl = nsnull;
+  // tex1 will be RGBA or Y, tex2 will Cb, tex3 will be Cr
+  GLuint tex1 = 0;
+  gfxIntSize size;
+
+  if (mActiveImage->GetFormat() == Image::PLANAR_YCBCR) {
+    PlanarYCbCrImageOGL *yuvImage =
+      static_cast<PlanarYCbCrImageOGL*>(mActiveImage.get());
+    if (!yuvImage->HasData()) {
+      *aSize = gfxIntSize(0, 0);
+      return nsnull;
+    }
+
+    size = yuvImage->mSize;
+
+    nsRefPtr<gfxImageSurface> imageSurface =
+      new gfxImageSurface(size, gfxASurface::ImageFormatRGB24);
+
+    gfx::ConvertYCbCrToRGB32(yuvImage->mData.mYChannel,
+                             yuvImage->mData.mCbChannel,
+                             yuvImage->mData.mCrChannel,
+                             imageSurface->Data(),
+                             0,
+                             0,
+                             size.width,
+                             size.height,
+                             yuvImage->mData.mYStride,
+                             yuvImage->mData.mCbCrStride,
+                             imageSurface->Stride(),
+                             yuvImage->mType);
+
+    *aSize = size;
+    return imageSurface.forget().get();
+  }
+
+  if (mActiveImage->GetFormat() == Image::CAIRO_SURFACE) {
+    CairoImageOGL *cairoImage =
+      static_cast<CairoImageOGL*>(mActiveImage.get());
+    size = cairoImage->mSize;
+    gl = cairoImage->mTexture.GetGLContext();
+    tex1 = cairoImage->mTexture.GetTextureID();
+  }
+
+  nsRefPtr<gfxImageSurface> s = gl->ReadTextureImage(tex1, size, LOCAL_GL_RGBA);
+  *aSize = size;
+  return s.forget();
 }
 
 gfxIntSize
@@ -238,6 +311,7 @@ ImageContainerOGL::GetCurrentSize()
   if (!mActiveImage) {
     return gfxIntSize(0,0);
   }
+
   if (mActiveImage->GetFormat() == Image::PLANAR_YCBCR) {
     PlanarYCbCrImageOGL *yuvImage =
       static_cast<PlanarYCbCrImageOGL*>(mActiveImage.get());
@@ -246,13 +320,47 @@ ImageContainerOGL::GetCurrentSize()
     }
     return yuvImage->mSize;
 
-  } else if (mActiveImage->GetFormat() == Image::CAIRO_SURFACE) {
+  }
+
+  if (mActiveImage->GetFormat() == Image::CAIRO_SURFACE) {
     CairoImageOGL *cairoImage =
       static_cast<CairoImageOGL*>(mActiveImage.get());
     return cairoImage->mSize;
   }
 
   return gfxIntSize(0,0);
+}
+
+PRBool
+ImageContainerOGL::SetLayerManager(LayerManager *aManager)
+{
+  if (!aManager) {
+    // the layer manager just entirely went away
+
+    // XXX if we don't have context sharing, we should tell our images
+    // that their textures are no longer valid.
+    mManager = nsnull;
+    return PR_TRUE;
+  }
+
+  if (aManager->GetBackendType() != LayerManager::LAYERS_OPENGL) {
+    return PR_FALSE;
+  }
+
+  LayerManagerOGL* lmOld = static_cast<LayerManagerOGL*>(mManager);
+  LayerManagerOGL* lmNew = static_cast<LayerManagerOGL*>(aManager);
+
+  if (lmOld) {
+    NS_ASSERTION(lmNew->glForResources() == lmOld->glForResources(),
+                 "We require GL context sharing here!");
+    lmOld->ForgetImageContainer(this);
+  }
+
+  mManager = aManager;
+
+  lmNew->RememberImageContainer(this);
+
+  return PR_TRUE;
 }
 
 Layer*
@@ -276,18 +384,25 @@ ImageLayerOGL::RenderLayer(int,
     PlanarYCbCrImageOGL *yuvImage =
       static_cast<PlanarYCbCrImageOGL*>(image.get());
 
-    if (!yuvImage->HasData())
+    if (!yuvImage->HasData()) {
       return;
+    }
+    
+    if (!yuvImage->HasTextures()) {
+      yuvImage->AllocateTextures(gl());
+    }
 
-    if (!yuvImage->HasTextures())
-      yuvImage->AllocateTextures(mOGLManager);
+    yuvImage->UpdateTextures(gl());
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[0].GetTextureID());
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[1].GetTextureID());
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[2].GetTextureID());
+    ApplyFilter(mFilter);
 
     YCbCrTextureLayerProgram *program = mOGLManager->GetYCbCrLayerProgram();
 
@@ -295,7 +410,7 @@ ImageLayerOGL::RenderLayer(int,
     program->SetLayerQuadRect(nsIntRect(0, 0,
                                         yuvImage->mSize.width,
                                         yuvImage->mSize.height));
-    program->SetLayerTransform(mTransform);
+    program->SetLayerTransform(GetEffectiveTransform());
     program->SetLayerOpacity(GetOpacity());
     program->SetRenderOffset(aOffset);
     program->SetYCbCrTextureUnits(0, 1, 2);
@@ -320,11 +435,13 @@ ImageLayerOGL::RenderLayer(int,
     else
       program = mOGLManager->GetBGRALayerProgram();
 
+    ApplyFilter(mFilter);
+
     program->Activate();
     program->SetLayerQuadRect(nsIntRect(0, 0,
                                         cairoImage->mSize.width,
                                         cairoImage->mSize.height));
-    program->SetLayerTransform(mTransform);
+    program->SetLayerTransform(GetEffectiveTransform());
     program->SetLayerOpacity(GetOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
@@ -335,9 +452,39 @@ ImageLayerOGL::RenderLayer(int,
   DEBUG_GL_ERROR_CHECK(gl());
 }
 
-PlanarYCbCrImageOGL::PlanarYCbCrImageOGL(RecycleBin *aRecycleBin)
+static void
+InitTexture(GLContext* aGL, GLuint aTexture, GLenum aFormat, const gfxIntSize& aSize)
+{
+  aGL->fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+
+  aGL->fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                   0,
+                   aFormat,
+                   aSize.width,
+                   aSize.height,
+                   0,
+                   aFormat,
+                   LOCAL_GL_UNSIGNED_BYTE,
+                   NULL);
+}
+
+PlanarYCbCrImageOGL::PlanarYCbCrImageOGL(LayerManagerOGL *aManager,
+                                         RecycleBin *aRecycleBin)
   : PlanarYCbCrImage(nsnull), mRecycleBin(aRecycleBin), mHasData(PR_FALSE)
 {
+#if 0
+  // We really want to allocate this on the decode thread -- but to do that,
+  // we need to create a per-thread shared GL context, and it will only work
+  // if we have context sharing.  For now, create the textures on the main
+  // thread the first time we render.
+  if (aManager) {
+    AllocateTextures(aManager->glForResources());
+  }
+#endif
 }
 
 PlanarYCbCrImageOGL::~PlanarYCbCrImageOGL()
@@ -346,9 +493,11 @@ PlanarYCbCrImageOGL::~PlanarYCbCrImageOGL()
     mRecycleBin->RecycleBuffer(mBuffer.forget(), mBufferSize);
   }
 
-  mRecycleBin->RecycleTexture(&mTextures[0], RecycleBin::TEXTURE_Y, mData.mYSize);
-  mRecycleBin->RecycleTexture(&mTextures[1], RecycleBin::TEXTURE_C, mData.mCbCrSize);
-  mRecycleBin->RecycleTexture(&mTextures[2], RecycleBin::TEXTURE_C, mData.mCbCrSize);
+  if (HasTextures()) {
+    mRecycleBin->RecycleTexture(&mTextures[0], RecycleBin::TEXTURE_Y, mData.mYSize);
+    mRecycleBin->RecycleTexture(&mTextures[1], RecycleBin::TEXTURE_C, mData.mCbCrSize);
+    mRecycleBin->RecycleTexture(&mTextures[2], RecycleBin::TEXTURE_C, mData.mCbCrSize);
+  }
 }
 
 void
@@ -362,29 +511,41 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
      // YV24 format
      width_shift = 0;
      height_shift = 0;
+     mType = gfx::YV24;
   } else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
              aData.mYSize.height == aData.mCbCrSize.height) {
     // YV16 format
     width_shift = 1;
     height_shift = 0;
+    mType = gfx::YV16;
   } else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
              aData.mYSize.height / 2 == aData.mCbCrSize.height ) {
       // YV12 format
     width_shift = 1;
     height_shift = 1;
+    mType = gfx::YV12;
   } else {
     NS_ERROR("YCbCr format not supported");
   }
   
   mData = aData;
   mData.mCbCrStride = mData.mCbCrSize.width = aData.mPicSize.width >> width_shift;
+  // Round up the values for width and height to make sure we sample enough data
+  // for the last pixel - See bug 590735
+  if (width_shift && (aData.mPicSize.width & 1)) {
+    mData.mCbCrStride++;
+    mData.mCbCrSize.width++;
+  }
   mData.mCbCrSize.height = aData.mPicSize.height >> height_shift;
+  if (height_shift && (aData.mPicSize.height & 1)) {
+      mData.mCbCrSize.height++;
+  }
   mData.mYSize = aData.mPicSize;
   mData.mYStride = mData.mYSize.width;
 
   mBufferSize = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
                 mData.mYStride * mData.mYSize.height;
-  mBuffer = mRecycleBin->TakeBuffer(mBufferSize);
+  mBuffer = mRecycleBin->GetBuffer(mBufferSize);
   if (!mBuffer)
     return;
 
@@ -417,52 +578,25 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
   mHasData = PR_TRUE;
 }
 
-static void
-SetupPlaneTexture(GLContext* aGL, const gfxIntSize& aSize, PRUint8* aData, PRBool aIsNew)
+void
+PlanarYCbCrImageOGL::AllocateTextures(mozilla::gl::GLContext *gl)
 {
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+  gl->MakeCurrent();
 
-  if (aIsNew) {
-    aGL->fTexImage2D(LOCAL_GL_TEXTURE_2D,
-                     0,
-                     LOCAL_GL_LUMINANCE,
-                     aSize.width,
-                     aSize.height,
-                     0,
-                     LOCAL_GL_LUMINANCE,
-                     LOCAL_GL_UNSIGNED_BYTE,
-                     aData);
-  } else {
-    aGL->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
-                        0,
-                        0, 0,
-                        aSize.width,
-                        aSize.height,
-                        LOCAL_GL_LUMINANCE,
-                        LOCAL_GL_UNSIGNED_BYTE,
-                        aData);
-  }
+  mRecycleBin->GetTexture(RecycleBin::TEXTURE_Y, mData.mYSize, gl, &mTextures[0]);
+  InitTexture(gl, mTextures[0].GetTextureID(), LOCAL_GL_LUMINANCE, mData.mYSize);
+
+  mRecycleBin->GetTexture(RecycleBin::TEXTURE_C, mData.mCbCrSize, gl, &mTextures[1]);
+  InitTexture(gl, mTextures[1].GetTextureID(), LOCAL_GL_LUMINANCE, mData.mCbCrSize);
+
+  mRecycleBin->GetTexture(RecycleBin::TEXTURE_C, mData.mCbCrSize, gl, &mTextures[2]);
+  InitTexture(gl, mTextures[2].GetTextureID(), LOCAL_GL_LUMINANCE, mData.mCbCrSize);
 }
 
 void
-PlanarYCbCrImageOGL::AllocateTextures(LayerManagerOGL *aManager)
+PlanarYCbCrImageOGL::UpdateTextures(GLContext *gl)
 {
-  aManager->MakeCurrent();
-
-  mozilla::gl::GLContext *gl = aManager->gl();
-
-  PRPackedBool isNewTexture[3];
-  for (PRUint32 i = 0; i < 3; ++i) {
-    isNewTexture[i] = !mTextures[i].IsAllocated();
-  }
-
-  mRecycleBin->TakeTexture(RecycleBin::TEXTURE_Y, mData.mYSize, gl, &mTextures[0]);
-  mRecycleBin->TakeTexture(RecycleBin::TEXTURE_C, mData.mCbCrSize, gl, &mTextures[1]);
-  mRecycleBin->TakeTexture(RecycleBin::TEXTURE_C, mData.mCbCrSize, gl, &mTextures[2]);
-  if (!HasTextures())
+  if (!mBuffer || !mHasData)
     return;
 
   GLint alignment;
@@ -481,12 +615,16 @@ PlanarYCbCrImageOGL::AllocateTextures(LayerManagerOGL *aManager)
   gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, alignment);
 
   gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextures[0].GetTextureID());
-
-  SetupPlaneTexture(gl, mData.mYSize, mData.mYChannel, isNewTexture[0]);
+  gl->fTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
+                     0, 0, mData.mYSize.width, mData.mYSize.height,
+                     LOCAL_GL_LUMINANCE,
+                     LOCAL_GL_UNSIGNED_BYTE,
+                     mData.mYChannel);
 
   if (!((ptrdiff_t)mData.mCbCrStride & 0x7) && 
       !((ptrdiff_t)mData.mCbChannel & 0x7) &&
-      !((ptrdiff_t)mData.mCrChannel & 0x7)) {
+      !((ptrdiff_t)mData.mCrChannel & 0x7))
+  {
     alignment = 8;
   } else if (!((ptrdiff_t)mData.mCbCrStride & 0x3)) {
     alignment = 4;
@@ -500,12 +638,18 @@ PlanarYCbCrImageOGL::AllocateTextures(LayerManagerOGL *aManager)
   gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, alignment);
 
   gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextures[1].GetTextureID());
-
-  SetupPlaneTexture(gl, mData.mCbCrSize, mData.mCbChannel, isNewTexture[1]);
+  gl->fTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
+                     0, 0, mData.mCbCrSize.width, mData.mCbCrSize.height,
+                     LOCAL_GL_LUMINANCE,
+                     LOCAL_GL_UNSIGNED_BYTE,
+                     mData.mCbChannel);
 
   gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextures[2].GetTextureID());
-
-  SetupPlaneTexture(gl, mData.mCbCrSize, mData.mCrChannel, isNewTexture[2]);
+  gl->fTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
+                     0, 0, mData.mCbCrSize.width, mData.mCbCrSize.height,
+                     LOCAL_GL_LUMINANCE,
+                     LOCAL_GL_UNSIGNED_BYTE,
+                     mData.mCrChannel);
 
   // Reset alignment to default
   gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
@@ -516,12 +660,15 @@ PlanarYCbCrImageOGL::AllocateTextures(LayerManagerOGL *aManager)
   }
 }
 
-CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager) : CairoImage(nsnull)
+CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager)
+  : CairoImage(nsnull)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread to create a cairo image");
 
-  // Allocate texture now to grab a reference to the GLContext
-  mTexture.Allocate(aManager->gl());
+  if (aManager) {
+    // Allocate texture now to grab a reference to the GLContext
+    mTexture.Allocate(aManager->glForResources());
+  }
 }
 
 void
@@ -533,20 +680,20 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   mozilla::gl::GLContext *gl = mTexture.GetGLContext();
   gl->MakeCurrent();
 
-  mSize = aData.mSize;
-
-  gl->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture.GetTextureID());
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+  if (mSize != aData.mSize) {
+    gl->fActiveTexture(LOCAL_GL_TEXTURE0);
+    InitTexture(gl, mTexture.GetTextureID(), LOCAL_GL_RGBA, aData.mSize);
+    mSize = aData.mSize;
+  } else {
+    gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture.GetTextureID());
+  }
 
   if (!mASurfaceAsGLContext) {
-    mASurfaceAsGLContext = sGLContextProvider.CreateForNativePixmapSurface(aData.mSurface);
+    mASurfaceAsGLContext = GLContextProvider::CreateForNativePixmapSurface(aData.mSurface);
     if (mASurfaceAsGLContext)
       mASurfaceAsGLContext->BindTexImage();
   }
+
   if (mASurfaceAsGLContext)
     return;
 
@@ -561,16 +708,109 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   context->SetSource(aData.mSurface);
   context->Paint();
 
-  gl->fTexImage2D(LOCAL_GL_TEXTURE_2D,
-                  0,
-                  LOCAL_GL_RGBA,
-                  mSize.width,
-                  mSize.height,
-                  0,
-                  LOCAL_GL_RGBA,
-                  LOCAL_GL_UNSIGNED_BYTE,
-                  imageSurface->Data());
+  gl->fTexSubImage2D(LOCAL_GL_TEXTURE_2D, 0,
+                     0, 0, mSize.width, mSize.height,
+                     LOCAL_GL_RGBA,
+                     LOCAL_GL_UNSIGNED_BYTE,
+                     imageSurface->Data());
 }
+
+
+#ifdef MOZ_IPC
+
+ShadowImageLayerOGL::ShadowImageLayerOGL(LayerManagerOGL* aManager)
+  : ShadowImageLayer(aManager, nsnull)
+  , LayerOGL(aManager)
+{
+  mImplData = static_cast<LayerOGL*>(this);
+}  
+
+ShadowImageLayerOGL::~ShadowImageLayerOGL()
+{}
+
+PRBool
+ShadowImageLayerOGL::Init(gfxSharedImageSurface* aFront,
+                          const nsIntSize& aSize)
+{
+  mDeadweight = aFront;
+  gfxSize sz = mDeadweight->GetSize();
+  mTexImage = gl()->CreateTextureImage(nsIntSize(sz.width, sz.height),
+                                       mDeadweight->GetContentType(),
+                                       LOCAL_GL_CLAMP_TO_EDGE);
+  return PR_TRUE;
+}
+
+already_AddRefed<gfxSharedImageSurface>
+ShadowImageLayerOGL::Swap(gfxSharedImageSurface* aNewFront)
+{
+  if (!mDestroyed && mTexImage) {
+    // XXX this is always just ridiculously slow
+
+    gfxSize sz = aNewFront->GetSize();
+    nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
+    // NB: this gfxContext must not escape EndUpdate() below
+    nsRefPtr<gfxContext> dest = mTexImage->BeginUpdate(updateRegion);
+
+    dest->SetOperator(gfxContext::OPERATOR_SOURCE);
+    dest->DrawSurface(aNewFront, aNewFront->GetSize());
+
+    mTexImage->EndUpdate();
+  }
+
+  return aNewFront;
+}
+
+void
+ShadowImageLayerOGL::DestroyFrontBuffer()
+{
+  mTexImage = nsnull;
+  if (mDeadweight) {
+    mOGLManager->DestroySharedSurface(mDeadweight, mAllocator);
+    mDeadweight = nsnull;
+  }
+}
+
+void
+ShadowImageLayerOGL::Destroy()
+{
+  if (!mDestroyed) {
+    mDestroyed = PR_TRUE;
+    mTexImage = nsnull;
+  }
+}
+
+Layer*
+ShadowImageLayerOGL::GetLayer()
+{
+  return this;
+}
+
+void
+ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
+                                 const nsIntPoint& aOffset)
+{
+  mOGLManager->MakeCurrent();
+
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
+  ColorTextureLayerProgram *program = mOGLManager->GetBGRALayerProgram();
+
+  ApplyFilter(mFilter);
+
+  program->Activate();
+  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mTexImage->GetSize()));
+  program->SetLayerTransform(mTransform);
+  program->SetLayerOpacity(GetOpacity());
+  program->SetRenderOffset(aOffset);
+  program->SetTextureUnit(0);
+
+  mOGLManager->BindAndDrawQuad(program);
+
+  DEBUG_GL_ERROR_CHECK(gl());
+}
+
+#endif  // MOZ_IPC
+
 
 } /* layers */
 } /* mozilla */

@@ -55,11 +55,12 @@
 
 class CSSGroupRuleRuleListImpl;
 class nsMediaList;
+template<class T> struct already_AddRefed;
 
 #define DECL_STYLE_RULE_INHERIT_NO_DOMRULE  \
-NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const; \
-NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aSheet); \
-NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule); \
+virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const; \
+virtual void SetStyleSheet(nsCSSStyleSheet* aSheet); \
+virtual void SetParentRule(nsICSSGroupRule* aRule); \
 virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 
 #define DECL_STYLE_RULE_INHERIT  \
@@ -73,7 +74,15 @@ class nsCSSGroupRule : public nsCSSRule, public nsICSSGroupRule
 protected:
   nsCSSGroupRule();
   nsCSSGroupRule(const nsCSSGroupRule& aCopy);
-  ~nsCSSGroupRule();
+  virtual ~nsCSSGroupRule();
+
+  // Implement part of nsISupports.
+  NS_IMETHOD_(nsrefcnt) AddRef();
+  NS_IMETHOD_(nsrefcnt) Release();
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+public:
 
   // implement part of nsIStyleRule and nsICSSRule
   DECL_STYLE_RULE_INHERIT_NO_DOMRULE
@@ -112,8 +121,8 @@ protected:
   CSSGroupRuleRuleListImpl* mRuleCollection;
 };
 
-class nsCSSMediaRule : public nsCSSGroupRule,
-                       public nsIDOMCSSMediaRule
+class NS_FINAL_CLASS nsCSSMediaRule : public nsCSSGroupRule,
+                                      public nsIDOMCSSMediaRule
 {
 public:
   nsCSSMediaRule();
@@ -128,9 +137,9 @@ public:
 #endif
 
   // nsICSSRule methods
-  NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aSheet); //override nsCSSGroupRule
-  NS_IMETHOD GetType(PRInt32& aType) const;
-  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
+  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet); //override nsCSSGroupRule
+  virtual PRInt32 GetType() const;
+  virtual already_AddRefed<nsICSSRule> Clone() const;
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult *aResult)
   {
     *aResult = NS_OK;
@@ -154,8 +163,8 @@ protected:
   nsRefPtr<nsMediaList> mMedia;
 };
 
-class nsCSSDocumentRule : public nsCSSGroupRule,
-                          public nsIDOMCSSMozDocumentRule
+class NS_FINAL_CLASS nsCSSDocumentRule : public nsCSSGroupRule,
+                                         public nsIDOMCSSMozDocumentRule
 {
 public:
   nsCSSDocumentRule(void);
@@ -170,8 +179,8 @@ public:
 #endif
 
   // nsICSSRule methods
-  NS_IMETHOD GetType(PRInt32& aType) const;
-  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
+  virtual PRInt32 GetType() const;
+  virtual already_AddRefed<nsICSSRule> Clone() const;
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult *aResult)
   {
     *aResult = NS_OK;
@@ -248,12 +257,18 @@ private:
   void* operator new(size_t size) CPP_THROW_NEW;
 };
 
-class nsCSSFontFaceRule : public nsCSSRule,
-                          public nsICSSRule,
-                          public nsIDOMCSSFontFaceRule
+class NS_FINAL_CLASS nsCSSFontFaceRule : public nsCSSRule,
+                                         public nsICSSRule,
+                                         public nsIDOMCSSFontFaceRule
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  nsCSSFontFaceRule() {}
+
+  nsCSSFontFaceRule(const nsCSSFontFaceRule& aCopy)
+    // copy everything except our reference count
+    : nsCSSRule(aCopy), mDecl(aCopy.mDecl) {}
+
+  NS_DECL_ISUPPORTS
 
   // nsIStyleRule methods
 #ifdef DEBUG
@@ -263,8 +278,8 @@ public:
   // nsICSSRule methods
   DECL_STYLE_RULE_INHERIT
 
-  NS_IMETHOD GetType(PRInt32& aType) const;
-  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
+  virtual PRInt32 GetType() const;
+  virtual already_AddRefed<nsICSSRule> Clone() const;
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE

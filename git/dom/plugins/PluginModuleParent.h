@@ -171,6 +171,14 @@ protected:
     virtual bool
     RecvAppendNotesToCrashReport(const nsCString& aNotes);
 
+    NS_OVERRIDE virtual bool
+    RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
+                         const int32_t& aX, const int32_t& aY,
+                         const size_t& aWidth, const size_t& aHeight);
+
+    NS_OVERRIDE virtual bool
+    RecvPluginHideWindow(const uint32_t& aWindowId);
+
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
 
@@ -213,6 +221,10 @@ private:
                                 void *value);
 
     virtual bool HasRequiredFunctions();
+    virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
+    virtual nsresult NotifyPainted(NPP instance);
+    virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface);
+    virtual nsresult UseAsyncPainting(NPP instance, PRBool* aIsAsync);
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error);

@@ -110,10 +110,6 @@ richlistitem[type="download"] button {
   -moz-appearance: statusbar;
 }
 
-#searchbox:-moz-window-inactive {
-  opacity: 0.7;
-}
-
 #clearListButton {
   -moz-appearance: none;
   min-height: 18px;
@@ -122,8 +118,8 @@ richlistitem[type="download"] button {
   padding: 0 2px;
   text-shadow: @loweredShadow@;
   border: 1px solid @toolbarbuttonBorderColor@;
-  -moz-border-radius: @toolbarbuttonCornerRadius@;
-  -moz-box-shadow: @loweredShadow@;
+  border-radius: @toolbarbuttonCornerRadius@;
+  box-shadow: @loweredShadow@;
   background: @toolbarbuttonBackground@;
   background-origin: border-box;
 }
@@ -131,11 +127,10 @@ richlistitem[type="download"] button {
 #clearListButton:hover:active:not([disabled="true"]) {
   background: @toolbarbuttonPressedBackgroundColor@;
   text-shadow: @loweredShadow@;
-  -moz-box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
+  box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
 }
 
 #clearListButton:-moz-window-inactive {
-  color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through, bug 392188 */
   border-color: @toolbarbuttonInactiveBorderColor@;
   background-image: @toolbarbuttonInactiveBackgroundImage@;
 }

@@ -148,11 +148,13 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mLockedUntilChromeLoad(PR_FALSE),
     mIgnoreXULSize(PR_FALSE),
     mIgnoreXULPosition(PR_FALSE),
+    mChromeFlagsFrozen(PR_FALSE),
     mContextFlags(0),
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
+    mIgnoreXULSizeMode(PR_FALSE),
     // best guess till we have a widget
     mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
 {
@@ -332,9 +334,18 @@ NS_IMETHODIMP nsXULWindow::GetChromeFlags(PRUint32 *aChromeFlags)
 
 NS_IMETHODIMP nsXULWindow::SetChromeFlags(PRUint32 aChromeFlags)
 {
+  NS_ASSERTION(!mChromeFlagsFrozen,
+               "SetChromeFlags() after AssumeChromeFlagsAreFrozen()!");
+
   mChromeFlags = aChromeFlags;
   if (mChromeLoaded)
     NS_ENSURE_SUCCESS(ApplyChromeFlags(), NS_ERROR_FAILURE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsXULWindow::AssumeChromeFlagsAreFrozen()
+{
+  mChromeFlagsFrozen = PR_TRUE;
   return NS_OK;
 }
 
@@ -1206,7 +1217,8 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     if (stateString.Equals(SIZEMODE_MINIMIZED))
       sizeMode = nsSizeMode_Minimized;
     */
-    if (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN)) {
+    if (!mIgnoreXULSizeMode &&
+        (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN))) {
       /* Honor request to maximize only if the window is sizable.
          An unsizable, unmaximizable, yet maximized window confuses
          Windows OS and is something of a travesty, anyway. */
@@ -1389,13 +1401,7 @@ void nsXULWindow::SyncAttributesToWidget()
 
   // "accelerated" attribute
   PRBool isAccelerated;
-  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  if (acceleratedEnv && *acceleratedEnv) {
-    isAccelerated = *acceleratedEnv != '0';
-    rv = NS_OK;
-  } else
-    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
-
+  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }

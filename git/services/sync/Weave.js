@@ -53,17 +53,20 @@ WeaveService.prototype = {
     switch (topic) {
     case "app-startup":
       let os = Cc["@mozilla.org/observer-service;1"].
-        getService(Ci.nsIObserverService);
+               getService(Ci.nsIObserverService);
       os.addObserver(this, "final-ui-startup", true);
-      this.addResourceAlias();
       break;
 
     case "final-ui-startup":
+      this.addResourceAlias();
+
       // Force Weave service to load if it hasn't triggered from overlays
       this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       this.timer.initWithCallback({
         notify: function() {
-          Cu.import("resource://services-sync/service.js");
+          Cu.import("resource://services-sync/main.js");
+          if (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED)
+            Weave.Service;
         }
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
       break;
@@ -77,12 +80,16 @@ WeaveService.prototype = {
                   .QueryInterface(Ci.nsIResProtocolHandler);
 
     // Only create alias if resource://services-sync doesn't already exist.
-    if (resProt.hasSubstitution("services-sync"))
-      return;
-
-    let uri = ioService.newURI("resource://gre/modules/services-sync/",
-                               null, null);
-    resProt.setSubstitution("services-sync", uri);
+    if (!resProt.hasSubstitution("services-sync")) {
+      let uri = ioService.newURI("resource:///modules/services-sync/",
+                                 null, null);
+      resProt.setSubstitution("services-sync", uri);
+    }
+    if (!resProt.hasSubstitution("services-crypto")) {
+      let uri = ioService.newURI("resource:///modules/services-crypto/",
+                                 null, null);
+      resProt.setSubstitution("services-crypto", uri);
+    }
   }
 };
 

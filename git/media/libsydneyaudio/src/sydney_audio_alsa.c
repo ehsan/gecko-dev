@@ -33,16 +33,19 @@
  *
  * ***** END LICENSE BLOCK ***** *
  */
+#include <pthread.h>
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
 #include "sydney_audio.h"
 
 /* ALSA implementation based heavily on sydney_audio_mac.c */
 
+pthread_mutex_t sa_alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct sa_stream {
   snd_pcm_t*        output_unit;
   int64_t           bytes_written;
+  int64_t           last_position;
 
   /* audio format info */
   unsigned int      rate;
@@ -105,6 +108,7 @@ sa_stream_create_pcm(
 
   s->output_unit  = NULL;
   s->bytes_written = 0;
+  s->last_position = 0;
   s->rate         = rate;
   s->n_channels   = n_channels;
 
@@ -123,6 +127,8 @@ sa_stream_open(sa_stream_t *s) {
     return SA_ERROR_INVALID;
   }
 
+  pthread_mutex_lock(&sa_alsa_mutex);
+
   /* Turn off debug output to stderr */
   snd_lib_error_set_handler(quiet_error_handler);
 
@@ -130,6 +136,7 @@ sa_stream_open(sa_stream_t *s) {
                    "default", 
                    SND_PCM_STREAM_PLAYBACK, 
                    0) < 0) {
+    pthread_mutex_unlock(&sa_alsa_mutex);
     return SA_ERROR_NO_DEVICE;
   }
   
@@ -146,9 +153,12 @@ sa_stream_open(sa_stream_t *s) {
                          250000) < 0) {
     snd_pcm_close(s->output_unit);
     s->output_unit = NULL;
+    pthread_mutex_unlock(&sa_alsa_mutex);
     return SA_ERROR_NOT_SUPPORTED;
   }
   
+  pthread_mutex_unlock(&sa_alsa_mutex);
+
   return SA_SUCCESS;
 }
 
@@ -164,9 +174,11 @@ sa_stream_destroy(sa_stream_t *s) {
    * Shut down the audio output device.
    */
   if (s->output_unit != NULL) {
+    pthread_mutex_lock(&sa_alsa_mutex);
     if (snd_pcm_close(s->output_unit) < 0) {
       result = SA_ERROR_SYSTEM;
     }
+    pthread_mutex_unlock(&sa_alsa_mutex);
   }
   free(s);
   return result;
@@ -263,12 +275,13 @@ sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) {
     state = snd_pcm_state(s->output_unit);
   }
 
-  if (state == SND_PCM_STATE_RUNNING) {
-    if (snd_pcm_delay(s->output_unit, &delay) != 0) {
-      return SA_ERROR_SYSTEM;
-    }
-  } else {
-    delay = 0;
+  if (state != SND_PCM_STATE_RUNNING) {
+    *pos = s->last_position;
+    return SA_SUCCESS;
+  }
+
+  if (snd_pcm_delay(s->output_unit, &delay) != 0) {
+    return SA_ERROR_SYSTEM;
   }
 
   /* delay means audio is 'x' frames behind what we've written. We need to
@@ -282,6 +295,7 @@ sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) {
   } else {
     *pos = 0;
   }
+  s->last_position = *pos;
 
   return SA_SUCCESS;
 }

@@ -82,6 +82,8 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
   NS_DECL_NSIOBSERVER
 
 public:
+  using nsAccessible::GetParent;
+
   nsDocAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
                   nsIWeakReference* aShell);
   virtual ~nsDocAccessible();
@@ -108,14 +110,14 @@ public:
   virtual nsINode* GetNode() const { return mDocument; }
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
 #ifdef DEBUG_ACCDOCMGR
-  virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);
+  virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 #endif
 
   // nsIAccessibleText
@@ -140,6 +142,29 @@ public:
   void MarkAsLoaded() { mIsLoaded = PR_TRUE; }
 
   /**
+   * Return a native window handler or pointer depending on platform.
+   */
+  virtual void* GetNativeWindow() const;
+
+  /**
+   * Return the parent document.
+   */
+  nsDocAccessible* ParentDocument() const
+    { return mParent ? mParent->GetDocAccessible() : nsnull; }
+
+  /**
+   * Return the child document count.
+   */
+  PRUint32 ChildDocumentCount() const
+    { return mChildDocuments.Length(); }
+
+  /**
+   * Return the child document at the given index.
+   */
+  nsDocAccessible* GetChildDocumentAt(PRUint32 aIndex) const
+    { return mChildDocuments.SafeElementAt(aIndex, nsnull); }
+
+  /**
    * Non-virtual method to fire a delayed event after a 0 length timeout.
    *
    * @param aEventType   [in] the nsIAccessibleEvent event type
@@ -149,7 +174,7 @@ public:
    *                      code synchronous with a DOM event
    */
   nsresult FireDelayedAccessibleEvent(PRUint32 aEventType, nsINode *aNode,
-                                      nsAccEvent::EEventRule aAllowDupes = nsAccEvent::eRemoveDupes,
+                                      AccEvent::EEventRule aAllowDupes = AccEvent::eRemoveDupes,
                                       PRBool aIsAsynch = PR_FALSE,
                                       EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
@@ -158,7 +183,7 @@ public:
    *
    * @param aEvent  [in] the event to fire
    */
-  nsresult FireDelayedAccessibleEvent(nsAccEvent *aEvent);
+  nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
 
   /**
    * Find the accessible object in the accessibility cache that corresponds to
@@ -187,6 +212,12 @@ public:
   nsAccessible* GetCachedAccessible(void *aUniqueID);
 
   /**
+   * Return the cached accessible by the given unique ID looking through
+   * this and nested documents.
+   */
+  nsAccessible* GetCachedAccessibleInSubtree(void* aUniqueID);
+
+  /**
    * Cache the accessible.
    *
    * @param  aUniquID     [in] the unique identifier of accessible
@@ -205,7 +236,7 @@ public:
    * Process the event when the queue of pending events is untwisted. Fire
    * accessible events as result of the processing.
    */
-  void ProcessPendingEvent(nsAccEvent* aEvent);
+  void ProcessPendingEvent(AccEvent* aEvent);
 
 protected:
 
@@ -214,6 +245,24 @@ protected:
     virtual nsresult RemoveEventListeners();
     void AddScrollListener();
     void RemoveScrollListener();
+
+  /**
+   * Append the given document accessible to this document's child document
+   * accessibles.
+   */
+  bool AppendChildDocument(nsDocAccessible* aChildDocument)
+  {
+    return mChildDocuments.AppendElement(aChildDocument);
+  }
+
+  /**
+   * Remove the given document accessible from this document's child document
+   * accessibles.
+   */
+  void RemoveChildDocument(nsDocAccessible* aChildDocument)
+  {
+    mChildDocuments.RemoveElement(aChildDocument);
+  }
 
   /**
    * Invalidate parent-child relations for any cached accessible in the DOM
@@ -274,7 +323,7 @@ protected:
    * @param  aIsAsync              [in] whether casual change is async
    * @param  aIsFromUserInput      [in] the event is known to be from user input
    */
-  already_AddRefed<nsAccEvent>
+  already_AddRefed<AccEvent>
     CreateTextChangeEventForNode(nsAccessible *aContainerAccessible,
                                  nsIContent *aChangeNode,
                                  nsAccessible *aAccessible,
@@ -319,7 +368,6 @@ protected:
    */
   nsAccessibleHashtable mAccessibleCache;
 
-    void *mWnd;
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITimer> mScrollWatchTimer;
     PRUint16 mScrollPositionChangedTicks; // Used for tracking scroll events
@@ -335,6 +383,8 @@ protected:
 
     static PRUint32 gLastFocusedAccessiblesState;
     static nsIAtom *gLastFocusedFrameType;
+
+  nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,

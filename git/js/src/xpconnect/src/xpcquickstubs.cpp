@@ -45,7 +45,6 @@
 #include "xpcinlines.h"
 #include "xpcquickstubs.h"
 #include "XPCWrapper.h"
-#include "XPCNativeWrapper.h"
 
 static inline QITableEntry *
 GetOffsets(nsISupports *identity, XPCWrappedNativeProto* proto)
@@ -140,8 +139,11 @@ PropertyOpForwarder(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
 
     jsval argval = (argc > 0) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
+    jsid id;
+    if (!JS_ValueToId(cx, argval, &id))
+        return JS_FALSE;
     JS_SET_RVAL(cx, vp, argval);
-    return (*popp)(cx, obj, v, vp);
+    return (*popp)(cx, obj, id, vp);
 }
 
 static void
@@ -167,7 +169,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsval idval, uintN argc,
     // XPConnect to use. Use them to stick the necessary info here.
     JSFunction *fun =
         JS_NewFunction(cx, reinterpret_cast<JSNative>(PropertyOpForwarder),
-                       argc, JSFUN_FAST_NATIVE, obj, name);
+                       argc, 0, obj, name);
     if(!fun)
         return JS_FALSE;
 
@@ -296,7 +298,7 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
        !IS_PROTO_CLASS(desc.obj->getClass()) ||
        (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
        !(desc.getter || desc.setter) ||
-       desc.setter == desc.obj->getClass()->setProperty)
+       desc.setter == desc.obj->getJSClass()->setProperty)
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;
@@ -339,7 +341,8 @@ DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return JS_FALSE;
-    JSFastNative forward = wantGetter ? js_obj_defineGetter : js_obj_defineSetter;
+    JSNative forward = wantGetter ? Jsvalify(js_obj_defineGetter)
+                                  : Jsvalify(js_obj_defineSetter);
     jsval id = (argc >= 1) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     if(!JSVAL_IS_STRING(id))
         return forward(cx, argc, vp);
@@ -430,7 +433,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
                         if(!JS_DefineFunction(
                                cx, proto, fs->name,
                                reinterpret_cast<JSNative>(fs->native),
-                               fs->arity, flags | JSFUN_FAST_NATIVE))
+                               fs->arity, flags))
                             return JS_FALSE;
                     }
                 }
@@ -442,8 +445,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
                     {
                         if(!JS_DefineFunction(
                                cx, proto, ts->name, ts->native, ts->arity,
-                               flags | JSFUN_FAST_NATIVE | JSFUN_STUB_GSOPS |
-                                       JSFUN_TRCINFO))
+                               flags | JSFUN_STUB_GSOPS | JSFUN_TRCINFO))
                             return JS_FALSE;
                     }
                 }
@@ -489,7 +491,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv)
  */
 static void
 GetMemberInfo(JSObject *obj,
-              jsval memberId,
+              jsid memberId,
               const char **ifaceName,
               const char **memberName)
 {
@@ -526,8 +528,8 @@ GetMemberInfo(JSObject *obj,
         }
     }
 
-    *memberName = (JSVAL_IS_STRING(memberId)
-                   ? JS_GetStringBytes(JSVAL_TO_STRING(memberId))
+    *memberName = (JSID_IS_STRING(memberId)
+                   ? JS_GetStringBytes(JSID_TO_STRING(memberId))
                    : "unknown");
 }
 
@@ -539,9 +541,9 @@ GetMethodInfo(JSContext *cx,
 {
     JSObject *funobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
     NS_ASSERTION(JS_ObjectIsFunction(cx, funobj),
-                 "JSFastNative callee should be Function object");
+                 "JSNative callee should be Function object");
     JSString *str = JS_GetFunctionId((JSFunction *) JS_GetPrivate(cx, funobj));
-    jsval methodId = str ? STRING_TO_JSVAL(str) : JSVAL_NULL;
+    jsid methodId = str ? INTERNED_STRING_TO_JSID(str) : JSID_VOID;
 
     GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceName, memberName);
 }
@@ -595,7 +597,7 @@ ThrowCallFailed(JSContext *cx, nsresult rv,
 
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv, JSObject *obj,
-                              jsval memberId)
+                              jsid memberId)
 {
     const char *ifaceName, *memberName;
     GetMemberInfo(obj, memberId, &ifaceName, &memberName);
@@ -668,7 +670,7 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
 
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
-                          JSObject *obj, jsval propId)
+                          JSObject *obj, jsid propId)
 {
     const char *ifaceName, *memberName;
     GetMemberInfo(obj, propId, &ifaceName, &memberName);
@@ -676,7 +678,7 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv,
 }
 
 JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
@@ -1058,7 +1060,7 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr)
 }
 
 JSBool
-xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
+xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval)
 {
     // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
     if(str.IsVoid())
@@ -1067,24 +1069,55 @@ xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
         return JS_TRUE;
     }
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str);
-    if(!jsstr)
+    nsStringBuffer* sharedBuffer;
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
+    if (JSVAL_IS_NULL(jsstr))
         return JS_FALSE;
     *rval = jsstr;
+    if (sharedBuffer)
+    {
+        // The string was shared but ReadableToJSVal didn't addref it.
+        // Move the ownership from str to jsstr.
+        str.ForgetSharedBuffer();
+    }
     return JS_TRUE;
 }
 
 JSBool
-xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, nsISupports *p,
-                         nsWrapperCache *cache, const nsIID *iid,
-                         XPCNativeInterface **iface, jsval *rval)
+xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
 {
+    // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
+    if(str.IsVoid())
+    {
+        *rval = nsnull;
+        return JS_TRUE;
+    }
+
+    nsStringBuffer* sharedBuffer;
+    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
+    if(JSVAL_IS_NULL(jsstr))
+        return JS_FALSE;
+    *rval = JSVAL_TO_STRING(jsstr);
+    if (sharedBuffer)
+    {
+        // The string was shared but ReadableToJSVal didn't addref it.
+        // Move the ownership from str to jsstr.
+        str.ForgetSharedBuffer();
+    }
+    return JS_TRUE;
+}
+
+JSBool
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper &aHelper,
+                         const nsIID *iid, XPCNativeInterface **iface,
+                         jsval *rval)
+{
+    NS_PRECONDITION(iface, "Who did that and why?");
+
     // From the T_INTERFACE case in XPCConvert::NativeData2JS.
     // This is one of the slowest things quick stubs do.
 
     JSContext *cx = lccx.GetJSContext();
-    if(!iface)
-        return xpc_qsThrow(cx, NS_ERROR_XPC_BAD_CONVERT_NATIVE);
 
     // XXX The OBJ_IS_NOT_GLOBAL here is not really right. In
     // fact, this code is depending on the fact that the
@@ -1093,8 +1126,8 @@ xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, nsISupports *p,
     // creating a new XPCNativeScriptableShared.
 
     nsresult rv;
-    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull, p,
-                                             iid, iface, cache,
+    if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull,
+                                             aHelper, iid, iface,
                                              lccx.GetCurrentJSObject(), PR_TRUE,
                                              OBJ_IS_NOT_GLOBAL, &rv))
     {

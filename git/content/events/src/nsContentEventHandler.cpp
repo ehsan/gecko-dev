@@ -88,11 +88,11 @@ nsContentEventHandler::InitCommon()
   // we need to flush the pending reflow here.
   mPresShell->FlushPendingNotifications(Flush_Layout);
 
+  // Flushing notifications can cause mPresShell to be destroyed (bug 577963).
+  NS_ENSURE_TRUE(!mPresShell->IsDestroying(), NS_ERROR_FAILURE);
+
   nsCopySupport::GetSelectionForCopy(mPresShell->GetDocument(),
                                      getter_AddRefs(mSelection));
-  NS_ASSERTION(mSelection,
-               "GetSelectionForCopy succeeded, but the result is null");
-
 
   nsCOMPtr<nsIDOMRange> firstRange;
   nsresult rv = mSelection->GetRangeAt(0, getter_AddRefs(firstRange));
@@ -797,7 +797,11 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
     aEvent->mSucceeded = PR_TRUE;
     return NS_OK;
   }
-  nsPoint ptInTarget = ptInRoot - targetFrame->GetOffsetTo(rootFrame);
+  nsPoint ptInTarget = ptInRoot + rootFrame->GetOffsetToCrossDoc(targetFrame);
+  PRInt32 rootAPD = rootFrame->PresContext()->AppUnitsPerDevPixel();
+  PRInt32 targetAPD = targetFrame->PresContext()->AppUnitsPerDevPixel();
+  ptInTarget = ptInTarget.ConvertAppUnits(rootAPD, targetAPD);
+
   nsTextFrame* textframe = static_cast<nsTextFrame*>(targetFrame);
   nsIFrame::ContentOffsets offsets =
     textframe->GetCharacterOffsetAtFramePoint(ptInTarget);

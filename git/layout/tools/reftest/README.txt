@@ -74,6 +74,17 @@ must be one of the following:
                          particular platform (i.e. it allows us to get test
                          coverage on the other platforms).
 
+      slow  The test may take a long time to run, so run it if slow tests are
+            either enabled or not disabled (test manifest interpreters may
+            choose whether or not to run such tests by default).
+
+      slow-if(condition) If the condition is met, the test is treated as if
+                         'slow' had been specified.  This is useful for tests
+                         which are slow only on particular platforms (e.g. a
+                         test which exercised out-of-memory behavior might be
+                         fast on a 32-bit system but inordinately slow on a
+                         64-bit system).
+
       asserts(count)
           Loading the test and reference is known to assert exactly
           count times.
@@ -105,7 +116,7 @@ must be one of the following:
 
       Examples of using conditions:
           fails-if(winWidget) == test reference
-          asserts-if(2,cocoaWidget) load crashtest
+          asserts-if(cocoaWidget,2) load crashtest
 
    b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
       "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that

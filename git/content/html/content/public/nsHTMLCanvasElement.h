@@ -57,6 +57,8 @@
 
 #include "Layers.h"
 
+class nsIDOMFile;
+
 class nsHTMLCanvasElement : public nsGenericHTMLElement,
                             public nsICanvasElementExternal,
                             public nsIDOMHTMLCanvasElement
@@ -65,7 +67,7 @@ class nsHTMLCanvasElement : public nsGenericHTMLElement,
   typedef mozilla::layers::LayerManager LayerManager;
 
 public:
-  nsHTMLCanvasElement(nsINodeInfo *aNodeInfo);
+  nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLCanvasElement();
 
   // nsISupports
@@ -163,13 +165,22 @@ public:
   // start requesting invalidates again as needed.
   void MarkContextClean();
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsIntSize GetWidthHeight();
 
   nsresult UpdateContext();
+  nsresult ExtractData(const nsAString& aType,
+                       const nsAString& aOptions,
+                       char*& aData,
+                       PRUint32& aSize,
+                       bool& aFellBackToPNG);
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
+  nsresult MozGetAsFileImpl(const nsAString& aName,
+                            const nsAString& aType,
+                            nsIDOMFile** aResult);
   nsresult GetContextHelper(const nsAString& aContextId,
                             nsICanvasRenderingContextInternal **aContext);
 

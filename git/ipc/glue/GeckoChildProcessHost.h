@@ -64,9 +64,16 @@ public:
 
   ~GeckoChildProcessHost();
 
-  bool SyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
+  static nsresult GetArchitecturesForBinary(const char *path, uint32 *result);
+
+  static uint32 GetSupportedArchitecturesForProcessType(GeckoProcessType type);
+
+  bool SyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>(),
+                  int32 timeoutMs=0,
+                  base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
   bool AsyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
-  bool PerformAsyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
+  bool PerformAsyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>(),
+                          base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
   virtual void OnChannelConnected(int32 peer_pid);
   virtual void OnMessageReceived(const IPC::Message& aMsg);
@@ -90,6 +97,13 @@ public:
     return mChildProcessHandle;
   }
 
+#ifdef XP_MACOSX
+  task_t GetChildTask() {
+    return mChildTask;
+  }
+#endif
+
+
 protected:
   GeckoProcessType mProcessType;
   Monitor mMonitor;
@@ -109,6 +123,9 @@ protected:
   base::WaitableEventWatcher::Delegate* mDelegate;
 
   ProcessHandle mChildProcessHandle;
+#if defined(OS_MACOSX)
+  task_t mChildTask;
+#endif
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);

@@ -4,24 +4,43 @@
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 const RELATIVE_DIR = "browser/toolkit/mozapps/extensions/test/browser/";
 
 const TESTROOT = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
-const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
+const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
+const CHROME_NAME = "mochikit";
+
+function getChromeRoot(path) {
+  if (path === undefined) {
+    return "chrome://" + CHROME_NAME + "/content/" + RELATIVE_DIR;
+  }
+  return getRootDirectory(path);
+}
 
 var gPendingTests = [];
 var gTestsRun = 0;
+var gTestStart = null;
+
+var gUseInContentUI = ("switchToTabHavingURI" in window);
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
+// Turn off remote results in searches
+Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
+  try {
+    Services.prefs.clearUserPref(PREF_SEARCH_MAXRESULTS);
+  }
+  catch (e) {
+  }
 });
 
 function add_test(test) {
@@ -29,26 +48,92 @@ function add_test(test) {
 }
 
 function run_next_test() {
+  if (gTestsRun > 0)
+    info("Test " + gTestsRun + " took " + (Date.now() - gTestStart) + "ms");
+
   if (gPendingTests.length == 0) {
     end_test();
     return;
   }
 
   gTestsRun++;
-  info("Running test " + gTestsRun);
+  var test = gPendingTests.shift();
+  if (test.name)
+    info("Running test " + gTestsRun + " (" + test.name + ")");
+  else
+    info("Running test " + gTestsRun);
 
-  gPendingTests.shift()();
+  gTestStart = Date.now();
+  test();
 }
 
 function get_addon_file_url(aFilename) {
-  var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
-           getService(Ci.nsIChromeRegistry);
-  var fileurl = cr.convertChromeURL(makeURI(CHROMEROOT + "addons/" + aFilename));
-  return fileurl.QueryInterface(Ci.nsIFileURL);
+  var chromeroot = getChromeRoot(gTestPath);
+  try {
+    var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
+             getService(Ci.nsIChromeRegistry);
+    var fileurl = cr.convertChromeURL(makeURI(chromeroot + "addons/" + aFilename));
+    return fileurl.QueryInterface(Ci.nsIFileURL);
+  } catch(ex) {
+    var jar = getJar(chromeroot + "addons/" + aFilename);
+    var tmpDir = extractJarToTmp(jar);
+    tmpDir.append(aFilename);
+
+    var ios = Components.classes["@mozilla.org/network/io-service;1"].
+                getService(Components.interfaces.nsIIOService);
+    return ios.newFileURI(tmpDir).QueryInterface(Ci.nsIFileURL);
+  }
 }
 
-function wait_for_view_load(aManagerWindow, aCallback) {
-  if (!aManagerWindow.gViewController.isLoading) {
+function check_all_in_list(aManager, aIds, aIgnoreExtras) {
+  var doc = aManager.document;
+  var view = doc.getElementById("view-port").selectedPanel;
+  var listid = view.id == "search-view" ? "search-list" : "addon-list";
+  var list = doc.getElementById(listid);
+
+  var inlist = [];
+  var node = list.firstChild;
+  while (node) {
+    if (node.value)
+      inlist.push(node.value);
+    node = node.nextSibling;
+  }
+
+  for (var i = 0; i < aIds.length; i++) {
+    if (inlist.indexOf(aIds[i]) == -1)
+      ok(false, "Should find " + aIds[i] + " in the list");
+  }
+
+  if (aIgnoreExtras)
+    return;
+
+  for (i = 0; i < inlist.length; i++) {
+    if (aIds.indexOf(inlist[i]) == -1)
+      ok(false, "Shouldn't have seen " + inlist[i] + " in the list");
+  }
+}
+
+function get_addon_element(aManager, aId) {
+  var doc = aManager.document;
+  var view = doc.getElementById("view-port").selectedPanel;
+  var listid = "addon-list";
+  if (view.id == "search-view")
+    listid = "search-list";
+  else if (view.id == "updates-view")
+    listid = "updates-list";
+  var list = doc.getElementById(listid);
+
+  var node = list.firstChild;
+  while (node) {
+    if (node.value == aId)
+      return node;
+    node = node.nextSibling;
+  }
+  return null;
+}
+
+function wait_for_view_load(aManagerWindow, aCallback, aForceWait) {
+  if (!aForceWait && !aManagerWindow.gViewController.isLoading) {
     aCallback(aManagerWindow);
     return;
   }
@@ -59,26 +144,37 @@ function wait_for_view_load(aManagerWindow, aCallback) {
   }, false);
 }
 
-function open_manager(aView, aCallback) {
+function wait_for_manager_load(aManagerWindow, aCallback) {
+  if (!aManagerWindow.gIsInitializing) {
+    aCallback(aManagerWindow);
+    return;
+  }
+
+  info("Waiting for initialization");
+  aManagerWindow.document.addEventListener("Initialized", function() {
+    aManagerWindow.document.removeEventListener("Initialized", arguments.callee, false);
+    aCallback(aManagerWindow);
+  }, false);
+}
+
+function open_manager(aView, aCallback, aLoadCallback) {
   function setup_manager(aManagerWindow) {
+    if (aLoadCallback)
+      aLoadCallback(aManagerWindow);
+
     if (aView)
       aManagerWindow.loadView(aView);
 
     ok(aManagerWindow != null, "Should have an add-ons manager window");
     is(aManagerWindow.location, MANAGER_URI, "Should be displaying the correct UI");
 
-    if (!aManagerWindow.gIsInitializing) {
+    wait_for_manager_load(aManagerWindow, function() {
       wait_for_view_load(aManagerWindow, aCallback);
-      return;
-    }
-
-    aManagerWindow.document.addEventListener("Initialized", function() {
-      aManagerWindow.document.removeEventListener("Initialized", arguments.callee, false);
-      wait_for_view_load(aManagerWindow, aCallback);
-    }, false);
+    });
   }
 
-  if ("switchToTabHavingURI" in window) {
+  if (gUseInContentUI) {
+    gBrowser.selectedTab = gBrowser.addTab();
     switchToTabHavingURI(MANAGER_URI, true, function(aBrowser) {
       setup_manager(aBrowser.contentWindow.wrappedJSObject);
     });
@@ -103,8 +199,111 @@ function close_manager(aManagerWindow, aCallback) {
   aManagerWindow.close();
 }
 
-function restart_manager(aManagerWindow, aView, aCallback) {
-  close_manager(aManagerWindow, function() { open_manager(aView, aCallback); });
+function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
+  if (!aManagerWindow) {
+    open_manager(aView, aCallback, aLoadCallback);
+    return;
+  }
+
+  close_manager(aManagerWindow, function() {
+    open_manager(aView, aCallback, aLoadCallback);
+  });
+}
+
+function is_hidden(aElement) {
+  var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
+  if (style.display == "none")
+    return true;
+  if (style.visibility != "visible")
+    return true;
+
+  // Hiding a parent element will hide all its children
+  if (aElement.parentNode != aElement.ownerDocument)
+    return is_hidden(aElement.parentNode);
+
+  return false;
+}
+
+function is_element_visible(aElement, aMsg) {
+  isnot(aElement, null, "Element should not be null, when checking visibility");
+  ok(!is_hidden(aElement), aMsg);
+}
+
+function is_element_hidden(aElement, aMsg) {
+  isnot(aElement, null, "Element should not be null, when checking visibility");
+  ok(is_hidden(aElement), aMsg);
+}
+
+function CategoryUtilities(aManagerWindow) {
+  this.window = aManagerWindow;
+
+  var self = this;
+  this.window.addEventListener("unload", function() {
+    self.window.removeEventListener("unload", arguments.callee, false);
+    self.window = null;
+  }, false);
+}
+
+CategoryUtilities.prototype = {
+  window: null,
+
+  get selectedCategory() {
+    isnot(this.window, null, "Should not get selected category when manager window is not loaded");
+    var selectedItem = this.window.document.getElementById("categories").selectedItem;
+    isnot(selectedItem, null, "A category should be selected");
+    var view = this.window.gViewController.parseViewId(selectedItem.value);
+    return (view.type == "list") ? view.param : view.type;
+  },
+
+  get: function(aCategoryType) {
+    isnot(this.window, null, "Should not get category when manager window is not loaded");
+    var categories = this.window.document.getElementById("categories");
+
+    var viewId = "addons://list/" + aCategoryType;
+    var items = categories.getElementsByAttribute("value", viewId);
+    if (items.length)
+      return items[0];
+
+    viewId = "addons://" + aCategoryType + "/";
+    items = categories.getElementsByAttribute("value", viewId);
+    if (items.length)
+      return items[0];
+
+    ok(false, "Should have found a category with type " + aCategoryType);
+    return null;
+  },
+
+  getViewId: function(aCategoryType) {
+    isnot(this.window, null, "Should not get view id when manager window is not loaded");
+    return this.get(aCategoryType).value;
+  },
+
+  isVisible: function(aCategory) {
+    isnot(this.window, null, "Should not check visible state when manager window is not loaded");
+    if (aCategory.hasAttribute("disabled") &&
+        aCategory.getAttribute("disabled") == "true")
+      return false;
+
+    return !is_hidden(aCategory);
+  },
+
+  isTypeVisible: function(aCategoryType) {
+    return this.isVisible(this.get(aCategoryType));
+  },
+
+  open: function(aCategory, aCallback) {
+    isnot(this.window, null, "Should not open category when manager window is not loaded");
+    ok(this.isVisible(aCategory), "Category should be visible if attempting to open it");
+
+    EventUtils.synthesizeMouse(aCategory, 2, 2, { }, this.window);
+
+    if (aCallback)
+      wait_for_view_load(this.window, aCallback);
+  },
+
+  openType: function(aCategoryType, aCallback) {
+    this.open(this.get(aCategoryType), aCallback);
+  }
 }
 
 function CertOverrideListener(host, bits) {
@@ -202,12 +401,37 @@ MockProvider.prototype = {
    */
   addAddon: function MP_addAddon(aAddon) {
     this.addons.push(aAddon);
+    aAddon._provider = this;
 
     if (!this.started)
       return;
 
+    let requiresRestart = (aAddon.operationsRequiringRestart &
+                           AddonManager.OP_NEEDS_RESTART_INSTALL) != 0;
     AddonManagerPrivate.callInstallListeners("onExternalInstall", null, aAddon,
-                                             null, false)
+                                             null, requiresRestart)
+  },
+
+  /**
+   * Removes an add-on from the list of add-ons that this provider exposes to
+   * the AddonManager, dispatching the onUninstalled event in the process.
+   *
+   * @param  aAddon
+   *         The add-on to add
+   */
+  removeAddon: function MP_removeAddon(aAddon) {
+    var pos = this.addons.indexOf(aAddon);
+    if (pos == -1) {
+      ok(false, "Tried to remove an add-on that wasn't registered with the mock provider");
+      return;
+    }
+
+    this.addons.splice(pos, 1);
+
+    if (!this.started)
+      return;
+
+    AddonManagerPrivate.callAddonListeners("onUninstalled", aAddon);
   },
 
   /**
@@ -241,6 +465,10 @@ MockProvider.prototype = {
       for (var prop in aAddonProp) {
         if (prop == "id")
           continue;
+        if (prop == "applyBackgroundUpdates") {
+          addon._applyBackgroundUpdates = aAddonProp[prop];
+          continue;
+        }
         addon[prop] = aAddonProp[prop];
       }
       this.addAddon(addon);
@@ -263,6 +491,11 @@ MockProvider.prototype = {
     aInstallProperties.forEach(function(aInstallProp) {
       var install = new MockInstall();
       for (var prop in aInstallProp) {
+        if (prop == "sourceURI") {
+          install[prop] = NetUtil.newURI(aInstallProp[prop]);
+          continue;
+        }
+
         install[prop] = aInstallProp[prop];
       }
       this.addInstall(install);
@@ -308,6 +541,8 @@ MockProvider.prototype = {
         return;
       }
     }
+
+    aCallback(null);
   },
 
   /**
@@ -489,8 +724,8 @@ MockProvider.prototype = {
 
 /***** Mock Addon object for the Mock Provider *****/
 
-function MockAddon(aId, aName, aType, aRestartless) {
-  // Only set required attributes
+function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
+  // Only set required attributes.
   this.id = aId || "";
   this.name = aName || "";
   this.type = aType || "extension";
@@ -499,17 +734,71 @@ function MockAddon(aId, aName, aType, aRestartless) {
   this.providesUpdatesSecurely = true;
   this.blocklistState = 0;
   this.appDisabled = false;
-  this.userDisabled = false;
+  this._userDisabled = false;
+  this._applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
   this.scope = AddonManager.SCOPE_PROFILE;
   this.isActive = true;
   this.creator = "";
   this.pendingOperations = 0;
-  this.permissions = 0;
-
-  this._restartless = aRestartless || false;
+  this._permissions = AddonManager.PERM_CAN_UNINSTALL |
+                      AddonManager.PERM_CAN_ENABLE |
+                      AddonManager.PERM_CAN_DISABLE |
+                      AddonManager.PERM_CAN_UPGRADE;
+  this.operationsRequiringRestart = aOperationsRequiringRestart ||
+    (AddonManager.OP_NEEDS_RESTART_INSTALL |
+     AddonManager.OP_NEEDS_RESTART_UNINSTALL |
+     AddonManager.OP_NEEDS_RESTART_ENABLE |
+     AddonManager.OP_NEEDS_RESTART_DISABLE);
 }
 
 MockAddon.prototype = {
+  get shouldBeActive() {
+    return !this.appDisabled && !this._userDisabled;
+  },
+
+  get userDisabled() {
+    return this._userDisabled;
+  },
+
+  set userDisabled(val) {
+    if (val == this._userDisabled)
+      return val;
+
+    var currentActive = this.shouldBeActive;
+    this._userDisabled = val;
+    var newActive = this.shouldBeActive;
+    this._updateActiveState(currentActive, newActive);
+
+    return val;
+  },
+
+  get permissions() {
+    let permissions = this._permissions;
+    if (this.appDisabled || !this._userDisabled)
+      permissions &= ~AddonManager.PERM_CAN_ENABLE;
+    if (this.appDisabled || this._userDisabled)
+      permissions &= ~AddonManager.PERM_CAN_DISABLE;
+    return permissions;
+  },
+
+  set permissions(val) {
+    return this._permissions = val;
+  },
+
+  get applyBackgroundUpdates() {
+    return this._applyBackgroundUpdates;
+  },
+  
+  set applyBackgroundUpdates(val) {
+    if (val != AddonManager.AUTOUPDATE_DEFAULT &&
+        val != AddonManager.AUTOUPDATE_DISABLE &&
+        val != AddonManager.AUTOUPDATE_ENABLE) {
+      ok(false, "addon.applyBackgroundUpdates set to an invalid value: " + val);
+    }
+    this._applyBackgroundUpdates = val;
+    AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["applyBackgroundUpdates"]);
+  },
+
   isCompatibleWith: function(aAppVersion, aPlatformVersion) {
     return true;
   },
@@ -519,17 +808,60 @@ MockAddon.prototype = {
   },
 
   uninstall: function() {
-    // To be implemented when needed
+    if (this.pendingOperations & AddonManager.PENDING_UNINSTALL)
+      throw new Error("Add-on is already pending uninstall");
+
+    var needsRestart = !!(this.operationsRequiringRestart & AddonManager.OP_NEEDS_RESTART_UNINSTALL);
+    this.pendingOperations |= AddonManager.PENDING_UNINSTALL;
+    AddonManagerPrivate.callAddonListeners("onUninstalling", this, needsRestart);
+    if (!needsRestart) {
+      this.pendingOperations -= AddonManager.PENDING_UNINSTALL;
+      this._provider.removeAddon(this);
+    }
   },
 
   cancelUninstall: function() {
-    // To be implemented when needed
+    if (!(this.pendingOperations & AddonManager.PENDING_UNINSTALL))
+      throw new Error("Add-on is not pending uninstall");
+
+    this.pendingOperations -= AddonManager.PENDING_UNINSTALL;
+    AddonManagerPrivate.callAddonListeners("onOperationCancelled", this);
+  },
+
+  _updateActiveState: function(currentActive, newActive) {
+    if (currentActive == newActive)
+      return;
+
+    if (newActive == this.isActive) {
+      this.pendingOperations -= (newActive ? AddonManager.PENDING_DISABLE : AddonManager.PENDING_ENABLE);
+      AddonManagerPrivate.callAddonListeners("onOperationCancelled", this);
+    }
+    else if (newActive) {
+      var needsRestart = !!(this.operationsRequiringRestart & AddonManager.OP_NEEDS_RESTART_ENABLE);
+      this.pendingOperations |= AddonManager.PENDING_ENABLE;
+      AddonManagerPrivate.callAddonListeners("onEnabling", this, needsRestart);
+      if (!needsRestart) {
+        this.isActive = newActive;
+        this.pendingOperations -= AddonManager.PENDING_ENABLE;
+        AddonManagerPrivate.callAddonListeners("onEnabled", this);
+      }
+    }
+    else {
+      var needsRestart = !!(this.operationsRequiringRestart & AddonManager.OP_NEEDS_RESTART_DISABLE);
+      this.pendingOperations |= AddonManager.PENDING_DISABLE;
+      AddonManagerPrivate.callAddonListeners("onDisabling", this, needsRestart);
+      if (!needsRestart) {
+        this.isActive = newActive;
+        this.pendingOperations -= AddonManager.PENDING_DISABLE;
+        AddonManagerPrivate.callAddonListeners("onDisabled", this);
+      }
+    }
   }
 };
 
 /***** Mock AddonInstall object for the Mock Provider *****/
 
-function MockInstall(aName, aType) {
+function MockInstall(aName, aType, aAddonToInstall) {
   this.name = aName || "";
   this.type = aType || "extension";
   this.version = "1.0";
@@ -545,6 +877,7 @@ function MockInstall(aName, aType) {
   this.certName = "";
   this.existingAddon = null;
   this.addon = null;
+  this._addonToInstall = aAddonToInstall;
   this.listeners = [];
 
   // Another type of install listener for tests that want to check the results
@@ -568,7 +901,13 @@ MockInstall.prototype = {
         }
 
         // Adding addon to MockProvider to be implemented when needed
-        this.addon = new MockAddon("", this.name, this.type);
+        if (this._addonToInstall)
+          this.addon = this._addonToInstall;
+        else {
+          this.addon = new MockAddon("", this.name, this.type);
+          this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
+        }
+
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");
         break;

@@ -41,6 +41,7 @@
 /* Per JSRuntime object */
 
 #include "xpcprivate.h"
+#include "WrapperFactory.h"
 #include "dom_quickstubs.h"
 
 #include "jsgcchunk.h"
@@ -66,7 +67,8 @@ const char* XPCJSRuntime::mStrings[] = {
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
     "__iterator__",         // IDX_ITERATOR
-    "__exposedProps__"      // IDX_EXPOSEDPROPS
+    "__exposedProps__",     // IDX_EXPOSEDPROPS
+    "__scriptOnly__"        // IDX_SCRIPTONLY
 };
 
 /***************************************************************************/
@@ -91,6 +93,7 @@ WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
     {
         if(wrapper->IsSubjectToFinalization())
         {
+            js::SwitchToCompartment sc(data->cx, wrapper->GetJSObject());
             if(JS_IsAboutToBeFinalized(data->cx, wrapper->GetJSObject()))
                 data->array->AppendElement(wrapper);
         }
@@ -104,16 +107,6 @@ struct CX_AND_XPCRT_Data
     JSContext* cx;
     XPCJSRuntime* rt;
 };
-
-static JSDHashOperator
-NativeInterfaceGC(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                  uint32 number, void *arg)
-{
-    CX_AND_XPCRT_Data* data = (CX_AND_XPCRT_Data*) arg;
-    ((IID2NativeInterfaceMap::Entry*)hdr)->value->
-            DealWithDyingGCThings(data->cx, data->rt);
-    return JS_DHASH_NEXT;
-}
 
 static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
@@ -243,6 +236,37 @@ ContextCallback(JSContext *cx, uintN operation)
     return JS_TRUE;
 }
 
+static JSBool
+CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
+{
+    if(op == JSCOMPARTMENT_NEW)
+        return JS_TRUE;
+
+    XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
+    if(!self)
+        return JS_TRUE;
+
+    XPCCompartmentMap& map = self->GetCompartmentMap();
+    nsAutoPtr<xpc::CompartmentPrivate> priv(
+        static_cast<xpc::CompartmentPrivate*>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
+    if (!priv)
+        return JS_TRUE;
+
+    nsAdoptingCString origin;
+    origin.Adopt(static_cast<char *>(priv->origin));
+
+#ifdef DEBUG
+    {
+        JSCompartment *current;
+        NS_ASSERTION(map.Get(origin, &current), "no compartment?");
+        NS_ASSERTION(current == compartment, "compartment mismatch");
+    }
+#endif
+
+    map.Remove(origin);
+    return JS_TRUE;
+}
+
 struct ObjectHolder : public JSDHashEntryHdr
 {
     void *holder;
@@ -309,13 +333,17 @@ void XPCJSRuntime::TraceJS(JSTracer* trc, void* data)
     // them here.
     for(XPCRootSetElem *e = self->mObjectHolderRoots; e ; e = e->GetNextRoot())
         static_cast<XPCJSObjectHolder*>(e)->TraceJS(trc);
-        
-    if(self->GetXPConnect()->ShouldTraceRoots())
-    {
-        // Only trace these if we're not cycle-collecting, the cycle collector
-        // will do that if we are.
-        self->TraceXPConnectRoots(trc);
+
+    // Mark these roots as gray so the CC can walk them later.
+    js::GCMarker *gcmarker = NULL;
+    if (IS_GC_MARKING_TRACER(trc)) {
+        gcmarker = static_cast<js::GCMarker *>(trc);
+        JS_ASSERT(gcmarker->getMarkColor() == XPC_GC_COLOR_BLACK);
+        gcmarker->setMarkColor(XPC_GC_COLOR_GRAY);
     }
+    self->TraceXPConnectRoots(trc);
+    if (gcmarker)
+        gcmarker->setMarkColor(XPC_GC_COLOR_BLACK);
 }
 
 static void
@@ -346,30 +374,13 @@ struct ClearedGlobalObject : public JSDHashEntryHdr
     JSObject* mGlobalObject;
 };
 
-void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc, JSBool rootGlobals)
+void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 {
-    if(mUnrootedGlobalCount != 0)
-    {
-        JSContext *iter = nsnull, *acx;
-        while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
-        {
-            if(JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
-            {
-                NS_ASSERTION(nsXPConnect::GetXPConnect()->GetRequestDepth(acx)
-                             == 0, "active cx must be always rooted");
-                NS_ASSERTION(acx->globalObject, "bad state");
-                JS_CALL_OBJECT_TRACER(trc, acx->globalObject,
-                                      "global object");
-                if(rootGlobals)
-                {
-                    NS_ASSERTION(mUnrootedGlobalCount != 0, "bad state");
-                    NS_ASSERTION(trc == acx->runtime->gcMarkingTracer,
-                                 "bad tracer");
-                    JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-                    --mUnrootedGlobalCount;
-                }
-            }
-        }
+    JSContext *iter = nsnull, *acx;
+    while ((acx = JS_ContextIterator(GetJSRuntime(), &iter))) {
+        JS_ASSERT(JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL));
+        if (acx->globalObject)
+            JS_CALL_OBJECT_TRACER(trc, acx->globalObject, "global object");
     }
 
     XPCWrappedNativeScope::TraceJS(trc, this);
@@ -417,8 +428,7 @@ void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
         // callback does not want all traces (a debug feature).
         // Otherwise, we do want to know about all JSContexts to get
         // better graphs and explanations.
-        if(!cb.WantAllTraces() &&
-           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) != 0)
+        if(!cb.WantAllTraces() && nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
             continue;
         cb.NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, acx,
                     nsXPConnect::JSContextParticipant());
@@ -439,42 +449,20 @@ void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
         JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &cb);
 }
 
-void XPCJSRuntime::UnrootContextGlobals()
+void
+XPCJSRuntime::ClearWeakRoots()
 {
-    mUnrootedGlobalCount = 0;
     JSContext *iter = nsnull, *acx;
+
     while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
     {
-        NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
-                     "unrooted global should be set only during CC");
         if(XPCPerThreadData::IsMainThread(acx) &&
-           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
+           !nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
         {
             JS_ClearNewbornRoots(acx);
-            if(acx->globalObject)
-            {
-                JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-                ++mUnrootedGlobalCount;
-            }
         }
     }
 }
-
-#ifdef DEBUG_CC
-void XPCJSRuntime::RootContextGlobals()
-{
-    JSContext *iter = nsnull, *acx;
-    while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
-    {
-        if(JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
-        {
-            JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-            --mUnrootedGlobalCount;
-        }
-    }
-    NS_ASSERTION(mUnrootedGlobalCount == 0, "bad state");
-}
-#endif
 
 template<class T> static void
 DoDeferredRelease(nsTArray<T> &array)
@@ -507,6 +495,15 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 {
                     return JS_FALSE;
                 }
+
+                // We seem to sometime lose the unrooted global flag. Restore it
+                // here. FIXME: bug 584495.
+                JSContext *iter = nsnull, *acx;
+
+                while((acx = JS_ContextIterator(cx->runtime, &iter))) {
+                    if (!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
+                        JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
+                }
                 break;
             }
             case JSGC_MARK_END:
@@ -535,15 +532,6 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                     self->mWrappedJSMap->
                         Enumerate(WrappedJSDyingJSObjectFinder, &data);
                 }
-
-                // Do cleanup in NativeInterfaces. This part just finds 
-                // member cloned function objects that are about to be 
-                // collected. It does not deal with collection of interfaces or
-                // sets at this point.
-                CX_AND_XPCRT_Data data = {cx, self};
-
-                self->mIID2NativeInterfaceMap->
-                    Enumerate(NativeInterfaceGC, &data);
 
                 // Find dying scopes...
                 XPCWrappedNativeScope::FinishedMarkPhaseOfGC(cx, self);
@@ -803,23 +791,48 @@ XPCJSRuntime::WatchdogMain(void *arg)
     // Lock lasts until we return
     AutoLockJSGC lock(self->mJSRuntime);
 
+    PRIntervalTime sleepInterval;
     while (self->mWatchdogThread)
     {
+        // Sleep only 1 second if recently (or currently) active; otherwise, hibernate
+        if (self->mLastActiveTime == -1 || PR_Now() - self->mLastActiveTime <= 2*PR_USEC_PER_SEC)
+            sleepInterval = PR_TicksPerSecond();
+        else
+        {
+            sleepInterval = PR_INTERVAL_NO_TIMEOUT;
+            self->mWatchdogHibernating = PR_TRUE;
+        }
 #ifdef DEBUG
         PRStatus status =
 #endif
-            PR_WaitCondVar(self->mWatchdogWakeup, PR_TicksPerSecond());
+            PR_WaitCondVar(self->mWatchdogWakeup, sleepInterval);
         JS_ASSERT(status == PR_SUCCESS);
-
         JSContext* cx = nsnull;
         while((cx = js_NextActiveContext(self->mJSRuntime, cx)))
         {
-            JS_TriggerOperationCallback(cx);
+            js::TriggerOperationCallback(cx);
         }
     }
 
     /* Wake up the main thread waiting for the watchdog to terminate. */
     PR_NotifyCondVar(self->mWatchdogWakeup);
+}
+
+//static
+void
+XPCJSRuntime::ActivityCallback(void *arg, PRBool active)
+{
+    XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
+    if (active) {
+        self->mLastActiveTime = -1;
+        if (self->mWatchdogHibernating)
+        {
+            self->mWatchdogHibernating = PR_FALSE;
+            PR_NotifyCondVar(self->mWatchdogWakeup);
+        }
+    } else {
+        self->mLastActiveTime = PR_Now();
+    }
 }
 
 
@@ -1107,9 +1120,10 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mVariantRoots(nsnull),
    mWrappedJSRoots(nsnull),
    mObjectHolderRoots(nsnull),
-   mUnrootedGlobalCount(0),
    mWatchdogWakeup(nsnull),
-   mWatchdogThread(nsnull)
+   mWatchdogThread(nsnull),
+   mWatchdogHibernating(PR_FALSE),
+   mLastActiveTime(-1)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
@@ -1121,7 +1135,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     DOM_InitInterfaces();
 
     // these jsids filled in later when we have a JSContext to work with.
-    mStrIDs[0] = 0;
+    mStrIDs[0] = JSID_VOID;
 
     mJSRuntime = JS_NewRuntime(32L * 1024L * 1024L); // pref ?
     if(mJSRuntime)
@@ -1134,9 +1148,15 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         // the GC's allocator.
         JS_SetGCParameter(mJSRuntime, JSGC_MAX_BYTES, 0xffffffff);
         JS_SetContextCallback(mJSRuntime, ContextCallback);
+        JS_SetCompartmentCallback(mJSRuntime, CompartmentCallback);
         JS_SetGCCallbackRT(mJSRuntime, GCCallback);
         JS_SetExtraGCRoots(mJSRuntime, TraceJS, this);
+        JS_SetWrapObjectCallbacks(mJSRuntime,
+                                  xpc::WrapperFactory::Rewrap,
+                                  xpc::WrapperFactory::PrepareForWrapping);
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
+
+        mJSRuntime->setActivityCallback(ActivityCallback, this);
 
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 
@@ -1146,6 +1166,8 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     if(!JS_DHashTableInit(&mJSHolders, JS_DHashGetStubOps(), nsnull,
                           sizeof(ObjectHolder), 512))
         mJSHolders.ops = nsnull;
+
+    mCompartmentMap.Init();
 
     // Install a JavaScript 'debugger' keyword handler in debug builds only
 #ifdef DEBUG
@@ -1197,7 +1219,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
 
     // if it is our first context then we need to generate our string ids
     JSBool ok = JS_TRUE;
-    if(!mStrIDs[0])
+    if(JSID_IS_VOID(mStrIDs[0]))
     {
         JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
         JSAutoRequest ar(cx);
@@ -1206,7 +1228,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
             JSString* str = JS_InternString(cx, mStrings[i]);
             if(!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i]))
             {
-                mStrIDs[0] = 0;
+                mStrIDs[0] = JSID_VOID;
                 ok = JS_FALSE;
                 break;
             }
@@ -1224,8 +1246,12 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     if (!xpc)
         return JS_FALSE;
 
-    JS_SetNativeStackQuota(cx, 512 * 1024);
-    JS_SetScriptStackQuota(cx, 100 * 1024 * 1024);
+    JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+    JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
+
+    // we want to mark the global object ourselves since we use a different color
+    JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);
+
     return JS_TRUE;
 }
 

@@ -16,12 +16,12 @@
 
 #include "GLSLANG/ShaderLang.h"
 
+#include "compiler/ExtensionBehavior.h"
 #include "compiler/InfoSink.h"
+#include "compiler/SymbolTable.h"
+#include "compiler/VariableInfo.h"
 
 class TCompiler;
-class TLinker;
-class TUniformMap;
-
 
 //
 // The base class used to back handles returned to the driver.
@@ -31,24 +31,7 @@ public:
     TShHandleBase() { }
     virtual ~TShHandleBase() { }
     virtual TCompiler* getAsCompiler() { return 0; }
-    virtual TLinker* getAsLinker() { return 0; }
-    virtual TUniformMap* getAsUniformMap() { return 0; }
 };
-
-//
-// The base class for the machine dependent linker to derive from
-// for managing where uniforms live.
-//
-class TUniformMap : public TShHandleBase {
-public:
-    TUniformMap() { }
-    virtual ~TUniformMap() { }
-    virtual TUniformMap* getAsUniformMap() { return this; }
-    virtual int getLocation(const char* name) = 0;    
-    virtual TInfoSink& getInfoSink() { return infoSink; }
-    TInfoSink infoSink;
-};
-class TIntermNode;
 
 //
 // The base class for the machine dependent compiler to derive from
@@ -56,64 +39,44 @@ class TIntermNode;
 //
 class TCompiler : public TShHandleBase {
 public:
-    TCompiler(EShLanguage l) : language(l), haveValidObjectCode(false) { }
-    virtual ~TCompiler() { }
-    EShLanguage getLanguage() { return language; }
-    virtual TInfoSink& getInfoSink() { return infoSink; }
-
-    virtual bool compile(TIntermNode* root) = 0;
-
+    TCompiler(ShShaderType type, ShShaderSpec spec);
+    virtual ~TCompiler();
     virtual TCompiler* getAsCompiler() { return this; }
-    virtual bool linkable() { return haveValidObjectCode; }
 
-    TInfoSink infoSink;
+    bool Init(const ShBuiltInResources& resources);
+    bool compile(const char* const shaderStrings[],
+                 const int numStrings,
+                 int compileOptions);
+
+    // Get results of the last compilation.
+    TInfoSink& getInfoSink() { return infoSink; }
+    const TVariableInfoList& getAttribs() const { return attribs; }
+    const TVariableInfoList& getUniforms() const { return uniforms; }
+
 protected:
-    EShLanguage language;
-    bool haveValidObjectCode;
-};
+    // Initialize symbol-table with built-in symbols.
+    bool InitBuiltInSymbolTable(const ShBuiltInResources& resources);
+    // Clears the results from the previous compilation.
+    void clearResults();
+    // Collect info for all attribs and uniforms.
+    void collectAttribsUniforms(TIntermNode* root);
+    // Translate to object code.
+    virtual void translate(TIntermNode* root) = 0;
 
-//
-// Link operations are base on a list of compile results...
-//
-typedef TVector<TCompiler*> TCompilerList;
-typedef TVector<TShHandleBase*> THandleList;
+private:
+    ShShaderType shaderType;
+    ShShaderSpec shaderSpec;
 
-//
-// The base class for the machine dependent linker to derive from
-// to manage the resulting executable.
-//
+    // Built-in symbol table for the given language, spec, and resources.
+    // It is preserved from compile-to-compile.
+    TSymbolTable symbolTable;
+    // Built-in extensions with default behavior.
+    TExtensionBehavior extensionBehavior;
 
-class TLinker : public TShHandleBase {
-public:
-    TLinker(EShExecutable e) : 
-        executable(e), 
-        haveReturnableObjectCode(false),
-        appAttributeBindings(0),
-        fixedAttributeBindings(0),
-        excludedAttributes(0),
-        excludedCount(0),
-        uniformBindings(0) { }
-    virtual TLinker* getAsLinker() { return this; }
-    virtual ~TLinker() { }
-    virtual bool link(TCompilerList&, TUniformMap*) = 0;
-    virtual bool link(THandleList&) { return false; }
-    virtual void setAppAttributeBindings(const ShBindingTable* t)   { appAttributeBindings = t; }
-    virtual void setFixedAttributeBindings(const ShBindingTable* t) { fixedAttributeBindings = t; }
-    virtual void getAttributeBindings(ShBindingTable const **t) const = 0;
-    virtual void setExcludedAttributes(const int* attributes, int count) { excludedAttributes = attributes; excludedCount = count; }
-    virtual ShBindingTable* getUniformBindings() const  { return uniformBindings; }
-    virtual const void* getObjectCode() const { return 0; } // a real compiler would be returning object code here
-    virtual TInfoSink& getInfoSink() { return infoSink; }
-    TInfoSink infoSink;
-protected:
-    EShExecutable executable;
-    bool haveReturnableObjectCode;  // true when objectCode is acceptable to send to driver
-
-    const ShBindingTable* appAttributeBindings;
-    const ShBindingTable* fixedAttributeBindings;
-    const int* excludedAttributes;
-    int excludedCount;
-    ShBindingTable* uniformBindings;                // created by the linker    
+    // Results of compilation.
+    TInfoSink infoSink;  // Output sink.
+    TVariableInfoList attribs;  // Active attributes in the compiled shader.
+    TVariableInfoList uniforms;  // Active uniforms in the compiled shader.
 };
 
 //
@@ -125,14 +88,7 @@ protected:
 // destroy the machine dependent objects, which contain the
 // above machine independent information.
 //
-TCompiler* ConstructCompiler(EShLanguage, int);
-
-TShHandleBase* ConstructLinker(EShExecutable, int);
-void DeleteLinker(TShHandleBase*);
-
-TUniformMap* ConstructUniformMap();
+TCompiler* ConstructCompiler(ShShaderType type, ShShaderSpec spec);
 void DeleteCompiler(TCompiler*);
-
-void DeleteUniformMap(TUniformMap*);
 
 #endif // _SHHANDLE_INCLUDED_

@@ -190,19 +190,22 @@ gfxQtPlatform::~gfxQtPlatform()
 
 already_AddRefed<gfxASurface>
 gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
-                                      gfxASurface::gfxImageFormat imageFormat)
+                                      gfxASurface::gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
 
     // try to optimize it for 16bpp screen
-    if (gfxASurface::ImageFormatRGB24 == imageFormat
+    gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
+    if (gfxASurface::CONTENT_COLOR == contentType
         && 16 == QX11Info().depth())
         imageFormat = gfxASurface::ImageFormatRGB16_565;
 
+#ifdef CAIRO_HAS_QT_SURFACE
     if (mRenderMode == RENDER_QPAINTER) {
-      newSurface = new gfxQPainterSurface(size, gfxASurface::ContentFromFormat(imageFormat));
+      newSurface = new gfxQPainterSurface(size, imageFormat);
       return newSurface.forget();
     }
+#endif
 
     if (mRenderMode == RENDER_BUFFERED &&
         sDefaultQtPaintEngineType != QPaintEngine::X11) {
@@ -570,14 +573,13 @@ gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFo
 {
     mPrefFonts.Put(aKey, array);
 }
+
 #endif
 
-void
-gfxQtPlatform::InitDisplayCaps()
+PRInt32
+gfxQtPlatform::GetDPI()
 {
     QDesktopWidget* rootWindow = qApp->desktop();
-    sDPI = rootWindow->logicalDpiY(); // y-axis DPI for fonts
-    if (sDPI <= 0)
-        sDPI = 96; // something more sensible
+    PRInt32 dpi = rootWindow->logicalDpiY(); // y-axis DPI for fonts
+    return dpi <= 0 ? 96 : dpi;
 }
-

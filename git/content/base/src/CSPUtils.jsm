@@ -53,23 +53,67 @@ var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
 var gETLDService = Components.classes["@mozilla.org/network/effective-tld-service;1"]
                    .getService(Components.interfaces.nsIEffectiveTLDService);
 
+var gPrefObserver = {
+  get debugEnabled () {
+    if (!this._branch)
+      this._initialize();
+    return this._debugEnabled;
+  },
+
+  _initialize: function() {
+    var prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
+                    .getService(Components.interfaces.nsIPrefService);
+    this._branch = prefSvc.getBranch("security.csp.");
+    this._branch.QueryInterface(Components.interfaces.nsIPrefBranch2);
+    this._branch.addObserver("", this, false);
+    this._debugEnabled = this._branch.getBoolPref("debug");
+  },
+
+  unregister: function() {
+    if(!this._branch) return;
+    this._branch.removeObserver("", this);
+  },
+
+  observe: function(aSubject, aTopic, aData) {
+    if(aTopic != "nsPref:changed") return;
+    if(aData === "debug")
+      this._debugEnabled = this._branch.getBoolPref("debug");
+  },
+
+};
+
 
 function CSPWarning(aMsg) {
-  // customize this to redirect output.
-  aMsg = 'CSP WARN:  ' + aMsg + "\n";
-  dump(aMsg);
+  var textMessage = 'CSP WARN:  ' + aMsg + "\n";
+  dump(textMessage);
+
+  var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
+                    .createInstance(Components.interfaces.nsIScriptError);
+  consoleMsg.init('CSP: ' + aMsg, null, null, 0, 0,
+                  Components.interfaces.nsIScriptError.warningFlag,
+                  "Content Security Policy");
   Components.classes["@mozilla.org/consoleservice;1"]
                     .getService(Components.interfaces.nsIConsoleService)
-                    .logStringMessage(aMsg);
+                    .logMessage(consoleMsg);
 }
+
 function CSPError(aMsg) {
-  aMsg = 'CSP ERROR: ' + aMsg + "\n";
-  dump(aMsg);
+  var textMessage = 'CSP ERROR:  ' + aMsg + "\n";
+  dump(textMessage);
+
+  var consoleMsg = Components.classes["@mozilla.org/scripterror;1"]
+                    .createInstance(Components.interfaces.nsIScriptError);
+  consoleMsg.init('CSP: ' + aMsg, null, null, 0, 0,
+                  Components.interfaces.nsIScriptError.errorFlag,
+                  "Content Security Policy");
   Components.classes["@mozilla.org/consoleservice;1"]
                     .getService(Components.interfaces.nsIConsoleService)
-                    .logStringMessage(aMsg);
+                    .logMessage(consoleMsg);
 }
+
 function CSPdebug(aMsg) {
+  if (!gPrefObserver.debugEnabled) return;
+
   aMsg = 'CSP debug: ' + aMsg + "\n";
   dump(aMsg);
   Components.classes["@mozilla.org/consoleservice;1"]
@@ -130,11 +174,19 @@ CSPRep.fromString = function(aStr, self) {
   var aCSPR = new CSPRep();
   aCSPR._originalText = aStr;
 
+  var selfUri = null;
+  if (self instanceof Components.interfaces.nsIURI)
+    selfUri = self.clone();
+  else if (self)
+    selfUri = gIoService.newURI(self, null, null);
+
   var dirs = aStr.split(";");
 
   directive:
   for each(var dir in dirs) {
     dir = dir.trim();
+    if (dir.length < 1) continue;
+
     var dirname = dir.split(/\s+/)[0];
     var dirvalue = dir.substring(dirname.length).trim();
 
@@ -164,44 +216,65 @@ CSPRep.fromString = function(aStr, self) {
         }
       }
     }
-    
+
     // REPORT URI ///////////////////////////////////////////////////////
     if (dirname === UD.REPORT_URI) {
       // might be space-separated list of URIs
       var uriStrings = dirvalue.split(/\s+/);
       var okUriStrings = [];
-      var selfUri = self ? gIoService.newURI(self.toString(),null,null) : null;
 
-      // Verify that each report URI is in the same etld + 1
-      // if "self" is defined, and just that it's valid otherwise.
       for (let i in uriStrings) {
+        var uri = null;
         try {
-          var uri = gIoService.newURI(uriStrings[i],null,null);
+          // Relative URIs are okay, but to ensure we send the reports to the
+          // right spot, the relative URIs are expanded here during parsing.
+          // The resulting CSPRep instance will have only absolute URIs.
+          uri = gIoService.newURI(uriStrings[i],null,selfUri);
+
+          // if there's no host, don't do the ETLD+ check.  This will throw
+          // NS_ERROR_FAILURE if the URI doesn't have a host, causing a parse
+          // failure.
+          uri.host;
+
+          // Verify that each report URI is in the same etld + 1 and that the
+          // scheme and port match "self" if "self" is defined, and just that
+          // it's valid otherwise.
           if (self) {
-            if (gETLDService.getBaseDomain(uri) ===
+            if (gETLDService.getBaseDomain(uri) !==
                 gETLDService.getBaseDomain(selfUri)) {
-              okUriStrings.push(uriStrings[i]);
-            } else {
               CSPWarning("can't use report URI from non-matching eTLD+1: "
                          + gETLDService.getBaseDomain(uri));
+              continue;
+            }
+            if (!uri.schemeIs(selfUri.scheme)) {
+              CSPWarning("can't use report URI with different scheme from "
+                         + "originating document: " + uri.asciiSpec);
+              continue;
+            }
+            if (uri.port && uri.port !== selfUri.port) {
+              CSPWarning("can't use report URI with different port from "
+                         + "originating document: " + uri.asciiSpec);
+              continue;
             }
           }
         } catch(e) {
           switch (e.result) {
             case Components.results.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS:
             case Components.results.NS_ERROR_HOST_IS_IP_ADDRESS:
-              if (uri.host === selfUri.host) {
-                okUriStrings.push(uriStrings[i]);
-              } else {
-                CSPWarning("page on " + selfUri.host + " cannot send reports to " + uri.host);
+              if (uri.host !== selfUri.host) {
+                CSPWarning("page on " + selfUri.host
+                           + " cannot send reports to " + uri.host);
+                continue;
               }
               break;
 
             default:
               CSPWarning("couldn't parse report URI: " + uriStrings[i]);
-              break;
+              continue;
           }
         }
+        // all verification passed: same ETLD+1, scheme, and port.
+        okUriStrings.push(uri.asciiSpec);
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');
       continue directive;
@@ -217,15 +290,14 @@ CSPRep.fromString = function(aStr, self) {
 
       var uri = '';
       try {
-        uri = gIoService.newURI(dirvalue, null, null);
+        uri = gIoService.newURI(dirvalue, null, selfUri);
       } catch(e) {
         CSPError("could not parse URI in policy URI: " + dirvalue);
         return CSPRep.fromString("allow 'none'");
       }
-      
+
       // Verify that policy URI comes from the same origin
-      if (self) {
-        var selfUri = gIoService.newURI(self.toString(), null, null);
+      if (selfUri) {
         if (selfUri.host !== uri.host){
           CSPError("can't fetch policy uri from non-matching hostname: " + uri.host);
           return CSPRep.fromString("allow 'none'");
@@ -249,14 +321,14 @@ CSPRep.fromString = function(aStr, self) {
       // synchronous -- otherwise we need to architect a callback into the
       // xpcom component so that whomever creates the policy object gets
       // notified when it's loaded and ready to go.
-      req.open("GET", dirvalue, false);
+      req.open("GET", uri.asciiSpec, false);
 
       // make request anonymous
       // This prevents sending cookies with the request, in case the policy URI
       // is injected, it can't be abused for CSRF.
       req.channel.loadFlags |= Components.interfaces.nsIChannel.LOAD_ANONYMOUS;
 
-      req.send(null);  
+      req.send(null);
       if (req.status == 200) {
         aCSPR = CSPRep.fromString(req.responseText, self);
         // remember where we got the policy
@@ -272,8 +344,11 @@ CSPRep.fromString = function(aStr, self) {
 
   } // end directive: loop
 
-  aCSPR.makeExplicit();
-  return aCSPR;
+  // if makeExplicit fails for any reason, default to allow 'none'.  This
+  // includes the case where "allow" is not present.
+  if (aCSPR.makeExplicit())
+    return aCSPR;
+  return CSPRep.fromString("allow 'none'", self);
 };
 
 CSPRep.prototype = {
@@ -409,6 +484,7 @@ CSPRep.prototype = {
     var SD = CSPRep.SRC_DIRECTIVES;
     var allowDir = this._directives[SD.ALLOW];
     if (!allowDir) {
+      CSPWarning("'allow' directive required but not present.  Reverting to \"allow 'none'\"");
       return false;
     }
 

@@ -287,6 +287,10 @@ nsImageBoxFrame::UpdateImage()
   if (!mImageRequest) {
     // We have no image, so size to 0
     mIntrinsicSize.SizeTo(0, 0);
+  } else {
+    // We don't want discarding or decode-on-draw for xul images.
+    mImageRequest->RequestDecode();
+    mImageRequest->LockImage();
   }
 }
 
@@ -311,7 +315,9 @@ nsImageBoxFrame::UpdateLoadFlags()
 
 class nsDisplayXULImage : public nsDisplayItem {
 public:
-  nsDisplayXULImage(nsImageBoxFrame* aFrame) : nsDisplayItem(aFrame) {
+  nsDisplayXULImage(nsDisplayListBuilder* aBuilder,
+                    nsImageBoxFrame* aFrame) :
+    nsDisplayItem(aBuilder, aFrame) {
     MOZ_COUNT_CTOR(nsDisplayXULImage);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -331,7 +337,7 @@ void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
                               nsIRenderingContext* aCtx)
 {
   static_cast<nsImageBoxFrame*>(mFrame)->
-    PaintImage(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame),
+    PaintImage(*aCtx, mVisibleRect, ToReferenceFrame(),
                aBuilder->ShouldSyncDecodeImages()
                  ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
                  : (PRUint32) imgIContainer::FLAG_NONE);
@@ -355,7 +361,8 @@ nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return NS_OK;
 
-  return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayXULImage(this));
+  return aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayXULImage(aBuilder, this));
 }
 
 void
@@ -502,8 +509,10 @@ NS_IMETHODIMP nsImageBoxFrame::OnStartContainer(imgIRequest *request,
 {
   NS_ENSURE_ARG_POINTER(image);
 
-  // Ensure the animation (if any) is started
-  image->StartAnimation();
+  // Ensure the animation (if any) is started. Note: There is no
+  // corresponding call to Decrement for this. This Increment will be
+  // 'cleaned up' by the Request when it is destroyed, but only then.
+  request->IncrementAnimationConsumers();
 
   nscoord w, h;
   image->GetWidth(&w);
@@ -547,8 +556,8 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
-                                            nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
+                                            const nsIntRect *aDirtyRect)
 {
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
@@ -594,12 +603,12 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
   return mFrame->OnStopDecode(request, status, statusArg);
 }
 
-NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
-                                               nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,
+                                               const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(container, dirtyRect);
+  return mFrame->FrameChanged(aContainer, aDirtyRect);
 }
 

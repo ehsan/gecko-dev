@@ -43,6 +43,8 @@
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/net/CookieServiceParent.h"
 
+#include "nsHTMLDNSPrefetch.h"
+
 namespace mozilla {
 namespace net {
 
@@ -56,9 +58,9 @@ NeckoParent::~NeckoParent()
 }
 
 PHttpChannelParent* 
-NeckoParent::AllocPHttpChannel(PIFrameEmbeddingParent* iframeEmbedding)
+NeckoParent::AllocPHttpChannel(PBrowserParent* browser)
 {
-  HttpChannelParent *p = new HttpChannelParent(iframeEmbedding);
+  HttpChannelParent *p = new HttpChannelParent(browser);
   p->AddRef();
   return p;
 }
@@ -81,6 +83,15 @@ bool
 NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
+  return true;
+}
+
+bool
+NeckoParent::RecvHTMLDNSPrefetch(const nsString& hostname,
+                                 const PRUint16& flags)
+{
+  nsAutoString h(hostname);
+  nsHTMLDNSPrefetch::Prefetch(h, flags);
   return true;
 }
 

@@ -46,21 +46,35 @@
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 
+#include "nsICachingChannel.h"
+#include "nsISeekableStream.h"
+#include "nsIEncodedChannel.h"
+#include "nsIResumableChannel.h"
+#include "nsIApplicationCacheChannel.h"
+#include "nsEscape.h"
+
 namespace mozilla {
 namespace net {
 
 HttpBaseChannel::HttpBaseChannel()
-  : mStatus(NS_OK)
+  : mStartPos(LL_MAXUINT)
+  , mStatus(NS_OK)
   , mLoadFlags(LOAD_NORMAL)
   , mPriority(PRIORITY_NORMAL)
   , mCaps(0)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
+  , mApplyConversion(PR_TRUE)
+  , mCanceled(PR_FALSE)
   , mIsPending(PR_FALSE)
   , mWasOpened(PR_FALSE)
   , mResponseHeadersModified(PR_FALSE)
   , mAllowPipelining(PR_TRUE)
   , mForceAllowThirdPartyCookie(PR_FALSE)
   , mUploadStreamHasHeaders(PR_FALSE)
+  , mInheritApplicationCache(PR_TRUE)
+  , mChooseApplicationCache(PR_FALSE)
+  , mLoadedFromApplicationCache(PR_FALSE)
+  , mChannelIsForDownload(PR_FALSE)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -144,10 +158,11 @@ HttpBaseChannel::Init(nsIURI *aURI,
 // HttpBaseChannel::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED7(HttpBaseChannel,
+NS_IMPL_ISUPPORTS_INHERITED8(HttpBaseChannel,
                              nsHashPropertyBag, 
                              nsIRequest,
                              nsIChannel,
+                             nsIEncodedChannel,
                              nsIHttpChannel,
                              nsIHttpChannelInternal,
                              nsIUploadChannel,
@@ -362,7 +377,7 @@ HttpBaseChannel::GetContentLength(PRInt32 *aContentLength)
 NS_IMETHODIMP
 HttpBaseChannel::SetContentLength(PRInt32 value)
 {
-  NS_NOTYETIMPLEMENTED("nsHttpChannel::SetContentLength");
+  NS_NOTYETIMPLEMENTED("HttpBaseChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -471,6 +486,219 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
   mUploadStream = aStream;
   return NS_OK;
 }
+
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsIEncodedChannel
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+HttpBaseChannel::GetApplyConversion(PRBool *value)
+{
+  *value = mApplyConversion;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetApplyConversion(PRBool value)
+{
+  LOG(("HttpBaseChannel::SetApplyConversion [this=%p value=%d]\n", this, value));
+  mApplyConversion = value;
+  return NS_OK;
+}
+
+nsresult
+HttpBaseChannel::ApplyContentConversions()
+{
+  if (!mResponseHead)
+    return NS_OK;
+
+  LOG(("HttpBaseChannel::ApplyContentConversions [this=%p]\n", this));
+
+  if (!mApplyConversion) {
+    LOG(("not applying conversion per mApplyConversion\n"));
+    return NS_OK;
+  }
+
+  const char *val = mResponseHead->PeekHeader(nsHttp::Content_Encoding);
+  if (gHttpHandler->IsAcceptableEncoding(val)) {
+    nsCOMPtr<nsIStreamConverterService> serv;
+    nsresult rv = gHttpHandler->
+            GetStreamConverterService(getter_AddRefs(serv));
+    // we won't fail to load the page just because we couldn't load the
+    // stream converter service.. carry on..
+    if (NS_SUCCEEDED(rv)) {
+      nsCOMPtr<nsIStreamListener> converter;
+      nsCAutoString from(val);
+      ToLowerCase(from);
+      rv = serv->AsyncConvertData(from.get(),
+                                  "uncompressed",
+                                  mListener,
+                                  mListenerContext,
+                                  getter_AddRefs(converter));
+      if (NS_SUCCEEDED(rv)) {
+        LOG(("converter installed from \'%s\' to \'uncompressed\'\n", val));
+        mListener = converter;
+      }
+    }
+  } else if (val != nsnull) {
+    LOG(("Unknown content encoding '%s', ignoring\n", val));
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::GetContentEncodings(nsIUTF8StringEnumerator** aEncodings)
+{
+  if (!mResponseHead) {
+    *aEncodings = nsnull;
+    return NS_OK;
+  }
+    
+  const char *encoding = mResponseHead->PeekHeader(nsHttp::Content_Encoding);
+  if (!encoding) {
+    *aEncodings = nsnull;
+    return NS_OK;
+  }
+  nsContentEncodings* enumerator = new nsContentEncodings(this, encoding);
+  NS_ADDREF(*aEncodings = enumerator);
+  return NS_OK;
+}
+
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsContentEncodings <public>
+//-----------------------------------------------------------------------------
+
+HttpBaseChannel::nsContentEncodings::nsContentEncodings(nsIHttpChannel* aChannel,
+                                                        const char* aEncodingHeader)
+  : mEncodingHeader(aEncodingHeader)
+  , mChannel(aChannel)
+  , mReady(PR_FALSE)
+{
+  mCurEnd = aEncodingHeader + strlen(aEncodingHeader);
+  mCurStart = mCurEnd;
+}
+    
+HttpBaseChannel::nsContentEncodings::~nsContentEncodings()
+{
+}
+
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsContentEncodings::nsISimpleEnumerator
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+HttpBaseChannel::nsContentEncodings::HasMore(PRBool* aMoreEncodings)
+{
+  if (mReady) {
+    *aMoreEncodings = PR_TRUE;
+    return NS_OK;
+  }
+
+  nsresult rv = PrepareForNext();
+  *aMoreEncodings = NS_SUCCEEDED(rv);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::nsContentEncodings::GetNext(nsACString& aNextEncoding)
+{
+  aNextEncoding.Truncate();
+  if (!mReady) {
+    nsresult rv = PrepareForNext();
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  const nsACString & encoding = Substring(mCurStart, mCurEnd);
+
+  nsACString::const_iterator start, end;
+  encoding.BeginReading(start);
+  encoding.EndReading(end);
+
+  PRBool haveType = PR_FALSE;
+  if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("gzip"), start, end)) {
+    aNextEncoding.AssignLiteral(APPLICATION_GZIP);
+    haveType = PR_TRUE;
+  }
+
+  if (!haveType) {
+    encoding.BeginReading(start);
+    if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("compress"), start, end)) {
+      aNextEncoding.AssignLiteral(APPLICATION_COMPRESS);
+      haveType = PR_TRUE;
+    }
+  }
+    
+  if (!haveType) {
+    encoding.BeginReading(start);
+    if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("deflate"), start, end)) {
+      aNextEncoding.AssignLiteral(APPLICATION_ZIP);
+      haveType = PR_TRUE;
+    }
+  }
+
+  // Prepare to fetch the next encoding
+  mCurEnd = mCurStart;
+  mReady = PR_FALSE;
+  
+  if (haveType)
+    return NS_OK;
+
+  NS_WARNING("Unknown encoding type");
+  return NS_ERROR_FAILURE;
+}
+
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsContentEncodings::nsISupports
+//-----------------------------------------------------------------------------
+
+NS_IMPL_ISUPPORTS1(HttpBaseChannel::nsContentEncodings, nsIUTF8StringEnumerator)
+
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsContentEncodings <private>
+//-----------------------------------------------------------------------------
+
+nsresult
+HttpBaseChannel::nsContentEncodings::PrepareForNext(void)
+{
+  NS_ASSERTION(mCurStart == mCurEnd, "Indeterminate state");
+    
+  // At this point both mCurStart and mCurEnd point to somewhere
+  // past the end of the next thing we want to return
+    
+  while (mCurEnd != mEncodingHeader) {
+    --mCurEnd;
+    if (*mCurEnd != ',' && !nsCRT::IsAsciiSpace(*mCurEnd))
+      break;
+  }
+  if (mCurEnd == mEncodingHeader)
+    return NS_ERROR_NOT_AVAILABLE; // no more encodings
+  ++mCurEnd;
+        
+  // At this point mCurEnd points to the first char _after_ the
+  // header we want.  Furthermore, mCurEnd - 1 != mEncodingHeader
+    
+  mCurStart = mCurEnd - 1;
+  while (mCurStart != mEncodingHeader &&
+         *mCurStart != ',' && !nsCRT::IsAsciiSpace(*mCurStart))
+    --mCurStart;
+  if (*mCurStart == ',' || nsCRT::IsAsciiSpace(*mCurStart))
+    ++mCurStart; // we stopped because of a weird char, so move up one
+        
+  // At this point mCurStart and mCurEnd bracket the encoding string
+  // we want.  Check that it's not "identity"
+  if (Substring(mCurStart, mCurEnd).Equals("identity",
+                                           nsCaseInsensitiveCStringComparator())) {
+    mCurEnd = mCurStart;
+    return PrepareForNext();
+  }
+        
+  mReady = PR_TRUE;
+  return NS_OK;
+}
+
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIHttpChannel
@@ -895,10 +1123,7 @@ HttpBaseChannel::SetCookie(const char *aCookieHeader)
   nsICookieService *cs = gHttpHandler->GetCookieService();
   NS_ENSURE_TRUE(cs, NS_ERROR_FAILURE);
 
-  return cs->SetCookieStringFromHttp(mURI,
-                                     nsnull,
-                                     nsnull,
-                                     aCookieHeader,
+  return cs->SetCookieStringFromHttp(mURI, nsnull, nsnull, aCookieHeader,
                                      mResponseHead->PeekHeader(nsHttp::Date),
                                      this);
 }
@@ -919,6 +1144,27 @@ HttpBaseChannel::SetForceAllowThirdPartyCookie(PRBool aForce)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+HttpBaseChannel::GetCanceled(PRBool *aCanceled)
+{
+  *aCanceled = mCanceled;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::GetChannelIsForDownload(PRBool *aChannelIsForDownload)
+{
+  *aChannelIsForDownload = mChannelIsForDownload;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetChannelIsForDownload(PRBool aChannelIsForDownload)
+{
+  mChannelIsForDownload = aChannelIsForDownload;
+  return NS_OK;
+}
+
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -936,6 +1182,55 @@ HttpBaseChannel::AdjustPriority(PRInt32 delta)
   return SetPriority(mPriority + delta);
 }
 
+//-----------------------------------------------------------------------------
+// HttpBaseChannel::nsIResumableChannel
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+HttpBaseChannel::GetEntityID(nsACString& aEntityID)
+{
+  // Don't return an entity ID for Non-GET requests which require
+  // additional data
+  if (mRequestHead.Method() != nsHttp::Get) {
+    return NS_ERROR_NOT_RESUMABLE;
+  }
+
+  // Don't return an entity if the server sent the following header:
+  // Accept-Ranges: none
+  // Not sending the Accept-Ranges header means we can still try
+  // sending range requests.
+  const char* acceptRanges =
+      mResponseHead->PeekHeader(nsHttp::Accept_Ranges);
+  if (acceptRanges &&
+      !nsHttp::FindToken(acceptRanges, "bytes", HTTP_HEADER_VALUE_SEPS)) {
+    return NS_ERROR_NOT_RESUMABLE;
+  }
+
+  PRUint64 size = LL_MAXUINT;
+  nsCAutoString etag, lastmod;
+  if (mResponseHead) {
+    size = mResponseHead->TotalEntitySize();
+    const char* cLastMod = mResponseHead->PeekHeader(nsHttp::Last_Modified);
+    if (cLastMod)
+      lastmod = cLastMod;
+    const char* cEtag = mResponseHead->PeekHeader(nsHttp::ETag);
+    if (cEtag)
+      etag = cEtag;
+  }
+  nsCString entityID;
+  NS_EscapeURL(etag.BeginReading(), etag.Length(), esc_AlwaysCopy |
+               esc_FileBaseName | esc_Forced, entityID);
+  entityID.Append('/');
+  entityID.AppendInt(PRInt64(size));
+  entityID.Append('/');
+  entityID.Append(lastmod);
+  // NOTE: Appending lastmod as the last part avoids having to escape it
+
+  aEntityID = entityID;
+
+  return NS_OK;
+}
+
 //------------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
@@ -949,27 +1244,162 @@ HttpBaseChannel::AddCookiesToRequest()
     return;
   }
 
+  bool useCookieService = 
+#ifdef MOZ_IPC
+    (XRE_GetProcessType() == GeckoProcessType_Default);
+#else
+    PR_TRUE;
+#endif
   nsXPIDLCString cookie;
+  if (useCookieService) {
+    nsICookieService *cs = gHttpHandler->GetCookieService();
+    if (cs) {
+      cs->GetCookieStringFromHttp(mURI,
+                                  nsnull,
+                                  this, getter_Copies(cookie));
+    }
 
-  nsICookieService *cs = gHttpHandler->GetCookieService();
-  if (cs) {
-    cs->GetCookieStringFromHttp(mURI,
-                                mDocumentURI ? mDocumentURI : mOriginalURI,
-                                this,
-                                getter_Copies(cookie));
+    if (cookie.IsEmpty()) {
+      cookie = mUserSetCookieHeader;
+    }
+    else if (!mUserSetCookieHeader.IsEmpty()) {
+      cookie.Append(NS_LITERAL_CSTRING("; ") + mUserSetCookieHeader);
+    }
   }
-
-  if (cookie.IsEmpty()) {
+  else {
     cookie = mUserSetCookieHeader;
   }
-  else if (!mUserSetCookieHeader.IsEmpty()) {
-    cookie.Append(NS_LITERAL_CSTRING("; ") + mUserSetCookieHeader);
+
+  // If we are in the child process, we want the parent seeing any
+  // cookie headers that might have been set by SetRequestHeader()
+  SetRequestHeader(nsDependentCString(nsHttp::Cookie), cookie, PR_FALSE);
+}
+
+static PLDHashOperator
+CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
+{
+  nsIWritablePropertyBag* bag = static_cast<nsIWritablePropertyBag*>
+                                           (aClosure);
+  bag->SetProperty(aKey, aData);
+  return PL_DHASH_NEXT;
+}
+
+nsresult
+HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI, 
+                                         nsIChannel   *newChannel,
+                                         PRBool        preserveMethod)
+{
+  LOG(("HttpBaseChannel::SetupReplacementChannel "
+     "[this=%p newChannel=%p preserveMethod=%d]",
+     this, newChannel, preserveMethod));
+  PRUint32 newLoadFlags = mLoadFlags | LOAD_REPLACE;
+  // if the original channel was using SSL and this channel is not using
+  // SSL, then no need to inhibit persistent caching.  however, if the
+  // original channel was not using SSL and has INHIBIT_PERSISTENT_CACHING
+  // set, then allow the flag to apply to the redirected channel as well.
+  // since we force set INHIBIT_PERSISTENT_CACHING on all HTTPS channels,
+  // we only need to check if the original channel was using SSL.
+  if (mConnectionInfo->UsingSSL())
+    newLoadFlags &= ~INHIBIT_PERSISTENT_CACHING;
+
+  // Do not pass along LOAD_CHECK_OFFLINE_CACHE
+  newLoadFlags &= ~nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE;
+
+  newChannel->SetLoadGroup(mLoadGroup); 
+  newChannel->SetNotificationCallbacks(mCallbacks);
+  newChannel->SetLoadFlags(newLoadFlags);
+
+  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(newChannel);
+  if (!httpChannel)
+    return NS_OK; // no other options to set
+
+  if (preserveMethod) {
+    nsCOMPtr<nsIUploadChannel> uploadChannel =
+      do_QueryInterface(httpChannel);
+    nsCOMPtr<nsIUploadChannel2> uploadChannel2 =
+      do_QueryInterface(httpChannel);
+    if (mUploadStream && (uploadChannel2 || uploadChannel)) {
+      // rewind upload stream
+      nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
+      if (seekable)
+        seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+
+      // replicate original call to SetUploadStream...
+      if (uploadChannel2) {
+        const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
+        if (!ctype)
+          ctype = "";
+        const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
+        PRInt64 len = clen ? nsCRT::atoll(clen) : -1;
+        uploadChannel2->ExplicitSetUploadStream(
+                                  mUploadStream, nsDependentCString(ctype), len,
+                                  nsDependentCString(mRequestHead.Method()),
+                                  mUploadStreamHasHeaders);
+      } else {
+        if (mUploadStreamHasHeaders) {
+          uploadChannel->SetUploadStream(mUploadStream, EmptyCString(),
+                           -1);
+        } else {
+          const char *ctype =
+            mRequestHead.PeekHeader(nsHttp::Content_Type);
+          const char *clen =
+            mRequestHead.PeekHeader(nsHttp::Content_Length);
+          if (!ctype) {
+            ctype = "application/octet-stream";
+          }
+          if (clen) {
+            uploadChannel->SetUploadStream(mUploadStream,
+                                           nsDependentCString(ctype),
+                                           atoi(clen));
+          }
+        }
+      }
+    }
+    // since preserveMethod is true, we need to ensure that the appropriate 
+    // request method gets set on the channel, regardless of whether or not 
+    // we set the upload stream above. This means SetRequestMethod() will
+    // be called twice if ExplicitSetUploadStream() gets called above.
+
+    httpChannel->SetRequestMethod(nsDependentCString(mRequestHead.Method()));
+  }
+  // convey the referrer if one was used for this channel to the next one
+  if (mReferrer)
+    httpChannel->SetReferrer(mReferrer);
+  // convey the mAllowPipelining flag
+  httpChannel->SetAllowPipelining(mAllowPipelining);
+  // convey the new redirection limit
+  httpChannel->SetRedirectionLimit(mRedirectionLimit - 1);
+
+  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
+  if (httpInternal) {
+    // convey the mForceAllowThirdPartyCookie flag
+    httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
+
+    // update the DocumentURI indicator since we are being redirected.
+    // if this was a top-level document channel, then the new channel
+    // should have its mDocumentURI point to newURI; otherwise, we
+    // just need to pass along our mDocumentURI to the new channel.
+    if (newURI && (mURI == mDocumentURI))
+      httpInternal->SetDocumentURI(newURI);
+    else
+      httpInternal->SetDocumentURI(mDocumentURI);
+  } 
+  
+  // transfer application cache information
+  nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
+    do_QueryInterface(newChannel);
+  if (appCacheChannel) {
+    appCacheChannel->SetApplicationCache(mApplicationCache);
+    appCacheChannel->SetInheritApplicationCache(mInheritApplicationCache);
+    // We purposely avoid transfering mChooseApplicationCache.
   }
 
-  // overwrite any existing cookie headers.  be sure to clear any
-  // existing cookies if we have no cookies to set or if the cookie
-  // service is unavailable.
-  SetRequestHeader(nsDependentCString(nsHttp::Cookie), cookie, PR_FALSE);
+  // transfer any properties
+  nsCOMPtr<nsIWritablePropertyBag> bag(do_QueryInterface(newChannel));
+  if (bag)
+    mPropertyHash.EnumerateRead(CopyProperties, bag.get());
+
+  return NS_OK;
 }
 
 //------------------------------------------------------------------------------

@@ -55,6 +55,8 @@
 class nsLeafAccessible : public nsAccessibleWrap
 {
 public:
+  using nsAccessible::GetChildAtPoint;
+
   nsLeafAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsISupports
@@ -94,15 +96,15 @@ public:
   NS_IMETHOD TakeFocus();
   NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
-  // nsIAccessibleHyperLink
-  NS_IMETHOD GetURI(PRInt32 i, nsIURI **aURI);
-
   // nsAccessNode
   virtual PRBool Init();
   virtual void Shutdown();
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
+  // HyperLinkAccessible
+  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
 
 protected:
   /**
@@ -133,7 +135,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
 
 protected:
   PRUint32 mRole;

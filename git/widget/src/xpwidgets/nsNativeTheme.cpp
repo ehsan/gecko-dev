@@ -50,7 +50,6 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
-#include "nsIDOMNSHTMLInputElement.h"
 #include "nsPIDOMWindow.h"
 
 nsNativeTheme::nsNativeTheme()
@@ -213,7 +212,7 @@ nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
   }
 
   // Check for an HTML input element
-  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
+  nsCOMPtr<nsIDOMHTMLInputElement> inputElt = do_QueryInterface(content);
   if (inputElt) {
     PRBool indeterminate;
     inputElt->GetIndeterminate(&indeterminate);
@@ -260,6 +259,29 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                                                NS_AUTHOR_SPECIFIED_BACKGROUND);
 }
 
+bool
+nsNativeTheme::IsDisabled(nsIFrame* aFrame, PRInt32 aEventStates)
+{
+  if (!aFrame) {
+    return false;
+  }
+
+  nsIContent* content = aFrame->GetContent();
+  if (!content) {
+    return PR_FALSE;
+  }
+
+  if (content->IsHTML()) {
+    return (aEventStates & NS_EVENT_STATE_DISABLED);
+  }
+
+  // For XML/XUL elements, an attribute must be equal to the literal
+  // string "true" to be counted as true.  An empty string should _not_
+  // be counted as true.
+  return content->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
+                              NS_LITERAL_STRING("true"), eCaseMatters);
+}
+
 PRBool
 nsNativeTheme::IsFrameRTL(nsIFrame* aFrame)
 {
@@ -294,7 +316,7 @@ nsNativeTheme::GetScrollbarButtonType(nsIFrame* aFrame)
 nsNativeTheme::TreeSortDirection
 nsNativeTheme::GetTreeSortDirection(nsIFrame* aFrame)
 {
-  if (!aFrame)
+  if (!aFrame || !aFrame->GetContent())
     return eTreeSortDirection_Natural;
 
   static nsIContent::AttrValuesArray strings[] =

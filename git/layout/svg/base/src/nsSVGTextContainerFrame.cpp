@@ -43,6 +43,9 @@
 #include "nsIDOMSVGAnimatedNumberList.h"
 #include "nsISVGGlyphFragmentLeaf.h"
 #include "nsDOMError.h"
+#include "SVGLengthList.h"
+
+using namespace mozilla;
 
 //----------------------------------------------------------------------
 // nsQueryFrame methods
@@ -61,68 +64,21 @@ nsSVGTextContainerFrame::NotifyGlyphMetricsChange()
     textFrame->NotifyGlyphMetricsChange();
 }
 
-already_AddRefed<nsIDOMSVGLengthList>
-nsSVGTextContainerFrame::GetX()
+void
+nsSVGTextContainerFrame::GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY)
 {
-  nsCOMPtr<nsIDOMSVGTextPositioningElement> tpElement =
-    do_QueryInterface(mContent);
-
-  if (!tpElement)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> animLengthList;
-  tpElement->GetX(getter_AddRefs(animLengthList));
-  nsIDOMSVGLengthList *retval;
-  animLengthList->GetAnimVal(&retval);
-  return retval;
+  static_cast<nsSVGElement*>(mContent)->
+    GetAnimatedLengthListValues(aX, aY, nsnull);
 }
 
-already_AddRefed<nsIDOMSVGLengthList>
-nsSVGTextContainerFrame::GetY()
+void
+nsSVGTextContainerFrame::GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy)
 {
-  nsCOMPtr<nsIDOMSVGTextPositioningElement> tpElement =
-    do_QueryInterface(mContent);
-
-  if (!tpElement)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> animLengthList;
-  tpElement->GetY(getter_AddRefs(animLengthList));
-  nsIDOMSVGLengthList *retval;
-  animLengthList->GetAnimVal(&retval);
-  return retval;
-}
-
-already_AddRefed<nsIDOMSVGLengthList>
-nsSVGTextContainerFrame::GetDx()
-{
-  nsCOMPtr<nsIDOMSVGTextPositioningElement> tpElement =
-    do_QueryInterface(mContent);
-
-  if (!tpElement)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> animLengthList;
-  tpElement->GetDx(getter_AddRefs(animLengthList));
-  nsIDOMSVGLengthList *retval;
-  animLengthList->GetAnimVal(&retval);
-  return retval;
-}
-
-already_AddRefed<nsIDOMSVGLengthList>
-nsSVGTextContainerFrame::GetDy()
-{
-  nsCOMPtr<nsIDOMSVGTextPositioningElement> tpElement =
-    do_QueryInterface(mContent);
-
-  if (!tpElement)
-    return nsnull;
-
-  nsCOMPtr<nsIDOMSVGAnimatedLengthList> animLengthList;
-  tpElement->GetDy(getter_AddRefs(animLengthList));
-  nsIDOMSVGLengthList *retval;
-  animLengthList->GetAnimVal(&retval);
-  return retval;
+  // SVGUserUnitList is lazy, so there's little overhead it getting the x
+  // and y lists even though we ignore them.
+  SVGUserUnitList xLengthList, yLengthList;
+  static_cast<nsSVGElement*>(mContent)->
+    GetAnimatedLengthListValues(&xLengthList, &yLengthList, aDx, aDy, nsnull);
 }
 
 already_AddRefed<nsIDOMSVGNumberList>
@@ -440,4 +396,137 @@ nsSVGTextContainerFrame::GetTextFrame()
     }
   }
   return nsnull;
+}
+
+void
+nsSVGTextContainerFrame::CopyPositionList(nsTArray<float> *parentList,
+                                        SVGUserUnitList *selfList,
+                                        nsTArray<float> &dstList,
+                                        PRUint32 aOffset)
+{
+  dstList.Clear();
+
+  PRUint32 strLength = GetNumberOfChars();
+  PRUint32 parentCount = 0;
+  if (parentList && parentList->Length() > aOffset) {
+    parentCount = NS_MIN(parentList->Length() - aOffset, strLength);
+  }
+
+  PRUint32 selfCount = NS_MIN(selfList->Length(), strLength);
+
+  PRUint32 count = NS_MAX(parentCount, selfCount);
+
+  if (!dstList.SetLength(count))
+    return;
+
+  for (PRUint32 i = 0; i < selfCount; i++) {
+    dstList[i] = (*selfList)[i];
+  }
+  for (PRUint32 i = selfCount; i < parentCount; i++) {
+    dstList[i] = (*parentList)[aOffset + i];
+  }
+
+}
+
+void
+nsSVGTextContainerFrame::CopyRotateList(nsTArray<float> *parentList,
+                                        nsCOMPtr<nsIDOMSVGNumberList> selfList,
+                                        nsTArray<float> &dstList,
+                                        PRUint32 aOffset)
+{
+  dstList.Clear();
+
+  PRUint32 strLength = GetNumberOfChars();
+  PRUint32 parentCount = 0;
+  if (parentList && parentList->Length() > aOffset) {
+    parentCount = NS_MIN(parentList->Length() - aOffset, strLength);
+  }
+
+  PRUint32 selfCount = 0;
+  if (selfList) {
+    selfList->GetNumberOfItems(&selfCount);
+  }
+  selfCount = NS_MIN(selfCount, strLength);
+
+  PRUint32 count = NS_MAX(parentCount, selfCount);
+  if (count > 0) {
+    if (!dstList.SetLength(count))
+      return;
+    for (PRUint32 i = 0; i < selfCount; i++) {
+      dstList[i] = nsSVGUtils::GetNumberListValue(selfList, i);
+    }
+    for (PRUint32 i = selfCount; i < parentCount; i++) {
+      dstList[i] = (*parentList)[aOffset + i];
+    }
+  } else if (parentList && !parentList->IsEmpty()) {
+    // rotate is applied to extra characters too
+    dstList.AppendElement((*parentList)[parentList->Length() - 1]);
+  }
+}
+
+PRUint32
+nsSVGTextContainerFrame::BuildPositionList(PRUint32 aOffset,
+                                           PRUint32 aDepth)
+{
+  nsSVGTextContainerFrame *parent = do_QueryFrame(mParent);
+  nsTArray<float> *parentX = nsnull, *parentY = nsnull;
+  nsTArray<float> *parentDx = nsnull, *parentDy = nsnull;
+  nsTArray<float> *parentRotate = nsnull;
+  if (parent) {
+    parentX = &(parent->mX);
+    parentY = &(parent->mY);
+    parentDx = &(parent->mDx);
+    parentDy = &(parent->mDy);
+    parentRotate = &(parent->mRotate);
+  }
+
+  SVGUserUnitList x, y;
+  GetXY(&x, &y);
+  CopyPositionList(parentX, &x, mX, aOffset);
+  CopyPositionList(parentY, &y, mY, aOffset);
+
+  SVGUserUnitList dx, dy;
+  GetDxDy(&dx, &dy);
+  CopyPositionList(parentDx, &dx, mDx, aOffset);
+  CopyPositionList(parentDy, &dy, mDy, aOffset);
+
+  nsCOMPtr<nsIDOMSVGNumberList> rotate = GetRotate();
+  CopyRotateList(parentRotate, rotate, mRotate, aOffset);
+
+  PRUint32 startIndex = 0;
+  nsIFrame* kid = mFrames.FirstChild();
+  while (kid) {
+    nsSVGTextContainerFrame *text = do_QueryFrame(kid);
+    nsISVGGlyphFragmentLeaf *leaf = do_QueryFrame(kid);
+    if (text) {
+      startIndex += text->BuildPositionList(startIndex, aDepth + 1);
+    } else if (leaf) {
+      leaf->SetStartIndex(startIndex);
+      startIndex += leaf->GetNumberOfChars();
+    }
+    kid = kid->GetNextSibling();
+  }
+  return startIndex;
+}
+
+void
+nsSVGTextContainerFrame::GetEffectiveXY(nsTArray<float> &aX,
+                                        nsTArray<float> &aY)
+{
+  aX.AppendElements(mX);
+  aY.AppendElements(mY);
+}
+
+void
+nsSVGTextContainerFrame::GetEffectiveDxDy(nsTArray<float> &aDx,
+                                          nsTArray<float> &aDy)
+{
+  aDx.AppendElements(mDx);
+  aDy.AppendElements(mDy);
+}
+
+void
+nsSVGTextContainerFrame::GetEffectiveRotate(nsTArray<float> &aRotate)
+{
+  aRotate.AppendElements(mRotate);
 }

@@ -43,17 +43,23 @@
 
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
-#include "nsIDOMNSHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
 
 class nsHTMLOptionElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLOptionElement,
-                            public nsIDOMNSHTMLOptionElement,
                             public nsIJSNativeInitializer
 {
 public:
-  nsHTMLOptionElement(nsINodeInfo *aNodeInfo);
+  nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOptionElement();
+
+  /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
+  static nsHTMLOptionElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent->NodeInfo()->Equals(nsGkAtoms::option, kNameSpaceID_XHTML))
+      return static_cast<nsHTMLOptionElement*>(aContent);
+    return nsnull;
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -68,10 +74,9 @@ public:
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLOptionElement
+  using nsGenericElement::SetText;
+  using nsGenericElement::GetText;
   NS_DECL_NSIDOMHTMLOPTIONELEMENT
-
-  // nsIDOMNSHTMLOptionElement
-  NS_IMETHOD SetText(const nsAString & aText); 
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -92,6 +97,7 @@ public:
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   /**
    * Get the select content element that contains this option, this

@@ -23,6 +23,7 @@
  *
  * Contributor(s):
  *   Jason Duell <jduell.mcbugs@gmail.com>
+ *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,11 +43,9 @@
 #define mozilla_net_HttpChannelParent_h
 
 #include "nsHttp.h"
-#include "mozilla/dom/PIFrameEmbeddingParent.h"
+#include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/net/PHttpChannelParent.h"
 #include "mozilla/net/NeckoCommon.h"
-#include "nsIStreamListener.h"
-#include "nsIInterfaceRequestor.h"
 #include "nsIProgressEventSink.h"
 #include "nsITabParent.h"
 
@@ -57,20 +56,28 @@ class nsICacheEntryDescriptor;
 namespace mozilla {
 namespace net {
 
-// Header file contents
+class HttpChannelParentListener;
+
 class HttpChannelParent : public PHttpChannelParent
-                        , public nsIStreamListener
-                        , public nsIInterfaceRequestor
                         , public nsIProgressEventSink
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSISTREAMLISTENER
-  NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSIPROGRESSEVENTSINK
 
-  HttpChannelParent(PIFrameEmbeddingParent* iframeEmbedding);
+  // Make these non-virtual for a little performance benefit
+  nsresult OnStartRequest(nsIRequest *aRequest, 
+                          nsISupports *aContext);
+  nsresult OnStopRequest(nsIRequest *aRequest, 
+                         nsISupports *aContext, 
+                         nsresult aStatusCode);
+  nsresult OnDataAvailable(nsIRequest *aRequest, 
+                           nsISupports *aContext, 
+                           nsIInputStream *aInputStream, 
+                           PRUint32 aOffset, 
+                           PRUint32 aCount);
+  
+  HttpChannelParent(PBrowserParent* iframeEmbedding);
   virtual ~HttpChannelParent();
 
 protected:
@@ -86,17 +93,33 @@ protected:
                              const PRUint16&            priority,
                              const PRUint8&             redirectionLimit,
                              const PRBool&              allowPipelining,
-                             const PRBool&              forceAllowThirdPartyCookie);
+                             const PRBool&              forceAllowThirdPartyCookie,
+                             const bool&                doResumeAt,
+                             const PRUint64&            startPos,
+                             const nsCString&           entityID);
 
   virtual bool RecvSetPriority(const PRUint16& priority);
   virtual bool RecvSetCacheTokenCachedCharset(const nsCString& charset);
-  virtual bool RecvOnStopRequestCompleted();
+  virtual bool RecvSuspend();
+  virtual bool RecvResume();
+  virtual bool RecvCancel(const nsresult& status);
+  virtual bool RecvRedirect2Verify(const nsresult& result,
+                                   const RequestHeaderTuples& changedHeaders);
+  virtual bool RecvUpdateAssociatedContentSecurity(const PRInt32& high,
+                                                   const PRInt32& low,
+                                                   const PRInt32& broken,
+                                                   const PRInt32& no);
+  virtual bool RecvDocumentChannelCleanup();
 
   virtual void ActorDestroy(ActorDestroyReason why);
 
-private:
+protected:
+  friend class mozilla::net::HttpChannelParentListener;
   nsCOMPtr<nsITabParent> mTabParent;
+
+private:
   nsCOMPtr<nsIChannel> mChannel;
+  nsRefPtr<HttpChannelParentListener> mChannelListener;
   nsCOMPtr<nsICacheEntryDescriptor> mCacheDescriptor;
   bool mIPCClosed;                // PHttpChannel actor has been Closed()
 };

@@ -142,14 +142,9 @@ nsRootAccessible::GetName(nsAString& aName)
   return document->GetTitle(aName);
 }
 
-/* readonly attribute unsigned long accRole; */
-nsresult
-nsRootAccessible::GetRoleInternal(PRUint32 *aRole) 
-{ 
-  if (!mDocument) {
-    return NS_ERROR_FAILURE;
-  }
-
+PRUint32
+nsRootAccessible::NativeRole()
+{
   // If it's a <dialog> or <wizard>, use nsIAccessibleRole::ROLE_DIALOG instead
   dom::Element *root = mDocument->GetRootElement();
   if (root) {
@@ -158,13 +153,12 @@ nsRootAccessible::GetRoleInternal(PRUint32 *aRole)
       nsAutoString name;
       rootElement->GetLocalName(name);
       if (name.EqualsLiteral("dialog") || name.EqualsLiteral("wizard")) {
-        *aRole = nsIAccessibleRole::ROLE_DIALOG; // Always at the root
-        return NS_OK;
+        return nsIAccessibleRole::ROLE_DIALOG; // Always at the root
       }
     }
   }
 
-  return nsDocAccessibleWrap::GetRoleInternal(aRole);
+  return nsDocAccessibleWrap::NativeRole();
 }
 
 // nsRootAccessible protected member
@@ -391,22 +385,21 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
   }
 
   gLastFocusedAccessiblesState = nsAccUtils::State(finalFocusAccessible);
-  PRUint32 role = nsAccUtils::Role(finalFocusAccessible);
+  PRUint32 role = finalFocusAccessible->Role();
   if (role == nsIAccessibleRole::ROLE_MENUITEM) {
     if (!mCurrentARIAMenubar) {  // Entering menus
       // The natural role is the role that this type of element normally has
-      PRUint32 naturalRole = nsAccUtils::RoleInternal(finalFocusAccessible);
-      if (role != naturalRole) { // Must be a DHTML menuitem
+      if (role != finalFocusAccessible->NativeRole()) { // Must be a DHTML menuitem
         nsAccessible *menuBarAccessible =
           nsAccUtils::GetAncestorWithRole(finalFocusAccessible,
                                           nsIAccessibleRole::ROLE_MENUBAR);
         if (menuBarAccessible) {
           mCurrentARIAMenubar = menuBarAccessible->GetNode();
           if (mCurrentARIAMenubar) {
-            nsRefPtr<nsAccEvent> menuStartEvent =
-              new nsAccEvent(nsIAccessibleEvent::EVENT_MENU_START,
-                             menuBarAccessible, PR_FALSE, aIsFromUserInput,
-                             nsAccEvent::eAllowDupes);
+            nsRefPtr<AccEvent> menuStartEvent =
+              new AccEvent(nsIAccessibleEvent::EVENT_MENU_START,
+                           menuBarAccessible, PR_FALSE, aIsFromUserInput,
+                           AccEvent::eAllowDupes);
             if (menuStartEvent) {
               FireDelayedAccessibleEvent(menuStartEvent);
             }
@@ -416,9 +409,9 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
     }
   }
   else if (mCurrentARIAMenubar) {
-    nsRefPtr<nsAccEvent> menuEndEvent =
-      new nsAccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar,
-                     PR_FALSE, aIsFromUserInput, nsAccEvent::eAllowDupes);
+    nsRefPtr<AccEvent> menuEndEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar,
+                   PR_FALSE, aIsFromUserInput, AccEvent::eAllowDupes);
     if (menuEndEvent) {
       FireDelayedAccessibleEvent(menuEndEvent);
     }
@@ -446,7 +439,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible *aAccessible,
   // Coalesce focus events from the same document, because DOM focus event might
   // be fired for the document node and then for the focused DOM element.
   FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                             finalFocusNode, nsAccEvent::eCoalesceFromSameDocument,
+                             finalFocusNode, AccEvent::eCoalesceFromSameDocument,
                              aIsAsynch, aIsFromUserInput);
 
   return PR_TRUE;
@@ -549,9 +542,9 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
     PRBool isEnabled = (state & (nsIAccessibleStates::STATE_CHECKED |
                         nsIAccessibleStates::STATE_SELECTED)) != 0;
 
-    nsRefPtr<nsAccEvent> accEvent =
-      new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
-                                PR_FALSE, isEnabled);
+    nsRefPtr<AccEvent> accEvent =
+      new AccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
+                              PR_FALSE, isEnabled);
     nsEventShell::FireEvent(accEvent);
 
     if (isEnabled)
@@ -565,10 +558,9 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
 
     PRBool isEnabled = !!(state & nsIAccessibleStates::STATE_CHECKED);
 
-    nsRefPtr<nsAccEvent> accEvent =
-      new nsAccStateChangeEvent(accessible,
-                                nsIAccessibleStates::STATE_CHECKED,
-                                PR_FALSE, isEnabled);
+    nsRefPtr<AccEvent> accEvent =
+      new AccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
+                              PR_FALSE, isEnabled);
 
     nsEventShell::FireEvent(accEvent);
     return NS_OK;
@@ -600,9 +592,9 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
     PRUint32 state = nsAccUtils::State(accessible); // collapsed/expanded changed
     PRBool isEnabled = (state & nsIAccessibleStates::STATE_EXPANDED) != 0;
 
-    nsRefPtr<nsAccEvent> accEvent =
-      new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_EXPANDED,
-                                PR_FALSE, isEnabled);
+    nsRefPtr<AccEvent> accEvent =
+      new AccStateChangeEvent(accessible, nsIAccessibleStates::STATE_EXPANDED,
+                              PR_FALSE, isEnabled);
     nsEventShell::FireEvent(accEvent);
     return NS_OK;
   }
@@ -681,7 +673,7 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
     HandlePopupShownEvent(accessible);
   }
   else if (eventType.EqualsLiteral("DOMMenuInactive")) {
-    if (nsAccUtils::Role(accessible) == nsIAccessibleRole::ROLE_MENUPOPUP) {
+    if (accessible->Role() == nsIAccessibleRole::ROLE_MENUPOPUP) {
       nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END,
                               accessible);
     }
@@ -715,7 +707,7 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
         if (nsAccUtils::State(containerAccessible) & nsIAccessibleStates::STATE_COLLAPSED) {
           nsAccessible *containerParent = containerAccessible->GetParent();
           NS_ENSURE_TRUE(containerParent, NS_ERROR_FAILURE);
-          if (nsAccUtils::Role(containerParent) != nsIAccessibleRole::ROLE_COMBOBOX) {
+          if (containerParent->Role() != nsIAccessibleRole::ROLE_COMBOBOX) {
             return NS_OK;
           }
         }
@@ -723,7 +715,8 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
     }
     if (!fireFocus) {
       nsCOMPtr<nsINode> realFocusedNode = GetCurrentFocus();
-      nsIContent* realFocusedContent = realFocusedNode->AsElement();
+      nsIContent* realFocusedContent =
+        realFocusedNode->IsElement() ? realFocusedNode->AsElement() : nsnull;
       nsIContent* containerContent = targetContent;
       while (containerContent) {
         nsCOMPtr<nsIDOMXULPopupElement> popup = do_QueryInterface(containerContent);
@@ -753,7 +746,7 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aEvent)
   }
   else if (eventType.EqualsLiteral("ValueChange")) {
     FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                               targetNode, nsAccEvent::eRemoveDupes);
+                               targetNode, AccEvent::eRemoveDupes);
   }
 #ifdef DEBUG
   else if (eventType.EqualsLiteral("mouseover")) {
@@ -863,7 +856,7 @@ nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
 nsresult
 nsRootAccessible::HandlePopupShownEvent(nsAccessible *aAccessible)
 {
-  PRUint32 role = nsAccUtils::Role(aAccessible);
+  PRUint32 role = aAccessible->Role();
 
   if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
     // Don't fire menupopup events for combobox and autocomplete lists.
@@ -883,14 +876,16 @@ nsRootAccessible::HandlePopupShownEvent(nsAccessible *aAccessible)
 
   if (role == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     // Fire expanded state change event for comboboxes and autocompeletes.
-    nsAccessible *comboboxAcc = aAccessible->GetParent();
-    PRUint32 comboboxRole = nsAccUtils::Role(comboboxAcc);
+    nsAccessible* combobox = aAccessible->GetParent();
+    NS_ENSURE_STATE(combobox);
+
+    PRUint32 comboboxRole = combobox->Role();
     if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
         comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-      nsRefPtr<nsAccEvent> event =
-        new nsAccStateChangeEvent(comboboxAcc,
-                                  nsIAccessibleStates::STATE_EXPANDED,
-                                  PR_FALSE, PR_TRUE);
+      nsRefPtr<AccEvent> event =
+        new AccStateChangeEvent(combobox,
+                                nsIAccessibleStates::STATE_EXPANDED,
+                                PR_FALSE, PR_TRUE);
       NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
       nsEventShell::FireEvent(event);
@@ -921,18 +916,19 @@ nsRootAccessible::HandlePopupHidingEvent(nsINode *aNode,
   if (!aAccessible)
     return NS_OK;
 
-  PRUint32 role = nsAccUtils::Role(aAccessible);
-  if (role != nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+  if (aAccessible->Role() != nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     return NS_OK;
 
-  nsAccessible *comboboxAcc = aAccessible->GetParent();
-  PRUint32 comboboxRole = nsAccUtils::Role(comboboxAcc);
+  nsAccessible* combobox = aAccessible->GetParent();
+  NS_ENSURE_STATE(combobox);
+
+  PRUint32 comboboxRole = combobox->Role();
   if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
       comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
-    nsRefPtr<nsAccEvent> event =
-      new nsAccStateChangeEvent(comboboxAcc,
-                                nsIAccessibleStates::STATE_EXPANDED,
-                                PR_FALSE, PR_FALSE);
+    nsRefPtr<AccEvent> event =
+      new AccStateChangeEvent(combobox,
+                              nsIAccessibleStates::STATE_EXPANDED,
+                              PR_FALSE, PR_FALSE);
     NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
     nsEventShell::FireEvent(event);

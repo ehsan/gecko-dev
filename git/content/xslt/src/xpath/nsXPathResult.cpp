@@ -40,7 +40,7 @@
 #include "txExprResult.h"
 #include "txNodeSet.h"
 #include "nsDOMError.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIAttribute.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMNode.h"
@@ -48,6 +48,8 @@
 #include "nsDOMString.h"
 #include "txXPathTreeWalker.h"
 #include "nsCycleCollectionParticipant.h"
+
+using namespace mozilla::dom;
 
 nsXPathResult::nsXPathResult() : mDocument(nsnull),
                                  mCurrentPos(0),
@@ -231,6 +233,7 @@ nsXPathResult::SnapshotItem(PRUint32 aIndex, nsIDOMNode **aResult)
 void
 nsXPathResult::NodeWillBeDestroyed(const nsINode* aNode)
 {
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     // Set to null to avoid unregistring unnecessarily
     mDocument = nsnull;
     Invalidate(aNode->IsNodeOfType(nsINode::eCONTENT) ?
@@ -247,12 +250,12 @@ nsXPathResult::CharacterDataChanged(nsIDocument* aDocument,
 
 void
 nsXPathResult::AttributeChanged(nsIDocument* aDocument,
-                                nsIContent* aContent,
+                                Element* aElement,
                                 PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute,
                                 PRInt32 aModType)
 {
-    Invalidate(aContent);
+    Invalidate(aElement);
 }
 
 void
@@ -277,7 +280,8 @@ void
 nsXPathResult::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling)
 {
     Invalidate(aContainer);
 }
@@ -380,11 +384,12 @@ nsXPathResult::Invalidate(const nsIContent* aChangeRoot)
         }
     }
 
+    mInvalidIteratorState = PR_TRUE;
+    // Make sure nulling out mDocument is the last thing we do.
     if (mDocument) {
         mDocument->RemoveMutationObserver(this);
         mDocument = nsnull;
     }
-    mInvalidIteratorState = PR_TRUE;
 }
 
 nsresult

@@ -94,18 +94,10 @@ nsInlineFrame::GetType() const
 }
 
 static inline PRBool
-IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
+IsMarginZero(const nsStyleCoord &aCoord)
 {
-    return ((aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
-            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
-}
-
-static inline PRBool
-IsMarginZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
-{
-    return (aUnit == eStyleUnit_Auto ||
-            (aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
-            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
+  return aCoord.GetUnit() == eStyleUnit_Auto ||
+         nsLayoutUtils::IsMarginZero(aCoord);
 }
 
 /* virtual */ PRBool
@@ -126,16 +118,12 @@ nsInlineFrame::IsSelfEmpty()
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
   PRBool haveRight =
     border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
-    !IsPaddingZero(padding->mPadding.GetRightUnit(),
-                   padding->mPadding.GetRight()) ||
-    !IsMarginZero(margin->mMargin.GetRightUnit(),
-                  margin->mMargin.GetRight());
+    !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetRight()) ||
+    !IsMarginZero(margin->mMargin.GetRight());
   PRBool haveLeft =
     border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
-    !IsPaddingZero(padding->mPadding.GetLeftUnit(),
-                   padding->mPadding.GetLeft()) ||
-    !IsMarginZero(margin->mMargin.GetLeftUnit(),
-                  margin->mMargin.GetLeft());
+    !nsLayoutUtils::IsPaddingZero(padding->mPadding.GetLeft()) ||
+    !IsMarginZero(margin->mMargin.GetLeft());
   if (haveLeft || haveRight) {
     if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
       PRBool haveStart, haveEnd;
@@ -206,7 +194,7 @@ nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // normally don't have any size, but in Editor we use CSS to display
   // an image to represent this "hidden" element.
   if (!mFrames.FirstChild()) {
-    rv = DisplaySelectionOverlay(aBuilder, aLists);
+    rv = DisplaySelectionOverlay(aBuilder, aLists.Content());
   }
   return rv;
 }
@@ -243,7 +231,7 @@ nsInlineFrame::ComputeTightBounds(gfxContext* aContext) const
 {
   // be conservative
   if (GetStyleContext()->HasTextDecorations())
-    return GetOverflowRect();
+    return GetVisualOverflowRect();
   return ComputeSimpleTightBounds(aContext);
 }
 
@@ -691,7 +679,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
 
   // For now our overflow area is zero. The real value will be
   // computed in |nsLineLayout::RelativePositionFrames|.
-  aMetrics.mOverflowArea.SetRect(0, 0, 0, 0);
+  aMetrics.mOverflowAreas.Clear();
 
 #ifdef NOISY_FINAL_SIZE
   ListTag(stdout);
@@ -754,17 +742,6 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
 
   // Create a next-in-flow if needed.
   if (!NS_FRAME_IS_FULLY_COMPLETE(aStatus)) {
-    if (nsGkAtoms::placeholderFrame == aFrame->GetType()) {
-      nsBlockReflowState* blockRS = lineLayout->mBlockRS;
-      nsPlaceholderFrame* placeholder =
-        static_cast<nsPlaceholderFrame*>(aFrame);
-      rv = blockRS->mBlock->SplitFloat(*blockRS,
-                                       placeholder->GetOutOfFlowFrame(),
-                                       aStatus);
-      // Allow the parent to continue reflowing.
-      aStatus = NS_FRAME_COMPLETE;
-      return rv;
-    }
     nsIFrame* newFrame;
     rv = CreateNextInFlow(aPresContext, aFrame, newFrame);
     if (NS_FAILED(rv)) {
@@ -1295,7 +1272,7 @@ nsPositionedInlineFrame::Reflow(nsPresContext*          aPresContext,
     rv = mAbsoluteContainer.Reflow(this, aPresContext, aReflowState, aStatus,
                                    containingBlockWidth, containingBlockHeight,
                                    PR_TRUE, PR_TRUE, PR_TRUE, // XXX could be optimized
-                                   &aDesiredSize.mOverflowArea);
+                                   &aDesiredSize.mOverflowAreas);
   }
 
   return rv;

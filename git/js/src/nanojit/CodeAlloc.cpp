@@ -47,7 +47,11 @@
 namespace nanojit
 {
     static const bool verbose = false;
-#if defined(NANOJIT_ARM)
+#ifdef VMCFG_VTUNE
+    // vtune jit profiling api can't handle non-contiguous methods,
+    // so make the allocation size huge to avoid non-contiguous methods
+    static const int pagesPerAlloc = 128; // 1MB
+#elif defined(NANOJIT_ARM)
     // ARM requires single-page allocations, due to the constant pool that
     // lives on each page that must be reachable by a 4kb pcrel load.
     static const int pagesPerAlloc = 1;
@@ -308,6 +312,13 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
             sync_instruction_memory((char*)start, len);
     }
 
+#elif defined NANOJIT_SH4
+#include <asm/cachectl.h> /* CACHEFLUSH_*, */
+#include <sys/syscall.h>  /* __NR_cacheflush, */
+    void CodeAlloc::flushICache(void *start, size_t len) {
+        syscall(__NR_cacheflush, start, len, CACHEFLUSH_D_WB | CACHEFLUSH_I);
+    }
+
 #elif defined(AVMPLUS_UNIX) && defined(NANOJIT_MIPS)
     void CodeAlloc::flushICache(void *start, size_t len) {
         // FIXME Use synci on MIPS32R2
@@ -414,7 +425,7 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
         } else {
             // there's enough space left to split into three blocks (two new ones)
             CodeList* b1 = getBlock(start, end);
-            CodeList* b2 = (CodeList*) holeStart;
+            CodeList* b2 = (CodeList*) (void*) holeStart;
             CodeList* b3 = (CodeList*) (uintptr_t(holeEnd) - offsetof(CodeList, code));
             b1->higher = b2;
             b2->lower = b1;

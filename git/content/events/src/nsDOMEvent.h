@@ -77,6 +77,8 @@ public:
     eDOMEvents_blur,
     eDOMEvents_load,
     eDOMEvents_popstate,
+    eDOMEvents_beforescriptexecute,
+    eDOMEvents_afterscriptexecute,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
@@ -88,6 +90,7 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
+    eDOMEvents_invalid,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -142,6 +145,11 @@ public:
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+    eDOMEvents_beginEvent,
+    eDOMEvents_endEvent,
+    eDOMEvents_repeatEvent,
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
@@ -163,8 +171,10 @@ public:
     eDOMEvents_ratechange,
     eDOMEvents_durationchange,
     eDOMEvents_volumechange,
+    eDOMEvents_mozaudioavailable,
 #endif
     eDOMEvents_afterpaint,
+    eDOMEvents_beforepaint,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -174,6 +184,9 @@ public:
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
     eDOMEvents_MozPressTapGesture,
+    eDOMEvents_MozTouchDown,
+    eDOMEvents_MozTouchMove,
+    eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
     eDOMEvents_transitionend
   };

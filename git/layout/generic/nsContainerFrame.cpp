@@ -515,14 +515,12 @@ void
 nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
                                            nsIFrame*       aFrame,
                                            nsIView*        aView,
-                                           const nsRect*   aCombinedArea,
+                                           const nsRect&   aVisualOverflowArea,
                                            PRUint32        aFlags)
 {
   if (!aView) {
     return;
   }
-
-  NS_ASSERTION(aCombinedArea, "Combined area must be passed in now");
 
   // Make sure the view is sized and positioned correctly
   if (0 == (aFlags & NS_FRAME_NO_MOVE_VIEW)) {
@@ -532,7 +530,7 @@ nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
   if (0 == (aFlags & NS_FRAME_NO_SIZE_VIEW)) {
     nsIViewManager* vm = aView->GetViewManager();
 
-    vm->ResizeView(aView, *aCombinedArea, PR_TRUE);
+    vm->ResizeView(aView, aVisualOverflowArea, PR_TRUE);
   }
 }
 
@@ -590,9 +588,10 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
 
 static nscoord GetCoord(const nsStyleCoord& aCoord, nscoord aIfNotCoord)
 {
-  return aCoord.GetUnit() == eStyleUnit_Coord
-           ? aCoord.GetCoordValue()
-           : aIfNotCoord;
+  if (aCoord.ConvertsToLength()) {
+    return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
+  }
+  return aIfNotCoord;
 }
 
 void
@@ -628,7 +627,8 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // border.
   if (!GetPrevContinuation()) {
     aData->currentLine +=
-      GetCoord(stylePadding->mPadding.Get(startSide), 0) +
+      // clamp negative calc() to 0
+      NS_MAX(GetCoord(stylePadding->mPadding.Get(startSide), 0), 0) +
       styleBorder->GetActualBorderWidth(startSide) +
       GetCoord(styleMargin->mMargin.Get(startSide), 0);
   }
@@ -669,7 +669,8 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // the endSide border.
   if (!lastInFlow->GetNextContinuation()) {
     aData->currentLine +=
-      GetCoord(stylePadding->mPadding.Get(endSide), 0) +
+      // clamp negative calc() to 0
+      NS_MAX(GetCoord(stylePadding->mPadding.Get(endSide), 0), 0) +
       styleBorder->GetActualBorderWidth(endSide) +
       GetCoord(styleMargin->mMargin.Get(endSide), 0);
   }
@@ -724,7 +725,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
     if ((aFlags & NS_FRAME_INVALIDATE_ON_MOVE) &&
         !(aKidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
         aKidFrame->GetPosition() != nsPoint(aX, aY)) {
-      aKidFrame->InvalidateOverflowRect();
+      aKidFrame->InvalidateFrameSubtree();
     }
     aKidFrame->SetPosition(nsPoint(aX, aY));
   }
@@ -829,8 +830,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // Make sure the frame's view is properly sized and positioned and has
     // things like opacity correct
     SyncFrameViewAfterReflow(aPresContext, aKidFrame, view,
-                             &aDesiredSize.mOverflowArea,
-                             aFlags);
+                             aDesiredSize.VisualOverflow(), aFlags);
   }
 
   if (!(aFlags & NS_FRAME_NO_MOVE_VIEW) &&
@@ -846,7 +846,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // will be at the wrong offset ... note that this includes
     // invalidates issued against the frame's children, so we need to
     // invalidate the overflow area too.
-    aKidFrame->Invalidate(aDesiredSize.mOverflowArea);
+    aKidFrame->Invalidate(aDesiredSize.VisualOverflow());
   }
 
   return aKidFrame->DidReflow(aPresContext, aReflowState, NS_FRAME_REFLOW_FINISHED);
@@ -855,7 +855,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
 nsresult
 nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPresContext,
                                                   const nsHTMLReflowState& aReflowState,
-                                                  nsRect&                  aOverflowRect,
+                                                  nsOverflowAreas&         aOverflowRects,
                                                   PRUint32                 aFlags,
                                                   nsReflowStatus&          aStatus)
 {
@@ -928,7 +928,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
 
       // Cache old bounds
       nsRect oldRect = frame->GetRect();
-      nsRect oldOverflow = frame->GetOverflowRect();
+      nsRect oldOverflow = frame->GetVisualOverflowRect();
 
       // Reflow
       rv = ReflowChild(frame, aPresContext, desiredSize, frameState,
@@ -947,7 +947,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
         dirtyRect.MoveBy(oldRect.x, oldRect.y);
         Invalidate(dirtyRect);
 
-        dirtyRect = frame->GetOverflowRect();
+        dirtyRect = frame->GetVisualOverflowRect();
         dirtyRect.MoveBy(rect.x, rect.y);
         Invalidate(dirtyRect);
       }
@@ -992,7 +992,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
       if (aReflowState.mFloatManager)
         nsBlockFrame::RecoverFloatsFor(frame, *aReflowState.mFloatManager);
     }
-    ConsiderChildOverflow(aOverflowRect, frame);
+    ConsiderChildOverflow(aOverflowRects, frame);
   }
 
   return NS_OK;
@@ -1038,7 +1038,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
       if (frameList) {
         removed = frameList->RemoveFrameIfPresent(aChild);
         if (frameList->IsEmpty()) {
-          DestroyOverflowList(aPresContext);
+          DestroyOverflowList(aPresContext, nsnull);
         }
       }
     }
@@ -1091,8 +1091,12 @@ nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
 {
   nsFrameList* list =
     RemovePropTableFrames(aPresContext, OverflowProperty());
-  if (list)
-    list->DestroyFrom(aDestructRoot);
+  if (list) {
+    if (aDestructRoot)
+      list->DestroyFrom(aDestructRoot);
+    else
+      list->Destroy();
+  }
 }
 
 /**
@@ -1126,7 +1130,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     }
   }
 
-  aNextInFlow->InvalidateOverflowRect();
+  aNextInFlow->InvalidateFrameSubtree();
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
@@ -1545,9 +1549,12 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);
-  if (f->HasOverflowRect()) {
-    nsRect overflowArea = f->GetOverflowRect();
-    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+  if (f->HasOverflowAreas()) {
+    nsRect overflowArea = f->GetVisualOverflowRect();
+    fprintf(out, " [vis-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+    overflowArea = f->GetScrollableOverflowRect();
+    fprintf(out, " [scr-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
             overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));

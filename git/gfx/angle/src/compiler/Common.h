@@ -45,7 +45,7 @@ inline TString* NewPoolTString(const char* s)
 
 //
 // Persistent string memory.  Should only be used for strings that survive
-// across compiles/links.
+// across compiles.
 //
 #define TPersistString std::string
 #define TPersistStringStream std::ostringstream
@@ -70,7 +70,5 @@ public:
     // use correct two-stage name lookup supported in gcc 3.4 and above
     TMap(const tAllocator& a) : std::map<K, D, CMP, tAllocator>(std::map<K, D, CMP, tAllocator>::key_compare(), a) {}
 };
-
-typedef TMap<TString, TString> TPragmaTable;
 
 #endif // _COMMON_INCLUDED_

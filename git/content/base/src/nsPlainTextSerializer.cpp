@@ -62,6 +62,7 @@
 #define PREF_HEADER_STRATEGY "converter.html2txt.header_strategy"
 
 static const  PRInt32 kTabSize=4;
+static const  PRInt32 kOLNumberWidth = 3;
 static const  PRInt32 kIndentSizeHeaders = 2;  /* Indention of h1, if
                                                 mHeaderStrategy = 1 or = 2.
                                                 Indention of other headers
@@ -119,7 +120,7 @@ nsPlainTextSerializer::nsPlainTextSerializer()
 
   // Flow
   mEmptyLines = 1; // The start of the document is an "empty line" in itself,
-  mInWhitespace = PR_TRUE;
+  mInWhitespace = PR_FALSE;
   mPreFormatted = PR_FALSE;
   mStartedOutput = PR_FALSE;
 
@@ -128,6 +129,8 @@ nsPlainTextSerializer::nsPlainTextSerializer()
   mTagStackIndex = 0;
   mIgnoreAboveIndex = (PRUint32)kNotFound;
 
+  // initialize the OL stack, where numbers for ordered lists are kept
+  mOLStack = new PRInt32[OLStackSize];
   mOLStackIndex = 0;
 
   mULCount = 0;
@@ -136,6 +139,7 @@ nsPlainTextSerializer::nsPlainTextSerializer()
 nsPlainTextSerializer::~nsPlainTextSerializer()
 {
   delete[] mTagStack;
+  delete[] mOLStack;
   NS_WARN_IF_FALSE(mHeadLevel == 0, "Wrong head level!");
 }
 
@@ -638,6 +642,8 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
       }
     } 
     else {
+      /* See comment at end of function. */
+      mInWhitespace = PR_TRUE;
       mPreFormatted = PR_FALSE;
     }
 
@@ -693,8 +699,53 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
   }
   else if (type == eHTMLTag_ol) {
     EnsureVerticalSpace(mULCount + mOLStackIndex == 0 ? 1 : 0);
-    mOLStackIndex++;
+    if (mFlags & nsIDocumentEncoder::OutputFormatted) {
+      // Must end the current line before we change indention
+      if (mOLStackIndex < OLStackSize) {
+        nsAutoString startAttr;
+        PRInt32 startVal = 1;
+        if(NS_SUCCEEDED(GetAttributeValue(aNode, nsGkAtoms::start, startAttr))){
+          PRInt32 rv = 0;
+          startVal = startAttr.ToInteger(&rv);
+          if (NS_FAILED(rv))
+            startVal = 1;
+        }
+        mOLStack[mOLStackIndex++] = startVal;
+      }
+    } else {
+      mOLStackIndex++;
+    }
     mIndent += kIndentSizeList;  // see ul
+  }
+  else if (type == eHTMLTag_li &&
+           (mFlags & nsIDocumentEncoder::OutputFormatted)) {
+    if (mTagStackIndex > 1 && IsInOL()) {
+      if (mOLStackIndex > 0) {
+        nsAutoString valueAttr;
+        if(NS_SUCCEEDED(GetAttributeValue(aNode, nsGkAtoms::value, valueAttr))){
+          PRInt32 rv = 0;
+          PRInt32 valueAttrVal = valueAttr.ToInteger(&rv);
+          if (NS_SUCCEEDED(rv))
+            mOLStack[mOLStackIndex-1] = valueAttrVal;
+        }
+        // This is what nsBulletFrame does for OLs:
+        mInIndentString.AppendInt(mOLStack[mOLStackIndex-1]++, 10);
+      }
+      else {
+        mInIndentString.Append(PRUnichar('#'));
+      }
+
+      mInIndentString.Append(PRUnichar('.'));
+
+    }
+    else {
+      static char bulletCharArray[] = "*o+#";
+      PRUint32 index = mULCount > 0 ? (mULCount - 1) : 3;
+      char bulletChar = bulletCharArray[index % 4];
+      mInIndentString.Append(PRUnichar(bulletChar));
+    }
+
+    mInIndentString.Append(PRUnichar(' '));
   }
   else if (type == eHTMLTag_dl) {
     EnsureVerticalSpace(1);
@@ -807,6 +858,13 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
     Write(NS_LITERAL_STRING("_"));
   }
 
+  /* Container elements are always block elements, so we shouldn't
+     output any whitespace immediately after the container tag even if
+     there's extra whitespace there because the HTML is pretty-printed
+     or something. To ensure that happens, tell the serializer we're
+     already in whitespace so it won't output more. */
+  mInWhitespace = PR_TRUE;
+
   return NS_OK;
 }
 
@@ -865,7 +923,15 @@ nsPlainTextSerializer::DoCloseContainer(PRInt32 aTag)
     if (mFloatingLines < 0)
       mFloatingLines = 0;
     mLineBreakDue = PR_TRUE;
-  } 
+  }
+  else if (((type == eHTMLTag_li) ||
+            (type == eHTMLTag_dt)) &&
+           (mFlags & nsIDocumentEncoder::OutputFormatted)) {
+    // Items that should always end a line, but get no more whitespace
+    if (mFloatingLines < 0)
+      mFloatingLines = 0;
+    mLineBreakDue = PR_TRUE;
+  }
   else if (type == eHTMLTag_pre) {
     mFloatingLines = GetLastBool(mIsInCiteBlockquote) ? 0 : 1;
     mLineBreakDue = PR_TRUE;
@@ -1073,36 +1139,24 @@ nsPlainTextSerializer::DoAddLeaf(const nsIParserNode *aNode, PRInt32 aTag,
       EnsureVerticalSpace(mEmptyLines+1);
     }
   }
-  else if (type == eHTMLTag_whitespace) {
+  else if (type == eHTMLTag_whitespace || type == eHTMLTag_newline) {
     // The only times we want to pass along whitespace from the original
     // html source are if we're forced into preformatted mode via flags,
     // or if we're prettyprinting and we're inside a <pre>.
     // Otherwise, either we're collapsing to minimal text, or we're
     // prettyprinting to mimic the html format, and in neither case
     // does the formatting of the html source help us.
-    // One exception: at the very beginning of a selection,
-    // we want to preserve whitespace.
     if (mFlags & nsIDocumentEncoder::OutputPreformatted ||
         (mPreFormatted && !mWrapColumn) ||
         IsInPre()) {
-      Write(aText);
+      if (type == eHTMLTag_newline)
+        EnsureVerticalSpace(mEmptyLines+1);
+      else  
+        Write(aText);
     }
-    else if(!mInWhitespace ||
-            (!mStartedOutput
-             && mFlags | nsIDocumentEncoder::OutputSelectionOnly)) {
-      mInWhitespace = PR_FALSE;
+    else if(!mInWhitespace) {
       Write(kSpace);
       mInWhitespace = PR_TRUE;
-    }
-  }
-  else if (type == eHTMLTag_newline) {
-    if (mFlags & nsIDocumentEncoder::OutputPreformatted ||
-        (mPreFormatted && !mWrapColumn) ||
-        IsInPre()) {
-      EnsureVerticalSpace(mEmptyLines+1);
-    }
-    else {
-      Write(kSpace);
     }
   }
   else if (type == eHTMLTag_hr &&
@@ -1161,10 +1215,12 @@ nsPlainTextSerializer::EnsureVerticalSpace(PRInt32 noOfRows)
   // realize that we should start a new line.
   if(noOfRows >= 0 && !mInIndentString.IsEmpty()) {
     EndLine(PR_FALSE);
+    mInWhitespace = PR_TRUE;
   }
 
   while(mEmptyLines < noOfRows) {
     EndLine(PR_FALSE);
+    mInWhitespace = PR_TRUE;
   }
   mLineBreakDue = PR_FALSE;
   mFloatingLines = -1;

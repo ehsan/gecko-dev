@@ -71,14 +71,11 @@ class nsAccessibleWrap : public nsAccessible
     // should be instantied with.   used on runtime to determine the
     // right type for this accessible's associated native object.
     virtual objc_class* GetNativeType ();
-    
-    // returns a pointer to the native window for this accessible tree.
-    void GetNativeWindow (void **aOutNativeWindow);
-    
+
     virtual void Shutdown ();
     virtual void InvalidateChildren();
 
-    virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
+    virtual nsresult HandleAccEvent(AccEvent* aEvent);
 
     // ignored means that the accessible might still have children, but is not displayed
     // to the user. it also has no native accessible object represented for it.
@@ -98,7 +95,7 @@ class nsAccessibleWrap : public nsAccessible
     
   protected:
 
-    virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
+    virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   /**
    * Return true if the parent doesn't have children to expose to AT.

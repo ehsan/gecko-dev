@@ -25,9 +25,12 @@ class Config;
 class Surface
 {
   public:
-    Surface(Display *display, IDirect3DSwapChain9 *swapChain, IDirect3DSurface9* depthStencil, const egl::Config *config);
+    Surface(Display *display, const egl::Config *config, HWND window);
 
     ~Surface();
+
+    void release();
+    void resetSwapChain();
 
     HWND getWindowHandle();
     bool swap();
@@ -38,24 +41,32 @@ class Surface
     virtual IDirect3DSurface9 *getRenderTarget();
     virtual IDirect3DSurface9 *getDepthStencil();
 
+    void setSwapInterval(EGLint interval);
+
   private:
     DISALLOW_COPY_AND_ASSIGN(Surface);
 
     Display *const mDisplay;
-    IDirect3DSwapChain9 *const mSwapChain;
+    IDirect3DSwapChain9 *mSwapChain;
     IDirect3DSurface9 *mBackBuffer;
     IDirect3DSurface9 *mRenderTarget;
     IDirect3DSurface9 *mDepthStencil;
     IDirect3DTexture9 *mFlipTexture;
 
-    void applyFlipState(IDirect3DDevice9 *device, IDirect3DTexture9 *source);
+    bool checkForOutOfDateSwapChain();
+
+    static DWORD convertInterval(EGLint interval);
+
+    void applyFlipState(IDirect3DDevice9 *device);
     void restoreState(IDirect3DDevice9 *device);
-    void writeRecordableFlipState(IDirect3DDevice9 *device, IDirect3DTexture9 *source);
+    void writeRecordableFlipState(IDirect3DDevice9 *device);
+    void releaseRecordedState(IDirect3DDevice9 *device);
     IDirect3DStateBlock9 *mFlipState;
     IDirect3DStateBlock9 *mPreFlipState;
     IDirect3DSurface9 *mPreFlipBackBuffer;
     IDirect3DSurface9 *mPreFlipDepthStencil;
 
+    const HWND mWindow;            // Window that the surface is created for.
     const egl::Config *mConfig;    // EGL config surface was created with
     EGLint mHeight;                // Height of surface
     EGLint mWidth;                 // Width of surface
@@ -72,6 +83,9 @@ class Surface
 //  EGLenum textureTarget;         // Type of texture: 2D or no texture
 //  EGLenum vgAlphaFormat;         // Alpha format for OpenVG
 //  EGLenum vgColorSpace;          // Color space for OpenVG
+    EGLint mSwapInterval;
+    DWORD mPresentInterval;
+    bool mPresentIntervalDirty;
 };
 }
 

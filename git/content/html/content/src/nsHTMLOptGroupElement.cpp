@@ -56,7 +56,7 @@ class nsHTMLOptGroupElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLOptGroupElement
 {
 public:
-  nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo);
+  nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOptGroupElement();
 
   // nsISupports
@@ -86,6 +86,7 @@ public:
  
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   /**
@@ -99,7 +100,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
 
-nsHTMLOptGroupElement::nsHTMLOptGroupElement(nsINodeInfo *aNodeInfo)
+nsHTMLOptGroupElement::nsHTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -113,7 +114,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
+DOMCI_NODE_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
 
 // QueryInterface implementation for nsHTMLOptGroupElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)
@@ -137,10 +138,8 @@ nsHTMLOptGroupElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  PRBool disabled;
-  nsresult rv = GetDisabled(&disabled);
-  if (NS_FAILED(rv) || disabled) {
-    return rv;
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+    return NS_OK;
   }
 
   nsIFrame* frame = GetPrimaryFrame();
@@ -199,9 +198,8 @@ PRInt32
 nsHTMLOptGroupElement::IntrinsicState() const
 {
   PRInt32 state = nsGenericHTMLElement::IntrinsicState();
-  PRBool disabled;
-  GetBoolAttr(nsGkAtoms::disabled, &disabled);
-  if (disabled) {
+
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {

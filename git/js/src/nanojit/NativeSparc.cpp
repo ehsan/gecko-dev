@@ -153,12 +153,13 @@ namespace nanojit
 
     void Assembler::asm_call(LIns* ins)
     {
-        Register retReg = ( ins->isop(LIR_calld) ? F0 : retRegs[0] );
-        deprecated_prepResultReg(ins, rmask(retReg));
+        if (!ins->isop(LIR_callv)) {
+            Register retReg = ( ins->isop(LIR_calld) ? F0 : retRegs[0] );
+            deprecated_prepResultReg(ins, rmask(retReg));
+        }
 
         // Do this after we've handled the call result, so we don't
         // force the call result to be spilled unnecessarily.
-
         evictScratchRegsExcept(0);
 
         const CallInfo* ci = ins->callInfo();
@@ -169,7 +170,8 @@ namespace nanojit
         ArgType argTypes[MAXARGS];
         uint32_t argc = ci->getArgTypes(argTypes);
 
-        NanoAssert(ins->isop(LIR_callp) || ins->isop(LIR_calld));
+        NanoAssert(ins->isop(LIR_callv) || ins->isop(LIR_callp) ||
+                   ins->isop(LIR_calld));
         verbose_only(if (_logc->lcbits & LC_Native)
                      outputf("        %p:", _nIns);
                      )
@@ -234,7 +236,6 @@ namespace nanojit
     {
         a.clear();
         a.free = GpRegs | FpRegs;
-        debug_only( a.managed = a.free; )
     }
 
     void Assembler::nPatchBranch(NIns* branch, NIns* location)
@@ -247,7 +248,9 @@ namespace nanojit
 
     RegisterMask Assembler::nHint(LIns* ins)
     {
+        // Never called, because no entries in nHints[] == PREFER_SPECIAL.
         NanoAssert(0);
+        return 0;
     }
 
     bool Assembler::canRemat(LIns* ins)
@@ -329,7 +332,7 @@ namespace nanojit
             }
     }
 
-    void Assembler::asm_spill(Register rr, int d, bool pop, bool quad)
+    void Assembler::asm_spill(Register rr, int d, bool quad)
     {
         underrunProtect(24);
         (void)quad;
@@ -535,7 +538,7 @@ namespace nanojit
         return at;
     }
 
-    NIns* Assembler::asm_branch_ov(LOpcode, NIns* targ)
+    NIns* Assembler::asm_branch_ov(LOpcode op, NIns* targ)
     {
         NIns* at = 0;
         underrunProtect(32);
@@ -550,7 +553,10 @@ namespace nanojit
         }
         NOP();
 
-        BVS(0, tt);
+        if( op == LIR_mulxovi || op == LIR_muljovi )
+            BNE(0, tt);
+        else
+            BVS(0, tt);
         return at;
     }
 
@@ -643,7 +649,7 @@ namespace nanojit
 
         Register rb = deprecated_UnknownReg;
         RegisterMask allow = GpRegs;
-        bool forceReg = (op == LIR_muli || op == LIR_mulxovi || !rhs->isImmI());
+        bool forceReg = (op == LIR_muli || op == LIR_mulxovi || op == LIR_muljovi || !rhs->isImmI());
 
         if (lhs != rhs && forceReg)
             {
@@ -658,6 +664,7 @@ namespace nanojit
             int d = findMemFor(lhs) + rhs->immI();
             ADD(FP, L2, rr);
             SET32(d, L2);
+            return;
         }
 
         Register rr = deprecated_prepResultReg(ins, allow);
@@ -676,8 +683,14 @@ namespace nanojit
                     ADDCC(rr, rb, rr);
                 else if (op == LIR_subi || op == LIR_subxovi)
                     SUBCC(rr, rb, rr);
-                else if (op == LIR_muli || op == LIR_mulxovi)
-                    MULX(rr, rb, rr);
+                else if (op == LIR_muli)
+                    SMULCC(rr, rb, rr);
+                else if (op == LIR_mulxovi || op == LIR_muljovi) {
+                    SUBCC(L4, L6, L4);
+                    SRAI(rr, 31, L6);
+                    RDY(L4);
+                    SMULCC(rr, rb, rr);
+                }
                 else if (op == LIR_andi)
                     AND(rr, rb, rr);
                 else if (op == LIR_ori)

@@ -134,7 +134,6 @@ public:
 
   virtual nsresult        EvictEntries(const char * clientID);
 
-
   /* Entry ownership */
   nsresult                GetOwnerDomains(const char *        clientID,
                                           PRUint32 *          count,
@@ -275,6 +274,8 @@ private:
   nsInterfaceHashtable<nsCStringHashKey, nsIWeakReference> mCaches;
   nsClassHashtable<nsCStringHashKey, nsCString> mActiveCachesByGroup;
   nsCStringHashSet mActiveCaches;
+
+  nsCOMPtr<nsIThread> mInitThread;
 };
 
 #endif // nsOfflineCacheDevice_h__

@@ -111,6 +111,8 @@ class Array : public Vector<T, N, SystemAllocPolicy>
 // String and AutoString classes, based on Vector.
 typedef Vector<jschar,  0, SystemAllocPolicy> String;
 typedef Vector<jschar, 64, SystemAllocPolicy> AutoString;
+typedef Vector<char,    0, SystemAllocPolicy> CString;
+typedef Vector<char,   64, SystemAllocPolicy> AutoCString;
 
 // Convenience functions to append, insert, and compare Strings.
 template <class T, size_t N, class AP, size_t ArrayLength>
@@ -140,6 +142,20 @@ AppendString(Vector<jschar, N, AP> &v, JSString* str)
 {
   JS_ASSERT(str);
   v.append(str->chars(), str->length());
+}
+
+template <size_t N, class AP>
+void
+AppendString(Vector<char, N, AP> &v, JSString* str)
+{
+  JS_ASSERT(str);
+  size_t vlen = v.length();
+  size_t alen = str->length();
+  if (!v.resize(vlen + alen))
+    return;
+
+  for (size_t i = 0; i < alen; ++i)
+    v[i + vlen] = char(str->chars()[i]);
 }
 
 template <class T, size_t N, class AP, size_t ArrayLength>
@@ -203,6 +219,12 @@ StringsEqual(Vector<jschar, N, AP> &v, JSString* str)
 ** Function and struct API definitions
 *******************************************************************************/
 
+JS_ALWAYS_INLINE void
+ASSERT_OK(JSBool ok)
+{
+  JS_ASSERT(ok);
+}
+
 // for JS error reporting
 enum ErrorNum {
 #define MSG_DEF(name, number, count, exception, format) \
@@ -220,11 +242,13 @@ JSBool TypeError(JSContext* cx, const char* expected, jsval actual);
  * ABI constants that specify the calling convention to use.
  * ctypes.default_abi corresponds to the cdecl convention, and in almost all
  * cases is the correct choice. ctypes.stdcall_abi is provided for calling
- * functions in the Microsoft Win32 API.
+ * stdcall functions on Win32, and implies stdcall symbol name decoration;
+ * ctypes.winapi_abi is just stdcall but without decoration.
  */
 enum ABICode {
   ABI_DEFAULT,
   ABI_STDCALL,
+  ABI_WINAPI,
   INVALID_ABI
 };
 
@@ -319,6 +343,10 @@ struct ClosureInfo
 #endif
 };
 
+bool IsCTypesGlobal(JSContext* cx, JSObject* obj);
+
+JSCTypesCallbacks* GetCallbacks(JSContext* cx, JSObject* obj);
+
 JSBool InitTypeClasses(JSContext* cx, JSObject* parent);
 
 JSBool ConvertToJS(JSContext* cx, JSObject* typeObj, JSObject* dataObj,
@@ -333,6 +361,11 @@ JSBool ExplicitConvert(JSContext* cx, jsval val, JSObject* targetType,
 /*******************************************************************************
 ** JSClass reserved slot definitions
 *******************************************************************************/
+
+enum CTypesGlobalSlot {
+  SLOT_CALLBACKS = 0, // pointer to JSCTypesCallbacks struct
+  CTYPESGLOBAL_SLOTS
+};
 
 enum CABISlot {
   SLOT_ABICODE = 0, // ABICode of the CABI object
@@ -426,6 +459,7 @@ namespace CType {
   JSString* GetName(JSContext* cx, JSObject* obj);
   JSObject* GetProtoFromCtor(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
   JSObject* GetProtoFromType(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
+  JSCTypesCallbacks* GetCallbacksFromType(JSContext* cx, JSObject* obj);
 }
 
 namespace PointerType {
@@ -448,7 +482,7 @@ namespace StructType {
   JSBool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
 
   const FieldInfoHash* GetFieldInfo(JSContext* cx, JSObject* obj);
-  const FieldInfo* LookupField(JSContext* cx, JSObject* obj, jsval idval);
+  const FieldInfo* LookupField(JSContext* cx, JSObject* obj, JSString *name);
   JSObject* BuildFieldsArray(JSContext* cx, JSObject* obj);
   ffi_type* BuildFFIType(JSContext* cx, JSObject* obj);
 }
@@ -462,6 +496,8 @@ namespace FunctionType {
 
   FunctionInfo* GetFunctionInfo(JSContext* cx, JSObject* obj);
   JSObject* GetLibrary(JSContext* cx, JSObject* obj);
+  void BuildSymbolName(JSContext* cx, JSString* name, JSObject* typeObj,
+    AutoCString& result);
 }
 
 namespace CClosure {

@@ -43,7 +43,6 @@
 #include "jArray.h"
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Parser.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
@@ -91,6 +90,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     PRInt32 listPtr;
     nsIContent** formPointer;
     nsIContent** headPointer;
+    nsIContent** deepTreeSurrogateParent;
   protected:
     jArray<PRUnichar,PRInt32> charBuffer;
     PRInt32 charBufferLen;
@@ -105,6 +105,9 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void eof();
     void endTokenization();
     void startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, PRBool selfClosing);
+  private:
+    PRBool isSpecialParentInForeign(nsHtml5StackNode* stackNode);
+  public:
     static nsString* extractCharsetFromContent(nsString* attributeValue);
   private:
     void checkMetaCharset(nsHtml5HtmlAttributes* attributes);
@@ -114,6 +117,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     PRInt32 findLastInTableScopeOrRootTbodyTheadTfoot();
     PRInt32 findLast(nsIAtom* name);
     PRInt32 findLastInTableScope(nsIAtom* name);
+    PRInt32 findLastInButtonScope(nsIAtom* name);
     PRInt32 findLastInScope(nsIAtom* name);
     PRInt32 findLastInListScope(nsIAtom* name);
     PRInt32 findLastInScopeHn();
@@ -183,7 +187,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes);
   protected:
     void accumulateCharacters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
-    void accumulateCharacter(PRUnichar c);
     void requestSuspension();
     nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
     nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
@@ -206,6 +209,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void elementPushed(PRInt32 ns, nsIAtom* name, nsIContent** node);
     void elementPopped(PRInt32 ns, nsIAtom* name, nsIContent** node);
   public:
+    PRBool cdataSectionAllowed();
     void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent** node, PRBool quirks);
   protected:
     nsIContent** currentNode();
@@ -224,6 +228,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
   public:
     nsIContent** getFormPointer();
     nsIContent** getHeadPointer();
+    nsIContent** getDeepTreeSurrogateParent();
     jArray<nsHtml5StackNode*,PRInt32> getListOfActiveFormattingElements();
     jArray<nsHtml5StackNode*,PRInt32> getStack();
     PRInt32 getMode();
@@ -293,7 +298,7 @@ jArray<const char*,PRInt32> nsHtml5TreeBuilder::QUIRKY_PUBLIC_IDS = nsnull;
 #define NS_HTML5TREE_BUILDER_UL_OR_OL_OR_DL 46
 #define NS_HTML5TREE_BUILDER_IFRAME 47
 #define NS_HTML5TREE_BUILDER_EMBED_OR_IMG 48
-#define NS_HTML5TREE_BUILDER_AREA_OR_SPACER_OR_WBR 49
+#define NS_HTML5TREE_BUILDER_AREA_OR_WBR 49
 #define NS_HTML5TREE_BUILDER_DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU 50
 #define NS_HTML5TREE_BUILDER_ADDRESS_OR_DIR_OR_ARTICLE_OR_ASIDE_OR_DATAGRID_OR_DETAILS_OR_HGROUP_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_NAV_OR_SECTION 51
 #define NS_HTML5TREE_BUILDER_RUBY_OR_SPAN_OR_SUB_OR_SUP_OR_VAR 52
@@ -345,6 +350,7 @@ jArray<const char*,PRInt32> nsHtml5TreeBuilder::QUIRKY_PUBLIC_IDS = nsnull;
 #define NS_HTML5TREE_BUILDER_CHARSET_DOUBLE_QUOTED 10
 #define NS_HTML5TREE_BUILDER_CHARSET_UNQUOTED 11
 #define NS_HTML5TREE_BUILDER_NOT_FOUND_ON_STACK PR_INT32_MAX
+#define NS_HTML5TREE_BUILDER_AAA_MAX_ITERATIONS 10
 
 
 #endif

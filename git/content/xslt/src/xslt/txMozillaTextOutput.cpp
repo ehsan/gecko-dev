@@ -219,8 +219,9 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
             RegisterNameSpace(NS_LITERAL_STRING(kTXNameSpaceURI), namespaceID);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = mDocument->CreateElem(nsGkAtoms::result, nsGkAtoms::transformiix,
-                                   namespaceID, PR_FALSE, getter_AddRefs(mTextParent));
+        rv = mDocument->CreateElem(nsDependentAtomString(nsGkAtoms::result),
+                                   nsGkAtoms::transformiix, namespaceID,
+                                   PR_FALSE, getter_AddRefs(mTextParent));
         NS_ENSURE_SUCCESS(rv, rv);
 
 
@@ -292,6 +293,6 @@ txMozillaTextOutput::createXHTMLElement(nsIAtom* aName,
         GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    return NS_NewHTMLElement(aResult, ni, PR_FALSE);
+    return NS_NewHTMLElement(aResult, ni.forget(), PR_FALSE);
 }
 

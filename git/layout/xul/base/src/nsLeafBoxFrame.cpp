@@ -167,7 +167,7 @@ nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayEventReceiver(this));
+      nsDisplayEventReceiver(aBuilder, this));
 }
 
 /* virtual */ nscoord
@@ -340,7 +340,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   aDesiredSize.ascent = GetBoxAscent(state);
 
   // the overflow rect is set in SetBounds() above
-  aDesiredSize.mOverflowArea = GetOverflowRect();
+  aDesiredSize.mOverflowAreas = GetOverflowAreas();
 
 #ifdef DO_NOISY_REFLOW
   {

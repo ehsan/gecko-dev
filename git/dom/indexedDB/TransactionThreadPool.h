@@ -71,12 +71,15 @@ public:
 
   // returns a non-owning ref!
   static TransactionThreadPool* GetOrCreate();
+  static TransactionThreadPool* Get();
   static void Shutdown();
 
   nsresult Dispatch(IDBTransaction* aTransaction,
                     nsIRunnable* aRunnable,
                     bool aFinish,
                     nsIRunnable* aFinishRunnable);
+
+  void WaitForAllTransactionsToComplete(IDBDatabase* aDatabase);
 
 protected:
   class TransactionQueue : public nsIRunnable
@@ -101,27 +104,11 @@ protected:
     bool mShouldFinish;
   };
 
-  struct TransactionObjectStoreInfo
-  {
-    TransactionObjectStoreInfo()
-    : writing(false), writerWaiting(false)
-    { }
-
-    nsString objectStoreName;
-    bool writing;
-    bool writerWaiting;
-  };
-
   struct TransactionInfo
   {
-    TransactionInfo()
-    : mode(nsIIDBTransaction::READ_ONLY)
-    { }
-
     nsRefPtr<IDBTransaction> transaction;
     nsRefPtr<TransactionQueue> queue;
-    nsTArray<TransactionObjectStoreInfo> objectStoreInfo;
-    PRUint16 mode;
+    nsTArray<nsString> objectStoreNames;
   };
 
   struct DatabaseTransactionInfo
@@ -133,6 +120,20 @@ protected:
     bool locked;
     bool lockPending;
     nsTArray<TransactionInfo> transactions;
+    nsTArray<nsString> storesReading;
+    nsTArray<nsString> storesWriting;
+  };
+
+  struct QueuedDispatchInfo
+  {
+    QueuedDispatchInfo()
+    : finish(false)
+    { }
+
+    nsRefPtr<IDBTransaction> transaction;
+    nsCOMPtr<nsIRunnable> runnable;
+    nsCOMPtr<nsIRunnable> finishRunnable;
+    bool finish;
   };
 
   TransactionThreadPool();
@@ -143,8 +144,15 @@ protected:
 
   void FinishTransaction(IDBTransaction* aTransaction);
 
-  bool TransactionCanRun(IDBTransaction* aTransaction,
-                         TransactionQueue** aQueue);
+  nsresult TransactionCanRun(IDBTransaction* aTransaction,
+                             bool* aCanRun,
+                             TransactionQueue** aExistingQueue);
+
+  nsresult Dispatch(const QueuedDispatchInfo& aInfo)
+  {
+    return Dispatch(aInfo.transaction, aInfo.runnable, aInfo.finish,
+                    aInfo.finishRunnable);
+  }
 
   nsCOMPtr<nsIThreadPool> mThreadPool;
 

@@ -157,7 +157,16 @@ public:
 
   void VerticallyAlignChild(nscoord aMaxAscent);
 
-  PRBool HasVerticalAlignBaseline();
+  /*
+   * Get the value of vertical-align adjusted for CSS 2's rules for a
+   * table cell, which means the result is always
+   * NS_STYLE_VERTICAL_ALIGN_{TOP,MIDDLE,BOTTOM,BASELINE}.
+   */
+  PRUint8 GetVerticalAlign() const;
+
+  PRBool HasVerticalAlignBaseline() const {
+    return GetVerticalAlign() == NS_STYLE_VERTICAL_ALIGN_BASELINE;
+  }
 
   PRBool CellHasVisibleContent(nscoord       height,
                                nsTableFrame* tableFrame,
@@ -238,14 +247,13 @@ protected:
   virtual PRIntn GetSkipSides() const;
 
   /**
-   * GetSelfOverflow says what effect the cell should have on its own
-   * overflow area.  In the separated borders model this should just be
-   * the frame's size (as it is for most frames), but in the collapsed
+   * GetBorderOverflow says how far the cell's own borders extend
+   * outside its own bounds.  In the separated borders model this should
+   * just be zero (as it is for most frames), but in the collapsed
    * borders model (for which nsBCTableCellFrame overrides this virtual
-   * method), it considers the extents of the collapsed border so we
-   * handle invalidation correctly for dynamic border changes.
+   * method), it considers the extents of the collapsed border.
    */
-  virtual void GetSelfOverflow(nsRect& aOverflowArea);
+  virtual nsMargin GetBorderOverflow();
 
   friend class nsTableRowFrame;
 
@@ -313,6 +321,7 @@ public:
   virtual nsIAtom* GetType() const;
 
   virtual nsMargin GetUsedBorder() const;
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
   // Get the *inner half of the border only*, in twips.
   virtual nsMargin* GetBorderWidth(nsMargin& aBorder) const;
@@ -323,7 +332,7 @@ public:
   // Set the full (both halves) width of the border
   void SetBorderWidth(mozilla::css::Side aSide, BCPixelSize aPixelValue);
 
-  virtual void GetSelfOverflow(nsRect& aOverflowArea);
+  virtual nsMargin GetBorderOverflow();
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

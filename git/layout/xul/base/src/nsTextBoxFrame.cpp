@@ -331,12 +331,14 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
 
 class nsDisplayXULTextBox : public nsDisplayItem {
 public:
-  nsDisplayXULTextBox(nsTextBoxFrame* aFrame) : nsDisplayItem(aFrame) {
-      MOZ_COUNT_CTOR(nsDisplayXULTextBox);
+  nsDisplayXULTextBox(nsDisplayListBuilder* aBuilder,
+                      nsTextBoxFrame* aFrame) :
+    nsDisplayItem(aBuilder, aFrame) {
+    MOZ_COUNT_CTOR(nsDisplayXULTextBox);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayXULTextBox() {
-      MOZ_COUNT_DTOR(nsDisplayXULTextBox);
+    MOZ_COUNT_DTOR(nsDisplayXULTextBox);
   }
 #endif
 
@@ -344,6 +346,8 @@ public:
                      nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   NS_DISPLAY_DECL_NAME("XULTextBox", TYPE_XUL_TEXT_BOX)
+
+  virtual PRBool HasText() { return PR_TRUE; }
 };
 
 void
@@ -351,12 +355,12 @@ nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
                            nsIRenderingContext* aCtx)
 {
   static_cast<nsTextBoxFrame*>(mFrame)->
-    PaintTitle(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
+    PaintTitle(*aCtx, mVisibleRect, ToReferenceFrame());
 }
 
 nsRect
 nsDisplayXULTextBox::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
+  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
 }
 
 NS_IMETHODIMP
@@ -371,7 +375,7 @@ nsTextBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
     
     return aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayXULTextBox(this));
+        nsDisplayXULTextBox(aBuilder, this));
 }
 
 void
@@ -580,7 +584,7 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   shadowRect.MoveBy(shadowOffset);
 
   nsContextBoxBlur contextBoxBlur;
-  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
+  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
                                                   aCtx, aDirtyRect, nsnull);
 
@@ -954,11 +958,15 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
 
     const nsStyleText* textStyle = GetStyleText();
     if (textStyle->mTextShadow) {
+      nsRect bounds(nsPoint(0, 0), GetSize());
+      nsOverflowAreas overflow(bounds, bounds);
+      // Our scrollable overflow is our bounds; our visual overflow may
+      // extend beyond that.
       nsPoint origin(0,0);
       nsRect textRect = CalcTextRect(*aBoxLayoutState.GetRenderingContext(), origin);
-      nsRect overflowRect(nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
-      overflowRect.UnionRect(overflowRect, nsRect(nsPoint(0, 0), GetSize()));
-      FinishAndStoreOverflow(&overflowRect, GetSize());
+      nsRect &vis = overflow.VisualOverflow();
+      vis.UnionRect(vis, nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
+      FinishAndStoreOverflow(overflow, GetSize());
     }
     return rv;
 }

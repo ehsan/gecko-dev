@@ -46,7 +46,8 @@ class nsHTMLFrameElement : public nsGenericHTMLFrameElement,
                            public nsIDOMHTMLFrameElement
 {
 public:
-  nsHTMLFrameElement(nsINodeInfo *aNodeInfo);
+  nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                     PRUint32 aFromParser = NS_NOT_FROM_PARSER);
   virtual ~nsHTMLFrameElement();
 
   // nsISupports
@@ -72,14 +73,16 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Frame)
+NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Frame)
 
 
-nsHTMLFrameElement::nsHTMLFrameElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLFrameElement(aNodeInfo)
+nsHTMLFrameElement::nsHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                       PRUint32 aFromParser)
+  : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
 }
 
@@ -92,7 +95,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFrameElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFrameElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLFrameElement, nsHTMLFrameElement)
+DOMCI_NODE_DATA(HTMLFrameElement, nsHTMLFrameElement)
 
 // QueryInterface implementation for nsHTMLFrameElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFrameElement)
@@ -129,7 +132,7 @@ nsHTMLFrameElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::bordercolor) {
-      return aResult.ParseColor(aValue, GetOwnerDoc());
+      return aResult.ParseColor(aValue);
     }
     if (aAttribute == nsGkAtoms::frameborder) {
       return ParseFrameborderValue(aValue, aResult);

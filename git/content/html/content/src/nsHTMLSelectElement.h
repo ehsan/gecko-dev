@@ -45,7 +45,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsISelectElement.h"
 #include "nsIDOMHTMLSelectElement.h"
-#include "nsIDOMNSHTMLSelectElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLOptionsCollection.h"
@@ -53,6 +52,7 @@
 #include "nsISelectControlFrame.h"
 #include "nsContentUtils.h"
 #include "nsIHTMLCollection.h"
+#include "nsIConstraintValidation.h"
 
 // PresState
 #include "nsXPCOM.h"
@@ -60,7 +60,7 @@
 #include "nsIComponentManager.h"
 #include "nsCheapSets.h"
 #include "nsLayoutErrors.h"
-
+#include "nsHTMLOptionElement.h"
 
 class nsHTMLSelectElement;
 
@@ -87,13 +87,10 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
-  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
-  {
-    *aResult = NS_OK;
-
-    return mElements.SafeObjectAt(aIndex);
-  }
-  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache** aCache,
+                                    nsresult* aResult);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
                                            nsIHTMLCollection)
@@ -104,18 +101,18 @@ public:
    * @param aOption the option to insert
    * @param aIndex the index to insert at
    */
-  PRBool InsertOptionAt(nsIDOMHTMLOptionElement* aOption, PRInt32 aIndex)
+  PRBool InsertOptionAt(nsHTMLOptionElement* aOption, PRUint32 aIndex)
   {
-    return mElements.InsertObjectAt(aOption, aIndex);
+    return !!mElements.InsertElementAt(aIndex, aOption);
   }
 
   /**
    * Remove an option
    * @param aIndex the index of the option to remove
    */
-  void RemoveOptionAt(PRInt32 aIndex)
+  void RemoveOptionAt(PRUint32 aIndex)
   {
-    mElements.RemoveObjectAt(aIndex);
+    mElements.RemoveElementAt(aIndex);
   }
 
   /**
@@ -123,9 +120,9 @@ public:
    * @param aIndex the index
    * @param aReturn the option returned [OUT]
    */
-  nsIDOMHTMLOptionElement *ItemAsOption(PRInt32 aIndex)
+  nsHTMLOptionElement *ItemAsOption(PRUint32 aIndex)
   {
-    return mElements.SafeObjectAt(aIndex);
+    return mElements.SafeElementAt(aIndex, nsnull);
   }
 
   /**
@@ -139,9 +136,9 @@ public:
   /**
    * Append an option to end of array
    */
-  PRBool AppendOption(nsIDOMHTMLOptionElement* aOption)
+  PRBool AppendOption(nsHTMLOptionElement* aOption)
   {
-    return mElements.AppendObject(aOption);
+    return !!mElements.AppendElement(aOption);
   }
 
   /**
@@ -152,13 +149,13 @@ public:
   /**
    * See nsISelectElement.idl for documentation on this method
    */
-  nsresult GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
+  nsresult GetOptionIndex(mozilla::dom::Element* aOption,
                           PRInt32 aStartIndex, PRBool aForward,
                           PRInt32* aIndex);
 
 private:
   /** The list of options (holds strong references) */
-  nsCOMArray<nsIDOMHTMLOptionElement> mElements;
+  nsTArray<nsRefPtr<nsHTMLOptionElement> > mElements;
   /** The select element that contains this array */
   nsHTMLSelectElement* mSelect;
 };
@@ -240,11 +237,14 @@ private:
  */
 class nsHTMLSelectElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLSelectElement,
-                            public nsIDOMNSHTMLSelectElement,
-                            public nsISelectElement
+                            public nsISelectElement,
+                            public nsIConstraintValidation
 {
 public:
-  nsHTMLSelectElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
+  using nsIConstraintValidation::GetValidationMessage;
+
+  nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                      PRUint32 aFromParser = 0);
   virtual ~nsHTMLSelectElement();
 
   // nsISupports
@@ -262,9 +262,6 @@ public:
   // nsIDOMHTMLSelectElement
   NS_DECL_NSIDOMHTMLSELECTELEMENT
 
-  // nsIDOMNSHTMLSelectElement
-  NS_DECL_NSIDOMNSHTMLSELECTELEMENT
-
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
@@ -276,10 +273,13 @@ public:
   // Overriden nsIFormControl methods
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_SELECT; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                               nsIContent* aSubmitElement);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
+
+  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
+
+  PRInt32 IntrinsicState() const;
 
   // nsISelectElement
   NS_DECL_NSISELECTELEMENT
@@ -287,8 +287,13 @@ public:
   /**
    * Called when an attribute is about to be changed
    */
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                               nsIContent* aBindingParent,
+                               PRBool aCompileEventHandlers);
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString* aValue, PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
   
@@ -308,6 +313,21 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSelectElement,
                                                      nsGenericHTMLFormElement)
+
+  nsHTMLOptionCollection *GetOptions()
+  {
+    return mOptions;
+  }
+
+  static nsHTMLSelectElement *FromSupports(nsISupports *aSupports)
+  {
+    return static_cast<nsHTMLSelectElement*>(static_cast<nsINode*>(aSupports));
+  }
+
+  virtual nsXPCClassInfo* GetClassInfo();
+
+  // nsIConstraintValidation
+  void UpdateBarredFromConstraintValidation();
 
 protected:
   friend class nsSafeOptionListMutation;
@@ -446,11 +466,13 @@ protected:
    * Is this a combobox?
    */
   PRBool IsCombobox() {
-    PRBool isMultiple = PR_TRUE;
+    if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
+      return PR_FALSE;
+    }
+
     PRInt32 size = 1;
     GetSize(&size);
-    GetMultiple(&isMultiple);
-    return !isMultiple && size <= 1;
+    return size <= 1;
   }
 
   /**

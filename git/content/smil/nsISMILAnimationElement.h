@@ -46,14 +46,13 @@
 // some property of another element, e.g. <animate>, <set>.
 
 #define NS_ISMILANIMATIONELEMENT_IID \
-{ 0x5c891601, 0x47aa, 0x4230,        \
-  { 0xb8, 0xdc, 0xb9, 0x26, 0xd1, 0xe7, 0xd7, 0xf4 } }
+{ 0xaf92584b, 0x75b0, 0x4584,        \
+  { 0x87, 0xd2, 0xa8, 0x3, 0x34, 0xf0, 0x5, 0xaf } }
 
 class nsISMILAttr;
 class nsSMILAnimationFunction;
 class nsSMILTimeContainer;
 class nsSMILTimedElement;
-class nsIContent;
 class nsIAtom;
 class nsAttrValue;
 
@@ -75,14 +74,14 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISMILANIMATIONELEMENT_IID)
 
   /*
-   * Returns this element as nsIContent.
+   * Returns this element as a mozilla::dom::Element.
    */
-  virtual const nsIContent& Content() const = 0;
+  virtual const mozilla::dom::Element& AsElement() const = 0;
 
   /*
-   * Non-const version of Content()
+   * Non-const version of Element()
    */
-  virtual nsIContent& Content() = 0;
+  virtual mozilla::dom::Element& AsElement() = 0;
 
   /*
    * Returns the source attribute as an nsAttrValue. The global namespace will
@@ -121,7 +120,8 @@ public:
   /*
    * Returns the name of the target (animated) attribute or property.
    */
-  virtual nsIAtom* GetTargetAttributeName() const = 0;
+  virtual PRBool GetTargetAttributeName(PRInt32* aNamespaceID,
+                                        nsIAtom** aLocalName) const = 0;
 
   /*
    * Returns the type of the target (animated) attribute or property.

@@ -95,6 +95,7 @@
 #include "nsIChromeRegistry.h"
 #include "nsPrintfCString.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -116,9 +117,15 @@ static JSEqualityOp sXPCWrappedNativeEqualityOps;
 ///////////////////////////
 // Result of this function should not be freed.
 static inline const PRUnichar *
-JSValIDToString(JSContext *cx, const jsval idval)
+IDToString(JSContext *cx, jsid id)
 {
+    if (JSID_IS_STRING(id))
+        return reinterpret_cast<PRUnichar*>(JS_GetStringChars(JSID_TO_STRING(id)));
+
     JSAutoRequest ar(cx);
+    jsval idval;
+    if (!JS_IdToValue(cx, id, &idval))
+        return nsnull;
     JSString *str = JS_ValueToString(cx, idval);
     if(!str)
         return nsnull;
@@ -565,7 +572,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
 JSBool
 nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
-                                           jsval id, JSAccessMode mode,
+                                           jsid id, JSAccessMode mode,
                                            jsval *vp)
 {
     // Get the security manager
@@ -604,7 +611,7 @@ NS_IMETHODIMP
 nsScriptSecurityManager::CheckPropertyAccess(JSContext* cx,
                                              JSObject* aJSObject,
                                              const char* aClassName,
-                                             jsval aProperty,
+                                             jsid aProperty,
                                              PRUint32 aAction)
 {
     return CheckPropertyAccessImpl(aAction, nsnull, cx, aJSObject,
@@ -684,7 +691,7 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
                                                  JSContext* cx, JSObject* aJSObject,
                                                  nsISupports* aObj, nsIURI* aTargetURI,
                                                  nsIClassInfo* aClassInfo,
-                                                 const char* aClassName, jsval aProperty,
+                                                 const char* aClassName, jsid aProperty,
                                                  void** aCachedClassPolicy)
 {
     nsresult rv;
@@ -703,7 +710,7 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
     ClassInfoData classInfoData(aClassInfo, aClassName);
 #ifdef DEBUG_CAPS_CheckPropertyAccessImpl
     nsCAutoString propertyName;
-    propertyName.AssignWithConversion((PRUnichar*)JSValIDToString(cx, aProperty));
+    propertyName.AssignWithConversion((PRUnichar*)IDToString(cx, aProperty));
     printf("### CanAccess(%s.%s, %i) ", classInfoData.GetName(), 
            propertyName.get(), aAction);
 #endif
@@ -825,17 +832,17 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
             {
             case nsIXPCSecurityManager::ACCESS_GET_PROPERTY:
                 checkedComponent->CanGetProperty(objIID,
-                                                 JSValIDToString(cx, aProperty),
+                                                 IDToString(cx, aProperty),
                                                  getter_Copies(objectSecurityLevel));
                 break;
             case nsIXPCSecurityManager::ACCESS_SET_PROPERTY:
                 checkedComponent->CanSetProperty(objIID,
-                                                 JSValIDToString(cx, aProperty),
+                                                 IDToString(cx, aProperty),
                                                  getter_Copies(objectSecurityLevel));
                 break;
             case nsIXPCSecurityManager::ACCESS_CALL_METHOD:
                 checkedComponent->CanCallMethod(objIID,
-                                                JSValIDToString(cx, aProperty),
+                                                IDToString(cx, aProperty),
                                                 getter_Copies(objectSecurityLevel));
             }
         }
@@ -906,7 +913,7 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
         {
             subjectOriginUnicode.get(),
             className.get(),
-            JSValIDToString(cx, aProperty),
+            IDToString(cx, aProperty),
             objectOriginUnicode.get(),
             subjectDomainUnicode.get(),
             objectDomainUnicode.get()
@@ -1075,7 +1082,7 @@ nsScriptSecurityManager::CheckSameOriginDOMProp(nsIPrincipal* aSubject,
 nsresult
 nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
                                       ClassInfoData& aClassData,
-                                      jsval aProperty,
+                                      jsid aProperty,
                                       PRUint32 aAction,
                                       ClassPolicy** aCachedClassPolicy,
                                       SecurityLevel* result)
@@ -1186,6 +1193,15 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
             *aCachedClassPolicy = cpolicy;
     }
 
+    NS_ASSERTION(JSID_IS_INT(aProperty) || JSID_IS_OBJECT(aProperty) ||
+                 JSID_IS_STRING(aProperty), "Property must be a valid id");
+
+    // Only atomized strings are stored in the policies' hash tables.
+    if (!JSID_IS_STRING(aProperty))
+        return NS_OK;
+
+    JSString *propertyKey = JSID_TO_STRING(aProperty);
+
     // We look for a PropertyPolicy in the following places:
     // 1)  The ClassPolicy for our class we got from our DomainPolicy
     // 2)  The mWildcardPolicy of our DomainPolicy
@@ -1196,7 +1212,7 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
     {
         ppolicy = static_cast<PropertyPolicy*>
                              (PL_DHashTableOperate(cpolicy->mPolicy,
-                                                      (void*)aProperty,
+                                                      propertyKey,
                                                       PL_DHASH_LOOKUP));
     }
 
@@ -1208,7 +1224,7 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
         ppolicy =
             static_cast<PropertyPolicy*>
                        (PL_DHashTableOperate(dpolicy->mWildcardPolicy->mPolicy,
-                                                (void*)aProperty,
+                                                propertyKey,
                                                 PL_DHASH_LOOKUP));
     }
 
@@ -1228,7 +1244,7 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
             ppolicy =
                 static_cast<PropertyPolicy*>
                            (PL_DHashTableOperate(cpolicy->mPolicy,
-                                                    (void*)aProperty,
+                                                    propertyKey,
                                                     PL_DHASH_LOOKUP));
         }
 
@@ -1238,7 +1254,7 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
             ppolicy =
               static_cast<PropertyPolicy*>
                          (PL_DHashTableOperate(mDefaultPolicy->mWildcardPolicy->mPolicy,
-                                                  (void*)aProperty,
+                                                  propertyKey,
                                                   PL_DHASH_LOOKUP));
         }
     }
@@ -2368,7 +2384,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     JSObject* origObj = aObj;
 #endif
     
-    const JSClass *jsClass = aObj->getClass();
+    js::Class *jsClass = aObj->getClass();
 
     // A common case seen in this code is that we enter this function
     // with aObj being a Function object, whose parent is a Call
@@ -2402,11 +2418,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
         // NOTE: These class and equality hook checks better match
         // what IS_WRAPPER_CLASS() does in xpconnect!
         
-        JSEqualityOp op =
-            (jsClass->flags & JSCLASS_IS_EXTENDED) ?
-            reinterpret_cast<const JSExtendedClass*>(jsClass)->equality :
-            nsnull;
-        if (op == sXPCWrappedNativeEqualityOps) {
+        if (jsClass->ext.equality == js::Valueify(sXPCWrappedNativeEqualityOps)) {
             result = sXPConnect->GetPrincipal(aObj,
 #ifdef DEBUG
                                               aAllowShortCircuit
@@ -2453,10 +2465,19 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
         jsClass = aObj->getClass();
     } while (1);
 
-    NS_ASSERTION(!aAllowShortCircuit ||
-                 result == doGetObjectPrincipal(origObj, PR_FALSE),
-                 "Principal mismatch.  Not good");
-    
+#ifdef DEBUG
+    if (aAllowShortCircuit) {
+        nsIPrincipal *principal = doGetObjectPrincipal(origObj, PR_FALSE);
+
+        // Location is always wrapped (even for same-compartment), so we can
+        // loosen the check to same-origin instead of same-principal.
+        NS_ASSERTION(strcmp(jsClass->name, "Location") == 0 ?
+                     NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)) :
+                     result == principal,
+                     "Principal mismatch.  Not good");
+    }
+#endif
+
     return result;
 }
 
@@ -3041,11 +3062,11 @@ nsScriptSecurityManager::CheckComponentPermissions(JSContext *cx,
     // Look up the policy for this class.
     // while this isn't a property we'll treat it as such, using ACCESS_CALL_METHOD
     JSAutoRequest ar(cx);
-    jsval cidVal = STRING_TO_JSVAL(::JS_InternString(cx, cid.get()));
+    jsid cidId = INTERNED_STRING_TO_JSID(::JS_InternString(cx, cid.get()));
 
     ClassInfoData nameData(nsnull, "ClassID");
     SecurityLevel securityLevel;
-    rv = LookupPolicy(subjectPrincipal, nameData, cidVal,
+    rv = LookupPolicy(subjectPrincipal, nameData, cidId,
                       nsIXPCSecurityManager::ACCESS_CALL_METHOD, 
                       nsnull, &securityLevel);
     if (NS_FAILED(rv))
@@ -3148,7 +3169,7 @@ nsScriptSecurityManager::CanAccess(PRUint32 aAction,
                                    JSObject* aJSObject,
                                    nsISupports* aObj,
                                    nsIClassInfo* aClassInfo,
-                                   jsval aPropertyName,
+                                   jsid aPropertyName,
                                    void** aPolicy)
 {
     return CheckPropertyAccessImpl(aAction, aCallContext, cx,
@@ -3246,9 +3267,10 @@ nsScriptSecurityManager::CheckXPCPermissions(JSContext* cx,
 // Method implementing nsIChannelEventSink //
 /////////////////////////////////////////////
 NS_IMETHODIMP
-nsScriptSecurityManager::OnChannelRedirect(nsIChannel* oldChannel, 
-                                           nsIChannel* newChannel,
-                                           PRUint32 redirFlags)
+nsScriptSecurityManager::AsyncOnChannelRedirect(nsIChannel* oldChannel, 
+                                                nsIChannel* newChannel,
+                                                PRUint32 redirFlags,
+                                                nsIAsyncVerifyRedirectCallback *cb)
 {
     nsCOMPtr<nsIPrincipal> oldPrincipal;
     GetChannelPrincipal(oldChannel, getter_AddRefs(oldPrincipal));
@@ -3267,7 +3289,12 @@ nsScriptSecurityManager::OnChannelRedirect(nsIChannel* oldChannel,
     if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
         rv = CheckLoadURIWithPrincipal(oldPrincipal, newOriginalURI, flags);
     }
-    return rv;
+
+    if (NS_FAILED(rv))
+        return rv;
+
+    cb->OnRedirectVerifyCallback(NS_OK);
+    return NS_OK;
 }
 
 
@@ -3348,8 +3375,8 @@ nsresult nsScriptSecurityManager::Init()
     if (!cx) return NS_ERROR_FAILURE;   // this can happen of xpt loading fails
     
     ::JS_BeginRequest(cx);
-    if (sEnabledID == JSVAL_VOID)
-        sEnabledID = STRING_TO_JSVAL(::JS_InternString(cx, "enabled"));
+    if (sEnabledID == JSID_VOID)
+        sEnabledID = INTERNED_STRING_TO_JSID(::JS_InternString(cx, "enabled"));
     ::JS_EndRequest(cx);
 
     InitPrefs();
@@ -3402,7 +3429,7 @@ nsresult nsScriptSecurityManager::Init()
 
 static nsScriptSecurityManager *gScriptSecMan = nsnull;
 
-jsval nsScriptSecurityManager::sEnabledID   = JSVAL_VOID;
+jsid nsScriptSecurityManager::sEnabledID   = JSID_VOID;
 
 nsScriptSecurityManager::~nsScriptSecurityManager(void)
 {
@@ -3421,7 +3448,7 @@ nsScriptSecurityManager::Shutdown()
         JS_SetRuntimeSecurityCallbacks(sRuntime, NULL);
         sRuntime = nsnull;
     }
-    sEnabledID = JSVAL_VOID;
+    sEnabledID = JSID_VOID;
 
     NS_IF_RELEASE(sIOService);
     NS_IF_RELEASE(sXPConnect);
@@ -3751,11 +3778,9 @@ nsScriptSecurityManager::InitDomainPolicy(JSContext* cx,
             return NS_ERROR_OUT_OF_MEMORY;
 
         // Store this property in the class policy
-        const void* ppkey =
-          reinterpret_cast<const void*>(STRING_TO_JSVAL(propertyKey));
         PropertyPolicy* ppolicy = 
           static_cast<PropertyPolicy*>
-                     (PL_DHashTableOperate(cpolicy->mPolicy, ppkey,
+                     (PL_DHashTableOperate(cpolicy->mPolicy, propertyKey,
                                               PL_DHASH_ADD));
         if (!ppolicy)
             break;
@@ -4023,7 +4048,7 @@ PrintPropertyPolicy(PLDHashTable *table, PLDHashEntryHdr *entry,
     JSContext* cx = (JSContext*)arg;
     prop.AppendInt((PRUint32)pp->key);
     prop += ' ';
-    prop.AppendWithConversion((PRUnichar*)JSValIDToString(cx, pp->key));
+    prop.AppendWithConversion((PRUnichar*)JS_GetStringChars(pp->key));
     prop += ": Get=";
     if (SECURITY_ACCESS_LEVEL_FLAG(pp->mGet))
         prop.AppendInt(pp->mGet.level);

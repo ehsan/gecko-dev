@@ -42,6 +42,8 @@
 
 #include <windows.h>
 
+struct ID3D10Texture2D;
+
 class THEBES_API gfxD2DSurface : public gfxASurface {
 public:
 
@@ -51,11 +53,20 @@ public:
     gfxD2DSurface(const gfxIntSize& size,
                   gfxImageFormat imageFormat = ImageFormatRGB24);
 
+    gfxD2DSurface(HANDLE handle, gfxContentType aContent);
+
+    gfxD2DSurface(ID3D10Texture2D *texture, gfxContentType aContent);
 
     gfxD2DSurface(cairo_surface_t *csurf);
 
     virtual ~gfxD2DSurface();
 
+    virtual TextQuality GetTextQualityInTransparentSurfaces()
+    {
+      // D2D always draws text in transparent surfaces with grayscale-AA,
+      // even if the text is over opaque pixels.
+      return TEXT_QUALITY_BAD;
+    }
 
     void Present();
     void Scroll(const nsIntPoint &aDelta, const nsIntRect &aClip);

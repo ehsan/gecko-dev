@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLSelectElement.h"
+#include "nsHTMLOptionElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsGkAtoms.h"
@@ -69,6 +70,10 @@
 #include "nsServiceManagerUtils.h"
 #include "nsRuleData.h"
 #include "nsEventDispatcher.h"
+#include "mozilla/dom/Element.h"
+#include "mozAutoDocUpdate.h"
+
+using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsSelectState, nsSelectState)
 NS_DEFINE_STATIC_IID_ACCESSOR(nsSelectState, NS_SELECT_STATE_IID)
@@ -134,7 +139,7 @@ nsSafeOptionListMutation::~nsSafeOptionListMutation()
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Select)
 
-nsHTMLSelectElement::nsHTMLSelectElement(nsINodeInfo *aNodeInfo,
+nsHTMLSelectElement::nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                          PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mOptions(new nsHTMLOptionCollection(this)),
@@ -173,14 +178,14 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSelectElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSelectElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLSelectElement, nsHTMLSelectElement)
+DOMCI_NODE_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLSelectElement,
                                    nsIDOMHTMLSelectElement,
-                                   nsIDOMNSHTMLSelectElement,
-                                   nsISelectElement)
+                                   nsISelectElement,
+                                   nsIConstraintValidation)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLSelectElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSelectElement)
@@ -191,6 +196,23 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSelectElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSelectElement)
 
+// nsIConstraintValidation
+NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLSelectElement)
+
+NS_IMETHODIMP
+nsHTMLSelectElement::SetCustomValidity(const nsAString& aError)
+{
+  nsIConstraintValidation::SetCustomValidity(aError);
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
+    MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
+                                            NS_EVENT_STATE_VALID);
+  }
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHTMLSelectElement::GetForm(nsIDOMHTMLFormElement** aForm)
@@ -271,9 +293,7 @@ nsHTMLSelectElement::InsertOptionsIntoList(nsIContent* aOptions,
         option->GetSelected(&selected);
         if (selected) {
           // Clear all other options
-          PRBool isMultiple;
-          GetMultiple(&isMultiple);
-          if (!isMultiple) {
+          if (!HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
             SetOptionsSelectedByIndex(i, i, PR_TRUE, PR_TRUE, PR_TRUE, PR_TRUE, nsnull);
           }
 
@@ -351,7 +371,7 @@ nsHTMLSelectElement::InsertOptionsIntoListRecurse(nsIContent* aOptions,
   // just not going to look for an option inside of an option.
   // Sue me.
 
-  nsCOMPtr<nsIDOMHTMLOptionElement> optElement(do_QueryInterface(aOptions));
+  nsHTMLOptionElement *optElement = nsHTMLOptionElement::FromContent(aOptions);
   if (optElement) {
     nsresult rv = mOptions->InsertOptionAt(optElement, *aInsertIndex);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -569,7 +589,7 @@ PRInt32
 nsHTMLSelectElement::GetFirstOptionIndex(nsIContent* aOptions)
 {
   PRInt32 listIndex = -1;
-  nsCOMPtr<nsIDOMHTMLOptionElement> optElement(do_QueryInterface(aOptions));
+  nsHTMLOptionElement *optElement = nsHTMLOptionElement::FromContent(aOptions);
   if (optElement) {
     GetOptionIndex(optElement, 0, PR_TRUE, &listIndex);
     // If you nested stuff under the option, you're just plain
@@ -671,8 +691,7 @@ nsHTMLSelectElement::Remove(PRInt32 aIndex)
 NS_IMETHODIMP
 nsHTMLSelectElement::GetOptions(nsIDOMHTMLOptionsCollection** aValue)
 {
-  *aValue = mOptions;
-  NS_IF_ADDREF(*aValue);
+  NS_IF_ADDREF(*aValue = GetOptions());
 
   return NS_OK;
 }
@@ -680,9 +699,7 @@ nsHTMLSelectElement::GetOptions(nsIDOMHTMLOptionsCollection** aValue)
 NS_IMETHODIMP
 nsHTMLSelectElement::GetType(nsAString& aType)
 {
-  PRBool isMultiple;
-  GetMultiple(&isMultiple);
-  if (isMultiple) {
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
     aType.AssignLiteral("select-multiple");
   }
   else {
@@ -728,7 +745,7 @@ nsHTMLSelectElement::SetLength(PRUint32 aLength)
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::option,
                                 getter_AddRefs(nodeInfo));
 
-    nsCOMPtr<nsIContent> element = NS_NewHTMLOptionElement(nodeInfo);
+    nsCOMPtr<nsIContent> element = NS_NewHTMLOptionElement(nodeInfo.forget());
     if (!element) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -795,7 +812,8 @@ nsHTMLSelectElement::GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
                                     PRInt32 aStartIndex, PRBool aForward,
                                     PRInt32* aIndex)
 {
-  return mOptions->GetOptionIndex(aOption, aStartIndex, aForward, aIndex);
+  nsCOMPtr<nsINode> option = do_QueryInterface(aOption);
+  return mOptions->GetOptionIndex(option->AsElement(), aStartIndex, aForward, aIndex);
 }
 
 PRBool
@@ -896,15 +914,9 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
     *aChangedSomething = PR_FALSE;
   }
 
-  nsresult rv;
-
   // Don't bother if the select is disabled
-  if (!aSetDisabled) {
-    PRBool selectIsDisabled = PR_FALSE;
-    rv = GetDisabled(&selectIsDisabled);
-    if (NS_SUCCEEDED(rv) && selectIsDisabled) {
-      return NS_OK;
-    }
+  if (!aSetDisabled && IsDisabled()) {
+    return NS_OK;
   }
 
   // Don't bother if there are no options
@@ -915,11 +927,7 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   }
 
   // First, find out whether multiple items can be selected
-  PRBool isMultiple;
-  rv = GetMultiple(&isMultiple);
-  if (NS_FAILED(rv)) {
-    isMultiple = PR_FALSE;
-  }
+  PRBool isMultiple = HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
 
   // These variables tell us whether any options were selected
   // or deselected.
@@ -1233,7 +1241,7 @@ nsHTMLSelectElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  *aIsFocusable = !IsDisabled();
 
   return PR_FALSE;
 }
@@ -1287,6 +1295,23 @@ nsHTMLSelectElement::SelectSomething()
 }
 
 nsresult
+nsHTMLSelectElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                nsIContent* aBindingParent,
+                                PRBool aCompileEventHandlers)
+{
+  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
+                                                     aBindingParent,
+                                                     aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // If there is a disabled fieldset in the parent chain, the element is now
+  // barred from constraint validation.
+  UpdateBarredFromConstraintValidation();
+
+  return rv;
+}
+
+nsresult
 nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                    const nsAString* aValue, PRBool aNotify)
 {
@@ -1297,6 +1322,26 @@ nsHTMLSelectElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   return nsGenericHTMLFormElement::BeforeSetAttr(aNameSpaceID, aName,
                                                  aValue, aNotify);
+}
+
+nsresult
+nsHTMLSelectElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                  const nsAString* aValue, PRBool aNotify)
+{
+  if (aName == nsGkAtoms::disabled && aNameSpaceID == kNameSpaceID_None) {
+    UpdateBarredFromConstraintValidation();
+    if (aNotify) {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+        doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_VALID |
+                                                NS_EVENT_STATE_INVALID);
+      }
+    }
+  }
+
+  return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName,
+                                                aValue, aNotify);
 }
 
 nsresult
@@ -1425,10 +1470,8 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  PRBool disabled;
-  nsresult rv = GetDisabled(&disabled);
-  if (NS_FAILED(rv) || disabled) {
-    return rv;
+  if (IsDisabled()) {
+    return NS_OK;
   }
 
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
@@ -1445,6 +1488,18 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   }
 
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
+}
+
+PRInt32
+nsHTMLSelectElement::IntrinsicState() const
+{
+  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
+
+  if (IsCandidateForConstraintValidation()) {
+    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
+  }
+
+  return state | NS_EVENT_STATE_OPTIONAL;
 }
 
 // nsIFormControl
@@ -1479,9 +1534,9 @@ nsHTMLSelectElement::SaveState()
     presState->SetStateProperty(state);
 
     if (mDisabledChanged) {
-      PRBool disabled;
-      GetDisabled(&disabled);
-      presState->SetDisabled(disabled);
+      // We do not want to save the real disabled state but the disabled
+      // attribute.
+      presState->SetDisabled(HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
     }
   }
 
@@ -1594,18 +1649,13 @@ nsHTMLSelectElement::Reset()
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
 NS_IMETHODIMP
-nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                                       nsIContent* aSubmitElement)
+nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   nsresult rv = NS_OK;
 
-  //
   // Disabled elements don't submit
-  //
-  PRBool disabled;
-  rv = GetDisabled(&disabled);
-  if (NS_FAILED(rv) || disabled) {
-    return rv;
+  if (IsDisabled()) {
+    return NS_OK;
   }
 
   //
@@ -1700,7 +1750,7 @@ AddOptionsRecurse(nsIContent* aRoot, nsHTMLOptionCollection* aArray)
 {
   nsIContent* child;
   for(PRUint32 i = 0; (child = aRoot->GetChildAt(i)); ++i) {
-    nsCOMPtr<nsIDOMHTMLOptionElement> opt = do_QueryInterface(child);
+    nsHTMLOptionElement *opt = nsHTMLOptionElement::FromContent(child);
     if (opt) {
       // If we fail here, then at least we've tried our best
       aArray->AppendOption(opt);
@@ -1745,7 +1795,6 @@ nsHTMLSelectElement::VerifyOptionsArray()
   VerifyOptionsRecurse(this, aIndex, mOptions);
 }
 
-
 #endif
 
 //----------------------------------------------------------------------
@@ -1773,7 +1822,7 @@ nsHTMLOptionCollection::DropReference()
 }
 
 nsresult
-nsHTMLOptionCollection::GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
+nsHTMLOptionCollection::GetOptionIndex(mozilla::dom::Element* aOption,
                                        PRInt32 aStartIndex,
                                        PRBool aForward,
                                        PRInt32* aIndex)
@@ -1791,7 +1840,7 @@ nsHTMLOptionCollection::GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
     return NS_OK;
   }
 
-  PRInt32 high = mElements.Count();
+  PRInt32 high = mElements.Length();
   PRInt32 step = aForward ? 1 : -1;
 
   for (index = aStartIndex; index < high && index > -1; index += step) {
@@ -1807,10 +1856,16 @@ nsHTMLOptionCollection::GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLOptionCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHTMLOptionCollection)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mElements)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mElements)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHTMLOptionCollection)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mElements)
+    {
+      PRUint32 i;
+      for (i = 0; i < tmp->mElements.Length(); ++i) {
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mElements[i]");
+        cb.NoteXPCOMChild(static_cast<Element*>(tmp->mElements[i]));
+      }
+    }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsISupports
@@ -1840,7 +1895,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsHTMLOptionCollection,
 NS_IMETHODIMP
 nsHTMLOptionCollection::GetLength(PRUint32* aLength)
 {
-  *aLength = mElements.Count();
+  *aLength = mElements.Length();
 
   return NS_OK;
 }
@@ -1862,7 +1917,7 @@ nsHTMLOptionCollection::SetOption(PRInt32 aIndex,
   if (aIndex < 0 || !mSelect) {
     return NS_OK;
   }
-  
+
   // if the new option is null, just remove this option.  Note that it's safe
   // to pass a too-large aIndex in here.
   if (!aOption) {
@@ -1874,23 +1929,25 @@ nsHTMLOptionCollection::SetOption(PRInt32 aIndex,
 
   nsresult rv = NS_OK;
 
+  PRUint32 index = PRUint32(aIndex);
+
   // Now we're going to be setting an option in our collection
-  if (aIndex > mElements.Count()) {
+  if (index > mElements.Length()) {
     // Fill our array with blank options up to (but not including, since we're
     // about to change it) aIndex, for compat with other browsers.
-    rv = SetLength(aIndex);
+    rv = SetLength(index);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  NS_ASSERTION(aIndex <= mElements.Count(), "SetLength lied");
+  NS_ASSERTION(index <= mElements.Length(), "SetLength lied");
   
   nsCOMPtr<nsIDOMNode> ret;
-  if (aIndex == mElements.Count()) {
+  if (index == mElements.Length()) {
     rv = mSelect->AppendChild(aOption, getter_AddRefs(ret));
   } else {
     // Find the option they're talking about and replace it
     // hold a strong reference to follow COM rules.
-    nsCOMPtr<nsIDOMHTMLOptionElement> refChild = mElements.SafeObjectAt(aIndex);
+    nsCOMPtr<nsIDOMHTMLOptionElement> refChild = ItemAsOption(index);
     NS_ENSURE_TRUE(refChild, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIDOMNode> parent;
@@ -1933,14 +1990,21 @@ nsHTMLOptionCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(item, aReturn);
 }
 
-nsISupports*
-nsHTMLOptionCollection::GetNamedItem(const nsAString& aName, nsresult* aResult)
+nsIContent*
+nsHTMLOptionCollection::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
 
-  PRInt32 count = mElements.Count();
-  for (PRInt32 i = 0; i < count; i++) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mElements.ObjectAt(i));
+  return static_cast<nsIContent*>(ItemAsOption(aIndex));
+}
+
+static nsHTMLOptionElement*
+GetNamedItemHelper(nsTArray<nsRefPtr<nsHTMLOptionElement> > &aElements,
+                   const nsAString& aName)
+{
+  PRUint32 count = aElements.Length();
+  for (PRUint32 i = 0; i < count; i++) {
+    nsHTMLOptionElement *content = aElements.ElementAt(i);
     if (content &&
         (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name, aName,
                               eCaseMatters) ||
@@ -1953,19 +2017,25 @@ nsHTMLOptionCollection::GetNamedItem(const nsAString& aName, nsresult* aResult)
   return nsnull;
 }
 
+nsISupports*
+nsHTMLOptionCollection::GetNamedItem(const nsAString& aName,
+                                     nsWrapperCache **aCache,
+                                     nsresult* aResult)
+{
+  *aResult = NS_OK;
+
+  nsINode *item = GetNamedItemHelper(mElements, aName);
+  *aCache = item;
+  return item;
+}
+
 NS_IMETHODIMP
 nsHTMLOptionCollection::NamedItem(const nsAString& aName,
                                   nsIDOMNode** aReturn)
 {
-  nsresult rv;
-  nsISupports* item = GetNamedItem(aName, &rv);
-  if (!item) {
-    *aReturn = nsnull;
+  NS_IF_ADDREF(*aReturn = GetNamedItemHelper(mElements, aName));
 
-    return rv;
-  }
-
-  return CallQueryInterface(item, aReturn);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2020,3 +2090,19 @@ nsHTMLOptionCollection::Remove(PRInt32 aIndex)
 
   return mSelect->Remove(aIndex);
 }
+
+void
+nsHTMLSelectElement::UpdateBarredFromConstraintValidation()
+{
+  SetBarredFromConstraintValidation(IsDisabled());
+}
+
+void
+nsHTMLSelectElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+{
+  UpdateBarredFromConstraintValidation();
+
+  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+}
+

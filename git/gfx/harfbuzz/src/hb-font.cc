@@ -39,6 +39,8 @@
  * hb_font_funcs_t
  */
 
+HB_BEGIN_DECLS
+
 static hb_codepoint_t
 hb_font_get_glyph_nil (hb_font_t *font HB_UNUSED,
 		       hb_face_t *face HB_UNUSED,
@@ -72,6 +74,8 @@ hb_font_get_kerning_nil (hb_font_t *font HB_UNUSED,
 			 hb_codepoint_t first_glyph HB_UNUSED,
 			 hb_codepoint_t second_glyph HB_UNUSED)
 { return 0; }
+
+HB_END_DECLS
 
 hb_font_funcs_t _hb_font_funcs_nil = {
   HB_REFERENCE_COUNT_INVALID, /* ref_count */
@@ -229,8 +233,7 @@ static hb_face_t _hb_face_nil = {
   NULL, /* destroy */
   NULL, /* user_data */
 
-  NULL, /* head_blob */
-  NULL, /* head_table */
+  0,    /* units_per_em */
 
   NULL  /* ot_layout */
 };
@@ -242,6 +245,8 @@ hb_face_create_for_tables (hb_get_table_func_t  get_table,
 			   void                *user_data)
 {
   hb_face_t *face;
+  hb_blob_t *head_blob;
+  const struct head *head_table;
 
   if (!HB_OBJECT_DO_CREATE (hb_face_t, face)) {
     if (destroy)
@@ -255,8 +260,16 @@ hb_face_create_for_tables (hb_get_table_func_t  get_table,
 
   face->ot_layout = _hb_ot_layout_new (face);
 
-  face->head_blob = Sanitizer<head>::sanitize (hb_face_get_table (face, HB_OT_TAG_head));
-  face->head_table = Sanitizer<head>::lock_instance (face->head_blob);
+  head_blob = Sanitizer<head>::sanitize (hb_face_get_table (face, HB_OT_TAG_head));
+  if (unlikely (hb_blob_get_length(head_blob) < head::min_size)) {
+    hb_face_destroy (face);
+    return &_hb_face_nil;
+  }
+
+  head_table = Sanitizer<head>::lock_instance (head_blob);
+  face->units_per_em = head_table->unitsPerEm;
+  hb_blob_unlock (head_blob);
+  hb_blob_destroy (head_blob);
 
   return face;
 }
@@ -341,9 +354,6 @@ hb_face_destroy (hb_face_t *face)
   HB_OBJECT_DO_DESTROY (face);
 
   _hb_ot_layout_free (face->ot_layout);
-
-  hb_blob_unlock (face->head_blob);
-  hb_blob_destroy (face->head_blob);
 
   if (face->destroy)
     face->destroy (face->user_data);

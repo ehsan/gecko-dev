@@ -259,7 +259,7 @@ nsPluginFile::~nsPluginFile()
  * Loads the plugin into memory using NSPR's shared-library loading
  * mechanism. Handles platform differences in loading shared libraries.
  */
-nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
+nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
 {
   nsCOMPtr<nsILocalFile> plugin = do_QueryInterface(mPlugin);
 
@@ -287,9 +287,22 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
   }
 #endif
 
-  nsresult rv = plugin->Load(&outLibrary);
+  typedef BOOL
+  (WINAPI *pfnSetDllDirectory) (LPCWSTR);
+  pfnSetDllDirectory setDllDirectory =
+    reinterpret_cast<pfnSetDllDirectory>
+    (GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetDllDirectoryW"));
+  if (setDllDirectory) {
+    setDllDirectory(NULL);
+  }
+
+  nsresult rv = plugin->Load(outLibrary);
   if (NS_FAILED(rv))
-      outLibrary = NULL;
+      *outLibrary = NULL;
+
+  if (setDllDirectory) {
+    setDllDirectory(L"");
+  }
 
 #ifndef WINCE    
   if (restoreOrigDir) {
@@ -304,8 +317,10 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 /**
  * Obtains all of the information currently available for this plugin.
  */
-nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
+nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
 {
+  *outLibrary = nsnull;
+
   nsresult rv = NS_OK;
   DWORD zerome, versionsize;
   WCHAR* verbuf = nsnull;

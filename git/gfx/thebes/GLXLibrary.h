@@ -54,6 +54,8 @@ public:
                                                        GLXDrawable,
                                                        GLXContext);
     PFNGLXMAKECURRENTPROC xMakeCurrent;
+    typedef GLXContext (GLAPIENTRY * PFNGLXGETCURRENTCONTEXT) ();
+    PFNGLXGETCURRENTCONTEXT xGetCurrentContext;
     typedef void* (GLAPIENTRY * PFNGLXGETPROCADDRESSPROC) (const char *);
     PFNGLXGETPROCADDRESSPROC xGetProcAddress;
     typedef XVisualInfo* (GLAPIENTRY * PFNGLXCHOOSEVISUALPROC) (Display*,
@@ -99,6 +101,32 @@ public:
                                                                  int,
                                                                  int);
     PFNGLXQUERYSERVERSTRING xQueryServerString;
+
+    typedef GLXPixmap (GLAPIENTRY * PFNGLXCREATEPIXMAP) (Display *,
+                                                         GLXFBConfig,
+                                                         Pixmap,
+                                                         const int *);
+    PFNGLXCREATEPIXMAP xCreatePixmap;
+    typedef void (GLAPIENTRY * PFNGLXDESTROYPIXMAP) (Display *,
+                                                     GLXPixmap);
+    PFNGLXDESTROYPIXMAP xDestroyPixmap;
+    typedef const char * (GLAPIENTRY * PFNGLXGETCLIENTSTRING) (Display *,
+                                                               int);
+    PFNGLXGETCLIENTSTRING xGetClientString;
+    typedef GLXContext (GLAPIENTRY * PFNGLXCREATECONTEXT) (Display *,
+                                                           XVisualInfo *,
+                                                           GLXContext,
+                                                           Bool);
+    PFNGLXCREATECONTEXT xCreateContext;
+    typedef int (GLAPIENTRY * PFNGLXGETCONFIG) (Display *,
+                                                XVisualInfo *,
+                                                int,
+                                                int *);
+    PFNGLXGETCONFIG xGetConfig;
+    typedef GLXPixmap (GLAPIENTRY * PFNGLXCREATEGLXPIXMAP) (Display *,
+                                                            XVisualInfo *,
+                                                            Pixmap);
+    PFNGLXCREATEGLXPIXMAP xCreateGLXPixmap;
 
     PRBool EnsureInitialized();
 

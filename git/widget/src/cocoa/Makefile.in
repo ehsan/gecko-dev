@@ -56,6 +56,7 @@ LIBXUL_LIBRARY = 1
 EXPORTS = \
 		mozView.h \
 		nsChangeObserver.h \
+		nsCocoaUtils.h \
 		$(NULL)
 
 CMMSRCS = \
@@ -91,6 +92,7 @@ CMMSRCS = \
 		nsCocoaTextInputHandler.mm \
 		nsMacDockSupport.mm \
 		nsStandaloneNativeMenu.mm \
+		GfxInfo.mm \
 		$(NULL)
 
 ifeq (x86_64,$(TARGET_CPU))

@@ -76,10 +76,12 @@ static inline PRBool IS_TABLE_CELL(nsIAtom* frameType) {
 class nsDisplayTableItem : public nsDisplayItem
 {
 public:
-  nsDisplayTableItem(nsIFrame* aFrame) : nsDisplayItem(aFrame),
+  nsDisplayTableItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) : 
+      nsDisplayItem(aBuilder, aFrame),
       mPartHasFixedBackground(PR_FALSE) {}
 
-  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
+  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
+                                                nsIFrame* aFrame);
   // With collapsed borders, parts of the collapsed border can extend outside
   // the table part frames, so allow this display element to blow out to our
   // overflow rect. This is also useful for row frames that have spanning
@@ -510,13 +512,13 @@ public:
    *
    * @param aFrame The frame to invalidate
    * @param aOrigRect The original rect of aFrame (before the change).
-   * @param aOrigOverflowRect The original overflow rect of aFrame.
+   * @param aOrigVisualOverflow The original overflow rect of aFrame.
    * @param aIsFirstReflow True if the size/position change is due to the
    *                       first reflow of aFrame.
    */
   static void InvalidateFrame(nsIFrame* aFrame,
                               const nsRect& aOrigRect,
-                              const nsRect& aOrigOverflowRect,
+                              const nsRect& aOrigVisualOverflow,
                               PRBool aIsFirstReflow);
 
 protected:
@@ -547,10 +549,10 @@ protected:
                                   nsTableRowGroupFrame* aFrame,
                                   nscoord* aDesiredHeight);
 
-  NS_METHOD ReflowChildren(nsTableReflowState&  aReflowState,
-                           nsReflowStatus&      aStatus,
-                           nsIFrame*&           aLastChildReflowed,
-                           nsRect&              aOverflowArea);
+  nsresult ReflowChildren(nsTableReflowState&  aReflowState,
+                          nsReflowStatus&      aStatus,
+                          nsIFrame*&           aLastChildReflowed,
+                          nsOverflowAreas&     aOverflowAreas);
 
   // This calls the col group and column reflow methods, which do two things:
   //  (1) set all the dimensions to 0
@@ -606,7 +608,7 @@ protected:
                   nsIFrame*            aKidFrame,
                   nsHTMLReflowMetrics& aKidDesiredSize,
                   const nsRect&        aOriginalKidRect,
-                  const nsRect&        aOriginalKidOverflowRect);
+                  const nsRect&        aOriginalKidVisualOverflow);
    void PlaceRepeatedFooter(nsTableReflowState& aReflowState,
                             nsTableRowGroupFrame *aTfoot,
                             nscoord aFooterHeight);

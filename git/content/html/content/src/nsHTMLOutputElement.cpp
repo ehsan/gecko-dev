@@ -40,14 +40,18 @@
 #include "nsFormSubmission.h"
 #include "nsDOMSettableTokenList.h"
 #include "nsStubMutationObserver.h"
+#include "nsIConstraintValidation.h"
 
 
 class nsHTMLOutputElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLOutputElement,
-                            public nsStubMutationObserver
+                            public nsStubMutationObserver,
+                            public nsIConstraintValidation
 {
 public:
-  nsHTMLOutputElement(nsINodeInfo *aNodeInfo);
+  using nsIConstraintValidation::GetValidationMessage;
+
+  nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOutputElement();
 
   // nsISupports
@@ -68,8 +72,9 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_OUTPUT; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                               nsIContent* aSubmitElement);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
+
+  virtual bool IsDisabled() const { return PR_FALSE; }
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
@@ -89,6 +94,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLOutputElement,
                                                      nsGenericHTMLFormElement)
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   enum ValueModeFlag {
     eModeDefault,
@@ -104,11 +110,13 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Output)
 
 
-nsHTMLOutputElement::nsHTMLOutputElement(nsINodeInfo *aNodeInfo)
+nsHTMLOutputElement::nsHTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
   , mValueModeFlag(eModeDefault)
 {
   AddMutationObserver(this);
+  // <output> is always barred from constraint validation.
+  SetBarredFromConstraintValidation(PR_TRUE);
 }
 
 nsHTMLOutputElement::~nsHTMLOutputElement()
@@ -122,12 +130,13 @@ nsHTMLOutputElement::~nsHTMLOutputElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLOutputElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOutputElement, nsGenericElement)
 
-DOMCI_DATA(HTMLOutputElement, nsHTMLOutputElement)
+DOMCI_NODE_DATA(HTMLOutputElement, nsHTMLOutputElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLOutputElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLOutputElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLOutputElement,
                                    nsIDOMHTMLOutputElement,
-                                   nsIMutationObserver)
+                                   nsIMutationObserver,
+                                   nsIConstraintValidation)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOutputElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOutputElement)
@@ -136,6 +145,9 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLOutputElement)
 
 
 NS_IMPL_STRING_ATTR(nsHTMLOutputElement, Name, name)
+
+// nsIConstraintValidation
+NS_IMPL_NSICONSTRAINTVALIDATION(nsHTMLOutputElement)
 
 NS_IMETHODIMP
 nsHTMLOutputElement::Reset()
@@ -147,8 +159,7 @@ nsHTMLOutputElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                                       nsIContent* aSubmitElement)
+nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   // The output element is not submittable.
   return NS_OK;
@@ -261,7 +272,8 @@ void nsHTMLOutputElement::ContentInserted(nsIDocument* aDocument,
 void nsHTMLOutputElement::ContentRemoved(nsIDocument* aDocument,
                                          nsIContent* aContainer,
                                          nsIContent* aChild,
-                                         PRInt32 aIndexInContainer)
+                                         PRInt32 aIndexInContainer,
+                                         nsIContent* aPreviousSibling)
 {
   DescendantsChanged();
 }

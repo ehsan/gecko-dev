@@ -210,7 +210,7 @@ static nsresult GetBodyColor(nsPresContext* aPresContext, nscolor* aColor)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
   nsRuleWalker *ruleWalker = aData->mRuleWalker;
@@ -266,8 +266,6 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 
     // just get the style rules from the content
   aData->mElement->WalkContentStyleRules(ruleWalker);
-
-  return NS_OK;
 }
 
 // Test if style is dependent on content state
@@ -318,38 +316,40 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 
   // Handle the content style rules.
   if (element->IsAttributeMapped(aData->mAttribute)) {
+    // cellpadding on tables is special and requires reresolving all
+    // the cells in the table
+    if (aData->mAttribute == nsGkAtoms::cellpadding &&
+        element->IsHTML() &&
+        aData->mContentTag == nsGkAtoms::table) {
+      return eRestyle_Subtree;
+    }
     return eRestyle_Self;
   }
 
   return nsRestyleHint(0);
 }
 
-NS_IMETHODIMP
-nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
-                                        PRBool* aRulesChanged)
+/* virtual */ PRBool
+nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
-  *aRulesChanged = PR_FALSE;
-  return NS_OK;
+  return PR_FALSE;
 }
 
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-NS_IMETHODIMP
+/* virtual */ void
 nsHTMLStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
-  return NS_OK;
 }
 #endif
 

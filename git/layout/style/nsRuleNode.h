@@ -690,7 +690,7 @@ protected:
   const void* GetSVGResetData(nsStyleContext* aContext);
 
   already_AddRefed<nsCSSShadowArray>
-              GetShadowData(nsCSSValueList* aList,
+              GetShadowData(const nsCSSValueList* aList,
                             nsStyleContext* aContext,
                             PRBool aIsBoxShadow,
                             PRBool& inherited);
@@ -757,6 +757,19 @@ public:
                             nsStyleContext* aStyleContext,
                             nsPresContext* aPresContext,
                             PRBool& aCanStoreInRuleTree);
+
+  struct ComputedCalc {
+    nscoord mLength;
+    float mPercent;
+
+    ComputedCalc(nscoord aLength, float aPercent)
+      : mLength(aLength), mPercent(aPercent) {}
+  };
+  static ComputedCalc
+  SpecifiedCalcToComputedCalc(const nsCSSValue& aValue,
+                              nsStyleContext* aStyleContext,
+                              nsPresContext* aPresContext,
+                              PRBool& aCanStoreInRuleTree);
 
   // Compute the value of an nsStyleCoord that IsCalcUnit().
   // (Values that don't require aPercentageBasis should be handled

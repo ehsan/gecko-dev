@@ -111,12 +111,13 @@ public:
 
   NS_IMETHOD  GetWindowDimensions(nscoord *width, nscoord *height);
   NS_IMETHOD  SetWindowDimensions(nscoord width, nscoord height);
-  NS_IMETHOD  FlushDelayedResize();
+  NS_IMETHOD  FlushDelayedResize(PRBool aDoReflow);
 
   NS_IMETHOD  Composite(void);
 
   NS_IMETHOD  UpdateView(nsIView *aView, PRUint32 aUpdateFlags);
-  NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
+  NS_IMETHOD  UpdateViewNoSuppression(nsIView *aView, const nsRect &aRect,
+                                      PRUint32 aUpdateFlags);
   NS_IMETHOD  UpdateAllViews(PRUint32 aUpdateFlags);
 
   NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
@@ -184,10 +185,14 @@ private:
 
   void TriggerRefresh(PRUint32 aUpdateFlags);
 
+  // aView is the view for aWidget and aRegion is relative to aWidget.
   void Refresh(nsView *aView, nsIWidget *aWidget,
                const nsIntRegion& aRegion, PRUint32 aUpdateFlags);
+  // aRootView is the view for aWidget, aRegion is relative to aRootView, and
+  // aIntRegion is relative to aWidget.
   void RenderViews(nsView *aRootView, nsIWidget *aWidget,
-                   const nsRegion& aRegion);
+                   const nsRegion& aRegion, const nsIntRegion& aIntRegion,
+                   PRBool aPaintDefaultBackground, PRBool aWillSendDidPaint);
 
   void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut, PRUint32 aUpdateFlags);
   void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
@@ -245,6 +250,8 @@ private:
     RootViewManager()->mPainting = aPainting;
   }
 
+  nsresult UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
+
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }
   nsViewManager* RootViewManager() const { return mRootViewManager; }
@@ -270,7 +277,8 @@ public: // NOT in nsIViewManager, so private to the view module
 private:
   nsCOMPtr<nsIDeviceContext> mContext;
   nsIViewObserver   *mObserver;
-  nsIntPoint        mMouseLocation; // device units, relative to mRootView
+  // relative to mRootView and set only on the root view manager
+  nsPoint           mMouseLocation;
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.

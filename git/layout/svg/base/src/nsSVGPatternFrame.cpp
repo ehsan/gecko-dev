@@ -62,7 +62,7 @@
 
 nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext) :
   nsSVGPatternFrameBase(aContext),
-  mLoopFlag(PR_FALSE), mPaintLoopFlag(PR_FALSE),
+  mLoopFlag(PR_FALSE),
   mNoHRefURI(PR_FALSE)
 {
 }
@@ -261,7 +261,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
 
   nsRefPtr<gfxASurface> tmpSurface =
     gfxPlatform::GetPlatform()->CreateOffscreenSurface(surfaceSize,
-                                                       gfxASurface::ImageFormatARGB32);
+                                                       gfxASurface::CONTENT_COLOR_ALPHA);
   if (!tmpSurface || tmpSurface->CairoStatus())
     return NS_ERROR_FAILURE;
 
@@ -287,15 +287,15 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
     patternFrame->mSource = static_cast<nsSVGGeometryFrame*>(aSource);
   }
 
-  // Delay checking mPaintLoopFlag until here so we can give back a clear
-  // surface if there's a loop
-  if (!patternFrame->mPaintLoopFlag) {
-    patternFrame->mPaintLoopFlag = PR_TRUE;
+  // Delay checking NS_FRAME_DRAWING_AS_PAINTSERVER bit until here so we can
+  // give back a clear surface if there's a loop
+  if (!(patternFrame->GetStateBits() & NS_FRAME_DRAWING_AS_PAINTSERVER)) {
+    patternFrame->AddStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
     for (nsIFrame* kid = firstKid; kid;
          kid = kid->GetNextSibling()) {
       nsSVGUtils::PaintFrameWithEffects(&tmpState, nsnull, kid);
     }
-    patternFrame->mPaintLoopFlag = PR_FALSE;
+    patternFrame->RemoveStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
   }
 
   patternFrame->mSource = nsnull;
@@ -574,8 +574,7 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
                                                           viewportWidth, viewportHeight,
                                                           viewBox.x, viewBox.y,
                                                           viewBox.width, viewBox.height,
-                                                          GetPreserveAspectRatio(),
-                                                          PR_TRUE);
+                                                          GetPreserveAspectRatio());
 
     gfxPoint ref = viewBoxTM.Transform(gfxPoint(refX, refY));
 
@@ -615,17 +614,7 @@ nsSVGPatternFrame::GetTargetGeometry(gfxMatrix *aCTM,
                                      nsIFrame *aTarget,
                                      const gfxRect *aOverrideBounds)
 {
-  // If we are attempting to paint a pattern for text, then the content will be
-  // the #text, so we actually want the parent, which should be the <svg:text>
-  // or <svg:tspan> element.
-  if (aTarget->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
-    *aBBox = nsSVGUtils::GetBBox(aTarget->GetParent());
-  } else {
-    *aBBox = nsSVGUtils::GetBBox(aTarget);
-  }
-  if (aOverrideBounds) {
-    *aBBox = *aOverrideBounds;
-  }
+  *aBBox = aOverrideBounds ? *aOverrideBounds : nsSVGUtils::GetBBox(aTarget);
 
   // Sanity check
   PRUint16 type = GetPatternUnits();

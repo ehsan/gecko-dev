@@ -40,7 +40,7 @@
 #include "nsContentCID.h"
 #include "nsDOMError.h"
 #include "nsIChannel.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
@@ -67,6 +67,8 @@
 #include "txExprParser.h"
 #include "nsIErrorService.h"
 #include "nsIScriptSecurityManager.h"
+
+using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
 
@@ -917,7 +919,7 @@ txMozillaXSLTProcessor::SetParameter(const nsAString & aNamespaceURI,
 
                 if (NS_FAILED(rv)) {
                     while (i < count) {
-                        NS_RELEASE(values[i]);
+                        NS_IF_RELEASE(values[i]);
                         ++i;
                     }
                     nsMemory::Free(array);
@@ -1208,6 +1210,7 @@ txMozillaXSLTProcessor::ensureStylesheet()
 void
 txMozillaXSLTProcessor::NodeWillBeDestroyed(const nsINode* aNode)
 {
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     if (NS_FAILED(mCompileResult)) {
         return;
     }
@@ -1227,7 +1230,7 @@ txMozillaXSLTProcessor::CharacterDataChanged(nsIDocument* aDocument,
 
 void
 txMozillaXSLTProcessor::AttributeChanged(nsIDocument* aDocument,
-                                         nsIContent* aContent,
+                                         Element* aElement,
                                          PRInt32 aNameSpaceID,
                                          nsIAtom* aAttribute,
                                          PRInt32 aModType)
@@ -1257,7 +1260,8 @@ void
 txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aChild,
-                                       PRInt32 aIndexInContainer)
+                                       PRInt32 aIndexInContainer,
+                                       nsIContent* aPreviousSibling)
 {
     mStylesheet = nsnull;
 }

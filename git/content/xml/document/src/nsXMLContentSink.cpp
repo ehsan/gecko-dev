@@ -52,15 +52,13 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIStyleSheetLinkingElement.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMCDATASection.h"
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
 #include "nsCSSStyleSheet.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsIScriptContext.h"
@@ -90,18 +88,18 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
+#include "nsIDocumentViewer.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIHTMLDocument.h"
-#include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
 #include "nsMimeTypes.h"
 
 #ifdef MOZ_SVG
-#include "nsGUIEvent.h"
+#include "nsHtml5SVGLoadDispatcher.h"
 #endif
 
 // XXX Open Issues:
@@ -334,15 +332,6 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
     // Kick off layout for non-XSLT transformed documents.
     mDocument->ScriptLoader()->RemoveObserver(this);
 
-    if (mDocElement) {
-      // Notify document observers that all the content has been stuck
-      // into the document.
-      // XXX do we need to notify for things like PIs?  Or just the
-      // documentElement?
-      NS_ASSERTION(mDocument->IndexOf(mDocElement) != -1,
-                   "mDocElement not in doc?");
-    }
-
     // Check if we want to prettyprint
     MaybePrettyPrint();
 
@@ -389,9 +378,9 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (contentViewer) {
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aResultDocument);
-    return contentViewer->SetDOMDocument(doc);
+  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
+  if (docViewer) {
+    return docViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
   }
   return NS_OK;
 }
@@ -449,7 +438,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
                                  mDocument->IndexOf(rootElement));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
-  
+
   // Start the layout process
   StartLayout(PR_FALSE);
 
@@ -510,9 +499,10 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
   *aAppendContent = PR_TRUE;
   nsresult rv = NS_OK;
 
+  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     aNodeInfo, aFromParser);
+                     ni.forget(), aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -872,15 +862,14 @@ nsXMLContentSink::GetCurrentContent()
   if (mContentStack.Length() == 0) {
     return nsnull;
   }
-  return GetCurrentStackNode().mContent;
+  return GetCurrentStackNode()->mContent;
 }
 
-StackNode &
+StackNode*
 nsXMLContentSink::GetCurrentStackNode()
 {
   PRInt32 count = mContentStack.Length();
-  NS_ASSERTION(count > 0, "Bogus Length()");
-  return mContentStack[count-1];
+  return count != 0 ? &mContentStack[count-1] : nsnull;
 }
 
 
@@ -1090,6 +1079,10 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
     MaybeStartLayout(PR_FALSE);
   }
 
+  if (content == mDocElement) {
+    NotifyDocElementCreated(mDocument);
+  }
+
   return aInterruptable && NS_SUCCEEDED(result) ? DidProcessATokenImpl() :
                                                   result;
 }
@@ -1113,11 +1106,14 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 
   FlushText();
 
-  StackNode & sn = GetCurrentStackNode();
+  StackNode* sn = GetCurrentStackNode();
+  if (!sn) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsCOMPtr<nsIContent> content;
-  sn.mContent.swap(content);
-  PRUint32 numFlushed = sn.mNumFlushed;
+  sn->mContent.swap(content);
+  PRUint32 numFlushed = sn->mNumFlushed;
 
   PopContent();
   NS_ASSERTION(content, "failed to pop content");
@@ -1157,29 +1153,13 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   DidAddContent();
 
 #ifdef MOZ_SVG
-  if (mDocument &&
-      content->GetNameSpaceID() == kNameSpaceID_SVG &&
-      (
-#ifdef MOZ_SMIL
-       content->Tag() == nsGkAtoms::svg ||
-#endif
-       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload))) {
+  if (content->GetNameSpaceID() == kNameSpaceID_SVG &&
+      content->Tag() == nsGkAtoms::svg) {
     FlushTags();
-
-    nsEvent event(PR_TRUE, NS_SVG_LOAD);
-    event.eventStructType = NS_SVG_EVENT;
-    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
-
-    // Do we care about forcing presshell creation if it hasn't happened yet?
-    // That is, should this code flush or something?  Does it really matter?
-    // For that matter, do we really want to try getting the prescontext?  Does
-    // this event ever want one?
-    nsRefPtr<nsPresContext> ctx;
-    nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
-    if (shell) {
-      ctx = shell->GetPresContext();
+    nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(content);
+    if (NS_FAILED(NS_DispatchToMainThread(event))) {
+      NS_WARNING("failed to dispatch svg load dispatcher");
     }
-    nsEventDispatcher::Dispatch(content, ctx, &event);
   }
 #endif
 

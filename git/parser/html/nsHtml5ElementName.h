@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Mozilla Foundation
+ * Copyright (c) 2008-2010 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -40,6 +40,7 @@
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
@@ -310,7 +311,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_STRONG;
     static nsHtml5ElementName* ELT_SWITCH;
     static nsHtml5ElementName* ELT_SYMBOL;
-    static nsHtml5ElementName* ELT_SPACER;
     static nsHtml5ElementName* ELT_SELECT;
     static nsHtml5ElementName* ELT_SUBSET;
     static nsHtml5ElementName* ELT_SCRIPT;
@@ -710,7 +710,6 @@ nsHtml5ElementName* nsHtml5ElementName::ELT_STRIKE = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_STRONG = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SWITCH = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SYMBOL = nsnull;
-nsHtml5ElementName* nsHtml5ElementName::ELT_SPACER = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SELECT = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SUBSET = nsnull;
 nsHtml5ElementName* nsHtml5ElementName::ELT_SCRIPT = nsnull;

@@ -72,11 +72,12 @@ FILE *gOutFile = NULL;
 FILE *gErrFile = NULL;
 
 static JSBool
-Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+Print(JSContext *cx, uintN argc, jsval *vp)
 {
     uintN i, n;
     JSString *str;
 
+    jsval *argv = JS_ARGV(cx, vp);
     for (i = n = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -86,11 +87,12 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     n++;
     if (n)
         fputc('\n', gOutFile);
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+Load(JSContext *cx, uintN argc, jsval *vp)
 {
     uintN i;
     JSString *str;
@@ -99,6 +101,11 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JSBool ok;
     jsval result;
 
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
+    if (!obj)
+        return JS_FALSE;
+
+    jsval *argv = JS_ARGV(cx, vp);
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
@@ -115,13 +122,14 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         if (!ok)
             return JS_FALSE;
     }
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec glob_functions[] = {
-    {"print",           Print,          0,0,0},
-    {"load",            Load,           1,0,0},
-    {nsnull,nsnull,0,0,0}
+    {"print",           Print,          0,0},
+    {"load",            Load,           1,0},
+    {nsnull,nsnull,0,0}
 };
 
 static JSClass global_class = {
@@ -283,9 +291,9 @@ MySecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
     }
 }
 
-/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
+/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsid aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP 
-MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsval aName, void * *aPolicy)
+MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsid aName, void * *aPolicy)
 {
     switch(mMode)
     {
@@ -810,9 +818,14 @@ int main()
 
         {
             JSAutoRequest ar(jscontext);
-            glob = JS_NewGlobalObject(jscontext, &global_class);
+            glob = JS_NewCompartmentAndGlobalObject(jscontext, &global_class, NULL);
             if (!glob)
                 DIE("FAILED to create global object");
+
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(jscontext, glob))
+                DIE("FAILED to enter compartment");
+
             if (!JS_InitStandardClasses(jscontext, glob))
                 DIE("FAILED to init standard classes");
             if (!JS_DefineFunctions(jscontext, glob, glob_functions))

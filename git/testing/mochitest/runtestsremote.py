@@ -38,7 +38,6 @@
 import sys
 import os
 import time
-import socket
 import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0]))))
@@ -114,7 +113,7 @@ class RemoteOptions(MochitestOptions):
 
        
         if options.remoteWebServer == None and os.name != "nt":
-            options.remoteWebServer = get_lan_ip()
+            options.remoteWebServer = automation.getLanIp()
         elif os.name == "nt":
             print "ERROR: you must specify a remoteWebServer ip address\n"
             return None
@@ -126,7 +125,10 @@ class RemoteOptions(MochitestOptions):
             return None
 
         if (options.remoteLogFile == None):
-            options.remoteLogFile =  automation._devicemanager.getDeviceRoot() + '/test.log'
+            options.remoteLogFile = automation._devicemanager.getDeviceRoot() + '/test.log'
+
+        if (options.remoteLogFile.count('/') < 1):
+            options.remoteLogFile = automation._devicemanager.getDeviceRoot() + '/' + options.remoteLogFile
 
         # Set up our options that we depend on based on the above
         productRoot = options.remoteTestRoot + "/" + automation._product
@@ -261,33 +263,6 @@ class MochiRemote(Mochitest):
     def getLogFilePath(self, logFile):             
         return logFile
 
-#
-# utilities to get the local ip address
-#
-if os.name != "nt":
-    import fcntl
-    import struct
-    def get_interface_ip(ifname):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        return socket.inet_ntoa(fcntl.ioctl(
-                                s.fileno(),
-                                0x8915,  # SIOCGIFADDR
-                                struct.pack('256s', ifname[:15])
-                                )[20:24])
-
-def get_lan_ip():
-    ip = socket.gethostbyname(socket.gethostname())
-    if ip.startswith("127.") and os.name != "nt":
-        interfaces = ["eth0","eth1","eth2","wlan0","wlan1","wifi0","ath0","ath1","ppp0"]
-        for ifname in interfaces:
-            try:
-                ip = get_interface_ip(ifname)
-                break;
-            except IOError:
-                pass
-    return ip
-
-
 def main():
     scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
     dm = devicemanager.DeviceManager(None, None)
@@ -314,6 +289,7 @@ def main():
     if (options == None):
         sys.exit(1)
     
+    auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
     sys.exit(mochitest.runTests(options))
     

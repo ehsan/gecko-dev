@@ -56,7 +56,7 @@ function run_test() {
   removeUpdateDirsAndFiles();
   setUpdateChannel();
 
-  var registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
+  let registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
   registrar.registerFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af55}"),
                             "Fake Window Watcher",
                             "@mozilla.org/embedcomp/window-watcher;1",
@@ -67,22 +67,25 @@ function run_test() {
   Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
   Services.prefs.setBoolPref("browser.privatebrowsing.autostart", true);
 
-  do_timeout(0, run_test_pt1);
+  do_execute_soon(run_test_pt1);
 }
 
 function end_test() {
+  let registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
+  registrar.unregisterFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af55}"),
+                              WindowWatcherFactory);
   do_test_finished();
   cleanUp();
 }
 
 function run_test_pt1() {
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
-  var url = URL_HOST + URL_PATH + "/partial.mar";
-  var patches = getLocalPatchString("partial", url, null, null, null, null,
+  let url = URL_HOST + URL_PATH + "/partial.mar";
+  let patches = getLocalPatchString("partial", url, null, null, null, null,
                                     STATE_FAILED) +
                 getLocalPatchString(null, null, null, null, null, null,
                                     STATE_NONE);
-  var updates = getLocalUpdateString(patches, null, null, "version 1.0", "1.0",
+  let updates = getLocalUpdateString(patches, null, null, "version 1.0", "1.0",
                                      null, null, null, null, url);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_FAILED);
@@ -93,7 +96,7 @@ function run_test_pt1() {
        "entering private browsing\n");
   do_check_eq(gUpdateManager.activeUpdate.state, STATE_DOWNLOADING);
 
-  var privBrowsing = AUS_Cc[PRIVATEBROWSING_CONTRACT_ID].
+  let privBrowsing = AUS_Cc[PRIVATEBROWSING_CONTRACT_ID].
                      getService(AUS_Ci.nsIPrivateBrowsingService).
                      QueryInterface(AUS_Ci.nsIObserver);
 
@@ -104,8 +107,8 @@ function run_test_pt1() {
   dump("Testing: private browsing is auto-started\n");
   do_check_true(privBrowsing.autoStarted);
 
-  // Use a timeout to give private browsing time to reset necko.
-  do_timeout(0, run_test_pt2);
+  // Give private browsing time to reset necko.
+  do_execute_soon(run_test_pt2);
 }
 function run_test_pt2() {
   dump("Testing: update count should equal 1\n");
@@ -125,8 +128,8 @@ var WindowWatcher = {
   },
 
   QueryInterface: function(iid) {
-    if (iid.equals(AUS_Ci.nsIWindowWatcher)
-     || iid.equals(AUS_Ci.nsISupports))
+    if (iid.equals(AUS_Ci.nsIWindowWatcher) ||
+        iid.equals(AUS_Ci.nsISupports))
       return this;
 
     throw AUS_Cr.NS_ERROR_NO_INTERFACE;

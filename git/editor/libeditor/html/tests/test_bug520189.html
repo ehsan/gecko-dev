@@ -52,6 +52,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=520182
   <div id="jj" contenteditable="true"></div>
   <iframe id="kk" src="about:blank"></iframe>
   <div id="ll" contenteditable="true"></div>
+  <iframe id="mm" src="about:blank"></iframe>
+  <div id="nn" contenteditable="true"></div>
+  <iframe id="oo" src="about:blank"></iframe>
+  <div id="pp" contenteditable="true"></div>
 </div>
 <pre id="test">
 <script type="application/javascript">
@@ -73,10 +77,12 @@ const invalidStyle3Payload = "foo<style>@import 'xxx.css';</style>baz";
 const invalidStyle4Payload = "foo<span style=\"@import 'xxx.css';\">bar</span>baz";
 const invalidStyle5Payload = "foo<span style=\"@font-face{font-family:xxx;src:'xxx.ttf';}\">bar</span>baz";
 const invalidStyle6Payload = "foo<span style=\"@namespace xxx url(http://example.com/);\">bar</span>baz";
+const invalidStyle7Payload = "<html><head><title>xxx</title></head><body>foo</body></html>";
 const nestedStylePayload = "foo<style>#bar1{-moz-binding:url('data:text/xml,<?xml version=&quot;1.0&quot;><binding xmlns=&quot;http://www.mozilla.org/xbl&quot; id=&quot;binding-1&quot;/>');<style></style>#bar2{-moz-binding:url('data:text/xml,<?xml version=&quot;1.0&quot;><binding xmlns=&quot;http://www.mozilla.org/xbl&quot; id=&quot;binding-2&quot;/>');</style>baz";
 const validImgSrc1Payload = "foo<img src=\"data:image/png,bar\">baz";
 const validImgSrc2Payload = "foo<img src=\"javascript:void('bar');\">baz";
 const validImgSrc3Payload = "foo<img src=\"file:///bar.png\">baz";
+const validDataFooPayload = "foo<span data-bar=\"value\">baz</span>";
 
 var tests = [
   {
@@ -333,6 +339,40 @@ var tests = [
     payload: invalidStyle6Payload,
     rootElement: function() document.getElementById("ll"),
     checkResult: function(html) isnot(html.indexOf("bar"), -1, "Should have retained the src attribute for the image")
+  },
+  {
+    id: "mm",
+    isIFrame: true,
+    indirectPaste: true,
+    payload: invalidStyle7Payload,
+    rootElement: function() document.getElementById("mm").contentDocument.documentElement,
+    checkResult: function(html) {
+      is(html.indexOf("xxx"), -1, "Should not have retained the title text");
+      isnot(html.indexOf("foo"), -1, "Should have retained the body text");
+    }
+  },
+  {
+    id: "nn",
+    indirectPaste: true,
+    payload: invalidStyle7Payload,
+    rootElement: function() document.getElementById("nn"),
+    checkResult: function(html) {
+      is(html.indexOf("xxx"), -1, "Should not have retained the title text");
+      isnot(html.indexOf("foo"), -1, "Should have retained the body text");
+    }
+  },
+  {
+    id: "oo",
+    isIFrame: true,
+    payload: validDataFooPayload,
+    rootElement: function() document.getElementById("oo").contentDocument.documentElement,
+    checkResult: function(html) isnot(html.indexOf("bar"), -1, "Should have retained the data-bar attribute")
+  },
+  {
+    id: "pp",
+    payload: validDataFooPayload,
+    rootElement: function() document.getElementById("pp"),
+    checkResult: function(html) isnot(html.indexOf("bar"), -1, "Should have retained the data-bar attribute")
   }
 ];
 
@@ -359,9 +399,6 @@ function runTest(test) {
 
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
-                            .getService(Components.interfaces.nsIClipboard);
-
   var trans = Components.classes["@mozilla.org/widget/transferable;1"]
                         .createInstance(Components.interfaces.nsITransferable);
   var data = Components.classes["@mozilla.org/supports-string;1"]
@@ -369,16 +406,35 @@ function runTest(test) {
   data.data = test.payload;
   trans.addDataFlavor("text/html");
   trans.setTransferData("text/html", data, data.data.length * 2);
-  clipboard.setData(trans, null, Components.interfaces.nsIClipboard.kGlobalClipboard);
 
-  var mainWindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                         .getInterface(Components.interfaces.nsIWebNavigation)
-                         .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
-                         .rootTreeItem
-                         .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                         .getInterface(Components.interfaces.nsIDOMWindow);
+  if ("indirectPaste" in test) {
+    var editor, win;
+    if ("isIFrame" in test) {
+      win = elem.contentDocument.defaultView;
+    } else {
+      getSelection().collapse(elem, 0);
+      win = window;
+    }
+    editor = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIWebNavigation)
+                .QueryInterface(Components.interfaces.nsIEditorDocShell)
+                .editor;
+    editor.pasteTransferable(trans);
+  } else {
+    var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
+                              .getService(Components.interfaces.nsIClipboard);
 
-  mainWindow.goDoCommand("cmd_paste");
+    clipboard.setData(trans, null, Components.interfaces.nsIClipboard.kGlobalClipboard);
+
+    var mainWindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                           .getInterface(Components.interfaces.nsIWebNavigation)
+                           .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
+                           .rootTreeItem
+                           .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                           .getInterface(Components.interfaces.nsIDOMWindow);
+
+    mainWindow.goDoCommand("cmd_paste");
+  }
 
   if ("checkResult" in test) {
     if ("isIFrame" in test) {

@@ -50,6 +50,9 @@ include syncbase/reftest.list
 # seek tests
 include seek/reftest.list
 
+# event tests
+include event/reftest.list
+
 # General tests
 == anim-discrete-values-1.svg      anim-standard-ref.svg
 == anim-discrete-replace-sum-1.svg anim-standard-ref.svg
@@ -105,6 +108,13 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-feImage-preserveAspectRatio-01.svg lime.svg
 == anim-svg-preserveAspectRatio-01.svg lime.svg
 
+# animate some string attributes:
+== anim-filter-href-01.svg lime.svg
+== anim-gradient-href-01.svg lime.svg
+== anim-image-href-01.svg lime.svg
+== anim-pattern-href-01.svg lime.svg
+asserts(6) == anim-use-href-01.svg lime.svg  # the asserts here are bug 563481
+
 == anim-remove-1.svg anim-standard-ref.svg
 == anim-remove-2.svg anim-standard-ref.svg
 == anim-remove-3.svg anim-standard-ref.svg
@@ -135,6 +145,8 @@ fails == anim-strokecolor-1.svg anim-standard-ref.svg # bug 436296
 == anim-targethref-7.svg anim-standard-ref.svg
 == anim-targethref-8.svg anim-standard-ref.svg
 == anim-targethref-9.svg anim-standard-ref.svg
+
+random == anim-text-x-y-dx-dy-01.svg anim-text-x-y-dx-dy-01-ref.svg # bug 579588
 
 == anim-width-done-1a.svg anim-standard-ref.svg
 == anim-width-done-1b.svg anim-standard-ref.svg

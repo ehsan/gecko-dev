@@ -129,7 +129,7 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
+#ifdef ENABLE_LAYOUTDEBUG
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
@@ -231,6 +231,12 @@
 #define JSCTYPES_MODULE
 #endif
 
+#if defined(MOZ_APP_COMPONENT_INCLUDE)
+#include MOZ_APP_COMPONENT_INCLUDE
+#else
+#define APP_COMPONENT_MODULES
+#endif
+
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -241,6 +247,7 @@
     AUTH_MODULE                              \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
+    MODULE(StartupCacheModule)               \
     MODULE(nsPrefModule)                     \
     RDF_MODULES                              \
     MODULE(nsParserModule)                   \
@@ -265,7 +272,6 @@
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
     XULENABLED_MODULES                       \
-    MODULE(AddonsModule)                     \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
     JSDEBUGGER_MODULES                       \
@@ -278,6 +284,8 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
+    MODULE(jsperf)                           \
+    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \

@@ -39,7 +39,7 @@
 #include "nsIDOMSVGTextElement.h"
 #include "nsSVGTextFrame.h"
 #include "nsWeakReference.h"
-#include "nsIDOMSVGLengthList.h"
+#include "SVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsISVGGlyphFragmentNode.h"
@@ -53,6 +53,8 @@
 #include "nsSVGPathElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGGraphicElement.h"
+
+using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -291,23 +293,6 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
   UpdateGlyphPositioning(PR_FALSE);
 }
 
-static void
-GetSingleValue(nsIDOMSVGLengthList *list, gfxFloat *val)
-{
-  if (!list)
-    return;
-
-  PRUint32 count = 0;
-  list->GetNumberOfItems(&count);
-  if (count) {
-    nsCOMPtr<nsIDOMSVGLength> length;
-    list->GetItem(0, getter_AddRefs(length));
-    float value;
-    length->GetValue(&value);
-    *val = value;
-  }
-}
-
 void
 nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 {
@@ -328,30 +313,21 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     return;
   }
 
-  gfxPoint ctp(0.0, 0.0);
+  BuildPositionList(0, 0);
 
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> list = GetX();
-    GetSingleValue(list, &ctp.x);
-  }
-  {
-    nsCOMPtr<nsIDOMSVGLengthList> list = GetY();
-    GetSingleValue(list, &ctp.y);
-  }
+  gfxPoint ctp(0.0, 0.0);
 
   // loop over chunks
   while (firstFragment) {
-    {
-      nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetX();
-      GetSingleValue(list, &ctp.x);
-    }
-    {
-      nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetY();
-      GetSingleValue(list, &ctp.y);
-    }
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
+
+    nsTArray<float> effectiveXList, effectiveYList;
+    firstFragment->GetEffectiveXY(firstFragment->GetNumberOfChars(),
+                                  effectiveXList, effectiveYList);
+    if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
+    if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
 
     // check for startOffset on textPath
-    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
     if (textPath) {
       if (!textPath->GetPathFrame()) {
         // invalid text path, give up

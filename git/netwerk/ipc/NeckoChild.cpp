@@ -23,6 +23,7 @@
  *
  * Contributor(s):
  *   Jason Duell <jduell.mcbugs@gmail.com>
+ *   Honza Bambas <honzab@firemni.cz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,7 +41,7 @@
 
 #include "nsHttp.h"
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/dom/ContentProcessChild.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/net/HttpChannelChild.h"
 #include "mozilla/net/CookieServiceChild.h"
 
@@ -63,8 +64,8 @@ void NeckoChild::InitNeckoChild()
   NS_ABORT_IF_FALSE(IsNeckoChild(), "InitNeckoChild called by non-child!");
 
   if (!gNeckoChild) {
-    mozilla::dom::ContentProcessChild * cpc = 
-      mozilla::dom::ContentProcessChild::GetSingleton();
+    mozilla::dom::ContentChild * cpc = 
+      mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cpc, "Content Protocol is NULL!");
     gNeckoChild = cpc->SendPNeckoConstructor(); 
     NS_ASSERTION(gNeckoChild, "PNecko Protocol init failed!");
@@ -87,11 +88,17 @@ void NeckoChild::DestroyNeckoChild()
 }
 
 PHttpChannelChild* 
-NeckoChild::AllocPHttpChannel(PIFrameEmbeddingChild* iframeEmbedding)
+NeckoChild::AllocPHttpChannel(PBrowserChild* browser)
 {
-  // We don't allocate here: see HttpChannelChild::AsyncOpen()
-  NS_RUNTIMEABORT("AllocPHttpChannel should not be called");
-  return nsnull;
+  // This constructor is only used when PHttpChannel is constructed by
+  // the parent process, e.g. during a redirect.  (Normally HttpChannelChild is
+  // created by nsHttpHandler::NewProxiedChannel(), and then creates the
+  // PHttpChannel in HttpChannelChild::AsyncOpen().)
+
+  // No need to store PBrowser. It is only needed by the parent.
+  HttpChannelChild* httpChannel = new HttpChannelChild();
+  httpChannel->AddIPDLReference();
+  return httpChannel;
 }
 
 bool 
@@ -99,8 +106,8 @@ NeckoChild::DeallocPHttpChannel(PHttpChannelChild* channel)
 {
   NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannel called by non-child!");
 
-  // Delete channel (HttpChannelChild's refcnt must already hit 0 to get here)
-  delete channel;
+  HttpChannelChild* child = static_cast<HttpChannelChild*>(channel);
+  child->ReleaseIPDLReference();
   return true;
 }
 

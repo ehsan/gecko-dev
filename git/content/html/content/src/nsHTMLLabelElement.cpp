@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLLabelElement.h"
-#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
@@ -54,11 +53,10 @@
 #include "nsFocusManager.h"
 
 class nsHTMLLabelElement : public nsGenericHTMLFormElement,
-                           public nsIDOMHTMLLabelElement,
-                           public nsIDOMNSHTMLLabelElement
+                           public nsIDOMHTMLLabelElement
 {
 public:
-  nsHTMLLabelElement(nsINodeInfo *aNodeInfo);
+  nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLLabelElement();
 
   // nsISupports
@@ -76,16 +74,14 @@ public:
   // nsIDOMHTMLLabelElement
   NS_DECL_NSIDOMHTMLLABELELEMENT
 
-  // nsIDOMNSHTMLLabelElement
-  NS_DECL_NSIDOMNSHTMLLABELELEMENT
-
   // nsIFormControl
   NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_LABEL; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                               nsIContent* aSubmitElement);
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
   NS_IMETHOD Focus();
+
+  virtual bool IsDisabled() const { return PR_FALSE; }
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -110,6 +106,7 @@ public:
                                 PRBool aIsTrustedEvent);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   already_AddRefed<nsIContent> GetControlContent();
   already_AddRefed<nsIContent> GetFirstFormControl(nsIContent *current);
@@ -124,7 +121,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
 
 
-nsHTMLLabelElement::nsHTMLLabelElement(nsINodeInfo *aNodeInfo)
+nsHTMLLabelElement::nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
   , mHandlingEvent(PR_FALSE)
 {
@@ -141,13 +138,12 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLabelElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLabelElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLLabelElement, nsHTMLLabelElement)
+DOMCI_NODE_DATA(HTMLLabelElement, nsHTMLLabelElement)
 
 // QueryInterface implementation for nsHTMLLabelElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLabelElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLLabelElement,
-                                   nsIDOMHTMLLabelElement,
-                                   nsIDOMNSHTMLLabelElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLabelElement,
+                                   nsIDOMHTMLLabelElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLabelElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLabelElement)
@@ -351,8 +347,7 @@ nsHTMLLabelElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                                      nsIContent* aSubmitElement)
+nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   return NS_OK;
 }
@@ -366,8 +361,8 @@ nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPref
   }
 
   nsresult rv =
-      nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
-                                    aNotify);
+      nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
+                                        aNotify);
 
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
       !aValue.IsEmpty()) {
@@ -389,7 +384,7 @@ nsHTMLLabelElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
     UnsetFlags(NODE_HAS_ACCESSKEY);
   }
 
-  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+  return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 void

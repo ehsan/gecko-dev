@@ -99,7 +99,7 @@ public:
   LPWSTR       GetItemFromList(PRInt32 aInx) { return mPrinters?mPrinters->ElementAt(aInx):nsnull; }
   nsresult     EnumeratePrinterList();
   void         GetDefaultPrinterName(nsString& aDefaultPrinterName);
-  PRInt32      GetNumPrinters() { return mPrinters?mPrinters->Length():0; }
+  PRUint32     GetNumPrinters() { return mPrinters?mPrinters->Length():0; }
 
 protected:
   GlobalPrinters() {}
@@ -789,7 +789,7 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
 
   if (doingOrientation) {
     PRInt32 orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
-      nsIPrintSettings::kPortraitOrientation:nsIPrintSettings::kLandscapeOrientation;
+      PRInt32(nsIPrintSettings::kPortraitOrientation):nsIPrintSettings::kLandscapeOrientation;
     aPrintSettings->SetOrientation(orientation);
   }
 
@@ -813,7 +813,8 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
     aPrintSettings->SetPaperData(aDevMode->dmPaperSize);
     for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
-        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
+        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
+          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
         break;
       }
     }
@@ -825,7 +826,8 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
         aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeDefined);
         aPrintSettings->SetPaperWidth(kPaperSizes[i].mWidth);
         aPrintSettings->SetPaperHeight(kPaperSizes[i].mHeight);
-        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
+        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
+          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
         found = PR_TRUE;
         break;
       }
@@ -916,12 +918,12 @@ nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameLis
     return rv;
   }
 
-  PRInt32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
+  PRUint32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
   nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
   if (!printers)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  PRInt32 printerInx = 0;
+  PRUint32 printerInx = 0;
   while( printerInx < numPrinters ) {
     LPWSTR name = GlobalPrinters::GetInstance()->GetItemFromList(printerInx++);
     printers->AppendElement(nsDependentString(name));
@@ -959,7 +961,7 @@ void
 GlobalPrinters::FreeGlobalPrinters()
 {
   if (mPrinters != nsnull) {
-    for (unsigned int i=0;i<mPrinters->Length();i++) {
+    for (PRUint32 i=0;i<mPrinters->Length();i++) {
       free(mPrinters->ElementAt(i));
     }
     delete mPrinters;
@@ -1019,7 +1021,7 @@ GlobalPrinters::GetDefaultPrinterName(nsString& aDefaultPrinterName)
     while (*sPtr != comma && *sPtr != 0) 
       sPtr++;
     if (*sPtr == comma) {
-      *sPtr = NULL;
+      *sPtr = 0;
     }
     aDefaultPrinterName = szDefaultPrinterName;
   } else {

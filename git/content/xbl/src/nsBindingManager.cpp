@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -627,6 +628,9 @@ nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
                                               nsIDocument* aOldDocument)
 {
   NS_PRECONDITION(aOldDocument != nsnull, "no old document");
+
+  if (mDestroyed)
+    return;
 
   // Hold a ref to the binding so it won't die when we remove it from our
   // table.
@@ -1377,8 +1381,7 @@ EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
   MediumFeaturesChangedData *data =
     static_cast<MediumFeaturesChangedData*>(aClosure);
 
-  PRBool thisChanged = PR_FALSE;
-  ruleProcessor->MediumFeaturesChanged(data->mPresContext, &thisChanged);
+  PRBool thisChanged = ruleProcessor->MediumFeaturesChanged(data->mPresContext);
   *data->mRulesChanged = *data->mRulesChanged || thisChanged;
 
   return PL_DHASH_NEXT;
@@ -1400,6 +1403,33 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
   MediumFeaturesChangedData data = { aPresContext, aRulesChanged };
   set.EnumerateEntries(EnumMediumFeaturesChanged, &data);
   return NS_OK;
+}
+
+static PLDHashOperator
+EnumAppendAllSheets(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
+{
+  nsTArray<nsCSSStyleSheet*>* array =
+    static_cast<nsTArray<nsCSSStyleSheet*>*>(aClosure);
+  for (nsXBLBinding *binding = aBinding; binding;
+       binding = binding->GetBaseBinding()) {
+    nsXBLPrototypeResources::sheet_array_type* sheets =
+      binding->PrototypeBinding()->GetStyleSheets();
+    if (sheets) {
+      // Copy from nsTArray<nsRefPtr<nsCSSStyleSheet> > to
+      // nsTArray<nsCSSStyleSheet*>.
+      array->AppendElements(*sheets);
+    }
+  }
+  return PL_DHASH_NEXT;
+}
+
+void
+nsBindingManager::AppendAllSheets(nsTArray<nsCSSStyleSheet*>& aArray)
+{
+  if (!mBindingTable.IsInitialized())
+    return;
+
+  mBindingTable.EnumerateRead(EnumAppendAllSheets, &aArray);
 }
 
 nsIContent*
@@ -1596,7 +1626,8 @@ void
 nsBindingManager::ContentRemoved(nsIDocument* aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aChild,
-                                 PRInt32 aIndexInContainer)
+                                 PRInt32 aIndexInContainer,
+                                 nsIContent* aPreviousSibling)
 {
   if (aContainer && aIndexInContainer != -1 &&
       (mContentListTable.ops || mAnonymousNodesTable.ops)) {
@@ -1651,6 +1682,8 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
 void
 nsBindingManager::DropDocumentReference()
 {
+  mDestroyed = PR_TRUE;
+
   // Make sure to not run any more XBL constructors
   mProcessingAttachedStack = PR_TRUE;
   if (mProcessAttachedQueueEvent) {
@@ -1668,6 +1701,9 @@ nsBindingManager::DropDocumentReference()
   if (mInsertionParentTable.ops)
     PL_DHashTableFinish(&(mInsertionParentTable));
   mInsertionParentTable.ops = nsnull;
+
+  if (mBindingTable.IsInitialized())
+    mBindingTable.Clear();
 
   mDocument = nsnull;
 }

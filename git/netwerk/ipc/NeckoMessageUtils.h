@@ -57,15 +57,15 @@ class URI {
  public:
   URI() : mURI(nsnull) {}
   URI(nsIURI* aURI) : mURI(aURI) {}
-  // The contained URI is already addrefed on creation. We don't want another
-  // addref when passing it off to its actual owner.
-  operator nsCOMPtr<nsIURI>() const { return already_AddRefed<nsIURI>(mURI); }
+  operator nsIURI*() const { return mURI.get(); }
 
   friend struct ParamTraits<URI>;
   
  private:
+  // Unimplemented
   URI& operator=(URI&);
-  nsIURI* mURI;
+
+  nsCOMPtr<nsIURI> mURI;
 };
   
 template<>
@@ -84,9 +84,10 @@ struct ParamTraits<URI>
     if (!serializable) {
       nsCString scheme;
       aParam.mURI->GetScheme(scheme);
-      NS_ABORT_IF_FALSE(scheme.EqualsASCII("about:") ||
-                        scheme.EqualsASCII("javascript:"),
-                        "All IPDL URIs must be serializable or an allowed scheme");
+      if (!scheme.EqualsASCII("about:") &&
+          !scheme.EqualsASCII("javascript:") &&
+          !scheme.EqualsASCII("javascript"))
+        NS_WARNING("All IPDL URIs must be serializable or an allowed scheme");
     }
     
     bool isSerialized = !!serializable;
@@ -103,7 +104,10 @@ struct ParamTraits<URI>
     nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(aParam.mURI);
     char cidStr[NSID_LENGTH];
     nsCID cid;
-    nsresult rv = classInfo->GetClassIDNoAlloc(&cid);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+    classInfo->GetClassIDNoAlloc(&cid);
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "All IPDL URIs must report a valid class ID");
     
     cid.ToProvidedString(cidStr);
@@ -135,7 +139,7 @@ struct ParamTraits<URI>
       if (NS_FAILED(rv))
         return false;
       
-      uri.forget(&aResult->mURI);
+      uri.swap(aResult->mURI);
       return true;
     }
     
@@ -152,7 +156,7 @@ struct ParamTraits<URI>
     if (!serializable || !serializable->Read(aMsg, aIter))
       return false;
 
-    uri.forget(&aResult->mURI);
+    uri.swap(aResult->mURI);
     return true;
   }
 
@@ -167,6 +171,53 @@ struct ParamTraits<URI>
     else {
       aLog->append(L"[]");
     }
+  }
+};
+
+// nsIPermissionManager utilities
+
+struct Permission
+{
+  nsCString host, type;
+  PRUint32 capability, expireType;
+  PRInt64 expireTime;
+
+  Permission() { }
+  Permission(const nsCString& aHost,
+             const nsCString& aType,
+             const PRUint32 aCapability,
+             const PRUint32 aExpireType,
+             const PRInt64 aExpireTime) : host(aHost),
+                                          type(aType),
+                                          capability(aCapability),
+                                          expireType(aExpireType),
+                                          expireTime(aExpireTime) { }
+};
+
+template<>
+struct ParamTraits<Permission>
+{
+  static void Write(Message* aMsg, const Permission& aParam)
+  {
+    WriteParam(aMsg, aParam.host);
+    WriteParam(aMsg, aParam.type);
+    WriteParam(aMsg, aParam.capability);
+    WriteParam(aMsg, aParam.expireType);
+    WriteParam(aMsg, aParam.expireTime);
+  }
+
+  static bool Read(const Message* aMsg, void** aIter, Permission* aResult)
+  {
+    return ReadParam(aMsg, aIter, &aResult->host) &&
+           ReadParam(aMsg, aIter, &aResult->type) &&
+           ReadParam(aMsg, aIter, &aResult->capability) &&
+           ReadParam(aMsg, aIter, &aResult->expireType) &&
+           ReadParam(aMsg, aIter, &aResult->expireTime);
+  }
+
+  static void Log(const Permission& aParam, std::wstring* aLog)
+  {
+    aLog->append(StringPrintf(L"[%s]", aParam.host.get()));
   }
 };
 

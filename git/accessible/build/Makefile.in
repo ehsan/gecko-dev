@@ -59,6 +59,7 @@ LOCAL_INCLUDES	= -I$(srcdir)/../src
 SHARED_LIBRARY_LIBS = \
 	../src/base/$(LIB_PREFIX)accessibility_base_s.$(LIB_SUFFIX) \
 	../src/html/$(LIB_PREFIX)accessibility_html_s.$(LIB_SUFFIX) \
+	../src/xpcom/$(LIB_PREFIX)accessibility_xpcom_s.$(LIB_SUFFIX) \
 	../src/$(LIB_PREFIX)accessibility_toolkit_s.$(LIB_SUFFIX) \
 	$(NULL)
 
@@ -90,6 +91,7 @@ ifeq ($(OS_ARCH),WINNT)
 OS_LIBS += \
 	oleaut32.lib \
 	version.lib \
+	ole32.lib \
 	$(NULL)
 endif
 

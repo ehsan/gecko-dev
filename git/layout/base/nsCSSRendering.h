@@ -73,14 +73,9 @@ struct nsCSSRendering {
                                   const nsRect& aFrameArea,
                                   const nsRect& aDirtyRect);
 
-  /**
-   * Get the size, in app units, of the border radii. It returns FALSE iff all
-   * returned radii == 0 (so no border radii), TRUE otherwise.
-   * For the aRadii indexes, use the NS_CORNER_* constants in nsStyleConsts.h
-   */
-  static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8]);
+  static void ComputePixelRadii(const nscoord *aAppUnitsRadii,
+                                nscoord aAppUnitsPerPixel,
+                                gfxCornerSizes *oBorderRadii);
 
   /**
    * Render the border for an element using css rendering rules
@@ -391,6 +386,9 @@ protected:
  */
 class nsContextBoxBlur {
 public:
+  enum {
+    FORCE_MASK = 0x01
+  };
   /**
    * Prepares a gfxContext to draw on. Do not call this twice; if you want
    * to get the gfxContext again use GetContext().
@@ -421,6 +419,10 @@ public:
    *
    * @param aSkipRect            An area in device pixels (NOT app units!) to avoid
    *                             blurring over, to prevent unnecessary work.
+   *                             
+   * @param aFlags               FORCE_MASK to ensure that the content drawn to the
+   *                             returned gfxContext is used as a mask, and not
+   *                             drawn directly to aDestinationCtx.
    *
    * @return            A blank 8-bit alpha-channel-only graphics context to
    *                    draw on, or null on error. Must not be freed. The
@@ -435,10 +437,19 @@ public:
    * should prepare the destination context as if you were going to draw
    * directly on it instead of any temporary surface created in this class.
    */
-  gfxContext* Init(const nsRect& aRect, nscoord aBlurRadius,
+  gfxContext* Init(const nsRect& aRect, nscoord aSpreadRadius,
+                   nscoord aBlurRadius,
                    PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
-                   const nsRect& aDirtyRect, const gfxRect* aSkipRect);
+                   const nsRect& aDirtyRect, const gfxRect* aSkipRect,
+                   PRUint32 aFlags = 0);
 
+  /**
+   * Does the actual blurring/spreading. Users of this object *must*
+   * have called Init() first, then have drawn whatever they want to be
+   * blurred onto the internal gfxContext before calling this.
+   */
+  void DoEffects();
+  
   /**
    * Does the actual blurring and mask applying. Users of this object *must*
    * have called Init() first, then have drawn whatever they want to be
@@ -452,6 +463,15 @@ public:
    * constructed at that point.
    */
   gfxContext* GetContext();
+
+
+  /**
+   * Get the margin associated with the given blur radius, i.e., the
+   * additional area that might be painted as a result of it.  (The
+   * margin for a spread radius is itself, on all sides.)
+   */
+  static nsMargin GetBlurRadiusMargin(nscoord aBlurRadius,
+                                      PRInt32 aAppUnitsPerDevPixel);
 
 protected:
   gfxAlphaBoxBlur blur;

@@ -42,6 +42,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#include "mozilla/dom/ContentChild.h"
+#include "nsXULAppAPI.h"
+#endif
+
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIURI.h"
@@ -84,6 +94,7 @@
 #include "nsMimeTypes.h"
 // used for header disposition information.
 #include "nsIHttpChannel.h"
+#include "nsIHttpChannelInternal.h"
 #include "nsIEncodedChannel.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIFileChannel.h"
@@ -128,6 +139,19 @@
 
 #include "nsIPrivateBrowsingService.h"
 
+#ifdef MOZ_IPC
+#include "ContentChild.h"
+#include "nsXULAppAPI.h"
+#include "nsPIDOMWindow.h"
+#include "nsIDocShellTreeOwner.h"
+#include "nsIDocShellTreeItem.h"
+#include "ExternalHelperAppChild.h"
+#endif
+
+#ifdef ANDROID
+#include "AndroidBridge.h"
+#endif
+
 // Buffer file writes in 32kb chunks
 #define BUFFERED_OUTPUT_SIZE (1024 * 32)
 
@@ -147,6 +171,7 @@ PRLogModuleInfo* nsExternalHelperAppService::mLog = nsnull;
 // Using level 3 here because the OSHelperAppServices use a log level
 // of PR_LOG_DEBUG (4), and we want less detailed output here
 // Using 3 instead of PR_LOG_WARN because we don't output warnings
+#undef LOG
 #define LOG(args) PR_LOG(mLog, 3, args)
 #define LOG_ENABLED() PR_LOG_TEST(mLog, 3)
 
@@ -388,8 +413,10 @@ static PRBool GetFilenameAndExtensionFromChannel(nsIChannel* aChannel,
 }
 
 /**
- * Obtains the download directory to use.  This tends to vary per platform, and
- * needs to be consistent throughout our codepaths.
+ * Obtains the directory to use.  This tends to vary per platform, and
+ * needs to be consistent throughout our codepaths. For platforms where
+ * helper apps use the downloads directory, this should be kept in
+ * sync with nsDownloadManager.cpp
  */
 static nsresult GetDownloadDirectory(nsIFile **_directory)
 {
@@ -436,6 +463,30 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
                                          getter_AddRefs(dir));
     NS_ENSURE_SUCCESS(rv, rv);
   }
+#elif defined(ANDROID)
+  // On mobile devices, we are avoiding exposing users to the file
+  // system, and don't save downloads to temp directories
+
+  // On Android we only return something if we have and SD-card
+  char* sdcard = getenv("EXTERNAL_STORAGE");
+  nsresult rv;
+  if (sdcard) {
+    nsCOMPtr<nsILocalFile> ldir; 
+    rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
+                               PR_TRUE, getter_AddRefs(ldir));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = ldir->Append(NS_LITERAL_STRING("downloads"));
+    NS_ENSURE_SUCCESS(rv, rv);
+    dir = ldir;
+  }
+  else {
+    return NS_ERROR_FAILURE;
+  }
+#elif defined(MAEMO)
+  nsresult rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
+                       NS_GET_IID(nsILocalFile),
+                       getter_AddRefs(downloadDir));
+  NS_ENSURE_SUCCESS(rv, rv);
 #else
   // On all other platforms, we default to the systems temporary directory.
   nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dir));
@@ -544,6 +595,9 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { VIDEO_WEBM, "webm", "Web Media Video" },
   { AUDIO_WEBM, "webm", "Web Media Audio" },
 #endif
+#ifdef MOZ_RAW
+  { VIDEO_RAW, "yuv", "Raw YUV Video" },
+#endif
   { AUDIO_WAV, "wav", "Waveform Audio" },
 };
 
@@ -606,6 +660,26 @@ nsExternalHelperAppService::~nsExternalHelperAppService()
   gExtProtSvc = nsnull;
 }
 
+static PRInt64 GetContentLengthAsInt64(nsIRequest *request)
+{
+  PRInt64 contentLength = -1;
+  nsresult rv;
+  nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(request, &rv));
+  if (props)
+    rv = props->GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, &contentLength);
+
+  if (NS_FAILED(rv)) {
+    nsCOMPtr<nsIChannel> channel = do_QueryInterface(request);
+    if (channel) {
+      PRInt32 smallLen;
+      channel->GetContentLength(&smallLen);
+      contentLength = smallLen;
+    }
+  }
+
+  return contentLength;
+}
+
 NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeContentType,
                                                     nsIRequest *aRequest,
                                                     nsIInterfaceRequestor *aWindowContext,
@@ -619,6 +693,53 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
 
   // Get the file extension and name that we will need later
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
+  nsCOMPtr<nsIURI> uri;
+  if (channel)
+    channel->GetURI(getter_AddRefs(uri));
+
+#ifdef MOZ_IPC
+  PRInt64 contentLength = GetContentLengthAsInt64(aRequest);
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    // We need to get a hold of a ContentChild so that we can begin forwarding
+    // this data to the parent.  In the HTTP case, this is unfortunate, since
+    // we're actually passing data from parent->child->parent wastefully, but
+    // the Right Fix will eventually be to short-circuit those channels on the
+    // parent side based on some sort of subscription concept.
+    using mozilla::dom::ContentChild;
+    using mozilla::dom::ExternalHelperAppChild;
+    ContentChild *child = ContentChild::GetSingleton();
+    if (!child)
+      return NS_ERROR_FAILURE;
+
+    nsCString disp;
+    if (channel)
+      ExtractDisposition(channel, disp);
+
+    // Now we build a protocol for forwarding our data to the parent.  The
+    // protocol will act as a listener on the child-side and create a "real"
+    // helperAppService listener on the parent-side, via another call to
+    // DoContent.
+    mozilla::dom::PExternalHelperAppChild *pc;
+    pc = child->SendPExternalHelperAppConstructor(IPC::URI(uri),
+                                                  nsCString(aMimeContentType),
+                                                  disp,
+                                                  aForceSave, contentLength);
+    ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
+
+    NS_ADDREF(*aStreamListener = childListener);
+
+    nsRefPtr<nsExternalAppHandler> handler =
+      new nsExternalAppHandler(nsnull, EmptyCString(), aWindowContext, fileName,
+                               reason, aForceSave);
+    if (!handler)
+      return NS_ERROR_OUT_OF_MEMORY;
+    
+    childListener->SetHandler(handler);
+
+    return NS_OK;
+  }
+#endif // MOZ_IPC
+
   if (channel) {
     // Check if we have a POST request, in which case we don't want to use
     // the url's extension
@@ -629,9 +750,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       httpChan->GetRequestMethod(requestMethod);
       allowURLExt = !requestMethod.Equals("POST");
     }
-
-    nsCOMPtr<nsIURI> uri;
-    channel->GetURI(getter_AddRefs(uri));
 
     // Check if we had a query string - we don't want to check the URL
     // extension if a query is present in the URI
@@ -859,6 +977,13 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
                                     nsIInterfaceRequestor *aWindowContext)
 {
   NS_ENSURE_ARG_POINTER(aURI);
+
+#ifdef MOZ_IPC
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    mozilla::dom::ContentChild::GetSingleton()->SendLoadURIExternal(aURI);
+    return NS_OK;
+  }
+#endif
 
   nsCAutoString spec;
   aURI->GetSpec(spec);
@@ -1265,7 +1390,6 @@ void nsExternalAppHandler::RetargetLoadNotifications(nsIRequest *request)
       
   aChannel->SetLoadGroup(nsnull);
   aChannel->SetNotificationCallbacks(nsnull);
-
 }
 
 /**
@@ -1441,18 +1565,9 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
   mIsFileChannel = fileChan != nsnull;
 
   // Get content length
-  nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(request, &rv));
-  if (props) {
-    rv = props->GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH,
-                                   &mContentLength.mValue);
-  }
-  // If that failed, ask the channel
-  if (NS_FAILED(rv) && aChannel) {
-    PRInt32 len;
-    aChannel->GetContentLength(&len);
-    mContentLength = len;
-  }
+  mContentLength.mValue = GetContentLengthAsInt64(request);
 
+  nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(request, &rv));
   // Determine whether a new window was opened specifically for this request
   if (props) {
     PRBool tmp = PR_FALSE;
@@ -1466,21 +1581,6 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
   {
     aChannel->GetURI(getter_AddRefs(mSourceUrl));
   }
-
-  rv = SetUpTempFile(aChannel);
-  if (NS_FAILED(rv)) {
-    mCanceled = PR_TRUE;
-    request->Cancel(rv);
-    nsAutoString path;
-    if (mTempFile)
-      mTempFile->GetPath(path);
-    SendStatusChange(kWriteError, rv, request, path);
-    return NS_OK;
-  }
-
-  // Extract mime type for later use below.
-  nsCAutoString MIMEType;
-  mMimeInfo->GetMIMEType(MIMEType);
 
   // retarget all load notifications to our docloader instead of the original window's docloader...
   RetargetLoadNotifications(request);
@@ -1502,6 +1602,12 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
   // and it was opened specifically for the download
   MaybeCloseWindow();
 
+  // In an IPC setting, we're allowing the child process, here, to make
+  // decisions about decoding the channel (e.g. decompression).  It will
+  // still forward the decoded (uncompressed) data back to the parent.
+  // Con: Uncompressed data means more IPC overhead.
+  // Pros: ExternalHelperAppParent doesn't need to implement nsIEncodedChannel.
+  //       Parent process doesn't need to expect CPU time on decompression.
   nsCOMPtr<nsIEncodedChannel> encChannel = do_QueryInterface( aChannel );
   if (encChannel) 
   {
@@ -1539,6 +1645,30 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     encChannel->SetApplyConversion( applyConversion );
   }
 
+#ifdef MOZ_IPC
+  // At this point, the child process has done everything it can usefully do
+  // for OnStartRequest.
+  if (XRE_GetProcessType() == GeckoProcessType_Content)
+     return NS_OK;
+#endif
+
+  rv = SetUpTempFile(aChannel);
+  if (NS_FAILED(rv)) {
+    mCanceled = PR_TRUE;
+    request->Cancel(rv);
+    nsAutoString path;
+    if (mTempFile)
+      mTempFile->GetPath(path);
+    SendStatusChange(kWriteError, rv, request, path);
+    return NS_OK;
+  }
+
+  // Inform channel it is open on behalf of a download to prevent caching.
+  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(aChannel);
+  if (httpInternal) {
+    httpInternal->SetChannelIsForDownload(PR_TRUE);
+  }
+
   // now that the temp file is set up, find out if we need to invoke a dialog
   // asking the user what they want us to do with this content...
 
@@ -1570,6 +1700,9 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
       handlerSvc->Exists(mMimeInfo, &mimeTypeIsInDatastore);
     if (!handlerSvc || !mimeTypeIsInDatastore)
     {
+      nsCAutoString MIMEType;
+      mMimeInfo->GetMIMEType(MIMEType);
+
       if (!GetNeverAskFlagFromPref(NEVER_ASK_FOR_SAVE_TO_DISK_PREF, MIMEType.get()))
       {
         // Don't need to ask after all.
@@ -1759,6 +1892,9 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 mWebProgressListener->OnStatusChange(nsnull, (type == kReadError) ? aRequest : nsnull, rv, msgText);
               }
               else
+#ifdef MOZ_IPC
+              if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
               {
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));

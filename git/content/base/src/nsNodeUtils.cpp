@@ -41,6 +41,7 @@
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
 #include "nsIMutationObserver.h"
+#include "nsIMutationObserver2.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsIEventListenerManager.h"
@@ -60,11 +61,16 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
+#include "nsImageLoadingContent.h"
+#include "jsobj.h"
+#include "jsgc.h"
 
 using namespace mozilla::dom;
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
+// NOTE: AttributeChildRemoved doesn't use this macro but has a very similar use.
+// If you change how this macro behave please update AttributeChildRemoved.
 #define IMPL_MUTATION_NOTIFICATION(func_, content_, params_)      \
   PR_BEGIN_MACRO                                                  \
   nsINode* node = content_;                                       \
@@ -86,7 +92,6 @@ using namespace mozilla::dom;
   } while (node);                                                 \
   PR_END_MACRO
 
-
 void
 nsNodeUtils::CharacterDataWillChange(nsIContent* aContent,
                                      CharacterDataChangeInfo* aInfo)
@@ -106,26 +111,26 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 }
 
 void
-nsNodeUtils::AttributeWillChange(nsIContent* aContent,
+nsNodeUtils::AttributeWillChange(Element* aElement,
                                  PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  PRInt32 aModType)
 {
-  nsIDocument* doc = aContent->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aContent,
-                             (doc, aContent, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aElement->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aElement,
+                             (doc, aElement, aNameSpaceID, aAttribute,
                               aModType));
 }
 
 void
-nsNodeUtils::AttributeChanged(nsIContent* aContent,
+nsNodeUtils::AttributeChanged(Element* aElement,
                               PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  nsIDocument* doc = aContent->GetOwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aContent,
-                             (doc, aContent, aNameSpaceID, aAttribute,
+  nsIDocument* doc = aElement->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeChanged, aElement,
+                             (doc, aElement, aNameSpaceID, aAttribute,
                               aModType));
 }
 
@@ -168,7 +173,8 @@ nsNodeUtils::ContentInserted(nsINode* aContainer,
 void
 nsNodeUtils::ContentRemoved(nsINode* aContainer,
                             nsIContent* aChild,
-                            PRInt32 aIndexInContainer)
+                            PRInt32 aIndexInContainer,
+                            nsIContent* aPreviousSibling)
 {
   NS_PRECONDITION(aContainer->IsNodeOfType(nsINode::eCONTENT) ||
                   aContainer->IsNodeOfType(nsINode::eDOCUMENT),
@@ -186,7 +192,34 @@ nsNodeUtils::ContentRemoved(nsINode* aContainer,
   }
 
   IMPL_MUTATION_NOTIFICATION(ContentRemoved, aContainer,
-                             (document, container, aChild, aIndexInContainer));
+                             (document, container, aChild, aIndexInContainer,
+                              aPreviousSibling));
+}
+
+void
+nsNodeUtils::AttributeChildRemoved(nsINode* aAttribute,
+                                   nsIContent* aChild)
+{
+  NS_PRECONDITION(aAttribute->IsNodeOfType(nsINode::eATTRIBUTE),
+                  "container must be a nsIAttribute");
+
+  // This is a variant of IMPL_MUTATION_NOTIFICATION.
+  do {
+    nsINode::nsSlots* slots = aAttribute->GetExistingSlots();
+    if (slots && !slots->mMutationObservers.IsEmpty()) {
+      // This is a variant of NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS.
+      nsTObserverArray<nsIMutationObserver*>::ForwardIterator iter_ =
+        slots->mMutationObservers;
+      nsCOMPtr<nsIMutationObserver2> obs_;
+      while (iter_.HasMore()) {
+        obs_ = do_QueryInterface(iter_.GetNext());
+        if (obs_) {
+          obs_->AttributeChildRemoved(aAttribute, aChild);
+        }
+      }
+    }
+    aAttribute = aAttribute->GetNodeParent();
+  } while (aAttribute);
 }
 
 void
@@ -484,6 +517,11 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
   }
   else if (nodeInfoManager) {
+    // FIXME Bug 601803 Need to support adopting a node cross-compartment
+    if (aCx && aOldScope->compartment() != aNewScope->compartment()) {
+      return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    }
+
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
     PRBool wasRegistered = PR_FALSE;
     if (oldDoc && aNode->IsElement()) {
@@ -493,6 +531,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
+    if (elem) {
+      elem->NodeInfoChanged(newNodeInfo);
+    }
 
     nsIDocument* newDoc = aNode->GetOwnerDoc();
     if (newDoc) {
@@ -510,6 +551,11 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
           if (elm->MayHavePaintEventListener()) {
             window->SetHasPaintEventListeners();
           }
+#ifdef MOZ_MEDIA
+          if (elm->MayHaveAudioAvailableEventListener()) {
+            window->SetHasAudioAvailableEventListeners();
+          }
+#endif
         }
       }
     }
@@ -523,6 +569,13 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
       }
     }
 #endif
+
+    // nsImageLoadingContent needs to know when its document changes
+    if (oldDoc != newDoc) {
+      nsCOMPtr<nsIImageLoadingContent> imageContent(do_QueryInterface(aNode));
+      if (imageContent)
+        imageContent->NotifyOwnerDocumentChanged(oldDoc);
+    }
 
     if (elem) {
       elem->RecompileScriptEventListeners();

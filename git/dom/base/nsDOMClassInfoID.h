@@ -83,7 +83,9 @@ DOMCI_CASTABLE_INTERFACE(nsGenericTextNode, nsGenericTextNode, 5, _extra)     \
 DOMCI_CASTABLE_INTERFACE(nsDocument, nsIDocument, 6, _extra)                  \
 DOMCI_CASTABLE_INTERFACE(nsGenericHTMLElement, nsGenericHTMLElement, 7,       \
                          _extra)                                              \
-DOMCI_CASTABLE_INTERFACE(nsHTMLDocument, nsIDocument, 8, _extra)
+DOMCI_CASTABLE_INTERFACE(nsHTMLDocument, nsIDocument, 8, _extra)              \
+DOMCI_CASTABLE_INTERFACE(nsStyledElement, nsStyledElement, 9, _extra)         \
+DOMCI_CASTABLE_INTERFACE(nsSVGStylableElement, nsIContent, 10, _extra)
 
 // Make sure all classes mentioned in DOMCI_CASTABLE_INTERFACES
 // have been declared.
@@ -156,6 +158,17 @@ NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 #define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(_class)                          \
   if (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                                \
       aIID.Equals(NS_GET_IID(nsXPCClassInfo))) {                              \
+    foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
+    if (!foundInterface) {                                                    \
+      *aInstancePtr = nsnull;                                                 \
+      return NS_ERROR_OUT_OF_MEMORY;                                          \
+    }                                                                         \
+  } else
+
+#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(_class, condition)   \
+  if ((condition) &&                                                          \
+      (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                               \
+       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {                            \
     foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
     if (!foundInterface) {                                                    \
       *aInstancePtr = nsnull;                                                 \

@@ -58,7 +58,6 @@ RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
-DEFINES += -DZLIB_INTERNAL
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
@@ -79,7 +78,6 @@ CPPSRCS += \
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
-DEFINES += -DZLIB_INTERNAL
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -139,6 +137,7 @@ COMPONENT_LIBS += \
 	i18n \
 	chardet \
 	jar$(VERSION_NUMBER) \
+        startupcache \
 	pref \
 	htmlpars \
 	imglib2 \
@@ -149,7 +148,6 @@ COMPONENT_LIBS += \
 	nsappshell \
 	txmgr \
 	commandlines \
-	extensions \
 	toolkitcomps \
 	pipboot \
 	pipnss \
@@ -165,6 +163,8 @@ COMPONENT_LIBS += \
 	jsctypes \
 	$(NULL)
 endif
+
+COMPONENT_LIBS += jsperf
 
 ifdef MOZ_PLUGINS
 DEFINES += -DMOZ_PLUGINS
@@ -292,7 +292,8 @@ STATIC_LIBS += gtkxtbin
 endif
 endif
 
-ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
+# Platform-specific icon channel stuff - supported mostly-everywhere
+ifneq (,$(filter beos windows os2 mac cocoa gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
@@ -349,6 +350,10 @@ COMPONENT_LIBS += gkdebug
 endif
 endif
 
+ifdef MOZ_APP_COMPONENT_LIBS
+COMPONENT_LIBS += $(MOZ_APP_COMPONENT_LIBS)
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 OS_LIBS += -framework OpenGL -lcups
 endif
@@ -362,6 +367,8 @@ EXTRA_DSO_LDOPTS += \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_HARFBUZZ_LIBS) \
+	$(MOZ_OTS_LIBS) \
+	$(MOZ_APP_EXTRA_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB

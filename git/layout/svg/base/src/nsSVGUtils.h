@@ -60,6 +60,7 @@ class nsIFrame;
 struct nsStyleSVGPaint;
 class nsIDOMSVGElement;
 class nsIDOMSVGLength;
+class nsIDOMSVGNumberList;
 class nsIURI;
 class nsSVGOuterSVGFrame;
 class nsSVGPreserveAspectRatio;
@@ -160,6 +161,10 @@ public:
    */
   nsSVGRenderState(nsIRenderingContext *aContext);
   /**
+   * Render SVG to a modern rendering context
+   */
+  nsSVGRenderState(gfxContext *aContext);
+  /**
    * Render SVG to a temporary surface
    */
   nsSVGRenderState(gfxASurface *aSurface);
@@ -170,10 +175,16 @@ public:
   void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
   RenderMode GetRenderMode() { return mRenderMode; }
 
+  void SetPaintingToWindow(PRBool aPaintingToWindow) {
+    mPaintingToWindow = aPaintingToWindow;
+  }
+  PRBool IsPaintingToWindow() { return mPaintingToWindow; }
+
 private:
   RenderMode                    mRenderMode;
   nsCOMPtr<nsIRenderingContext> mRenderingContext;
   nsRefPtr<gfxContext>          mGfxContext;
+  PRPackedBool                  mPaintingToWindow;
 };
 
 class nsAutoSVGRenderMode
@@ -213,13 +224,21 @@ public:
   static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
 
   /*
-   * Get a font-size (em) of an nsIContent
+   * Get the number of CSS px (user units) per em (i.e. the em-height in user
+   * units) for an nsIContent
+   *
+   * XXX document the conditions under which these may fail, and what they
+   * return in those cases.
    */
   static float GetFontSize(mozilla::dom::Element *aElement);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
-   * Get an x-height of of an nsIContent
+   * Get the number of CSS px (user units) per ex (i.e. the x-height in user
+   * units) for an nsIContent
+   *
+   * XXX document the conditions under which these may fail, and what they
+   * return in those cases.
    */
   static float GetFontXHeight(mozilla::dom::Element *aElement);
   static float GetFontXHeight(nsIFrame *aFrame);
@@ -363,8 +382,7 @@ public:
                       float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
-                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
-                      PRBool aIgnoreAlign = PR_FALSE);
+                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio);
 
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
    * redrawn, in device pixel coordinates relative to the outer svg */
@@ -415,19 +433,33 @@ public:
    * Convert a surface size to an integer for use by thebes
    * possibly making it smaller in the process so the surface does not
    * use excessive memory.
+   *
+   * XXXdholbert Putting impl in header file so that imagelib can call this
+   * method.  Once we switch to a libxul-only world, this can go back into
+   * the .cpp file.
+   *
    * @param aSize the desired surface size
    * @param aResultOverflows true if the desired surface size is too big
    * @return the surface size to use
    */
-  static gfxIntSize
-  ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows);
+  static gfxIntSize ConvertToSurfaceSize(const gfxSize& aSize,
+                                  PRBool *aResultOverflows)
+  {
+    gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
 
-  /*
-   * Get a pointer to a surface that can be used to create thebes
-   * contexts for various measurement purposes.
-   */
-  static gfxASurface *
-  GetThebesComputationalSurface();
+    *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
+      surfaceSize.height != NS_round(aSize.height);
+
+    if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
+      surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+                                 surfaceSize.width);
+      surfaceSize.height = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,
+                                  surfaceSize.height);
+      *aResultOverflows = PR_TRUE;
+    }
+
+    return surfaceSize;
+  }
 
   /*
    * Convert a nsIDOMSVGMatrix to a gfxMatrix.
@@ -559,7 +591,30 @@ public:
   static PRBool NumberFromString(const nsAString& aString, float* aValue,
                                  PRBool aAllowPercentages = PR_FALSE);
 
-  static void Shutdown();
+  /**
+   * Convert a floating-point value to a 32-bit integer value, clamping to
+   * the range of valid integers.
+   */
+  static PRInt32 ClampToInt(double aVal)
+  {
+    return NS_lround(NS_MAX(double(PR_INT32_MIN),
+                            NS_MIN(double(PR_INT32_MAX), aVal)));
+  }
+
+  /**
+   * Returns aIndex-th item of nsIDOMSVGNumberList
+   */
+  static float GetNumberListValue(nsIDOMSVGNumberList *aList, PRUint32 aIndex);
+
+  /**
+   * Given a nsIContent* that is actually an nsSVGSVGElement*, this method
+   * checks whether it currently has a valid viewBox, and returns true if so.
+   *
+   * No other type of element should be passed to this method.
+   * (In debug builds, anything non-<svg> will trigger an abort; in non-debug
+   * builds, it will trigger a PR_FALSE return-value as a safe fallback.)
+   */
+  static PRBool RootSVGElementHasViewbox(const nsIContent *aRootSVGElem);
 
 private:
   /* Computational (nil) surfaces */

@@ -147,7 +147,7 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                                 gfxASurface::gfxImageFormat imageFormat) = 0;
+                                                                 gfxASurface::gfxContentType contentType) = 0;
 
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
@@ -233,7 +233,17 @@ public:
     /**
      * Whether to allow downloadable fonts via @font-face rules
      */
-    virtual PRBool DownloadableFontsEnabled();
+    PRBool DownloadableFontsEnabled();
+
+    /**
+     * Whether to sanitize downloaded fonts using the OTS library
+     */
+    PRBool SanitizeDownloadedFonts();
+
+    /**
+     * Whether to preserve OpenType layout tables when sanitizing
+     */
+    PRBool PreserveOTLTablesWhenSanitizing();
 
     /**
      * Whether to use the harfbuzz shaper (depending on script complexity).
@@ -337,18 +347,13 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    /**
-     * Return display DPI
-     */
-    static PRInt32 GetDPI() {
-        if (sDPI < 0) {
-            gfxPlatform::GetPlatform()->InitDisplayCaps();
-        }
-        NS_ASSERTION(sDPI > 0, "Something is wrong");
-        return sDPI;
-    }
-
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
+
+    /**
+     * Returns a 1x1 surface that can be used to create graphics contexts
+     * for measuring text etc as if they will be rendered to the screen
+     */
+    gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
 
 protected:
     gfxPlatform();
@@ -359,13 +364,9 @@ protected:
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
                                                
-    /**
-     * Initialize any needed display metrics (such as DPI)
-     */
-    virtual void InitDisplayCaps();
-    static PRInt32 sDPI;
-
     PRBool  mAllowDownloadableFonts;
+    PRBool  mDownloadableFontsSanitize;
+    PRBool  mSanitizePreserveOTLTables;
 
     // whether to use the HarfBuzz layout engine
     PRInt8  mUseHarfBuzzLevel;
@@ -373,8 +374,8 @@ protected:
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
+    nsRefPtr<gfxASurface> mScreenReferenceSurface;
     nsTArray<PRUint32> mCJKPrefLangs;
-
     nsCOMPtr<nsIObserver> overrideObserver;
 };
 

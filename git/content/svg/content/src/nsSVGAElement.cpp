@@ -47,8 +47,8 @@
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink },
-  { &nsGkAtoms::target, kNameSpaceID_None }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE },
+  { &nsGkAtoms::target, kNameSpaceID_None, PR_TRUE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(A)
@@ -60,7 +60,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(A)
 NS_IMPL_ADDREF_INHERITED(nsSVGAElement, nsSVGAElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 
-DOMCI_DATA(SVGAElement, nsSVGAElement)
+DOMCI_NODE_DATA(SVGAElement, nsSVGAElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGAElement,
@@ -77,7 +77,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAElement::nsSVGAElement(nsINodeInfo *aNodeInfo)
+nsSVGAElement::nsSVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGAElementBase(aNodeInfo)
 {
 }

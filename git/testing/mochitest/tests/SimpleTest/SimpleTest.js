@@ -32,6 +32,41 @@ if (parentRunner) {
   ipcMode = parentRunner.ipcMode;
 }
 
+/**
+ * Check for OOP test plugin
+**/
+SimpleTest.testPluginIsOOP = function () {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var prefservice = Components.classes["@mozilla.org/preferences-service;1"]
+                                .getService(Components.interfaces.nsIPrefBranch);
+
+    var testPluginIsOOP = false;
+    if (navigator.platform.indexOf("Mac") == 0) {
+        var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
+                                   .getService(Components.interfaces.nsIXULAppInfo)
+                                   .QueryInterface(Components.interfaces.nsIXULRuntime);
+        if (xulRuntime.XPCOMABI.match(/x86-/)) {
+            try {
+                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.i386.test.plugin");
+            } catch (e) {
+                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.i386");
+            }
+        }
+        else if (xulRuntime.XPCOMABI.match(/x86_64-/)) {
+            try {
+                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.x86_64.test.plugin");
+            } catch (e) {
+                testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled.x86_64");
+            }
+        }
+    }
+    else {
+        testPluginIsOOP = prefservice.getBoolPref("dom.ipc.plugins.enabled");
+    }
+
+    return testPluginIsOOP;
+};
+
 // Check to see if the TestRunner is present and has logging
 if (parentRunner) {
     SimpleTest._logEnabled = parentRunner.logEnabled;
@@ -298,13 +333,20 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     fm.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
     childTargetWindow = childTargetWindow.value;
 
+    function info(msg) {
+      if (SimpleTest._logEnabled)
+        SimpleTest._logResult({result: true, name: msg}, "TEST-INFO");
+      else
+        dump("TEST-INFO | " + msg + "\n");
+    }
+
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
         var baseWindow = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                                      .getInterface(Components.interfaces.nsIWebNavigation)
                                      .QueryInterface(Components.interfaces.nsIBaseWindow);
-        SimpleTest.ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
+        info(prefix + " -- loaded: " + targetWindow.document.readyState +
            " active window: " +
                (fm.activeWindow ? "(" + fm.activeWindow + ") " + fm.activeWindow.location : "<no window active>") +
            " focused window: " +
@@ -355,7 +397,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
         (expectBlankPage == (targetWindow.location == "about:blank")) &&
         targetWindow.document.readyState == "complete";
     if (!SimpleTest.waitForFocus_loaded) {
-        SimpleTest.ok(true, "must wait for load");
+        info("must wait for load");
         targetWindow.addEventListener("load", waitForEvent, true);
     }
 
@@ -369,12 +411,12 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     // If this is a child frame, ensure that the frame is focused.
     SimpleTest.waitForFocus_focused = (focusedChildWindow == childTargetWindow);
     if (SimpleTest.waitForFocus_focused) {
-        SimpleTest.ok(true, "already focused");
+        info("already focused");
         // If the frame is already focused and loaded, call the callback directly.
         maybeRunTests();
     }
     else {
-        SimpleTest.ok(true, "must wait for focus");
+        info("must wait for focus");
         childTargetWindow.addEventListener("focus", waitForEvent, true);
         childTargetWindow.focus();
     }

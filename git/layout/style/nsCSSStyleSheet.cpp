@@ -62,7 +62,7 @@
 #include "nsIDOMNode.h"
 #include "nsDOMError.h"
 #include "nsCSSParser.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsINameSpaceManager.h"
 #include "nsXMLNameSpaceMap.h"
@@ -70,7 +70,7 @@
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "mozAutoDocUpdate.h"
-#include "nsCSSDeclaration.h"
+#include "mozilla/css/Declaration.h"
 #include "nsRuleNode.h"
 #include "nsMediaFeatures.h"
 
@@ -180,7 +180,8 @@ CSSRuleListImpl::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
     return rv;
   }
 
-  return CallQueryInterface(rule, aReturn);
+  NS_ADDREF(*aReturn = rule);
+  return NS_OK;
 }
 
 template <class Numeric>
@@ -248,6 +249,15 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
       }
       break;
+    case nsMediaFeature::eFloat:
+      {
+        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Number,
+                     "bad actual value");
+        NS_ASSERTION(required.GetUnit() == eCSSUnit_Number,
+                     "bad required value");
+        cmp = DoCompare(actual.GetFloatValue(), required.GetFloatValue());
+      }
+      break;
     case nsMediaFeature::eIntRatio:
       {
         NS_ASSERTION(actual.GetUnit() == eCSSUnit_Array &&
@@ -304,6 +314,17 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         // We don't really need DoCompare, but it doesn't hurt (and
         // maybe the compiler will condense this case with eInteger).
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
+      }
+      break;
+    case nsMediaFeature::eIdent:
+      {
+        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Ident,
+                     "bad actual value");
+        NS_ASSERTION(required.GetUnit() == eCSSUnit_Ident,
+                     "bad required value");
+        NS_ASSERTION(mFeature->mRangeType == nsMediaFeature::eMinMaxNotAllowed,
+                     "bad range"); 
+        cmp = !(actual == required); // string comparison
       }
       break;
   }
@@ -411,8 +432,7 @@ nsMediaQuery::AppendToString(nsAString& aString) const
           NS_ASSERTION(expr.mValue.IsLengthUnit(), "bad unit");
           // Use 'width' as a property that takes length values
           // written in the normal way.
-          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_width,
-                                                   expr.mValue, aString);
+          expr.mValue.AppendToString(eCSSProperty_width, aString);
           break;
         case nsMediaFeature::eInteger:
         case nsMediaFeature::eBoolInteger:
@@ -420,8 +440,16 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                        "bad unit");
           // Use 'z-index' as a property that takes integer values
           // written without anything extra.
-          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                   expr.mValue, aString);
+          expr.mValue.AppendToString(eCSSProperty_z_index, aString);
+          break;
+        case nsMediaFeature::eFloat:
+          {
+            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Number,
+                         "bad unit");
+            // Use 'line-height' as a property that takes float values
+            // written in the normal way.
+            expr.mValue.AppendToString(eCSSProperty_line_height, aString);
+          }
           break;
         case nsMediaFeature::eIntRatio:
           {
@@ -433,11 +461,9 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                          "bad unit");
             NS_ASSERTION(array->Item(1).GetUnit() == eCSSUnit_Integer,
                          "bad unit");
-            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                     array->Item(0), aString);
+            array->Item(0).AppendToString(eCSSProperty_z_index, aString);
             aString.AppendLiteral("/");
-            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
-                                                     array->Item(1), aString);
+            array->Item(1).AppendToString(eCSSProperty_z_index, aString);
           }
           break;
         case nsMediaFeature::eResolution:
@@ -462,6 +488,11 @@ nsMediaQuery::AppendToString(nsAString& aString) const
               nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
                                          feature->mData.mKeywordTable),
               aString);
+          break;
+        case nsMediaFeature::eIdent:
+          NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Ident,
+                       "bad unit");
+          aString.Append(expr.mValue.GetStringBufferValue());
           break;
       }
     }
@@ -792,12 +823,8 @@ static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
 static PRBool
 CloneRuleInto(nsICSSRule* aRule, void* aArray)
 {
-  nsICSSRule* clone = nsnull;
-  aRule->Clone(clone);
-  if (clone) {
-    static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
-    NS_RELEASE(clone);
-  }
+  nsCOMPtr<nsICSSRule> clone = aRule->Clone();
+  static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
   return PR_TRUE;
 }
 
@@ -814,8 +841,7 @@ struct ChildSheetListBuilder {
 PRBool
 nsCSSStyleSheet::RebuildChildList(nsICSSRule* aRule, void* aBuilder)
 {
-  PRInt32 type;
-  aRule->GetType(type);
+  PRInt32 type = aRule->GetType();
   if (type < nsICSSRule::IMPORT_RULE) {
     // Keep going till we get to the import rules.
     return PR_TRUE;
@@ -914,11 +940,7 @@ nsCSSStyleSheetInner::RemoveSheet(nsCSSStyleSheet* aSheet)
 static void
 AddNamespaceRuleToMap(nsICSSRule* aRule, nsXMLNameSpaceMap* aMap)
 {
-#ifdef DEBUG
-  PRInt32 type;
-  aRule->GetType(type);
-  NS_ASSERTION(type == nsICSSRule::NAMESPACE_RULE, "Bogus rule type");
-#endif
+  NS_ASSERTION(aRule->GetType() == nsICSSRule::NAMESPACE_RULE, "Bogus rule type");
 
   nsCOMPtr<nsICSSNameSpaceRule> nameSpaceRule = do_QueryInterface(aRule);
   
@@ -933,8 +955,7 @@ AddNamespaceRuleToMap(nsICSSRule* aRule, nsXMLNameSpaceMap* aMap)
 static PRBool
 CreateNameSpace(nsICSSRule* aRule, void* aNameSpacePtr)
 {
-  PRInt32 type = nsICSSRule::UNKNOWN_RULE;
-  aRule->GetType(type);
+  PRInt32 type = aRule->GetType();
   if (nsICSSRule::NAMESPACE_RULE == type) {
     AddNamespaceRuleToMap(aRule,
                           static_cast<nsXMLNameSpaceMap*>(aNameSpacePtr));
@@ -1281,9 +1302,7 @@ nsCSSStyleSheet::PrependStyleRule(nsICSSRule* aRule)
     aRule->SetStyleSheet(this);
     DidDirty();
 
-    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
-    aRule->GetType(type);
-    if (nsICSSRule::NAMESPACE_RULE == type) {
+    if (nsICSSRule::NAMESPACE_RULE == aRule->GetType()) {
       // no api to prepend a namespace (ugh), release old ones and re-create them all
       mInner->RebuildNameSpaces();
     }
@@ -1300,9 +1319,7 @@ nsCSSStyleSheet::AppendStyleRule(nsICSSRule* aRule)
     aRule->SetStyleSheet(this);
     DidDirty();
 
-    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
-    aRule->GetType(type);
-    if (nsICSSRule::NAMESPACE_RULE == type) {
+    if (nsICSSRule::NAMESPACE_RULE == aRule->GetType()) {
       nsresult rv = RegisterNamespaceRule(aRule);
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                        "RegisterNamespaceRule returned error");
@@ -1327,13 +1344,8 @@ nsCSSStyleSheet::ReplaceStyleRule(nsICSSRule* aOld, nsICSSRule* aNew)
     aNew->SetStyleSheet(this);
     aOld->SetStyleSheet(nsnull);
     DidDirty();
-#ifdef DEBUG
-    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
-    aNew->GetType(type);
-    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != type, "not yet implemented");
-    aOld->GetType(type);
-    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != type, "not yet implemented");
-#endif
+    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != aNew->GetType(), "not yet implemented");
+    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != aOld->GetType(), "not yet implemented");
   }
 }
 
@@ -1748,19 +1760,17 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   // Hierarchy checking.  Just check the first and last rule in the list.
   
   // check that we're not inserting before a charset rule
-  PRInt32 nextType = nsICSSRule::UNKNOWN_RULE;
   nsICSSRule* nextRule = mInner->mOrderedRules.SafeObjectAt(aIndex);
   if (nextRule) {
-    nextRule->GetType(nextType);
+    PRInt32 nextType = nextRule->GetType();
     if (nextType == nsICSSRule::CHARSET_RULE) {
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
 
     // check last rule in list
     nsICSSRule* lastRule = rules.ObjectAt(rulecount - 1);
-    PRInt32 lastType = nsICSSRule::UNKNOWN_RULE;
-    lastRule->GetType(lastType);
-    
+    PRInt32 lastType = lastRule->GetType();
+
     if (nextType == nsICSSRule::IMPORT_RULE &&
         lastType != nsICSSRule::CHARSET_RULE &&
         lastType != nsICSSRule::IMPORT_RULE) {
@@ -1777,16 +1787,14 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   
   // check first rule in list
   nsICSSRule* firstRule = rules.ObjectAt(0);
-  PRInt32 firstType = nsICSSRule::UNKNOWN_RULE;
-  firstRule->GetType(firstType);
+  PRInt32 firstType = firstRule->GetType();
   if (aIndex != 0) {
     if (firstType == nsICSSRule::CHARSET_RULE) { // no inserting charset at nonzero position
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
   
     nsICSSRule* prevRule = mInner->mOrderedRules.SafeObjectAt(aIndex - 1);
-    PRInt32 prevType = nsICSSRule::UNKNOWN_RULE;
-    prevRule->GetType(prevType);
+    PRInt32 prevType = prevRule->GetType();
 
     if (firstType == nsICSSRule::IMPORT_RULE &&
         prevType != nsICSSRule::CHARSET_RULE &&
@@ -1809,9 +1817,8 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   for (PRInt32 counter = 0; counter < rulecount; counter++) {
     nsICSSRule* cssRule = rules.ObjectAt(counter);
     cssRule->SetStyleSheet(this);
-    
-    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
-    cssRule->GetType(type);
+
+    PRInt32 type = cssRule->GetType();
     if (type == nsICSSRule::NAMESPACE_RULE) {
       // XXXbz does this screw up when inserting a namespace rule before
       // another namespace rule that binds the same prefix to a different
@@ -1894,8 +1901,7 @@ nsCSSStyleSheet::DeleteRuleFromGroup(nsICSSGroupRule* aGroup, PRUint32 aIndex)
   NS_ENSURE_SUCCESS(result, result);
   
   // check that the rule actually belongs to this sheet!
-  nsCOMPtr<nsIStyleSheet> ruleSheet;
-  rule->GetStyleSheet(*getter_AddRefs(ruleSheet));
+  nsCOMPtr<nsIStyleSheet> ruleSheet = rule->GetStyleSheet();
   if (this != ruleSheet) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -1928,8 +1934,7 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   nsresult result;
   NS_ASSERTION(mInner->mComplete, "No inserting into an incomplete sheet!");
   // check that the group actually belongs to this sheet!
-  nsCOMPtr<nsIStyleSheet> groupSheet;
-  aGroup->GetStyleSheet(*getter_AddRefs(groupSheet));
+  nsCOMPtr<nsIStyleSheet> groupSheet = aGroup->GetStyleSheet();
   if (this != groupSheet) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -1973,10 +1978,8 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   nsICSSRule* rule;
   for (counter = 0; counter < rulecount; counter++) {
     // Only rulesets are allowed in a group as of CSS2
-    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
     rule = rules.ObjectAt(counter);
-    rule->GetType(type);
-    if (type != nsICSSRule::STYLE_RULE) {
+    if (rule->GetType() != nsICSSRule::STYLE_RULE) {
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
   }
@@ -2004,8 +2007,7 @@ nsCSSStyleSheet::ReplaceRuleInGroup(nsICSSGroupRule* aGroup,
   NS_PRECONDITION(mInner->mComplete, "No replacing in an incomplete sheet!");
 #ifdef DEBUG
   {
-    nsCOMPtr<nsIStyleSheet> groupSheet;
-    aGroup->GetStyleSheet(*getter_AddRefs(groupSheet));
+    nsCOMPtr<nsIStyleSheet> groupSheet = aGroup->GetStyleSheet();
     NS_ASSERTION(this == groupSheet, "group doesn't belong to this sheet");
   }
 #endif
