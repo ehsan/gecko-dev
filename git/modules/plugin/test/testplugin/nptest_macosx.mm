@@ -293,7 +293,7 @@ pluginDraw(InstanceData* instanceData)
   }
   }
 
-  notifyDidPaint(instanceData);
+  ++instanceData->paintCount;
 }
 
 int16_t

@@ -1860,7 +1860,7 @@ void nsHTMLMediaElement::NotifyOwnerDocumentActivityChanged()
         mDecoder->Suspend();
       } else {
         mDecoder->Resume();
-        if (!mPaused && !mDecoder->IsEnded()) {
+        if (IsPotentiallyPlaying()) {
           mDecoder->Play();
         }
       }

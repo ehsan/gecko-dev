@@ -156,12 +156,13 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   int width = window.width;
   int height = window.height;
 
+  ++instanceData->paintCount;
+
   if (instanceData->scriptableObject->drawMode == DM_SOLID_COLOR) {
     // drawing a solid color for reftests
     pluginDrawSolid(instanceData, gdkWindow,
                     invalidRect.x, invalidRect.y,
                     invalidRect.width, invalidRect.height);
-    notifyDidPaint(instanceData);
     return;
   }
 
@@ -207,8 +208,6 @@ pluginDrawWindow(InstanceData* instanceData, GdkDrawable* gdkWindow,
   g_object_unref(pangoTextLayout);
 
   g_object_unref(gdkContext);
-
-  notifyDidPaint(instanceData);
 }
 
 static gboolean
