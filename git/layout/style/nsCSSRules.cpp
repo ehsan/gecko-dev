@@ -1991,14 +1991,7 @@ nsCSSKeyframeRule::MapRuleInfoInto(nsRuleData* aRuleData)
 void
 nsCSSKeyframeRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-
-  nsAutoString tmp;
-  DoGetKeyText(tmp);
-  fputs(NS_ConvertUTF16toUTF8(tmp).get(), out);
-  fputs(" ", out);
-  mDeclaration->List(out, aIndent);
-  fputs("\n", out);
+  // FIXME: WRITE ME
 }
 #endif
 
@@ -2018,7 +2011,7 @@ nsCSSKeyframeRule::GetType(uint16_t* aType)
 NS_IMETHODIMP
 nsCSSKeyframeRule::GetCssText(nsAString& aCssText)
 {
-  DoGetKeyText(aCssText);
+  nsCSSKeyframeRule::GetKeyText(aCssText);
   aCssText.AppendLiteral(" { ");
   nsAutoString tmp;
   mDeclaration->ToString(tmp);
@@ -2049,13 +2042,6 @@ nsCSSKeyframeRule::GetParentRule(nsIDOMCSSRule** aParentRule)
 NS_IMETHODIMP
 nsCSSKeyframeRule::GetKeyText(nsAString& aKeyText)
 {
-  DoGetKeyText(aKeyText);
-  return NS_OK;
-}
-
-void
-nsCSSKeyframeRule::DoGetKeyText(nsAString& aKeyText) const
-{
   aKeyText.Truncate();
   uint32_t i = 0, i_end = mKeys.Length();
   NS_ABORT_IF_FALSE(i_end != 0, "must have some keys");
@@ -2067,6 +2053,7 @@ nsCSSKeyframeRule::DoGetKeyText(nsAString& aKeyText) const
     }
     aKeyText.AppendLiteral(", ");
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2170,10 +2157,7 @@ NS_INTERFACE_MAP_END_INHERITING(GroupRule)
 void
 nsCSSKeyframesRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  fprintf(out, "@keyframes %s", NS_ConvertUTF16toUTF8(mName).get());
-  GroupRule::List(out, aIndent);
+  // FIXME: WRITE ME
 }
 #endif
 
@@ -2456,11 +2440,7 @@ IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(nsCSSPageRule, Rule)
 void
 nsCSSPageRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  fputs("@page ", out);
-  mDeclaration->List(out, aIndent);
-  fputs("\n", out);
+  // FIXME: WRITE ME
 }
 #endif
 
@@ -2575,8 +2555,12 @@ CSSSupportsRule::List(FILE* out, int32_t aIndent) const
 {
   for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
+  nsAutoString buffer;
+
   fputs("@supports ", out);
-  fputs(NS_ConvertUTF16toUTF8(mCondition).get(), out);
+
+  fputs(NS_LossyConvertUTF16toASCII(mCondition).get(), out);
+
   css::GroupRule::List(out, aIndent);
 }
 #endif

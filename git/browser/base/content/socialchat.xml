@@ -27,20 +27,13 @@
         <getter>
           return this.getAttribute("minimized") == "true";
         </getter>
-        <setter><![CDATA[
+        <setter>
           this.isActive = !val;
-          let parent = this.parentNode;
-          if (val) {
+          if (val)
             this.setAttribute("minimized", "true");
-            // If this chat is the selected one a new one needs to be selected.
-            if (parent.selectedChat == this)
-              parent._selectAnotherChat();
-          } else {
+          else
             this.removeAttribute("minimized");
-            // this chat gets selected.
-            parent.selectedChat = this;
-          }
-        ]]></setter>
+        </setter>
       </property>
 
       <property name="isActive">
@@ -130,15 +123,6 @@
         document.getAnonymousElementByAttribute(this, "anonid", "nub");
       </field>
 
-      <method name="focus">
-        <body><![CDATA[
-          if (!this.selectedChat)
-            return;
-          let commandDispatcher = gBrowser.ownerDocument.commandDispatcher;
-          commandDispatcher.advanceFocusIntoSubtree(this.selectedChat);
-        ]]></body>
-      </method>
-
       <property name="selectedChat">
         <getter><![CDATA[
           return this._selectedChat;
@@ -157,7 +141,6 @@
             this._selectedChat = val;
             if (val) {
               this._selectedChat.setAttribute("selected", "true");
-              this.focus();
             }
           }
           if (val) {
@@ -179,11 +162,11 @@
         <getter><![CDATA[
           // A generator yielding all collapsed chatboxes, in the order in
           // which they should be restored.
-          let child = this.lastElementChild;
+          let child = this.lastChild;
           while (child) {
             if (child.collapsed)
               yield child;
-            child = child.previousElementSibling;
+            child = child.previousSibling;
           }
         ]]></getter>
       </property>
@@ -191,11 +174,11 @@
       <property name="visibleChildren">
         <getter><![CDATA[
           // A generator yielding all non-collapsed chatboxes.
-          let child = this.firstElementChild;
+          let child = this.firstChild;
           while (child) {
             if (!child.collapsed)
               yield child;
-            child = child.nextElementSibling;
+            child = child.nextSibling;
           }
         ]]></getter>
       </property>
@@ -210,26 +193,6 @@
               yield child;
         ]]></getter>
       </property>
-
-      <method name="_selectAnotherChat">
-        <body><![CDATA[
-          // Select a different chat (as the currently selected one is no
-          // longer suitable as the selection - maybe it is being minimized or
-          // closed.)  We only select non-minimized and non-collapsed chats,
-          // and if none are found, set the selectedChat to null.
-          // It's possible in the future we will track most-recently-selected
-          // chats or similar to find the "best" candidate - for now though
-          // the choice is somewhat arbitrary.
-          for (let other of this.children) {
-            if (other != this.selectedChat && !other.minimized && !other.collapsed) {
-              this.selectedChat = other;
-              return;
-            }
-          }
-          // can't find another - so set no chat as selected.
-          this.selectedChat = null;
-        ]]></body>
-      </method>
 
       <method name="updateTitlebar">
         <parameter name="aChatbox"/>
@@ -343,7 +306,7 @@
         <parameter name="aChatbox"/>
         <body><![CDATA[
           if (this.selectedChat == aChatbox) {
-            this._selectAnotherChat();
+            this.selectedChat = aChatbox.previousSibling ? aChatbox.previousSibling : aChatbox.nextSibling
           }
           this.removeChild(aChatbox);
           // child might have been collapsed.
@@ -358,9 +321,8 @@
 
       <method name="removeAll">
         <body><![CDATA[
-          this.selectedChat = null;
-          while (this.firstElementChild) {
-            this._remove(this.firstElementChild);
+          while (this.firstChild) {
+            this._remove(this.firstChild);
           }
           // and the nub/popup must also die.
           this.nub.collapsed = true;
@@ -434,8 +396,8 @@
           cb = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "chatbox");
           if (aMode == "minimized")
             cb.setAttribute("minimized", "true");
-          this.insertBefore(cb, this.firstChild);
           this.selectedChat = cb;
+          this.insertBefore(cb, this.firstChild);
           this.initChatBox(cb, aProvider, aURL, aCallback);
           this.chatboxForURL.set(aURL, Cu.getWeakReference(cb));
           this.resize();

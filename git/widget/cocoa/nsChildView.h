@@ -413,7 +413,7 @@ public:
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
-  virtual bool            ComputeShouldAccelerate(bool aDefault);
+  virtual bool            GetShouldAccelerate();
   virtual bool            UseOffMainThreadCompositing();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
@@ -473,7 +473,7 @@ public:
   bool PaintWindow(nsIntRegion aRegion, bool aIsAlternate);
 
 #ifdef ACCESSIBILITY
-  already_AddRefed<mozilla::a11y::Accessible> GetDocumentAccessible();
+  already_AddRefed<Accessible> GetDocumentAccessible();
 #endif
 
   virtual void CreateCompositor();

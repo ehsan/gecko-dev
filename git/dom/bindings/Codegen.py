@@ -803,14 +803,15 @@ class CGGetDeferredFinalizePointers(CGAbstractStaticMethod):
 
 class CGDeferredFinalize(CGAbstractStaticMethod):
     def __init__(self, descriptor):
-        CGAbstractStaticMethod.__init__(self, descriptor, "DeferredFinalize", "bool", [Argument('uint32_t', 'slice'), Argument('void*', 'data')])
+        CGAbstractStaticMethod.__init__(self, descriptor, "DeferredFinalize", "bool", [Argument('int32_t', 'slice'), Argument('void*', 'data')])
 
     def definition_body(self):
         smartPtr = DeferredFinalizeSmartPtr(self.descriptor)
-        return """  MOZ_ASSERT(slice > 0, "nonsensical/useless call with slice == 0");
-  nsTArray<%(smartPtr)s >* pointers = static_cast<nsTArray<%(smartPtr)s >*>(data);
+        return """  nsTArray<%(smartPtr)s >* pointers = static_cast<nsTArray<%(smartPtr)s >*>(data);
   uint32_t oldLen = pointers->Length();
-  slice = NS_MIN(oldLen, slice);
+  if (slice == -1 || slice > oldLen) {
+    slice = oldLen;
+  }
   uint32_t newLen = oldLen - slice;
   pointers->RemoveElementsAt(newLen, slice);
   if (newLen == 0) {

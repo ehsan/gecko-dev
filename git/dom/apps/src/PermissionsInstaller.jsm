@@ -215,7 +215,7 @@ this.PermissionsTable =  { "resource-lock": {
                            },
                            "systemXHR": {
                              app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
+                             privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
                            "voicemail": {
@@ -271,7 +271,6 @@ this.PermissionsTable =  { "resource-lock": {
 this.expandPermissions = function expandPermissions(aPermName, aAccess) {
   if (!PermissionsTable[aPermName]) {
     Cu.reportError("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
-    dump("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
     return [];
   }
 
@@ -283,15 +282,15 @@ this.expandPermissions = function expandPermissions(aPermName, aAccess) {
     return [];
   }
 
+/*
+Temporarily disabled in order to add access fields to gaia: See Bug 805646
   if (!aAccess && tableEntry.access ||
       aAccess && !tableEntry.access) {
     Cu.reportError("PermissionsTable.jsm: expandPermissions: Invalid Manifest : " +
                    aPermName + " " + aAccess + "\n");
-    dump("PermissionsTable.jsm: expandPermissions: Invalid Manifest: " +
-         aPermName + " " + aAccess + "\n");
-    throw new Error("PermissionsTable.jsm: expandPermissions: Invalid Manifest: " +
-                    aPermName + " " + aAccess + "\n");
+    throw new Error("PermissionsTable.jsm: expandPermissions: Invalid Manifest");
   }
+*/
 
   let expandedPerms = [];
 
@@ -314,16 +313,28 @@ this.expandPermissions = function expandPermissions(aPermName, aAccess) {
     return [];
   }
 
+    // XXXbent This is a temporary hack! Remove this whole block once the
+    //         Settings API and the DeviceStorage API have stopped checking just
+    //         the bare permission (e.g. "settings" vs. "settings-read").
+    if (true) {
+      expandedPerms.push(aPermName);
+      if (tableEntry.additional) {
+        for each (let additional in tableEntry.additional) {
+          expandedPerms.push(additional);
+        }
+      }
+    }
+
   let permArr = mapSuffixes(aPermName, requestedSuffixes);
 
-  // Add the same suffix to each of the additions.
-  if (tableEntry.additional) {
-    for each (let additional in tableEntry.additional) {
-      permArr = permArr.concat(mapSuffixes(additional, requestedSuffixes));
+    // Add the same suffix to each of the additions.
+    if (tableEntry.additional) {
+      for each (let additional in tableEntry.additional) {
+        permArr = permArr.concat(mapSuffixes(additional, requestedSuffixes));
+      }
     }
-  }
 
-  // Only add the suffixed version if the suffix exisits in the table.
+    // Only add the suffixed version if the suffix exisits in the table.
   for (let idx in permArr) {
       let suffix = requestedSuffixes[idx % requestedSuffixes.length];
       if (tableEntry.access.indexOf(suffix) != -1) {
@@ -428,8 +439,6 @@ this.PermissionsInstaller = {
         if (!PermissionsTable[permName]) {
           Cu.reportError("PermissionsInstaller.jsm: '" + permName + "'" +
                          " is not a valid Webapps permission type.");
-          dump("PermissionsInstaller.jsm: '" + permName + "'" +
-               " is not a valid Webapps permission type.");
           continue;
         }
 
@@ -443,7 +452,7 @@ this.PermissionsInstaller = {
       }
     }
     catch (ex) {
-      dump("Caught webapps install permissions error for " + aApp.origin);
+      debug("Caught webapps install permissions error");
       Cu.reportError(ex);
       if (aOnError) {
         aOnError();

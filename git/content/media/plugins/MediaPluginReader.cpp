@@ -11,11 +11,10 @@
 #include "MediaPluginDecoder.h"
 #include "MediaPluginHost.h"
 #include "MediaDecoderStateMachine.h"
-#include "AbstractMediaDecoder.h"
 
 namespace mozilla {
 
-MediaPluginReader::MediaPluginReader(AbstractMediaDecoder *aDecoder) :
+MediaPluginReader::MediaPluginReader(MediaDecoder *aDecoder) :
   MediaDecoderReader(aDecoder),
   mPlugin(NULL),
   mHasAudio(false),
@@ -54,7 +53,7 @@ nsresult MediaPluginReader::ReadMetadata(nsVideoInfo* aInfo,
   mPlugin->GetDuration(mPlugin, &durationUs);
   if (durationUs) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaDuration(durationUs);
+    mDecoder->GetStateMachine()->SetDuration(durationUs);
   }
 
   if (mPlugin->HasVideo(mPlugin)) {
@@ -117,7 +116,7 @@ bool MediaPluginReader::DecodeVideoFrame(bool &aKeyframeSkip,
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
   uint32_t parsed = 0, decoded = 0;
-  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
+  MediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   // Throw away the currently buffered frame if we are seeking.
   if (mLastVideoFrame && mVideoSeekTimeUs != -1) {

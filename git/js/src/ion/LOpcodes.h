@@ -168,7 +168,6 @@
     _(Floor)                        \
     _(Round)                        \
     _(In)                           \
-    _(InArray)                      \
     _(InstanceOfO)                  \
     _(InstanceOfV)                  \
     _(InterruptCheck)               \

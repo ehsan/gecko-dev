@@ -37,7 +37,9 @@ using namespace js::frontend;
 using mozilla::DebugOnly;
 using mozilla::ArrayLength;
 
-char const *js::aopNames[] = {
+namespace js {
+
+char const *aopNames[] = {
     "=",    /* AOP_ASSIGN */
     "+=",   /* AOP_PLUS */
     "-=",   /* AOP_MINUS */
@@ -52,7 +54,7 @@ char const *js::aopNames[] = {
     "&="    /* AOP_BITAND */
 };
 
-char const *js::binopNames[] = {
+char const *binopNames[] = {
     "==",         /* BINOP_EQ */
     "!=",         /* BINOP_NE */
     "===",        /* BINOP_STRICTEQ */
@@ -77,7 +79,7 @@ char const *js::binopNames[] = {
     "..",         /* BINOP_DBLDOT */
 };
 
-char const *js::unopNames[] = {
+char const *unopNames[] = {
     "delete",  /* UNOP_DELETE */
     "-",       /* UNOP_NEG */
     "+",       /* UNOP_POS */
@@ -87,14 +89,14 @@ char const *js::unopNames[] = {
     "void"     /* UNOP_VOID */
 };
 
-char const *js::nodeTypeNames[] = {
+char const *nodeTypeNames[] = {
 #define ASTDEF(ast, str, method) str,
 #include "jsast.tbl"
 #undef ASTDEF
     NULL
 };
 
-static char const *callbackNames[] = {
+char const *callbackNames[] = {
 #define ASTDEF(ast, str, method) method,
 #include "jsast.tbl"
 #undef ASTDEF
@@ -1683,11 +1685,13 @@ NodeBuilder::xmlPI(HandleValue target, HandleValue contents, TokenPos *pos, Muta
                    dst);
 }
 
+
 /*
  * Serialization of parse nodes to JavaScript objects.
  *
  * All serialization methods take a non-nullable ParseNode pointer.
  */
+
 class ASTSerializer
 {
     JSContext           *cx;
@@ -3382,6 +3386,8 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, MutableHandleValue dst
     return builder.blockStatement(elts, pos, dst);
 }
 
+} /* namespace js */
+
 static JSBool
 reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 {
@@ -3508,6 +3514,7 @@ static JSFunctionSpec static_methods[] = {
     JS_FN("parse", reflect_parse, 1, 0),
     JS_FS_END
 };
+
 
 JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *objArg)

@@ -222,19 +222,17 @@ let ChromeHangs = {
     document.getElementById("hide-symbols").classList.add("hidden");
 
     let hangs = Telemetry.chromeHangs;
-    let stacks = hangs.stacks;
-    if (stacks.length == 0) {
+    if (hangs.length == 0) {
       showEmptySectionMessage("chrome-hangs-section");
       return;
     }
 
     this.renderMemoryMap(hangsDiv);
 
-    let durations = hangs.durations;
-    for (let i = 0; i < stacks.length; ++i) {
-      let stack = stacks[i];
-      this.renderHangHeader(hangsDiv, i + 1, durations[i]);
-      this.renderStack(hangsDiv, stack)
+    for (let i = 0; i < hangs.length; ++i) {
+      let currentHang = hangs[i];
+      this.renderHangHeader(hangsDiv, i + 1, currentHang.duration);
+      this.renderStack(hangsDiv, currentHang.stack)
     }
   },
 
@@ -281,9 +279,8 @@ let ChromeHangs = {
     aDiv.appendChild(document.createTextNode(this.memoryMapTitle));
     aDiv.appendChild(document.createElement("br"));
 
-    let hangs = Telemetry.chromeHangs;
-    let memoryMap = hangs.memoryMap;
-    for (let currentModule of memoryMap) {
+    let singleMemoryMap = Telemetry.chromeHangs[0].memoryMap;
+    for (let currentModule of singleMemoryMap) {
       aDiv.appendChild(document.createTextNode(currentModule.join(" ")));
       aDiv.appendChild(document.createElement("br"));
     }
@@ -298,21 +295,16 @@ let ChromeHangs = {
     let symbolServerURI =
       getPref(PREF_SYMBOL_SERVER_URI, DEFAULT_SYMBOL_SERVER_URI);
 
-    let hangs = Telemetry.chromeHangs;
-    let memoryMap = hangs.memoryMap;
-    let stacks = hangs.stacks;
-    let request = {"memoryMap" : memoryMap, "stacks" : stacks,
-                   "version" : 2};
-    let requestJSON = JSON.stringify(request);
+    let chromeHangsJSON = JSON.stringify(Telemetry.chromeHangs);
 
     this.symbolRequest = XMLHttpRequest();
     this.symbolRequest.open("POST", symbolServerURI, true);
     this.symbolRequest.setRequestHeader("Content-type", "application/json");
-    this.symbolRequest.setRequestHeader("Content-length", requestJSON.length);
+    this.symbolRequest.setRequestHeader("Content-length", chromeHangsJSON.length);
     this.symbolRequest.setRequestHeader("Connection", "close");
 
     this.symbolRequest.onreadystatechange = this.handleSymbolResponse.bind(this);
-    this.symbolRequest.send(requestJSON);
+    this.symbolRequest.send(chromeHangsJSON);
   },
 
   /**
@@ -343,11 +335,9 @@ let ChromeHangs = {
     }
 
     let hangs = Telemetry.chromeHangs;
-    let stacks = hangs.stacks;
-    let durations = hangs.durations;
     for (let i = 0; i < jsonResponse.length; ++i) {
       let stack = jsonResponse[i];
-      let hangDuration = durations[i];
+      let hangDuration = hangs[i].duration;
       this.renderHangHeader(hangsDiv, i + 1, hangDuration);
 
       for (let symbol of stack) {

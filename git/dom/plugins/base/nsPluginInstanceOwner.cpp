@@ -2569,10 +2569,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
          mInstance->HandleEvent(pluginEvent, nullptr);
        }
      }
-     break;
-
-    default:
-      break;
     }
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
@@ -3475,7 +3471,8 @@ nsObjectFrame* nsPluginInstanceOwner::GetFrame()
 // |value| for certain inputs of |name|
 void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 {
-  if (name.LowerCaseEqualsLiteral("pluginspage")) {
+  if (name.LowerCaseEqualsLiteral("pluginurl") ||
+      name.LowerCaseEqualsLiteral("pluginspage")) {        
     nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
     nsAutoString newURL;
     NS_MakeAbsoluteURI(newURL, value, baseURI);

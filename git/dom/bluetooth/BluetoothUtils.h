@@ -14,9 +14,8 @@ struct JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothDevice;
 class BluetoothNamedValue;
-class BluetoothValue;
-class BluetoothReplyRunnable;
 
 bool
 SetJsObject(JSContext* aContext,
@@ -33,11 +32,6 @@ GetAddressFromObjectPath(const nsAString& aObjectPath);
 bool
 BroadcastSystemMessage(const nsAString& aType,
                        const InfallibleTArray<BluetoothNamedValue>& aData);
-
-void
-DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
-                       const BluetoothValue& aValue,
-                       const nsAString& aErrorStr);
 
 END_BLUETOOTH_NAMESPACE
 

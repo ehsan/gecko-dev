@@ -75,7 +75,7 @@ PageSync(MediaResource* aResource,
 // is about 4300 bytes, so we read the file in chunks larger than that.
 static const int PAGE_STEP = 8192;
 
-OggReader::OggReader(AbstractMediaDecoder* aDecoder)
+OggReader::OggReader(MediaDecoder* aDecoder)
   : MediaDecoderReader(aDecoder),
     mTheoraState(nullptr),
     mVorbisState(nullptr),
@@ -325,7 +325,7 @@ nsresult OggReader::ReadMetadata(nsVideoInfo* aInfo,
       int64_t duration = 0;
       if (NS_SUCCEEDED(mSkeletonState->GetDuration(tracks, duration))) {
         ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-        mDecoder->SetMediaDuration(duration);
+        mDecoder->GetStateMachine()->SetDuration(duration);
         LOG(PR_LOG_DEBUG, ("Got duration from Skeleton index %lld", duration));
       }
     }
@@ -335,10 +335,10 @@ nsresult OggReader::ReadMetadata(nsVideoInfo* aInfo,
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
     MediaResource* resource = mDecoder->GetResource();
-    if (mDecoder->GetMediaDuration() == -1 &&
-        !mDecoder->IsShutdown() &&
+    if (mDecoder->GetStateMachine()->GetDuration() == -1 &&
+        !mDecoder->GetStateMachine()->IsShutdown() &&
         resource->GetLength() >= 0 &&
-        mDecoder->IsMediaSeekable())
+        mDecoder->GetStateMachine()->IsSeekable())
     {
       // We didn't get a duration from the index or a Content-Duration header.
       // Seek to the end of file to find the end time.
@@ -353,7 +353,7 @@ nsresult OggReader::ReadMetadata(nsVideoInfo* aInfo,
         endTime = RangeEndTime(length);
       }
       if (endTime != -1) {
-        mDecoder->SetMediaEndTime(endTime);
+        mDecoder->GetStateMachine()->SetEndTime(endTime);
         LOG(PR_LOG_DEBUG, ("Got Ogg duration from seeking to end %lld", endTime));
       }
       mDecoder->GetResource()->EndSeekingForMetadata();
@@ -669,7 +669,7 @@ bool OggReader::DecodeVideoFrame(bool &aKeyframeSkip,
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
   uint32_t parsed = 0, decoded = 0;
-  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
+  MediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   // Read the next data packet. Skip any non-data packets we encounter.
   ogg_packet* packet = 0;
@@ -1136,7 +1136,7 @@ nsresult OggReader::SeekInBufferedRange(int64_t aTarget,
       eof = !DecodeVideoFrame(skip, 0);
       {
         ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-        if (mDecoder->IsShutdown()) {
+        if (mDecoder->GetStateMachine()->IsShutdown()) {
           return NS_ERROR_FAILURE;
         }
       }
@@ -1608,7 +1608,7 @@ nsresult OggReader::GetBuffered(nsTimeRanges* aBuffered, int64_t aStartTime)
   int64_t durationUs = 0;
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    durationUs = mDecoder->GetMediaDuration();
+    durationUs = mDecoder->GetStateMachine()->GetDuration();
   }
   GetEstimatedBufferedTimeRanges(stream, durationUs, aBuffered);
   

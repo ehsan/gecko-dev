@@ -12,7 +12,6 @@
 #include "BluetoothParent.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothServiceChildProcess.h"
-#include "BluetoothUtils.h"
 
 #include "jsapi.h"
 #include "mozilla/Services.h"
@@ -23,12 +22,15 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "nsContentUtils.h"
+#include "nsIDOMDOMRequest.h"
 #include "nsIObserverService.h"
 #include "nsISettingsService.h"
 #include "nsISystemMessagesInternal.h"
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
+#include "nsXPCOMCIDInternal.h"
+#include "nsXULAppAPI.h"
 
 #if defined(MOZ_B2G_BT)
 # if defined(MOZ_BLUETOOTH_GONK)
@@ -59,6 +61,15 @@ bool
 IsMainProcess()
 {
   return XRE_GetProcessType() == GeckoProcessType_Default;
+}
+
+PLDHashOperator
+RemoveAllSignalHandlers(const nsAString& aKey,
+                        nsAutoPtr<BluetoothSignalObserverList>& aData,
+                        void* aUserArg)
+{
+  aData->RemoveObserver(static_cast<BluetoothSignalObserver*>(aUserArg));
+  return aData->Length() ? PL_DHASH_NEXT : PL_DHASH_REMOVE;
 }
 
 void
@@ -258,6 +269,8 @@ BluetoothService::Init()
     return false;
   }
 
+  mRegisteredForLocalAgent = true;
+
   return true;
 }
 
@@ -266,6 +279,11 @@ BluetoothService::Cleanup()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (mRegisteredForLocalAgent) {
+    UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
+    UnregisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
+    mRegisteredForLocalAgent = false;
+  }
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs &&
@@ -315,22 +333,14 @@ BluetoothService::UnregisterAllSignalHandlers(BluetoothSignalObserver* aHandler)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aHandler);
 
-  mBluetoothSignalObserverTable.Clear();
+  mBluetoothSignalObserverTable.Enumerate(RemoveAllSignalHandlers, aHandler);
 }
 
 void
 BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (aSignal.path().EqualsLiteral(LOCAL_AGENT_PATH)) {
-    Notify(aSignal);
-    return;
-  } else if (aSignal.path().EqualsLiteral(REMOTE_AGENT_PATH)) {
-    Notify(aSignal);
-    return;
-  }
-
+  // Notify observers that a message has been sent
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aSignal.path(), &ol)) {
 #if DEBUG
@@ -373,6 +383,11 @@ BluetoothService::StartStopBluetooth(bool aStart)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  if (aStart) {
+    RegisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
+    RegisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
+  }
+
   nsCOMPtr<nsIRunnable> runnable = new ToggleBtTask(aStart);
   rv = mBluetoothCommandThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -404,9 +419,12 @@ BluetoothService::SetEnabled(bool aEnabled)
     BluetoothSignalObserverList* ol;
     nsString managerPath = NS_LITERAL_STRING("/");
 
+    // Skip when BluetoothManager has been registered in constructor
     // Re-register here after toggling due to table mBluetoothSignalObserverTable was cleared
-    while (iter.HasMore()) {
-      RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
+    if (!mBluetoothSignalObserverTable.Get(managerPath, &ol)) {
+      while (iter.HasMore()) {
+        RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
+      }
     }
   } else {
     mBluetoothSignalObserverTable.Clear();
@@ -618,6 +636,7 @@ BluetoothService::RegisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(!mLiveManagers.Contains(aManager));
 
   mLiveManagers.AppendElement(aManager);
+  RegisterBluetoothSignalHandler(aManager->GetPath(), aManager);
 }
 
 void
@@ -627,6 +646,7 @@ BluetoothService::UnregisterManager(BluetoothManager* aManager)
   MOZ_ASSERT(aManager);
   MOZ_ASSERT(mLiveManagers.Contains(aManager));
 
+  UnregisterBluetoothSignalHandler(aManager->GetPath(), aManager);
   mLiveManagers.RemoveElement(aManager);
 }
 
@@ -682,6 +702,39 @@ BluetoothService::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_ERROR_UNEXPECTED;
 }
 
+bool
+SetJsObject(JSContext* aContext,
+            JSObject* aObj,
+            const InfallibleTArray<BluetoothNamedValue>& aData)
+{
+  for (uint32_t i = 0; i < aData.Length(); i++) {
+    jsval v;
+    if (aData[i].value().type() == BluetoothValue::TnsString) {
+      nsString data = aData[i].value().get_nsString();
+      JSString* JsData = JS_NewStringCopyN(aContext,
+                                           NS_ConvertUTF16toUTF8(data).get(),
+                                           data.Length());
+      NS_ENSURE_TRUE(JsData, false);
+      v = STRING_TO_JSVAL(JsData);
+    } else if (aData[i].value().type() == BluetoothValue::Tuint32_t) {
+      int data = aData[i].value().get_uint32_t();
+      v = INT_TO_JSVAL(data);
+    } else if (aData[i].value().type() == BluetoothValue::Tbool) {
+      bool data = aData[i].value().get_bool();
+      v = BOOLEAN_TO_JSVAL(data);
+    } else {
+      NS_WARNING("SetJsObject: Parameter is not handled");
+    }
+
+    if (!JS_SetProperty(aContext, aObj,
+                        NS_ConvertUTF16toUTF8(aData[i].name()).get(),
+                        &v)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void
 BluetoothService::Notify(const BluetoothSignal& aData)
 {
@@ -734,7 +787,10 @@ BluetoothService::Notify(const BluetoothSignal& aData)
 
   nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
     do_GetService("@mozilla.org/system-message-internal;1");
-  NS_ENSURE_TRUE_VOID(systemMessenger);
 
+  if (!systemMessenger) {
+    NS_WARNING("Failed to get SystemMessenger service!");
+    return;
+  }
   systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
 }

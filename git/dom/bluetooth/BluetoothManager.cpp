@@ -11,11 +11,13 @@
 #include "BluetoothService.h"
 #include "BluetoothReplyRunnable.h"
 
-#include "DOMRequest.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
+#include "nsDOMEvent.h"
+#include "nsIDOMDOMRequest.h"
 #include "nsIPermissionManager.h"
 #include "nsThreadUtils.h"
+#include "nsXPCOMCIDInternal.h"
 #include "mozilla/Util.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 
@@ -56,15 +58,12 @@ public:
   bool
   ParseSuccessfulReply(jsval* aValue)
   {
+    nsCOMPtr<nsIDOMBluetoothAdapter> adapter;
     *aValue = JSVAL_VOID;
 
-    const BluetoothValue& v = mReply->get_BluetoothReplySuccess().value();
-
-    MOZ_ASSERT(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-    const InfallibleTArray<BluetoothNamedValue>& values =
-      v.get_ArrayOfBluetoothNamedValue();
-    nsCOMPtr<nsIDOMBluetoothAdapter> adapter;
-    adapter = BluetoothAdapter::Create(mManagerPtr->GetOwner(), values);
+    const InfallibleTArray<BluetoothNamedValue>& v =
+      mReply->get_BluetoothReplySuccess().value().get_ArrayOfBluetoothNamedValue();
+    adapter = BluetoothAdapter::Create(mManagerPtr->GetOwner(), v);
 
     nsresult rv;
     nsIScriptContext* sc = mManagerPtr->GetContextForEventHandlers(&rv);
@@ -78,13 +77,13 @@ public:
                                     sc->GetNativeGlobal(),
                                     adapter,
                                     aValue);
-    if (NS_FAILED(rv)) {
+    bool result = NS_SUCCEEDED(rv);
+    if (!result) {
       NS_WARNING("Cannot create native object!");
       SetError(NS_LITERAL_STRING("BluetoothNativeObjectError"));
-      return false;
     }
 
-    return true;
+    return result;
   }
 
   void
@@ -96,6 +95,33 @@ public:
   
 private:
   nsRefPtr<BluetoothManager> mManagerPtr;
+};
+
+class ToggleBtResultTask : public nsRunnable
+{
+public:
+  ToggleBtResultTask(BluetoothManager* aManager, bool aEnabled)
+    : mManagerPtr(aManager),
+      mEnabled(aEnabled)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    mManagerPtr->FireEnabledDisabledEvent(mEnabled);
+
+    // mManagerPtr must be null before returning to prevent the background
+    // thread from racing to release it during the destruction of this runnable.
+    mManagerPtr = nullptr;
+
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<BluetoothManager> mManagerPtr;
+  bool mEnabled;
 };
 
 nsresult
@@ -138,7 +164,10 @@ NS_IMETHODIMP
 BluetoothManager::GetEnabled(bool* aEnabled)
 {
   BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
+  if (!bs) {
+    NS_WARNING("BluetoothService not available!");
+    return NS_ERROR_FAILURE;
+  }
 
   *aEnabled = bs->IsEnabled();
   return NS_OK;
@@ -147,22 +176,31 @@ BluetoothManager::GetEnabled(bool* aEnabled)
 NS_IMETHODIMP
 BluetoothManager::GetDefaultAdapter(nsIDOMDOMRequest** aAdapter)
 {
-  nsCOMPtr<nsIDOMRequestService> rs =
-    do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIDOMDOMRequest> request;
-  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<BluetoothReplyRunnable> results = new GetAdapterTask(this, request);
-
   BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-  if (NS_FAILED(bs->GetDefaultAdapterPathInternal(results))) {
+  if (!bs) {
+    NS_WARNING("BluetoothService not available!");
     return NS_ERROR_FAILURE;
   }
 
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
+
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIDOMDOMRequest> request;
+  nsresult rv = rs->CreateRequest(GetOwner(), getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Can't create DOMRequest!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsRefPtr<BluetoothReplyRunnable> results = new GetAdapterTask(this, request);
+
+  if (NS_FAILED(bs->GetDefaultAdapterPathInternal(results))) {
+    return NS_ERROR_FAILURE;
+  }
   request.forget(aAdapter);
   return NS_OK;
 }
@@ -174,10 +212,14 @@ BluetoothManager::Create(nsPIDOMWindow* aWindow)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aWindow);
 
+  BluetoothService* bs = BluetoothService::Get();
+  if (!bs) {
+    NS_WARNING("BluetoothService not available!");
+    return nullptr;
+  }
+
   nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
 
-  BluetoothService* bs = BluetoothService::Get();
-  NS_ENSURE_TRUE(bs, nullptr);
   bs->RegisterManager(manager);
 
   return manager.forget();

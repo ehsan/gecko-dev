@@ -78,8 +78,6 @@
 #include "nsSVGOuterSVGFrame.h"
 #include "nsStyleStructInlines.h"
 
-#include "mozilla/dom/PBrowserChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
@@ -110,7 +108,6 @@ typedef FrameMetrics::ViewID ViewID;
 /* static */ uint32_t nsLayoutUtils::sFontSizeInflationLineThreshold;
 /* static */ int32_t  nsLayoutUtils::sFontSizeInflationMappingIntercept;
 /* static */ uint32_t nsLayoutUtils::sFontSizeInflationMaxRatio;
-/* static */ bool nsLayoutUtils::sFontSizeInflationForceEnabled;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
 
@@ -1906,7 +1903,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
 int32_t
 nsLayoutUtils::GetZIndex(nsIFrame* aFrame) {
-  if (!aFrame->IsPositioned() && !aFrame->IsFlexItem())
+  if (!aFrame->IsPositioned())
     return 0;
 
   const nsStylePosition* position =
@@ -4755,8 +4752,6 @@ nsLayoutUtils::Initialize()
                                "font.size.inflation.lineThreshold");
   Preferences::AddIntVarCache(&sFontSizeInflationMappingIntercept,
                               "font.size.inflation.mappingIntercept");
-  Preferences::AddBoolVarCache(&sFontSizeInflationForceEnabled,
-                               "font.size.inflation.forceEnabled");
 
 #ifdef MOZ_FLEXBOX
   Preferences::RegisterCallback(FlexboxEnabledPrefChangeCallback,
@@ -5140,12 +5135,6 @@ nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
        presShell->FontSizeInflationMinTwips() == 0) ||
        aPresContext->IsChrome()) {
     return false;
-  }
-  if (TabChild* tab = GetTabChildFrom(presShell)) {
-    if (!presShell->FontSizeInflationForceEnabled() &&
-        !tab->IsAsyncPanZoomEnabled()) {
-      return false;
-    }
   }
 
   // XXXjwir3:

@@ -1731,8 +1731,6 @@ class StackIter
     RootedScript  script_;
     CallArgs      args_;
 
-    bool          poppedCallDuringSettle_;
-
 #ifdef JS_ION
     ion::IonActivationIterator ionActivations_;
     ion::IonFrameIterator ionFrames_;
@@ -1761,8 +1759,6 @@ class StackIter
     bool operator!=(const StackIter &rhs) const { return !(*this == rhs); }
 
     JSCompartment *compartment() const;
-
-    bool poppedCallDuringSettle() const { return poppedCallDuringSettle_; }
 
     bool isScript() const {
         JS_ASSERT(!done());

@@ -476,16 +476,6 @@ ShadowCanvasLayerOGL::GetLayer()
   return this;
 }
 
-LayerRenderState
-ShadowCanvasLayerOGL::GetRenderState()
-{
-  if (mDestroyed) {
-    return LayerRenderState();
-  }
-  return LayerRenderState(&mFrontBufferDescriptor,
-                          mNeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0);
-}
-
 void
 ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                   const nsIntPoint& aOffset)

@@ -305,11 +305,7 @@ this.SignInToWebsiteController = {
           break;
 
         case "login":
-           if (message._internalParams) {
-             IdentityService.doLogin(aRpId, message.assertion, message._internalParams);
-           } else {
-             IdentityService.doLogin(aRpId, message.assertion);
-           }
+           IdentityService.doLogin(aRpId, message.assertion);
           break;
 
         case "logout":

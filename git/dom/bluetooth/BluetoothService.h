@@ -305,8 +305,8 @@ public:
 
 protected:
   BluetoothService()
-  : mEnabled(false)
-  , mSettingsCheckInProgress(false)
+  : mEnabled(false), mSettingsCheckInProgress(false),
+    mRegisteredForLocalAgent(false)
 #ifdef DEBUG
     , mLastRequestedEnable(false)
 #endif
@@ -399,6 +399,7 @@ protected:
 
   bool mEnabled;
   bool mSettingsCheckInProgress;
+  bool mRegisteredForLocalAgent;
 
 #ifdef DEBUG
   bool mLastRequestedEnable;

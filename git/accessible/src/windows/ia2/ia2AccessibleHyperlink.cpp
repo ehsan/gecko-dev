@@ -12,8 +12,6 @@
 #include "AccessibleWrap.h"
 #include "nsIWinAccessNode.h"
 
-using namespace mozilla::a11y;
-
 // IUnknown
 
 STDMETHODIMP

@@ -1229,7 +1229,7 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 already_AddRefed<ImageContainer>
-nsDisplayImage::GetContainer(nsDisplayListBuilder* aBuilder)
+nsDisplayImage::GetContainer()
 {
   nsRefPtr<ImageContainer> container;
   nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));

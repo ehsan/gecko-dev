@@ -213,9 +213,6 @@ DeviceStorageTypeChecker::GetAccessForRequest(const DeviceStorageRequestType aRe
     case DEVICE_STORAGE_REQUEST_DELETE:
       aAccessResult.AssignLiteral("write");
       break;
-    case DEVICE_STORAGE_REQUEST_CREATE:
-      aAccessResult.AssignLiteral("create");
-      break;
     default:
       aAccessResult.AssignLiteral("undefined");
   }
@@ -1556,7 +1553,7 @@ public:
     }
 
     switch(mRequestType) {
-      case DEVICE_STORAGE_REQUEST_CREATE:
+      case DEVICE_STORAGE_REQUEST_WRITE:
       {
         if (!mBlob) {
           return NS_ERROR_FAILURE;
@@ -1584,7 +1581,6 @@ public:
       }
 
       case DEVICE_STORAGE_REQUEST_READ:
-      case DEVICE_STORAGE_REQUEST_WRITE:
       {
         if (XRE_GetProcessType() != GeckoProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
@@ -1850,7 +1846,7 @@ nsDOMDeviceStorage::AddNamed(nsIDOMBlob *aBlob,
     r = new PostErrorEvent(request, POST_ERROR_EVENT_ILLEGAL_TYPE);
   }
   else {
-    r = new DeviceStorageRequest(DEVICE_STORAGE_REQUEST_CREATE,
+    r = new DeviceStorageRequest(DEVICE_STORAGE_REQUEST_WRITE,
                                  win, mPrincipal, dsf, request, aBlob);
   }
 
@@ -1903,7 +1899,7 @@ nsDOMDeviceStorage::GetInternal(const JS::Value & aPath,
   if (!dsf->IsSafePath()) {
     r = new PostErrorEvent(request, POST_ERROR_EVENT_PERMISSION_DENIED);
   } else {
-    r = new DeviceStorageRequest(aEditable ? DEVICE_STORAGE_REQUEST_WRITE : DEVICE_STORAGE_REQUEST_READ,
+    r = new DeviceStorageRequest(DEVICE_STORAGE_REQUEST_READ,
                                  win, mPrincipal, dsf, request);
   }
   NS_DispatchToMainThread(r);

@@ -21,6 +21,8 @@
 
 using namespace js;
 
+namespace js {
+
 bool
 WeakMapBase::markAllIteratively(JSTracer *tracer)
 {
@@ -86,6 +88,8 @@ WeakMapBase::restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector)
         rt->gcWeakMapList = m;
     }
 }
+
+} /* namespace js */
 
 typedef WeakMap<EncapsulatedPtrObject, RelocatableValue> ObjectValueMap;
 

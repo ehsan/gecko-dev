@@ -15,12 +15,12 @@ class nsTimeRanges;
 
 namespace mozilla {
 
-class AbstractMediaDecoder;
+class MediaDecoder;
 
 class GStreamerReader : public MediaDecoderReader
 {
 public:
-  GStreamerReader(AbstractMediaDecoder* aDecoder);
+  GStreamerReader(MediaDecoder* aDecoder);
   virtual ~GStreamerReader();
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);

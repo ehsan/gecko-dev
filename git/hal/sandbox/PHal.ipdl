@@ -152,10 +152,7 @@ parent:
     sync GetLight(LightType light)
       returns (LightConfiguration aConfig, bool status);
 
-    ModifyWakeLock(nsString aTopic,
-                   WakeLockControl aLockAdjust,
-                   WakeLockControl aHiddenAdjust,
-                   uint64_t aProcessID);
+    ModifyWakeLock(nsString aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust);
     EnableWakeLockNotifications();
     DisableWakeLockNotifications();
     sync GetWakeLockInfo(nsString aTopic)

@@ -371,8 +371,10 @@ js::AtomizeChars(JSContext *cx, const jschar *chars, size_t length, InternBehavi
     return AtomizeInline(cx, &chars, length, ib);
 }
 
+namespace js {
+
 bool
-js::IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp)
+IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp)
 {
     JS_ASSERT(index > JSID_INT_MAX);
 
@@ -387,6 +389,8 @@ js::IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp)
     *idp = JSID_FROM_BITS((size_t)atom);
     return true;
 }
+
+} /* namespace js */
 
 bool
 js::InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,

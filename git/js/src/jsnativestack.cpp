@@ -28,10 +28,12 @@
 
 #endif
 
+namespace js {
+
 #if defined(XP_WIN)
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
 # if defined(_M_IX86) && defined(_MSC_VER)
     /*
@@ -64,7 +66,7 @@ js::GetNativeStackBaseImpl()
 JS_STATIC_ASSERT(JS_STACK_GROWTH_DIRECTION < 0);
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     stack_t st;
     stack_getbounds(&st);
@@ -78,7 +80,7 @@ js::GetNativeStackBaseImpl()
 JS_STATIC_ASSERT(JS_STACK_GROWTH_DIRECTION < 0);
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     ucontext_t context;
     getcontext(&context);
@@ -89,7 +91,7 @@ js::GetNativeStackBaseImpl()
 #elif defined(XP_OS2)
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     PTIB  ptib;
     PPIB  ppib;
@@ -101,7 +103,7 @@ js::GetNativeStackBaseImpl()
 #else /* XP_UNIX */
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     pthread_t thread = pthread_self();
 # if defined(XP_MACOSX) || defined(DARWIN)
@@ -148,3 +150,5 @@ js::GetNativeStackBaseImpl()
 }
 
 #endif /* !XP_WIN */
+
+} /* namespace js */

@@ -252,7 +252,8 @@
                  oncommand="openUILinkIn('https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/', 'tab');"/>
 
     <!-- SocialAPI broadcasters -->
-    <broadcaster id="socialBroadcaster_userDetails"
+    <broadcaster id="socialBroadcaster_userPortrait"/>
+    <broadcaster id="socialBroadcaster_loggedInStatus"
                  notLoggedInLabel="&social.notLoggedIn.label;"/>
   </broadcasterset>
 

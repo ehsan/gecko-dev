@@ -424,9 +424,8 @@ public:
       return NS_OK;
     }
 
-    // There's a bug in the permission code that can leave us with mAudio but no audio device
-    ProcessGetUserMedia((mAudio && mAudioDevice) ? mAudioDevice->GetSource() : nullptr,
-                        (mVideo && mVideoDevice) ? mVideoDevice->GetSource() : nullptr);
+    ProcessGetUserMedia(mAudio ? mAudioDevice->GetSource() : nullptr,
+                        mVideo ? mVideoDevice->GetSource() : nullptr);
     return NS_OK;
   }
 
@@ -731,6 +730,7 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // If a device was provided, make sure it support the type of stream requested.
+  // Doesn't handle hard-specifying both audio and video
   if (audiodevice) {
     nsString type;
     audiodevice->GetType(type);

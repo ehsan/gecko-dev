@@ -120,10 +120,12 @@ SwapBytes(uint64_t u)
 #endif
 }
 
+namespace js {
+
 bool
-js::WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
-                         const JSStructuredCloneCallbacks *cb, void *cbClosure,
-                         jsval transferable)
+WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
+                     const JSStructuredCloneCallbacks *cb, void *cbClosure,
+                     jsval transferable)
 {
     SCOutput out(cx);
     JSStructuredCloneWriter w(out, cb, cbClosure, transferable);
@@ -131,8 +133,8 @@ js::WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t 
 }
 
 bool
-js::ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
-                        const JSStructuredCloneCallbacks *cb, void *cbClosure)
+ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
+                    const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCInput in(cx, data, nbytes);
 
@@ -144,7 +146,7 @@ js::ReadStructuredClone(JSContext *cx, uint64_t *data, size_t nbytes, Value *vp,
 }
 
 bool
-js::ClearStructuredClone(const uint64_t *data, size_t nbytes)
+ClearStructuredClone(const uint64_t *data, size_t nbytes)
 {
     const uint64_t *point = data;
     const uint64_t *end = data + nbytes / 8;
@@ -169,7 +171,8 @@ js::ClearStructuredClone(const uint64_t *data, size_t nbytes)
 }
 
 bool
-js::StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes, bool *hasTransferable)
+StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes,
+                                  bool *hasTransferable)
 {
     *hasTransferable = false;
 
@@ -183,6 +186,8 @@ js::StructuredCloneHasTransferObjects(const uint64_t *data, size_t nbytes, bool 
 
     return true;
 }
+
+} /* namespace js */
 
 static inline uint64_t
 PairToUInt64(uint32_t tag, uint32_t data)

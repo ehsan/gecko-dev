@@ -548,17 +548,15 @@ this.PlacesUIUtils = {
       aWindow : this._getTopBrowserWin();
 
     var urls = [];
-    let skipMarking = browserWindow && PrivateBrowsingUtils.isWindowPrivate(browserWindow);
     for (let item of aItemsToOpen) {
-      urls.push(item.uri);
-      if (skipMarking) {
-        continue;
+      if (!PrivateBrowsingUtils.isWindowPrivate(browserWindow)) {
+        if (item.isBookmark)
+          this.markPageAsFollowedBookmark(item.uri);
+        else
+          this.markPageAsTyped(item.uri);
       }
 
-      if (item.isBookmark)
-        this.markPageAsFollowedBookmark(item.uri);
-      else
-        this.markPageAsTyped(item.uri);
+      urls.push(item.uri);
     }
 
     // whereToOpenLink doesn't return "window" when there's no browser window

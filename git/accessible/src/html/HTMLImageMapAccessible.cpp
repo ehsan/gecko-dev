@@ -7,7 +7,7 @@
 
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
-#include "DocAccessible-inl.h"
+#include "DocAccessible.h"
 #include "Role.h"
 
 #include "nsIDOMHTMLCollection.h"
@@ -95,7 +95,7 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
 
     if (aDoFireEvents) {
       nsRefPtr<AccHideEvent> event = new AccHideEvent(area, area->GetContent());
-      mDoc->FireDelayedEvent(event);
+      mDoc->FireDelayedAccessibleEvent(event);
       reorderEvent->AddSubMutationEvent(event);
       doReorderEvent = true;
     }
@@ -121,7 +121,7 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
 
       if (aDoFireEvents) {
         nsRefPtr<AccShowEvent> event = new AccShowEvent(area, areaContent);
-        mDoc->FireDelayedEvent(event);
+        mDoc->FireDelayedAccessibleEvent(event);
         reorderEvent->AddSubMutationEvent(event);
         doReorderEvent = true;
       }
@@ -130,7 +130,7 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
 
   // Fire reorder event if needed.
   if (doReorderEvent)
-    mDoc->FireDelayedEvent(reorderEvent);
+    mDoc->FireDelayedAccessibleEvent(reorderEvent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

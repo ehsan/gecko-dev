@@ -2366,7 +2366,7 @@ LambdaIsGetElem(JSObject &lambda)
         return NULL;
 
     JSFunction *fun = lambda.toFunction();
-    if (!fun->hasScript())
+    if (!fun->isInterpreted())
         return NULL;
 
     RawScript script = fun->script().get(nogc);
@@ -3460,8 +3460,10 @@ js_ValueToSource(JSContext *cx, const Value &v)
     return ToString(cx, rval);
 }
 
+namespace js {
+
 bool
-js::EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
+EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
 {
     if (str1 == str2) {
         *result = true;
@@ -3486,7 +3488,7 @@ js::EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
 }
 
 bool
-js::EqualStrings(JSLinearString *str1, JSLinearString *str2)
+EqualStrings(JSLinearString *str1, JSLinearString *str2)
 {
     if (str1 == str2)
         return true;
@@ -3497,6 +3499,10 @@ js::EqualStrings(JSLinearString *str1, JSLinearString *str2)
 
     return PodEqual(str1->chars(), str2->chars(), length1);
 }
+
+}  /* namespace js */
+
+namespace js {
 
 static bool
 CompareStringsImpl(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
@@ -3521,13 +3527,17 @@ CompareStringsImpl(JSContext *cx, JSString *str1, JSString *str2, int32_t *resul
 }
 
 bool
-js::CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
+CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
 {
     return CompareStringsImpl(cx, str1, str2, result);
 }
 
+}  /* namespace js */
+
+namespace js {
+
 bool
-js::StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
+StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
 {
     size_t length = strlen(asciiBytes);
 #ifdef DEBUG
@@ -3543,6 +3553,8 @@ js::StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
     }
     return true;
 }
+
+} /* namespacejs */
 
 size_t
 js_strlen(const jschar *s)
@@ -3588,8 +3600,10 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
     return NULL;
 }
 
+namespace js {
+
 jschar *
-js::InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
+InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
 {
     AssertCanGC();
     size_t nchars;
@@ -3616,7 +3630,7 @@ js::InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
 }
 
 jschar *
-js::InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
+InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
 {
     AssertCanGC();
     size_t nchars;
@@ -3649,7 +3663,7 @@ js::InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
  * May be called with null cx.
  */
 char *
-js::DeflateString(JSContext *maybecx, const jschar *chars, size_t nchars)
+DeflateString(JSContext *maybecx, const jschar *chars, size_t nchars)
 {
     AutoAssertNoGC nogc;
     size_t nbytes = nchars;
@@ -3665,13 +3679,13 @@ js::DeflateString(JSContext *maybecx, const jschar *chars, size_t nchars)
 }
 
 size_t
-js::GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
+GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
 {
     return nchars;
 }
 
 bool
-js::DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
+DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
                           char *dst, size_t *dstlenp)
 {
     size_t dstlen = *dstlenp;
@@ -3690,8 +3704,9 @@ js::DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
     return JS_TRUE;
 }
 
+
 bool
-js::InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
+InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
                           jschar *dst, size_t *dstlenp)
 {
     if (dst) {
@@ -3713,7 +3728,7 @@ js::InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
 }
 
 bool
-js::InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
+InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
                               jschar *dst, size_t *dstlenp)
 {
     size_t dstlen, origDstlen, offset, j, n;
@@ -3792,6 +3807,8 @@ bufferTooSmall:
     }
     return JS_FALSE;
 }
+
+} /* namepsace js */
 
 const jschar js_uriReservedPlusPound_ucstr[] =
     {';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#', 0};
@@ -4167,9 +4184,10 @@ Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length)
     return ucs4Char;
 }
 
+namespace js {
+
 size_t
-js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearString *str,
-                         uint32_t quote)
+PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearString *str, uint32_t quote)
 {
     enum {
         STOP, FIRST_QUOTE, LAST_QUOTE, CHARS, ESCAPE_START, ESCAPE_MORE
@@ -4278,3 +4296,5 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearStri
         buffer[n] = '\0';
     return n;
 }
+
+} /* namespace js */

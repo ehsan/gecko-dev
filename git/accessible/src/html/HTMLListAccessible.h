@@ -96,15 +96,15 @@ public:
   bool IsInside() const;
 };
 
+} // namespace a11y
+} // namespace mozilla
 
-inline HTMLLIAccessible*
+
+inline mozilla::a11y::HTMLLIAccessible*
 Accessible::AsHTMLListItem()
 {
   return mFlags & eHTMLListItemAccessible ?
-    static_cast<HTMLLIAccessible*>(this) : nullptr;
+    static_cast<mozilla::a11y::HTMLLIAccessible*>(this) : nullptr;
 }
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

@@ -80,9 +80,6 @@
 #define SAMPLE_LABEL_FN(name_space, info)
 #define SAMPLE_MARKER(info)
 
-// Tracing features
-#define SAMPLER_PRINT_LOCATION()
-
 #endif
 
 #endif // ifndef SAMPLER_H

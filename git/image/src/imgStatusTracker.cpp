@@ -766,9 +766,3 @@ imgStatusTracker::MaybeUnblockOnload()
     SendUnblockOnload(iter.GetNext());
   }
 }
-
-void
-imgStatusTracker::ClearRequest()
-{
-  mRequest = nullptr;
-}

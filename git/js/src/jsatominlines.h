@@ -94,9 +94,6 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
     return end;
 }
 
-bool
-IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp);
-
 inline bool
 IndexToId(JSContext *cx, uint32_t index, jsid *idp)
 {
@@ -107,6 +104,7 @@ IndexToId(JSContext *cx, uint32_t index, jsid *idp)
         return true;
     }
 
+    extern bool IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp);
     return IndexToIdSlow(cx, index, idp);
 }
 

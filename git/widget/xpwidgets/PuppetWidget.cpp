@@ -284,8 +284,6 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
-  default:
-    break;
   }
 
   aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);

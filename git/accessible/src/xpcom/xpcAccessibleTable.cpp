@@ -12,8 +12,6 @@
 #include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
 
-using namespace mozilla::a11y;
-
 static const uint32_t XPC_TABLE_DEFAULT_SIZE = 40;
 
 nsresult

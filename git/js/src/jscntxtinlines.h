@@ -385,6 +385,8 @@ CallNativeImpl(JSContext *cx, NativeImpl impl, const CallArgs &args)
     return ok;
 }
 
+extern JSBool CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
+
 STATIC_PRECONDITION(ubound(args.argv_) >= argc)
 JS_ALWAYS_INLINE bool
 CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)

@@ -180,9 +180,11 @@ ComputeAccurateBinaryBaseInteger(const jschar *start, const jschar *end, int bas
     return value;
 }
 
+namespace js {
+
 bool
-js::GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base,
-                     const jschar **endp, double *dp)
+GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base,
+                 const jschar **endp, double *dp)
 {
     JS_ASSERT(start <= end);
     JS_ASSERT(2 <= base && base <= 36);
@@ -224,6 +226,8 @@ js::GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int 
 
     return true;
 }
+
+} // namespace js
 
 static JSBool
 num_isNaN(JSContext *cx, unsigned argc, Value *vp)
@@ -1033,8 +1037,10 @@ inline void FIX_FPU() {
 
 #endif
 
+namespace js {
+
 bool
-js::InitRuntimeNumberState(JSRuntime *rt)
+InitRuntimeNumberState(JSRuntime *rt)
 {
     FIX_FPU();
 
@@ -1105,7 +1111,7 @@ js::InitRuntimeNumberState(JSRuntime *rt)
 }
 
 void
-js::FinishRuntimeNumberState(JSRuntime *rt)
+FinishRuntimeNumberState(JSRuntime *rt)
 {
     /*
      * The free also releases the memory for decimalSeparator and numGrouping
@@ -1114,6 +1120,8 @@ js::FinishRuntimeNumberState(JSRuntime *rt)
     char *storage = const_cast<char *>(rt->thousandsSeparator);
     js_free(storage);
 }
+
+} /* namespace js */
 
 JSObject *
 js_InitNumberClass(JSContext *cx, HandleObject obj)
@@ -1171,6 +1179,8 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
     return numberProto;
 }
 
+namespace js {
+
 static char *
 FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 {
@@ -1202,12 +1212,14 @@ FracNumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10)
 }
 
 char *
-js::NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
+NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10*/)
 {
     int32_t i;
     return MOZ_DOUBLE_IS_INT32(d, &i)
            ? IntToCString(cbuf, i, base)
            : FracNumberToCString(cx, cbuf, d, base);
+}
+
 }
 
 static JSString * JS_FASTCALL
@@ -1269,8 +1281,10 @@ js_NumberToString(JSContext *cx, double d)
     return js_NumberToStringWithBase(cx, d, 10);
 }
 
+namespace js {
+
 JSFlatString *
-js::NumberToString(JSContext *cx, double d)
+NumberToString(JSContext *cx, double d)
 {
     if (JSString *str = js_NumberToStringWithBase(cx, d, 10))
         return &str->asFlat();
@@ -1278,7 +1292,7 @@ js::NumberToString(JSContext *cx, double d)
 }
 
 JSFlatString *
-js::IndexToString(JSContext *cx, uint32_t index)
+IndexToString(JSContext *cx, uint32_t index)
 {
     if (StaticStrings::hasUint(index))
         return cx->runtime->staticStrings.getUint(index);
@@ -1305,7 +1319,7 @@ js::IndexToString(JSContext *cx, uint32_t index)
 }
 
 bool JS_FASTCALL
-js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
+NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 {
     /* Convert to C-string. */
     ToCStringBuf cbuf;
@@ -1330,7 +1344,7 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 }
 
 JS_PUBLIC_API(bool)
-js::ToNumberSlow(JSContext *cx, Value v, double *out)
+ToNumberSlow(JSContext *cx, Value v, double *out)
 {
     AssertCanGC();
 #ifdef DEBUG
@@ -1393,7 +1407,7 @@ js::ToNumberSlow(JSContext *cx, Value v, double *out)
  * conversion. Return converted value in *out on success, false on failure.
  */
 JS_PUBLIC_API(bool)
-js::ToInt64Slow(JSContext *cx, const Value &v, int64_t *out)
+ToInt64Slow(JSContext *cx, const Value &v, int64_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1412,7 +1426,7 @@ js::ToInt64Slow(JSContext *cx, const Value &v, int64_t *out)
  * conversion. Return converted value in *out on success, false on failure.
  */
 JS_PUBLIC_API(bool)
-js::ToUint64Slow(JSContext *cx, const Value &v, uint64_t *out)
+ToUint64Slow(JSContext *cx, const Value &v, uint64_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1427,7 +1441,7 @@ js::ToUint64Slow(JSContext *cx, const Value &v, uint64_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
+ToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1442,7 +1456,7 @@ js::ToInt32Slow(JSContext *cx, const Value &v, int32_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToUint32Slow(JSContext *cx, const Value &v, uint32_t *out)
+ToUint32Slow(JSContext *cx, const Value &v, uint32_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1457,7 +1471,7 @@ js::ToUint32Slow(JSContext *cx, const Value &v, uint32_t *out)
 }
 
 JS_PUBLIC_API(bool)
-js::ToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
+ToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
 {
     JS_ASSERT(!v.isInt32());
     double d;
@@ -1488,6 +1502,8 @@ js::ToUint16Slow(JSContext *cx, const Value &v, uint16_t *out)
     *out = (uint16_t) d;
     return true;
 }
+
+}  /* namespace js */
 
 JSBool
 js_strtod(JSContext *cx, const jschar *s, const jschar *send,

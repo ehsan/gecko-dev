@@ -12,9 +12,6 @@
 #include "ia2AccessibleEditableText.h"
 #include "ia2AccessibleHyperText.h"
 
-namespace mozilla {
-namespace a11y {
-
 class HyperTextAccessibleWrap : public HyperTextAccessible,
                                 public ia2AccessibleHypertext,
                                 public ia2AccessibleEditableText
@@ -38,7 +35,5 @@ protected:
                                    uint32_t *aEndOffset);
 };
 
-} // namespace a11y
-} // namespace mozilla
-
 #endif
+

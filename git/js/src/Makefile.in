@@ -109,9 +109,6 @@ CPPSRCS		= \
 		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jsworkers.cpp \
-		threadpool.cpp \
-		monitor.cpp \
-		forkjoin.cpp \
 		jswrapper.cpp \
 		jsxml.cpp \
 		prmjtime.cpp \

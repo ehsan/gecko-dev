@@ -38,10 +38,18 @@ gfxCoreTextShaper::gfxCoreTextShaper(gfxMacFont *aFont)
     : gfxFontShaper(aFont)
 {
     // Create our CTFontRef
-    mCTFont = ::CTFontCreateWithGraphicsFont(aFont->GetCGFontRef(),
-                                             aFont->GetAdjustedSize(),
-                                             NULL,
-                                             GetDefaultFeaturesDescriptor());
+    if (gfxMacPlatformFontList::UseATSFontEntry()) {
+        ATSFontEntry *fe = static_cast<ATSFontEntry*>(aFont->GetFontEntry());
+        mCTFont = ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(),
+                                                 aFont->GetAdjustedSize(),
+                                                 NULL,
+                                                 GetDefaultFeaturesDescriptor());
+    } else {
+        mCTFont = ::CTFontCreateWithGraphicsFont(aFont->GetCGFontRef(),
+                                                 aFont->GetAdjustedSize(),
+                                                 NULL,
+                                                 GetDefaultFeaturesDescriptor());
+    }
 
     // Set up the default attribute dictionary that we will need each time we create a CFAttributedString
     mAttributesDict = ::CFDictionaryCreate(kCFAllocatorDefault,
@@ -627,6 +635,12 @@ gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
             ::CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(),
                                                        attributesDict);
         ::CFRelease(attributesDict);
+    }
+
+    if (gfxMacPlatformFontList::UseATSFontEntry()) {
+        ATSFontEntry *fe = static_cast<ATSFontEntry*>(mFont->GetFontEntry());
+        return ::CTFontCreateWithPlatformFont(fe->GetATSFontRef(), aSize, NULL,
+                                              sDisableLigaturesDescriptor);
     }
 
     gfxMacFont *f = static_cast<gfxMacFont*>(mFont);

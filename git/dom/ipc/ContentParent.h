@@ -217,6 +217,10 @@ private:
     virtual PTestShellParent* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
+    virtual PAudioParent* AllocPAudio(const int32_t&,
+                                     const int32_t&);
+    virtual bool DeallocPAudio(PAudioParent*);
+
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
@@ -307,7 +311,6 @@ private:
     GeckoChildProcessHost* mSubprocess;
     ChildOSPrivileges mOSPrivileges;
 
-    uint64_t mChildID;
     int32_t mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;

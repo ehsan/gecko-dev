@@ -23,7 +23,7 @@ namespace mozilla {
 class DASHReader : public MediaDecoderReader
 {
 public:
-  DASHReader(AbstractMediaDecoder* aDecoder) :
+  DASHReader(MediaDecoder* aDecoder) :
     MediaDecoderReader(aDecoder),
     mReadMetadataMonitor("media.dashreader.readmetadata"),
     mReadyToReadMetadata(false),

@@ -3259,11 +3259,11 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
         prefs.mDisableAcceleration ||
         windowRect.right - windowRect.left > MAX_ACCELERATED_DIMENSION ||
         windowRect.bottom - windowRect.top > MAX_ACCELERATED_DIMENSION)
-      mUseLayersAcceleration = false;
+      mUseAcceleratedRendering = false;
     else if (prefs.mAccelerateByDefault)
-      mUseLayersAcceleration = true;
+      mUseAcceleratedRendering = true;
 
-    if (mUseLayersAcceleration) {
+    if (mUseAcceleratedRendering) {
       if (aPersistence == LAYER_MANAGER_PERSISTENT && !sAllowD3D9) {
         MOZ_ASSERT(!mLayerManager || !mLayerManager->IsInTransaction());
 
@@ -5138,7 +5138,7 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // for details).
       DWORD objId = static_cast<DWORD>(lParam);
       if (objId == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
-        a11y::Accessible* rootAccessible = GetRootAccessible(); // Held by a11y cache
+        Accessible* rootAccessible = GetRootAccessible(); // Held by a11y cache
         if (rootAccessible) {
           IAccessible *msaaAccessible = NULL;
           rootAccessible->GetNativeInterface((void**)&msaaAccessible); // does an addref
@@ -7467,7 +7467,7 @@ bool nsWindow::AssociateDefaultIMC(bool aAssociate)
 
 #ifdef DEBUG_WMGETOBJECT
 #define NS_LOG_WMGETOBJECT_WNDACC(aWnd)                                        \
-  a11y::Accessible* acc = aWnd ? aWind->GetAccessible() : nullptr;             \
+  Accessible* acc = aWnd ? aWind->GetAccessible() : nullptr;                   \
   PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("     acc: %p", acc));                   \
   if (acc) {                                                                   \
     nsAutoString name;                                                         \
@@ -7505,7 +7505,7 @@ bool nsWindow::AssociateDefaultIMC(bool aAssociate)
 #define NS_LOG_WMGETOBJECT_WND(aMsg, aHwnd)
 #endif // DEBUG_WMGETOBJECT
 
-a11y::Accessible*
+Accessible*
 nsWindow::GetRootAccessible()
 {
   // If the pref was ePlatformIsDisabled, return null here, disabling a11y.

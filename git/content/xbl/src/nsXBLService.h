@@ -5,9 +5,6 @@
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef nsXBLService_h_
-#define nsXBLService_h_
-
 #include "nsString.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
@@ -144,4 +141,3 @@ public:
   nsrefcnt Drop() { return --mRefCnt ? mRefCnt : Destroy(); }
 };
 
-#endif

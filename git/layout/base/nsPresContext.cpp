@@ -414,7 +414,7 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
 {
   // Get language group for aLanguage:
 
-  nsresult rv = NS_OK;
+  nsresult rv;
   nsIAtom *langGroupAtom = nullptr;
   if (!aLanguage) {
     aLanguage = mLanguage;

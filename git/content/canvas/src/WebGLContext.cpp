@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLObjectModel.h"
 #include "WebGLExtensions.h"
 #include "WebGLContextUtils.h"
 
@@ -173,9 +172,6 @@ WebGLContext::WebGLContext()
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;
 
     mLastUseIndex = 0;
-
-    mMinInUseAttribArrayLengthCached = false;
-    mMinInUseAttribArrayLength = 0;
 }
 
 WebGLContext::~WebGLContext()

@@ -111,6 +111,7 @@ nsDOMUIEvent::GetMovementPoint()
 
   if (!mEvent ||
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+       mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        mEvent->eventStructType != NS_WHEEL_EVENT &&
        mEvent->eventStructType != NS_DRAG_EVENT &&
@@ -313,6 +314,7 @@ nsDOMUIEvent::GetLayerPoint()
 {
   if (!mEvent ||
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+       mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        mEvent->eventStructType != NS_WHEEL_EVENT &&
        mEvent->eventStructType != NS_TOUCH_EVENT &&

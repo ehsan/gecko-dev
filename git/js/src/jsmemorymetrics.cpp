@@ -22,15 +22,20 @@
 #include "ion/IonCode.h"
 #include "ion/Ion.h"
 
-using namespace js;
+namespace js {
 
-JS_FRIEND_API(size_t)
-js::MemoryReportingSundriesThreshold()
+size_t MemoryReportingSundriesThreshold()
 {
     return 8 * 1024;
 }
 
+} // namespace js
+
 #ifdef JS_THREADSAFE
+
+namespace JS {
+
+using namespace js;
 
 typedef HashSet<ScriptSource *, DefaultHasher<ScriptSource *>, SystemAllocPolicy> SourceSet;
 
@@ -270,7 +275,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
 }
 
 JS_PUBLIC_API(bool)
-JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv)
+CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv)
 {
     if (!rtStats->compartmentStatsVector.reserve(rt->compartments.length()))
         return false;
@@ -323,7 +328,7 @@ JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisit
 }
 
 JS_PUBLIC_API(int64_t)
-JS::GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
 {
     // explicit/<compartment>/gc-heap/*
     size_t n = size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
@@ -338,7 +343,7 @@ JS::GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
 }
 
 JS_PUBLIC_API(size_t)
-JS::SystemCompartmentCount(const JSRuntime *rt)
+SystemCompartmentCount(const JSRuntime *rt)
 {
     size_t n = 0;
     for (size_t i = 0; i < rt->compartments.length(); i++) {
@@ -349,7 +354,7 @@ JS::SystemCompartmentCount(const JSRuntime *rt)
 }
 
 JS_PUBLIC_API(size_t)
-JS::UserCompartmentCount(const JSRuntime *rt)
+UserCompartmentCount(const JSRuntime *rt)
 {
     size_t n = 0;
     for (size_t i = 0; i < rt->compartments.length(); i++) {
@@ -358,5 +363,7 @@ JS::UserCompartmentCount(const JSRuntime *rt)
     }
     return n;
 }
+
+} // namespace JS
 
 #endif // JS_THREADSAFE

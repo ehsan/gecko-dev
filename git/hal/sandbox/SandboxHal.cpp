@@ -276,12 +276,9 @@ DisableWakeLockNotifications()
 }
 
 void
-ModifyWakeLockInternal(const nsAString &aTopic,
-                       WakeLockControl aLockAdjust,
-                       WakeLockControl aHiddenAdjust,
-                       uint64_t aProcessID)
+ModifyWakeLock(const nsAString &aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust)
 {
-  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust, aProcessID);
+  Hal()->SendModifyWakeLock(nsString(aTopic), aLockAdjust, aHiddenAdjust);
 }
 
 void
@@ -706,13 +703,12 @@ public:
   }
 
   virtual bool
-  RecvModifyWakeLock(const nsString& aTopic,
-                     const WakeLockControl& aLockAdjust,
-                     const WakeLockControl& aHiddenAdjust,
-                     const uint64_t& aProcessID) MOZ_OVERRIDE
+  RecvModifyWakeLock(const nsString &aTopic,
+                     const WakeLockControl &aLockAdjust,
+                     const WakeLockControl &aHiddenAdjust) MOZ_OVERRIDE
   {
     // We allow arbitrary content to use wake locks.
-    hal::ModifyWakeLockInternal(aTopic, aLockAdjust, aHiddenAdjust, aProcessID);
+    hal::ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust);
     return true;
   }
 

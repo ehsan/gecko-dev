@@ -21,10 +21,12 @@ class nsTimeRanges;
 
 namespace mozilla {
 
+class MediaDecoder;
+
 class OggReader : public MediaDecoderReader
 {
 public:
-  OggReader(AbstractMediaDecoder* aDecoder);
+  OggReader(MediaDecoder* aDecoder);
   ~OggReader();
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);

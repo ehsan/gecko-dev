@@ -1295,28 +1295,17 @@ nsPluginHost::IsPluginEnabledForType(const char* aMimeType)
   return NS_OK;
 }
  
-NS_IMETHODIMP
-nsPluginHost::IsPluginClickToPlayForType(const nsACString &aMimeType, bool *aResult)
+bool
+nsPluginHost::IsPluginClickToPlayForType(const char* aMimeType)
 {
-  nsPluginTag *plugin = FindPluginForType(aMimeType.Data(), true);
-  if (!plugin) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  uint32_t blocklistState = nsIBlocklistService::STATE_NOT_BLOCKED;
-  nsresult rv = GetBlocklistStateForType(aMimeType.Data(), &blocklistState);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (mPluginsClickToPlay ||
-      blocklistState == nsIBlocklistService::STATE_VULNERABLE_NO_UPDATE ||
-      blocklistState == nsIBlocklistService::STATE_VULNERABLE_UPDATE_AVAILABLE) {
-    *aResult = true;
+  nsPluginTag *plugin = FindPluginForType(aMimeType, true);
+  if (plugin && 
+      (plugin->HasFlag(NS_PLUGIN_FLAG_CLICKTOPLAY) || mPluginsClickToPlay)) {
+    return true;
   }
   else {
-    *aResult = false;
+    return false;
   }
-
-  return NS_OK;
 }
 
 bool
@@ -2164,6 +2153,10 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
           }
           if (state == nsIBlocklistService::STATE_OUTDATED && !seenBefore) {
              warnOutdated = true;
+          }
+          if (state == nsIBlocklistService::STATE_VULNERABLE_UPDATE_AVAILABLE ||
+              state == nsIBlocklistService::STATE_VULNERABLE_NO_UPDATE) {
+            pluginTag->Mark(NS_PLUGIN_FLAG_CLICKTOPLAY);
           }
         }
       }

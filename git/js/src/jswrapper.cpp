@@ -29,7 +29,9 @@
 using namespace js;
 using namespace js::gc;
 
-int js::sWrapperFamily;
+namespace js {
+int sWrapperFamily;
+}
 
 void *
 Wrapper::getWrapperFamily()
@@ -823,6 +825,8 @@ SecurityWrapper<Base>::regexp_toShared(JSContext *cx, JSObject *obj, RegExpGuard
 template class js::SecurityWrapper<Wrapper>;
 template class js::SecurityWrapper<CrossCompartmentWrapper>;
 
+namespace js {
+
 DeadObjectProxy::DeadObjectProxy()
   : BaseProxyHandler(&sDeadObjectFamily)
 {
@@ -964,6 +968,8 @@ DeadObjectProxy::getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **proto
 
 DeadObjectProxy DeadObjectProxy::singleton;
 int DeadObjectProxy::sDeadObjectFamily;
+
+} // namespace js
 
 JSObject *
 js::NewDeadProxyObject(JSContext *cx, JSObject *parent)

@@ -1312,14 +1312,14 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect)
 }
 
 bool
-nsChildView::ComputeShouldAccelerate(bool aDefault)
+nsChildView::GetShouldAccelerate()
 {
   // Don't use OpenGL for transparent windows or for popup windows.
   if (!mView || ![[mView window] isOpaque] ||
       [[mView window] isKindOfClass:[PopupWindow class]])
     return false;
 
-  return nsBaseWidget::ComputeShouldAccelerate(aDefault);
+  return nsBaseWidget::GetShouldAccelerate();
 }
 
 bool
@@ -1327,8 +1327,7 @@ nsChildView::UseOffMainThreadCompositing()
 {
   // OMTC doesn't work with Basic Layers on OS X right now. Once it works, we'll
   // still want to disable it for certain kinds of windows (e.g. popups).
-  return nsBaseWidget::UseOffMainThreadCompositing() &&
-         ComputeShouldAccelerate(mUseLayersAcceleration);
+  return nsBaseWidget::UseOffMainThreadCompositing() && GetShouldAccelerate();
 }
 
 inline uint16_t COLOR8TOCOLOR16(uint8_t color8)
@@ -1854,13 +1853,13 @@ nsChildView::EndSecureKeyboardInput()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<a11y::Accessible>
+already_AddRefed<Accessible>
 nsChildView::GetDocumentAccessible()
 {
   if (!mozilla::a11y::ShouldA11yBeEnabled())
     return nullptr;
 
-  a11y::Accessible* docAccessible = nullptr;
+  Accessible *docAccessible = nullptr;
   if (mAccessible) {
     CallQueryReferent(mAccessible.get(), &docAccessible);
     return docAccessible;
@@ -1868,7 +1867,7 @@ nsChildView::GetDocumentAccessible()
 
   // need to fetch the accessible anew, because it has gone away.
   // cache the accessible in our weak ptr
-  a11y::Accessible* acc = GetAccessible();
+  Accessible* acc = GetAccessible();
   mAccessible = do_GetWeakReference(static_cast<nsIAccessible *>(acc));
 
   NS_IF_ADDREF(acc);
@@ -4597,7 +4596,7 @@ static int32_t RoundUp(double aDouble)
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   nsCOMPtr<nsIWidget> kungFuDeathGrip2(mGeckoChild);
-  nsRefPtr<a11y::Accessible> accessible = mGeckoChild->GetDocumentAccessible();
+  nsRefPtr<Accessible> accessible = mGeckoChild->GetDocumentAccessible();
   if (!accessible)
     return nil;
 

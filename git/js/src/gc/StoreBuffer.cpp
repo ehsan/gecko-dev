@@ -13,7 +13,8 @@
 #include "gc/StoreBuffer.h"
 #include "vm/ObjectImpl-inl.h"
 
-using namespace js::gc;
+namespace js {
+namespace gc {
 
 /*** MonoTypeBuffer ***/
 
@@ -263,5 +264,8 @@ template class StoreBuffer::MonoTypeBuffer<StoreBuffer::CellPtrEdge>;
 template class StoreBuffer::MonoTypeBuffer<StoreBuffer::SlotEdge>;
 template class StoreBuffer::RelocatableMonoTypeBuffer<StoreBuffer::ValueEdge>;
 template class StoreBuffer::RelocatableMonoTypeBuffer<StoreBuffer::CellPtrEdge>;
+
+} /* namespace gc */
+} /* namespace js */
 
 #endif /* JSGC_GENERATIONAL */

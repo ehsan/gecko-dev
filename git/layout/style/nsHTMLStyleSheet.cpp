@@ -58,8 +58,6 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 /* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-  fputs("[html color rule] {}\n", out);
 }
 #endif
 
@@ -70,8 +68,6 @@ NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
 /* virtual */ void
 nsHTMLStyleSheet::GenericTableRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-  fputs("[generic table rule] {}\n", out);
 }
 #endif
 

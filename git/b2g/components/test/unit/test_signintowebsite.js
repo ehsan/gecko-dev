@@ -205,8 +205,7 @@ function test_options_pass_through() {
   // objects and their parameters as they are passed back and forth.
   let randomMixedParams = {
     loggedInUser: "juanita@mozilla.com",
-    forceAuthentication: true,
-    issuer: "https://foo.com",
+    pie: 42,
     someThing: {
       name: "Pertelote",
       legs: 4,

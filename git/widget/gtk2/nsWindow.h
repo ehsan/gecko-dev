@@ -366,7 +366,7 @@ private:
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<mozilla::a11y::Accessible> mRootAccessible;
+    nsRefPtr<Accessible> mRootAccessible;
 
     /**
      * Request to create the accessible for this window if it is top level.

@@ -371,8 +371,6 @@ public:
 
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
-  void DoGetKeyText(nsAString &aKeyText) const;
-
 private:
   nsAutoTArray<float, 1>                     mKeys;
   nsAutoPtr<mozilla::css::Declaration>       mDeclaration;

@@ -60,9 +60,7 @@ function ContentPermissionPrompt() {}
 ContentPermissionPrompt.prototype = {
 
   handleExistingPermission: function handleExistingPermission(request) {
-    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
-                                                                   request.type;
-    let result = Services.perms.testExactPermissionFromPrincipal(request.principal, access);
+    let result = Services.perms.testExactPermissionFromPrincipal(request.principal, request.type);
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
       return true;
@@ -85,9 +83,6 @@ ContentPermissionPrompt.prototype = {
     if (!content)
       return;
 
-    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
-                                                                   request.type;
-
     let requestId = this._id++;
     content.addEventListener("mozContentEvent", function contentEvent(evt) {
       if (evt.detail.id != requestId)
@@ -97,6 +92,8 @@ ContentPermissionPrompt.prototype = {
       if (evt.detail.type == "permission-allow") {
         if (evt.detail.remember) {
           rememberPermission(request.type, request.principal);
+          Services.perms.addFromPrincipal(request.principal, request.type,
+                                          Ci.nsIPermissionManager.ALLOW_ACTION);
         }
 
         request.allow();
@@ -104,7 +101,7 @@ ContentPermissionPrompt.prototype = {
       }
 
       if (evt.detail.remember) {
-        Services.perms.addFromPrincipal(request.principal, access,
+        Services.perms.addFromPrincipal(request.principal, request.type,
                                         Ci.nsIPermissionManager.DENY_ACTION);
       }
 
@@ -123,7 +120,7 @@ ContentPermissionPrompt.prototype = {
       remember: request.remember
     };
 
-    this._permission = access;
+    this._permission = request.type;
     this._uri = request.principal.URI.spec;
     this._origin = request.principal.origin;
 

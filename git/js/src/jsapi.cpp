@@ -680,43 +680,49 @@ static JSBool js_NewRuntimeWasCalled = JS_FALSE;
 /*
  * Thread Local Storage slot for storing the runtime for a thread.
  */
-mozilla::ThreadLocal<PerThreadData *> js::TlsPerThreadData;
+namespace js {
+mozilla::ThreadLocal<PerThreadData *> TlsPerThreadData;
+}
+
+namespace JS {
 
 #ifdef DEBUG
 JS_FRIEND_API(void)
-JS::EnterAssertNoGCScope()
+EnterAssertNoGCScope()
 {
     ++TlsPerThreadData.get()->gcAssertNoGCDepth;
 }
 
 JS_FRIEND_API(void)
-JS::LeaveAssertNoGCScope()
+LeaveAssertNoGCScope()
 {
     --TlsPerThreadData.get()->gcAssertNoGCDepth;
     JS_ASSERT(TlsPerThreadData.get()->gcAssertNoGCDepth >= 0);
 }
 
 JS_FRIEND_API(bool)
-JS::InNoGCScope()
+InNoGCScope()
 {
     return TlsPerThreadData.get()->gcAssertNoGCDepth > 0;
 }
 
 JS_FRIEND_API(bool)
-JS::NeedRelaxedRootChecks()
+NeedRelaxedRootChecks()
 {
     return TlsPerThreadData.get()->gcRelaxRootChecks;
 }
 #else
-JS_FRIEND_API(void) JS::EnterAssertNoGCScope() {}
-JS_FRIEND_API(void) JS::LeaveAssertNoGCScope() {}
-JS_FRIEND_API(bool) JS::InNoGCScope() { return false; }
-JS_FRIEND_API(bool) JS::NeedRelaxedRootChecks() { return false; }
+JS_FRIEND_API(void) EnterAssertNoGCScope() {}
+JS_FRIEND_API(void) LeaveAssertNoGCScope() {}
+JS_FRIEND_API(bool) InNoGCScope() { return false; }
+JS_FRIEND_API(bool) NeedRelaxedRootChecks() { return false; }
 #endif
+
+} /* namespace JS */
 
 static const JSSecurityCallbacks NullSecurityCallbacks = { };
 
-PerThreadData::PerThreadData(JSRuntime *runtime)
+js::PerThreadData::PerThreadData(JSRuntime *runtime)
   : runtime_(runtime)
 #ifdef DEBUG
   , gcRelaxRootChecks(false)
@@ -872,7 +878,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     ionStackLimit(0),
     ionActivation(NULL),
     ionPcScriptCache(NULL),
-    threadPool(this),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads)
 {
@@ -936,9 +941,6 @@ JSRuntime::init(uint32_t maxbytes)
         return false;
 
     if (!scriptFilenameTable.init())
-        return false;
-
-    if (!threadPool.init())
         return false;
 
 #ifdef JS_THREADSAFE
@@ -1484,14 +1486,6 @@ JSAutoCompartment::JSAutoCompartment(JSContext *cx, JSStackFrame *target)
 {
     AssertHeapIsIdleOrIterating(cx_);
     cx_->enterCompartment(Valueify(target)->global().compartment());
-}
-
-JSAutoCompartment::JSAutoCompartment(JSContext *cx, JSString *target)
-  : cx_(cx),
-    oldCompartment_(cx->compartment)
-{
-    AssertHeapIsIdleOrIterating(cx_);
-    cx_->enterCompartment(target->compartment());
 }
 
 JSAutoCompartment::~JSAutoCompartment()
@@ -5005,8 +4999,8 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, JSFunctionSpec *fs)
 
             flags &= ~JSFUN_GENERIC_NATIVE;
             JSFunction *fun = js_DefineFunction(cx, ctor, id, js_generic_native_method_dispatcher,
-                                                fs->nargs + 1, flags,
-                                                JSFunction::ExtendedFinalizeKind);
+                                    fs->nargs + 1, flags, NullPtr(),
+                                    JSFunction::ExtendedFinalizeKind);
             if (!fun)
                 return JS_FALSE;
 
@@ -5027,36 +5021,19 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, JSFunctionSpec *fs)
         if (fs->selfHostedName && cx->runtime->isSelfHostedGlobal(cx->global()))
             return JS_TRUE;
 
-        /*
-         * Delay cloning self-hosted functions until they are called. This is
-         * achieved by passing js_DefineFunction a NULL JSNative which
-         * produces an interpreted JSFunction where !hasScript. Interpreted
-         * call paths then call InitializeLazyFunctionScript if !hasScript.
-         */
+        Rooted<PropertyName*> selfHostedPropertyName(cx);
         if (fs->selfHostedName) {
-            RootedFunction fun(cx, js_DefineFunction(cx, obj, id, /* native = */ NULL, fs->nargs, 0,
-                                                     JSFunction::ExtendedFinalizeKind));
-            if (!fun)
+            JSAtom *selfHostedAtom = Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName));
+            if (!selfHostedAtom)
                 return JS_FALSE;
-            JSFunction::setSingletonType(cx, fun);
-            fun->setIsSelfHostedBuiltin();
-            fun->setExtendedSlot(0, PrivateValue(fs));
-            RootedAtom shAtom(cx, Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName)));
-            if (!shAtom)
-                return JS_FALSE;
-            RootedObject holder(cx, cx->global()->intrinsicsHolder());
-            if (!JS_DefinePropertyById(cx,holder, AtomToId(shAtom),
-                                       ObjectValue(*fun), NULL, NULL, 0))
-            {
-                return JS_FALSE;
-            }
-        } else {
-            JSFunction *fun = js_DefineFunction(cx, obj, id, fs->call.op, fs->nargs, flags);
-            if (!fun)
-                return JS_FALSE;
-            if (fs->call.info)
-                fun->setJitInfo(fs->call.info);
+            selfHostedPropertyName = selfHostedAtom->asPropertyName();
         }
+        JSFunction *fun = js_DefineFunction(cx, obj, id, fs->call.op, fs->nargs, flags,
+                                            selfHostedPropertyName);
+        if (!fun)
+            return JS_FALSE;
+        if (fs->call.info)
+            fun->setJitInfo(fs->call.info);
     }
     return JS_TRUE;
 }
@@ -5493,20 +5470,16 @@ JS_CompileFunction(JSContext *cx, JSObject *objArg, const char *name,
 }
 
 JS_PUBLIC_API(JSString *)
-JS_DecompileScript(JSContext *cx, JSScript *scriptArg, const char *name, unsigned indent)
+JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    RootedScript script(cx, scriptArg);
     RootedFunction fun(cx, script->function());
     if (fun)
         return JS_DecompileFunction(cx, fun, indent);
-    bool haveSource = script->scriptSource()->hasSourceData();
-    if (!haveSource && !JSScript::loadSource(cx, script, &haveSource))
-        return NULL;
-    return haveSource ? script->sourceData(cx) : js_NewStringCopyZ(cx, "[no source]");
+    return script->sourceData(cx);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5785,8 +5758,10 @@ JS_CallFunctionValue(JSContext *cx, JSObject *objArg, jsval fval, unsigned argc,
     return Invoke(cx, ObjectOrNullValue(obj), fval, argc, argv, rval);
 }
 
+namespace JS {
+
 JS_PUBLIC_API(bool)
-JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsval *rval)
+Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsval *rval)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
@@ -5795,6 +5770,8 @@ JS::Call(JSContext *cx, jsval thisv, jsval fval, unsigned argc, jsval *argv, jsv
 
     return Invoke(cx, thisv, fval, argc, argv, rval);
 }
+
+} // namespace JS
 
 JS_PUBLIC_API(JSObject *)
 JS_New(JSContext *cx, JSObject *ctorArg, unsigned argc, jsval *argv)
@@ -7117,6 +7094,8 @@ JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
 #endif
 }
 
+namespace JS {
+
 AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
   : down(cx->runtime->autoGCRooters), tag(tag), stackTop(&cx->runtime->autoGCRooters)
 {
@@ -7126,13 +7105,15 @@ AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
 
 #ifdef DEBUG
 JS_PUBLIC_API(void)
-JS::AssertArgumentsAreSane(JSContext *cx, const JS::Value &value)
+AssertArgumentsAreSane(JSContext *cx, const JS::Value &value)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
 }
 #endif /* DEBUG */
+
+} // namespace JS
 
 JS_PUBLIC_API(void *)
 JS_EncodeScript(JSContext *cx, JSRawScript scriptArg, uint32_t *lengthp)

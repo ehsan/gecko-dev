@@ -1256,9 +1256,9 @@ SourceCompressionToken::complete()
 {
     JS_ASSERT_IF(!ss, !chars);
 #ifdef JS_THREADSAFE
-    if (active()) {
+    if (ss) {
         cx->runtime->sourceCompressorThread.waitOnCompression(this);
-        JS_ASSERT(!active());
+        JS_ASSERT(!ss);
     }
     if (oom) {
         JS_ReportOutOfMemory(cx);
@@ -1271,7 +1271,6 @@ SourceCompressionToken::complete()
 void
 SourceCompressionToken::abort()
 {
-    JS_ASSERT(active());
 #ifdef JS_THREADSAFE
     cx->runtime->sourceCompressorThread.abort(this);
 #endif
@@ -1859,6 +1858,8 @@ JSScript::isShortRunning()
 bool
 JSScript::enclosingScriptsCompiledSuccessfully() const
 {
+    AutoAssertNoGC nogc;
+
     /*
      * When a nested script is succesfully compiled, it is eagerly given the
      * static JSFunction of its enclosing script. The enclosing function's
@@ -1870,7 +1871,7 @@ JSScript::enclosingScriptsCompiledSuccessfully() const
     while (enclosing) {
         if (enclosing->isFunction()) {
             RawFunction fun = enclosing->toFunction();
-            if (!fun->hasScript())
+            if (!fun->script().get(nogc))
                 return false;
             enclosing = fun->script()->enclosingScope_;
         } else {
@@ -1936,6 +1937,8 @@ JSScript::finalize(FreeOp *fop)
     }
 }
 
+namespace js {
+
 static const uint32_t GSN_CACHE_THRESHOLD = 100;
 static const uint32_t GSN_CACHE_MAP_INIT_SIZE = 20;
 
@@ -1946,6 +1949,8 @@ GSNCache::purge()
     if (map.initialized())
         map.finish();
 }
+
+} /* namespace js */
 
 jssrcnote *
 js_GetSrcNote(JSContext *cx, RawScript script, jsbytecode *pc)
@@ -2127,16 +2132,18 @@ js_GetScriptLineExtent(RawScript script)
     return 1 + lineno - script->lineno;
 }
 
+namespace js {
+
 unsigned
-js::CurrentLine(JSContext *cx)
+CurrentLine(JSContext *cx)
 {
     AutoAssertNoGC nogc;
     return PCToLineNumber(cx->fp()->script().get(nogc), cx->regs().pc);
 }
 
 void
-js::CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *linenop,
-                                    JSPrincipals **origin)
+CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *linenop,
+                                JSPrincipals **origin)
 {
     AutoAssertNoGC nogc;
     NonBuiltinScriptFrameIter iter(cx);
@@ -2153,6 +2160,8 @@ js::CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *
     *linenop = PCToLineNumber(iter.script().get(nogc), iter.pc());
     *origin = script->originPrincipals;
 }
+
+}  /* namespace js */
 
 template <class T>
 static inline T *

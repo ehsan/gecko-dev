@@ -1561,10 +1561,9 @@ public:
                                     "the process of being destroyed");
       NS_WARNING(message.get());
 #endif
-      *static_cast<int64_t*>(aData) = 0;
       return NS_OK;
     }
-
+    
     if (!mWorkerPrivate->BlockAndCollectRuntimeStats(aIsQuick, aData)) {
       return NS_ERROR_FAILURE;
     }

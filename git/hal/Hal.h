@@ -340,7 +340,7 @@ void RegisterWakeLockObserver(WakeLockObserver* aObserver);
 void UnregisterWakeLockObserver(WakeLockObserver* aObserver);
 
 /**
- * Adjust the wake lock counts.
+ * Adjust the internal wake lock counts.
  * @param aTopic        lock topic
  * @param aLockAdjust   to increase or decrease active locks
  * @param aHiddenAdjust to increase or decrease hidden locks
@@ -348,18 +348,6 @@ void UnregisterWakeLockObserver(WakeLockObserver* aObserver);
 void ModifyWakeLock(const nsAString &aTopic,
                     hal::WakeLockControl aLockAdjust,
                     hal::WakeLockControl aHiddenAdjust);
-
-/**
- * Adjust the wake lock counts. Do not call this function directly.
- * @param aTopic        lock topic
- * @param aLockAdjust   to increase or decrease active locks
- * @param aHiddenAdjust to increase or decrease hidden locks
- * @param aProcessID    unique id per-ContentChild or 0 for chrome
- */
-void ModifyWakeLockInternal(const nsAString &aTopic,
-                            hal::WakeLockControl aLockAdjust,
-                            hal::WakeLockControl aHiddenAdjust,
-                            uint64_t aProcessID);
 
 /**
  * Query the wake lock numbers of aTopic.

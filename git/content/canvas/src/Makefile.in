@@ -55,7 +55,6 @@ CPPSRCS += \
 	WebGLExtensionTextureFilterAnisotropic.cpp \
 	WebGLExtensionTextureFloat.cpp \
 	WebGLFramebuffer.cpp \
-	WebGLObjectModel.cpp \
 	WebGLProgram.cpp \
 	WebGLRenderbuffer.cpp \
 	WebGLShader.cpp \

@@ -175,6 +175,7 @@ private:
              {
              nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_CLOSE));
              mDescriptor->mOutput = nullptr;
+             mOutput = nullptr;
              }
              NS_RELEASE(mDescriptor);
          }

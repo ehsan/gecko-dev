@@ -324,15 +324,6 @@ public class TabsTray extends LinearLayout
         PropertyAnimator animator = new PropertyAnimator(ANIMATION_DURATION);
         animator.attach(view, Property.ALPHA, 1);
         animator.attach(view, Property.TRANSLATION_X, 0);
-
-        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
-            public void onPropertyAnimationStart() { }
-            public void onPropertyAnimationEnd() {
-                TabRow tab = (TabRow) view.getTag();
-                tab.close.setVisibility(View.VISIBLE);
-            }
-        });
-
         animator.start();
     }
 
@@ -481,7 +472,6 @@ public class TabsTray extends LinearLayout
                         mListView.requestDisallowInterceptTouchEvent(true);
 
                         TabRow tab = (TabRow) mSwipeView.getTag();
-                        tab.close.setVisibility(View.INVISIBLE);
 
                         // Stops listview from highlighting the touched item
                         // in the list when swiping.

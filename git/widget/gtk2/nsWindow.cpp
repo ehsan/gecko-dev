@@ -5822,7 +5822,7 @@ nsWindow::DispatchEventToRootAccessible(uint32_t aEventType)
     }
 
     // Get the root document accessible and fire event to it.
-    a11y::Accessible* acc = GetAccessible();
+    Accessible *acc = GetAccessible();
     if (acc) {
         accService->FireAccessibleEvent(aEventType, acc);
     }

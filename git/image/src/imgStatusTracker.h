@@ -186,9 +186,6 @@ public:
 
   void MaybeUnblockOnload();
 
-  // Null out any reference to an associated image request
-  void ClearRequest();
-
   // Weak pointer getters - no AddRefs.
   inline mozilla::image::Image* GetImage() const { return mImage; };
   inline imgRequest* GetRequest() const { return mRequest; };

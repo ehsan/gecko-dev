@@ -8,14 +8,13 @@
 
 #include "base/basictypes.h"
 #include "MediaResource.h"
+#include "MediaDecoder.h"
 #include "MediaDecoderReader.h"
 #include "OmxDecoder.h"
 
 #include "MPAPI.h"
 
 namespace mozilla {
-
-class AbstractMediaDecoder;
 
 class MediaOmxReader : public MediaDecoderReader
 {
@@ -29,7 +28,7 @@ class MediaOmxReader : public MediaDecoderReader
   int64_t mAudioSeekTimeUs;
   VideoData *mLastVideoFrame;
 public:
-  MediaOmxReader(AbstractMediaDecoder* aDecoder);
+  MediaOmxReader(MediaDecoder* aDecoder);
   ~MediaOmxReader();
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);

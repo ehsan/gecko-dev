@@ -55,9 +55,6 @@ var func = null;
  *   assertion:          optional assertion
  */
 function identityCall(message) {
-  if (options._internal) {
-    message._internal = options._internal;
-  }
   sendAsyncMessage(kIdentityControllerDoMethod, message);
 }
 
@@ -81,7 +78,7 @@ function doInternalWatch() {
   log("doInternalWatch:", options, isLoaded);
   if (options && isLoaded) {
     let BrowserID = content.wrappedJSObject.BrowserID;
-    BrowserID.internal.watch(function(aParams, aInternalParams) {
+    BrowserID.internal.watch(function(aParams) {
         identityCall(aParams);
         if (aParams.method === "ready") {
           closeIdentityDialog();
@@ -89,7 +86,7 @@ function doInternalWatch() {
       },
       JSON.stringify(options),
       function(...things) {
-        log("(watch) internal: ", things);
+        log("internal: ", things);
       }
     );
   }
@@ -100,13 +97,9 @@ function doInternalRequest() {
   if (options && isLoaded) {
     content.wrappedJSObject.BrowserID.internal.get(
       options.origin,
-      function(assertion, internalParams) {
-        internalParams = internalParams || {};
+      function(assertion) {
         if (assertion) {
-          identityCall({
-            method: 'login',
-            assertion: assertion,
-            _internalParams: internalParams});
+          identityCall({method: 'login', assertion: assertion});
         }
         closeIdentityDialog();
       },

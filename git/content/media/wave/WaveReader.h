@@ -12,10 +12,12 @@ class nsTimeRanges;
 
 namespace mozilla {
 
+class MediaDecoder;
+
 class WaveReader : public MediaDecoderReader
 {
 public:
-  WaveReader(AbstractMediaDecoder* aDecoder);
+  WaveReader(MediaDecoder* aDecoder);
   ~WaveReader();
 
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);

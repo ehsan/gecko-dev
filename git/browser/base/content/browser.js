@@ -1012,11 +1012,15 @@ var gBrowserInit = {
 
     gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
 
-    // Note that the XBL binding is untrusted
-    gBrowser.addEventListener("PluginBindingAttached", gPluginHandler, true, true);
-    gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
-    gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
-
+    gBrowser.addEventListener("PluginNotFound",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginCrashed",      gPluginHandler, true);
+    gBrowser.addEventListener("PluginBlocklisted",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginOutdated",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginDisabled",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginClickToPlay",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginPlayPreview",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableUpdatable", gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableNoUpdate", gPluginHandler, true);
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 #ifdef XP_MACOSX
     gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);
@@ -3536,18 +3540,15 @@ function OpenBrowserWindow(options)
   var wintype = document.documentElement.getAttribute('windowtype');
 
   var extraFeatures = "";
-  var forcePrivate = false;
 #ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-  forcePrivate = typeof options == "object" && "private" in options && options.private;
-#else
-  forcePrivate = gPrivateBrowsingUI.privateBrowsingEnabled;
-#endif
-
-  if (forcePrivate) {
+  if (typeof options == "object" &&
+      "private" in options &&
+      options.private) {
     extraFeatures = ",private";
     // Force the new window to load about:privatebrowsing instead of the default home page
     defaultArgs = "about:privatebrowsing";
   }
+#endif
 
   // if and only if the current window is a browser window and it has a document with a character
   // set, then extract the current charset menu setting from the current document and use it to

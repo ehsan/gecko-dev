@@ -508,13 +508,12 @@
               <menu id="menu_socialAmbientMenu">
                 <menupopup id="menu_social-statusarea-popup">
                   <menuitem class="social-statusarea-user menuitem-iconic" pack="start" align="center"
-                            observes="socialBroadcaster_userDetails"
                             oncommand="SocialUI.showProfile(); document.getElementById('social-statusarea-popup').hidePopup();">
                     <image class="social-statusarea-user-portrait"
-                           observes="socialBroadcaster_userDetails"/>
+                           observes="socialBroadcaster_userPortrait"/>
                     <vbox>
                       <label class="social-statusarea-loggedInStatus"
-                             observes="socialBroadcaster_userDetails"/>
+                             observes="socialBroadcaster_loggedInStatus"/>
                     </vbox>
                   </menuitem>
 #ifndef XP_WIN

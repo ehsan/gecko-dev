@@ -9,7 +9,6 @@
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-using namespace mozilla::a11y;
 
 /*
  * Class nsAccessNodeWrap

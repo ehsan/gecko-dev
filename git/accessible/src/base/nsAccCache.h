@@ -33,9 +33,9 @@ ClearCacheEntry(const void* aKey, nsRefPtr<T>& aAccessible, void* aUserArg)
  */
 
 static void
-ClearCache(mozilla::a11y::AccessibleHashtable& aCache)
+ClearCache(AccessibleHashtable& aCache)
 {
-  aCache.Enumerate(ClearCacheEntry<mozilla::a11y::Accessible>, nullptr);
+  aCache.Enumerate(ClearCacheEntry<Accessible>, nullptr);
 }
 
 /**
@@ -61,11 +61,10 @@ CycleCollectorTraverseCacheEntry(const void *aKey, T *aAccessible,
  */
 
 static void
-CycleCollectorTraverseCache(mozilla::a11y::AccessibleHashtable& aCache,
+CycleCollectorTraverseCache(AccessibleHashtable& aCache,
                             nsCycleCollectionTraversalCallback *aCallback)
 {
-  aCache.EnumerateRead(CycleCollectorTraverseCacheEntry<mozilla::a11y::Accessible>,
-                       aCallback);
+  aCache.EnumerateRead(CycleCollectorTraverseCacheEntry<Accessible>, aCallback);
 }
 
 #endif

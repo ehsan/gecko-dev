@@ -496,12 +496,7 @@ def main():
 
             try:
                 dm.recordLogcat()
-                result = mochitest.runTests(options)
-                if result != 0:
-                    print "ERROR: runTests() exited with code %s" % result
-                # Ensure earlier failures aren't overwritten by success on this run
-                if retVal is None or retVal == 0:
-                    retVal = result
+                retVal = mochitest.runTests(options)
                 mochitest.addLogData()
             except:
                 print "Automation Error: Exception caught while running tests"
@@ -518,12 +513,11 @@ def main():
         if retVal is None:
             print "No tests run. Did you pass an invalid TEST_PATH?"
             retVal = 1
-        else:
+
+        if retVal == 0:
             # if we didn't have some kind of error running the tests, make
             # sure the tests actually passed
-            overallResult = mochitest.printLog()
-            if retVal == 0:
-                retVal = overallResult
+            retVal = mochitest.printLog()
     else:
         try:
             dm.recordLogcat()

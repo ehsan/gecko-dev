@@ -7,15 +7,16 @@
 
 #include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
+#include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
-#include "nsIAccessibleRelation.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
-#include "TreeWalker.h"
+#include "nsIMutableArray.h"
 
+#include "nsIAccessibleRelation.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
@@ -28,7 +29,6 @@
 #include "nsIDOMHTMLTableRowElement.h"
 #include "nsIDOMHTMLTableSectionElem.h"
 #include "nsIDocument.h"
-#include "nsIMutableArray.h"
 #include "nsIPresShell.h"
 #include "nsITableLayout.h"
 #include "nsITableCellLayout.h"
@@ -358,7 +358,7 @@ HTMLTableAccessible::CacheChildren()
   // caption only, because nsAccessibilityService ensures we don't create
   // accessibles for the other captions, since only the first is actually
   // visible.
-  TreeWalker walker(this, mContent);
+  nsAccTreeWalker walker(mDoc, mContent, CanHaveAnonChildren());
 
   Accessible* child = nullptr;
   while ((child = walker.NextChild())) {

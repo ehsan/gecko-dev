@@ -80,7 +80,6 @@ final class GeckoEditable
     private int mUIUpdateSeqno;
     private int mLastUIUpdateSeqno;
     private boolean mUpdateGecko;
-    private boolean mFocused;
 
     /* An action that alters the Editable
 
@@ -225,7 +224,7 @@ final class GeckoEditable
             if (DEBUG) {
                 GeckoApp.assertOnUiThread();
             }
-            if (mFocused && !mActions.isEmpty()) {
+            if (!mActions.isEmpty()) {
                 mActionsActive.acquireUninterruptibly();
                 mActionsActive.release();
             }
@@ -478,15 +477,10 @@ final class GeckoEditable
             public void run() {
                 // Make sure there are no other things going on
                 mActionQueue.syncWithGecko();
-                if (type == NOTIFY_IME_FOCUSCHANGE) {
-                    if (state == IME_FOCUS_STATE_BLUR) {
-                        mFocused = false;
-                    } else {
-                        mFocused = true;
-                        // Unmask events on the Gecko side
-                        GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                                GeckoEvent.IME_ACKNOWLEDGE_FOCUS));
-                    }
+                if (type == NOTIFY_IME_FOCUSCHANGE && state != IME_FOCUS_STATE_BLUR) {
+                    // Unmask events on the Gecko side
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
+                            GeckoEvent.IME_ACKNOWLEDGE_FOCUS));
                 }
                 if (mListener != null) {
                     mListener.notifyIME(type, state);
@@ -662,11 +656,9 @@ final class GeckoEditable
                 what == Selection.SELECTION_END) {
             Log.w(LOGTAG, "selection removed with removeSpan()");
         }
-        if (mText.getSpanStart(what) >= 0) { // only remove if it's there
-            // Okay to remove immediately
-            mText.removeSpan(what);
-            mActionQueue.offer(new Action(Action.TYPE_REMOVE_SPAN));
-        }
+        // Okay to remove immediately
+        mText.removeSpan(what);
+        mActionQueue.offer(new Action(Action.TYPE_REMOVE_SPAN));
     }
 
     @Override

@@ -4,6 +4,7 @@
 
 IPDLSRCS = \
   DOMTypes.ipdlh \
+  PAudio.ipdl \
   PBlob.ipdl \
   PBlobStream.ipdl \
   PBrowser.ipdl \

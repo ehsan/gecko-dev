@@ -704,6 +704,15 @@ nsDOMEvent::DuplicatePrivateData()
       newEvent = newFocusEvent;
       break;
     }
+
+    case NS_POPUP_EVENT:
+    {
+      newEvent = new nsInputEvent(false, msg, nullptr);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      isInputEvent = true;
+      newEvent->eventStructType = NS_POPUP_EVENT;
+      break;
+    }
     case NS_COMMAND_EVENT:
     {
       newEvent = new nsCommandEvent(false, mEvent->userType,
@@ -1011,8 +1020,6 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
       }
     }
     break;
-  default:
-    break;
   }
 
   return abuse;
@@ -1053,6 +1060,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
 
   if (!aEvent || 
        (aEvent->eventStructType != NS_MOUSE_EVENT &&
+        aEvent->eventStructType != NS_POPUP_EVENT &&
         aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
         aEvent->eventStructType != NS_WHEEL_EVENT &&
         aEvent->eventStructType != NS_TOUCH_EVENT &&
@@ -1111,6 +1119,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
 
   if (!aEvent ||
       (aEvent->eventStructType != NS_MOUSE_EVENT &&
+       aEvent->eventStructType != NS_POPUP_EVENT &&
        aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        aEvent->eventStructType != NS_WHEEL_EVENT &&
        aEvent->eventStructType != NS_TOUCH_EVENT &&

@@ -900,12 +900,6 @@ public:
     */
   virtual RefLayer* AsRefLayer() { return nullptr; }
 
-   /**
-    * Dynamic cast to a Color. Returns null if this is not a
-    * ColorLayer.
-    */
-  virtual ColorLayer* AsColorLayer() { return nullptr; }
-
   /**
    * Dynamic cast to a ShadowLayer.  Return null if this is not a
    * ShadowLayer.  Can be used anytime.
@@ -1369,8 +1363,6 @@ protected:
  */
 class THEBES_API ColorLayer : public Layer {
 public:
-  virtual ColorLayer* AsColorLayer() { return this; }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set the color of the layer.

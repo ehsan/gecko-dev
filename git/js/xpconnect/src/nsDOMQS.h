@@ -62,7 +62,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
 }                                                                             \
                                                                               \
 template <>                                                                   \
-MOZ_ALWAYS_INLINE nsresult                                                    \
+inline nsresult                                                               \
 xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
                             jsval v,                                          \
                             _interface **ppArg,                               \

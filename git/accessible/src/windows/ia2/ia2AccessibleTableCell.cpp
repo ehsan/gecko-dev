@@ -20,8 +20,6 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
-using namespace mozilla::a11y;
-
 #define TABLECELL_INTERFACE_UNSUPPORTED_MSG \
 "Subclass of ia2AccessibleTableCell doesn't implement nsIAccessibleTableCell"\
 

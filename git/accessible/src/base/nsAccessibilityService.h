@@ -8,7 +8,8 @@
 
 #include "nsIAccessibilityService.h"
 
-#include "mozilla/a11y/DocManager.h"
+#include "nsAccDocManager.h"
+
 #include "mozilla/a11y/FocusManager.h"
 
 #include "nsIObserver.h"
@@ -63,15 +64,12 @@ bool ShouldA11yBeEnabled();
 } // namespace a11y
 } // namespace mozilla
 
-class nsAccessibilityService : public mozilla::a11y::DocManager,
+class nsAccessibilityService : public nsAccDocManager,
                                public mozilla::a11y::FocusManager,
                                public nsIAccessibilityService,
                                public nsIObserver
 {
 public:
-  typedef mozilla::a11y::Accessible Accessible;
-  typedef mozilla::a11y::DocAccessible DocAccessible;
-
   virtual ~nsAccessibilityService();
 
   NS_DECL_ISUPPORTS_INHERITED

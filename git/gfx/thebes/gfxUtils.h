@@ -152,12 +152,15 @@ namespace mozilla {
 namespace gfx {
 
 
-/* These techniques are suggested by "Bit Twiddling Hacks"
+/*
+ * Copyright 2008 The Android Open Source Project
+ *
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
  */
 
 /**
  * Returns true if |aNumber| is a power of two
- * 0 is incorreclty considered a power of two
  */
 static inline bool
 IsPowerOfTwo(int aNumber)

@@ -70,8 +70,10 @@ JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
     rt->debugMode = !!debug;
 }
 
+namespace js {
+
 JSTrapStatus
-js::ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
+ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
 {
     JS_ASSERT(fp == cx->fp());
 
@@ -104,7 +106,7 @@ js::ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
 }
 
 bool
-js::ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
+ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
 {
     JS_ASSERT(fp == cx->fp());
     JSBool ok = okArg;
@@ -121,6 +123,8 @@ js::ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
 
     return Debugger::onLeaveFrame(cx, ok);
 }
+
+} /* namespace js */
 
 JS_FRIEND_API(JSBool)
 JS_SetDebugModeForAllCompartments(JSContext *cx, JSBool debug)

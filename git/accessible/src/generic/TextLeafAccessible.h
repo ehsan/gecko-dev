@@ -38,19 +38,18 @@ protected:
   nsString mText;
 };
 
+} // namespace a11y
+} // namespace mozilla
 
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible downcast method
 
-inline TextLeafAccessible*
+inline mozilla::a11y::TextLeafAccessible*
 Accessible::AsTextLeaf()
 {
   return mFlags & eTextLeafAccessible ?
-    static_cast<TextLeafAccessible*>(this) : nullptr;
+    static_cast<mozilla::a11y::TextLeafAccessible*>(this) : nullptr;
 }
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

@@ -21,26 +21,20 @@
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
 
+class AccEvent;
+class AccGroupInfo;
+class KeyBinding;
+class Accessible;
+class HyperTextAccessible;
 struct nsRoleMapEntry;
-
-struct nsRect;
-class nsIContent;
-class nsIFrame;
-class nsIAtom;
-class nsIView;
 
 namespace mozilla {
 namespace a11y {
 
-class Accessible;
-class AccEvent;
-class AccGroupInfo;
 class EmbeddedObjCollector;
 class HTMLImageMapAccessible;
 class HTMLLIAccessible;
-class HyperTextAccessible;
 class ImageAccessible;
-class KeyBinding;
 class Relation;
 class TableAccessible;
 class TableCellAccessible;
@@ -86,6 +80,15 @@ struct GroupPos
   int32_t posInSet;
   int32_t setSize;
 };
+
+} // namespace a11y
+} // namespace mozilla
+
+struct nsRect;
+class nsIContent;
+class nsIFrame;
+class nsIAtom;
+class nsIView;
 
 typedef nsRefPtrHashtable<nsPtrHashKey<const void>, Accessible>
   AccessibleHashtable;
@@ -147,7 +150,7 @@ public:
    * Note: aName.IsVoid() when name was left empty by the author on purpose.
    * aName.IsEmpty() when the author missed name, AT can try to repair a name.
    */
-  virtual ENameValueFlag Name(nsString& aName);
+  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
 
   /**
    * Return DOM node associated with this accessible.
@@ -908,7 +911,7 @@ protected:
 
   nsAutoPtr<mozilla::a11y::EmbeddedObjCollector> mEmbeddedObjCollector;
   int32_t mIndexOfEmbeddedChild;
-  friend class EmbeddedObjCollector;
+  friend class mozilla::a11y::EmbeddedObjCollector;
 
   nsAutoPtr<AccGroupInfo> mGroupInfo;
   friend class AccGroupInfo;
@@ -979,8 +982,5 @@ private:
   uint32_t mKey;
   uint32_t mModifierMask;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

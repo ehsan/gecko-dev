@@ -92,6 +92,10 @@
 # include "nsPermissionManager.h"
 #endif
 
+#ifdef MOZ_SYDNEYAUDIO
+# include "AudioParent.h"
+#endif
+
 #ifdef MOZ_WIDGET_ANDROID
 # include "AndroidBridge.h"
 #endif
@@ -627,8 +631,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
         props->Init();
 
-        props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
-
         if (AbnormalShutdown == why) {
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
@@ -642,8 +644,9 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             nsAutoString dumpID(crashReporter->ChildDumpID());
             props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
 #endif
+
+            obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
         }
-        obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
     }
 
     MessageLoop::current()->
@@ -699,7 +702,6 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
                              ChildOSPrivileges aOSPrivileges)
     : mSubprocess(nullptr)
     , mOSPrivileges(aOSPrivileges)
-    , mChildID(-1)
     , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
@@ -1123,7 +1125,7 @@ bool
 ContentParent::RecvGetProcessAttributes(uint64_t* aId, bool* aStartBackground,
                                         bool* aIsForApp, bool* aIsForBrowser)
 {
-    *aId = mChildID = gContentChildID++;
+    *aId = gContentChildID++;
     *aStartBackground =
         (mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
     *aIsForApp = IsForApp();
@@ -1438,6 +1440,29 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
   return true;
 }
  
+PAudioParent*
+ContentParent::AllocPAudio(const int32_t& numChannels,
+                           const int32_t& rate)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioParent *parent = new AudioParent(numChannels, rate);
+    NS_ADDREF(parent);
+    return parent;
+#else
+    return nullptr;
+#endif
+}
+
+bool
+ContentParent::DeallocPAudio(PAudioParent* doomed)
+{
+#if defined(MOZ_SYDNEYAUDIO)
+    AudioParent *parent = static_cast<AudioParent*>(doomed);
+    NS_RELEASE(parent);
+#endif
+    return true;
+}
+
 PNeckoParent* 
 ContentParent::AllocPNecko()
 {

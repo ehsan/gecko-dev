@@ -99,19 +99,14 @@ function RPWatchContext(aOptions, aTargetMM) {
   // default for no loggedInUser is undefined, not null
   this.loggedInUser = aOptions.loggedInUser;
 
-  // Maybe internal
-  this._internal = aOptions._internal;
-
   this._mm = aTargetMM;
 }
 
 RPWatchContext.prototype = {
-  doLogin: function RPWatchContext_onlogin(aAssertion, aMaybeInternalParams) {
+  doLogin: function RPWatchContext_onlogin(aAssertion) {
     log("doLogin: " + this.id);
-    let message = new IDDOMMessage({id: this.id, assertion: aAssertion});
-    if (aMaybeInternalParams) {
-      message._internalParams = aMaybeInternalParams;
-    }
+    let message = new IDDOMMessage({id: this.id});
+    message.assertion = aAssertion;
     this._mm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 

@@ -875,8 +875,10 @@ js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
     return errorString;
 }
 
+namespace js {
+
 JS_FRIEND_API(const jschar*)
-js::GetErrorTypeName(JSContext* cx, int16_t exnType)
+GetErrorTypeName(JSContext* cx, int16_t exnType)
 {
     /*
      * JSEXN_INTERNALERR returns null to prevent that "InternalError: "
@@ -890,6 +892,8 @@ js::GetErrorTypeName(JSContext* cx, int16_t exnType)
     JSProtoKey key = GetExceptionProtoKey(exnType);
     return ClassName(key, cx)->chars();
 }
+
+} /* namespace js */
 
 #if defined ( DEBUG_mccabe ) && defined ( PRINTNAMES )
 /* For use below... get character strings for error name and exception name */

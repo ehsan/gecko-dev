@@ -82,9 +82,8 @@ METHODDEF(void) my_error_exit (j_common_ptr cinfo);
 #define MAX_JPEG_MARKER_LENGTH  (((uint32_t)1 << 16) - 1)
 
 
-nsJPEGDecoder::nsJPEGDecoder(RasterImage& aImage, imgIDecoderObserver* aObserver, Decoder::DecodeStyle aDecodeStyle)
+nsJPEGDecoder::nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
  : Decoder(aImage, aObserver)
- , mDecodeStyle(aDecodeStyle)
 {
   mState = JPEG_HEADER;
   mReading = true;
@@ -366,9 +365,9 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
     /*
      * Don't allocate a giant and superfluous memory buffer
-     * when not doing a progressive decode.
+     * when the image is a sequential JPEG.
      */
-    mInfo.buffered_image = mDecodeStyle == PROGRESSIVE && jpeg_has_multiple_scans(&mInfo);
+    mInfo.buffered_image = jpeg_has_multiple_scans(&mInfo);
 
     /* Used to set up image size so arrays can be allocated */
     jpeg_calc_output_dimensions(&mInfo);

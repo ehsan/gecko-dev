@@ -883,7 +883,7 @@ nsDownloadManager::AddDownloadToDB(const nsAString &aName,
   NS_ENSURE_SUCCESS(rv, 0);
 
   int64_t id = 0;
-  rv = dbConn->GetLastInsertRowID(&id);
+  rv = mDBConn->GetLastInsertRowID(&id);
   NS_ENSURE_SUCCESS(rv, 0);
 
   aNewGUID = guid;

@@ -80,17 +80,17 @@ const TESTS = [
     category: "malformed-xml",
     matchString: "</html>",
   },
-  { // #13
+  { // #14
     file: "test-bug-595934-empty-getelementbyid.html",
     category: "DOM",
     matchString: "getElementById",
   },
-  { // #14
+  { // #15
     file: "test-bug-595934-canvas-css.html",
     category: "CSS Parser",
     matchString: "foobarCanvasCssParser",
   },
-  { // #15
+  { // #16
     file: "test-bug-595934-image.html",
     category: "Image",
     matchString: "corrupt",

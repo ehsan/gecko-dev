@@ -49,10 +49,14 @@ public:
   // Initialize the audio stream. aNumChannels is the number of audio
   // channels (1 for mono, 2 for stereo, etc) and aRate is the sample rate
   // (22050Hz, 44100Hz, etc).
+  // Unsafe to call with a monitor held due to synchronous event execution
+  // on the main thread, which may attempt to acquire any held monitor.
   virtual nsresult Init(int32_t aNumChannels, int32_t aRate,
-                        const dom::AudioChannelType aAudioStreamType) = 0;
+                        const mozilla::dom::AudioChannelType aAudioStreamType) = 0;
 
   // Closes the stream. All future use of the stream is an error.
+  // Unsafe to call with a monitor held due to synchronous event execution
+  // on the main thread, which may attempt to acquire any held monitor.
   virtual void Shutdown() = 0;
 
   // Write audio data to the audio hardware.  aBuf is an array of AudioDataValues
@@ -69,6 +73,8 @@ public:
   virtual void SetVolume(double aVolume) = 0;
 
   // Block until buffered audio data has been consumed.
+  // Unsafe to call with a monitor held due to synchronous event execution
+  // on the main thread, which may attempt to acquire any held monitor.
   virtual void Drain() = 0;
 
   // Pause audio playback
@@ -90,6 +96,8 @@ public:
 
   // Returns the minimum number of audio frames which must be written before
   // you can be sure that something will be played.
+  // Unsafe to call with a monitor held due to synchronous event execution
+  // on the main thread, which may attempt to acquire any held monitor.
   virtual int32_t GetMinWriteSize() = 0;
 
   int GetRate() { return mRate; }

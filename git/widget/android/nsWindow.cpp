@@ -688,7 +688,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         return mLayerManager;
     }
 
-    mUseLayersAcceleration = ComputeShouldAccelerate(mUseLayersAcceleration);
+    mUseAcceleratedRendering = GetShouldAccelerate();
 
     bool useCompositor = UseOffMainThreadCompositing();
 
@@ -703,7 +703,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         sFailedToCreateGLContext = true;
     }
 
-    if (!mUseLayersAcceleration ||
+    if (!mUseAcceleratedRendering ||
         sFailedToCreateGLContext)
     {
         printf_stderr(" -- creating basic, not accelerated\n");

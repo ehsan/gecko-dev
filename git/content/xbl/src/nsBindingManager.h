@@ -16,7 +16,7 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 
-struct ElementDependentRuleProcessorData;
+class ElementDependentRuleProcessorData;
 class nsIContent;
 class nsIXPConnectWrappedJS;
 class nsIAtom;
