@@ -914,10 +914,6 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
 #endif
 }
 
-#undef TIME_START
-#undef TIME_END
-#undef TIME_TOTAL
-
 void
 js::Nursery::freeHugeSlots()
 {

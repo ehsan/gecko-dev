@@ -3519,8 +3519,13 @@ TreeMatchContext::InitAncestors(Element *aElement)
     Element* cur = aElement;
     do {
       ancestors.AppendElement(cur);
-      cur = cur->GetParentElementCrossingShadowRoot();
-    } while (cur);
+      nsINode* parent = cur->GetParentNode();
+      if (!parent->IsElement()) {
+        break;
+      }
+
+      cur = parent->AsElement();
+    } while (true);
 
     // Now push them in reverse order.
     for (uint32_t i = ancestors.Length(); i-- != 0; ) {
@@ -3541,8 +3546,13 @@ TreeMatchContext::InitStyleScopes(Element* aElement)
     Element* cur = aElement;
     do {
       ancestors.AppendElement(cur);
-      cur = cur->GetParentElementCrossingShadowRoot();
-    } while (cur);
+      nsINode* parent = cur->GetParentNode();
+      if (!parent || !parent->IsElement()) {
+        break;
+      }
+
+      cur = parent->AsElement();
+    } while (true);
 
     // Now push them in reverse order.
     for (uint32_t i = ancestors.Length(); i-- != 0; ) {
@@ -3606,22 +3616,10 @@ AncestorFilter::PopAncestor()
 void
 AncestorFilter::AssertHasAllAncestors(Element *aElement) const
 {
-  Element* cur = aElement->GetParentElementCrossingShadowRoot();
-  while (cur) {
+  nsINode* cur = aElement->GetParentNode();
+  while (cur && cur->IsElement()) {
     MOZ_ASSERT(mElements.Contains(cur));
-    cur = cur->GetParentElementCrossingShadowRoot();
-  }
-}
-
-void
-TreeMatchContext::AssertHasAllStyleScopes(Element* aElement) const
-{
-  Element* cur = aElement->GetParentElementCrossingShadowRoot();
-  while (cur) {
-    if (cur->IsScopedStyleRoot()) {
-      MOZ_ASSERT(mStyleScopes.Contains(cur));
-    }
-    cur = cur->GetParentElementCrossingShadowRoot();
+    cur = cur->GetParentNode();
   }
 }
 #endif

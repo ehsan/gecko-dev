@@ -1556,16 +1556,10 @@ bool NetworkUtils::setWifiTethering(NetworkParams& aOptions)
   getIFProperties(GET_CHAR(mExternalIfname), interfaceProperties);
 
   if (strcmp(interfaceProperties.dns1, "")) {
-    int type = getIpType(interfaceProperties.dns1);
-    if (type != AF_INET6) {
-      aOptions.mDns1 = NS_ConvertUTF8toUTF16(interfaceProperties.dns1);
-    }
+    aOptions.mDns1 = NS_ConvertUTF8toUTF16(interfaceProperties.dns1);
   }
   if (strcmp(interfaceProperties.dns2, "")) {
-    int type = getIpType(interfaceProperties.dns2);
-    if (type != AF_INET6) {
-      aOptions.mDns2 = NS_ConvertUTF8toUTF16(interfaceProperties.dns2);
-    }
+    aOptions.mDns2 = NS_ConvertUTF8toUTF16(interfaceProperties.dns2);
   }
   dumpParams(aOptions, "WIFI");
 
@@ -1588,16 +1582,10 @@ bool NetworkUtils::setUSBTethering(NetworkParams& aOptions)
   getIFProperties(GET_CHAR(mExternalIfname), interfaceProperties);
 
   if (strcmp(interfaceProperties.dns1, "")) {
-    int type = getIpType(interfaceProperties.dns1);
-    if (type != AF_INET6) {
-      aOptions.mDns1 = NS_ConvertUTF8toUTF16(interfaceProperties.dns1);
-    }
+    aOptions.mDns1 = NS_ConvertUTF8toUTF16(interfaceProperties.dns1);
   }
   if (strcmp(interfaceProperties.dns2, "")) {
-    int type = getIpType(interfaceProperties.dns2);
-    if (type != AF_INET6) {
-      aOptions.mDns2 = NS_ConvertUTF8toUTF16(interfaceProperties.dns2);
-    }
+    aOptions.mDns2 = NS_ConvertUTF8toUTF16(interfaceProperties.dns2);
   }
   dumpParams(aOptions, "USB");
 
