@@ -102,7 +102,9 @@ NS_IMETHODIMP SVGTextPathElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 already_AddRefed<nsIDOMSVGAnimatedString>
 SVGTextPathElement::Href()
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(this);
+  nsCOMPtr<nsIDOMSVGAnimatedString> href;
+  mStringAttributes[HREF].ToDOMAnimatedString(getter_AddRefs(href), this);
+  return href.forget();
 }
 
 //----------------------------------------------------------------------

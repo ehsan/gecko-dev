@@ -76,13 +76,6 @@ nsresult
 nsSVGString::ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                  nsSVGElement *aSVGElement)
 {
-  *aResult = ToDOMAnimatedString(aSVGElement).get();
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGAnimatedString>
-nsSVGString::ToDOMAnimatedString(nsSVGElement* aSVGElement)
-{
   nsRefPtr<DOMAnimatedString> domAnimatedString =
     sSVGAnimatedStringTearoffTable.GetTearoff(this);
   if (!domAnimatedString) {
@@ -90,7 +83,8 @@ nsSVGString::ToDOMAnimatedString(nsSVGElement* aSVGElement)
     sSVGAnimatedStringTearoffTable.AddTearoff(this, domAnimatedString);
   }
 
-  return domAnimatedString.forget();
+  domAnimatedString.forget(aResult);
+  return NS_OK;
 }
 
 nsSVGString::DOMAnimatedString::~DOMAnimatedString()
