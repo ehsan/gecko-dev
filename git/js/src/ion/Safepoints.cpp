@@ -187,11 +187,7 @@ AllocationToPartKind(const LAllocation &a)
     return Part_Arg;
 }
 
-// gcc 4.5 doesn't actually inline CanEncodeInfoInHeader when only
-// using the "inline" keyword, and miscompiles the function as well
-// when doing block reordering with branch prediction information.
-// See bug 799295 comment 71.
-static MOZ_ALWAYS_INLINE bool
+static inline bool
 CanEncodeInfoInHeader(const LAllocation &a, uint32 *out)
 {
     if (a.isGeneralReg()) {
