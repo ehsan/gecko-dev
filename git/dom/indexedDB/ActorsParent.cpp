@@ -2206,14 +2206,6 @@ SetDefaultPragmas(mozIStorageConnection* aConnection)
     return rv;
   }
 
-  if (IndexedDatabaseManager::FullSynchronous()) {
-    rv = aConnection->ExecuteSimpleSQL(
-                             NS_LITERAL_CSTRING("PRAGMA synchronous = FULL;"));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-  }
-
   return NS_OK;
 }
 

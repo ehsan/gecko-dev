@@ -11654,22 +11654,22 @@ class MAsmJSNeg : public MUnaryInstruction
 class MAsmJSHeapAccess
 {
     Scalar::Type viewType_;
-    bool needsBoundsCheck_;
+    bool skipBoundsCheck_;
 
   public:
-    MAsmJSHeapAccess(Scalar::Type vt, bool needsBoundsCheck)
-      : viewType_(vt), needsBoundsCheck_(needsBoundsCheck)
+    explicit MAsmJSHeapAccess(Scalar::Type vt)
+      : viewType_(vt), skipBoundsCheck_(false)
     {}
 
     Scalar::Type viewType() const { return viewType_; }
-    bool needsBoundsCheck() const { return needsBoundsCheck_; }
-    void removeBoundsCheck() { needsBoundsCheck_ = false; }
+    bool skipBoundsCheck() const { return skipBoundsCheck_; }
+    void setSkipBoundsCheck(bool v) { skipBoundsCheck_ = v; }
 };
 
 class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
 {
-    MAsmJSLoadHeap(Scalar::Type vt, MDefinition *ptr, bool needsBoundsCheck)
-      : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt, needsBoundsCheck)
+    MAsmJSLoadHeap(Scalar::Type vt, MDefinition *ptr)
+      : MUnaryInstruction(ptr), MAsmJSHeapAccess(vt)
     {
         setMovable();
         if (vt == Scalar::Float32)
@@ -11683,10 +11683,8 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
   public:
     INSTRUCTION_HEADER(AsmJSLoadHeap);
 
-    static MAsmJSLoadHeap *New(TempAllocator &alloc, Scalar::Type vt,
-                               MDefinition *ptr, bool needsBoundsCheck)
-    {
-        return new(alloc) MAsmJSLoadHeap(vt, ptr, needsBoundsCheck);
+    static MAsmJSLoadHeap *New(TempAllocator &alloc, Scalar::Type vt, MDefinition *ptr) {
+        return new(alloc) MAsmJSLoadHeap(vt, ptr);
     }
 
     MDefinition *ptr() const { return getOperand(0); }
@@ -11700,17 +11698,17 @@ class MAsmJSLoadHeap : public MUnaryInstruction, public MAsmJSHeapAccess
 
 class MAsmJSStoreHeap : public MBinaryInstruction, public MAsmJSHeapAccess
 {
-    MAsmJSStoreHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *v, bool needsBoundsCheck)
-      : MBinaryInstruction(ptr, v) , MAsmJSHeapAccess(vt, needsBoundsCheck)
+    MAsmJSStoreHeap(Scalar::Type vt, MDefinition *ptr, MDefinition *v)
+      : MBinaryInstruction(ptr, v) , MAsmJSHeapAccess(vt)
     {}
 
   public:
     INSTRUCTION_HEADER(AsmJSStoreHeap);
 
     static MAsmJSStoreHeap *New(TempAllocator &alloc, Scalar::Type vt,
-                                MDefinition *ptr, MDefinition *v, bool needsBoundsCheck)
+                                MDefinition *ptr, MDefinition *v)
     {
-        return new(alloc) MAsmJSStoreHeap(vt, ptr, v, needsBoundsCheck);
+        return new(alloc) MAsmJSStoreHeap(vt, ptr, v);
     }
 
     MDefinition *ptr() const { return getOperand(0); }

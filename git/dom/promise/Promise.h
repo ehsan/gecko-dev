@@ -101,11 +101,6 @@ public:
     MaybeSomething(aArg, &Promise::MaybeReject);
   }
 
-  inline void MaybeReject(ErrorResult& aArg) {
-    MOZ_ASSERT(aArg.Failed());
-    MaybeSomething(aArg, &Promise::MaybeReject);
-  }
-
   void MaybeReject(const nsRefPtr<MediaStreamError>& aArg);
 
   // DO NOT USE MaybeRejectBrokenly with in new code.  Promises should be

@@ -709,8 +709,7 @@ RemoteBrowserElementInterposition.getters.contentWindow = function(addon, target
 };
 
 let DummyContentDocument = {
-  readyState: "loading",
-  location: { href: "about:blank" }
+  readyState: "loading"
 };
 
 RemoteBrowserElementInterposition.getters.contentDocument = function(addon, target) {

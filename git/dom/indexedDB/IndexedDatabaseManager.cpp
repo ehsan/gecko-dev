@@ -212,7 +212,6 @@ IndexedDatabaseManager::~IndexedDatabaseManager()
 }
 
 bool IndexedDatabaseManager::sIsMainProcess = false;
-bool IndexedDatabaseManager::sFullSynchronousMode = false;
 mozilla::Atomic<bool> IndexedDatabaseManager::sLowDiskSpaceMode(false);
 
 // static
@@ -299,14 +298,6 @@ IndexedDatabaseManager::Init()
 
   Preferences::RegisterCallbackAndCall(TestingPrefChangedCallback,
                                        kTestingPref);
-
-  // By default IndexedDB uses SQLite with PRAGMA synchronous = NORMAL. This
-  // guarantees (unlike synchronous = OFF) atomicity and consistency, but not
-  // necessarily durability in situations such as power loss. This preference
-  // allows enabling PRAGMA synchronous = FULL on SQLite, which does guarantee
-  // durability, but with an extra fsync() and the corresponding performance
-  // hit.
-  sFullSynchronousMode = Preferences::GetBool("dom.indexedDB.fullSynchronous");
 
   return NS_OK;
 }
@@ -509,16 +500,6 @@ IndexedDatabaseManager::InTestingMode()
              "InTestingMode() called before indexedDB has been initialized!");
 
   return gTestingMode;
-}
-
-// static
-bool
-IndexedDatabaseManager::FullSynchronous()
-{
-  MOZ_ASSERT(gDBManager,
-             "FullSynchronous() called before indexedDB has been initialized!");
-
-  return sFullSynchronousMode;
 }
 
 already_AddRefed<FileManager>

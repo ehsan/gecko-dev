@@ -2025,14 +2025,14 @@ RangeAnalysis::analyze()
                     Range *range = ins->ptr()->range();
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
                         range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
-                        ins->removeBoundsCheck();
+                        ins->setSkipBoundsCheck(true);
                     }
                 } else if (iter->isAsmJSStoreHeap()) {
                     MAsmJSStoreHeap *ins = iter->toAsmJSStoreHeap();
                     Range *range = ins->ptr()->range();
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
                         range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
-                        ins->removeBoundsCheck();
+                        ins->setSkipBoundsCheck(true);
                     }
                 }
             }

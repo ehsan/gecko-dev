@@ -477,7 +477,8 @@ MobileConnection::SetPreferredNetworkType(MobilePreferredNetworkType& aType,
     return nullptr;
   }
 
-  int32_t type = static_cast<int32_t>(aType);
+  nsAutoString type;
+  CONVERT_ENUM_TO_STRING(MobilePreferredNetworkType, aType, type);
 
   nsRefPtr<DOMRequest> request = new DOMRequest(GetOwner());
   nsRefPtr<MobileConnectionCallback> requestCallback =

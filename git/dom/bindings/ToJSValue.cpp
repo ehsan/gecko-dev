@@ -60,19 +60,5 @@ ToJSValue(JSContext* aCx,
   return ToJSValue(aCx, exception, aValue);
 }
 
-bool
-ToJSValue(JSContext* aCx,
-          ErrorResult& aArgument,
-          JS::MutableHandle<JS::Value> aValue)
-{
-  MOZ_ASSERT(aArgument.Failed());
-  ThrowMethodFailedWithDetails(aCx, aArgument, "", "");
-  if (!JS_GetPendingException(aCx, aValue)) {
-    return false;
-  }
-  JS_ClearPendingException(aCx);
-  return true;
-}
-
 } // namespace dom
 } // namespace mozilla

@@ -7,19 +7,19 @@
 #ifndef mozilla_dom_TVListeners_h
 #define mozilla_dom_TVListeners_h
 
-#include "mozilla/dom/TVSource.h"
-#include "nsCycleCollectionParticipant.h"
+#include "nsClassHashtable.h"
 #include "nsITVService.h"
-#include "nsTArray.h"
+#include "nsRefPtrHashtable.h"
 
 namespace mozilla {
 namespace dom {
 
+class TVSource;
+
 class TVSourceListener : public nsITVSourceListener
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(TVSourceListener)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITVSOURCELISTENER
 
   void RegisterSource(TVSource* aSource);
@@ -32,7 +32,9 @@ private:
   already_AddRefed<TVSource> GetSource(const nsAString& aTunerId,
                                        const nsAString& aSourceType);
 
-  nsTArray<nsRefPtr<TVSource>> mSources;
+  // The tuner ID acts as the key of the outer table; whereas the source type is
+  // the key for the inner one.
+  nsClassHashtable<nsStringHashKey, nsRefPtrHashtable<nsStringHashKey, TVSource>> mSources;
 };
 
 } // namespace dom

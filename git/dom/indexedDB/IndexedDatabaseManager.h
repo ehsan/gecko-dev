@@ -80,9 +80,6 @@ public:
   static bool
   InTestingMode();
 
-  static bool
-  FullSynchronous();
-
   already_AddRefed<FileManager>
   GetFileManager(PersistenceType aPersistenceType,
                  const nsACString& aOrigin,
@@ -165,7 +162,6 @@ private:
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static bool sFullSynchronousMode;
   static mozilla::Atomic<bool> sLowDiskSpaceMode;
 };
 

@@ -282,7 +282,7 @@ RunTests()
   UseItOrLoseIt(s, seven);
 
   // This exceeds the sample size, and so is reported exactly.
-  s = (char*) malloc(160);
+  s = (char*) malloc(144);
   UseItOrLoseIt(s, seven);
 
   // These together constitute exactly one sample.

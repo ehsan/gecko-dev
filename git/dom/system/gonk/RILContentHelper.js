@@ -683,7 +683,8 @@ RILContentHelper.prototype = {
         } else {
           if (data.rilMessageType == "iccSetCardLock" ||
               data.rilMessageType == "iccUnlockCardLock") {
-            let cardLockError = new requestWindow.IccCardLockError(data.errorMsg,
+            let cardLockError = new requestWindow.IccCardLockError(data.lockType,
+                                                                   data.errorMsg,
                                                                    data.retryCount);
             this.fireRequestDetailedError(requestId, cardLockError);
           } else {

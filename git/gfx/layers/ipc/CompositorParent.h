@@ -113,7 +113,6 @@ private:
   void NotifyCompositeTaskExecuted();
   void ObserveVsync();
   void UnobserveVsync();
-  void DispatchTouchEvents(TimeStamp aVsyncTimestamp);
 
   bool mNeedsComposite;
   bool mIsObservingVsync;

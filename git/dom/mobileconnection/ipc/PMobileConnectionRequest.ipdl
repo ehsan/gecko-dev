@@ -70,11 +70,6 @@ struct MobileConnectionReplySuccessClirStatus
   uint16_t m;
 };
 
-struct MobileConnectionReplySuccessPreferredNetworkType
-{
-  int32_t type;
-};
-
 // Error
 struct MobileConnectionReplyError
 {
@@ -100,7 +95,6 @@ union MobileConnectionReply
   MobileConnectionReplySuccessCallForwarding;
   MobileConnectionReplySuccessCallBarring;
   MobileConnectionReplySuccessClirStatus;
-  MobileConnectionReplySuccessPreferredNetworkType;
   // Error
   MobileConnectionReplyError;
   MobileConnectionReplyErrorMmi;
