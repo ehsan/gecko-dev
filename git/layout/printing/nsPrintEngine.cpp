@@ -249,7 +249,6 @@ protected:
 
 // Class IDs
 static NS_DEFINE_CID(kViewManagerCID,       NS_VIEW_MANAGER_CID);
-static NS_DEFINE_CID(kWidgetCID,            NS_CHILD_CID);
 
 NS_IMPL_ISUPPORTS1(nsPrintEngine, nsIObserver)
 
@@ -1996,12 +1995,15 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   // unnecessary and unexpected
   // Also, no widget should be needed except for the top-level document
   if (mIsCreatingPrintPreview && documentIsTopLevel) {
-    nsNativeWidget widget = nsnull;
+    nsIWidget* widget = nsnull;
     if (!frame)
-      widget = mParentWidget->GetNativeData(NS_NATIVE_WIDGET);
-    rv = rootView->CreateWidget(kWidgetCID, nsnull,
-                                widget, PR_TRUE, PR_TRUE,
-                                eContentTypeContent);
+      widget = mParentWidget;
+    rv = widget ? rootView->CreateWidgetForParent(widget, nsnull,
+                                                  PR_TRUE, PR_TRUE,
+                                                  eContentTypeContent)
+                : rootView->CreateWidget(nsnull,
+                                         PR_TRUE, PR_TRUE,
+                                         eContentTypeContent);
     NS_ENSURE_SUCCESS(rv, rv);
     aPO->mWindow = rootView->GetWidget();
     aPO->mPresContext->SetPaginatedScrolling(canCreateScrollbars);
@@ -2021,7 +2023,7 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   aPO->mPresContext->SetIsRootPaginatedDocument(documentIsTopLevel);
   aPO->mPresContext->SetPageScale(aPO->mZoomRatio);
   // Calculate scale factor from printer to screen
-  float printDPI = float(mPrt->mPrintDC->AppUnitsPerInch()) /
+  float printDPI = float(mPrt->mPrintDC->AppUnitsPerCSSInch()) /
                    float(mPrt->mPrintDC->AppUnitsPerDevPixel());
   aPO->mPresContext->SetPrintPreviewScale(mScreenDPI / printDPI);
 
@@ -2358,8 +2360,8 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
             nsIntMargin unwrtMarginTwips(0,0,0,0);
             mPrt->mPrintSettings->GetMarginInTwips(marginTwips);
             mPrt->mPrintSettings->GetUnwriteableMarginInTwips(unwrtMarginTwips);
-            nsMargin totalMargin = poPresContext->TwipsToAppUnits(marginTwips + 
-                                                              unwrtMarginTwips);
+            nsMargin totalMargin = poPresContext->CSSTwipsToAppUnits(marginTwips + 
+                                                                     unwrtMarginTwips);
             if (startPageNum == endPageNum) {
               {
                 startRect.y -= totalMargin.top;

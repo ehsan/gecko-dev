@@ -140,11 +140,16 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    var msg = "Console message: " + aConsoleMessage.message;
-    if (this.currentTest)
-      this.currentTest.addResult(new testMessage(msg));
-    else
-      this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
+    try {
+      var msg = "Console message: " + aConsoleMessage.message;
+      if (this.currentTest)
+        this.currentTest.addResult(new testMessage(msg));
+      else
+        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
+    } catch (ex) {
+      // Swallow exception so we don't lead to another error being reported,
+      // throwing us into an infinite loop
+    }
   },
 
   nextTest: function Tester_nextTest() {
@@ -232,7 +237,7 @@ Tester.prototype = {
             setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
           return;
         }
-        self.currentTest.addResult(new testResult(false, "Timed out", "", false));
+        self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
         self.currentTest.timedOut = true;
         self.currentTest.scope.__waitTimer = null;
         self.nextTest();
