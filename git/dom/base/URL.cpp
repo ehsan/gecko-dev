@@ -231,7 +231,7 @@ URL::SetHref(const nsAString& aHref, ErrorResult& aRv)
     return;
   }
 
-  mURI = uri;
+  aRv = mURI->SetSpec(href);
   UpdateURLSearchParams();
 }
 

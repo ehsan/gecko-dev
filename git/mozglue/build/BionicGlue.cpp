@@ -97,8 +97,6 @@ WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(
   return 0;
 }
 
-extern "C" NS_EXPORT pid_t __fork(void);
-
 extern "C" NS_EXPORT pid_t
 WRAP(fork)(void)
 {

@@ -1615,30 +1615,47 @@ nsCSSStyleSheet::DidDirty()
 nsresult
 nsCSSStyleSheet::SubjectSubsumesInnerPrincipal()
 {
-  nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::GetSubjectPrincipal();
-  if (subjectPrincipal->Subsumes(mInner->mPrincipal)) {
-    return NS_OK;
-  }
+  // Get the security manager and do the subsumes check
+  nsIScriptSecurityManager *securityManager =
+    nsContentUtils::GetSecurityManager();
 
-  // Allow access only if CORS mode is not NONE
-  if (GetCORSMode() == CORS_NONE) {
+  nsCOMPtr<nsIPrincipal> subjectPrincipal;
+  nsresult rv = securityManager->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!subjectPrincipal) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  // Now make sure we set the principal of our inner to the
-  // subjectPrincipal.  That means we need a unique inner, of
-  // course.  But we don't want to do that if we're not complete
-  // yet.  Luckily, all the callers of this method throw anyway if
-  // not complete, so we can just do that here too.
-  if (!mInner->mComplete) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+  bool subsumes;
+  rv = subjectPrincipal->Subsumes(mInner->mPrincipal, &subsumes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (subsumes) {
+    return NS_OK;
   }
+  
+  if (!nsContentUtils::IsCallerChrome()) {
+    // Allow access only if CORS mode is not NONE
+    if (GetCORSMode() == CORS_NONE) {
+      return NS_ERROR_DOM_SECURITY_ERR;
+    }
 
-  WillDirty();
+    // Now make sure we set the principal of our inner to the
+    // subjectPrincipal.  That means we need a unique inner, of
+    // course.  But we don't want to do that if we're not complete
+    // yet.  Luckily, all the callers of this method throw anyway if
+    // not complete, so we can just do that here too.
+    if (!mInner->mComplete) {
+      return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    }
 
-  mInner->mPrincipal = subjectPrincipal;
+    WillDirty();
 
-  DidDirty();
+    mInner->mPrincipal = subjectPrincipal;
+
+    DidDirty();
+  }
 
   return NS_OK;
 }

@@ -1486,7 +1486,8 @@ nsXPCComponents_ID::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
     // Do the security check if necessary
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateInstance(cx, nsJSID::GetCID()))) {
+    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->CanCreateInstance(cx, nsJSID::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
         return NS_OK;
@@ -1849,7 +1850,8 @@ nsXPCComponents_Exception::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
     // Do the security check if necessary
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateInstance(cx, Exception::GetCID()))) {
+    nsIXPCSecurityManager* sm = xpc->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->CanCreateInstance(cx, Exception::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
         return NS_OK;
@@ -2357,7 +2359,8 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
     // Do the security check if necessary
 
-    if (NS_FAILED(nsXPConnect::SecurityManager()->CanCreateInstance(cx, nsXPCConstructor::GetCID()))) {
+    nsIXPCSecurityManager* sm = xpc->GetDefaultSecurityManager();
+    if (sm && NS_FAILED(sm->CanCreateInstance(cx, nsXPCConstructor::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
         return NS_OK;
@@ -2780,22 +2783,6 @@ NS_IMETHODIMP
 nsXPCComponents_Utils::ForceCC()
 {
     nsJSContext::CycleCollectNow();
-    return NS_OK;
-}
-
-/* void finishCC(); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::FinishCC()
-{
-    nsCycleCollector_finishAnyCurrentCollection();
-    return NS_OK;
-}
-
-/* void ccSlice(long long budget); */
-NS_IMETHODIMP
-nsXPCComponents_Utils::CcSlice(int64_t budget)
-{
-    nsCycleCollector_collectSliceWork(budget);
     return NS_OK;
 }
 

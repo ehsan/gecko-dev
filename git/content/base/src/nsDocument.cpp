@@ -6335,13 +6335,23 @@ nsIDocument::LoadBindingDocument(const nsAString& aURI, ErrorResult& rv)
     return;
   }
 
-  // Note - This computation of subjectPrincipal isn't necessarily sensical.
-  // It's just designed to preserve the old semantics during a mass-conversion
-  // patch.
-  nsCOMPtr<nsIPrincipal> subjectPrincipal =
-    nsContentUtils::GetCurrentJSContext() ? nsContentUtils::GetSubjectPrincipal()
-                                          : NodePrincipal();
-  BindingManager()->LoadBindingDocument(this, uri, subjectPrincipal);
+  // Figure out the right principal to use
+  nsCOMPtr<nsIPrincipal> subject;
+  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
+  if (secMan) {
+    rv = secMan->GetSubjectPrincipal(getter_AddRefs(subject));
+    if (rv.Failed()) {
+      return;
+    }
+  }
+
+  if (!subject) {
+    // Fall back to our principal.  Or should we fall back to the null
+    // principal?  The latter would just mean no binding loads....
+    subject = NodePrincipal();
+  }
+
+  BindingManager()->LoadBindingDocument(this, uri, subject);
 }
 
 NS_IMETHODIMP

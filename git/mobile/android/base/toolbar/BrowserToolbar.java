@@ -607,11 +607,9 @@ public class BrowserToolbar extends ThemedRelativeLayout
             return 0;
         }
 
-        // Find the distance from the right-edge of the url bar (where we're translating from) to
-        // the left-edge of the cancel button (where we're translating to; note that the cancel
-        // button must be laid out, i.e. not View.GONE).
+        // Subtract the right margin because it's negative.
         final LayoutParams lp = (LayoutParams) urlEditLayout.getLayoutParams();
-        return editCancel.getLeft() - lp.leftMargin - urlBarEntry.getRight();
+        return urlEditLayout.getRight() - lp.rightMargin - urlBarEntry.getRight();
     }
 
     private int getUrlBarCurveTranslation() {

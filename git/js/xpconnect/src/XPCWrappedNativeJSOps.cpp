@@ -821,6 +821,8 @@ XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
     if (!ccx.IsValid())
         return false;
 
+    MOZ_ASSERT(obj == ccx.GetFlattenedJSObject());
+
     PRE_HELPER_STUB
     Call(wrapper, cx, obj, args, &retval);
     POST_HELPER_STUB
@@ -838,6 +840,8 @@ XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
                        args.array(), args.rval().address());
     if (!ccx.IsValid())
         return false;
+
+    MOZ_ASSERT(obj == ccx.GetFlattenedJSObject());
 
     PRE_HELPER_STUB
     Construct(wrapper, cx, obj, args, &retval);
