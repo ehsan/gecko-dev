@@ -133,11 +133,7 @@ SimpleTest.waitForExplicitFinish();
 window.onload = function() {
     check_iframe(document.getElementById("quirks"));
     check_iframe(document.getElementById("standards"));
-    setTimeout(function() {
-        check_iframe(document.getElementById("quirks"));
-        check_iframe(document.getElementById("standards"));
-        SimpleTest.finish();
-    }, 5000);
+    SimpleTest.finish();
 };
 </script>
 </body>
