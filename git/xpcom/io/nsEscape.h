@@ -8,6 +8,7 @@
 #ifndef _ESCAPE_H_
 #define _ESCAPE_H_
 
+#include "prtypes.h"
 #include "nscore.h"
 #include "nsError.h"
 #include "nsString.h"

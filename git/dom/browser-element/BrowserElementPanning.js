@@ -63,8 +63,6 @@ const ContentPanning = {
 
     addMessageListener("Viewport:Change", this._recvViewportChange.bind(this));
     addMessageListener("Gesture:DoubleTap", this._recvDoubleTap.bind(this));
-    addEventListener("visibilitychange", this._recvVisibilityChange.bind(this));
-    Services.obs.addObserver(this, "BEC:ShownModalPrompt", false);
   },
 
   handleEvent: function cp_handleEvent(evt) {
@@ -109,12 +107,6 @@ const ContentPanning = {
                                         : target;
         view.removeEventListener('click', this, true, true);
         break;
-    }
-  },
-
-  observe: function cp_observe(subject, topic, data) {
-    if (topic === 'BEC:ShownModalPrompt') {
-      this._resetHover();
     }
   },
 
@@ -504,12 +496,6 @@ const ContentPanning = {
     this._setActive(root.documentElement);
   },
 
-  _resetHover: function cp_resetHover() {
-    const kStateHover = 0x00000004;
-    let element = content.document.createElement('foo');
-    this._domUtils.setContentState(element, kStateHover);
-  },
-
   _setActive: function cp_setActive(elt) {
     const kStateActive = 0x00000001;
     this._domUtils.setContentState(elt, kStateActive);
@@ -593,13 +579,6 @@ const ContentPanning = {
       var os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
       os.notifyObservers(docShell, 'browser-zoom-to-rect', JSON.stringify(rect));
     }
-  },
-
-  _recvVisibilityChange: function(evt) {
-    if (!evt.target.hidden)
-      return;
-
-    this._resetHover();
   },
 
   _shouldZoomToElement: function(aElement) {

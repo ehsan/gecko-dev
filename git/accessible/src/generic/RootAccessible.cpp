@@ -481,9 +481,9 @@ RootAccessible::Shutdown()
 
 // nsIAccessible method
 Relation
-RootAccessible::RelationByType(RelationType aType)
+RootAccessible::RelationByType(uint32_t aType)
 {
-  if (!mDocumentNode || aType != RelationType::EMBEDS)
+  if (!mDocumentNode || aType != nsIAccessibleRelation::RELATION_EMBEDS)
     return DocAccessibleWrap::RelationByType(aType);
 
   nsIDOMWindow* rootWindow = mDocumentNode->GetWindow();

@@ -659,11 +659,11 @@ HTMLGroupboxAccessible::NativeName(nsString& aName)
 }
 
 Relation
-HTMLGroupboxAccessible::RelationByType(RelationType aType)
+HTMLGroupboxAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
     // No override for label, so use <legend> for this <fieldset>
-  if (aType == RelationType::LABELLED_BY)
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
     rel.AppendTarget(mDoc, GetLegend());
 
   return rel;
@@ -680,10 +680,10 @@ HTMLLegendAccessible::
 }
 
 Relation
-HTMLLegendAccessible::RelationByType(RelationType aType)
+HTMLLegendAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
-  if (aType != RelationType::LABEL_FOR)
+  if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
     return rel;
 
   Accessible* groupbox = Parent();
@@ -742,10 +742,10 @@ HTMLFigureAccessible::NativeName(nsString& aName)
 }
 
 Relation
-HTMLFigureAccessible::RelationByType(RelationType aType)
+HTMLFigureAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABELLED_BY)
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
     rel.AppendTarget(mDoc, Caption());
 
   return rel;
@@ -782,10 +782,10 @@ HTMLFigcaptionAccessible::NativeRole()
 }
 
 Relation
-HTMLFigcaptionAccessible::RelationByType(RelationType aType)
+HTMLFigcaptionAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
-  if (aType != RelationType::LABEL_FOR)
+  if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
     return rel;
 
   Accessible* figure = Parent();

@@ -7,7 +7,6 @@
 #define _Accessible_H_
 
 #include "mozilla/a11y/AccTypes.h"
-#include "mozilla/a11y/RelationType.h"
 #include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/States.h"
 #include "nsAccessNode.h"
@@ -295,7 +294,7 @@ public:
   /**
    * Get the relation of the given type.
    */
-  virtual Relation RelationByType(RelationType aType);
+  virtual mozilla::a11y::Relation RelationByType(uint32_t aType);
 
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods

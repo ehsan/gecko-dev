@@ -87,10 +87,10 @@ XULLabelAccessible::NativeState()
 }
 
 Relation
-XULLabelAccessible::RelationByType(RelationType aType)
+XULLabelAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABEL_FOR) {
+  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
     nsIContent* parent = mContent->GetFlattenedTreeParent();
     if (parent && parent->Tag() == nsGkAtoms::caption) {
