@@ -51,6 +51,7 @@ void JS_FASTCALL This(VMFrame &f);
 JSObject * JS_FASTCALL NewInitArray(VMFrame &f);
 JSObject * JS_FASTCALL NewInitObject(VMFrame &f, uint32 empty);
 JSObject * JS_FASTCALL NewArray(VMFrame &f, uint32 len);
+void JS_FASTCALL Interrupt(VMFrame &f);
 void JS_FASTCALL InitElem(VMFrame &f, uint32 last);
 void JS_FASTCALL InitProp(VMFrame &f, JSAtom *atom);
 void JS_FASTCALL EndInit(VMFrame &f);
@@ -68,15 +69,10 @@ void JS_FASTCALL GetElem(VMFrame &f);
 void JS_FASTCALL SetElem(VMFrame &f);
 void JS_FASTCALL CallName(VMFrame &f, uint32 index);
 void JS_FASTCALL GetUpvar(VMFrame &f, uint32 index);
-
 void JS_FASTCALL NameInc(VMFrame &f, JSAtom *atom);
 void JS_FASTCALL NameDec(VMFrame &f, JSAtom *atom);
 void JS_FASTCALL IncName(VMFrame &f, JSAtom *atom);
 void JS_FASTCALL DecName(VMFrame &f, JSAtom *atom);
-void JS_FASTCALL PropInc(VMFrame &f, JSAtom *atom);
-void JS_FASTCALL PropDec(VMFrame &f, JSAtom *atom);
-void JS_FASTCALL IncProp(VMFrame &f, JSAtom *atom);
-void JS_FASTCALL DecProp(VMFrame &f, JSAtom *atom);
 
 void JS_FASTCALL DefFun(VMFrame &f, uint32 index);
 JSObject * JS_FASTCALL DefLocalFun(VMFrame &f, JSFunction *fun);

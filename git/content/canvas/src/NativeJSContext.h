@@ -59,23 +59,34 @@ public:
         return PR_FALSE;
     }
 
-    PRBool AddGCRoot (JSObject **aPtr, const char *aName);
-    void ReleaseGCRoot (JSObject **aPtr);
+    PRBool AddGCRoot (void *aPtr, const char *aName);
+    void ReleaseGCRoot (void *aPtr);
 
     void SetRetVal (PRInt32 val) {
-        SetRetValAsJSVal(INT_TO_JSVAL(val));
+        if (INT_FITS_IN_JSVAL(val))
+            SetRetValAsJSVal(INT_TO_JSVAL(val));
+        else
+            SetRetVal((double) val);
     }
 
     void SetRetVal (PRUint32 val) {
-        SetRetValAsJSVal(UINT_TO_JSVAL(val));
+        if (INT_FITS_IN_JSVAL(val))
+            SetRetValAsJSVal(INT_TO_JSVAL((int) val));
+        else
+            SetRetVal((double) val);
     }
 
     void SetRetVal (double val) {
-        SetRetValAsJSVal(DOUBLE_TO_JSVAL(val));
+        jsval *vp;
+        ncc->GetRetValPtr(&vp);
+        JS_NewDoubleValue(ctx, val, vp);
     }
 
     void SetBoolRetVal (PRBool val) {
-        SetRetValAsJSVal(BOOLEAN_TO_JSVAL(val));
+        if (val)
+            SetRetValAsJSVal(JSVAL_TRUE);
+        else
+            SetRetValAsJSVal(JSVAL_FALSE);
     }
 
     void SetRetVal (PRInt32 *vp, PRUint32 len) {
@@ -84,8 +95,13 @@ public:
         if (!JS_EnterLocalRootScope(ctx))
             return; // XXX ???
 
-        for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = INT_TO_JSVAL(vp[i]);
+        for (PRUint32 i = 0; i < len; i++) {
+            if (INT_FITS_IN_JSVAL(vp[i])) {
+                jsvector[i] = INT_TO_JSVAL(vp[i]);
+            } else {
+                JS_NewDoubleValue(ctx, vp[i], &jsvector[i]);
+            }
+        }
 
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
@@ -99,8 +115,9 @@ public:
         if (!JS_EnterLocalRootScope(ctx))
             return; // XXX ???
 
-        for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = UINT_TO_JSVAL(vp[i]);
+        for (PRUint32 i = 0; i < len; i++) {
+            JS_NewNumberValue(ctx, vp[i], &jsvector[i]);
+        }
 
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
@@ -115,8 +132,8 @@ public:
             return; // XXX ???
 
         for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = DOUBLE_TO_JSVAL(dp[i]);
-
+            JS_NewDoubleValue(ctx, (jsdouble) dp[i], &jsvector[i]);
+            
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
 
@@ -130,8 +147,7 @@ public:
             return; // XXX ???
 
         for (PRUint32 i = 0; i < len; i++)
-            jsvector[i] = DOUBLE_TO_JSVAL(fp[i]);
-
+            JS_NewDoubleValue(ctx, (jsdouble) fp[i], &jsvector[i]);
         JSObject *jsarr = JS_NewArrayObject(ctx, len, jsvector.get());
         SetRetVal(jsarr);
 
@@ -313,7 +329,11 @@ public:
     }
 
     PRBool DefineProperty(const char *name, double val) {
-        jsval dv = DOUBLE_TO_JSVAL(val);
+        jsval dv;
+
+        if (!JS_NewDoubleValue(mCtx->ctx, val, &dv))
+            return PR_FALSE;
+
         if (!JS_DefineProperty(mCtx->ctx, mObject, name, dv, NULL, NULL, JSPROP_ENUMERATE))
             return PR_FALSE;
         return PR_TRUE;

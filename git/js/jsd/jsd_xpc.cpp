@@ -2188,7 +2188,10 @@ NS_IMETHODIMP
 jsdValue::GetDoubleValue(double *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_GetValueDouble (mCx, mValue);
+    double *dp = JSD_GetValueDouble (mCx, mValue);
+    if (!dp)
+        return NS_ERROR_FAILURE;
+    *_rval = *dp;
     return NS_OK;
 }
 

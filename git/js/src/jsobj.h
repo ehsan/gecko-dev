@@ -677,7 +677,6 @@ struct JSObject {
 };
 
 JS_STATIC_ASSERT(sizeof(JSObject) % JS_GCTHING_ALIGN == 0);
-JS_STATIC_ASSERT(offsetof(JSObject, clasp) == offsetof(JSPretendObject, clasp));
 
 #define JSSLOT_START(clasp) (((clasp)->flags & JSCLASS_HAS_PRIVATE)           \
                              ? JSSLOT_PRIVATE + 1                             \
@@ -1276,7 +1275,7 @@ extern JSBool
 js_ReportGetterOnlyAssignment(JSContext *cx);
 
 extern JS_FRIEND_API(JSBool)
-js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
+js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 #ifdef DEBUG
 namespace js {

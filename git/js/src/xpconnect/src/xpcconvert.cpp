@@ -1587,7 +1587,7 @@ public:
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, tvr.jsval_value());
+        JS_SetPendingException(mContext, js::Jsvalify(tvr.value()));
     }
 
 private:

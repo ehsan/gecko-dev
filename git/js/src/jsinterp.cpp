@@ -1371,7 +1371,7 @@ js_TraceOpcode(JSContext *cx)
         if (ndefs != 0 &&
             ndefs < regs->sp - fp->slots()) {
             for (n = -ndefs; n < 0; n++) {
-                char *bytes = DecompileValueGenerator(cx, n, regs->sp[n], NULL);
+                char *bytes = js_DecompileValueGenerator(cx, n, regs->sp[n], NULL);
                 if (bytes) {
                     fprintf(tracefp, "%s %s",
                             (n == -ndefs) ? "  output:" : ",",
@@ -1406,7 +1406,7 @@ js_TraceOpcode(JSContext *cx)
     nuses = js_GetStackUses(&js_CodeSpec[op], op, regs->pc);
     if (nuses != 0) {
         for (n = -nuses; n < 0; n++) {
-            char *bytes = DecompileValueGenerator(cx, n, regs->sp[n], NULL);
+            char *bytes = js_DecompileValueGenerator(cx, n, regs->sp[n], NULL);
             if (bytes) {
                 fprintf(tracefp, "%s %s",
                         (n == -nuses) ? "  inputs:" : ",",
@@ -2247,7 +2247,7 @@ Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (!JS_CHECK_OPERATION_LIMIT(cx))                                    \
+        if (cx->interruptFlags && !js_HandleExecutionInterrupt(cx))           \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2292,6 +2292,13 @@ Interpret(JSContext *cx)
     JSVersion originalVersion = (JSVersion) cx->version;
     if (currentVersion != originalVersion)
         js_SetVersion(cx, currentVersion);
+
+    /* Update the static-link display. */
+    if (script->staticLevel < JS_DISPLAY_SIZE) {
+        JSStackFrame **disp = &cx->display[script->staticLevel];
+        fp->displaySave = *disp;
+        *disp = fp;
+    }
 
 #define CHECK_INTERRUPT_HANDLER()                                             \
     JS_BEGIN_MACRO                                                            \
@@ -2619,6 +2626,8 @@ Interpret(JSContext *cx)
     JS_ASSERT_IF(!fp->isGenerator(), !js_IsActiveWithOrBlock(cx, fp->scopeChain, 0));
 
     /* Undo the remaining effects committed on entry to Interpret. */
+    if (script->staticLevel < JS_DISPLAY_SIZE)
+        cx->display[script->staticLevel] = fp->displaySave;
     if (cx->version == currentVersion && currentVersion != originalVersion)
         js_SetVersion(cx, originalVersion);
     --cx->interpLevel;

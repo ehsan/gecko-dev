@@ -2138,7 +2138,7 @@ js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, const Value &v,
     char *bytes;
     JSBool ok;
 
-    bytes = DecompileValueGenerator(cx, spindex, v, fallback);
+    bytes = js_DecompileValueGenerator(cx, spindex, v, fallback);
     if (!bytes)
         return JS_FALSE;
 
@@ -2176,8 +2176,8 @@ js_ReportMissingArg(JSContext *cx, const Value &v, uintN arg)
     bytes = NULL;
     if (v.isFunObj()) {
         atom = GET_FUNCTION_PRIVATE(cx, &v.asFunObj())->atom;
-        bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
-                                        v, ATOM_TO_STRING(atom));
+        bytes = js_DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
+                                           v, ATOM_TO_STRING(atom));
         if (!bytes)
             return;
     }
@@ -2197,7 +2197,7 @@ js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
 
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount >= 1);
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount <= 3);
-    bytes = js::DecompileValueGenerator(cx, spindex, v, fallback);
+    bytes = js_DecompileValueGenerator(cx, spindex, v, fallback);
     if (!bytes)
         return JS_FALSE;
 
@@ -2231,14 +2231,15 @@ js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
-    JS_ASSERT(cx->operationCallbackFlag);
+    JS_ASSERT(cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK);
 
     /*
      * Reset the callback flag first, then yield. If another thread is racing
      * us here we will accumulate another callback request which will be
      * serviced at the next opportunity.
      */
-    cx->operationCallbackFlag = 0;
+    JS_ATOMIC_UNSET_MASK(&cx->interruptFlags,
+                         JSContext::INTERRUPT_OPERATION_CALLBACK);
 
     /*
      * Unless we are going to run the GC, we automatically yield the current
@@ -2279,6 +2280,15 @@ js_InvokeOperationCallback(JSContext *cx)
      */
 
     return !cb || cb(cx);
+}
+
+JSBool
+js_HandleExecutionInterrupt(JSContext *cx)
+{
+    JSBool result = JS_TRUE;
+    if (cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK)
+        result = js_InvokeOperationCallback(cx) && result;
+    return result;
 }
 
 void

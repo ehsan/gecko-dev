@@ -1679,6 +1679,14 @@ stubs::NewArray(VMFrame &f, uint32 len)
 }
 
 void JS_FASTCALL
+stubs::Interrupt(VMFrame &f)
+{
+    if (!js_HandleExecutionInterrupt(f.cx)) {
+        THROW();
+    }
+}
+
+void JS_FASTCALL
 stubs::This(VMFrame &f)
 {
     if (!f.fp->getThisObject(f.cx))
@@ -1983,50 +1991,6 @@ NameIncDec(VMFrame &f, JSAtom *origAtom)
     }
     obj2->dropProperty(cx, prop);
     return ObjIncOp<N, POST>(f, obj, id);
-}
-
-void JS_FASTCALL
-stubs::PropInc(VMFrame &f, JSAtom *atom)
-{
-    JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
-    if (!obj)
-        THROW();
-    if (!ObjIncOp<1, true>(f, obj, ATOM_TO_JSID(atom)))
-        THROW();
-    f.regs.sp[-2] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::PropDec(VMFrame &f, JSAtom *atom)
-{
-    JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
-    if (!obj)
-        THROW();
-    if (!ObjIncOp<-11, true>(f, obj, ATOM_TO_JSID(atom)))
-        THROW();
-    f.regs.sp[-2] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::IncProp(VMFrame &f, JSAtom *atom)
-{
-    JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
-    if (!obj)
-        THROW();
-    if (!ObjIncOp<1, false>(f, obj, ATOM_TO_JSID(atom)))
-        THROW();
-    f.regs.sp[-2] = f.regs.sp[-1];
-}
-
-void JS_FASTCALL
-stubs::DecProp(VMFrame &f, JSAtom *atom)
-{
-    JSObject *obj = ValueToObject(f.cx, &f.regs.sp[-1]);
-    if (!obj)
-        THROW();
-    if (!ObjIncOp<-1, false>(f, obj, ATOM_TO_JSID(atom)))
-        THROW();
-    f.regs.sp[-2] = f.regs.sp[-1];
 }
 
 void JS_FASTCALL

@@ -247,6 +247,9 @@ extern JS_FRIEND_DATA(js::Class) js_CallClass;
 extern js::Class js_DeclEnvClass;
 extern const uint32 CALL_CLASS_FIXED_RESERVED_SLOTS;
 
+/* JS_FRIEND_DATA so that VALUE_IS_FUNCTION is callable from the shell. */
+extern JS_FRIEND_DATA(js::Class) js_FunctionClass;
+
 inline bool
 JSObject::isFunction() const
 {
