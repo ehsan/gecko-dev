@@ -407,10 +407,6 @@ public:
   // True if this frame has been scrolled at least once
   bool mHasBeenScrolled:1;
 
-  // True if the frame's resolution has been set via SetResolution or restored
-  // via RestoreState.
-  bool mIsResolutionSet:1;
-
 protected:
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -661,9 +657,6 @@ public:
   }
   virtual void ResetScrollPositionForLayerPixelAlignment() MOZ_OVERRIDE {
     mHelper.ResetScrollPositionForLayerPixelAlignment();
-  }
-  virtual bool IsResolutionSet() const MOZ_OVERRIDE {
-    return mHelper.mIsResolutionSet;
   }
   virtual bool DidHistoryRestore() const MOZ_OVERRIDE {
     return mHelper.mDidHistoryRestore;
@@ -978,9 +971,6 @@ public:
   }
   virtual void ResetScrollPositionForLayerPixelAlignment() MOZ_OVERRIDE {
     mHelper.ResetScrollPositionForLayerPixelAlignment();
-  }
-  virtual bool IsResolutionSet() const MOZ_OVERRIDE {
-    return mHelper.mIsResolutionSet;
   }
   virtual bool DidHistoryRestore() const MOZ_OVERRIDE {
     return mHelper.mDidHistoryRestore;

@@ -71,15 +71,10 @@ this.FxAccountsMgmtService = {
 
   handleEvent: function(aEvent) {
     let msg = aEvent.detail;
-    log.debug("MgmtService got content event: " + JSON.stringify(msg));
+    log.debug("Got content msg " + JSON.stringify(msg));
     let self = FxAccountsMgmtService;
 
     if (!msg.id) {
-      return;
-    }
-
-    if (msg.error) {
-      self._onReject(msg.id, msg.error);
       return;
     }
 
