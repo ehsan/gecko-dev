@@ -6,7 +6,7 @@
 
 // Test that menu bar appends to the correct document.
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let projecteditor = yield addProjectEditorTabForTempDirectory({
     menubar: false
   });

@@ -979,13 +979,6 @@ describe("loop.panel", function() {
   describe('loop.panel.ToSView', function() {
 
     it("should render when the value of loop.seenToS is not set", function() {
-      navigator.mozLoop.getLoopPref = function(key) {
-        return {
-          "gettingStarted.seen": true,
-          "seenToS": "unseen"
-        }[key];
-      };
-
       var view = TestUtils.renderIntoDocument(loop.panel.ToSView());
 
       TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
@@ -993,32 +986,15 @@ describe("loop.panel", function() {
 
     it("should not render when the value of loop.seenToS is set to 'seen'",
       function(done) {
-        navigator.mozLoop.getLoopPref = function(key) {
-          return {
-            "gettingStarted.seen": true,
-            "seenToS": "seen"
-          }[key];
+        navigator.mozLoop.getLoopPref = function() {
+          return "seen";
         };
 
         try {
-          TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
+          TestUtils.findRenderedDOMComponentWithClass(view, "tos");
         } catch (err) {
           done();
         }
     });
-
-    it("should render when the value of loop.gettingStarted.seen is false",
-       function() {
-         navigator.mozLoop.getLoopPref = function(key) {
-           return {
-             "gettingStarted.seen": false,
-             "seenToS": "seen"
-           }[key];
-         };
-         var view = TestUtils.renderIntoDocument(loop.panel.ToSView());
-
-         TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
-       });
-
   });
 });

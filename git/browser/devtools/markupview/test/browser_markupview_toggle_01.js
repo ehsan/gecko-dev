@@ -8,7 +8,7 @@
 
 const TEST_URL = TEST_URL_ROOT + "doc_markup_toggle.html";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
 
   info("Getting the container for the UL parent element");

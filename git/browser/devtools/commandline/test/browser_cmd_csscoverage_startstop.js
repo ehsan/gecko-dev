@@ -14,7 +14,7 @@ const SHEET_B = TEST_BASE_HTTPS + "browser_cmd_csscoverage_sheetB.css";
 const SHEET_C = TEST_BASE_HTTPS + "browser_cmd_csscoverage_sheetC.css";
 const SHEET_D = TEST_BASE_HTTPS + "browser_cmd_csscoverage_sheetD.css";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let options = yield helpers.openTab("about:blank");
   yield helpers.openToolbar(options);
 

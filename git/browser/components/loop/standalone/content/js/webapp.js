@@ -257,7 +257,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
                                   {vendorShortname: mozL10n.get("vendorShortname")}), 
                className: "footer-logo"}), 
           React.DOM.div({className: "footer-external-links"}, 
-            React.DOM.a({target: "_blank", href: loop.config.generalSupportUrl}, 
+            React.DOM.a({target: "_blank", href: loop.config.guestSupportUrl}, 
               mozL10n.get("support_link")
             )
           )

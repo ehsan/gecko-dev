@@ -14,7 +14,7 @@ thisTestLeaksUncaughtRejectionsAndShouldBeFixed("destroy");
 loadHelperScript("helper_edits.js");
 
 // Test ProjectEditor basic functionality
-add_task(function*() {
+let test = asyncTest(function*() {
   let projecteditor = yield addProjectEditorTabForTempDirectory();
   let TEMP_PATH = projecteditor.project.allPaths()[0];
 

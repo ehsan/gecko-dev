@@ -110,10 +110,7 @@ var NetworkManager = (function NetworkManagerClosure() {
       }
 
       if (args.onProgressiveData) {
-        // Some legacy browsers might throw an exception.
-        try {
-          xhr.responseType = 'moz-chunked-arraybuffer';
-        } catch(e) {}
+        xhr.responseType = 'moz-chunked-arraybuffer';
         if (xhr.responseType === 'moz-chunked-arraybuffer') {
           pendingRequest.onProgressiveData = args.onProgressiveData;
           pendingRequest.mozChunked = true;

@@ -63,7 +63,7 @@ const TEST_DATA = [
   ['VK_RETURN', 'style="display:  inherit; color :chartreuse !important;"', -1, -1, false]
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   info("Opening the inspector on the test URL");
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
 

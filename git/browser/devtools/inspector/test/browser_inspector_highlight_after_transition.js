@@ -9,7 +9,7 @@ const TEST_URI = "http://example.com/browser/browser/devtools/inspector/" +
 
 // Test that the nodeinfobar is never displayed above the top or below the
 // bottom of the content area.
-add_task(function*() {
+let test = asyncTest(function*() {
   info("Loading the test document and opening the inspector");
 
   yield addTab(TEST_URI);

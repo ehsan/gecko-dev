@@ -39,13 +39,13 @@ function test()
   waitForExplicitFinish();
   gBrowser.selectedTab = gBrowser.addTab(PAGE_URL);
   let frameCount = 0;
-  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded",
+  gBrowser.selectedTab.linkedBrowser.addEventListener("DOMContentLoaded",
     function (event)
     {
       // Wait for all the frames.
       if (frameCount++ < 2)
         return;
-      gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, false)
+      gBrowser.selectedTab.linkedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, false)
       gTabLoaded = true;
       maybeClickLink();
     }, false

@@ -15,7 +15,7 @@ thisTestLeaksUncaughtRejectionsAndShouldBeFixed("TypeError: this.window is null"
 // Test that projecteditor can be destroyed in various states of loading
 // without causing any leaks or exceptions.
 
-add_task(function* () {
+let test = asyncTest(function* () {
 
   info ("Testing tab closure when projecteditor is in various states");
   let loaderUrl = "chrome://browser/content/devtools/projecteditor-test.xul";
