@@ -19,32 +19,6 @@
 namespace js {
 namespace ion {
 
-#ifdef DEBUG
-void
-FallbackICSpew(JSContext *cx, ICFallbackStub *stub, const char *fmt, ...)
-{
-    if (IonSpewEnabled(IonSpew_BaselineICFallback)) {
-        RootedScript script(cx, GetTopIonJSScript(cx));
-        jsbytecode *pc = stub->icEntry()->pc(script);
-
-        char fmtbuf[100];
-        va_list args;
-        va_start(args, fmt);
-        vsnprintf(fmtbuf, 100, fmt, args);
-        va_end(args);
-
-        IonSpew(IonSpew_BaselineICFallback, "Fallback hit for (%s:%d) (pc=%d) (line=%d): %s",
-                script->filename,
-                script->lineno,
-                (int) (pc - script->code),
-                PCToLineNumber(script, pc),
-                fmtbuf);
-    }
-}
-#else
-#define FallbackICSpew(...)
-#endif
-
 void
 ICStub::markCode(JSTracer *trc, const char *name)
 {
@@ -93,9 +67,15 @@ ICStub::trace(JSTracer *trc)
         MarkObject(trc, &callStub->callee(), "baseline-callstub-callee");
         break;
       }
+      case ICStub::GetElem_Dense: {
+        ICGetElem_Dense *getElemStub = toGetElem_Dense();
+        MarkShape(trc, &getElemStub->shape(), "baseline-getelem-dense-shape");
+        break;
+      }
       case ICStub::SetElem_Dense: {
         ICSetElem_Dense *setElemStub = toSetElem_Dense();
-        MarkTypeObject(trc, &setElemStub->type(), "baseline-setelem-dense-stub-type");
+        MarkShape(trc, &setElemStub->shape(), "baseline-getelem-dense-shape");
+        MarkTypeObject(trc, &setElemStub->type(), "baseline-setelem-dense-type");
         break;
       }
       case ICStub::TypeMonitor_TypeObject: {
@@ -275,7 +255,6 @@ ICStubCompiler::callTypeUpdateIC(MacroAssembler &masm)
 static bool
 DoStackCheckFallback(JSContext *cx, ICStackCheck_Fallback *stub)
 {
-    FallbackICSpew(cx, stub, "StackCheck");
     JS_CHECK_RECURSION(cx, return false);
     return true;
 }
@@ -306,12 +285,6 @@ DoUseCountFallback(JSContext *cx, ICUseCount_Fallback *stub, size_t count)
 {
     // TODO:
     //  Bail out from this script and attempt an Ion compilation.
-    FallbackICSpew(cx, stub, "UseCount");
-
-    // Reset the script's use count for now.
-    RootedScript script(cx, GetTopIonJSScript(cx));
-    script->resetUseCount();
-
     return true;
 }
 
@@ -402,9 +375,9 @@ DoTypeMonitorFallback(JSContext *cx, ICTypeMonitor_Fallback *stub, HandleValue v
                       MutableHandleValue res)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->mainFallbackStub()->icEntry()->pc(script);
-    FallbackICSpew(cx, stub->mainFallbackStub(), "TypeMonitor");
 
+    // Monitor the pc.
+    jsbytecode *pc = stub->mainFallbackStub()->icEntry()->pc(script);
     types::TypeScript::Monitor(cx, script, pc, value);
 
     if (!stub->addMonitorStubForValue(cx, ICStubSpace::StubSpaceFor(script), value))
@@ -526,9 +499,6 @@ static bool
 DoTypeUpdateFallback(JSContext *cx, ICUpdatedStub *stub, HandleValue value)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->getChainFallback()->icEntry()->pc(script);
-    FallbackICSpew(cx, stub->getChainFallback(), "TypeUpdate(%s)",
-                   ICStub::KindString(stub->kind()));
 
     switch(stub->kind()) {
       case ICStub::SetElem_Dense: {
@@ -623,11 +593,6 @@ ICTypeUpdate_TypeObject::Compiler::generateStubCode(MacroAssembler &masm)
 static bool
 DoThisFallback(JSContext *cx, ICThis_Fallback *stub, HandleValue thisv, MutableHandleValue ret)
 {
-    RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->icEntry()->pc(script);
-    IonSpew(IonSpew_BaselineICFallback, "This fallback called! (%s:%d/%d)",
-            script->filename, script->lineno, (int) (pc - script->code));
-
     ret.set(thisv);
     bool modified;
     if (!BoxNonStrictThis(cx, ret, &modified))
@@ -657,11 +622,8 @@ ICThis_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 //
 
 static bool
-DoNewArray(JSContext *cx, ICNewArray_Fallback *stub, uint32_t length,
-           HandleTypeObject type, MutableHandleValue res)
+DoNewArray(JSContext *cx, uint32_t length, HandleTypeObject type, MutableHandleValue res)
 {
-    FallbackICSpew(cx, stub, "NewArray");
-
     RawObject obj = NewInitArray(cx, length, type);
     if (!obj)
         return false;
@@ -670,8 +632,7 @@ DoNewArray(JSContext *cx, ICNewArray_Fallback *stub, uint32_t length,
     return true;
 }
 
-typedef bool(*DoNewArrayFn)(JSContext *, ICNewArray_Fallback *, uint32_t, HandleTypeObject,
-                            MutableHandleValue);
+typedef bool(*DoNewArrayFn)(JSContext *, uint32_t, HandleTypeObject, MutableHandleValue);
 static const VMFunction DoNewArrayInfo = FunctionInfo<DoNewArrayFn>(DoNewArray);
 
 bool
@@ -681,7 +642,6 @@ ICNewArray_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     masm.push(R1.scratchReg()); // type
     masm.push(R0.scratchReg()); // length
-    masm.push(BaselineStubReg); // stub.
 
     return tailCallVM(DoNewArrayInfo, masm);
 }
@@ -695,12 +655,9 @@ DoCompareFallback(JSContext *cx, ICCompare_Fallback *stub, HandleValue lhs, Hand
                   MutableHandleValue ret)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-
-    FallbackICSpew(cx, stub, "Compare(%s)", js_CodeName[op]);
 
     // Perform the compare operation.
+    JSOp op = JSOp(*stub->icEntry()->pc(script));
     JSBool out;
 
     switch(op) {
@@ -796,7 +753,6 @@ static bool
 DoToBoolFallback(JSContext *cx, ICToBool_Fallback *stub, HandleValue arg, MutableHandleValue ret)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    FallbackICSpew(cx, stub, "ToBool");
 
     bool cond = ToBoolean(arg);
     ret.setBoolean(cond);
@@ -877,7 +833,6 @@ ICToBool_Int32::Compiler::generateStubCode(MacroAssembler &masm)
 static bool
 DoToNumberFallback(JSContext *cx, ICToNumber_Fallback *stub, HandleValue arg, MutableHandleValue ret)
 {
-    FallbackICSpew(cx, stub, "ToNumber");
     ret.set(arg);
     return ToNumber(cx, ret.address());
 }
@@ -908,11 +863,9 @@ DoBinaryArithFallback(JSContext *cx, ICBinaryArith_Fallback *stub, HandleValue l
                       HandleValue rhs, MutableHandleValue ret)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "BinaryArith(%s)", js_CodeName[op]);
 
     // Perform the compare operation.
+    JSOp op = JSOp(*stub->icEntry()->pc(script));
     switch(op) {
       case JSOP_ADD:
         // Do an add.
@@ -1104,8 +1057,8 @@ DoUnaryArithFallback(JSContext *cx, ICUnaryArith_Fallback *stub, HandleValue val
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
     jsbytecode *pc = stub->icEntry()->pc(script);
+
     JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "UnaryArith(%s)", js_CodeName[op]);
 
     switch (op) {
       case JSOP_BITNOT: {
@@ -1198,7 +1151,6 @@ static bool
 DoGetElemFallback(JSContext *cx, ICGetElem_Fallback *stub, HandleValue lhs, HandleValue rhs, MutableHandleValue res)
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
-    FallbackICSpew(cx, stub, "GetElem");
 
     if (!GetElementMonitored(cx, lhs, rhs, res))
         return false;
@@ -1214,12 +1166,9 @@ DoGetElemFallback(JSContext *cx, ICGetElem_Fallback *stub, HandleValue lhs, Hand
         return true;
 
     RootedObject obj(cx, &lhs.toObject());
-    if (obj->isDenseArray() && rhs.isInt32()) {
-        // Don't attach multiple dense array stubs.
-        if (stub->hasStub(ICStub::GetElem_Dense))
-            return true;
-
-        ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub());
+    if (obj->isNative() && rhs.isInt32()) {
+        ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
+                                           obj->lastProperty());
         ICStub *denseStub = compiler.getStub(ICStubSpace::StubSpaceFor(script));
         if (!denseStub)
             return false;
@@ -1260,17 +1209,15 @@ ICGetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
     masm.branchTestInt32(Assembler::NotEqual, R1, &failure);
 
-    RootedShape shape(cx, GetDenseArrayShape(cx, cx->global()));
-    if (!shape)
-        return false;
-
-    // Unbox R0 and guard it's a dense array.
-    Register obj = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjShape(Assembler::NotEqual, obj, shape, &failure);
-
-    // Load obj->elements in scratchReg.
     GeneralRegisterSet regs(availableGeneralRegs(2));
     Register scratchReg = regs.takeAny();
+
+    // Unbox R0 and shape guard.
+    Register obj = masm.extractObject(R0, ExtractTemp0);
+    masm.loadPtr(Address(BaselineStubReg, ICGetElem_Dense::offsetOfShape()), scratchReg);
+    masm.branchTestObjShape(Assembler::NotEqual, obj, scratchReg, &failure);
+
+    // Load obj->elements.
     masm.loadPtr(Address(obj, JSObject::offsetOfElements()), scratchReg);
 
     // Unbox key.
@@ -1302,13 +1249,11 @@ static bool
 DoSetElemFallback(JSContext *cx, ICSetElem_Fallback *stub, HandleValue rhs, HandleValue objv,
                   HandleValue index)
 {
-    RootedScript script(cx, GetTopIonJSScript(cx));
-    FallbackICSpew(cx, stub, "SetElem");
-
     RootedObject obj(cx, ToObject(cx, objv));
     if (!obj)
         return false;
 
+    RootedScript script(cx, GetTopIonJSScript(cx));
     if (!SetObjectElement(cx, obj, index, rhs, script->strict))
         return false;
 
@@ -1319,9 +1264,9 @@ DoSetElemFallback(JSContext *cx, ICSetElem_Fallback *stub, HandleValue rhs, Hand
     }
 
     // Try to generate new stubs.
-    if (obj->isDenseArray() && index.isInt32()) {
+    if (obj->isNative() && index.isInt32()) {
         RootedTypeObject type(cx, obj->getType(cx));
-        ICSetElem_Dense::Compiler compiler(cx, type);
+        ICSetElem_Dense::Compiler compiler(cx, obj->lastProperty(), type);
         ICStub *denseStub = compiler.getStub(ICStubSpace::StubSpaceFor(script));
         if (!denseStub)
             return false;
@@ -1372,20 +1317,20 @@ ICSetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
     masm.branchTestInt32(Assembler::NotEqual, R1, &failure);
 
-    RootedShape shape(cx, GetDenseArrayShape(cx, cx->global()));
-    if (!shape)
-        return false;
+    GeneralRegisterSet regs(availableGeneralRegs(2));
+    Register scratchReg = regs.takeAny();
 
     // Unbox R0 and guard it's a dense array.
     Register obj = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjShape(Assembler::NotEqual, obj, shape, &failure);
+    masm.loadPtr(Address(BaselineStubReg, ICSetElem_Dense::offsetOfShape()), scratchReg);
+    masm.branchTestObjShape(Assembler::NotEqual, obj, scratchReg, &failure);
 
     // Stow both R0 and R1 (object and key)
     // But R0 and R1 still hold their values.
     EmitStowICValues(masm, 2);
 
     // We may need to free up some registers
-    GeneralRegisterSet regs(availableGeneralRegs(0));
+    regs = availableGeneralRegs(0);
     regs.take(R0);
 
     // Guard that the type object matches.
@@ -1406,8 +1351,6 @@ ICSetElem_Dense::Compiler::generateStubCode(MacroAssembler &masm)
     EmitUnstowICValues(masm, 2);
 
     // Load obj->elements in scratchReg.
-    regs = availableGeneralRegs(2);
-    Register scratchReg = regs.takeAny();
     masm.loadPtr(Address(obj, JSObject::offsetOfElements()), scratchReg);
 
     // Unbox key.
@@ -1470,10 +1413,8 @@ DoGetNameFallback(JSContext *cx, ICGetName_Fallback *stub, HandleObject scopeCha
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
     jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "GetName(%s)", js_CodeName[op]);
 
-    JS_ASSERT(op == JSOP_GETGNAME || op == JSOP_CALLGNAME);
+    JS_ASSERT(JSOp(*pc) == JSOP_GETGNAME || JSOp(*pc) == JSOP_CALLGNAME);
 
     RootedPropertyName name(cx, script->getName(pc));
 
@@ -1569,8 +1510,8 @@ TryAttachLengthStub(JSContext *cx, HandleScript script, ICGetProp_Fallback *stub
 
     RootedObject obj(cx, &val.toObject());
 
-    if (obj->isDenseArray() && res.isInt32()) {
-        ICGetProp_DenseLength::Compiler compiler(cx);
+    if (obj->isArray() && res.isInt32()) {
+        ICGetProp_ArrayLength::Compiler compiler(cx);
         ICStub *newStub = compiler.getStub(ICStubSpace::StubSpaceFor(script));
         if (!newStub)
             return false;
@@ -1627,7 +1568,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, ICGetProp_Fallbac
         return true;
 
     RootedObject obj(cx, &val.toObject());
-    if (!obj->isNative() && !obj->isDenseArray())
+    if (!obj->isNative())
         return true;
 
     RootedShape shape(cx);
@@ -1661,10 +1602,10 @@ DoGetPropFallback(JSContext *cx, ICGetProp_Fallback *stub, HandleValue val, Muta
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
     jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "GetProp(%s)", js_CodeName[op]);
 
-    JS_ASSERT(op == JSOP_GETPROP || op == JSOP_CALLPROP || op == JSOP_LENGTH);
+    JS_ASSERT(JSOp(*pc) == JSOP_GETPROP ||
+              JSOp(*pc) == JSOP_CALLPROP ||
+              JSOp(*pc) == JSOP_LENGTH);
 
     RootedPropertyName name(cx, script->getName(pc));
     RootedId id(cx, NameToId(name));
@@ -1674,7 +1615,7 @@ DoGetPropFallback(JSContext *cx, ICGetProp_Fallback *stub, HandleValue val, Muta
         return false;
 
     if (obj->getOps()->getProperty) {
-        if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, res))
+        if (!GetPropertyGenericMaybeCallXML(cx, JSOp(*pc), obj, id, res))
             return false;
     } else {
         if (!GetPropertyHelper(cx, obj, id, 0, res))
@@ -1683,7 +1624,7 @@ DoGetPropFallback(JSContext *cx, ICGetProp_Fallback *stub, HandleValue val, Muta
 
 #if JS_HAS_NO_SUCH_METHOD
     // Handle objects with __noSuchMethod__.
-    if (op == JSOP_CALLPROP && JS_UNLIKELY(res.isPrimitive())) {
+    if (JSOp(*pc) == JSOP_CALLPROP && JS_UNLIKELY(res.isPrimitive())) {
         if (!OnUnknownMethod(cx, obj, IdToValue(id), res))
             return false;
     }
@@ -1698,7 +1639,7 @@ DoGetPropFallback(JSContext *cx, ICGetProp_Fallback *stub, HandleValue val, Muta
 
     bool attached = false;
 
-    if (op == JSOP_LENGTH) {
+    if (JSOp(*pc) == JSOP_LENGTH) {
         if (!TryAttachLengthStub(cx, script, stub, val, res, &attached))
             return false;
         if (attached)
@@ -1730,21 +1671,18 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 }
 
 bool
-ICGetProp_DenseLength::Compiler::generateStubCode(MacroAssembler &masm)
+ICGetProp_ArrayLength::Compiler::generateStubCode(MacroAssembler &masm)
 {
     Label failure;
     masm.branchTestObject(Assembler::NotEqual, R0, &failure);
 
-    RootedShape shape(cx, GetDenseArrayShape(cx, cx->global()));
-    if (!shape)
-        return false;
+    Register scratch = R1.scratchReg();
 
-    // Unbox R0 and guard it's a dense array.
+    // Unbox R0 and guard it's an array.
     Register obj = masm.extractObject(R0, ExtractTemp0);
-    masm.branchTestObjShape(Assembler::NotEqual, obj, shape, &failure);
+    masm.branchTestObjClass(Assembler::NotEqual, obj, scratch, &ArrayClass, &failure);
 
     // Load obj->elements->length.
-    Register scratch = R1.scratchReg();
     masm.loadPtr(Address(obj, JSObject::offsetOfElements()), scratch);
     masm.load32(Address(scratch, ObjectElements::offsetOfLength()), scratch);
 
@@ -1833,10 +1771,10 @@ DoSetPropFallback(JSContext *cx, ICSetProp_Fallback *stub, HandleValue lhs, Hand
 {
     RootedScript script(cx, GetTopIonJSScript(cx));
     jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "SetProp(%s)", js_CodeName[op]);
 
-    JS_ASSERT(op == JSOP_SETPROP || op == JSOP_SETNAME || op == JSOP_SETGNAME);
+    JS_ASSERT(JSOp(*pc) == JSOP_SETPROP ||
+              JSOp(*pc) == JSOP_SETNAME ||
+              JSOp(*pc) == JSOP_SETGNAME);
 
     RootedPropertyName name(cx, script->getName(pc));
     RootedId id(cx, NameToId(name));
@@ -1941,15 +1879,13 @@ TryAttachCallStub(JSContext *cx, ICCall_Fallback *stub, HandleScript script, JSO
 static bool
 DoCallFallback(JSContext *cx, ICCall_Fallback *stub, uint32_t argc, Value *vp, MutableHandleValue res)
 {
-    RootedScript script(cx, GetTopIonJSScript(cx));
-    jsbytecode *pc = stub->icEntry()->pc(script);
-    JSOp op = JSOp(*pc);
-    FallbackICSpew(cx, stub, "Call(%s)", js_CodeName[op]);
-
     RootedValue callee(cx, vp[0]);
     RootedValue thisv(cx, vp[1]);
 
     Value *args = vp + 2;
+
+    RootedScript script(cx, GetTopIonJSScript(cx));
+    JSOp op = JSOp(*stub->icEntry()->pc(script));
 
     bool attachedStub;
     if (!TryAttachCallStub(cx, stub, script, op, argc, vp, res, &attachedStub))
