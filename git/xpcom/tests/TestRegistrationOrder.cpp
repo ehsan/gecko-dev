@@ -123,12 +123,12 @@ RegOrderDirSvcProvider::GetFiles(const char *aKey, nsISimpleEnumerator **aEnum)
 
   if (0 == strcmp(aKey, NS_XPCOM_COMPONENT_DIR_LIST))
   {
-    nsCOMPtr<nsIFile> coreDir;
-    rv = getRegDirectory("core", getter_AddRefs(coreDir));
+    nsIFile *coreDir = nsnull;
+    rv = getRegDirectory("core", &coreDir);
     if (NS_SUCCEEDED(rv))
     {
-      nsCOMPtr<nsIFile> extDir;
-      rv = getRegDirectory("extension", getter_AddRefs(extDir));
+      nsIFile *extDir = nsnull;
+      rv = getRegDirectory("extension", &extDir);
       if (NS_SUCCEEDED(rv))
       {
         nsCOMArray<nsIFile> dirArray;
@@ -179,11 +179,11 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
                       const nsCID &aCoreCID, const nsCID &aExtCID)
 {
   // Make sure the core service loaded (it won't be found using contract ID).
-  nsresult rv = NS_ERROR_FAILURE;
-  nsCOMPtr<nsISupports> coreService = do_CreateInstance(aCoreCID, &rv);
+  nsISupports *coreService = NULL;
+  nsresult rv = CallCreateInstance(aCoreCID, &coreService);
 #ifdef DEBUG_brade
   if (rv) fprintf(stderr, "rv: %d (%x)\n", rv, rv);
-  fprintf(stderr, "coreService: %p\n", coreService.get());
+  fprintf(stderr, "coreService: %p\n", coreService);
 #endif
   if (NS_FAILED(rv))
   {
@@ -192,10 +192,11 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
   }
 
   // Get the extension service.
-  nsCOMPtr<nsISupports> extService = do_CreateInstance(aExtCID, &rv);
+  nsISupports *extService = NULL;
+  rv = CallCreateInstance(aExtCID, &extService);
 #ifdef DEBUG_brade
   if (rv) fprintf(stderr, "rv: %d (%x)\n", rv, rv);
-  fprintf(stderr, "extService: %p\n", extService.get());
+  fprintf(stderr, "extService: %p\n", extService);
 #endif
   if (NS_FAILED(rv))
   {
@@ -208,7 +209,8 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
    * service (it should be, since the extension directory was registered
    * after the core one).
    */
-  nsCOMPtr<nsISupports> service = do_CreateInstance(aContractID, &rv);
+  nsISupports *service = NULL;
+  rv = CallCreateInstance(aContractID, &service);
 #ifdef DEBUG_brade
   if (rv) fprintf(stderr, "rv: %d (%x)\n", rv, rv);
   fprintf(stderr, "service: %p\n", service);
@@ -256,7 +258,6 @@ int main(int argc, char** argv)
     fprintf(stderr, "could not create dirSvcProvider\n");
     return 1;
   }
-  // no addref needed, ScopedXPCOM will do that if it doesn't fail
 
   ScopedXPCOM xpcom("RegistrationOrder", dirSvcProvider);
   if (xpcom.failed())

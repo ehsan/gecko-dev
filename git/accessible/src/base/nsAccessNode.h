@@ -45,8 +45,6 @@
 
 #include "nsCOMPtr.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityUtils.h"
-
 #include "nsIAccessibleTypes.h"
 #include "nsIAccessNode.h"
 #include "nsIContent.h"
@@ -74,16 +72,13 @@ class nsIDocShellTreeItem;
 typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsIAccessNode>
         nsAccessNodeHashtable;
 
-class nsAccessNode: public nsIAccessNode,
-                    public nsPIAccessNode
+class nsAccessNode: public nsIAccessNode, public nsPIAccessNode
 {
   public: // construction, destruction
     nsAccessNode(nsIDOMNode *, nsIWeakReference* aShell);
     virtual ~nsAccessNode();
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsAccessNode, nsIAccessNode)
-
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIACCESSNODE
     NS_DECL_NSPIACCESSNODE
 

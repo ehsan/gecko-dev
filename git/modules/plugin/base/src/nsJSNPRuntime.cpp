@@ -1717,21 +1717,9 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 
   JSAutoRequest ar(cx);
 
-  PRUint32 generation = sNPObjWrappers.generation;
-
   // No existing JSObject, create one.
 
   JSObject *obj = ::JS_NewObject(cx, &sNPObjectJSWrapperClass, nsnull, nsnull);
-
-  if (generation != sNPObjWrappers.generation) {
-      // Reload entry if the JS_NewObject call caused a GC and reallocated
-      // the table (see bug 445229). This is guaranteed to succeed.
-
-      entry = static_cast<NPObjWrapperHashEntry *>
-        (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_LOOKUP));
-      NS_ASSERTION(entry && PL_DHASH_ENTRY_IS_BUSY(entry),
-                   "Hashtable didn't find what we just added?");
-  }
 
   if (!obj) {
     // OOM? Remove the stale entry from the hash.
@@ -1800,11 +1788,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
   NppAndCx *nppcx = reinterpret_cast<NppAndCx *>(arg);
 
   if (entry->mNpp == nppcx->npp) {
-    // Prevent invalidate() and deallocate() from touching the hash
-    // we're enumerating.
-    const PLDHashTableOps *ops = table->ops;
-    table->ops = nsnull;
-
     NPObject *npobj = entry->mNPObj;
 
     if (npobj->_class && npobj->_class->invalidate) {
@@ -1820,8 +1803,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
     }
 
     ::JS_SetPrivate(nppcx->cx, entry->mJSObj, nsnull);
-
-    table->ops = ops;    
 
     return PL_DHASH_REMOVE;
   }

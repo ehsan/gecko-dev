@@ -49,7 +49,6 @@
 #include "nsCOMPtr.h"
 #include "nsDataHashtable.h"
 #include "nsINavHistoryService.h"
-#include "nsPIPlacesDatabase.h"
 #ifdef MOZ_XUL
 #include "nsIAutoCompleteController.h"
 #include "nsIAutoCompleteInput.h"
@@ -89,6 +88,9 @@
 
 #include "nsICharsetResolver.h"
 
+// set to use more optimized (in-memory database) link coloring
+//#define IN_MEMORY_LINKS
+
 // define to maintain sqlite temporary tables in memory rather than on disk
 #define IN_MEMORY_SQLITE_TEMP_STORE
 
@@ -127,7 +129,6 @@ class nsNavHistory : public nsSupportsWeakReference,
                      public nsIGlobalHistory3,
                      public nsIDownloadHistory,
                      public nsICharsetResolver
-                   , public nsPIPlacesDatabase
 #ifdef MOZ_XUL
                      , public nsIAutoCompleteSearch,
                      public nsIAutoCompleteSimpleResultListener
@@ -148,7 +149,6 @@ public:
   NS_DECL_NSIDOWNLOADHISTORY
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
-  NS_DECL_NSPIPLACESDATABASE
 #ifdef MOZ_XUL
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETESIMPLERESULTLISTENER
@@ -229,6 +229,13 @@ public:
   {
     return mDBConn;
   }
+
+#ifdef IN_MEMORY_LINKS
+  mozIStorageConnection* GetMemoryStorageConnection()
+  {
+    return mMemDBConn;
+  }
+#endif
 
   /**
    * These functions return non-owning references to the locale-specific
@@ -396,7 +403,6 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBGetIdPageInfo;     // kGetInfoIndex_* results
 
   nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfURL; // converts URL into most recent visit ID/session ID
-  nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfPlace; // converts placeID into most recent visit ID/session ID
   nsCOMPtr<mozIStorageStatement> mDBInsertVisit; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBGetPageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited
@@ -465,12 +471,21 @@ protected:
   nsresult InitDB(PRInt16 *aMadeChanges);
   nsresult InitFunctions();
   nsresult InitStatements();
+  nsresult CreateTriggers();
   nsresult ForceMigrateBookmarksDB(mozIStorageConnection *aDBConn);
   nsresult MigrateV3Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
-  nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
   nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
   nsresult CleanUpOnQuit();
+
+#ifdef IN_MEMORY_LINKS
+  // this is the cache DB in memory used for storing visited URLs
+  nsCOMPtr<mozIStorageConnection> mMemDBConn;
+  nsCOMPtr<mozIStorageStatement> mMemDBAddPage;
+  nsCOMPtr<mozIStorageStatement> mMemDBGetPage;
+
+  nsresult InitMemDB();
+#endif
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
 
@@ -646,15 +661,9 @@ protected:
   static const PRInt32 kAutoCompleteIndex_ParentId;
   static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
   static const PRInt32 kAutoCompleteIndex_Tags;
-  static const PRInt32 kAutoCompleteIndex_VisitCount;
-  nsCOMPtr<mozIStorageStatement> mDBCurrentQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteHistoryQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteStarQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTagsQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBPreviousQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAdaptiveQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBKeywordQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
   /**
@@ -673,29 +682,15 @@ protected:
   MatchType mAutoCompleteMatchBehavior;
   PRBool mAutoCompleteFilterJavascript;
   PRInt32 mAutoCompleteMaxResults;
-  nsString mAutoCompleteRestrictHistory;
-  nsString mAutoCompleteRestrictBookmark;
-  nsString mAutoCompleteRestrictTag;
-  nsString mAutoCompleteMatchTitle;
-  nsString mAutoCompleteMatchUrl;
   PRInt32 mAutoCompleteSearchChunkSize;
   PRInt32 mAutoCompleteSearchTimeout;
   nsCOMPtr<nsITimer> mAutoCompleteTimer;
 
-  PRBool mRestrictHistory;
-  PRBool mRestrictBookmark;
-  PRBool mRestrictTag;
-  PRBool mMatchTitle;
-  PRBool mMatchUrl;
-
-  // Original search string for case-sensitive usage
-  nsString mOrigSearchString;
   // Search string and tokens for case-insensitive matching
   nsString mCurrentSearchString;
   nsStringArray mCurrentSearchTokens;
   void GenerateSearchTokens();
   void AddSearchToken(nsAutoString &aToken);
-  void ProcessTokensForSpecialSearch();
 
   nsresult AutoCompleteFeedback(PRInt32 aIndex,
                                 nsIAutoCompleteController *aController);
@@ -717,15 +712,14 @@ protected:
   nsresult AutoCompleteFullHistorySearch(PRBool* aHasMoreResults);
   nsresult AutoCompletePreviousSearch();
   nsresult AutoCompleteAdaptiveSearch();
-  nsresult AutoCompleteKeywordSearch();
 
   /**
    * Query type passed to AutoCompleteProcessSearch to determine what style to
    * use and if results should be filtered
    */
   enum QueryType {
-    QUERY_KEYWORD,
-    QUERY_FILTERED
+    QUERY_ADAPTIVE,
+    QUERY_FULL
   };
   nsresult AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
                                      const QueryType aType,

@@ -480,6 +480,7 @@ nsHTMLTextAreaElement::TakeTextFrameValue(const nsAString& aValue)
     nsMemory::Free(mValue);
   }
   mValue = ToNewUTF8String(aValue);
+  SetValueChanged(PR_TRUE);
   return NS_OK;
 }
 
@@ -947,9 +948,8 @@ nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
   nsAutoString value;
   nsresult rv =
     aState->GetStateProperty(NS_LITERAL_STRING("value"), value);
-  if (rv == NS_STATE_PROPERTY_EXISTS) {
-    SetValue(value);
-  }
+  NS_ASSERTION(NS_SUCCEEDED(rv), "value restore failed!");
+  SetValue(value);
 
   nsAutoString disabled;
   rv = aState->GetStateProperty(NS_LITERAL_STRING("disabled"), disabled);

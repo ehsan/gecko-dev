@@ -79,8 +79,6 @@ CPPSRCS		= \
 		TestPipe.cpp \
 		TestRegistrationOrder.cpp \
 		TestProxies.cpp \
-		TestThreadPoolListener.cpp \
-		TestTimers.cpp \
 		$(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
@@ -90,7 +88,6 @@ CPPSRCS += \
 		TestAtoms.cpp \
 		TestAutoLock.cpp \
 		TestCRT.cpp \
-		TestEncoding.cpp \
 		TestPermanentAtoms.cpp \
 		TestPipes.cpp \
 		TestThreads.cpp \
@@ -142,8 +139,6 @@ CPP_UNIT_TESTS = \
   TestPipe \
   TestServMgr \
   TestTextFormatter \
-  TestThreadPoolListener \
-  TestTimers \
   $(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
@@ -151,7 +146,6 @@ CPP_UNIT_TESTS += \
   TestArray \
   TestAutoLock \
   TestCRT \
-  TestEncoding \
   TestExpirationTracker \
   TestPipes \
   TestProxies \
@@ -170,9 +164,6 @@ CPP_UNIT_TESTS += \
   TestStringAPI \
   $(NULL)
 endif
-
-# Make sure we have symbols in case we need to debug these.
-MOZ_DEBUG_SYMBOLS = 1
 
 include $(topsrcdir)/config/rules.mk
 

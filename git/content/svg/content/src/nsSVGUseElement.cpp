@@ -37,6 +37,9 @@
 #include "nsSVGUseElement.h"
 #include "nsIDOMSVGGElement.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGAnimatedLength.h"
+#include "nsIDOMSVGAnimatedString.h"
+#include "nsSVGAnimatedString.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMSVGSVGElement.h"
 #include "nsIDOMSVGSymbolElement.h"
@@ -54,11 +57,6 @@ nsSVGElement::LengthInfo nsSVGUseElement::sLengthInfo[4] =
   { &nsGkAtoms::height, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
 };
 
-nsSVGElement::StringInfo nsSVGUseElement::sStringInfo[1] =
-{
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
-};
-
 NS_IMPL_NS_NEW_SVG_ELEMENT(Use)
 
 //----------------------------------------------------------------------
@@ -70,13 +68,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGUseElement,
   nsAutoScriptBlocker scriptBlocker;
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOriginal)
   tmp->DestroyAnonymousContent();
-  tmp->UnlinkSource();
+  tmp->RemoveListener();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGUseElement,
                                                   nsSVGUseElementBase)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mClone)
-  tmp->mSource.Traverse(&cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
@@ -99,13 +97,33 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 // Implementation
 
 nsSVGUseElement::nsSVGUseElement(nsINodeInfo *aNodeInfo)
-  : nsSVGUseElementBase(aNodeInfo), mSource(this)
+  : nsSVGUseElementBase(aNodeInfo)
 {
 }
 
 nsSVGUseElement::~nsSVGUseElement()
 {
-  UnlinkSource();
+  RemoveListener();
+}
+
+nsresult
+nsSVGUseElement::Init()
+{
+  nsresult rv = nsSVGUseElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // Create mapped properties:
+
+  // DOM property: href , #REQUIRED attrib: xlink:href
+  // XXX: enforce requiredness
+  {
+    rv = NS_NewSVGAnimatedString(getter_AddRefs(mHref));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::href, mHref, kNameSpaceID_XLink);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return rv;
 }
 
 //----------------------------------------------------------------------
@@ -141,7 +159,9 @@ nsSVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 /* readonly attribute nsIDOMSVGAnimatedString href; */
   NS_IMETHODIMP nsSVGUseElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
+  *aHref = mHref;
+  NS_IF_ADDREF(*aHref);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -169,6 +189,25 @@ NS_IMETHODIMP nsSVGUseElement::GetWidth(nsIDOMSVGAnimatedLength * *aWidth)
 NS_IMETHODIMP nsSVGUseElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
 {
   return mLengthAttributes[HEIGHT].ToDOMAnimatedLength(aHeight, this);
+}
+
+//----------------------------------------------------------------------
+// nsISVGValueObserver methods
+
+NS_IMETHODIMP
+nsSVGUseElement::DidModifySVGObservable(nsISVGValue* aObservable,
+                                        nsISVGValue::modificationType aModType)
+{
+  nsCOMPtr<nsIDOMSVGAnimatedString> s = do_QueryInterface(aObservable);
+
+  if (s && mHref == s) {
+    // we're changing our nature, clear out the clone information
+    mOriginal = nsnull;
+
+    TriggerReclone();
+  }
+
+  return nsSVGUseElementBase::DidModifySVGObservable(aObservable, aModType);
 }
 
 //----------------------------------------------------------------------
@@ -232,7 +271,7 @@ nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
 void
 nsSVGUseElement::NodeWillBeDestroyed(const nsINode *aNode)
 {
-  UnlinkSource();
+  RemoveListener();
 }
 
 //----------------------------------------------------------------------
@@ -241,20 +280,23 @@ nsIContent*
 nsSVGUseElement::CreateAnonymousContent()
 {
 #ifdef DEBUG_tor
-  const nsString &href = mStringAttributes[HREF].GetAnimValue();
+  nsAutoString href;
+  mHref->GetAnimVal(href);
   fprintf(stderr, "<svg:use> reclone of \"%s\"\n", ToNewCString(href));
 #endif
 
   mClone = nsnull;
 
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
-  }
+  nsCOMPtr<nsIContent> targetContent = LookupHref();
 
-  LookupHref();
-  nsIContent* targetContent = mSource.get();
   if (!targetContent)
     return nsnull;
+
+  PRBool needAddObserver = PR_FALSE;
+  if (mSourceContent != targetContent) {
+    RemoveListener();
+    needAddObserver = PR_TRUE;
+  }
 
   // make sure target is valid type for <use>
   // QIable nsSVGGraphicsElement would eliminate enumerating all elements
@@ -375,7 +417,10 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  targetContent->AddMutationObserver(this);
+  if (needAddObserver) {
+    targetContent->AddMutationObserver(this);
+  }
+  mSourceContent = targetContent;
   mClone = newcontent;
   return mClone;
 }
@@ -410,18 +455,19 @@ nsSVGUseElement::SyncWidthHeight(PRUint8 aAttrEnum)
   }
 }
 
-void
+nsIContent *
 nsSVGUseElement::LookupHref()
 {
-  const nsString &href = mStringAttributes[HREF].GetAnimValue();
+  nsAutoString href;
+  mHref->GetAnimVal(href);
   if (href.IsEmpty())
-    return;
+    return nsnull;
 
   nsCOMPtr<nsIURI> targetURI, baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                             GetCurrentDoc(), baseURI);
 
-  mSource.Reset(this, targetURI);
+  return nsContentUtils::GetReferencedElement(targetURI, this);
 }
 
 void
@@ -431,16 +477,16 @@ nsSVGUseElement::TriggerReclone()
   if (!doc) return;
   nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell) return;
-  presShell->PostRecreateFramesFor(this);
+  presShell->RecreateFramesFor(this);
 }
 
 void
-nsSVGUseElement::UnlinkSource()
+nsSVGUseElement::RemoveListener()
 {
-  if (mSource.get()) {
-    mSource.get()->RemoveMutationObserver(this);
+  if (mSourceContent) {
+    mSourceContent->RemoveMutationObserver(this);
+    mSourceContent = nsnull;
   }
-  mSource.Unlink();
 }
 
 //----------------------------------------------------------------------
@@ -459,26 +505,6 @@ nsSVGUseElement::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
                               NS_ARRAY_LENGTH(sLengthInfo));
-}
-
-void
-nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
-{
-  nsSVGUseElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
-
-  if (aAttrEnum == HREF) {
-    // we're changing our nature, clear out the clone information
-    mOriginal = nsnull;
-
-    TriggerReclone();
-  }
-}
-
-nsSVGElement::StringAttributesInfo
-nsSVGUseElement::GetStringInfo()
-{
-  return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------

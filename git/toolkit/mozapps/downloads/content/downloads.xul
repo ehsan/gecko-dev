@@ -105,10 +105,6 @@
          key="&cmd.find.commandKey;"
          modifiers="accel"
          command="cmd_findDownload"/>
-    <key id="key_findDownload2"
-         key="&cmd.search.commandKey;"
-         modifiers="accel"
-         command="cmd_findDownload"/>
     <key id="key_selectAllDownloads"
          key="&selectAllCmd.key;"
          modifiers="accel"
@@ -189,7 +185,7 @@
             accesskey="&cmd.clearList.accesskey;"
             tooltiptext="&cmd.clearList.tooltip;"/>
     <spacer flex="1"/>
-    <textbox type="search" id="searchbox"
+    <textbox type="timed" timeout="500" id="searchbox"
              oncommand="buildDownloadList();" emptytext="&searchBox.label;"/>
   </hbox>
 

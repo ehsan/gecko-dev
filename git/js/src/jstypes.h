@@ -161,28 +161,16 @@
 #define JS_FRIEND_API(t)    JS_PUBLIC_API(t)
 #define JS_FRIEND_DATA(t)   JS_PUBLIC_DATA(t)
 
-#ifndef JS_INLINE
-# if defined __cplusplus
-#  define JS_INLINE          inline
-# elif defined _MSC_VER
-#  define JS_INLINE          __inline
-# elif defined __GNUC__
-#  define JS_INLINE          __inline__
+#if defined(_MSC_VER)
+# define JS_INLINE __forceinline
+#elif defined(__GNUC__)
+# ifndef DEBUG
+#  define JS_INLINE __attribute__((always_inline))
 # else
-#  define JS_INLINE          inline
+#  define JS_INLINE inline
 # endif
-#endif
-
-#ifndef JS_ALWAYS_INLINE
-# if defined DEBUG
-#  define JS_ALWAYS_INLINE   JS_INLINE
-# elif defined _MSC_VER
-#  define JS_ALWAYS_INLINE   __forceinline
-# elif defined __GNUC__
-#  define JS_ALWAYS_INLINE   __attribute__((always_inline))
-# else
-#  define JS_ALWAYS_INLINE   JS_INLINE
-# endif
+#else
+# define JS_INLINE
 #endif
 
 /***********************************************************************

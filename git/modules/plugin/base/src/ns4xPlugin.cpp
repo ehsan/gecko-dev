@@ -181,11 +181,17 @@ PR_BEGIN_EXTERN_C
   static void* NP_CALLBACK
   _memalloc (uint32 size);
 
-  // Deprecated entry points for the old Java plugin.
-  static void* NP_CALLBACK /* OJI type: JRIEnv* */
+#ifdef OJI
+  static JRIEnv* NP_CALLBACK
   _getJavaEnv(void);
-  static void* NP_CALLBACK /* OJI type: jref */
+
+#if 1
+
+  static jref NP_CALLBACK
   _getJavaPeer(NPP npp);
+
+#endif
+#endif /* OJI */
 
 PR_END_EXTERN_C
 
@@ -306,11 +312,13 @@ ns4xPlugin::CheckClassInitialized(void)
   CALLBACKS.reloadplugins =
     NewNPN_ReloadPluginsProc(FP2TV(_reloadplugins));
 
-  // Deprecated API callbacks.
+#ifdef OJI
   CALLBACKS.getJavaEnv =
     NewNPN_GetJavaEnvProc(FP2TV(_getJavaEnv));
+
   CALLBACKS.getJavaPeer =
     NewNPN_GetJavaPeerProc(FP2TV(_getJavaPeer));
+#endif
 
   CALLBACKS.geturlnotify =
     NewNPN_GetURLNotifyProc(FP2TV(_geturlnotify));
@@ -765,12 +773,14 @@ ns4xPlugin::CreatePlugin(nsIServiceManagerObsolete* aServiceMgr,
 
   nsPluginFile pluginFile(pluginPath);
   pluginRefNum = pluginFile.OpenPluginResource();
+  if (pluginRefNum == -1)
+    return NS_ERROR_FAILURE;
 
   ns4xPlugin* plugin = new ns4xPlugin(nsnull, aLibrary, nsnull, aServiceMgr);
-  ::UseResFile(appRefNum);
-  if (!plugin)
+  if (plugin == NULL)
     return NS_ERROR_OUT_OF_MEMORY;
 
+  ::UseResFile(appRefNum);
   *aResult = plugin;
 
   NS_ADDREF(*aResult);
@@ -889,8 +899,7 @@ ns4xPlugin::Shutdown(void)
   if (fShutdownEntry != nsnull) {
 #if defined(XP_MACOSX)
     CallNPP_ShutdownProc(fShutdownEntry);
-    if (fPluginRefNum > 0)
-      ::CloseResFile(fPluginRefNum);
+    ::CloseResFile(fPluginRefNum);
 #else
     NS_TRY_SAFE_CALL_VOID(fShutdownEntry(), fLibrary, nsnull);
 #endif
@@ -2187,13 +2196,9 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 #ifdef MOZ_WIDGET_GTK2
     if (npp) {
       ns4xPluginInstance *inst = (ns4xPluginInstance *) npp->ndata;
-      PRBool windowless = PR_FALSE;
-      inst->GetValue(nsPluginInstanceVariable_WindowlessBool, &windowless);
-      NPBool needXEmbed = PR_FALSE;
-      if (!windowless) {
-        inst->GetValue((nsPluginInstanceVariable)NPPVpluginNeedsXEmbed, &needXEmbed);
-      }
-      if (windowless || needXEmbed) {
+      NPBool rtv = PR_FALSE;
+      inst->GetValue((nsPluginInstanceVariable)NPPVpluginNeedsXEmbed, &rtv);
+      if (rtv) {
         (*(Display **)result) = GDK_DISPLAY();
         return NPERR_NO_ERROR;
       }
@@ -2270,9 +2275,8 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     if (NS_SUCCEEDED(res)) {
       *(nsIServiceManager**)result = sm;
       return NPERR_NO_ERROR;
-    } else {
+    } else
       return NPERR_GENERIC_ERROR;
-    }
   }
 
   case NPNVDOMElement: {
@@ -2378,8 +2382,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-  default:
-    return NPERR_GENERIC_ERROR;
+  default : return NPERR_GENERIC_ERROR;
   }
 }
 
@@ -2452,17 +2455,13 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
         }
         return NS_SUCCEEDED(rv) ? NPERR_NO_ERROR : NPERR_GENERIC_ERROR;
       }
+      break;
 
     case NPPVpluginKeepLibraryInMemory: {
       NPBool bCached = (result != nsnull);
       return inst->SetCached(bCached);
     }
-
-    case NPPVpluginWantsAllNetworkStreams: {
-      PRBool bWantsAllNetworkStreams = (result != nsnull);
-      return inst->SetWantsAllNetworkStreams(bWantsAllNetworkStreams);
-    }
-
+      
 #ifdef XP_MACOSX
     case NPPVpluginDrawingModel: {
       if (inst) {
@@ -2521,13 +2520,14 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// Deprecated, only stubbed out
-void* NP_CALLBACK /* OJI type: JRIEnv* */
+#ifdef OJI
+JRIEnv* NP_CALLBACK
 _getJavaEnv(void)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaEnv\n"));
   return NULL;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 const char * NP_CALLBACK
@@ -2563,14 +2563,16 @@ _memalloc (uint32 size)
   return nsMemory::Alloc(size);
 }
 
+#ifdef OJI
 ////////////////////////////////////////////////////////////////////////
-// Deprecated, only stubbed out
-void* NP_CALLBACK /* OJI type: jref */
+jref NP_CALLBACK
 _getJavaPeer(NPP npp)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaPeer: npp=%p\n", (void*)npp));
   return NULL;
 }
+
+#endif /* OJI */
 
 void NP_CALLBACK
 _pushpopupsenabledstate(NPP npp, NPBool enabled)

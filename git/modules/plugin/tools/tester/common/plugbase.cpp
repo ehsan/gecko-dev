@@ -340,12 +340,12 @@ DWORD CPluginBase::makeNPNCall(NPAPI_Action action, DWORD dw1, DWORD dw2, DWORD 
       NPN_ReloadPlugins((NPBool)dw1);
       break;
     case action_npn_get_java_env:
-      // Deprecated action
-      dwRet = NULL;
+      dwRet = (DWORD)NPN_GetJavaEnv();
       break;
     case action_npn_get_java_peer:
-      // Deprecated action
-      dwRet = NULL;
+      if(dw1 == DEFAULT_DWARG_VALUE)
+        dw1 = (DWORD)m_pNPInstance;
+      dwRet = (DWORD)NPN_GetJavaPeer((NPP)dw1);
       break;
     case action_npn_get_value:
       if(dw1 == DEFAULT_DWARG_VALUE)

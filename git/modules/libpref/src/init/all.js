@@ -128,9 +128,8 @@ pref("browser.chrome.image_icons.max_size", 1024);
 
 pref("browser.triple_click_selects_paragraph", true);
 
-pref("gfx.color_management.mode", 0);
+pref("gfx.color_management.enabled", false);
 pref("gfx.color_management.display_profile", "");
-pref("gfx.color_management.rendering_intent", 0);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -1170,10 +1169,10 @@ pref("font.name-list.sans-serif.ko", "Gulim, 굴림");
 pref("font.name-list.monospace.ko", "GulimChe, 굴림체"); 
 pref("font.name-list.cursive.ko", "Gungseo, 궁서"); 
 
-pref("font.name.serif.th", "Tahoma");
-pref("font.name.sans-serif.th", "Tahoma");
-pref("font.name.monospace.th", "Tahoma");
-pref("font.name.cursive.th", "Tahoma");
+pref("font.name.serif.th", "Times New Roman");
+pref("font.name.sans-serif.th", "Arial");
+pref("font.name.monospace.th", "Courier New");
+pref("font.name.cursive.th", "Comic Sans MS");
 
 pref("font.name.serif.tr", "Times New Roman");
 pref("font.name.sans-serif.tr", "Arial");
@@ -1352,7 +1351,6 @@ pref("font.size.fixed.ko", 16);
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
 pref("font.size.fixed.th", 13);
-pref("font.minimum-size.th", 10);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -1573,10 +1571,10 @@ pref("font.name-list.sans-serif.ko", "AppleGothic");
 pref("font.name-list.monospace.ko", "AppleGothic"); 
 
 pref("font.name.serif.th", "Thonburi");
-pref("font.name.sans-serif.th", "Thonburi");
+pref("font.name.sans-serif.th", "Krungthep");
 pref("font.name.monospace.th", "Ayuthaya");
 pref("font.name-list.serif.th", "Thonburi");
-pref("font.name-list.sans-serif.th", "Thonburi");
+pref("font.name-list.sans-serif.th", "Krungthep");
 pref("font.name-list.monospace.th", "Ayuthaya");
 
 pref("font.name.serif.tr", "Times");
@@ -1794,7 +1792,6 @@ pref("font.size.fixed.ko", 16);
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
 pref("font.size.fixed.th", 13);
-pref("font.minimum-size.th", 10);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -2253,9 +2250,6 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
 
-// should NetworkManager be authoritative for online/offline status?
-pref("toolkit.networkmanager.disable", false);
-
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
@@ -2280,6 +2274,8 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
+pref("print.whileInPrintPreview", false);
+
 pref("font.allow_double_byte_special_chars", true);
 // font names
 
@@ -2303,9 +2299,7 @@ pref("font.name.serif.ko", "serif");
 pref("font.name.sans-serif.ko", "sans-serif");
 pref("font.name.monospace.ko", "monospace");
 
-pref("font.name.serif.th", "serif");
-pref("font.name.sans-serif.th", "sans-serif");
-pref("font.name.monospace.th", "monospace");
+// th
 
 pref("font.name.serif.tr", "serif");
 pref("font.name.sans-serif.tr", "sans-serif");
@@ -2369,8 +2363,7 @@ pref("font.size.fixed.ko", 16);
 
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
-pref("font.size.fixed.th", 13);
-pref("font.minimum-size.th", 13);
+pref("font.size.fixed.th", 12);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -2609,7 +2602,7 @@ pref("signon.rememberSignons",              true);
 pref("signon.expireMasterPassword",         false);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
-pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
+pref("signon.SignonFileName3",              "signons3.txt");
 pref("signon.autofillForms",                true); 
 pref("signon.debug",                        false); // logs to Error Console
 

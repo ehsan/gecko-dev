@@ -547,8 +547,7 @@ nsPluginInstallerWizard.prototype.showPluginResults = function (){
     "&appID=" + app.ID +
     "&appVersion=" + app.platformBuildID +
     "&clientOS=" + this.getOS() +
-    "&chromeLocale=" + this.getChromeLocale() +
-    "&appRelease=" + app.version;
+    "&chromeLocale=" + this.getChromeLocale();
 
   document.getElementById("moreInfoLink").addEventListener("click", function() { gPluginInstaller.loadURL("https://pfs.mozilla.org/plugins/" + notInstalledList) }, false);
 

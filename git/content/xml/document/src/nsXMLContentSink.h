@@ -111,8 +111,6 @@ public:
                           nsString &aTitle, nsString &aMedia,
                           PRBool &aIsAlternate);
 
-  virtual nsresult ProcessMETATag(nsIContent* aContent);
-
 protected:
   // Start layout.  If aIgnorePendingSheets is true, this will happen even if
   // we still have stylesheet loads pending.  Otherwise, we'll wait until the
@@ -194,6 +192,8 @@ protected:
 
   XMLContentSinkState mState;
 
+  nsString mTitleText; 
+  
   PRInt32 mTextLength;
   PRInt32 mTextSize;
   

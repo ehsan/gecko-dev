@@ -64,7 +64,6 @@
 #include "nsIWeakReference.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDocument.h"
-#include "nsIDOMNodeSelector.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -78,9 +77,6 @@ class nsINodeInfo;
 class nsIControllers;
 class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
-class nsIScrollableView;
-class nsContentList;
-struct nsRect;
 
 typedef unsigned long PtrBits;
 
@@ -273,51 +269,6 @@ private:
 };
 
 /**
- * A tearoff class for nsGenericElement to implement NodeSelector
- */
-class nsNodeSelectorTearoff : public nsIDOMNodeSelector
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  NS_DECL_NSIDOMNODESELECTOR
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeSelectorTearoff)
-
-  nsNodeSelectorTearoff(nsIContent *aContent) : mContent(aContent)
-  {
-  }
-
-private:
-  ~nsNodeSelectorTearoff() {}
-
-private:
-  nsCOMPtr<nsIContent> mContent;
-};
-
-/**
- * A static NodeList class, which just holds a COMArray of nodes
- */
-class nsStaticContentList : public nsIDOMNodeList {
-public:
-  nsStaticContentList() {}
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_NSIDOMNODELIST
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsStaticContentList)
-
-  PRBool AppendContent(nsIContent* aContent) {
-    return mList.AppendObject(aContent);
-  }
-
-private:
-  ~nsStaticContentList() {}
-  
-  nsCOMArray<nsIContent> mList;
-};
-
-/**
  * Class used to detect unexpected mutations. To use the class create an
  * nsMutationGuard on the stack before unexpected mutations could occur.
  * You can then at any time call Mutated to check if any unexpected mutations
@@ -389,9 +340,6 @@ private:
   static PRUint32 sMutationCount;
 };
 
-// Forward declare to allow being a friend
-class nsNSElementTearoff;
-
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.
@@ -401,10 +349,6 @@ class nsGenericElement : public nsIContent
 public:
   nsGenericElement(nsINodeInfo *aNodeInfo);
   virtual ~nsGenericElement();
-
-  friend class nsNSElementTearoff;
-
-  friend class nsNSElementTearoff;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -417,7 +361,6 @@ public:
   // nsINode interface methods
   virtual PRUint32 GetChildCount() const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
@@ -434,10 +377,6 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
-  {
-    return nsContentUtils::GetContextForEventHandlers(this, aContext);
-  }
 
   // nsIContent interface methods
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -728,15 +667,6 @@ public:
                                   nsAttrAndChildArray& aChildArray);
 
   /**
-   * Helper methods for implementing querySelector/querySelectorAll
-   */
-  static nsresult doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
-                                  nsIDOMElement **aReturn);
-  static nsresult doQuerySelectorAll(nsINode* aRoot,
-                                     const nsAString& aSelector,
-                                     nsIDOMNodeList **aReturn);
-
-  /**
    * Default event prehandling for content objects. Handles event retargeting.
    */
   static nsresult doPreHandleEvent(nsIContent* aContent,
@@ -956,17 +886,6 @@ protected:
    */
   virtual const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 
-  /**
-   * Retrieve the rectangle for the offsetX properties, which
-   * are coordinates relative to the returned aOffsetParent.
-   *
-   * @param aRect offset rectangle
-   * @param aOffsetParent offset parent
-   */
-  virtual void GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent);
-
-  nsIFrame* GetStyledFrame();
-
 public:
   // Because of a bug in MS C++ compiler nsDOMSlots must be declared public,
   // otherwise nsXULElement::nsXULSlots doesn't compile.
@@ -1013,11 +932,6 @@ public:
      * Weak reference to this node
      */
     nsNodeWeakReference* mWeakReference;
-
-    /**
-     * An object implementing the .children property for this element.
-     */
-    nsRefPtr<nsContentList> mChildrenList;
   };
 
 protected:
@@ -1152,27 +1066,7 @@ public:
   }
   
 private:
-  nsContentList* GetChildrenList();
-
   nsRefPtr<nsGenericElement> mContent;
-
-  /**
-   * Get this element's client area rect in app units.
-   * @return the frame's client area
-   */
-  nsRect GetClientAreaRect();
-
-private:
-
-  /**
-   * Get the element's styled frame (the primary frame or, for tables, the inner
-   * table frame) and closest scrollable view.
-   * @note This method flushes pending notifications (Flush_Layout).
-   * @param aScrollableView the scrollable view [OUT]
-   * @param aFrame (optional) the frame [OUT]
-   */
-  void GetScrollInfo(nsIScrollableView **aScrollableView,
-                     nsIFrame **aFrame = nsnull);
 };
 
 #endif /* nsGenericElement_h___ */

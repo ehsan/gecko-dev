@@ -224,8 +224,10 @@ var PlacesOrganizer = {
 
     // Make sure the search UI is hidden.
     PlacesSearchBox.hideSearchUI();
-    if (resetSearchBox)
-      PlacesSearchBox.searchFilter.reset();
+    if (resetSearchBox) {
+      var searchFilter = document.getElementById("searchFilter");
+      searchFilter.reset();
+    }
 
     this._setSearchScopeForNode(node);
     if (this._places.treeBoxObject.focused)
@@ -590,9 +592,6 @@ var PlacesOrganizer = {
      */
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
-    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
     if (aNode.itemId != -1 &&
         ((PlacesUtils.nodeIsFolder(aNode) &&
           !PlacesUtils.nodeIsLivemarkContainer(aNode)) ||
@@ -601,18 +600,12 @@ var PlacesOrganizer = {
         infoBox.setAttribute("wasminimal", "true");
       infoBox.removeAttribute("minimal");
       infoBoxExpander.hidden = true;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = true;
-#endif
     }
     else {
       if (infoBox.getAttribute("wasminimal") == "true")
         infoBox.setAttribute("minimal", "true");
       infoBox.removeAttribute("wasminimal");
       infoBoxExpander.hidden = false;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = false;
-#endif
     }
   },
 
@@ -717,30 +710,15 @@ var PlacesOrganizer = {
   toggleAdditionalInfoFields: function PO_toggleAdditionalInfoFields() {
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
-    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
     if (infoBox.getAttribute("minimal") == "true") {
       infoBox.removeAttribute("minimal");
-#ifdef XP_WIN
-      infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("lesslabel");
-      infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("lessaccesskey"));
-      infoBoxExpander.className = "expander-up";
-#else
       infoBoxExpander.label = infoBoxExpander.getAttribute("lesslabel");
       infoBoxExpander.accessKey = infoBoxExpander.getAttribute("lessaccesskey");
-#endif
     }
     else {
       infoBox.setAttribute("minimal", "true");
-#ifdef XP_WIN
-      infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("morelabel");
-      infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("moreaccesskey"));
-      infoBoxExpander.className = "expander-down";
-#else
       infoBoxExpander.label = infoBoxExpander.getAttribute("morelabel");
       infoBoxExpander.accessKey = infoBoxExpander.getAttribute("moreaccesskey");
-#endif
     }
   },
 
@@ -770,7 +748,7 @@ var PlacesOrganizer = {
     // a real dialog and localize when we're sure this is the UI we want.
     var title = PlacesUIUtils.getString("saveSearch.title");
     var inputLabel = PlacesUIUtils.getString("saveSearch.inputLabel");
-    var defaultText = PlacesUIUtils.getString("saveSearch.inputDefaultText");
+    var defaultText = PlacesUIUtils.getString("saveSearch.defaultText");
 
     var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                   getService(Ci.nsIPromptService);
@@ -835,7 +813,7 @@ var PlacesSearchBox = {
     // contents of the current scope.
     // XXX this might be to jumpy, maybe should search for "", so results
     // are ungrouped, and search box not reset
-    if (filterString == "") {
+    if ((filterString == "" || this.searchFilter.hasAttribute("empty"))) {
       PO.onPlaceSelected(false);
       return;
     }
@@ -851,10 +829,6 @@ var PlacesSearchBox = {
       //scopeBtn.label = PlacesOrganizer._places.selectedNode.title;
       break;
     case "bookmarks":
-      // Make sure we're getting uri results.
-      // We do not yet support searching into grouped queries or into
-      // tag containers, so we must fall to the default case.
-      currentOptions.resultType = currentOptions.RESULT_TYPE_URI;
       content.applyFilter(filterString,
                           [PlacesUtils.bookmarksMenuFolderId,
                            PlacesUtils.toolbarFolderId,
@@ -877,6 +851,7 @@ var PlacesSearchBox = {
     }
 
     PlacesSearchBox.showSearchUI();
+    this.searchFilter.setAttribute("filtered", "true");
 
     // Update the details panel
     PlacesOrganizer.onContentTreeSelect();

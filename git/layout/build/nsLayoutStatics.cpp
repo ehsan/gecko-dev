@@ -83,7 +83,6 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
 #include "nsIFocusEventSuppressor.h"
-#include "nsDOMThreadService.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -109,15 +108,6 @@ PRBool NS_SVGEnabled();
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
-#endif
-
-#ifdef MOZ_MEDIA
-#include "nsVideoDecoder.h"
-#endif
-
-#ifdef MOZ_OGG
-#include "nsAudioStream.h"
-#include "nsVideoDecoder.h"
 #endif
 
 #include "nsError.h"
@@ -245,23 +235,6 @@ nsLayoutStatics::Initialize()
   }
 #endif
 
-#ifdef MOZ_MEDIA
-  rv = nsVideoDecoder::InitLogger();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsVideoDecoder");
-    return rv;
-  }
-  
-#endif
-
-#ifdef MOZ_OGG
-  rv = nsAudioStream::InitLibrary();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsAudioStream");
-    return rv;
-  }
-#endif
-
   return NS_OK;
 }
 
@@ -279,7 +252,7 @@ nsLayoutStatics::Shutdown()
   nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
   CSSLoaderImpl::Shutdown();
-  nsCSSRuleProcessor::FreeSystemMetrics();
+  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsCSSRendering::Shutdown();
 #ifdef DEBUG
@@ -337,13 +310,7 @@ nsLayoutStatics::Shutdown()
   nsTextServicesDocument::Shutdown();
 #endif
 
-  nsDOMThreadService::Shutdown();
-
   NS_ShutdownFocusSuppressor();
-
-#ifdef MOZ_OGG
-  nsAudioStream::ShutdownLibrary();
-#endif
 }
 
 void

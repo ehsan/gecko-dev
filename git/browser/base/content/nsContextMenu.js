@@ -1189,8 +1189,6 @@ nsContextMenu.prototype = {
                                                         [engineName,
                                                          selectedText]);
     document.getElementById("context-searchselect").label = menuLabel;
-    document.getElementById("context-searchselect").accessKey =
-             gNavigatorBundle.getString("contextMenuSearchText.accesskey"); 
 
     return true;
   },
@@ -1229,11 +1227,8 @@ nsContextMenu.prototype = {
   },
 
   isTargetAKeywordField: function(aNode) {
-    if (!(aNode instanceof HTMLInputElement))
-      return false;
-
     var form = aNode.form;
-    if (!form || aNode.type == "password")
+    if (!form)
       return false;
 
     var method = form.method.toUpperCase();

@@ -127,7 +127,7 @@ class nsContentSink : public nsICSSLoaderObserver,
   NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
 
-  virtual nsresult ProcessMETATag(nsIContent* aContent);
+  nsresult ProcessMETATag(nsIContent* aContent);
 
   // nsIContentSink implementation helpers
   NS_HIDDEN_(nsresult) WillInterruptImpl(void);
@@ -270,6 +270,7 @@ protected:
   PRUint8 mDynamicLowerValue : 1;
   PRUint8 mParsing : 1;
   PRUint8 mDroppedTimer : 1;
+  PRUint8 mInTitle : 1;
   PRUint8 mChangeScrollPosWhenScrollingToRef : 1;
   // If true, we deferred starting layout until sheets load
   PRUint8 mDeferredLayoutStart : 1;

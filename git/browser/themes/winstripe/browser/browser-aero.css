@@ -13,7 +13,7 @@
 /* ::::: Location Bar AutoComplete Styling ::::: */
 
 .ac-url-text:-moz-system-metric(windows-default-theme) {
-  color: -moz-nativehyperlinktext;
+  color: #0055bb;
 }
 
 /* ::::: Identity Indicator Styling ::::: */
@@ -60,13 +60,6 @@
 #editBookmarkPanel:-moz-system-metric(windows-default-theme) {
   -moz-appearance: tooltip;
   color: InfoText;
-}
-
-/* Make the left and right paddings smaller, to compensate for the horizontal
-   space added by the tooltip appearance, see bug 432529. */
-#identity-popup-container:-moz-system-metric(windows-default-theme) {
-  -moz-padding-start: 6px;
-  -moz-padding-end: 6px;
 }
 
 #sidebar-splitter:-moz-system-metric(windows-default-theme) {

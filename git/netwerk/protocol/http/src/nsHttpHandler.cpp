@@ -281,6 +281,7 @@ nsHttpHandler::Init()
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", PR_TRUE);
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
+        mObserverService->AddObserver(this, "session-logout", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
     }
  
@@ -1074,8 +1075,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             else {
                 // verify that this socket type is actually valid
                 nsCOMPtr<nsISocketProviderService> sps(
-                        do_GetService(kSocketProviderServiceCID));
-                if (sps) {
+                        do_GetService(kSocketProviderServiceCID, &rv));
+                if (NS_SUCCEEDED(rv)) {
                     nsCOMPtr<nsISocketProvider> sp;
                     rv = sps->GetSocketProvider(sval, getter_AddRefs(sp));
                     if (NS_SUCCEEDED(rv)) {
@@ -1142,8 +1143,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         // UI thread, and so do all the methods in nsHttpChannel.cpp
         // (mIDNConverter is used by nsHttpChannel)
         if (enableIDN && !mIDNConverter) {
-            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID);
-            NS_ASSERTION(mIDNConverter, "idnSDK not installed");
+            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID, &rv);
+            NS_ASSERTION(NS_SUCCEEDED(rv), "idnSDK not installed");
         }
         else if (!enableIDN && mIDNConverter)
             mIDNConverter = nsnull;
@@ -1704,6 +1705,14 @@ nsHttpHandler::Observe(nsISupports *subject,
         // ensure connection manager is shutdown
         if (mConnMgr)
             mConnMgr->Shutdown();
+
+        // need to reset the session start time since cache validation may
+        // depend on this value.
+        mSessionStartTime = NowInSeconds();
+    }
+    else if (strcmp(topic, "session-logout") == 0) {
+        // clear cache of all authentication credentials.
+        mAuthCache.ClearAll();
 
         // need to reset the session start time since cache validation may
         // depend on this value.

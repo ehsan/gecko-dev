@@ -100,11 +100,7 @@ else
 ifeq ($(OS_ARCH),Darwin)
 OS_CONFIG      := Darwin
 else
-ifeq ($(OS_ARCH),Darwin64)
-OS_CONFIG       := Darwin64
-else
 OS_CONFIG       := $(OS_ARCH)$(OS_OBJTYPE)$(OS_RELEASE)
-endif
 endif
 endif
 endif
@@ -126,8 +122,8 @@ OPTIMIZER  = -O2 -GL
 INTERP_OPTIMIZER = -O2 -GL
 LDFLAGS    += -LTCG
 else
-OPTIMIZER  = -Os -fno-exceptions -fno-rtti
-INTERP_OPTIMIZER = -O3 -fstrict-aliasing -fno-exceptions -fno-rtti
+OPTIMIZER  = -Os
+INTERP_OPTIMIZER = -Os
 endif
 DEFINES    += -UDEBUG -DNDEBUG -UDEBUG_$(USER)
 OBJDIR_TAG = _OPT
@@ -136,8 +132,8 @@ ifdef USE_MSVC
 OPTIMIZER  = -Zi
 INTERP_OPTIMIZER = -Zi
 else
-OPTIMIZER  = -g3 -fno-exceptions -fno-rtti
-INTERP_OPTIMIZER = -g3 -fno-exceptions -fno-rtti
+OPTIMIZER  = -g3
+INTERP_OPTIMIZER = -g3
 endif
 DEFINES    += -DDEBUG -DDEBUG_$(USER)
 OBJDIR_TAG = _DBG
@@ -179,18 +175,12 @@ endif
 endif
 
 # Name of the binary code directories
-ifdef OBJROOT
-# prepend $(DEPTH) to the root unless it is an absolute path
-OBJDIR = $(if $(filter /%,$(OBJROOT)),$(OBJROOT),$(DEPTH)/$(OBJROOT))
+ifdef BUILD_IDG
+OBJDIR          = $(OS_CONFIG)$(OBJDIR_TAG).OBJD
 else
-ifeq ($(DEPTH),.)
-OBJDIR = $(OS_CONFIG)$(OBJDIR_TAG).$(if $(BUILD_IDG),OBJD,OBJ)
-else
-OBJDIR = $(DEPTH)/$(OS_CONFIG)$(OBJDIR_TAG).$(if $(BUILD_IDG),OBJD,OBJ)
+OBJDIR          = $(OS_CONFIG)$(OBJDIR_TAG).OBJ
 endif
-endif
-
-VPATH = $(OBJDIR)
+VPATH           = $(OBJDIR)
 
 LCJAR = js15lc30.jar
 

@@ -7,8 +7,6 @@
  */
 
 
-const STORAGE_TYPE = "legacy";
-
 function run_test() {
 
 try {
@@ -57,36 +55,36 @@ dummyuser3.init("http://dummyhost2.mozilla.org", "", null,
 testnum++;
 
 testdesc = "checking import of mime64-obscured entries"
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt",
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt",
                                OUTDIR, "output-380961-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-1.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-380961-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
 /* ========== 3 ========== */
 testnum++;
 
 testdesc = "testing import of multiple mime-64 entries for a host"
-storage = LoginTest.initStorage(INDIR, "signons-380961-2.txt",
+LoginTest.initStorage(storage, INDIR, "signons-380961-2.txt",
                                OUTDIR, "output-380961-2.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser2, dummyuser3]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-2.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-380961-2.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser2, dummyuser3]);
 
 /* ========== 4 ========== */
 testnum++;
 
 testdesc = "testing import of mixed encrypted and mime-64 entries."
-storage = LoginTest.initStorage(INDIR, "signons-380961-3.txt",
+LoginTest.initStorage(storage, INDIR, "signons-380961-3.txt",
                                OUTDIR, "output-380961-3.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-3.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-380961-3.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 
@@ -122,12 +120,12 @@ dummyuser4.httpRealm     = null;
 testnum++;
 
 testdesc = "testing import of non-ascii username and password."
-storage = LoginTest.initStorage(INDIR, "signons-381262.txt",
+LoginTest.initStorage(storage, INDIR, "signons-381262.txt",
                                OUTDIR, "output-381262-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-381262-1.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-381262-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 
@@ -135,14 +133,14 @@ LoginTest.checkStorageData(storage, [], [dummyuser4]);
 testnum++;
 
 testdesc = "testing storage of non-ascii username and password."
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-381262-2.txt");
 LoginTest.checkStorageData(storage, [], []);
 storage.addLogin(dummyuser4);
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-381262-2.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-381262-2.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 
@@ -157,7 +155,7 @@ LoginTest.checkStorageData(storage, [], [dummyuser4]);
 testnum++;
 
 testdesc = "checking double reading of mime64-obscured entries";
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt");
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
 testdesc = "checking double reading of mime64-obscured entries part 2";
@@ -167,7 +165,7 @@ LoginTest.checkStorageData(storage, [], [dummyuser1]);
 testnum++;
 
 testdesc = "checking correct storage of mime64 converted entries";
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt",
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt",
                                OUTDIR, "output-400751-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
@@ -175,7 +173,7 @@ storage.addLogin(dummyuser2); // trigger a write
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2]);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-400751-1.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-400751-1.txt");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2]);
 
 /*
@@ -199,7 +197,7 @@ function tryAddUser(storage, aUser, aExpectedError) {
 }
 
 testdesc = "preparting to try logins with bogus values";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-1.txt");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -295,7 +293,7 @@ var numLines = LoginTest.countLinesInFile(OUTDIR, "output-394610-1.txt");
 do_check_eq(numLines, 10);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-1.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-394610-1.txt");
 LoginTest.checkStorageData(storage, [], [failUser]);
 
 failUser.username = "username";
@@ -306,7 +304,7 @@ failUser.password = "password";
 testnum++;
 
 testdesc = "storing data values with special period-only value"
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-2.txt");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -338,7 +336,7 @@ var numLines = LoginTest.countLinesInFile(OUTDIR, "output-394610-2.txt");
 do_check_eq(numLines, 2);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-2.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-394610-2.txt");
 LoginTest.checkStorageData(storage, [], []);
 
 
@@ -347,7 +345,7 @@ testnum++;
 
 testdesc = "create logins with parens in host/httpRealm"
 
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-3.txt");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -418,7 +416,7 @@ var numLines = LoginTest.countLinesInFile(OUTDIR, "output-394610-3.txt");
 do_check_eq(numLines, 66);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-3.txt");
+LoginTest.initStorage(storage, OUTDIR, "output-394610-3.txt");
 LoginTest.checkStorageData(storage, [], parenLogins);
 
 
@@ -431,7 +429,7 @@ testdesc = "storing data values with embedded nulls."
 do_check_eq( "foo\0bar", "foo\0bar");
 do_check_neq("foo\0bar", "foobar");
 
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-4.txt");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -487,64 +485,22 @@ tryAddUser(storage, nullUser, /login values can't contain nulls/);
 nullUser.passwordField = "passnull";
 
 
-// check username with null
+// check username and password, which are OK with embedded nulls.
 nullUser.username = "user\0name";
-tryAddUser(storage, nullUser, /login values can't contain nulls/);
-nullUser.username = "username";
-
-// check password with null
 nullUser.password = "pass\0word";
-tryAddUser(storage, nullUser, /login values can't contain nulls/);
-nullUser.password = "password";
+tryAddUser(storage, nullUser, null);
 
-
-// Final sanity check, to make sure we didn't store anything unexpected.
-LoginTest.checkStorageData(storage, [], []);
+LoginTest.checkStorageData(storage, [], [nullUser]);
 var numLines = LoginTest.countLinesInFile(OUTDIR, "output-394610-4.txt");
-do_check_eq(numLines, 2);
+do_check_eq(numLines, 10);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-4.txt");
-LoginTest.checkStorageData(storage, [], []);
+LoginTest.initStorage(storage, OUTDIR, "output-394610-4.txt");
+LoginTest.checkStorageData(storage, [], [nullUser]);
 
+nullUser.username = "username";
+nullUser.password = "password";
 
-/*
- * ---------------------- Bug 449701 ----------------------
- * Ensure changes to login objects given to / obtained from
- * the storage module don't affect the internal storage.
- */
-
-/* ========== 14 ========== */
-testnum++;
-testdesc = "ensure internal login objects not shared with callers."
-
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
-                               OUTDIR, "output-394610-5.txt");
-LoginTest.checkStorageData(storage, [], []);
-
-// dummyuser1 == dummyuser2
-dummyuser1.init("http://dummyhost.mozilla.org", "", null,
-    "testuser1", "testpass1", "put_user_here", "put_pw_here");
-dummyuser2.init("http://dummyhost.mozilla.org", "", null,
-    "testuser1", "testpass1", "put_user_here", "put_pw_here");
-
-
-// Add a login, modify it, make sure orginal values are still stored.
-storage.addLogin(dummyuser1);
-LoginTest.checkStorageData(storage, [], [dummyuser2]);
-dummyuser1.usernameField = "ohnoes";
-LoginTest.checkStorageData(storage, [], [dummyuser2]);
-
-// Get a stored login, modify it, make sure the stored login wasn't changed.
-var logins = storage.getAllLogins({});
-do_check_eq(logins.length, 1);
-var obtainedLogin1 = logins[0];
-obtainedLogin1.usernameField = "ohnoes";
-
-logins = storage.getAllLogins({});
-var obtainedLogin2 = logins[0];
-
-do_check_neq(obtainedLogin1.usernameField, obtainedLogin2.usernameField);
 
 
 /* ========== end ========== */

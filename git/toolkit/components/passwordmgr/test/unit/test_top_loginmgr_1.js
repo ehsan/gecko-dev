@@ -31,8 +31,6 @@ if (!loginmgr)
 testnum++;
 testdesc = "Force lazy init, check to ensure there is no existing data.";
 loginmgr.removeAllLogins();
-var hosts = loginmgr.getAllDisabledHosts({});
-hosts.forEach(function(h) loginmgr.setLoginSavingEnabled(h, true));
 LoginTest.checkStorageData(loginmgr, [], []);
 
 

@@ -71,7 +71,7 @@ class nsLayoutUtils
 {
 public:
   /**
-   * GetBeforeFrame returns the outermost :before frame of the given frame, if
+   * GetBeforeFrame returns the :before frame of the given frame, if
    * one exists.  This is typically O(1).  The frame passed in must be
    * the first-in-flow.   
    *
@@ -81,7 +81,7 @@ public:
   static nsIFrame* GetBeforeFrame(nsIFrame* aFrame);
 
   /**
-   * GetAfterFrame returns the outermost :after frame of the given frame, if one
+   * GetAfterFrame returns the :after frame of the given frame, if one
    * exists.  This will walk the in-flow chain to the last-in-flow if
    * needed.  This function is typically O(N) in the number of child
    * frames, following in-flows, etc.
@@ -116,11 +116,8 @@ public:
   }
 
   /**
-   * IsGeneratedContentFor returns PR_TRUE if aFrame is the outermost
-   * frame for generated content of type aPseudoElement for aContent.
-   * aFrame *might not* have the aPseudoElement pseudo-style! For example
-   * it might be a table outer frame and the inner table frame might
-   * have the pseudo-style.
+   * IsGeneratedContentFor returns PR_TRUE if aFrame is generated
+   * content of type aPseudoElement for aContent
    *
    * @param aContent the content node we're looking at.  If this is
    *        null, then we just assume that aFrame has the right content
@@ -506,14 +503,6 @@ public:
   static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo);
 
   /**
-   * Takes a text-shadow array from the style properties of a given nsIFrame and
-   * computes the union of those shadows along with the given initial rect.
-   * If there are no shadows, the initial rect is returned.
-   */
-  static nsRect GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
-                                        nsIFrame* aFrame);
-
-  /**
    * Get the font metrics corresponding to the frame's style data.
    * @param aFrame the frame
    * @param aFontMetrics the font metrics result
@@ -586,6 +575,31 @@ public:
   static PRBool IsViewportScrollbarFrame(nsIFrame* aFrame);
 
   /**
+   * Return the value of aStyle as an nscoord if it can be determined without
+   * reference to ancestors or children (e.g. is not a percentage width)
+   * @param aStyle the style coord
+   * @param aRenderingContext the rendering context to use for font measurement
+   * @param aFrame the frame whose style context should be used for font information
+   * @param aResult the nscoord value of the style coord
+   * @return TRUE if the unit is eStyleUnit_Coord or eStyleUnit_Chars
+   */
+  static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle,
+                                 nsIRenderingContext* aRenderingContext,
+                                 nsIFrame* aFrame,
+                                 nscoord& aResult)
+  {
+    return GetAbsoluteCoord(aStyle, aRenderingContext,
+                            aFrame->GetStyleContext(), aResult);
+  }
+
+  /**
+   * Same as above but doesn't need a frame
+   */
+  static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle,
+                                 nsIRenderingContext* aRenderingContext,
+                                 nsStyleContext* aStyleContext,
+                                 nscoord& aResult);
+  /**
    * Get the contribution of aFrame to its containing block's intrinsic
    * width.  This considers the child's intrinsic width, its 'width',
    * 'min-width', and 'max-width' properties, and its padding, border,
@@ -601,6 +615,8 @@ public:
    * containing block width.
    */
   static nscoord ComputeWidthDependentValue(
+                   nsIRenderingContext* aRenderingContext,
+                   nsIFrame*            aFrame,
                    nscoord              aContainingBlockWidth,
                    const nsStyleCoord&  aCoord);
 
@@ -634,6 +650,8 @@ public:
    * containing block height.
    */
   static nscoord ComputeHeightDependentValue(
+                   nsIRenderingContext* aRenderingContext,
+                   nsIFrame*            aFrame,
                    nscoord              aContainingBlockHeight,
                    const nsStyleCoord&  aCoord);
 
@@ -736,6 +754,17 @@ public:
   static void SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC);
 
   /**
+   * Convert an eStyleUnit_Chars nsStyleCoord to an nscoord.
+   *
+   * @param aStyle the style coord
+   * @param aRenderingContext the rendering context to use for font measurement
+   * @param aStyleContext the style context to use for font infomation
+   */
+  static nscoord CharsToCoord(const nsStyleCoord& aStyle,
+                              nsIRenderingContext* aRenderingContext,
+                              nsStyleContext* aStyleContext);
+
+  /**
    * Determine if any style coordinate is nonzero
    *   @param aCoord the style sides
    *   @return PR_TRUE unless all the coordinates are 0%, 0 or null.
@@ -747,7 +776,7 @@ public:
    *   @param aFrame the frame of a <window>, <popup> or <menupopup> element.
    *   @return a value suitable for passing to SetWindowTranslucency
    */
-  static nsTransparencyMode GetFrameTransparency(nsIFrame* aFrame);
+  static PRBool FrameHasTransparency(nsIFrame* aFrame);
 
   /**
    * Get textrun construction flags determined by a given style; in particular
@@ -768,14 +797,6 @@ public:
    */
   static void GetRectDifferenceStrips(const nsRect& aR1, const nsRect& aR2,
                                       nsRect* aHStrip, nsRect* aVStrip);
-
-  /**
-   * Get a device context that can be used to get up-to-date device
-   * dimensions for the given docshell.  For some reason, this is more
-   * complicated than it ought to be in multi-monitor situations.
-   */
-  static nsIDeviceContext*
-  GetDeviceContextForScreenInfo(nsIDocShell* aDocShell);
 
   /**
    * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should

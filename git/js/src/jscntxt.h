@@ -61,12 +61,10 @@ JS_BEGIN_EXTERN_C
 
 /*
  * js_GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
- * given pc in a script. We use the script->code pointer to tag the cache,
- * instead of the script address itself, so that source notes are always found
- * by offset from the bytecode with which they were generated.
+ * given pc in a script.
  */
 typedef struct JSGSNCache {
-    jsbytecode      *code;
+    JSScript        *script;
     JSDHashTable    table;
 #ifdef JS_GSNMETER
     uint32          hits;
@@ -81,7 +79,7 @@ typedef struct JSGSNCache {
 
 #define GSN_CACHE_CLEAR(cache)                                                \
     JS_BEGIN_MACRO                                                            \
-        (cache)->code = NULL;                                                 \
+        (cache)->script = NULL;                                               \
         if ((cache)->table.ops) {                                             \
             JS_DHashTableFinish(&(cache)->table);                             \
             (cache)->table.ops = NULL;                                        \
@@ -163,6 +161,11 @@ typedef struct JSPropertyTreeEntry {
     JSDHashEntryHdr     hdr;
     JSScopeProperty     *child;
 } JSPropertyTreeEntry;
+
+/*
+ * Forward declaration for opaque JSRuntime.nativeIteratorStates.
+ */
+typedef struct JSNativeIteratorState JSNativeIteratorState;
 
 typedef struct JSSetSlotRequest JSSetSlotRequest;
 
@@ -375,9 +378,9 @@ struct JSRuntime {
 
     /*
      * A helper list for the GC, so it can mark native iterator states. See
-     * js_TraceNativeEnumerators for details.
+     * js_TraceNativeIteratorStates for details.
      */
-    JSNativeEnumerator  *nativeEnumerators;
+    JSNativeIteratorState *nativeIteratorStates;
 
 #ifndef JS_THREADSAFE
     /*
@@ -413,31 +416,10 @@ struct JSRuntime {
     JSAtomState         atomState;
 
     /*
-     * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
-     * stored in scope->shape). This cache is nulled by the GC and protected
-     * by gcLock.
-     */
-#define NATIVE_ENUM_CACHE_LOG2  8
-#define NATIVE_ENUM_CACHE_MASK  JS_BITMASK(NATIVE_ENUM_CACHE_LOG2)
-#define NATIVE_ENUM_CACHE_SIZE  JS_BIT(NATIVE_ENUM_CACHE_LOG2)
-
-#define NATIVE_ENUM_CACHE_HASH(shape)                                         \
-    ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
-
-    jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
-
-   /*
      * Various metering fields are defined at the end of JSRuntime. In this
      * way there is no need to recompile all the code that refers to other
      * fields of JSRuntime after enabling the corresponding metering macro.
      */
-#ifdef JS_DUMP_ENUM_CACHE_STATS
-    int32               nativeEnumProbes;
-    int32               nativeEnumMisses;
-# define ENUM_CACHE_METER(name)     JS_ATOMIC_INCREMENT(&cx->runtime->name)
-#else
-# define ENUM_CACHE_METER(name)     ((void) 0)
-#endif
 
 #if defined DEBUG || defined JS_DUMP_PROPTREE_STATS
     /* Function invocation metering. */
@@ -1042,9 +1024,6 @@ js_ReportIsNotDefined(JSContext *cx, const char *name);
 extern JSBool
 js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
-
-extern void
-js_ReportMissingArg(JSContext *cx, jsval *vp, uintN arg);
 
 /*
  * Report error using js_DecompileValueGenerator(cx, spindex, v, fallback) as

@@ -152,8 +152,6 @@
 #include "nsEventDispatcher.h"
 #include "nsPresShellIterator.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIDOMXULCommandEvent.h"
-#include "nsIDOMNSEvent.h"
 
 /**
  * Three bits are used for XUL Element's lazy state.
@@ -166,6 +164,8 @@
 
 #define XUL_ELEMENT_CONTAINER_CONTENTS_BUILT \
   (nsXULElement::eContainerContentsBuilt << XUL_ELEMENT_LAZY_STATE_OFFSET)
+
+class nsIDocShell;
 
 // Global object maintenance
 nsICSSParser* nsXULPrototypeElement::sCSSParser = nsnull;
@@ -945,16 +945,6 @@ nsXULElement::GetChildAt(PRUint32 aIndex) const
     return mAttrsAndChildren.GetSafeChildAt(aIndex);
 }
 
-nsIContent * const *
-nsXULElement::GetChildArray() const
-{
-    if (NS_FAILED(EnsureContentsGenerated())) {
-        return nsnull;
-    }
-
-    return mAttrsAndChildren.GetChildArray();
-}
-
 PRInt32
 nsXULElement::IndexOf(nsINode* aPossibleChild) const
 {
@@ -1084,7 +1074,6 @@ nsXULElement::UnregisterAccessKey(const nsAString& aOldValue)
             if (mNodeInfo->Equals(nsGkAtoms::label)) {
                 // For anonymous labels the unregistering must
                 // occur on the binding parent control.
-                // XXXldb: And what if the binding parent is null?
                 content = GetBindingParent();
             }
 
@@ -1154,14 +1143,9 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             aValue) {
             HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
         }
-        
-        nsIDocument *document = GetCurrentDoc();
-        if (aName == nsGkAtoms::title &&
-            document && document->GetRootContent() == this) {
-            document->NotifyPossibleTitleChange(PR_FALSE);
-        }
 
         // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
+        nsIDocument *document = GetCurrentDoc();
         if ((aName == nsGkAtoms::activetitlebarcolor ||
              aName == nsGkAtoms::inactivetitlebarcolor) &&
             document && document->GetRootContent() == this) {
@@ -1664,22 +1648,6 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                                                    EmptyString(),
                                                    &aVisitor.mDOMEvent);
                 }
-
-                nsCOMPtr<nsIDOMNSEvent> nsevent =
-                    do_QueryInterface(aVisitor.mDOMEvent);
-                while (nsevent) {
-                    nsCOMPtr<nsIDOMEventTarget> oTarget;
-                    nsevent->GetOriginalTarget(getter_AddRefs(oTarget));
-                    NS_ENSURE_STATE(!SameCOMIdentity(oTarget, commandContent));
-                    nsCOMPtr<nsIDOMEvent> tmp;
-                    nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
-                        do_QueryInterface(nsevent);
-                    if (commandEvent) {
-                        commandEvent->GetSourceEvent(getter_AddRefs(tmp));
-                    }
-                    nsevent = do_QueryInterface(tmp);
-                }
-
                 event.sourceEvent = aVisitor.mDOMEvent;
 
                 nsEventStatus status = nsEventStatus_eIgnore;
@@ -2120,36 +2088,6 @@ nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
     }
     return NS_OK;
 }
-
-nsresult
-nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
-{
-    nsCOMPtr<nsIContent> otherContent(do_QueryInterface(aOtherOwner));
-    NS_ENSURE_TRUE(otherContent, NS_ERROR_NOT_IMPLEMENTED);
-
-    nsXULElement* otherEl = FromContent(otherContent);
-    NS_ENSURE_TRUE(otherEl, NS_ERROR_NOT_IMPLEMENTED);
-
-    if (otherEl == this) {
-        // nothing to do
-        return NS_OK;
-    }
-
-    nsXULSlots *ourSlots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
-    nsXULSlots *otherSlots =
-        static_cast<nsXULSlots*>(otherEl->GetExistingDOMSlots());
-    if (!ourSlots || !ourSlots->mFrameLoader ||
-        !otherSlots || !otherSlots->mFrameLoader) {
-        // Can't handle swapping when there is nothing to swap... yet.
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    return
-        ourSlots->mFrameLoader->SwapWithOtherLoader(otherSlots->mFrameLoader,
-                                                    ourSlots->mFrameLoader,
-                                                    otherSlots->mFrameLoader);
-}
-
 
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)

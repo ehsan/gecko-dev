@@ -164,8 +164,8 @@ nsTableRowFrame::Init(nsIContent*      aContent,
   // Let the base class do its initialization
   rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
-  NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW == GetStyleDisplay()->mDisplay,
-               "wrong display on table row frame");
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
 
   if (aPrevInFlow) {
     // Set the row index
@@ -345,7 +345,7 @@ nsTableRowFrame::DidResize()
   desiredSize.width = mRect.width;
   desiredSize.height = mRect.height;
   desiredSize.mOverflowArea = nsRect(0, 0, desiredSize.width,
-                                     desiredSize.height);
+                                      desiredSize.height);
 
   while (childFrame) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
@@ -1064,7 +1064,7 @@ nsTableRowFrame::Reflow(nsPresContext*          aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aDesiredSize);
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

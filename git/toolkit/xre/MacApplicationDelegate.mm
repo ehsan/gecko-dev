@@ -245,12 +245,9 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
     NSWindow *cocoaWindow = GetCocoaWindowForXULWindow(xulWindow);
     if (!cocoaWindow) continue;
     
-    NSString *windowTitle = [cocoaWindow title];
-    if (!windowTitle) continue;
-    
     // Now, create a menu item, and add it to the menu
     NSMenuItem *menuItem = [[NSMenuItem alloc]
-                              initWithTitle:windowTitle
+                              initWithTitle:[cocoaWindow title]
                                      action:@selector(dockMenuItemSelected:)
                               keyEquivalent:@""];
     [menuItem setTarget:self];

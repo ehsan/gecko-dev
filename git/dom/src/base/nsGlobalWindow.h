@@ -65,7 +65,6 @@
 #include "nsIDOM3EventTarget.h"
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNavigator.h"
-#include "nsIDOMNavigatorGeolocation.h"
 #include "nsIDOMNSLocation.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
@@ -120,12 +119,13 @@ class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
 class nsGlobalWindow;
+#ifdef OJI
 class nsDummyJavaPluginOwner;
+#endif
 class PostMessageEvent;
 
 class nsDOMOfflineResourceList;
 class nsDOMOfflineLoadStatusList;
-class nsGeolocation;
 
 // permissible values for CheckOpenAllow
 enum OpenAllowValue {
@@ -290,7 +290,6 @@ public:
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(nsresult) Activate();
   virtual NS_HIDDEN_(nsresult) Deactivate();
-  virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
   virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -332,7 +331,6 @@ public:
   virtual NS_HIDDEN_(nsresult) RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                                         const nsIID& aIID);
   virtual NS_HIDDEN_(nsresult) GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual NS_HIDDEN_(nsresult) GetContextForEventHandlers(nsIScriptContext** aContext);
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
@@ -723,9 +721,9 @@ protected:
   PRUint32                      mTimeoutFiringDepth;
   nsCOMPtr<nsIDOMStorage>       mSessionStorage;
 
-  // Holder of the dummy java plugin, used to expose window.java and
-  // window.packages.
+#ifdef OJI
   nsRefPtr<nsDummyJavaPluginOwner> mDummyJavaPluginOwner;
+#endif
 
   // These member variables are used on both inner and the outer windows.
   nsCOMPtr<nsIPrincipal> mDocumentPrincipal;
@@ -808,8 +806,7 @@ protected:
 
 class nsNavigator : public nsIDOMNavigator,
                     public nsIDOMJSNavigator,
-                    public nsIDOMClientInformation,
-                    public nsIDOMNavigatorGeolocation
+                    public nsIDOMClientInformation
 {
 public:
   nsNavigator(nsIDocShell *aDocShell);
@@ -819,7 +816,6 @@ public:
   NS_DECL_NSIDOMNAVIGATOR
   NS_DECL_NSIDOMJSNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
-  NS_DECL_NSIDOMNAVIGATORGEOLOCATION
   
   void SetDocShell(nsIDocShell *aDocShell);
   nsIDocShell *GetDocShell()
@@ -833,7 +829,6 @@ public:
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
-  nsRefPtr<nsGeolocation> mGeolocation;
   nsIDocShell* mDocShell; // weak reference
 
   static jsval       sPrefInternal_id;

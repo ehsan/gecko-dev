@@ -75,42 +75,25 @@ const int netCharType[256] =
 //----------------------------------------------------------------------------------------
 static char* nsEscapeCount(
     const char * str,
+    PRInt32 len,
     nsEscapeMask flags,
-    size_t* out_len)
+    PRInt32* out_len)
 //----------------------------------------------------------------------------------------
 {
 	if (!str)
 		return 0;
 
-    size_t i, len = 0, charsToEscape = 0;
+    int i, extra = 0;
     static const char hexChars[] = "0123456789ABCDEF";
 
 	register const unsigned char* src = (const unsigned char *) str;
-    while (*src)
+    for (i = 0; i < len; i++)
 	{
-        len++;
         if (!IS_OK(*src++))
-            charsToEscape++;
+            extra += 2; /* the escape, plus an extra byte for each nibble */
 	}
 
-    // calculate how much memory should be allocated
-    // original length + 2 bytes for each escaped character + terminating '\0'
-    // do the sum in steps to check for overflow
-    size_t dstSize = len + 1 + charsToEscape;
-    if (dstSize <= len)
-	return 0;
-    dstSize += charsToEscape;
-    if (dstSize < len)
-	return 0;
-
-    // fail if we need more than 4GB
-    // size_t is likely to be long unsigned int but nsMemory::Alloc(size_t)
-    // calls NS_Alloc_P(size_t) which calls PR_Malloc(PRUint32), so there is
-    // no chance to allocate more than 4GB using nsMemory::Alloc()
-    if (dstSize > PR_UINT32_MAX)
-        return 0;
-
-	char* result = (char *)nsMemory::Alloc(dstSize);
+	char* result = (char *)nsMemory::Alloc(len + extra + 1);
     if (!result)
         return 0;
 
@@ -161,7 +144,7 @@ NS_COM char* nsEscape(const char * str, nsEscapeMask flags)
 {
     if(!str)
         return NULL;
-    return nsEscapeCount(str, flags, NULL);
+    return nsEscapeCount(str, (PRInt32)strlen(str), flags, NULL);
 }
 
 //----------------------------------------------------------------------------------------

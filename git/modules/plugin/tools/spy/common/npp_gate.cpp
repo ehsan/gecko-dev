@@ -48,6 +48,16 @@ NPNetscapeFuncs fakeNPNFuncs;
 
 extern NPPEntryPointManager * epManager;
 
+jref NPP_GetJavaClass (void)
+{
+  if(logger)
+    logger->logCall(action_npp_get_java_class);
+
+  if(logger)
+    logger->logReturn();
+  return NULL;
+}
+
 NPError NPP_New(NPMIMEType pluginType,
                 NPP instance,
                 uint16 mode,
@@ -123,8 +133,8 @@ NPError NPP_New(NPMIMEType pluginType,
     fakeNPNFuncs.memfree          = NPN_MemFree;
     fakeNPNFuncs.memflush         = NPN_MemFlush;
     fakeNPNFuncs.reloadplugins    = NPN_ReloadPlugins;
-    fakeNPNFuncs.getJavaEnv       = NULL;
-    fakeNPNFuncs.getJavaPeer      = NULL;
+    fakeNPNFuncs.getJavaEnv       = NPN_GetJavaEnv;
+    fakeNPNFuncs.getJavaPeer      = NPN_GetJavaPeer;
     fakeNPNFuncs.getvalue         = NPN_GetValue;
     fakeNPNFuncs.setvalue         = NPN_SetValue;
     fakeNPNFuncs.invalidaterect   = NPN_InvalidateRect;

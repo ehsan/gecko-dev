@@ -49,6 +49,7 @@
 #include "nsToolkit.h"
 
 #include "nsIWidget.h"
+#include "nsIKBStateControl.h"
 
 #include "nsIMouseListener.h"
 #include "nsIEventListener.h"
@@ -60,6 +61,7 @@
 class nsNativeDragTarget;
 class nsIRollupListener;
 
+class nsIMenuBar;
 class nsIFile;
 
 class imgIContainer;
@@ -113,7 +115,8 @@ const LPCSTR kClassNameDialog         = "MozillaDialogClass";
  */
 
 class nsWindow : public nsSwitchToUIThread,
-                 public nsBaseWidget
+                 public nsBaseWidget,
+                 public nsIKBStateControl
 {
 public:
   nsWindow();
@@ -187,7 +190,7 @@ public:
   NS_IMETHOD              ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
-  NS_IMETHOD              SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; }
+  NS_IMETHOD              SetMenuBar(nsIMenuBar * aMenuBar) { return NS_ERROR_FAILURE; }
   NS_IMETHOD              ShowMenuBar(PRBool aShow)         { return NS_ERROR_FAILURE; }
   NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
@@ -210,16 +213,18 @@ public:
   gfxASurface             *GetThebesSurface();
 
 #ifdef MOZ_XUL
-  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
-  virtual nsTransparencyMode GetTransparencyMode();
+  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
+  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
 private:
-  void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
-  nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
+  nsresult                SetWindowTranslucencyInner(PRBool aTransparent);
+  PRBool                  GetWindowTranslucencyInner() { return mIsTransparent; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
-  void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
+  nsresult                SetupTranslucentWindowMemoryBitmap(PRBool aTransparent);
 public:
 #endif
+
+  // nsIKBStateControl interface
 
   NS_IMETHOD ResetInputState();
   NS_IMETHOD SetIMEOpenState(PRBool aState);
@@ -327,26 +332,9 @@ protected:
   BOOL                    OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult);
 
   void                    GetCompositionString(HIMC aHIMC, DWORD aIndex, nsString* aStrUnicode);
-
-  /**
-   *  ResolveIMECaretPos
-   *  Convert the caret rect of a composition event to another widget's
-   *  coordinate system.
-   *
-   *  @param aReferenceWidget The origin widget of aCursorRect.
-   *                          Typically, this is mReferenceWidget of the
-   *                          composing events. If the aCursorRect is in screen
-   *                          coordinates, set nsnull.
-   *  @param aCursorRect      The cursor rect.
-   *  @param aNewOriginWidget aOutRect will be in this widget's coordinates. If
-   *                          this is nsnull, aOutRect will be in screen
-   *                          coordinates.
-   *  @param aOutRect         The converted cursor rect.
-   */
-  void                    ResolveIMECaretPos(nsIWidget* aReferenceWidget,
-                                             nsRect&    aCursorRect,
-                                             nsIWidget* aNewOriginWidget,
-                                             nsRect&    aOutRect);
+  void                    ResolveIMECaretPos(nsWindow* aClient,
+                                             nsRect&   aEventResult,
+                                             nsRect&   aResult);
 
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
@@ -412,9 +400,11 @@ protected:
   static PRInt32    sIMECompClauseArrayLength;
   static PRInt32    sIMECompClauseArraySize;
   static long       sIMECursorPosition;
+  static PRUnichar* sIMEReconvertUnicode; // reconvert string
 
   // For describing composing frame
   static RECT*      sIMECompCharPos;
+  static PRInt32    sIMECaretHeight;
 
   static PRBool     sIsInEndSession;
 
@@ -434,8 +424,13 @@ protected:
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
 
   HDC           mMemoryDC;
-  nsTransparencyMode mTransparencyMode;
+  HBITMAP       mMemoryBitmap;
+  PRUint8*      mMemoryBits;
+  PRUint8*      mAlphaMask;
+  PRPackedBool  mIsTransparent;
+  PRPackedBool  mIsTopTransparent;     // Topmost window itself or any of it's child windows has tranlucency enabled
 #endif
+  PRPackedBool  mHasAeroGlass;
   PRPackedBool  mIsTopWidgetWindow;
   PRPackedBool  mHas3DBorder;
   PRPackedBool  mIsShiftDown;

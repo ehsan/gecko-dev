@@ -229,11 +229,8 @@ NS_IMETHODIMP
 nsSVGGlyphFrame::DidSetStyleContext()
 {
   nsSVGGlyphFrameBase::DidSetStyleContext();
-
-  if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    ClearTextRun();
-    NotifyGlyphMetricsChange();
-  }
+  ClearTextRun();
+  NotifyGlyphMetricsChange();
 
   return NS_OK;
 }
@@ -461,6 +458,8 @@ nsSVGGlyphFrame::InitialUpdate()
 
   NS_ASSERTION(!(mState & NS_FRAME_IN_REFLOW),
                "We don't actually participate in reflow");
+
+  NotifyGlyphMetricsChange();
 
   // Do unset the various reflow bits, though.
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
@@ -1231,7 +1230,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     // diagonal vector (1,1) to the length of the untransformed diagonal
     // (which is sqrt(2)).
     gfxPoint p = m.Transform(gfxPoint(1, 1)) - m.Transform(gfxPoint(0, 0));
-    double contextScale = nsSVGUtils::ComputeNormalizedHypotenuse(p.x, p.y);
+    double contextScale = sqrt((p.x*p.x + p.y*p.y)/2);
 
     nsCAutoString langGroup;
     nsIAtom *langGroupAtom = presContext->GetLangGroup();
@@ -1309,9 +1308,6 @@ CharacterIterator::SetupForDirectTextRun(gfxContext *aContext, float aScale)
   aContext->SetMatrix(mInitialMatrix);
   aContext->Translate(mSource->mPosition);
   aContext->Scale(aScale, aScale);
-  // We are scaling the glyphs up/down to the size we want so we need to
-  // inverse scale the outline widths of those glyphs so they are invariant
-  aContext->SetLineWidth(aContext->CurrentLineWidth() / aScale);
   return PR_TRUE;
 }
 
@@ -1362,9 +1358,6 @@ CharacterIterator::SetupFor(gfxContext *aContext, float aScale)
     aContext->Rotate(mPositions[mCurrentChar].angle);
     aContext->Scale(aScale, aScale);
   }
-  // We are scaling the glyphs up/down to the size we want so we need to
-  // inverse scale the outline widths of those glyphs so they are invariant
-  aContext->SetLineWidth(aContext->CurrentLineWidth() / aScale);
 }
 
 CharacterPosition

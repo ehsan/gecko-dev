@@ -75,7 +75,6 @@ public:
     eColor_TextSelectForeground,
     eColor_TextSelectBackgroundDisabled,
     eColor_TextSelectBackgroundAttention,
-    eColor_TextHighlightBackground,
 
     eColor_IMERawInputBackground,
     eColor_IMERawInputForeground,
@@ -166,11 +165,6 @@ public:
     eColor__moz_win_mediatext,                     // media rebar text
     eColor__moz_win_communicationstext,            // communications rebar text
 
-    // Hyperlink color extracted from the system, not affected by the browser.anchor_color user pref.
-    // There is no OS-specified safe background color for this text, 
-    // but it is used regularly within Windows and the Gnome DE on Dialog and Window colors.
-    eColor__moz_nativehyperlinktext,		
-
     // keep this one last, please
     eColor_LAST_COLOR
   } nsColorID;
@@ -234,23 +228,6 @@ public:
      * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
      */
     eMetric_WindowsDefaultTheme,
-
-    /*
-     * A Boolean value to determine whether the DWM compositor is being used
-     *
-     * This metric is not used on non-Windows platforms. These platforms
-     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
-     */
-    eMetric_DWMCompositor,
-
-    /*
-     * A Boolean value to determine whether Windows is themed (Classic vs.
-     * uxtheme)
-     *
-     * This is Windows-specific and is not implemented on other platforms
-     * (will return the default of NS_ERROR_FAILURE).
-     */
-    eMetric_WindowsClassic,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the
@@ -323,11 +300,7 @@ public:
     eMetricFloat_ListHorizontalInsidePadding,
     eMetricFloat_ButtonVerticalInsidePadding,
     eMetricFloat_ButtonHorizontalInsidePadding,
-    eMetricFloat_IMEUnderlineRelativeSize,
-
-    // The width/height ratio of the cursor. If used, the CaretWidth int metric
-    // should be added to the calculated caret width.
-    eMetricFloat_CaretAspectRatio
+    eMetricFloat_IMEUnderlineRelativeSize
   } nsMetricFloatID;
 
   NS_IMETHOD GetColor(const nsColorID aID, nscolor &aColor) = 0;

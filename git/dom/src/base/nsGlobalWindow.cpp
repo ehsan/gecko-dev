@@ -73,7 +73,6 @@
 #include "nsPluginArray.h"
 #include "nsIPluginHost.h"
 #include "nsPIPluginHost.h"
-#include "nsGeolocation.h"
 #ifdef OJI
 #include "nsIJVMManager.h"
 #include "nsILiveConnectManager.h"
@@ -82,7 +81,6 @@
 #include "nsLayoutStatics.h"
 #include "nsCycleCollector.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsDOMThreadService.h"
 
 // Interfaces Needed
 #include "nsIWidget.h"
@@ -113,8 +111,6 @@
 #include "nsIDOMPopupBlockedEvent.h"
 #include "nsIDOMPkcs11.h"
 #include "nsIDOMOfflineResourceList.h"
-#include "nsIDOMGeoGeolocation.h"
-#include "nsIDOMThreads.h"
 #include "nsDOMString.h"
 #include "nsIEmbeddingSiteWindow2.h"
 #include "nsThreadUtils.h"
@@ -394,6 +390,7 @@ StripNullChars(const nsAString& aInStr,
   }
 }
 
+#ifdef OJI
 class nsDummyJavaPluginOwner : public nsIPluginInstanceOwner
 {
 public:
@@ -538,6 +535,7 @@ nsDummyJavaPluginOwner::GetValue(nsPluginInstancePeerVariable variable,
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
+#endif
 
 /**
  * An indirect observer object that means we don't have to implement nsIObserver
@@ -864,12 +862,6 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
 {
   NS_ASSERTION(IsInnerWindow(), "Don't free inner objects on an outer window");
 
-  // Kill all of the workers for this window.
-  nsDOMThreadService* dts = nsDOMThreadService::get();
-  if (dts) {
-    dts->CancelWorkersForGlobal(static_cast<nsIScriptGlobalObject*>(this));
-  }
-
   ClearAllTimeouts();
 
   mChromeEventHandler = nsnull;
@@ -914,6 +906,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     }
   }
 
+#ifdef OJI
   if (mDummyJavaPluginOwner) {
     // Tear down the dummy java plugin.
 
@@ -924,6 +917,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
 
     mDummyJavaPluginOwner = nsnull;
   }
+#endif
 
   CleanupCachedXBLHandlers(this);
 
@@ -1007,8 +1001,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChromeEventHandler)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
 
+#ifdef OJI
   // Traverse mDummyJavaPluginOwner
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDummyJavaPluginOwner)
+#endif
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -1045,11 +1041,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChromeEventHandler)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
 
+#ifdef OJI
   // Unlink mDummyJavaPluginOwner
   if (tmp->mDummyJavaPluginOwner) {
     tmp->mDummyJavaPluginOwner->Destroy();
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDummyJavaPluginOwner)
   }
+#endif
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -5238,9 +5236,6 @@ PostMessageEvent::Run()
 
   nsRefPtr<nsGlobalWindow> targetWindow =
     mTargetWindow->GetCurrentInnerWindowInternal();
-  if (!targetWindow)
-    return NS_OK;
-
   NS_ABORT_IF_FALSE(targetWindow->IsInnerWindow(),
                     "we ordered an inner window!");
 
@@ -5768,6 +5763,7 @@ nsGlobalWindow::NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow) {
 void
 nsGlobalWindow::InitJavaProperties()
 {
+#ifdef OJI
   nsIScriptContext *scx = GetContextInternal();
 
   if (mDidInitJavaProperties || IsOuterWindow() || !scx || !mJSObject) {
@@ -5809,7 +5805,6 @@ nsGlobalWindow::InitJavaProperties()
   // would have used in that case as it's no longer needed.
   mDummyJavaPluginOwner = nsnull;
 
-#ifdef OJI
   JSContext *cx = (JSContext *)scx->GetNativeContext();
 
   nsCOMPtr<nsILiveConnectManager> manager =
@@ -6058,26 +6053,24 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                              PR_FALSE,          // aDialog
                              PR_TRUE,           // aContentModal
                              PR_TRUE,           // aCalledNoScript
-                             PR_TRUE,           // aDoJSFixups
+                             PR_FALSE,          // aDoJSFixups
                              nsnull, aArgs,     // args
                              GetPrincipal(),    // aCalleePrincipal
                              nsnull,            // aJSCallerContext
                              getter_AddRefs(dlgWin));
+  if (NS_FAILED(rv) || !dlgWin)
+    return NS_OK;
 
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  if (dlgWin) {
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(dlgWin));
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(dlgWin));
 
-    nsPIDOMWindow *inner = win->GetCurrentInnerWindow();
+  nsPIDOMWindow *inner = win->GetCurrentInnerWindow();
 
-    nsCOMPtr<nsIDOMModalContentWindow> dlgInner(do_QueryInterface(inner));
+  nsCOMPtr<nsIDOMModalContentWindow> dlgInner(do_QueryInterface(inner));
 
-    if (dlgInner) {
-      dlgInner->GetReturnValue(aRetVal);
-    }
+  if (dlgInner) {
+    dlgInner->GetReturnValue(aRetVal);
   }
-  
+
   return NS_OK;
 }
 
@@ -6660,15 +6653,6 @@ nsGlobalWindow::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-nsGlobalWindow::GetContextForEventHandlers(nsIScriptContext** aContext)
-{
-  NS_IF_ADDREF(*aContext = GetContext());
-  // Bad, no context from script global object!
-  NS_ENSURE_STATE(*aContext);
-  return NS_OK;
-}
-
 //*****************************************************************************
 // nsGlobalWindow::nsPIDOMWindow
 //*****************************************************************************
@@ -6816,27 +6800,6 @@ nsGlobalWindow::Deactivate()
   FORWARD_TO_OUTER(Deactivate, (), NS_ERROR_NOT_INITIALIZED);
 
   return FireWidgetEvent(mDocShell, NS_DEACTIVATE);
-}
-
-void
-nsGlobalWindow::SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler)
-{
-  SetChromeEventHandlerInternal(aChromeEventHandler);
-  if (IsOuterWindow()) {
-    // update the chrome event handler on all our inner windows
-    for (nsGlobalWindow *inner = (nsGlobalWindow *)PR_LIST_HEAD(this);
-         inner != this;
-         inner = (nsGlobalWindow*)PR_NEXT_LINK(inner)) {
-      NS_ASSERTION(inner->mOuterWindow == this, "bad outer window pointer");
-      inner->SetChromeEventHandlerInternal(aChromeEventHandler);
-    }
-  } else if (mOuterWindow) {
-    // Need the cast to be able to call the protected method on a
-    // superclass. We could make the method public instead, but it's really
-    // better this way.
-    static_cast<nsGlobalWindow*>(mOuterWindow)->
-      SetChromeEventHandlerInternal(aChromeEventHandler);
-  }
 }
 
 nsIFocusController*
@@ -7323,6 +7286,8 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
                   "Can't pass in arguments both ways");
   NS_PRECONDITION(!aCalledNoScript || (!argv && argc == 0),
                   "Can't pass JS args when called via the noscript methods");
+  NS_PRECONDITION(!aDoJSFixups || !aCalledNoScript,
+                  "JS fixups should not be done when called noscript");
   NS_PRECONDITION(!aJSCallerContext || !aCalledNoScript,
                   "Shouldn't have caller context when called noscript");
 
@@ -8574,11 +8539,6 @@ nsGlobalWindow::SuspendTimeouts()
 {
   FORWARD_TO_INNER_VOID(SuspendTimeouts, ());
 
-  nsDOMThreadService* dts = nsDOMThreadService::get();
-  if (dts) {
-    dts->SuspendWorkersForGlobal(static_cast<nsIScriptGlobalObject*>(this));
-  }
-
   PRTime now = PR_Now();
   for (nsTimeout *t = FirstTimeout(); IsTimeout(t); t = t->Next()) {
     // Change mWhen to be the time remaining for this timer.    
@@ -8633,11 +8593,6 @@ nsresult
 nsGlobalWindow::ResumeTimeouts()
 {
   FORWARD_TO_INNER(ResumeTimeouts, (), NS_ERROR_NOT_INITIALIZED);
-
-  nsDOMThreadService* dts = nsDOMThreadService::get();
-  if (dts) {
-    dts->ResumeWorkersForGlobal(static_cast<nsIScriptGlobalObject*>(this));
-  }
 
   // Restore all of the timeouts, using the stored time remaining
   // (stored in timeout->mWhen).
@@ -8736,6 +8691,37 @@ NS_INTERFACE_MAP_END_INHERITING(nsGlobalWindow)
 
 NS_IMPL_ADDREF_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
 NS_IMPL_RELEASE_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
+
+static void TitleConsoleWarning()
+{
+  nsCOMPtr<nsIConsoleService> console(do_GetService("@mozilla.org/consoleservice;1"));
+  if (console)
+    console->LogStringMessage(NS_LITERAL_STRING("Deprecated property window.title used.  Please use document.title instead.").get());
+}
+
+NS_IMETHODIMP
+nsGlobalChromeWindow::GetTitle(nsAString& aTitle)
+{
+  NS_ERROR("nsIDOMChromeWindow::GetTitle is deprecated, use nsIDOMNSDocument instead");
+  TitleConsoleWarning();
+
+  nsresult rv;
+  nsCOMPtr<nsIDOMNSDocument> nsdoc(do_QueryInterface(mDocument, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+  return nsdoc->GetTitle(aTitle);
+}
+
+NS_IMETHODIMP
+nsGlobalChromeWindow::SetTitle(const nsAString& aTitle)
+{
+  NS_ERROR("nsIDOMChromeWindow::SetTitle is deprecated, use nsIDOMNSDocument instead");
+  TitleConsoleWarning();
+
+  nsresult rv;
+  nsCOMPtr<nsIDOMNSDocument> nsdoc(do_QueryInterface(mDocument, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+  return nsdoc->SetTitle(aTitle);
+}
 
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetWindowState(PRUint16* aWindowState)
@@ -9027,7 +9013,6 @@ NS_INTERFACE_MAP_BEGIN(nsNavigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMJSNavigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMClientInformation)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorGeolocation)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Navigator)
 NS_INTERFACE_MAP_END
 
@@ -9042,13 +9027,6 @@ nsNavigator::SetDocShell(nsIDocShell *aDocShell)
   mDocShell = aDocShell;
   if (mPlugins)
     mPlugins->SetDocShell(aDocShell);
-
-  // if there is a page transition, make sure delete the geolocation object
-  if (mGeolocation)
-  {
-    mGeolocation->Shutdown();
-    mGeolocation = nsnull;
-  }
 }
 
 //*****************************************************************************
@@ -9398,7 +9376,8 @@ nsNavigator::GetBuildID(nsAString& aBuildID)
 NS_IMETHODIMP
 nsNavigator::JavaEnabled(PRBool *aReturn)
 {
-  *aReturn = nsContentUtils::GetBoolPref("security.enable_java");
+  nsresult rv = NS_OK;
+  *aReturn = PR_FALSE;
 
 #ifdef OJI
   // Ask the nsIJVMManager if Java is enabled
@@ -9410,8 +9389,7 @@ nsNavigator::JavaEnabled(PRBool *aReturn)
     *aReturn = PR_FALSE;
   }
 #endif
-
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -9569,12 +9547,6 @@ nsNavigator::LoadingNewDocument()
   // arrays may have changed.  See bug 150087.
   mMimeTypes = nsnull;
   mPlugins = nsnull;
-
-  if (mGeolocation)
-  {
-    mGeolocation->Shutdown();
-    mGeolocation = nsnull;
-  }
 }
 
 nsresult
@@ -9695,34 +9667,3 @@ nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
   return NS_OK;
 }
 
-//*****************************************************************************
-//    nsNavigator::nsIDOMNavigatorGeolocation
-//*****************************************************************************
-
-NS_IMETHODIMP nsNavigator::GetGeolocation(nsIDOMGeoGeolocation **_retval)
-{
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  if (!mGeolocation) {
-    nsCOMPtr<nsIDOMWindow> contentDOMWindow(do_GetInterface(mDocShell));
-    mGeolocation = new nsGeolocation(contentDOMWindow);
-  }
-
-  NS_IF_ADDREF(*_retval = mGeolocation);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNavigator::NewWorkerPool(nsIDOMWorkerPool** _retval)
-{
-  nsCOMPtr<nsIDOMThreadService> threadService =
-    nsDOMThreadService::GetOrInitService();
-  NS_ENSURE_TRUE(threadService, NS_ERROR_OUT_OF_MEMORY);
-
-  nsCOMPtr<nsIDOMWorkerPool> newPool;
-  nsresult rv = threadService->CreatePool(getter_AddRefs(newPool));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  newPool.forget(_retval);
-  return NS_OK;
-}

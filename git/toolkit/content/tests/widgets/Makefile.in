@@ -84,7 +84,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		tree_shared.js \
 		test_textbox_emptytext.xul \
 		test_textbox_number.xul \
-		test_textbox_search.xul \
 		xul_selectcontrol.js \
 		test_popupincontent.xul \
 		test_panelfrommenu.xul \
@@ -102,7 +101,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_menu_hide.xul \
 		test_focus.xul \
 		test_tabindex.xul \
- 		test_mousescroll.xul \
 		test_scrollbar.xul \
 		test_sorttemplate.xul \
 		$(NULL)

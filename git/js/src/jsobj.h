@@ -168,15 +168,11 @@ struct JSObject {
     JSVAL_TO_OBJECT((obj)->fslots[JSSLOT_PROTO])
 #define STOBJ_SET_PROTO(obj,proto)                                            \
     ((obj)->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto))
-#define STOBJ_CLEAR_PROTO(obj)                                                \
-    ((obj)->fslots[JSSLOT_PROTO] = JSVAL_NULL)
 
 #define STOBJ_GET_PARENT(obj)                                                 \
     JSVAL_TO_OBJECT((obj)->fslots[JSSLOT_PARENT])
 #define STOBJ_SET_PARENT(obj,parent)                                          \
     ((obj)->fslots[JSSLOT_PARENT] = OBJECT_TO_JSVAL(parent))
-#define STOBJ_CLEAR_PARENT(obj)                                               \
-    ((obj)->fslots[JSSLOT_PARENT] = JSVAL_NULL)
 
 /*
  * We use JSSLOT_CLASS to store both JSClass* and the system flag as an int-
@@ -277,13 +273,15 @@ struct JSObject {
 #endif /* !JS_THREADSAFE */
 
 /* Thread-safe proto, parent, and class access macros. */
-#define OBJ_GET_PROTO(cx,obj)           STOBJ_GET_PROTO(obj)
-#define OBJ_SET_PROTO(cx,obj,proto)     STOBJ_SET_PROTO(obj, proto)
-#define OBJ_CLEAR_PROTO(cx,obj)         STOBJ_CLEAR_PROTO(obj)
+#define OBJ_GET_PROTO(cx,obj) \
+    STOBJ_GET_PROTO(obj)
+#define OBJ_SET_PROTO(cx,obj,proto) \
+    STOBJ_SET_SLOT(obj, JSSLOT_PROTO, OBJECT_TO_JSVAL(proto))
 
-#define OBJ_GET_PARENT(cx,obj)          STOBJ_GET_PARENT(obj)
-#define OBJ_SET_PARENT(cx,obj,parent)   STOBJ_SET_PARENT(obj, parent)
-#define OBJ_CLEAR_PARENT(cx,obj)        STOBJ_CLEAR_PARENT(obj)
+#define OBJ_GET_PARENT(cx,obj) \
+    STOBJ_GET_PARENT(obj)
+#define OBJ_SET_PARENT(cx,obj,parent) \
+    STOBJ_SET_SLOT(obj, JSSLOT_PARENT, OBJECT_TO_JSVAL(parent))
 
 /*
  * Class is invariant and comes from the fixed JSSLOT_CLASS. Thus no locking
@@ -388,8 +386,7 @@ extern void
 js_TraceSharpMap(JSTracer *trc, JSSharpObjectMap *map);
 
 extern JSBool
-js_HasOwnPropertyHelper(JSContext *cx, JSLookupPropOp lookup, uintN argc,
-                        jsval *vp);
+js_HasOwnPropertyHelper(JSContext *cx, JSLookupPropOp lookup, jsval *vp);
 
 extern JSObject *
 js_InitBlockClass(JSContext *cx, JSObject* obj);
@@ -610,12 +607,21 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, jsval *rval);
 extern JSBool
 js_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
+extern JSIdArray *
+js_NewIdArray(JSContext *cx, jsint length);
+
+/*
+ * Unlike realloc(3), this function frees ida on failure.
+ */
+extern JSIdArray *
+js_SetIdArrayLength(JSContext *cx, JSIdArray *ida, jsint length);
+
 extern JSBool
 js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
              jsval *statep, jsid *idp);
 
 extern void
-js_TraceNativeEnumerators(JSTracer *trc);
+js_TraceNativeIteratorStates(JSTracer *trc);
 
 extern JSBool
 js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
@@ -682,13 +688,6 @@ js_GetRequiredSlot(JSContext *cx, JSObject *obj, uint32 slot);
 
 extern JSBool
 js_SetRequiredSlot(JSContext *cx, JSObject *obj, uint32 slot, jsval v);
-
-/*
- * obj must be locked.
- */
-extern JSBool
-js_ReallocSlots(JSContext *cx, JSObject *obj, uint32 nslots,
-                JSBool exactAllocation);
 
 extern JSObject *
 js_CheckScopeChainValidity(JSContext *cx, JSObject *scopeobj, const char *caller);

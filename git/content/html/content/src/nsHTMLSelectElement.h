@@ -190,7 +190,7 @@ private:
   nsCheapInt32Set mIndices;
 };
 
-class NS_STACK_CLASS nsSafeOptionListMutation
+class nsSafeOptionListMutation
 {
 public:
   /**
@@ -348,6 +348,11 @@ protected:
    * @param aNewSelected the state string to restore to
    */
   void RestoreStateTo(nsSelectState* aNewSelected);
+
+#ifdef DEBUG_john
+  // Don't remove these, por favor.  They're very useful in debugging
+  nsresult PrintOptions(nsIContent* aOptions, PRInt32 tabs);
+#endif
 
   // Adding options
   /**

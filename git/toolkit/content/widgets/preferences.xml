@@ -474,7 +474,8 @@
 
           switch (this.type) {
           case "int":
-            return parseInt(value, 10) || 0;
+            var intValue = parseInt(value, 10) + '';
+            return intValue != "NaN" ? intValue : 0;
           case "bool":
             return typeof(value) == "boolean" ? value : value == "true";
           }

@@ -51,15 +51,9 @@
 
 #include "nsICharsetConverterManager.h"
 
-class gfxOS2FontEntry : public gfxFontEntry {
-public:
-    gfxOS2FontEntry(const nsAString& aName) : gfxFontEntry(aName) {}
-    ~gfxOS2FontEntry() {}
-};
-
 class gfxOS2Font : public gfxFont {
 public:
-    gfxOS2Font(gfxOS2FontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
+    gfxOS2Font(const nsAString &aName, const gfxFontStyle *aFontStyle);
     virtual ~gfxOS2Font();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -75,9 +69,6 @@ public:
         return mSpaceGlyph;
     }
 
-    static already_AddRefed<gfxOS2Font> GetOrMakeFont(const nsAString& aName,
-                                                      const gfxFontStyle *aStyle);
-
 protected:
     gfxMatrix mCTM;
     virtual PRBool SetupCairoFont(gfxContext *aContext);
@@ -88,8 +79,6 @@ private:
     Metrics *mMetrics;
     gfxFloat mAdjustedSize;
     PRUint32 mSpaceGlyph;
-    int mHinting;
-    PRBool mAntialias;
 };
 
 

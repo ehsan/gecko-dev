@@ -40,6 +40,7 @@
 #include "nsAccessibleEventData.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsIBaseWindow.h"
+#include "nsICaret.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
@@ -642,6 +643,18 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     return NS_OK;
   }
 
+#ifdef MOZ_XUL
+  if (eventType.EqualsLiteral("TreeViewChanged")) { // Always asynch, always from user input
+    if (!isTree)
+      return NS_OK;
+
+    nsCOMPtr<nsIContent> treeContent = do_QueryInterface(aTargetNode);
+    nsAccEvent::PrepareForEvent(aTargetNode, PR_TRUE);
+    return accService->InvalidateSubtreeFor(eventShell, treeContent,
+                                            nsIAccessibleEvent::EVENT_DOM_SIGNIFICANT_CHANGE);
+  }
+#endif
+
   if (eventType.EqualsLiteral("popuphiding")) {
     // If accessible focus was on or inside popup that closes,
     // then restore it to true current focus.
@@ -665,22 +678,11 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     return NS_OK;
 
 #ifdef MOZ_XUL
-  if (isTree) {
-    nsCOMPtr<nsIAccessibleTreeCache> treeAcc(do_QueryInterface(accessible));
-    NS_ASSERTION(treeAcc,
-                 "Accessible for xul:tree doesn't implement nsIAccessibleTreeCache interface.");
-
-    if (treeAcc) {
-      if (eventType.EqualsLiteral("TreeViewChanged"))
-        return treeAcc->TreeViewChanged();
-
-      if (eventType.EqualsLiteral("TreeRowCountChanged"))
-        return HandleTreeRowCountChangedEvent(aEvent, treeAcc);
-      
-      if (eventType.EqualsLiteral("TreeInvalidated"))
-        return HandleTreeInvalidatedEvent(aEvent, treeAcc);
-    }
-  }
+  if (eventType.EqualsLiteral("TreeRowCountChanged"))
+    return HandleTreeRowCountChangedEvent(aEvent, accessible, localName);
+  
+  if (eventType.EqualsLiteral("TreeInvalidated"))
+    return HandleTreeInvalidatedEvent(aEvent, accessible, localName);
 #endif
 
   if (eventType.EqualsLiteral("RadioStateChange")) {
@@ -1093,8 +1095,12 @@ NS_IMETHODIMP nsRootAccessible::FireDocLoadEvents(PRUint32 aEventType)
 
 nsresult
 nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                                 nsIAccessibleTreeCache *aAccessible)
+                                                 nsIAccessible *aAccessible,
+                                                 const nsAString& aTargetName)
 {
+  if (!aTargetName.EqualsLiteral("tree"))
+    return NS_OK;
+
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
     return NS_OK;
@@ -1115,13 +1121,20 @@ nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
   indexVariant->GetAsInt32(&index);
   countVariant->GetAsInt32(&count);
 
-  return aAccessible->InvalidateCache(index, count);
+  nsCOMPtr<nsIAccessibleTreeCache> treeAccCache(do_QueryInterface(aAccessible));
+  NS_ENSURE_STATE(treeAccCache);
+
+  return treeAccCache->InvalidateCache(index, count);
 }
 
 nsresult
 nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                             nsIAccessibleTreeCache *aAccessible)
+                                             nsIAccessible *aAccessible,
+                                             const nsAString& aTargetName)
 {
+  if (!aTargetName.EqualsLiteral("tree"))
+    return NS_OK;
+
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
     return NS_OK;
@@ -1152,6 +1165,9 @@ nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
   if (endColVariant)
     endColVariant->GetAsInt32(&endCol);
 
-  return aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
+  nsCOMPtr<nsIAccessibleTreeCache> treeAcc(do_QueryInterface(aAccessible));
+  NS_ENSURE_STATE(treeAcc);
+
+  return treeAcc->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }
 

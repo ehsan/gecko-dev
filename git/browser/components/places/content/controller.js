@@ -763,7 +763,7 @@ PlacesController.prototype = {
       // select the new item
       var insertedNodeId = PlacesUtils.bookmarks
                                       .getIdForItemAt(ip.itemId, ip.index);
-      this._view.selectItems([insertedNodeId], false);
+      this._view.selectItems([insertedNodeId], ip.itemId);
     }
   },
 
@@ -783,7 +783,7 @@ PlacesController.prototype = {
       // select the new item
       var insertedNodeId = PlacesUtils.bookmarks
                                       .getIdForItemAt(ip.itemId, ip.index);
-      this._view.selectItems([insertedNodeId], false);
+      this._view.selectItems([insertedNodeId]);
     }
   },
 
@@ -799,7 +799,7 @@ PlacesController.prototype = {
     // select the new item
     var insertedNodeId = PlacesUtils.bookmarks
                                     .getIdForItemAt(ip.itemId, ip.index);
-    this._view.selectItems([insertedNodeId], false);
+    this._view.selectItems([insertedNodeId]);
   },
 
   /**
@@ -1234,7 +1234,7 @@ PlacesController.prototype = {
       insertedNodeIds.push(PlacesUtils.bookmarks
                                       .getIdForItemAt(ip.itemId, ip.index + i));
     if (insertedNodeIds.length > 0)
-      this._view.selectItems(insertedNodeIds, false);
+      this._view.selectItems(insertedNodeIds);
   }
 };
 

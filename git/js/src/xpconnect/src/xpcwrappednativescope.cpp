@@ -792,7 +792,6 @@ XPCWrappedNativeScope::FindInJSObjectScope(XPCCallContext& ccx, JSObject* obj,
 
     // XXX We are assuming that the scope count is low enough that traversing
     // the linked list is more reasonable then doing a hashtable lookup.
-    XPCWrappedNativeScope* found = nsnull;
     {   // scoped lock
         XPCAutoLock lock(ccx.GetRuntime()->GetMapLock());
 
@@ -802,16 +801,10 @@ XPCWrappedNativeScope::FindInJSObjectScope(XPCCallContext& ccx, JSObject* obj,
         {
             if(obj == cur->GetGlobalJSObject())
             {
-                found = cur;
-                break;
+                DEBUG_CheckForComponentsInScope(ccx, obj, OKIfNotInitialized);
+                return cur;
             }
         }
-    }
-
-    if(found) {
-        // This cannot be called within the map lock!
-        DEBUG_CheckForComponentsInScope(ccx, obj, OKIfNotInitialized);
-        return found;
     }
 
     // Failure to find the scope is only OK if the caller told us it might fail.

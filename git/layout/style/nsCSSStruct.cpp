@@ -226,7 +226,6 @@ nsCSSDisplay::~nsCSSDisplay(void)
 // --- nsCSSMargin -----------------
 
 nsCSSMargin::nsCSSMargin(void)
-  : mBoxShadow(nsnull)
 {
   MOZ_COUNT_CTOR(nsCSSMargin);
 }
@@ -234,7 +233,6 @@ nsCSSMargin::nsCSSMargin(void)
 nsCSSMargin::~nsCSSMargin(void)
 {
   MOZ_COUNT_DTOR(nsCSSMargin);
-  CSS_IF_DELETE(mBoxShadow);
 }
 
 // --- nsCSSPosition -----------------
@@ -299,38 +297,73 @@ nsCSSPage::~nsCSSPage(void)
 
 // --- nsCSSContent support -----------------
 
-nsCSSValuePairList::nsCSSValuePairList()
+nsCSSCounterData::nsCSSCounterData(void)
   : mNext(nsnull)
 {
-  MOZ_COUNT_CTOR(nsCSSValuePairList);
+  MOZ_COUNT_CTOR(nsCSSCounterData);
 }
 
-nsCSSValuePairList::nsCSSValuePairList(const nsCSSValuePairList& aCopy)
-  : mXValue(aCopy.mXValue),
-    mYValue(aCopy.mYValue),
+nsCSSCounterData::nsCSSCounterData(const nsCSSCounterData& aCopy)
+  : mCounter(aCopy.mCounter),
+    mValue(aCopy.mValue),
     mNext(nsnull)
 {
-  MOZ_COUNT_CTOR(nsCSSValuePairList);
-  CSS_IF_COPY(mNext, nsCSSValuePairList);
+  MOZ_COUNT_CTOR(nsCSSCounterData);
+  CSS_IF_COPY(mNext, nsCSSCounterData);
 }
 
-nsCSSValuePairList::~nsCSSValuePairList()
+nsCSSCounterData::~nsCSSCounterData(void)
 {
-  MOZ_COUNT_DTOR(nsCSSValuePairList);
+  MOZ_COUNT_DTOR(nsCSSCounterData);
   CSS_IF_DELETE(mNext);
 }
 
 /* static */ PRBool
-nsCSSValuePairList::Equal(nsCSSValuePairList* aList1,
-                          nsCSSValuePairList* aList2)
+nsCSSCounterData::Equal(nsCSSCounterData* aList1, nsCSSCounterData* aList2)
 {
   if (aList1 == aList2)
     return PR_TRUE;
 
-  nsCSSValuePairList *p1 = aList1, *p2 = aList2;
+  nsCSSCounterData *p1 = aList1, *p2 = aList2;
   for ( ; p1 && p2; p1 = p1->mNext, p2 = p2->mNext) {
-    if (p1->mXValue != p2->mXValue ||
-        p1->mYValue != p2->mYValue)
+    if (p1->mCounter != p2->mCounter ||
+        p1->mValue != p2->mValue)
+      return PR_FALSE;
+  }
+  return !p1 && !p2; // true if same length, false otherwise
+}
+
+nsCSSQuotes::nsCSSQuotes(void)
+  : mNext(nsnull)
+{
+  MOZ_COUNT_CTOR(nsCSSQuotes);
+}
+
+nsCSSQuotes::nsCSSQuotes(const nsCSSQuotes& aCopy)
+  : mOpen(aCopy.mOpen),
+    mClose(aCopy.mClose),
+    mNext(nsnull)
+{
+  MOZ_COUNT_CTOR(nsCSSQuotes);
+  CSS_IF_COPY(mNext, nsCSSQuotes);
+}
+
+nsCSSQuotes::~nsCSSQuotes(void)
+{
+  MOZ_COUNT_DTOR(nsCSSQuotes);
+  CSS_IF_DELETE(mNext);
+}
+
+/* static */ PRBool
+nsCSSQuotes::Equal(nsCSSQuotes* aList1, nsCSSQuotes* aList2)
+{
+  if (aList1 == aList2)
+    return PR_TRUE;
+
+  nsCSSQuotes *p1 = aList1, *p2 = aList2;
+  for ( ; p1 && p2; p1 = p1->mNext, p2 = p2->mNext) {
+    if (p1->mOpen != p2->mOpen ||
+        p1->mClose != p2->mClose)
       return PR_FALSE;
   }
   return !p1 && !p2; // true if same length, false otherwise

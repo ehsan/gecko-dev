@@ -110,11 +110,6 @@ private:
 
   PRBool GetLineHeightCoord(nscoord& aCoord);
 
-  nsresult GetCSSShadowArray(nsCSSShadowArray* aArray,
-                             const nscolor& aDefaultColor,
-                             PRBool aUsesSpread,
-                             nsIDOMCSSValue** aValue);
-
   /* Properties Queryable as CSSValues */
 
   nsresult GetAppearance(nsIDOMCSSValue** aValue);
@@ -138,7 +133,6 @@ private:
   nsresult GetTop(nsIDOMCSSValue** aValue);
   nsresult GetRight(nsIDOMCSSValue** aValue);
   nsresult GetBottom(nsIDOMCSSValue** aValue);
-  nsresult GetStackSizing(nsIDOMCSSValue** aValue);
 
   /* Font properties */
   nsresult GetColor(nsIDOMCSSValue** aValue);
@@ -198,10 +192,6 @@ private:
   nsresult GetBorderRadiusTopLeft(nsIDOMCSSValue** aValue);
   nsresult GetBorderRadiusTopRight(nsIDOMCSSValue** aValue);
   nsresult GetFloatEdge(nsIDOMCSSValue** aValue);
-  nsresult GetBorderImage(nsIDOMCSSValue** aValue);
-
-  /* Box Shadow */
-  nsresult GetBoxShadow(nsIDOMCSSValue** aValue);
 
   /* Margin Properties */
   nsresult GetMarginWidth(nsIDOMCSSValue** aValue);
@@ -245,11 +235,9 @@ private:
   nsresult GetTextDecoration(nsIDOMCSSValue** aValue);
   nsresult GetTextIndent(nsIDOMCSSValue** aValue);
   nsresult GetTextTransform(nsIDOMCSSValue** aValue);
-  nsresult GetTextShadow(nsIDOMCSSValue** aValue);
   nsresult GetLetterSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);
-  nsresult GetWordWrap(nsIDOMCSSValue** aValue);
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);
@@ -285,9 +273,6 @@ private:
   nsresult GetColumnCount(nsIDOMCSSValue** aValue);
   nsresult GetColumnWidth(nsIDOMCSSValue** aValue);
   nsresult GetColumnGap(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleWidth(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
-  nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
 
 #ifdef MOZ_SVG
   /* SVG properties */

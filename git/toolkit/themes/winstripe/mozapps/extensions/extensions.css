@@ -330,6 +330,37 @@ vbox[typeName="status"][type="header-recommended"] {
   background: -moz-dialog;
 }
 
+#searchbox {
+  padding: 2px;
+}
+
+.searchbox-search, .searchbox-cancel {
+  -moz-appearance: none;
+  cursor: default;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  list-style-image: url("chrome://mozapps/skin/extensions/searchIcons.png");
+  background-color: -moz-field;
+}
+
+.searchbox-search {
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+
+.searchbox-cancel {
+  -moz-image-region: rect(0px 32px 16px 16px);
+}
+
+.searchbox-search .button-box,
+.searchbox-cancel .button-box {
+  border: 0px;
+  padding: 0px;
+}
+
 #progressBox {
   padding: 5px 5px 5px 5px;
 }

@@ -78,15 +78,17 @@ endif
 # tier "gecko" - core components
 #
 
+ifdef NS_TRACE_MALLOC
+tier_gecko_dirs += tools/trace-malloc/lib
+endif
+
 tier_gecko_dirs += \
 		js/src/xpconnect \
 		intl/chardet \
 		$(NULL)
 
 ifdef MOZ_ENABLE_GTK2
-ifdef MOZ_X11
 tier_gecko_dirs     += widget/src/gtkxtbin
-endif
 endif
 
 ifdef MOZ_IPCD
@@ -116,18 +118,6 @@ endif
 
 ifdef MOZ_JSDEBUGGER
 tier_gecko_dirs += js/jsd
-endif
-
-ifdef MOZ_OGG
-tier_gecko_dirs += \
-		media/libfishsound \
-		media/libogg \
-		media/liboggplay \
-		media/liboggplay_audio \
-		media/liboggz \
-		media/libtheora \
-		media/libvorbis \
-		$(NULL)
 endif
 
 tier_gecko_dirs	+= \
@@ -270,6 +260,11 @@ endif
 
 ifdef NS_TRACE_MALLOC
 tier_toolkit_dirs += tools/trace-malloc
+endif
+
+ifdef MOZ_LDAP_XPCOM
+tier_toolkit_staticdirs += directory/c-sdk
+tier_toolkit_dirs	+= directory/xpcom
 endif
 
 ifdef MOZ_ENABLE_GNOME_COMPONENT

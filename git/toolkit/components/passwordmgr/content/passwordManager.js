@@ -54,10 +54,8 @@ function SignonsStartup() {
 
   // filter the table if requested by caller
   if (window.arguments && window.arguments[0] &&
-      window.arguments[0].filterString) {
-    document.getElementById("filter").value = window.arguments[0].filterString;
-    _filterPasswords();
-  }
+      window.arguments[0].filterString)
+    setFilter(window.arguments[0].filterString);
 
   FocusFilterBox();
 }
@@ -99,11 +97,7 @@ var signonsTreeView = {
 
 function LoadSignons() {
   // loads signons into table
-  try {
-    signons = passwordmanager.getAllLogins({});
-  } catch (e) {
-    signons = [];
-  }
+  signons = passwordmanager.getAllLogins({});
   signonsTreeView.rowCount = signons.length;
 
   // sort and display the table
@@ -210,13 +204,8 @@ function FinalizeSignonDeletions(syncNeeded) {
   }
   // If the deletion has been performed in a filtered view, reflect the deletion in the unfiltered table.
   // See bug 405389.
-  if (syncNeeded) {
-    try {
-      signons = passwordmanager.getAllLogins({});
-    } catch (e) {
-      signons = [];
-    }
-  }
+  if (syncNeeded)
+    signons = passwordmanager.getAllLogins({});
   deletedSignons.length = 0;
 }
 
@@ -240,7 +229,8 @@ function SignonColumnSort(column) {
 function SignonClearFilter() {
   var singleSelection = (signonsTreeView.selection.count == 1);
 
-  // Clear the Tree Display
+  // Clear the Filter and the Tree Display
+  document.getElementById("filter").value = "";
   signonsTreeView.rowCount = 0;
   signonsTree.treeBoxObject.rowCountChanged(0, -signonsTreeView._filterSet.length);
   signonsTreeView._filterSet = [];
@@ -263,12 +253,14 @@ function SignonClearFilter() {
   signonsTreeView._lastSelectedRanges = [];
 
   document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
+  document.getElementById("clearFilter").disabled = true;
+  FocusFilterBox();
 }
 
-function FocusFilterBox() {
-  var filterBox = document.getElementById("filter");
-  if (filterBox.getAttribute("focused") != "true")
-    filterBox.focus();
+function FocusFilterBox()
+{
+  if (document.getElementById("filter").getAttribute("focused") != "true")
+    document.getElementById("filter").focus();
 }
 
 function SignonMatchesFilter(aSignon, aFilterValue) {
@@ -331,4 +323,18 @@ function _filterPasswords()
     signonsTreeView.selection.select(0);
 
   document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielFiltered");
+  document.getElementById("clearFilter").disabled = false;
+}
+
+function HandleSignonFilterKeyPress(aEvent) {
+  if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE &&
+      document.getElementById("filter").value != "")
+    SignonClearFilter();
+}
+
+function setFilter(aFilterString) {
+  if (document.getElementById("filter").value != "")
+    SignonClearFilter();
+  document.getElementById("filter").value = aFilterString;
+  _filterPasswords();
 }

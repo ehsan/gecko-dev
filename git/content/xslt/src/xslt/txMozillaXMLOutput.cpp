@@ -86,6 +86,7 @@ txMozillaXMLOutput::txMozillaXMLOutput(const nsSubstring& aRootName,
     : mTreeDepth(0),
       mBadChildLevel(0),
       mTableState(NORMAL),
+      mHaveTitleElement(PR_FALSE),
       mHaveBaseElement(PR_FALSE),
       mCreatingNewDocument(PR_TRUE),
       mOpenedElementIsHTML(PR_FALSE),
@@ -111,6 +112,7 @@ txMozillaXMLOutput::txMozillaXMLOutput(txOutputFormat* aFormat,
     : mTreeDepth(0),
       mBadChildLevel(0),
       mTableState(NORMAL),
+      mHaveTitleElement(PR_FALSE),
       mHaveBaseElement(PR_FALSE),
       mCreatingNewDocument(PR_FALSE),
       mOpenedElementIsHTML(PR_FALSE),
@@ -257,6 +259,14 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
         }
         
         return rv;
+    }
+
+    // This should really be handled by nsIDocument::Reset
+    if (mCreatingNewDocument && !mHaveTitleElement) {
+        nsCOMPtr<nsIDOMNSDocument> domDoc = do_QueryInterface(mDocument);
+        if (domDoc) {
+            domDoc->SetTitle(EmptyString());
+        }
     }
 
     if (!mRefreshString.IsEmpty()) {
@@ -754,6 +764,7 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
 nsresult
 txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 {
+    nsresult rv;
     nsIAtom *atom = aElement->Tag();
 
     if (mTableState == ADDED_TBODY) {
@@ -769,6 +780,22 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 
         return NS_OK;
     }
+
+    // Set document title
+    else if (mCreatingNewDocument &&
+             atom == txHTMLAtoms::title && !mHaveTitleElement) {
+        // The first title wins
+        mHaveTitleElement = PR_TRUE;
+        nsCOMPtr<nsIDOMNSDocument> domDoc = do_QueryInterface(mDocument);
+
+        nsAutoString title;
+        nsContentUtils::GetNodeTextContent(aElement, PR_TRUE, title);
+
+        if (domDoc) {
+            title.CompressWhitespace();
+            domDoc->SetTitle(title);
+        }
+    }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::base &&
              !mHaveBaseElement) {
         // The first base wins
@@ -782,11 +809,10 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::href, value);
         nsCOMPtr<nsIURI> baseURI;
-        NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
+        rv = NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
+        NS_ENSURE_SUCCESS(rv, rv);
 
-        if (baseURI) {
-            doc->SetBaseURI(baseURI); // The document checks if it is legal to set this base
-        }
+        doc->SetBaseURI(baseURI); // The document checks if it is legal to set this base
     }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::meta) {
         // handle HTTP-EQUIV data
@@ -930,15 +956,12 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
                 return NS_ERROR_OUT_OF_MEMORY;
             }
 
-            // Indicate that there is no internal subset (not just an empty one)
-            nsAutoString voidString;
-            voidString.SetIsVoid(PR_TRUE);
             rv = NS_NewDOMDocumentType(getter_AddRefs(documentType),
                                        mNodeInfoManager, nsnull,
                                        doctypeName, nsnull, nsnull,
                                        mOutputFormat.mPublicId,
                                        mOutputFormat.mSystemId,
-                                       voidString);
+                                       EmptyString());
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsIContent> docType = do_QueryInterface(documentType);

@@ -47,6 +47,7 @@
 #include "nsIDownloadManagerUI.h"
 
 #define PREF_BDM_SHOWWHENSTARTING "browser.download.manager.showWhenStarting"
+#define PREF_BDM_USEWINDOW "browser.download.manager.useWindow"
 #define PREF_BDM_FOCUSWHENSTARTING "browser.download.manager.focusWhenStarting"
 
 class nsDownloadProxy : public nsITransfer
@@ -82,7 +83,11 @@ public:
     if (branch)
       branch->GetBoolPref(PREF_BDM_SHOWWHENSTARTING, &showDM);
 
-    if (showDM) {
+    PRBool useWindow = PR_TRUE;
+    if (branch)
+      branch->GetBoolPref(PREF_BDM_USEWINDOW, &useWindow);
+    
+    if (showDM && useWindow) {
       PRUint32 id;
       mInner->GetId(&id);
 

@@ -38,6 +38,8 @@
 
 #include "nsSVGTransformList.h"
 #include "nsSVGAnimatedTransformList.h"
+#include "nsIDOMSVGAnimatedEnum.h"
+#include "nsSVGAnimatedString.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsSVGAnimatedRect.h"
@@ -68,11 +70,6 @@ nsSVGElement::EnumInfo nsSVGPatternElement::sEnumInfo[2] =
     sSVGUnitTypesMap,
     nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE
   }
-};
-
-nsSVGElement::StringInfo nsSVGPatternElement::sStringInfo[1] =
-{
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Pattern)
@@ -121,6 +118,16 @@ nsSVGPatternElement::Init()
                                         transformList);
     NS_ENSURE_SUCCESS(rv,rv);
     rv = AddMappedSVGValue(nsGkAtoms::patternTransform, mPatternTransform);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // nsIDOMSVGURIReference properties
+
+  // DOM property: href , #IMPLIED attrib: xlink:href
+  {
+    rv = NS_NewSVGAnimatedString(getter_AddRefs(mHref));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::href, mHref, kNameSpaceID_XLink);
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
@@ -235,7 +242,9 @@ NS_IMETHODIMP nsSVGPatternElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
 NS_IMETHODIMP
 nsSVGPatternElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
+  *aHref = mHref;
+  NS_IF_ADDREF(*aHref);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -274,13 +283,6 @@ nsSVGPatternElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-nsSVGElement::StringAttributesInfo
-nsSVGPatternElement::GetStringInfo()
-{
-  return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------

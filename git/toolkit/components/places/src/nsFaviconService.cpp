@@ -62,8 +62,6 @@
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "mozStorageHelper.h"
-#include "plbase64.h"
-#include "nsPlacesTables.h"
 
 // For favicon optimization
 #include "imgITools.h"
@@ -195,7 +193,12 @@ nsFaviconService::InitTables(mozIStorageConnection* aDBConn)
   PRBool exists = PR_FALSE;
   aDBConn->TableExists(NS_LITERAL_CSTRING("moz_favicons"), &exists);
   if (! exists) {
-    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_FAVICONS);
+    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+      "CREATE TABLE moz_favicons (id INTEGER PRIMARY KEY, "
+                                  "url LONGVARCHAR UNIQUE, "
+                                  "data BLOB, "
+                                  "mime_type VARCHAR(32), "
+                                  "expiration LONG)"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -299,18 +302,8 @@ nsFaviconService::SetFaviconUrlForPageInternal(nsIURI* aPageURI,
     rv = mDBInsertIcon->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    {
-      mozStorageStatementScoper scoper(mDBGetIconInfo);
-
-      rv = BindStatementURI(mDBGetIconInfo, 0, aFaviconURI);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      PRBool hasResult;
-      rv = mDBGetIconInfo->ExecuteStep(&hasResult);
-      NS_ENSURE_SUCCESS(rv, rv);
-      NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
-      iconId = mDBGetIconInfo->AsInt64(0);
-    }
+    rv = mDBConn->GetLastInsertRowID(&iconId);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // now link our icon entry with the page
@@ -643,66 +636,6 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
 }
 
 
-// nsFaviconService::SetFaviconDataFromDataURL
-
-NS_IMETHODIMP
-nsFaviconService::SetFaviconDataFromDataURL(nsIURI* aFaviconURI,
-                                            const nsAString& aDataURL,
-                                            PRTime aExpiration)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIURI> dataURI;
-  rv = NS_NewURI(getter_AddRefs(dataURI), aDataURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // use the data: protocol handler to convert the data
-  nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIProtocolHandler> protocolHandler;
-  rv = ioService->GetProtocolHandler("data", getter_AddRefs(protocolHandler));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIChannel> channel;
-  rv = protocolHandler->NewChannel(dataURI, getter_AddRefs(channel));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // blocking stream is OK for data URIs
-  nsCOMPtr<nsIInputStream> stream;
-  rv = channel->Open(getter_AddRefs(stream));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 available;
-  rv = stream->Available(&available);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (available == 0)
-    return NS_ERROR_FAILURE;
-
-  // read all the decoded data
-  PRUint8* buffer = static_cast<PRUint8*>
-                               (nsMemory::Alloc(sizeof(PRUint8) * available));
-  if (!buffer)
-    return NS_ERROR_OUT_OF_MEMORY;
-  PRUint32 numRead;
-  rv = stream->Read(reinterpret_cast<char*>(buffer), available, &numRead);
-  if (NS_FAILED(rv) || numRead != available) {
-    nsMemory::Free(buffer);
-    return rv;
-  }
-
-  nsCAutoString mimeType;
-  rv = channel->GetContentType(mimeType);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // SetFaviconData can now do the dirty work 
-  rv = SetFaviconData(aFaviconURI, buffer, available, mimeType, aExpiration);
-  nsMemory::Free(buffer);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-
 // nsFaviconService::GetFaviconData
 
 NS_IMETHODIMP
@@ -721,43 +654,6 @@ nsFaviconService::GetFaviconData(nsIURI* aFaviconURI, nsACString& aMimeType,
     return mDBGetData->GetBlob(0, aDataLen, aData);
   }
   return NS_ERROR_NOT_AVAILABLE;
-}
-
-
-// nsFaviconService::GetFaviconDataAsDataURL
-
-NS_IMETHODIMP
-nsFaviconService::GetFaviconDataAsDataURL(nsIURI* aFaviconURI,
-                                          nsAString& aDataURL)
-{
-  nsresult rv;
-
-  PRUint8* data;
-  PRUint32 dataLen;
-  nsCAutoString mimeType;
-
-  rv = GetFaviconData(aFaviconURI, mimeType, &dataLen, &data);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!data) {
-    aDataURL.SetIsVoid(PR_TRUE);
-    return NS_OK;
-  }
-
-  char* encoded = PL_Base64Encode(reinterpret_cast<const char*>(data),
-                                  dataLen, nsnull);
-  nsMemory::Free(data);
-
-  if (!encoded)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  aDataURL.AssignLiteral("data:");
-  AppendUTF8toUTF16(mimeType, aDataURL);
-  aDataURL.AppendLiteral(";base64,");
-  AppendUTF8toUTF16(encoded, aDataURL);
-
-  nsMemory::Free(encoded);
-  return NS_OK;
 }
 
 

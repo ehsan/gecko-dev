@@ -14,6 +14,7 @@ function boom()
 </script>
 </head>
 <body onload="boom();">
-<xul:box class="base" id="x" style="height:2em;">Hello</xul:box>Kitty
+<xul:box class="base" id="x" style="height:2em;">Hello</xul:box>
+Kitty
 </body>
 </html> 

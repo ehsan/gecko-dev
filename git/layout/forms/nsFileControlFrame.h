@@ -126,6 +126,8 @@ protected:
     nsFileControlFrame* mFrame;
   };
   
+  nsresult MouseClick(nsIDOMEvent* aMouseEvent);
+
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsAreaFrame::IsFrameOfType(aFlags &

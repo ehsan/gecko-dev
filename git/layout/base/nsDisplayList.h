@@ -50,9 +50,9 @@
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsISelection.h"
-#include "nsCaret.h"
 #include "plarena.h"
 #include "nsLayoutUtils.h"
+#include "nsICaret.h"
 #include "nsTArray.h"
 
 #include <stdlib.h>
@@ -117,7 +117,7 @@ class nsDisplayTableItem;
  * available from the prescontext/presshell, but we copy them into the builder
  * for faster/more convenient access.
  */
-class NS_STACK_CLASS nsDisplayListBuilder {
+class nsDisplayListBuilder {
 public:
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
@@ -146,11 +146,6 @@ public:
    * should paint only the background of the document.
    */
   PRBool IsBackgroundOnly() { return mIsBackgroundOnly; }
-  /**
-   * Set to PR_TRUE if painting should be suppressed during page load.
-   * Set to PR_FALSE if painting should not be suppressed.
-   */
-  void SetBackgroundOnly(PRBool aIsBackgroundOnly) { mIsBackgroundOnly = aIsBackgroundOnly; }
   /**
    * @return PR_TRUE if the currently active BuildDisplayList call is being
    * applied to a frame at the root of a pseudo stacking context. A pseudo
@@ -253,7 +248,7 @@ public:
   /**
    * Get the caret associated with the current presshell.
    */
-  nsCaret* GetCaret();
+  nsICaret* GetCaret();
   /**
    * Notify the display list builder that we're entering a presshell.
    * aReferenceFrame should be a frame in the new presshell and aDirtyRect
@@ -960,7 +955,7 @@ protected:
 MOZ_DECL_CTOR_COUNTER(nsDisplayCaret)
 class nsDisplayCaret : public nsDisplayItem {
 public:
-  nsDisplayCaret(nsIFrame* aCaretFrame, nsCaret *aCaret)
+  nsDisplayCaret(nsIFrame* aCaretFrame, nsICaret *aCaret)
     : nsDisplayItem(aCaretFrame), mCaret(aCaret) {
     MOZ_COUNT_CTOR(nsDisplayCaret);
   }
@@ -978,7 +973,7 @@ public:
       const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("Caret")
 protected:
-  nsRefPtr<nsCaret> mCaret;
+  nsCOMPtr<nsICaret> mCaret;
 };
 
 /**
@@ -1028,26 +1023,6 @@ public:
 private:
     /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
     PRPackedBool mIsThemed;
-};
-
-/**
- * The standard display item to paint the CSS box-shadow of a frame.
- */
-class nsDisplayBoxShadow : public nsDisplayItem {
-public:
-  nsDisplayBoxShadow(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayBoxShadow);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayBoxShadow() {
-    MOZ_COUNT_DTOR(nsDisplayBoxShadow);
-  }
-#endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("BoxShadow")
 };
 
 /**

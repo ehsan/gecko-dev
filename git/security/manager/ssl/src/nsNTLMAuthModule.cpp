@@ -821,10 +821,8 @@ nsNTLMAuthModule::GetNextToken(const void *inToken,
     rv = GenerateType1Msg(outToken, outTokenLen);
   }
 
-#ifdef PR_LOGGING
   if (NS_SUCCEEDED(rv))
     LogToken("out-token", *outToken, *outTokenLen);
-#endif
 
   return rv;
 }

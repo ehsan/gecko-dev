@@ -69,10 +69,7 @@ CPPSRCS		= \
 		nsSVGAFrame.cpp \
 		nsSVGClipPathFrame.cpp \
 		nsSVGContainerFrame.cpp \
-		nsSVGEffects.cpp \
 		nsSVGFilterFrame.cpp \
-		nsSVGFilterInstance.cpp \
-		nsSVGForeignObjectFrame.cpp \
 		nsSVGGFrame.cpp \
 		nsSVGGenericContainerFrame.cpp \
 		nsSVGGeometryFrame.cpp \
@@ -88,7 +85,6 @@ CPPSRCS		= \
 		nsSVGPathGeometryFrame.cpp \
 		nsSVGPatternFrame.cpp \
 		nsSVGStopFrame.cpp \
-		nsSVGSwitchFrame.cpp \
 		nsSVGTextContainerFrame.cpp \
 		nsSVGTextFrame.cpp \
 		nsSVGTextPathFrame.cpp \
@@ -96,6 +92,10 @@ CPPSRCS		= \
 		nsSVGUseFrame.cpp \
 		nsSVGUtils.cpp \
 		$(NULL)
+
+ifdef MOZ_SVG_FOREIGNOBJECT
+CPPSRCS += nsSVGForeignObjectFrame.cpp
+endif
 
 include $(topsrcdir)/config/config.mk
 
@@ -105,7 +105,7 @@ FORCE_STATIC_LIB = 1
 EXPORTS = \
 	nsSVGUtils.h \
 	nsSVGFilterInstance.h \
-	nsSVGForeignObjectFrame.h \
+        nsSVGForeignObjectFrame.h \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

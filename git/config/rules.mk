@@ -231,7 +231,6 @@ endif # MOZ_MAPINFO
 
 ifdef DEFFILE
 OS_LDFLAGS += -DEF:$(DEFFILE)
-EXTRA_DEPS += $(DEFFILE)
 endif
 
 ifdef MAPFILE
@@ -308,7 +307,7 @@ endif
 
 ALL_TRASH = \
 	$(GARBAGE) $(TARGETS) $(OBJS) $(PROGOBJS) LOGS TAGS a.out \
-	$(filter-out $(ASFILES),$(OBJS:.$(OBJ_SUFFIX)=.s)) $(OBJS:.$(OBJ_SUFFIX)=.ii) \
+	$(OBJS:.$(OBJ_SUFFIX)=.s) $(OBJS:.$(OBJ_SUFFIX)=.ii) \
 	$(OBJS:.$(OBJ_SUFFIX)=.i) \
 	$(HOST_PROGOBJS) $(HOST_OBJS) $(IMPORT_LIBRARY) $(DEF_FILE)\
 	$(EXE_DEF_FILE) so_locations _gen _stubs $(wildcard *.res) $(wildcard *.RES) \
@@ -320,10 +319,6 @@ ALL_TRASH = \
 	$(wildcard gts_tmp_*) $(LIBRARY:%.a=.%.timestamp)
 ALL_TRASH_DIRS = \
 	$(GARBAGE_DIRS) /no-such-file
-
-ifdef QTDIR
-GARBAGE                 += $(MOCSRCS)
-endif
 
 ifdef SIMPLE_PROGRAMS
 GARBAGE			+= $(SIMPLE_PROGRAMS:%=%.$(OBJ_SUFFIX))
@@ -628,36 +623,28 @@ alldep::
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
-ifeq ($(filter s,$(MAKEFLAGS)),)
-ECHO := echo
-QUIET :=
-else
-ECHO := true
-QUIET := -q
-endif
-
 MAKE_TIER_SUBMAKEFILES = +$(if $(tier_$*_dirs),$(MAKE) $(addsuffix /Makefile,$(tier_$*_dirs)))
 
 export_tier_%: 
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) export; ) true
 
 libs_tier_%:
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) libs; ) true
 
 tools_tier_%:
-	@$(ECHO) "$@"
+	@echo "$@"
 	@$(MAKE_TIER_SUBMAKEFILES)
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$(tier_$*_dirs),$(MAKE) -C $(dir) tools; ) true
 
 $(foreach tier,$(TIERS),tier_$(tier))::
-	@$(ECHO) "$@: $($@_staticdirs) $($@_dirs)"
+	@echo "$@: $($@_staticdirs) $($@_dirs)"
 	@$(EXIT_ON_ERROR) \
 	$(foreach dir,$($@_staticdirs),$(MAKE) -C $(dir); ) true
 	$(MAKE) export_$@
@@ -1239,12 +1226,6 @@ endif # COMPILER_DEPEND
 
 endif # MOZ_AUTO_DEPS
 
-ifdef MOZ_MEMORY
-ifeq ($(OS_ARCH),SunOS)
-SOLARIS_JEMALLOC_LDFLAGS = $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib)
-endif
-endif
-
 # Rules for building native targets must come first because of the host_ prefix
 host_%.$(OBJ_SUFFIX): %.c Makefile Makefile.in
 	$(REPORT_BUILD)
@@ -1473,7 +1454,7 @@ endif
 
 ifneq ($(EXPORTS)$(XPIDLSRCS)$(SDK_HEADERS)$(SDK_XPIDLSRCS),)
 $(SDK_PUBLIC) $(PUBLIC)::
-	@if test ! -d $@; then $(ECHO) Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
+	@if test ! -d $@; then echo Creating $@; rm -rf $@; $(NSINSTALL) -D $@; else true; fi
 endif
 
 ifdef MOZ_JAVAXPCOM
@@ -1800,7 +1781,7 @@ ifndef NO_DIST_INSTALL
 	  $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
 	    $(JAR_MANIFEST) | \
 	  $(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/make-jars.pl \
-	    $(QUIET) -d $(MAKE_JARS_TARGET)/chrome -j $(FINAL_TARGET)/chrome \
+	    -d $(MAKE_JARS_TARGET)/chrome -j $(FINAL_TARGET)/chrome \
 	    $(MAKE_JARS_FLAGS) -- "$(XULPPFLAGS) $(DEFINES) $(ACDEFINES)"; \
 	fi
 endif
@@ -2064,7 +2045,6 @@ endif
 endif
 #############################################################################
 
--include $(topsrcdir)/$(MOZ_BUILD_APP)/app-rules.mk
 -include $(MY_RULES)
 
 #

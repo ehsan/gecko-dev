@@ -51,7 +51,7 @@
 #include "nsITransferable.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
-#include "IEnumFE.h"
+#include "IENUMFE.H"
 #include "nsCOMPtr.h"
 #include "nsIComponentManager.h"
 #include "nsPrimitiveHelpers.h"
@@ -190,16 +190,10 @@ STDMETHODIMP nsDataObj::CStream::Read(void* pvBuffer,
   NS_ENSURE_TRUE(mInputStream, E_FAIL);
 
   nsresult rv;
-  PRUint32 read;
-  *nBytesRead = 0;
-
-  do {
-    read = 0;
-    rv = mInputStream->Read((char*)pvBuffer + *nBytesRead, nBytesToRead - *nBytesRead, &read);
-    NS_ENSURE_SUCCESS(rv, S_FALSE);
-
-    *nBytesRead += read;
-  } while ((*nBytesRead < nBytesToRead) && read);
+  PRUint32 read = 0;
+  rv = mInputStream->Read((char*)pvBuffer, nBytesToRead, &read);
+  *nBytesRead = read;
+  NS_ENSURE_SUCCESS(rv, S_FALSE);
 
   return S_OK;
 }

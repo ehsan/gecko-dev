@@ -118,7 +118,6 @@ CSRCS   = \
         cairo-surface-fallback.c \
         cairo-traps.c \
         cairo-unicode.c \
-	cairo-user-font.c \
         cairo-wideint.c \
         $(NULL)
 
@@ -129,7 +128,6 @@ EXPORTS = cairo.h cairo-features.h cairo-platform.h cairo-deprecated.h cairo-ren
 PSPDF_BASE_CSRCS = \
 	cairo-base85-stream.c \
 	cairo-type1-fallback.c \
-	cairo-type3-glyph-surface.c \
 	cairo-truetype-subset.c \
 	cairo-cff-subset.c \
 	$(NULL)
@@ -178,12 +176,6 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS) $(PS_CSRCS)
 EXPORTS += $(PDF_EXPORTS) $(PS_EXPORTS)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-CPPSRCS += cairo-qpainter-surface.cpp
-EXPORTS += cairo-qpainter.h
-OS_INCLUDES += $(MOZ_QT_CFLAGS)
 endif
 
 ifdef BUILD_CAIRO_SVG

@@ -97,8 +97,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-    { 0x5f0203a8, 0xd926, 0x4adf, \
-      { 0xba, 0x96, 0xe6, 0xc3, 0xe6, 0xbb, 0x1b, 0xe5 } }
+{ 0xc81acf0b, 0x2539, 0x47ab, \
+  { 0xa6, 0x04, 0x64, 0x04, 0x07, 0x63, 0xc8, 0x3d } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -167,13 +167,14 @@ public:
   virtual void StopDocumentLoad() = 0;
 
   /**
-   * Signal that the document title may have changed
-   * (see nsDocument::GetTitle).
-   * @param aBoundTitleElement true if an HTML or SVG <title> element
-   * has just been bound to the document.
+   * Return the title of the document.  This will return a void string
+   * if there is no title for this document).
    */
-  virtual void NotifyPossibleTitleChange(PRBool aBoundTitleElement) = 0;
-  
+  const nsString& GetDocumentTitle() const
+  {
+    return mDocumentTitle;
+  }
+
   /**
    * Return the URI for the document. May return null.
    */
@@ -222,7 +223,9 @@ public:
   virtual void SetBaseTarget(const nsAString &aBaseTarget) = 0;
 
   /**
-   * Return a standard name for the document's character set.
+   * Return a standard name for the document's character set. This
+   * will trigger a startDocumentLoad if necessary to answer the
+   * question.
    */
   const nsCString& GetDocumentCharacterSet() const
   {
@@ -256,32 +259,6 @@ public:
    * Remove a charset observer.
    */
   virtual void RemoveCharSetObserver(nsIObserver* aObserver) = 0;
-
-  /**
-   * This gets fired when the element that an id refers to changes.
-   * This fires at difficult times. It is generally not safe to do anything
-   * which could modify the DOM in any way. Use
-   * nsContentUtils::AddScriptRunner.
-   * @return PR_TRUE to keep the callback in the callback set, PR_FALSE
-   * to remove it.
-   */
-  typedef PRBool (* IDTargetObserver)(nsIContent* aOldContent,
-                                      nsIContent* aNewContent, void* aData);
-
-  /**
-   * Add an IDTargetObserver for a specific ID. The IDTargetObserver
-   * will be fired whenever the content associated with the ID changes
-   * in the future. At most one (aObserver, aData) pair can be registered
-   * for each ID.
-   * @return the content currently associated with the ID.
-   */
-  virtual nsIContent* AddIDTargetObserver(nsIAtom* aID,
-                                          IDTargetObserver aObserver, void* aData) = 0;
-  /**
-   * Remove the (aObserver, aData) pair for a specific ID, if registered.
-   */
-  virtual void RemoveIDTargetObserver(nsIAtom* aID,
-                                      IDTargetObserver aObserver, void* aData) = 0;
 
   /**
    * Get the Content-Type of this document.
@@ -321,9 +298,9 @@ public:
    * it affects a frame model irreversibly, and plays even though
    * the document no longer contains bidi data.
    */
-  void SetBidiEnabled()
+  void SetBidiEnabled(PRBool aBidiEnabled)
   {
-    mBidiEnabled = PR_TRUE;
+    mBidiEnabled = aBidiEnabled;
   }
   
   /**
@@ -1010,6 +987,7 @@ protected:
   friend class mozAutoSubtreeModified;
   friend class nsPresShellIterator;
 
+  nsString mDocumentTitle;
   nsCOMPtr<nsIURI> mDocumentURI;
   nsCOMPtr<nsIURI> mDocumentBaseURI;
 
@@ -1098,7 +1076,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
  * event is dispatched, if necessary, when the outermost mozAutoSubtreeModified
  * object is deleted.
  */
-class NS_STACK_CLASS mozAutoSubtreeModified
+class mozAutoSubtreeModified
 {
 public:
   /**

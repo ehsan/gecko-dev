@@ -192,6 +192,7 @@
 
 #include "nsPluginError.h"
 
+static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
@@ -1189,10 +1190,12 @@ nsDocShell::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
     // Weak reference. Don't addref.
     mChromeEventHandler = piTarget;
 
-    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mScriptGlobal));
-    if (win) {
-        win->SetChromeEventHandler(piTarget);
-    }
+    NS_ASSERTION(!mScriptGlobal,
+                 "SetChromeEventHandler() called after the script global "
+                 "object was created! This means that the script global "
+                 "object in this docshell won't get the right chrome event "
+                 "handler. You really don't want to see this assert, FIX "
+                 "YOUR CODE!");
 
     return NS_OK;
 }
@@ -5896,9 +5899,13 @@ nsDocShell::RestoreFromHistory()
     rv = privWin->RestoreWindowState(windowState);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Now, dispatch a title change event which would happen as the
+    // Now, dispatch a title change event which would happed as the
     // <head> is parsed.
-    document->NotifyPossibleTitleChange(PR_FALSE);
+    nsCOMPtr<nsIDOMNSDocument> nsDoc = do_QueryInterface(document);
+    if (nsDoc) {
+        const nsAFlatString &title = document->GetDocumentTitle();
+        nsDoc->SetTitle(title);
+    }
 
     // Now we simulate appending child docshells for subframes.
     for (i = 0; i < childShells.Count(); ++i) {
@@ -6388,9 +6395,16 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     nsCOMPtr<nsIWidget> widget;
     NS_ENSURE_SUCCESS(GetMainWidget(getter_AddRefs(widget)), NS_ERROR_FAILURE);
 
+    nsCOMPtr<nsIDeviceContext> deviceContext;
+    if (widget) {
+        deviceContext = do_CreateInstance(kDeviceContextCID);
+        NS_ENSURE_TRUE(deviceContext, NS_ERROR_FAILURE);
+        deviceContext->Init(widget->GetNativeData(NS_NATIVE_WIDGET));
+    }
+
     nsRect bounds(x, y, cx, cy);
 
-    if (NS_FAILED(mContentViewer->Init(widget, bounds))) {
+    if (NS_FAILED(mContentViewer->Init(widget, deviceContext, bounds))) {
         mContentViewer = nsnull;
         NS_ERROR("ContentViewer Initialization failed");
         return NS_ERROR_FAILURE;
@@ -6702,21 +6716,21 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     nsCOMPtr<nsISupports> owner(aOwner);
     //
     // Get an owner from the current document if necessary.  Note that we only
-    // do this for URIs that inherit a security context and local file URIs;
-    // in particular we do NOT do this for about:blank.  This way, random
-    // about:blank loads that have no owner (which basically means they were
-    // done by someone from chrome manually messing with our nsIWebNavigation
-    // or by C++ setting document.location) don't get a funky principal.  If
-    // callers want something interesting to happen with the about:blank
-    // principal in this case, they should pass an owner in.
+    // do this for URIs that inherit a security context; in particular we do
+    // NOT do this for about:blank.  This way, random about:blank loads that
+    // have no owner (which basically means they were done by someone from
+    // chrome manually messing with our nsIWebNavigation or by C++ setting
+    // document.location) don't get a funky principal.  If callers want
+    // something interesting to happen with the about:blank principal in this
+    // case, they should pass an owner in.
     //
     {
         PRBool inherits;
         // One more twist: Don't inherit the owner for external loads.
         if (aLoadType != LOAD_NORMAL_EXTERNAL && !owner &&
             (aFlags & INTERNAL_LOAD_FLAGS_INHERIT_OWNER) &&
-            ((NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
-              inherits) || URIIsLocalFile(aURI))) {
+            NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
+            inherits) {
 
             // Don't allow loads that would inherit our security context
             // if this document came from an unsafe channel.
@@ -8426,7 +8440,7 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 }
 
 // callback data for WalkHistoryEntries
-struct NS_STACK_CLASS CloneAndReplaceData
+struct CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
                         nsISHEntry *aDestTreeParent)

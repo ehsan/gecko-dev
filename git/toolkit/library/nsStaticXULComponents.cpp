@@ -93,8 +93,6 @@
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
 #elif defined(MOZ_WIDGET_PHOTON)
 #  define WIDGET_MODULES MODULE(nsWidgetPhModule)
-#elif defined(MOZ_WIDGET_QT)
-#  define WIDGET_MODULES MODULE(nsWidgetQtModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -135,13 +133,11 @@
 #define XREMOTE_MODULES
 #endif
 
-#ifdef MOZ_PREF_EXTENSIONS
 #ifdef MOZ_ENABLE_GTK2
-#define SYSTEMPREF_MODULES \
-    MODULE(nsSystemPrefModule) \
-    MODULE(nsAutoConfigModule)
+#ifdef MOZ_PREF_EXTENSIONS
+#define SYSTEMPREF_MODULES MODULE(nsSystemPrefModule)
 #else
-#define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
+#define SYSTEMPREF_MODULES
 #endif
 #else
 #define SYSTEMPREF_MODULES
@@ -253,18 +249,9 @@
 #ifdef MOZ_ENABLE_GTK2
 #define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
 #endif
-#if defined(MOZ_WIDGET_QT)
-#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
-#endif
 #endif
 #ifndef UNIXPROXY_MODULE
 #define UNIXPROXY_MODULE
-#endif
-
-#if defined(XP_MACOSX)
-#define OSXPROXY_MODULE MODULE(nsOSXProxyModule)
-#else
-#define OSXPROXY_MODULE
 #endif
 
 #define XUL_MODULES                          \
@@ -314,12 +301,12 @@
     JSDEBUGGER_MODULES                       \
     MODULE(BOOT)                             \
     MODULE(NSS)                              \
+    MODULE(nsAutoConfigModule)               \
     SYSTEMPREF_MODULES                       \
     SPELLCHECK_MODULE                        \
     XMLEXTRAS_MODULE                         \
     LAYOUT_DEBUG_MODULE                      \
     UNIXPROXY_MODULE                         \
-    OSXPROXY_MODULE                          \
     /* end of list */
 
 #define MODULE(_name) \

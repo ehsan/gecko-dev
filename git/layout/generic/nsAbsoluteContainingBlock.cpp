@@ -181,7 +181,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
         // See bug 154892. Not sure how to do it "right" yet; probably want
         // to keep continuations within an nsAbsoluteContainingBlock eventually.
         tracker.Insert(nextFrame, kidStatus);
-        NS_MergeReflowStatusInto(&reflowStatus, kidStatus);
+        reflowStatus = NS_FRAME_MERGE_INCOMPLETE(reflowStatus, kidStatus);
       }
       else {
         // Delete any continuations
@@ -205,29 +205,31 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
   if (NS_FRAME_IS_NOT_COMPLETE(reflowStatus))
     NS_FRAME_SET_OVERFLOW_INCOMPLETE(reflowStatus);
 
-  NS_MergeReflowStatusInto(&aReflowStatus, reflowStatus);
+  aReflowStatus = NS_FRAME_MERGE_INCOMPLETE(reflowStatus, aReflowStatus);
   return NS_OK;
 }
 
 static inline PRBool IsFixedPaddingSize(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
+  return aUnit == eStyleUnit_Coord || aUnit == eStyleUnit_Chars;
 }
 static inline PRBool IsFixedMarginSize(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
+  return aUnit == eStyleUnit_Coord || aUnit == eStyleUnit_Chars;
 }
 static inline PRBool IsFixedMaxSize(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_None || aUnit == eStyleUnit_Coord;
+  return aUnit == eStyleUnit_None || aUnit == eStyleUnit_Coord ||
+         aUnit == eStyleUnit_Chars;
 }
 static inline PRBool IsFixedOffset(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
+  return aUnit == eStyleUnit_Coord || aUnit == eStyleUnit_Chars;
 }
 static inline PRBool IsFixedHeight(nsStyleUnit aUnit) {
-  return aUnit == eStyleUnit_Coord;
+  return aUnit == eStyleUnit_Coord || aUnit == eStyleUnit_Chars;
 }
 
 static inline PRBool IsFixedWidth(const nsStyleCoord& aCoord)
 {
   return aCoord.GetUnit() == eStyleUnit_Coord ||
+         aCoord.GetUnit() == eStyleUnit_Chars ||
          (aCoord.GetUnit() == eStyleUnit_Enumerated &&
           (aCoord.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
            aCoord.GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT));
@@ -395,7 +397,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
 
   nsresult  rv;
   // Get the border values
-  const nsMargin& border = aReflowState.mStyleBorder->GetActualBorder();
+  const nsMargin& border = aReflowState.mStyleBorder->GetBorder();
 
   nscoord availWidth = aContainingBlockWidth;
   if (availWidth == -1) {
@@ -424,10 +426,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
        // anything totally below the fold, but we can't position frames
        // across next-in-flow breaks yet.
   if (constrainHeight) {
-    kidReflowState.availableHeight = aReflowState.availableHeight - border.top
-                                     - kidReflowState.mComputedMargin.top;
-    if (NS_AUTOOFFSET != kidReflowState.mComputedOffsets.top)
-      kidReflowState.availableHeight -= kidReflowState.mComputedOffsets.top;
+    kidReflowState.availableHeight = aReflowState.availableHeight - aKidFrame->GetRect().y;
   }
 
   // Do the reflow

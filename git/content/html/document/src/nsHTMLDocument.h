@@ -74,6 +74,7 @@ class nsHTMLDocument : public nsDocument,
 {
 public:
   nsHTMLDocument();
+  virtual ~nsHTMLDocument();
   virtual nsresult Init();
 
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
@@ -122,7 +123,17 @@ public:
  
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
+  virtual void AttributeWillChange(nsIContent* aChild,
+                                   PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute);
+
   virtual PRBool IsCaseSensitive();
+
+  // nsIMutationObserver
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   // nsIDOMDocument interface
   NS_DECL_NSIDOMDOCUMENT
@@ -167,8 +178,8 @@ public:
   NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
-                               nsIDOMHTMLFormElement *aForm,
-                               nsISupports **aResult);
+                         nsIDOMHTMLFormElement *aForm,
+                         nsISupports **aResult);
 
   virtual void ScriptLoading(nsIScriptElement *aScript);
   virtual void ScriptExecuted(nsIScriptElement *aScript);
@@ -180,7 +191,7 @@ public:
 
   PRBool IsXHTML()
   {
-    return !mIsRegularHTML;
+    return mDefaultNamespaceID == kNameSpaceID_XHTML;
   }
 
 #ifdef DEBUG
@@ -216,7 +227,15 @@ protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
 
-  nsresult PrePopulateIdentifierMap();
+  nsresult RegisterNamedItems(nsIContent *aContent);
+  nsresult UnregisterNamedItems(nsIContent *aContent);
+  nsresult UpdateNameTableEntry(nsIAtom* aName, nsIContent *aContent);
+  nsresult UpdateIdTableEntry(nsIAtom* aId, nsIContent *aContent);
+  nsresult RemoveFromNameTable(nsIAtom* aName, nsIContent *aContent);
+  nsresult RemoveFromIdTable(nsIContent *aContent);
+
+  void InvalidateHashTables();
+  nsresult PrePopulateHashTables();
 
   nsIContent *MatchId(nsIContent *aContent, const nsAString& aId);
 
@@ -228,6 +247,8 @@ protected:
                                    nsIAtom* aAtom, void* aData);
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
+
+  nsIContent* GetBodyContent();
 
   void GetDomainURI(nsIURI **uri);
 
@@ -241,9 +262,9 @@ protected:
 
   void *GenerateParserKey(void);
 
-  virtual PRInt32 GetDefaultNamespaceID() const
+  PRInt32 GetDefaultNamespaceID() const
   {
-    return mIsRegularHTML ? kNameSpaceID_None : kNameSpaceID_XHTML;
+    return mDefaultNamespaceID;
   }
 
   nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
@@ -321,6 +342,29 @@ protected:
 
   PRPackedBool mTooDeepWriteRecursion;
 
+  PRBool IdTableIsLive() const {
+    // live if we've had over 63 misses
+    return (mIdMissCount & 0x40) != 0;
+  }
+
+  PRBool IdTableShouldBecomeLive() {
+    NS_ASSERTION(!IdTableIsLive(),
+                 "Shouldn't be called if table is already live!");
+    ++mIdMissCount;
+    return IdTableIsLive();
+  }
+
+  PRUint8 mIdMissCount;
+
+  /* mIdAndNameHashTable works as follows for IDs:
+   * 1) Attribute changes affect the table immediately (removing and adding
+   *    entries as needed).
+   * 2) Removals from the DOM affect the table immediately
+   * 3) Additions to the DOM always update existing entries, but only add new
+   *    ones if IdTableIsLive() is true.
+   */
+  PLDHashTable mIdAndNameHashTable;
+
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
   /* Midas implementation */
@@ -337,6 +381,12 @@ protected:
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
   static jsval       sCutCopyInternal_id;
   static jsval       sPasteInternal_id;
+
+  // kNameSpaceID_None for good ol' HTML documents, and
+  // kNameSpaceID_XHTML for spiffy new XHTML documents.
+  // XXXbz should this be reset if someone manually calls
+  // SetContentType() on this document?
+  PRInt32 mDefaultNamespaceID;
 
   // Parser used for constructing document fragments.
   nsCOMPtr<nsIParser> mFragmentParser;

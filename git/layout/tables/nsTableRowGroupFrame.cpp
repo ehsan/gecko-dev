@@ -287,7 +287,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleInSelection(aBuilder))
     return NS_OK;
 
-  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext() || IsScrolled();
+  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
@@ -1392,7 +1392,7 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aDesiredSize);
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
   
   FinishAndStoreOverflow(&aDesiredSize);
@@ -1413,9 +1413,6 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
     }
   }
@@ -1459,9 +1456,6 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
-      NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     rowFrame->GetStyleDisplay()->mDisplay,
-                   "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
       if (!gotFirstRow) {
         ((nsTableRowFrame*)rowFrame)->SetFirstInserted(PR_TRUE);
@@ -1591,6 +1585,20 @@ nsIFrame*
 NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableRowGroupFrame(aContext);
+}
+
+NS_IMETHODIMP
+nsTableRowGroupFrame::Init(nsIContent*      aContent,
+                           nsIFrame*        aParent,
+                           nsIFrame*        aPrevInFlow)
+{
+  // Let the base class do its processing
+  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
 }
 
 #ifdef DEBUG

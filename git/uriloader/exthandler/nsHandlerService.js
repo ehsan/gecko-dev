@@ -772,19 +772,11 @@ HandlerService.prototype = {
       this._setLiteral(aHandlerAppID, NC_PATH, aHandlerApp.executable.path);
       this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
     }
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       this._setLiteral(aHandlerAppID, NC_URI_TEMPLATE, aHandlerApp.uriTemplate);
       this._removeTarget(aHandlerAppID, NC_PATH);
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      
-    }
-    else {
-	throw "unknown handler type";
-    }
-	
   },
 
   _storeAlwaysAsk: function HS__storeAlwaysAsk(aHandlerInfo) {
@@ -970,17 +962,11 @@ HandlerService.prototype = {
 
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp)
       handlerAppID += "local:" + aHandlerApp.executable.path;
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       handlerAppID += "web:" + aHandlerApp.uriTemplate;
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      handlerAppID += "dbus:" + aHandlerApp.service + " " + aHandlerApp.method + " " + aHandlerApp.uriTemplate;
-    }else{
-	throw "unknown handler type";
-    }
-    
+
     return handlerAppID;
   },
 

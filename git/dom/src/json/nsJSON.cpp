@@ -87,19 +87,22 @@ nsJSON::Encode(nsAString &aJSON)
   // This function should only be called from JS.
   nsresult rv;
 
-  nsJSONWriter writer;
-  rv = EncodeInternal(&writer);
+  nsAutoPtr<nsJSONWriter> writer(new nsJSONWriter());
+  if (!writer)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  rv = EncodeInternal(writer);
 
   // FIXME: bug 408838. Get exception types sorted out
   if (NS_SUCCEEDED(rv) || rv == NS_ERROR_INVALID_ARG) {
     rv = NS_OK;
     // if we didn't consume anything, it's not JSON, so return null
-    if (!writer.DidWrite()) {
+    if (!writer->DidWrite()) {
       aJSON.Truncate();
       aJSON.SetIsVoid(PR_TRUE);
     } else {
-      writer.FlushBuffer();
-      aJSON.Append(writer.mOutputString);
+      writer->FlushBuffer();
+      aJSON.Append(writer->mOutputString);
     }
   }
 
@@ -169,11 +172,13 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsJSONWriter writer(bufferedStream);
-  rv = writer.SetCharset(aCharset);
+  nsAutoPtr<nsJSONWriter> writer(new nsJSONWriter(bufferedStream));
+  if (!writer)
+    return NS_ERROR_OUT_OF_MEMORY;
+  rv = writer->SetCharset(aCharset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EncodeInternal(&writer);
+  rv = EncodeInternal(writer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bufferedStream->Flush();
@@ -264,21 +269,12 @@ nsJSON::EncodeObject(JSContext *cx, jsval *vp, nsJSONWriter *writer,
   NS_ENSURE_SUCCESS(rv, rv);
 
   JSBool ok = JS_TRUE;
-  JSObject *iterObj = nsnull;
-  jsint i = 0;
-  jsuint length = 0;
 
-  if (isArray) {
-    ok = JS_GetArrayLength(cx, obj, &length);
-    if (!ok)
-      return NS_ERROR_FAILURE;
-  } else {
-    ok = js_ValueToIterator(cx, JSITER_ENUMERATE, vp);
-    if (!ok)
-      return NS_ERROR_FAILURE;
+  ok = js_ValueToIterator(cx, JSITER_ENUMERATE, vp);
+  if (!ok)
+    return NS_ERROR_FAILURE;
 
-    iterObj = JSVAL_TO_OBJECT(*vp);
-  }
+  JSObject *iterObj = JSVAL_TO_OBJECT(*vp);
 
   jsval outputValue = JSVAL_VOID;
   JSAutoTempValueRooter tvr(cx, 1, &outputValue);
@@ -287,34 +283,27 @@ nsJSON::EncodeObject(JSContext *cx, jsval *vp, nsJSONWriter *writer,
   PRBool memberWritten = PR_FALSE;
   do {
     outputValue = JSVAL_VOID;
+    ok = js_CallIteratorNext(cx, iterObj, &key);
 
-    if (isArray) {
-      if ((jsuint)i >= length)
-        break;
+    if (!ok)
+      break;
 
-      ok = JS_GetElement(cx, obj, i++, &outputValue);
+    if (key == JSVAL_HOLE)
+      break;
+
+    JSString *ks;
+    if (JSVAL_IS_STRING(key)) {
+      ks = JSVAL_TO_STRING(key);
     } else {
-      ok = js_CallIteratorNext(cx, iterObj, &key);
-      if (!ok)
+      ks = JS_ValueToString(cx, key);
+      if (!ks) {
+        ok = JS_FALSE;
         break;
-      if (key == JSVAL_HOLE)
-        break;
-
-      JSString *ks;
-      if (JSVAL_IS_STRING(key)) {
-        ks = JSVAL_TO_STRING(key);
-      } else {
-        ks = JS_ValueToString(cx, key);
-        if (!ks) {
-          ok = JS_FALSE;
-          break;
-        }
       }
-
-      ok = JS_GetUCProperty(cx, obj, JS_GetStringChars(ks),
-                            JS_GetStringLength(ks), &outputValue);
     }
 
+    ok = JS_GetUCProperty(cx, obj, JS_GetStringChars(ks),
+                          JS_GetStringLength(ks), &outputValue);
     if (!ok)
       break;
 
@@ -409,13 +398,11 @@ nsJSON::EncodeObject(JSContext *cx, jsval *vp, nsJSONWriter *writer,
 
   } while (NS_SUCCEEDED(rv));
 
-  if (iterObj) {
-    // Always close the iterator, but make sure not to stomp on OK
-    ok &= js_CloseIterator(cx, *vp);
-    if (!ok)
-      rv = NS_ERROR_FAILURE; // encoding error or propagate? FIXME: Bug 408838.
-  }
+  // Always close the iterator, but make sure not to stomp on OK
+  ok &= js_CloseIterator(cx, *vp);
 
+  if (!ok)
+    rv = NS_ERROR_FAILURE; // encoding error or propagate? FIXME: Bug 408838.
   NS_ENSURE_SUCCESS(rv, rv);
 
   output = PRUnichar(isArray ? ']' : '}');

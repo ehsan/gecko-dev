@@ -48,8 +48,6 @@
 #include "nsAutoPtr.h"
 #include "nsIFile.h"
 #include "nsIVariant.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 
 #include "mozIStorageAggregateFunction.h"
 #include "mozIStorageFunction.h"
@@ -68,18 +66,12 @@
 PRLogModuleInfo* gStorageLog = nsnull;
 #endif
 
-#define PREF_TS_SYNCHRONOUS "toolkit.storage.synchronous"
+NS_IMPL_ISUPPORTS1(mozStorageConnection, mozIStorageConnection)
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(mozStorageConnection, mozIStorageConnection)
-
-mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
-    mDBConn(nsnull)
-,   mTransactionMutex(nsAutoLock::NewLock("TransactionMutex"))
-,   mTransactionInProgress(PR_FALSE)
-,   mFunctionsMutex(nsAutoLock::NewLock("FunctionsMutex"))
-,   mProgressHandlerMutex(nsAutoLock::NewLock("ProgressHandlerMutex"))
-,   mProgressHandler(nsnull)
-,   mStorageService(aService)
+mozStorageConnection::mozStorageConnection(mozIStorageService* aService)
+    : mDBConn(nsnull), mTransactionInProgress(PR_FALSE),
+      mProgressHandler(nsnull),
+      mStorageService(aService)
 {
     mFunctions.Init();
 }
@@ -87,16 +79,12 @@ mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
 mozStorageConnection::~mozStorageConnection()
 {
     (void)Close();
-    nsAutoLock::DestroyLock(mTransactionMutex);
-    nsAutoLock::DestroyLock(mFunctionsMutex);
-    nsAutoLock::DestroyLock(mProgressHandlerMutex);
 }
 
 #ifdef PR_LOGGING
 void tracefunc (void *closure, const char *stmt)
 {
-    PR_LOG(gStorageLog, PR_LOG_DEBUG, ("sqlite3_trace on %p for '%s'", closure,
-                                       stmt));
+    PR_LOG(gStorageLog, PR_LOG_DEBUG, ("%s", stmt));
 }
 #endif
 
@@ -108,9 +96,6 @@ NS_IMETHODIMP
 mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
 {
     NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
-    NS_ENSURE_TRUE(mTransactionMutex, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_TRUE(mFunctionsMutex, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_TRUE(mProgressHandlerMutex, NS_ERROR_OUT_OF_MEMORY);
 
     int srv;
     nsresult rv;
@@ -136,13 +121,7 @@ mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
     if (! gStorageLog)
         gStorageLog = PR_NewLogModule("mozStorage");
 
-    sqlite3_trace (mDBConn, tracefunc, this);
-
-    nsCAutoString leafName(":memory");
-    if (aDatabaseFile)
-        (void)aDatabaseFile->GetNativeLeafName(leafName);
-    PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s' (%p)",
-                                        leafName.get(), this));
+    sqlite3_trace (mDBConn, tracefunc, nsnull);
 #endif
 
     // Hook up i18n functions
@@ -178,28 +157,6 @@ mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
         return ConvertResultCode(srv);
     }
 
-    // Set the synchronous PRAGMA, according to the pref
-    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
-    PRInt32 synchronous = 1; // Default to NORMAL if pref not set
-    if (pref)
-        (void)pref->GetIntPref(PREF_TS_SYNCHRONOUS, &synchronous);
-    
-    switch (synchronous) {
-        case 2:
-            (void)ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-                "PRAGMA synchronous = FULL;"));
-            break;
-        case 0:
-            (void)ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-                "PRAGMA synchronous = OFF;"));
-            break;
-        case 1:
-        default:
-            (void)ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-                "PRAGMA synchronous = NORMAL;"));
-            break;
-    }
-
     return NS_OK;
 }
 
@@ -217,23 +174,14 @@ mozStorageConnection::Close()
     if (!mDBConn)
         return NS_ERROR_NOT_INITIALIZED;
 
-#ifdef PR_LOGGING
-    nsCAutoString leafName(":memory");
-    if (mDatabaseFile)
-        (void)mDatabaseFile->GetNativeLeafName(leafName);
-    PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s'",
-                                        leafName.get()));
-#endif
-
-    {
-        nsAutoLock mutex(mProgressHandlerMutex);
-        if (mProgressHandler)
-            sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
-    }
-
+    if (mProgressHandler)
+        sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
     int srv = sqlite3_close(mDBConn);
     if (srv != SQLITE_OK)
         NS_WARNING("sqlite3_close failed. There are probably outstanding statements!");
+
+    // Release all functions
+    mFunctions.EnumerateRead(s_ReleaseFuncEnum, NULL);
 
     mDBConn = NULL;
     return ConvertResultCode(srv);
@@ -431,7 +379,6 @@ mozStorageConnection::IndexExists(const nsACString& aIndexName, PRBool* _retval)
 NS_IMETHODIMP
 mozStorageConnection::GetTransactionInProgress(PRBool *_retval)
 {
-    nsAutoLock mutex(mTransactionMutex);
     *_retval = mTransactionInProgress;
     return NS_OK;
 }
@@ -440,13 +387,17 @@ mozStorageConnection::GetTransactionInProgress(PRBool *_retval)
 NS_IMETHODIMP
 mozStorageConnection::BeginTransaction()
 {
-    return BeginTransactionAs(mozIStorageConnection::TRANSACTION_DEFERRED);
+    if (mTransactionInProgress)
+        return NS_ERROR_FAILURE;
+    nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("BEGIN TRANSACTION"));
+    if (NS_SUCCEEDED(rv))
+        mTransactionInProgress = PR_TRUE;
+    return rv;
 }
 
 NS_IMETHODIMP
 mozStorageConnection::BeginTransactionAs(PRInt32 aTransactionType)
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv;
@@ -471,7 +422,6 @@ mozStorageConnection::BeginTransactionAs(PRInt32 aTransactionType)
 NS_IMETHODIMP
 mozStorageConnection::CommitTransaction()
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
@@ -483,7 +433,6 @@ mozStorageConnection::CommitTransaction()
 NS_IMETHODIMP
 mozStorageConnection::RollbackTransaction()
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
@@ -533,10 +482,18 @@ mozStorageConnection::s_FindFuncEnum(const nsACString &aKey,
     return PL_DHASH_NEXT;
 }
 
+PLDHashOperator
+mozStorageConnection::s_ReleaseFuncEnum(const nsACString &aKey,
+                                        nsISupports* aData,
+                                        void* userArg)
+{
+    NS_RELEASE(aData);
+    return PL_DHASH_NEXT;
+}
+
 PRBool
 mozStorageConnection::FindFunctionByInstance(nsISupports *aInstance)
 {
-    // The lock should already be held by calling functions
     FindFuncEnumArgs args = { aInstance, PR_FALSE };
     mFunctions.EnumerateRead(s_FindFuncEnum, &args);
     return args.mFound;
@@ -677,7 +634,6 @@ mozStorageConnection::CreateFunction(const nsACString &aFunctionName,
     // do we already have this function defined?
     // Check for name only because simple function can
     // be defined multiple times with different names (aliases).
-    nsAutoLock mutex(mFunctionsMutex);
     NS_ENSURE_FALSE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
 
     int srv = sqlite3_create_function (mDBConn,
@@ -694,6 +650,8 @@ mozStorageConnection::CreateFunction(const nsACString &aFunctionName,
     }
 
     if (mFunctions.Put (aFunctionName, aFunction)) {
+        // We hold function object -- add ref to it
+        NS_ADDREF(aFunction);
         return NS_OK;
     }
     return NS_ERROR_OUT_OF_MEMORY;
@@ -753,7 +711,6 @@ mozStorageConnection::CreateAggregateFunction(const nsACString &aFunctionName,
 
     // do we already have this function defined?
     // Check for name.
-    nsAutoLock mutex(mFunctionsMutex);
     NS_ENSURE_FALSE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
 
     // Aggregate functions are stateful, so we cannot have
@@ -776,6 +733,8 @@ mozStorageConnection::CreateAggregateFunction(const nsACString &aFunctionName,
     }
 
     if (mFunctions.Put (aFunctionName, aFunction)) {
+        // We hold function object -- add ref to it
+        NS_ADDREF(aFunction);
         return NS_OK;
     }
     return NS_ERROR_OUT_OF_MEMORY;
@@ -786,8 +745,9 @@ mozStorageConnection::RemoveFunction(const nsACString &aFunctionName)
 {
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-    nsAutoLock mutex(mFunctionsMutex);
-    NS_ENSURE_TRUE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
+    nsISupports *func;
+
+    NS_ENSURE_TRUE(mFunctions.Get (aFunctionName, &func), NS_ERROR_FAILURE);
 
     int srv = sqlite3_create_function (mDBConn,
                                        nsPromiseFlatCString(aFunctionName).get(),
@@ -803,6 +763,9 @@ mozStorageConnection::RemoveFunction(const nsACString &aFunctionName)
     }
 
     mFunctions.Remove (aFunctionName);
+
+    // We don't hold function object anymore -- remove ref to it
+    NS_RELEASE(func);
 
     return NS_OK;
 }
@@ -822,7 +785,6 @@ mozStorageConnection::SetProgressHandler(PRInt32 aGranularity,
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
     // Return previous one
-    nsAutoLock mutex(mProgressHandlerMutex);
     NS_IF_ADDREF(*aOldHandler = mProgressHandler);
 
     if (!aHandler || aGranularity <= 0) {
@@ -841,7 +803,6 @@ mozStorageConnection::RemoveProgressHandler(mozIStorageProgressHandler **aOldHan
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
     // Return previous one
-    nsAutoLock mutex(mProgressHandlerMutex);
     NS_IF_ADDREF(*aOldHandler = mProgressHandler);
 
     mProgressHandler = nsnull;
@@ -853,7 +814,6 @@ mozStorageConnection::RemoveProgressHandler(mozIStorageProgressHandler **aOldHan
 int
 mozStorageConnection::ProgressHandler()
 {
-    nsAutoLock mutex(mProgressHandlerMutex);
     if (mProgressHandler) {
         PRBool res;
         nsresult rv = mProgressHandler->OnProgress(this, &res);

@@ -254,16 +254,29 @@ nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
+  nsCOMPtr<nsIURI> newLocation;
+  nsresult rv = aNewChannel->GetURI(getter_AddRefs(newLocation)); // The redirected URI
+  if (NS_FAILED(rv)) 
+    return rv;
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
   nsCOMPtr<nsIURI> oldURI;
-  nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
+  rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIURI> newURI;
   rv = aNewChannel->GetURI(getter_AddRefs(newURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return nsContentUtils::GetSecurityManager()->
+  rv = nsContentUtils::GetSecurityManager()->
     CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -529,10 +542,7 @@ nsXMLDocument::EndLoad()
   mChannelIsPending = PR_FALSE;
   mLoopingForSyncLoad = PR_FALSE;
 
-  mSynchronousDOMContentLoaded = (mLoadedAsData || mLoadedAsInteractiveData);
-  nsDocument::EndLoad();
-  if (mSynchronousDOMContentLoaded) {
-    mSynchronousDOMContentLoaded = PR_FALSE;
+  if (mLoadedAsData || mLoadedAsInteractiveData) {
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.
@@ -540,6 +550,7 @@ nsXMLDocument::EndLoad()
     nsEventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nsnull,
                                 &event);
   }    
+  nsDocument::EndLoad();  
 }
 
 // nsIDOMNode interface
@@ -551,6 +562,36 @@ nsXMLDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 }
  
 // nsIDOMDocument interface
+
+NS_IMETHODIMP
+nsXMLDocument::GetElementById(const nsAString& aElementId,
+                              nsIDOMElement** aReturn)
+{
+  NS_ENSURE_ARG_POINTER(aReturn);
+  *aReturn = nsnull;
+
+  if (!CheckGetElementByIdArg(aElementId))
+    return NS_OK;
+
+  // If we tried to load a document and something went wrong, we might not have
+  // root content. This can happen when you do document.load() and the document
+  // to load is not XML, for example.
+  nsIContent* root = GetRootContent();
+  if (!root)
+    return NS_OK;
+
+  // XXX For now, we do a brute force search of the content tree.
+  // We should come up with a more efficient solution.
+  // Note that content is *not* refcounted here, so do *not* release it!
+  nsIContent *content =
+    nsContentUtils::MatchElementId(root, aElementId);
+
+  if (!content) {
+    return NS_OK;
+  }
+
+  return CallQueryInterface(content, aReturn);
+}
 
 nsresult
 nsXMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const

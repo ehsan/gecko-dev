@@ -206,6 +206,19 @@ void NPN_ReloadPlugins(NPBool reloadPages)
     CallNPN_ReloadPluginsProc(gNetscapeFuncs.reloadplugins, reloadPages);
 }
 
+#ifdef OJI
+JRIEnv* NPN_GetJavaEnv()
+{
+    return CallNPN_GetJavaEnvProc(gNetscapeFuncs.getJavaEnv);
+}
+
+jref NPN_GetJavaPeer(NPP instance)
+{
+    return CallNPN_GetJavaPeerProc(gNetscapeFuncs.getJavaPeer,
+                       instance);
+}
+#endif
+
 void
 NPN_InvalidateRect(NPP instance, NPRect *invalidRect)
 {
@@ -341,22 +354,24 @@ Private_Print(NPP instance, NPPrint* platformPrint)
     NPP_Print(instance, platformPrint);
 }
 
+#ifdef OJI
+JRIGlobalRef
+Private_GetJavaClass(void)
+{
+    jref clazz = NPP_GetJavaClass();
+    if (clazz) {
+    JRIEnv* env = NPN_GetJavaEnv();
+    return JRI_NewGlobalRef(env, clazz);
+    }
+    return NULL;
+}
+#endif
+
 /*********************************************************************** 
  *
  * These functions are located automagically by netscape.
  *
  ***********************************************************************/
-
-/*
- * NP_GetPluginVersion [optional]
- *  - The browser uses the return value to indicate to the user what version of
- *    this plugin is installed.
- */
-char *
-NP_GetPluginVersion(void)
-{
-    return "1.0.0";
-}
 
 /*
  * NP_GetMIMEDescription
@@ -453,8 +468,10 @@ NP_Initialize(NPNetscapeFuncs* nsTable, NPPluginFuncs* pluginFuncs)
         gNetscapeFuncs.memfree       = nsTable->memfree;
         gNetscapeFuncs.memflush      = nsTable->memflush;
         gNetscapeFuncs.reloadplugins = nsTable->reloadplugins;
-        gNetscapeFuncs.getJavaEnv    = NULL;
-        gNetscapeFuncs.getJavaPeer   = NULL;
+#ifdef OJI
+        gNetscapeFuncs.getJavaEnv    = nsTable->getJavaEnv;
+        gNetscapeFuncs.getJavaPeer   = nsTable->getJavaPeer;
+#endif
         gNetscapeFuncs.getvalue      = nsTable->getvalue;
         gNetscapeFuncs.pushpopupsenabledstate = nsTable->pushpopupsenabledstate;
         gNetscapeFuncs.poppopupsenabledstate  = nsTable->poppopupsenabledstate;
@@ -478,7 +495,9 @@ NP_Initialize(NPNetscapeFuncs* nsTable, NPPluginFuncs* pluginFuncs)
         pluginFuncs->print      = NewNPP_PrintProc(Private_Print);
         pluginFuncs->urlnotify  = NewNPP_URLNotifyProc(Private_URLNotify);
         pluginFuncs->event      = NULL;
-        pluginFuncs->javaClass  = NULL;
+#ifdef OJI
+        pluginFuncs->javaClass  = Private_GetJavaClass();
+#endif
 
         err = NPP_Initialize();
     }

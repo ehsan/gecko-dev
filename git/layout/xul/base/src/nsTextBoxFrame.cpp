@@ -495,7 +495,7 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
     nsresult rv = NS_ERROR_FAILURE;
 
     if (mState & NS_FRAME_IS_BIDI) {
-      presContext->SetBidiEnabled();
+      presContext->SetBidiEnabled(PR_TRUE);
       nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
 
       if (bidiUtils) {

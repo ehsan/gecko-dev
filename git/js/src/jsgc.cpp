@@ -88,12 +88,14 @@
 #endif
 
 /*
- * jemalloc provides posix_memalign.
+ * jemalloc provides posix_memalign but the function has to be explicitly
+ * declared on Windows.
  */
-#ifdef MOZ_MEMORY
-extern "C" {
-#include "../../memory/jemalloc/jemalloc.h"
-}
+#if HAS_POSIX_MEMALIGN && MOZ_MEMORY_WINDOWS
+JS_BEGIN_EXTERN_C
+extern int
+posix_memalign(void **memptr, size_t alignment, size_t size);
+JS_END_EXTERN_C
 #endif
 
 /*
@@ -561,7 +563,7 @@ ClearDoubleArenaFlags(JSGCArenaInfo *a)
     bitmap[DOUBLES_ARENA_BITMAP_WORDS - 1] = mask << nused;
 }
 
-static JS_ALWAYS_INLINE JSBool
+static JS_INLINE JSBool
 IsMarkedDouble(JSGCArenaInfo *a, uint32 index)
 {
     jsbitmap *bitmap;
@@ -2100,37 +2102,6 @@ js_NewWeaklyRootedDouble(JSContext *cx, jsdouble d)
     return dp;
 }
 
-JSBool
-js_AddAsGCBytes(JSContext *cx, size_t sz)
-{
-    JSRuntime *rt;
-
-    rt = cx->runtime;
-    if (rt->gcBytes >= rt->gcMaxBytes ||
-        sz > (size_t) (rt->gcMaxBytes - rt->gcBytes)
-#ifdef JS_GC_ZEAL
-        || rt->gcZeal >= 2 || (rt->gcZeal >= 1 && rt->gcPoke)
-#endif
-        ) {
-        js_GC(cx, GC_LAST_DITCH);
-        if (rt->gcBytes >= rt->gcMaxBytes ||
-            sz > (size_t) (rt->gcMaxBytes - rt->gcBytes)) {
-            JS_UNLOCK_GC(rt);
-            JS_ReportOutOfMemory(cx);
-            return JS_FALSE;
-        }
-    }
-    rt->gcBytes += (uint32) sz;
-    return JS_TRUE;
-}
-
-void
-js_RemoveAsGCBytes(JSRuntime *rt, size_t sz)
-{
-    JS_ASSERT((size_t) rt->gcBytes >= sz);
-    rt->gcBytes -= (uint32) sz;
-}
-
 /*
  * Shallow GC-things can be locked just by setting the GCF_LOCK bit, because
  * they have no descendants to mark during the GC. Currently the optimization
@@ -2695,19 +2666,15 @@ js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp)
         JS_CALL_OBJECT_TRACER(trc, fp->varobj, "variables");
     if (fp->script) {
         js_TraceScript(trc, fp->script);
+        /*
+         * Don't mark what has not been pushed yet, or what has been
+         * popped already.
+         */
         if (fp->regs) {
-            /*
-             * Don't mark what has not been pushed yet, or what has been
-             * popped already.
-             */
-            JS_ASSERT((size_t) (fp->regs->sp - fp->slots) <=
-                      fp->script->nslots);
-            nslots = (uintN) (fp->regs->sp - fp->slots);
-            TRACE_JSVALS(trc, nslots, fp->slots, "slot");
+            nslots = (uintN) (fp->regs->sp - fp->spbase);
+            JS_ASSERT(nslots <= fp->script->depth);
+            TRACE_JSVALS(trc, nslots, fp->spbase, "operand");
         }
-    } else {
-        JS_ASSERT(!fp->slots);
-        JS_ASSERT(!fp->regs);
     }
 
     /* Allow for primitive this parameter due to JSFUN_THISP_* flags. */
@@ -2735,6 +2702,8 @@ js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp)
         TRACE_JSVALS(trc, 2 + nslots - skip, fp->argv - 2 + skip, "operand");
     }
     JS_CALL_VALUE_TRACER(trc, fp->rval, "rval");
+    if (fp->vars)
+        TRACE_JSVALS(trc, fp->nvars, fp->vars, "var");
     if (fp->scopeChain)
         JS_CALL_OBJECT_TRACER(trc, fp->scopeChain, "scope chain");
     if (fp->sharpArray)
@@ -2898,7 +2867,7 @@ js_TraceRuntime(JSTracer *trc, JSBool allAtoms)
     if (rt->gcLocksHash)
         JS_DHashTableEnumerate(rt->gcLocksHash, gc_lock_traversal, trc);
     js_TraceAtomState(trc, allAtoms);
-    js_TraceNativeEnumerators(trc);
+    js_TraceNativeIteratorStates(trc);
     js_TraceRuntimeNumberState(trc);
 
     iter = NULL;
@@ -3051,16 +3020,8 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
         ok = callback(cx, JSGC_BEGIN);
         if (gckind & GC_LOCK_HELD)
             JS_LOCK_GC(rt);
-        if (!ok && gckind != GC_LAST_CONTEXT) {
-            /*
-             * It's possible that we've looped back to this code from the 'goto
-             * restart_at_beginning' below in the GC_SET_SLOT_REQUEST code and
-             * that rt->gcLevel is now 0. Don't return without notifying!
-             */
-            if (rt->gcLevel == 0 && (gckind & GC_LOCK_HELD))
-                JS_NOTIFY_GC_DONE(rt);
+        if (!ok && gckind != GC_LAST_CONTEXT)
             return;
-        }
     }
 
     /* Lock out other GC allocator and collector invocations. */
@@ -3210,7 +3171,12 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
   }
 #endif
 
-    /* Clear property cache weak references. */
+    /*
+     * Clear property cache weak references and disable the cache so nothing
+     * can fill it during GC (this is paranoia, since scripts should not run
+     * during GC).
+     */
+    js_DisablePropertyCache(cx);
     js_FlushPropertyCache(cx);
 
 #ifdef JS_THREADSAFE
@@ -3232,6 +3198,7 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
             continue;
         memset(acx->thread->gcFreeLists, 0, sizeof acx->thread->gcFreeLists);
         GSN_CACHE_CLEAR(&acx->thread->gsnCache);
+        js_DisablePropertyCache(acx);
         js_FlushPropertyCache(acx);
     }
 #else
@@ -3504,19 +3471,14 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
         goto restart;
     }
 
-    if (rt->shapeGen & SHAPE_OVERFLOW_BIT) {
-        /*
-         * FIXME bug 440834: The shape id space has overflowed. Currently we
-         * cope badly with this. Every call to js_GenerateShape does GC, and
-         * we never re-enable the property cache.
-         */
-        js_DisablePropertyCache(cx);
+    if (!(rt->shapeGen & SHAPE_OVERFLOW_BIT)) {
+        js_EnablePropertyCache(cx);
 #ifdef JS_THREADSAFE
         iter = NULL;
         while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)) != NULL) {
             if (!acx->thread || acx->thread == cx->thread)
                 continue;
-            js_DisablePropertyCache(acx);
+            js_EnablePropertyCache(acx);
         }
 #endif
     }

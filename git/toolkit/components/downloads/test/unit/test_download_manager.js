@@ -198,4 +198,18 @@ function run_test()
     tests[i]();
 
   cleanup();
+
+  try {
+    var thread = Cc["@mozilla.org/thread-manager;1"]
+                 .getService().currentThread;
+
+    while (!httpserv.isStopped())
+      thread.processNextEvent(true);
+
+    // get rid of any pending requests
+    while (thread.hasPendingEvents())
+      thread.processNextEvent(true);
+  } catch (e) {
+    print(e);
+  }
 }

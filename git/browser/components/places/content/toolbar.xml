@@ -385,7 +385,7 @@
         <getter><![CDATA[
           // By default, the insertion point is at the top level, at the end. 
           var index = PlacesUtils.bookmarks.DEFAULT_INDEX;
-          var container = this._result.root;
+          var folderId = PlacesUtils.getConcreteItemId(this._result.root);
           var orientation = Ci.nsITreeView.DROP_BEFORE;
           var isTag = false;
 
@@ -395,36 +395,19 @@
             if (!popupNode.node) {
               // If a static menuitem is selected the insertion point
               // is inside the folder, at the end.
-              container = selectedNode;
+              folderId = PlacesUtils.getConcreteItemId(selectedNode);
               orientation = Ci.nsITreeView.DROP_ON;
             }
             else {
               // In all other cases the insertion point is before that node.
-              container = selectedNode.parent;
+              folderId = PlacesUtils.getConcreteItemId(selectedNode.parent);
               index = PlacesUtils.getIndexOfNode(selectedNode);
               isTag = PlacesUtils.nodeIsTagQuery(selectedNode.parent);
             }
           }
-
-          if (this._disallowInsertion(container))
-            return null;
-
-          return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
-                                    index, orientation, isTag);
+          return new InsertionPoint(folderId, index, orientation, isTag);
         ]]></getter>
       </property>
-
-      <method name="_disallowInsertion">
-        <parameter name="aContainer"/>
-        <body><![CDATA[
-          // allow dropping into Tag containers
-          if (PlacesUtils.nodeIsTagQuery(aContainer))
-            return false;
-          // Disallow insertion of items under readonly folders
-          return (!PlacesUtils.nodeIsFolder(aContainer) ||
-                   PlacesUtils.nodeIsReadOnly(aContainer));
-        ]]></body>
-      </method>
 
       <!-- nsIPlacesView -->
       <method name="selectAll">
@@ -779,10 +762,6 @@
           if (!PlacesUtils.nodeIsFolder(result.root))
             return null;
 
-          var isRTL = document.defaultView
-                              .getComputedStyle(this._self.parentNode, "")
-                              .direction == "rtl";
-
           var dropPoint = { ip: null, beforeIndex: null, folderNode: null };
           // Loop through all the nodes to see which one this should
           // get dropped in/next to
@@ -791,11 +770,9 @@
             if (PlacesUtils.nodeIsFolder(xulNode.node) &&
                 !PlacesUtils.nodeIsReadOnly(xulNode.node)) {
               // This is a folder. If the mouse is in the left 25% of the
-              // node (or 25% of the right, in RTL UI), drop before the folder.
-              // If it's in the middle 50%, drop into the folder. If it's past
-              // that, drop after.
-              if ((isRTL && event.clientX > xulNode.boxObject.x + (xulNode.boxObject.width * 0.75)) ||
-                  (!isRTL && event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.25))) {
+              // node, drop to the left of the folder.  If it's in the middle
+              // 50%, drop into the folder.  If it's past that, drop to the right.
+              if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.25)) {
                 // Drop to the left of this folder.
                 dropPoint.ip =
                   new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
@@ -803,8 +780,7 @@
                 dropPoint.beforeIndex = i;
                 return dropPoint;
               }
-              else if ((isRTL && event.clientX > xulNode.boxObject.x + (xulNode.boxObject.width * 0.25)) ||
-                       (!isRTL && event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.75))) {
+              else if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.75)) {
                 // Drop inside this folder.
                 dropPoint.ip =
                   new InsertionPoint(PlacesUtils.getConcreteItemId(xulNode.node),
@@ -815,12 +791,10 @@
               }
             }
             else {
-              // This is a non-folder node. If the mouse is left (or right, in
-              // RTL UI) of the middle, drop before the folder.  Otehrwise,
-              // we'll drop after
-              if ((isRTL && event.clientX > xulNode.boxObject.x + (xulNode.boxObject.width / 2)) ||
-                  (!isRTL && event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width / 2))) {
-                // Drop before this bookmark.
+              // This is a non-folder node. If the mouse is left of the middle,
+              // drop to the left of the folder.  If it's right, drop to the right.
+              if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width / 2)) {
+                // Drop to the left of this bookmark.
                 dropPoint.ip =
 	                new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
 	                                   i, -1);
@@ -829,7 +803,7 @@
               }
             }
           }
-          // Should drop after the last node.
+          // Should drop to the right of the last node.
           dropPoint.ip =
         	  new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
 	                             -1, 1);
@@ -919,19 +893,12 @@
             }
             else {
               halfInd = Math.floor(halfInd);
-              if (this._self.childNodes.length == 0)
-                ind.style.marginRight = this._self.boxObject.width + 'px';
-              else if (dropPoint.beforeIndex == -1) {
-                ind.style.marginRight = this._self.boxObject.width -
-                                        (this._self.childNodes[this._self.childNodes.length - 1].boxObject.x +
-                                        halfInd) +'px';
-              }
-              else {
-                ind.style.marginRight = this._self.boxObject.width -
-                                        (this._self.childNodes[dropPoint.beforeIndex].boxObject.x +
-                                        this._self.childNodes[dropPoint.beforeIndex].boxObject.width -
-                                        this._self.boxObject.x + halfInd) + 'px';
-              }
+              if (dropPoint.beforeIndex == -1 || !this._self.childNodes.length)
+                ind.style.marginRight = '0px';
+              else
+                ind.style.marginRight = (this._self.childNodes[this._self.childNodes.length - 1].boxObject.x +
+                                         this._self.childNodes[this._self.childNodes.length - 1].boxObject.width) -
+                                        (this._self.childNodes[dropPoint.beforeIndex].boxObject.x) - halfInd + 'px';
             }
             // Clear out old folder information
             this._clearOverFolder();

@@ -43,9 +43,11 @@
 # To build a tree,
 #    1. hg clone ssh://hg.mozilla.org/mozilla-central mozilla
 #    2. cd mozilla
-#    3. create your .mozconfig file with
-#       ac_add_options --enable-application=browser
-#    4. gmake -f client.mk 
+#    3. python client.py checkout
+#    4. create your .mozconfig file with
+#       mk_add_options MOZ_CO_PROJECT=
+#         suite,browser
+#    5. gmake -f client.mk 
 #
 # Other targets (gmake -f client.mk [targets...]),
 #    build
@@ -92,7 +94,7 @@ endif
 ifeq (Darwin,$(shell uname -s))
 AUTOCONF ?= autoconf213
 else
-AUTOCONF ?= $(shell which autoconf-2.13 autoconf2.13 autoconf213 | head -1)
+AUTOCONF ?= autoconf-2.13
 endif
 
 MKDIR := mkdir
@@ -287,7 +289,6 @@ endif
 
 CONFIG_STATUS_DEPS := \
 	$(TOPSRCDIR)/configure \
-	$(TOPSRCDIR)/allmakefiles.sh \
 	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/directory/c-sdk/configure) \

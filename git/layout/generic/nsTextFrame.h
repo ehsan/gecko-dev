@@ -54,14 +54,13 @@
 #include "nsLineBox.h"
 #include "gfxFont.h"
 #include "gfxSkipChars.h"
-#include "gfxContext.h"
 
 class nsTextPaintStyle;
 class PropertyProvider;
 
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
-#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x02000000
 
 class nsTextFrame : public nsFrame {
 public:
@@ -254,7 +253,6 @@ public:
   gfxFloat GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY);
 
   // primary frame paint method called from nsDisplayText
-  // The private DrawText() is what applies the text to a graphics context
   void PaintText(nsIRenderingContext* aRenderingContext, nsPoint aPt,
                  const nsRect& aDirtyRect);
   // helper: paint quirks-mode CSS text decorations
@@ -262,8 +260,7 @@ public:
                             const gfxPoint& aFramePt,
                             const gfxPoint& aTextBaselinePt,
                             nsTextPaintStyle& aTextStyle,
-                            PropertyProvider& aProvider,
-                            const nscolor& aOverrideColor = 0);
+                            PropertyProvider& aProvider);
   // helper: paint text frame when we're impacted by at least one selection.
   // Return PR_FALSE if the text was not painted and we should continue with
   // the fast path.
@@ -373,33 +370,17 @@ protected:
   nscoord     mAscent;
   gfxTextRun* mTextRun;
 
-  // The caller of this method must call DestroySelectionDetails() on the
-  // return value, if that return value is not null.  Calling
-  // DestroySelectionDetails() on a null value is still OK, just not necessary.
   SelectionDetails* GetSelectionDetails();
   
+  void AdjustSelectionPointsForBidi(SelectionDetails *sdptr,
+                                    PRInt32 textLength,
+                                    PRBool isRTLChars,
+                                    PRBool isOddLevel,
+                                    PRBool isBidiSystem);
+
   void UnionTextDecorationOverflow(nsPresContext* aPresContext,
                                    PropertyProvider& aProvider,
                                    nsRect* aOverflowRect);
-
-  void DrawText(gfxContext* aCtx,
-                const gfxPoint& aTextBaselinePt,
-                PRUint32 aOffset,
-                PRUint32 aLength,
-                const gfxRect* aDirtyRect,
-                PropertyProvider* aProvider,
-                gfxFloat& aAdvanceWidth,
-                PRBool aDrawSoftHyphen);
-
-  void PaintOneShadow(PRUint32 aOffset,
-                      PRUint32 aLength,
-                      nsCSSShadowItem* aShadowDetails,
-                      PropertyProvider* aProvider,
-                      const gfxRect& aDirtyRect,
-                      const gfxPoint& aFramePt,
-                      const gfxPoint& aTextBaselinePt,
-                      gfxContext* aCtx,
-                      const nscolor& aForegroundColor);
 
   struct TextDecorations {
     PRUint8 mDecorations;
