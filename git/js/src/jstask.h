@@ -43,7 +43,6 @@ class JSBackgroundTask {
     friend class JSBackgroundThread;
     JSBackgroundTask* next;
   public:
-    virtual ~JSBackgroundTask() = 0;
     virtual void run() = 0;
 };
 
