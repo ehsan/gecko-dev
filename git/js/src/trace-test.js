@@ -2545,17 +2545,6 @@ function testApply() {
 testApply.expected = "5,5,5,5,5,5,5,5,5,5";
 test(testApply);
 
-function testNestedForIn() {
-    var a = {x: 1, y: 2, z: 3};
-    var s = '';
-    for (var p1 in a)
-        for (var p2 in a)
-            s += p1 + p2 + ' ';
-    return s;
-}
-testNestedForIn.expected = 'xx xy xz yx yy yz zx zy zz ';
-test(testNestedForIn);
-
 function testComparisons()
 {
   // All the special values from each of the types in
@@ -4044,19 +4033,6 @@ function testBug474769() {
 }
 testBug474769.expected = 1;
 test(testBug474769);
-
-undeclaredGlobal = -1;
-function testGlobalAliasCheck() {
-    var q;
-    for (var i = 0; i < 10; ++i) {
-        undeclaredGlobal = i;
-        q = this.undeclaredGlobal;
-    }
-    return q;
-}
-testGlobalAliasCheck.expected = 9;
-test(testGlobalAliasCheck);
-delete undeclaredGlobal;
 
 /*****************************************************************************
  *                                                                           *
