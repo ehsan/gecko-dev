@@ -4,17 +4,6 @@ load(libdir + "asm.js");
 if (!getBuildConfiguration()["arm-simulator"])
     quit();
 
-function assertEqualStacks(got, expect)
-{
-    // Strip off the " (script/library info)"
-    got = String(got).replace(/ \([^\)]*\)/g, "");
-
-    // Shorten FFI/entry trampolines
-    got = got.replace(/FFI trampoline/g, "<").replace(/entry trampoline/g, ">");
-
-    assertEq(got, expect);
-}
-
 // Test profiling enablement while asm.js is running.
 var stacks;
 var ffi = function(enable) {
@@ -27,15 +16,15 @@ var ffi = function(enable) {
 }
 var f = asmLink(asmCompile('global','ffis',USE_ASM + "var ffi=ffis.ffi; function g(i) { i=i|0; ffi(i|0) } function f(i) { i=i|0; g(i|0) } return f"), null, {ffi});
 f(0);
-assertEqualStacks(stacks, "");
+assertEq(String(stacks), "");
 f(+1);
-assertEqualStacks(stacks, "");
+assertEq(String(stacks), "");
 f(0);
-assertEqualStacks(stacks, "<gf>");
+assertEq(String(stacks), "*gf*");
 f(-1);
-assertEqualStacks(stacks, "<gf>");
+assertEq(String(stacks), "*gf*");
 f(0);
-assertEqualStacks(stacks, "");
+assertEq(String(stacks), "");
 
 // Enable profiling for the rest of the tests.
 enableSPSProfiling();
@@ -44,27 +33,27 @@ var f = asmLink(asmCompile(USE_ASM + "function f() { return 42 } return f"));
 enableSingleStepProfiling();
 assertEq(f(), 42);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f>,>,");
+assertEq(String(stacks), ",*,f*,*,");
 
 var f = asmLink(asmCompile(USE_ASM + "function g(i) { i=i|0; return (i+1)|0 } function f() { return g(42)|0 } return f"));
 enableSingleStepProfiling();
 assertEq(f(), 43);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f>,gf>,f>,>,");
+assertEq(String(stacks), ",*,f*,gf*,f*,*,");
 
 var f = asmLink(asmCompile(USE_ASM + "function g1() { return 1 } function g2() { return 2 } function f(i) { i=i|0; return TBL[i&1]()|0 } var TBL=[g1,g2]; return f"));
 enableSingleStepProfiling();
 assertEq(f(0), 1);
 assertEq(f(1), 2);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f>,g1f>,f>,>,,>,f>,g2f>,f>,>,");
+assertEq(String(stacks), ",*,f*,g1f*,f*,*,,*,f*,g2f*,f*,*,");
 
 function testBuiltinD2D(name) {
     var f = asmLink(asmCompile('g', USE_ASM + "var fun=g.Math." + name + "; function f(d) { d=+d; return +fun(d) } return f"), this);
     enableSingleStepProfiling();
     assertEq(f(.1), eval("Math." + name + "(.1)"));
     var stacks = disableSingleStepProfiling();
-    assertEqualStacks(stacks, ",>,f>,Math." + name + "f>,f>,>,");
+    assertEq(String(stacks), ",*,f*,Math." + name + "f*,f*,*,");
 }
 for (name of ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ceil', 'floor', 'exp', 'log'])
     testBuiltinD2D(name);
@@ -73,7 +62,7 @@ function testBuiltinF2F(name) {
     enableSingleStepProfiling();
     assertEq(f(.1), eval("Math.fround(Math." + name + "(Math.fround(.1)))"));
     var stacks = disableSingleStepProfiling();
-    assertEqualStacks(stacks, ",>,f>,Math." + name + "f>,f>,>,");
+    assertEq(String(stacks), ",*,f*,Math." + name + "f*,f*,*,");
 }
 for (name of ['ceil', 'floor'])
     testBuiltinF2F(name);
@@ -82,7 +71,7 @@ function testBuiltinDD2D(name) {
     enableSingleStepProfiling();
     assertEq(f(.1, .2), eval("Math." + name + "(.1, .2)"));
     var stacks = disableSingleStepProfiling();
-    assertEqualStacks(stacks, ",>,f>,Math." + name + "f>,f>,>,");
+    assertEq(String(stacks), ",*,f*,Math." + name + "f*,f*,*,");
 }
 for (name of ['atan2', 'pow'])
     testBuiltinDD2D(name);
@@ -99,14 +88,14 @@ var f = asmLink(asmCompile('g','ffis', USE_ASM + "var ffi1=ffis.ffi1, ffi2=ffis.
 enableSingleStepProfiling();
 assertEq(f(), 83);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f>,<f>,f>,<f>,f>,>,");
+assertEq(String(stacks), ",*,f*,*f*,f*,*f*,f*,*,");
 // Ion FFI exit
 for (var i = 0; i < 20; i++)
     assertEq(f(), 83);
 enableSingleStepProfiling();
 assertEq(f(), 83);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f>,<f>,f>,<f>,f>,>,");
+assertEq(String(stacks), ",*,f*,*f*,f*,*f*,f*,*,");
 
 var ffi1 = function() { return 15 }
 var ffi2 = function() { return f2() + 17 }
@@ -115,14 +104,14 @@ var {f1,f2} = asmLink(asmCompile('g','ffis', USE_ASM + "var ffi1=ffis.ffi1, ffi2
 enableSingleStepProfiling();
 assertEq(f1(), 32);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f1>,<f1>,><f1>,f2><f1>,<f2><f1>,f2><f1>,><f1>,<f1>,f1>,>,");
+assertEq(String(stacks), ",*,f1*,*f1*,**f1*,f2**f1*,*f2**f1*,f2**f1*,**f1*,*f1*,f1*,*,");
 // Ion FFI exit
 for (var i = 0; i < 20; i++)
     assertEq(f1(), 32);
 enableSingleStepProfiling();
 assertEq(f1(), 32);
 var stacks = disableSingleStepProfiling();
-assertEqualStacks(stacks, ",>,f1>,<f1>,><f1>,f2><f1>,<f2><f1>,f2><f1>,><f1>,<f1>,f1>,>,");
+assertEq(String(stacks), ",*,f1*,*f1*,**f1*,f2**f1*,*f2**f1*,f2**f1*,**f1*,*f1*,f1*,*,");
 
 // This takes forever to run.
 // Stack-overflow exit test

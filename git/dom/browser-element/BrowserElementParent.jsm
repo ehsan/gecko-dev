@@ -160,11 +160,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame, isPendingFrame) {
                                   /* wantsUntrusted = */ false);
   }
 
-  this._frameElement.addEventListener('mozdocommand',
-                                      this._doCommandHandler.bind(this),
-                                      /* useCapture = */ false,
-                                      /* wantsUntrusted = */ false);
-
   this._window._browserElementParents.set(this, null);
 
   // Insert ourself into the prompt service.
@@ -253,8 +248,7 @@ BrowserElementParent.prototype = {
       "exit-fullscreen": this._exitFullscreen,
       "got-visible": this._gotDOMRequestResult,
       "visibilitychange": this._childVisibilityChange,
-      "got-set-input-method-active": this._gotDOMRequestResult,
-      "selectionchange": this._handleSelectionChange
+      "got-set-input-method-active": this._gotDOMRequestResult
     };
 
     this._mm.addMessageListener('browser-element-api:call', function(aMsg) {
@@ -454,17 +448,6 @@ BrowserElementParent.prototype = {
       // evt.detail.unblock().
       sendUnblockMsg();
     }
-  },
-
-  _handleSelectionChange: function(data) {
-    let evt = this._createEvent('selectionchange', data.json,
-                                /* cancelable = */ false);
-    this._frameElement.dispatchEvent(evt);
-  },
-
-  _doCommandHandler: function(e) {
-    e.stopPropagation();
-    this._sendAsyncMsg('do-command', { command: e.detail.cmd });
   },
 
   _createEvent: function(evtName, detail, cancelable) {

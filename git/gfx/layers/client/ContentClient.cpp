@@ -233,6 +233,15 @@ ContentClientRemoteBuffer::CreateBackBuffer(const nsIntRect& aBufferRect)
     mTextureInfo.mTextureFlags,
     TextureAllocationFlags::ALLOC_CLEAR_BUFFER
   );
+  if (!mTextureClient) {
+    // try with ALLOC_FALLBACK
+    mTextureClient = CreateTextureClientForDrawing(
+      mSurfaceFormat, mSize, gfx::BackendType::NONE,
+      mTextureInfo.mTextureFlags | TextureFlags::ALLOC_FALLBACK,
+      TextureAllocationFlags::ALLOC_CLEAR_BUFFER
+    );
+  }
+
   if (!mTextureClient || !AddTextureClient(mTextureClient)) {
     AbortTextureClientCreation();
     return;

@@ -4291,13 +4291,6 @@ WorkerPrivate::ScheduleDeletion(WorkerRanOrNot aRanOrNot)
   MOZ_ASSERT(mSyncLoopStack.IsEmpty());
 
   ClearMainEventQueue(aRanOrNot);
-#ifdef DEBUG
-  if (WorkerRan == aRanOrNot) {
-    nsIThread* currentThread = NS_GetCurrentThread();
-    MOZ_ASSERT(currentThread);
-    MOZ_ASSERT(!NS_HasPendingEvents(currentThread));
-  }
-#endif
 
   if (WorkerPrivate* parent = GetParent()) {
     nsRefPtr<WorkerFinishedRunnable> runnable =
@@ -4534,6 +4527,7 @@ WorkerPrivate::ClearMainEventQueue(WorkerRanOrNot aRanOrNot)
     MOZ_ASSERT(currentThread);
 
     NS_ProcessPendingEvents(currentThread);
+    MOZ_ASSERT(!NS_HasPendingEvents(currentThread));
   }
 
   MOZ_ASSERT(mCancelAllPendingRunnables);

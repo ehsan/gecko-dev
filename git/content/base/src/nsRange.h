@@ -217,10 +217,8 @@ public:
   void SetStartAfter(nsINode& aNode, ErrorResult& aErr);
   void SetStartBefore(nsINode& aNode, ErrorResult& aErr);
   void SurroundContents(nsINode& aNode, ErrorResult& aErr);
-  already_AddRefed<DOMRect> GetBoundingClientRect(bool aClampToEdge = true,
-                                                  bool aFlushLayout = true);
-  already_AddRefed<DOMRectList> GetClientRects(bool aClampToEdge = true,
-                                               bool aFlushLayout = true);
+  already_AddRefed<DOMRect> GetBoundingClientRect(bool aClampToEdge = true);
+  already_AddRefed<DOMRectList> GetClientRects(bool aClampToEdge = true);
 
   nsINode* GetParentObject() const { return mOwner; }
   virtual JSObject* WrapObject(JSContext* cx) MOZ_OVERRIDE MOZ_FINAL;
@@ -262,7 +260,7 @@ public:
                                  nsRange* aRange,
                                  nsINode* aStartParent, int32_t aStartOffset,
                                  nsINode* aEndParent, int32_t aEndOffset,
-                                 bool aClampToEdge, bool aFlushLayout);
+                                 bool aClampToEdge);
 
   typedef nsTHashtable<nsPtrHashKey<nsRange> > RangeHashTable;
 protected:

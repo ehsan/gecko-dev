@@ -435,7 +435,7 @@ PluginScriptableObjectChild::~PluginScriptableObjectChild()
   }
 }
 
-bool
+void
 PluginScriptableObjectChild::InitializeProxy()
 {
   AssertPluginThread();
@@ -447,18 +447,13 @@ PluginScriptableObjectChild::InitializeProxy()
   NS_ASSERTION(mInstance, "Null manager?!");
 
   NPObject* object = CreateProxyObject();
-  if (!object) {
-    NS_ERROR("Failed to create object!");
-    return false;
-  }
+  NS_ASSERTION(object, "Failed to create object!");
 
   if (!PluginModuleChild::current()->RegisterActorForNPObject(object, this)) {
-    NS_ERROR("RegisterActorForNPObject failed");
-    return false;
+    NS_ERROR("Out of memory?");
   }
 
   mObject = object;
-  return true;
 }
 
 void
@@ -478,7 +473,7 @@ PluginScriptableObjectChild::InitializeLocal(NPObject* aObject)
   mProtectCount++;
 
   if (!PluginModuleChild::current()->RegisterActorForNPObject(aObject, this)) {
-    NS_ERROR("RegisterActorForNPObject failed");
+      NS_ERROR("Out of memory?");
   }
 
   mObject = aObject;
@@ -519,10 +514,14 @@ PluginScriptableObjectChild::ResurrectProxyObject()
   NS_ASSERTION(!mObject, "Should not have an object already!");
   NS_ASSERTION(mType == Proxy, "Shouldn't call this for non-proxy object!");
 
-  if (!InitializeProxy()) {
-    NS_ERROR("Initialize failed!");
+  NPObject* object = CreateProxyObject();
+  if (!object) {
+    NS_WARNING("Failed to create object!");
     return false;
   }
+
+  InitializeProxy();
+  NS_ASSERTION(mObject, "Initialize failed!");
 
   SendProtect();
   return true;

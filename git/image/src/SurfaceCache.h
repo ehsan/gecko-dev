@@ -135,7 +135,7 @@ struct SurfaceCache
    * @param aImageKey    Key data identifying which image the surface belongs to.
    * @param aSurfaceKey  Key data which uniquely identifies the requested surface.
    */
-  static void Insert(gfx::SourceSurface*  aSurface,
+  static void Insert(gfx::DrawTarget*  aTarget,
                      const ImageKey    aImageKey,
                      const SurfaceKey& aSurfaceKey);
 

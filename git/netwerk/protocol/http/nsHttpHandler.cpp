@@ -677,11 +677,7 @@ nsHttpHandler::InitUserAgentComponents()
     "Windows"
 #elif defined(XP_MACOSX)
     "Macintosh"
-#elif defined(XP_UNIX)
-    // We historically have always had X11 here,
-    // and there seems little a webpage can sensibly do
-    // based on it being something else, so use X11 for
-    // backwards compatibility in all cases.
+#elif defined(MOZ_X11)
     "X11"
 #endif
     );

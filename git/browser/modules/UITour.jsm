@@ -619,7 +619,7 @@ this.UITour = {
   },
 
   isSafeScheme: function(aURI) {
-    let allowedSchemes = new Set(["https", "about"]);
+    let allowedSchemes = new Set(["https"]);
     if (!Services.prefs.getBoolPref("browser.uitour.requireSecure"))
       allowedSchemes.add("http");
 

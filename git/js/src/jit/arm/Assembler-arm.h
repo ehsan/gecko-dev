@@ -63,7 +63,6 @@ static MOZ_CONSTEXPR_VAR Register HeapReg = r11;
 static MOZ_CONSTEXPR_VAR Register CallTempNonArgRegs[] = { r5, r6, r7, r8 };
 static const uint32_t NumCallTempNonArgRegs =
     mozilla::ArrayLength(CallTempNonArgRegs);
-
 class ABIArgGenerator
 {
     unsigned intRegIndex_;
@@ -76,10 +75,8 @@ class ABIArgGenerator
     ABIArg next(MIRType argType);
     ABIArg &current() { return current_; }
     uint32_t stackBytesConsumedSoFar() const { return stackOffset_; }
-    static const Register NonArgReturnReg0;
-    static const Register NonArgReturnReg1;
-    static const Register NonReturn_VolatileReg0;
-    static const Register NonReturn_VolatileReg1;
+    static const Register NonArgReturnVolatileReg0;
+    static const Register NonArgReturnVolatileReg1;
 };
 
 static MOZ_CONSTEXPR_VAR Register PreBarrierReg = r1;

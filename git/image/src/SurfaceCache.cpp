@@ -117,25 +117,25 @@ class CachedSurface
 public:
   NS_INLINE_DECL_REFCOUNTING(CachedSurface)
 
-  CachedSurface(SourceSurface*    aSurface,
+  CachedSurface(DrawTarget*       aTarget,
                 const IntSize     aTargetSize,
                 const Cost        aCost,
                 const ImageKey    aImageKey,
                 const SurfaceKey& aSurfaceKey)
-    : mSurface(aSurface)
+    : mTarget(aTarget)
     , mTargetSize(aTargetSize)
     , mCost(aCost)
     , mImageKey(aImageKey)
     , mSurfaceKey(aSurfaceKey)
   {
-    MOZ_ASSERT(mSurface, "Must have a valid SourceSurface");
+    MOZ_ASSERT(mTarget, "Must have a valid DrawTarget");
     MOZ_ASSERT(mImageKey, "Must have a valid image key");
   }
 
   already_AddRefed<gfxDrawable> Drawable() const
   {
     nsRefPtr<gfxDrawable> drawable =
-      new gfxSurfaceDrawable(mSurface, ThebesIntSize(mTargetSize));
+      new gfxSurfaceDrawable(mTarget, ThebesIntSize(mTargetSize));
     return drawable.forget();
   }
 
@@ -146,7 +146,7 @@ public:
 
 private:
   nsExpirationState       mExpirationState;
-  nsRefPtr<SourceSurface> mSurface;
+  nsRefPtr<DrawTarget>    mTarget;
   const IntSize           mTargetSize;
   const Cost              mCost;
   const ImageKey          mImageKey;
@@ -240,7 +240,7 @@ public:
     RegisterWeakMemoryReporter(this);
   }
 
-  void Insert(SourceSurface*    aSurface,
+  void Insert(DrawTarget*       aTarget,
               IntSize           aTargetSize,
               const Cost        aCost,
               const ImageKey    aImageKey,
@@ -254,7 +254,7 @@ public:
       return;
 
     nsRefPtr<CachedSurface> surface =
-      new CachedSurface(aSurface, aTargetSize, aCost, aImageKey, aSurfaceKey);
+      new CachedSurface(aTarget, aTargetSize, aCost, aImageKey, aSurfaceKey);
 
     // Remove elements in order of cost until we can fit this in the cache.
     while (aCost > mAvailableCost) {
@@ -508,7 +508,7 @@ SurfaceCache::Lookup(const ImageKey    aImageKey,
 }
 
 /* static */ void
-SurfaceCache::Insert(SourceSurface*    aSurface,
+SurfaceCache::Insert(DrawTarget*       aTarget,
                      const ImageKey    aImageKey,
                      const SurfaceKey& aSurfaceKey)
 {
@@ -516,7 +516,7 @@ SurfaceCache::Insert(SourceSurface*    aSurface,
   MOZ_ASSERT(NS_IsMainThread());
 
   Cost cost = ComputeCost(aSurfaceKey.Size());
-  return sInstance->Insert(aSurface, aSurfaceKey.Size(), cost, aImageKey,
+  return sInstance->Insert(aTarget, aSurfaceKey.Size(), cost, aImageKey,
                            aSurfaceKey);
 }
 

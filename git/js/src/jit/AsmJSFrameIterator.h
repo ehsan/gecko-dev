@@ -115,7 +115,6 @@ class AsmJSProfilingFrameIterator
     const AsmJSModule *module_;
     uint8_t *callerFP_;
     void *callerPC_;
-    void *stackAddress_;
     AsmJSExit::Reason exitReason_;
 
     // Really, a const AsmJSModule::CodeRange*, but no forward declarations of
@@ -132,8 +131,14 @@ class AsmJSProfilingFrameIterator
     void operator++();
     bool done() const { return !codeRange_; }
 
-    void *stackAddress() const { JS_ASSERT(!done()); return stackAddress_; }
-    const char *label() const;
+    typedef JS::ProfilingFrameIterator::Kind Kind;
+    Kind kind() const;
+
+    JSAtom *functionDisplayAtom() const;
+    const char *functionFilename() const;
+    unsigned functionLine() const;
+
+    const char *nonFunctionDescription() const;
 };
 
 /******************************************************************************/
@@ -148,6 +153,11 @@ GenerateAsmJSFunctionEpilogue(jit::MacroAssembler &masm, unsigned framePushed,
 void
 GenerateAsmJSStackOverflowExit(jit::MacroAssembler &masm, jit::Label *overflowExit,
                                jit::Label *throwLabel);
+
+void
+GenerateAsmJSEntryPrologue(jit::MacroAssembler &masm, jit::Label *begin);
+void
+GenerateAsmJSEntryEpilogue(jit::MacroAssembler &masm);
 
 void
 GenerateAsmJSExitPrologue(jit::MacroAssembler &masm, unsigned framePushed, AsmJSExit::Reason reason,

@@ -199,8 +199,6 @@
 
 #include "nsRefreshDriver.h"
 
-#include "mozilla/dom/SelectionChangeEvent.h"
-
 #include "mozilla/Services.h"
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
@@ -275,7 +273,6 @@ static PopupControlState    gPopupControlState         = openAbused;
 static int32_t              gRunningTimeoutDepth       = 0;
 static bool                 gMouseDown                 = false;
 static bool                 gDragServiceDisabled       = false;
-static bool                 gSelectionCaretPrefEnabled = false;
 static FILE                *gDumpFile                  = nullptr;
 static uint64_t             gNextWindowID              = 0;
 static uint32_t             gSerialCounter             = 0;
@@ -1177,9 +1174,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
                                 DEFAULT_MIN_BACKGROUND_TIMEOUT_VALUE);
     Preferences::AddBoolVarCache(&sIdleObserversAPIFuzzTimeDisabled, 
                                  "dom.idle-observers-api.fuzz_time.disabled",
-                                 false);
-    Preferences::AddBoolVarCache(&gSelectionCaretPrefEnabled,
-                                 "selectioncaret.enabled",
                                  false);
   }
 
@@ -9254,7 +9248,7 @@ public:
 };
 
 NS_IMETHODIMP
-nsGlobalWindow::UpdateCommands(const nsAString& anAction, nsISelection* aSel, int16_t aReason)
+nsGlobalWindow::UpdateCommands(const nsAString& anAction)
 {
   nsPIDOMWindow *rootWindow = nsGlobalWindow::GetPrivateRoot();
   if (!rootWindow)
@@ -9263,38 +9257,13 @@ nsGlobalWindow::UpdateCommands(const nsAString& anAction, nsISelection* aSel, in
   nsCOMPtr<nsIDOMXULDocument> xulDoc =
     do_QueryInterface(rootWindow->GetExtantDoc());
   // See if we contain a XUL document.
-  // selectionchange action is only used for mozbrowser, not for XUL. So we bypass
-  // XUL command dispatch if anAction is "selectionchange".
-  if (xulDoc && !anAction.EqualsLiteral("selectionchange")) {
+  if (xulDoc) {
     // Retrieve the command dispatcher and call updateCommands on it.
     nsCOMPtr<nsIDOMXULCommandDispatcher> xulCommandDispatcher;
     xulDoc->GetCommandDispatcher(getter_AddRefs(xulCommandDispatcher));
     if (xulCommandDispatcher) {
       nsContentUtils::AddScriptRunner(new CommandDispatcher(xulCommandDispatcher,
                                                             anAction));
-    }
-  }
-
-  if (gSelectionCaretPrefEnabled && mDoc && anAction.EqualsLiteral("selectionchange")) {
-    SelectionChangeEventInit init;
-    init.mBubbles = true;
-    if (aSel) {
-      nsCOMPtr<nsIDOMRange> range;
-      nsresult rv = aSel->GetRangeAt(0, getter_AddRefs(range));
-      if (NS_SUCCEEDED(rv) && range) {
-        nsRefPtr<nsRange> nsrange = static_cast<nsRange*>(range.get());
-        init.mBoundingClientRect = nsrange->GetBoundingClientRect(true, false);
-        range->ToString(init.mSelectedText);
-        init.mReason = aReason;
-      }
-
-      nsRefPtr<SelectionChangeEvent> event =
-        SelectionChangeEvent::Constructor(mDoc, NS_LITERAL_STRING("mozselectionchange"), init);
-
-      event->SetTrusted(true);
-      event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
-      bool ret;
-      mDoc->DispatchEvent(event, &ret);
     }
   }
 
