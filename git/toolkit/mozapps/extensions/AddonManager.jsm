@@ -77,9 +77,11 @@ const DEFAULT_PROVIDERS = [
  * @param  aCallback
  *         The callback method to call
  */
-function safeCall(aCallback, ...aArgs) {
+function safeCall(aCallback) {
+  var args = Array.slice(arguments, 1);
+
   try {
-    aCallback.apply(null, aArgs);
+    aCallback.apply(null, args);
   }
   catch (e) {
     WARN("Exception calling callback", e);
@@ -100,12 +102,14 @@ function safeCall(aCallback, ...aArgs) {
  * @return the return value from the provider or dflt if the provider does not
  *         implement method or throws an error
  */
-function callProvider(aProvider, aMethod, aDefault, ...aArgs) {
+function callProvider(aProvider, aMethod, aDefault) {
   if (!(aMethod in aProvider))
     return aDefault;
 
+  var args = Array.slice(arguments, 3);
+
   try {
-    return aProvider[aMethod].apply(aProvider, aArgs);
+    return aProvider[aMethod].apply(aProvider, args);
   }
   catch (e) {
     ERROR("Exception calling provider " + aMethod, e);
@@ -1074,16 +1078,17 @@ var AddonManagerInternal = {
    * @param  aMethod
    *         The method on the listeners to call
    */
-  callManagerListeners: function AMI_callManagerListeners(aMethod, ...aArgs) {
+  callManagerListeners: function AMI_callManagerListeners(aMethod) {
     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
+    var args = Array.slice(arguments, 1);
     let managerListeners = this.managerListeners.slice(0);
     for (let listener of managerListeners) {
       try {
         if (aMethod in listener)
-          listener[aMethod].apply(listener, aArgs);
+          listener[aMethod].apply(listener, args);
       }
       catch (e) {
         WARN("AddonManagerListener threw exception when calling " + aMethod, e);
@@ -1101,7 +1106,7 @@ var AddonManagerInternal = {
    *         An optional array of extra InstallListeners to also call
    * @return false if any of the listeners returned false, true otherwise
    */
-  callInstallListeners: function AMI_callInstallListeners(aMethod, aExtraListeners, ...aArgs) {
+  callInstallListeners: function AMI_callInstallListeners(aMethod, aExtraListeners) {
     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
@@ -1116,11 +1121,12 @@ var AddonManagerInternal = {
       listeners = aExtraListeners.concat(this.installListeners);
     else
       listeners = this.installListeners.slice(0);
+    let args = Array.slice(arguments, 2);
 
     for (let listener of listeners) {
       try {
         if (aMethod in listener) {
-          if (listener[aMethod].apply(listener, aArgs) === false)
+          if (listener[aMethod].apply(listener, args) === false)
             result = false;
         }
       }
@@ -1138,16 +1144,17 @@ var AddonManagerInternal = {
    * @param  aMethod
    *         The method on the listeners to call
    */
-  callAddonListeners: function AMI_callAddonListeners(aMethod, ...aArgs) {
+  callAddonListeners: function AMI_callAddonListeners(aMethod) {
     if (!aMethod || typeof aMethod != "string")
       throw Components.Exception("aMethod must be a non-empty string",
                                  Cr.NS_ERROR_INVALID_ARG);
 
+    var args = Array.slice(arguments, 1);
     let addonListeners = this.addonListeners.slice(0);
     for (let listener of addonListeners) {
       try {
         if (aMethod in listener)
-          listener[aMethod].apply(listener, aArgs);
+          listener[aMethod].apply(listener, args);
       }
       catch (e) {
         WARN("AddonListener threw exception when calling " + aMethod, e);
@@ -1944,13 +1951,13 @@ var AddonManagerPrivate = {
     AddonManagerInternal.updateAddonRepositoryData(aCallback);
   },
 
-  callInstallListeners: function AMP_callInstallListeners(...aArgs) {
+  callInstallListeners: function AMP_callInstallListeners(aMethod) {
     return AddonManagerInternal.callInstallListeners.apply(AddonManagerInternal,
-                                                           aArgs);
+                                                           arguments);
   },
 
-  callAddonListeners: function AMP_callAddonListeners(...aArgs) {
-    AddonManagerInternal.callAddonListeners.apply(AddonManagerInternal, aArgs);
+  callAddonListeners: function AMP_callAddonListeners(aMethod) {
+    AddonManagerInternal.callAddonListeners.apply(AddonManagerInternal, arguments);
   },
 
   AddonAuthor: AddonAuthor,

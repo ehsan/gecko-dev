@@ -487,7 +487,7 @@ function startDebugger() {
 
   let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
   try {
-    DebuggerServer.openListener(port);
+    DebuggerServer.openListener(port, false);
   } catch (e) {
     dump('Unable to start debugger server: ' + e + '\n');
   }

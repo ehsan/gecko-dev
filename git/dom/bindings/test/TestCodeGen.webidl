@@ -212,8 +212,6 @@ interface TestInterface {
   // void passOptionalNullableEnum(optional TestEnum? arg);
   // void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
   TestEnum receiveEnum();
-  attribute TestEnum enumAttribute;
-  readonly attribute TestEnum readonlyEnumAttribute;
 
   // Callback types
   void passCallback(TestCallback arg);

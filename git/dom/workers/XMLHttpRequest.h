@@ -72,8 +72,7 @@ public:
 
   static XMLHttpRequest*
   Constructor(JSContext* aCx, JSObject* aGlobal,
-              const Nullable<MozXMLHttpRequestParametersWorkers>& aParams,
-              ErrorResult& aRv);
+              const Optional<jsval>& aParams, ErrorResult& aRv);
   void
   Unpin();
 

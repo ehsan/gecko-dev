@@ -5672,7 +5672,7 @@ var RemoteDebugger = {
       }
 
       let port = this._getPort();
-      DebuggerServer.openListener(port);
+      DebuggerServer.openListener(port, false);
       dump("Remote debugger listening on port " + port);
     } catch(e) {
       dump("Remote debugger didn't start: " + e);

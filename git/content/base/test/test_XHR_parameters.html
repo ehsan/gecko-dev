@@ -21,8 +21,6 @@ function runTests() {
   SimpleTest.waitForExplicitFinish();
 
   let validParameters = [
-    undefined,
-    null,
     {},
     {mozSystem: ""},
     {mozSystem: 0},
@@ -32,12 +30,8 @@ function runTests() {
   ];
 
   let invalidParameters = [
-    0,
-    7,
-    Math.PI,
-    "string",
-    true,
-    false,
+    undefined,
+    null,
     {get mozSystem() { throw "Bla"; } },
   ];
 

@@ -251,7 +251,6 @@ function HUD_SERVICE()
   // These methods access the "this" object, but they're registered as
   // event listeners. So we hammer in the "this" binding.
   this.onTabClose = this.onTabClose.bind(this);
-  this.onTabSelect = this.onTabSelect.bind(this);
   this.onWindowUnload = this.onWindowUnload.bind(this);
 
   // Remembers the last console height, in pixels.
@@ -318,7 +317,6 @@ HUD_SERVICE.prototype =
 
     // TODO: check that this works as intended
     gBrowser.tabContainer.addEventListener("TabClose", this.onTabClose, false);
-    gBrowser.tabContainer.addEventListener("TabSelect", this.onTabSelect, false);
     window.addEventListener("unload", this.onWindowUnload, false);
 
     this.registerDisplay(hudId);
@@ -618,7 +616,6 @@ HUD_SERVICE.prototype =
       let gBrowser = window.gBrowser;
       let tabContainer = gBrowser.tabContainer;
       tabContainer.removeEventListener("TabClose", this.onTabClose, false);
-      tabContainer.removeEventListener("TabSelect", this.onTabSelect, false);
 
       this.suspend();
     }
@@ -807,17 +804,6 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * onTabSelect event handler function
-   *
-   * @param aEvent
-   * @returns void
-   */
-  onTabSelect: function HS_onTabSelect(aEvent)
-  {
-    HeadsUpDisplayUICommands.refreshCommand();
-  },
-
-  /**
    * Called whenever a browser window closes. Cleans up any consoles still
    * around.
    *
@@ -835,7 +821,6 @@ HUD_SERVICE.prototype =
     let tabContainer = gBrowser.tabContainer;
 
     tabContainer.removeEventListener("TabClose", this.onTabClose, false);
-    tabContainer.removeEventListener("TabSelect", this.onTabSelect, false);
 
     let tab = tabContainer.firstChild;
     while (tab != null) {
@@ -4446,7 +4431,7 @@ HeadsUpDisplayUICommands = {
     if (this.getOpenHUD() != null) {
       command.setAttribute("checked", true);
     } else {
-      command.setAttribute("checked", false);
+      command.removeAttribute("checked");
     }
   },
 

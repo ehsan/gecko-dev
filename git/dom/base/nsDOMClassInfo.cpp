@@ -5885,8 +5885,7 @@ DefineInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
     }
 
     if (!::JS_DefineProperty(cx, obj, c->GetName(), v, nsnull, nsnull,
-                             JSPROP_ENUMERATE | JSPROP_READONLY |
-                             JSPROP_PERMANENT)) {
+                             JSPROP_ENUMERATE)) {
       return NS_ERROR_UNEXPECTED;
     }
   }
