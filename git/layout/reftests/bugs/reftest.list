@@ -756,7 +756,7 @@ fails == 413027-3.html 413027-3-ref.html
 == 413286-4b.html 413286-4-ref.html 
 == 413286-5.html 413286-5-ref.html 
 == 413286-6.html 413286-6-ref.html 
-skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabling due to failure loading on some mac tinderboxes. See bug 432954
+== 413292-1.html 413292-1-ref.html
 == 413361-1.html 413361-1-ref.html
 == 413840-background-unchanged.html 413840-background-unchanged-ref.html
 == 413840-ltr-offsets.html 413840-ltr-offsets-ref.html
@@ -815,7 +815,7 @@ fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
 == 428521-1a.html 428521-1-ref.html
 == 428521-1b.html 428521-1-ref.html
 == 428521-1c.html 428521-1-ref.html
-random == 429849-1.html 429849-1-ref.html # bug 432288
+== 429849-1.html 429849-1-ref.html
 == 430412-1.html 430412-1-ref.html
 == 430813-1.html 430813-1-ref.html
 == 430813-2.html 430813-2-ref.html
