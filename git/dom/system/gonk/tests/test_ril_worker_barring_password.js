@@ -15,19 +15,18 @@ const NEW_PIN = "1234";
  */
 function newUint8Worker() {
   let worker = newWorker();
-  let context = worker.ContextPool._contexts[0];
   let index = 0; // index for read
   let buf = [];
 
-  context.Buf.writeUint8 = function(value) {
+  worker.Buf.writeUint8 = function(value) {
     buf.push(value);
   };
 
-  context.Buf.readUint8 = function() {
+  worker.Buf.readUint8 = function() {
     return buf[index++];
   };
 
-  context.Buf.seekIncoming = function(offset) {
+  worker.Buf.seekIncoming = function(offset) {
     index += offset;
   };
 
@@ -38,8 +37,7 @@ function newUint8Worker() {
 
 add_test(function test_change_call_barring_password() {
   let worker = newUint8Worker();
-  let context = worker.ContextPool._contexts[0];
-  let buf = context.Buf;
+  let buf = worker.Buf;
 
   function do_test(facility, pin, newPin) {
     buf.sendParcel = function fakeSendParcel () {
@@ -57,7 +55,7 @@ add_test(function test_change_call_barring_password() {
     };
 
     let options = {facility: facility, pin: pin, newPin: newPin};
-    context.RIL.changeCallBarringPassword(options);
+    worker.RIL.changeCallBarringPassword(options);
   }
 
   do_test(ICC_CB_FACILITY_BA_ALL, PIN, NEW_PIN);
@@ -75,16 +73,15 @@ add_test(function test_check_change_call_barring_password_result() {
     }
   });
 
-  let context = worker.ContextPool._contexts[0];
-  context.RIL.changeCallBarringPassword =
+  worker.RIL.changeCallBarringPassword =
     function fakeChangeCallBarringPassword(options) {
       barringPasswordOptions = options;
-      context.RIL[REQUEST_CHANGE_BARRING_PASSWORD](0, {
+      worker.RIL[REQUEST_CHANGE_BARRING_PASSWORD](0, {
         rilRequestError: ERROR_SUCCESS
       });
     }
 
-  context.RIL.changeCallBarringPassword({pin: PIN, newPin: NEW_PIN});
+  worker.RIL.changeCallBarringPassword({pin: PIN, newPin: NEW_PIN});
 
   run_next_test();
 });

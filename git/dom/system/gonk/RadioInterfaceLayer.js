@@ -1557,14 +1557,47 @@ DataConnectionHandler.prototype = {
 };
 
 function RadioInterfaceLayer() {
-  let workerMessenger = new WorkerMessenger();
-  workerMessenger.init();
+  let options = {
+    debug: debugPref,
+    cellBroadcastDisabled: false,
+    clirMode: RIL.CLIR_DEFAULT,
+    quirks: {
+      callstateExtraUint32:
+        libcutils.property_get("ro.moz.ril.callstate_extra_int", "false") === "true",
+      v5Legacy:
+        libcutils.property_get("ro.moz.ril.v5_legacy", "true") === "true",
+      requestUseDialEmergencyCall:
+        libcutils.property_get("ro.moz.ril.dial_emergency_call", "false") === "true",
+      simAppStateExtraFields:
+        libcutils.property_get("ro.moz.ril.simstate_extra_field", "false") === "true",
+      extraUint2ndCall:
+        libcutils.property_get("ro.moz.ril.extra_int_2nd_call", "false") == "true",
+      haveQueryIccLockRetryCount:
+        libcutils.property_get("ro.moz.ril.query_icc_count", "false") == "true",
+      sendStkProfileDownload:
+        libcutils.property_get("ro.moz.ril.send_stk_profile_dl", "false") == "true",
+      dataRegistrationOnDemand:
+        libcutils.property_get("ro.moz.ril.data_reg_on_demand", "false") == "true"
+    },
+    rilEmergencyNumbers: libcutils.property_get("ril.ecclist") ||
+                         libcutils.property_get("ro.ril.ecclist")
+  };
+
+  try {
+    options.cellBroadcastDisabled =
+      Services.prefs.getBoolPref(kPrefCellBroadcastDisabled);
+  } catch(e) {}
+
+  try {
+    options.clirMode = Services.prefs.getIntPref(kPrefClirModePreference);
+  } catch(e) {}
 
   let numIfaces = this.numRadioInterfaces;
   if (DEBUG) debug(numIfaces + " interfaces");
   this.radioInterfaces = [];
   for (let clientId = 0; clientId < numIfaces; clientId++) {
-    this.radioInterfaces.push(new RadioInterface(clientId, workerMessenger));
+    options.clientId = clientId;
+    this.radioInterfaces.push(new RadioInterface(options));
   }
 
   Services.obs.addObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
@@ -1639,17 +1672,25 @@ XPCOMUtils.defineLazyGetter(RadioInterfaceLayer.prototype,
   return 1;
 });
 
-function WorkerMessenger() {
+function WorkerMessenger(radioInterface, options) {
   // Initial owning attributes.
-  this.radioInterfaces = [];
+  this.radioInterface = radioInterface;
   this.tokenCallbackMap = {};
 
+  // Add a convenient alias to |radioInterface.debug()|.
+  this.debug = radioInterface.debug.bind(radioInterface);
+
+  if (DEBUG) this.debug("Starting RIL Worker[" + options.clientId + "]");
   this.worker = new ChromeWorker("resource://gre/modules/ril_worker.js");
   this.worker.onerror = this.onerror.bind(this);
   this.worker.onmessage = this.onmessage.bind(this);
+
+  this.send("setInitialOptions", options);
+
+  gSystemWorkerManager.registerRilWorker(options.clientId, this.worker);
 }
 WorkerMessenger.prototype = {
-  radioInterfaces: null,
+  radioInterface: null,
   worker: null,
 
   // This gets incremented each time we send out a message.
@@ -1658,53 +1699,9 @@ WorkerMessenger.prototype = {
   // Maps tokens we send out with messages to the message callback.
   tokenCallbackMap: null,
 
-  init: function() {
-    let options = {
-      debug: DEBUG,
-      cellBroadcastDisabled: false,
-      clirMode: RIL.CLIR_DEFAULT,
-      quirks: {
-        callstateExtraUint32:
-          libcutils.property_get("ro.moz.ril.callstate_extra_int", "false") === "true",
-        v5Legacy:
-          libcutils.property_get("ro.moz.ril.v5_legacy", "true") === "true",
-        requestUseDialEmergencyCall:
-          libcutils.property_get("ro.moz.ril.dial_emergency_call", "false") === "true",
-        simAppStateExtraFields:
-          libcutils.property_get("ro.moz.ril.simstate_extra_field", "false") === "true",
-        extraUint2ndCall:
-          libcutils.property_get("ro.moz.ril.extra_int_2nd_call", "false") == "true",
-        haveQueryIccLockRetryCount:
-          libcutils.property_get("ro.moz.ril.query_icc_count", "false") == "true",
-        sendStkProfileDownload:
-          libcutils.property_get("ro.moz.ril.send_stk_profile_dl", "false") == "true",
-        dataRegistrationOnDemand:
-          libcutils.property_get("ro.moz.ril.data_reg_on_demand", "false") == "true"
-      },
-      rilEmergencyNumbers: libcutils.property_get("ril.ecclist") ||
-                           libcutils.property_get("ro.ril.ecclist")
-    };
-
-    try {
-      options.cellBroadcastDisabled =
-        Services.prefs.getBoolPref(kPrefCellBroadcastDisabled);
-    } catch(e) {}
-
-    try {
-      options.clirMode = Services.prefs.getIntPref(kPrefClirModePreference);
-    } catch(e) {}
-
-    this.send(null, "setInitialOptions", options);
-  },
-
-  debug: function(aClientId, aMessage) {
-    // We use the same debug subject with RadioInterface's here.
-    dump("-*- RadioInterface[" + aClientId + "]: " + aMessage + "\n");
-  },
-
   onerror: function(event) {
     if (DEBUG) {
-      this.debug("X", "Got an error: " + event.filename + ":" +
+      this.debug("Got an error: " + event.filename + ":" +
                  event.lineno + ": " + event.message + "\n");
     }
     event.preventDefault();
@@ -1715,26 +1712,20 @@ WorkerMessenger.prototype = {
    */
   onmessage: function(event) {
     let message = event.data;
-    let clientId = message.rilMessageClientId;
-    if (clientId === null) {
-      return;
-    }
-
     if (DEBUG) {
-      this.debug(clientId, "Received message from worker: " + JSON.stringify(message));
+      this.debug("Received message from worker: " + JSON.stringify(message));
     }
 
     let token = message.rilMessageToken;
     if (token == null) {
       // That's an unsolicited message.  Pass to RadioInterface directly.
-      let radioInterface = this.radioInterfaces[clientId];
-      radioInterface.handleUnsolicitedWorkerMessage(message);
+      this.radioInterface.handleUnsolicitedWorkerMessage(message);
       return;
     }
 
     let callback = this.tokenCallbackMap[message.rilMessageToken];
     if (!callback) {
-      if (DEBUG) this.debug(clientId, "Ignore orphan token: " + message.rilMessageToken);
+      if (DEBUG) this.debug("Ignore orphan token: " + message.rilMessageToken);
       return;
     }
 
@@ -1742,22 +1733,12 @@ WorkerMessenger.prototype = {
     try {
       keep = callback(message);
     } catch(e) {
-      if (DEBUG) this.debug(clientId, "callback throws an exception: " + e);
+      if (DEBUG) this.debug("callback throws an exception: " + e);
     }
 
     if (!keep) {
       delete this.tokenCallbackMap[message.rilMessageToken];
     }
-  },
-
-  registerClient: function(aClientId, aRadioInterface) {
-    if (DEBUG) this.debug(aClientId, "Starting RIL Worker");
-
-    // Keep a reference so that we can dispatch unsolicited messages to it.
-    this.radioInterfaces[aClientId] = aRadioInterface;
-
-    this.send(null, "registerClient", { clientId: aClientId });
-    gSystemWorkerManager.registerRilWorker(aClientId, this.worker);
   },
 
   /**
@@ -1775,10 +1756,9 @@ WorkerMessenger.prototype = {
    *        value true to keep current token-callback mapping and wait for
    *        another worker reply, or false to remove the mapping.
    */
-  send: function(clientId, rilMessageType, message, callback) {
+  send: function(rilMessageType, message, callback) {
     message = message || {};
 
-    message.rilMessageClientId = clientId;
     message.rilMessageToken = this.token;
     this.token++;
 
@@ -1809,11 +1789,11 @@ WorkerMessenger.prototype = {
    *
    * @TODO: Bug 815526 - deprecate RILContentHelper.
    */
-  sendWithIPCMessage: function(clientId, msg, rilMessageType, ipcType) {
-    this.send(clientId, rilMessageType, msg.json.data, (function(reply) {
+  sendWithIPCMessage: function(msg, rilMessageType, ipcType) {
+    this.send(rilMessageType, msg.json.data, (function(reply) {
       ipcType = ipcType || msg.name;
       msg.target.sendAsyncMessage(ipcType, {
-        clientId: clientId,
+        clientId: this.radioInterface.clientId,
         data: reply
       });
       return false;
@@ -1821,14 +1801,9 @@ WorkerMessenger.prototype = {
   }
 };
 
-function RadioInterface(aClientId, aWorkerMessenger) {
-  this.clientId = aClientId;
-  this.workerMessenger = {
-    send: aWorkerMessenger.send.bind(aWorkerMessenger, aClientId),
-    sendWithIPCMessage:
-      aWorkerMessenger.sendWithIPCMessage.bind(aWorkerMessenger, aClientId),
-  };
-  aWorkerMessenger.registerClient(aClientId, this);
+function RadioInterface(options) {
+  this.clientId = options.clientId;
+  this.workerMessenger = new WorkerMessenger(this, options);
 
   this.supportedNetworkTypes = this.getSupportedNetworkTypes();
 
@@ -1921,7 +1896,7 @@ RadioInterface.prototype = {
                                          Ci.nsIObserver,
                                          Ci.nsISettingsServiceCallback]),
 
-  // A private wrapped WorkerMessenger instance.
+  // A private WorkerMessenger instance.
   workerMessenger: null,
 
   debug: function(s) {
