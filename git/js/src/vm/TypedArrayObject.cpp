@@ -166,6 +166,39 @@ js::ClampDoubleToUint8(const double x)
     return y;
 }
 
+static bool
+ToDoubleForTypedArray(ThreadSafeContext *cx, const Value &vp, double *d)
+{
+    if (vp.isDouble()) {
+        *d = vp.toDouble();
+    } else if (vp.isNull()) {
+        *d = 0.0;
+    } else if (vp.isPrimitive()) {
+        JS_ASSERT(vp.isString() || vp.isUndefined() || vp.isBoolean());
+        if (vp.isString()) {
+            if (!StringToNumber(cx, vp.toString(), d))
+                return false;
+        } else if (vp.isUndefined()) {
+            *d = GenericNaN();
+        } else {
+            *d = double(vp.toBoolean());
+        }
+    } else {
+        // non-primitive assignments become NaN or 0 (for float/int arrays)
+        *d = GenericNaN();
+    }
+
+#ifdef JS_MORE_DETERMINISTIC
+    // It's possible to have a NaN value with the sign bit set. The spec allows
+    // this but it can confuse differential testing when this value is stored
+    // to a float array and then read back as integer. To work around this, we
+    // always canonicalize NaN values in more-deterministic builds.
+    *d = CanonicalizeNaN(*d);
+#endif
+
+    return true;
+}
+
 template<typename NativeType> static inline const int TypeIDOfType();
 template<> inline const int TypeIDOfType<int8_t>() { return ScalarTypeDescr::TYPE_INT8; }
 template<> inline const int TypeIDOfType<uint8_t>() { return ScalarTypeDescr::TYPE_UINT8; }
@@ -209,9 +242,21 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         return v.isObject() && v.toObject().hasClass(fastClass());
     }
 
-    static void
-    setIndexValue(TypedArrayObject &tarray, uint32_t index, double d)
+    static bool
+    setIndexValue(ThreadSafeContext *cx, JSObject *tarray, uint32_t index, const Value &value)
     {
+        JS_ASSERT(tarray);
+        JS_ASSERT(index < tarray->as<TypedArrayObject>().length());
+
+        if (value.isInt32()) {
+            setIndex(tarray, index, NativeType(value.toInt32()));
+            return true;
+        }
+
+        double d;
+        if (!ToDoubleForTypedArray(cx, value, &d))
+            return false;
+
         // If the array is an integer array, we only handle up to
         // 32-bit ints from this point on.  if we want to handle
         // 64-bit ints, we'll need some changes.
@@ -232,6 +277,8 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             int32_t n = ToInt32(d);
             setIndex(tarray, index, NativeType(n));
         }
+
+        return true;
     }
 
     static TypedArrayObject *
@@ -778,10 +825,9 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     }
 
     static void
-    setIndex(TypedArrayObject &tarray, uint32_t index, NativeType val)
+    setIndex(JSObject *obj, uint32_t index, NativeType val)
     {
-        MOZ_ASSERT(index < tarray.length());
-        static_cast<NativeType*>(tarray.viewData())[index] = val;
+        *(static_cast<NativeType*>(obj->as<TypedArrayObject>().viewData()) + index) = val;
     }
 
     static Value getIndexValue(JSObject *tarray, uint32_t index);
@@ -810,113 +856,107 @@ class TypedArrayObjectTemplate : public TypedArrayObject
 
   protected:
     static NativeType
-    doubleToNative(double d)
+    nativeFromDouble(double d)
     {
-        if (TypeIsFloatingPoint<NativeType>()) {
-#ifdef JS_MORE_DETERMINISTIC
-            // The JS spec doesn't distinguish among different NaN values, and
-            // it deliberately doesn't specify the bit pattern written to a
-            // typed array when NaN is written into it.  This bit-pattern
-            // inconsistency could confuse deterministic testing, so always
-            // canonicalize NaN values in more-deterministic builds.
-            d = CanonicalizeNaN(d);
-#endif
+        if (!ArrayTypeIsFloatingPoint() && MOZ_UNLIKELY(IsNaN(d)))
+            return NativeType(int32_t(0));
+        if (TypeIsFloatingPoint<NativeType>())
             return NativeType(d);
-        }
-        if (MOZ_UNLIKELY(IsNaN(d)))
-            return NativeType(0);
         if (TypeIsUnsigned<NativeType>())
             return NativeType(ToUint32(d));
         return NativeType(ToInt32(d));
     }
 
     static bool
-    canConvertInfallibly(const Value &v)
+    nativeFromValue(JSContext *cx, const Value &v, NativeType *result)
     {
-        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined();
-    }
-
-    static NativeType
-    infallibleValueToNative(const Value &v)
-    {
-        if (v.isInt32())
-            return v.toInt32();
-        if (v.isDouble())
-            return doubleToNative(v.toDouble());
-        if (v.isBoolean())
-            return v.toBoolean();
-        if (v.isNull())
-            return 0;
-
-        MOZ_ASSERT(v.isUndefined());
-        return ArrayTypeIsFloatingPoint() ? NativeType(GenericNaN()) : NativeType(0);
-    }
-
-    static bool
-    valueToNative(JSContext *cx, const Value &v, NativeType *result)
-    {
-        MOZ_ASSERT(!v.isMagic());
-
-        if (MOZ_LIKELY(canConvertInfallibly(v))) {
-            *result = infallibleValueToNative(v);
+        if (v.isInt32()) {
+            *result = v.toInt32();
             return true;
         }
 
-        double d;
-        MOZ_ASSERT(v.isString() || v.isObject());
-        if (!(v.isString() ? StringToNumber(cx, v.toString(), &d) : ToNumber(cx, v, &d)))
-            return false;
+        if (v.isDouble()) {
+            *result = nativeFromDouble(v.toDouble());
+            return true;
+        }
 
-        *result = doubleToNative(d);
+        /*
+         * The condition guarantees that holes and undefined values
+         * are treated identically.
+         */
+        if (v.isPrimitive() && !v.isMagic() && !v.isUndefined()) {
+            RootedValue primitive(cx, v);
+            double dval;
+            // ToNumber will only fail from OOM
+            if (!ToNumber(cx, primitive, &dval))
+                return false;
+            *result = nativeFromDouble(dval);
+            return true;
+        }
+
+        *result = ArrayTypeIsFloatingPoint()
+                  ? NativeType(GenericNaN())
+                  : NativeType(int32_t(0));
         return true;
     }
 
     static bool
     copyFromArray(JSContext *cx, HandleObject thisTypedArrayObj,
-                  HandleObject source, uint32_t len, uint32_t offset = 0)
+                  HandleObject ar, uint32_t len, uint32_t offset = 0)
     {
+        // Exit early if nothing to copy, to simplify loop conditions below.
+        if (len == 0)
+            return true;
+
         Rooted<TypedArrayObject*> thisTypedArray(cx, &thisTypedArrayObj->as<TypedArrayObject>());
         JS_ASSERT(offset <= thisTypedArray->length());
         JS_ASSERT(len <= thisTypedArray->length() - offset);
-        if (source->is<TypedArrayObject>())
-            return copyFromTypedArray(cx, thisTypedArray, source, offset);
+        if (ar->is<TypedArrayObject>())
+            return copyFromTypedArray(cx, thisTypedArray, ar, offset);
 
-        uint32_t i = 0;
-        if (source->isNative()) {
-            // Attempt fast-path infallible conversion of dense elements up to
-            // the first potentially side-effectful lookup or conversion.
-            uint32_t bound = Min(source->getDenseInitializedLength(), len);
+#ifdef DEBUG
+        JSRuntime *runtime = cx->runtime();
+        uint64_t gcNumber = runtime->gcNumber;
+#endif
 
-            NativeType *dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
+        NativeType *dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
 
-            const Value *srcValues = source->getDenseElements();
-            for (; i < bound; i++) {
-                // Note: holes don't convert infallibly.
-                if (!canConvertInfallibly(srcValues[i]))
+        if (ar->is<ArrayObject>() && !ar->isIndexed() && ar->getDenseInitializedLength() >= len) {
+            JS_ASSERT(ar->as<ArrayObject>().length() == len);
+
+            /*
+             * The only way the code below can GC is if nativeFromValue fails,
+             * but in that case we return false immediately, so we do not need
+             * to root |src| and |dest|.
+             */
+            const Value *src = ar->getDenseElements();
+            uint32_t i = 0;
+            do {
+                NativeType n;
+                if (!nativeFromValue(cx, src[i], &n))
+                    return false;
+                dest[i] = n;
+            } while (++i < len);
+            JS_ASSERT(runtime->gcNumber == gcNumber);
+        } else {
+            RootedValue v(cx);
+
+            uint32_t i = 0;
+            do {
+                if (!JSObject::getElement(cx, ar, ar, i, &v))
+                    return false;
+                NativeType n;
+                if (!nativeFromValue(cx, v, &n))
+                    return false;
+
+                len = Min(len, thisTypedArray->length());
+                if (i >= len)
                     break;
-                dest[i] = infallibleValueToNative(srcValues[i]);
-            }
-            if (i == len)
-                return true;
-        }
 
-        // Convert and copy any remaining elements generically.
-        RootedValue v(cx);
-        for (; i < len; i++) {
-            if (!JSObject::getElement(cx, source, source, i, &v))
-                return false;
-
-            NativeType n;
-            if (!valueToNative(cx, v, &n))
-                return false;
-
-            len = Min(len, thisTypedArray->length());
-            if (i >= len)
-                break;
-
-            // Compute every iteration in case getElement acts wacky.
-            void *data = thisTypedArray->viewData();
-            static_cast<NativeType*>(data)[offset + i] = n;
+                // Compute every iteration in case getElement acts wacky.
+                dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
+                dest[i] = n;
+            } while (++i < len);
         }
 
         return true;
@@ -1933,36 +1973,38 @@ TypedArrayObject::getElement(uint32_t index)
     }
 }
 
-void
-TypedArrayObject::setElement(TypedArrayObject &obj, uint32_t index, double d)
+bool
+TypedArrayObject::setElement(ThreadSafeContext *cx, uint32_t index, const Value &value)
 {
-    switch (obj.type()) {
+    JS_ASSERT(index < length());
+
+    switch (type()) {
       case ScalarTypeDescr::TYPE_INT8:
-        TypedArrayObjectTemplate<int8_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<int8_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_UINT8:
-        TypedArrayObjectTemplate<uint8_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<uint8_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
-        TypedArrayObjectTemplate<uint8_clamped>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<uint8_clamped>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_INT16:
-        TypedArrayObjectTemplate<int16_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<int16_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_UINT16:
-        TypedArrayObjectTemplate<uint16_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<uint16_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_INT32:
-        TypedArrayObjectTemplate<int32_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<int32_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_UINT32:
-        TypedArrayObjectTemplate<uint32_t>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<uint32_t>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_FLOAT32:
-        TypedArrayObjectTemplate<float>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<float>::setIndexValue(cx, this, index, value);
         break;
       case ScalarTypeDescr::TYPE_FLOAT64:
-        TypedArrayObjectTemplate<double>::setIndexValue(obj, index, d);
+        return TypedArrayObjectTemplate<double>::setIndexValue(cx, this, index, value);
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("Unknown TypedArray type");

@@ -2,13 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TIMEUPDATE_TIMEOUT_LENGTH = 10000;
-const ENDED_TIMEOUT_LENGTH = 10000;
-
-/* Time we wait for the canplaythrough event to fire
- * Note: this needs to be at least 30s because the
- *       B2G emulator in VMs is really slow. */
-const CANPLAYTHROUGH_TIMEOUT_LENGTH = 60000;
+var TIMEOUT_LENGTH = 10000;
 
 /**
  * This class manages playback of a HTMLMediaElement with a MediaStream.
@@ -129,7 +123,7 @@ MediaStreamPlayback.prototype = {
             timeUpdateCallback, false);
           onError("timeUpdate event never fired");
         }
-      }, TIMEUPDATE_TIMEOUT_LENGTH);
+      }, TIMEOUT_LENGTH);
     };
 
     // Adds a listener intended to be fired when playback is available
@@ -148,7 +142,7 @@ MediaStreamPlayback.prototype = {
           canPlayThroughCallback, false);
         onError("canplaythrough event never fired");
       }
-    }, CANPLAYTHROUGH_TIMEOUT_LENGTH);
+    }, TIMEOUT_LENGTH);
   },
 
   /**
@@ -243,7 +237,7 @@ LocalMediaStreamPlayback.prototype = Object.create(MediaStreamPlayback.prototype
         if (!endedFired) {
           onError("ended event never fired");
         }
-      }, ENDED_TIMEOUT_LENGTH);
+      }, TIMEOUT_LENGTH);
     }
   }
 });

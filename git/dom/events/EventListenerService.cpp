@@ -20,6 +20,8 @@
 #include "nsMemory.h"
 #include "nsServiceManagerUtils.h"
 
+DOMCI_DATA(EventListenerInfo, mozilla::EventListenerInfo)
+
 namespace mozilla {
 
 using namespace dom;
@@ -33,6 +35,7 @@ NS_IMPL_CYCLE_COLLECTION_1(EventListenerInfo, mListener)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(EventListenerInfo)
   NS_INTERFACE_MAP_ENTRY(nsIEventListenerInfo)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(EventListenerInfo)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(EventListenerInfo)

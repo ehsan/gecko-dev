@@ -380,7 +380,7 @@ StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, cons
             masm.storeFloat32(value, dest);
         } else {
 #ifdef JS_MORE_DETERMINISTIC
-            // See the comment in TypedArrayObjectTemplate::doubleToNative.
+            // See the comment in ToDoubleForTypedArray.
             masm.canonicalizeDouble(value);
 #endif
             masm.convertDoubleToFloat32(value, ScratchFloatReg);
@@ -389,7 +389,7 @@ StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, cons
         break;
       case ScalarTypeDescr::TYPE_FLOAT64:
 #ifdef JS_MORE_DETERMINISTIC
-        // See the comment in TypedArrayObjectTemplate::doubleToNative.
+        // See the comment in ToDoubleForTypedArray.
         masm.canonicalizeDouble(value);
 #endif
         masm.storeDouble(value, dest);
@@ -698,9 +698,9 @@ MacroAssembler::newGCString(Register result, Register temp, Label *fail)
 }
 
 void
-MacroAssembler::newGCFatInlineString(Register result, Register temp, Label *fail)
+MacroAssembler::newGCShortString(Register result, Register temp, Label *fail)
 {
-    newGCThing(result, temp, js::gc::FINALIZE_FAT_INLINE_STRING, fail);
+    newGCThing(result, temp, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
@@ -768,10 +768,10 @@ MacroAssembler::newGCStringPar(Register result, Register cx, Register tempReg1, 
 }
 
 void
-MacroAssembler::newGCFatInlineStringPar(Register result, Register cx, Register tempReg1,
-                                        Register tempReg2, Label *fail)
+MacroAssembler::newGCShortStringPar(Register result, Register cx, Register tempReg1,
+                                    Register tempReg2, Label *fail)
 {
-    newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_FAT_INLINE_STRING, fail);
+    newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
@@ -1633,8 +1633,9 @@ MacroAssembler::convertValueToInt(ValueOperand value, MDefinition *maybeInput,
                           behavior == IntConversion_ClampToUint8) &&
                          handleStringEntry &&
                          handleStringRejoin;
+    bool zeroObjects = behavior == IntConversion_ClampToUint8;
 
-    JS_ASSERT_IF(handleStrings, conversion == IntConversion_Any);
+    JS_ASSERT_IF(handleStrings || zeroObjects, conversion == IntConversion_Any);
 
     Label done, isInt32, isBool, isDouble, isNull, isString;
 
@@ -1657,7 +1658,8 @@ MacroAssembler::convertValueToInt(ValueOperand value, MDefinition *maybeInput,
             branchEqualTypeIfNeeded(MIRType_Null, maybeInput, tag, &isNull);
             if (handleStrings)
                 branchEqualTypeIfNeeded(MIRType_String, maybeInput, tag, &isString);
-            branchEqualTypeIfNeeded(MIRType_Object, maybeInput, tag, fail);
+            if (zeroObjects)
+                branchEqualTypeIfNeeded(MIRType_Object, maybeInput, tag, &isNull);
             branchTestUndefined(Assembler::NotEqual, tag, fail);
             break;
         }
@@ -1716,6 +1718,7 @@ MacroAssembler::convertValueToInt(JSContext *cx, const Value &v, Register output
 {
     bool handleStrings = (behavior == IntConversion_Truncate ||
                           behavior == IntConversion_ClampToUint8);
+    bool zeroObjects = behavior == IntConversion_ClampToUint8;
 
     if (v.isNumber() || (handleStrings && v.isString())) {
         double d;
@@ -1758,7 +1761,10 @@ MacroAssembler::convertValueToInt(JSContext *cx, const Value &v, Register output
 
     JS_ASSERT(v.isObject());
 
-    jump(fail);
+    if (zeroObjects)
+        move32(Imm32(0), output);
+    else
+        jump(fail);
     return true;
 }
 

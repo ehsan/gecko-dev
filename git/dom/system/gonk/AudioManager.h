@@ -63,7 +63,7 @@ protected:
 
 private:
   nsAutoPtr<mozilla::hal::SwitchObserver> mObserver;
-  nsCOMPtr<nsIAudioChannelAgent>          mPhoneAudioAgent;
+  nsCOMPtr<AudioChannelAgent>             mPhoneAudioAgent;
 #ifdef MOZ_B2G_RIL
   bool                                    mMuteCallToRIL;
   // mIsMicMuted is only used for toggling mute call to RIL.

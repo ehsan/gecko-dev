@@ -204,7 +204,7 @@ MediaPermissionRequest::GetTypes(nsIArray** aTypes)
   if (mAudio) {
     nsTArray<nsString> audioDeviceNames;
     CreateDeviceNameList(mAudioDevices, audioDeviceNames);
-    nsCOMPtr<nsISupports> AudioType =
+    nsCOMPtr<ContentPermissionType> AudioType =
       new ContentPermissionType(NS_LITERAL_CSTRING(AUDIO_PERMISSION_NAME),
                                 NS_LITERAL_CSTRING("unused"),
                                 audioDeviceNames);
@@ -213,7 +213,7 @@ MediaPermissionRequest::GetTypes(nsIArray** aTypes)
   if (mVideo) {
     nsTArray<nsString> videoDeviceNames;
     CreateDeviceNameList(mVideoDevices, videoDeviceNames);
-    nsCOMPtr<nsISupports> VideoType =
+    nsCOMPtr<ContentPermissionType> VideoType =
       new ContentPermissionType(NS_LITERAL_CSTRING(VIDEO_PERMISSION_NAME),
                                 NS_LITERAL_CSTRING("unused"),
                                 videoDeviceNames);

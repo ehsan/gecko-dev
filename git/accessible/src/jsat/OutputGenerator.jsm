@@ -632,11 +632,6 @@ this.UtteranceGenerator = {
       stateUtterances.push(Utils.stringBundle.GetStringFromName(statetr));
     }
 
-    if (aState.contains(States.PRESSED)) {
-      stateUtterances.push(
-        Utils.stringBundle.GetStringFromName('statePressed'));
-    }
-
     if (aState.contains(States.EXPANDABLE)) {
       let statetr = aState.contains(States.EXPANDED) ?
         'stateExpanded' : 'stateCollapsed';
@@ -788,7 +783,7 @@ this.BrailleGenerator = {
     _useStateNotRole: function _useStateNotRole(aAccessible, aRoleStr, aState, aFlags) {
       let braille = [];
 
-      let desc = this._getLocalizedState(aState, aAccessible.role);
+      let desc = this._getLocalizedState(aState);
       braille.push(desc.join(' '));
 
       this._addName(braille, aAccessible, aFlags);
@@ -836,25 +831,24 @@ this.BrailleGenerator = {
     }
   },
 
-  _getLocalizedState: function _getLocalizedState(aState, aRole) {
+  _getLocalizedState: function _getLocalizedState(aState) {
     let stateBraille = [];
 
-    let getResultMarker = function getResultMarker(aMarker) {
-      // aMarker is a simple boolean.
+    let getCheckedState = function getCheckedState() {
       let resultMarker = [];
+      let state = aState;
+      let fill = state.contains(States.CHECKED) ||
+        state.contains(States.PRESSED);
+
       resultMarker.push('(');
-      resultMarker.push(aMarker ? 'x' : ' ');
+      resultMarker.push(fill ? 'x' : ' ');
       resultMarker.push(')');
 
       return resultMarker.join('');
     };
 
     if (aState.contains(States.CHECKABLE)) {
-      stateBraille.push(getResultMarker(aState.contains(States.CHECKED)));
-    }
-
-    if (aRole === Roles.TOGGLE_BUTTON) {
-      stateBraille.push(getResultMarker(aState.contains(States.PRESSED)));
+      stateBraille.push(getCheckedState());
     }
 
     return stateBraille;

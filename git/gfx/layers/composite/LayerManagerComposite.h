@@ -278,7 +278,6 @@ private:
   bool mDebugOverlayWantsNextFrame;
 
   RefPtr<TextRenderer> mTextRenderer;
-  bool mGeometryChanged;
 };
 
 /**

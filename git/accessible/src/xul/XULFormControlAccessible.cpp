@@ -40,11 +40,8 @@ XULButtonAccessible::
   XULButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  if (ContainsMenu()) {
+  if (ContainsMenu())
     mGenericTypes |= eMenuButton;
-  } else {
-    mGenericTypes |= eButton;
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
