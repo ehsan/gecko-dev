@@ -148,6 +148,8 @@ public:
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
+    HDC GetScreenDC() { return mScreenDC; }
+
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
@@ -226,12 +228,11 @@ public:
 #endif
 
 protected:
-    void InitDisplayCaps();
-
     RenderMode mRenderMode;
 
     PRBool mUseClearTypeForDownloadableFonts;
     PRBool mUseClearTypeAlways;
+    HDC mScreenDC;
 
 private:
     void Init();
