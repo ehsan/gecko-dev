@@ -6038,7 +6038,7 @@ function convertFromUnicode(charset, str)
 /**
  * Re-open a closed tab.
  * @param aIndex
- *        The index of the tab (via nsSessionStore.getClosedTabData)
+ *        The index of the tab (via SessionStore.getClosedTabData)
  * @returns a reference to the reopened tab.
  */
 function undoCloseTab(aIndex) {
@@ -6047,17 +6047,15 @@ function undoCloseTab(aIndex) {
   if (gBrowser.tabs.length == 1 && isTabEmpty(gBrowser.selectedTab))
     blankTabToRemove = gBrowser.selectedTab;
 
-  var ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
   let numberOfTabsToUndoClose = 0;
   let index = Number(aIndex);
 
 
   if (isNaN(index)) {
     index = 0;
-    numberOfTabsToUndoClose = ss.getNumberOfTabsClosedLast(window);
+    numberOfTabsToUndoClose = SessionStore.getNumberOfTabsClosedLast(window);
   } else {
-    if (0 > index || index >= ss.getClosedTabCount(window))
+    if (0 > index || index >= SessionStore.getClosedTabCount(window))
       return null;
     numberOfTabsToUndoClose = 1;
   }
@@ -6066,7 +6064,7 @@ function undoCloseTab(aIndex) {
   while (numberOfTabsToUndoClose > 0 &&
          numberOfTabsToUndoClose--) {
     TabView.prepareUndoCloseTab(blankTabToRemove);
-    tab = ss.undoCloseTab(window, index);
+    tab = SessionStore.undoCloseTab(window, index);
     TabView.afterUndoCloseTab();
     if (blankTabToRemove) {
       gBrowser.removeTab(blankTabToRemove);
@@ -6075,22 +6073,20 @@ function undoCloseTab(aIndex) {
   }
 
   // Reset the number of tabs closed last time to the default.
-  ss.setNumberOfTabsClosedLast(window, 1);
+  SessionStore.setNumberOfTabsClosedLast(window, 1);
   return tab;
 }
 
 /**
  * Re-open a closed window.
  * @param aIndex
- *        The index of the window (via nsSessionStore.getClosedWindowData)
+ *        The index of the window (via SessionStore.getClosedWindowData)
  * @returns a reference to the reopened window.
  */
 function undoCloseWindow(aIndex) {
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
   let window = null;
-  if (ss.getClosedWindowCount() > (aIndex || 0))
-    window = ss.undoCloseWindow(aIndex || 0);
+  if (SessionStore.getClosedWindowCount() > (aIndex || 0))
+    window = SessionStore.undoCloseWindow(aIndex || 0);
 
   return window;
 }
@@ -6836,9 +6832,7 @@ function switchToTabHavingURI(aURI, aOpenNew) {
 }
 
 function restoreLastSession() {
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
-  ss.restoreLastSession();
+  SessionStore.restoreLastSession();
 }
 
 var TabContextMenu = {
@@ -6862,10 +6856,8 @@ var TabContextMenu = {
       menuItem.disabled = disabled;
 
     // Session store
-    let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-               getService(Ci.nsISessionStore);
     let undoCloseTabElement = document.getElementById("context_undoCloseTab");
-    let closedTabCount = ss.getNumberOfTabsClosedLast(window);
+    let closedTabCount = SessionStore.getNumberOfTabsClosedLast(window);
     undoCloseTabElement.disabled = closedTabCount == 0;
     // Change the label of "Undo Close Tab" to specify if it will undo a batch-close
     // or a single close.
@@ -6949,9 +6941,7 @@ function safeModeRestart()
  * delta is the offset to the history entry that you want to load.
  */
 function duplicateTabIn(aTab, where, delta) {
-  let newTab = Cc['@mozilla.org/browser/sessionstore;1']
-                 .getService(Ci.nsISessionStore)
-                 .duplicateTab(window, aTab, delta);
+  let newTab = SessionStore.duplicateTab(window, aTab, delta);
 
   switch (where) {
     case "window":
