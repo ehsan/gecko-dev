@@ -140,11 +140,8 @@ CPPSRCS		= \
 
 ifdef MOZ_SMIL
 CPPSRCS += nsSVGAnimateElement.cpp \
-           nsSVGAnimateTransformElement.cpp \
            nsSVGAnimationElement.cpp \
            nsSVGSetElement.cpp \
-           nsSVGTransformSMILType.cpp \
-           nsSVGTransformSMILAttr.cpp \
            $(NULL)
 endif
 

@@ -93,70 +93,63 @@ nsSMILTimedElement::nsSMILTimedElement()
 // Animation and SVG 1.1. In SMIL Animation all methods have a void return
 // type and the new instance time is simply added to the list and restart
 // semantics are applied as with any other instance time. In the SVG definition
-// the methods return a bool depending on the restart mode.
+// the methods return a bool depending on the restart mode. There are some
+// cases where this is problematic.
 //
-// This inconsistency has now been addressed by an erratum in SVG 1.1:
+// For example, if a call is made to beginElementAt and the resolved time
+// after including the offset falls outside the current interval then using
+// the SMIL Animation definition an element with restart == whenNotActive
+// would restart with this new instance time. The SVG definition however seems
+// to imply that in this case the implementation should ignore the new
+// instance time if the restart mode == whenNotActive and the element is
+// currently active and return false.
 //
-// http://www.w3.org/2003/01/REC-SVG11-20030114-errata#elementtimecontrol-interface
+// It is tempting to try and determine when a new instance time will actually
+// cause a restart but this is not possible as in the meantime a new event may
+// trump the new instance time. We take a compromise of returning true and
+// false according to the SVG definition but adding the instance time to the
+// list regardless. This may produce different results to an implementation that
+// follows strictly the behaviour implied by the SVG spec.
 //
-// which favours the definition in SMIL, i.e. instance times are just added
-// without first checking the restart mode.
 
-nsresult
+/* boolean beginElementAt (in float offset); */
+PRBool
 nsSMILTimedElement::BeginElementAt(double aOffsetSeconds,
                                    const nsSMILTimeContainer* aContainer)
 {
+  // If restart == never or restart == whenNotActive, check whether we're
+  // in a state that allows us to restart.
+  if ((mRestartMode == RESTART_NEVER &&
+       (mElementState == STATE_ACTIVE || mElementState == STATE_POSTACTIVE)) ||
+      (mRestartMode == RESTART_WHENNOTACTIVE &&
+       mElementState == STATE_ACTIVE)) {
+    return PR_FALSE;
+  }
+
   if (!AddInstanceTimeFromCurrentTime(aOffsetSeconds, PR_TRUE, aContainer)) {
     // Probably we don't have a time container
     NS_ERROR("Failed to begin element");
-    return NS_ERROR_FAILURE;
+    return PR_FALSE;
   }
 
-  return NS_OK;
+  return PR_TRUE;
 }
 
-nsresult
+/* boolean endElementAt (in float offset); */
+PRBool
 nsSMILTimedElement::EndElementAt(double aOffsetSeconds,
                                  const nsSMILTimeContainer* aContainer)
 {
+  if (mElementState != STATE_ACTIVE)
+    return PR_FALSE;
+
   if (!AddInstanceTimeFromCurrentTime(aOffsetSeconds, PR_FALSE, aContainer)) {
     // Probably we don't have a time container
     NS_ERROR("Failed to end element");
-    return NS_ERROR_FAILURE;
+    return PR_FALSE;
   }
 
-  return NS_OK;
-}
-
-//----------------------------------------------------------------------
-// nsSVGAnimationElement methods
-
-nsSMILTimeValue
-nsSMILTimedElement::GetStartTime() const
-{
-  nsSMILTimeValue startTime;
-
-  switch (mElementState)
-  {
-  case STATE_STARTUP:
-  case STATE_ACTIVE:
-    startTime = mCurrentInterval.mBegin;
-    break;
-
-  case STATE_WAITING:
-  case STATE_POSTACTIVE:
-    if (!mOldIntervals.IsEmpty()) {
-      startTime = mOldIntervals[mOldIntervals.Length() - 1].mBegin;
-    } else {
-      startTime = mCurrentInterval.mBegin;
-    }
-  }
-
-  if (!startTime.IsResolved()) {
-    startTime.SetIndefinite();
-  }
-  
-  return startTime;
+  return PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -166,11 +159,10 @@ void
 nsSMILTimedElement::AddInstanceTime(const nsSMILInstanceTime& aInstanceTime,
                                     PRBool aIsBegin)
 {
-  if (aIsBegin) {
+  if (aIsBegin)
     mBeginInstances.AppendElement(aInstanceTime);
-  } else {
+  else
     mEndInstances.AppendElement(aInstanceTime);
-  }
 
   UpdateCurrentInterval();
 }
@@ -416,15 +408,11 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
   rv = nsSMILParserUtils::ParseClockValue(aDurSpec, &duration,
           nsSMILParserUtils::kClockValueAllowIndefinite, &isMedia);
 
-  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
-    mSimpleDur.SetIndefinite();
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite()))
     return NS_ERROR_FAILURE;
-  }
   
-  if (duration.IsResolved() && duration.GetMillis() == 0L) {
-    mSimpleDur.SetIndefinite();
+  if (duration.IsResolved() && duration.GetMillis() == 0L)
     return NS_ERROR_FAILURE;
-  }
 
   //
   // SVG-specific: "For SVG's animation elements, if "media" is specified, the
@@ -432,11 +420,6 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
   //
   if (isMedia)
     duration.SetIndefinite();
-
-  // mSimpleDur should never be unresolved. ParseClockValue will either set
-  // duration to resolved/indefinite/media or will return a failure code.
-  NS_ASSERTION(duration.IsResolved() || duration.IsIndefinite(),
-    "Setting unresolved simple duration");
 
   mSimpleDur = duration;
 
@@ -570,16 +553,14 @@ nsSMILTimedElement::UnsetRepeatCount()
 nsresult
 nsSMILTimedElement::SetRepeatDur(const nsAString& aRepeatDurSpec)
 {
-  nsresult rv;
+  nsresult        rv;
   nsSMILTimeValue duration;
 
   rv = nsSMILParserUtils::ParseClockValue(aRepeatDurSpec, &duration,
           nsSMILParserUtils::kClockValueAllowIndefinite);
 
-  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
-    mRepeatDur.SetUnresolved();
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite()))
     return NS_ERROR_FAILURE;
-  }
   
   UpdateCurrentInterval();
   
@@ -799,8 +780,11 @@ nsSMILTimedElement::CalcActiveEnd(const nsSMILTimeValue& aBegin,
 {
   nsSMILTimeValue result;
 
-  NS_ASSERTION(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
-    "Unresolved simple duration in CalcActiveEnd.");
+  if (!mSimpleDur.IsIndefinite() && !mSimpleDur.IsResolved()) {
+    NS_ERROR("Unresolved simple duration in CalcActiveEnd.");
+    result.SetIndefinite();
+    return result;
+  }
 
   if (!aBegin.IsResolved() && !aBegin.IsIndefinite()) {
     NS_ERROR("Unresolved begin time passed to CalcActiveEnd.");
@@ -892,7 +876,7 @@ nsSMILTimedElement::ActiveTimeToSimpleTime(nsSMILTime aActiveTime,
   nsSMILTime result;
 
   NS_ASSERTION(mSimpleDur.IsResolved() || mSimpleDur.IsIndefinite(),
-      "Unresolved simple duration in ActiveTimeToSimpleTime");
+      "Trying to calculate active time with unresolved duration");
 
   if (mSimpleDur.IsIndefinite() || mSimpleDur.GetMillis() == 0L) {
     aRepeatIteration = 0;
@@ -941,6 +925,9 @@ nsSMILTimedElement::CheckForEarlyEnd(const nsSMILTimeValue& aDocumentTime)
 void
 nsSMILTimedElement::UpdateCurrentInterval()
 {
+  if (mElementState == STATE_STARTUP)
+    return;
+
   nsSMILInterval updatedInterval;
   PRBool isFirstInterval = mOldIntervals.IsEmpty();
 
