@@ -724,7 +724,7 @@ class NotifyOffThreadScriptLoadCompletedRunnable : public nsRunnable
 public:
   NotifyOffThreadScriptLoadCompletedRunnable(nsScriptLoadRequest* aRequest,
                                              nsScriptLoader* aLoader)
-    : mRequest(aRequest), mLoader(aLoader), mToken(nullptr)
+    : mRequest(aRequest), mLoader(aLoader), mToken(NULL)
   {}
 
   void SetToken(void* aToken) {

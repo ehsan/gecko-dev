@@ -10,7 +10,6 @@
 
 #include "mozilla/dom/TextTrack.h"
 #include "mozilla/dom/TextTrackList.h"
-#include "mozilla/dom/TextTrackCueList.h"
 
 namespace mozilla {
 namespace dom {
@@ -34,9 +33,6 @@ public:
   void RemoveTextTrack(TextTrack* aTextTrack, bool aPendingListOnly);
   void DidSeek();
 
-  void AddCue(TextTrackCue& aCue);
-  void AddCues(TextTrack* aTextTrack);
-
   // Update the display of cues on the video as per the current play back time
   // of aTime.
   void Update(double aTime);
@@ -53,8 +49,6 @@ private:
   nsRefPtr<TextTrackList> mTextTracks;
   // List of text track objects awaiting loading.
   nsRefPtr<TextTrackList> mPendingTextTracks;
-  // List of newly introduced Text Track cues.
-  nsRefPtr<TextTrackCueList> mNewCues;
 };
 
 } // namespace dom

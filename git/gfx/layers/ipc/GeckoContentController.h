@@ -76,7 +76,9 @@ public:
    * for this layers tree. This function should return false if there are no
    * last known zoom constraints.
    */
-  virtual bool GetRootZoomConstraints(ZoomConstraints* aOutConstraints)
+  virtual bool GetRootZoomConstraints(bool* aOutAllowZoom,
+                                      CSSToScreenScale* aOutMinZoom,
+                                      CSSToScreenScale* aOutMaxZoom)
   {
     return false;
   }
