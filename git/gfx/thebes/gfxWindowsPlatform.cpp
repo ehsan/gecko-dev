@@ -107,35 +107,6 @@ public:
 }; 
 
 NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
-
-class D2DVRAMReporter :
-    public nsIMemoryReporter
-{
-public:
-    D2DVRAMReporter()
-    { }
-
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD GetPath(char **memoryPath) {
-        *memoryPath = strdup("gfx/d2d/surfacevram");
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetDescription(char **desc) {
-        *desc = strdup("Video memory used by D2D surfaces");
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
-	*memoryUsed = cairo_d2d_get_surface_vram_usage(
-	    gfxWindowsPlatform::GetPlatform()->GetD2DDevice()
-	    );
-        return NS_OK;
-    }
-};
-
-NS_IMPL_ISUPPORTS1(D2DVRAMReporter, nsIMemoryReporter)
 #endif
 
 #ifdef WINCE
@@ -218,10 +189,9 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     NS_RegisterMemoryReporter(new D2DCacheReporter());
-    NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = NULL;
 
-    if (isVistaOrHigher) {
+    if (isVistaOrHigher && 0) {
         // We need a DWriteFactory to work.
         HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
         D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -625,6 +595,16 @@ gfxWindowsPlatform::WindowsOSVersion()
         }
     }
     return winVersion;
+}
+
+void
+gfxWindowsPlatform::InitDisplayCaps()
+{
+    HDC dc = GetDC((HWND)nsnull);
+
+    gfxPlatform::sDPI = GetDeviceCaps(dc, LOGPIXELSY);
+
+    ReleaseDC((HWND)nsnull, dc);
 }
 
 void

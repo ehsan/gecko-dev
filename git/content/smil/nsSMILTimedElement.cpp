@@ -186,6 +186,8 @@ nsSMILTimedElement::nsSMILTimedElement()
   mAnimationElement(nsnull),
   mFillMode(FILL_REMOVE),
   mRestartMode(RESTART_ALWAYS),
+  mBeginSpecSet(PR_FALSE),
+  mEndHasEventConditions(PR_FALSE),
   mInstanceSerialIndex(0),
   mClient(nsnull),
   mCurrentInterval(nsnull),
@@ -340,19 +342,6 @@ nsSMILTimedElement::AddInstanceTime(nsSMILInstanceTime* aInstanceTime,
                                     PRBool aIsBegin)
 {
   NS_ABORT_IF_FALSE(aInstanceTime, "Attempting to add null instance time");
-
-  // Event-sensitivity: If an element is not active (but the parent time
-  // container is), then events are only handled for begin specifications.
-  if (mElementState != STATE_ACTIVE && !aIsBegin &&
-      aInstanceTime->IsDynamic())
-  {
-    // No need to call Unlink here--dynamic instance times shouldn't be linked
-    // to anything that's going to miss them
-    NS_ABORT_IF_FALSE(!aInstanceTime->GetBaseInterval(),
-        "Dynamic instance time has a base interval--we probably need to unlink"
-        " it if we're not going to use it");
-    return;
-  }
 
   aInstanceTime->SetSerial(++mInstanceSerialIndex);
   InstanceTimeList& instanceList = aIsBegin ? mBeginInstances : mEndInstances;
@@ -663,21 +652,6 @@ nsSMILTimedElement::HandleContainerTimeChange()
   }
 }
 
-namespace
-{
-  PRBool
-  RemoveNonDynamic(nsSMILInstanceTime* aInstanceTime)
-  {
-    // Generally dynamically-generated instance times (DOM calls, event-based
-    // times) are not associated with their creator nsSMILTimeValueSpec since
-    // they may outlive them.
-    NS_ABORT_IF_FALSE(!aInstanceTime->IsDynamic() ||
-         !aInstanceTime->GetCreator(),
-        "Dynamic instance time should be unlinked from its creator");
-    return !aInstanceTime->IsDynamic();
-  }
-}
-
 void
 nsSMILTimedElement::Rewind()
 {
@@ -699,8 +673,8 @@ nsSMILTimedElement::Rewind()
   // regenerate (DOM calls etc.)
   RewindTiming();
 
-  UnsetBeginSpec(RemoveNonDynamic);
-  UnsetEndSpec(RemoveNonDynamic);
+  UnsetBeginSpec();
+  UnsetEndSpec();
 
   if (mClient) {
     mClient->Inactivate(PR_FALSE);
@@ -709,43 +683,33 @@ nsSMILTimedElement::Rewind()
   if (mAnimationElement->HasAnimAttr(nsGkAtoms::begin)) {
     nsAutoString attValue;
     mAnimationElement->GetAnimAttr(nsGkAtoms::begin, attValue);
-    SetBeginSpec(attValue, &mAnimationElement->AsElement(), RemoveNonDynamic);
+    SetBeginSpec(attValue, &mAnimationElement->Content());
   }
 
   if (mAnimationElement->HasAnimAttr(nsGkAtoms::end)) {
     nsAutoString attValue;
     mAnimationElement->GetAnimAttr(nsGkAtoms::end, attValue);
-    SetEndSpec(attValue, &mAnimationElement->AsElement(), RemoveNonDynamic);
+    SetEndSpec(attValue, &mAnimationElement->Content());
   }
 
   mPrevRegisteredMilestone = sMaxMilestone;
   RegisterMilestone();
 }
 
-namespace
-{
-  PRBool
-  RemoveNonDOM(nsSMILInstanceTime* aInstanceTime)
-  {
-    return !aInstanceTime->FromDOM();
-  }
-}
-
 PRBool
 nsSMILTimedElement::SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
-                            nsAttrValue& aResult,
-                            Element* aContextNode,
+                            nsAttrValue& aResult, nsIContent* aContextNode,
                             nsresult* aParseResult)
 {
   PRBool foundMatch = PR_TRUE;
   nsresult parseResult = NS_OK;
 
   if (aAttribute == nsGkAtoms::begin) {
-    parseResult = SetBeginSpec(aValue, aContextNode, RemoveNonDOM);
+    parseResult = SetBeginSpec(aValue, aContextNode);
   } else if (aAttribute == nsGkAtoms::dur) {
     parseResult = SetSimpleDuration(aValue);
   } else if (aAttribute == nsGkAtoms::end) {
-    parseResult = SetEndSpec(aValue, aContextNode, RemoveNonDOM);
+    parseResult = SetEndSpec(aValue, aContextNode);
   } else if (aAttribute == nsGkAtoms::fill) {
     parseResult = SetFillMode(aValue);
   } else if (aAttribute == nsGkAtoms::max) {
@@ -778,11 +742,11 @@ nsSMILTimedElement::UnsetAttr(nsIAtom* aAttribute)
   PRBool foundMatch = PR_TRUE;
 
   if (aAttribute == nsGkAtoms::begin) {
-    UnsetBeginSpec(RemoveNonDOM);
+    UnsetBeginSpec();
   } else if (aAttribute == nsGkAtoms::dur) {
     UnsetSimpleDuration();
   } else if (aAttribute == nsGkAtoms::end) {
-    UnsetEndSpec(RemoveNonDOM);
+    UnsetEndSpec();
   } else if (aAttribute == nsGkAtoms::fill) {
     UnsetFillMode();
   } else if (aAttribute == nsGkAtoms::max) {
@@ -807,33 +771,34 @@ nsSMILTimedElement::UnsetAttr(nsIAtom* aAttribute)
 
 nsresult
 nsSMILTimedElement::SetBeginSpec(const nsAString& aBeginSpec,
-                                 Element* aContextNode,
-                                 RemovalTestFunction aRemove)
+                                 nsIContent* aContextNode)
 {
-  return SetBeginOrEndSpec(aBeginSpec, aContextNode, PR_TRUE /*isBegin*/,
-                           aRemove);
+  mBeginSpecSet = PR_TRUE;
+  return SetBeginOrEndSpec(aBeginSpec, aContextNode, PR_TRUE);
 }
 
 void
-nsSMILTimedElement::UnsetBeginSpec(RemovalTestFunction aRemove)
+nsSMILTimedElement::UnsetBeginSpec()
 {
-  ClearSpecs(mBeginSpecs, mBeginInstances, aRemove);
+  ClearBeginOrEndSpecs(PR_TRUE);
+  mBeginSpecSet = PR_FALSE;
   UpdateCurrentInterval();
 }
 
 nsresult
 nsSMILTimedElement::SetEndSpec(const nsAString& aEndSpec,
-                               Element* aContextNode,
-                               RemovalTestFunction aRemove)
+                               nsIContent* aContextNode)
 {
-  return SetBeginOrEndSpec(aEndSpec, aContextNode, PR_FALSE /*!isBegin*/,
-                           aRemove);
+  // XXX When implementing events etc., don't forget to ensure
+  // mEndHasEventConditions is set if the specification contains conditions that
+  // describe event-values, repeat-values or accessKey-values.
+  return SetBeginOrEndSpec(aEndSpec, aContextNode, PR_FALSE);
 }
 
 void
-nsSMILTimedElement::UnsetEndSpec(RemovalTestFunction aRemove)
+nsSMILTimedElement::UnsetEndSpec()
 {
-  ClearSpecs(mEndSpecs, mEndInstances, aRemove);
+  ClearBeginOrEndSpecs(PR_FALSE);
   UpdateCurrentInterval();
 }
 
@@ -1106,12 +1071,17 @@ nsSMILTimedElement::BindToTree(nsIContent* aContextNode)
   // Resolve references to other parts of the tree
   PRUint32 count = mBeginSpecs.Length();
   for (PRUint32 i = 0; i < count; ++i) {
-    mBeginSpecs[i]->ResolveReferences(aContextNode);
+    nsSMILTimeValueSpec* beginSpec = mBeginSpecs[i];
+    NS_ABORT_IF_FALSE(beginSpec,
+        "null nsSMILTimeValueSpec in list of begin specs");
+    beginSpec->ResolveReferences(aContextNode);
   }
 
   count = mEndSpecs.Length();
   for (PRUint32 j = 0; j < count; ++j) {
-    mEndSpecs[j]->ResolveReferences(aContextNode);
+    nsSMILTimeValueSpec* endSpec = mEndSpecs[j];
+    NS_ABORT_IF_FALSE(endSpec, "null nsSMILTimeValueSpec in list of end specs");
+    endSpec->ResolveReferences(aContextNode);
   }
 
   // Clear any previous milestone since it might be been processed whilst we
@@ -1119,20 +1089,6 @@ nsSMILTimedElement::BindToTree(nsIContent* aContextNode)
   mPrevRegisteredMilestone = sMaxMilestone;
 
   RegisterMilestone();
-}
-
-void
-nsSMILTimedElement::HandleTargetElementChange(Element* aNewTarget)
-{
-  PRUint32 count = mBeginSpecs.Length();
-  for (PRUint32 i = 0; i < count; ++i) {
-    mBeginSpecs[i]->HandleTargetElementChange(aNewTarget);
-  }
-
-  count = mEndSpecs.Length();
-  for (PRUint32 j = 0; j < count; ++j) {
-    mEndSpecs[j]->HandleTargetElementChange(aNewTarget);
-  }
 }
 
 void
@@ -1178,18 +1134,16 @@ nsSMILTimedElement::Unlink()
 
 nsresult
 nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
-                                      Element* aContextNode,
-                                      PRBool aIsBegin,
-                                      RemovalTestFunction aRemove)
+                                      nsIContent* aContextNode,
+                                      PRBool aIsBegin)
 {
+  ClearBeginOrEndSpecs(aIsBegin);
+
   PRInt32 start;
   PRInt32 end = -1;
   PRInt32 length;
   nsresult rv = NS_OK;
   TimeValueSpecList& timeSpecsList = aIsBegin ? mBeginSpecs : mEndSpecs;
-  InstanceTimeList& instances = aIsBegin ? mBeginInstances : mEndInstances;
-
-  ClearSpecs(timeSpecsList, instances, aRemove);
 
   do {
     start = end + 1;
@@ -1204,7 +1158,7 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
   } while (end != -1 && NS_SUCCEEDED(rv));
 
   if (NS_FAILED(rv)) {
-    ClearSpecs(timeSpecsList, instances, aRemove);
+    ClearBeginOrEndSpecs(aIsBegin);
   }
 
   UpdateCurrentInterval();
@@ -1214,38 +1168,35 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
 
 namespace
 {
-  // Adaptor functor for RemoveInstanceTimes that allows us to use function
-  // pointers instead.
-  // Without this we'd have to either templatize ClearSpecs and all its callers
-  // or pass bool flags around to specify which removal function to use here.
-  class RemoveByFunction
+  class RemoveNonDOM
   {
   public:
-    RemoveByFunction(nsSMILTimedElement::RemovalTestFunction aFunction)
-      : mFunction(aFunction) { }
     PRBool operator()(nsSMILInstanceTime* aInstanceTime, PRUint32 /*aIndex*/)
     {
-      return mFunction(aInstanceTime);
+      return !aInstanceTime->FromDOM();
     }
-
-  private:
-    nsSMILTimedElement::RemovalTestFunction mFunction;
   };
 }
 
 void
-nsSMILTimedElement::ClearSpecs(TimeValueSpecList& aSpecs,
-                               InstanceTimeList& aInstances,
-                               RemovalTestFunction aRemove)
+nsSMILTimedElement::ClearBeginOrEndSpecs(PRBool aIsBegin)
 {
-  aSpecs.Clear();
-  RemoveByFunction removeByFunction(aRemove);
-  RemoveInstanceTimes(aInstances, removeByFunction);
+  TimeValueSpecList& specs = aIsBegin ? mBeginSpecs : mEndSpecs;
+  specs.Clear();
+
+  // Remove only those instance times generated by the attribute, not those from
+  // DOM calls.
+  InstanceTimeList& instances = aIsBegin ? mBeginInstances : mEndInstances;
+  RemoveNonDOM removeNonDOM;
+  RemoveInstanceTimes(instances, removeNonDOM);
 }
 
 void
 nsSMILTimedElement::RewindTiming()
 {
+  RewindInstanceTimes(mBeginInstances);
+  RewindInstanceTimes(mEndInstances);
+
   if (mCurrentInterval) {
     mCurrentInterval->Unlink();
     mCurrentInterval = nsnull;
@@ -1255,6 +1206,33 @@ nsSMILTimedElement::RewindTiming()
     mOldIntervals[i]->Unlink();
   }
   mOldIntervals.Clear();
+}
+
+namespace
+{
+  class RemoveNonDynamic
+  {
+  public:
+    PRBool operator()(nsSMILInstanceTime* aInstanceTime, PRUint32 /*aIndex*/)
+    {
+      // Generally dynamically-generated instance times (DOM calls, event-based
+      // times) are not associated with their creator nsSMILTimeValueSpec.
+      // If that ever changes though we'll need to make sure to disassociate
+      // them here otherwise they'll get removed when we clear the set of
+      // nsSMILTimeValueSpecs later on.
+      NS_ABORT_IF_FALSE(!aInstanceTime->IsDynamic() ||
+           !aInstanceTime->GetCreator(),
+          "Instance time retained during rewind needs to be unlinked");
+      return !aInstanceTime->IsDynamic();
+    }
+  };
+}
+
+void
+nsSMILTimedElement::RewindInstanceTimes(InstanceTimeList& aList)
+{
+  RemoveNonDynamic removeNonDynamic;
+  RemoveInstanceTimes(aList, removeNonDynamic);
 }
 
 void
@@ -1342,6 +1320,17 @@ nsSMILTimedElement::DoPostSeek()
     UpdateCurrentInterval();
   }
 
+  // XXX
+  // Note that SMIL gives the very cryptic description:
+  //   The associated time for the event is the document time before the seek.
+  //   This action does not resolve any times in the instance times list for end
+  //   times.
+  //
+  // The second sentence was added as a clarification in a SMIL 2.0 erratum.
+  // Presumably the intention is that we fire the event as implemented below but
+  // don't act on it. This makes sense at least for dependencies within the same
+  // time container. So we'll probably need to set a flag here to ensure we
+  // don't actually act on it when we implement event-based timing.
   switch (mSeekState)
   {
   case SEEK_FORWARD_FROM_ACTIVE:
@@ -1356,10 +1345,6 @@ nsSMILTimedElement::DoPostSeek()
     if (mElementState == STATE_ACTIVE) {
       FireTimeEventAsync(NS_SMIL_BEGIN, 0);
     }
-    break;
-
-  case SEEK_NOT_SEEKING:
-    /* Do nothing */
     break;
   }
 
@@ -1539,9 +1524,7 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
         return NS_ERROR_FAILURE;
       // our ref-counting is not const-correct
       tempBegin = const_cast<nsSMILInstanceTime*>(aFixedBeginTime);
-    } else if ((!mAnimationElement ||
-                !mAnimationElement->HasAnimAttr(nsGkAtoms::begin)) &&
-               beginAfter <= zeroTime) {
+    } else if (!mBeginSpecSet && beginAfter <= zeroTime) {
       tempBegin = new nsSMILInstanceTime(nsSMILTimeValue(0));
     } else {
       PRInt32 beginPos = 0;
@@ -1566,18 +1549,18 @@ nsSMILTimedElement::GetNextInterval(const nsSMILInterval* aPrevInterval,
       }
 
       // If all the ends are before the beginning we have a bad interval UNLESS:
-      // a) We never had any end attribute to begin with (and hence we should
+      // a) We have end events which leave the interval open-ended, OR
+      // b) We never had any end attribute to begin with (and hence we should
       //    just use the active duration after allowing for the possibility of
-      //    an end instance provided by a DOM call), OR
-      // b) We have an end attribute but no end instances--this is a special
+      //    an end instance provided by a DOM call)
+      // c) We have an end attribute but no end instances--this is a special
       //    case that is needed for syncbase timing so that animations of the
       //    following sort: <animate id="a" end="a.begin+1s" ... /> can be
       //    resolved (see SVGT 1.2 Test Suite animate-elem-221-t.svg) by first
-      //    establishing an interval of unresolved duration, OR
-      // c) We have end events which leave the interval open-ended.
-      PRBool openEndedIntervalOk = mEndSpecs.IsEmpty() ||
-                                   mEndInstances.IsEmpty() ||
-                                   EndHasEventConditions();
+      //    establishing an interval of unresolved duration.
+      PRBool openEndedIntervalOk = mEndHasEventConditions ||
+          mEndSpecs.IsEmpty() ||
+          mEndInstances.IsEmpty();
       if (!tempEnd && !openEndedIntervalOk)
         return NS_ERROR_FAILURE; // Bad interval
 
@@ -1923,6 +1906,8 @@ nsSMILTimedElement::AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
 
   nsSMILTimeValue timeVal(timeWithOffset);
 
+  // XXX If we re-use this method for event-based timing we'll need to change it
+  // so we don't end up setting SOURCE_DOM for event-based times.
   nsRefPtr<nsSMILInstanceTime> instanceTime =
     new nsSMILInstanceTime(timeVal, nsSMILInstanceTime::SOURCE_DOM);
 
@@ -2063,7 +2048,7 @@ nsSMILTimedElement::FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail)
     return;
 
   nsCOMPtr<nsIRunnable> event =
-    new AsyncTimeEventRunner(&mAnimationElement->AsElement(), aMsg, aDetail);
+    new AsyncTimeEventRunner(&mAnimationElement->Content(), aMsg, aDetail);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
@@ -2097,16 +2082,6 @@ nsSMILTimedElement::GetPreviousInterval() const
   return mOldIntervals.IsEmpty()
     ? nsnull
     : mOldIntervals[mOldIntervals.Length()-1].get();
-}
-
-PRBool
-nsSMILTimedElement::EndHasEventConditions() const
-{
-  for (PRUint32 i = 0; i < mEndSpecs.Length(); ++i) {
-    if (mEndSpecs[i]->IsEventBased())
-      return PR_TRUE;
-  }
-  return PR_FALSE;
 }
 
 //----------------------------------------------------------------------
