@@ -38,8 +38,7 @@ Lasso.prototype = {
     var self = this;
     $(this._container)
       .mousedown( function(e){
-        if(Utils.isRightClick(e)
-            || $(e.target).is(self._selector) 
+        if( $(e.target).is(self._selector) 
             || $(e.target).parent(self._selector).length > 0 
             || !self._acceptMouseDown(e)) 
           return;
