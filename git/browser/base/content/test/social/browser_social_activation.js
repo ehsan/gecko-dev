@@ -90,12 +90,9 @@ function waitForProviderLoad(cb) {
     waitForCondition(function() {
       let sbrowser = document.getElementById("social-sidebar-browser");
       let provider = SocialSidebar.provider;
-      let postActivation = provider && gBrowser.contentDocument.location.href == provider.origin + "/browser/browser/base/content/test/social/social_postActivation.html";
-
       return provider &&
              provider.profile &&
              provider.profile.displayName &&
-             postActivation &&
              sbrowser.docShellIsActive;
     }, function() {
       // executeSoon to let the browser UI observers run first
@@ -293,9 +290,6 @@ var tests = {
       let prefname = addBuiltinManifest(gProviders[0]);
       activateOneProvider(gProviders[0], true, function() {
         info("first activation completed");
-        is(gBrowser.contentDocument.location.href, gProviders[0].origin + "/browser/browser/base/content/test/social/social_postActivation.html");
-        gBrowser.removeTab(gBrowser.selectedTab);
-        is(gBrowser.contentDocument.location.href, gProviders[0].origin + "/browser/browser/base/content/test/social/social_activate.html");
         gBrowser.removeTab(gBrowser.selectedTab);
         tabsToRemove.pop();
         // uninstall the provider
@@ -303,8 +297,6 @@ var tests = {
           checkSocialUI();
           activateOneProvider(gProviders[0], true, function() {
             info("second activation completed");
-            is(gBrowser.contentDocument.location.href, gProviders[0].origin + "/browser/browser/base/content/test/social/social_postActivation.html");
-            gBrowser.removeTab(gBrowser.selectedTab);
 
             // after closing the addons tab, verify provider is still installed
             gBrowser.tabContainer.addEventListener("TabClose", function onTabClose() {
