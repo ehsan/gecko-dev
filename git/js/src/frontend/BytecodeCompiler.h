@@ -23,7 +23,7 @@ namespace frontend {
 JSScript *
 CompileScript(ExclusiveContext *cx, LifoAlloc *alloc,
               HandleObject scopeChain, HandleScript evalCaller,
-              const ReadOnlyCompileOptions &options, SourceBufferHolder &srcBuf,
+              const ReadOnlyCompileOptions &options, const jschar *chars, size_t length,
               JSString *source_ = nullptr, unsigned staticLevel = 0,
               SourceCompressionTask *extraSct = nullptr);
 
@@ -33,11 +33,11 @@ CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const jschar *chars
 bool
 CompileFunctionBody(JSContext *cx, MutableHandleFunction fun,
                     const ReadOnlyCompileOptions &options,
-                    const AutoNameVector &formals, JS::SourceBufferHolder &srcBuf);
+                    const AutoNameVector &formals, const jschar *chars, size_t length);
 bool
 CompileStarGeneratorBody(JSContext *cx, MutableHandleFunction fun,
                          const ReadOnlyCompileOptions &options,
-                         const AutoNameVector &formals, JS::SourceBufferHolder &srcBuf);
+                         const AutoNameVector &formals, const jschar *chars, size_t length);
 
 ScriptSourceObject *
 CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOptions &options);
@@ -48,7 +48,7 @@ CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
  */
 void
 MaybeCallSourceHandler(JSContext *cx, const ReadOnlyCompileOptions &options,
-                       JS::SourceBufferHolder &srcBuf);
+                       const jschar *chars, size_t length);
 
 /*
  * True if str consists of an IdentifierStart character, followed by one or

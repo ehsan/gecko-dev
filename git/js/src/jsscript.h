@@ -480,7 +480,8 @@ class ScriptSource
     }
     bool initFromOptions(ExclusiveContext *cx, const ReadOnlyCompileOptions &options);
     bool setSourceCopy(ExclusiveContext *cx,
-                       JS::SourceBufferHolder &srcBuf,
+                       const jschar *src,
+                       uint32_t length,
                        bool argumentsNotIncluded,
                        SourceCompressionTask *tok);
     void setSource(const jschar *src, size_t length);

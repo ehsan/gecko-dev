@@ -836,6 +836,7 @@ rijndael_encryptECB(AESContext *cx, unsigned char *output,
     SECStatus rv;
     AESBlockFunc *encryptor;
 
+
     encryptor = (blocksize == RIJNDAEL_MIN_BLOCKSIZE) 
 				  ? &rijndael_encryptBlock128 
 				  : &rijndael_encryptBlock;
@@ -1071,10 +1072,8 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 				intel_aes_cbc_worker(encrypt, keysize);
 	} else
 #endif
-	{
 	    cx->worker = (freeblCipherFunc) (encrypt
 			  ? &rijndael_encryptCBC : &rijndael_decryptCBC);
-	}
     } else {
 #ifdef  USE_HW_AES
 	if (use_hw_aes) {
@@ -1082,10 +1081,8 @@ aes_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 				intel_aes_ecb_worker(encrypt, keysize);
 	} else
 #endif
-	{
 	    cx->worker = (freeblCipherFunc) (encrypt
 			  ? &rijndael_encryptECB : &rijndael_decryptECB);
-	}
     }
     PORT_Assert((cx->Nb * (cx->Nr + 1)) <= RIJNDAEL_MAX_EXP_KEY_SIZE);
     if ((cx->Nb * (cx->Nr + 1)) > RIJNDAEL_MAX_EXP_KEY_SIZE) {
@@ -1183,14 +1180,7 @@ AES_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
 	break;
     case NSS_AES_CTR:
 	cx->worker_cx = CTR_CreateContext(cx, cx->worker, iv, blocksize);
-#if defined(USE_HW_AES) && defined(_MSC_VER)
-	if (use_hw_aes) {
-	    cx->worker = (freeblCipherFunc) CTR_Update_HW_AES;
-	} else
-#endif
-	{
-	    cx->worker = (freeblCipherFunc) CTR_Update;
-	}
+	cx->worker = (freeblCipherFunc) CTR_Update ;
 	cx->destroy = (freeblDestroyFunc) CTR_DestroyContext;
 	cx->isBlock = PR_FALSE;
 	break;

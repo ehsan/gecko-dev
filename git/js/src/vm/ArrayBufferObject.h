@@ -124,7 +124,6 @@ class ArrayBufferObject : public JSObject
 
     void addView(ArrayBufferViewObject *view);
 
-    void setNewOwnedData(FreeOp* fop, void *newData);
     void changeContents(JSContext *cx, void *newData);
 
     /*

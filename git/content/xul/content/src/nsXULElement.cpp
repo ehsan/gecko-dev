@@ -2619,7 +2619,8 @@ OffThreadScriptReceiverCallback(void *aToken, void *aCallbackData)
 }
 
 nsresult
-nsXULPrototypeScript::Compile(JS::SourceBufferHolder& aSrcBuf,
+nsXULPrototypeScript::Compile(const char16_t* aText,
+                              int32_t aTextLength,
                               nsIURI* aURI,
                               uint32_t aLineNo,
                               nsIDocument* aDocument,
@@ -2650,9 +2651,9 @@ nsXULPrototypeScript::Compile(JS::SourceBufferHolder& aSrcBuf,
       JS::ExposeObjectToActiveJS(scope);
     }
 
-    if (aOffThreadReceiver && JS::CanCompileOffThread(cx, options, aSrcBuf.length())) {
+    if (aOffThreadReceiver && JS::CanCompileOffThread(cx, options, aTextLength)) {
         if (!JS::CompileOffThread(cx, options,
-                                  aSrcBuf.get(), aSrcBuf.length(),
+                                  static_cast<const jschar*>(aText), aTextLength,
                                   OffThreadScriptReceiverCallback,
                                   static_cast<void*>(aOffThreadReceiver))) {
             return NS_ERROR_OUT_OF_MEMORY;
@@ -2660,26 +2661,13 @@ nsXULPrototypeScript::Compile(JS::SourceBufferHolder& aSrcBuf,
         // This reference will be consumed by the NotifyOffThreadScriptCompletedRunnable.
         NS_ADDREF(aOffThreadReceiver);
     } else {
-        JSScript* script = JS::Compile(cx, scope, options, aSrcBuf);
+        JSScript* script = JS::Compile(cx, scope, options,
+                                   static_cast<const jschar*>(aText), aTextLength);
         if (!script)
             return NS_ERROR_OUT_OF_MEMORY;
         Set(script);
     }
     return NS_OK;
-}
-
-nsresult
-nsXULPrototypeScript::Compile(const char16_t* aText,
-                              int32_t aTextLength,
-                              nsIURI* aURI,
-                              uint32_t aLineNo,
-                              nsIDocument* aDocument,
-                              nsXULPrototypeDocument* aProtoDoc,
-                              nsIOffThreadScriptReceiver *aOffThreadReceiver /* = nullptr */)
-{
-  JS::SourceBufferHolder srcBuf(aText, aTextLength,
-                                JS::SourceBufferHolder::NoOwnership);
-  return Compile(srcBuf, aURI, aLineNo, aDocument, aProtoDoc, aOffThreadReceiver);
 }
 
 void

@@ -7,7 +7,6 @@
 #define MOZILLA_GFX_COMPOSITORD3D9_H
 
 #include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
 #include "mozilla/layers/Compositor.h"
 #include "mozilla/layers/TextureD3D9.h"
 #include "DeviceManagerD3D9.h"
@@ -153,11 +152,6 @@ private:
   void CheckResetCount();
 
   void ReportFailure(const nsACString &aMsg, HRESULT aCode);
-
-  virtual gfx::IntSize GetWidgetSize() const MOZ_OVERRIDE
-  {
-    return gfx::ToIntSize(mSize);
-  }
 
   /* Device manager instance for this compositor */
   nsRefPtr<DeviceManagerD3D9> mDeviceManager;

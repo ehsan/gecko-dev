@@ -76,19 +76,10 @@ public:
       mLoading(true),
       mIsInline(true),
       mHasSourceMapURL(false),
-      mScriptTextBuf(nullptr),
-      mScriptTextLength(0),
       mJSVersion(aVersion),
       mLineNo(1),
       mCORSMode(aCORSMode)
   {
-  }
-
-  ~nsScriptLoadRequest()
-  {
-    if (mScriptTextBuf) {
-      js_free(mScriptTextBuf);
-    }
   }
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -112,8 +103,7 @@ public:
   bool mIsInline;         // Is the script inline or loaded?
   bool mHasSourceMapURL;  // Does the HTTP header have a source map url?
   nsString mSourceMapURL; // Holds source map url for loaded scripts
-  jschar* mScriptTextBuf;   // Holds script text for non-inline scripts. Don't
-  size_t mScriptTextLength; // use nsString so we can give ownership to jsapi.
+  nsString mScriptText;   // Holds script for text loaded scripts
   uint32_t mJSVersion;
   nsCOMPtr<nsIURI> mURI;
   nsCOMPtr<nsIPrincipal> mOriginPrincipal;
@@ -861,7 +851,7 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
   JS::CompileOptions options(cx);
   FillCompileOptionsForRequest(aRequest, global, &options);
 
-  if (!JS::CanCompileOffThread(cx, options, aRequest->mScriptTextLength)) {
+  if (!JS::CanCompileOffThread(cx, options, aRequest->mScriptText.Length())) {
     return NS_ERROR_FAILURE;
   }
 
@@ -869,7 +859,7 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
     new NotifyOffThreadScriptLoadCompletedRunnable(aRequest, this);
 
   if (!JS::CompileOffThread(cx, options,
-                            aRequest->mScriptTextBuf, aRequest->mScriptTextLength,
+                            aRequest->mScriptText.get(), aRequest->mScriptText.Length(),
                             OffThreadScriptLoaderCallback,
                             static_cast<void*>(runnable))) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -894,11 +884,8 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadT
   }
 
   NS_ENSURE_ARG(aRequest);
+  nsAFlatString* script;
   nsAutoString textData;
-  const jschar* scriptBuf = nullptr;
-  size_t scriptLength = 0;
-  JS::SourceBufferHolder::Ownership giveScriptOwnership =
-    JS::SourceBufferHolder::NoOwnership;
 
   nsCOMPtr<nsIDocument> doc;
 
@@ -910,22 +897,13 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadT
     // copies.
     aRequest->mElement->GetScriptText(textData);
 
-    scriptBuf = textData.get();
-    scriptLength = textData.Length();
-    giveScriptOwnership = JS::SourceBufferHolder::NoOwnership;
+    script = &textData;
   }
   else {
-    scriptBuf = aRequest->mScriptTextBuf;
-    scriptLength = aRequest->mScriptTextLength;
-
-    giveScriptOwnership = JS::SourceBufferHolder::GiveOwnership;
-    aRequest->mScriptTextBuf = nullptr;
-    aRequest->mScriptTextLength = 0;
+    script = &aRequest->mScriptText;
 
     doc = scriptElem->OwnerDoc();
   }
-
-  JS::SourceBufferHolder srcBuf(scriptBuf, scriptLength, giveScriptOwnership);
 
   nsCOMPtr<nsIScriptElement> oldParserInsertedScript;
   uint32_t parserCreated = aRequest->mElement->GetParserCreated();
@@ -959,7 +937,7 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadT
       doc->BeginEvaluatingExternalScript();
     }
     aRequest->mElement->BeginEvaluating();
-    rv = EvaluateScript(aRequest, srcBuf, aOffThreadToken);
+    rv = EvaluateScript(aRequest, *script, aOffThreadToken);
     aRequest->mElement->EndEvaluating();
     if (doc) {
       doc->EndEvaluatingExternalScript();
@@ -1066,7 +1044,7 @@ nsScriptLoader::FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
 
 nsresult
 nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
-                               JS::SourceBufferHolder& aSrcBuf,
+                               const nsAFlatString& aScript,
                                void** aOffThreadToken)
 {
   // We need a document to evaluate scripts.
@@ -1117,7 +1095,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
 
   JS::CompileOptions options(entryScript.cx());
   FillCompileOptionsForRequest(aRequest, global, &options);
-  nsresult rv = nsJSUtils::EvaluateString(entryScript.cx(), aSrcBuf, global, options,
+  nsresult rv = nsJSUtils::EvaluateString(entryScript.cx(), aScript, global, options,
                                           aOffThreadToken);
 
   // Put the old script back in case it wants to do anything else.
@@ -1268,12 +1246,10 @@ DetectByteOrderMark(const unsigned char* aBytes, int32_t aLen, nsCString& oChars
 /* static */ nsresult
 nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                uint32_t aLength, const nsAString& aHintCharset,
-                               nsIDocument* aDocument,
-                               jschar*& aBufOut, size_t& aLengthOut)
+                               nsIDocument* aDocument, nsString& aString)
 {
   if (!aLength) {
-    aBufOut = nullptr;
-    aLengthOut = 0;
+    aString.Truncate();
     return NS_OK;
   }
 
@@ -1326,23 +1302,17 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                  aLength, &unicodeLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  aBufOut = static_cast<jschar*>(js_malloc(unicodeLength * sizeof(jschar)));
-  if (!aBufOut) {
-    aLengthOut = 0;
+  if (!aString.SetLength(unicodeLength, fallible_t())) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  aLengthOut = unicodeLength;
+
+  char16_t *ustr = aString.BeginWriting();
 
   rv = unicodeDecoder->Convert(reinterpret_cast<const char*>(aData),
-                               (int32_t *) &aLength, aBufOut,
+                               (int32_t *) &aLength, ustr,
                                &unicodeLength);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
-  aLengthOut = unicodeLength;
-  if (NS_FAILED(rv)) {
-    js_free(aBufOut);
-    aBufOut = nullptr;
-    aLengthOut = 0;
-  }
+  aString.SetLength(unicodeLength);
   return rv;
 }
 
@@ -1456,7 +1426,7 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
       hintCharset = mPreloads[i].mCharset;
     }
     rv = ConvertToUTF16(channel, aString, aStringLen, hintCharset, mDocument,
-                        aRequest->mScriptTextBuf, aRequest->mScriptTextLength);
+                        aRequest->mScriptText);
 
     NS_ENSURE_SUCCESS(rv, rv);
   }
