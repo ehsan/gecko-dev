@@ -83,7 +83,8 @@
                        tabindex="0"/>
       </hbox>
       <menulist id="scripts" class="devtools-menulist"
-                sizetopopup="always"/>
+                sizetopopup="always"
+                label="&debuggerUI.emptyScriptText;"/>
       <textbox id="scripts-search" type="search"
                class="devtools-searchinput"/>
       <checkbox id="pause-exceptions"

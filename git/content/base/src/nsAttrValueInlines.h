@@ -5,8 +5,6 @@
 #ifndef nsAttrValueInlines_h__
 #define nsAttrValueInlines_h__
 
-#include "mozilla/StandardInteger.h"
-
 struct MiscContainer
 {
   typedef nsAttrValue::ValueType ValueType;
@@ -16,7 +14,7 @@ struct MiscContainer
   // mType isn't mCSSStyleRule.
   // Note eStringBase and eAtomBase is used also to handle the type of
   // mStringBits.
-  uintptr_t mStringBits;
+  PtrBits mStringBits;
   union {
     struct {
       union {
@@ -185,7 +183,7 @@ nsAttrValue::SetPtrValueAndType(void* aValue, ValueBaseType aType)
 {
   NS_ASSERTION(!(NS_PTR_TO_INT32(aValue) & ~NS_ATTRVALUE_POINTERVALUE_MASK),
                "pointer not properly aligned, this will crash");
-  mBits = reinterpret_cast<intptr_t>(aValue) | aType;
+  mBits = reinterpret_cast<PtrBits>(aValue) | aType;
 }
 
 inline void

@@ -1095,11 +1095,11 @@ CheckTypeInference(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
 #define CheckTypeInference(cx, clasp, principal) {}
 #endif
 
-namespace xpc {
-
 nsresult
-CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
-                   bool wantXrays, JSObject **global, JSCompartment **compartment)
+xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
+                       nsIPrincipal *principal, nsISupports *ptr,
+                       bool wantXrays, JSObject **global,
+                       JSCompartment **compartment)
 {
     // Make sure that Type Inference is enabled for everything non-chrome.
     // Sandboxes and compilation scopes are exceptions. See bug 744034.
@@ -1136,8 +1136,6 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
 
     return NS_OK;
 }
-
-} // namespace xpc
 
 NS_IMETHODIMP
 nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
@@ -1833,16 +1831,42 @@ nsXPConnect::SyncJSContexts(void)
     return NS_OK;
 }
 
-/* void setFunctionThisTranslator (in nsIIDRef aIID, in nsIXPCFunctionThisTranslator aTranslator); */
+/* nsIXPCFunctionThisTranslator setFunctionThisTranslator (in nsIIDRef aIID, in nsIXPCFunctionThisTranslator aTranslator); */
 NS_IMETHODIMP
 nsXPConnect::SetFunctionThisTranslator(const nsIID & aIID,
-                                       nsIXPCFunctionThisTranslator *aTranslator)
+                                       nsIXPCFunctionThisTranslator *aTranslator,
+                                       nsIXPCFunctionThisTranslator **_retval)
 {
     XPCJSRuntime* rt = GetRuntime();
+    nsIXPCFunctionThisTranslator* old;
     IID2ThisTranslatorMap* map = rt->GetThisTranslatorMap();
+
     {
         XPCAutoLock lock(rt->GetMapLock()); // scoped lock
+        if (_retval) {
+            old = map->Find(aIID);
+            NS_IF_ADDREF(old);
+            *_retval = old;
+        }
         map->Add(aIID, aTranslator);
+    }
+    return NS_OK;
+}
+
+/* nsIXPCFunctionThisTranslator getFunctionThisTranslator (in nsIIDRef aIID); */
+NS_IMETHODIMP
+nsXPConnect::GetFunctionThisTranslator(const nsIID & aIID,
+                                       nsIXPCFunctionThisTranslator **_retval)
+{
+    XPCJSRuntime* rt = GetRuntime();
+    nsIXPCFunctionThisTranslator* old;
+    IID2ThisTranslatorMap* map = rt->GetThisTranslatorMap();
+
+    {
+        XPCAutoLock lock(rt->GetMapLock()); // scoped lock
+        old = map->Find(aIID);
+        NS_IF_ADDREF(old);
+        *_retval = old;
     }
     return NS_OK;
 }

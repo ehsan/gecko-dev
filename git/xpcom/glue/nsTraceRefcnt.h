@@ -16,24 +16,24 @@
   NS_LogRelease((_p), (_rc), (_type))
 
 #define MOZ_COUNT_CTOR(_type)                                 \
-do {                                                          \
+PR_BEGIN_MACRO                                                \
   NS_LogCtor((void*)this, #_type, sizeof(*this));             \
-} while (0)
+PR_END_MACRO
 
 #define MOZ_COUNT_CTOR_INHERITED(_type, _base)                    \
-do {                                                              \
+PR_BEGIN_MACRO                                                    \
   NS_LogCtor((void*)this, #_type, sizeof(*this) - sizeof(_base)); \
-} while (0)
+PR_END_MACRO
 
 #define MOZ_COUNT_DTOR(_type)                                 \
-do {                                                          \
+PR_BEGIN_MACRO                                                \
   NS_LogDtor((void*)this, #_type, sizeof(*this));             \
-} while (0)
+PR_END_MACRO
 
 #define MOZ_COUNT_DTOR_INHERITED(_type, _base)                    \
-do {                                                              \
+PR_BEGIN_MACRO                                                    \
   NS_LogDtor((void*)this, #_type, sizeof(*this) - sizeof(_base)); \
-} while (0)
+PR_END_MACRO
 
 /* nsCOMPtr.h allows these macros to be defined by clients
  * These logging functions require dynamic_cast<void*>, so they don't

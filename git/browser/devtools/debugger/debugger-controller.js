@@ -60,8 +60,7 @@ let DebuggerController = {
       DebuggerView.StackFrames.initialize();
       DebuggerView.Breakpoints.initialize();
       DebuggerView.Properties.initialize();
-      DebuggerView.toggleCloseButton(!this._isRemoteDebugger &&
-                                     !this._isChromeDebugger);
+      DebuggerView.showCloseButton(!this._isRemoteDebugger && !this._isChromeDebugger);
 
       this.dispatchEvent("Debugger:Loaded");
       this._connect();
@@ -1353,16 +1352,6 @@ SourceScripts.prototype = {
   _onLoadSourceFinished:
   function SS__onLoadSourceFinished(aScriptUrl, aSourceText, aContentType, aOptions) {
     let element = DebuggerView.Scripts.getScriptByLocation(aScriptUrl);
-
-    // Tab navigated before we got a chance to finish loading and displaying
-    // the source. The outcome is that the expected url is not present anymore
-    // in the scripts container, hence the original script object coming from
-    // the active thread no longer exists. There's really nothing that needs
-    // to be done in this case, nor something that can be currently avoided.
-    if (!element) {
-      return;
-    }
-
     let script = element.getUserData("sourceScript");
 
     script.loaded = true;

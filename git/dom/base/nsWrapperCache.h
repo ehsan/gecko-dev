@@ -12,6 +12,8 @@ struct JSObject;
 struct JSContext;
 class XPCWrappedNativeScope;
 
+typedef uintptr_t PtrBits;
+
 namespace mozilla {
 namespace dom {
 namespace workers {
@@ -181,7 +183,7 @@ private:
   }
   void SetWrapperBits(void *aWrapper)
   {
-    mWrapperPtrBits = reinterpret_cast<uintptr_t>(aWrapper) |
+    mWrapperPtrBits = reinterpret_cast<PtrBits>(aWrapper) |
                       (mWrapperPtrBits & WRAPPER_IS_DOM_BINDING);
   }
 
@@ -206,7 +208,7 @@ private:
 
   enum { kWrapperBitMask = (WRAPPER_BIT_PRESERVED | WRAPPER_IS_DOM_BINDING) };
 
-  uintptr_t mWrapperPtrBits;
+  PtrBits mWrapperPtrBits;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsWrapperCache, NS_WRAPPERCACHE_IID)

@@ -2434,9 +2434,9 @@ nsDOMClassInfo::Init()
 {
   /* Errors that can trigger early returns are done first,
      otherwise nsDOMClassInfo is left in a half inited state. */
-  MOZ_STATIC_ASSERT(sizeof(uintptr_t) == sizeof(void*),
-                    "BAD! You'll need to adjust the size of uintptr_t to the "
-                    "size of a pointer on your platform.");
+  NS_ASSERTION(sizeof(PtrBits) == sizeof(void*),
+               "BAD! You'll need to adjust the size of PtrBits to the size "
+               "of a pointer on your platform.");
 
   NS_ENSURE_TRUE(!sIsInitialized, NS_ERROR_ALREADY_INITIALIZED);
 
@@ -2446,12 +2446,19 @@ nsDOMClassInfo::Init()
   nsresult rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIXPCFunctionThisTranslator> old;
+
   nsCOMPtr<nsIXPCFunctionThisTranslator> elt = new nsEventListenerThisTranslator();
-  sXPConnect->SetFunctionThisTranslator(NS_GET_IID(nsIDOMEventListener), elt);
+  NS_ENSURE_TRUE(elt, NS_ERROR_OUT_OF_MEMORY);
+
+  sXPConnect->SetFunctionThisTranslator(NS_GET_IID(nsIDOMEventListener),
+                                        elt, getter_AddRefs(old));
 
   nsCOMPtr<nsIXPCFunctionThisTranslator> mctl = new nsMutationCallbackThisTranslator();
+  NS_ENSURE_TRUE(elt, NS_ERROR_OUT_OF_MEMORY);
+
   sXPConnect->SetFunctionThisTranslator(NS_GET_IID(nsIMutationObserverCallback),
-                                        mctl);
+                                        mctl, getter_AddRefs(old));
 
   nsCOMPtr<nsIScriptSecurityManager> sm =
     do_GetService("@mozilla.org/scriptsecuritymanager;1", &rv);
@@ -5599,6 +5606,22 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
   return NS_OK;
 }
 
+static
+already_AddRefed<nsIDOMWindow>
+GetChildFrame(nsGlobalWindow *win, uint32_t index)
+{
+  nsCOMPtr<nsIDOMWindowCollection> frames;
+  win->GetFrames(getter_AddRefs(frames));
+
+  nsIDOMWindow *frame = nullptr;
+
+  if (frames) {
+    frames->Item(index, &frame);
+  }
+
+  return frame;
+}
+
 NS_IMETHODIMP
 nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsid id, jsval *vp, bool *_retval)
@@ -5636,14 +5659,14 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // if window.frames[n] is a child frame, wrap the frame and return
     // it without doing a security check.
     uint32_t index = uint32_t(JSID_TO_INT(id));
-    bool found = false;
-    if (nsCOMPtr<nsIDOMWindow> frame = win->IndexedGetter(index, found)) {
+    nsresult rv = NS_OK;
+    if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
       // A numeric property accessed and the numeric property is a
       // child frame, wrap the child frame without doing a security
       // check and return.
 
       nsGlobalWindow *frameWin = (nsGlobalWindow *)frame.get();
-      NS_ASSERTION(frameWin->IsOuterWindow(), "IndexedGetter gave us an inner?");
+      NS_ASSERTION(frameWin->IsOuterWindow(), "GetChildFrame gave us an inner?");
 
       frameWin->EnsureInnerWindow();
       JSObject *global = frameWin->GetGlobalJSObject();
@@ -5651,15 +5674,14 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       // This null check fixes a hard-to-reproduce crash that occurs when we
       // get here when we're mid-call to nsDocShell::Destroy. See bug 640904
       // comment 105.
-      if (MOZ_UNLIKELY(!global)) {
-        return NS_ERROR_FAILURE;
-      }
+      if (MOZ_UNLIKELY(!global))
+          return NS_ERROR_FAILURE;
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
       jsval v;
-      nsresult rv = WrapNative(cx, xpc_UnmarkGrayObject(global), frame,
-                               &NS_GET_IID(nsIDOMWindow), true, &v,
-                               getter_AddRefs(holder));
+      rv = WrapNative(cx, xpc_UnmarkGrayObject(global),
+                      frame, &NS_GET_IID(nsIDOMWindow), true, &v,
+                      getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (!JS_WrapValue(cx, &v)) {
@@ -5669,7 +5691,7 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       *vp = v;
     }
 
-    return NS_SUCCESS_I_DID_SOMETHING;
+    return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
   }
 
   if (JSID_IS_STRING(id) && !JSVAL_IS_PRIMITIVE(*vp) &&
@@ -6810,12 +6832,10 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
         return NS_OK;
       }
 
-      bool enabled;
-      bool defined = define(cx, obj, &enabled);
-      MOZ_ASSERT_IF(defined, enabled);
-      if (enabled) {
-        *did_resolve = defined;
-        return defined ? NS_OK : NS_ERROR_FAILURE;
+      if (mozilla::dom::DefineConstructor(cx, obj, define, &rv)) {
+        *did_resolve = NS_SUCCEEDED(rv);
+
+        return rv;
       }
     }
   }
@@ -7120,9 +7140,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       // window), if window.frames[n] is a child frame, define a
       // property for this index.
       uint32_t index = uint32_t(JSID_TO_INT(id));
-      bool found;
-      nsCOMPtr<nsIDOMWindow> frame = win->IndexedGetter(index, found);
-      if (found) {
+      if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
         // A numeric property accessed and the numeric property is a
         // child frame. Define a property for this index.
 
@@ -7276,13 +7294,19 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   if (!ObjectIsNativeWrapper(cx, obj) ||
       xpc::WrapperFactory::XrayWrapperNotShadowing(obj, id)) {
-    if (win->GetLength() > 0) {
+    nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(win->GetDocShell()));
+
+    int32_t count = 0;
+
+    if (dsn) {
+      dsn->GetChildCount(&count);
+    }
+
+    if (count > 0) {
+      nsCOMPtr<nsIDocShellTreeItem> child;
+
       const jschar *chars = ::JS_GetInternedStringChars(JSID_TO_STRING(id));
 
-      nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(win->GetDocShell()));
-      MOZ_ASSERT(dsn);
-
-      nsCOMPtr<nsIDocShellTreeItem> child;
       dsn->FindChildWithName(reinterpret_cast<const PRUnichar*>(chars),
                              false, true, nullptr, nullptr,
                              getter_AddRefs(child));
@@ -8629,8 +8653,12 @@ nsDOMStringMapSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_SUCCESS_I_DID_SOMETHING;
   }
 
-  NS_ENSURE_TRUE(xpc::NonVoidStringToJsval(cx, propVal, vp),
-                 NS_ERROR_OUT_OF_MEMORY);
+  nsStringBuffer* valBuf;
+  *vp = XPCStringConvert::ReadableToJSVal(cx, propVal, &valBuf);
+  if (valBuf) {
+    propVal.ForgetSharedBuffer();
+  }
+
   return NS_SUCCESS_I_DID_SOMETHING;
 }
 
@@ -10208,11 +10236,14 @@ nsStringArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   if (DOMStringIsNull(val)) {
     *vp = JSVAL_VOID;
-    return NS_SUCCESS_I_DID_SOMETHING;
+  } else {
+    nsStringBuffer* sharedBuffer = nullptr;
+    *vp = XPCStringConvert::ReadableToJSVal(cx, val, &sharedBuffer);
+    if (sharedBuffer) {
+      val.ForgetSharedBuffer();
+    }
   }
 
-  NS_ENSURE_TRUE(xpc::NonVoidStringToJsval(cx, val, vp),
-                 NS_ERROR_OUT_OF_MEMORY);
   return NS_SUCCESS_I_DID_SOMETHING;
 }
 
@@ -10634,14 +10665,23 @@ NS_IMPL_RELEASE(nsEventListenerThisTranslator)
 
 NS_IMETHODIMP
 nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
+                                             nsIInterfaceInfo *aInterfaceInfo,
+                                             uint16_t aMethodIndex,
+                                             bool *aHideFirstParamFromJS,
+                                             nsIID * *aIIDOfResult,
                                              nsISupports **_retval)
 {
+  *aHideFirstParamFromJS = false;
+  *aIIDOfResult = nullptr;
+
   nsCOMPtr<nsIDOMEvent> event(do_QueryInterface(aInitialThis));
   NS_ENSURE_TRUE(event, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIDOMEventTarget> target;
   event->GetCurrentTarget(getter_AddRefs(target));
-  target.forget(_retval);
+
+  *_retval = target.forget().get();
+
   return NS_OK;
 }
 
@@ -10655,8 +10695,14 @@ NS_IMPL_RELEASE(nsMutationCallbackThisTranslator)
 
 NS_IMETHODIMP
 nsMutationCallbackThisTranslator::TranslateThis(nsISupports *aInitialThis,
+                                                nsIInterfaceInfo *aInterfaceInfo,
+                                                uint16_t aMethodIndex,
+                                                bool *aHideFirstParamFromJS,
+                                                nsIID * *aIIDOfResult,
                                                 nsISupports **_retval)
 {
+  *aHideFirstParamFromJS = false;
+  *aIIDOfResult = nullptr;
   NS_IF_ADDREF(*_retval = nsDOMMutationObserver::CurrentObserver());
   return NS_OK;
 }
