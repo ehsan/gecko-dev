@@ -2405,8 +2405,17 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt)
         } adc(cx);
         JSAutoRequest ar(cx);
 
-        if (!JS_SetDebugModeForAllCompartments(cx, gDesiredDebugMode))
-            goto fail;
+        const js::CompartmentVector &vector = js::GetRuntimeCompartments(rt);
+        for (JSCompartment * const *p = vector.begin(); p != vector.end(); ++p) {
+            JSCompartment *comp = *p;
+            if (!JS_GetCompartmentPrincipals(comp)) {
+                /* Ignore special compartments (atoms, JSD compartments) */
+                continue;
+            }
+
+            if (!JS_SetDebugModeForCompartment(cx, comp, gDesiredDebugMode))
+                goto fail;
+        }
     }
 
     if (gDesiredDebugMode) {
