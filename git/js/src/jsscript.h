@@ -123,9 +123,12 @@ namespace JSC {
     class ExecutablePool;
 }
 namespace js {
-    namespace mjit {
-        struct PICInfo;
-    }
+namespace mjit {
+namespace ic {
+    struct PICInfo;
+    struct MICInfo;
+}
+}
 }
 #endif
 
@@ -153,6 +156,7 @@ struct JSScript {
     bool            savedCallerFun:1; /* object 0 is caller function */
     bool            hasSharps:1;      /* script uses sharp variables */
     bool            strictModeCode:1; /* code is in strict mode */
+    bool            compileAndGo:1;   /* script was compiled with TCF_COMPILE_N_GO */
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */
@@ -175,9 +179,10 @@ struct JSScript {
     void            **nmap;     /* maps PCs to native code */
     JSC::ExecutablePool *execPool;  /* pool that contains |ncode|; script owns the pool */
     unsigned        npics;      /* Number of PICs in the array |pics| */
-    js::mjit::PICInfo *pics;      /* PICs in this script */
+    js::mjit::ic::PICInfo *pics; /* PICs in this script */
+    js::mjit::ic::MICInfo *mics; /* MICs in this script. */
 # ifdef DEBUG
-    size_t          jitLength;  /* length of JIT'd code */
+    uint32          jitLength;  /* length of JIT'd code */
 
     inline bool isValidJitCode(void *jcode) {
         return (char*)jcode >= (char*)ncode &&
