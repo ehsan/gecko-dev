@@ -419,8 +419,7 @@ window.TabItems = {
         if( self.getItemByTab(tabEl).parent ){
           var gID = self.getItemByTab(tabEl).parent.id;
           var group = Groups.group(gID);
-          Groups.setActiveGroup( group );
-          group.setActiveTab( tabEl );                 
+          Groups.setActiveGroup( group );                  
         }
         else
           Groups.setActiveGroup( null );
