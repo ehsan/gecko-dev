@@ -625,8 +625,7 @@ SweepWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
     JSContext *cx = (JSContext *)arg;
     JSObject *key = ((JSObject2JSObjectMap::Entry *)hdr)->key;
     JSObject *value = ((JSObject2JSObjectMap::Entry *)hdr)->value;
-
-    if(JS_IsAboutToBeFinalized(cx, key) || JS_IsAboutToBeFinalized(cx, value))
+    if(IsAboutToBeFinalized(cx, key) || IsAboutToBeFinalized(cx, value))
         return JS_DHASH_REMOVE;
     return JS_DHASH_NEXT;
 }
@@ -635,7 +634,7 @@ static PLDHashOperator
 SweepExpandos(XPCWrappedNative *wn, JSObject *&expando, void *arg)
 {
     JSContext *cx = (JSContext *)arg;
-    return JS_IsAboutToBeFinalized(cx, wn->GetFlatJSObjectPreserveColor())
+    return IsAboutToBeFinalized(cx, wn->GetFlatJSObjectPreserveColor())
            ? PL_DHASH_REMOVE
            : PL_DHASH_NEXT;
 }
@@ -1348,7 +1347,6 @@ CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
     curr->tjitDataAllocatorsReserve = GetCompartmentTjitDataAllocatorsReserveSize(compartment);
     curr->tjitDataNonAllocators = GetCompartmentTjitDataTraceMonitorSize(compartment);
 #endif
-    JS_GetTypeInferenceMemoryStats(cx, compartment, &curr->typeInferenceMemory);
 }
 
 void
@@ -1377,7 +1375,8 @@ CellCallback(JSContext *cx, void *vdata, void *thing, size_t traceKind,
     {
         curr->gcHeapObjects += thingSize;
         JSObject *obj = static_cast<JSObject *>(thing);
-        curr->objectSlots += JS_ObjectCountDynamicSlots(obj) * sizeof(js::Value);
+        if(obj->hasSlotsArray())
+            curr->objectSlots += obj->numSlots() * sizeof(js::Value);
     }
     else if(traceKind == JSTRACE_STRING)
     {
@@ -1391,11 +1390,6 @@ CellCallback(JSContext *cx, void *vdata, void *thing, size_t traceKind,
         js::Shape *shape = static_cast<js::Shape *>(thing);
         if(shape->hasTable())
             curr->propertyTables += shape->getTable()->sizeOf();
-    }
-    else if(traceKind == JSTRACE_TYPE_OBJECT)
-    {
-        js::types::TypeObject *obj = static_cast<js::types::TypeObject *>(thing);
-        JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory);
     }
     else
     {
@@ -1782,13 +1776,6 @@ ReportCompartmentStats(const CompartmentStats &stats,
                        callback, closure);
 
     ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "object-empty-shapes"),
-                       nsIMemoryReporter::KIND_HEAP,
-                       stats.typeInferenceMemory.emptyShapes,
-    "Arrays attached to prototype JS objects managing shape information.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
                                               "scripts"),
                        nsIMemoryReporter::KIND_HEAP, stats.scripts,
     "Memory allocated for the compartment's JSScripts.  A JSScript is created "
@@ -1843,37 +1830,6 @@ ReportCompartmentStats(const CompartmentStats &stats,
     "RecordAttemptMap, and LoopProfileMap.",
                        callback, closure);
 #endif
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "type-inference/script-main"),
-                       nsIMemoryReporter::KIND_HEAP,
-                       stats.typeInferenceMemory.scripts,
-    "Memory used during type inference to store type sets of variables "
-    "and dynamically observed types.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "type-inference/object-main"),
-                       JS_GC_HEAP_KIND,
-                       stats.typeInferenceMemory.objects,
-    "Memory used during type inference to store types and possible "
-    "property types of JS objects.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "type-inference/tables"),
-                       nsIMemoryReporter::KIND_HEAP,
-                       stats.typeInferenceMemory.tables,
-    "Memory used during type inference for compartment-wide tables.",
-                       callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "type-inference-temporary"),
-                       nsIMemoryReporter::KIND_HEAP,
-                       stats.typeInferenceMemory.temporary,
-    "Memory used during type inference to hold transient analysis "
-    "information.  Cleared on GC.",
-                       callback, closure);
 }
 
 void

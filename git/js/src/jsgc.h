@@ -98,7 +98,6 @@ enum FinalizeKind {
     FINALIZE_FUNCTION,
     FINALIZE_FUNCTION_AND_OBJECT_LAST = FINALIZE_FUNCTION,
     FINALIZE_SHAPE,
-    FINALIZE_TYPE_OBJECT,
 #if JS_HAS_XML_SUPPORT
     FINALIZE_XML,
 #endif
@@ -756,13 +755,12 @@ Cell::compartment() const
     return arenaHeader()->compartment;
 }
 
-#define JSTRACE_TYPE_OBJECT 3
-#define JSTRACE_XML         4
+#define JSTRACE_XML         3
 
 /*
  * One past the maximum trace kind.
  */
-#define JSTRACE_LIMIT       5
+#define JSTRACE_LIMIT       4
 
 /*
  * Lower limit after which we limit the heap growth
@@ -799,7 +797,6 @@ GetFinalizableTraceKind(size_t thingKind)
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_FUNCTION */
         JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
-        JSTRACE_TYPE_OBJECT,/* FINALIZE_TYPE_OBJECT */
 #if JS_HAS_XML_SUPPORT      /* FINALIZE_XML */
         JSTRACE_XML,
 #endif
@@ -1393,7 +1390,6 @@ struct LargeMarkItem
 static const size_t OBJECT_MARK_STACK_SIZE = 32768 * sizeof(JSObject *);
 static const size_t ROPES_MARK_STACK_SIZE = 1024 * sizeof(JSString *);
 static const size_t XML_MARK_STACK_SIZE = 1024 * sizeof(JSXML *);
-static const size_t TYPE_MARK_STACK_SIZE = 1024 * sizeof(types::TypeObject *);
 static const size_t LARGE_MARK_STACK_SIZE = 64 * sizeof(LargeMarkItem);
 
 struct GCMarker : public JSTracer {
@@ -1417,7 +1413,6 @@ struct GCMarker : public JSTracer {
 
     MarkStack<JSObject *> objStack;
     MarkStack<JSRope *> ropeStack;
-    MarkStack<types::TypeObject *> typeStack;
     MarkStack<JSXML *> xmlStack;
     MarkStack<LargeMarkItem> largeStack;
 
@@ -1442,7 +1437,6 @@ struct GCMarker : public JSTracer {
     bool isMarkStackEmpty() {
         return objStack.isEmpty() &&
                ropeStack.isEmpty() &&
-               typeStack.isEmpty() &&
                xmlStack.isEmpty() &&
                largeStack.isEmpty();
     }
@@ -1457,11 +1451,6 @@ struct GCMarker : public JSTracer {
     void pushRope(JSRope *rope) {
         if (!ropeStack.push(rope))
             delayMarkingChildren(rope);
-    }
-
-    void pushType(types::TypeObject *type) {
-        if (!typeStack.push(type))
-            delayMarkingChildren(type);
     }
 
     void pushXML(JSXML *xml) {
@@ -1490,11 +1479,6 @@ IterateCompartmentsArenasCells(JSContext *cx, void *data,
                                IterateArenaCallback arenaCallback,
                                IterateCellCallback cellCallback);
 
-/* Invoke cellCallback on every in-use object of the specified thing kind. */
-void
-IterateCells(JSContext *cx, JSCompartment *compartment, gc::FinalizeKind thingKind,
-             void *data, IterateCellCallback cellCallback);
-
 } /* namespace js */
 
 extern void
@@ -1508,7 +1492,7 @@ js_FinalizeStringRT(JSRuntime *rt, JSString *str);
 #if JS_HAS_XML_SUPPORT
 # define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) < JSTRACE_LIMIT)
 #else
-# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_TYPE_OBJECT)
+# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_SHAPE)
 #endif
 
 namespace js {

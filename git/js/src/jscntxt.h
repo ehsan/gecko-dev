@@ -54,7 +54,6 @@
 #include "jsgc.h"
 #include "jsgcchunk.h"
 #include "jshashtable.h"
-#include "jsinfer.h"
 #include "jsinterp.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
@@ -429,7 +428,6 @@ struct JSRuntime {
     /* Pre-allocated space for the GC mark stacks. Pointer type ensures alignment. */
     void                *gcMarkStackObjs[js::OBJECT_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackRopes[js::ROPES_MARK_STACK_SIZE / sizeof(void *)];
-    void                *gcMarkStackTypes[js::TYPE_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackXMLs[js::XML_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackLarges[js::LARGE_MARK_STACK_SIZE / sizeof(void *)];
 
@@ -538,9 +536,6 @@ struct JSRuntime {
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
-
-    /* Had an out-of-memory error which did not populate an exception. */
-    JSBool              hadOutOfMemory;
 
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
@@ -976,8 +971,6 @@ struct JSContext
     /* GC heap compartment. */
     JSCompartment       *compartment;
 
-    inline void setCompartment(JSCompartment *compartment);
-
     /* Current execution stack. */
     js::ContextStack    stack;
 
@@ -1197,10 +1190,6 @@ struct JSContext
 
     inline js::mjit::JaegerCompartment *jaegerCompartment();
 #endif
-
-    bool                 inferenceEnabled;
-
-    bool typeInferenceEnabled() { return inferenceEnabled; }
 
     /* Caller must be holding runtime->gcLock. */
     void updateJITEnabled();
@@ -1494,9 +1483,7 @@ class AutoGCRooter {
         IDVECTOR =    -15, /* js::AutoIdVector */
         BINDINGS =    -16, /* js::Bindings */
         SHAPEVECTOR = -17, /* js::AutoShapeVector */
-        OBJVECTOR =   -18, /* js::AutoObjectVector */
-        TYPE =        -19, /* js::types::AutoTypeRooter */
-        VALARRAY =    -20  /* js::AutoValueArrayRooter */
+        OBJVECTOR =   -18  /* js::AutoObjectVector */
     };
 
     private:
@@ -2356,11 +2343,6 @@ TriggerAllOperationCallbacks(JSRuntime *rt);
 
 } /* namespace js */
 
-/*
- * Get the topmost scripted frame in a context. Note: if the topmost frame is
- * in the middle of an inline call, that call will be expanded. To avoid this,
- * use cx->stack.currentScript or cx->stack.currentScriptedScopeChain.
- */
 extern js::StackFrame *
 js_GetScriptedCaller(JSContext *cx, js::StackFrame *fp);
 
@@ -2381,36 +2363,18 @@ LeaveTrace(JSContext *cx);
 extern bool
 CanLeaveTrace(JSContext *cx);
 
-#ifdef JS_METHODJIT
-namespace mjit {
-    void ExpandInlineFrames(JSCompartment *compartment);
-}
-#endif
-
 } /* namespace js */
-
-/* How much expansion of inlined frames to do when inspecting the stack. */
-enum FrameExpandKind {
-    FRAME_EXPAND_NONE = 0,
-    FRAME_EXPAND_ALL = 1
-};
 
 /*
  * Get the current frame, first lazily instantiating stack frames if needed.
  * (Do not access cx->fp() directly except in JS_REQUIRES_STACK code.)
  *
- * LeaveTrace is defined in jstracer.cpp if JS_TRACER is defined.
+ * Defined in jstracer.cpp if JS_TRACER is defined.
  */
 static JS_FORCES_STACK JS_INLINE js::StackFrame *
-js_GetTopStackFrame(JSContext *cx, FrameExpandKind expand)
+js_GetTopStackFrame(JSContext *cx)
 {
     js::LeaveTrace(cx);
-
-#ifdef JS_METHODJIT
-    if (expand)
-        js::mjit::ExpandInlineFrames(cx->compartment);
-#endif
-
     return cx->maybefp();
 }
 
@@ -2559,25 +2523,6 @@ class AutoShapeVector : public AutoVectorRooter<const Shape *>
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-class AutoValueArray : public AutoGCRooter
-{
-    js::Value *start_;
-    unsigned length_;
-
-  public:
-    AutoValueArray(JSContext *cx, js::Value *start, unsigned length
-                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, VALARRAY), start_(start), length_(length)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    Value *start() const { return start_; }
-    unsigned length() const { return length_; }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
