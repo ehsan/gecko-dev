@@ -1823,6 +1823,9 @@ dnl ========================================================
 dnl GNU specific defaults
 dnl ========================================================
 if test "$GNU_CC"; then
+    # Per bug 719659 comment 2, some of the headers on ancient build machines
+    # require gnu89 inline semantics.  But otherwise, we use C99.
+    CFLAGS="$CFLAGS -std=gnu99 -fgnu89-inline"
     # FIXME: Let us build with strict aliasing. bug 414641.
     CFLAGS="$CFLAGS -fno-strict-aliasing"
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$@ -o $@'
@@ -4630,7 +4633,7 @@ USE_ARM_KUSER=
 BUILD_CTYPES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
 MOZ_ANDROID_HISTORY=
-MOZ_WEBSMS_BACKEND=1
+MOZ_WEBSMS_BACKEND=
 MOZ_GRAPHITE=1
 
 case "${target}" in
