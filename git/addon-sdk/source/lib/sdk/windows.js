@@ -4,7 +4,11 @@
 'use strict';
 
 module.metadata = {
-  'stability': 'stable'
+  'stability': 'stable',
+  'engines': {
+    'Firefox': '*',
+    'Fennec': '*'
+  }
 };
 
 const { isBrowser } = require('./window/utils');

@@ -100,7 +100,7 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-          return err.code == 400 && "invalid token" == err.message;
+          return /400.*invalid token/.test(err.message);
         }));
       });
     });
@@ -218,7 +218,7 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithMatch(callback, sinon.match(function(err) {
-          return err.code == 400 && "invalid token" == err.message;
+          return /400.*invalid token/.test(err.message);
         }));
       });
 
@@ -301,7 +301,7 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(callback);
         sinon.assert.calledWithExactly(callback, sinon.match(function(err) {
-          return err.code == 400 && "invalid token" == err.message;
+          return /400.*invalid token/.test(err.message);
         }));
       });
 

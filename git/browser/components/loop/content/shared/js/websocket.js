@@ -175,17 +175,6 @@ loop.CallConnectionWebSocket = (function() {
     },
 
     /**
-     * Notifies the server that something failed during setup.
-     */
-    mediaFail: function() {
-      this._send({
-        messageType: "action",
-        event: "terminate",
-        reason: "media-fail"
-      });
-    },
-
-    /**
      * Sends data on the websocket.
      *
      * @param {Object} data The data to send.

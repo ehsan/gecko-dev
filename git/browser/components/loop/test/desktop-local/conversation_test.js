@@ -11,7 +11,8 @@ describe("loop.conversation", function() {
 
   var sharedModels = loop.shared.models,
       sharedView = loop.shared.views,
-      sandbox;
+      sandbox,
+      notifications;
 
   // XXX refactor to Just Work with "sandbox.stubComponent" or else
   // just pass in the sandbox and put somewhere generally usable
@@ -29,6 +30,7 @@ describe("loop.conversation", function() {
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
     sandbox.useFakeTimers();
+    notifications = new loop.shared.models.NotificationCollection();
 
     navigator.mozLoop = {
       doNotDisturb: true,
@@ -57,9 +59,6 @@ describe("loop.conversation", function() {
 
     // XXX These stubs should be hoisted in a common file
     // Bug 1040968
-    sandbox.stub(document.mozL10n, "get", function(x) {
-      return x;
-    });
     document.mozL10n.initialize(navigator.mozLoop);
   });
 
@@ -129,6 +128,7 @@ describe("loop.conversation", function() {
         loop.conversation.ConversationControllerView({
           client: client,
           conversation: conversation,
+          notifications: notifications,
           sdk: {},
           store: store
         }));
@@ -179,6 +179,7 @@ describe("loop.conversation", function() {
         loop.conversation.IncomingConversationView({
           client: client,
           conversation: conversation,
+          notifications: notifications,
           sdk: {}
         }));
     }
@@ -200,13 +201,9 @@ describe("loop.conversation", function() {
 
     describe("start", function() {
       it("should set the title to incoming_call_title2", function() {
-        navigator.mozLoop.getCallData = function() {
-          return {
-            progressURL:    "fake",
-            websocketToken: "fake",
-            callId: 42
-          };
-        };
+        sandbox.stub(document.mozL10n, "get", function(x) {
+          return x;
+        });
 
         icView = mountTestComponent();
 
@@ -317,13 +314,17 @@ describe("loop.conversation", function() {
               });
             });
 
-          // XXX implement me as part of bug 1047410
-          // see https://hg.mozilla.org/integration/fx-team/rev/5d2c69ebb321#l18.259
-          it.skip("should should switch view state to failed", function(done) {
+          it("should display an error if the websocket failed to connect", function(done) {
+            sandbox.stub(notifications, "errorL10n");
+
             icView = mountTestComponent();
             rejectWebSocketConnect();
 
-            promise.then(function() {}, function() {
+            promise.then(function() {
+            }, function () {
+              sinon.assert.calledOnce(notifications.errorL10n);
+              sinon.assert.calledWithExactly(notifications.errorL10n,
+                "cannot_start_call_session_not_ready");
               done();
             });
           });
@@ -607,20 +608,13 @@ describe("loop.conversation", function() {
           });
       });
 
-      describe("session:network-disconnected", function() {
+      describe("session:peer-hungup", function() {
         it("should navigate to call/feedback when network disconnects",
           function() {
             conversation.trigger("session:network-disconnected");
 
               TestUtils.findRenderedComponentWithType(icView,
                 sharedView.FeedbackView);
-          });
-
-        it("should update the conversation window toolbar title",
-          function() {
-            conversation.trigger("session:network-disconnected");
-
-            expect(document.title).eql("generic_failure_title");
           });
       });
 

@@ -104,8 +104,7 @@ protected:
                       nsIFrame* aFrame);
   void DrawMenuIcon(CGContextRef cgContext, const CGRect& aRect,
                     mozilla::EventStates inState, nsIFrame* aFrame,
-                    const NSSize& aIconSize, const NSString* aImageName,
-                    bool aCenterHorizontally);
+                    const NSSize& aIconSize, const NSString* aImageName);
   void DrawButton(CGContextRef context, ThemeButtonKind inKind,
                   const HIRect& inBoxRect, bool inIsDefault, 
                   ThemeButtonValue inValue, ThemeButtonAdornment inAdornment,

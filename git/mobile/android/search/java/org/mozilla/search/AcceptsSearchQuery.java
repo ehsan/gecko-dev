@@ -33,13 +33,6 @@ public interface AcceptsSearchQuery {
     void onSearch(String query, SuggestionAnimation suggestionAnimation);
 
     /**
-     * Handles a change to the current search query.
-     *
-     * @param query
-     */
-    void onQueryChange(String query);
-
-    /**
      * Interface to specify search suggestion animation details.
      */
     public interface SuggestionAnimation {

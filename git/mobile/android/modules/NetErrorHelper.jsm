@@ -94,7 +94,6 @@ handlers.searchbutton = {
   },
 
   doSearch: function(value) {
-    UITelemetry.addEvent("neterror.1", "button", null, "search");
     let engine = Services.search.defaultEngine;
     let uri = engine.getSubmission(value).uri;
 
@@ -135,7 +134,7 @@ handlers.wifi = {
       return;
     }
 
-    UITelemetry.addEvent("neterror.1", "button", null, "wifitoggle");
+    UITelemetry.addEvent("neterror.1", "button", "wifitoggle");
     // Show indeterminate progress while we wait for the network.
     node.disabled = true;
     node.classList.add("inProgress");
@@ -161,7 +160,7 @@ handlers.wifi = {
     let network = Cc["@mozilla.org/network/network-link-service;1"].getService(Ci.nsINetworkLinkService);
     if (network.isLinkUp && network.linkStatusKnown) {
       // If everything worked, reload the page
-      UITelemetry.addEvent("neterror.1", "button", null, "wifitoggle.reload");
+      UITelemetry.addEvent("neterror.1", "button", "wifitoggle.reload");
       Services.obs.removeObserver(this, "network:link-status-changed");
 
       // Even at this point, Android sometimes lies about the real state of the network and this reload request fails.

@@ -19,21 +19,10 @@ function promiseGetMozLoopAPI() {
   let loopPanel = document.getElementById("loop-notification-panel");
   let btn = document.getElementById("loop-call-button");
 
-  // Wait for the popup to be shown if it's not already, then we can get the iframe and
+  // Wait for the popup to be shown, then we can get the iframe and
   // wait for the iframe's load to be completed.
-  if (loopPanel.state == "closing" || loopPanel.state == "closed") {
-    loopPanel.addEventListener("popupshown", () => {
-      loopPanel.removeEventListener("popupshown", onpopupshown, true);
-      onpopupshown();
-    }, true);
-
-    // Now we're setup, click the button.
-    btn.click();
-  } else {
-    setTimeout(onpopupshown, 0);
-  }
-
-  function onpopupshown() {
+  loopPanel.addEventListener("popupshown", function onpopupshown() {
+    loopPanel.removeEventListener("popupshown", onpopupshown, true);
     let iframe = document.getElementById(btn.getAttribute("notificationFrameId"));
 
     if (iframe.contentDocument &&
@@ -52,7 +41,10 @@ function promiseGetMozLoopAPI() {
         deferred.resolve();
       }, true);
     }
-  }
+  }, true);
+
+  // Now we're setup, click the button.
+  btn.click();
 
   // Remove the iframe after each test. This also avoids mochitest complaining
   // about leaks on shutdown as we intentionally hold the iframe open for the
@@ -115,7 +107,7 @@ function promiseOAuthParamsSetup(baseURL, params) {
   return deferred.promise;
 }
 
-function* resetFxA() {
+function resetFxA() {
   let global = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
   global.gHawkClient = null;
   global.gFxAOAuthClientPromise = null;
@@ -124,10 +116,6 @@ function* resetFxA() {
   global.gFxAOAuthProfile = null;
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
   Services.prefs.clearUserPref(fxASessionPref);
-  MozLoopService.errors.clear();
-  let notified = promiseObserverNotified("loop-status-changed");
-  MozLoopServiceInternal.notifyStatusChanged();
-  yield notified;
 }
 
 function setInternalLoopGlobal(aName, aValue) {
@@ -182,10 +170,6 @@ function promiseOAuthGetRegistration(baseURL) {
   xhr.send();
 
   return deferred.promise;
-}
-
-function getLoopString(stringID) {
-  return MozLoopServiceInternal.localizedStrings[stringID].textContent;
 }
 
 /**
