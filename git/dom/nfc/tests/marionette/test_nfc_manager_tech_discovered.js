@@ -4,6 +4,11 @@
 MARIONETTE_TIMEOUT = 30000;
 MARIONETTE_HEAD_JS = 'head.js';
 
+// See nfc-nci.h.
+const NCI_LAST_NOTIFICATION  = 0;
+const NCI_LIMIT_NOTIFICATION = 1;
+const NCI_MORE_NOTIFICATIONS = 2;
+
 function handleTechnologyDiscoveredRE0(msg) {
   log('Received \'nfc-manager-tech-discovered\'');
   is(msg.type, 'techDiscovered', 'check for correct message type');
@@ -16,7 +21,7 @@ function testActivateRE0() {
   window.navigator.mozSetMessageHandler(
     'nfc-manager-tech-discovered', handleTechnologyDiscoveredRE0);
 
-  toggleNFC(true).then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
+  toggleNFC(true).then(() => emulator.activateRE(0));
 }
 
 // Check NCI Spec 5.2, this will change NCI state from
@@ -27,9 +32,9 @@ function testRfDiscover() {
     'nfc-manager-tech-discovered', handleTechnologyDiscoveredRE0);
 
   toggleNFC(true)
-  .then(() => NCI.notifyDiscoverRE(emulator.P2P_RE_INDEX_0, NCI.MORE_NOTIFICATIONS))
-  .then(() => NCI.notifyDiscoverRE(emulator.P2P_RE_INDEX_1, NCI.LAST_NOTIFICATION))
-  .then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
+  .then(() => emulator.notifyDiscoverRE(0, NCI_MORE_NOTIFICATIONS))
+  .then(() => emulator.notifyDiscoverRE(1, NCI_LAST_NOTIFICATION))
+  .then(() => emulator.activateRE(0));
 }
 
 let tests = [

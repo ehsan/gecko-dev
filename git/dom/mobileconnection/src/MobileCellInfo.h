@@ -79,9 +79,6 @@ public:
   }
 
 private:
-  ~MobileCellInfo() {}
-
-private:
   nsCOMPtr<nsPIDOMWindow> mWindow;
   int32_t mGsmLocationAreaCode;
   int64_t mGsmCellId;

@@ -33,23 +33,11 @@ let emulator = (function() {
     });
   };
 
-  return {
-    run: run,
-    P2P_RE_INDEX_0 : 0,
-    P2P_RE_INDEX_1 : 1,
-    T1T_RE_INDEX   : 2,
-    T2T_RE_INDEX   : 3,
-    T3T_RE_INDEX   : 4,
-    T4T_RE_INDEX   : 5
-  };
-}());
-
-let NCI = (function() {
   function activateRE(re) {
     let deferred = Promise.defer();
     let cmd = 'nfc nci rf_intf_activated_ntf ' + re;
 
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), 'OK', 'check activation of RE' + re);
       deferred.resolve();
     });
@@ -61,7 +49,7 @@ let NCI = (function() {
     let deferred = Promise.defer();
     let cmd = 'nfc nci rf_intf_deactivate_ntf';
 
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), 'OK', 'check deactivate');
       deferred.resolve();
     });
@@ -73,7 +61,7 @@ let NCI = (function() {
     let deferred = Promise.defer();
     let cmd = 'nfc nci rf_discover_ntf ' + re + ' ' + type;
 
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), 'OK', 'check discovery of RE' + re);
       deferred.resolve();
     });
@@ -81,23 +69,12 @@ let NCI = (function() {
     return deferred.promise;
   };
 
-  return {
-    activateRE: activateRE,
-    deactivate: deactivate,
-    notifyDiscoverRE: notifyDiscoverRE,
-    LAST_NOTIFICATION: 0,
-    LIMIT_NOTIFICATION: 1,
-    MORE_NOTIFICATIONS: 2
-  };
-}());
-
-let TAG = (function() {
-  function setData(re, flag, tnf, type, payload) {
+  function setTagData(re, flag, tnf, type, payload) {
     let deferred = Promise.defer();
     let cmd = "nfc tag set " + re +
               " [" + flag + "," + tnf + "," + type + "," + payload + ",]";
 
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), "OK", "set NDEF data of tag" + re);
       deferred.resolve();
     });
@@ -105,31 +82,24 @@ let TAG = (function() {
     return deferred.promise;
   };
 
-  function clearData(re) {
+  function clearTagData(re) {
     let deferred = Promise.defer();
     let cmd = "nfc tag clear " + re;
 
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), "OK", "clear tag" + re);
       deferred.resolve();
     });
   }
 
-  return {
-    setData: setData,
-    clearData: clearData
-  };
-}());
-
-let SNEP = (function() {
-  function put(dsap, ssap, flags, tnf, type, payload, id) {
+  function snepPutNdef(dsap, ssap, flags, tnf, type, payload, id) {
     let deferred = Promise.defer();
     let cmd = "nfc snep put " + dsap + " " + ssap + " [" + flags + "," +
                                                            tnf + "," +
                                                            type + "," +
                                                            payload + "," +
                                                            id + "]";
-    emulator.run(cmd, function(result) {
+    this.run(cmd, function(result) {
       is(result.pop(), "OK", "send SNEP PUT");
       deferred.resolve();
     });
@@ -138,8 +108,13 @@ let SNEP = (function() {
   };
 
   return {
-    put: put,
-    SAP_NDEF: 4
+    run: run,
+    activateRE: activateRE,
+    deactivate: deactivate,
+    notifyDiscoverRE: notifyDiscoverRE,
+    setTagData: setTagData,
+    clearTagData: clearTagData,
+    snepPutNdef: snepPutNdef
   };
 }());
 
@@ -175,6 +150,18 @@ function clearPendingMessages(type) {
   window.navigator.mozSetMessageHandler(type, function() {
     window.navigator.mozSetMessageHandler(type, null);
   });
+}
+
+function enableRE0() {
+  let deferred = Promise.defer();
+  let cmd = 'nfc nci rf_intf_activated_ntf 0';
+
+  emulator.run(cmd, function(result) {
+    is(result.pop(), 'OK', 'check activation of RE0');
+    deferred.resolve();
+  });
+
+  return deferred.promise;
 }
 
 function cleanUp() {

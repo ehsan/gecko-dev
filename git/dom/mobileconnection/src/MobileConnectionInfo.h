@@ -94,9 +94,6 @@ public:
   }
 
 private:
-  ~MobileConnectionInfo() {}
-
-private:
   bool mConnected;
   bool mEmergencyCallsOnly;
   bool mRoaming;

@@ -62,9 +62,6 @@ public:
   }
 
 private:
-  ~MobileNetworkInfo() {}
-
-private:
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsString mShortName;
   nsString mLongName;

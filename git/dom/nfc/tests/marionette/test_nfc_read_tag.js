@@ -6,6 +6,11 @@ MARIONETTE_HEAD_JS = "head.js";
 
 let url = "http://www.mozilla.org";
 
+const T1T_RE_INDEX   = 2;
+const T2T_RE_INDEX   = 3;
+const T3T_RE_INDEX   = 4;
+const T4T_RE_INDEX   = 5;
+
 function testUrlTagDiscover(re) {
   log("Running \'testUrlTagDiscover\'");
   // TODO : Make flag value readable.
@@ -31,8 +36,8 @@ function testUrlTagDiscover(re) {
   });
 
   toggleNFC(true)
-  .then(() => TAG.setData(re, flag, tnf, btoa(type), btoa(payload)))
-  .then(() => NCI.activateRE(re));
+  .then(() => emulator.setTagData(re, flag, tnf, btoa(type), btoa(payload)))
+  .then(() => emulator.activateRE(re));
 }
 
 function testEmptyTagDiscover(re) {
@@ -51,40 +56,40 @@ function testEmptyTagDiscover(re) {
   });
 
   toggleNFC(true)
-  .then(() => TAG.clearData(re))
-  .then(() => NCI.activateRE(re));
+  .then(() => emulator.clearTagData(re))
+  .then(() => emulator.activateRE(re));
 }
 
 function testUrlT1TDiscover() {
-  testUrlTagDiscover(emulator.T1T_RE_INDEX);
+  testUrlTagDiscover(T1T_RE_INDEX);
 }
 
 function testUrlT2TDiscover() {
-  testUrlTagDiscover(emulator.T2T_RE_INDEX);
+  testUrlTagDiscover(T2T_RE_INDEX);
 }
 
 function testUrlT3TDiscover() {
-  testUrlTagDiscover(emulator.T3T_RE_INDEX);
+  testUrlTagDiscover(T3T_RE_INDEX);
 }
 
 function testUrlT4TDiscover() {
-  testUrlTagDiscover(emulator.T4T_RE_INDEX);
+  testUrlTagDiscover(T4T_RE_INDEX);
 }
 
 function testEmptyT1TDiscover() {
-  testEmptyTagDiscover(emulator.T1T_RE_INDEX);
+  testEmptyTagDiscover(T1T_RE_INDEX);
 }
 
 function testEmptyT2TDiscover() {
-  testEmptyTagDiscover(emulator.T2T_RE_INDEX);
+  testEmptyTagDiscover(T2T_RE_INDEX);
 }
 
 function testEmptyT3TDiscover() {
-  testEmptyTagDiscover(emulator.T3T_RE_INDEX);
+  testEmptyTagDiscover(T3T_RE_INDEX);
 }
 
 function testEmptyT4TDiscover() {
-  testEmptyTagDiscover(emulator.T4T_RE_INDEX);
+  testEmptyTagDiscover(T4T_RE_INDEX);
 }
 
 let tests = [
