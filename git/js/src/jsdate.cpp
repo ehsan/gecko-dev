@@ -1228,11 +1228,9 @@ SetUTCTime(JSContext *cx, JSObject *obj, jsdouble t, Value *vp = NULL)
 {
     JS_ASSERT(obj->isDate());
 
-    for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START;
-         ind < JSObject::DATE_CLASS_RESERVED_SLOTS;
-         ind++) {
+    size_t slotCap = JS_MIN(obj->numSlots(), JSObject::DATE_CLASS_RESERVED_SLOTS);
+    for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START; ind < slotCap; ind++)
         obj->setSlot(ind, UndefinedValue());
-    }
 
     obj->setDateUTCTime(DoubleValue(t));
     if (vp)
@@ -1258,6 +1256,12 @@ FillLocalTimes(JSContext *cx, JSObject *obj)
     JS_ASSERT(obj->isDate());
 
     jsdouble utcTime = obj->getDateUTCTime().toNumber();
+
+    /* Make sure there are slots to store the cached information. */
+    if (obj->numSlots() < JSObject::DATE_CLASS_RESERVED_SLOTS) {
+        if (!obj->growSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
+            return false;
+    }
 
     if (!JSDOUBLE_IS_FINITE(utcTime)) {
         for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START;
@@ -2692,6 +2696,8 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
     {
         return NULL;
     }
+    if (!cx->typeInferenceEnabled())
+        dateProto->brand(cx);
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Date, ctor, dateProto))
         return NULL;
@@ -2703,7 +2709,7 @@ JS_FRIEND_API(JSObject *)
 js_NewDateObjectMsec(JSContext *cx, jsdouble msec_time)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &DateClass);
-    if (!obj)
+    if (!obj || !obj->ensureSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
         return NULL;
     if (!SetUTCTime(cx, obj, msec_time))
         return NULL;

@@ -41,8 +41,6 @@
 
 #include "nsIFile.h"
 #include "nsIObserverService.h"
-#include "nsIScriptObjectPrincipal.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsISHEntry.h"
 #include "nsISimpleEnumerator.h"
 #include "nsITimer.h"
@@ -56,7 +54,6 @@
 #include "nsXPCOMPrivate.h"
 
 #include "AsyncConnectionHelper.h"
-#include "CheckQuotaHelper.h"
 #include "IDBDatabase.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
@@ -78,7 +75,7 @@
 #define PREF_INDEXEDDB_QUOTA "dom.indexedDB.warningQuota"
 
 // A bad TLS index number.
-#define BAD_TLS_INDEX (PRUintn)-1 
+#define BAD_TLS_INDEX (PRUintn)-1
 
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
@@ -90,6 +87,8 @@ PRInt32 gShutdown = 0;
 
 // Does not hold a reference.
 IndexedDatabaseManager* gInstance = nsnull;
+
+PRUintn gCurrentDatabaseIndex = BAD_TLS_INDEX;
 
 PRInt32 gIndexedDBQuotaMB = DEFAULT_QUOTA_MB;
 
@@ -105,7 +104,13 @@ public:
                 nsISupports* aUserData,
                 PRInt64* _retval)
   {
-    if (IndexedDatabaseManager::QuotaIsLifted()) {
+    NS_ASSERTION(gCurrentDatabaseIndex != BAD_TLS_INDEX,
+                 "This should be impossible!");
+
+    IDBDatabase* database =
+      static_cast<IDBDatabase*>(PR_GetThreadPrivate(gCurrentDatabaseIndex));
+
+    if (database && database->IsQuotaDisabled()) {
       *_retval = 0;
       return NS_OK;
     }
@@ -141,8 +146,6 @@ EnumerateToTArray(const nsACString& aKey,
 } // anonymous namespace
 
 IndexedDatabaseManager::IndexedDatabaseManager()
-: mCurrentWindowIndex(BAD_TLS_INDEX),
-  mQuotaHelperMutex("IndexedDatabaseManager.mQuotaHelperMutex")
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!gInstance, "More than one instance!");
@@ -169,28 +172,27 @@ IndexedDatabaseManager::GetOrCreate()
   nsRefPtr<IndexedDatabaseManager> instance(gInstance);
 
   if (!instance) {
-    if (NS_FAILED(Preferences::AddIntVarCache(&gIndexedDBQuotaMB,
-                                              PREF_INDEXEDDB_QUOTA,
-                                              DEFAULT_QUOTA_MB))) {
-      NS_WARNING("Unable to respond to quota pref changes!");
-      gIndexedDBQuotaMB = DEFAULT_QUOTA_MB;
+    // We need a thread-local to hold our current database.
+    if (gCurrentDatabaseIndex == BAD_TLS_INDEX) {
+      if (PR_NewThreadPrivateIndex(&gCurrentDatabaseIndex, nsnull) !=
+          PR_SUCCESS) {
+        NS_ERROR("PR_NewThreadPrivateIndex failed!");
+        gCurrentDatabaseIndex = BAD_TLS_INDEX;
+        return nsnull;
+      }
+
+      if (NS_FAILED(Preferences::AddIntVarCache(&gIndexedDBQuotaMB,
+                                                PREF_INDEXEDDB_QUOTA,
+                                                DEFAULT_QUOTA_MB))) {
+        NS_WARNING("Unable to respond to quota pref changes!");
+        gIndexedDBQuotaMB = DEFAULT_QUOTA_MB;
+      }
     }
 
     instance = new IndexedDatabaseManager();
 
-    if (!instance->mLiveDatabases.Init() ||
-        !instance->mQuotaHelperHash.Init()) {
+    if (!instance->mLiveDatabases.Init()) {
       NS_WARNING("Out of memory!");
-      return nsnull;
-    }
-
-    // We need a thread-local to hold the current window.
-    NS_ASSERTION(instance->mCurrentWindowIndex == BAD_TLS_INDEX, "Huh?");
-
-    if (PR_NewThreadPrivateIndex(&instance->mCurrentWindowIndex, nsnull) !=
-        PR_SUCCESS) {
-      NS_ERROR("PR_NewThreadPrivateIndex failed, IndexedDB disabled");
-      instance->mCurrentWindowIndex = BAD_TLS_INDEX;
       return nsnull;
     }
 
@@ -546,23 +548,30 @@ IndexedDatabaseManager::OnDatabaseClosed(IDBDatabase* aDatabase)
   }
 }
 
-void
-IndexedDatabaseManager::SetCurrentWindowInternal(nsPIDOMWindow* aWindow)
+// static
+bool
+IndexedDatabaseManager::SetCurrentDatabase(IDBDatabase* aDatabase)
 {
-  if (aWindow) {
+  NS_ASSERTION(gCurrentDatabaseIndex != BAD_TLS_INDEX,
+               "This should have been set already!");
+
 #ifdef DEBUG
-    NS_ASSERTION(!PR_GetThreadPrivate(mCurrentWindowIndex),
-                 "Somebody forgot to clear the current window!");
-#endif
-    PR_SetThreadPrivate(mCurrentWindowIndex, aWindow);
+  if (aDatabase) {
+    NS_ASSERTION(!PR_GetThreadPrivate(gCurrentDatabaseIndex),
+                 "Someone forgot to unset gCurrentDatabaseIndex!");
   }
   else {
-#ifdef DEBUG
-    NS_ASSERTION(PR_GetThreadPrivate(mCurrentWindowIndex),
-               "Somebody forgot to clear the current window!");
-#endif
-    PR_SetThreadPrivate(mCurrentWindowIndex, nsnull);
+    NS_ASSERTION(PR_GetThreadPrivate(gCurrentDatabaseIndex),
+                 "Someone forgot to set gCurrentDatabaseIndex!");
   }
+#endif
+
+  if (PR_SetThreadPrivate(gCurrentDatabaseIndex, aDatabase) != PR_SUCCESS) {
+    NS_WARNING("Failed to set gCurrentDatabaseIndex!");
+    return false;
+  }
+
+  return true;
 }
 
 // static
@@ -651,102 +660,6 @@ IndexedDatabaseManager::EnsureQuotaManagementForDirectory(nsIFile* aDirectory)
 
   mTrackedQuotaPaths.AppendElement(path);
   return rv;
-}
-
-bool
-IndexedDatabaseManager::QuotaIsLiftedInternal()
-{
-  nsPIDOMWindow* window = nsnull;
-  nsRefPtr<CheckQuotaHelper> helper = nsnull;
-  bool createdHelper = false;
-
-  window =
-    static_cast<nsPIDOMWindow*>(PR_GetThreadPrivate(mCurrentWindowIndex));
-
-  // Once IDB is supported outside of Windows this should become an early
-  // return true.
-  NS_ASSERTION(window, "Why don't we have a Window here?");
-
-  // Hold the lock from here on.
-  MutexAutoLock autoLock(mQuotaHelperMutex);
-
-  mQuotaHelperHash.Get(window, getter_AddRefs(helper));
-
-  if (!helper) {
-    helper = new CheckQuotaHelper(window, mQuotaHelperMutex);
-    createdHelper = true;
-
-    bool result = mQuotaHelperHash.Put(window, helper);
-    NS_ENSURE_TRUE(result, result);
-
-    // Unlock while calling out to XPCOM
-    {
-      MutexAutoUnlock autoUnlock(mQuotaHelperMutex);
-
-      nsresult rv = NS_DispatchToMainThread(helper);
-      NS_ENSURE_SUCCESS(rv, false);
-    }
-
-    // Relocked.  If any other threads hit the quota limit on the same Window,
-    // they are using the helper we created here and are now blocking in
-    // PromptAndReturnQuotaDisabled.
-  }
-
-  bool result = helper->PromptAndReturnQuotaIsDisabled();
-
-  // If this thread created the helper and added it to the hash, this thread
-  // must remove it.
-  if (createdHelper) {
-    mQuotaHelperHash.Remove(window);
-  }
-
-  return result;
-}
-
-void
-IndexedDatabaseManager::CancelPromptsForWindowInternal(nsPIDOMWindow* aWindow)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  nsRefPtr<CheckQuotaHelper> helper;
-
-  MutexAutoLock autoLock(mQuotaHelperMutex);
-
-  mQuotaHelperHash.Get(aWindow, getter_AddRefs(helper));
-
-  if (helper) {
-    helper->Cancel();
-  }
-}
-
-// static
-nsresult
-IndexedDatabaseManager::GetASCIIOriginFromWindow(nsPIDOMWindow* aWindow,
-                                                 nsCString& aASCIIOrigin)
-{
-  NS_ASSERTION(NS_IsMainThread(),
-               "We're about to touch a window off the main thread!");
-
-  nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
-  NS_ENSURE_TRUE(sop, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsCOMPtr<nsIPrincipal> principal = sop->GetPrincipal();
-  NS_ENSURE_TRUE(principal, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (nsContentUtils::IsSystemPrincipal(principal)) {
-    aASCIIOrigin.AssignLiteral("chrome");
-  }
-  else {
-    nsresult rv = nsContentUtils::GetASCIIOrigin(principal, aASCIIOrigin);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    if (aASCIIOrigin.EqualsLiteral("null")) {
-      NS_WARNING("IndexedDB databases not allowed for this principal!");
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-  }
-
-  return NS_OK;
 }
 
 // static

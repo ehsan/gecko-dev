@@ -73,12 +73,8 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
-/*
- * Allocate array buffers with the maximum number of fixed slots marked as
- * reserved, so that the fixed slots may be used for the buffer's contents.
- * The last fixed slot is kept for the object's private data.
- */
-static const uint8 ARRAYBUFFER_RESERVED_SLOTS = JSObject::MAX_FIXED_SLOTS - 1;
+/* slots can only be upto 255 */
+static const uint8 ARRAYBUFFER_RESERVED_SLOTS = 16;
 
 static bool
 ValueIsLength(JSContext *cx, const Value &v, jsuint *len)
@@ -163,30 +159,26 @@ JSObject::allocateArrayBufferSlots(JSContext *cx, uint32 size)
     /*
      * ArrayBuffer objects delegate added properties to another JSObject, so
      * their internal layout can use the object's fixed slots for storage.
-     * Set up the object to look like an array with an elements header.
      */
-    JS_ASSERT(isArrayBuffer() && !hasDynamicSlots() && !hasDynamicElements());
+    JS_ASSERT(isArrayBuffer() && !hasSlotsArray());
 
-    size_t usableSlots = ARRAYBUFFER_RESERVED_SLOTS - ObjectElements::VALUES_PER_HEADER;
-
-    if (size > sizeof(Value) * usableSlots) {
-        ObjectElements *newheader = (ObjectElements *)cx->calloc_(size + sizeof(ObjectElements));
-        if (!newheader)
+    uint32 bytes = size + sizeof(Value);
+    if (size > sizeof(HeapValue) * ARRAYBUFFER_RESERVED_SLOTS - sizeof(HeapValue) ) {
+        HeapValue *tmpslots = (HeapValue *)cx->calloc_(bytes);
+        if (!tmpslots)
             return false;
-        elements = newheader->elements();
+        slots = tmpslots;
+        /*
+         * Note that |bytes| may not be a multiple of |sizeof(Value)|, so
+         * |capacity * sizeof(Value)| may underestimate the size by up to
+         * |sizeof(Value) - 1| bytes.
+         */
+        capacity = bytes / sizeof(HeapValue);
     } else {
-        elements = fixedElements();
-        memset(fixedSlots(), 0, size + sizeof(ObjectElements));
+        slots = fixedSlots();
+        memset(slots, 0, bytes);
     }
-    getElementsHeader()->length = size;
-
-    /*
-     * Note that |bytes| may not be a multiple of |sizeof(Value)|, so
-     * |capacity * sizeof(Value)| may underestimate the size by up to
-     * |sizeof(Value) - 1| bytes.
-     */
-    getElementsHeader()->capacity = size / sizeof(Value);
-
+    *((uint32*)slots) = size;
     return true;
 }
 
@@ -194,7 +186,7 @@ static JSObject *
 DelegateObject(JSContext *cx, JSObject *obj)
 {
     if (!obj->getPrivate()) {
-        JSObject *delegate = NewObjectWithGivenProto(cx, &ObjectClass, obj->getProto(), NULL);
+        JSObject *delegate = NewNonFunction<WithProto::Given>(cx, &ObjectClass, obj->getProto(), NULL);
         obj->setPrivate(delegate);
         return delegate;
     }
@@ -207,7 +199,6 @@ ArrayBuffer::create(JSContext *cx, int32 nbytes)
     JSObject *obj = NewBuiltinClassInstance(cx, &ArrayBuffer::slowClass);
     if (!obj)
         return NULL;
-    JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT16);
 
     if (nbytes < 0) {
         /*
@@ -220,13 +211,8 @@ ArrayBuffer::create(JSContext *cx, int32 nbytes)
     }
 
     JS_ASSERT(obj->getClass() == &ArrayBuffer::slowClass);
-
-    js::Shape *empty = EmptyShape::getInitialShape(cx, &ArrayBufferClass,
-                                                   obj->getProto(), obj->getParent(),
-                                                   gc::FINALIZE_OBJECT16);
-    if (!empty)
-        return false;
-    obj->setLastPropertyInfallible(empty);
+    obj->setSharedNonNativeMap();
+    obj->setClass(&ArrayBufferClass);
 
     /*
      * The first 8 bytes hold the length.
@@ -845,7 +831,7 @@ TypedArray::lengthOffset()
 /* static */ int
 TypedArray::dataOffset()
 {
-    return JSObject::getPrivateDataOffset(NUM_FIXED_SLOTS);
+    return offsetof(JSObject, privateData);
 }
 
 /* Helper clamped uint8 type */
@@ -1345,7 +1331,6 @@ class TypedArrayTemplate
         JSObject *obj = NewBuiltinClassInstance(cx, slowClass());
         if (!obj)
             return NULL;
-        JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT8);
 
         /*
          * Specialize the type of the object on the current scripted location,
@@ -1378,16 +1363,11 @@ class TypedArrayTemplate
         JS_ASSERT(getDataOffset(obj) <= offsetData(obj, bufferByteLength));
 
         JS_ASSERT(obj->getClass() == slowClass());
+        obj->setSharedNonNativeMap();
+        obj->setClass(fastClass());
 
-        js::Shape *empty = EmptyShape::getInitialShape(cx, fastClass(),
-                                                       obj->getProto(), obj->getParent(),
-                                                       gc::FINALIZE_OBJECT8,
-                                                       BaseShape::NOT_EXTENSIBLE);
-        if (!empty)
-            return false;
-        obj->setLastPropertyInfallible(empty);
-
-        JS_ASSERT(obj->numFixedSlots() == NUM_FIXED_SLOTS);
+        // FIXME Bug 599008: make it ok to call preventExtensions here.
+        obj->flags |= JSObject::NOT_EXTENSIBLE;
 
         return obj;
     }

@@ -200,8 +200,7 @@ struct JS_FRIEND_API(TypedArray) {
         FIELD_BYTELENGTH,
         FIELD_TYPE,
         FIELD_BUFFER,
-        FIELD_MAX,
-        NUM_FIXED_SLOTS = 7
+        FIELD_MAX
     };
 
     // and MUST NOT be used to construct new objects.

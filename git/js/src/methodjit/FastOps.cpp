@@ -1105,17 +1105,17 @@ mjit::Compiler::jsop_setelem_dense()
         if (pinKey)
             frame.unpinReg(key.reg());
     } else {
-        // Get a register for the object which we can clobber, and load its elements.
+        // Get a register for the object which we can clobber.
+        RegisterID objReg;
         if (frame.haveSameBacking(obj, value)) {
-            slotsReg = frame.allocReg();
-            masm.move(vr.dataReg(), slotsReg);
+            objReg = frame.allocReg();
+            masm.move(vr.dataReg(), objReg);
         } else if (frame.haveSameBacking(obj, id)) {
-            slotsReg = frame.allocReg();
-            masm.move(key.reg(), slotsReg);
+            objReg = frame.allocReg();
+            masm.move(key.reg(), objReg);
         } else {
-            slotsReg = frame.copyDataIntoReg(obj);
+            objReg = frame.copyDataIntoReg(obj);
         }
-        masm.loadPtr(Address(slotsReg, JSObject::offsetOfElements()), slotsReg);
 
         frame.unpinEntry(vr);
         if (pinKey)
@@ -1124,19 +1124,19 @@ mjit::Compiler::jsop_setelem_dense()
         // Make an OOL path for setting exactly the initialized length.
         Label syncTarget = stubcc.syncExitAndJump(Uses(3));
 
-        Jump initlenGuard = masm.guardArrayExtent(ObjectElements::offsetOfInitializedLength(),
-                                                  slotsReg, key, Assembler::BelowOrEqual);
+        Jump initlenGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+                                                  objReg, key, Assembler::BelowOrEqual);
         stubcc.linkExitDirect(initlenGuard, stubcc.masm.label());
 
         // Recheck for an exact initialized length. :TODO: would be nice to
         // reuse the condition bits from the previous test.
-        Jump exactlenGuard = stubcc.masm.guardArrayExtent(ObjectElements::offsetOfInitializedLength(),
-                                                          slotsReg, key, Assembler::NotEqual);
+        Jump exactlenGuard = stubcc.masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+                                                          objReg, key, Assembler::NotEqual);
         exactlenGuard.linkTo(syncTarget, &stubcc.masm);
 
         // Check array capacity.
-        Jump capacityGuard = stubcc.masm.guardArrayExtent(ObjectElements::offsetOfCapacity(),
-                                                          slotsReg, key, Assembler::BelowOrEqual);
+        Jump capacityGuard = stubcc.masm.guardArrayExtent(offsetof(JSObject, capacity),
+                                                          objReg, key, Assembler::BelowOrEqual);
         capacityGuard.linkTo(syncTarget, &stubcc.masm);
 
         // Bump the index for setting the array length.  The above guard
@@ -1144,18 +1144,23 @@ mjit::Compiler::jsop_setelem_dense()
         stubcc.masm.bumpKey(key, 1);
 
         // Update the initialized length.
-        stubcc.masm.storeKey(key, Address(slotsReg, ObjectElements::offsetOfInitializedLength()));
+        stubcc.masm.storeKey(key, Address(objReg, JSObject::offsetOfInitializedLength()));
 
         // Update the array length if needed.
-        Jump lengthGuard = stubcc.masm.guardArrayExtent(ObjectElements::offsetOfLength(),
-                                                        slotsReg, key, Assembler::AboveOrEqual);
-        stubcc.masm.storeKey(key, Address(slotsReg, ObjectElements::offsetOfLength()));
+        Jump lengthGuard = stubcc.masm.guardArrayExtent(offsetof(JSObject, privateData),
+                                                        objReg, key, Assembler::AboveOrEqual);
+        stubcc.masm.storeKey(key, Address(objReg, offsetof(JSObject, privateData)));
         lengthGuard.linkTo(stubcc.masm.label(), &stubcc.masm);
 
         // Restore the index.
         stubcc.masm.bumpKey(key, -1);
 
+        stubcc.masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+
         initlenExit = stubcc.masm.jump();
+
+        masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
+        slotsReg = objReg;
     }
 
 #ifdef JSGC_INCREMENTAL_MJ
@@ -1487,20 +1492,6 @@ mjit::Compiler::tryConvertInteger(FrameEntry *fe, Uses uses)
     frame.learnType(fe, JSVAL_TYPE_INT32, reg);
 }
 
-/* Get the common shape used by all dense arrays with a prototype at globalObj. */
-static inline Shape *
-GetDenseArrayShape(JSContext *cx, JSObject *globalObj)
-{
-    JS_ASSERT(globalObj);
-
-    JSObject *proto;
-    if (!js_GetClassPrototype(cx, globalObj, JSProto_Array, &proto, NULL))
-        return false;
-
-    return EmptyShape::getInitialShape(cx, &ArrayClass, proto,
-                                       proto->getParent(), gc::FINALIZE_OBJECT0);
-}
-
 bool
 mjit::Compiler::jsop_setelem(bool popGuaranteed)
 {
@@ -1540,7 +1531,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
 #endif
     }
 
-    if (id->isType(JSVAL_TYPE_DOUBLE) || !globalObj) {
+    if (id->isType(JSVAL_TYPE_DOUBLE)) {
         jsop_setelem_slow();
         return true;
     }
@@ -1636,19 +1627,16 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     ic.slowPathStart = stubcc.syncExit(Uses(3));
 
     // Guard obj is a dense array.
-    Shape *shape = GetDenseArrayShape(cx, globalObj);
-    if (!shape)
-        return false;
-    ic.shapeGuard = masm.guardShape(ic.objReg, shape);
-    stubcc.linkExitDirect(ic.shapeGuard, ic.slowPathStart);
-
-    // Load the dynamic elements vector.
-    masm.loadPtr(Address(ic.objReg, JSObject::offsetOfElements()), ic.objReg);
+    ic.claspGuard = masm.testObjClass(Assembler::NotEqual, ic.objReg, &ArrayClass);
+    stubcc.linkExitDirect(ic.claspGuard, ic.slowPathStart);
 
     // Guard in range of initialized length.
-    Jump initlenGuard = masm.guardArrayExtent(ObjectElements::offsetOfInitializedLength(),
+    Jump initlenGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
                                               ic.objReg, ic.key, Assembler::BelowOrEqual);
     stubcc.linkExitDirect(initlenGuard, ic.slowPathStart);
+
+    // Load the dynamic slots vector.
+    masm.loadPtr(Address(ic.objReg, offsetof(JSObject, slots)), ic.objReg);
 
     // Guard there's no hole, then store directly to the slot.
     if (ic.key.isConstant()) {
@@ -1775,7 +1763,7 @@ mjit::Compiler::jsop_getelem_dense(bool isPacked)
         loop->hoistArrayLengthCheck(DENSE_ARRAY, objv, indexv);
 
     // Get a register with either the object or its slots, depending on whether
-    // we are hoisting the slots computation.
+    // we are hoisting the bounds check.
     RegisterID baseReg;
     if (hoisted) {
         FrameEntry *slotsFe = loop->invariantArraySlots(objv);
@@ -1798,6 +1786,13 @@ mjit::Compiler::jsop_getelem_dense(bool isPacked)
     if (type == JSVAL_TYPE_UNKNOWN || type == JSVAL_TYPE_DOUBLE || hasTypeBarriers(PC))
         typeReg = frame.allocReg();
 
+    // Guard on the array's initialized length.
+    MaybeJump initlenGuard;
+    if (!hoisted) {
+        initlenGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+                                             baseReg, key, Assembler::BelowOrEqual);
+    }
+
     frame.unpinReg(baseReg);
     if (pinKey)
         frame.unpinReg(key.reg());
@@ -1806,17 +1801,10 @@ mjit::Compiler::jsop_getelem_dense(bool isPacked)
     if (hoisted) {
         slotsReg = baseReg;
     } else {
-        masm.loadPtr(Address(baseReg, JSObject::offsetOfElements()), dataReg);
-        slotsReg = dataReg;
-    }
-
-    // Guard on the array's initialized length.
-    MaybeJump initlenGuard;
-    if (!hoisted) {
-        initlenGuard = masm.guardArrayExtent(ObjectElements::offsetOfInitializedLength(),
-                                             slotsReg, key, Assembler::BelowOrEqual);
         if (!allowUndefined)
             stubcc.linkExit(initlenGuard.get(), Uses(2));
+        masm.loadPtr(Address(baseReg, offsetof(JSObject, slots)), dataReg);
+        slotsReg = dataReg;
     }
 
     // Get the slot, skipping the hole check if the array is known to be packed.
@@ -2136,7 +2124,7 @@ mjit::Compiler::jsop_getelem(bool isCall)
 
     frame.forgetMismatchedObject(obj);
 
-    if (id->isType(JSVAL_TYPE_DOUBLE) || !globalObj) {
+    if (id->isType(JSVAL_TYPE_DOUBLE)) {
         if (isCall)
             jsop_callelem_slow();
         else
@@ -2212,12 +2200,9 @@ mjit::Compiler::jsop_getelem(bool isCall)
             stubcc.linkExitDirect(ic.typeGuard.get(), ic.slowPathStart);
         }
 
-        // Guard obj is a dense array.
-        Shape *shape = GetDenseArrayShape(cx, globalObj);
-        if (!shape)
-            return false;
-        ic.shapeGuard = masm.guardShape(ic.objReg, shape);
-        stubcc.linkExitDirect(ic.shapeGuard, ic.slowPathStart);
+        // Guard on the clasp.
+        ic.claspGuard = masm.testObjClass(Assembler::NotEqual, ic.objReg, &ArrayClass);
+        stubcc.linkExitDirect(ic.claspGuard, ic.slowPathStart);
 
         Int32Key key = id->isConstant()
                        ? Int32Key::FromConstant(id->getValue().toInt32())
@@ -2239,8 +2224,8 @@ mjit::Compiler::jsop_getelem(bool isCall)
     } else {
         // The type is known to not be dense-friendly ahead of time, so always
         // fall back to a slow path.
-        ic.shapeGuard = masm.jump();
-        stubcc.linkExitDirect(ic.shapeGuard, ic.slowPathStart);
+        ic.claspGuard = masm.jump();
+        stubcc.linkExitDirect(ic.claspGuard, ic.slowPathStart);
     }
 
     stubcc.leave();
@@ -2702,7 +2687,7 @@ mjit::Compiler::jsop_initprop()
 
     /* Perform the store. */
     Shape *shape = (Shape *) prop;
-    Address address = masm.objPropAddress(baseobj, objReg, shape->slot());
+    Address address = masm.objPropAddress(baseobj, objReg, shape->slot);
     frame.storeTo(fe, address);
     frame.freeReg(objReg);
 }
@@ -2733,12 +2718,14 @@ mjit::Compiler::jsop_initelem()
     int32 idx = id->getValue().toInt32();
 
     RegisterID objReg = frame.copyDataIntoReg(obj);
-    masm.loadPtr(Address(objReg, JSObject::offsetOfElements()), objReg);
 
-    /* Update the initialized length. */
-    masm.store32(Imm32(idx + 1), Address(objReg, ObjectElements::offsetOfInitializedLength()));
+    if (cx->typeInferenceEnabled()) {
+        /* Update the initialized length. */
+        masm.store32(Imm32(idx + 1), Address(objReg, JSObject::offsetOfInitializedLength()));
+    }
 
     /* Perform the store. */
+    masm.loadPtr(Address(objReg, offsetof(JSObject, slots)), objReg);
     frame.storeTo(fe, Address(objReg, idx * sizeof(Value)));
     frame.freeReg(objReg);
 }

@@ -1889,8 +1889,7 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
                                                const nsAString& repeat,
                                                nsIDOMCanvasPattern **_retval)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(image);
-  if (!content) {
+  if (!image) {
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
@@ -1909,7 +1908,9 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
+  nsCOMPtr<nsIContent> content = do_QueryInterface(image);
   nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content);
+
   if (canvas) {
     nsIntSize size = canvas->GetSize();
     if (size.width == 0 || size.height == 0) {
@@ -1938,8 +1939,8 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
   // The canvas spec says that createPattern should use the first frame
   // of animated images
   nsLayoutUtils::SurfaceFromElementResult res =
-    nsLayoutUtils::SurfaceFromElement(content->AsElement(),
-      nsLayoutUtils::SFE_WANT_FIRST_FRAME | nsLayoutUtils::SFE_WANT_NEW_SURFACE);
+    nsLayoutUtils::SurfaceFromElement(image, nsLayoutUtils::SFE_WANT_FIRST_FRAME |
+                                              nsLayoutUtils::SFE_WANT_NEW_SURFACE);
 
   if (!res.mSurface) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -3569,8 +3570,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
                                            float a6, float a7, float a8,
                                            PRUint8 optional_argc)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(imgElt);
-  if (!content) {
+  if (!imgElt) {
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
@@ -3591,6 +3591,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
   double sx,sy,sw,sh;
   double dx,dy,dw,dh;
 
+  nsCOMPtr<nsIContent> content = do_QueryInterface(imgElt);
   nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content);
   if (canvas) {
     nsIntSize size = canvas->GetSize();
@@ -3642,7 +3643,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
     // of animated images
     PRUint32 sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
-      nsLayoutUtils::SurfaceFromElement(content->AsElement(), sfeFlags);
+      nsLayoutUtils::SurfaceFromElement(imgElt, sfeFlags);
 
     if (!res.mSurface) {
       // Spec says to silently do nothing if the element is still loading.

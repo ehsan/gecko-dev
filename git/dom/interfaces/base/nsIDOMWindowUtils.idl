@@ -68,7 +68,7 @@ interface nsIDOMWindow;
 interface nsIDOMFile;
 interface nsIFile;
 
-[scriptable, uuid(bf868921-0288-4799-a806-2fa642590197)]
+[scriptable, uuid(c5cf91b3-0b89-4417-b13c-5540ba6ebde8)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -557,7 +557,7 @@ interface nsIDOMWindowUtils : nsISupports {
    * Returns the real classname (possibly of the mostly-transparent security
    * wrapper) of aObj.
    */
-  [implicit_jscontext] string getClassName(in jsval aObject);
+  string getClassName(/*in JSObjectPtr aObj*/);
 
   /**
    * Generate a content command event.

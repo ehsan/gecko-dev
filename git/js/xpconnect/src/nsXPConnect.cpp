@@ -830,11 +830,11 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     JSBool markJSObject = false;
     if (traceKind == JSTRACE_OBJECT) {
         obj = static_cast<JSObject*>(p);
-        clazz = js::GetObjectClass(obj);
+        clazz = obj->getClass();
 
         if (clazz == &XPC_WN_Tearoff_JSClass) {
             XPCWrappedNative *wrapper =
-                (XPCWrappedNative*)xpc_GetJSPrivate(js::GetObjectParent(obj));
+                (XPCWrappedNative*)xpc_GetJSPrivate(obj->getParent());
             dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
         } else if (IS_WRAPPER_CLASS(clazz) && IS_WN_WRAPPER_OBJECT(obj)) {
             XPCWrappedNative *wrapper = (XPCWrappedNative*)xpc_GetJSPrivate(obj);
@@ -901,15 +901,16 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                 "Script",
                 "Xml",
                 "Shape",
-                "BaseShape",
                 "TypeObject",
             };
             JS_STATIC_ASSERT(NS_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1);
             JS_snprintf(name, sizeof(name), "JS %s", trace_types[traceKind]);
         }
 
-        if(traceKind == JSTRACE_OBJECT) {
-            JSObject *global = JS_GetGlobalForObject(NULL, static_cast<JSObject*>(p));
+        if (traceKind == JSTRACE_OBJECT) {
+            JSObject *global = static_cast<JSObject*>(p), *parent;
+            while ((parent = global->getParent()))
+                global = parent;
             char fullname[100];
             JS_snprintf(fullname, sizeof(fullname),
                         "%s (global=%p)", name, global);
@@ -1301,7 +1302,7 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
 
     // voodoo to fixup scoping and parenting...
 
-    JS_ASSERT(!js::GetObjectParent(globalJSObj));
+    JS_ASSERT(!globalJSObj->getParent());
 
     JSObject* oldGlobal = JS_GetGlobalObject(aJSContext);
     if (!oldGlobal || oldGlobal == tempGlobal)
@@ -2077,7 +2078,7 @@ nsXPConnect::RestoreWrappedNativePrototype(JSContext * aJSContext,
     if (NS_FAILED(rv))
         return UnexpectedFailure(rv);
 
-    if (!IS_PROTO_CLASS(js::GetObjectClass(protoJSObject)))
+    if (!IS_PROTO_CLASS(protoJSObject->getClass()))
         return UnexpectedFailure(NS_ERROR_INVALID_ARG);
 
     XPCWrappedNativeScope* scope =
@@ -2728,7 +2729,7 @@ nsXPConnect::GetSafeJSContext(JSContext * *aSafeJSContext)
 nsIPrincipal*
 nsXPConnect::GetPrincipal(JSObject* obj, bool allowShortCircuit) const
 {
-    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)),
+    NS_ASSERTION(IS_WRAPPER_CLASS(obj->getClass()),
                  "What kind of wrapper is this?");
 
     if (IS_WN_WRAPPER_OBJECT(obj)) {

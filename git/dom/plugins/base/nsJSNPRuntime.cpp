@@ -40,7 +40,6 @@
 
 // FIXME(bug 332648): Give me a real API please!
 #include "jscntxt.h"
-#include "jsfriendapi.h"
 
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsJSNPRuntime.h"
@@ -1484,7 +1483,7 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     // the function object.
 
     if (npobj->_class->invoke) {
-      JSFunction *fun = ::JS_GetObjectFunction(funobj);
+      JSFunction *fun = (JSFunction *)::JS_GetPrivate(cx, funobj);
       JSString *name = ::JS_InternJSString(cx, ::JS_GetFunctionId(fun));
       NPIdentifier id = StringToNPIdentifier(cx, name);
 

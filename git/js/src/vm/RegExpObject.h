@@ -198,7 +198,7 @@ class RegExpObject : public ::JSObject
      * encoding their initial properties. Return the shape after
      * changing this regular expression object's last property to it.
      */
-    Shape *assignInitialShape(JSContext *cx);
+    const Shape *assignInitialShape(JSContext *cx);
 
     RegExpObject();
     RegExpObject &operator=(const RegExpObject &reo);

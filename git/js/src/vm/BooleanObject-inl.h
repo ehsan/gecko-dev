@@ -68,7 +68,7 @@ BooleanObject::create(JSContext *cx, bool b)
 inline BooleanObject *
 BooleanObject::createWithProto(JSContext *cx, bool b, JSObject &proto)
 {
-    JSObject *obj = NewObjectWithClassProto(cx, &BooleanClass, &proto, NULL,
+    JSObject *obj = NewObjectWithClassProto(cx, &BooleanClass, &proto,
                                             gc::GetGCObjectKind(RESERVED_SLOTS));
     if (!obj)
         return NULL;

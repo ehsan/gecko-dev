@@ -190,8 +190,7 @@ class GlobalObject : public ::JSObject {
      * ctor, a method which creates objects with the given class.
      */
     JSFunction *
-    createConstructor(JSContext *cx, JSNative ctor, Class *clasp, JSAtom *name, uintN length,
-                      gc::AllocKind kind = JSFunction::FinalizeKind);
+    createConstructor(JSContext *cx, JSNative ctor, Class *clasp, JSAtom *name, uintN length);
 
     /*
      * Create an object to serve as [[Prototype]] for instances of the given
@@ -277,14 +276,18 @@ class GlobalObject : public ::JSObject {
         HeapValue &v = getSlotRef(GENERATOR_PROTO);
         if (!v.isObject() && !js_InitIteratorClasses(cx, this))
             return NULL;
+        JS_ASSERT(v.toObject().isGenerator());
         return &v.toObject();
     }
-
-    inline RegExpStatics *getRegExpStatics() const;
 
     JSObject *getThrowTypeError() const {
         JS_ASSERT(functionObjectClassesInitialized());
         return &getSlot(THROWTYPEERROR).toObject();
+    }
+
+    RegExpStatics *getRegExpStatics() const {
+        JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
+        return static_cast<RegExpStatics *>(resObj.getPrivate());
     }
 
     void clear(JSContext *cx);
@@ -340,12 +343,6 @@ DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFun
 typedef HashSet<GlobalObject *, DefaultHasher<GlobalObject *>, SystemAllocPolicy> GlobalObjectSet;
 
 } // namespace js
-
-inline bool
-JSObject::isGlobal() const
-{
-    return !!(js::GetObjectClass(this)->flags & JSCLASS_IS_GLOBAL);
-}
 
 js::GlobalObject *
 JSObject::asGlobal()

@@ -887,7 +887,7 @@ CommitHelper::Run()
   }
 
   if (mConnection) {
-    IndexedDatabaseManager::SetCurrentWindow(database->Owner());
+    IndexedDatabaseManager::SetCurrentDatabase(database);
 
     if (!mAborted) {
       NS_NAMED_LITERAL_CSTRING(release, "COMMIT TRANSACTION");
@@ -923,7 +923,7 @@ CommitHelper::Run()
     mConnection->Close();
     mConnection = nsnull;
 
-    IndexedDatabaseManager::SetCurrentWindow(nsnull);
+    IndexedDatabaseManager::SetCurrentDatabase(nsnull);
   }
 
   return NS_OK;

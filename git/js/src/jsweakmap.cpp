@@ -283,6 +283,8 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
     if (!obj)
         return false;
 
+    obj->initPrivate(NULL);
+
     vp->setObject(*obj);
     return true;
 }
@@ -326,6 +328,7 @@ js_InitWeakMapClass(JSContext *cx, JSObject *obj)
     JSObject *weakMapProto = global->createBlankPrototype(cx, &WeakMapClass);
     if (!weakMapProto)
         return NULL;
+    weakMapProto->initPrivate(NULL);
 
     JSFunction *ctor = global->createConstructor(cx, WeakMap_construct, &WeakMapClass,
                                                  CLASS_ATOM(cx, WeakMap), 0);

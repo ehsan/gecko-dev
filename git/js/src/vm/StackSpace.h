@@ -311,10 +311,10 @@ class ContextStack
      * The 'stackLimit' overload updates 'stackLimit' if it changes.
      */
     bool pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                         JSFunction &callee, JSScript *script,
+                         JSObject &callee, JSFunction *fun, JSScript *script,
                          InitialFrameFlags initial);
     bool pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                         JSFunction &callee, JSScript *script,
+                         JSObject &callee, JSFunction *fun, JSScript *script,
                          InitialFrameFlags initial, Value **stackLimit);
     void popInlineFrame(FrameRegs &regs);
 

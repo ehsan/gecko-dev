@@ -393,7 +393,7 @@ class StackFrame
      */
 
     /* Used for Invoke, Interpret, trace-jit LeaveTree, and method-jit stubs. */
-    void initCallFrame(JSContext *cx, JSFunction &callee,
+    void initCallFrame(JSContext *cx, JSObject &callee, JSFunction *fun,
                        JSScript *script, uint32 nactual, StackFrame::Flags flags);
 
     /* Used for SessionInvoke. */
@@ -766,7 +766,10 @@ class StackFrame
      * only be changed to something that is equivalent to the current callee in
      * terms of numFormalArgs etc. Prefer overwriteCallee since it checks.
      */
-    inline void overwriteCallee(JSObject &newCallee);
+    void overwriteCallee(JSObject &newCallee) {
+        JS_ASSERT(callee().getFunctionPrivate() == newCallee.getFunctionPrivate());
+        mutableCalleev().setObject(newCallee);
+    }
 
     Value &mutableCalleev() const {
         JS_ASSERT(isFunctionFrame());
@@ -816,7 +819,14 @@ class StackFrame
      *   !fp->hasCall() && fp->scopeChain().isCall()
      */
 
-    inline JSObject &scopeChain() const;
+    JSObject &scopeChain() const {
+        JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
+        if (!(flags_ & HAS_SCOPECHAIN)) {
+            scopeChain_ = callee().getParent();
+            flags_ |= HAS_SCOPECHAIN;
+        }
+        return *scopeChain_;
+    }
 
     bool hasCallObj() const {
         bool ret = !!(flags_ & HAS_CALL_OBJ);
@@ -865,7 +875,12 @@ class StackFrame
      * variables object to collect and discard the script's global variables.
      */
 
-    inline JSObject &varObj();
+    JSObject &varObj() {
+        JSObject *obj = &scopeChain();
+        while (!obj->isVarObj())
+            obj = obj->getParent();
+        return *obj;
+    }
 
     /*
      * Frame compartment
@@ -874,7 +889,10 @@ class StackFrame
      * compartment when the frame was pushed.
      */
 
-    inline JSCompartment *compartment() const;
+    JSCompartment *compartment() const {
+        JS_ASSERT_IF(isScriptFrame(), scopeChain().compartment() == script()->compartment());
+        return scopeChain().compartment();
+    }
 
     /* Annotation (will be removed after bug 546848) */
 

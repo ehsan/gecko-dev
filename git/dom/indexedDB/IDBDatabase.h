@@ -122,6 +122,8 @@ public:
     return doc.forget();
   }
 
+  bool IsQuotaDisabled();
+
   nsCString& Origin()
   {
     return mASCIIOrigin;

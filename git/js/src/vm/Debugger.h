@@ -447,7 +447,7 @@ Debugger::toJSObject() const
 Debugger *
 Debugger::fromJSObject(JSObject *obj)
 {
-    JS_ASSERT(js::GetObjectClass(obj) == &jsclass);
+    JS_ASSERT(obj->getClass() == &jsclass);
     return (Debugger *) obj->getPrivate();
 }
 
