@@ -824,12 +824,13 @@ stubs::DecLocal(VMFrame &f, uint32 slot)
 }
 
 void JS_FASTCALL
-stubs::DefFun(VMFrame &f, JSFunction *fun)
+stubs::DefFun(VMFrame &f, uint32 index)
 {
     JSObject *obj2;
 
     JSContext *cx = f.cx;
     JSStackFrame *fp = f.fp();
+    JSScript *script = fp->getScript();
 
     /*
      * A top-level function defined in Global or Eval code (see ECMA-262
@@ -837,6 +838,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
      * a compound statement (not at the top statement level of global code, or
      * at the top level of a function body).
      */
+    JSFunction *fun = script->getFunction(index);
     JSObject *obj = FUN_OBJECT(fun);
 
     if (FUN_NULL_CLOSURE(fun)) {

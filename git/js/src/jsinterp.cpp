@@ -6320,7 +6320,7 @@ BEGIN_CASE(JSOP_XMLNAME)
         goto error;
     regs.sp[-1] = rval;
     if (op == JSOP_CALLXMLNAME)
-        SLOW_PUSH_THISV(cx, obj);
+        PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_XMLNAME)
 
