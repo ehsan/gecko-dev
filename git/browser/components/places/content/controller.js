@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ForgetAboutSite",
                                   "resource://gre/modules/ForgetAboutSite.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
@@ -56,8 +57,6 @@ InsertionPoint.prototype = {
   set index(val) {
     return this._index = val;
   },
-
-  promiseGUID: function () PlacesUtils.promiseItemGUID(this.itemId),
 
   get index() {
     if (this.dropNearItemId > 0) {
@@ -137,7 +136,10 @@ PlacesController.prototype = {
       case "cmd_paste":
       case "placesCmd_paste":
       case "placesCmd_new:folder":
+      case "placesCmd_new:livemark":
       case "placesCmd_new:bookmark":
+      case "placesCmd_new:separator":
+      case "placesCmd_sortBy:name":
       case "placesCmd_createBookmark":
         return false;
       }
@@ -188,6 +190,7 @@ PlacesController.prototype = {
       var selectedNode = this._view.selectedNode;
       return selectedNode && PlacesUtils.nodeIsURI(selectedNode);
     case "placesCmd_new:folder":
+    case "placesCmd_new:livemark":
       return this._canInsert();
     case "placesCmd_new:bookmark":
       return this._canInsert();
@@ -221,18 +224,10 @@ PlacesController.prototype = {
   doCommand: function PC_doCommand(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      if (!PlacesUIUtils.useAsyncTransactions) {
-        PlacesUtils.transactionManager.undoTransaction();
-        return;
-      }
-      PlacesTransactions.undo().then(null, Cu.reportError);
+      PlacesUtils.transactionManager.undoTransaction();
       break;
     case "cmd_redo":
-      if (!PlacesUIUtils.useAsyncTransactions) {
-        PlacesUtils.transactionManager.redoTransaction();
-        return;
-      }
-      PlacesTransactions.redo().then(null, Cu.reportError);
+      PlacesUtils.transactionManager.redoTransaction();
       break;
     case "cmd_cut":
     case "placesCmd_cut":
@@ -278,8 +273,11 @@ PlacesController.prototype = {
     case "placesCmd_new:bookmark":
       this.newItem("bookmark");
       break;
+    case "placesCmd_new:livemark":
+      this.newItem("livemark");
+      break;
     case "placesCmd_new:separator":
-      this.newSeparator().then(null, Cu.reportError);
+      this.newSeparator();
       break;
     case "placesCmd_show:info":
       this.showBookmarkPropertiesForSelection();
@@ -291,7 +289,7 @@ PlacesController.prototype = {
       this.reloadSelectedLivemark();
       break;
     case "placesCmd_sortBy:name":
-      this.sortFolderByName().then(null, Cu.reportError);
+      this.sortFolderByName();
       break;
     case "placesCmd_createBookmark":
       let node = this._view.selectedNode;
@@ -769,28 +767,17 @@ PlacesController.prototype = {
   /**
    * Create a new Bookmark separator somewhere.
    */
-  newSeparator: Task.async(function* () {
+  newSeparator: function PC_newSeparator() {
     var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
-
-    if (!PlacesUIUtils.useAsyncTransactions) {
-      let txn = new PlacesCreateSeparatorTransaction(ip.itemId, ip.index);
-      PlacesUtils.transactionManager.doTransaction(txn);
-      // Select the new item.
-      let insertedNodeId = PlacesUtils.bookmarks
-                                      .getIdForItemAt(ip.itemId, ip.index);
-      this._view.selectItems([insertedNodeId], false);
-      return;
-    }
-
-    let txn = PlacesTransactions.NewSeparator({ parentGUID: yield ip.promiseGUID()
-                                              , index: ip.index });
-    let guid = yield PlacesTransactions.transact(txn);
-    let itemId = yield PlacesUtils.promiseItemId(guid);
-    // Select the new item.
-    this._view.selectItems([itemId], false);
-  }),
+    var txn = new PlacesCreateSeparatorTransaction(ip.itemId, ip.index);
+    PlacesUtils.transactionManager.doTransaction(txn);
+    // select the new item
+    var insertedNodeId = PlacesUtils.bookmarks
+                                    .getIdForItemAt(ip.itemId, ip.index);
+    this._view.selectItems([insertedNodeId], false);
+  },
 
   /**
    * Opens a dialog for moving the selected nodes.
@@ -804,16 +791,11 @@ PlacesController.prototype = {
   /**
    * Sort the selected folder by name
    */
-  sortFolderByName: Task.async(function* () {
-    let itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
-    if (!PlacesUIUtils.useAsyncTransactions) {
-      var txn = new PlacesSortFolderByNameTransaction(itemId);
-      PlacesUtils.transactionManager.doTransaction(txn);
-      return;
-    }
-    let guid = yield PlacesUtils.promiseItemGUID(itemId);
-    yield PlacesTransactions.transact(PlacesTransactions.SortByName(guid));
-  }),
+  sortFolderByName: function PC_sortFolderByName() {
+    var itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
+    var txn = new PlacesSortFolderByNameTransaction(itemId);
+    PlacesUtils.transactionManager.doTransaction(txn);
+  },
 
   /**
    * Walk the list of folders we're removing in this delete operation, and
@@ -1679,6 +1661,7 @@ function goUpdatePlacesCommands() {
   updatePlacesCommand("placesCmd_open:tab");
   updatePlacesCommand("placesCmd_new:folder");
   updatePlacesCommand("placesCmd_new:bookmark");
+  updatePlacesCommand("placesCmd_new:livemark");
   updatePlacesCommand("placesCmd_new:separator");
   updatePlacesCommand("placesCmd_show:info");
   updatePlacesCommand("placesCmd_moveBookmarks");

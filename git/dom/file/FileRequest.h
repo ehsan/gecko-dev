@@ -12,6 +12,8 @@
 
 #include "DOMRequest.h"
 
+class nsIDOMLockedFile;
+
 namespace mozilla {
 class EventChainPreVisitor;
 } // namespace mozilla

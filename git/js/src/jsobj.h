@@ -725,14 +725,13 @@ class JSObject : public js::ObjectImpl
         }
     }
 
-    void moveDenseElementsNoPreBarrier(uint32_t dstStart, uint32_t srcStart, uint32_t count) {
+    void moveDenseElementsUnbarriered(uint32_t dstStart, uint32_t srcStart, uint32_t count) {
         JS_ASSERT(!shadowZone()->needsBarrier());
 
         JS_ASSERT(dstStart + count <= getDenseCapacity());
         JS_ASSERT(srcStart + count <= getDenseCapacity());
 
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
-        DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
     }
 
     bool shouldConvertDoubleElements() {

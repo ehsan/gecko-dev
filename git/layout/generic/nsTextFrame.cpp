@@ -4441,6 +4441,7 @@ nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsFrame::DidSetStyleContext(aOldStyleContext);
+  ClearTextRuns();
 }
 
 class nsDisplayTextGeometry : public nsDisplayItemGenericGeometry

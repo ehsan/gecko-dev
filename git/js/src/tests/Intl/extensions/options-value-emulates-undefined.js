@@ -10,12 +10,6 @@ var summary =
 
 print(BUGNUMBER + ": " + summary);
 
-if (typeof Intl !== 'object' && typeof quit == 'function') {
-  print("Test skipped");
-  reportCompare(true, true);
-  quit(0);
-}
-
 /**************
  * BEGIN TEST *
  **************/

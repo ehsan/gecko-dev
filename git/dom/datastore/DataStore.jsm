@@ -134,32 +134,6 @@ this.DataStore.prototype = {
     });
   },
 
-  checkRevision: function(aReject, aRevisionStore, aRevisionId, aCallback) {
-    if (!aRevisionId) {
-      aCallback();
-      return;
-    }
-
-    let self = this;
-
-    let request = aRevisionStore.openCursor(null, 'prev');
-    request.onsuccess = function(aEvent) {
-      let cursor = aEvent.target.result;
-      if (!cursor) {
-        dump("This cannot really happen.");
-        return;
-      }
-
-      if (cursor.value.revisionId != aRevisionId) {
-        aReject(new self._window.DOMError("ConstraintError",
-                                          "RevisionId is not up-to-date"));
-        return;
-      }
-
-      aCallback();
-    }
-  },
-
   getInternal: function(aStore, aIds, aCallback) {
     debug("GetInternal: " + aIds.toSource());
 
@@ -422,7 +396,7 @@ this.DataStore.prototype = {
     );
   },
 
-  put: function(aObj, aId, aRevisionId) {
+  put: function(aObj, aId) {
     if (!validateId(aId)) {
       return throwInvalidArg(this._window);
     }
@@ -436,14 +410,12 @@ this.DataStore.prototype = {
     // Promise<void>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.checkRevision(aReject, aRevisionStore, aRevisionId, function() {
-          self.putInternal(aResolve, aStore, aRevisionStore, aObj, aId);
-        });
+        self.putInternal(aResolve, aStore, aRevisionStore, aObj, aId);
       }
     );
   },
 
-  add: function(aObj, aId, aRevisionId) {
+  add: function(aObj, aId) {
     if (aId) {
       if (!validateId(aId)) {
         return throwInvalidArg(this._window);
@@ -459,14 +431,12 @@ this.DataStore.prototype = {
     // Promise<int>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.checkRevision(aReject, aRevisionStore, aRevisionId, function() {
-          self.addInternal(aResolve, aStore, aRevisionStore, aObj, aId);
-        });
+        self.addInternal(aResolve, aStore, aRevisionStore, aObj, aId);
       }
     );
   },
 
-  remove: function(aId, aRevisionId) {
+  remove: function(aId) {
     if (!validateId(aId)) {
       return throwInvalidArg(this._window);
     }
@@ -480,14 +450,12 @@ this.DataStore.prototype = {
     // Promise<void>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.checkRevision(aReject, aRevisionStore, aRevisionId, function() {
-          self.removeInternal(aResolve, aStore, aRevisionStore, aId);
-        });
+        self.removeInternal(aResolve, aStore, aRevisionStore, aId);
       }
     );
   },
 
-  clear: function(aRevisionId) {
+  clear: function() {
     if (this._readOnly) {
       return throwReadOnly(this._window);
     }
@@ -497,9 +465,7 @@ this.DataStore.prototype = {
     // Promise<void>
     return this.newDBPromise("readwrite",
       function(aResolve, aReject, aTxn, aStore, aRevisionStore) {
-        self.checkRevision(aReject, aRevisionStore, aRevisionId, function() {
-          self.clearInternal(aResolve, aStore, aRevisionStore);
-        });
+        self.clearInternal(aResolve, aStore, aRevisionStore);
       }
     );
   },

@@ -10,6 +10,7 @@
 #include "nsAutoPtr.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "nsPIDOMWindow.h"
 
 namespace mozilla {
@@ -39,7 +40,7 @@ public:
 private:
   uint64_t mInnerWindowID, mOuterWindowID;
   const nsString mCallID;
-  nsAutoPtr<MediaStreamConstraintsInternal> mConstraints;
+  MediaStreamConstraintsInternal mConstraints;
 };
 
 } // namespace dom

@@ -6,8 +6,6 @@
 #define CacheFileUtils__h__
 
 #include "nsError.h"
-#include "nsCOMPtr.h"
-#include "nsString.h"
 
 class nsILoadContextInfo;
 class nsACString;
@@ -16,16 +14,11 @@ namespace mozilla {
 namespace net {
 namespace CacheFileUtils {
 
-already_AddRefed<nsILoadContextInfo>
-ParseKey(const nsCSubstring &aKey,
-         nsCSubstring *aIdEnhance = nullptr,
-         nsCSubstring *aURISpec = nullptr);
+nsresult ParseKey(const nsACString &aKey,
+                  nsILoadContextInfo **aInfo,
+                  nsACString *aURL);
 
-void
-AppendKeyPrefix(nsILoadContextInfo *aInfo, nsACString &_retval);
-
-void
-AppendTagWithValue(nsACString & aTarget, char const aTag, nsCSubstring const & aValue);
+void CreateKeyPrefix(nsILoadContextInfo* aInfo, nsACString &_retval);
 
 } // CacheFileUtils
 } // net

@@ -471,14 +471,6 @@ function getTab(aTarget, aWindow) {
   }
 }
 
-function getSources(aClient) {
-  let deferred = promise.defer();
-
-  aClient.getSources(({sources}) => deferred.resolve(sources));
-
-  return deferred.promise;
-}
-
 function initDebugger(aTarget, aWindow) {
   info("Initializing a debugger panel.");
 
@@ -508,136 +500,32 @@ function initDebugger(aTarget, aWindow) {
   });
 }
 
-// Creates an add-on debugger for a given add-on. The returned AddonDebugger
-// object must be destroyed before finishing the test
-function initAddonDebugger(aUrl) {
-  let addonDebugger = new AddonDebugger();
-  return addonDebugger.init(aUrl).then(() => addonDebugger);
-}
+function initAddonDebugger(aClient, aUrl, aFrame) {
+  info("Initializing an addon debugger panel.");
 
-function AddonDebugger() {
-  this._onMessage = this._onMessage.bind(this);
-}
-
-AddonDebugger.prototype = {
-  init: Task.async(function*(aUrl) {
-    info("Initializing an addon debugger panel.");
-
-    if (!DebuggerServer.initialized) {
-      DebuggerServer.init(() => true);
-      DebuggerServer.addBrowserActors();
-    }
-
-    this.frame = document.createElement("iframe");
-    this.frame.setAttribute("height", 400);
-    document.documentElement.appendChild(this.frame);
-    window.addEventListener("message", this._onMessage);
-
-    let transport = DebuggerServer.connectPipe();
-    this.client = new DebuggerClient(transport);
-
-    let connected = promise.defer();
-    this.client.connect(connected.resolve);
-    yield connected.promise;
-
-    let addonActor = yield getAddonActorForUrl(this.client, aUrl);
-
+  return getAddonActorForUrl(aClient, aUrl).then((addonActor) => {
     let targetOptions = {
       form: { addonActor: addonActor.actor, title: addonActor.name },
-      client: this.client,
+      client: aClient,
       chrome: true
     };
 
     let toolboxOptions = {
-      customIframe: this.frame
+      customIframe: aFrame
     };
 
     let target = devtools.TargetFactory.forTab(targetOptions);
-    let toolbox = yield gDevTools.showToolbox(target, "jsdebugger", devtools.Toolbox.HostType.CUSTOM, toolboxOptions);
-
+    return gDevTools.showToolbox(target, "jsdebugger", devtools.Toolbox.HostType.CUSTOM, toolboxOptions);
+  }).then(aToolbox => {
     info("Addon debugger panel shown successfully.");
 
-    this.debuggerPanel = toolbox.getCurrentPanel();
+    let debuggerPanel = aToolbox.getCurrentPanel();
 
     // Wait for the initial resume...
-    yield waitForClientEvents(this.debuggerPanel, "resumed");
-    yield prepareDebugger(this.debuggerPanel);
-  }),
-
-  destroy: Task.async(function*() {
-    let deferred = promise.defer();
-    this.client.close(deferred.resolve);
-    yield deferred.promise;
-    yield this.debuggerPanel._toolbox.destroy();
-    this.frame.remove();
-    window.removeEventListener("message", this._onMessage);
-  }),
-
-  /**
-   * Returns a list of the groups and sources in the UI. The returned array
-   * contains objects for each group with properties name and sources. The
-   * sources property contains an array with objects for each source for that
-   * group with properties label and url.
-   */
-  getSourceGroups: Task.async(function*() {
-    let debuggerWin = this.debuggerPanel.panelWin;
-    let sources = yield getSources(debuggerWin.gThreadClient);
-    ok(sources.length, "retrieved sources");
-
-    // groups will be the return value, groupmap and the maps we put in it will
-    // be used as quick lookups to add the url information in below
-    let groups = [];
-    let groupmap = new Map();
-
-    let uigroups = this.debuggerPanel.panelWin.document.querySelectorAll(".side-menu-widget-group");
-    for (let g of uigroups) {
-      let name = g.querySelector(".side-menu-widget-group-title .name").value;
-      let group = {
-        name: name,
-        sources: []
-      };
-      groups.push(group);
-      let labelmap = new Map();
-      groupmap.set(name, labelmap);
-
-      for (let l of g.querySelectorAll(".dbg-source-item")) {
-        let source = {
-          label: l.value,
-          url: null
-        };
-
-        labelmap.set(l.value, source);
-        group.sources.push(source);
-      }
-    }
-
-    for (let source of sources) {
-      let { label, group } = debuggerWin.DebuggerView.Sources.getItemByValue(source.url).attachment;
-
-      if (!groupmap.has(group)) {
-        ok(false, "Saw a source group not in the UI: " + group);
-        continue;
-      }
-
-      if (!groupmap.get(group).has(label)) {
-        ok(false, "Saw a source label not in the UI: " + label);
-        continue;
-      }
-
-      groupmap.get(group).get(label).url = source.url.split(" -> ").pop();
-    }
-
-    return groups;
-  }),
-
-  _onMessage: function(event) {
-    let json = JSON.parse(event.data);
-    switch (json.name) {
-      case "toolbox-title":
-        this.title = json.data.value;
-        break;
-    }
-  }
+    return waitForClientEvents(debuggerPanel, "resumed")
+      .then(() => prepareDebugger(debuggerPanel))
+      .then(() => debuggerPanel);
+  });
 }
 
 function initChromeDebugger(aOnClose) {

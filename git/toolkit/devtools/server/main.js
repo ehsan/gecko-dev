@@ -983,15 +983,15 @@ DebuggerServerConnection.prototype = {
    *
    * @param ActorPool aActorPool
    *        The ActorPool instance you want to remove.
-   * @param boolean aNoCleanup [optional]
-   *        True if you don't want to disconnect each actor from the pool, false
+   * @param boolean aCleanup
+   *        True if you want to disconnect each actor from the pool, false
    *        otherwise.
    */
-  removeActorPool: function DSC_removeActorPool(aActorPool, aNoCleanup) {
+  removeActorPool: function DSC_removeActorPool(aActorPool, aCleanup) {
     let index = this._extraPools.lastIndexOf(aActorPool);
     if (index > -1) {
       let pool = this._extraPools.splice(index, 1);
-      if (!aNoCleanup) {
+      if (aCleanup) {
         pool.map(function(p) { p.cleanup(); });
       }
     }

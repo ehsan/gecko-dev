@@ -269,11 +269,11 @@ nsIContent::LookupNamespaceURIInternal(const nsAString& aNamespacePrefix,
 }
 
 already_AddRefed<nsIURI>
-nsIContent::GetBaseURI(bool aTryUseXHRDocBaseURI) const
+nsIContent::GetBaseURI() const
 {
   nsIDocument* doc = OwnerDoc();
   // Start with document base
-  nsCOMPtr<nsIURI> base = doc->GetBaseURI(aTryUseXHRDocBaseURI);
+  nsCOMPtr<nsIURI> base = doc->GetDocBaseURI();
 
   // Collect array of xml:base attribute values up the parent chain. This
   // is slightly slower for the case when there are xml:base attributes, but
@@ -1915,12 +1915,6 @@ FragmentOrElement::AppendText(const char16_t* aBuffer, uint32_t aLength,
 
 bool
 FragmentOrElement::TextIsOnlyWhitespace()
-{
-  return false;
-}
-
-bool
-FragmentOrElement::HasTextForTranslation()
 {
   return false;
 }

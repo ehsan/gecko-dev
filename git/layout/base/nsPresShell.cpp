@@ -5268,9 +5268,9 @@ nsresult PresShell::SetResolution(float aXResolution, float aYResolution)
 gfxSize PresShell::GetCumulativeResolution()
 {
   gfxSize resolution = GetResolution();
-  nsPresContext* parentCtx = GetPresContext()->GetParentPresContext();
-  if (parentCtx) {
-    resolution = resolution * parentCtx->PresShell()->GetCumulativeResolution();
+  nsCOMPtr<nsIPresShell> parent = GetParentPresShell();
+  if (parent) {
+    resolution = resolution * parent->GetCumulativeResolution();
   }
   return resolution;
 }
@@ -6162,13 +6162,13 @@ PresShell::GetRootWindow()
 
   // If we don't have DOM window, we're zombie, we should find the root window
   // with our parent shell.
-  nsCOMPtr<nsIPresShell> parent = GetParentPresShellForEventHandling();
+  nsCOMPtr<nsIPresShell> parent = GetParentPresShell();
   NS_ENSURE_TRUE(parent, nullptr);
   return parent->GetRootWindow();
 }
 
 already_AddRefed<nsIPresShell>
-PresShell::GetParentPresShellForEventHandling()
+PresShell::GetParentPresShell()
 {
   NS_ENSURE_TRUE(mPresContext, nullptr);
 
@@ -6200,7 +6200,7 @@ PresShell::RetargetEventToParent(WidgetGUIEvent* aEvent,
   // That way at least the UI key bindings can work.
 
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
-  nsCOMPtr<nsIPresShell> parentPresShell = GetParentPresShellForEventHandling();
+  nsCOMPtr<nsIPresShell> parentPresShell = GetParentPresShell();
   NS_ENSURE_TRUE(parentPresShell, NS_ERROR_FAILURE);
 
   // Fake the event as though it's from the parent pres shell's root frame.

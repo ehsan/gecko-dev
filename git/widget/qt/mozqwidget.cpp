@@ -17,7 +17,7 @@ MozQWidget::MozQWidget(nsWindow* aReceiver, QWindow* aParent)
   , mReceiver(aReceiver)
   , mUpdatePending(false)
 {
-    mWindowType = mReceiver->WindowType();
+    mReceiver->GetWindowType(mWindowType);
 }
 
 MozQWidget::~MozQWidget()
