@@ -1089,8 +1089,13 @@ nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
   // XXXwaterson probably not the right way to get this; e.g., embeddings, etc.
   PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
 
-  // Only apply start-margin on the first-in flow for inline frames
-  if (pfd->mFrame->GetPrevContinuation()) {
+  // Only apply start-margin on the first-in flow for inline frames,
+  // and make sure to not apply it to the last part of an ib split.
+  // Note that the ib special sibling annotations only live on the
+  // first continuation, but we don't want to apply the start margin
+  // for later continuations anyway.
+  if (pfd->mFrame->GetPrevContinuation() ||
+      nsLayoutUtils::FrameIsInLastPartOfIBSplit(pfd->mFrame)) {
     // Zero this out so that when we compute the max-element-width of
     // the frame we will properly avoid adding in the starting margin.
     if (ltr)
@@ -1156,11 +1161,23 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
     // XXXwaterson this is probably not exactly right; e.g., embeddings, etc.
     PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
 
-    if ((NS_FRAME_IS_NOT_COMPLETE(aStatus) || (pfd->mFrame->GetNextContinuation() && !pfd->mFrame->GetNextInFlow())) 
+    /*
+     * We want to only apply the end margin if we're the last continuation and
+     * not in the first part of an {ib} split.  In all other cases we want to
+     * zero it out.  That means zeroing it out if any of these conditions hold:
+     * 1) The frame is not complete (in this case it will get a next-in-flow)
+     * 2) The frame is complete but has a non-fluid continuation.  Note that if
+     *    it has a fluid continuation, that continuation will get destroyed
+     *    later, so we don't want to drop the end-margin in that case.
+     *    // FIXME: bug 492469
+     * 3) The frame is in the first part of an {ib} split.
+     *
+     * However, none of that applies if this is a letter frame (XXXbz why?)
+     */
+    if ((NS_FRAME_IS_NOT_COMPLETE(aStatus) ||
+         (pfd->mFrame->GetNextContinuation() && !pfd->mFrame->GetNextInFlow()) ||
+         nsLayoutUtils::FrameIsInFirstPartOfIBSplit(pfd->mFrame))
         && !pfd->GetFlag(PFD_ISLETTERFRAME)) {
-      // Only apply end margin for the last-in-flow. Zero this out so
-      // that when we compute the max-element-width of the frame we
-      // will properly avoid adding in the end margin.
       if (ltr)
         pfd->mMargin.right = 0;
       else
@@ -2416,15 +2433,9 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
     printf(": availWidth=%d lineWidth=%d delta=%d\n",
            availWidth, aLineBounds.width, remainingWidth);
 #endif
-#ifdef IBMBIDI
   nscoord dx = 0;
-#endif
 
-  if (remainingWidth > 0)
-  {
-#ifndef IBMBIDI
-    nscoord dx = 0;
-#endif
+  if (remainingWidth > 0) {
     switch (mTextAlign) {
       case NS_STYLE_TEXT_ALIGN_JUSTIFY:
         // If this is not the last line then go ahead and justify the
@@ -2480,7 +2491,6 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
         dx = remainingWidth / 2;
         break;
     }
-#ifdef IBMBIDI
   }
   else if (remainingWidth < 0) {
     if (NS_STYLE_DIRECTION_RTL == psd->mDirection) {
@@ -2489,56 +2499,23 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
       psd->mLeftEdge += dx;
     }
   }
-  PRBool isRTL = ( (NS_STYLE_DIRECTION_RTL == psd->mDirection)
-                && (!psd->mChangedFrameDirection) );
-  if (dx || isRTL) {
-    nscoord maxX = aLineBounds.XMost() + dx;
-    PRBool isVisualRTL = PR_FALSE;
 
-    if (isRTL) {
-      if (psd->mLastFrame->GetFlag(PFD_ISBULLET) ) {
-        PerFrameData* bulletPfd = psd->mLastFrame;
-        bulletPfd->mBounds.x -= remainingWidth;
-        bulletPfd->mFrame->SetRect(bulletPfd->mBounds);
-      }
-  
-      psd->mChangedFrameDirection = PR_TRUE;
+  if (NS_STYLE_DIRECTION_RTL == psd->mDirection &&
+      !psd->mChangedFrameDirection) {
+    if (psd->mLastFrame->GetFlag(PFD_ISBULLET) ) {
+      PerFrameData* bulletPfd = psd->mLastFrame;
+      bulletPfd->mBounds.x -= remainingWidth;
+      bulletPfd->mFrame->SetRect(bulletPfd->mBounds);
+    }
+    psd->mChangedFrameDirection = PR_TRUE;
+  }
 
-      isVisualRTL = mPresContext->IsVisualMode();
+  if (dx) {
+    for (PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
+      pfd->mBounds.x += dx;
+      pfd->mFrame->SetRect(pfd->mBounds);
     }
-    if (dx || isVisualRTL)
-#else
-    if (0 != dx)
-#endif
-    {
-      for (PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
-#ifdef IBMBIDI
-        if (isVisualRTL) {
-          // XXXldb Ugh.  Could we handle this earlier so we don't get here?
-          maxX = pfd->mBounds.x = maxX - (pfd->mMargin.left + pfd->mBounds.width + pfd->mMargin.right);
-        }
-        else
-#endif // IBMBIDI
-          pfd->mBounds.x += dx;
-        pfd->mFrame->SetRect(pfd->mBounds);
-      }
-      aLineBounds.x += dx;
-    }
-#ifndef IBMBIDI
-    if ((NS_STYLE_DIRECTION_RTL == psd->mDirection) &&
-        !psd->mChangedFrameDirection) {
-      psd->mChangedFrameDirection = PR_TRUE;
-  
-      PerFrameData* pfd = psd->mFirstFrame;
-      PRUint32 maxX = psd->mRightEdge;
-      while (nsnull != pfd) {
-        pfd->mBounds.x = maxX - (pfd->mMargin.left + pfd->mBounds.width + pfd->mMargin.right);
-        pfd->mFrame->SetRect(pfd->mBounds);
-        maxX = pfd->mBounds.x;
-        pfd = pfd->mNext;
-      }
-    }
-#endif // ndef IBMBIDI
+    aLineBounds.x += dx;
   }
 }
 
